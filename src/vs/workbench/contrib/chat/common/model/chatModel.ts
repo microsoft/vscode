@@ -1421,6 +1421,16 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._shouldBeRemovedOnSend = undefined;
 	}
 
+	override dispose(): void {
+		super.dispose();
+		// Break back-reference to ChatModel to prevent retention cycles
+		this._session = undefined!;
+		this._response.clear();
+		if (this._codeBlockInfos) {
+			this._codeBlockInfos.length = 0;
+		}
+	}
+
 	toJSON(): ISerializableChatResponseData {
 		const modelState = this._modelState.get();
 		const pendingConfirmation = this.isPendingConfirmation.get();
@@ -2783,10 +2793,24 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	override dispose() {
-		this._requests.forEach(r => r.response?.dispose());
+		this._requests.forEach(r => {
+			r.response?.dispose();
+			// Break back-reference from request to this model
+			// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
+			(r as any)._session = undefined;
+		});
 		this._onDidDispose.fire();
 
 		super.dispose();
+
+		// Null out heavy fields to break retention chains. Even after disposal,
+		// stale references (closures, cached templates, etc.) may prevent GC
+		// from collecting this object. Clearing these fields ensures the
+		// conversation data, serialization snapshot, and editing session are
+		// freed regardless.
+		this._requests.length = 0;
+		this.dataSerializer = undefined;
+		this._editingSession = undefined;
 	}
 }
 

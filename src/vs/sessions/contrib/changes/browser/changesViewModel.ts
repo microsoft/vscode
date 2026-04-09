@@ -14,6 +14,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { GitDiffChange, GitRepositoryState, IGitRepository, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
+import { hasGitHubRemotes } from '../../../../workbench/contrib/git/common/utils.js';
 import { COPILOT_CLOUD_SESSION_TYPE } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
@@ -45,10 +46,12 @@ export interface ActiveSessionState {
 	readonly hasGitRepository: boolean;
 	readonly branchName: string | undefined;
 	readonly baseBranchName: string | undefined;
+	readonly upstreamBranchName: string | undefined;
 	readonly isMergeBaseBranchProtected: boolean | undefined;
 	readonly incomingChanges: number | undefined;
 	readonly outgoingChanges: number | undefined;
 	readonly uncommittedChanges: number | undefined;
+	readonly hasGitHubRemote: boolean | undefined;
 	readonly hasPullRequest: boolean | undefined;
 	readonly hasOpenPullRequest: boolean | undefined;
 }
@@ -184,9 +187,12 @@ export class ChangesViewModel extends Disposable {
 	}
 
 	private _getActiveSessionGitRepository(): { repository: IObservable<IGitRepository | undefined>; repositoryState: IObservable<GitRepositoryState | undefined> } {
-		const activeSessionRepositoryObs = derived(reader => {
-			const activeSession = this.sessionManagementService.activeSession.read(reader);
-			return activeSession?.workspace.read(reader)?.repositories[0];
+		const activeSessionRepositoryPathObs = derived(reader => {
+			const metadata = this._activeSessionMetadataObs.read(reader);
+			const repositoryPath = metadata?.repositoryPath as string | undefined;
+			const worktreePath = metadata?.worktreePath as string | undefined;
+
+			return worktreePath ?? repositoryPath;
 		});
 
 		const activeSessionRepositoryPromiseObs = derived(reader => {
@@ -195,13 +201,11 @@ export class ChangesViewModel extends Disposable {
 				return constObservable(undefined);
 			}
 
-			const metadata = this._activeSessionMetadataObs.read(reader);
-			const activeSessionRepository = activeSessionRepositoryObs.read(reader);
+			const activeSessionRepositoryPath = activeSessionRepositoryPathObs.read(reader);
+			const workingDirectory = activeSessionRepositoryPath
+				? URI.file(activeSessionRepositoryPath)
+				: undefined;
 
-			const repositoryPath = metadata?.repositoryPath as string | undefined;
-			const workingDirectory = repositoryPath
-				? URI.file(repositoryPath)
-				: activeSessionRepository?.workingDirectory ?? activeSessionRepository?.uri;
 			if (!workingDirectory) {
 				return constObservable(undefined);
 			}
@@ -383,12 +387,16 @@ export class ChangesViewModel extends Disposable {
 
 			// Pull request state
 			const gitHubInfo = activeSession?.gitHubInfo.read(reader);
+			const hasGitHubRemote = hasGitHubRemotes(repositoryState!);
 			const hasPullRequest = gitHubInfo?.pullRequest?.uri !== undefined;
 			const hasOpenPullRequest = hasPullRequest &&
 				(gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequestDraft.id ||
 					gitHubInfo.pullRequest.icon?.id === Codicon.gitPullRequest.id);
 
 			// Repository state
+			const upstreamBranchName = hasGitRepository && repositoryState?.HEAD?.upstream
+				? `${repositoryState.HEAD.upstream.remote}/${repositoryState.HEAD.upstream.name}`
+				: undefined;
 			const incomingChanges = hasGitRepository
 				? repositoryState?.HEAD?.behind ?? 0
 				: undefined;
@@ -408,9 +416,11 @@ export class ChangesViewModel extends Disposable {
 				branchName,
 				baseBranchName,
 				isMergeBaseBranchProtected,
+				upstreamBranchName,
 				incomingChanges,
 				outgoingChanges,
 				uncommittedChanges,
+				hasGitHubRemote,
 				hasPullRequest,
 				hasOpenPullRequest
 			} satisfies ActiveSessionState;

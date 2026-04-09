@@ -24,7 +24,7 @@ import * as pfs from '../../../base/node/pfs.js';
 import { extract, IFile, zip } from '../../../base/node/zip.js';
 import * as nls from '../../../nls.js';
 import { IDownloadService } from '../../download/common/download.js';
-import { INativeEnvironmentService } from '../../environment/common/environment.js';
+import { IEnvironmentService, INativeEnvironmentService } from '../../environment/common/environment.js';
 import { AbstractExtensionManagementService, AbstractExtensionTask, IInstallExtensionTask, InstallExtensionTaskOptions, IUninstallExtensionTask, toExtensionManagementError, UninstallExtensionTaskOptions } from '../common/abstractExtensionManagementService.js';
 import {
 	ExtensionManagementError, ExtensionManagementErrorCode, IExtensionGalleryService, IExtensionIdentifier, IExtensionManagementService, IGalleryExtension, ILocalExtension, InstallOperation,
@@ -544,6 +544,7 @@ export class ExtensionsScanner extends Disposable {
 
 	constructor(
 		private readonly beforeRemovingExtension: (e: ILocalExtension) => Promise<void>,
+		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@IFileService private readonly fileService: IFileService,
 		@IExtensionsScannerService private readonly extensionsScannerService: IExtensionsScannerService,
 		@IExtensionsProfileScannerService private readonly extensionsProfileScannerService: IExtensionsProfileScannerService,
@@ -937,6 +938,9 @@ export class ExtensionsScanner extends Disposable {
 	}
 
 	private async removeStaleAutoUpdateBuiltinExtensions(): Promise<void> {
+		if (this.environmentService.extensionTestsLocationURI) {
+			return;
+		}
 		const autoUpdateBuiltinExtensions = this.productService.builtInExtensionsEnabledWithAutoUpdates;
 		if (!autoUpdateBuiltinExtensions?.length) {
 			return;

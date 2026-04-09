@@ -474,6 +474,12 @@ export function sessionReducer(state: ISessionState, action: ISessionAction, log
 				summary: { ...state.summary, isDone: action.isDone },
 			};
 
+		case ActionType.SessionDiffsChanged:
+			return {
+				...state,
+				summary: { ...state.summary, diffs: action.diffs },
+			};
+
 		case ActionType.SessionServerToolsChanged:
 			return { ...state, serverTools: action.tools };
 

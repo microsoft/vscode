@@ -68,6 +68,13 @@ export class MockCliSdkSessionManager {
 	}
 	deleteSession(id: string) { this.sessions.delete(id); return Promise.resolve(); }
 	closeSession(_id: string) { return Promise.resolve(); }
+	forkSession(sourceId: string, _toEventId?: string): Promise<{ sessionId: string }> {
+		const newId = `${sourceId}-fork-${generateUuid()}`;
+		const source = this.sessions.get(sourceId);
+		const s = new MockCliSdkSession(newId, source?.startTime ?? new Date());
+		this.sessions.set(newId, s);
+		return Promise.resolve({ sessionId: newId });
+	}
 }
 
 export class NullCopilotCLIAgents implements ICopilotCLIAgents {

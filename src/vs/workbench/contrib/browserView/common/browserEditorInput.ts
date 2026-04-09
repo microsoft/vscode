@@ -134,9 +134,11 @@ export class BrowserEditorInput extends EditorInput {
 				this._register(this._model.onDidNavigate(() => this._onDidChangeLabel.fire()));
 
 				// Navigate to initial URL if provided
-				if (this._initialData.url && this._model.url !== this._initialData.url) {
-					void this._model.loadURL(this._initialData.url);
+				if (this._initialData.url) {
+					this._model.setInitialURL(this._initialData.url, this._initialData.title, this._initialData.favicon);
 				}
+
+				this._onDidChangeLabel.fire();
 
 				return this._model;
 			})();

@@ -191,6 +191,7 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly onWillDispose: Event<void>;
 
 	initialize(create: boolean): Promise<void>;
+	setInitialURL(url: string, title?: string, favicon?: string): void;
 
 	layout(bounds: IBrowserViewBounds): Promise<void>;
 	setVisible(visible: boolean): Promise<void>;
@@ -431,6 +432,19 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		this._register(this.playwrightService.onDidChangeTrackedPages(ids => {
 			this._setSharedWithAgent(ids.includes(this.id));
 		}));
+	}
+
+	setInitialURL(url: string, title?: string, favicon?: string): void {
+		if (this._url !== url) {
+			this._url = url;
+			this._title = title || '';
+			this._favicon = favicon;
+			this._loading = true;
+			this._error = undefined;
+			this._certificateError = undefined;
+
+			void this.loadURL(url); // Non-blocking
+		}
 	}
 
 	async layout(bounds: IBrowserViewBounds): Promise<void> {

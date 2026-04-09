@@ -758,9 +758,16 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 				// (see CapturingToken setup in defaultIntentRequestHandler).
 				if (parentChatSessionId && chatSessionId) {
 					const childLabel = debugLogLabel ?? `runSubagent-${agentName}`;
-					this._instantiationService.invokeFunction(accessor =>
-						accessor.get(IChatDebugFileLoggerService).startChildSession(
-							chatSessionId, parentChatSessionId, childLabel, parentTraceContext?.spanId));
+					const fileLogger = this._instantiationService.invokeFunction(accessor =>
+						accessor.get(IChatDebugFileLoggerService));
+					fileLogger.startChildSession(
+						chatSessionId, parentChatSessionId, childLabel, parentTraceContext?.spanId);
+					// Also register the invoke_agent span's ID so that hook spans
+					// (whose parentSpanId is this span) are routed to the child session.
+					const invokeSpanId = span.getSpanContext()?.spanId;
+					if (invokeSpanId) {
+						fileLogger.registerSpanSession(invokeSpanId, chatSessionId);
+					}
 				}
 
 				// Emit session start event and metric for top-level agent invocations (not subagents)

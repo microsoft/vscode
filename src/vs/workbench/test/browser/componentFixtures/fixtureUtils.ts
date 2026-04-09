@@ -502,7 +502,11 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 
 	// Allow additional services to override defaults
 	options?.additionalServices?.({
-		define,
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		define: <T>(id: ServiceIdentifier<T>, ctor: new (...args: any[]) => T) => {
+			services.set(id, new SyncDescriptor(ctor));
+			serviceIdentifiers.push(id);
+		},
 		defineInstance: <T>(id: ServiceIdentifier<T>, instance: T) => {
 			services.set(id, instance);
 			serviceIdentifiers.push(id);

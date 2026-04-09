@@ -118,4 +118,24 @@ export class MockChatSessionMetadataStore implements IChatSessionMetadataStore {
 		}
 		return undefined;
 	}
+
+	async storeForkedSessionMetadata(sourceSessionId: string, targetSessionId: string, customTitle: string): Promise<void> {
+		await this.setCustomTitle(targetSessionId, customTitle);
+		const worktree = this._worktreeProperties.get(sourceSessionId);
+		if (worktree) {
+			this._worktreeProperties.set(targetSessionId, worktree);
+		}
+		const folder = this._workspaceFolders.get(sourceSessionId);
+		if (folder) {
+			this._workspaceFolders.set(targetSessionId, folder);
+		}
+		const additional = this._additionalWorkspaces.get(sourceSessionId);
+		if (additional) {
+			this._additionalWorkspaces.set(targetSessionId, additional);
+		}
+		const firstMsg = this._firstUserMessages.get(sourceSessionId);
+		if (firstMsg) {
+			this._firstUserMessages.set(targetSessionId, firstMsg);
+		}
+	}
 }

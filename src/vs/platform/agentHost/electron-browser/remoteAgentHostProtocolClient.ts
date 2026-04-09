@@ -9,22 +9,23 @@
 
 import { DeferredPromise } from '../../../base/common/async.js';
 import { Emitter } from '../../../base/common/event.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, IReference } from '../../../base/common/lifecycle.js';
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, IFileService, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { AgentSession, IAgentConnection, IAgentCreateSessionConfig, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult } from '../common/agentService.js';
+import { AgentSubscriptionManager, type IAgentSubscription } from '../common/state/agentSubscription.js';
 import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../common/agentHostUri.js';
 import type { IClientNotificationMap, ICommandMap } from '../common/state/protocol/messages.js';
-import type { IActionEnvelope, INotification, ISessionAction } from '../common/state/sessionActions.js';
+import type { IActionEnvelope, INotification, ISessionAction, ITerminalAction } from '../common/state/sessionActions.js';
+import { ISessionSummary, ROOT_STATE_URI, StateComponents, type IRootState } from '../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../common/state/sessionCapabilities.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, type IJsonRpcResponse, type IProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { isClientTransport, type IProtocolTransport } from '../common/state/sessionTransport.js';
 import { AhpErrorCodes } from '../common/state/protocol/errors.js';
-import { ContentEncoding } from '../common/state/protocol/commands.js';
-import type { ISessionSummary } from '../common/state/sessionState.js';
+import { ContentEncoding, type ICreateTerminalParams } from '../common/state/protocol/commands.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 
 /**
@@ -46,6 +47,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	private _serverSeq = 0;
 	private _nextClientSeq = 1;
 	private _defaultDirectory: string | undefined;
+	private readonly _subscriptionManager: AgentSubscriptionManager;
 
 	private readonly _onDidAction = this._register(new Emitter<IActionEnvelope>());
 	readonly onDidAction = this._onDidAction.event;
@@ -85,6 +87,19 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		this._register(this._transport);
 		this._register(this._transport.onMessage(msg => this._handleMessage(msg)));
 		this._register(this._transport.onClose(() => this._onDidClose.fire()));
+
+		this._subscriptionManager = this._register(new AgentSubscriptionManager(
+			this._clientId,
+			() => this.nextClientSeq(),
+			msg => this._logService.warn(`[RemoteAgentHostProtocolClient] ${msg}`),
+			resource => this.subscribe(resource),
+			resource => this.unsubscribe(resource),
+		));
+
+		// Forward action envelopes from the transport to the subscription manager
+		this._register(this.onDidAction(envelope => {
+			this._subscriptionManager.receiveEnvelope(envelope);
+		}));
 	}
 
 	/**
@@ -98,11 +113,17 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		const result = await this._sendRequest('initialize', {
 			protocolVersion: PROTOCOL_VERSION,
 			clientId: this._clientId,
+			initialSubscriptions: [ROOT_STATE_URI],
 		});
 		this._serverSeq = result.serverSeq;
-		// defaultDirectory arrives from the protocol as either a URI string
-		// (e.g. "file:///Users/roblou") or a serialized URI object
-		// ({ scheme, path, ... }). Extract just the filesystem path.
+
+		// Hydrate root state from the initial snapshot
+		for (const snapshot of result.snapshots ?? []) {
+			if (snapshot.resource === ROOT_STATE_URI) {
+				this._subscriptionManager.handleRootSnapshot(snapshot.state as IRootState, snapshot.fromSeq);
+			}
+		}
+
 		if (result.defaultDirectory) {
 			const dir = result.defaultDirectory;
 			if (typeof dir === 'string') {
@@ -111,6 +132,21 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 				this._defaultDirectory = URI.revive(dir).path;
 			}
 		}
+	}
+
+	// ---- IAgentConnection subscription API ----------------------------------
+
+	get rootState(): IAgentSubscription<IRootState> {
+		return this._subscriptionManager.rootState;
+	}
+
+	getSubscription<T>(kind: StateComponents, resource: URI): IReference<IAgentSubscription<T>> {
+		return this._subscriptionManager.getSubscription<T>(kind, resource);
+	}
+
+	dispatch(action: ISessionAction | ITerminalAction): void {
+		const seq = this._subscriptionManager.dispatchOptimistic(action);
+		this.dispatchAction(action, this._clientId, seq);
 	}
 
 	/**
@@ -131,7 +167,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	/**
 	 * Dispatch a client action to the server. Returns the clientSeq used.
 	 */
-	dispatchAction(action: ISessionAction, _clientId: string, clientSeq: number): void {
+	dispatchAction(action: ISessionAction | ITerminalAction, _clientId: string, clientSeq: number): void {
 		this._sendNotification('dispatchAction', { clientSeq, action });
 	}
 
@@ -170,6 +206,20 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 */
 	async disposeSession(session: URI): Promise<void> {
 		await this._sendRequest('disposeSession', { session: session.toString() });
+	}
+
+	/**
+	 * Create a new terminal on the remote agent host.
+	 */
+	async createTerminal(params: ICreateTerminalParams): Promise<void> {
+		await this._sendRequest('createTerminal', params);
+	}
+
+	/**
+	 * Dispose a terminal on the remote agent host.
+	 */
+	async disposeTerminal(terminal: URI): Promise<void> {
+		await this._sendRequest('disposeTerminal', { terminal: terminal.toString() });
 	}
 
 	/**
@@ -238,13 +288,13 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			switch (msg.method) {
 				case 'action': {
 					// Protocol envelope → VS Code envelope (superset of action types)
-					const envelope = msg.params as unknown as IActionEnvelope;
+					const envelope = msg.params;
 					this._serverSeq = Math.max(this._serverSeq, envelope.serverSeq);
 					this._onDidAction.fire(envelope);
 					break;
 				}
 				case 'notification': {
-					const notification = msg.params.notification as unknown as INotification;
+					const notification = msg.params.notification;
 					this._logService.trace(`[RemoteAgentHostProtocol] Notification: ${notification.type}`);
 					this._onDidNotification.fire(notification);
 					break;

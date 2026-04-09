@@ -55,6 +55,13 @@ export interface IChatDebugFileLoggerService {
 	startChildSession(childSessionId: string, parentSessionId: string, label: string, parentToolSpanId?: string): void;
 
 	/**
+	 * Register a span ID → session ID mapping so that child spans
+	 * (e.g. hooks) are routed to the correct session before the
+	 * parent span completes.
+	 */
+	registerSpanSession(spanId: string, sessionId: string): void;
+
+	/**
 	 * End logging for a session. Performs a final flush and removes the
 	 * session from the active set.
 	 */
@@ -170,6 +177,7 @@ export class NullChatDebugFileLoggerService implements IChatDebugFileLoggerServi
 
 	async startSession(): Promise<void> { }
 	startChildSession(): void { }
+	registerSpanSession(): void { }
 	async endSession(): Promise<void> { }
 	async flush(): Promise<void> { }
 	getLogPath(_sessionId?: string): URI | undefined { return undefined; }

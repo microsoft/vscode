@@ -9,7 +9,7 @@ import type * as vscode from 'vscode';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { ChatReferenceBinaryData, ChatRequestTurn, ChatRequestTurn2, ChatResponseMarkdownPart, ChatResponseThinkingProgressPart, ChatResponseTurn2, ChatToolInvocationPart } from '../../../../vscodeTypes';
 import { IClaudeCodeSession, ISubagentSession, StoredMessage, SYNTHETIC_MODEL_ID } from '../../claude/node/sessionParser/claudeSessionSchema';
-import { buildChatHistory, collectSdkModelIds } from '../chatHistoryBuilder';
+import { buildChatHistory } from '../chatHistoryBuilder';
 
 // #region Test Helpers
 
@@ -1220,35 +1220,8 @@ describe('buildChatHistory', () => {
 
 	// #region Model ID Resolution
 
-	describe('model ID resolution via modelIdMap', () => {
-		it('tags request turns with the mapped model ID from the following assistant message', () => {
-			const s = session([
-				userMsg('Hello'),
-				assistantMsg([{ type: 'text', text: 'Hi' }], 'claude-opus-4-5-20251101'),
-			]);
-
-			const modelIdMap = new Map([['claude-opus-4-5-20251101', 'claude-opus-4.5']]);
-			const result = buildChatHistory(s, modelIdMap);
-
-			const requestTurn = result[0] as vscode.ChatRequestTurn2;
-			expect(requestTurn).toBeInstanceOf(ChatRequestTurn2);
-			expect(requestTurn.modelId).toBe('claude-opus-4.5');
-		});
-
-		it('falls back to raw SDK model ID when modelIdMap has no entry', () => {
-			const s = session([
-				userMsg('Hello'),
-				assistantMsg([{ type: 'text', text: 'Hi' }], 'claude-unknown-1-0-20251101'),
-			]);
-
-			const modelIdMap = new Map<string, string>();
-			const result = buildChatHistory(s, modelIdMap);
-
-			const requestTurn = result[0] as vscode.ChatRequestTurn2;
-			expect(requestTurn.modelId).toBe('claude-unknown-1-0-20251101');
-		});
-
-		it('returns raw SDK model ID when no modelIdMap is provided', () => {
+	describe('model ID resolution via parseClaudeModelId', () => {
+		it('converts SDK model ID to endpoint format on request turns', () => {
 			const s = session([
 				userMsg('Hello'),
 				assistantMsg([{ type: 'text', text: 'Hi' }], 'claude-opus-4-5-20251101'),
@@ -1257,7 +1230,20 @@ describe('buildChatHistory', () => {
 			const result = buildChatHistory(s);
 
 			const requestTurn = result[0] as vscode.ChatRequestTurn2;
-			expect(requestTurn.modelId).toBe('claude-opus-4-5-20251101');
+			expect(requestTurn).toBeInstanceOf(ChatRequestTurn2);
+			expect(requestTurn.modelId).toBe('claude-opus-4.5');
+		});
+
+		it('falls back to raw model ID when parsing fails', () => {
+			const s = session([
+				userMsg('Hello'),
+				assistantMsg([{ type: 'text', text: 'Hi' }], 'unknown-model-id'),
+			]);
+
+			const result = buildChatHistory(s);
+
+			const requestTurn = result[0] as vscode.ChatRequestTurn2;
+			expect(requestTurn.modelId).toBe('unknown-model-id');
 		});
 
 		it('skips synthetic assistant messages when resolving model ID', () => {
@@ -1267,8 +1253,7 @@ describe('buildChatHistory', () => {
 				assistantMsg([{ type: 'text', text: 'Real response' }], 'claude-sonnet-4-20250514'),
 			]);
 
-			const modelIdMap = new Map([['claude-sonnet-4-20250514', 'claude-sonnet-4']]);
-			const result = buildChatHistory(s, modelIdMap);
+			const result = buildChatHistory(s);
 
 			const requestTurn = result[0] as vscode.ChatRequestTurn2;
 			expect(requestTurn.modelId).toBe('claude-sonnet-4');
@@ -1279,8 +1264,7 @@ describe('buildChatHistory', () => {
 				userMsg('Hello'),
 			]);
 
-			const modelIdMap = new Map([['claude-opus-4-5-20251101', 'claude-opus-4.5']]);
-			const result = buildChatHistory(s, modelIdMap);
+			const result = buildChatHistory(s);
 
 			const requestTurn = result[0] as vscode.ChatRequestTurn2;
 			expect(requestTurn.modelId).toBeUndefined();
@@ -1294,11 +1278,7 @@ describe('buildChatHistory', () => {
 				assistantMsg([{ type: 'text', text: 'Second answer' }], 'claude-opus-4-5-20251101'),
 			]);
 
-			const modelIdMap = new Map([
-				['claude-sonnet-4-20250514', 'claude-sonnet-4'],
-				['claude-opus-4-5-20251101', 'claude-opus-4.5'],
-			]);
-			const result = buildChatHistory(s, modelIdMap);
+			const result = buildChatHistory(s);
 
 			const firstRequest = result[0] as vscode.ChatRequestTurn2;
 			expect(firstRequest.modelId).toBe('claude-sonnet-4');
@@ -1307,81 +1287,29 @@ describe('buildChatHistory', () => {
 			expect(secondRequest.modelId).toBe('claude-opus-4.5');
 		});
 
-		it('tags command request turns with mapped model ID', () => {
+		it('tags command request turns with converted model ID', () => {
 			const s = session([
 				userMsg('<command-name>/compact</command-name><command-message>compact</command-message>'),
 				assistantMsg([{ type: 'text', text: 'Compacted.' }], 'claude-sonnet-4-20250514'),
 			]);
 
-			const modelIdMap = new Map([['claude-sonnet-4-20250514', 'claude-sonnet-4']]);
-			const result = buildChatHistory(s, modelIdMap);
+			const result = buildChatHistory(s);
 
 			const commandTurn = result[0] as vscode.ChatRequestTurn2;
 			expect(commandTurn.prompt).toBe('/compact');
 			expect(commandTurn.modelId).toBe('claude-sonnet-4');
 		});
-	});
 
-	// #endregion
-
-	// #region collectSdkModelIds
-
-	describe('collectSdkModelIds', () => {
-		it('collects unique SDK model IDs from assistant messages', () => {
+		it('preserves endpoint-format model IDs as-is', () => {
 			const s = session([
 				userMsg('Hello'),
-				assistantMsg([{ type: 'text', text: 'Hi' }], 'claude-sonnet-4-20250514'),
-				userMsg('Again'),
-				assistantMsg([{ type: 'text', text: 'Hello again' }], 'claude-opus-4-5-20251101'),
+				assistantMsg([{ type: 'text', text: 'Hi' }], 'claude-opus-4.5'),
 			]);
 
-			const ids = collectSdkModelIds(s);
-			expect(ids).toEqual(new Set(['claude-sonnet-4-20250514', 'claude-opus-4-5-20251101']));
-		});
+			const result = buildChatHistory(s);
 
-		it('deduplicates repeated model IDs', () => {
-			const s = session([
-				userMsg('Hello'),
-				assistantMsg([{ type: 'text', text: 'Hi' }], 'claude-sonnet-4-20250514'),
-				userMsg('Again'),
-				assistantMsg([{ type: 'text', text: 'Hello again' }], 'claude-sonnet-4-20250514'),
-			]);
-
-			const ids = collectSdkModelIds(s);
-			expect(ids).toEqual(new Set(['claude-sonnet-4-20250514']));
-		});
-
-		it('skips synthetic model IDs', () => {
-			const s = session([
-				userMsg('Hello'),
-				assistantMsg([{ type: 'text', text: 'No response requested.' }], SYNTHETIC_MODEL_ID),
-				assistantMsg([{ type: 'text', text: 'Real' }], 'claude-sonnet-4-20250514'),
-			]);
-
-			const ids = collectSdkModelIds(s);
-			expect(ids).toEqual(new Set(['claude-sonnet-4-20250514']));
-		});
-
-		it('skips user and system messages', () => {
-			const s = session([
-				userMsg('Hello'),
-				{
-					uuid: 'sys-1',
-					sessionId: 'test-session',
-					timestamp: new Date(),
-					parentUuid: null,
-					type: 'system',
-					message: { role: 'system', content: 'Conversation compacted' },
-				} as StoredMessage,
-			]);
-
-			const ids = collectSdkModelIds(s);
-			expect(ids.size).toBe(0);
-		});
-
-		it('returns empty set for sessions with no messages', () => {
-			const ids = collectSdkModelIds(session([]));
-			expect(ids.size).toBe(0);
+			const requestTurn = result[0] as vscode.ChatRequestTurn2;
+			expect(requestTurn.modelId).toBe('claude-opus-4.5');
 		});
 	});
 

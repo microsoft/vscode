@@ -5,7 +5,7 @@
 
 import { DeferredPromise } from '../../../base/common/async.js';
 import { Emitter } from '../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IReference } from '../../../base/common/lifecycle.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { getDelayedChannel, ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { Client as MessagePortClient } from '../../../base/parts/ipc/common/ipc.mp.js';
@@ -14,8 +14,11 @@ import { InstantiationType, registerSingleton } from '../../instantiation/common
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentHostEnabledSettingId, AgentHostIpcChannels, IAgentCreateSessionConfig, IAgentHostService, IAgentService, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult } from '../common/agentService.js';
-import type { IActionEnvelope, INotification, ISessionAction } from '../common/state/sessionActions.js';
+import { AgentSubscriptionManager, type IAgentSubscription } from '../common/state/agentSubscription.js';
+import type { ICreateTerminalParams } from '../common/state/protocol/commands.js';
+import type { IActionEnvelope, INotification, ISessionAction, ITerminalAction } from '../common/state/sessionActions.js';
 import type { IResourceCopyParams, IResourceCopyResult, IResourceDeleteParams, IResourceDeleteResult, IResourceListResult, IResourceMoveParams, IResourceMoveResult, IResourceReadResult, IResourceWriteParams, IResourceWriteResult, IStateSnapshot } from '../common/state/sessionProtocol.js';
+import { StateComponents, ROOT_STATE_URI, type IRootState } from '../common/state/sessionState.js';
 import { revive } from '../../../base/common/marshalling.js';
 import { URI } from '../../../base/common/uri.js';
 
@@ -33,6 +36,7 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 
 	private readonly _clientEventually = new DeferredPromise<MessagePortClient>();
 	private readonly _proxy: IAgentService;
+	private readonly _subscriptionManager: AgentSubscriptionManager;
 
 	private readonly _onAgentHostExit = this._register(new Emitter<number>());
 	readonly onAgentHostExit = this._onAgentHostExit.event;
@@ -57,6 +61,14 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 			getDelayedChannel(this._clientEventually.p.then(client => client.getChannel(AgentHostIpcChannels.AgentHost)))
 		);
 
+		this._subscriptionManager = this._register(new AgentSubscriptionManager(
+			this.clientId,
+			() => this.nextClientSeq(),
+			msg => this._logService.warn(`[AgentHost:renderer] ${msg}`),
+			resource => this.subscribe(resource),
+			resource => this.unsubscribe(resource),
+		));
+
 		if (configurationService.getValue<boolean>(AgentHostEnabledSettingId)) {
 			this._connect();
 		}
@@ -72,13 +84,22 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 		this._clientEventually.complete(client);
 
 		store.add(this._proxy.onDidAction(e => {
-			this._onDidAction.fire(revive(e));
+			const revived = revive(e) as IActionEnvelope;
+			this._subscriptionManager.receiveEnvelope(revived);
+			this._onDidAction.fire(revived);
 		}));
 		store.add(this._proxy.onDidNotification(e => {
 			this._onDidNotification.fire(revive(e));
 		}));
 		this._logService.info('[AgentHost:renderer] Direct MessagePort connection established');
 		this._onAgentHostStart.fire();
+
+		// Subscribe to root state
+		this.subscribe(URI.parse(ROOT_STATE_URI)).then(snapshot => {
+			this._subscriptionManager.handleRootSnapshot(snapshot.state as IRootState, snapshot.fromSeq);
+		}).catch(err => {
+			this._logService.error('[AgentHost:renderer] Failed to subscribe to root state', err);
+		});
 	}
 
 	// ---- IAgentService forwarding (no await needed, delayed channel handles queuing) ----
@@ -95,6 +116,12 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 	disposeSession(session: URI): Promise<void> {
 		return this._proxy.disposeSession(session);
 	}
+	createTerminal(params: ICreateTerminalParams): Promise<void> {
+		return this._proxy.createTerminal(params);
+	}
+	disposeTerminal(terminal: URI): Promise<void> {
+		return this._proxy.disposeTerminal(terminal);
+	}
 	shutdown(): Promise<void> {
 		return this._proxy.shutdown();
 	}
@@ -104,13 +131,27 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 	unsubscribe(resource: URI): void {
 		this._proxy.unsubscribe(resource);
 	}
-	dispatchAction(action: ISessionAction, clientId: string, clientSeq: number): void {
+	dispatchAction(action: ISessionAction | ITerminalAction, clientId: string, clientSeq: number): void {
 		this._proxy.dispatchAction(action, clientId, clientSeq);
 	}
 	private _nextSeq = 1;
 	nextClientSeq(): number {
 		return this._nextSeq++;
 	}
+
+	get rootState(): IAgentSubscription<IRootState> {
+		return this._subscriptionManager.rootState;
+	}
+
+	getSubscription<T>(kind: StateComponents, resource: URI): IReference<IAgentSubscription<T>> {
+		return this._subscriptionManager.getSubscription<T>(kind, resource);
+	}
+
+	dispatch(action: ISessionAction | ITerminalAction): void {
+		const seq = this._subscriptionManager.dispatchOptimistic(action);
+		this.dispatchAction(action, this.clientId, seq);
+	}
+
 	resourceList(uri: URI): Promise<IResourceListResult> {
 		return this._proxy.resourceList(uri);
 	}

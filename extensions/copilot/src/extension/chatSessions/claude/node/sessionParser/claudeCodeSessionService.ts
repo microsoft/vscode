@@ -10,7 +10,7 @@
  * `@anthropic-ai/claude-agent-sdk` session APIs. It handles:
  * - Listing sessions via `listSessions()`
  * - Loading full session content via `getSessionInfo()` + `getSessionMessages()`
- * - Subagent loading from raw JSONL (SDK doesn't expose subagent transcripts yet)
+ * - Subagent loading via `listSubagents()` + `getSubagentMessages()`
  *
  * ## Directory Structure
  * Sessions are stored in:
@@ -22,45 +22,22 @@
 import type { CancellationToken } from 'vscode';
 import { INativeEnvService } from '../../../../../platform/env/common/envService';
 import { IFileSystemService } from '../../../../../platform/filesystem/common/fileSystemService';
-import { FileType } from '../../../../../platform/filesystem/common/fileTypes';
 import { ILogService } from '../../../../../platform/log/common/logService';
 import { IWorkspaceService } from '../../../../../platform/workspace/common/workspaceService';
 import { createServiceIdentifier } from '../../../../../util/common/services';
-import { CancellationError } from '../../../../../util/vs/base/common/errors';
 import { basename } from '../../../../../util/vs/base/common/resources';
 import { URI } from '../../../../../util/vs/base/common/uri';
 import { IFolderRepositoryManager } from '../../../../chatSessions/common/folderRepositoryManager';
 import { ClaudeSessionUri } from '../../common/claudeSessionUri';
 import { IClaudeCodeSdkService } from '../claudeCodeSdkService';
 import { getProjectFolders } from '../claudeProjectFolders';
-import { buildSubagentSession, parseSessionFileContent } from './claudeSessionParser';
 import {
 	IClaudeCodeSession,
 	IClaudeCodeSessionInfo,
 	ISubagentSession,
 } from './claudeSessionSchema';
-import { buildClaudeCodeSession, sdkSessionInfoToSessionInfo, SubagentCorrelationMap } from './sdkSessionAdapter';
-
-// #region Utility Functions
-
-/**
- * Type-safe extraction of error code from unknown error values.
- * Handles Node.js errors, VS Code FileSystemError, and other error types.
- */
-function getErrorCode(error: unknown): string | undefined {
-	if (error === null || error === undefined) {
-		return undefined;
-	}
-	if (typeof error !== 'object') {
-		return undefined;
-	}
-	if ('code' in error && typeof error.code === 'string') {
-		return error.code;
-	}
-	return undefined;
-}
-
-// #endregion
+import { buildClaudeCodeSession, sdkSessionInfoToSessionInfo, sdkSubagentMessagesToSubagentSession, SubagentCorrelationMap } from './sdkSessionAdapter';
+import { toErrorMessage } from '../../../../../util/common/errorMessage';
 
 // #region Service Interface
 
@@ -131,7 +108,7 @@ export class ClaudeCodeSessionService implements IClaudeCodeSessionService {
 
 	/**
 	 * Get a specific session with full content by its resource URI.
-	 * Uses SDK APIs for metadata and messages, with raw JSONL parsing only for subagents.
+	 * Uses SDK APIs for metadata, messages, and subagent transcripts.
 	 */
 	async getSession(resource: URI, token: CancellationToken): Promise<IClaudeCodeSession | undefined> {
 		const sessionId = ClaudeSessionUri.getSessionId(resource);
@@ -155,8 +132,8 @@ export class ClaudeCodeSessionService implements IClaudeCodeSessionService {
 					return undefined;
 				}
 
-				// Load subagents from raw JSONL (SDK doesn't expose these yet)
-				const { subagents, correlationMap } = await this._loadSubagents(sessionId, slug, token);
+				// Load subagents via SDK
+				const { subagents, correlationMap } = await this._loadSubagents(sessionId, slug, dir, token);
 
 				const folderName = basename(folderUri);
 				return buildClaudeCodeSession(info, messages, subagents, correlationMap, folderName);
@@ -183,82 +160,42 @@ export class ClaudeCodeSessionService implements IClaudeCodeSessionService {
 	// #region Subagent Loading
 
 	/**
-	 * Read a directory, returning an empty array if the directory doesn't exist.
-	 */
-	private async _tryReadDirectory(dirUri: URI): Promise<[string, FileType][]> {
-		try {
-			return await this._fileSystem.readDirectory(dirUri);
-		} catch (e) {
-			const code = getErrorCode(e);
-			switch (code) {
-				case 'FileNotFound':
-				case 'DirectoryNotFound':
-				case 'ENOENT':
-					break;
-				default:
-					this._logService.error(e, `[ClaudeCodeSessionService] Failed to read directory: ${dirUri}`);
-					break;
-			}
-			return [];
-		}
-	}
-
-	/**
-	 * Load subagents for a session and extract the UUID→agentId correlation map
-	 * from the parent JSONL file (needed because the SDK strips `toolUseResult.agentId`).
+	 * Load subagents for a session using the SDK and extract the UUID→agentId
+	 * correlation map from the parent JSONL file (needed because the SDK strips
+	 * `toolUseResult.agentId`).
 	 */
 	private async _loadSubagents(
 		sessionId: string,
 		slug: string,
+		dir: string,
 		token: CancellationToken,
 	): Promise<{ subagents: readonly ISubagentSession[]; correlationMap: SubagentCorrelationMap }> {
-		const projectDirUri = URI.joinPath(this._envService.userHome, '.claude', 'projects', slug);
-		const subagentsDirUri = URI.joinPath(projectDirUri, sessionId, 'subagents');
-		const subagentEntries = await this._tryReadDirectory(subagentsDirUri);
-		if (subagentEntries.length === 0) {
+		let agentIds: string[];
+		try {
+			agentIds = await this._sdkService.listSubagents(sessionId, { dir });
+		} catch (error) {
+			this._logService.warn(`[ClaudeCodeSessionService] listSubagents failed: ${toErrorMessage(error)}`);
 			return { subagents: [], correlationMap: new Map() };
 		}
 
-		const subagents = await this._loadSubagentsFromEntries(subagentsDirUri, subagentEntries, token);
-		if (subagents.length === 0) {
+		if (agentIds.length === 0 || token.isCancellationRequested) {
 			return { subagents: [], correlationMap: new Map() };
 		}
 
-		// Extract the correlation map from the parent session JSONL
-		const correlationMap = await this._extractSubagentCorrelation(projectDirUri, sessionId);
+		const subagentTasks = agentIds.map(agentId =>
+			this._loadSubagentFromSdk(sessionId, agentId, dir)
+		);
 
-		return { subagents, correlationMap };
-	}
+		const [results, correlationMap] = await Promise.all([
+			Promise.allSettled(subagentTasks),
+			this._extractSubagentCorrelation(
+				URI.joinPath(this._envService.userHome, '.claude', 'projects', slug),
+				sessionId,
+			),
+		]);
 
-	/**
-	 * Load all subagent sessions from pre-read directory entries.
-	 */
-	private async _loadSubagentsFromEntries(
-		subagentsDirUri: URI,
-		entries: [string, FileType][],
-		token: CancellationToken,
-	): Promise<ISubagentSession[]> {
-		const subagentTasks: Promise<ISubagentSession | null>[] = [];
-
-		for (const [name, type] of entries) {
-			if (type !== FileType.File) {
-				continue;
-			}
-			// Match agent-{id}.jsonl pattern
-			if (!name.startsWith('agent-') || !name.endsWith('.jsonl')) {
-				continue;
-			}
-			const agentId = name.slice(6, -6); // Extract ID from agent-{id}.jsonl
-			if (agentId.length === 0) {
-				continue;
-			}
-			const fileUri = URI.joinPath(subagentsDirUri, name);
-			subagentTasks.push(this._parseSubagentFile(agentId, fileUri, token));
-		}
-
-		const results = await Promise.allSettled(subagentTasks);
 		if (token.isCancellationRequested) {
-			return [];
+			return { subagents: [], correlationMap: new Map() };
 		}
 
 		const subagents: ISubagentSession[] = [];
@@ -271,32 +208,22 @@ export class ClaudeCodeSessionService implements IClaudeCodeSessionService {
 		// Sort by timestamp
 		subagents.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
 
-		return subagents;
+		return { subagents, correlationMap };
 	}
 
 	/**
-	 * Parse a single subagent file.
+	 * Load a single subagent's messages via the SDK.
 	 */
-	private async _parseSubagentFile(
+	private async _loadSubagentFromSdk(
+		sessionId: string,
 		agentId: string,
-		fileUri: URI,
-		token: CancellationToken,
+		dir: string,
 	): Promise<ISubagentSession | null> {
 		try {
-			const content = await this._fileSystem.readFile(fileUri, true);
-			if (token.isCancellationRequested) {
-				throw new CancellationError();
-			}
-
-			const text = Buffer.from(content).toString('utf8');
-			const parseResult = parseSessionFileContent(text, fileUri.fsPath);
-
-			return buildSubagentSession(agentId, parseResult);
-		} catch (e) {
-			if (e instanceof CancellationError) {
-				throw e;
-			}
-			this._logService.debug(`[ClaudeCodeSessionService] Failed to parse subagent: ${fileUri}`);
+			const messages = await this._sdkService.getSubagentMessages(sessionId, agentId, { dir });
+			return sdkSubagentMessagesToSubagentSession(agentId, messages);
+		} catch (error) {
+			this._logService.warn(`[ClaudeCodeSessionService] Failed to load subagent ${agentId} for session ${sessionId}: ${toErrorMessage(error)}`);
 			return null;
 		}
 	}

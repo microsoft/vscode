@@ -1801,4 +1801,84 @@ describe('ChatSessionMetadataStore', () => {
 		});
 	});
 
+	// ──────────────────────────────────────────────────────────────────────────
+	// storeForkedSessionMetadata
+	// ──────────────────────────────────────────────────────────────────────────
+	describe('storeForkedSessionMetadata', () => {
+		it('copies workspace folder info from source to target with the provided custom title', async () => {
+			mockFs.mockFile(BULK_METADATA_FILE, JSON.stringify({}));
+			const store = await createStore();
+
+			await store.storeWorkspaceFolderInfo('source-session', { folderPath: Uri.file('/workspace/project').fsPath, timestamp: 100 });
+			await store.storeForkedSessionMetadata('source-session', 'forked-session', 'Forked: My Task');
+
+			expect(await store.getSessionWorkspaceFolder('forked-session')).toEqual(Uri.file('/workspace/project'));
+			expect(await store.getCustomTitle('forked-session')).toBe('Forked: My Task');
+			store.dispose();
+		});
+
+		it('copies worktree properties from source to target', async () => {
+			mockFs.mockFile(BULK_METADATA_FILE, JSON.stringify({}));
+			const store = await createStore();
+			const worktree = makeWorktreeV2Props();
+
+			await store.storeWorktreeInfo('source-session', worktree);
+			await store.storeForkedSessionMetadata('source-session', 'forked-session', 'Forked: Worktree Task');
+
+			expect(await store.getWorktreeProperties('forked-session')).toEqual(worktree);
+			expect(await store.getCustomTitle('forked-session')).toBe('Forked: Worktree Task');
+			store.dispose();
+		});
+
+		it('overrides the custom title even when source had a different title', async () => {
+			mockFs.mockFile(BULK_METADATA_FILE, JSON.stringify({}));
+			const store = await createStore();
+
+			await store.setCustomTitle('source-session', 'Original Title');
+			await store.storeWorkspaceFolderInfo('source-session', { folderPath: Uri.file('/workspace').fsPath, timestamp: 1 });
+			await store.storeForkedSessionMetadata('source-session', 'forked-session', 'Forked: Original Title');
+
+			expect(await store.getCustomTitle('forked-session')).toBe('Forked: Original Title');
+			store.dispose();
+		});
+
+		it('does not affect source session metadata', async () => {
+			mockFs.mockFile(BULK_METADATA_FILE, JSON.stringify({}));
+			const store = await createStore();
+
+			await store.storeWorkspaceFolderInfo('source-session', { folderPath: Uri.file('/workspace/src').fsPath, timestamp: 200 });
+			await store.storeForkedSessionMetadata('source-session', 'forked-session', 'Forked: Src');
+
+			// Source session should be unchanged
+			expect(await store.getSessionWorkspaceFolder('source-session')).toEqual(Uri.file('/workspace/src'));
+			expect(await store.getCustomTitle('source-session')).toBeUndefined();
+			store.dispose();
+		});
+
+		it('works when source session has no metadata (target gets only the custom title)', async () => {
+			mockFs.mockFile(BULK_METADATA_FILE, JSON.stringify({}));
+			const store = await createStore();
+
+			await store.storeForkedSessionMetadata('nonexistent-source', 'forked-session', 'Forked: Empty');
+
+			expect(await store.getCustomTitle('forked-session')).toBe('Forked: Empty');
+			expect(await store.getSessionWorkspaceFolder('forked-session')).toBeUndefined();
+			store.dispose();
+		});
+
+		it('copies repository properties from source to target', async () => {
+			mockFs.mockFile(BULK_METADATA_FILE, JSON.stringify({}));
+			const store = await createStore();
+
+			await store.storeWorkspaceFolderInfo('source-session', { folderPath: Uri.file('/workspace').fsPath, timestamp: 1 });
+			await store.storeRepositoryProperties('source-session', { repositoryPath: Uri.file('/workspace').fsPath, branchName: 'main', baseBranchName: 'main' });
+			await store.storeForkedSessionMetadata('source-session', 'forked-session', 'Forked: Repo');
+
+			expect(await store.getRepositoryProperties('forked-session')).toEqual(
+				expect.objectContaining({ repositoryPath: Uri.file('/workspace').fsPath, branchName: 'main' })
+			);
+			store.dispose();
+		});
+	});
+
 });

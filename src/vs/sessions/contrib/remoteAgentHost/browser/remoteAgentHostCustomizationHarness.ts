@@ -13,7 +13,8 @@ import { AICustomizationManagementSection, type IStorageSourceFilter } from '../
 import { PromptsStorage } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { type IHarnessDescriptor, type IExternalCustomizationItem, type IExternalCustomizationItemProvider } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
-import { SessionClientState } from '../../../../platform/agentHost/common/state/sessionClientState.js';
+import type { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
+import { ActionType } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { type IAgentInfo, type ICustomizationRef, type ISessionCustomization, CustomizationStatus } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { BUILTIN_STORAGE } from '../../chat/common/builtinPromptsStorage.js';
 import { AgentCustomizationSyncProvider } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentCustomizationSyncProvider.js';
@@ -52,16 +53,19 @@ export class RemoteAgentCustomizationItemProvider extends Disposable implements 
 
 	constructor(
 		agentInfo: IAgentInfo,
-		private readonly _clientState: SessionClientState,
+		connection: IAgentConnection,
 	) {
 		super();
 		this._agentCustomizations = agentInfo.customizations ?? [];
 
-		// Listen for session state changes that include customization updates
-		this._register(this._clientState.onDidChangeSessionState(({ state }) => {
-			if (state.customizations !== this._sessionCustomizations) {
-				this._sessionCustomizations = state.customizations;
-				this._onDidChange.fire();
+		// Listen for customization changes from any session via action events
+		this._register(connection.onDidAction(envelope => {
+			if (envelope.action.type === ActionType.SessionCustomizationsChanged) {
+				const customizations = (envelope.action as { customizations?: ISessionCustomization[] }).customizations;
+				if (customizations && customizations !== this._sessionCustomizations) {
+					this._sessionCustomizations = customizations;
+					this._onDidChange.fire();
+				}
 			}
 		}));
 	}

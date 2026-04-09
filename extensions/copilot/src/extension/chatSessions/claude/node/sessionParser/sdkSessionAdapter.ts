@@ -174,6 +174,34 @@ function sdkSessionMessageToStoredMessage(
 
 // #endregion
 
+// #region Subagent Session Building
+
+/**
+ * Converts SDK `SessionMessage[]` (from `getSubagentMessages`) into an
+ * `ISubagentSession` for display in the chat history.
+ *
+ * @param agentId The subagent identifier
+ * @param messages SDK subagent messages
+ * @returns A subagent session, or null if no valid messages
+ */
+export function sdkSubagentMessagesToSubagentSession(
+	agentId: string,
+	messages: readonly SessionMessage[],
+): ISubagentSession | null {
+	const storedMessages = sdkSessionMessagesToStoredMessages(messages);
+	if (storedMessages.length === 0) {
+		return null;
+	}
+
+	return {
+		agentId,
+		messages: storedMessages,
+		timestamp: storedMessages[storedMessages.length - 1].timestamp,
+	};
+}
+
+// #endregion
+
 // #region Full Session Assembly
 
 /**

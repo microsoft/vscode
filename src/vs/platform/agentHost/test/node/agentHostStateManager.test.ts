@@ -10,12 +10,12 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { NullLogService } from '../../../log/common/log.js';
 import { ActionType, NotificationType, type IActionEnvelope, type INotification } from '../../common/state/sessionActions.js';
 import { ISessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, type IMarkdownResponsePart, type ISessionState } from '../../common/state/sessionState.js';
-import { SessionStateManager } from '../../node/sessionStateManager.js';
+import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 
-suite('SessionStateManager', () => {
+suite('AgentHostStateManager', () => {
 
 	let disposables: DisposableStore;
-	let manager: SessionStateManager;
+	let manager: AgentHostStateManager;
 	const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' }).toString();
 
 	function makeSessionSummary(resource?: string): ISessionSummary {
@@ -31,7 +31,7 @@ suite('SessionStateManager', () => {
 
 	setup(() => {
 		disposables = new DisposableStore();
-		manager = disposables.add(new SessionStateManager(new NullLogService()));
+		manager = disposables.add(new AgentHostStateManager(new NullLogService()));
 	});
 
 	teardown(() => {

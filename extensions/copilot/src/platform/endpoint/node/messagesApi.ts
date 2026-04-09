@@ -5,7 +5,7 @@
 
 import { ContentBlockParam, DocumentBlockParam, ImageBlockParam, MessageParam, RedactedThinkingBlockParam, TextBlockParam, ThinkingBlockParam, ToolReferenceBlockParam, ToolResultBlockParam } from '@anthropic-ai/sdk/resources';
 import { Raw } from '@vscode/prompt-tsx';
-import { Response } from '../../../platform/networking/common/fetcherService';
+import { Response, withStreamIdleTimeout } from '../../../platform/networking/common/fetcherService';
 import { AsyncIterableObject } from '../../../util/vs/base/common/async';
 import { SSEParser } from '../../../util/vs/base/common/sseParser';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
@@ -593,7 +593,7 @@ export async function processResponseFromMessagesEndpoint(
 			}
 		});
 
-		for await (const chunk of response.body) {
+		for await (const chunk of withStreamIdleTimeout(response.body)) {
 			parser.feed(chunk);
 		}
 	}, async () => {

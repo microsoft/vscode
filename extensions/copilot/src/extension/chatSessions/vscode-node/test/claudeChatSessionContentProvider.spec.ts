@@ -23,8 +23,8 @@ import { createExtensionUnitTestingServices } from '../../../test/node/services'
 import { MockChatResponseStream, TestChatRequest } from '../../../test/node/testHelpers';
 import { ClaudeSessionUri } from '../../claude/common/claudeSessionUri';
 import type { ClaudeAgentManager } from '../../claude/node/claudeCodeAgent';
-import { IClaudeCodeModels } from '../../claude/node/claudeCodeModels';
 import { IClaudeCodeSdkService } from '../../claude/node/claudeCodeSdkService';
+import { parseClaudeModelId } from '../../claude/node/claudeModelId';
 import { IClaudeSessionStateService } from '../../claude/node/claudeSessionStateService';
 import { IClaudeCodeSessionService } from '../../claude/node/sessionParser/claudeCodeSessionService';
 import { IClaudeCodeSessionInfo } from '../../claude/node/sessionParser/claudeSessionSchema';
@@ -133,20 +133,9 @@ function createDefaultMocks() {
 		getSession: vi.fn()
 	} as any;
 
-	const mockClaudeCodeModels: IClaudeCodeModels = {
-		resolveModel: vi.fn().mockResolvedValue('claude-3-5-sonnet-20241022'),
-		getDefaultModel: vi.fn().mockResolvedValue('claude-3-5-sonnet-20241022'),
-		setDefaultModel: vi.fn().mockResolvedValue(undefined),
-		getModels: vi.fn().mockResolvedValue([
-			{ id: 'claude-3-5-sonnet-20241022', name: 'Claude 3.5 Sonnet' },
-			{ id: 'claude-3-5-haiku-20241022', name: 'Claude 3.5 Haiku' }
-		]),
-		mapSdkModelToEndpointModel: vi.fn().mockResolvedValue(undefined)
-	} as any;
-
 	const mockFolderRepositoryManager = new MockFolderRepositoryManager();
 
-	return { mockSessionService, mockClaudeCodeModels, mockFolderRepositoryManager };
+	return { mockSessionService, mockFolderRepositoryManager };
 }
 
 function createMockAgentManager(): ClaudeAgentManager {
@@ -189,7 +178,6 @@ function createProviderWithServices(
 	serviceCollection.set(IGitService, new MockGitService());
 
 	serviceCollection.define(IClaudeCodeSessionService, mocks.mockSessionService);
-	serviceCollection.define(IClaudeCodeModels, mocks.mockClaudeCodeModels);
 	serviceCollection.define(IFolderRepositoryManager, mocks.mockFolderRepositoryManager);
 	serviceCollection.define(IClaudeSlashCommandService, {
 		_serviceBrand: undefined,
@@ -204,6 +192,8 @@ function createProviderWithServices(
 		getSessionMessages: vi.fn().mockResolvedValue([]),
 		renameSession: vi.fn().mockResolvedValue(undefined),
 		forkSession: vi.fn().mockResolvedValue({ sessionId: 'forked' }),
+		listSubagents: vi.fn().mockResolvedValue([]),
+		getSubagentMessages: vi.fn().mockResolvedValue([]),
 	});
 
 	const accessor = serviceCollection.createTestingAccessor();
@@ -664,6 +654,7 @@ describe('ChatSessionContentProvider', () => {
 						label: 'Test Session',
 					},
 					initialSessionOptions,
+					inputState: { groups: [], onDidChange: Event.None },
 				},
 			} as vscode.ChatContext;
 		}
@@ -773,6 +764,7 @@ describe('ChatSessionContentProvider', () => {
 						label: 'Test Session',
 					},
 					initialSessionOptions,
+					inputState: { groups: [], onDidChange: Event.None },
 				},
 			} as vscode.ChatContext;
 		}
@@ -843,6 +835,7 @@ describe('ChatSessionContentProvider', () => {
 						resource: ClaudeSessionUri.forSessionId(sessionId),
 						label: 'Test Session',
 					},
+					inputState: { groups: [], onDidChange: Event.None },
 				},
 			} as vscode.ChatContext;
 		}
@@ -942,6 +935,7 @@ describe('ChatSessionContentProvider', () => {
 						resource: ClaudeSessionUri.forSessionId(sessionId),
 						label: 'Test Session',
 					},
+					inputState: { groups: [], onDidChange: Event.None },
 				},
 			} as vscode.ChatContext;
 		}
@@ -971,7 +965,7 @@ describe('ChatSessionContentProvider', () => {
 
 			await handler(createTestRequest('hello'), context, stream, CancellationToken.None);
 
-			expect(setModelSpy).toHaveBeenCalledWith('session-1', 'claude-3-5-sonnet-20241022');
+			expect(setModelSpy).toHaveBeenCalledWith('session-1', parseClaudeModelId('claude-3-5-sonnet-20241022'));
 		});
 
 		it('short-circuits before session resolution when slash command is handled', async () => {
@@ -1054,6 +1048,8 @@ describe('ClaudeChatSessionItemController', () => {
 			getSessionMessages: vi.fn().mockResolvedValue([]),
 			renameSession: vi.fn().mockResolvedValue(undefined),
 			forkSession: vi.fn().mockResolvedValue({ sessionId: 'forked-session-id' }),
+			listSubagents: vi.fn().mockResolvedValue([]),
+			getSubagentMessages: vi.fn().mockResolvedValue([]),
 		};
 		serviceCollection.define(IClaudeCodeSdkService, mockSdkService);
 		const accessor = serviceCollection.createTestingAccessor();

@@ -18,6 +18,7 @@ import type { ClaudeFolderInfo } from '../../common/claudeFolderInfo';
 import { ClaudeAgentManager, ClaudeCodeSession } from '../claudeCodeAgent';
 import { IClaudeCodeSdkService } from '../claudeCodeSdkService';
 import { ClaudeLanguageModelServer } from '../claudeLanguageModelServer';
+import { parseClaudeModelId, type ParsedClaudeModelId } from '../claudeModelId';
 import { IClaudeSessionStateService } from '../claudeSessionStateService';
 import { MockClaudeCodeSdkService } from './mockClaudeCodeSdkService';
 
@@ -36,7 +37,8 @@ function createMockChatRequest(): vscode.ChatRequest {
 	return { tools: new Map() } as unknown as vscode.ChatRequest;
 }
 
-const TEST_MODEL_ID = 'claude-3-sonnet';
+const TEST_MODEL_ID = parseClaudeModelId('claude-3-sonnet');
+const TEST_MODEL_ID_ALT = parseClaudeModelId('claude-3-opus');
 const TEST_PERMISSION_MODE = 'acceptEdits' as const;
 const TEST_FOLDER_INFO: ClaudeFolderInfo = { cwd: '/test/project', additionalDirectories: [] };
 const TEST_SESSION_ID = 'test-session-id';
@@ -49,7 +51,7 @@ const TEST_SESSION_ID = 'test-session-id';
 function commitTestState(
 	sessionStateService: IClaudeSessionStateService,
 	sessionId: string,
-	modelId: string = TEST_MODEL_ID,
+	modelId: ParsedClaudeModelId | undefined = TEST_MODEL_ID,
 	permissionMode: PermissionMode = TEST_PERMISSION_MODE,
 	folderInfo: ClaudeFolderInfo = TEST_FOLDER_INFO,
 ): void {
@@ -315,8 +317,8 @@ describe('ClaudeCodeSession', () => {
 	it('initializes with model ID from constructor', async () => {
 		const serverConfig = { port: 8080, nonce: 'test-nonce' };
 		const mockServer = createMockLangModelServer();
-		commitTestState(sessionStateService, 'test-session', 'claude-3-opus');
-		const session = store.add(instantiationService.createInstance(ClaudeCodeSession, serverConfig, mockServer, 'test-session', 'claude-3-opus', TEST_PERMISSION_MODE, true));
+		commitTestState(sessionStateService, 'test-session', TEST_MODEL_ID_ALT);
+		const session = store.add(instantiationService.createInstance(ClaudeCodeSession, serverConfig, mockServer, 'test-session', TEST_MODEL_ID_ALT, TEST_PERMISSION_MODE, true));
 		const stream = new MockChatResponseStream();
 
 		await session.invoke(createMockChatRequest(), toPromptBlocks('Hello'), {} as vscode.ChatParticipantToolToken, stream, CancellationToken.None);
@@ -331,8 +333,8 @@ describe('ClaudeCodeSession', () => {
 		mockService.queryCallCount = 0;
 		mockService.setModelCallCount = 0;
 
-		commitTestState(sessionStateService, 'test-session', 'claude-3-sonnet');
-		const session = store.add(instantiationService.createInstance(ClaudeCodeSession, serverConfig, mockServer, 'test-session', 'claude-3-sonnet', TEST_PERMISSION_MODE, true));
+		commitTestState(sessionStateService, 'test-session', TEST_MODEL_ID);
+		const session = store.add(instantiationService.createInstance(ClaudeCodeSession, serverConfig, mockServer, 'test-session', TEST_MODEL_ID, TEST_PERMISSION_MODE, true));
 
 		// First request with initial model
 		const stream1 = new MockChatResponseStream();
@@ -340,14 +342,14 @@ describe('ClaudeCodeSession', () => {
 		expect(mockService.queryCallCount).toBe(1);
 
 		// Update model in session state service for the second request
-		sessionStateService.setModelIdForSession('test-session', 'claude-3-opus');
+		sessionStateService.setModelIdForSession('test-session', TEST_MODEL_ID_ALT);
 
 		// Second request with different model should call setModel on existing session
 		const stream2 = new MockChatResponseStream();
 		await session.invoke(createMockChatRequest(), toPromptBlocks('Hello again'), {} as vscode.ChatParticipantToolToken, stream2, CancellationToken.None);
 		expect(mockService.queryCallCount).toBe(1); // Same query reused
 		expect(mockService.setModelCallCount).toBe(1); // setModel was called
-		expect(mockService.lastSetModel).toBe('claude-3-opus');
+		expect(mockService.lastSetModel).toBe(TEST_MODEL_ID_ALT.toSdkModelId());
 	});
 
 	it('does not restart session when same model is used', async () => {
@@ -356,8 +358,8 @@ describe('ClaudeCodeSession', () => {
 		const mockService = instantiationService.invokeFunction(accessor => accessor.get(IClaudeCodeSdkService)) as MockClaudeCodeSdkService;
 		mockService.queryCallCount = 0;
 
-		commitTestState(sessionStateService, 'test-session', 'claude-3-sonnet');
-		const session = store.add(instantiationService.createInstance(ClaudeCodeSession, serverConfig, mockServer, 'test-session', 'claude-3-sonnet', TEST_PERMISSION_MODE, true));
+		commitTestState(sessionStateService, 'test-session', TEST_MODEL_ID);
+		const session = store.add(instantiationService.createInstance(ClaudeCodeSession, serverConfig, mockServer, 'test-session', TEST_MODEL_ID, TEST_PERMISSION_MODE, true));
 
 		// First request
 		const stream1 = new MockChatResponseStream();
@@ -375,15 +377,15 @@ describe('ClaudeCodeSession', () => {
 		const mockServer = createMockLangModelServer();
 		const mockService = instantiationService.invokeFunction(accessor => accessor.get(IClaudeCodeSdkService)) as MockClaudeCodeSdkService;
 
-		// Constructor gets 'claude-3-sonnet', but session state has 'claude-3-opus'
-		commitTestState(sessionStateService, 'test-session', 'claude-3-opus');
-		const session = store.add(instantiationService.createInstance(ClaudeCodeSession, serverConfig, mockServer, 'test-session', 'claude-3-sonnet', TEST_PERMISSION_MODE, true));
+		// Constructor gets TEST_MODEL_ID, but session state has TEST_MODEL_ID_ALT
+		commitTestState(sessionStateService, 'test-session', TEST_MODEL_ID_ALT);
+		const session = store.add(instantiationService.createInstance(ClaudeCodeSession, serverConfig, mockServer, 'test-session', TEST_MODEL_ID, TEST_PERMISSION_MODE, true));
 		const stream = new MockChatResponseStream();
 
 		await session.invoke(createMockChatRequest(), toPromptBlocks('Hello'), {} as vscode.ChatParticipantToolToken, stream, CancellationToken.None);
 
 		// The Options passed to the SDK should reflect the session state model, not the constructor value
-		expect(mockService.lastQueryOptions?.model).toBe('claude-3-opus');
+		expect(mockService.lastQueryOptions?.model).toBe(TEST_MODEL_ID_ALT.toSdkModelId());
 	});
 
 	it('uses session state permission mode for initial Options when starting a new session', async () => {
@@ -408,8 +410,8 @@ describe('ClaudeCodeSession', () => {
 		const mockService = instantiationService.invokeFunction(accessor => accessor.get(IClaudeCodeSdkService)) as MockClaudeCodeSdkService;
 		mockService.setModelCallCount = 0;
 
-		commitTestState(sessionStateService, 'test-session', 'claude-3-sonnet');
-		const session = store.add(instantiationService.createInstance(ClaudeCodeSession, serverConfig, mockServer, 'test-session', 'claude-3-sonnet', TEST_PERMISSION_MODE, true));
+		commitTestState(sessionStateService, 'test-session', TEST_MODEL_ID);
+		const session = store.add(instantiationService.createInstance(ClaudeCodeSession, serverConfig, mockServer, 'test-session', TEST_MODEL_ID, TEST_PERMISSION_MODE, true));
 
 		// First request establishes the session
 		const stream1 = new MockChatResponseStream();

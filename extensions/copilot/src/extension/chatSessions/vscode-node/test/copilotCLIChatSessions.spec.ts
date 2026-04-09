@@ -14,6 +14,7 @@ import { IGitService, RepoContext } from '../../../../platform/git/common/gitSer
 import { PullRequestSearchItem } from '../../../../platform/github/common/githubAPI';
 import { IOctoKitService } from '../../../../platform/github/common/githubService';
 import { ILogService } from '../../../../platform/log/common/logService';
+import { NullWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { mock } from '../../../../util/common/test/simpleMock';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { Event } from '../../../../util/vs/base/common/event';
@@ -80,6 +81,7 @@ class TestSessionService extends mock<ICopilotCLISessionService>() {
 	override createSession = vi.fn(async () => {
 		throw new Error('Not implemented');
 	});
+	override forkSessionV1 = vi.fn(async () => 'forked-session');
 	override forkSession = vi.fn(async () => 'forked-session');
 	override tryGetPartialSesionHistory = vi.fn(async () => undefined);
 	override getChatHistory = vi.fn(async () => []);
@@ -169,6 +171,7 @@ function createProvider() {
 		declare readonly _serviceBrand: undefined;
 		override trace = vi.fn();
 		override debug = vi.fn();
+		override info = vi.fn();
 		override error = vi.fn();
 	}();
 
@@ -183,6 +186,7 @@ function createProvider() {
 		override provideChatSessionProviderOptionGroups = vi.fn(async () => []);
 		override buildBranchOptionGroup = vi.fn(() => undefined);
 		override handleInputStateChange = vi.fn(async () => { });
+		override rebuildInputState = vi.fn(async () => { });
 		override buildExistingSessionInputStateGroups = vi.fn(async () => []);
 		override getBranchOptionItemsForRepository = vi.fn(async () => []);
 		override getRepositoryOptionItems = vi.fn(() => []);
@@ -201,6 +205,7 @@ function createProvider() {
 		gitService,
 		workspaceFolderService,
 		metadataStore,
+		new NullWorkspaceService(),
 	);
 
 	return {
@@ -222,7 +227,7 @@ describe('CopilotCLIChatSessionContentProvider', () => {
 		const { provider, prDetectionService } = createProvider();
 		const detectSpy = vi.spyOn(prDetectionService, 'detectPullRequest');
 
-		await provider.provideChatSessionContentForExistingSession(
+		await provider.provideChatSessionContent(
 			URI.from({ scheme: 'copilotcli', path: '/session-1' }),
 			CancellationToken.None,
 		);
@@ -360,27 +365,17 @@ describe('CopilotCLIChatSessionContentProvider (additional)', () => {
 		vi.restoreAllMocks();
 	});
 
-	it('provides chat session items from session service', async () => {
-		const { provider, sessionService } = createProvider();
+	it('toChatSessionItem maps session to chat session item', async () => {
+		const { provider } = createProvider();
 		const sessionItem: ICopilotCLISessionItem = {
 			id: 'session-1',
 			label: 'Test Session',
 			status: undefined,
 			workingDirectory: undefined,
 		} as unknown as ICopilotCLISessionItem;
-		sessionService.getAllSessions.mockResolvedValue([sessionItem]);
 
-		const items = await provider.provideChatSessionItems(CancellationToken.None);
-		expect(items).toHaveLength(1);
-		expect(items[0].label).toBe('Test Session');
-	});
-
-	it('returns empty array when no sessions', async () => {
-		const { provider, sessionService } = createProvider();
-		sessionService.getAllSessions.mockResolvedValue([]);
-
-		const items = await provider.provideChatSessionItems(CancellationToken.None);
-		expect(items).toHaveLength(0);
+		const item = await provider.toChatSessionItem(sessionItem);
+		expect(item.label).toBe('Test Session');
 	});
 
 	it('delegates updateInputStateAfterFolderSelection to option group builder', async () => {

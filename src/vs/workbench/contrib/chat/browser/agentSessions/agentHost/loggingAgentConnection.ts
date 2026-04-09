@@ -4,12 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI, UriComponents } from '../../../../../../base/common/uri.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { IAgentConnection, IAgentCreateSessionConfig, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult, AgentHostIpcLoggingSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
-import type { IActionEnvelope, INotification, ISessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import type { IResourceCopyParams, IResourceCopyResult, IResourceDeleteParams, IResourceDeleteResult, IResourceListResult, IResourceMoveParams, IResourceMoveResult, IResourceReadResult, IResourceWriteParams, IResourceWriteResult, IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { StateComponents, type ComponentToState, type IRootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import type { IActionEnvelope, INotification, ISessionAction, ITerminalAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import type { ICreateTerminalParams } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import type { IResourceCopyParams, IResourceCopyResult, IResourceDeleteParams, IResourceDeleteResult, IResourceListResult, IResourceMoveParams, IResourceMoveResult, IResourceReadResult, IResourceWriteParams, IResourceWriteResult } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { Extensions, IOutputChannel, IOutputChannelRegistry, IOutputService } from '../../../../../services/output/common/output.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 
@@ -66,7 +69,7 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 
 	constructor(
 		private readonly _inner: IAgentConnection,
-		private readonly _channelId: string,
+		public readonly channelId: string,
 		private readonly _channelLabel: string,
 		@IOutputService private readonly _outputService: IOutputService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -77,23 +80,23 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 
 		if (this._enabled) {
 			const registry = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels);
-			const refs = LoggingAgentConnection._channelRefCounts.get(this._channelId) ?? 0;
+			const refs = LoggingAgentConnection._channelRefCounts.get(this.channelId) ?? 0;
 			if (refs === 0) {
 				registry.registerChannel({
-					id: this._channelId,
+					id: this.channelId,
 					label: this._channelLabel,
 					log: false,
 					languageId: 'log',
 				});
 			}
-			LoggingAgentConnection._channelRefCounts.set(this._channelId, refs + 1);
+			LoggingAgentConnection._channelRefCounts.set(this.channelId, refs + 1);
 			this._register(toDisposable(() => {
-				const current = LoggingAgentConnection._channelRefCounts.get(this._channelId)! - 1;
+				const current = LoggingAgentConnection._channelRefCounts.get(this.channelId)! - 1;
 				if (current <= 0) {
-					LoggingAgentConnection._channelRefCounts.delete(this._channelId);
-					registry.removeChannel(this._channelId);
+					LoggingAgentConnection._channelRefCounts.delete(this.channelId);
+					registry.removeChannel(this.channelId);
 				} else {
-					LoggingAgentConnection._channelRefCounts.set(this._channelId, current);
+					LoggingAgentConnection._channelRefCounts.set(this.channelId, current);
 				}
 			}));
 		}
@@ -132,26 +135,25 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 		return this._logCall('disposeSession', session, () => this._inner.disposeSession(session));
 	}
 
-	async shutdown(): Promise<void> {
-		return this._logCall('shutdown', undefined, () => this._inner.shutdown());
+	async createTerminal(params: ICreateTerminalParams): Promise<void> {
+		return this._logCall('createTerminal', params, () => this._inner.createTerminal(params));
 	}
 
-	async subscribe(resource: URI): Promise<IStateSnapshot> {
-		return this._logCall('subscribe', resource, () => this._inner.subscribe(resource));
+	async disposeTerminal(terminal: URI): Promise<void> {
+		return this._logCall('disposeTerminal', terminal, () => this._inner.disposeTerminal(terminal));
 	}
 
-	unsubscribe(resource: URI): void {
-		this._log('>>', 'unsubscribe', resource);
-		this._inner.unsubscribe(resource);
+	get rootState(): IAgentSubscription<IRootState> {
+		return this._inner.rootState;
 	}
 
-	dispatchAction(action: ISessionAction, clientId: string, clientSeq: number): void {
-		this._log('>>', 'dispatchAction', { action, clientId, clientSeq });
-		this._inner.dispatchAction(action, clientId, clientSeq);
+	getSubscription<T extends StateComponents>(kind: T, resource: URI): IReference<IAgentSubscription<ComponentToState[T]>> {
+		return this._inner.getSubscription(kind, resource);
 	}
 
-	nextClientSeq(): number {
-		return this._inner.nextClientSeq();
+	dispatch(action: ISessionAction | ITerminalAction): void {
+		this._log('>>', 'dispatch', action);
+		this._inner.dispatch(action);
 	}
 
 	async resourceList(uri: URI): Promise<IResourceListResult> {
@@ -208,7 +210,7 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 		}
 
 		if (!this._outputChannel) {
-			this._outputChannel = this._outputService.getChannel(this._channelId);
+			this._outputChannel = this._outputService.getChannel(this.channelId);
 			if (!this._outputChannel) {
 				return;
 			}

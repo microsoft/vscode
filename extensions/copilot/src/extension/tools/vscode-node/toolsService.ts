@@ -157,6 +157,10 @@ export class ToolsService extends BaseToolsService {
 			if (traceCtx) {
 				if (chatStreamToolCallId) {
 					this._otelService.storeTraceContext(`subagent:toolcall:${chatStreamToolCallId}`, traceCtx);
+					// VS Code core uses the chatStreamToolCallId (LLM tool_use id) as
+					// the child's subAgentInvocationId, so store under the invocation
+					// prefix too for the child's lookup in toolCallingLoop.
+					this._otelService.storeTraceContext(`subagent:invocation:${chatStreamToolCallId}`, traceCtx);
 				}
 				if (subAgentInvocationId) {
 					this._otelService.storeTraceContext(`subagent:invocation:${subAgentInvocationId}`, traceCtx);

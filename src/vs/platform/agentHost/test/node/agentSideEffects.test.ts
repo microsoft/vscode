@@ -5,7 +5,7 @@
 
 import assert from 'assert';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { DisposableStore, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -14,13 +14,14 @@ import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession, IAgent } from '../../common/agentService.js';
-import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
+import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType, IActionEnvelope, ISessionAction } from '../../common/state/sessionActions.js';
 import { PendingMessageKind, SessionStatus } from '../../common/state/sessionState.js';
 import { AgentService } from '../../node/agentService.js';
 import { AgentSideEffects } from '../../node/agentSideEffects.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
-import { SessionStateManager } from '../../node/sessionStateManager.js';
+import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
+import { createNullSessionDataService, createSessionDataService } from '../common/sessionTestHelpers.js';
 import { MockAgent } from './mockAgent.js';
 
 // ---- Tests ------------------------------------------------------------------
@@ -29,7 +30,7 @@ suite('AgentSideEffects', () => {
 
 	const disposables = new DisposableStore();
 	let fileService: FileService;
-	let stateManager: SessionStateManager;
+	let stateManager: AgentHostStateManager;
 	let agent: MockAgent;
 	let sideEffects: AgentSideEffects;
 	let agentList: ReturnType<typeof observableValue<readonly IAgent[]>>;
@@ -68,20 +69,12 @@ suite('AgentSideEffects', () => {
 
 		agent = new MockAgent();
 		disposables.add(toDisposable(() => agent.dispose()));
-		stateManager = disposables.add(new SessionStateManager(new NullLogService()));
+		stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		agentList = observableValue<readonly IAgent[]>('agents', [agent]);
 		sideEffects = disposables.add(new AgentSideEffects(stateManager, {
 			getAgent: () => agent,
 			agents: agentList,
-			sessionDataService: {
-				_serviceBrand: undefined,
-				getSessionDataDir: () => URI.from({ scheme: Schemas.inMemory, path: '/session-data' }),
-				getSessionDataDirById: () => URI.from({ scheme: Schemas.inMemory, path: '/session-data' }),
-				openDatabase: () => { throw new Error('not implemented'); },
-				tryOpenDatabase: async () => undefined,
-				deleteSessionData: async () => { },
-				cleanupOrphanedData: async () => { },
-			} satisfies ISessionDataService,
+			sessionDataService: createNullSessionDataService(),
 		}, new NullLogService()));
 	});
 
@@ -763,24 +756,6 @@ suite('AgentSideEffects', () => {
 
 		let sessionDb: SessionDatabase;
 
-		function createSessionDataServiceWithDb(): ISessionDataService {
-			return {
-				_serviceBrand: undefined,
-				getSessionDataDir: () => URI.from({ scheme: Schemas.inMemory, path: '/session-data' }),
-				getSessionDataDirById: () => URI.from({ scheme: Schemas.inMemory, path: '/session-data' }),
-				openDatabase: (): IReference<ISessionDatabase> => ({
-					object: sessionDb,
-					dispose: () => { },
-				}),
-				tryOpenDatabase: async (): Promise<IReference<ISessionDatabase> | undefined> => ({
-					object: sessionDb,
-					dispose: () => { },
-				}),
-				deleteSessionData: async () => { },
-				cleanupOrphanedData: async () => { },
-			};
-		}
-
 		setup(async () => {
 			sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
 		});
@@ -790,8 +765,8 @@ suite('AgentSideEffects', () => {
 		});
 
 		test('SessionTitleChanged persists to the database', async () => {
-			const sessionDataService = createSessionDataServiceWithDb();
-			const localStateManager = disposables.add(new SessionStateManager(new NullLogService()));
+			const sessionDataService = createSessionDataService(sessionDb);
+			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 			const localAgent = new MockAgent();
 			disposables.add(toDisposable(() => localAgent.dispose()));
 			const localSideEffects = disposables.add(new AgentSideEffects(localStateManager, {
@@ -822,7 +797,7 @@ suite('AgentSideEffects', () => {
 		});
 
 		test('handleListSessions returns persisted custom title', async () => {
-			const sessionDataService = createSessionDataServiceWithDb();
+			const sessionDataService = createSessionDataService(sessionDb);
 			const localAgent = new MockAgent();
 			disposables.add(toDisposable(() => localAgent.dispose()));
 			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService));
@@ -842,7 +817,7 @@ suite('AgentSideEffects', () => {
 		});
 
 		test('handleRestoreSession uses persisted custom title', async () => {
-			const sessionDataService = createSessionDataServiceWithDb();
+			const sessionDataService = createSessionDataService(sessionDb);
 			const localAgent = new MockAgent();
 			disposables.add(toDisposable(() => localAgent.dispose()));
 			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService));

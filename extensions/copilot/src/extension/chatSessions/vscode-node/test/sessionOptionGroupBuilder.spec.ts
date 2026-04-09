@@ -239,33 +239,24 @@ describe('resolveBranchSelection', () => {
 });
 
 describe('resolveBranchLockState', () => {
-	it('locked with when clause when isolation is enabled and Workspace is selected', () => {
+	it('locked when isolation is enabled and Workspace is selected', () => {
 		const result = resolveBranchLockState(true, IsolationMode.Workspace);
 		expect(result.locked).toBe(true);
-		expect(result.when).toContain('worktree');
 	});
 
-	it('editable with when clause when isolation is enabled and Worktree is selected', () => {
+	it('editable when isolation is enabled and Worktree is selected', () => {
 		const result = resolveBranchLockState(true, IsolationMode.Worktree);
 		expect(result.locked).toBe(false);
-		expect(result.when).toContain('worktree');
 	});
 
-	it('locked with no when clause when isolation feature is disabled', () => {
+	it('locked when isolation feature is disabled', () => {
 		const result = resolveBranchLockState(false, undefined);
 		expect(result.locked).toBe(true);
-		expect(result.when).toBeUndefined();
 	});
 
-	it('no when clause when isolation is disabled even if isolation value is worktree', () => {
+	it('locked when isolation is disabled even if isolation value is worktree', () => {
 		const result = resolveBranchLockState(false, IsolationMode.Worktree);
 		expect(result.locked).toBe(true);
-		expect(result.when).toBeUndefined();
-	});
-
-	it('when clause references the isolation option ID', () => {
-		const result = resolveBranchLockState(true, IsolationMode.Workspace);
-		expect(result.when).toBe(`chatSessionOption.${ISOLATION_OPTION_ID} == '${IsolationMode.Worktree}'`);
 	});
 });
 
@@ -410,14 +401,12 @@ describe('SessionOptionGroupBuilder', () => {
 			const branches = [{ id: 'main', name: 'main', icon: {} as any }];
 			const result = builder.buildBranchOptionGroup(branches, 'main', true, IsolationMode.Workspace, undefined);
 			expect(result!.items[0].locked).toBe(true);
-			expect(result!.when).toBeDefined();
 		});
 
 		it('does not lock items when isolation is enabled and Worktree is selected', () => {
 			const branches = [{ id: 'main', name: 'main', icon: {} as any }];
 			const result = builder.buildBranchOptionGroup(branches, 'main', true, IsolationMode.Worktree, undefined);
 			expect(result!.items[0].locked).toBeUndefined();
-			expect(result!.when).toBeDefined();
 		});
 	});
 
@@ -510,6 +499,16 @@ describe('SessionOptionGroupBuilder', () => {
 			expect(repoGroup).toBeUndefined();
 		});
 
+		it('does not include repository group for single folder with no git repos', async () => {
+			gitService.repositories = [];
+			gitService.getRepository.mockResolvedValue(undefined);
+			await configurationService.setConfig(ConfigKey.Advanced.CLIBranchSupport, false);
+			await configurationService.setConfig(ConfigKey.Advanced.CLIIsolationOption, false);
+
+			const groups = await builder.provideChatSessionProviderOptionGroups(undefined);
+			expect(groups.find(g => g.id === REPOSITORY_OPTION_ID)).toBeUndefined();
+		});
+
 		it('includes isolation group when feature is enabled', async () => {
 			await configurationService.setConfig(ConfigKey.Advanced.CLIIsolationOption, true);
 			const groups = await builder.provideChatSessionProviderOptionGroups(undefined);
@@ -546,6 +545,9 @@ describe('SessionOptionGroupBuilder', () => {
 
 		it('preserves previous isolation selection', async () => {
 			await configurationService.setConfig(ConfigKey.Advanced.CLIIsolationOption, true);
+			const repo = makeRepo('/workspace');
+			gitService.repositories = [repo];
+			gitService.getRepository.mockResolvedValue(repo);
 
 			const previousState: vscode.ChatSessionInputState = {
 				onDidChange: Event.None,
@@ -582,6 +584,23 @@ describe('SessionOptionGroupBuilder', () => {
 			// Should have a command for browsing folders
 			expect(repoGroup!.commands).toBeDefined();
 			expect(repoGroup!.commands!.length).toBeGreaterThan(0);
+		});
+
+		it('caps MRU items at 10 entries in welcome view', async () => {
+			workspaceService = new NullWorkspaceService([]);
+			builder = new SessionOptionGroupBuilder(
+				gitService, configurationService, context, workspaceService,
+				folderMruService, agentSessionsWorkspace, worktreeService, folderRepositoryManager,
+			);
+			const entries = Array.from({ length: 15 }, (_, i) => {
+				const uri = URI.file(`/repo-${i}`);
+				return { folder: uri, repository: uri, lastAccessed: i } as FolderRepositoryMRUEntry;
+			});
+			folderMruService.getRecentlyUsedFolders.mockResolvedValue(entries);
+
+			const groups = await builder.provideChatSessionProviderOptionGroups(undefined);
+			const repoGroup = groups.find(g => g.id === REPOSITORY_OPTION_ID);
+			expect(repoGroup!.items).toHaveLength(10);
 		});
 	});
 
@@ -663,6 +682,93 @@ describe('SessionOptionGroupBuilder', () => {
 
 			await builder.handleInputStateChange(state);
 			expect(state.groups.find(g => g.id === BRANCH_OPTION_ID)).toBeUndefined();
+		});
+
+		it('persists isolation selection to global state', async () => {
+			await configurationService.setConfig(ConfigKey.Advanced.CLIIsolationOption, true);
+			gitService.getRepository.mockResolvedValue(makeRepo('/workspace'));
+
+			const state: vscode.ChatSessionInputState = {
+				onDidChange: Event.None,
+				groups: [{
+					id: ISOLATION_OPTION_ID,
+					name: 'Isolation',
+					description: '',
+					items: [],
+					selected: { id: IsolationMode.Worktree, name: 'Worktree' },
+				}],
+			};
+
+			await builder.handleInputStateChange(state);
+			expect(context.globalState.get('github.copilot.cli.lastUsedIsolationOption')).toBe(IsolationMode.Worktree);
+		});
+
+		it('forces workspace isolation when selected folder is not a git repo', async () => {
+			await configurationService.setConfig(ConfigKey.Advanced.CLIIsolationOption, true);
+			gitService.getRepository.mockResolvedValue(undefined);
+
+			const state: vscode.ChatSessionInputState = {
+				onDidChange: Event.None,
+				groups: [
+					{
+						id: ISOLATION_OPTION_ID,
+						name: 'Isolation',
+						description: '',
+						items: [
+							{ id: IsolationMode.Workspace, name: 'Workspace' },
+							{ id: IsolationMode.Worktree, name: 'Worktree' },
+						],
+						selected: { id: IsolationMode.Worktree, name: 'Worktree' },
+					},
+					{
+						id: REPOSITORY_OPTION_ID,
+						name: 'Folder',
+						description: '',
+						items: [],
+						selected: { id: URI.file('/non-git').fsPath, name: 'non-git' },
+					},
+				],
+			};
+
+			await builder.handleInputStateChange(state);
+
+			const isolationGroup = state.groups.find(g => g.id === ISOLATION_OPTION_ID);
+			expect(isolationGroup!.selected?.id).toBe(IsolationMode.Workspace);
+			expect(isolationGroup!.selected?.locked).toBe(true);
+		});
+
+		it('unlocks isolation when selected folder is a git repo', async () => {
+			await configurationService.setConfig(ConfigKey.Advanced.CLIIsolationOption, true);
+			gitService.getRepository.mockResolvedValue(makeRepo('/workspace'));
+
+			const state: vscode.ChatSessionInputState = {
+				onDidChange: Event.None,
+				groups: [
+					{
+						id: ISOLATION_OPTION_ID,
+						name: 'Isolation',
+						description: '',
+						items: [
+							{ id: IsolationMode.Workspace, name: 'Workspace', locked: true },
+							{ id: IsolationMode.Worktree, name: 'Worktree', locked: true },
+						],
+						selected: { id: IsolationMode.Workspace, name: 'Workspace', locked: true },
+					},
+					{
+						id: REPOSITORY_OPTION_ID,
+						name: 'Folder',
+						description: '',
+						items: [],
+						selected: { id: URI.file('/workspace').fsPath, name: 'workspace' },
+					},
+				],
+			};
+
+			await builder.handleInputStateChange(state);
+
+			const isolationGroup = state.groups.find(g => g.id === ISOLATION_OPTION_ID);
+			expect(isolationGroup!.selected?.locked).toBeUndefined();
+			expect(isolationGroup!.items.every(i => !('locked' in i))).toBe(true);
 		});
 	});
 
@@ -776,6 +882,36 @@ describe('SessionOptionGroupBuilder', () => {
 			const isolationGroup = groups.find(g => g.id === ISOLATION_OPTION_ID);
 			expect(isolationGroup!.selected?.id).toBe(IsolationMode.Workspace);
 		});
+
+		it('omits isolation group when feature is disabled for existing session', async () => {
+			await configurationService.setConfig(ConfigKey.Advanced.CLIIsolationOption, false);
+			folderRepositoryManager.getFolderRepository.mockResolvedValue({
+				folder: URI.file('/workspace'),
+				repository: URI.file('/workspace'),
+				trusted: true,
+			} as any);
+			worktreeService.getWorktreeProperties.mockResolvedValue(undefined);
+
+			const resource = URI.from({ scheme: 'copilotcli', path: '/session-1' });
+			const groups = await builder.buildExistingSessionInputStateGroups(resource, CancellationToken.None);
+
+			expect(groups.find(g => g.id === ISOLATION_OPTION_ID)).toBeUndefined();
+		});
+
+		it('omits branch group when session has no branch name', async () => {
+			folderRepositoryManager.getFolderRepository.mockResolvedValue({
+				folder: URI.file('/workspace'),
+				repository: undefined,
+				repositoryProperties: undefined,
+				trusted: true,
+			} as any);
+			worktreeService.getWorktreeProperties.mockResolvedValue(undefined);
+
+			const resource = URI.from({ scheme: 'copilotcli', path: '/session-1' });
+			const groups = await builder.buildExistingSessionInputStateGroups(resource, CancellationToken.None);
+
+			expect(groups.find(g => g.id === BRANCH_OPTION_ID)).toBeUndefined();
+		});
 	});
 
 	describe('updateInputStateAfterFolderSelection', () => {
@@ -873,7 +1009,7 @@ describe('SessionOptionGroupBuilder', () => {
 			expect(repoGroup!.items.length).toBe(2);
 		});
 
-		it('returns early without updating state when non-git folder is untrusted', async () => {
+		it('treats untrusted folder as non-git and updates state', async () => {
 			await configurationService.setConfig(ConfigKey.Advanced.CLIBranchSupport, false);
 			gitService.getRepository.mockResolvedValue(undefined);
 
@@ -897,10 +1033,11 @@ describe('SessionOptionGroupBuilder', () => {
 
 				await builder.updateInputStateAfterFolderSelection(state, URI.file('/untrusted') as any);
 
-				// State should be unchanged
+				// Dropdown updates to show the new folder, treated as non-git
 				const repoGroup = state.groups.find(g => g.id === REPOSITORY_OPTION_ID);
-				expect(repoGroup!.selected!.id).toBe(URI.file('/old').fsPath);
-				expect(repoGroup!.items.length).toBe(1);
+				expect(repoGroup!.selected!.id).toBe(URI.file('/untrusted').fsPath);
+				// getRepository should not have been called
+				expect(gitService.getRepository).not.toHaveBeenCalled();
 			} finally {
 				(vscodeShim as Record<string, unknown>).workspace = origWorkspace;
 			}
@@ -934,6 +1071,169 @@ describe('SessionOptionGroupBuilder', () => {
 			const groups = await builder.provideChatSessionProviderOptionGroups(undefined);
 			const repoGroup = groups.find(g => g.id === REPOSITORY_OPTION_ID);
 			expect(repoGroup!.items.find(i => i.id === URI.file('/my-repo').fsPath)).toBeDefined();
+		});
+	});
+
+	describe('rebuildInputState', () => {
+		it('adds folder dropdown when a second workspace folder appears', async () => {
+			// Start with single workspace folder — no folder dropdown
+			gitService.repositories = [makeRepo('/workspace')];
+			gitService.getRepository.mockResolvedValue(makeRepo('/workspace'));
+			await configurationService.setConfig(ConfigKey.Advanced.CLIBranchSupport, false);
+			await configurationService.setConfig(ConfigKey.Advanced.CLIIsolationOption, false);
+
+			const initialGroups = await builder.provideChatSessionProviderOptionGroups(undefined);
+			expect(initialGroups.find(g => g.id === REPOSITORY_OPTION_ID)).toBeUndefined();
+
+			const state: vscode.ChatSessionInputState = {
+				onDidChange: Event.None,
+				groups: initialGroups,
+			};
+
+			// Simulate adding a second workspace folder
+			workspaceService = new NullWorkspaceService([URI.file('/workspace'), URI.file('/workspace2')]);
+			builder = new SessionOptionGroupBuilder(
+				gitService, configurationService, context, workspaceService,
+				folderMruService, agentSessionsWorkspace, worktreeService, folderRepositoryManager,
+			);
+			gitService.repositories = [makeRepo('/workspace'), makeRepo('/workspace2')];
+
+			await builder.rebuildInputState(state);
+
+			const repoGroup = state.groups.find(g => g.id === REPOSITORY_OPTION_ID);
+			expect(repoGroup).toBeDefined();
+			expect(repoGroup!.items.length).toBe(2);
+		});
+
+		it('removes folder dropdown when going from two workspace folders to one', async () => {
+			// Start with two workspace folders — folder dropdown shown
+			workspaceService = new NullWorkspaceService([URI.file('/repo1'), URI.file('/repo2')]);
+			builder = new SessionOptionGroupBuilder(
+				gitService, configurationService, context, workspaceService,
+				folderMruService, agentSessionsWorkspace, worktreeService, folderRepositoryManager,
+			);
+			gitService.repositories = [makeRepo('/repo1'), makeRepo('/repo2')];
+			gitService.getRepository.mockResolvedValue(makeRepo('/repo1'));
+			await configurationService.setConfig(ConfigKey.Advanced.CLIBranchSupport, false);
+			await configurationService.setConfig(ConfigKey.Advanced.CLIIsolationOption, false);
+
+			const initialGroups = await builder.provideChatSessionProviderOptionGroups(undefined);
+			expect(initialGroups.find(g => g.id === REPOSITORY_OPTION_ID)).toBeDefined();
+
+			const state: vscode.ChatSessionInputState = {
+				onDidChange: Event.None,
+				groups: initialGroups,
+			};
+
+			// Simulate removing a workspace folder
+			workspaceService = new NullWorkspaceService([URI.file('/repo1')]);
+			builder = new SessionOptionGroupBuilder(
+				gitService, configurationService, context, workspaceService,
+				folderMruService, agentSessionsWorkspace, worktreeService, folderRepositoryManager,
+			);
+			gitService.repositories = [makeRepo('/repo1')];
+
+			await builder.rebuildInputState(state);
+
+			expect(state.groups.find(g => g.id === REPOSITORY_OPTION_ID)).toBeUndefined();
+		});
+
+		it('adds branch dropdown after git init in single folder workspace', async () => {
+			// Start with non-git folder — no branch dropdown
+			gitService.repositories = [];
+			gitService.getRepository.mockResolvedValue(undefined);
+			await configurationService.setConfig(ConfigKey.Advanced.CLIBranchSupport, true);
+			await configurationService.setConfig(ConfigKey.Advanced.CLIIsolationOption, false);
+
+			const initialGroups = await builder.provideChatSessionProviderOptionGroups(undefined);
+			expect(initialGroups.find(g => g.id === BRANCH_OPTION_ID)).toBeUndefined();
+
+			const state: vscode.ChatSessionInputState = {
+				onDidChange: Event.None,
+				groups: initialGroups,
+			};
+
+			// Simulate git init — repo now discovered
+			const repo = makeRepo('/workspace');
+			gitService.repositories = [repo];
+			gitService.getRepository.mockResolvedValue(repo);
+			gitService.getRefs.mockResolvedValue([makeRef('main')]);
+
+			await builder.rebuildInputState(state);
+
+			const branchGroup = state.groups.find(g => g.id === BRANCH_OPTION_ID);
+			expect(branchGroup).toBeDefined();
+			expect(branchGroup!.items.length).toBe(1);
+			expect(branchGroup!.items[0].id).toBe('main');
+		});
+
+		it('preserves selected folder across rebuild', async () => {
+			workspaceService = new NullWorkspaceService([URI.file('/repo1'), URI.file('/repo2')]);
+			builder = new SessionOptionGroupBuilder(
+				gitService, configurationService, context, workspaceService,
+				folderMruService, agentSessionsWorkspace, worktreeService, folderRepositoryManager,
+			);
+			gitService.repositories = [makeRepo('/repo1'), makeRepo('/repo2')];
+			gitService.getRepository.mockResolvedValue(makeRepo('/repo2'));
+			await configurationService.setConfig(ConfigKey.Advanced.CLIBranchSupport, false);
+			await configurationService.setConfig(ConfigKey.Advanced.CLIIsolationOption, false);
+
+			// User selects /repo2
+			const initialGroups = await builder.provideChatSessionProviderOptionGroups(undefined);
+			const repoGroupIndex = initialGroups.findIndex(g => g.id === REPOSITORY_OPTION_ID);
+			const repoGroup = initialGroups[repoGroupIndex];
+			initialGroups[repoGroupIndex] = { ...repoGroup, selected: repoGroup.items.find(i => i.id === URI.file('/repo2').fsPath) };
+
+			const state: vscode.ChatSessionInputState = {
+				onDidChange: Event.None,
+				groups: initialGroups,
+			};
+
+			// Add a third folder
+			workspaceService = new NullWorkspaceService([URI.file('/repo1'), URI.file('/repo2'), URI.file('/repo3')]);
+			builder = new SessionOptionGroupBuilder(
+				gitService, configurationService, context, workspaceService,
+				folderMruService, agentSessionsWorkspace, worktreeService, folderRepositoryManager,
+			);
+			gitService.repositories = [makeRepo('/repo1'), makeRepo('/repo2'), makeRepo('/repo3')];
+
+			await builder.rebuildInputState(state);
+
+			const newRepoGroup = state.groups.find(g => g.id === REPOSITORY_OPTION_ID)!;
+			expect(newRepoGroup.items.length).toBe(3);
+			// Previous selection preserved
+			expect(newRepoGroup.selected?.id).toBe(URI.file('/repo2').fsPath);
+		});
+
+		it('unlocks isolation after git init for non-git folder', async () => {
+			// Start with non-git folder — isolation locked
+			gitService.repositories = [];
+			gitService.getRepository.mockResolvedValue(undefined);
+			await configurationService.setConfig(ConfigKey.Advanced.CLIBranchSupport, false);
+			await configurationService.setConfig(ConfigKey.Advanced.CLIIsolationOption, true);
+
+			const initialGroups = await builder.provideChatSessionProviderOptionGroups(undefined);
+			const isolationGroup = initialGroups.find(g => g.id === ISOLATION_OPTION_ID);
+			expect(isolationGroup).toBeDefined();
+			// Should be locked to workspace for non-git
+			expect(isolationGroup!.selected?.locked).toBe(true);
+
+			const state: vscode.ChatSessionInputState = {
+				onDidChange: Event.None,
+				groups: initialGroups,
+			};
+
+			// Simulate git init
+			const repo = makeRepo('/workspace');
+			gitService.repositories = [repo];
+			gitService.getRepository.mockResolvedValue(repo);
+
+			await builder.rebuildInputState(state);
+
+			const newIsolationGroup = state.groups.find(g => g.id === ISOLATION_OPTION_ID);
+			expect(newIsolationGroup).toBeDefined();
+			// Should be unlocked after git init
+			expect(newIsolationGroup!.selected?.locked).toBeUndefined();
 		});
 	});
 });

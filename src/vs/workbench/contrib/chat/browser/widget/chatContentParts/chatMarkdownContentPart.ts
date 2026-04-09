@@ -153,6 +153,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 			const store = new DisposableStore();
 			renderStore.value = store;
 			dom.clearNode(this.domNode);
+			dispose(this.allRefs);
 			this.allRefs.length = 0;
 			this._codeblocks.length = 0;
 			this.mathLayoutParticipants.clear();

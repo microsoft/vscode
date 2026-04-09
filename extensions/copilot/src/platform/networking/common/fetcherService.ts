@@ -296,6 +296,84 @@ export class DestroyableStream<T> implements AsyncIterable<T> {
 	}
 }
 
+/**
+ * How long to wait (ms) for the first SSE chunk. The model's TTFT is often longer
+ * than the subsequent chunks so we give it slightly more time.
+ */
+export const SSE_FIRST_CHUNK_TIMEOUT_MS = 2 * 60 * 1000;
+
+/**
+ * How long to wait (ms) between subsequent SSE chunks once streaming has
+ * started. Once the model is actively streaming, gaps this long indicate
+ * a hung connection.
+ */
+export const SSE_IDLE_TIMEOUT_MS = 60 * 1000;
+
+export class StreamIdleTimeoutError extends Error {
+	constructor(timeoutMs: number, isFirstChunk: boolean) {
+		super(isFirstChunk
+			? `SSE stream timed out waiting ${timeoutMs}ms for the first chunk`
+			: `SSE stream timed out after ${timeoutMs}ms of inactivity`);
+		this.name = 'StreamIdleTimeoutError';
+	}
+}
+
+/**
+ * Wraps a {@link DestroyableStream} with an idle watchdog. Uses a longer
+ * timeout ({@link SSE_FIRST_CHUNK_TIMEOUT_MS}) while waiting for the first
+ * chunk, then switches to {@link SSE_IDLE_TIMEOUT_MS} for subsequent chunks.
+ * If no chunk arrives within the active timeout, the stream is destroyed
+ * and a {@link StreamIdleTimeoutError} is thrown.
+ */
+export async function* withStreamIdleTimeout<T>(
+	stream: DestroyableStream<T>,
+): AsyncGenerator<T> {
+	let timedOut = false;
+	let isFirstChunk = true;
+	let timer: ReturnType<typeof setTimeout> | undefined;
+
+	const clearTimer = () => {
+		if (timer !== undefined) {
+			clearTimeout(timer);
+			timer = undefined;
+		}
+	};
+
+	const startTimer = (timeoutMs: number) => {
+		clearTimer();
+		timer = setTimeout(() => {
+			timedOut = true;
+			void stream.destroy().catch(() => { });
+		}, timeoutMs);
+	};
+
+	const iterator = stream[Symbol.asyncIterator]();
+	try {
+		while (true) {
+			// Timer runs only while awaiting the next chunk from the network
+			startTimer(isFirstChunk ? SSE_FIRST_CHUNK_TIMEOUT_MS : SSE_IDLE_TIMEOUT_MS);
+			const result = await iterator.next();
+			clearTimer();
+
+			if (result.done) {
+				break;
+			}
+
+			isFirstChunk = false;
+			// Consumer processing time is NOT timed — the timer is cleared above
+			yield result.value;
+		}
+	} finally {
+		clearTimer();
+		await iterator.return?.();
+	}
+
+	if (timedOut) {
+		const timeoutMs = isFirstChunk ? SSE_FIRST_CHUNK_TIMEOUT_MS : SSE_IDLE_TIMEOUT_MS;
+		throw new StreamIdleTimeoutError(timeoutMs, isFirstChunk);
+	}
+}
+
 export async function jsonVerboseError(resp: Response) {
 	const text = await resp.text();
 	try {

@@ -86,6 +86,41 @@ async function copyCopilotCliDefinitionFiles() {
 	await copyCopilotCLIFolders(sourceDir, targetDir);
 }
 
+async function copyCopilotCliSkillsFiles() {
+	const sourceDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'builtin-skills', 'customizing-copilot-cloud-agents-environment');
+	const targetDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'sdk', 'builtin-skills', 'customizing-copilot-cloud-agents-environment');
+
+	await copyCopilotCLIFolders(sourceDir, targetDir);
+}
+
+async function copyCopilotCliQueryFiles() {
+	const sourceDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'queries');
+	const targetDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'sdk', 'queries');
+
+	await copyCopilotCLIFolders(sourceDir, targetDir);
+}
+
+async function copyCopilotCliPrebuildFiles() {
+	const sourceDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'prebuilds');
+	const targetDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'sdk', 'prebuilds');
+
+	await fs.promises.rm(targetDir, { recursive: true, force: true });
+	await fs.promises.mkdir(targetDir, { recursive: true });
+	await fs.promises.cp(sourceDir, targetDir, {
+		recursive: true, force: true, filter: (src) => {
+			try {
+				// Only copy computer.node and win_error_mode.node files
+				if (fs.statSync(src).isFile()) {
+					return src.endsWith('computer.node') || src.endsWith('win_error_mode.node');
+				}
+				return true;
+			} catch {
+				return true;
+			}
+		}
+	});
+}
+
 async function copyCopilotCLIFolders(sourceDir: string, targetDir: string) {
 	await fs.promises.rm(targetDir, { recursive: true, force: true });
 	await fs.promises.mkdir(targetDir, { recursive: true });
@@ -141,6 +176,9 @@ async function main() {
 	await copyCopilotCliWorkerFiles();
 	await copyCopilotCliSharpFiles();
 	await copyCopilotCliDefinitionFiles();
+	await copyCopilotCliSkillsFiles();
+	await copyCopilotCliQueryFiles();
+	await copyCopilotCliPrebuildFiles();
 
 	// Check if the base cache file exists (dev-only sanity check, non-fatal in CI)
 	const baseCachePath = path.join('test', 'simulation', 'cache', 'base.sqlite');

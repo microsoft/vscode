@@ -205,6 +205,18 @@ export class ChatDebugFileLoggerService extends Disposable implements IChatDebug
 		}
 	}
 
+	registerSpanSession(spanId: string, sessionId: string): void {
+		this._spanSessionIndex.set(spanId, sessionId);
+		// Apply same eviction cap as _onSpanCompleted
+		if (this._spanSessionIndex.size > MAX_SPAN_SESSION_INDEX) {
+			const excess = this._spanSessionIndex.size - MAX_SPAN_SESSION_INDEX;
+			const iter = this._spanSessionIndex.keys();
+			for (let i = 0; i < excess; i++) {
+				this._spanSessionIndex.delete(iter.next().value!);
+			}
+		}
+	}
+
 	/**
 	 * Synchronously ensure a session exists for buffering. Directory creation
 	 * and old-log cleanup are deferred to the first flush.
@@ -1044,8 +1056,20 @@ export class ChatDebugFileLoggerService extends Disposable implements IChatDebug
 	}
 
 	private _extractSessionId(span: ICompletedSpanData): string | undefined {
-		return asString(span.attributes[CopilotChatAttr.CHAT_SESSION_ID])
-			?? asString(span.attributes[GenAiAttr.CONVERSATION_ID])
+		const directSessionId = asString(span.attributes[CopilotChatAttr.CHAT_SESSION_ID])
+			?? asString(span.attributes[GenAiAttr.CONVERSATION_ID]);
+
+		// If the span's parentSpanId maps to a known child session, prefer that.
+		// This handles hook spans that carry the parent's CHAT_SESSION_ID but
+		// whose parent span belongs to a child subagent session.
+		if (span.parentSpanId) {
+			const childSessionId = this._spanSessionIndex.get(span.parentSpanId);
+			if (childSessionId && this._childSessionMap.has(childSessionId)) {
+				return childSessionId;
+			}
+		}
+
+		return directSessionId
 			?? (span.parentSpanId ? this._spanSessionIndex.get(span.parentSpanId) : undefined);
 	}
 

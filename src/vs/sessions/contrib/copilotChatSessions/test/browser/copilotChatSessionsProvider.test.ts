@@ -30,7 +30,7 @@ import { IChatResponseModel } from '../../../../../workbench/contrib/chat/common
 import { IChatAgentData } from '../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
 import { ISessionChangeEvent } from '../../../../services/sessions/common/sessionsProvider.js';
-import { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
+import { ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { CopilotChatSessionsProvider, COPILOT_PROVIDER_ID } from '../../browser/copilotChatSessionsProvider.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 
@@ -716,12 +716,12 @@ suite('CopilotChatSessionsProvider', () => {
 			await provider.deleteSession(sessionId);
 			assert.strictEqual(provider.getSessions().length, 0, 'session should be removed after deleteSession');
 
-			// Clean up in-flight request so _sendFirstChat resolves quickly
+			// Cancellation after delete should resolve cleanly
 			cancelRequest();
-			await sendPromise.catch(() => { /* expected to reject */ });
+			await assert.doesNotReject(sendPromise);
 		});
 
-		test('archiveSession removes a temp session that is awaiting commit', async () => {
+		test('archiveSession archives a temp session that is awaiting commit', async () => {
 			const { provider, cancelRequest } = makeInFlightProvider();
 
 			const newSession = provider.createNewSession(workspace);
@@ -734,10 +734,44 @@ suite('CopilotChatSessionsProvider', () => {
 			assert.strictEqual(provider.getSessions().length, 1, 'session should appear while in-flight');
 
 			await provider.archiveSession(sessionId);
-			assert.strictEqual(provider.getSessions().length, 0, 'session should be removed after archiveSession');
+			assert.strictEqual(provider.getSessions().length, 1, 'session should still be in the list after archiveSession');
+			assert.strictEqual(provider.getSessions()[0].isArchived.get(), true, 'session should be archived');
 
+			// Cancellation after archive should resolve cleanly
 			cancelRequest();
-			await sendPromise.catch(() => { /* expected to reject */ });
+			await assert.doesNotReject(sendPromise);
+
+			// Clean up to avoid leaked disposable
+			await provider.deleteSession(sessionId);
+		});
+
+		test('archiveSession archives a stopped session that was never committed', async () => {
+			const { provider, cancelRequest } = makeInFlightProvider();
+
+			const newSession = provider.createNewSession(workspace);
+			const sessionId = newSession.sessionId;
+
+			const added = waitForSessionAdded(provider);
+			const sendPromise = provider.sendAndCreateChat(sessionId, { query: 'test' });
+			await added;
+
+			// Stop before commit arrives — session should stay as completed
+			cancelRequest();
+			await sendPromise;
+
+			assert.strictEqual(provider.getSessions().length, 1, 'stopped session should remain in the list');
+			assert.strictEqual(provider.getSessions()[0].status.get(), SessionStatus.Completed, 'session should be completed');
+
+			await provider.archiveSession(sessionId);
+			assert.strictEqual(provider.getSessions().length, 1, 'session should still be in the list after archiving');
+			assert.strictEqual(provider.getSessions()[0].isArchived.get(), true, 'session should be archived');
+
+			// Unarchive should also work
+			await provider.unarchiveSession(sessionId);
+			assert.strictEqual(provider.getSessions()[0].isArchived.get(), false, 'session should be unarchived');
+
+			// Clean up to avoid leaked disposable
+			await provider.deleteSession(sessionId);
 		});
 
 		/**

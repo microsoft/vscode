@@ -534,6 +534,15 @@ export class BrowserEditor extends EditorPane {
 
 		this._inputDisposables.clear();
 
+		// Set initial navigation state from the input so that the UI is populated while the model is loading.
+		this.updateNavigationState({
+			url: input.url || '',
+			title: input.title || '',
+			canGoBack: false,
+			canGoForward: false,
+			certificateError: undefined
+		});
+
 		// Resolve the browser view model from the input
 		const model = await input.resolve();
 

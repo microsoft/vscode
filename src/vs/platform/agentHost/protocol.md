@@ -57,7 +57,7 @@ Use this checklist when adding a new action, command, state field, or notificati
 1. **Write an E2E test first** in `protocolWebSocket.integrationTest.ts`.
 2. **Define the notification interface** in `sessionActions.ts`. Add it to the `INotification` union.
 3. **Add to `NOTIFICATION_INTRODUCED_IN`** in `versionRegistry.ts`.
-4. **Emit it** from `SessionStateManager` or the relevant server-side code.
+4. **Emit it** from `AgentHostStateManager` or the relevant server-side code.
 5. **Verify the E2E test passes.**
 
 ### Adding mock agent support (for testing)
