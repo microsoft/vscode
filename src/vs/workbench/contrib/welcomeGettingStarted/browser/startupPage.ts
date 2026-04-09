@@ -168,10 +168,6 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 					await this.openReadme();
 				} else if (startupEditorSetting.value === 'welcomePage' || startupEditorSetting.value === 'welcomePageInEmptyWorkbench') {
 					await this.openGettingStarted(true);
-					// test-workbench_change start
-				} else if (startupEditorSetting.value === 'tscodeWelcomePage') {
-					await this.openTscodeWelcome();
-					// test-workbench_change end
 				} else if (startupEditorSetting.value === 'terminal') {
 					this.commandService.executeCommand(TerminalCommandId.CreateTerminalEditor);
 				}
@@ -250,25 +246,7 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 		}
 	}
 
-	// test-workbench_change start
-	private async openTscodeWelcome() {
-		const editor = this.editorService.activeEditor;
-
-		// Ensure that the tscode welcome editor won't get opened more than once
-		if (editor?.typeId === TscodeWelcomeInput.ID || this.editorService.editors.some(e => e.typeId === TscodeWelcomeInput.ID)) {
-			return;
-		}
-
-		this.editorService.openEditor({
-			resource: TscodeWelcomeInput.RESOURCE,
-			options: {
-				override: TscodeWelcomeInput.ID,
-				index: editor ? 0 : undefined,
-				pinned: false,
-				preserveFocus: this.shouldPreserveFocus()
-			},
-		});
-	}
+	// test-workbench_change start - openTscodeWelcome removed, now triggered by onDidLogin in TsCodeAuthContribution
 	// test-workbench_change end
 
 	private shouldPreserveFocus(): boolean {
