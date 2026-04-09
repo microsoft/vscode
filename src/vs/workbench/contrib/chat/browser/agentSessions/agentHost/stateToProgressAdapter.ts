@@ -5,8 +5,7 @@
 
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, type IActiveTurn, type ICompletedToolCall, type IToolCallState, type ITurn, FileEditKind } from '../../../../../../platform/agentHost/common/state/sessionState.js';
-import { getToolKind, getToolLanguage } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
+import { ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, type IActiveTurn, type ICompletedToolCall, type IToolCallState, type ITurn, FileEditKind, ToolResultContentType, type IToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { type IChatProgress, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -14,20 +13,20 @@ import { type IToolConfirmationMessages, type IToolData, ToolDataSource, ToolInv
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 
-function getPtyTerminalData(meta: Record<string, unknown> | undefined): { input?: string; output?: string } | undefined {
-	if (!meta) {
+/**
+ * Finds a terminal content block in a tool call's content array.
+ * Returns the terminal URI if found.
+ */
+function getTerminalContentUri(content: IToolResultContent[] | undefined): string | undefined {
+	if (!content) {
 		return undefined;
 	}
-	const value = meta['ptyTerminal'];
-	if (!value || typeof value !== 'object') {
-		return undefined;
+	for (const block of content) {
+		if (block.type === ToolResultContentType.Terminal) {
+			return block.resource;
+		}
 	}
-	const input = (value as { input?: unknown }).input;
-	const output = (value as { output?: unknown }).output;
-	return {
-		input: typeof input === 'string' ? input : undefined,
-		output: typeof output === 'string' ? output : undefined,
-	};
+	return undefined;
 }
 
 /**
@@ -128,24 +127,25 @@ export function activeTurnToProgress(activeTurn: IActiveTurn): IChatProgress[] {
  * tool invocation suitable for history replay.
  */
 function completedToolCallToSerialized(tc: ICompletedToolCall): IChatToolInvocationSerialized {
-	const isTerminal = getToolKind(tc) === 'terminal';
+	const terminalUri = tc.status === ToolCallStatus.Completed ? getTerminalContentUri(tc.content) : undefined;
+	const isTerminal = !!terminalUri;
 	const isSuccess = tc.status === ToolCallStatus.Completed && tc.success;
 	const invocationMsg = stringOrMarkdownToString(tc.invocationMessage) ?? '';
 
 	let toolSpecificData: IChatTerminalToolInvocationData | undefined;
 	if (isTerminal) {
-		const ptyTerminal = getPtyTerminalData(tc._meta);
-		const commandInput = ptyTerminal?.input ?? tc.toolInput;
-		const toolOutput = tc.status === ToolCallStatus.Completed ? (ptyTerminal?.output ?? getToolOutputText(tc)) : undefined;
-		if (!commandInput && toolOutput === undefined) {
+		const commandInput = tc.toolInput;
+		const toolOutput = tc.status === ToolCallStatus.Completed ? getToolOutputText(tc) : undefined;
+		if (!commandInput && toolOutput === undefined && !terminalUri) {
 			toolSpecificData = undefined;
 		} else {
 			toolSpecificData = {
 				kind: 'terminal',
 				commandLine: { original: commandInput ?? '' },
-				language: getToolLanguage(tc) ?? 'shellscript',
+				language: 'shellscript',
 				terminalCommandOutput: toolOutput !== undefined ? { text: toolOutput } : undefined,
-				terminalCommandState: { exitCode: isSuccess ? 0 : 1 },
+				terminalCommandState: tc.status === ToolCallStatus.Completed ? { exitCode: isSuccess ? 0 : 1 } : undefined,
+				terminalCommandUri: terminalUri ? URI.parse(terminalUri) : undefined,
 			};
 		}
 	}
@@ -251,13 +251,7 @@ export function toolCallStateToInvocation(tc: IToolCallState): ChatToolInvocatio
 		};
 
 		let toolSpecificData: IChatTerminalToolInvocationData | IChatToolInputInvocationData | undefined;
-		if (getToolKind(tc) === 'terminal' && tc.toolInput) {
-			toolSpecificData = {
-				kind: 'terminal',
-				commandLine: { original: tc.toolInput },
-				language: getToolLanguage(tc) ?? 'shellscript',
-			};
-		} else if (tc.toolInput) {
+		if (tc.toolInput) {
 			let rawInput: unknown;
 			try { rawInput = JSON.parse(tc.toolInput); } catch { rawInput = { input: tc.toolInput }; }
 			toolSpecificData = { kind: 'input', rawInput };
@@ -280,15 +274,16 @@ export function toolCallStateToInvocation(tc: IToolCallState): ChatToolInvocatio
 	const invocation = new ChatToolInvocation(undefined, toolData, tc.toolCallId, undefined, undefined);
 	invocation.invocationMessage = stringOrMarkdownToString(tc.invocationMessage) ?? '';
 
-	if (getToolKind(tc) === 'terminal') {
-		const ptyTerminal = getPtyTerminalData(tc._meta);
-		const commandInput = ptyTerminal?.input ?? (tc.status !== ToolCallStatus.Streaming ? (tc.toolInput ?? '') : '');
-		invocation.toolSpecificData = {
-			kind: 'terminal',
-			commandLine: { original: commandInput },
-			language: getToolLanguage(tc) ?? 'shellscript',
-			terminalCommandOutput: ptyTerminal?.output !== undefined ? { text: ptyTerminal.output } : undefined,
-		} satisfies IChatTerminalToolInvocationData;
+	if (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.Completed) {
+		const terminalUri = getTerminalContentUri(tc.content);
+		if (terminalUri) {
+			invocation.toolSpecificData = {
+				kind: 'terminal',
+				commandLine: { original: tc.toolInput || '' },
+				language: 'shellscript',
+				terminalCommandUri: URI.parse(terminalUri),
+			} satisfies IChatTerminalToolInvocationData;
+		}
 	}
 
 	return invocation;
@@ -325,23 +320,26 @@ export interface IToolCallFileEdit {
 export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: IToolCallState): IToolCallFileEdit[] {
 	const isCompleted = tc.status === ToolCallStatus.Completed;
 	const isCancelled = tc.status === ToolCallStatus.Cancelled;
-	const isTerminal = invocation.toolSpecificData?.kind === 'terminal' || getToolKind(tc) === 'terminal';
+	const terminalContentUri = tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.Completed
+		? getTerminalContentUri(tc.content)
+		: undefined;
+	const isTerminal = invocation.toolSpecificData?.kind === 'terminal' || !!terminalContentUri;
 
 	if ((isCompleted || isCancelled) && hasKey(tc, { invocationMessage: true })) {
 		invocation.invocationMessage = stringOrMarkdownToString(tc.invocationMessage) ?? invocation.invocationMessage;
 	}
 
 	if (isTerminal && (isCompleted || isCancelled)) {
-		const ptyTerminal = getPtyTerminalData(tc._meta);
-		const toolOutput = isCompleted ? (ptyTerminal?.output ?? getToolOutputText(tc)) : undefined;
+		const toolOutput = isCompleted ? getToolOutputText(tc) : undefined;
 		const existing = invocation.toolSpecificData as IChatTerminalToolInvocationData | undefined;
-		const commandInput = ptyTerminal?.input ?? tc.toolInput ?? existing?.commandLine?.original ?? '';
+		const commandInput = tc.toolInput ?? existing?.commandLine?.original ?? '';
 		invocation.toolSpecificData = {
 			kind: 'terminal',
 			commandLine: { original: commandInput },
-			language: existing?.language ?? getToolLanguage(tc) ?? 'shellscript',
+			language: 'shellscript',
 			terminalCommandOutput: toolOutput !== undefined ? { text: toolOutput } : undefined,
 			terminalCommandState: { exitCode: isCompleted && tc.success ? 0 : 1 },
+			terminalCommandUri: terminalContentUri ? URI.parse(terminalContentUri) : existing?.terminalCommandUri,
 		};
 	} else if (isCompleted && tc.pastTenseMessage) {
 		invocation.pastTenseMessage = stringOrMarkdownToString(tc.pastTenseMessage);

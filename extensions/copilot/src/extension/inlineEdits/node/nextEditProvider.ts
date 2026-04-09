@@ -420,6 +420,8 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 				telemetryBuilder.setStatus('emptyEditsButHasNextCursorPosition');
 				return new NextEditResult(logContext.requestId, req, { jumpToPosition: error.nextCursorPosition, targetDocumentId: error.nextCursorDocumentId, documentBeforeEdits: documentAtInvocationTime, isFromCursorJump: false, isSubsequentEdit: false });
 			}
+		} else if (error instanceof NoNextEditReason.GotCancelled) {
+			logContext.setIsSkipped();
 		}
 
 		const emptyResult = new NextEditResult(logContext.requestId, req, undefined);
@@ -1279,10 +1281,13 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		const capturingToken = new CapturingToken(label, undefined);
 
 		void this._requestLogger.captureInvocation(capturingToken, async () => {
+			this._addLiveLogContextEntry(logContext, label);
 			try {
 				await this._runSpeculativeProviderCall(nextEditRequest, projectedDocuments, curDocId, req, logger);
+			} catch (e) {
+				logContext.setError(e);
 			} finally {
-				this._addLogContextEntry(logContext, label);
+				logContext.markCompleted();
 			}
 		});
 
@@ -1324,6 +1329,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 					Result.error(res.value.v),
 					res.value.telemetryBuilder
 				));
+				logContext.markAsNoSuggestions();
 				logger.trace('speculative request completed with no edits');
 			} else {
 
@@ -1372,6 +1378,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 										res.value.telemetryBuilder
 									)
 								);
+								logContext.setResponseResults([nextEditReplacement]);
 							}
 
 							logger.trace(`cached speculative edit ${ithEdit}`);
@@ -1390,6 +1397,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 								res.value.telemetryBuilder
 							)
 						);
+						logContext.markAsNoSuggestions();
 					}
 				});
 			}
@@ -1468,16 +1476,15 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		this._snippyService.handlePostInsertion(docId.toUri(), suggestion.result.documentBeforeEdits, suggestion.result.edit);
 	}
 
-	private _addLogContextEntry(logContext: InlineEditRequestLogContext, debugNameOverride?: string): void {
-		if (!logContext.includeInLogTree) {
-			return;
-		}
+	private _addLiveLogContextEntry(logContext: InlineEditRequestLogContext, debugNameOverride?: string): void {
 		this._requestLogger.addEntry({
 			type: LoggedRequestKind.MarkdownContentRequest,
 			debugName: debugNameOverride ?? logContext.getDebugName(),
-			icon: logContext.getIcon(),
+			icon: () => logContext.getIcon(),
 			startTimeMs: logContext.time,
-			markdownContent: logContext.toLogDocument(),
+			markdownContent: () => logContext.toLogDocument(),
+			onDidChange: logContext.onDidChange,
+			isVisible: () => logContext.includeInLogTree,
 		});
 	}
 

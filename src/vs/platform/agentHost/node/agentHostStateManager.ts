@@ -6,7 +6,7 @@
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { ILogService } from '../../log/common/log.js';
-import { ActionType, NotificationType, IActionEnvelope, IActionOrigin, INotification, ISessionAction, IRootAction, IStateAction, isRootAction, isSessionAction } from '../common/state/sessionActions.js';
+import { ActionType, NotificationType, IActionEnvelope, IActionOrigin, INotification, ISessionAction, IRootAction, IStateAction, isRootAction, isSessionAction, type ITerminalAction } from '../common/state/sessionActions.js';
 import type { IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { rootReducer, sessionReducer } from '../common/state/sessionReducers.js';
 import { createRootState, createSessionState, SessionLifecycle, type IRootState, type ISessionState, type ISessionSummary, type ITurn, type URI, ROOT_STATE_URI } from '../common/state/sessionState.js';
@@ -18,7 +18,7 @@ import { createRootState, createSessionState, SessionLifecycle, type IRootState,
  * through pure reducers, assigns monotonic sequence numbers, and emits
  * {@link IActionEnvelope}s for subscribed clients.
  */
-export class SessionStateManager extends Disposable {
+export class AgentHostStateManager extends Disposable {
 
 	private _serverSeq = 0;
 
@@ -40,7 +40,7 @@ export class SessionStateManager extends Disposable {
 		super();
 		this._rootState = createRootState();
 	}
-	private readonly _log = (msg: string) => this._logService.warn(`[SessionStateManager] ${msg}`);
+	private readonly _log = (msg: string) => this._logService.warn(`[AgentHostStateManager] ${msg}`);
 
 	get hasActiveSessions(): boolean {
 		return this._activeTurnToSession.size > 0;
@@ -97,14 +97,14 @@ export class SessionStateManager extends Disposable {
 	createSession(summary: ISessionSummary): ISessionState {
 		const key = summary.resource;
 		if (this._sessionStates.has(key)) {
-			this._logService.warn(`[SessionStateManager] Session already exists: ${key}`);
+			this._logService.warn(`[AgentHostStateManager] Session already exists: ${key}`);
 			return this._sessionStates.get(key)!;
 		}
 
 		const state = createSessionState(summary);
 		this._sessionStates.set(key, state);
 
-		this._logService.trace(`[SessionStateManager] Created session: ${key}`);
+		this._logService.trace(`[AgentHostStateManager] Created session: ${key}`);
 
 		this._onDidEmitNotification.fire({
 			type: NotificationType.SessionAdded,
@@ -126,7 +126,7 @@ export class SessionStateManager extends Disposable {
 	restoreSession(summary: ISessionSummary, turns: ITurn[]): ISessionState {
 		const key = summary.resource;
 		if (this._sessionStates.has(key)) {
-			this._logService.warn(`[SessionStateManager] Session already exists (restore): ${key}`);
+			this._logService.warn(`[AgentHostStateManager] Session already exists (restore): ${key}`);
 			return this._sessionStates.get(key)!;
 		}
 
@@ -137,7 +137,7 @@ export class SessionStateManager extends Disposable {
 		};
 		this._sessionStates.set(key, state);
 
-		this._logService.trace(`[SessionStateManager] Restored session: ${key} (${turns.length} turns)`);
+		this._logService.trace(`[AgentHostStateManager] Restored session: ${key} (${turns.length} turns)`);
 
 		return state;
 	}
@@ -159,7 +159,7 @@ export class SessionStateManager extends Disposable {
 		}
 
 		this._sessionStates.delete(session);
-		this._logService.trace(`[SessionStateManager] Removed session: ${session}`);
+		this._logService.trace(`[AgentHostStateManager] Removed session: ${session}`);
 	}
 
 	/**
@@ -203,7 +203,7 @@ export class SessionStateManager extends Disposable {
 	 * The action is applied to state and emitted with the client's origin
 	 * so the originating client can reconcile.
 	 */
-	dispatchClientAction(action: ISessionAction, origin: IActionOrigin): unknown {
+	dispatchClientAction(action: ISessionAction | ITerminalAction, origin: IActionOrigin): unknown {
 		return this._applyAndEmit(action, origin);
 	}
 
@@ -240,7 +240,7 @@ export class SessionStateManager extends Disposable {
 
 				resultingState = newState;
 			} else {
-				this._logService.warn(`[SessionStateManager] Action for unknown session: ${key}, type=${action.type}`);
+				this._logService.warn(`[AgentHostStateManager] Action for unknown session: ${key}, type=${action.type}`);
 			}
 		}
 
@@ -251,7 +251,7 @@ export class SessionStateManager extends Disposable {
 			origin,
 		};
 
-		this._logService.trace(`[SessionStateManager] Emitting envelope: seq=${envelope.serverSeq}, type=${action.type}${origin ? `, origin=${origin.clientId}:${origin.clientSeq}` : ''}`);
+		this._logService.trace(`[AgentHostStateManager] Emitting envelope: seq=${envelope.serverSeq}, type=${action.type}${origin ? `, origin=${origin.clientId}:${origin.clientSeq}` : ''}`);
 		this._onDidEmitEnvelope.fire(envelope);
 
 		return resultingState;

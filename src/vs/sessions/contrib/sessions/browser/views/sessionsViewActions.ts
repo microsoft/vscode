@@ -25,6 +25,7 @@ import { IsWorkspaceGroupCappedContext, SessionsViewFilterOptionsSubMenu, Sessio
 import { SessionsViewId as NewChatViewId, NewChatViewPane } from '../../../chat/browser/newChatViewPane.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ActiveSessionSupportsMultiChatContext, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 
 //  Constants
 
@@ -384,7 +385,7 @@ registerAction2(class PinSessionAction extends Action2 {
 			menu: [{
 				id: SessionItemToolbarMenuId,
 				group: 'navigation',
-				order: 2,
+				order: 1,
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals(IsSessionPinnedContext.key, false),
 					ContextKeyExpr.equals(IsSessionArchivedContext.key, false),
@@ -422,7 +423,7 @@ registerAction2(class UnpinSessionAction extends Action2 {
 			menu: [{
 				id: SessionItemToolbarMenuId,
 				group: 'navigation',
-				order: 2,
+				order: 1,
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals(IsSessionPinnedContext.key, true),
 					ContextKeyExpr.equals(IsSessionArchivedContext.key, false),
@@ -460,7 +461,7 @@ registerAction2(class ArchiveSessionAction extends Action2 {
 			menu: [{
 				id: SessionItemToolbarMenuId,
 				group: 'navigation',
-				order: 1,
+				order: 2,
 				when: ContextKeyExpr.equals(IsSessionArchivedContext.key, false),
 			}, {
 				id: SessionItemContextMenuId,
@@ -491,7 +492,7 @@ registerAction2(class UnarchiveSessionAction extends Action2 {
 			menu: [{
 				id: SessionItemToolbarMenuId,
 				group: 'navigation',
-				order: 1,
+				order: 2,
 				when: ContextKeyExpr.equals(IsSessionArchivedContext.key, true),
 			}, {
 				id: SessionItemContextMenuId,
@@ -669,6 +670,7 @@ registerAction2(class MarkSessionAsDoneAction extends Action2 {
 			id: 'agentSession.markAsDone',
 			title: localize2('markAsDone', "Mark as Done"),
 			icon: Codicon.check,
+			precondition: ChatContextKeys.requestInProgress.negate(),
 			menu: [{
 				id: Menus.CommandCenter,
 				order: 103,

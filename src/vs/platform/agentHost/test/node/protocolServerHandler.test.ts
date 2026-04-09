@@ -17,7 +17,7 @@ import { isJsonRpcNotification, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, Prot
 import { SessionStatus, type ISessionSummary } from '../../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
-import { SessionStateManager } from '../../node/sessionStateManager.js';
+import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostFileSystemProvider } from '../../common/agentHostFileSystemProvider.js';
 
 // ---- Mock helpers -----------------------------------------------------------
@@ -77,10 +77,10 @@ class MockAgentService implements IAgentService {
 	private readonly _onDidNotification = new Emitter<import('../../common/state/sessionActions.js').INotification>();
 	readonly onDidNotification = this._onDidNotification.event;
 
-	private _stateManager!: SessionStateManager;
+	private _stateManager!: AgentHostStateManager;
 
 	/** Connect to the state manager so dispatchAction works correctly. */
-	setStateManager(sm: SessionStateManager): void {
+	setStateManager(sm: AgentHostStateManager): void {
 		this._stateManager = sm;
 	}
 
@@ -122,6 +122,8 @@ class MockAgentService implements IAgentService {
 	async resourceCopy(): Promise<{}> { return {}; }
 	async resourceDelete(): Promise<{}> { return {}; }
 	async resourceMove(): Promise<{}> { return {}; }
+	async createTerminal(): Promise<void> { }
+	async disposeTerminal(): Promise<void> { }
 
 	dispose(): void {
 		this._onDidAction.dispose();
@@ -156,7 +158,7 @@ function waitForResponse(transport: MockProtocolTransport, id: number): Promise<
 suite('ProtocolServerHandler', () => {
 
 	let disposables: DisposableStore;
-	let stateManager: SessionStateManager;
+	let stateManager: AgentHostStateManager;
 	let server: MockProtocolServer;
 	let agentService: MockAgentService;
 	let handler: ProtocolServerHandler;
@@ -187,7 +189,7 @@ suite('ProtocolServerHandler', () => {
 
 	setup(() => {
 		disposables = new DisposableStore();
-		stateManager = disposables.add(new SessionStateManager(new NullLogService()));
+		stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		server = disposables.add(new MockProtocolServer());
 		agentService = new MockAgentService();
 		agentService.setStateManager(stateManager);

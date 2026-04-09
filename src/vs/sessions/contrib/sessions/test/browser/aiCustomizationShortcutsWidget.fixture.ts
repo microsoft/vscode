@@ -196,10 +196,10 @@ function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?:
 	const instantiationService = createEditorServices(ctx.disposableStore, {
 		colorTheme: ctx.theme,
 		additionalServices: (reg) => {
-			// Register overrides BEFORE registerWorkbenchServices so they take priority
+			registerWorkbenchServices(reg);
+			// Register overrides AFTER registerWorkbenchServices so they take priority
 			reg.defineInstance(IMenuService, new FixtureMenuService());
 			reg.defineInstance(IActionViewItemService, actionViewItemService);
-			registerWorkbenchServices(reg);
 			// Services needed by AICustomizationShortcutsWidget
 			reg.defineInstance(IPromptsService, options?.counts ? createMockPromptsServiceWithCounts(options.counts) : createMockPromptsService());
 			reg.defineInstance(IMcpService, createMockMcpService(options?.mcpServerCount ?? 0));
