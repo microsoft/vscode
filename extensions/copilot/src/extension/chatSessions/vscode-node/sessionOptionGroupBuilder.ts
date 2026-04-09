@@ -359,12 +359,18 @@ export class SessionOptionGroupBuilder implements ISessionOptionGroupBuilder {
 				title: l10n.t('Browse folders...')
 			});
 
+			const selectedItem = previouslySelected
+				? items.find(i => i.id === previouslySelected.id) ?? items[0]
+				: items[0];
+			if (selectedItem) {
+				defaultRepoUri = vscode.Uri.file(selectedItem.id);
+			}
 			optionGroups.push({
 				id: REPOSITORY_OPTION_ID,
 				name: l10n.t('Folder'),
 				description: l10n.t('Pick Folder'),
 				items,
-				selected: previouslySelected,
+				selected: selectedItem,
 				commands
 			});
 		} else {
@@ -418,14 +424,17 @@ export class SessionOptionGroupBuilder implements ISessionOptionGroupBuilder {
 		if (branches.length === 0) {
 			return undefined;
 		}
-		const selectedItem = resolveBranchSelection(branches, headBranchName, previousSelection);
 		const { locked } = resolveBranchLockState(isolationEnabled, currentIsolation);
+		// When locked (workspace isolation), ignore the previous selection so we
+		// always snap back to the active branch instead of keeping a stale pick.
+		const selectedItem = resolveBranchSelection(branches, headBranchName, locked ? undefined : previousSelection);
+		const lockedSelected = selectedItem && locked ? { ...selectedItem, locked: true } : undefined;
 		return {
 			id: BRANCH_OPTION_ID,
 			name: l10n.t('Branch'),
 			description: l10n.t('Pick Branch'),
-			items: locked ? branches.map(b => ({ ...b, locked: true })) : branches,
-			selected: selectedItem && locked ? { ...selectedItem, locked: true } : selectedItem,
+			items: lockedSelected ? [lockedSelected] : locked ? branches.map(b => ({ ...b, locked: true })) : branches,
+			selected: lockedSelected ?? selectedItem,
 		};
 	}
 

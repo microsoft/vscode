@@ -379,7 +379,7 @@ describe('SessionOptionGroupBuilder', () => {
 			const result = builder.buildBranchOptionGroup(branches, 'main', false, undefined, undefined);
 			expect(result).toBeDefined();
 			expect(result!.id).toBe(BRANCH_OPTION_ID);
-			expect(result!.items).toHaveLength(2);
+			expect(result!.items).toHaveLength(1);
 		});
 
 		it('selects HEAD branch when no previous selection', () => {
@@ -407,6 +407,17 @@ describe('SessionOptionGroupBuilder', () => {
 			const branches = [{ id: 'main', name: 'main', icon: {} as any }];
 			const result = builder.buildBranchOptionGroup(branches, 'main', true, IsolationMode.Worktree, undefined);
 			expect(result!.items[0].locked).toBeUndefined();
+		});
+
+		it('resets to HEAD branch when locked with workspace isolatuion even if previous selection was different', () => {
+			const branches = [
+				{ id: 'main', name: 'main', icon: {} as any },
+				{ id: 'hello', name: 'hello', icon: {} as any },
+			];
+			const previousSelection = { id: 'hello', name: 'hello', icon: {} as any };
+			const result = builder.buildBranchOptionGroup(branches, 'main', true, IsolationMode.Workspace, previousSelection);
+			expect(result!.selected?.id).toBe('main');
+			expect(result!.selected?.locked).toBe(true);
 		});
 	});
 
@@ -581,6 +592,8 @@ describe('SessionOptionGroupBuilder', () => {
 			expect(repoGroup).toBeDefined();
 			expect(repoGroup!.items).toHaveLength(1);
 			expect(repoGroup!.items[0].id).toBe(mruUri.fsPath);
+			// First item should be auto-selected when no previous selection
+			expect(repoGroup!.selected?.id).toBe(mruUri.fsPath);
 			// Should have a command for browsing folders
 			expect(repoGroup!.commands).toBeDefined();
 			expect(repoGroup!.commands!.length).toBeGreaterThan(0);
@@ -602,11 +615,77 @@ describe('SessionOptionGroupBuilder', () => {
 			const repoGroup = groups.find(g => g.id === REPOSITORY_OPTION_ID);
 			expect(repoGroup!.items).toHaveLength(10);
 		});
+
+		it('shows branch dropdown in welcome view when first MRU item is a git repo', async () => {
+			workspaceService = new NullWorkspaceService([]);
+			await configurationService.setConfig(ConfigKey.Advanced.CLIBranchSupport, true);
+			await configurationService.setConfig(ConfigKey.Advanced.CLIIsolationOption, true);
+			await context.globalState.update('github.copilot.cli.lastUsedIsolationOption', IsolationMode.Worktree);
+			builder = new SessionOptionGroupBuilder(
+				gitService, configurationService, context, workspaceService,
+				folderMruService, agentSessionsWorkspace, worktreeService, folderRepositoryManager,
+			);
+			const mruUri = URI.file('/recent-repo');
+			folderMruService.getRecentlyUsedFolders.mockResolvedValue([
+				{ folder: mruUri, repository: mruUri, lastAccessed: Date.now() },
+			]);
+			const repo = makeRepo(mruUri.fsPath);
+			gitService.getRepository.mockResolvedValue(repo);
+			gitService.getRefs.mockResolvedValue([makeRef('main'), makeRef('develop')]);
+
+			const groups = await builder.provideChatSessionProviderOptionGroups(undefined);
+			const branchGroup = groups.find(g => g.id === BRANCH_OPTION_ID);
+			expect(branchGroup).toBeDefined();
+			expect(branchGroup!.items.length).toBe(2);
+		});
+
+		it('selects no repo in welcome view when MRU is empty', async () => {
+			workspaceService = new NullWorkspaceService([]);
+			builder = new SessionOptionGroupBuilder(
+				gitService, configurationService, context, workspaceService,
+				folderMruService, agentSessionsWorkspace, worktreeService, folderRepositoryManager,
+			);
+			folderMruService.getRecentlyUsedFolders.mockResolvedValue([]);
+
+			const groups = await builder.provideChatSessionProviderOptionGroups(undefined);
+			const repoGroup = groups.find(g => g.id === REPOSITORY_OPTION_ID);
+			expect(repoGroup).toBeDefined();
+			expect(repoGroup!.items).toHaveLength(0);
+			expect(repoGroup!.selected).toBeUndefined();
+		});
+
+		it('falls back to first item when previous selection is no longer in welcome view MRU', async () => {
+			workspaceService = new NullWorkspaceService([]);
+			builder = new SessionOptionGroupBuilder(
+				gitService, configurationService, context, workspaceService,
+				folderMruService, agentSessionsWorkspace, worktreeService, folderRepositoryManager,
+			);
+			const currentUri = URI.file('/current-repo');
+			folderMruService.getRecentlyUsedFolders.mockResolvedValue([
+				{ folder: currentUri, repository: currentUri, lastAccessed: Date.now() },
+			]);
+
+			const previousState: vscode.ChatSessionInputState = {
+				onDidChange: Event.None,
+				groups: [{
+					id: REPOSITORY_OPTION_ID,
+					name: 'Folder',
+					description: '',
+					items: [],
+					selected: { id: URI.file('/removed-repo').fsPath, name: 'removed-repo' },
+				}],
+			};
+
+			const groups = await builder.provideChatSessionProviderOptionGroups(previousState);
+			const repoGroup = groups.find(g => g.id === REPOSITORY_OPTION_ID);
+			expect(repoGroup!.selected?.id).toBe(currentUri.fsPath);
+		});
 	});
 
 	describe('handleInputStateChange', () => {
 		it('rebuilds branch group when repo changes', async () => {
 			await configurationService.setConfig(ConfigKey.Advanced.CLIBranchSupport, true);
+			await configurationService.setConfig(ConfigKey.Advanced.CLIIsolationOption, true);
 			const repo = makeRepo('/new-repo');
 			gitService.getRepository.mockResolvedValue(repo);
 			gitService.getRefs.mockResolvedValue([makeRef('main'), makeRef('develop')]);
@@ -614,6 +693,13 @@ describe('SessionOptionGroupBuilder', () => {
 			const state: vscode.ChatSessionInputState = {
 				onDidChange: Event.None,
 				groups: [
+					{
+						id: ISOLATION_OPTION_ID,
+						name: 'Isolation',
+						description: '',
+						items: [],
+						selected: { id: IsolationMode.Worktree, name: 'Worktree' },
+					},
 					{
 						id: REPOSITORY_OPTION_ID,
 						name: 'Folder',
@@ -939,18 +1025,28 @@ describe('SessionOptionGroupBuilder', () => {
 
 		it('rebuilds branch group when new folder is a git repo', async () => {
 			await configurationService.setConfig(ConfigKey.Advanced.CLIBranchSupport, true);
+			await configurationService.setConfig(ConfigKey.Advanced.CLIIsolationOption, true);
 			const repo = makeRepo('/new-repo');
 			gitService.getRepository.mockResolvedValue(repo);
 			gitService.getRefs.mockResolvedValue([makeRef('main'), makeRef('feature')]);
 
 			const state: vscode.ChatSessionInputState = {
 				onDidChange: Event.None,
-				groups: [{
-					id: REPOSITORY_OPTION_ID,
-					name: 'Folder',
-					description: '',
-					items: [],
-				}],
+				groups: [
+					{
+						id: ISOLATION_OPTION_ID,
+						name: 'Isolation',
+						description: '',
+						items: [],
+						selected: { id: IsolationMode.Worktree, name: 'Worktree' },
+					},
+					{
+						id: REPOSITORY_OPTION_ID,
+						name: 'Folder',
+						description: '',
+						items: [],
+					},
+				],
 			};
 
 			await builder.updateInputStateAfterFolderSelection(state, URI.file('/new-repo') as any);

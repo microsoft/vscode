@@ -304,10 +304,6 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 		this._register(this._workspaceService.onDidChangeWorkspaceFolders(refreshActiveInputState));
 	}
 
-	provideHandleOptionsChange() {
-		// This is required for Controller.createChatSessionInputState.onDidChange event to work.
-	}
-
 	public async refreshSession(refreshOptions: { reason: 'update'; sessionId: string } | { reason: 'update'; sessionIds: string[] } | { reason: 'delete'; sessionId: string }): Promise<void> {
 		if (refreshOptions.reason === 'delete') {
 			const uri = SessionIdForCLI.getResource(refreshOptions.sessionId);
@@ -503,14 +499,23 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 		this._prDetectionService.detectPullRequest(copilotcliSessionId);
 
 		const folderRepo = await this.folderRepositoryManager.getFolderRepository(copilotcliSessionId, undefined, token);
-		const [history, title] = await Promise.all([
+		const [history, title, optionGroups] = await Promise.all([
 			this.getSessionHistory(copilotcliSessionId, folderRepo, token),
 			this.customSessionTitleService.getCustomSessionTitle(copilotcliSessionId),
+			this._optionGroupBuilder.buildExistingSessionInputStateGroups(resource, token),
 		]);
+
+		const options: Record<string, string | vscode.ChatSessionProviderOptionItem> = {};
+		for (const group of optionGroups) {
+			if (group.selected) {
+				options[group.id] = { ...group.selected, locked: true };
+			}
+		}
 
 		return {
 			title,
 			history,
+			options,
 			activeResponseCallback: undefined,
 			requestHandler: undefined,
 		};
