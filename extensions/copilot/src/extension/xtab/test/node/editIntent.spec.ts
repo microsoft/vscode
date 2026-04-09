@@ -7,7 +7,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { AggressivenessLevel, EditIntent } from '../../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { ILogger } from '../../../../platform/log/common/logService';
 import { AsyncIterUtils } from '../../../../util/common/asyncIterableUtils';
-import { EditIntentParseMode, parseEditIntentFromStream } from '../../node/xtabProvider';
+import { EditIntentParseMode, parseEditIntentFromStream } from '../../node/editIntent';
 
 // ============================================================================
 // Test Utilities

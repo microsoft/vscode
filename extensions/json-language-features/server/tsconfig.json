@@ -10,6 +10,9 @@
 			"WebWorker"
 		],
 		"module": "Node16",
+		"types": [
+			"node"
+		],
 		"typeRoots": [
 			"../node_modules/@types"
 		]

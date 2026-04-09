@@ -102,8 +102,11 @@ class FakeChatSessionWorkspaceFolderService extends mock<IChatSessionWorkspaceFo
 		this._sessionWorkspaceFolders.set(sessionId, folder);
 	}
 
-	override clearWorkspaceChanges(sessionId: string): void {
-		this._workspaceChanges.delete(sessionId);
+	override clearWorkspaceChanges(sessionIdOrFolderUri: string | vscode.Uri): string[] {
+		if (typeof sessionIdOrFolderUri === 'string') {
+			this._workspaceChanges.delete(sessionIdOrFolderUri);
+		}
+		return [];
 	}
 }
 

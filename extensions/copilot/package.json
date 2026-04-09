@@ -2,7 +2,7 @@
 	"name": "copilot-chat",
 	"displayName": "GitHub Copilot Chat",
 	"description": "AI chat features powered by Copilot",
-	"version": "1.0.0",
+	"version": "0.44.0",
 	"build": "1",
 	"internalAIKey": "1058ec22-3c95-4951-8443-f26c1f325911",
 	"completionsCoreVersion": "1.378.1799",
@@ -23,7 +23,7 @@
 	"icon": "assets/copilot.png",
 	"pricing": "Trial",
 	"engines": {
-		"vscode": "^1.115.0",
+		"vscode": "^1.116.0",
 		"npm": ">=9.0.0",
 		"node": ">=22.14.0"
 	},
@@ -6230,7 +6230,6 @@
 	},
 	"scripts": {
 		"postinstall": "tsx ./script/postinstall.ts",
-		"prepare": "husky",
 		"vscode-dts:update": "node script/build/vscodeDtsUpdate.js",
 		"vscode-dts:check": "node script/build/vscodeDtsCheck.js",
 		"vscode-dts:dev": "node node_modules/@vscode/dts/index.js dev && node script/build/moveProposedDts.js",
@@ -6328,7 +6327,6 @@
 		"eslint-plugin-no-only-tests": "^3.3.0",
 		"fastq": "^1.19.1",
 		"glob": "^11.1.0",
-		"husky": "^9.1.7",
 		"js-yaml": "^4.1.1",
 		"keyv": "^5.3.2",
 		"lint-staged": "15.2.9",

@@ -404,6 +404,26 @@ export function collectSingleLineErrorMessage(e: any, includeDetails = false): s
 }
 
 /**
+ * Sanitizes a network error message for telemetry by replacing hostnames,
+ * IP addresses, and credentials with placeholders.
+ */
+export function sanitizeNetworkErrorForTelemetry(message: string): string {
+	// Strip credentials and host from proxy result strings (e.g., "PROXY user:pass@host" → "PROXY <credentials>@<host>")
+	message = message.replace(/(\b(?:PROXY|HTTPS?|SOCKS[45]?)\s+)[^\s@]+@([^\s:\/]+)/gi, '$1<credentials>@<host>');
+	// Strip host from proxy result strings without credentials (e.g., "PROXY host:8080" → "PROXY <host>:8080")
+	message = message.replace(/(\b(?:PROXY|HTTPS?|SOCKS[45]?)\s+)([a-zA-Z0-9][-a-zA-Z0-9.]*)/gi, '$1<host>');
+	// Strip credentials and host from URLs (e.g., "://user:pass@host" → "://<credentials>@<host>")
+	message = message.replace(/(\/\/)[^\s/@]+@([^\s:\/]+)/g, '$1<credentials>@<host>');
+	// Replace IPv4 addresses, preserving the port if present
+	message = message.replace(/\b\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}\b/g, '<ip>');
+	// Replace IPv6 addresses (compressed form with ::, e.g., "2001:db8::1" or "::1")
+	message = message.replace(/(?<![a-zA-Z_:])(?:(?:[0-9a-fA-F]{1,4}:){1,7}|:):[0-9a-fA-F:]*[0-9a-fA-F](?![a-zA-Z_])/g, '<ip>');
+	// Replace FQDNs (at least one dot, TLD of 2+ alpha chars), preserving the port if present
+	message = message.replace(/\b([a-zA-Z0-9][-a-zA-Z0-9]*\.)+[a-zA-Z]{2,}\b/g, '<host>');
+	return message;
+}
+
+/**
  * Chromium error details attached by Electron to fetch errors.
  * Electron's network service process runs separately; when it crashes,
  * `network_process_crashed` is set to `true` on the error's `chromiumDetails`.

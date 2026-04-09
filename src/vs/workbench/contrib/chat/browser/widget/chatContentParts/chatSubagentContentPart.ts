@@ -9,7 +9,7 @@ import { Codicon } from '../../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Lazy } from '../../../../../../base/common/lazy.js';
 import { IRenderedMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
-import { IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { rcut } from '../../../../../../base/common/strings.js';
 import { localize } from '../../../../../../nls.js';
@@ -107,6 +107,16 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	private userManuallyExpanded: boolean = false;
 	private autoExpandedForConfirmation: boolean = false;
 
+	// Carousel confirmation placeholder
+	private _navigateToCarousel: ((subAgentInvocationId: string) => void) | undefined;
+	private _addToolToCarousel: ((tool: IChatToolInvocation) => void) | undefined;
+	private _shouldUseCarouselForTool: ((tool: IChatToolInvocation, state: IChatToolInvocation.State) => boolean) | undefined;
+	private _confirmationPlaceholder: HTMLElement | undefined;
+	private _confirmationPlaceholderLabel: HTMLElement | undefined;
+	private readonly _confirmationPlaceholderDisposable = this._register(new MutableDisposable());
+	private _useCarouselForConfirmations: boolean = false;
+	private toolsWaitingForCarouselConfirmation: number = 0;
+
 	// Working spinner elements for expanded state
 	private workingSpinnerElement: HTMLElement | undefined;
 	private workingSpinnerLabel: HTMLElement | undefined;
@@ -189,7 +199,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		const initialTitle = `${prefix}: ${description}`;
 		super(initialTitle, context, undefined, hoverService, configurationService);
 
-		this.description = description;
+		this.description = rcut(description, MAX_TITLE_LENGTH);
 		this._isDefaultDescription = isDefaultDescription;
 		this.agentName = agentName;
 		this.prompt = prompt;
@@ -311,15 +321,6 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		}
 	}
 
-	/**
-	 * Returns the insertion anchor for appending items to the wrapper.
-	 * Items should be inserted before the working spinner (if present),
-	 * then before the result container (if present), otherwise appended.
-	 */
-	private getInsertionAnchor(): HTMLElement | undefined {
-		return this.workingSpinnerElement ?? this.resultContainer;
-	}
-
 	protected override initContent(): HTMLElement {
 		this.wrapper = $('.chat-used-context-list.chat-thinking-collapsible');
 
@@ -331,10 +332,8 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		// Materialize any deferred content now that wrapper exists
 		// This handles the case where the subclass autorun ran before this base class autorun
 		this.materializePendingContent();
-
-		// Create working spinner if still active and no confirmations pending
-		if (!this.isInitiallyComplete && this.isActive && this.toolsWaitingForConfirmation === 0) {
-			this.createWorkingSpinner();
+		if (this.isActive && !this.isInitiallyComplete && !this.hasToolsWaitingForConfirmation) {
+			this.showWorkingSpinner();
 		}
 
 		// Use ResizeObserver to trigger layout when wrapper content changes
@@ -422,6 +421,28 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		return this.toolsWaitingForConfirmation > 0;
 	}
 
+	/** Routes this subagent's initial confirmations to the input carousel. */
+	public enableCarouselMode(
+		navigateToCarousel: (subAgentInvocationId: string) => void,
+		addToolToCarousel: (tool: IChatToolInvocation) => void,
+		shouldUseCarouselForTool: (tool: IChatToolInvocation, state: IChatToolInvocation.State) => boolean,
+	): void {
+		this._useCarouselForConfirmations = true;
+		this._navigateToCarousel = navigateToCarousel;
+		this._addToolToCarousel = addToolToCarousel;
+		this._shouldUseCarouselForTool = shouldUseCarouselForTool;
+	}
+
+	public getAgentLabel(): string {
+		if (this.agentName) {
+			return this.agentName;
+		}
+		if (!this._isDefaultDescription && this.description) {
+			return this.description;
+		}
+		return localize('chat.subagent.prefix', 'Subagent');
+	}
+
 	public markAsInactive(): void {
 		this.isActive = false;
 		this.domNode.classList.remove('chat-thinking-active');
@@ -430,6 +451,7 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		}
 
 		this.removeWorkingSpinner();
+		this.hideConfirmationPlaceholder();
 
 		if (this._isDefaultDescription) {
 			this.description = localize('chat.subagent.completedDefaultDescription', 'Ran subagent');
@@ -540,17 +562,19 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		const messageText = typeof message === 'string' ? message : message.value;
 		this.currentRunningToolMessage = messageText;
 		this.updateTitle();
+		const addToolToCarousel = this._addToolToCarousel;
+		const shouldUseCarouselForTool = this._shouldUseCarouselForTool;
 
 		let wasWaitingForConfirmation = false;
+		let wasWaitingForCarouselConfirmation = false;
 		this._register(autorun(r => {
 			const state = toolInvocation.state.read(r);
 
-			// Track confirmation state changes
 			const isWaitingForConfirmation = state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ||
 				state.type === IChatToolInvocation.StateKind.WaitingForPostApproval;
+			const isWaitingForCarouselConfirmation = !!addToolToCarousel && shouldUseCarouselForTool?.(toolInvocation, state) === true;
 
 			if (isWaitingForConfirmation && !wasWaitingForConfirmation) {
-				// Tool just started waiting for confirmation
 				this.toolsWaitingForConfirmation++;
 				if (!this.isExpanded()) {
 					this.autoExpandedForConfirmation = true;
@@ -559,7 +583,6 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 				// Remove the working spinner while confirmation is shown
 				this.removeWorkingSpinner();
 			} else if (!isWaitingForConfirmation && wasWaitingForConfirmation) {
-				// Tool is no longer waiting for confirmation
 				this.toolsWaitingForConfirmation--;
 				if (this.toolsWaitingForConfirmation === 0 && this.autoExpandedForConfirmation && !this.userManuallyExpanded) {
 					// Auto-collapse only if we auto-expanded and user didn't manually expand
@@ -572,8 +595,93 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 				}
 			}
 
+			if (isWaitingForCarouselConfirmation && !wasWaitingForCarouselConfirmation) {
+				this.toolsWaitingForCarouselConfirmation++;
+				addToolToCarousel(toolInvocation);
+				this.showConfirmationPlaceholder();
+			} else if (!isWaitingForCarouselConfirmation && wasWaitingForCarouselConfirmation) {
+				this.toolsWaitingForCarouselConfirmation--;
+				if (this.toolsWaitingForCarouselConfirmation === 0) {
+					this.hideConfirmationPlaceholder();
+				} else {
+					this.updateConfirmationPlaceholderLabel();
+				}
+			}
+
 			wasWaitingForConfirmation = isWaitingForConfirmation;
+			wasWaitingForCarouselConfirmation = isWaitingForCarouselConfirmation;
 		}));
+	}
+
+	private getConfirmationPlaceholderText(): string {
+		const count = this.toolsWaitingForCarouselConfirmation;
+		return count === 1
+			? localize('chat.subagent.pendingConfirmation', '1 pending confirmation')
+			: localize('chat.subagent.pendingConfirmations', '{0} pending confirmations', count);
+	}
+
+	private updateConfirmationPlaceholderLabel(): void {
+		if (this._confirmationPlaceholderLabel) {
+			this._confirmationPlaceholderLabel.textContent = this.getConfirmationPlaceholderText();
+		}
+	}
+
+	/** Shows a placeholder that jumps back to the carousel. */
+	private showConfirmationPlaceholder(): void {
+		if (this._confirmationPlaceholder) {
+			this.updateConfirmationPlaceholderLabel();
+			return;
+		}
+
+		const placeholder = $('button.chat-subagent-confirmation-placeholder');
+		const label = $('span.chat-subagent-placeholder-label');
+		label.textContent = this.getConfirmationPlaceholderText();
+		placeholder.appendChild(label);
+
+		this._confirmationPlaceholder = placeholder;
+		this._confirmationPlaceholderLabel = label;
+
+		const placeholderDisposables = new DisposableStore();
+		placeholderDisposables.add(dom.addDisposableListener(placeholder, 'click', (e) => {
+			e.preventDefault();
+			e.stopPropagation();
+			this._navigateToCarousel?.(this.subAgentInvocationId);
+		}));
+		this._confirmationPlaceholderDisposable.value = placeholderDisposables;
+
+		if (!this.hasToolItems) {
+			this.hasToolItems = true;
+			if (this.wrapper) {
+				this.wrapper.style.display = '';
+			}
+		}
+
+		if (!this.isExpanded()) {
+			this.autoExpandedForConfirmation = true;
+			this.setExpanded(true);
+		}
+
+		if (this.wrapper) {
+			this.wrapper.appendChild(placeholder);
+		}
+		this.layoutScheduler.schedule();
+	}
+
+	private hideConfirmationPlaceholder(): void {
+		if (this._confirmationPlaceholder) {
+			this._confirmationPlaceholder.remove();
+			this._confirmationPlaceholder = undefined;
+			this._confirmationPlaceholderLabel = undefined;
+			this._confirmationPlaceholderDisposable.clear();
+			this.layoutScheduler.schedule();
+		}
+	}
+
+	/** Keeps the carousel placeholder after visible tool output. */
+	private ensurePlaceholderAtBottom(): void {
+		if (this._confirmationPlaceholder?.parentElement === this.wrapper) {
+			this.wrapper.appendChild(this._confirmationPlaceholder);
+		}
 	}
 
 	/**
@@ -723,21 +831,6 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		// Track tool state for title updates and auto-expand/collapse on confirmation
 		this.trackToolState(toolInvocation);
 
-		// Update working spinner label with a new random message
-		if (this.workingSpinnerLabel) {
-			this.workingSpinnerLabel.textContent = this.getRandomWorkingMessage();
-		}
-
-		// Ensure expanded when a tool needing confirmation is appended (e.g. after session switch)
-		if (toolInvocation.kind === 'toolInvocation') {
-			const state = toolInvocation.state.get();
-			if ((state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ||
-				state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) && !this.isExpanded()) {
-				this.autoExpandedForConfirmation = true;
-				this.setExpanded(true);
-			}
-		}
-
 		// Render immediately only if already expanded or has been expanded before
 		if (this.isExpanded() || this.hasExpandedOnce) {
 			const part = this.createToolPart(toolInvocation, codeBlockStartIndex);
@@ -834,9 +927,8 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		}
 
 		if (this.wrapper) {
-			const anchor = this.getInsertionAnchor();
-			if (anchor) {
-				this.wrapper.insertBefore(itemWrapper, anchor);
+			if (this.resultContainer) {
+				this.wrapper.insertBefore(itemWrapper, this.resultContainer);
 			} else {
 				this.wrapper.appendChild(itemWrapper);
 			}
@@ -859,11 +951,10 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		itemWrapper.appendChild(domNode);
 		itemWrapper.insertBefore(iconElement, itemWrapper.firstChild);
 
-		// Insert before spinner/result container if either exists, otherwise append
+		// Insert before result container if it exists, otherwise append
 		if (this.wrapper) {
-			const anchor = this.getInsertionAnchor();
-			if (anchor) {
-				this.wrapper.insertBefore(itemWrapper, anchor);
+			if (this.resultContainer) {
+				this.wrapper.insertBefore(itemWrapper, this.resultContainer);
 			} else {
 				this.wrapper.appendChild(itemWrapper);
 			}
@@ -916,14 +1007,28 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 
 		// Dynamically add/remove icon based on confirmation state
 		if (toolInvocation.kind === 'toolInvocation') {
+			const shouldUseCarouselForTool = this._shouldUseCarouselForTool;
 			this._register(autorun(r => {
 				const state = toolInvocation.state.read(r);
 				const hasConfirmation = state.type === IChatToolInvocation.StateKind.WaitingForConfirmation ||
 					state.type === IChatToolInvocation.StateKind.WaitingForPostApproval;
+				const shouldHideInline = shouldUseCarouselForTool?.(toolInvocation, state) === true;
 				if (hasConfirmation) {
 					iconElement.remove();
-				} else if (!iconElement.parentElement) {
-					itemWrapper.insertBefore(iconElement, itemWrapper.firstChild);
+					if (shouldHideInline) {
+						itemWrapper.style.display = 'none';
+					} else {
+						itemWrapper.style.display = '';
+					}
+				} else {
+					if (!iconElement.parentElement) {
+						itemWrapper.insertBefore(iconElement, itemWrapper.firstChild);
+					}
+					if (this._useCarouselForConfirmations) {
+						itemWrapper.style.display = '';
+						// Re-position the confirmation placeholder to stay at the bottom
+						this.ensurePlaceholderAtBottom();
+					}
 				}
 			}));
 		} else {
@@ -931,10 +1036,9 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 			itemWrapper.insertBefore(iconElement, itemWrapper.firstChild);
 		}
 
-		// Insert before spinner/result container if either exists, otherwise append
-		// With lazy rendering, wrapper may not be created yet if content hasn't been expanded
+		// Keep newly-visible tool results above the placeholder/spinner.
 		if (this.wrapper) {
-			const anchor = this.getInsertionAnchor();
+			const anchor = this._confirmationPlaceholder ?? this.workingSpinnerElement ?? this.resultContainer;
 			if (anchor) {
 				this.wrapper.insertBefore(itemWrapper, anchor);
 			} else {
@@ -993,11 +1097,6 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		// Materialize lazy tool items
 		for (const item of this.lazyItems) {
 			this.materializeLazyItem(item);
-		}
-
-		// Create working spinner if still active, no confirmations pending, and not yet created
-		if (!this.isInitiallyComplete && this.isActive && this.toolsWaitingForConfirmation === 0 && !this.workingSpinnerElement) {
-			this.createWorkingSpinner();
 		}
 
 		// Render pending result text

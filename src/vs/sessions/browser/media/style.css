@@ -64,6 +64,12 @@
 	background-color: var(--vscode-sessionsSidebar-background);
 }
 
+.monaco-workbench.vs.agent-sessions-workbench .part.chatbar,
+.monaco-workbench.vs.agent-sessions-workbench .part.auxiliarybar,
+.monaco-workbench.vs.agent-sessions-workbench .part.panel {
+	border-color: var(--vscode-editorWidget-border, var(--vscode-widget-border, transparent));
+}
+
 /* ---- Chat Layout ---- */
 
 /* Remove max-width from the session container so the scrollbar extends full width */

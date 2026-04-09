@@ -86,7 +86,6 @@ export interface IChatSessionMetadataStore {
 	storeRepositoryProperties(sessionId: string, properties: RepositoryProperties): Promise<void>;
 	getRepositoryProperties(sessionId: string): Promise<RepositoryProperties | undefined>;
 	getSessionIdForWorktree(folder: vscode.Uri): Promise<string | undefined>;
-	getSessionIdForWorkspaceFolder(folder: vscode.Uri): Promise<string[]>;
 	getWorktreeProperties(sessionId: string): Promise<ChatSessionWorktreeProperties | undefined>;
 	getWorktreeProperties(folder: Uri): Promise<ChatSessionWorktreeProperties | undefined>;
 	getSessionWorkspaceFolder(sessionId: string): Promise<vscode.Uri | undefined>;

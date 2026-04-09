@@ -4,6 +4,9 @@
 		"lib": [
 			"ES2024"
 		],
+		"types": [
+			"mocha"
+		],
 		"module": "nodenext",
 		"noEmit": true,
 		"erasableSyntaxOnly": true,

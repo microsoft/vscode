@@ -158,8 +158,11 @@ class FakeChatSessionWorkspaceFolderService extends mock<IChatSessionWorkspaceFo
 	override getWorkspaceChanges = vi.fn(async (sessionId: string): Promise<readonly ChatSessionWorktreeFile[] | undefined> => {
 		return this._workspaceChanges.get(sessionId);
 	});
-	override clearWorkspaceChanges(sessionId: string): void {
-		this._workspaceChanges.delete(sessionId);
+	override clearWorkspaceChanges(sessionIdOrFolderUri: string | vscode.Uri): string[] {
+		if (typeof sessionIdOrFolderUri === 'string') {
+			this._workspaceChanges.delete(sessionIdOrFolderUri);
+		}
+		return [];
 	}
 }
 
