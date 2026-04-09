@@ -5,16 +5,10 @@ on:
     branches:
       - main
       - 'release/*'
-    paths:
-      - 'src/vs/sessions/**'
-      - 'scripts/code-sessions-web.*'
+  workflow_dispatch:
 
 permissions:
   contents: read
-
-concurrency:
-  group: sessions-e2e-${{ github.event.pull_request.number || github.sha }}
-  cancel-in-progress: true
 
 jobs:
   sessions-e2e:
