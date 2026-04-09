@@ -803,11 +803,26 @@ export class InlineChatController implements IEditorContribution {
 
 		const notebookEditor = this._notebookEditorService.getNotebookForPossibleCell(this._editor);
 		if (notebookEditor) {
+			const useNotebookAgent = this._configurationService.getValue<boolean>(InlineChatConfigKeys.notebookAgent);
+			if (useNotebookAgent) {
+				return {
+					location: ChatAgentLocation.Notebook,
+					locationData: {
+						type: ChatAgentLocation.Notebook,
+						sessionInputUri: this._editor.getModel().uri,
+					}
+				};
+			}
+			// Notebook cell but notebookAgent config is off: use Notebook location
+			// but with EditorInline-shaped locationData (matches zone widget behavior)
 			return {
 				location: ChatAgentLocation.Notebook,
 				locationData: {
-					type: ChatAgentLocation.Notebook,
-					sessionInputUri: this._editor.getModel().uri,
+					type: ChatAgentLocation.EditorInline,
+					id: getEditorId(this._editor, this._editor.getModel()),
+					selection: this._editor.getSelection(),
+					document: this._editor.getModel().uri,
+					wholeRange: this._editor.getSelection(),
 				}
 			};
 		}

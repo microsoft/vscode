@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { observableValue } from '../../../../../base/common/observable.js';
@@ -33,6 +34,7 @@ import { CursorChangeReason } from '../../../../../editor/common/cursorEvents.js
 import { CursorState } from '../../../../../editor/common/cursorCommon.js';
 import { IUserInteractionService, MockUserInteractionService } from '../../../../../platform/userInteraction/browser/userInteractionService.js';
 import { INotebookEditorService } from '../../../notebook/browser/services/notebookEditorService.js';
+import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 
 suite('InlineChatController - Request Parity', () => {
 
@@ -174,16 +176,13 @@ suite('InlineChatController - Request Parity', () => {
 		);
 	}
 
-	test('hover mode sendRequest has correct location and locationData', async () => {
+	test('hover mode sendRequest has correct location and locationData', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		setExplicitSelection(new Selection(1, 1, 1, 6));
 
 		const controller = store.add(instantiationService.createInstance(InlineChatController, editor));
 
-		// Don't await — run will wait for session dispose. We'll settle it after checking.
 		const runPromise = controller.run({ message: 'test message', autoSend: true });
-
-		// Let microtasks settle so sendRequest is called
-		await new Promise(r => setTimeout(r, 50));
+		await timeout(0);
 
 		// Settle the session so run() can return
 		sessionDisposedEmitter.fire();
@@ -217,15 +216,15 @@ suite('InlineChatController - Request Parity', () => {
 		assert.strictEqual(call.options?.modeInfo?.kind, ChatModeKind.Ask);
 		assert.strictEqual(call.options?.modeInfo?.modeId, 'ask');
 		assert.strictEqual(call.options?.modeInfo?.isBuiltin, true);
-	});
+	}));
 
-	test('hover mode sendRequest locationData matches what zone widget resolveData would produce', async () => {
+	test('hover mode sendRequest locationData matches what zone widget resolveData would produce', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		setExplicitSelection(new Selection(2, 1, 2, 4));
 
 		const controller = store.add(instantiationService.createInstance(InlineChatController, editor));
 
 		const runPromise = controller.run({ message: 'edit code', autoSend: true });
-		await new Promise(r => setTimeout(r, 50));
+		await timeout(0);
 		sessionDisposedEmitter.fire();
 		await runPromise;
 
@@ -248,9 +247,9 @@ suite('InlineChatController - Request Parity', () => {
 		} else {
 			assert.fail('Expected EditorInline location data');
 		}
-	});
+	}));
 
-	test('hover mode resolves model via defaultModel setting', async () => {
+	test('hover mode resolves model via defaultModel setting', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		// Reset _userSelectedModel static
 		// @ts-ignore accessing private static for test reset
 		InlineChatController._userSelectedModel = undefined;
@@ -265,35 +264,35 @@ suite('InlineChatController - Request Parity', () => {
 		const controller = store.add(instantiationService.createInstance(InlineChatController, editor));
 
 		const runPromise = controller.run({ message: 'hello', autoSend: true });
-		await new Promise(r => setTimeout(r, 50));
+		await timeout(0);
 		sessionDisposedEmitter.fire();
 		await runPromise;
 
 		assert.strictEqual(sendRequestCalls.length, 1);
 		assert.strictEqual(sendRequestCalls[0].options?.userSelectedModelId, testModelId);
-	});
+	}));
 
-	test('hover mode does not send request when autoSend is false', async () => {
+	test('hover mode does not send request when autoSend is false', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		setExplicitSelection(new Selection(1, 1, 1, 6));
 		const controller = store.add(instantiationService.createInstance(InlineChatController, editor));
 
 		const runPromise = controller.run({ message: 'hello', autoSend: false });
-		await new Promise(r => setTimeout(r, 50));
+		await timeout(0);
 		sessionDisposedEmitter.fire();
 		await runPromise;
 
 		assert.strictEqual(sendRequestCalls.length, 0, 'should not call sendRequest when autoSend is false');
-	});
+	}));
 
-	test('hover mode does not send request when message is missing', async () => {
+	test('hover mode does not send request when message is missing', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 		setExplicitSelection(new Selection(1, 1, 1, 6));
 		const controller = store.add(instantiationService.createInstance(InlineChatController, editor));
 
 		const runPromise = controller.run({ autoSend: true });
-		await new Promise(r => setTimeout(r, 50));
+		await timeout(0);
 		sessionDisposedEmitter.fire();
 		await runPromise;
 
 		assert.strictEqual(sendRequestCalls.length, 0, 'should not call sendRequest when message is missing');
-	});
+	}));
 });
