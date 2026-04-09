@@ -85,6 +85,20 @@ export interface ISessionDatabase extends IDisposable {
 	getFileEdits(toolCallIds: string[]): Promise<IFileEditRecord[]>;
 
 	/**
+	 * Retrieve file-edit metadata for all edits in this session.
+	 * Content blobs are **not** included — use {@link readFileEditContent}
+	 * to fetch them on demand. Results are returned in insertion order.
+	 */
+	getAllFileEdits(): Promise<IFileEditRecord[]>;
+
+	/**
+	 * Retrieve file-edit metadata for all edits belonging to a specific turn.
+	 * Content blobs are **not** included — use {@link readFileEditContent}
+	 * to fetch them on demand. Results are returned in insertion order.
+	 */
+	getFileEditsByTurn(turnId: string): Promise<IFileEditRecord[]>;
+
+	/**
 	 * Read the before/after content blobs for a single file edit.
 	 * Returns `undefined` if no edit exists for the given key.
 	 */
@@ -97,6 +111,11 @@ export interface ISessionDatabase extends IDisposable {
 	 * Returns `undefined` if no value has been stored for the key.
 	 */
 	getMetadata(key: string): Promise<string | undefined>;
+
+	/**
+	 * Gets a bulk of metadata. For example `getMetadataObject({ foo: true }) ->  { foo: 'data' }`
+	 */
+	getMetadataObject<T extends Record<string, unknown>>(obj: T): Promise<{ [K in keyof T]: string | undefined }>;
 
 	/**
 	 * Store a metadata key-value pair. Overwrites any existing value for the key.

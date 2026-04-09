@@ -251,8 +251,10 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 				});
 			},
 			deleteFile: async (uri) => {
+				const removedEntry = this._entriesObs.get().find(e => isEqual(e.modifiedURI, uri));
 				const entries = this._entriesObs.get().filter(e => !isEqual(e.modifiedURI, uri));
 				this._entriesObs.set(entries, undefined);
+				removedEntry?.dispose();
 				await this._bulkEditService.apply({ edits: [{ oldResource: uri, options: { ignoreIfNotExists: true } }] });
 			},
 			renameFile: async (fromUri, toUri) => {

@@ -619,16 +619,12 @@ class ChatRequestProvider extends Disposable implements vscode.TreeDataProvider<
 				// whose debugName matches the token label), associate it directly with the
 				// parent ChatPromptItem — don't add it as a child. The entry stays in the
 				// request logger for virtual document serving; only tree nesting changes.
-				// Only wire the main entry if it is visible — for live NES/Ghost entries,
-				// isVisible() can be false (e.g. skipped/cancelled); wiring a hidden entry
-				// would make it visible again via the parent's icon and click command.
+				// Always wire the main entry so the parent node is clickable and shows the
+				// current icon (e.g. loading, lightbulb, skipped, circleSlash, etc.).
 				if (currReq.kind === LoggedInfoKind.Request &&
 					currReq.entry.type === LoggedRequestKind.MarkdownContentRequest &&
 					currReq.entry.debugName === currReq.token.label) {
-					const isHidden = currReq.entry.isVisible && !currReq.entry.isVisible();
-					if (!isHidden) {
-						prompt.setMainEntry(currReq);
-					}
+					prompt.setMainEntry(currReq);
 					continue;
 				}
 

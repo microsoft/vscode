@@ -357,8 +357,12 @@ export class InlineEditRequestLogContext {
 
 	private _icon: Icon.t | undefined;
 
-	getIcon(): ThemeIcon | undefined {
-		return this._icon?.themeIcon;
+	private _resolveIcon(): Icon.t {
+		return this._icon ?? (this._isCompleted ? Icon.check : Icon.loading);
+	}
+
+	getIcon(): ThemeIcon {
+		return this._resolveIcon().themeIcon;
 	}
 
 	public setIsSkipped() {
@@ -460,8 +464,8 @@ export class InlineEditRequestLogContext {
 	}
 
 	getMarkdownTitle(): string {
-		const icon: string = this._icon ? `${this._icon.svg} ` : '';
-		return (icon) + this.getDebugName();
+		const icon = this._resolveIcon();
+		return `${icon.svg} ` + this.getDebugName();
 	}
 
 	protected _recentEdit: HistoryContext | undefined = undefined;

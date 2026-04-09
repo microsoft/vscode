@@ -6,25 +6,30 @@
 import * as dom from '../../../../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../../../../base/browser/keyboardEvent.js';
 import { Button } from '../../../../../../../base/browser/ui/button/button.js';
+import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
+import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore } from '../../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../../nls.js';
 import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
-import { migrateLegacyTerminalToolSpecificData } from '../../../../common/chat.js';
 import { IChatToolInvocation, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
-import { ILanguageModelToolsService } from '../../../../common/tools/languageModelToolsService.js';
 import { ChatToolInvocationPart } from './chatToolInvocationPart.js';
 import '../media/chatToolConfirmationCarousel.css';
 
 export type ToolInvocationPartFactory = (tool: IChatToolInvocation) => ChatToolInvocationPart;
 
+export type ScrollToSubagentCallback = (subAgentInvocationId: string) => void;
+
 interface ICarouselToolItem {
 	readonly tool: IChatToolInvocation;
 	readonly toolCallId: string;
-	readonly tabElement: HTMLElement;
 	readonly disposables: DisposableStore;
+	readonly subAgentInvocationId?: string;
+	readonly agentName?: string;
+	readonly scrollToSubagent?: ScrollToSubagentCallback;
+	ownsToolPart: boolean;
 	toolPart?: ChatToolInvocationPart;
 }
 
@@ -38,46 +43,88 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 	private readonly toolCallIds = new Set<string>();
 	private activeIndex = 0;
 
-	private readonly headerElement: HTMLElement;
-	private readonly tabsContainer: HTMLElement;
+	private readonly collapsedTitle: HTMLElement;
+	private readonly agentLabel: HTMLButtonElement;
 	private readonly contentContainer: HTMLElement;
+	private readonly stepIndicator: HTMLElement;
+	private readonly prevButton: Button;
+	private readonly nextButton: Button;
+	private readonly allowAllButton: Button;
+	private readonly collapseButton: Button;
+	private _isCollapsed = false;
 
 	constructor(
 		private readonly toolPartFactory: ToolInvocationPartFactory,
 		initialTools: IChatToolInvocation[],
-		private readonly toolsService: ILanguageModelToolsService,
+		private readonly scrollToSubagent?: ScrollToSubagentCallback,
+		private readonly initialSubAgentInvocationId?: string,
+		private readonly initialAgentName?: string,
 	) {
 		super();
 
 		const elements = dom.h('.chat-tool-confirmation-carousel@root', [
-			dom.h('.chat-tool-carousel-header@header', [
-				dom.h('.chat-tool-carousel-tabs@tabs'),
-				dom.h('.chat-tool-carousel-bulk-actions@bulkActions'),
+			dom.h('.chat-tool-carousel-overlay@overlay', [
+				dom.h('.chat-tool-carousel-title-group@titleGroup', [
+					dom.h('span.chat-tool-carousel-collapsed-title@collapsedTitle'),
+					dom.h('button.chat-tool-carousel-agent-label@agentLabel'),
+				]),
+				dom.h('.chat-tool-carousel-overlay-actions@overlayActions', [
+					dom.h('.chat-tool-carousel-step-indicator@stepIndicator'),
+					dom.h('.chat-tool-carousel-nav-arrows@navArrows'),
+				]),
 			]),
 			dom.h('.chat-tool-carousel-content@content'),
 		]);
 
 		this.domNode = elements.root;
-		this.headerElement = elements.header;
-		this.tabsContainer = elements.tabs;
+		this.domNode.tabIndex = -1;
+		this.domNode.setAttribute('role', 'group');
+		this.domNode.setAttribute('aria-label', localize('toolConfirmationCarousel', "Tool confirmation carousel"));
+		this.collapsedTitle = elements.collapsedTitle;
+		this.agentLabel = elements.agentLabel;
 		this.contentContainer = elements.content;
+		this.stepIndicator = elements.stepIndicator;
 
-		// Header: bulk Allow All / Skip All
-		const allowAllBtn = this._register(new Button(elements.bulkActions, { ...defaultButtonStyles, small: true }));
-		allowAllBtn.label = localize('allowAll', "Allow All");
-		this._register(allowAllBtn.onDidClick(() => this.allowAll()));
+		this.allowAllButton = this._register(new Button(elements.overlayActions, { ...defaultButtonStyles, small: true }));
+		this.allowAllButton.element.classList.add('chat-tool-carousel-allow-all-button');
+		this.allowAllButton.label = localize('allowAll', "Allow All");
+		this._register(this.allowAllButton.onDidClick(() => this.allowAll()));
 
-		const skipAllBtn = this._register(new Button(elements.bulkActions, { ...defaultButtonStyles, small: true, secondary: true }));
-		skipAllBtn.label = localize('skipAll', "Skip All");
-		this._register(skipAllBtn.onDidClick(() => this.skipAll()));
+		this.collapseButton = this._register(new Button(elements.overlayActions, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+		this.collapseButton.element.classList.add('chat-tool-carousel-header-button');
+		this.collapseButton.label = `$(${Codicon.chevronDown.id})`;
+		this.collapseButton.element.setAttribute('aria-label', localize('collapse', "Collapse"));
+		this._register(this.collapseButton.onDidClick(() => this.toggleCollapse()));
 
-		// Track scroll position for fade indicators
-		this._updateTabsScrollClasses();
-		this._register(dom.addDisposableListener(this.tabsContainer, 'scroll', () => this._updateTabsScrollClasses()));
+		this.prevButton = this._register(new Button(elements.navArrows, {
+			...defaultButtonStyles,
+			secondary: true,
+			supportIcons: true,
+		}));
+		this.prevButton.element.classList.add('chat-tool-carousel-nav-arrow');
+		this.prevButton.label = `$(${Codicon.chevronLeft.id})`;
+		this.prevButton.element.setAttribute('aria-label', localize('previous', "Previous"));
+		this._register(this.prevButton.onDidClick(() => this.navigateRelative(-1)));
 
-		// Add initial tools
+		this.nextButton = this._register(new Button(elements.navArrows, {
+			...defaultButtonStyles,
+			secondary: true,
+			supportIcons: true,
+		}));
+		this.nextButton.element.classList.add('chat-tool-carousel-nav-arrow');
+		this.nextButton.label = `$(${Codicon.chevronRight.id})`;
+		this.nextButton.element.setAttribute('aria-label', localize('next', "Next"));
+		this._register(this.nextButton.onDidClick(() => this.navigateRelative(1)));
+
+		this._register(dom.addDisposableListener(this.agentLabel, 'click', e => {
+			e.preventDefault();
+			this.scrollToActiveSubagent();
+		}));
+
+		this._register(dom.addDisposableListener(this.domNode, 'keydown', e => this.onKeydown(e)));
+
 		for (const tool of initialTools) {
-			this.addToolInvocation(tool);
+			this.addToolInvocation(tool, this.initialSubAgentInvocationId, this.initialAgentName, this.scrollToSubagent);
 		}
 	}
 
@@ -89,8 +136,12 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		return this.toolCallIds.has(toolCallId);
 	}
 
-	addToolInvocation(tool: IChatToolInvocation): void {
+	addToolInvocation(tool: IChatToolInvocation, subAgentInvocationId?: string, agentName?: string, scrollToSubagent?: ScrollToSubagentCallback, toolPart?: ChatToolInvocationPart): void {
 		if (this.toolCallIds.has(tool.toolCallId)) {
+			const existing = this.items.find(item => item.toolCallId === tool.toolCallId);
+			if (existing && toolPart) {
+				this.replaceExternalToolPart(existing, toolPart);
+			}
 			return;
 		}
 
@@ -98,73 +149,21 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 
 		const disposables = new DisposableStore();
 
-		// Create the tab as a button with proper ARIA semantics
-		const tabLabel = this.getTabLabel(tool);
-		const tabElement = dom.$('button.chat-tool-carousel-tab', { role: 'tab', 'aria-selected': 'false', tabIndex: 0 });
-		const labelEl = dom.$('.chat-tool-carousel-tab-label');
-		labelEl.textContent = tabLabel;
-		tabElement.appendChild(labelEl);
-
-		const selectTab = () => {
-			const idx = this.items.findIndex(i => i.toolCallId === tool.toolCallId);
-			if (idx >= 0) {
-				this.setActiveIndex(idx);
-			}
-		};
-
-		const navigateToTab = (targetIndex: number) => {
-			if (targetIndex < 0 || targetIndex >= this.items.length) {
-				return;
-			}
-			this.setActiveIndex(targetIndex);
-			this.items[targetIndex].tabElement.focus();
-		};
-
-		disposables.add(dom.addDisposableListener(tabElement, 'click', selectTab));
-		disposables.add(dom.addDisposableListener(tabElement, 'keydown', (e: KeyboardEvent) => {
-			const event = new StandardKeyboardEvent(e);
-			if (event.keyCode === KeyCode.Enter || event.keyCode === KeyCode.Space) {
-				e.preventDefault();
-				selectTab();
-				return;
-			}
-
-			const currentIndex = this.items.findIndex(i => i.toolCallId === tool.toolCallId);
-			if (currentIndex < 0) {
-				return;
-			}
-
-			switch (event.keyCode) {
-				case KeyCode.LeftArrow:
-					e.preventDefault();
-					navigateToTab((currentIndex + this.items.length - 1) % this.items.length);
-					break;
-				case KeyCode.RightArrow:
-					e.preventDefault();
-					navigateToTab((currentIndex + 1) % this.items.length);
-					break;
-				case KeyCode.Home:
-					e.preventDefault();
-					navigateToTab(0);
-					break;
-				case KeyCode.End:
-					e.preventDefault();
-					navigateToTab(this.items.length - 1);
-					break;
-			}
-		}));
-
-		this.tabsContainer.appendChild(tabElement);
-
 		const item: ICarouselToolItem = {
 			tool,
 			toolCallId: tool.toolCallId,
-			tabElement,
 			disposables,
+			subAgentInvocationId,
+			agentName,
+			scrollToSubagent,
+			ownsToolPart: !toolPart,
+			toolPart,
 		};
 		this.items.push(item);
+		if (toolPart) {
+			this.watchExternalToolPart(item, toolPart);
+		}
 
-		// Watch tool state — remove from carousel when no longer waiting
 		disposables.add(autorun(reader => {
 			const currentState = tool.state.read(reader);
 			if (currentState.type !== IChatToolInvocation.StateKind.WaitingForConfirmation) {
@@ -172,12 +171,57 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 			}
 		}));
 
-		this.updateVisibility();
+		this.updateUI();
 
-		// If this is the first item, render its content
 		if (this.items.length === 1) {
 			this.setActiveIndex(0);
 		}
+	}
+
+	private replaceExternalToolPart(item: ICarouselToolItem, toolPart: ChatToolInvocationPart): void {
+		if (item.toolPart === toolPart) {
+			return;
+		}
+
+		if (item.toolPart && item.ownsToolPart) {
+			item.toolPart.dispose();
+		}
+
+		item.toolPart = toolPart;
+		item.ownsToolPart = false;
+		this.watchExternalToolPart(item, toolPart);
+		if (this.items[this.activeIndex] === item) {
+			this.renderActiveContent();
+		}
+	}
+
+	private watchExternalToolPart(item: ICarouselToolItem, toolPart: ChatToolInvocationPart): void {
+		let isItemAlive = true;
+		item.disposables.add(toDisposable(() => isItemAlive = false));
+
+		toolPart.addDisposable(toDisposable(() => {
+			if (!isItemAlive || item.toolPart !== toolPart) {
+				return;
+			}
+
+			item.toolPart = undefined;
+			item.ownsToolPart = true;
+			if (this.items[this.activeIndex] === item) {
+				this.renderActiveContent();
+			}
+		}));
+	}
+
+	override dispose(): void {
+		for (const item of this.items) {
+			if (item.toolPart && item.ownsToolPart) {
+				item.toolPart.dispose();
+			}
+			item.disposables.dispose();
+		}
+		this.items.splice(0);
+		this.toolCallIds.clear();
+		super.dispose();
 	}
 
 	private removeItem(toolCallId: string): void {
@@ -188,8 +232,7 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 
 		const [removed] = this.items.splice(index, 1);
 		this.toolCallIds.delete(toolCallId);
-		removed.tabElement.remove();
-		if (removed.toolPart) {
+		if (removed.toolPart && removed.ownsToolPart) {
 			removed.toolPart.dispose();
 		}
 		removed.disposables.dispose();
@@ -200,48 +243,134 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 			return;
 		}
 
-		// Adjust active index
 		if (this.activeIndex >= this.items.length) {
 			this.activeIndex = this.items.length - 1;
 		}
 
-		this.updateVisibility();
-		this.updateTabs();
+		this.updateUI();
 		this.renderActiveContent();
 	}
 
 	private setActiveIndex(index: number): void {
 		this.activeIndex = index;
-		this.updateTabs();
+		this.updateUI();
 		this.renderActiveContent();
 	}
 
-	/**
-	 * Show/hide multi-item elements (bulk actions, nav, tabs overflow)
-	 * based on whether there's more than one item.
-	 */
-	private updateVisibility(): void {
-		const multi = this.items.length > 1;
-		dom.setVisibility(multi, this.headerElement);
-		this.domNode.classList.toggle('single-item', !multi);
-		this.updateTabs();
-	}
-
-	private updateTabs(): void {
-		for (let i = 0; i < this.items.length; i++) {
-			const isActive = i === this.activeIndex;
-			this.items[i].tabElement.classList.toggle('active', isActive);
-			this.items[i].tabElement.setAttribute('aria-selected', String(isActive));
+	private navigateRelative(delta: number): void {
+		if (this.items.length <= 1) {
+			return;
 		}
-		this._updateTabsScrollClasses();
+		const newIndex = (this.activeIndex + delta + this.items.length) % this.items.length;
+		this.setActiveIndex(newIndex);
 	}
 
-	private _updateTabsScrollClasses(): void {
-		const el = this.tabsContainer;
-		const atStart = el.scrollLeft <= 0;
-		const atEnd = el.scrollLeft + el.clientWidth >= el.scrollWidth - 1;
-		el.classList.toggle('scroll-start', atStart);
-		el.classList.toggle('scroll-end', atEnd);
+	private onKeydown(e: KeyboardEvent): void {
+		if (this.items.length === 0) {
+			return;
+		}
+
+		if (this.shouldIgnoreNavigationKeydown(e.target)) {
+			return;
+		}
+
+		const event = new StandardKeyboardEvent(e);
+		const focusContentAfterNavigation = dom.isHTMLElement(e.target) && this.contentContainer.contains(e.target);
+		let didNavigate = false;
+
+		switch (event.keyCode) {
+			case KeyCode.LeftArrow:
+				this.navigateRelative(-1);
+				didNavigate = true;
+				break;
+			case KeyCode.RightArrow:
+				this.navigateRelative(1);
+				didNavigate = true;
+				break;
+			case KeyCode.Home:
+				this.setActiveIndex(0);
+				didNavigate = true;
+				break;
+			case KeyCode.End:
+				this.setActiveIndex(this.items.length - 1);
+				didNavigate = true;
+				break;
+		}
+
+		if (!didNavigate) {
+			return;
+		}
+
+		e.preventDefault();
+		e.stopPropagation();
+
+		if (focusContentAfterNavigation) {
+			this.focusActiveContent();
+		}
+	}
+
+	private shouldIgnoreNavigationKeydown(target: EventTarget | null): boolean {
+		if (!dom.isHTMLElement(target)) {
+			return false;
+		}
+
+		return !!target.closest('.monaco-editor, .interactive-result-editor, .chat-confirmation-widget-message, input, textarea, select, [contenteditable="true"]');
+	}
+
+	private focusActiveContent(): void {
+		this.domNode.focus();
+	}
+
+	private toggleCollapse(): void {
+		this._isCollapsed = !this._isCollapsed;
+		this.domNode.classList.toggle('chat-tool-carousel-collapsed', this._isCollapsed);
+		this.collapseButton.label = this._isCollapsed
+			? `$(${Codicon.chevronUp.id})`
+			: `$(${Codicon.chevronDown.id})`;
+		this.collapseButton.element.setAttribute('aria-label',
+			this._isCollapsed ? localize('expand', "Expand") : localize('collapse', "Collapse")
+		);
+		this.updateUI();
+	}
+
+	private updateUI(): void {
+		const item = this.items[this.activeIndex];
+
+		if (this._isCollapsed) {
+			this.collapsedTitle.textContent = this.items.length === 1
+				? localize('confirmTool', "Confirm tool?")
+				: localize('confirmTools', "Confirm {0} tools?", this.items.length);
+		} else {
+			this.collapsedTitle.textContent = this.getToolTitle(item) ?? '';
+		}
+		dom.setVisibility(this._isCollapsed || !!this.collapsedTitle.textContent, this.collapsedTitle);
+
+		if (item?.agentName) {
+			this.agentLabel.textContent = `\u2014 ${item.agentName}`;
+			this.agentLabel.disabled = !item.subAgentInvocationId || !item.scrollToSubagent;
+			this.agentLabel.title = localize('scrollToSubagent', "Scroll to {0}", item.agentName);
+			this.agentLabel.setAttribute('aria-label', this.agentLabel.title);
+			dom.show(this.agentLabel);
+		} else {
+			this.agentLabel.textContent = '';
+			this.agentLabel.title = '';
+			this.agentLabel.removeAttribute('aria-label');
+			dom.hide(this.agentLabel);
+		}
+
+		this.stepIndicator.textContent = `${this.activeIndex + 1}/${this.items.length}`;
+
+		const multi = this.items.length > 1;
+		this.prevButton.enabled = multi;
+		this.nextButton.enabled = multi;
+		dom.setVisibility(multi, this.stepIndicator);
+		dom.setVisibility(multi, this.prevButton.element);
+		dom.setVisibility(multi, this.nextButton.element);
+		dom.setVisibility(this._isCollapsed || multi, this.allowAllButton.element);
+
+		this.allowAllButton.label = multi
+			? localize('allowAll', "Allow All")
+			: localize('allow', "Allow");
 	}
 
 	private renderActiveContent(): void {
@@ -252,96 +381,14 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 			return;
 		}
 
-		// Create the tool part once and reuse it across tab switches
 		if (!item.toolPart) {
 			item.toolPart = this.toolPartFactory(item.tool);
-			item.disposables.add(item.toolPart);
+			if (item.ownsToolPart) {
+				item.disposables.add(item.toolPart);
+			}
 		}
 
 		this.contentContainer.appendChild(item.toolPart.domNode);
-	}
-
-	/**
-	 * Build a short tab label from the tool's invocation message and context.
-	 * Falls back to the tool display name when no better label is available.
-	 */
-	private getTabLabel(tool: IChatToolInvocation): string {
-		const toolData = this.toolsService.getTool(tool.toolId);
-		const fallbackName = toolData?.displayName ?? tool.toolId;
-
-		// For terminal tools, use the command as the label
-		if (tool.toolSpecificData?.kind === 'terminal') {
-			const terminalData = migrateLegacyTerminalToolSpecificData(tool.toolSpecificData);
-			const cmd = (
-				terminalData.presentationOverrides?.commandLine ??
-				terminalData.commandLine.forDisplay ??
-				terminalData.commandLine.userEdited ??
-				terminalData.commandLine.toolEdited ??
-				terminalData.commandLine.original ??
-				terminalData.confirmation?.commandLine
-			)?.trimStart() ?? '';
-			return this.truncateLabel(cmd);
-		}
-
-		// Use the invocation message as the primary label (e.g. "Reading /path/to/file")
-		const invocationText = this.toPlainText(tool.invocationMessage);
-		if (invocationText) {
-			return this.truncateLabel(invocationText);
-		}
-
-		// Use the confirmation title (e.g. from the generic confirmation tool)
-		const confirmationMessages = IChatToolInvocation.getConfirmationMessages(tool);
-		const titleText = this.toPlainText(confirmationMessages?.title);
-		if (titleText) {
-			return this.truncateLabel(titleText);
-		}
-
-		// Fall back to originMessage context if available
-		const originText = this.toPlainText(tool.originMessage);
-		if (originText) {
-			return this.truncateLabel(originText);
-		}
-
-		return fallbackName;
-	}
-
-	private truncateLabel(text: string): string {
-		// Normalize whitespace and truncate for stable tab layout
-		text = text.replace(/\s+/g, ' ').trim();
-		const maxLength = 60;
-		if (text.length > maxLength) {
-			text = text.substring(0, maxLength) + '\u2026';
-		}
-		return text;
-	}
-
-	/**
-	 * Extract plain text from a string or IMarkdownString.
-	 * For markdown links with empty display text like `[](uri)`, extracts the
-	 * last path segment from the URI so labels read e.g. "Reading .vscode".
-	 */
-	private toPlainText(message: string | { value: string } | undefined | null): string {
-		if (!message) {
-			return '';
-		}
-		if (typeof message === 'string') {
-			return message;
-		}
-		// Replace markdown links: [text](url) → text, or basename of url when text is empty
-		const resolved = message.value.replace(/\[([^\]]*)\]\(([^)]+)\)/g, (_match, text, url) => {
-			if (text) {
-				return text;
-			}
-			// Extract last path segment as a readable name
-			try {
-				const path = decodeURIComponent(url.split('?')[0].split('#')[0]);
-				const segments = path.split('/').filter(Boolean);
-				return segments[segments.length - 1] ?? url;
-			} catch {
-				return url;
-			}
-		});
-		return resolved;
 	}
 
 	allowAll(): void {
@@ -350,9 +397,54 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		}
 	}
 
-	skipAll(): void {
-		for (const item of [...this.items]) {
-			IChatToolInvocation.confirmWith(item.tool, { type: ToolConfirmKind.Skipped });
+	private getToolTitle(item: ICarouselToolItem | undefined): string | undefined {
+		if (!item) {
+			return undefined;
+		}
+		const messages = IChatToolInvocation.getConfirmationMessages(item.tool);
+		if (!messages?.title) {
+			return undefined;
+		}
+		return this.truncateTitle(this.toPlainText(messages.title));
+	}
+
+	private truncateTitle(text: string): string {
+		text = text.replace(/\s+/g, ' ').trim();
+		const maxLength = 100;
+		return text.length > maxLength ? `${text.substring(0, maxLength)}\u2026` : text;
+	}
+
+	private toPlainText(message: string | IMarkdownString): string {
+		const markdown = typeof message === 'string' ? message : message.value;
+		return markdown
+			.replace(/\[([^\]]*)\]\(([^)]+)\)/g, (_match, text, url) => text || this.basename(url))
+			.replace(/\*\*([^*]+)\*\*/g, '$1')
+			.replace(/__([^_]+)__/g, '$1')
+			.replace(/`([^`]+)`/g, '$1')
+			.replace(/[\\*_#>]/g, '');
+	}
+
+	private basename(url: string): string {
+		try {
+			const path = decodeURIComponent(url.split('?')[0].split('#')[0]);
+			const segments = path.split('/').filter(Boolean);
+			return segments.at(-1) ?? url;
+		} catch {
+			return url;
+		}
+	}
+
+	private scrollToActiveSubagent(): void {
+		const item = this.items[this.activeIndex];
+		if (item?.subAgentInvocationId) {
+			item.scrollToSubagent?.(item.subAgentInvocationId);
+		}
+	}
+
+	activateFirstToolForSubagent(subAgentInvocationId: string): void {
+		const index = this.items.findIndex(i => i.subAgentInvocationId === subAgentInvocationId);
+		if (index >= 0) {
+			this.setActiveIndex(index);
 		}
 	}
 }

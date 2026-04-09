@@ -494,6 +494,16 @@ export class ExternalIngestIndex extends Disposable {
 			return chunks;
 		} catch (e) {
 			if (isCancellationError(e)) {
+				/* __GDPR__
+					"externalIngestIndex.search.cancelled" : {
+						"owner": "mjbvz",
+						"comment": "Logged info about cancellation of external ingest search. Mostly for timeouts",
+						"durationMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Time taken before the search was cancelled or aborted in milliseconds" }
+					}
+				*/
+				this._telemetryService.sendMSFTTelemetryEvent('externalIngestIndex.search.cancelled', undefined, {
+					durationMs: sw.elapsed()
+				});
 				throw e;
 			}
 

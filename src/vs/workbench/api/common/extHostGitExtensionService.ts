@@ -107,11 +107,19 @@ interface Change {
 
 interface RepositoryState {
 	readonly HEAD: Branch | undefined;
+	readonly remotes: Remote[];
 	readonly mergeChanges: Change[];
 	readonly indexChanges: Change[];
 	readonly workingTreeChanges: Change[];
 	readonly untrackedChanges: Change[];
 	readonly onDidChange: Event<void>;
+}
+
+interface Remote {
+	readonly name: string;
+	readonly fetchUrl?: string;
+	readonly pushUrl?: string;
+	readonly isReadOnly: boolean;
 }
 
 interface Branch extends GitRef {
@@ -273,6 +281,7 @@ export class ExtHostGitExtensionService extends Disposable implements IExtHostGi
 
 		return {
 			HEAD: state.HEAD ? toGitBranchDto(state.HEAD) : undefined,
+			remotes: state.remotes,
 			mergeChanges: state.mergeChanges.map(toGitChangeDto),
 			indexChanges: state.indexChanges.map(toGitChangeDto),
 			workingTreeChanges: state.workingTreeChanges.map(toGitChangeDto),

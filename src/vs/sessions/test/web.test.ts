@@ -93,6 +93,7 @@ class MockChatEntitlementService implements IChatEntitlementService {
 	readonly entitlementObs: IObservable<ChatEntitlement> = observableValue('entitlement', ChatEntitlement.Free);
 
 	readonly previewFeaturesDisabled = false;
+	readonly clientByokEnabled = false;
 	readonly organisations: string[] | undefined = undefined;
 	readonly isInternal = false;
 	readonly sku = 'free';
