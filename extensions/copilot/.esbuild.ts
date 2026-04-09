@@ -445,10 +445,14 @@ function applyPackageJsonPatch() {
 			throw new Error('VSCODE_PUBLISH_COUNTER environment variable is not set. This should be set by the build pipeline to ensure unique versioning for each pre-release build.');
 		}
 
-		const counter = parseInt(counterStr);
+		if (!/^\d+$/.test(counterStr)) {
+			throw new Error('VSCODE_PUBLISH_COUNTER must be a non-negative integer. This should be set by the build pipeline to ensure unique versioning for each pre-release build.');
+		}
 
-		if (counter >= 100) {
-			throw new Error('VSCODE_PUBLISH_COUNTER is too high. This should be a number that increments with each build, but resets periodically (e.g. daily) to avoid excessively long version numbers.');
+		const counter = Number.parseInt(counterStr, 10);
+
+		if (!Number.isInteger(counter) || counter >= 100) {
+			throw new Error('VSCODE_PUBLISH_COUNTER is out of range. This should be a whole number between 0 and 99 that increments with each build, but resets periodically (e.g. daily) to avoid excessively long version numbers.');
 		}
 
 		const [major, minor] = version.split('.');
