@@ -277,6 +277,13 @@ suite('OutputMonitor', () => {
 			assert.strictEqual(detectsInputRequiredPattern('File to overwrite: '), true);
 		});
 
+		test('detects prompts with parenthesized default values', () => {
+			assert.strictEqual(detectsInputRequiredPattern('package name: (test) '), true);
+			assert.strictEqual(detectsInputRequiredPattern('version: (1.0.0) '), true);
+			assert.strictEqual(detectsInputRequiredPattern('entry point: (index.js) '), true);
+			assert.strictEqual(detectsInputRequiredPattern('license: (ISC) '), true);
+		});
+
 		test('detects trailing questions', () => {
 			assert.strictEqual(detectsInputRequiredPattern('Continue?'), true);
 			assert.strictEqual(detectsInputRequiredPattern('Proceed?   '), true);

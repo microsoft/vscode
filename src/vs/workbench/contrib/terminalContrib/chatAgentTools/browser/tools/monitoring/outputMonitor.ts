@@ -479,6 +479,8 @@ export function detectsInputRequiredPattern(cursorLine: string): boolean {
 		/\(y\)\s*$/i,
 		// Line ends with ':'
 		/:\s*$/,
+		// Prompt with parenthesized default value e.g. "package name: (test) " or "version: (1.0.0) "
+		/:\s*\([^)]*\)\s*$/,
 		// Line contains (END) which is common in pagers
 		/\(END\)$/,
 		// Password prompt
