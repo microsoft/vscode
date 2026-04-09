@@ -52,14 +52,17 @@ export interface OAuthState {
 
 // test-workbench_change start
 export interface TokenResponse {
-	token: string;
-	refreshToken?: string;
-	idToken?: string;
-	userName?: string;
-	employeeId?: string;
-	rtcId?: string;
-	pathId?: string;
-	pathName?: string;
+	returnCode: string;
+	body?: {
+		token: string;
+		refreshToken?: string;
+		idToken?: string;
+		userName?: string;
+		employeeId?: string;
+		rtcId?: string;
+		pathId?: string;
+		pathName?: string;
+	};
 }
 // test-workbench_change end
 

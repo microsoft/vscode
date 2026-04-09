@@ -115,17 +115,17 @@ export class TsCodeAuthService extends Disposable implements ITsCodeAuthService 
 				});
 				if (response.ok) {
 					const data = await response.json() as TokenResponse;
-					if (data.token) {
+					if (data.returnCode === 'SUC0000' && data.body) {
 						this.stopPolling();
 						const storedToken: StoredToken = {
-							token: data.token,
-							refreshToken: data.refreshToken,
-							idToken: data.idToken,
-							userName: data.userName,
-							employeeId: data.employeeId,
-							rtcId: data.rtcId,
-							pathId: data.pathId,
-							pathName: data.pathName,
+							token: data.body.token,
+							refreshToken: data.body.refreshToken,
+							idToken: data.body.idToken,
+							userName: data.body.userName,
+							employeeId: data.body.employeeId,
+							rtcId: data.body.rtcId,
+							pathId: data.body.pathId,
+							pathName: data.body.pathName,
 						};
 						await this.tokenStore.saveToken(storedToken);
 						this._onDidLogin.fire();
