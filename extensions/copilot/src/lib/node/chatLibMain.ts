@@ -208,7 +208,7 @@ export interface INESProvider<T extends INESResult = INESResult> {
 	handleRejection(suggestion: T): void;
 	handleIgnored(suggestion: T, supersededByRequestUuid: T | undefined): void;
 	updateTreatmentVariables(variables: Record<string, boolean | number | string>): void;
-	setConfigs(overrides: Map<string, unknown>): void;
+	setConfigs(overrides: Map<string, unknown>): Promise<void>;
 	dispose(): void;
 }
 
@@ -349,11 +349,11 @@ class NESProvider extends Disposable implements INESProvider<NESResult> {
 		}
 	}
 
-	setConfigs(overrides: Map<string, unknown>) {
+	async setConfigs(overrides: Map<string, unknown>) {
 		for (const [key, value] of overrides) {
 			const config = globalConfigRegistry.configs.get(`${CopilotConfigPrefix}.${key}`);
 			if (config) {
-				this._configurationService.setConfig(config, value);
+				await this._configurationService.setConfig(config, value);
 			}
 		}
 	}
@@ -759,7 +759,7 @@ export type IGetInlineCompletionsOptions = Exclude<Partial<GetGhostTextOptions>,
 
 export interface IInlineCompletionsProvider {
 	updateTreatmentVariables(variables: Record<string, boolean | number | string>): void;
-	setConfigs(overrides: Map<string, unknown>): void;
+	setConfigs(overrides: Map<string, unknown>): Promise<void>;
 	getInlineCompletions(textDocument: ITextDocument, position: Position, token?: CancellationToken, options?: IGetInlineCompletionsOptions): Promise<CopilotCompletion[] | undefined>;
 	inlineCompletionShown(completionId: string): Promise<void>;
 	dispose(): void;
@@ -793,11 +793,11 @@ class InlineCompletionsProvider extends Disposable implements IInlineCompletions
 		}
 	}
 
-	setConfigs(overrides: Map<string, unknown>) {
+	async setConfigs(overrides: Map<string, unknown>) {
 		for (const [key, value] of overrides) {
 			const config = globalConfigRegistry.configs.get(`${CopilotConfigPrefix}.${key}`);
 			if (config) {
-				this._configurationService.setConfig(config, value);
+				await this._configurationService.setConfig(config, value);
 			}
 		}
 		if (this._completionsConfigProvider instanceof InMemoryConfigProvider) {
