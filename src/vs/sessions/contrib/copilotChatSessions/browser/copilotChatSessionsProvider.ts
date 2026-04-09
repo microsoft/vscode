@@ -1408,8 +1408,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		// Send request
 		this.logService.debug(`[CopilotChatSessionsProvider] Sending first chat for session ${session.id} with options:`, {
 			userSelectedModelId: sendOptions.userSelectedModelId,
-			modeInfo: sendOptions.modeInfo,
-			agentIdSilent: sendOptions.agentIdSilent,
 		});
 		const result = await this.chatService.sendRequest(session.resource, query, sendOptions);
 		if (result.kind === 'rejected') {
