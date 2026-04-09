@@ -343,7 +343,7 @@ declare module 'vscode' {
 		/**
 		 * Statistics about the chat session.
 		 */
-		changes?: readonly ChatSessionChangedFile[];
+		changes?: readonly ChatSessionChangedFile[] | readonly ChatSessionChangedFile2[];
 
 		/**
 		 * Arbitrary metadata for the chat session. Can be anything, but must be JSON-stringifyable.
@@ -353,7 +353,34 @@ declare module 'vscode' {
 		metadata?: { readonly [key: string]: any };
 	}
 
+	/**
+	 * @deprecated Use `ChatSessionChangedFile2` instead
+	 */
 	export class ChatSessionChangedFile {
+		/**
+		 * URI of the file.
+		 */
+		modifiedUri: Uri;
+
+		/**
+		 * File opened when the user takes the 'compare' action.
+		 */
+		originalUri?: Uri;
+
+		/**
+		 * Number of insertions made during the session.
+		 */
+		insertions: number;
+
+		/**
+		 * Number of deletions made during the session.
+		 */
+		deletions: number;
+
+		constructor(modifiedUri: Uri, insertions: number, deletions: number, originalUri?: Uri);
+	}
+
+	export class ChatSessionChangedFile2 {
 		/**
 		 * URI of the file.
 		 */

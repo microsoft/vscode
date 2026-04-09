@@ -1725,6 +1725,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const lastSubagent = this.getSubagentPart(templateData.renderedParts, subagentId);
 		if (lastSubagent) {
+			// Enable carousel mode before appendToolInvocation creates an inline part.
+			this.maybeRouteSubagentToolToCarousel(toolInvocation, lastSubagent, context, codeBlockStartIndex);
+
 			// Append to existing subagent part with matching ID
 			// But skip the parent subagent tool itself - we only want child tools
 			if (!isParentSubagentTool(toolInvocation)) {
@@ -1745,12 +1748,82 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			() => this._currentLayoutWidth.get(),
 			this._announcedToolProgressKeys,
 		);
+		// Enable carousel mode before appendToolInvocation creates an inline part.
+		this.maybeRouteSubagentToolToCarousel(toolInvocation, subagentPart, context, codeBlockStartIndex);
+
 		// Don't append the parent subagent tool itself - its description is already shown in the title
 		// Only append child tools (those with subAgentInvocationId)
 		if (!isParentSubagentTool(toolInvocation)) {
 			subagentPart.appendToolInvocation(toolInvocation, codeBlockStartIndex);
 		}
+
 		return subagentPart;
+	}
+
+	/** Routes subagent confirmations to the input carousel and leaves a placeholder inline. */
+	private maybeRouteSubagentToolToCarousel(
+		toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized,
+		subagentPart: ChatSubagentContentPart,
+		context: IChatContentPartRenderContext,
+		codeBlockStartIndex: number,
+	): void {
+		if (!this.configService.getValue<boolean>(ChatConfiguration.ToolConfirmationCarousel)) {
+			return;
+		}
+		if (toolInvocation.kind !== 'toolInvocation' || !isResponseVM(context.element)) {
+			return;
+		}
+		if (isParentSubagentTool(toolInvocation) || toolInvocation.presentation === 'hidden' || toolInvocation.source.type === 'mcp') {
+			return;
+		}
+		if (!!this.viewModel?.editing) {
+			return;
+		}
+
+		const widget = this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource);
+		if (!widget) {
+			return;
+		}
+
+		const subAgentInvocationId = subagentPart.subAgentInvocationId;
+		const agentName = subagentPart.getAgentLabel();
+
+		const scrollToSubagent = (targetSubAgentId: string) => {
+			const currentTemplateData = this.getTemplateDataForRequestId(context.element.id);
+			const currentSubagentPart = this.getSubagentPart(currentTemplateData?.renderedParts, targetSubAgentId) ?? subagentPart;
+			currentSubagentPart.domNode.scrollIntoView({ behavior: 'smooth', block: 'center' });
+		};
+
+		const navigateToCarousel = (targetSubAgentId: string) => {
+			widget.inputPart.activateCarouselForSubagent(targetSubAgentId);
+		};
+
+		const factory = (tool: IChatToolInvocation) => this.instantiationService.createInstance(
+			ChatToolInvocationPart, tool, context,
+			this.chatContentMarkdownRenderer, this._contentReferencesListPool,
+			this._toolEditorPool, () => this._currentLayoutWidth.get(),
+			this._announcedToolProgressKeys,
+			codeBlockStartIndex
+		);
+
+		const addToolToCarousel = (tool: IChatToolInvocation) => {
+			widget.inputPart.addToolToConfirmationCarousel(tool, factory, subAgentInvocationId, agentName, scrollToSubagent);
+		};
+		const shouldUseCarouselForTool = (tool: IChatToolInvocation, state: IChatToolInvocation.State) =>
+			this.configService.getValue<boolean>(ChatConfiguration.ToolConfirmationCarousel) &&
+			!this.viewModel?.editing &&
+			tool.presentation !== 'hidden' &&
+			tool.source.type !== 'mcp' &&
+			state.type === IChatToolInvocation.StateKind.WaitingForConfirmation &&
+			!!state.confirmationMessages?.title;
+
+		subagentPart.enableCarouselMode(navigateToCarousel, addToolToCarousel, shouldUseCarouselForTool);
+
+		const toolState = toolInvocation.state.get();
+		if (toolState.type === IChatToolInvocation.StateKind.WaitingForConfirmation &&
+			toolState.confirmationMessages?.title) {
+			widget.inputPart.addToolToConfirmationCarousel(toolInvocation, factory, subAgentInvocationId, agentName, scrollToSubagent);
+		}
 	}
 
 	private finalizeCurrentThinkingPart(context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): void {
@@ -2000,16 +2073,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			this.finalizeCurrentThinkingPart(context, templateData);
 		}
 
-		// If this tool is already tracked in the confirmation carousel, don't render it inline
-		if (toolInvocation.kind === 'toolInvocation' && isResponseVM(context.element)) {
-			const widget = this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource);
-			if (widget?.inputPart.hasToolInConfirmationCarousel(toolInvocation.toolCallId)) {
-				return this.renderNoContent((other) =>
-					other.kind === 'toolInvocation' && widget.inputPart.hasToolInConfirmationCarousel(toolInvocation.toolCallId)
-				);
-			}
-		}
-
 		const codeBlockStartIndex = context.codeBlockStartIndex;
 
 		// Factory that creates the tool invocation part with all necessary setup
@@ -2062,82 +2125,97 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return this.handleSubagentToolGrouping(toolInvocation, subagentId, context, templateData, codeBlockStartIndex);
 		}
 
-		// For non-subagent tools waiting for confirmation, show above the input in a carousel
-		// Only use the carousel when there are multiple parallel tool calls waiting for confirmation.
-		// A single tool call uses the existing inline confirmation part.
-		// Gated behind the confirmationCarousel setting (disabled on stable).
-		// Do not add new tools to the carousel while editing a previous request.
-		// Always use `widget.inputPart` (not `widget.input`) because the carousel lives on the
-		// main input part, and `widget.input` may return the inline editing input during edits.
+		// For cases not handled above (no thinking part, no subagent, etc.), create the part now
+		const { part } = createToolPart();
+		let inlinePartAnchor: HTMLElement | undefined;
+
+		// Watch for future confirmation transitions and route to carousel
 		if (this.configService.getValue<boolean>(ChatConfiguration.ToolConfirmationCarousel) &&
-			toolInvocation.kind === 'toolInvocation' && isResponseVM(context.element) && toolInvocation.presentation !== 'hidden') {
-
-			const isEditing = !!this.viewModel?.editing;
-			const isEligibleForCarousel = (tool: IChatToolInvocation): boolean => {
-				const toolState = tool.state.get();
-				return tool.presentation !== 'hidden' &&
-					toolState.type === IChatToolInvocation.StateKind.WaitingForConfirmation &&
-					!!toolState.confirmationMessages?.title;
-			};
-			if (!isEditing && isEligibleForCarousel(toolInvocation)) {
-				const widget = this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource);
-				if (widget) {
-					const otherWaitingTools = context.element.response.value.filter((part): part is IChatToolInvocation =>
-						part.kind === 'toolInvocation' &&
-						part.toolCallId !== toolInvocation.toolCallId &&
-						isEligibleForCarousel(part)
-					);
-					const hasCarouselOrMultipleWaiting = widget.inputPart.hasActiveToolConfirmationCarousel || otherWaitingTools.length > 0;
-
-					if (hasCarouselOrMultipleWaiting) {
-						const factory = (tool: IChatToolInvocation) => this.instantiationService.createInstance(
-							ChatToolInvocationPart, tool, context,
-							this.chatContentMarkdownRenderer, this._contentReferencesListPool,
-							this._toolEditorPool, () => this._currentLayoutWidth.get(),
-							this._announcedToolProgressKeys,
-							codeBlockStartIndex
-						);
-
-						// When creating a new carousel, also absorb any other waiting tools
-						// that were already rendered inline
-						if (!widget.inputPart.hasActiveToolConfirmationCarousel) {
-							for (const otherTool of otherWaitingTools) {
-								widget.inputPart.addToolToConfirmationCarousel(otherTool, factory);
-
-								// Hide the inline-rendered part and replace with a no-content sentinel
-								const renderedParts = templateData.renderedParts;
-								if (renderedParts) {
-									for (let i = 0; i < renderedParts.length; i++) {
-										const rp = renderedParts[i];
-										if (rp instanceof ChatToolInvocationPart && rp.toolCallId === otherTool.toolCallId) {
-											rp.domNode?.remove();
-											rp.dispose();
-											renderedParts[i] = this.renderNoContent((other) =>
-												other.kind === 'toolInvocation' && widget.inputPart.hasToolInConfirmationCarousel(otherTool.toolCallId)
-											);
-											break;
-										}
-									}
-								}
-							}
-						}
-
-						widget.inputPart.renderToolConfirmationCarousel(toolInvocation, factory);
-						return this.renderNoContent((other) => {
-							if (other.kind !== 'toolInvocation') {
-								return false;
-							}
-							return widget.inputPart.hasToolInConfirmationCarousel(toolInvocation.toolCallId);
-						});
+			toolInvocation.kind === 'toolInvocation' && isResponseVM(context.element) &&
+			toolInvocation.source.type !== 'mcp' && !this.viewModel?.editing) {
+			const widget = this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource);
+			if (widget) {
+				const factory = (tool: IChatToolInvocation) => this.instantiationService.createInstance(
+					ChatToolInvocationPart, tool, context,
+					this.chatContentMarkdownRenderer, this._contentReferencesListPool,
+					this._toolEditorPool, () => this._currentLayoutWidth.get(),
+					this._announcedToolProgressKeys,
+					codeBlockStartIndex
+				);
+				const routePartToCarousel = (): boolean => {
+					inlinePartAnchor ??= this.createInlinePartAnchor(part);
+					if (!inlinePartAnchor) {
+						return false;
 					}
-				}
+
+					dom.show(part.domNode);
+					widget.inputPart.addToolToConfirmationCarousel(toolInvocation, factory, undefined, undefined, undefined, part);
+					if (part.domNode.parentElement === inlinePartAnchor.parentElement) {
+						part.domNode.remove();
+					}
+					return true;
+				};
+				let hasScheduledCarouselRoute = false;
+				const scheduleRoutePartToCarousel = () => {
+					if (hasScheduledCarouselRoute) {
+						return;
+					}
+
+					hasScheduledCarouselRoute = true;
+					part.addDisposable(dom.scheduleAtNextAnimationFrame(dom.getWindow(part.domNode), () => {
+						hasScheduledCarouselRoute = false;
+						const state = toolInvocation.state.get();
+						if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation && state.confirmationMessages?.title &&
+							toolInvocation.presentation !== 'hidden' &&
+							toolInvocation.source.type !== 'mcp' &&
+							!this.viewModel?.editing) {
+							routePartToCarousel();
+						}
+					}));
+				};
+				part.addDisposable(autorun(reader => {
+					const state = toolInvocation.state.read(reader);
+					const isCarouselConfirmation = state.type === IChatToolInvocation.StateKind.WaitingForConfirmation &&
+						!!state.confirmationMessages?.title &&
+						toolInvocation.presentation !== 'hidden' &&
+						toolInvocation.source.type !== 'mcp' &&
+						!this.viewModel?.editing;
+
+					if (isCarouselConfirmation) {
+						if (!routePartToCarousel()) {
+							scheduleRoutePartToCarousel();
+						}
+					} else if (IChatToolInvocation.isEffectivelyHidden(toolInvocation, reader)) {
+						this.restoreInlinePart(part, inlinePartAnchor);
+						dom.hide(part.domNode);
+					} else {
+						this.restoreInlinePart(part, inlinePartAnchor);
+						dom.show(part.domNode);
+					}
+				}));
 			}
 		}
 
-		// For cases not handled above (no thinking part, no subagent, etc.), create the part now
-		const { part } = createToolPart();
-
 		return part;
+	}
+
+	private createInlinePartAnchor(part: ChatToolInvocationPart): HTMLElement | undefined {
+		const parent = part.domNode?.parentElement;
+		if (!parent) {
+			return undefined;
+		}
+
+		const anchor = dom.$('.chat-tool-carousel-inline-anchor');
+		anchor.style.display = 'none';
+		parent.insertBefore(anchor, part.domNode);
+		part.addDisposable(toDisposable(() => anchor.remove()));
+		return anchor;
+	}
+
+	private restoreInlinePart(part: ChatToolInvocationPart, anchor: HTMLElement | undefined): void {
+		if (anchor?.parentElement && part.domNode?.parentElement !== anchor.parentElement) {
+			anchor.parentElement.insertBefore(part.domNode, anchor.nextSibling);
+		}
 	}
 
 	// watch for confirmation part transition when tool invocation is streaming
@@ -2153,11 +2231,12 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return;
 		}
 
-		const removeConfirmationWidget = () => {
+		const moveConfirmationWidgetOutOfThinking = (): ChatToolInvocationPart => {
 			const createdPart = getCreatedPart();
-			// move the created part out of thinking and into the main template
 			toolInvocation.isAttachedToThinking = false;
+			let part: ChatToolInvocationPart;
 			if (createdPart?.domNode) {
+				part = createdPart;
 				const wrapper = createdPart.domNode.parentElement;
 				if (wrapper?.classList.contains('chat-thinking-tool-wrapper')) {
 					wrapper.remove();
@@ -2167,7 +2246,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				thinkingPart.removeMaterializedItem(toolInvocation.toolCallId);
 			} else {
 				thinkingPart.removeLazyItem(toolInvocation.toolId);
-				const { domNode } = createToolPart();
+				const { domNode, part: createdPart } = createToolPart();
+				part = createdPart;
 				templateData.value.appendChild(domNode);
 			}
 			this.finalizeCurrentThinkingPart(context, templateData);
@@ -2177,16 +2257,67 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				thinkingPart.domNode?.remove();
 				thinkingPart.dispose();
 			}
-		};
 
-		const currentState = toolInvocation.state.get();
-		if (currentState.type === IChatToolInvocation.StateKind.WaitingForConfirmation || currentState.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
-			removeConfirmationWidget();
-			return;
-		}
+			return part;
+		};
 
 		const isWorkingState = (type: IChatToolInvocation.StateKind) =>
 			type === IChatToolInvocation.StateKind.Streaming || type === IChatToolInvocation.StateKind.Executing;
+
+		const tryRouteConfirmationToCarousel = (): boolean => {
+			if (!this.configService.getValue<boolean>(ChatConfiguration.ToolConfirmationCarousel) ||
+				!isResponseVM(context.element) ||
+				this.viewModel?.editing ||
+				toolInvocation.presentation === 'hidden' ||
+				toolInvocation.source.type === 'mcp') {
+				return false;
+			}
+
+			const state = toolInvocation.state.get();
+			if (state.type !== IChatToolInvocation.StateKind.WaitingForConfirmation || !state.confirmationMessages?.title) {
+				return false;
+			}
+
+			const widget = this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource);
+			if (!widget) {
+				return false;
+			}
+
+			const part = moveConfirmationWidgetOutOfThinking();
+			const factory = (tool: IChatToolInvocation) => this.instantiationService.createInstance(
+				ChatToolInvocationPart, tool, context,
+				this.chatContentMarkdownRenderer, this._contentReferencesListPool,
+				this._toolEditorPool, () => this._currentLayoutWidth.get(),
+				this._announcedToolProgressKeys,
+				context.codeBlockStartIndex
+			);
+
+			part.addDisposable(autorun(reader => {
+				const currentState = toolInvocation.state.read(reader);
+				if (currentState.type === IChatToolInvocation.StateKind.WaitingForConfirmation && currentState.confirmationMessages?.title) {
+					widget.inputPart.addToolToConfirmationCarousel(toolInvocation, factory);
+					dom.hide(part.domNode);
+				} else if (IChatToolInvocation.isEffectivelyHidden(toolInvocation, reader)) {
+					dom.hide(part.domNode);
+				} else {
+					dom.show(part.domNode);
+				}
+			}));
+
+			return true;
+		};
+
+		const currentState = toolInvocation.state.get();
+		if (currentState.type === IChatToolInvocation.StateKind.WaitingForConfirmation) {
+			if (!tryRouteConfirmationToCarousel()) {
+				moveConfirmationWidgetOutOfThinking();
+			}
+			return;
+		}
+		if (currentState.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
+			moveConfirmationWidgetOutOfThinking();
+			return;
+		}
 
 		if (!isWorkingState(currentState.type)) {
 			return;
@@ -2201,7 +2332,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				}
 				didRemoveConfirmationWidget = true;
 				disposable.dispose();
-				removeConfirmationWidget();
+				if (state.type !== IChatToolInvocation.StateKind.WaitingForConfirmation || !tryRouteConfirmationToCarousel()) {
+					moveConfirmationWidgetOutOfThinking();
+				}
 			}
 		});
 

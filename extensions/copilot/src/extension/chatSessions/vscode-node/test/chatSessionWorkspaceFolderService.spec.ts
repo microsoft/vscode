@@ -652,6 +652,71 @@ describe('ChatSessionWorkspaceFolderService', () => {
 
 				expect(gitService.getRepository).toHaveBeenCalledTimes(2);
 			});
+
+			it('should invalidate cache for all sessions when clearWorkspaceChanges is called with folder URI', async () => {
+				const folder = vscode.Uri.file('/shared-folder');
+				const repo = makeRepoContext({ rootUri: URI.file('/shared-folder') });
+
+				gitService.getRepository = vi.fn().mockResolvedValue(repo);
+				gitService.diffIndexWithHEADShortStats = vi.fn().mockResolvedValue({ insertions: 1, deletions: 0 });
+
+				const sessionId1 = 'session-1';
+				const sessionId2 = 'session-2';
+
+				await service.trackSessionWorkspaceFolder(sessionId1, folder.fsPath, {
+					repositoryPath: folder.fsPath,
+					branchName: 'main',
+				});
+				await service.trackSessionWorkspaceFolder(sessionId2, folder.fsPath, {
+					repositoryPath: folder.fsPath,
+					branchName: 'develop',
+				});
+
+				// Populate caches
+				await service.getWorkspaceChanges(sessionId1);
+				await service.getWorkspaceChanges(sessionId2);
+				expect(gitService.getRepository).toHaveBeenCalledTimes(2);
+
+				// Clear via folder URI
+				const clearedIds = service.clearWorkspaceChanges(folder);
+				expect(clearedIds).toContain(sessionId1);
+				expect(clearedIds).toContain(sessionId2);
+
+				// Both sessions should need to re-fetch
+				await service.getWorkspaceChanges(sessionId1);
+				await service.getWorkspaceChanges(sessionId2);
+				expect(gitService.getRepository).toHaveBeenCalledTimes(4);
+			});
+
+			it('should return empty array when clearWorkspaceChanges is called with untracked folder URI', () => {
+				const unknownFolder = vscode.Uri.file('/unknown-folder');
+				const result = service.clearWorkspaceChanges(unknownFolder);
+				expect(result).toEqual([]);
+			});
+
+			it('should populate folder associations eagerly on trackSessionWorkspaceFolder', async () => {
+				const folder = vscode.Uri.file('/my-folder');
+				const sessionId = 'session-eager';
+
+				// Before tracking, no associations
+				expect(service.clearWorkspaceChanges(folder)).toEqual([]);
+
+				await service.trackSessionWorkspaceFolder(sessionId, folder.fsPath);
+
+				// After tracking, association exists immediately (no need to call getWorkspaceChanges first)
+				expect(service.clearWorkspaceChanges(folder)).toEqual([sessionId]);
+			});
+
+			it('should clean up folder associations on deleteTrackedWorkspaceFolder', async () => {
+				const folder = vscode.Uri.file('/cleanup-folder');
+				const sessionId = 'session-cleanup';
+
+				await service.trackSessionWorkspaceFolder(sessionId, folder.fsPath);
+				expect(service.clearWorkspaceChanges(folder)).toEqual([sessionId]);
+
+				await service.deleteTrackedWorkspaceFolder(sessionId);
+				expect(service.clearWorkspaceChanges(folder)).toEqual([]);
+			});
 		});
 	});
 });
