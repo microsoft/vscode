@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ForkSessionOptions, ForkSessionResult, Options, Query, SDKAssistantMessage, SDKResultMessage, SDKSessionInfo, SDKUserMessage, SessionMessage } from '@anthropic-ai/claude-agent-sdk';
-import { IClaudeCodeSdkService } from '../claudeCodeSdkService';
+import type { ForkSessionOptions, ForkSessionResult, GetSubagentMessagesOptions, ListSubagentsOptions, Options, Query, SDKAssistantMessage, SDKResultMessage, SDKSessionInfo, SDKUserMessage, SessionMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { IClaudeCodeSdkService } from '../claudeCodeSdkService';
 
 /**
  * Mock implementation of IClaudeCodeService for testing
@@ -21,6 +21,8 @@ export class MockClaudeCodeSdkService implements IClaudeCodeSdkService {
 
 	public mockSessions: SDKSessionInfo[] = [];
 	public mockSessionMessages: SessionMessage[] = [];
+	public mockSubagentIds: string[] = [];
+	public mockSubagentMessages: Map<string, SessionMessage[]> = new Map();
 
 	public async query(options: {
 		prompt: AsyncIterable<SDKUserMessage>;
@@ -58,6 +60,14 @@ export class MockClaudeCodeSdkService implements IClaudeCodeSdkService {
 		this.lastForkSessionId = sessionId;
 		this.lastForkOptions = options;
 		return { sessionId: 'forked-session-id' } as ForkSessionResult;
+	}
+
+	public async listSubagents(sessionId: string, options?: ListSubagentsOptions): Promise<string[]> {
+		return this.mockSubagentIds;
+	}
+
+	public async getSubagentMessages(sessionId: string, agentId: string, options?: GetSubagentMessagesOptions): Promise<SessionMessage[]> {
+		return this.mockSubagentMessages.get(agentId) ?? [];
 	}
 
 	private createMockQuery(prompt: AsyncIterable<SDKUserMessage>): Query {

@@ -352,10 +352,8 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 	}
 
 	private dedupExtensions(system: IScannedExtension[] | undefined, user: IScannedExtension[] | undefined, development: IScannedExtension[] | undefined, targetPlatform: TargetPlatform, pickLatest: boolean): IScannedExtension[] {
-		const productVersion = this.getProductVersion();
-		const productMajorMinor = this.productService.builtInExtensionsEnabledWithAutoUpdates?.length ? `${semver.major(productVersion.version)}.${semver.minor(productVersion.version)}` : undefined;
 		const pick = (existing: IScannedExtension, extension: IScannedExtension, isDevelopment: boolean): boolean => {
-			if (!isDevelopment) {
+			if (!isDevelopment && !(existing.isBuiltin || extension.isBuiltin)) {
 				if (existing.metadata?.isApplicationScoped && !extension.metadata?.isApplicationScoped) {
 					return false;
 				}
@@ -403,22 +401,11 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 				return;
 			}
 			const isBuiltinExtensionEnabledWithAutoUpdates = this.productService.builtInExtensionsEnabledWithAutoUpdates?.some(id => id.toLowerCase() === extension.identifier.id.toLowerCase());
-			if (isBuiltinExtensionEnabledWithAutoUpdates) {
-				if (!extension.forceAutoUpdate) {
-					this.logService.info(`Skipping user installed builtin extension ${extension.identifier.id} with version ${extension.manifest.version} because it is not allowed to in the current product quality ${this.productService.quality}`);
-					return;
-				}
-				const extensionMajorMinor = `${semver.major(extension.manifest.version)}.${semver.minor(extension.manifest.version)}`;
-				if (productMajorMinor !== extensionMajorMinor) {
-					this.logService.info(`Skipping user installed builtin extension ${extension.identifier.id} with version ${extension.manifest.version} because it is not compatible with the current product version ${productVersion.version}`);
-					return;
-				}
+			if (isBuiltinExtensionEnabledWithAutoUpdates && !extension.forceAutoUpdate) {
+				this.logService.info(`Skipping user installed builtin extension ${extension.identifier.id} with version ${extension.manifest.version} because it is not allowed to in the current product quality ${this.productService.quality}`);
+				return;
 			}
 			if (!existing || pick(existing, extension, false)) {
-				// Mark as builtin when extension is an auto-update builtin extension
-				if (isBuiltinExtensionEnabledWithAutoUpdates) {
-					extension = { ...extension, isBuiltin: true };
-				}
 				result.set(extension.identifier.id, extension);
 			}
 		});
@@ -583,20 +570,18 @@ class ExtensionsScanner extends Disposable {
 
 	private readonly extensionsEnabledWithApiProposalVersion: string[];
 	private readonly productQuality: string | undefined;
-	private readonly builtinExtensionsEnabledWithAutoUpdates: ReadonlySet<string>;
 
 	constructor(
 		@IExtensionsProfileScannerService protected readonly extensionsProfileScannerService: IExtensionsProfileScannerService,
 		@IUriIdentityService protected readonly uriIdentityService: IUriIdentityService,
 		@IFileService protected readonly fileService: IFileService,
-		@IProductService productService: IProductService,
+		@IProductService private readonly productService: IProductService,
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,
 		@ILogService protected readonly logService: ILogService
 	) {
 		super();
 		this.extensionsEnabledWithApiProposalVersion = productService.extensionsEnabledWithApiProposalVersion?.map(id => id.toLowerCase()) ?? [];
 		this.productQuality = productService.quality;
-		this.builtinExtensionsEnabledWithAutoUpdates = new Set(productService.builtInExtensionsEnabledWithAutoUpdates?.map(id => id.toLowerCase()) ?? []);
 	}
 
 	async scanExtensions(input: ExtensionScannerInput): Promise<IRelaxedScannedExtension[]> {
@@ -735,7 +720,7 @@ class ExtensionsScanner extends Disposable {
 			isValid,
 			validations,
 			preRelease: !!metadata?.preRelease,
-			forceAutoUpdate: this.builtinExtensionsEnabledWithAutoUpdates.has(id.toLowerCase()) && this.productQuality === 'stable',
+			forceAutoUpdate: this.productService.builtInExtensionsEnabledWithAutoUpdates.some(builtinExtensionId => builtinExtensionId.toLowerCase() === id.toLowerCase()) && this.productQuality === 'stable',
 		};
 		if (input.validate) {
 			extension = this.validate(extension, input);

@@ -480,7 +480,6 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 		} finally {
 			logContext.markCompleted();
 			requestCancellationTokenSource.dispose();
-			this.logger.add(logContext);
 		}
 	}
 

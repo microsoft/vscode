@@ -68,7 +68,7 @@
 		.session-title-toolbar {
 			display: block;
 
-			.action-item:not(:last-child) {
+			.action-item:not(:first-child) {
 				display: none;
 			}
 		}

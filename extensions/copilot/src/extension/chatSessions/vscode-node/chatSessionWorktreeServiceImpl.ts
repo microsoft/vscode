@@ -125,10 +125,11 @@ export class ChatSessionWorktreeService extends Disposable implements IChatSessi
 	}
 
 	private async generateBranchName(preferredName: string | undefined, repository: RepoContext) {
-		const branchPrefix = vscode.workspace.getConfiguration('git').get<string>('branchPrefix') ?? '';
+		const branchPrefixConfig = vscode.workspace.getConfiguration('git').get<string>('branchPrefix') ?? '';
+		const branchPrefix = this.agentSessionsWorkspace.isAgentSessionsWorkspace ? 'agents' : 'copilot';
 
 		if (preferredName) {
-			let branchName = `${branchPrefix}copilot/${preferredName}`;
+			let branchName = `${branchPrefixConfig}${branchPrefix}/${preferredName}`;
 			// Check if we already have a branch with the preferred name, and if not, then use it.
 			// Else suffix the preferred name with a random string to avoid conflicts.
 			const refs = await this.gitService.getRefs(repository.rootUri, { pattern: `refs/heads/${branchName}` });
@@ -142,8 +143,8 @@ export class ChatSessionWorktreeService extends Disposable implements IChatSessi
 		// Attempt to generate a random branch name for the worktree
 		const randomBranchName = await this.gitService.generateRandomBranchName(repository.rootUri);
 
-		const branch = randomBranchName ? `${branchPrefix}copilot/${randomBranchName.substring(branchPrefix.length)}`
-			: `${branchPrefix}copilot/worktree-${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}`;
+		const branch = randomBranchName ? `${branchPrefixConfig}${branchPrefix}/${randomBranchName.substring(branchPrefixConfig.length)}`
+			: `${branchPrefixConfig}${branchPrefix}/worktree-${new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)}`;
 
 		return branch;
 	}
@@ -728,7 +729,7 @@ export class ChatSessionWorktreeService extends Disposable implements IChatSessi
 				await this.gitService.exec(worktreePath, ['read-tree', 'HEAD'], { GIT_INDEX_FILE: diffIndexFile });
 
 				// Stage entire working directory into temp index
-				await this.gitService.exec(worktreePath, ['add', '-A', '--', '.'], { GIT_INDEX_FILE: diffIndexFile });
+				await this.gitService.exec(worktreePath, ['add', '--', '.'], { GIT_INDEX_FILE: diffIndexFile });
 
 				// Diff the temp index with the base branch
 				const result = await this.gitService.exec(worktreePath, ['diff', '--cached', '--raw', '--numstat', '--diff-filter=ADMR', '-z', '--merge-base', worktreeProperties.baseBranchName, '--'], { GIT_INDEX_FILE: diffIndexFile });

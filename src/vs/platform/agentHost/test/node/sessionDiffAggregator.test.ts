@@ -6,66 +6,11 @@
 import assert from 'assert';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import type { IDiffComputeService } from '../../common/diffComputeService.js';
-import type { IFileEditContent, IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
 import { FileEditKind, type ISessionFileDiff } from '../../common/state/sessionState.js';
+import { encodeString, TestDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { computeSessionDiffs } from '../../node/sessionDiffAggregator.js';
 
-/**
- * Minimal mock of ISessionDatabase that stores file edits in memory.
- * Only implements the methods needed by computeSessionDiffs.
- */
-class MockSessionDatabase {
-	private readonly _edits: (IFileEditRecord & IFileEditContent)[] = [];
-	getAllFileEditsCalls = 0;
-	getFileEditsByTurnCalls = 0;
-
-	addEdit(edit: IFileEditRecord & IFileEditContent): void {
-		this._edits.push(edit);
-	}
-
-	async getAllFileEdits(): Promise<IFileEditRecord[]> {
-		this.getAllFileEditsCalls++;
-		return this._edits.map(({ beforeContent: _, afterContent: _2, ...meta }) => meta);
-	}
-
-	async getFileEditsByTurn(turnId: string): Promise<IFileEditRecord[]> {
-		this.getFileEditsByTurnCalls++;
-		return this._edits
-			.filter(e => e.turnId === turnId)
-			.map(({ beforeContent: _, afterContent: _2, ...meta }) => meta);
-	}
-
-	async readFileEditContent(toolCallId: string, filePath: string): Promise<IFileEditContent | undefined> {
-		return this._edits.find(e => e.toolCallId === toolCallId && e.filePath === filePath);
-	}
-}
-
-/**
- * Mock diff service that counts lines naively: each line in modified
- * not in original is "added", each line in original not in modified is
- * "removed". Good enough for testing the aggregation logic.
- */
-function createMockDiffService(): IDiffComputeService & { callCount: number } {
-	const svc = {
-		_serviceBrand: undefined as never,
-		callCount: 0,
-		async computeDiffCounts(original: string, modified: string) {
-			svc.callCount++;
-			const origLines = original ? original.split('\n') : [];
-			const modLines = modified ? modified.split('\n') : [];
-			return {
-				added: Math.max(0, modLines.length - origLines.length),
-				removed: Math.max(0, origLines.length - modLines.length),
-			};
-		},
-	};
-	return svc;
-}
-
-function enc(text: string): Uint8Array {
-	return new TextEncoder().encode(text);
-}
+const createTestDiffService = () => new TestDiffComputeService();
 
 suite('computeSessionDiffs', () => {
 
@@ -74,22 +19,22 @@ suite('computeSessionDiffs', () => {
 	// ---- Full-mode tests (no incremental options) ---------------------------
 
 	test('returns empty array for no edits', async () => {
-		const db = new MockSessionDatabase();
-		const diffService = createMockDiffService();
-		const result = await computeSessionDiffs(db as unknown as ISessionDatabase, diffService);
+		const db = new TestSessionDatabase();
+		const diffService = createTestDiffService();
+		const result = await computeSessionDiffs(db, diffService);
 		assert.deepStrictEqual(result, []);
 	});
 
 	test('computes diffs for a single edited file', async () => {
-		const db = new MockSessionDatabase();
+		const db = new TestSessionDatabase();
 		db.addEdit({
 			turnId: 't1', toolCallId: 'tc1', filePath: '/a.txt', kind: FileEditKind.Edit,
 			addedLines: undefined, removedLines: undefined,
-			beforeContent: enc('line1\nline2'), afterContent: enc('line1\nline2\nline3'),
+			beforeContent: encodeString('line1\nline2'), afterContent: encodeString('line1\nline2\nline3'),
 		});
 
-		const diffService = createMockDiffService();
-		const result = await computeSessionDiffs(db as unknown as ISessionDatabase, diffService);
+		const diffService = createTestDiffService();
+		const result = await computeSessionDiffs(db, diffService);
 
 		assert.deepStrictEqual(result, [{
 			uri: URI.file('/a.txt').toString(),
@@ -100,20 +45,20 @@ suite('computeSessionDiffs', () => {
 	});
 
 	test('skips files with no net change', async () => {
-		const db = new MockSessionDatabase();
+		const db = new TestSessionDatabase();
 		db.addEdit({
 			turnId: 't1', toolCallId: 'tc1', filePath: '/a.txt', kind: FileEditKind.Edit,
 			addedLines: undefined, removedLines: undefined,
-			beforeContent: enc('same'), afterContent: enc('different'),
+			beforeContent: encodeString('same'), afterContent: encodeString('different'),
 		});
 		db.addEdit({
 			turnId: 't2', toolCallId: 'tc2', filePath: '/a.txt', kind: FileEditKind.Edit,
 			addedLines: undefined, removedLines: undefined,
-			beforeContent: enc('different'), afterContent: enc('same'),
+			beforeContent: encodeString('different'), afterContent: encodeString('same'),
 		});
 
-		const diffService = createMockDiffService();
-		const result = await computeSessionDiffs(db as unknown as ISessionDatabase, diffService);
+		const diffService = createTestDiffService();
+		const result = await computeSessionDiffs(db, diffService);
 
 		// Before = tc1.before = 'same', After = tc2.after = 'same' → zero net change
 		assert.deepStrictEqual(result, []);
@@ -121,20 +66,20 @@ suite('computeSessionDiffs', () => {
 	});
 
 	test('tracks rename chains correctly', async () => {
-		const db = new MockSessionDatabase();
+		const db = new TestSessionDatabase();
 		db.addEdit({
 			turnId: 't1', toolCallId: 'tc1', filePath: '/a.txt', kind: FileEditKind.Create,
 			addedLines: undefined, removedLines: undefined,
-			afterContent: enc('hello'),
+			afterContent: encodeString('hello'),
 		});
 		db.addEdit({
 			turnId: 't2', toolCallId: 'tc2', filePath: '/b.txt', kind: FileEditKind.Rename, originalPath: '/a.txt',
 			addedLines: undefined, removedLines: undefined,
-			beforeContent: enc('hello'), afterContent: enc('hello world'),
+			beforeContent: encodeString('hello'), afterContent: encodeString('hello world'),
 		});
 
-		const diffService = createMockDiffService();
-		const result = await computeSessionDiffs(db as unknown as ISessionDatabase, diffService);
+		const diffService = createTestDiffService();
+		const result = await computeSessionDiffs(db, diffService);
 
 		assert.strictEqual(result.length, 1);
 		assert.strictEqual(result[0].uri, URI.file('/b.txt').toString(), 'uses terminal path after rename');
@@ -143,27 +88,27 @@ suite('computeSessionDiffs', () => {
 	// ---- Incremental-mode tests ---------------------------------------------
 
 	test('incremental: reuses previousDiffs for untouched files', async () => {
-		const db = new MockSessionDatabase();
+		const db = new TestSessionDatabase();
 		// File A edited in turn 1 only
 		db.addEdit({
 			turnId: 't1', toolCallId: 'tc1', filePath: '/a.txt', kind: FileEditKind.Edit,
 			addedLines: undefined, removedLines: undefined,
-			beforeContent: enc('a-before'), afterContent: enc('a-after'),
+			beforeContent: encodeString('a-before'), afterContent: encodeString('a-after'),
 		});
 		// File B edited in turn 2
 		db.addEdit({
 			turnId: 't2', toolCallId: 'tc2', filePath: '/b.txt', kind: FileEditKind.Edit,
 			addedLines: undefined, removedLines: undefined,
-			beforeContent: enc('b-before'), afterContent: enc('b-after\nnew'),
+			beforeContent: encodeString('b-before'), afterContent: encodeString('b-after\nnew'),
 		});
 
 		const previousDiffs: ISessionFileDiff[] = [
 			{ uri: URI.file('/a.txt').toString(), added: 42, removed: 7 },
 		];
 
-		const diffService = createMockDiffService();
+		const diffService = createTestDiffService();
 		const result = await computeSessionDiffs(
-			db as unknown as ISessionDatabase,
+			db,
 			diffService,
 			{ changedTurnId: 't2', previousDiffs },
 		);
@@ -180,26 +125,26 @@ suite('computeSessionDiffs', () => {
 	});
 
 	test('incremental: recomputes file edited in current turn', async () => {
-		const db = new MockSessionDatabase();
+		const db = new TestSessionDatabase();
 		// File A edited in turn 1 and turn 2
 		db.addEdit({
 			turnId: 't1', toolCallId: 'tc1', filePath: '/a.txt', kind: FileEditKind.Edit,
 			addedLines: undefined, removedLines: undefined,
-			beforeContent: enc('original'), afterContent: enc('after-turn1'),
+			beforeContent: encodeString('original'), afterContent: encodeString('after-turn1'),
 		});
 		db.addEdit({
 			turnId: 't2', toolCallId: 'tc2', filePath: '/a.txt', kind: FileEditKind.Edit,
 			addedLines: undefined, removedLines: undefined,
-			beforeContent: enc('after-turn1'), afterContent: enc('after-turn2\nextra'),
+			beforeContent: encodeString('after-turn1'), afterContent: encodeString('after-turn2\nextra'),
 		});
 
 		const previousDiffs: ISessionFileDiff[] = [
 			{ uri: URI.file('/a.txt').toString(), added: 100, removed: 100 }, // stale
 		];
 
-		const diffService = createMockDiffService();
+		const diffService = createTestDiffService();
 		const result = await computeSessionDiffs(
-			db as unknown as ISessionDatabase,
+			db,
 			diffService,
 			{ changedTurnId: 't2', previousDiffs },
 		);
@@ -214,28 +159,28 @@ suite('computeSessionDiffs', () => {
 	});
 
 	test('incremental: rename in current turn drops old URI from previousDiffs', async () => {
-		const db = new MockSessionDatabase();
+		const db = new TestSessionDatabase();
 		// File created in turn 1
 		db.addEdit({
 			turnId: 't1', toolCallId: 'tc1', filePath: '/old.txt', kind: FileEditKind.Create,
 			addedLines: undefined, removedLines: undefined,
-			afterContent: enc('content'),
+			afterContent: encodeString('content'),
 		});
 		// Renamed in turn 2
 		db.addEdit({
 			turnId: 't2', toolCallId: 'tc2', filePath: '/new.txt', kind: FileEditKind.Rename,
 			originalPath: '/old.txt',
 			addedLines: undefined, removedLines: undefined,
-			beforeContent: enc('content'), afterContent: enc('content'),
+			beforeContent: encodeString('content'), afterContent: encodeString('content'),
 		});
 
 		const previousDiffs: ISessionFileDiff[] = [
 			{ uri: URI.file('/old.txt').toString(), added: 5, removed: 0 },
 		];
 
-		const diffService = createMockDiffService();
+		const diffService = createTestDiffService();
 		const result = await computeSessionDiffs(
-			db as unknown as ISessionDatabase,
+			db,
 			diffService,
 			{ changedTurnId: 't2', previousDiffs },
 		);
@@ -246,26 +191,26 @@ suite('computeSessionDiffs', () => {
 	});
 
 	test('incremental: file with zero net change in current turn is excluded even if in previousDiffs', async () => {
-		const db = new MockSessionDatabase();
+		const db = new TestSessionDatabase();
 		db.addEdit({
 			turnId: 't1', toolCallId: 'tc1', filePath: '/a.txt', kind: FileEditKind.Edit,
 			addedLines: undefined, removedLines: undefined,
-			beforeContent: enc('original'), afterContent: enc('modified'),
+			beforeContent: encodeString('original'), afterContent: encodeString('modified'),
 		});
 		// Turn 2 reverts the change
 		db.addEdit({
 			turnId: 't2', toolCallId: 'tc2', filePath: '/a.txt', kind: FileEditKind.Edit,
 			addedLines: undefined, removedLines: undefined,
-			beforeContent: enc('modified'), afterContent: enc('original'),
+			beforeContent: encodeString('modified'), afterContent: encodeString('original'),
 		});
 
 		const previousDiffs: ISessionFileDiff[] = [
 			{ uri: URI.file('/a.txt').toString(), added: 10, removed: 5 },
 		];
 
-		const diffService = createMockDiffService();
+		const diffService = createTestDiffService();
 		const result = await computeSessionDiffs(
-			db as unknown as ISessionDatabase,
+			db,
 			diffService,
 			{ changedTurnId: 't2', previousDiffs },
 		);
@@ -275,18 +220,18 @@ suite('computeSessionDiffs', () => {
 	});
 
 	test('incremental: previousDiffs entry for file not in current identities is dropped (slow path)', async () => {
-		const db = new MockSessionDatabase();
+		const db = new TestSessionDatabase();
 		// File A was edited in turn 1 and is in previousDiffs
 		db.addEdit({
 			turnId: 't1', toolCallId: 'tc1', filePath: '/a.txt', kind: FileEditKind.Edit,
 			addedLines: undefined, removedLines: undefined,
-			beforeContent: enc('before'), afterContent: enc('after'),
+			beforeContent: encodeString('before'), afterContent: encodeString('after'),
 		});
 		// File A is edited again in turn 2 → triggers slow path (re-edit of existing file)
 		db.addEdit({
 			turnId: 't2', toolCallId: 'tc2', filePath: '/a.txt', kind: FileEditKind.Edit,
 			addedLines: undefined, removedLines: undefined,
-			beforeContent: enc('after'), afterContent: enc('latest\nline'),
+			beforeContent: encodeString('after'), afterContent: encodeString('latest\nline'),
 		});
 
 		const previousDiffs: ISessionFileDiff[] = [
@@ -294,9 +239,9 @@ suite('computeSessionDiffs', () => {
 			{ uri: URI.file('/orphan.txt').toString(), added: 99, removed: 99 }, // no longer in DB
 		];
 
-		const diffService = createMockDiffService();
+		const diffService = createTestDiffService();
 		const result = await computeSessionDiffs(
-			db as unknown as ISessionDatabase,
+			db,
 			diffService,
 			{ changedTurnId: 't2', previousDiffs },
 		);
@@ -307,20 +252,20 @@ suite('computeSessionDiffs', () => {
 	});
 
 	test('full mode recomputes all files (no incremental options)', async () => {
-		const db = new MockSessionDatabase();
+		const db = new TestSessionDatabase();
 		db.addEdit({
 			turnId: 't1', toolCallId: 'tc1', filePath: '/a.txt', kind: FileEditKind.Edit,
 			addedLines: undefined, removedLines: undefined,
-			beforeContent: enc('a'), afterContent: enc('a\nb'),
+			beforeContent: encodeString('a'), afterContent: encodeString('a\nb'),
 		});
 		db.addEdit({
 			turnId: 't1', toolCallId: 'tc2', filePath: '/b.txt', kind: FileEditKind.Create,
 			addedLines: undefined, removedLines: undefined,
-			afterContent: enc('new'),
+			afterContent: encodeString('new'),
 		});
 
-		const diffService = createMockDiffService();
-		const result = await computeSessionDiffs(db as unknown as ISessionDatabase, diffService);
+		const diffService = createTestDiffService();
+		const result = await computeSessionDiffs(db, diffService);
 
 		assert.strictEqual(result.length, 2);
 		assert.strictEqual(diffService.callCount, 2, 'both files should be diffed in full mode');
@@ -329,27 +274,27 @@ suite('computeSessionDiffs', () => {
 	// ---- Fast-path tests (turn-scoped query optimization) -------------------
 
 	test('incremental fast path: new files only uses getFileEditsByTurn, not getAllFileEdits', async () => {
-		const db = new MockSessionDatabase();
+		const db = new TestSessionDatabase();
 		// Turn 1: existing file untouched in turn 2
 		db.addEdit({
 			turnId: 't1', toolCallId: 'tc1', filePath: '/old.txt', kind: FileEditKind.Edit,
 			addedLines: undefined, removedLines: undefined,
-			beforeContent: enc('old-before'), afterContent: enc('old-after'),
+			beforeContent: encodeString('old-before'), afterContent: encodeString('old-after'),
 		});
 		// Turn 2: creates a new file
 		db.addEdit({
 			turnId: 't2', toolCallId: 'tc2', filePath: '/new.txt', kind: FileEditKind.Create,
 			addedLines: undefined, removedLines: undefined,
-			afterContent: enc('brand new'),
+			afterContent: encodeString('brand new'),
 		});
 
 		const previousDiffs: ISessionFileDiff[] = [
 			{ uri: URI.file('/old.txt').toString(), added: 3, removed: 1 },
 		];
 
-		const diffService = createMockDiffService();
+		const diffService = createTestDiffService();
 		const result = await computeSessionDiffs(
-			db as unknown as ISessionDatabase,
+			db,
 			diffService,
 			{ changedTurnId: 't2', previousDiffs },
 		);
@@ -366,27 +311,27 @@ suite('computeSessionDiffs', () => {
 	});
 
 	test('incremental slow path: re-edit of existing file falls back to getAllFileEdits', async () => {
-		const db = new MockSessionDatabase();
+		const db = new TestSessionDatabase();
 		// Turn 1: edit file A
 		db.addEdit({
 			turnId: 't1', toolCallId: 'tc1', filePath: '/a.txt', kind: FileEditKind.Edit,
 			addedLines: undefined, removedLines: undefined,
-			beforeContent: enc('original'), afterContent: enc('turn1'),
+			beforeContent: encodeString('original'), afterContent: encodeString('turn1'),
 		});
 		// Turn 2: edit file A again
 		db.addEdit({
 			turnId: 't2', toolCallId: 'tc2', filePath: '/a.txt', kind: FileEditKind.Edit,
 			addedLines: undefined, removedLines: undefined,
-			beforeContent: enc('turn1'), afterContent: enc('turn2\nextra'),
+			beforeContent: encodeString('turn1'), afterContent: encodeString('turn2\nextra'),
 		});
 
 		const previousDiffs: ISessionFileDiff[] = [
 			{ uri: URI.file('/a.txt').toString(), added: 5, removed: 0 },
 		];
 
-		const diffService = createMockDiffService();
+		const diffService = createTestDiffService();
 		const result = await computeSessionDiffs(
-			db as unknown as ISessionDatabase,
+			db,
 			diffService,
 			{ changedTurnId: 't2', previousDiffs },
 		);
@@ -404,26 +349,26 @@ suite('computeSessionDiffs', () => {
 	});
 
 	test('incremental slow path: rename in current turn falls back to getAllFileEdits', async () => {
-		const db = new MockSessionDatabase();
+		const db = new TestSessionDatabase();
 		db.addEdit({
 			turnId: 't1', toolCallId: 'tc1', filePath: '/a.txt', kind: FileEditKind.Create,
 			addedLines: undefined, removedLines: undefined,
-			afterContent: enc('content'),
+			afterContent: encodeString('content'),
 		});
 		db.addEdit({
 			turnId: 't2', toolCallId: 'tc2', filePath: '/b.txt', kind: FileEditKind.Rename,
 			originalPath: '/a.txt',
 			addedLines: undefined, removedLines: undefined,
-			beforeContent: enc('content'), afterContent: enc('content'),
+			beforeContent: encodeString('content'), afterContent: encodeString('content'),
 		});
 
 		const previousDiffs: ISessionFileDiff[] = [
 			{ uri: URI.file('/a.txt').toString(), added: 1, removed: 0 },
 		];
 
-		const diffService = createMockDiffService();
+		const diffService = createTestDiffService();
 		await computeSessionDiffs(
-			db as unknown as ISessionDatabase,
+			db,
 			diffService,
 			{ changedTurnId: 't2', previousDiffs },
 		);
@@ -432,20 +377,20 @@ suite('computeSessionDiffs', () => {
 	});
 
 	test('incremental: no edits in turn returns previousDiffs unchanged', async () => {
-		const db = new MockSessionDatabase();
+		const db = new TestSessionDatabase();
 		db.addEdit({
 			turnId: 't1', toolCallId: 'tc1', filePath: '/a.txt', kind: FileEditKind.Edit,
 			addedLines: undefined, removedLines: undefined,
-			beforeContent: enc('before'), afterContent: enc('after'),
+			beforeContent: encodeString('before'), afterContent: encodeString('after'),
 		});
 
 		const previousDiffs: ISessionFileDiff[] = [
 			{ uri: URI.file('/a.txt').toString(), added: 5, removed: 2 },
 		];
 
-		const diffService = createMockDiffService();
+		const diffService = createTestDiffService();
 		const result = await computeSessionDiffs(
-			db as unknown as ISessionDatabase,
+			db,
 			diffService,
 			{ changedTurnId: 't2', previousDiffs },
 		);
