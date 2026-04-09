@@ -853,7 +853,7 @@ interface IVariableCompletionsDetails {
 	range: IChatCompletionRangeResult;
 }
 
-class BuiltinDynamicCompletions extends Disposable {
+export class BuiltinDynamicCompletions extends Disposable {
 	private static readonly addReferenceCommand = '_addReferenceCmd';
 	private static readonly VariableNameDef = new RegExp(`[${escapeForCharClass(chatVariableLeader)}${escapeForCharClass(chatAgentLeader)}][\\w:-]*`, 'g'); // MUST be using `g`-flag
 

@@ -19,18 +19,15 @@ import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { TestCodeEditorService } from '../../../../../editor/test/browser/editorTestServices.js';
 import { instantiateTestCodeEditor } from '../../../../../editor/test/browser/testCodeEditor.js';
-import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IHistoryService } from '../../../../services/history/common/history.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { Extensions as WorkbenchExtensions, IWorkbenchContributionsRegistry, type IWorkbenchContribution } from '../../../../common/contributions.js';
-import { LifecyclePhase } from '../../../../services/lifecycle/common/lifecycle.js';
 import { workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
 import { TestHistoryService } from '../../../../test/common/workbenchTestServices.js';
 import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { IChatWidget, IChatWidgetService } from '../../browser/chat.js';
-import '../../browser/widget/input/editor/chatInputCompletions.js';
+import { BuiltinDynamicCompletions } from '../../browser/widget/input/editor/chatInputCompletions.js';
 
 class TestChatWidgetService implements IChatWidgetService {
 	declare readonly _serviceBrand: undefined;
@@ -73,19 +70,6 @@ class TestActiveCodeEditorService extends TestCodeEditorService {
 	override getActiveCodeEditor(): ICodeEditor | null {
 		return this.activeCodeEditor;
 	}
-}
-
-type WorkbenchContributionCtor = new (...services: never[]) => IWorkbenchContribution;
-
-function getBuiltinDynamicCompletionsCtor(): WorkbenchContributionCtor {
-	const registry = Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench) as unknown as { contributionsByPhase: Map<LifecyclePhase, { ctor: WorkbenchContributionCtor }[]> };
-	const eventually = registry.contributionsByPhase.get(LifecyclePhase.Eventually) ?? [];
-	const contribution = eventually.find(entry => entry.ctor.name === 'BuiltinDynamicCompletions');
-	if (!contribution) {
-		throw new Error('BuiltinDynamicCompletions contribution not found');
-	}
-
-	return contribution.ctor;
 }
 
 suite('ChatInputCompletions', () => {
@@ -141,8 +125,7 @@ suite('ChatInputCompletions', () => {
 		} as IChatWidget;
 		instantiationService.stub(IChatWidgetService, new TestChatWidgetService(new Map([[inputUri.toString(), widget]])));
 
-		const contributionCtor = getBuiltinDynamicCompletionsCtor();
-		store.add(instantiationService.createInstance(contributionCtor));
+		store.add(instantiationService.createInstance(BuiltinDynamicCompletions));
 
 		const provider = instantiationService.get(ILanguageFeaturesService).completionProvider.all(inputModel)
 			.find(candidate => (candidate as CompletionItemProvider)._debugDisplayName === 'chatVarCompletions-fileAndFolder');
@@ -206,8 +189,7 @@ suite('ChatInputCompletions', () => {
 		} as IChatWidget;
 		instantiationService.stub(IChatWidgetService, new TestChatWidgetService(new Map([[inputUri.toString(), widget]])));
 
-		const contributionCtor = getBuiltinDynamicCompletionsCtor();
-		store.add(instantiationService.createInstance(contributionCtor));
+		store.add(instantiationService.createInstance(BuiltinDynamicCompletions));
 
 		const provider = instantiationService.get(ILanguageFeaturesService).completionProvider.all(inputModel)
 			.find(candidate => (candidate as CompletionItemProvider)._debugDisplayName === 'chatVarCompletions-fileAndFolder');
@@ -263,8 +245,7 @@ suite('ChatInputCompletions', () => {
 		} as IChatWidget;
 		instantiationService.stub(IChatWidgetService, new TestChatWidgetService(new Map([[inputUri.toString(), widget]])));
 
-		const contributionCtor = getBuiltinDynamicCompletionsCtor();
-		store.add(instantiationService.createInstance(contributionCtor));
+		store.add(instantiationService.createInstance(BuiltinDynamicCompletions));
 
 		const provider = instantiationService.get(ILanguageFeaturesService).completionProvider.all(inputModel)
 			.find(candidate => (candidate as CompletionItemProvider)._debugDisplayName === 'chatVarCompletions-fileAndFolder');
