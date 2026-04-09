@@ -362,6 +362,9 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 		super.render(container);
 
 		this.avatarImg = $('img.accounts-avatar') as HTMLImageElement;
+		this.avatarImg.alt = '';
+		this.avatarImg.setAttribute('aria-hidden', 'true');
+		this.avatarImg.draggable = false;
 		this.avatarImg.style.display = 'none';
 		this.avatarImg.onerror = () => {
 			this.avatarImg!.style.display = 'none';
@@ -396,7 +399,7 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 			this.avatarImg.style.display = '';
 			this.label.classList.add('has-avatar');
 		} else {
-			this.avatarImg.src = '';
+			this.avatarImg.removeAttribute('src');
 			this.avatarImg.style.display = 'none';
 			this.label.classList.remove('has-avatar');
 		}
@@ -585,6 +588,10 @@ export class AccountsActivityActionViewItem extends AbstractGlobalActivityAction
 			// can't sign out of it, update the account to mark it as "can't sign out"
 			if (!canSignOut) {
 				existingAccount.canSignOut = canSignOut;
+			}
+			// Update iconUrl if it has changed
+			if (account.iconUrl !== undefined) {
+				existingAccount.iconUrl = account.iconUrl;
 			}
 		} else {
 			accounts.push({ ...account, canSignOut });

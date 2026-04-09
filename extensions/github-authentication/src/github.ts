@@ -284,10 +284,12 @@ export class GitHubAuthenticationProvider implements vscode.AuthenticationProvid
 			// For GitHub scope list, order doesn't matter so we immediately sort the scopes
 			const scopesStr = [...session.scopes].sort().join(' ');
 			let userInfo: { id: string; accountName: string; avatarUrl: string | undefined } | undefined;
-			if (!session.account) {
+			if (!session.account || !session.account.iconUrl) {
 				try {
 					userInfo = await this._githubServer.getUserInfo(session.accessToken);
-					this._logger.info(`Verified session with the following scopes: ${scopesStr}`);
+					if (!session.account) {
+						this._logger.info(`Verified session with the following scopes: ${scopesStr}`);
+					}
 				} catch (e) {
 					// Remove sessions that return unauthorized response
 					if (e.message === 'Unauthorized') {
