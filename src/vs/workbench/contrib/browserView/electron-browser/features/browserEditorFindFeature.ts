@@ -192,6 +192,16 @@ class BrowserFindWidget extends SimpleFindWidget {
 	protected _onFindInputFocusTrackerBlur(): void {
 		// No-op
 	}
+
+	public override findNth(nthMatchPosition: number): void {
+		throw new Error('Method not implemented.');
+	}
+	protected override _onNthMatchInputFocusTrackerFocus(): void {
+		throw new Error('Method not implemented.');
+	}
+	protected override _onNthMatchInputFocusTrackerBlur(): void {
+		throw new Error('Method not implemented.');
+	}
 }
 
 /**

@@ -10,12 +10,17 @@
 	display: block !important;
 	width: 45px;
 	min-width: 45px;
-	max-width: 45px;
+	max-width: 60px;
 	background-color: var(--vscode-input-background);
 	color: var(--vscode-input-foreground);
 	border: 1px solid var(--vscode-input-border, transparent);
 	bottom: 2px;
 	margin-right: 0.5em;
+	transition: width 300ms ease;
+}
+
+.monaco-editor .find-widget .matchesCount .editable-nth-match.elongated {
+	width: 60px;
 }
 
 .monaco-editor .find-widget .matchesCount .editable-nth-match input {
@@ -29,6 +34,11 @@
 .monaco-findInput.monaco-inputbox.editable-nth-match {
 	width: 45px;
 	margin-right: 0.5em;
+	transition: width 300ms ease;
+}
+
+.monaco-findInput.monaco-inputbox.editable-nth-match.elongated {
+	width: 60px;
 }
 
 .monaco-findInput.monaco-inputbox.editable-nth-match input {

@@ -14,6 +14,7 @@ import { Emitter, Event } from '../../../common/event.js';
 import { KeyCode } from '../../../common/keyCodes.js';
 import './nthMatchInput.css';
 import * as nls from '../../../../nls.js';
+import { MATCHES_LIMIT } from '../../../../editor/contrib/find/browser/findModel.js';
 
 export interface INthMatchInputOptions {
 	readonly placeholder?: string;
@@ -81,8 +82,8 @@ export class NthMatchInput extends Widget {
 		this.placeholder = options.placeholder || '';
 		this.label = options.label || NLS_DEFAULT_LABEL;
 		this.type = options.type || 'text';
-		this.min = options.min || 0;
-		this.max = options.max || 0;
+		this.min = options.min || 1;
+		this.max = options.max || MATCHES_LIMIT;
 		this.lastMatchLocation = options.lastMatchLocation || 0;
 		const flexibleHeight = !!options.flexibleHeight;
 		const flexibleWidth = !!options.flexibleWidth;
@@ -117,6 +118,10 @@ export class NthMatchInput extends Widget {
 
 		});
 
+		this.onchange(this.domNode, () => {
+			this.updateInputWrapperWidth();
+		});
+
 		parent?.appendChild(this.domNode);
 
 		this._register(dom.addDisposableListener(this.inputBox.inputElement, 'compositionstart', (e: CompositionEvent) => {
@@ -131,6 +136,8 @@ export class NthMatchInput extends Widget {
 		this.onkeyup(this.inputBox.inputElement, (e) => this._onKeyUp.fire(e));
 		this.oninput(this.inputBox.inputElement, (e) => this._onInput.fire());
 		this.onmousedown(this.inputBox.inputElement, (e) => this._onMouseDown.fire(e));
+
+		this.updateInputWrapperWidth();
 	}
 
 	public get isImeSessionInProgress(): boolean {
@@ -144,6 +151,20 @@ export class NthMatchInput extends Widget {
 	public layout(style: { collapsedFindWidget: boolean; narrowFindWidget: boolean; reducedFindWidget: boolean }) {
 		this.inputBox.layout();
 		this.updateInputBoxPadding(style.collapsedFindWidget);
+		// this.updateInputWrapperWidth();
+	}
+
+	public updateInputWrapperWidth() {
+		const currentInputValue = this.getValue();
+
+		// Increase the input width when the character count inside exceeds 4.
+		// Restore the orignal input width when the character count falls below 3.
+		if ((currentInputValue.length >= 4)) {
+			(this.inputBox.element.parentElement as HTMLElement).classList.add(...['elongated']);
+		}
+		else if (currentInputValue.length <= 3) {
+			(this.inputBox.element.parentElement as HTMLElement).classList.remove(...['elongated']);
+		}
 	}
 
 	public enable(): void {

@@ -30,6 +30,7 @@ import type { IHoverService } from '../../../../../platform/hover/browser/hover.
 import type { IHoverLifecycleOptions } from '../../../../../base/browser/ui/hover/hover.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { MATCHES_LIMIT } from '../../../../../editor/contrib/find/browser/findModel.js';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
@@ -469,8 +470,8 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 			}
 
 			this._nthMatchInput.setValue(`${matchesPosition}`);
-			this._nthMatchInput.min = +matchesCount >= 1 ? 1 : 0;
-			this._nthMatchInput.max = +matchesCount;
+			this._nthMatchInput.min = 1;
+			this._nthMatchInput.max = +matchesCount || MATCHES_LIMIT;
 
 			if (([...this._matchesCount.childNodes].length === 0)) {
 				this._matchesCount.appendChild(this._nthMatchInput.domNode);
@@ -543,14 +544,18 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 
 	private getNthMatchInput(contextViewService: IContextViewService): NthMatchInput {
 		const matchPositionAndCountArr = this._matchesCount?.innerText?.split(' of ') ?? [];
+		const trimmedCountStr = matchPositionAndCountArr[1]?.trim();
+
+		const min = 1;
+		const max = parseInt(trimmedCountStr) || this._matchesLimit;
 
 		const input = new NthMatchInput(this._domNode, contextViewService, {
-			placeholder: '',
+			placeholder: 'Jump to the target result.',
 			width: 20,
 			label: NLS_NTH_MATCH_INPUT_LABEL,
 			type: 'text',
-			min: parseInt(matchPositionAndCountArr[1]?.trim() || '0') >= 1 ? 1 : 0,
-			max: parseInt(matchPositionAndCountArr[1]?.trim()) || 0,
+			min: min,
+			max: max,
 			flexibleHeight: undefined,
 			flexibleWidth: undefined,
 			flexibleMaxHeight: undefined,
@@ -565,10 +570,12 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 			else {
 				this.find(true);
 			}
+			input.updateInputWrapperWidth();
 		}));
 
 		this._register(input.onJump((e) => {
 			this.findNth(e.targetMatchPos || input.min);
+			input.updateInputWrapperWidth();
 		}));
 
 		this._register(input.onInput((e) => {
@@ -580,6 +587,7 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 						`${input.max}` : currentValueAsInt < input.min ?
 							`${input.min}` : `${currentValueAsInt}`
 			);
+			input.updateInputWrapperWidth();
 		}));
 
 		input.domNode.classList.add(...['monaco-inputbox', 'editable-nth-match']);

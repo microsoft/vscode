@@ -288,7 +288,6 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		this._nthMatchInputFocusTracker = this._register(dom.trackFocus(this._nthMatchInput.inputBox.inputElement));
 		this._register(this._nthMatchInputFocusTracker.onDidFocus(() => {
 			this._nthMatchInputFocused.set(true);
-			this._updateSearchScope();
 		}));
 		this._register(this._nthMatchInputFocusTracker.onDidBlur(() => {
 			this._nthMatchInputFocused.set(false);
@@ -505,7 +504,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			}
 			label = strings.format(NLS_MATCHES_LOCATION, matchesPosition, matchesCount);
 
-			this._nthMatchInput.setValue(`${this._state.matchesPosition}`);
+			this._nthMatchInput.setValue(`${matchesPosition}`);
 			this._nthMatchInput.min = this._state.matchesCount >= 1 ? 1 : 0;
 			this._nthMatchInput.max = this._state.matchesCount;
 
@@ -534,13 +533,18 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 
 
 	private getNthMatchInput(): NthMatchInput {
+
+		const min = 1;
+		const max = this._state.matchesCount || MATCHES_LIMIT;
+
 		const input = new NthMatchInput(this._domNode, this._contextViewProvider, {
-			placeholder: 'N',
+			// placeholder: `Enter a number between ${min} and ${max}`,
+			placeholder: 'Jump to the target result.',
 			width: 20,
 			label: NLS_NTH_MATCH_INPUT_LABEL,
 			type: 'text',
-			min: this._state.matchesCount >= 1 ? 1 : 0,
-			max: this._state.matchesCount,
+			min: min,
+			max: max,
 			flexibleHeight: undefined,
 			flexibleWidth: undefined,
 			flexibleMaxHeight: undefined,
@@ -555,12 +559,12 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			else {
 				assertReturnsDefined(this._codeEditor.getAction(FIND_IDS.PreviousMatchFindAction)).run().then(undefined, onUnexpectedError);
 			}
-			input.focus();
+			this._nthMatchInput.updateInputWrapperWidth();
 		}));
 
 		this._register(input.onJump((e) => {
 			assertReturnsDefined(this._codeEditor.getAction(FIND_IDS.GoToEditableNthMatchFindAction)).run().then(undefined, onUnexpectedError);
-			input.focus();
+			this._nthMatchInput.updateInputWrapperWidth();
 		}));
 
 		this._register(input.onInput((e) => {
@@ -572,6 +576,8 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 						`${input.max}` : currentValueAsInt < input.min ?
 							`${input.min}` : `${currentValueAsInt}`
 			);
+
+			this._nthMatchInput.updateInputWrapperWidth();
 		}));
 
 		input.domNode.classList.add(...['monaco-inputbox', 'editable-nth-match']);
