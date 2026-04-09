@@ -721,7 +721,6 @@ export class ChatSessionWorktreeService extends Disposable implements IChatSessi
 			const diffIndexFile = path.join(this.extensionContext.globalStorageUri.fsPath, tmpDirName, 'diff.index');
 
 			try {
-
 				// Create temp index file directory
 				await fs.mkdir(path.dirname(diffIndexFile), { recursive: true });
 
@@ -746,8 +745,13 @@ export class ChatSessionWorktreeService extends Disposable implements IChatSessi
 			}
 		} else {
 			// Tracked changes
-			const result = await this.gitService.exec(worktreePath, ['diff', '--raw', '--numstat', '--diff-filter=ADMR', '-z', '--merge-base', worktreeProperties.baseBranchName, '--']);
-			changes.push(...parseGitChangesRaw(worktreeProperties.worktreePath, result));
+			try {
+				const result = await this.gitService.exec(worktreePath, ['diff', '--raw', '--numstat', '--diff-filter=ADMR', '-z', '--merge-base', worktreeProperties.baseBranchName, '--']);
+				changes.push(...parseGitChangesRaw(worktreeProperties.worktreePath, result));
+			} catch (error) {
+				this.logService.error(`[ChatSessionWorktreeService][_getWorktreeChanges] Error while processing worktree changes for session ${sessionId}: ${error}`);
+				return undefined;
+			}
 		}
 
 		return changes.map(change => ({

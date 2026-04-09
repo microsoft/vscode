@@ -6092,7 +6092,7 @@
 				"type": "copilotcli",
 				"name": "cli",
 				"displayName": "Copilot CLI",
-				"icon": "$(worktree)",
+				"icon": "$(copilot)",
 				"welcomeTitle": "Copilot CLI",
 				"welcomeMessage": "Run tasks in the background with the Copilot CLI",
 				"inputPlaceholder": "Run tasks in the background with the Copilot CLI, type `#` for adding context",

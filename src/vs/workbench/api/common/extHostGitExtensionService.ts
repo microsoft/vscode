@@ -5,7 +5,7 @@
 
 import type * as vscode from 'vscode';
 import { Event } from '../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap } from '../../../base/common/lifecycle.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { ExtensionIdentifier } from '../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../platform/instantiation/common/instantiation.js';
@@ -185,8 +185,7 @@ export class ExtHostGitExtensionService extends Disposable implements IExtHostGi
 
 	private readonly _repositories = new Map<number, Repository>();
 	private readonly _repositoryByUri = new ResourceMap<number>();
-
-	private readonly _disposables = this._register(new DisposableStore());
+	private readonly _repositoryStateChangeListeners = new DisposableMap<number, vscode.Disposable>();
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
@@ -215,6 +214,13 @@ export class ExtHostGitExtensionService extends Disposable implements IExtHostGi
 
 		const existingHandle = this._repositoryByUri.get(repository.rootUri);
 		if (existingHandle !== undefined) {
+			if (this._repositories.get(existingHandle) !== repository) {
+				this._repositories.set(existingHandle, repository);
+				this._repositoryByUri.set(repository.rootUri, existingHandle);
+
+				this._setRepositoryStateChangeListener(existingHandle, repository);
+			}
+
 			const state = this._getRepositoryState(repository);
 			return { handle: existingHandle, rootUri: repository.rootUri, state };
 		}
@@ -225,10 +231,7 @@ export class ExtHostGitExtensionService extends Disposable implements IExtHostGi
 		this._repositories.set(handle, repository);
 		this._repositoryByUri.set(repository.rootUri, handle);
 
-		// Subscribe to repository state changes
-		this._disposables.add(repository.state.onDidChange(() => {
-			this._proxy.$onDidChangeRepository(handle);
-		}));
+		this._setRepositoryStateChangeListener(handle, repository);
 
 		const state = this._getRepositoryState(repository);
 		return { handle, rootUri: repository.rootUri, state };
@@ -287,6 +290,12 @@ export class ExtHostGitExtensionService extends Disposable implements IExtHostGi
 			workingTreeChanges: state.workingTreeChanges.map(toGitChangeDto),
 			untrackedChanges: state.untrackedChanges.map(toGitChangeDto),
 		};
+	}
+
+	private _setRepositoryStateChangeListener(handle: number, repository: Repository): void {
+		this._repositoryStateChangeListeners.set(handle, repository.state.onDidChange(() => {
+			this._proxy.$onDidChangeRepository(handle);
+		}));
 	}
 
 	async $diffBetweenWithStats(handle: number, ref1: string, ref2: string, path?: string): Promise<GitDiffChangeDto[]> {
@@ -348,7 +357,7 @@ export class ExtHostGitExtensionService extends Disposable implements IExtHostGi
 	}
 
 	override dispose(): void {
-		this._disposables.dispose();
+		this._repositoryStateChangeListeners.dispose();
 		super.dispose();
 	}
 }

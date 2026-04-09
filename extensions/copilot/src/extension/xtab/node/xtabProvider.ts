@@ -129,6 +129,23 @@ interface FetchMetadata {
 	userHappinessScore: number | undefined;
 }
 
+namespace FetchResult {
+	export class Lines {
+		constructor(
+			readonly linesStream: AsyncIterable<string>,
+			readonly getFetchFailure: () => NoNextEditReason | undefined,
+			readonly getResponseSoFar: () => string,
+			readonly fetchRequestStopWatch: StopWatch,
+		) { }
+	}
+	export class ModelNotFound { public static INSTANCE = new ModelNotFound(); }
+	export class Error {
+		constructor(readonly reason: NoNextEditReason) { }
+	}
+
+	export type t = Lines | ModelNotFound | Error;
+}
+
 export class XtabProvider implements IStatelessNextEditProvider {
 
 	public static readonly ID = XTabProviderId;
@@ -700,23 +717,27 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		}
 	}
 
-	private async *_streamEditsImpl(
-		request: StatelessNextEditRequest,
-		editStreamCtx: EditStreamContext,
-		responseOpts: ResponseOpts,
+	/**
+	 * Initiates the HTTP fetch, sets up the streaming pipeline, and returns either
+	 * a clean line stream (with cursor-tag removal and latency logging applied)
+	 * or an error / retry signal.
+	 *
+	 * This method encapsulates all fetch infrastructure so that downstream response
+	 * format handlers only need an `AsyncIterable<string>` line stream.
+	 */
+	private async _performFetch(
+		endpoint: IChatEndpoint,
+		messages: Raw.ChatMessage[],
+		prediction: Prediction | undefined,
+		requestId: string,
 		fetchMetadata: FetchMetadata,
-		retryState: RetryState.t,
-		delaySession: DelaySession,
-		tracing: RequestTracingContext,
-		cancellationToken: CancellationToken,
-		fetchCts: CancellationTokenSource,
+		shouldRemoveCursorTagFromResponse: boolean,
+		editWindow: OffsetRange,
+		documentBeforeEdits: StringText,
 		fetchCancellationToken: CancellationToken,
-	): EditStreaming {
+		tracing: RequestTracingContext,
+	): Promise<FetchResult.t> {
 		const { tracer, logContext, telemetry } = tracing;
-		const { endpoint, messages, clippedTaggedCurrentDoc, editWindowInfo, promptPieces, prediction, originalEditWindow } = editStreamCtx;
-		const { editWindow, editWindowLines, cursorOriginalLinesOffset, editWindowLineRange } = editWindowInfo;
-
-		const targetDocument = request.getActiveDocument().id;
 
 		const useFetcher = this.configService.getExperimentBasedConfig(ConfigKey.NextEditSuggestionsFetcher, this.expService) || undefined;
 
@@ -732,7 +753,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 
 		const firstTokenReceived = new DeferredPromise<void>();
 
-		logContext.setHeaderRequestId(request.headerRequestId);
+		logContext.setHeaderRequestId(requestId);
 
 		telemetry.setFetchStartedAt();
 		logContext.setFetchStartTime();
@@ -765,7 +786,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				} satisfies OptionalChatRequestParams,
 				userInitiatedRequest: undefined,
 				telemetryProperties: {
-					requestId: request.headerRequestId,
+					requestId,
 				},
 				useFetcher,
 				customMetadata: {
@@ -785,13 +806,13 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				!this.forceUseDefaultModel // if we haven't already forced using the default model; otherwise, this could cause an infinite loop
 			) {
 				this.forceUseDefaultModel = true;
-				return yield* this.doGetNextEdit(request, delaySession, tracing, cancellationToken, retryState); // use the same retry state
+				return FetchResult.ModelNotFound.INSTANCE;
 			}
 			// diff-patch based model returns no choices if it has no edits to suggest
 			if (fetchRes.type === ChatFetchResponseType.Unknown && fetchRes.reason === RESPONSE_CONTAINED_NO_CHOICES) {
-				return new NoNextEditReason.NoSuggestions(request.documentBeforeEdits, editWindow);
+				return new FetchResult.Error(new NoNextEditReason.NoSuggestions(documentBeforeEdits, editWindow));
 			}
-			return mapChatFetcherErrorToNoNextEditReason(fetchRes);
+			return new FetchResult.Error(mapChatFetcherErrorToNoNextEditReason(fetchRes));
 		}
 
 		fetchResultPromise
@@ -829,15 +850,53 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				const trace = `Line ${i++} emitted with latency ${fetchRequestStopWatch.elapsed()} ms`;
 				tracer.trace(trace);
 
-				yield responseOpts.shouldRemoveCursorTagFromResponse
+				yield shouldRemoveCursorTagFromResponse
 					? v.replaceAll(PromptTags.CURSOR, '')
 					: v;
 			}
 		})();
 
+		return new FetchResult.Lines(linesStream, getFetchFailure, () => responseSoFar, fetchRequestStopWatch);
+	}
+
+	private async *_streamEditsImpl(
+		request: StatelessNextEditRequest,
+		editStreamCtx: EditStreamContext,
+		responseOpts: ResponseOpts,
+		fetchMetadata: FetchMetadata,
+		retryState: RetryState.t,
+		delaySession: DelaySession,
+		tracing: RequestTracingContext,
+		cancellationToken: CancellationToken,
+		fetchCts: CancellationTokenSource,
+		fetchCancellationToken: CancellationToken,
+	): EditStreaming {
+		const { tracer, logContext, telemetry } = tracing;
+		const { endpoint, messages, clippedTaggedCurrentDoc, editWindowInfo, promptPieces, prediction, originalEditWindow } = editStreamCtx;
+		const { editWindow, editWindowLines, cursorOriginalLinesOffset, editWindowLineRange } = editWindowInfo;
+
+		const targetDocument = request.getActiveDocument().id;
+
+		// Phase 1: Fetch lifecycle — initiate HTTP request and produce a clean line stream
+		const fetchResult = await this._performFetch(
+			endpoint, messages, prediction, request.headerRequestId,
+			fetchMetadata, responseOpts.shouldRemoveCursorTagFromResponse,
+			editWindow, request.documentBeforeEdits,
+			fetchCancellationToken, tracing,
+		);
+
+		if (fetchResult instanceof FetchResult.ModelNotFound) {
+			return yield* this.doGetNextEdit(request, delaySession, tracing, cancellationToken, retryState);
+		}
+		if (fetchResult instanceof FetchResult.Error) {
+			return fetchResult.reason;
+		}
+
+		const { linesStream, getFetchFailure, getResponseSoFar, fetchRequestStopWatch } = fetchResult;
+
+		// Phase 2: Dispatch to the appropriate response format handler
 		const isFromCursorJump = retryState instanceof RetryState.Retrying && retryState.reason === 'cursorJump';
 
-		// Dispatch to the appropriate response format handler
 		let parseResult: ResponseParseResult.t;
 
 		switch (responseOpts.responseFormat) {
@@ -1019,7 +1078,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 					}
 				}
 
-				logContext.setResponse(responseSoFar);
+				logContext.setResponse(getResponseSoFar());
 
 				for (const singleLineEdit of singleLineEdits) {
 					tracer.trace(`extracting edit #${i}: ${singleLineEdit.toString()}`);

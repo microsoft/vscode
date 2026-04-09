@@ -70,7 +70,10 @@ suite('SendToTerminalTool', () => {
 
 	test('tool description documents terminal IDs and use cases', () => {
 		const idProperty = SendToTerminalToolData.inputSchema?.properties?.id as { description?: string; pattern?: string } | undefined;
-		assert.ok(SendToTerminalToolData.modelDescription.includes('existing persistent terminal session'));
+		const commandProperty = SendToTerminalToolData.inputSchema?.properties?.command as { description?: string } | undefined;
+		assert.ok(SendToTerminalToolData.modelDescription.includes('Send input text to a terminal session'));
+		assert.ok(SendToTerminalToolData.modelDescription.includes('may be empty or whitespace to press Enter'));
+		assert.ok(commandProperty?.description?.includes('Provide an empty or whitespace string to send just Enter'));
 		assert.ok(idProperty?.pattern?.includes('[0-9a-fA-F]{8}'));
 	});
 
