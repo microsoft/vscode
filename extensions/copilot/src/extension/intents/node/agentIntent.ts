@@ -796,6 +796,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 
 		const associatedRequestId = promptContext.conversation?.getLatestTurn()?.id;
 		const conversationId = promptContext.conversation?.sessionId;
+		const modelCapabilities = this._lastModelCapabilities;
 
 		backgroundSummarizer.start(async bgToken => {
 			try {
@@ -816,8 +817,6 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 						...strippedMainMessages,
 						...summaryMsgResult.messages,
 					];
-
-					const modelCapabilities = this._lastModelCapabilities;
 
 					const response = await this.endpoint.makeChatRequest2({
 						debugName: 'summarizeConversationHistory-background',
