@@ -465,8 +465,9 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			? (this._lastRenderTokenCount + toolTokens) / baseBudget
 			: 0;
 
-		// Track whether we applied a summary in this iteration so we don't
-		// immediately re-trigger background compaction in the post-render check.
+		// Track whether this iteration already performed compaction-related work
+		// (including applying a summary or using a foreground fallback path) so
+		// we don't immediately re-trigger background compaction in the post-render check.
 		let didSummarizeThisIteration = false;
 
 		// If a previous background pass completed, apply its summary now.
