@@ -753,8 +753,9 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 
 		const bgStartTime = Date.now();
 
-		// Determine the toolCallRoundId to apply the summary to.
-		const rounds = promptContext.toolCallRounds ?? [];
+		// Snapshot rounds and history so telemetry reflects state at kick-off
+		// time, not at completion time (the main loop mutates toolCallRounds).
+		const rounds = [...(promptContext.toolCallRounds ?? [])];
 		const history = promptContext.history;
 		let toolCallRoundId: string | undefined;
 		if (rounds.length >= 2) {
@@ -846,7 +847,6 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 
 					// Send summarizedConversationHistory telemetry for parity
 					// with the standard ConversationHistorySummarizer path.
-					const history = promptContext.history;
 					const numRoundsInHistory = history.reduce((sum, t) => sum + t.rounds.length, 0);
 					const numRoundsInCurrentTurn = rounds.length;
 					const lastUsedTool = rounds.at(-1)?.toolCalls?.at(-1)?.name
@@ -875,7 +875,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 					*/
 					this.telemetryService.sendMSFTTelemetryEvent('summarizedConversationHistory', {
 						outcome: 'success',
-						model: response.resolvedModel ?? this.endpoint.model,
+						model: this.endpoint.model,
 						summarizationMode: 'inline',
 						source: 'background',
 						conversationId,
@@ -900,7 +900,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 						promptCacheTokens: response.usage?.prompt_tokens_details?.cached_tokens,
 						outputTokens: response.usage?.completion_tokens,
 						durationMs: Date.now() - bgStartTime,
-						model: response.resolvedModel ?? this.endpoint.model,
+						model: this.endpoint.model,
 						summarizationMode: 'inline',
 						numRounds: undefined,
 						numRoundsSinceLastSummarization: undefined,
