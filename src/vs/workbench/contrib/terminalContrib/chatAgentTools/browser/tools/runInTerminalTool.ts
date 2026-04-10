@@ -725,7 +725,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		// Determine auto approval, this happens even when auto approve is off to that reasoning
 		// can be reviewed in the terminal channel. It also allows gauging the effective set of
 		// commands that would be auto approved if it were enabled.
-		const commandLine = rewrittenCommand ?? args.command;
+		const commandLine = forDisplayCommand ?? rewrittenCommand ?? args.command;
 
 		const isEligibleForAutoApproval = () => isToolEligibleForTerminalAutoApproval(TOOL_REFERENCE_NAME, this._configurationService, LEGACY_TOOL_REFERENCE_FULL_NAMES);
 		const isAutoApproveEnabled = this._configurationService.getValue(TerminalChatAgentToolsSettingId.EnableAutoApprove) === true;

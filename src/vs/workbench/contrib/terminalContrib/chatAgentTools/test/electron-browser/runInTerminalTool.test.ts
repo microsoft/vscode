@@ -698,7 +698,7 @@ suite('RunInTerminalTool', () => {
 			ok(actions, 'Expected custom actions to be defined');
 			strictEqual(actions.length, 11);
 			ok(!isSeparator(actions[0]));
-			strictEqual(actions[0].label, 'Allow `unsandboxed:echo …` in this Session');
+			strictEqual(actions[0].label, 'Allow `echo …` in this Session');
 			ok(!isSeparator(actions[4]));
 			strictEqual(actions[4].label, 'Allow Exact Command Line in this Session');
 			ok(!isSeparator(actions[10]));
