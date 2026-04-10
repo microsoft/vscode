@@ -453,7 +453,7 @@ describe('SessionOptionGroupBuilder', () => {
 			expect(result!.items[0].locked).toBeUndefined();
 		});
 
-		it('resets to HEAD branch when locked with workspace isolatuion even if previous selection was different', () => {
+		it('resets to HEAD branch when locked with workspace isolation even if previous selection was different', () => {
 			const branches = [
 				{ id: 'main', name: 'main', icon: {} as any },
 				{ id: 'hello', name: 'hello', icon: {} as any },
