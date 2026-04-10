@@ -161,8 +161,8 @@ function compare(from: IStringDictionary<string> | null, to: IStringDictionary<s
 		if (removed.has(key)) {
 			continue;
 		}
-		const fromSnippet = from![key]!;
-		const toSnippet = to![key]!;
+		const fromSnippet = from![key];
+		const toSnippet = to![key];
 		if (fromSnippet !== toSnippet) {
 			updated.add(key);
 		}

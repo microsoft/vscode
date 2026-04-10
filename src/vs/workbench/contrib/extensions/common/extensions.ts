@@ -22,6 +22,7 @@ import { ProgressLocation } from '../../../../platform/progress/common/progress.
 import { Severity } from '../../../../platform/notification/common/notification.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { localize2 } from '../../../../nls.js';
+import { ExtensionGalleryManifestStatus } from '../../../../platform/extensionManagement/common/extensionGalleryManifest.js';
 
 export const VIEWLET_ID = 'workbench.view.extensions';
 export const EXTENSIONS_CATEGORY = localize2('extensions', "Extensions");
@@ -123,6 +124,8 @@ export interface IExtensionsNotification {
 	readonly message: string;
 	readonly severity: Severity;
 	readonly extensions: IExtension[];
+	readonly query?: string;
+	readonly action?: { readonly label: string; run(): void };
 	dismiss(): void;
 }
 
@@ -161,7 +164,7 @@ export interface IExtensionsWorkbenchService {
 	checkForUpdates(): Promise<void>;
 	getExtensionRuntimeStatus(extension: IExtension): IExtensionRuntimeStatus | undefined;
 	updateAll(): Promise<InstallExtensionResult[]>;
-	updateRunningExtensions(): Promise<void>;
+	updateRunningExtensions(message?: string): Promise<void>;
 
 	readonly onDidChangeExtensionsNotification: Event<IExtensionsNotification | undefined>;
 	getExtensionsNotification(): IExtensionsNotification | undefined;
@@ -202,8 +205,8 @@ export interface IExtensionContainer extends IDisposable {
 }
 
 export interface IExtensionsViewState {
-	onFocus: Event<IExtension>;
-	onBlur: Event<IExtension>;
+	readonly onFocus: Event<IExtension>;
+	readonly onBlur: Event<IExtension>;
 	filters: {
 		featureId?: string;
 	};
@@ -254,8 +257,10 @@ export const LIST_WORKSPACE_UNSUPPORTED_EXTENSIONS_COMMAND_ID = 'workbench.exten
 export const DefaultViewsContext = new RawContextKey<boolean>('defaultExtensionViews', true);
 export const HasOutdatedExtensionsContext = new RawContextKey<boolean>('hasOutdatedExtensions', false);
 export const CONTEXT_HAS_GALLERY = new RawContextKey<boolean>('hasGallery', false);
+export const CONTEXT_EXTENSIONS_GALLERY_STATUS = new RawContextKey<string>('extensionsGalleryStatus', ExtensionGalleryManifestStatus.Unavailable);
 export const ExtensionResultsListFocused = new RawContextKey<boolean>('extensionResultListFocused ', true);
 export const SearchMcpServersContext = new RawContextKey<boolean>('searchMcpServers', false);
+export const SearchAgentPluginsContext = new RawContextKey<boolean>('searchAgentPlugins', false);
 
 // Context Menu Groups
 export const THEME_ACTIONS_GROUP = '_theme_';

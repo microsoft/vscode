@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { binarySearch } from '../../../base/common/arrays.js';
-import { errorHandler, ErrorNoTelemetry } from '../../../base/common/errors.js';
+import { errorHandler, ErrorNoTelemetry, PendingMigrationError } from '../../../base/common/errors.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { safeStringify } from '../../../base/common/objects.js';
 import { FileOperationError } from '../../files/common/files.js';
@@ -42,6 +42,20 @@ export namespace ErrorEvent {
 		}
 		return 0;
 	}
+}
+
+/**
+ * Extracts a callstack and message from an error object for telemetry.
+ * Handles the `Array.isArray(err.stack)` workaround from workerServer.ts
+ * and falls back to {@link safeStringify} when no message is available.
+ */
+export function packErrorForTelemetry(err: any): { callstack: string | undefined; msg: string } {
+	if (!err || typeof err !== 'object') {
+		return { callstack: undefined, msg: safeStringify(err) };
+	}
+	const callstack: string | undefined = Array.isArray(err.stack) ? err.stack.join('\n') : err.stack;
+	const msg = err.message ? err.message : safeStringify(err);
+	return { callstack, msg };
 }
 
 export default abstract class BaseErrorTelemetry {
@@ -89,13 +103,16 @@ export default abstract class BaseErrorTelemetry {
 
 		// If it's the no telemetry error it doesn't get logged
 		// TOOD @lramos15 hacking in FileOperation error because it's too messy to adopt ErrorNoTelemetry. A better solution should be found
-		if (ErrorNoTelemetry.isErrorNoTelemetry(err) || err instanceof FileOperationError || (typeof err?.message === 'string' && err.message.includes('Unable to read file'))) {
+		//
+		// Explicitly filter out PendingMigrationError for https://github.com/microsoft/vscode/issues/250648#issuecomment-3394040431
+		// We don't inherit from ErrorNoTelemetry to preserve the name used in reporting for exthostdeprecatedapiusage event.
+		// TODO(deepak1556): remove when PendingMigrationError is no longer needed.
+		if (ErrorNoTelemetry.isErrorNoTelemetry(err) || err instanceof FileOperationError || PendingMigrationError.is(err) || (typeof err?.message === 'string' && err.message.includes('Unable to read file'))) {
 			return;
 		}
 
 		// work around behavior in workerServer.ts that breaks up Error.stack
-		const callstack = Array.isArray(err.stack) ? err.stack.join('\n') : err.stack;
-		const msg = err.message ? err.message : safeStringify(err);
+		const { callstack, msg } = packErrorForTelemetry(err);
 
 		// errors without a stack are not useful telemetry
 		if (!callstack) {
@@ -115,7 +132,7 @@ export default abstract class BaseErrorTelemetry {
 			if (!this._buffer[idx].count) {
 				this._buffer[idx].count = 0;
 			}
-			this._buffer[idx].count! += 1;
+			this._buffer[idx].count += 1;
 		}
 
 		if (this._flushHandle === undefined) {

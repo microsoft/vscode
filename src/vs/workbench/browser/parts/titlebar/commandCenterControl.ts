@@ -12,6 +12,7 @@ import { IAction, SubmenuAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { localize } from '../../../../nls.js';
 import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar, WorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
@@ -22,6 +23,10 @@ import { IQuickInputService } from '../../../../platform/quickinput/common/quick
 import { WindowTitle } from './windowTitle.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+
+const AI_DISABLED_SETTING = 'chat.disableAIFeatures';
+const AGENT_STATUS_ENABLED_SETTING = 'chat.agentsControl.enabled';
 
 export class CommandCenterControl {
 
@@ -56,8 +61,21 @@ export class CommandCenterControl {
 			}
 		});
 
-		this._disposables.add(Event.filter(quickInputService.onShow, () => isActiveDocument(this.element), this._disposables)(this._setVisibility.bind(this, false)));
-		this._disposables.add(quickInputService.onHide(this._setVisibility.bind(this, true)));
+		let quickInputVisible = false;
+		this._disposables.add(Event.filter(quickInputService.onShow, () => isActiveDocument(this.element), this._disposables)(() => {
+			quickInputVisible = true;
+			this._setVisibility(quickInputService.alignment.get() !== 'top');
+		}));
+		this._disposables.add(quickInputService.onHide(() => {
+			quickInputVisible = false;
+			this._setVisibility(true);
+		}));
+		this._disposables.add(autorun(reader => {
+			const alignment = quickInputService.alignment.read(reader);
+			if (quickInputVisible) {
+				this._setVisibility(alignment !== 'top');
+			}
+		}));
 		this._disposables.add(titleToolbar);
 	}
 
@@ -86,6 +104,7 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 		@IKeybindingService private _keybindingService: IKeybindingService,
 		@IInstantiationService private _instaService: IInstantiationService,
 		@IEditorGroupsService private _editorGroupService: IEditorGroupsService,
+		@IConfigurationService private _configurationService: IConfigurationService,
 	) {
 		super(undefined, _submenu.actions.find(action => action.id === 'workbench.action.quickOpenWithModes') ?? _submenu.actions[0], options);
 		this._hoverDelegate = options.hoverDelegate ?? getDefaultHoverDelegate('mouse');
@@ -142,9 +161,21 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 							super.render(container);
 							container.classList.toggle('command-center-quick-pick');
 							container.role = 'button';
+							container.setAttribute('aria-description', this.getTooltip());
+
+							// When agent control mode is 'compact', hide search icon and left-align the label
+							// Backward compat: the old boolean setting (true) and the new default (undefined) both map to compact
+							const aiFeaturesDisabled = that._configurationService.getValue<boolean>(AI_DISABLED_SETTING) === true;
+							const aiCustomizationsDisabled = that._configurationService.getValue<boolean>('disableAICustomizations') === true
+								|| that._configurationService.getValue<boolean>('workbench.disableAICustomizations') === true;
+							const forcedHidden = aiFeaturesDisabled && aiCustomizationsDisabled;
+							const agentControlValue = that._configurationService.getValue(AGENT_STATUS_ENABLED_SETTING);
+							const isCompactMode = !forcedHidden && (agentControlValue === true || agentControlValue === undefined || agentControlValue === 'compact');
+							container.classList.toggle('compact-mode', isCompactMode);
+
 							const action = this.action;
 
-							// icon (search)
+							// icon (search) - hidden in compact mode
 							const searchIcon = document.createElement('span');
 							searchIcon.ariaHidden = 'true';
 							searchIcon.className = action.class ?? '';
@@ -154,22 +185,26 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 							const label = this._getLabel();
 							const labelElement = document.createElement('span');
 							labelElement.classList.add('search-label');
-							labelElement.innerText = label;
-							reset(container, searchIcon, labelElement);
+							labelElement.textContent = label;
+							if (isCompactMode) {
+								reset(container, labelElement);
+							} else {
+								reset(container, searchIcon, labelElement);
+							}
 
 							const hover = this._store.add(that._hoverService.setupManagedHover(that._hoverDelegate, container, this.getTooltip()));
 
 							// update label & tooltip when window title changes
 							this._store.add(that._windowTitle.onDidChange(() => {
 								hover.update(this.getTooltip());
-								labelElement.innerText = this._getLabel();
+								labelElement.textContent = this._getLabel();
 							}));
 
 							// update label & tooltip when tabs visibility changes
 							this._store.add(that._editorGroupService.onDidChangeEditorPartOptions(({ newPartOptions, oldPartOptions }) => {
 								if (newPartOptions.showTabs !== oldPartOptions.showTabs) {
 									hover.update(this.getTooltip());
-									labelElement.innerText = this._getLabel();
+									labelElement.textContent = this._getLabel();
 								}
 							}));
 						}
@@ -208,7 +243,7 @@ class CommandCenterCenterViewItem extends BaseActionViewItem {
 			// spacer
 			if (i < groups.length - 1) {
 				const icon = renderIcon(Codicon.circleSmallFilled);
-				icon.style.padding = '0 12px';
+				icon.style.padding = '0 8px';
 				icon.style.height = '100%';
 				icon.style.opacity = '0.5';
 				container.appendChild(icon);

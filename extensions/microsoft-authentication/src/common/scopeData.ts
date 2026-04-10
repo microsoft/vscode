@@ -45,13 +45,19 @@ export class ScopeData {
 	 */
 	readonly tenantId: string | undefined;
 
-	constructor(readonly originalScopes: readonly string[] = [], authorizationServer?: Uri) {
+	/**
+	 * The claims to include in the token request.
+	 */
+	readonly claims?: string;
+
+	constructor(readonly originalScopes: readonly string[] = [], claims?: string, authorizationServer?: Uri, clientId?: string) {
 		const modifiedScopes = [...originalScopes];
 		modifiedScopes.sort();
 		this.allScopes = modifiedScopes;
 		this.scopeStr = modifiedScopes.join(' ');
+		this.claims = claims;
 		this.scopesToSend = this.getScopesToSend(modifiedScopes);
-		this.clientId = this.getClientId(this.allScopes);
+		this.clientId = clientId?.trim() || this.getClientId(this.allScopes);
 		this.tenant = this.getTenant(this.allScopes, authorizationServer);
 		this.tenantId = this.getTenantId(this.tenant);
 	}

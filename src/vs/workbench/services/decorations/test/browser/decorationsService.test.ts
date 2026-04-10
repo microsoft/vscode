@@ -182,7 +182,7 @@ suite('DecorationsService', function () {
 		const provider = new class implements IDecorationsProvider {
 
 			_onDidChange = new Emitter<URI[]>();
-			onDidChange: Event<readonly URI[]> = this._onDidChange.event;
+			readonly onDidChange: Event<readonly URI[]> = this._onDidChange.event;
 
 			label: string = 'foo';
 

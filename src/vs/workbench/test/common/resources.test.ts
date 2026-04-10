@@ -48,6 +48,7 @@ suite('ResourceGlobMatcher', () => {
 		disposables.add(matcher.onExpressionChange(() => eventCounter++));
 
 		await configurationService.setUserConfiguration(SETTING, { '**/*.foo': true });
+		// eslint-disable-next-line local/code-no-any-casts
 		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: (key: string) => key === SETTING } as any);
 		assert.equal(eventCounter, 1);
 
@@ -55,6 +56,7 @@ suite('ResourceGlobMatcher', () => {
 		assert.equal(matcher.matches(URI.file('/foo/bar.foo')), true);
 
 		await configurationService.setUserConfiguration(SETTING, undefined);
+		// eslint-disable-next-line local/code-no-any-casts
 		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: (key: string) => key === SETTING } as any);
 		assert.equal(eventCounter, 2);
 
@@ -67,6 +69,7 @@ suite('ResourceGlobMatcher', () => {
 			'C:/bar/**': true,
 			'/bar/**': true
 		});
+		// eslint-disable-next-line local/code-no-any-casts
 		configurationService.onDidChangeConfigurationEmitter.fire({ affectsConfiguration: (key: string) => key === SETTING } as any);
 
 		assert.equal(matcher.matches(URI.file('/bar/foo.1')), true);

@@ -6,7 +6,7 @@
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { localize, localize2 } from '../../../../../nls.js';
-import { Action2 } from '../../../../../platform/actions/common/actions.js';
+import { Action2, MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -19,9 +19,13 @@ export class ManageAccountPreferencesForExtensionAction extends Action2 {
 	constructor() {
 		super({
 			id: '_manageAccountPreferencesForExtension',
-			title: localize2('manageAccountPreferenceForExtension', "Manage Extension Account Preferences"),
+			title: localize2('manageAccountPreferenceForExtension', "Manage Extension Account Preferences..."),
 			category: localize2('accounts', "Accounts"),
-			f1: false
+			f1: true,
+			menu: [{
+				id: MenuId.AccountsContext,
+				order: 100,
+			}],
 		});
 	}
 
@@ -55,6 +59,20 @@ class ManageAccountPreferenceForExtensionActionImpl {
 	) { }
 
 	async run(extensionId?: string, providerId?: string) {
+		if (!extensionId) {
+			const extensions = this._extensionService.extensions
+				.filter(ext => this._authenticationQueryService.extension(ext.identifier.value).getAllAccountPreferences().size > 0)
+				.sort((a, b) => (a.displayName ?? a.name).localeCompare((b.displayName ?? b.name)));
+
+			const result = await this._quickInputService.pick(extensions.map(ext => ({
+				label: ext.displayName ?? ext.name,
+				id: ext.identifier.value
+			})), {
+				placeHolder: localize('selectExtension', "Select an extension to manage account preferences for"),
+				title: localize('pickAProviderTitle', "Manage Extension Account Preferences")
+			});
+			extensionId = result?.id;
+		}
 		if (!extensionId) {
 			return;
 		}

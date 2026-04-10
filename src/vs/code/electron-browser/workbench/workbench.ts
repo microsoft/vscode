@@ -17,14 +17,18 @@
 	type IMainWindowSandboxGlobals = import('../../../base/parts/sandbox/electron-browser/globals.js').IMainWindowSandboxGlobals;
 	type IDesktopMain = import('../../../workbench/electron-browser/desktop.main.js').IDesktopMain;
 
-	const preloadGlobals: IMainWindowSandboxGlobals = (window as any).vscode; // defined by preload.ts
+	const preloadGlobals = (window as unknown as { vscode: IMainWindowSandboxGlobals }).vscode; // defined by preload.ts
 	const safeProcess = preloadGlobals.process;
 
 	//#region Splash Screen Helpers
 
 	function showSplash(configuration: INativeWindowConfiguration) {
 		performance.mark('code/willShowPartsSplash');
+		showDefaultSplash(configuration);
+		performance.mark('code/didShowPartsSplash');
+	}
 
+	function showDefaultSplash(configuration: INativeWindowConfiguration) {
 		let data = configuration.partsSplash;
 		if (data) {
 			if (configuration.autoDetectHighContrast && configuration.colorScheme.highContrast) {
@@ -107,9 +111,15 @@
 				splash.appendChild(borderElement);
 			}
 
-			// ensure there is enough space
-			layoutInfo.auxiliarySideBarWidth = Math.min(layoutInfo.auxiliarySideBarWidth, window.innerWidth - (layoutInfo.activityBarWidth + layoutInfo.editorPartMinWidth + layoutInfo.sideBarWidth));
-			layoutInfo.sideBarWidth = Math.min(layoutInfo.sideBarWidth, window.innerWidth - (layoutInfo.activityBarWidth + layoutInfo.editorPartMinWidth + layoutInfo.auxiliarySideBarWidth));
+			if (layoutInfo.auxiliaryBarWidth === Number.MAX_SAFE_INTEGER) {
+				// if auxiliary bar is maximized, it goes as wide as the
+				// window width but leaving room for activity bar
+				layoutInfo.auxiliaryBarWidth = window.innerWidth - layoutInfo.activityBarWidth;
+			} else {
+				// otherwise adjust for other parts sizes if not maximized
+				layoutInfo.auxiliaryBarWidth = Math.min(layoutInfo.auxiliaryBarWidth, window.innerWidth - (layoutInfo.activityBarWidth + layoutInfo.editorPartMinWidth + layoutInfo.sideBarWidth));
+			}
+			layoutInfo.sideBarWidth = Math.min(layoutInfo.sideBarWidth, window.innerWidth - (layoutInfo.activityBarWidth + layoutInfo.editorPartMinWidth + layoutInfo.auxiliaryBarWidth));
 
 			// part: title
 			if (layoutInfo.titleBarHeight > 0) {
@@ -120,7 +130,7 @@
 				titleDiv.style.left = '0';
 				titleDiv.style.top = '0';
 				titleDiv.style.backgroundColor = `${colorInfo.titleBarBackground}`;
-				(titleDiv.style as any)['-webkit-app-region'] = 'drag';
+				(titleDiv.style as CSSStyleDeclaration & { '-webkit-app-region': string })['-webkit-app-region'] = 'drag';
 				splash.appendChild(titleDiv);
 
 				if (colorInfo.titleBarBorder) {
@@ -200,10 +210,10 @@
 			}
 
 			// part: auxiliary sidebar
-			if (layoutInfo.auxiliarySideBarWidth > 0) {
+			if (layoutInfo.auxiliaryBarWidth > 0) {
 				const auxSideDiv = document.createElement('div');
 				auxSideDiv.style.position = 'absolute';
-				auxSideDiv.style.width = `${layoutInfo.auxiliarySideBarWidth}px`;
+				auxSideDiv.style.width = `${layoutInfo.auxiliaryBarWidth}px`;
 				auxSideDiv.style.height = `calc(100% - ${layoutInfo.titleBarHeight + layoutInfo.statusBarHeight}px)`;
 				auxSideDiv.style.top = `${layoutInfo.titleBarHeight}px`;
 				if (layoutInfo.sideBarSide === 'left') {
@@ -259,15 +269,13 @@
 
 			window.document.body.appendChild(splash);
 		}
-
-		performance.mark('code/didShowPartsSplash');
 	}
 
 	//#endregion
 
 	//#region Window Helpers
 
-	async function load<M, T extends ISandboxConfiguration>(esModule: string, options: ILoadOptions<T>): Promise<ILoadResult<M, T>> {
+	async function load<M, T extends ISandboxConfiguration>(options: ILoadOptions<T>): Promise<ILoadResult<M, T>> {
 
 		// Window Configuration from Preload Script
 		const configuration = await resolveWindowConfiguration<T>();
@@ -290,8 +298,14 @@
 
 		// ESM Import
 		try {
-			const result = await import(new URL(`${esModule}.js`, baseUrl).href);
+			let workbenchUrl: string;
+			if (!!safeProcess.env['VSCODE_DEV'] && globalThis._VSCODE_USE_RELATIVE_IMPORTS) {
+				workbenchUrl = '../../../workbench/workbench.desktop.main.js'; // for dev purposes only
+			} else {
+				workbenchUrl = new URL(`vs/workbench/workbench.desktop.main.js`, baseUrl).href;
+			}
 
+			const result = await import(workbenchUrl);
 			if (developerDeveloperKeybindingsDisposable && removeDeveloperKeybindingsAfterLoad) {
 				developerDeveloperKeybindingsDisposable();
 			}
@@ -443,17 +457,20 @@
 		// DEV: a blob URL that loads the CSS via a dynamic @import-rule.
 		// DEV ---------------------------------------------------------------------------------------
 
+		if (globalThis._VSCODE_DISABLE_CSS_IMPORT_MAP) {
+			return; // disabled in certain development setups
+		}
+
 		if (Array.isArray(configuration.cssModules) && configuration.cssModules.length > 0) {
 			performance.mark('code/willAddCssLoader');
 
-			const style = document.createElement('style');
-			style.type = 'text/css';
-			style.media = 'screen';
-			style.id = 'vscode-css-loading';
-			window.document.head.appendChild(style);
-
 			globalThis._VSCODE_CSS_LOAD = function (url) {
-				style.textContent += `@import url(${url});\n`;
+				const link = document.createElement('link');
+				link.setAttribute('rel', 'stylesheet');
+				link.setAttribute('type', 'text/css');
+				link.setAttribute('href', url);
+
+				window.document.head.appendChild(link);
 			};
 
 			const importMap: { imports: Record<string, string> } = { imports: {} };
@@ -469,7 +486,7 @@
 			const importMapScript = document.createElement('script');
 			importMapScript.type = 'importmap';
 			importMapScript.setAttribute('nonce', '0c6a828f1297');
-			// @ts-ignore
+			// @ts-expect-error
 			importMapScript.textContent = ttp?.createScript(importMapSrc) ?? importMapSrc;
 			window.document.head.appendChild(importMapScript);
 
@@ -479,7 +496,7 @@
 
 	//#endregion
 
-	const { result, configuration } = await load<IDesktopMain, INativeWindowConfiguration>('vs/workbench/workbench.desktop.main',
+	const { result, configuration } = await load<IDesktopMain, INativeWindowConfiguration>(
 		{
 			configureDeveloperSettings: function (windowConfig) {
 				return {

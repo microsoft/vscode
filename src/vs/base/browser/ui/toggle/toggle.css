@@ -67,8 +67,3 @@
 .monaco-action-bar .checkbox-action-item > .checkbox-label {
 	font-size: 12px;
 }
-
-/* hide check when unchecked */
-.monaco-custom-toggle.monaco-checkbox:not(.checked)::before {
-	visibility: hidden;
-}

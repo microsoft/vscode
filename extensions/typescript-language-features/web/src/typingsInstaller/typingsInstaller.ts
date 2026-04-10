@@ -40,7 +40,7 @@ export class WebTypingsInstallerClient implements ts.server.ITypingsInstaller {
 
 	private requestedRegistry = false;
 
-	private typesRegistryCache: Map<string, ts.MapLike<string>> = new Map();
+	private typesRegistryCache = new Map<string, ts.MapLike<string>>();
 
 	private readonly server: Promise<WebTypingsInstallerServer>;
 

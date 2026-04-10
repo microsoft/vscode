@@ -3,39 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChatViewId, IChatWidget, showChatView } from '../chat.js';
-import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY } from '../actions/chatActions.js';
+import { ChatViewId, IChatWidget, IChatWidgetService } from '../chat.js';
+import { ACTION_ID_NEW_CHAT, CHAT_CATEGORY, CHAT_CONFIG_MENU_ID } from '../actions/chatActions.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { assertDefined } from '../../../../../base/common/types.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
 import { PromptsType, PROMPT_LANGUAGE_ID } from '../../common/promptSyntax/promptTypes.js';
 import { ILocalizedString, localize, localize2 } from '../../../../../nls.js';
 import { UILabelProvider } from '../../../../../base/common/keybindingLabels.js';
 import { ICommandAction } from '../../../../../platform/action/common/action.js';
-import { PromptsConfig } from '../../common/promptSyntax/config/config.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { PromptFilePickers } from './pickers/promptFilePickers.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { EditorContextKeys } from '../../../../../editor/common/editorContextKeys.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
+import { ResourceContextKey } from '../../../../common/contextkeys.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { getPromptCommandName } from '../../common/promptSyntax/service/promptsServiceImpl.js';
+import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
+import { CancellationToken } from '../../../../../base/common/cancellation.js';
 
 /**
  * Condition for the `Run Current Prompt` action.
  */
 const EDITOR_ACTIONS_CONDITION = ContextKeyExpr.and(
-	ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
+	ChatContextKeys.enabled,
 	ResourceContextKey.HasResource,
 	ResourceContextKey.LangId.isEqualTo(PROMPT_LANGUAGE_ID),
 );
@@ -58,7 +57,7 @@ const RUN_SELECTED_PROMPT_ACTION_ID = 'workbench.action.chat.run.prompt';
 /**
  * Action ID for the `Configure Prompt Files...` action.
  */
-const CONFIGURE_PROMPTS_ACTION_ID = 'workbench.action.chat.configure.prompts';
+export const CONFIGURE_PROMPTS_ACTION_ID = 'workbench.action.chat.configure.prompts';
 
 /**
  * Constructor options for the `Run Prompt` base action.
@@ -101,7 +100,7 @@ abstract class RunPromptBaseAction extends Action2 {
 			id: options.id,
 			title: options.title,
 			f1: false,
-			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
+			precondition: ChatContextKeys.enabled,
 			category: CHAT_CATEGORY,
 			icon: options.icon,
 			keybinding: {
@@ -132,8 +131,9 @@ abstract class RunPromptBaseAction extends Action2 {
 		inNewChat: boolean,
 		accessor: ServicesAccessor,
 	): Promise<IChatWidget | undefined> {
-		const viewsService = accessor.get(IViewsService);
 		const commandService = accessor.get(ICommandService);
+		const promptsService = accessor.get(IPromptsService);
+		const widgetService = accessor.get(IChatWidgetService);
 
 		resource ||= getActivePromptFileUri(accessor);
 		assertDefined(
@@ -145,9 +145,9 @@ abstract class RunPromptBaseAction extends Action2 {
 			await commandService.executeCommand(ACTION_ID_NEW_CHAT);
 		}
 
-		const widget = await showChatView(viewsService);
+		const widget = await widgetService.revealWidget();
 		if (widget) {
-			widget.setInput(`/${getPromptCommandName(resource.path)}`);
+			widget.setInput(`/${await promptsService.getPromptSlashCommandName(resource, CancellationToken.None)}`);
 			// submit the prompt immediately
 			await widget.acceptInput();
 		}
@@ -193,9 +193,9 @@ class RunSelectedPromptAction extends Action2 {
 			title: localize2('run-prompt.capitalized.ellipses', "Run Prompt..."),
 			icon: Codicon.bookmark,
 			f1: true,
-			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
+			precondition: ChatContextKeys.enabled,
 			keybinding: {
-				when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
+				when: ChatContextKeys.enabled,
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: COMMAND_KEY_BINDING,
 			},
@@ -206,9 +206,10 @@ class RunSelectedPromptAction extends Action2 {
 	public override async run(
 		accessor: ServicesAccessor,
 	): Promise<void> {
-		const viewsService = accessor.get(IViewsService);
 		const commandService = accessor.get(ICommandService);
 		const instaService = accessor.get(IInstantiationService);
+		const promptsService = accessor.get(IPromptsService);
+		const widgetService = accessor.get(IChatWidgetService);
 
 		const pickers = instaService.createInstance(PromptFilePickers);
 
@@ -230,9 +231,9 @@ class RunSelectedPromptAction extends Action2 {
 			await commandService.executeCommand(ACTION_ID_NEW_CHAT);
 		}
 
-		const widget = await showChatView(viewsService);
+		const widget = await widgetService.revealWidget();
 		if (widget) {
-			widget.setInput(`/${getPromptCommandName(promptFile.path)}`);
+			widget.setInput(`/${await promptsService.getPromptSlashCommandName(promptFile, CancellationToken.None)}`);
 			// submit the prompt immediately
 			await widget.acceptInput();
 			widget.focusInput();
@@ -245,17 +246,17 @@ class ManagePromptFilesAction extends Action2 {
 		super({
 			id: CONFIGURE_PROMPTS_ACTION_ID,
 			title: localize2('configure-prompts', "Configure Prompt Files..."),
+			shortTitle: localize2('configure-prompts.short', "Prompt Files"),
 			icon: Codicon.bookmark,
 			f1: true,
-			precondition: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled),
+			precondition: ChatContextKeys.enabled,
 			category: CHAT_CATEGORY,
 			menu: {
-				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.and(PromptsConfig.enabledCtx, ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
-				order: 10,
-				group: '2_manage'
+				id: CHAT_CONFIG_MENU_ID,
+				when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
+				order: 11,
+				group: '0_level'
 			},
-
 		});
 	}
 

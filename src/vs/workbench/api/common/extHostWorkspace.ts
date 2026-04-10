@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { delta as arrayDelta, mapArrayOrNot } from '../../../base/common/arrays.js';
-import { AsyncIterableObject, Barrier } from '../../../base/common/async.js';
+import { AsyncIterableProducer, Barrier } from '../../../base/common/async.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { AsyncEmitter, Emitter, Event } from '../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
@@ -188,6 +188,9 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 
 	private readonly _onDidGrantWorkspaceTrust = new Emitter<void>();
 	readonly onDidGrantWorkspaceTrust: Event<void> = this._onDidGrantWorkspaceTrust.event;
+
+	private readonly _onDidChangeWorkspaceTrustedFolders = new Emitter<void>();
+	readonly onDidChangeWorkspaceTrustedFolders: Event<void> = this._onDidChangeWorkspaceTrustedFolders.event;
 
 	private readonly _logService: ILogService;
 	private readonly _requestIdProvider: Counter;
@@ -521,6 +524,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 				disregardSearchExcludeSettings: options.useExcludeSettings !== undefined && (options.useExcludeSettings !== ExcludeSettingOptions.SearchAndFilesExclude),
 				maxResults: options.maxResults,
 				excludePattern: excludePatterns.length > 0 ? excludePatterns : undefined,
+				ignoreGlobCase: options.caseInsensitive,
 				_reason: 'startFileSearch',
 				shouldGlobSearch: query.type === 'include' ? undefined : true,
 			};
@@ -552,7 +556,20 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			token).then(data => Array.isArray(data) ? data.map(d => URI.revive(d)) : [])
 		) ?? []);
 
-		return result.flat();
+		const flatResult = result.flat();
+
+		// Dedupe entries in a flat array
+		const extUri = new ExtUri(uri => ignorePathCasing(uri, this._extHostFileSystemInfo));
+		const uriMap = new Map<string, vscode.Uri>();
+
+		for (const uri of flatResult) {
+			const key = extUri.getComparisonKey(uri);
+			if (!uriMap.has(key)) {
+				uriMap.set(key, uri);
+			}
+		}
+
+		return Array.from(uriMap.values());
 	}
 
 	findTextInFiles2(query: vscode.TextSearchQuery2, options: vscode.FindTextInFilesOptions2 | undefined, extensionId: ExtensionIdentifier, token: vscode.CancellationToken = CancellationToken.None): vscode.FindTextInFilesResponse {
@@ -574,13 +591,14 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 				options: {
 
 					ignoreSymlinks: typeof options.followSymlinks === 'boolean' ? !options.followSymlinks : undefined,
-					disregardIgnoreFiles: typeof options.useIgnoreFiles === 'boolean' ? !options.useIgnoreFiles : undefined,
+					disregardIgnoreFiles: typeof options.useIgnoreFiles?.local === 'boolean' ? !options.useIgnoreFiles?.local : undefined,
 					disregardGlobalIgnoreFiles: typeof options.useIgnoreFiles?.global === 'boolean' ? !options.useIgnoreFiles?.global : undefined,
 					disregardParentIgnoreFiles: typeof options.useIgnoreFiles?.parent === 'boolean' ? !options.useIgnoreFiles?.parent : undefined,
 					disregardExcludeSettings: options.useExcludeSettings !== undefined && options.useExcludeSettings === ExcludeSettingOptions.None,
 					disregardSearchExcludeSettings: options.useExcludeSettings !== undefined && (options.useExcludeSettings !== ExcludeSettingOptions.SearchAndFilesExclude),
 					fileEncoding: options.encoding,
 					maxResults: options.maxResults,
+					ignoreGlobCase: options.caseInsensitive,
 					previewOptions: options.previewOptions ? {
 						matchLines: options.previewOptions?.numMatchLines ?? 100,
 						charsPerLine: options.previewOptions?.charsPerLine ?? 10000,
@@ -607,7 +625,7 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			(result, uri) => progressEmitter.fire({ result, uri }),
 			token
 		);
-		const asyncIterable = new AsyncIterableObject<vscode.TextSearchResult2>(async emitter => {
+		const asyncIterable = new AsyncIterableProducer<vscode.TextSearchResult2>(async emitter => {
 			disposables.add(progressEmitter.event(e => {
 				const result = e.result;
 				const uri = e.uri;
@@ -789,6 +807,10 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 		return this._trusted;
 	}
 
+	requestResourceTrust(options: vscode.ResourceTrustRequestOptions): Promise<boolean | undefined> {
+		return this._proxy.$requestResourceTrust(options);
+	}
+
 	requestWorkspaceTrust(options?: vscode.WorkspaceTrustRequestOptions): Promise<boolean | undefined> {
 		return this._proxy.$requestWorkspaceTrust(options);
 	}
@@ -798,6 +820,14 @@ export class ExtHostWorkspace implements ExtHostWorkspaceShape, IExtHostWorkspac
 			this._trusted = true;
 			this._onDidGrantWorkspaceTrust.fire();
 		}
+	}
+
+	$onDidChangeWorkspaceTrustedFolders(): void {
+		this._onDidChangeWorkspaceTrustedFolders.fire();
+	}
+
+	isResourceTrusted(resource: vscode.Uri): Promise<boolean> {
+		return this._proxy.$isResourceTrusted(resource);
 	}
 
 	// --- edit sessions ---

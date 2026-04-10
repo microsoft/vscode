@@ -24,12 +24,11 @@ import { CommandExecutor, CursorsController } from '../../../../../../editor/com
 import { DeleteOperations } from '../../../../../../editor/common/cursor/cursorDeleteOperations.js';
 import { CursorConfiguration, ICursorSimpleModel } from '../../../../../../editor/common/cursorCommon.js';
 import { CursorChangeReason } from '../../../../../../editor/common/cursorEvents.js';
-import { CompositionTypePayload, Handler, ReplacePreviousCharPayload } from '../../../../../../editor/common/editorCommon.js';
+import { CompositionTypePayload, Handler, ITriggerEditorOperationEvent, ReplacePreviousCharPayload } from '../../../../../../editor/common/editorCommon.js';
 import { ILanguageConfigurationService } from '../../../../../../editor/common/languages/languageConfigurationRegistry.js';
 import { IModelDeltaDecoration, ITextModel, PositionAffinity } from '../../../../../../editor/common/model.js';
 import { indentOfLine } from '../../../../../../editor/common/model/textModel.js';
 import { ITextModelService } from '../../../../../../editor/common/services/resolverService.js';
-import { ICoordinatesConverter } from '../../../../../../editor/common/viewModel.js';
 import { ViewModelEventsCollector } from '../../../../../../editor/common/viewModelEventDispatcher.js';
 import { IAccessibilityService } from '../../../../../../platform/accessibility/common/accessibility.js';
 import { MenuId, registerAction2 } from '../../../../../../platform/actions/common/actions.js';
@@ -48,6 +47,7 @@ import { CellEditorOptions } from '../../view/cellParts/cellEditorOptions.js';
 import { NotebookFindContrib } from '../find/notebookFindWidget.js';
 import { NotebookTextModel } from '../../../common/model/notebookTextModel.js';
 import { NotebookCellTextModel } from '../../../common/model/notebookCellTextModel.js';
+import { ICoordinatesConverter } from '../../../../../../editor/common/coordinatesConverter.js';
 
 const NOTEBOOK_ADD_FIND_MATCH_TO_SELECTION_ID = 'notebook.addFindMatchToSelection';
 const NOTEBOOK_SELECT_ALL_FIND_MATCHES_ID = 'notebook.selectAllFindMatches';
@@ -273,8 +273,10 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 		const textModelRef = await this.textModelService.createModelReference(cell.cellViewModel.uri);
 		const textModel = textModelRef.object.textEditorModel;
 		if (!textModel) {
+			textModelRef.dispose();
 			return undefined;
 		}
+		this.cursorsDisposables.add(textModelRef);
 
 		const cursorSimpleModel = this.constructCursorSimpleModel(cell.cellViewModel);
 		const converter = this.constructCoordinatesConverter();
@@ -352,7 +354,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 		};
 	}
 
-	private async handleEditorOperationEvent(e: any) {
+	private handleEditorOperationEvent(e: ITriggerEditorOperationEvent) {
 		this.trackedCells.forEach(cell => {
 			if (cell.cellViewModel.handle === this.anchorCell?.[0].handle) {
 				return;
@@ -367,7 +369,7 @@ export class NotebookMultiCursorController extends Disposable implements INotebo
 		});
 	}
 
-	private executeEditorOperation(controller: CursorsController, eventsCollector: ViewModelEventsCollector, e: any) {
+	private executeEditorOperation(controller: CursorsController, eventsCollector: ViewModelEventsCollector, e: ITriggerEditorOperationEvent) {
 		switch (e.handlerId) {
 			case Handler.CompositionStart:
 				controller.startComposition(eventsCollector);

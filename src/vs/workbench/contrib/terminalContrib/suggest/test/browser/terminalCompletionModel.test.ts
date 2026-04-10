@@ -15,8 +15,7 @@ function createItem(options: Partial<ITerminalCompletion>): TerminalCompletionIt
 		kind: options.kind ?? TerminalCompletionItemKind.Method,
 		label: options.label || 'defaultLabel',
 		provider: options.provider || 'defaultProvider',
-		replacementIndex: options.replacementIndex || 0,
-		replacementLength: options.replacementLength || 1,
+		replacementRange: options.replacementRange || [0, 1],
 	});
 }
 
@@ -254,8 +253,7 @@ suite('TerminalCompletionModel', function () {
 				new TerminalCompletionItem({
 					label: 'ab',
 					provider: 'core',
-					replacementIndex: 0,
-					replacementLength: 0,
+					replacementRange: [0, 0],
 					kind
 				})
 			];
@@ -283,48 +281,6 @@ suite('TerminalCompletionModel', function () {
 		});
 	});
 
-	suite('lsp priority sorting', () => {
-
-		suite('Sort Python provider items', () => {
-			test('Prioritize items with "python" in provider name when inside REPL', () => {
-				const items = [
-					createItem({ label: 'b_default_provider', provider: 'defaultProvider' }),
-					createItem({ label: 'a_python_provider', provider: 'ms-python.python' })
-				];
-				const model = new TerminalCompletionModel(items, new LineContext('', 0));
-				assertItems(model, ['a_python_provider', 'b_default_provider']);
-			});
-
-			test('should sort "python" provider items above others', () => {
-				const items = [
-					createItem({ label: 'z_default', provider: 'default' }),
-					createItem({ label: 'c_python', provider: 'ms-python.pylance' }),
-					createItem({ label: 'a_default', provider: 'default' }),
-					createItem({ label: 'b_python', provider: 'ms-python.python' })
-				];
-				const model = new TerminalCompletionModel(items, new LineContext('', 0));
-				assertItems(model, ['b_python', 'c_python', 'a_default', 'z_default']);
-			});
-
-			test('InlineSuggestionAlwaysOnTop should still be prioritized over "python" provider', () => {
-				const items = [
-					createItem({ label: 'b_python', provider: 'python_provider' }),
-					new TerminalCompletionItem({
-						label: 'a_always_on_top',
-						provider: 'core',
-						replacementIndex: 0,
-						replacementLength: 0,
-						kind: TerminalCompletionItemKind.InlineSuggestionAlwaysOnTop
-					}),
-					createItem({ label: 'c_default', provider: 'default_provider' })
-				];
-				const model = new TerminalCompletionModel(items, new LineContext('', 0));
-				assertItems(model, ['a_always_on_top', 'b_python', 'c_default']);
-			});
-		});
-
-
-	});
 
 	suite('git branch priority sorting', () => {
 		test('should prioritize main and master branches for git commands', () => {
@@ -377,9 +333,9 @@ suite('TerminalCompletionModel', function () {
 			];
 			const model = new TerminalCompletionModel(items, new LineContext('git checkout ', 0));
 			assertItems(model, [
-				{ label: "main", description: "Main branch" },
-				{ label: "master", description: "Master branch" },
-				{ label: "feature-branch", description: "Feature branch" },
+				{ label: 'main', description: 'Main branch' },
+				{ label: 'master', description: 'Master branch' },
+				{ label: 'feature-branch', description: 'Feature branch' },
 			]);
 		});
 
@@ -404,4 +360,35 @@ suite('TerminalCompletionModel', function () {
 			assertItems(model, ['main', 'master', 'dev']);
 		});
 	});
+
+	suite('mixed kind sorting', () => {
+		test('should sort arguments before flags and options', () => {
+			const items = [
+				createItem({ kind: TerminalCompletionItemKind.Flag, label: '--verbose' }),
+				createItem({ kind: TerminalCompletionItemKind.Option, label: '--config' }),
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'value2' }),
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'value1' }),
+				createItem({ kind: TerminalCompletionItemKind.Flag, label: '--all' }),
+			];
+			const model = new TerminalCompletionModel(items, new LineContext('cmd ', 0));
+			assertItems(model, ['value1', 'value2', '--all', '--config', '--verbose']);
+		});
+
+		test('should sort by kind hierarchy: methods/aliases, arguments, others, files/folders', () => {
+			const items = [
+				createItem({ kind: TerminalCompletionItemKind.File, label: 'file.txt' }),
+				createItem({ kind: TerminalCompletionItemKind.Flag, label: '--flag' }),
+				createItem({ kind: TerminalCompletionItemKind.Argument, label: 'arg' }),
+				createItem({ kind: TerminalCompletionItemKind.Method, label: 'method' }),
+				createItem({ kind: TerminalCompletionItemKind.Folder, label: 'folder/' }),
+				createItem({ kind: TerminalCompletionItemKind.Option, label: '--option' }),
+				createItem({ kind: TerminalCompletionItemKind.Alias, label: 'alias' }),
+				createItem({ kind: TerminalCompletionItemKind.SymbolicLinkFile, label: 'file2.txt' }),
+				createItem({ kind: TerminalCompletionItemKind.SymbolicLinkFolder, label: 'folder2/' }),
+			];
+			const model = new TerminalCompletionModel(items, new LineContext('', 0));
+			assertItems(model, ['alias', 'method', 'arg', '--flag', '--option', 'file2.txt', 'file.txt', 'folder/', 'folder2/']);
+		});
+	});
 });
+

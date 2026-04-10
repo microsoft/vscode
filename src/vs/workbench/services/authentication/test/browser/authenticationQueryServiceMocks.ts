@@ -64,7 +64,7 @@ export abstract class BaseTestService extends Disposable {
 	/**
 	 * Track a method call for verification in tests
 	 */
-	protected trackCall(method: string, ...args: any[]): void {
+	protected trackCall(method: string, ...args: unknown[]): void {
 		this._methodCalls.push({
 			method,
 			args: [...args],
@@ -271,6 +271,7 @@ export class TestExtensionsService extends TestPreferencesService implements IAu
 	selectSession(): Promise<any> { return Promise.resolve(createSession()); }
 	requestSessionAccess(): void { }
 	requestNewSession(): Promise<void> { return Promise.resolve(); }
+	updateNewSessionRequests(): void { }
 }
 
 export class TestMcpService extends TestPreferencesService implements IAuthenticationMcpService {

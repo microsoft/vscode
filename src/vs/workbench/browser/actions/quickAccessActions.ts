@@ -7,14 +7,17 @@ import { localize, localize2 } from '../../../nls.js';
 import { MenuId, Action2, registerAction2 } from '../../../platform/actions/common/actions.js';
 import { KeyMod, KeyCode } from '../../../base/common/keyCodes.js';
 import { KeybindingsRegistry, KeybindingWeight, IKeybindingRule } from '../../../platform/keybinding/common/keybindingsRegistry.js';
-import { IQuickInputService, ItemActivation } from '../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputService, ItemActivation, QuickInputHideReason } from '../../../platform/quickinput/common/quickInput.js';
 import { IKeybindingService } from '../../../platform/keybinding/common/keybinding.js';
-import { CommandsRegistry } from '../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { ServicesAccessor } from '../../../platform/instantiation/common/instantiation.js';
 import { inQuickPickContext, defaultQuickAccessContext, getQuickNavigateHandler } from '../quickaccess.js';
 import { ILocalizedString } from '../../../platform/action/common/action.js';
 import { AnythingQuickAccessProviderRunOptions } from '../../../platform/quickinput/common/quickAccess.js';
 import { Codicon } from '../../../base/common/codicons.js';
+
+const UNIFIED_AGENTS_BAR_SETTING = 'chat.unifiedAgentsBar.enabled';
 
 //#region Quick access management commands and keys
 
@@ -31,7 +34,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: KeyCode.Escape, secondary: [KeyMod.Shift | KeyCode.Escape],
 	handler: accessor => {
 		const quickInputService = accessor.get(IQuickInputService);
-		return quickInputService.cancel();
+		return quickInputService.cancel(QuickInputHideReason.Gesture);
 	}
 });
 
@@ -53,7 +56,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: 0,
 	handler: accessor => {
 		const quickInputService = accessor.get(IQuickInputService);
-		return quickInputService.accept({ ctrlCmd: true, alt: false });
+		return quickInputService.accept({ ctrlCmd: true, alt: false, shift: false });
 	}
 });
 
@@ -161,16 +164,32 @@ registerAction2(class QuickAccessAction extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor): void {
-		const quickInputService = accessor.get(IQuickInputService);
-		const providerOptions: AnythingQuickAccessProviderRunOptions = {
-			includeHelp: true,
-			from: 'commandCenter',
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const openClassicQuickAccess = (): void => {
+			const quickInputService = accessor.get(IQuickInputService);
+			const providerOptions: AnythingQuickAccessProviderRunOptions = {
+				includeHelp: true,
+				from: 'commandCenter',
+			};
+			quickInputService.quickAccess.show(undefined, {
+				preserveValue: true,
+				providerOptions
+			});
 		};
-		quickInputService.quickAccess.show(undefined, {
-			preserveValue: true,
-			providerOptions
-		});
+
+		const configurationService = accessor.get(IConfigurationService);
+		const commandService = accessor.get(ICommandService);
+		const useUnifiedQuickAccess = configurationService.getValue<boolean>(UNIFIED_AGENTS_BAR_SETTING) === true;
+		if (useUnifiedQuickAccess) {
+			try {
+				await commandService.executeCommand('workbench.action.unifiedQuickAccess');
+			} catch {
+				openClassicQuickAccess();
+			}
+			return;
+		}
+
+		openClassicQuickAccess();
 	}
 });
 

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { AsyncIterableObject, DeferredPromise } from '../../../../../base/common/async.js';
+import { AsyncIterableProducer, DeferredPromise } from '../../../../../base/common/async.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
@@ -371,8 +371,8 @@ class TestNotebookKernel implements INotebookKernel {
 	supportedLanguages: string[] = [];
 	async executeNotebookCellsRequest(): Promise<void> { }
 	async cancelNotebookCellExecution(uri: URI, cellHandles: number[]): Promise<void> { }
-	provideVariables(notebookUri: URI, parentId: number | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): AsyncIterableObject<VariablesResult> {
-		return AsyncIterableObject.EMPTY;
+	provideVariables(notebookUri: URI, parentId: number | undefined, kind: 'named' | 'indexed', start: number, token: CancellationToken): AsyncIterableProducer<VariablesResult> {
+		return AsyncIterableProducer.EMPTY;
 	}
 
 	constructor(opts?: { languages?: string[]; id?: string }) {

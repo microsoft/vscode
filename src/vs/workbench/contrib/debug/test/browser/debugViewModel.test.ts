@@ -20,6 +20,10 @@ suite('Debug - View Model', () => {
 		model = new ViewModel(new MockContextKeyService());
 	});
 
+	teardown(() => {
+		model.dispose();
+	});
+
 	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('focused stack frame', () => {

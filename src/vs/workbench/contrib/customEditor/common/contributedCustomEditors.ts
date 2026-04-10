@@ -10,10 +10,14 @@ import * as nls from '../../../../nls.js';
 import { IExtensionDescription } from '../../../../platform/extensions/common/extensions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { Memento } from '../../../common/memento.js';
-import { CustomEditorDescriptor, CustomEditorInfo } from './customEditor.js';
+import { CustomEditorPriority, CustomEditorDescriptor, CustomEditorInfo } from './customEditor.js';
 import { customEditorsExtensionPoint, ICustomEditorsExtensionPoint } from './extensionPoint.js';
 import { RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { IExtensionPointUser } from '../../../services/extensions/common/extensionsRegistry.js';
+
+interface CustomEditorsMemento {
+	editors?: CustomEditorDescriptor[];
+}
 
 export class ContributedCustomEditors extends Disposable {
 
@@ -21,7 +25,7 @@ export class ContributedCustomEditors extends Disposable {
 	private static readonly CUSTOM_EDITORS_ENTRY_ID = 'editors';
 
 	private readonly _editors = new Map<string, CustomEditorInfo>();
-	private readonly _memento: Memento;
+	private readonly _memento: Memento<CustomEditorsMemento>;
 
 	constructor(storageService: IStorageService) {
 		super();
@@ -29,13 +33,13 @@ export class ContributedCustomEditors extends Disposable {
 		this._memento = new Memento(ContributedCustomEditors.CUSTOM_EDITORS_STORAGE_ID, storageService);
 
 		const mementoObject = this._memento.getMemento(StorageScope.PROFILE, StorageTarget.MACHINE);
-		for (const info of (mementoObject[ContributedCustomEditors.CUSTOM_EDITORS_ENTRY_ID] || []) as CustomEditorDescriptor[]) {
+		for (const info of mementoObject[ContributedCustomEditors.CUSTOM_EDITORS_ENTRY_ID] || []) {
 			this.add(new CustomEditorInfo(info));
 		}
 
-		customEditorsExtensionPoint.setHandler(extensions => {
+		this._register(customEditorsExtensionPoint.setHandler(extensions => {
 			this.update(extensions);
-		});
+		}));
 	}
 
 	private readonly _onChange = this._register(new Emitter<void>());
@@ -89,12 +93,14 @@ function getPriorityFromContribution(
 	contribution: ICustomEditorsExtensionPoint,
 	extension: IExtensionDescription,
 ): RegisteredEditorPriority {
-	switch (contribution.priority) {
-		case RegisteredEditorPriority.default:
-		case RegisteredEditorPriority.option:
-			return contribution.priority;
+	switch (contribution.priority as CustomEditorPriority | undefined) {
+		case CustomEditorPriority.default:
+			return RegisteredEditorPriority.default;
 
-		case RegisteredEditorPriority.builtin:
+		case CustomEditorPriority.option:
+			return RegisteredEditorPriority.option;
+
+		case CustomEditorPriority.builtin:
 			// Builtin is only valid for builtin extensions
 			return extension.isBuiltin ? RegisteredEditorPriority.builtin : RegisteredEditorPriority.default;
 

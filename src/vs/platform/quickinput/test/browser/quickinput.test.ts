@@ -19,7 +19,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { toDisposable } from '../../../../base/common/lifecycle.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { QuickPick } from '../../browser/quickInput.js';
-import { IQuickPickItem, ItemActivation } from '../../common/quickInput.js';
+import { IQuickPickItem, ItemActivation, isKeyModified, NO_KEY_MODS } from '../../common/quickInput.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { IThemeService } from '../../../theme/common/themeService.js';
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
@@ -66,7 +66,7 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		instantiationService.stub(IAccessibilityService, new TestAccessibilityService());
 		instantiationService.stub(IListService, store.add(new ListService()));
-		instantiationService.stub(ILayoutService, { activeContainer: fixture, onDidLayoutContainer: Event.None } as any);
+		instantiationService.stub(ILayoutService, { _serviceBrand: undefined, activeContainer: fixture, onDidLayoutContainer: Event.None });
 		instantiationService.stub(IContextViewService, store.add(instantiationService.createInstance(ContextViewService)));
 		instantiationService.stub(IContextKeyService, store.add(instantiationService.createInstance(ContextKeyService)));
 		instantiationService.stub(IKeybindingService, {
@@ -277,5 +277,17 @@ suite('QuickInput', () => { // https://github.com/microsoft/vscode/issues/147543
 
 		assert.strictEqual(activeItemsFromEvent.length, 0);
 		assert.strictEqual(quickpick.activeItems.length, 0);
+	});
+
+	test('isKeyModified - returns false when no modifiers are pressed', () => {
+		assert.strictEqual(isKeyModified(NO_KEY_MODS), false);
+		assert.strictEqual(isKeyModified({ ctrlCmd: false, alt: false, shift: false }), false);
+	});
+
+	test('isKeyModified - returns true when any modifier is pressed', () => {
+		assert.strictEqual(isKeyModified({ ctrlCmd: true, alt: false, shift: false }), true);
+		assert.strictEqual(isKeyModified({ ctrlCmd: false, alt: true, shift: false }), true);
+		assert.strictEqual(isKeyModified({ ctrlCmd: false, alt: false, shift: true }), true);
+		assert.strictEqual(isKeyModified({ ctrlCmd: true, alt: true, shift: true }), true);
 	});
 });

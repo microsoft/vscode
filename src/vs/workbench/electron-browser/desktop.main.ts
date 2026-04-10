@@ -45,7 +45,7 @@ import { WorkspaceTrustEnablementService, WorkspaceTrustManagementService } from
 import { IWorkspaceTrustEnablementService, IWorkspaceTrustManagementService } from '../../platform/workspace/common/workspaceTrust.js';
 import { safeStringify } from '../../base/common/objects.js';
 import { IUtilityProcessWorkerWorkbenchService, UtilityProcessWorkerWorkbenchService } from '../services/utilityProcess/electron-browser/utilityProcessWorkerWorkbenchService.js';
-import { isBigSurOrNewer, isCI, isMacintosh } from '../../base/common/platform.js';
+import { isCI, isMacintosh, isTahoeOrNewer } from '../../base/common/platform.js';
 import { Schemas } from '../../base/common/network.js';
 import { DiskFileSystemProvider } from '../services/files/electron-browser/diskFileSystemProvider.js';
 import { FileUserDataProvider } from '../../platform/userData/common/fileUserDataProvider.js';
@@ -61,7 +61,8 @@ import { ElectronRemoteResourceLoader } from '../../platform/remote/electron-bro
 import { IConfigurationService } from '../../platform/configuration/common/configuration.js';
 import { applyZoom } from '../../platform/window/electron-browser/window.js';
 import { mainWindow } from '../../base/browser/window.js';
-import { DefaultAccountService, IDefaultAccountService } from '../services/accounts/common/defaultAccount.js';
+import { IDefaultAccountService } from '../../platform/defaultAccount/common/defaultAccount.js';
+import { DefaultAccountService } from '../services/accounts/browser/defaultAccount.js';
 import { AccountPolicyService } from '../services/policies/common/accountPolicyService.js';
 import { MultiplexPolicyService } from '../services/policies/common/multiplexPolicyService.js';
 
@@ -125,7 +126,10 @@ export class DesktopMain extends Disposable {
 		this.applyWindowZoomLevel(services.configurationService);
 
 		// Create Workbench
-		const workbench = new Workbench(mainWindow.document.body, { extraClasses: this.getExtraClasses() }, services.serviceCollection, services.logService);
+		const workbench = new Workbench(mainWindow.document.body, {
+			extraClasses: this.getExtraClasses(),
+			resetLayout: this.configuration['disable-layout-restore'] === true
+		}, services.serviceCollection, services.logService);
 
 		// Listeners
 		this.registerListeners(workbench, services.storageService);
@@ -150,8 +154,8 @@ export class DesktopMain extends Disposable {
 	}
 
 	private getExtraClasses(): string[] {
-		if (isMacintosh && isBigSurOrNewer(this.configuration.os.release)) {
-			return ['macos-bigsur-or-newer'];
+		if (isMacintosh && isTahoeOrNewer(this.configuration.os.release)) {
+			return ['macos-tahoe'];
 		}
 
 		return [];
@@ -206,7 +210,7 @@ export class DesktopMain extends Disposable {
 		}
 
 		// Default Account
-		const defaultAccountService = this._register(new DefaultAccountService());
+		const defaultAccountService = this._register(new DefaultAccountService(productService));
 		serviceCollection.set(IDefaultAccountService, defaultAccountService);
 
 		// Policies

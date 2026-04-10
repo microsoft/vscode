@@ -6,23 +6,14 @@
 import { done } from './util';
 
 function decorate(decorator: (fn: Function, key: string) => Function): Function {
-	return (_target: any, key: string, descriptor: any) => {
-		let fnKey: string | null = null;
-		let fn: Function | null = null;
-
+	return (_target: any, key: string, descriptor: PropertyDescriptor): void => {
 		if (typeof descriptor.value === 'function') {
-			fnKey = 'value';
-			fn = descriptor.value;
+			descriptor.value = decorator(descriptor.value, key);
 		} else if (typeof descriptor.get === 'function') {
-			fnKey = 'get';
-			fn = descriptor.get;
-		}
-
-		if (!fn || !fnKey) {
+			descriptor.get = decorator(descriptor.get, key) as () => any;
+		} else {
 			throw new Error('not supported');
 		}
-
-		descriptor[fnKey] = decorator(fn, key);
 	};
 }
 
@@ -97,5 +88,5 @@ export function debounce(delay: number): Function {
 			clearTimeout(this[timerKey]);
 			this[timerKey] = setTimeout(() => fn.apply(this, args), delay);
 		};
-	});
+	}) as MethodDecorator;
 }

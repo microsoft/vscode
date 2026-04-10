@@ -151,6 +151,10 @@ export function isPortFree(port: number, timeout: number): Promise<boolean> {
 	return findFreePortFaster(port, 0, timeout).then(port => port !== 0);
 }
 
+interface ServerError {
+	code?: string;
+}
+
 /**
  * Uses listen instead of connect. Is faster, but if there is another listener on 0.0.0.0 then this will take 127.0.0.1 from that listener.
  */
@@ -178,8 +182,8 @@ export function findFreePortFaster(startPort: number, giveUpAfter: number, timeo
 		server.on('listening', () => {
 			doResolve(startPort, resolve);
 		});
-		server.on('error', err => {
-			if (err && ((<any>err).code === 'EADDRINUSE' || (<any>err).code === 'EACCES') && (countTried < giveUpAfter)) {
+		server.on('error', (err: ServerError) => {
+			if (err && (err.code === 'EADDRINUSE' || err.code === 'EACCES') && (countTried < giveUpAfter)) {
 				startPort++;
 				countTried++;
 				server.listen(startPort, hostname);

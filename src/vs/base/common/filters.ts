@@ -6,6 +6,7 @@
 import { CharCode } from './charCode.js';
 import { LRUCache } from './map.js';
 import { getKoreanAltChars } from './naturalLanguage/korean.js';
+import { tryNormalizeToBase } from './normalization.js';
 import * as strings from './strings.js';
 
 export interface IFilter {
@@ -65,7 +66,26 @@ function _matchesPrefix(ignoreCase: boolean, word: string, wordToMatchAgainst: s
 // Contiguous Substring
 
 export function matchesContiguousSubString(word: string, wordToMatchAgainst: string): IMatch[] | null {
+	if (word.length > wordToMatchAgainst.length) {
+		return null;
+	}
+
 	const index = wordToMatchAgainst.toLowerCase().indexOf(word.toLowerCase());
+	if (index === -1) {
+		return null;
+	}
+
+	return [{ start: index, end: index + word.length }];
+}
+
+export function matchesBaseContiguousSubString(word: string, wordToMatchAgainst: string): IMatch[] | null {
+	if (word.length > wordToMatchAgainst.length) {
+		return null;
+	}
+
+	word = tryNormalizeToBase(word);
+	wordToMatchAgainst = tryNormalizeToBase(wordToMatchAgainst);
+	const index = wordToMatchAgainst.indexOf(word);
 	if (index === -1) {
 		return null;
 	}
@@ -76,6 +96,10 @@ export function matchesContiguousSubString(word: string, wordToMatchAgainst: str
 // Substring
 
 export function matchesSubString(word: string, wordToMatchAgainst: string): IMatch[] | null {
+	if (word.length > wordToMatchAgainst.length) {
+		return null;
+	}
+
 	return _matchesSubString(word.toLowerCase(), wordToMatchAgainst.toLowerCase(), 0, 0);
 }
 
@@ -121,7 +145,7 @@ function isWhitespace(code: number): boolean {
 }
 
 const wordSeparators = new Set<number>();
-// These are chosen as natural word separators based on writen text.
+// These are chosen as natural word separators based on written text.
 // It is a subset of the word separators used by the monaco editor.
 '()[]{}<>`\'"-/;:,.?!'
 	.split('')
@@ -319,8 +343,8 @@ export function matchesWords(word: string, target: string, contiguous: boolean =
 	let result: IMatch[] | null = null;
 	let targetIndex = 0;
 
-	word = word.toLowerCase();
-	target = target.toLowerCase();
+	word = tryNormalizeToBase(word);
+	target = tryNormalizeToBase(target);
 	while (targetIndex < target.length) {
 		result = _matchesWords(word, target, 0, targetIndex, contiguous);
 		if (result !== null) {

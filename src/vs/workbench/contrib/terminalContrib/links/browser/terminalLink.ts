@@ -22,7 +22,7 @@ export class TerminalLink extends Disposable implements ILink {
 	private readonly _tooltipScheduler: MutableDisposable<RunOnceScheduler> = this._register(new MutableDisposable());
 	private readonly _hoverListeners = this._register(new MutableDisposable());
 
-	private readonly _onInvalidated = new Emitter<void>();
+	private readonly _onInvalidated = this._register(new Emitter<void>());
 	get onInvalidated(): Event<void> { return this._onInvalidated.event; }
 
 	get type(): TerminalLinkType { return this._type; }

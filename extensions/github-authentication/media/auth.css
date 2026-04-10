@@ -9,6 +9,16 @@
 	--vscode-editor-background: #1F1F1F;
 	--vscode-error-foreground: #F85149;
 	--vscode-textLink-foreground: #4daafc;
+
+	--vscode-filter-0: drop-shadow(0 0 0 rgba(0, 122, 204, 0));
+	--vscode-filter-50: drop-shadow(0 4px 12px rgba(0, 122, 204, 0.15));
+	--vscode-filter-70: drop-shadow(0 6px 18px rgba(0, 122, 204, 0.25));
+	--vscode-filter-100: drop-shadow(0 8px 24px rgba(0, 122, 204, 0.3));
+
+	--vscode-insiders-filter-0: drop-shadow(0 0 0 rgba(36, 191, 165, 0));
+	--vscode-insiders-filter-50: drop-shadow(0 4px 12px rgba(36, 191, 165, 0.15));
+	--vscode-insiders-filter-70: drop-shadow(0 6px 18px rgba(36, 191, 165, 0.25));
+	--vscode-insiders-filter-100: drop-shadow(0 8px 24px rgba(36, 191, 165, 0.3));
 }
 
 /* Light theme colors */
@@ -62,25 +72,25 @@ a:hover, a:focus {
 	0% {
 		opacity: 0;
 		transform: translateY(15px) scale(0.95);
-		filter: drop-shadow(0 0 0 rgba(0, 122, 204, 0));
+		filter: var(--vscode-filter-0);
 	}
 
 	50% {
 		opacity: 0.8;
 		transform: translateY(-2px) scale(1.02);
-		filter: drop-shadow(0 4px 12px rgba(0, 122, 204, 0.15));
+		filter: var(--vscode-filter-50);
 	}
 
 	70% {
 		opacity: 1;
 		transform: translateY(1px) scale(0.99);
-		filter: drop-shadow(0 6px 18px rgba(0, 122, 204, 0.25));
+		filter: var(--vscode-filter-70);
 	}
 
 	100% {
 		opacity: 1;
 		transform: translateY(0) scale(1);
-		filter: drop-shadow(0 8px 24px rgba(0, 122, 204, 0.3));
+		filter: var(--vscode-filter-100);
 	}
 }
 

@@ -5,20 +5,27 @@
 
 
 import { Event } from '../../../../../base/common/event.js';
-import { ChatMode2, IChatMode, IChatModeService } from '../../common/chatModes.js';
+import { ChatMode, IChatMode, IChatModeService } from '../../common/chatModes.js';
 
 export class MockChatModeService implements IChatModeService {
-	readonly _serviceBrand: undefined;
-
-	private _modes: { builtin: readonly IChatMode[]; custom?: readonly IChatMode[] } = { builtin: [ChatMode2.Ask] };
+	declare readonly _serviceBrand: undefined;
 
 	public readonly onDidChangeChatModes = Event.None;
 
-	getModes(): { builtin: readonly IChatMode[]; custom?: readonly IChatMode[] } {
+	constructor(
+		private readonly _modes: { builtin: readonly IChatMode[]; custom: readonly IChatMode[] } = { builtin: [ChatMode.Ask], custom: [] }
+	) { }
+
+	getModes(): { builtin: readonly IChatMode[]; custom: readonly IChatMode[] } {
 		return this._modes;
 	}
 
-	async getModesAsync(): Promise<{ builtin: readonly IChatMode[]; custom?: readonly IChatMode[] }> {
-		return this._modes;
+	findModeById(id: string): IChatMode | undefined {
+		return this._modes.builtin.find(mode => mode.id === id) ?? this._modes.custom.find(mode => mode.id === id);
 	}
+
+	findModeByName(name: string): IChatMode | undefined {
+		return this._modes.builtin.find(mode => mode.name.get() === name) ?? this._modes.custom.find(mode => mode.name.get() === name);
+	}
+
 }

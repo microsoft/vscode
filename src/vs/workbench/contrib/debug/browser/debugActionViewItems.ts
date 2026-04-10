@@ -8,7 +8,7 @@ import { IAction } from '../../../../base/common/actions.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
-import { SelectBox, ISelectOptionItem } from '../../../../base/browser/ui/selectBox/selectBox.js';
+import { SelectBox, ISelectOptionItem, SeparatorSelectOption } from '../../../../base/browser/ui/selectBox/selectBox.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IDebugService, IDebugSession, IDebugConfiguration, IConfig, ILaunch, State } from '../common/debug.js';
@@ -28,12 +28,11 @@ import { AccessibilityVerbositySettingId } from '../../accessibility/browser/acc
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { hasNativeContextMenu } from '../../../../platform/window/common/window.js';
+import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 
 const $ = dom.$;
 
 export class StartDebugActionViewItem extends BaseActionViewItem {
-
-	private static readonly SEPARATOR = '\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
 
 	private container!: HTMLElement;
 	private start!: HTMLElement;
@@ -80,19 +79,20 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 		this.container = container;
 		container.classList.add('start-debug-action-item');
 		this.start = dom.append(container, $(ThemeIcon.asCSSSelector(debugStart)));
-		const keybinding = this.keybindingService.lookupKeybinding(this.action.id)?.getLabel();
-		const keybindingLabel = keybinding ? ` (${keybinding})` : '';
-		const title = this.action.label + keybindingLabel;
+		const title = this.keybindingService.appendKeybinding(this.action.label, this.action.id);
 		this.toDispose.push(this.hoverService.setupManagedHover(getDefaultHoverDelegate('mouse'), this.start, title));
 		this.start.setAttribute('role', 'button');
 		this._setAriaLabel(title);
 
-		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.CLICK, () => {
-			this.start.blur();
-			if (this.debugService.state !== State.Initializing) {
-				this.actionRunner.run(this.action, this.context);
-			}
-		}));
+		this._register(Gesture.addTarget(this.start));
+		for (const event of [dom.EventType.CLICK, TouchEventType.Tap]) {
+			this.toDispose.push(dom.addDisposableListener(this.start, event, () => {
+				this.start.blur();
+				if (this.debugService.state !== State.Initializing) {
+					this.actionRunner.run(this.action, this.context);
+				}
+			}));
+		}
 
 		this.toDispose.push(dom.addDisposableListener(this.start, dom.EventType.MOUSE_DOWN, (e: MouseEvent) => {
 			if (this.action.enabled && e.button === 0) {
@@ -198,12 +198,14 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 		const inWorkspace = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE;
 		let lastGroup: string | undefined;
 		const disabledIdxs: number[] = [];
+		const separatorIdxs: number[] = [];
 		manager.getAllConfigurations().forEach(({ launch, name, presentation }) => {
 			if (lastGroup !== presentation?.group) {
 				lastGroup = presentation?.group;
 				if (this.debugOptions.length) {
-					this.debugOptions.push({ label: StartDebugActionViewItem.SEPARATOR, handler: () => Promise.resolve(false) });
+					this.debugOptions.push({ label: SeparatorSelectOption.text, handler: () => Promise.resolve(false) });
 					disabledIdxs.push(this.debugOptions.length - 1);
+					separatorIdxs.push(this.debugOptions.length - 1);
 				}
 			}
 			if (name === manager.selectedConfiguration.name && launch === manager.selectedConfiguration.launch) {
@@ -237,8 +239,9 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 			this.debugOptions.push({ label: nls.localize('noConfigurations', "No Configurations"), handler: async () => false });
 		}
 
-		this.debugOptions.push({ label: StartDebugActionViewItem.SEPARATOR, handler: () => Promise.resolve(false) });
+		this.debugOptions.push({ label: SeparatorSelectOption.text, handler: () => Promise.resolve(false) });
 		disabledIdxs.push(this.debugOptions.length - 1);
+		separatorIdxs.push(this.debugOptions.length - 1);
 
 		this.providers.forEach(p => {
 
@@ -265,7 +268,11 @@ export class StartDebugActionViewItem extends BaseActionViewItem {
 			});
 		});
 
-		this.selectBox.setOptions(this.debugOptions.map((data, index): ISelectOptionItem => ({ text: data.label, isDisabled: disabledIdxs.indexOf(index) !== -1 })), this.selected);
+		this.selectBox.setOptions(this.debugOptions.map((data, index): ISelectOptionItem => ({
+			text: data.label,
+			isDisabled: disabledIdxs.indexOf(index) !== -1,
+			isSeparator: separatorIdxs.indexOf(index) !== -1,
+		})), this.selected);
 	}
 
 	private _setAriaLabel(title: string): void {
@@ -308,8 +315,11 @@ export class FocusSessionActionViewItem extends SelectActionViewItem<IDebugSessi
 			sessionListeners.push(session.onDidEndAdapter(() => dispose(sessionListeners)));
 			this.update();
 		}));
+		// Apply the same pattern to existing sessions - track listeners for cleanup
 		this.getSessions().forEach(session => {
-			this._register(session.onDidChangeName(() => this.update()));
+			const sessionListeners: IDisposable[] = [];
+			sessionListeners.push(session.onDidChangeName(() => this.update()));
+			sessionListeners.push(session.onDidEndAdapter(() => dispose(sessionListeners)));
 		});
 		this._register(this.debugService.onDidEndSession(() => this.update()));
 

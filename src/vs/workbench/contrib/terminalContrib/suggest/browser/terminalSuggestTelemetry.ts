@@ -4,13 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable } from '../../../../../base/common/lifecycle.js';
+import { isString } from '../../../../../base/common/types.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ICommandDetectionCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IPromptInputModel } from '../../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
 import { ITerminalCompletion, TerminalCompletionItemKind } from './terminalCompletionItem.js';
 
 export class TerminalSuggestTelemetry extends Disposable {
-	private _acceptedCompletions: Array<{ label: string; kind?: string; sessionId: string }> | undefined;
+	private _acceptedCompletions: Array<{ label: string; kind?: string; sessionId: string; provider: string }> | undefined;
 
 	private _kindMap = new Map<number, string>([
 		[TerminalCompletionItemKind.File, 'File'],
@@ -46,7 +47,7 @@ export class TerminalSuggestTelemetry extends Disposable {
 			return;
 		}
 		this._acceptedCompletions = this._acceptedCompletions || [];
-		this._acceptedCompletions.push({ label: typeof completion.label === 'string' ? completion.label : completion.label.label, kind: this._kindMap.get(completion.kind!), sessionId });
+		this._acceptedCompletions.push({ label: isString(completion.label) ? completion.label : completion.label.label, kind: this._kindMap.get(completion.kind!), sessionId, provider: completion.provider });
 	}
 
 	/**
@@ -57,14 +58,14 @@ export class TerminalSuggestTelemetry extends Disposable {
 	 */
 	logCompletionLatency(sessionId: string, latency: number, firstShownFor: { window: boolean; shell: boolean }): void {
 		this._telemetryService.publicLog2<{
-			sessionId: string;
+			terminalSessionId: string;
 			latency: number;
 			firstWindow: boolean;
 			firstShell: boolean;
 		}, {
 			owner: 'meganrogge';
 			comment: 'Latency in ms from terminal completion request to completions shown.';
-			sessionId: {
+			terminalSessionId: {
 				classification: 'SystemMetaData';
 				purpose: 'FeatureInsight';
 				comment: 'The session ID of the terminal session.';
@@ -85,7 +86,7 @@ export class TerminalSuggestTelemetry extends Disposable {
 				comment: 'Whether this is the first ever showing of completions in the shell.';
 			};
 		}>('terminal.suggest.completionLatency', {
-			sessionId,
+			terminalSessionId: sessionId,
 			latency,
 			firstWindow: firstShownFor.window,
 			firstShell: firstShownFor.shell
@@ -98,8 +99,9 @@ export class TerminalSuggestTelemetry extends Disposable {
 		for (const completion of this._acceptedCompletions || []) {
 			const label = completion?.label;
 			const kind = completion?.kind;
+			const provider = completion?.provider;
 
-			if (label === undefined || commandLine === undefined || kind === undefined) {
+			if (label === undefined || commandLine === undefined || kind === undefined || provider === undefined) {
 				return;
 			}
 
@@ -117,7 +119,8 @@ export class TerminalSuggestTelemetry extends Disposable {
 				kind: string | undefined;
 				outcome: string;
 				exitCode: number | undefined;
-				sessionId: string;
+				terminalSessionId: string;
+				provider: string | undefined;
 			}, {
 				owner: 'meganrogge';
 				comment: 'This data is collected to understand the outcome of a terminal completion acceptance.';
@@ -136,16 +139,22 @@ export class TerminalSuggestTelemetry extends Disposable {
 					purpose: 'FeatureInsight';
 					comment: 'The exit code from the command';
 				};
-				sessionId: {
+				terminalSessionId: {
 					classification: 'SystemMetaData';
 					purpose: 'FeatureInsight';
 					comment: 'The session ID of the terminal session where the completion was accepted';
+				};
+				provider: {
+					classification: 'SystemMetaData';
+					purpose: 'FeatureInsight';
+					comment: 'The ID of the provider that supplied the completion';
 				};
 			}>('terminal.suggest.acceptedCompletion', {
 				kind,
 				outcome,
 				exitCode,
-				sessionId: completion.sessionId
+				terminalSessionId: completion.sessionId,
+				provider
 			});
 		}
 	}

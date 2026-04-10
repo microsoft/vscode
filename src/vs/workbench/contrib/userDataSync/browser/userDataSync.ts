@@ -604,6 +604,9 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 			id: SyncResource.Tasks,
 			label: getSyncAreaLabel(SyncResource.Tasks)
 		}, {
+			id: SyncResource.Mcp,
+			label: getSyncAreaLabel(SyncResource.Mcp)
+		}, {
 			id: SyncResource.GlobalState,
 			label: getSyncAreaLabel(SyncResource.GlobalState),
 		}, {
@@ -784,7 +787,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					}]
 				});
 			}
-			async run(): Promise<any> {
+			async run(): Promise<void> {
 				return that.turnOn();
 			}
 		}));
@@ -810,7 +813,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					}]
 				});
 			}
-			async run(): Promise<any> { }
+			async run(): Promise<void> { }
 		}));
 	}
 
@@ -830,7 +833,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					}
 				});
 			}
-			async run(): Promise<any> {
+			async run(): Promise<void> {
 				return that.userDataSyncWorkbenchService.turnoff(false);
 			}
 		}));
@@ -853,7 +856,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					}
 				});
 			}
-			async run(): Promise<any> {
+			async run(): Promise<void> {
 				try {
 					await that.userDataSyncWorkbenchService.signIn();
 				} catch (e) {
@@ -900,7 +903,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					}]
 				});
 			}
-			async run(): Promise<any> {
+			async run(): Promise<void> {
 				return that.userDataSyncWorkbenchService.showConflicts();
 			}
 		});
@@ -1010,7 +1013,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					}
 				});
 			}
-			run(accessor: ServicesAccessor): Promise<any> {
+			run(accessor: ServicesAccessor): Promise<void> {
 				return that.userDataSyncWorkbenchService.syncNow();
 			}
 		}));
@@ -1030,7 +1033,7 @@ export class UserDataSyncWorkbenchContribution extends Disposable implements IWo
 					},
 				});
 			}
-			async run(): Promise<any> {
+			async run(): Promise<void> {
 				try {
 					await that.turnOff();
 				} catch (e) {

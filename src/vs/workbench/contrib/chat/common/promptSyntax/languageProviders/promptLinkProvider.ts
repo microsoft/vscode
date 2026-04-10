@@ -4,12 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IPromptsService } from '../service/promptsService.js';
-import { assert } from '../../../../../../base/common/assert.js';
 import { ITextModel } from '../../../../../../editor/common/model.js';
-import { assertDefined } from '../../../../../../base/common/types.js';
-import { CancellationError } from '../../../../../../base/common/errors.js';
 import { CancellationToken } from '../../../../../../base/common/cancellation.js';
-import { FolderReference, NotPromptFile } from '../../promptFileReferenceErrors.js';
 import { ILink, ILinksList, LinkProvider } from '../../../../../../editor/common/languages.js';
 
 /**
@@ -24,65 +20,20 @@ export class PromptLinkProvider implements LinkProvider {
 	/**
 	 * Provide list of links for the provided text model.
 	 */
-	public async provideLinks(
-		model: ITextModel,
-		token: CancellationToken,
-	): Promise<ILinksList> {
-		assert(
-			!token.isCancellationRequested,
-			new CancellationError(),
-		);
-
-		const parser = this.promptsService.getSyntaxParserFor(model);
-		assert(
-			parser.isDisposed === false,
-			'Prompt parser must not be disposed.',
-		);
-
-		// start the parser in case it was not started yet,
-		// and wait for it to settle to a final result
-		const { references } = await parser
-			.start(token)
-			.settled();
-
-		// validate that the cancellation was not yet requested
-		assert(
-			!token.isCancellationRequested,
-			new CancellationError(),
-		);
-
-		// filter out references that are not valid links
-		const links: ILink[] = references
-			.filter((reference) => {
-				const { errorCondition, linkRange } = reference;
-				if (!errorCondition && linkRange) {
-					return true;
+	public async provideLinks(model: ITextModel, token: CancellationToken): Promise<ILinksList | undefined> {
+		const promptAST = this.promptsService.getParsedPromptFile(model);
+		if (!promptAST.body) {
+			return;
+		}
+		const links: ILink[] = [];
+		for (const ref of promptAST.body.fileReferences) {
+			if (!ref.isMarkdownLink) {
+				const url = promptAST.body.resolveFilePath(ref.content);
+				if (url) {
+					links.push({ range: ref.range, url });
 				}
-
-				// don't provide links for folder references
-				if (errorCondition instanceof FolderReference) {
-					return false;
-				}
-
-				return errorCondition instanceof NotPromptFile;
-			})
-			.map((reference) => {
-				const { uri, linkRange } = reference;
-
-				// must always be true because of the filter above
-				assertDefined(
-					linkRange,
-					'Link range must be defined.',
-				);
-
-				return {
-					range: linkRange,
-					url: uri,
-				};
-			});
-
-		return {
-			links,
-		};
+			}
+		}
+		return { links };
 	}
 }

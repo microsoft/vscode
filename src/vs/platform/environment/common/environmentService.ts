@@ -83,9 +83,6 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	get sync(): 'on' | 'off' | undefined { return this.args.sync; }
 
 	@memoize
-	get machineSettingsResource(): URI { return joinPath(URI.file(join(this.userDataPath, 'Machine')), 'settings.json'); }
-
-	@memoize
 	get workspaceStorageHome(): URI { return joinPath(this.appSettingsHome, 'workspaceStorage'); }
 
 	@memoize
@@ -120,6 +117,7 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 		return normalize(join(FileAccess.asFileUri('').fsPath, '..', 'extensions'));
 	}
 
+	@memoize
 	get extensionsDownloadLocation(): URI {
 		const cliExtensionsDownloadDir = this.args['extensions-download-dir'];
 		if (cliExtensionsDownloadDir) {
@@ -147,6 +145,26 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 		}
 
 		return joinPath(this.userHome, this.productService.dataFolderName, 'extensions').fsPath;
+	}
+
+	@memoize
+	get agentPluginsPath(): string {
+		const cliAgentPluginsDir = this.args['agent-plugins-dir'];
+		if (cliAgentPluginsDir) {
+			return resolve(cliAgentPluginsDir);
+		}
+
+		const vscodeAgentPlugins = env['VSCODE_AGENT_PLUGINS'];
+		if (vscodeAgentPlugins) {
+			return vscodeAgentPlugins;
+		}
+
+		const vscodePortable = env['VSCODE_PORTABLE'];
+		if (vscodePortable) {
+			return join(vscodePortable, 'agent-plugins');
+		}
+
+		return joinPath(this.userHome, this.productService.dataFolderName, 'agent-plugins').fsPath;
 	}
 
 	@memoize
@@ -203,6 +221,14 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 		return false;
 	}
 
+	get skipBuiltinExtensions(): readonly string[] {
+		const value = env['VSCODE_SKIP_BUILTIN_EXTENSIONS'];
+		if (!value) {
+			return [];
+		}
+		return value.split(',').map(id => id.trim()).filter(id => id);
+	}
+
 	@memoize
 	get debugExtensionHost(): IExtensionHostDebugParams { return parseExtensionHostDebugPort(this.args, this.isBuilt); }
 	get debugRenderer(): boolean { return !!this.args.debugRenderer; }
@@ -217,7 +243,7 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 		const result: [string, string][] = [];
 		for (const entry of this.args.log || []) {
 			const matches = EXTENSION_IDENTIFIER_WITH_LOG_REGEX.exec(entry);
-			if (matches && matches[1] && matches[2]) {
+			if (matches?.[1] && matches[2]) {
 				result.push([matches[1], matches[2]]);
 			}
 		}
@@ -232,6 +258,9 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 
 	@memoize
 	get disableTelemetry(): boolean { return !!this.args['disable-telemetry']; }
+
+	@memoize
+	get disableExperiments(): boolean { return !!this.args['disable-experiments']; }
 
 	@memoize
 	get disableWorkspaceTrust(): boolean { return !!this.args['disable-workspace-trust']; }
@@ -252,7 +281,20 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 		return undefined;
 	}
 
+	@memoize
+	get agentSessionsWorkspace(): URI {
+		return joinPath(this.appSettingsHome, 'agent-sessions.code-workspace');
+	}
+
 	get editSessionId(): string | undefined { return this.args['editSessionId']; }
+
+	get exportPolicyData(): string | undefined {
+		return this.args['export-policy-data'];
+	}
+
+	get exportDefaultKeybindings(): string | undefined {
+		return this.args['export-default-keybindings'];
+	}
 
 	get continueOn(): string | undefined {
 		return this.args['continueOn'];

@@ -12,7 +12,10 @@ export interface IRemoteAgentEnvironment {
 	pid: number;
 	connectionToken: string;
 	appRoot: URI;
+	execPath: string;
+	tmpDir: URI;
 	settingsPath: URI;
+	mcpResource: URI;
 	logsPath: URI;
 	extensionHostLogsPath: URI;
 	globalStorageHome: URI;
@@ -28,6 +31,7 @@ export interface IRemoteAgentEnvironment {
 		home: URI;
 	};
 	isUnsupportedGlibc: boolean;
+	reconnectionGraceTime?: number;
 }
 
 export interface RemoteAgentConnectionContext {

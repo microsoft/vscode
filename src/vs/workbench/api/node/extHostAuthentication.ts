@@ -13,7 +13,7 @@ import { IExtHostWindow } from '../common/extHostWindow.js';
 import { IExtHostUrlsService } from '../common/extHostUrls.js';
 import { ILoggerService, ILogService } from '../../../platform/log/common/log.js';
 import { MainThreadAuthenticationShape } from '../common/extHost.protocol.js';
-import { IAuthorizationServerMetadata, IAuthorizationProtectedResourceMetadata, IAuthorizationTokenResponse, IAuthorizationDeviceResponse, isAuthorizationDeviceResponse, isAuthorizationTokenResponse, IAuthorizationDeviceTokenErrorResponse } from '../../../base/common/oauth.js';
+import { IAuthorizationServerMetadata, IAuthorizationProtectedResourceMetadata, IAuthorizationTokenResponse, IAuthorizationDeviceResponse, isAuthorizationDeviceResponse, isAuthorizationTokenResponse, IAuthorizationDeviceTokenErrorResponse, AuthorizationErrorType, AuthorizationDeviceCodeErrorType } from '../../../base/common/oauth.js';
 import { Emitter } from '../../../base/common/event.js';
 import { raceCancellationError } from '../../../base/common/async.js';
 import { IExtHostProgress } from '../common/extHostProgress.js';
@@ -35,6 +35,7 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 		serverMetadata: IAuthorizationServerMetadata,
 		resourceMetadata: IAuthorizationProtectedResourceMetadata | undefined,
 		clientId: string,
+		clientSecret: string | undefined,
 		onDidDynamicAuthProviderTokensChange: Emitter<{ authProviderId: string; clientId: string; tokens: any[] }>,
 		initialTokens: any[]
 	) {
@@ -49,12 +50,13 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 			serverMetadata,
 			resourceMetadata,
 			clientId,
+			clientSecret,
 			onDidDynamicAuthProviderTokensChange,
 			initialTokens
 		);
 
 		// Prepend Node-specific flows to the existing flows
-		if (!initData.remote.isRemote) {
+		if (!initData.remote.isRemote && serverMetadata.authorization_endpoint) {
 			// If we are not in a remote environment, we can use the loopback server for authentication
 			this._createFlows.unshift({
 				label: nls.localize('loopback', "Loopback Server"),
@@ -72,6 +74,13 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 	}
 
 	private async _createWithLoopbackServer(scopes: string[], progress: vscode.Progress<IProgressStep>, token: vscode.CancellationToken): Promise<IAuthorizationTokenResponse> {
+		if (!this._serverMetadata.authorization_endpoint) {
+			throw new Error('Authorization Endpoint required');
+		}
+		if (!this._serverMetadata.token_endpoint) {
+			throw new Error('Token endpoint not available in server metadata');
+		}
+
 		// Generate PKCE code verifier (random string) and code challenge (SHA-256 hash of verifier)
 		const codeVerifier = this.generateRandomString(64);
 		const codeChallenge = await this.generateCodeChallenge(codeVerifier);
@@ -87,8 +96,8 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 		}
 
 		// Prepare the authorization request URL
-		const authorizationUrl = new URL(this._serverMetadata.authorization_endpoint!);
-		authorizationUrl.searchParams.append('client_id', this.clientId);
+		const authorizationUrl = new URL(this._serverMetadata.authorization_endpoint);
+		authorizationUrl.searchParams.append('client_id', this._clientId);
 		authorizationUrl.searchParams.append('response_type', 'code');
 		authorizationUrl.searchParams.append('code_challenge', codeChallenge);
 		authorizationUrl.searchParams.append('code_challenge_method', 'S256');
@@ -173,7 +182,7 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 
 		// Step 1: Request device and user codes
 		const deviceCodeRequest = new URLSearchParams();
-		deviceCodeRequest.append('client_id', this.clientId);
+		deviceCodeRequest.append('client_id', this._clientId);
 		if (scopeString) {
 			deviceCodeRequest.append('scope', scopeString);
 		}
@@ -243,7 +252,12 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 			const tokenRequest = new URLSearchParams();
 			tokenRequest.append('grant_type', 'urn:ietf:params:oauth:grant-type:device_code');
 			tokenRequest.append('device_code', deviceCodeData.device_code);
-			tokenRequest.append('client_id', this.clientId);
+			tokenRequest.append('client_id', this._clientId);
+
+			// Add resource indicator if available (RFC 8707)
+			if (this._resourceMetadata?.resource) {
+				tokenRequest.append('resource', this._resourceMetadata.resource);
+			}
 
 			try {
 				const tokenResponse = await fetch(this._serverMetadata.token_endpoint, {
@@ -273,17 +287,21 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 					}
 
 					// Handle known error cases
-					if (errorData.error === 'authorization_pending') {
+					if (errorData.error === AuthorizationDeviceCodeErrorType.AuthorizationPending) {
 						// User hasn't completed authorization yet, continue polling
 						continue;
-					} else if (errorData.error === 'slow_down') {
+					} else if (errorData.error === AuthorizationDeviceCodeErrorType.SlowDown) {
 						// Server is asking us to slow down
 						await new Promise(resolve => setTimeout(resolve, pollInterval));
 						continue;
-					} else if (errorData.error === 'expired_token') {
+					} else if (errorData.error === AuthorizationDeviceCodeErrorType.ExpiredToken) {
 						throw new Error('Device code expired. Please try again.');
-					} else if (errorData.error === 'access_denied') {
+					} else if (errorData.error === AuthorizationDeviceCodeErrorType.AccessDenied) {
 						throw new CancellationError();
+					} else if (errorData.error === AuthorizationErrorType.InvalidClient) {
+						this._logger.warn(`Client ID (${this._clientId}) was invalid, generated a new one.`);
+						await this._generateNewClientId();
+						throw new Error(`Client ID was invalid, generated a new one. Please try again.`);
 					} else {
 						throw new Error(`Token request failed: ${errorData.error_description || errorData.error || 'Unknown error'}`);
 					}
@@ -292,9 +310,7 @@ export class NodeDynamicAuthProvider extends DynamicAuthProvider {
 				if (isCancellationError(error)) {
 					throw error;
 				}
-				this._logger.error(`Error polling for token: ${error}`);
-				// Continue polling on network errors
-				continue;
+				throw new Error(`Error polling for token: ${error}`);
 			}
 		}
 

@@ -289,7 +289,9 @@ export class ExecutableDebugAdapter extends StreamDebugAdapter {
 		// processes. Therefore we use TASKKILL.EXE
 		await this.cancelPendingRequests();
 		if (platform.isWindows) {
-			return killTree(this.serverProcess!.pid!, true);
+			return killTree(this.serverProcess!.pid!, true).catch(() => {
+				this.serverProcess?.kill();
+			});
 		} else {
 			this.serverProcess.kill('SIGTERM');
 			return Promise.resolve(undefined);

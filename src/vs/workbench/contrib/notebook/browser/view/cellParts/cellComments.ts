@@ -5,9 +5,7 @@
 
 import { coalesce } from '../../../../../../base/common/arrays.js';
 import { DisposableMap, DisposableStore } from '../../../../../../base/common/lifecycle.js';
-import { EDITOR_FONT_DEFAULTS, IEditorOptions } from '../../../../../../editor/common/config/editorOptions.js';
 import * as languages from '../../../../../../editor/common/languages.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
@@ -28,7 +26,6 @@ export class CellComments extends CellContentPart {
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IThemeService private readonly themeService: IThemeService,
 		@ICommentService private readonly commentService: ICommentService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService
 	) {
 		super();
@@ -64,9 +61,7 @@ export class CellComments extends CellContentPart {
 			commentThread,
 			undefined,
 			undefined,
-			{
-				codeBlockFontFamily: this.configurationService.getValue<IEditorOptions>('editor').fontFamily || EDITOR_FONT_DEFAULTS.fontFamily
-			},
+			{},
 			undefined,
 			{
 				actionRunner: () => {
@@ -152,10 +147,9 @@ export class CellComments extends CellContentPart {
 	}
 
 	private _applyTheme() {
-		const theme = this.themeService.getColorTheme();
 		const fontInfo = this.notebookEditor.getLayoutInfo().fontInfo;
 		for (const { widget } of this._commentThreadWidgets.values()) {
-			widget.applyTheme(theme, fontInfo);
+			widget.applyTheme(fontInfo);
 		}
 	}
 

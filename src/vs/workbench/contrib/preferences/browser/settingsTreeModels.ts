@@ -11,7 +11,7 @@ import { escapeRegExpCharacters, isFalsyOrWhitespace } from '../../../../base/co
 import { isUndefinedOrNull } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
-import { ConfigurationTarget, IConfigurationValue } from '../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, getLanguageTagSettingPlainKey, IConfigurationValue } from '../../../../platform/configuration/common/configuration.js';
 import { ConfigurationDefaultValueSource, ConfigurationScope, EditPresentationTypes, Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
@@ -34,7 +34,7 @@ export interface ISettingsEditorViewState {
 	featureFilters?: Set<string>;
 	idFilters?: Set<string>;
 	languageFilter?: string;
-	filterToCategory?: SettingsTreeGroupElement;
+	categoryFilter?: SettingsTreeGroupElement;
 }
 
 export abstract class SettingsTreeElement extends Disposable {
@@ -42,8 +42,9 @@ export abstract class SettingsTreeElement extends Disposable {
 	parent?: SettingsTreeGroupElement;
 
 	private _tabbable = false;
-	protected readonly _onDidChangeTabbable = this._register(new Emitter<void>());
-	readonly onDidChangeTabbable = this._onDidChangeTabbable.event;
+
+	private readonly _onDidChangeTabbable = this._register(new Emitter<void>());
+	get onDidChangeTabbable() { return this._onDidChangeTabbable.event; }
 
 	constructor(_id: string) {
 		super();
@@ -401,6 +402,21 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			this.inspectSelf();
 		}
 
+		// Handle the special 'stable' tag filter
+		if (tagFilters.has('stable')) {
+			// For stable filter, exclude preview and experimental settings
+			if (this.tags?.has('preview') || this.tags?.has('experimental')) {
+				return false;
+			}
+			// Check other filters (excluding 'stable' itself)
+			const otherFilters = new Set(Array.from(tagFilters).filter(tag => tag !== 'stable'));
+			if (otherFilters.size === 0) {
+				return true;
+			}
+			return !!this.tags?.size &&
+				Array.from(otherFilters).every(tag => this.tags!.has(tag));
+		}
+
 		// Check that the filter tags are a subset of this setting's tags
 		return !!this.tags?.size &&
 			Array.from(tagFilters).every(tag => this.tags!.has(tag));
@@ -455,14 +471,31 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 			return true;
 		}
 
-		const features = tocData.children!.find(child => child.id === 'features');
+		// Restrict to core settings
+		if (this.setting.extensionInfo) {
+			return false;
+		}
 
+		// Chat settings are now in their own top-level category
+		if (featureFilters.has('chat')) {
+			const chatFeatures = tocData.children!.find(child => child.id === 'chat');
+			if (chatFeatures?.children) {
+				const patterns = chatFeatures.children
+					.flatMap(feature => feature.settings ?? [])
+					.map(setting => createSettingMatchRegExp(setting));
+				if (patterns.some(pattern => pattern.test(this.setting.key))) {
+					return true;
+				}
+			}
+		}
+
+		const features = tocData.children!.find(child => child.id === 'features');
 		return Array.from(featureFilters).some(filter => {
-			if (features && features.children) {
+			if (features?.children) {
 				const feature = features.children.find(feature => 'features/' + filter === feature.id);
-				if (feature) {
-					const patterns = feature.settings?.map(setting => createSettingMatchRegExp(setting));
-					return patterns && !this.setting.extensionInfo && patterns.some(pattern => pattern.test(this.setting.key.toLowerCase()));
+				if (feature?.settings) {
+					const patterns = feature.settings.map(setting => createSettingMatchRegExp(setting));
+					return patterns.some(pattern => pattern.test(this.setting.key));
 				} else {
 					return false;
 				}
@@ -476,7 +509,23 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 		if (!idFilters || !idFilters.size) {
 			return true;
 		}
-		return idFilters.has(this.setting.key);
+
+		// Check for exact match first
+		if (idFilters.has(this.setting.key)) {
+			return true;
+		}
+
+		// Check for wildcard patterns (ending with .*)
+		for (const filter of idFilters) {
+			if (filter.endsWith('*')) {
+				const prefix = filter.slice(0, -1); // Remove '*' suffix
+				if (this.setting.key.startsWith(prefix)) {
+					return true;
+				}
+			}
+		}
+
+		return false;
 	}
 
 	matchesAllLanguages(languageFilter?: string): boolean {
@@ -702,8 +751,8 @@ export function inspectSetting(key: string, target: SettingsTarget, languageFilt
 	return { isConfigured, inspected, targetSelector, inspectedLanguageOverrides, languageSelector: languageFilter };
 }
 
-function sanitizeId(id: string): string {
-	return id.replace(/[\.\/]/, '_');
+export function sanitizeId(id: string): string {
+	return id.replace(/[\.\/]/g, '_');
 }
 
 export function settingKeyToDisplayFormat(key: string, groupId: string = '', isLanguageTagSetting: boolean = false): { category: string; label: string } {
@@ -719,7 +768,7 @@ export function settingKeyToDisplayFormat(key: string, groupId: string = '', isL
 	category = wordifyKey(category);
 
 	if (isLanguageTagSetting) {
-		key = key.replace(/[\[\]]/g, '');
+		key = getLanguageTagSettingPlainKey(key);
 		key = '$(bracket) ' + key;
 	}
 
@@ -1165,6 +1214,12 @@ export function parseQuery(query: string): IParsedQuery {
 
 	query = query.replace(`@${POLICY_SETTING_TAG}`, () => {
 		tags.push(POLICY_SETTING_TAG);
+		return '';
+	});
+
+	// Handle @stable by excluding preview and experimental tags
+	query = query.replace(/@stable/g, () => {
+		tags.push('stable');
 		return '';
 	});
 

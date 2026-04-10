@@ -7,7 +7,7 @@ import electron, { Display, Rectangle } from 'electron';
 import { Color } from '../../../base/common/color.js';
 import { Event } from '../../../base/common/event.js';
 import { join } from '../../../base/common/path.js';
-import { IProcessEnvironment, isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { INodeProcess, IProcessEnvironment, isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
@@ -39,12 +39,13 @@ export interface IWindowsMainService {
 	open(openConfig: IOpenConfiguration): Promise<ICodeWindow[]>;
 	openEmptyWindow(openConfig: IOpenEmptyConfiguration, options?: IOpenEmptyWindowOptions): Promise<ICodeWindow[]>;
 	openExtensionDevelopmentHostWindow(extensionDevelopmentPath: string[], openConfig: IOpenConfiguration): Promise<ICodeWindow[]>;
-
 	openExistingWindow(window: ICodeWindow, openConfig: IOpenConfiguration): void;
 
-	sendToFocused(channel: string, ...args: any[]): void;
-	sendToOpeningWindow(channel: string, ...args: any[]): void;
-	sendToAll(channel: string, payload?: any, windowIdsToIgnore?: number[]): void;
+	openAgentsWindow(openConfig: IOpenConfiguration): Promise<ICodeWindow[]>;
+
+	sendToFocused(channel: string, ...args: unknown[]): void;
+	sendToOpeningWindow(channel: string, ...args: unknown[]): void;
+	sendToAll(channel: string, payload?: unknown, windowIdsToIgnore?: number[]): void;
 
 	getWindows(): ICodeWindow[];
 	getWindowCount(): number;
@@ -133,7 +134,7 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 
 	const windowSettings = configurationService.getValue<IWindowSettings | undefined>('window');
 
-	const options: electron.BrowserWindowConstructorOptions & { experimentalDarkMode: boolean } = {
+	const options: electron.BrowserWindowConstructorOptions & { experimentalDarkMode: boolean; accentColor?: boolean | string } = {
 		backgroundColor: themeMainService.getBackgroundColor(),
 		minWidth: WindowMinimumSize.WIDTH,
 		minHeight: WindowMinimumSize.HEIGHT,
@@ -160,10 +161,31 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 		experimentalDarkMode: true
 	};
 
+	if (isWindows) {
+		let borderSetting = windowSettings?.border || 'default';
+		if (borderSetting === 'system') {
+			borderSetting = 'default';
+		}
+		if (borderSetting !== 'default') {
+			if (borderSetting === 'off') {
+				options.accentColor = false;
+			} else if (typeof borderSetting === 'string') {
+				options.accentColor = borderSetting;
+			}
+		}
+	}
+
 	if (isLinux) {
 		options.icon = join(environmentMainService.appRoot, 'resources/linux/code.png'); // always on Linux
-	} else if (isWindows && !environmentMainService.isBuilt) {
-		options.icon = join(environmentMainService.appRoot, 'resources/win32/code_150x150.png'); // only when running out of sources on Windows
+	} else if (isWindows) {
+		if (!environmentMainService.isBuilt) {
+			options.icon = join(environmentMainService.appRoot, 'resources/win32/code_150x150.png'); // only when running out of sources on Windows
+		} else if ((process as INodeProcess).isEmbeddedApp) {
+			// For sub app the proxy executable acts as a launcher to the main executable whose
+			// icon will be used when creating windows if the following override is not set.
+			// This avoids sharing icon with the main application.
+			options.icon = join(environmentMainService.appRoot, 'resources/win32/sessions.ico');
+		}
 	}
 
 	if (isMacintosh) {
@@ -182,7 +204,7 @@ export function defaultBrowserWindowOptions(accessor: ServicesAccessor, windowSt
 
 	const useNativeTabs = isMacintosh && windowSettings?.nativeTabs === true;
 	if (useNativeTabs) {
-		options.tabbingIdentifier = productService.nameShort; // this opts in to sierra tabs
+		options.tabbingIdentifier = productService.nameShort; // this opts in to native macOS tabs
 	}
 
 	const hideNativeTitleBar = !hasNativeTitlebar(configurationService, overrides?.forceNativeTitlebar ? TitlebarStyle.NATIVE : undefined);

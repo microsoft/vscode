@@ -8,7 +8,10 @@ import {
 	DocumentRangeFormattingRequest, Disposable, ServerCapabilities,
 	ConfigurationRequest, ConfigurationParams, DidChangeWorkspaceFoldersNotification,
 	DocumentColorRequest, ColorPresentationRequest, TextDocumentSyncKind, NotificationType, RequestType0, DocumentFormattingRequest, FormattingOptions, TextEdit,
-	TextDocumentContentRequest
+	TextDocumentContentRequest,
+	TextDocumentContentParams,
+	CancellationToken,
+	TextDocumentContentResult
 } from 'vscode-languageserver';
 import {
 	getLanguageModes, LanguageModes, Settings, TextDocument, Position, Diagnostic, WorkspaceFolder, ColorInformation,
@@ -52,7 +55,7 @@ interface AutoInsertParams {
 }
 
 namespace AutoInsertRequest {
-	export const type: RequestType<AutoInsertParams, string, any> = new RequestType('html/autoInsert');
+	export const type: RequestType<AutoInsertParams, string | null, any> = new RequestType('html/autoInsert');
 }
 
 // experimental: semantic tokens
@@ -134,14 +137,15 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	// After the server has started the client sends an initialize request. The server receives
 	// in the passed params the rootPath of the workspace plus the client capabilities
 	connection.onInitialize((params: InitializeParams): InitializeResult => {
-		const initializationOptions = params.initializationOptions as any || {};
+		const initializationOptions = params.initializationOptions || {};
 
-		workspaceFolders = (<any>params).workspaceFolders;
-		if (!Array.isArray(workspaceFolders)) {
+		if (!Array.isArray(params.workspaceFolders)) {
 			workspaceFolders = [];
 			if (params.rootPath) {
 				workspaceFolders.push({ name: '', uri: URI.file(params.rootPath).toString() });
 			}
+		} else {
+			workspaceFolders = params.workspaceFolders;
 		}
 
 		const handledSchemas = initializationOptions?.handledSchemas as string[] ?? ['file'];
@@ -540,6 +544,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 	});
 
 	connection.languages.onLinkedEditingRange((params, token) => {
+		// eslint-disable-next-line local/code-no-any-casts
 		return <any> /* todo remove when microsoft/vscode-languageserver-node#700 fixed */ runSafe(runtime, async () => {
 			const document = documents.get(params.textDocument.uri);
 			if (document) {
@@ -588,16 +593,16 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 		});
 	});
 
-	connection.onRequest(TextDocumentContentRequest.type, (params, token) => {
-		return runSafe(runtime, async () => {
+	connection.onRequest(TextDocumentContentRequest.type, (params: TextDocumentContentParams, token: CancellationToken) => {
+		return runSafe<TextDocumentContentResult>(runtime, async () => {
 			for (const languageMode of languageModes.getAllModes()) {
 				const content = await languageMode.getTextDocumentContent?.(params.uri);
 				if (content) {
 					return { text: content };
 				}
 			}
-			return null;
-		}, null, `Error while computing text document content for ${params.uri}`, token);
+			return { text: '' };
+		}, { text: '' }, `Error while computing text document content for ${params.uri}`, token);
 	});
 
 	// Listen on the connection

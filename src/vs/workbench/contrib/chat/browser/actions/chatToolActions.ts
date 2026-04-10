@@ -3,8 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationTokenSource } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { Iterable } from '../../../../../base/common/iterator.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { autorun } from '../../../../../base/common/observable.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
@@ -12,12 +16,12 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IChatToolInvocation } from '../../common/chatService.js';
-import { isResponseVM } from '../../common/chatViewModel.js';
-import { ChatMode } from '../../common/constants.js';
-import { IToolData, ToolSet } from '../../common/languageModelToolsService.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { ConfirmedReason, IChatToolInvocation, ToolConfirmKind } from '../../common/chatService/chatService.js';
+import { isResponseVM } from '../../common/model/chatViewModel.js';
+import { ChatModeKind } from '../../common/constants.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
+import { ToolsScope } from '../widget/input/chatSelectedTools.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { showToolsPicker } from './chatToolPicker.js';
 
@@ -34,8 +38,41 @@ type SelectedToolClassification = {
 };
 
 export const AcceptToolConfirmationActionId = 'workbench.action.chat.acceptTool';
+export const SkipToolConfirmationActionId = 'workbench.action.chat.skipTool';
+export const AcceptToolPostConfirmationActionId = 'workbench.action.chat.acceptToolPostExecution';
+export const SkipToolPostConfirmationActionId = 'workbench.action.chat.skipToolPostExecution';
 
-class AcceptToolConfirmation extends Action2 {
+export interface IToolConfirmationActionContext {
+	readonly sessionResource?: URI;
+}
+
+abstract class ToolConfirmationAction extends Action2 {
+	protected abstract getReason(): ConfirmedReason;
+
+	run(accessor: ServicesAccessor, context?: IToolConfirmationActionContext) {
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const widget = context?.sessionResource
+			? chatWidgetService.getWidgetBySessionResource(context.sessionResource)
+			: chatWidgetService.lastFocusedWidget;
+		const lastItem = widget?.viewModel?.getItems().at(-1);
+		if (!isResponseVM(lastItem)) {
+			return;
+		}
+
+		for (const item of lastItem.model.response.value) {
+			const state = item.kind === 'toolInvocation' ? item.state.get() : undefined;
+			if (state?.type === IChatToolInvocation.StateKind.WaitingForConfirmation || state?.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {
+				state.confirm(this.getReason());
+				break;
+			}
+		}
+
+		// Return focus to the chat input, in case it was in the tool confirmation editor
+		widget?.focusInput();
+	}
+}
+
+class AcceptToolConfirmation extends ToolConfirmationAction {
 	constructor() {
 		super({
 			id: AcceptToolConfirmationActionId,
@@ -51,44 +88,56 @@ class AcceptToolConfirmation extends Action2 {
 		});
 	}
 
-	run(accessor: ServicesAccessor, ...args: any[]) {
-		const chatWidgetService = accessor.get(IChatWidgetService);
-		const widget = chatWidgetService.lastFocusedWidget;
-		const lastItem = widget?.viewModel?.getItems().at(-1);
-		if (!isResponseVM(lastItem)) {
-			return;
-		}
-
-		const unconfirmedToolInvocation = lastItem.model.response.value.find((item): item is IChatToolInvocation => item.kind === 'toolInvocation' && !item.isConfirmed);
-		if (unconfirmedToolInvocation) {
-			unconfirmedToolInvocation.confirmed.complete(true);
-		}
-
-		// Return focus to the chat input, in case it was in the tool confirmation editor
-		widget?.focusInput();
+	protected override getReason(): ConfirmedReason {
+		return { type: ToolConfirmKind.UserAction };
 	}
 }
 
-class ConfigureToolsAction extends Action2 {
-
+class SkipToolConfirmation extends ToolConfirmationAction {
 	constructor() {
 		super({
-			id: 'workbench.action.chat.configureTools',
-			title: localize('label', "Configure Tools..."),
-			icon: Codicon.tools,
+			id: SkipToolConfirmationActionId,
+			title: localize2('chat.skip', "Skip"),
 			f1: false,
 			category: CHAT_CATEGORY,
-			precondition: ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent),
-			menu: {
-				when: ChatContextKeys.chatMode.isEqualTo(ChatMode.Agent),
-				id: MenuId.ChatExecute,
-				group: 'navigation',
-				order: 1,
-			}
+			keybinding: {
+				when: ContextKeyExpr.and(ChatContextKeys.inChatSession, ChatContextKeys.Editing.hasToolConfirmation),
+				primary: KeyMod.CtrlCmd | KeyCode.Enter | KeyMod.Alt,
+				// Override chatEditor.action.accept
+				weight: KeybindingWeight.WorkbenchContrib + 1,
+			},
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+	protected override getReason(): ConfirmedReason {
+		return { type: ToolConfirmKind.Skipped };
+	}
+}
+
+export class ConfigureToolsAction extends Action2 {
+	public static ID = 'workbench.action.chat.configureTools';
+
+	constructor() {
+		super({
+			id: ConfigureToolsAction.ID,
+			title: localize('label', "Configure Tools..."),
+			icon: Codicon.settings,
+			f1: false,
+			category: CHAT_CATEGORY,
+			precondition: ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
+			menu: [{
+				when: ContextKeyExpr.and(
+					ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
+					ChatContextKeys.lockedToCodingAgent.negate(),
+				),
+				id: MenuId.ChatInput,
+				group: 'navigation',
+				order: 100,
+			}]
+		});
+	}
+
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 
 		const instaService = accessor.get(IInstantiationService);
 		const chatWidgetService = accessor.get(IChatWidgetService);
@@ -96,43 +145,97 @@ class ConfigureToolsAction extends Action2 {
 
 		let widget = chatWidgetService.lastFocusedWidget;
 		if (!widget) {
-			type ChatActionContext = { widget: IChatWidget };
-			function isChatActionContext(obj: any): obj is ChatActionContext {
-				return obj && typeof obj === 'object' && (obj as ChatActionContext).widget;
-			}
-			const context = args[0];
-			if (isChatActionContext(context)) {
-				widget = context.widget;
-			}
+			widget = this.extractWidget(args);
 		}
 
 		if (!widget) {
 			return;
 		}
 
-		await instaService.invokeFunction(showToolsPicker, localize('placeholder', "Select tools that are available to chat"), widget.input.selectedToolsModel.entriesMap, newEntriesMap => {
-			const disableToolSets: ToolSet[] = [];
-			const disableTools: IToolData[] = [];
-			for (const [item, enabled] of newEntriesMap) {
-				if (!enabled) {
-					if (item instanceof ToolSet) {
-						disableToolSets.push(item);
-					} else {
-						disableTools.push(item);
-					}
-				}
+		const source = this.extractSource(args) ?? 'chatInput';
+
+		let placeholder;
+		let description;
+		const { entriesScope, entriesMap } = widget.input.selectedToolsModel;
+		switch (entriesScope) {
+			case ToolsScope.Session:
+				placeholder = localize('chat.tools.placeholder.session', "Select tools for this chat session");
+				description = localize('chat.tools.description.session', "The selected tools were configured only for this chat session.");
+				break;
+			case ToolsScope.Agent:
+				placeholder = localize('chat.tools.placeholder.agent', "Select tools for this custom agent");
+				description = localize('chat.tools.description.agent', "The selected tools are configured by the '{0}' custom agent. Changes to the tools will be applied to the custom agent file as well.", widget.input.currentModeObs.get().label.get());
+				break;
+			case ToolsScope.Agent_ReadOnly:
+				placeholder = localize('chat.tools.placeholder.readOnlyAgent', "Select tools for this custom agent");
+				description = localize('chat.tools.description.readOnlyAgent', "The selected tools are configured by the '{0}' custom agent. Changes to the tools will only be used for this session and will not change the '{0}' custom agent.", widget.input.currentModeObs.get().label.get());
+				break;
+			case ToolsScope.Global:
+				placeholder = localize('chat.tools.placeholder.global', "Select tools that are available to chat.");
+				description = localize('chat.tools.description.global', "The selected tools will be applied globally for all chat sessions that use the default agent.");
+				break;
+
+		}
+
+		// Create a cancellation token that cancels when the mode changes
+		const cts = new CancellationTokenSource();
+		const initialMode = widget.input.currentModeObs.get();
+		const modeListener = autorun(reader => {
+			if (initialMode.id !== widget.input.currentModeObs.read(reader).id) {
+				cts.cancel();
 			}
-			widget.input.selectedToolsModel.disable(disableToolSets, disableTools, false);
 		});
 
+		try {
+			const result = await instaService.invokeFunction(showToolsPicker, placeholder, source, description, () => entriesMap.get(), widget.input.selectedLanguageModel.get()?.metadata, cts.token);
+			if (result) {
+				widget.input.selectedToolsModel.set(result, false);
+			}
+		} finally {
+			modeListener.dispose();
+			cts.dispose();
+		}
+
+		const tools = widget.input.selectedToolsModel.entriesMap.get();
 		telemetryService.publicLog2<SelectedToolData, SelectedToolClassification>('chat/selectedTools', {
-			total: widget.input.selectedToolsModel.entriesMap.size,
-			enabled: widget.input.selectedToolsModel.entries.get().size,
+			total: tools.size,
+			enabled: Iterable.reduce(tools, (prev, [_, enabled]) => enabled ? prev + 1 : prev, 0),
 		});
+	}
+
+	private extractWidget(args: unknown[]): IChatWidget | undefined {
+		type ChatActionContext = { widget: IChatWidget };
+		function isChatActionContext(obj: unknown): obj is ChatActionContext {
+			return !!obj && typeof obj === 'object' && !!(obj as ChatActionContext).widget;
+		}
+
+		for (const arg of args) {
+			if (isChatActionContext(arg)) {
+				return arg.widget;
+			}
+		}
+
+		return undefined;
+	}
+
+	private extractSource(args: unknown[]): string | undefined {
+		type ChatActionSource = { source: string };
+		function isChatActionSource(obj: unknown): obj is ChatActionSource {
+			return !!obj && typeof obj === 'object' && !!(obj as ChatActionSource).source;
+		}
+
+		for (const arg of args) {
+			if (isChatActionSource(arg)) {
+				return arg.source;
+			}
+		}
+
+		return undefined;
 	}
 }
 
 export function registerChatToolActions() {
 	registerAction2(AcceptToolConfirmation);
+	registerAction2(SkipToolConfirmation);
 	registerAction2(ConfigureToolsAction);
 }

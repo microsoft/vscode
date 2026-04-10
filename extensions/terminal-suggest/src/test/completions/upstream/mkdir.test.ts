@@ -8,18 +8,18 @@ import { testPaths, type ISuiteSpec } from '../../helpers';
 import mkdirSpec from '../../../completions/upstream/mkdir';
 
 const allOptions = [
-	'--context <CTX>',
+	'--context <context>',
 	'--help',
-	'--mode <MODE>',
+	'--mode <mode>',
 	'--parents',
 	'--verbose',
 	'--version',
-	'-Z <CTX>',
-	'-m <MODE>',
+	'-Z <context>',
+	'-m <mode>',
 	'-p',
 	'-v',
 ];
-const expectedCompletions = [{ label: 'mkdir', description: (mkdirSpec as any).description }];
+const expectedCompletions = [{ label: 'mkdir', description: (mkdirSpec as Fig.Subcommand).description }];
 export const mkdirTestSuiteSpec: ISuiteSpec = {
 	name: 'mkdir',
 	completionSpecs: mkdirSpec,

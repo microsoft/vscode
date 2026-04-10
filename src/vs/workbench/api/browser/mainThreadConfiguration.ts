@@ -72,7 +72,7 @@ export class MainThreadConfiguration implements MainThreadConfigurationShape {
 		}
 	}
 
-	private _updateValue(key: string, value: unknown, configurationTarget: ConfigurationTarget, overriddenValue: any | undefined, overrides: IConfigurationOverrides, scopeToLanguage: boolean | undefined): Promise<void> {
+	private _updateValue(key: string, value: unknown, configurationTarget: ConfigurationTarget, overriddenValue: unknown | undefined, overrides: IConfigurationOverrides, scopeToLanguage: boolean | undefined): Promise<void> {
 		overrides = scopeToLanguage === true ? overrides
 			: scopeToLanguage === false ? { resource: overrides.resource }
 				: overrides.overrideIdentifier && overriddenValue !== undefined ? overrides

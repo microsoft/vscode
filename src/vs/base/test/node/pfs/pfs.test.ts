@@ -353,36 +353,32 @@ flakySuite('PFS', function () {
 	});
 
 	test('readdir', async () => {
-		if (typeof process.versions['electron'] !== 'undefined' /* needs electron */) {
-			const parent = randomPath(join(testDir, 'pfs'));
-			const newDir = join(parent, 'öäü');
+		const parent = randomPath(join(testDir, 'pfs'));
+		const newDir = join(parent, 'öäü');
 
-			await fs.promises.mkdir(newDir, { recursive: true });
+		await fs.promises.mkdir(newDir, { recursive: true });
 
-			assert.ok(fs.existsSync(newDir));
+		assert.ok(fs.existsSync(newDir));
 
-			const children = await Promises.readdir(parent);
-			assert.strictEqual(children.some(n => n === 'öäü'), true); // Mac always converts to NFD, so
-		}
+		const children = await Promises.readdir(parent);
+		assert.strictEqual(children.some(n => n === 'öäü'), true); // Mac always converts to NFD, so
 	});
 
 	test('readdir (with file types)', async () => {
-		if (typeof process.versions['electron'] !== 'undefined' /* needs electron */) {
-			const newDir = join(testDir, 'öäü');
-			await fs.promises.mkdir(newDir, { recursive: true });
+		const newDir = join(testDir, 'öäü');
+		await fs.promises.mkdir(newDir, { recursive: true });
 
-			await Promises.writeFile(join(testDir, 'somefile.txt'), 'contents');
+		await Promises.writeFile(join(testDir, 'somefile.txt'), 'contents');
 
-			assert.ok(fs.existsSync(newDir));
+		assert.ok(fs.existsSync(newDir));
 
-			const children = await Promises.readdir(testDir, { withFileTypes: true });
+		const children = await Promises.readdir(testDir, { withFileTypes: true });
 
-			assert.strictEqual(children.some(n => n.name === 'öäü'), true); // Mac always converts to NFD, so
-			assert.strictEqual(children.some(n => n.isDirectory()), true);
+		assert.strictEqual(children.some(n => n.name === 'öäü'), true); // Mac always converts to NFD, so
+		assert.strictEqual(children.some(n => n.isDirectory()), true);
 
-			assert.strictEqual(children.some(n => n.name === 'somefile.txt'), true);
-			assert.strictEqual(children.some(n => n.isFile()), true);
-		}
+		assert.strictEqual(children.some(n => n.name === 'somefile.txt'), true);
+		assert.strictEqual(children.some(n => n.isFile()), true);
 	});
 
 	test('writeFile (string)', async () => {

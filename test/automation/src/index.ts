@@ -26,4 +26,5 @@ export * from './viewlet';
 export * from './localization';
 export * from './workbench';
 export * from './task';
+export * from './chat';
 export { getDevElectronPath, getBuildElectronPath, getBuildVersion } from './electron';

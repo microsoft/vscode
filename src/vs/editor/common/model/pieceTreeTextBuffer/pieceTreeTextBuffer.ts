@@ -39,7 +39,7 @@ export class PieceTreeTextBuffer extends Disposable implements ITextBuffer {
 	private _mightContainNonBasicASCII: boolean;
 
 	private readonly _onDidChangeContent: Emitter<void> = this._register(new Emitter<void>());
-	public readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
+	public get onDidChangeContent(): Event<void> { return this._onDidChangeContent.event; }
 
 	constructor(chunks: StringBuffer[], BOM: string, eol: '\r\n' | '\n', containsRTL: boolean, containsUnusualLineTerminators: boolean, isBasicASCII: boolean, eolNormalized: boolean) {
 		super();

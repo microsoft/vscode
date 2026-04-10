@@ -590,16 +590,15 @@ export class ConfigurationEditing {
 				const resource = this.getConfigurationFileResource(target, key, standaloneConfigurationMap[key], overrides.resource, undefined);
 
 				// Check for prefix
-				const keyRemainsNested = this.isWorkspaceConfigurationResource(resource) || resource?.fsPath === this.userDataProfileService.currentProfile.settingsResource.fsPath;
 				if (config.key === key) {
-					const jsonPath = keyRemainsNested ? [key] : [];
+					const jsonPath = this.isWorkspaceConfigurationResource(resource) ? [key] : [];
 					return { key: jsonPath[jsonPath.length - 1], jsonPath, value: config.value, resource: resource ?? undefined, workspaceStandAloneConfigurationKey: key, target };
 				}
 
 				// Check for prefix.<setting>
 				const keyPrefix = `${key}.`;
 				if (config.key.indexOf(keyPrefix) === 0) {
-					const jsonPath = keyRemainsNested ? [key, config.key.substr(keyPrefix.length)] : [config.key.substr(keyPrefix.length)];
+					const jsonPath = this.isWorkspaceConfigurationResource(resource) ? [key, config.key.substring(keyPrefix.length)] : [config.key.substring(keyPrefix.length)];
 					return { key: jsonPath[jsonPath.length - 1], jsonPath, value: config.value, resource: resource ?? undefined, workspaceStandAloneConfigurationKey: key, target };
 				}
 			}
@@ -629,6 +628,8 @@ export class ConfigurationEditing {
 		if (target === EditableConfigurationTarget.USER_LOCAL) {
 			if (key === TASKS_CONFIGURATION_KEY) {
 				return this.userDataProfileService.currentProfile.tasksResource;
+			} if (key === MCP_CONFIGURATION_KEY) {
+				return this.userDataProfileService.currentProfile.mcpResource;
 			} else {
 				if (!this.userDataProfileService.currentProfile.isDefault && this.configurationService.isSettingAppliedForAllProfiles(key)) {
 					return this.userDataProfilesService.defaultProfile.settingsResource;

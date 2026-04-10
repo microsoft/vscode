@@ -4,20 +4,63 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Action } from '../../../../base/common/actions.js';
-import { assertNever } from '../../../../base/common/assert.js';
+import { assertNever, softAssertNever } from '../../../../base/common/assert.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
-import { IMarkdownString, markdownCommandLink, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { CancellationError } from '../../../../base/common/errors.js';
+import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { autorun } from '../../../../base/common/observable.js';
+import { isDefined } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
+import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IQuickInputService, IQuickPick, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
-import { ChatModel } from '../../chat/common/chatModel.js';
-import { IChatElicitationRequest, IChatService } from '../../chat/common/chatService.js';
-import { McpCommandIds } from '../common/mcpCommandIds.js';
-import { IMcpElicitationService, IMcpServer, IMcpToolCallContext } from '../common/mcpTypes.js';
+import { ChatElicitationRequestPart } from '../../chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
+import { ChatQuestionCarouselData } from '../../chat/common/model/chatProgressTypes/chatQuestionCarouselData.js';
+import { ChatModel } from '../../chat/common/model/chatModel.js';
+import { ElicitationState, IChatQuestion, IChatQuestionAnswers, IChatQuestionValidation, IChatService } from '../../chat/common/chatService/chatService.js';
+import { ElicitationKind, ElicitResult, IFormModeElicitResult, IMcpElicitationService, IMcpServer, IMcpToolCallContext, IUrlModeElicitResult, McpConnectionState, MpcResponseError } from '../common/mcpTypes.js';
+import { mcpServerToSourceData } from '../common/mcpTypesUtils.js';
 import { MCP } from '../common/modelContextProtocol.js';
 
 const noneItem: IQuickPickItem = { id: undefined, label: localize('mcp.elicit.enum.none', 'None'), description: localize('mcp.elicit.enum.none.description', 'No selection'), alwaysShow: true };
+
+type Pre20251125ElicitationParams = Omit<MCP.ElicitRequestFormParams, 'mode'> & { mode?: undefined };
+
+function isFormElicitation(params: MCP.ElicitRequest['params'] | Pre20251125ElicitationParams): params is (MCP.ElicitRequestFormParams | Pre20251125ElicitationParams) {
+	return params.mode === 'form' || (params.mode === undefined && !!(params as Pre20251125ElicitationParams).requestedSchema);
+}
+
+function isUrlElicitation(params: MCP.ElicitRequest['params']): params is MCP.ElicitRequestURLParams {
+	return params.mode === 'url';
+}
+
+function isLegacyTitledEnumSchema(schema: MCP.PrimitiveSchemaDefinition): schema is MCP.LegacyTitledEnumSchema & { enumNames: string[] } {
+	const cast = schema as MCP.LegacyTitledEnumSchema;
+	return cast.type === 'string' && Array.isArray(cast.enum) && Array.isArray(cast.enumNames);
+}
+
+function isUntitledEnumSchema(schema: MCP.PrimitiveSchemaDefinition): schema is MCP.LegacyTitledEnumSchema | MCP.UntitledSingleSelectEnumSchema {
+	const cast = schema as MCP.LegacyTitledEnumSchema | MCP.UntitledSingleSelectEnumSchema;
+	return cast.type === 'string' && Array.isArray(cast.enum);
+}
+
+function isTitledSingleEnumSchema(schema: MCP.PrimitiveSchemaDefinition): schema is MCP.TitledSingleSelectEnumSchema {
+	const cast = schema as MCP.TitledSingleSelectEnumSchema;
+	return cast.type === 'string' && Array.isArray(cast.oneOf);
+}
+
+function isUntitledMultiEnumSchema(schema: MCP.PrimitiveSchemaDefinition): schema is MCP.UntitledMultiSelectEnumSchema {
+	const cast = schema as MCP.UntitledMultiSelectEnumSchema;
+	return cast.type === 'array' && !!cast.items?.enum;
+}
+
+function isTitledMultiEnumSchema(schema: MCP.PrimitiveSchemaDefinition): schema is MCP.TitledMultiSelectEnumSchema {
+	const cast = schema as MCP.TitledMultiSelectEnumSchema;
+	return cast.type === 'array' && !!cast.items?.anyOf;
+}
 
 export class McpElicitationService implements IMcpElicitationService {
 	declare readonly _serviceBrand: undefined;
@@ -26,63 +69,174 @@ export class McpElicitationService implements IMcpElicitationService {
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IChatService private readonly _chatService: IChatService,
+		@IOpenerService private readonly _openerService: IOpenerService,
 	) { }
 
-	public elicit(server: IMcpServer, context: IMcpToolCallContext | undefined, elicitation: MCP.ElicitRequest['params'], token: CancellationToken): Promise<MCP.ElicitResult> {
+	public elicit(server: IMcpServer, context: IMcpToolCallContext | undefined, elicitation: MCP.ElicitRequest['params'], token: CancellationToken): Promise<ElicitResult> {
+		if (isFormElicitation(elicitation)) {
+			return this._elicitForm(server, context, elicitation, token);
+		} else if (isUrlElicitation(elicitation)) {
+			return this._elicitUrl(server, context, elicitation, token);
+		} else {
+			softAssertNever(elicitation);
+			return Promise.reject(new MpcResponseError('Unsupported elicitation type', MCP.INVALID_PARAMS, undefined));
+		}
+	}
+
+	private async _elicitForm(server: IMcpServer, context: IMcpToolCallContext | undefined, elicitation: MCP.ElicitRequestFormParams | Pre20251125ElicitationParams, token: CancellationToken): Promise<IFormModeElicitResult> {
 		const store = new DisposableStore();
-		return new Promise<MCP.ElicitResult>(resolve => {
-			const chatModel = context?.chatSessionId && this._chatService.getSession(context.chatSessionId);
+		const value = await new Promise<MCP.ElicitResult>(resolve => {
+			const chatModel = context?.chatSessionResource && this._chatService.getSession(context.chatSessionResource);
+			if (chatModel instanceof ChatModel) {
+				const request = chatModel.getRequests().at(-1);
+				if (request) {
+					const { questions, idToPropertyMap } = this._convertSchemaToQuestions(elicitation);
+					const carousel = new ChatQuestionCarouselData(
+						questions,
+						/* allowSkip */ true,
+						/* resolveId */ undefined,
+						/* data */ undefined,
+						/* isUsed */ undefined,
+						/* message */ new MarkdownString(elicitation.message),
+						/* source */ mcpServerToSourceData(server),
+					);
+
+					chatModel.acceptResponseProgress(request, carousel);
+
+					store.add(token.onCancellationRequested(() => {
+						carousel.completion.complete({ answers: undefined });
+					}));
+
+					carousel.completion.p.then(result => {
+						if (!result.answers) {
+							resolve({ action: 'cancel' });
+						} else {
+							const content = this._convertCarouselAnswersToElicitResult(
+								result.answers,
+								idToPropertyMap,
+								elicitation.requestedSchema.properties,
+							);
+							resolve({ action: 'accept', content });
+						}
+					});
+					return;
+				}
+			}
+
+			// Fallback: no chat session → notification + quickpick
+			const handle = this._notificationService.notify({
+				message: elicitation.message,
+				source: localize('mcp.elicit.source', 'MCP Server ({0})', server.definition.label),
+				severity: Severity.Info,
+				actions: {
+					primary: [store.add(new Action('mcp.elicit.give', localize('mcp.elicit.give', 'Respond'), undefined, true, () => resolve(this._doElicitForm(elicitation, token))))],
+					secondary: [store.add(new Action('mcp.elicit.cancel', localize('mcp.elicit.cancel', 'Cancel'), undefined, true, () => resolve({ action: 'decline' })))],
+				}
+			});
+			store.add(handle.onDidClose(() => resolve({ action: 'cancel' })));
+			store.add(token.onCancellationRequested(() => resolve({ action: 'cancel' })));
+
+		}).finally(() => store.dispose());
+
+		return { kind: ElicitationKind.Form, value, dispose: () => { } };
+	}
+
+	private async _elicitUrl(server: IMcpServer, context: IMcpToolCallContext | undefined, elicitation: MCP.ElicitRequestURLParams, token: CancellationToken): Promise<IUrlModeElicitResult> {
+		const promiseStore = new DisposableStore();
+
+		// We create this ahead of time in case e.g. a user manually opens the URL beforehand
+		const completePromise = new Promise<void>((resolve, reject) => {
+			promiseStore.add(token.onCancellationRequested(() => reject(new CancellationError())));
+			promiseStore.add(autorun(reader => {
+				const cnx = server.connection.read(reader);
+				const handler = cnx?.handler.read(reader);
+				if (handler) {
+					reader.store.add(handler.onDidReceiveElicitationCompleteNotification(e => {
+						if (e.params.elicitationId === elicitation.elicitationId) {
+							resolve();
+						}
+					}));
+				} else if (!McpConnectionState.isRunning(server.connectionState.read(reader))) {
+					reject(new CancellationError());
+				}
+			}));
+		}).finally(() => promiseStore.dispose());
+
+		const store = new DisposableStore();
+		const value = await new Promise<MCP.ElicitResult>(resolve => {
+			const chatModel = context?.chatSessionResource && this._chatService.getSession(context.chatSessionResource);
 			if (chatModel instanceof ChatModel) {
 				const request = chatModel.getRequests().at(-1);
 				if (request) {
 					const part = new ChatElicitationRequestPart(
-						localize('mcp.elicit.title', 'Request for Input'),
-						elicitation.message,
-						new MarkdownString(markdownCommandLink({
-							id: McpCommandIds.ShowConfiguration,
-							title: localize('msg.subtitle', "{0} (MCP Server)", server.definition.label),
-							arguments: [server.collection.id, server.definition.id],
-						}), { isTrusted: true }),
+						localize('mcp.elicit.url.title', 'Authorization Required'),
+						new MarkdownString().appendText(elicitation.message)
+							.appendMarkdown('\n\n' + localize('mcp.elicit.url.instruction', 'Open this URL?'))
+							.appendCodeblock('', elicitation.url),
+						localize('msg.subtitle', "{0} (MCP Server)", server.definition.label),
+						localize('mcp.elicit.url.open', 'Open {0}', URI.parse(elicitation.url).authority),
+						localize('mcp.elicit.reject', 'Cancel'),
 						async () => {
-							const p = this._doElicit(elicitation, token);
-							resolve(p);
-							const result = await p;
-							part.state = result.action === 'accept' ? 'accepted' : 'rejected';
-							part.acceptedResult = result.content;
+							const result = await this._doElicitUrl(elicitation, token);
+							resolve(result);
+							completePromise.then(() => part.hide());
+							return result.action === 'accept' ? ElicitationState.Accepted : ElicitationState.Rejected;
 						},
 						() => {
 							resolve({ action: 'decline' });
-							part.state = 'rejected';
-							return Promise.resolve();
-						}
+							return Promise.resolve(ElicitationState.Rejected);
+						},
+						mcpServerToSourceData(server),
 					);
 					chatModel.acceptResponseProgress(request, part);
 				}
 			} else {
 				const handle = this._notificationService.notify({
-					message: elicitation.message,
+					message: elicitation.message + ' ' + localize('mcp.elicit.url.instruction2', 'This will open {0}', elicitation.url),
 					source: localize('mcp.elicit.source', 'MCP Server ({0})', server.definition.label),
 					severity: Severity.Info,
 					actions: {
-						primary: [store.add(new Action('mcp.elicit.give', localize('mcp.elicit.give', 'Respond'), undefined, true, () => resolve(this._doElicit(elicitation, token))))],
+						primary: [store.add(new Action('mcp.elicit.url.open2', localize('mcp.elicit.url.open2', 'Open URL'), undefined, true, () => resolve(this._doElicitUrl(elicitation, token))))],
 						secondary: [store.add(new Action('mcp.elicit.cancel', localize('mcp.elicit.cancel', 'Cancel'), undefined, true, () => resolve({ action: 'decline' })))],
 					}
 				});
 				store.add(handle.onDidClose(() => resolve({ action: 'cancel' })));
 				store.add(token.onCancellationRequested(() => resolve({ action: 'cancel' })));
 			}
-
 		}).finally(() => store.dispose());
+
+		return {
+			kind: ElicitationKind.URL,
+			value,
+			wait: completePromise,
+			dispose: () => promiseStore.dispose(),
+		};
 	}
 
-	private async _doElicit(elicitation: MCP.ElicitRequest['params'], token: CancellationToken): Promise<MCP.ElicitResult> {
+	private async _doElicitUrl(elicitation: MCP.ElicitRequestURLParams, token: CancellationToken): Promise<MCP.ElicitResult> {
+		if (token.isCancellationRequested) {
+			return { action: 'cancel' };
+		}
+
+		try {
+			if (await this._openerService.open(elicitation.url, { allowCommands: false })) {
+				return { action: 'accept' };
+			}
+		} catch {
+			// ignored
+		}
+
+		return { action: 'decline' };
+	}
+
+	private async _doElicitForm(elicitation: MCP.ElicitRequestFormParams | Pre20251125ElicitationParams, token: CancellationToken): Promise<MCP.ElicitResult> {
 		const quickPick = this._quickInputService.createQuickPick<IQuickPickItem>();
 		const store = new DisposableStore();
 
 		try {
 			const properties = Object.entries(elicitation.requestedSchema.properties);
 			const requiredFields = new Set(elicitation.requestedSchema.required || []);
-			const results: Record<string, string | number | boolean> = {};
+			const results: Record<string, string | number | boolean | string[]> = {};
 			const backSnapshots: { value: string; validationMessage?: string }[] = [];
 
 			quickPick.title = elicitation.message;
@@ -102,12 +256,20 @@ export class McpElicitationService implements IMcpElicitationService {
 				quickPick.validationMessage = '';
 				quickPick.buttons = i > 0 ? [this._quickInputService.backButton] : [];
 
-				let result: { type: 'value'; value: string | number | boolean | undefined } | { type: 'back' } | { type: 'cancel' };
+				let result: { type: 'value'; value: string | number | boolean | undefined | string[] } | { type: 'back' } | { type: 'cancel' };
 				if (schema.type === 'boolean') {
-					result = await this._handleEnumField(quickPick, { ...schema, type: 'string', enum: ['true', 'false'] }, isRequired, store, token);
+					result = await this._handleEnumField(quickPick, { enum: [{ const: 'true' }, { const: 'false' }], default: schema.default ? String(schema.default) : undefined }, isRequired, store, token);
 					if (result.type === 'value') { result.value = result.value === 'true' ? true : false; }
-				} else if (schema.type === 'string' && 'enum' in schema) {
-					result = await this._handleEnumField(quickPick, schema, isRequired, store, token);
+				} else if (isLegacyTitledEnumSchema(schema)) {
+					result = await this._handleEnumField(quickPick, { enum: schema.enum.map((v, i) => ({ const: v, title: schema.enumNames[i] })), default: schema.default }, isRequired, store, token);
+				} else if (isUntitledEnumSchema(schema)) {
+					result = await this._handleEnumField(quickPick, { enum: schema.enum.map(v => ({ const: v })), default: schema.default }, isRequired, store, token);
+				} else if (isTitledSingleEnumSchema(schema)) {
+					result = await this._handleEnumField(quickPick, { enum: schema.oneOf, default: schema.default }, isRequired, store, token);
+				} else if (isTitledMultiEnumSchema(schema)) {
+					result = await this._handleMultiEnumField(quickPick, { enum: schema.items.anyOf, default: schema.default }, isRequired, store, token);
+				} else if (isUntitledMultiEnumSchema(schema)) {
+					result = await this._handleMultiEnumField(quickPick, { enum: schema.items.enum.map(v => ({ const: v })), default: schema.default }, isRequired, store, token);
 				} else {
 					result = await this._handleInputField(quickPick, schema, isRequired, store, token);
 					if (result.type === 'value' && (schema.type === 'number' || schema.type === 'integer')) {
@@ -152,23 +314,26 @@ export class McpElicitationService implements IMcpElicitationService {
 
 	private async _handleEnumField(
 		quickPick: IQuickPick<IQuickPickItem>,
-		schema: MCP.EnumSchema,
+		schema: { default?: string; enum: { const: string; title?: string }[] },
 		required: boolean,
 		store: DisposableStore,
 		token: CancellationToken
 	) {
-		const items: IQuickPickItem[] = schema.enum.map((value, index) => ({
+		const items: IQuickPickItem[] = schema.enum.map(({ const: value, title }) => ({
 			id: value,
 			label: value,
-			description: schema.enumNames?.[index],
+			description: title,
 		}));
 
 		if (!required) {
 			items.push(noneItem);
 		}
 
-		quickPick.items = items;
 		quickPick.canSelectMany = false;
+		quickPick.items = items;
+		if (schema.default !== undefined) {
+			quickPick.activeItems = items.filter(item => item.id === schema.default);
+		}
 
 		return new Promise<{ type: 'value'; value: string | undefined } | { type: 'back' } | { type: 'cancel' }>(resolve => {
 			store.add(token.onCancellationRequested(() => resolve({ type: 'cancel' })));
@@ -176,6 +341,45 @@ export class McpElicitationService implements IMcpElicitationService {
 				const selected = quickPick.selectedItems[0];
 				if (selected) {
 					resolve({ type: 'value', value: selected.id });
+				}
+			}));
+			store.add(quickPick.onDidTriggerButton(() => resolve({ type: 'back' })));
+			store.add(quickPick.onDidHide(() => resolve({ type: 'cancel' })));
+
+			quickPick.show();
+		});
+	}
+
+	private async _handleMultiEnumField(
+		quickPick: IQuickPick<IQuickPickItem>,
+		schema: { default?: string[]; enum: { const: string; title?: string }[] },
+		required: boolean,
+		store: DisposableStore,
+		token: CancellationToken
+	) {
+		const items: IQuickPickItem[] = schema.enum.map(({ const: value, title }) => ({
+			id: value,
+			label: value,
+			description: title,
+			picked: !!schema.default?.includes(value),
+			pickable: true,
+		}));
+
+		if (!required) {
+			items.push(noneItem);
+		}
+
+		quickPick.canSelectMany = true;
+		quickPick.items = items;
+
+		return new Promise<{ type: 'value'; value: string[] | undefined } | { type: 'back' } | { type: 'cancel' }>(resolve => {
+			store.add(token.onCancellationRequested(() => resolve({ type: 'cancel' })));
+			store.add(quickPick.onDidAccept(() => {
+				const selected = quickPick.selectedItems[0];
+				if (selected.id === undefined) {
+					resolve({ type: 'value', value: undefined });
+				} else {
+					resolve({ type: 'value', value: quickPick.selectedItems.map(i => i.id).filter(isDefined) });
 				}
 			}));
 			store.add(quickPick.onDidTriggerButton(() => resolve({ type: 'back' })));
@@ -204,7 +408,12 @@ export class McpElicitationService implements IMcpElicitationService {
 				}
 			} else {
 				quickPick.validationMessage = '';
+
+				if (schema.default) {
+					items.push({ id: '$default', label: `${schema.default}`, description: localize('mcp.elicit.useDefault', 'Default value') });
+				}
 			}
+
 
 			if (quickPick.validationMessage) {
 				quickPick.severity = Severity.Warning;
@@ -229,8 +438,11 @@ export class McpElicitationService implements IMcpElicitationService {
 			store.add(token.onCancellationRequested(() => resolve({ type: 'cancel' })));
 			store.add(quickPick.onDidChangeValue(updateItems));
 			store.add(quickPick.onDidAccept(() => {
-				if (!quickPick.selectedItems[0].id) {
+				const id = quickPick.selectedItems[0].id;
+				if (!id) {
 					resolve({ type: 'value', value: undefined });
+				} else if (id === '$default') {
+					resolve({ type: 'value', value: String(schema.default) });
 				} else if (!quickPick.validationMessage) {
 					resolve({ type: 'value', value: quickPick.value });
 				}
@@ -273,7 +485,7 @@ export class McpElicitationService implements IMcpElicitationService {
 	private _validateStringFormat(value: string, format: string): { isValid: boolean; message?: string } {
 		switch (format) {
 			case 'email':
-				return !value.includes('@')
+				return value.includes('@')
 					? { isValid: true }
 					: { isValid: false, message: localize('mcp.elicit.validation.email', 'Please enter a valid email address') };
 			case 'uri':
@@ -319,28 +531,191 @@ export class McpElicitationService implements IMcpElicitationService {
 		}
 		return { isValid: true, parsedValue: parsed };
 	}
-}
 
-class ChatElicitationRequestPart implements IChatElicitationRequest {
-	public readonly kind = 'elicitation';
-	public state: 'pending' | 'accepted' | 'rejected' = 'pending';
-	public acceptedResult?: Record<string, unknown>;
+	/**
+	 * Converts an MCP elicitation schema into IChatQuestion[] for the carousel UI.
+	 * Returns the questions and a map from question ID to schema property name.
+	 */
+	private _convertSchemaToQuestions(elicitation: MCP.ElicitRequestFormParams | Pre20251125ElicitationParams): { questions: IChatQuestion[]; idToPropertyMap: Map<string, string> } {
+		const properties = Object.entries(elicitation.requestedSchema.properties);
+		const requiredFields = new Set(elicitation.requestedSchema.required || []);
+		const questions: IChatQuestion[] = [];
+		const idToPropertyMap = new Map<string, string>();
 
-	constructor(
-		public readonly title: string | IMarkdownString,
-		public readonly message: string | IMarkdownString,
-		public readonly originMessage: string | IMarkdownString,
-		public readonly accept: () => Promise<void>,
-		public readonly reject: () => Promise<void>,
-	) { }
+		for (const [propertyName, schema] of properties) {
+			const id = generateUuid();
+			idToPropertyMap.set(id, propertyName);
 
-	public toJSON() {
-		return {
-			kind: 'elicitation',
-			title: this.title,
-			message: this.message,
-			state: this.state === 'pending' ? 'rejected' : this.state,
-			acceptedResult: this.acceptedResult,
-		} satisfies Partial<IChatElicitationRequest>;
+			const title = schema.title || propertyName;
+			const description = schema.description;
+			const isRequired = requiredFields.has(propertyName);
+
+			if (schema.type === 'boolean') {
+				questions.push({
+					id,
+					type: 'singleSelect',
+					title,
+					description,
+					required: isRequired,
+					allowFreeformInput: false,
+					options: [
+						{ id: 'true', label: localize('mcp.elicit.true', 'True'), value: 'true' },
+						{ id: 'false', label: localize('mcp.elicit.false', 'False'), value: 'false' },
+					],
+					defaultValue: schema.default !== undefined ? String(schema.default) : undefined,
+				});
+			} else if (isLegacyTitledEnumSchema(schema)) {
+				questions.push({
+					id,
+					type: 'singleSelect',
+					title,
+					description,
+					required: isRequired,
+					allowFreeformInput: false,
+					options: schema.enum.map((v, i) => ({
+						id: v,
+						label: schema.enumNames[i] ? `${v} - ${schema.enumNames[i]}` : v,
+						value: v,
+					})),
+					defaultValue: schema.default,
+				});
+			} else if (isTitledSingleEnumSchema(schema)) {
+				questions.push({
+					id,
+					type: 'singleSelect',
+					title,
+					description,
+					required: isRequired,
+					allowFreeformInput: false,
+					options: schema.oneOf.map(({ const: value, title: optTitle }) => ({
+						id: value,
+						label: optTitle ? `${value} - ${optTitle}` : value,
+						value,
+					})),
+					defaultValue: schema.default,
+				});
+			} else if (isUntitledEnumSchema(schema)) {
+				questions.push({
+					id,
+					type: 'singleSelect',
+					title,
+					description,
+					required: isRequired,
+					allowFreeformInput: false,
+					options: schema.enum.map(v => ({ id: v, label: v, value: v })),
+					defaultValue: schema.default,
+				});
+			} else if (isTitledMultiEnumSchema(schema)) {
+				questions.push({
+					id,
+					type: 'multiSelect',
+					title,
+					description,
+					required: isRequired,
+					allowFreeformInput: false,
+					options: schema.items.anyOf.map(({ const: value, title: optTitle }) => ({
+						id: value,
+						label: optTitle ? `${value} - ${optTitle}` : value,
+						value,
+					})),
+					defaultValue: schema.default,
+				});
+			} else if (isUntitledMultiEnumSchema(schema)) {
+				questions.push({
+					id,
+					type: 'multiSelect',
+					title,
+					description,
+					required: isRequired,
+					allowFreeformInput: false,
+					options: schema.items.enum.map(v => ({ id: v, label: v, value: v })),
+					defaultValue: schema.default,
+				});
+			} else {
+				// String, number, integer → text input with validation
+				const validation: IChatQuestionValidation = {};
+				if (schema.type === 'string') {
+					if (schema.minLength !== undefined) { validation.minLength = schema.minLength; }
+					if (schema.maxLength !== undefined) { validation.maxLength = schema.maxLength; }
+					if (schema.format) { validation.format = schema.format; }
+				} else if (schema.type === 'number' || schema.type === 'integer') {
+					if (schema.minimum !== undefined) { validation.minimum = schema.minimum; }
+					if (schema.maximum !== undefined) { validation.maximum = schema.maximum; }
+					if (schema.type === 'integer') { validation.isInteger = true; }
+				}
+
+				questions.push({
+					id,
+					type: 'text',
+					title,
+					description,
+					required: isRequired,
+					defaultValue: schema.default !== undefined ? String(schema.default) : undefined,
+					validation: Object.keys(validation).length > 0 ? validation : undefined,
+				});
+			}
+		}
+
+		return { questions, idToPropertyMap };
+	}
+
+	/**
+	 * Converts carousel answers (keyed by question ID) back into the
+	 * MCP ElicitResult content format (keyed by schema property names),
+	 * coercing types as needed.
+	 */
+	private _convertCarouselAnswersToElicitResult(
+		answers: IChatQuestionAnswers,
+		idToPropertyMap: Map<string, string>,
+		schemaProperties: Record<string, MCP.PrimitiveSchemaDefinition>,
+	): Record<string, string | number | boolean | string[]> {
+		const content: Record<string, string | number | boolean | string[]> = {};
+
+		for (const [questionId, answer] of Object.entries(answers)) {
+			const propertyName = idToPropertyMap.get(questionId);
+			if (!propertyName) {
+				continue;
+			}
+
+			const schema = schemaProperties[propertyName];
+			if (!schema) {
+				continue;
+			}
+
+			// Extract the raw value from structured answers
+			let rawValue: unknown = answer;
+			if (typeof answer === 'object' && answer !== null) {
+				const obj = answer as Record<string, unknown>;
+				if ('selectedValue' in obj) {
+					rawValue = obj.selectedValue;
+				} else if ('selectedValues' in obj) {
+					rawValue = obj.selectedValues;
+				} else if ('freeformValue' in obj && obj.freeformValue) {
+					rawValue = obj.freeformValue;
+				}
+			}
+
+			if (rawValue === undefined || rawValue === null) {
+				continue;
+			}
+
+			// Type coercion based on schema
+			if (schema.type === 'boolean') {
+				content[propertyName] = rawValue === 'true' || rawValue === true;
+			} else if (schema.type === 'number' || schema.type === 'integer') {
+				const num = Number(rawValue);
+				if (!isNaN(num)) {
+					content[propertyName] = num;
+				}
+			} else if (schema.type === 'array') {
+				if (Array.isArray(rawValue)) {
+					content[propertyName] = rawValue.map(v => String(v));
+				}
+			} else {
+				content[propertyName] = String(rawValue);
+			}
+		}
+
+		return content;
 	}
 }

@@ -2383,4 +2383,23 @@ suite('FindModel', () => {
 
 	});
 
+	test('issue #288515: Wrong current index in find widget if matches > 1000', () => {
+		// Create 1001 lines of 'hello'
+		const textArr = Array(1001).fill('hello');
+		withTestCodeEditor(textArr, {}, (_editor) => {
+			const editor = _editor as IActiveCodeEditor;
+
+			// Place cursor at line 900, selecting 'hello'
+			editor.setSelection(new Selection(900, 1, 900, 6));
+
+			const findState = disposables.add(new FindReplaceState());
+			findState.change({ searchString: 'hello' }, false);
+			disposables.add(new FindModelBoundToEditorModel(editor, findState));
+
+			assert.strictEqual(findState.matchesCount, 1001);
+			// With cursor selecting 'hello' at line 900, matchesPosition should be 900
+			assert.strictEqual(findState.matchesPosition, 900);
+		});
+	});
+
 });

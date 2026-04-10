@@ -3,8 +3,10 @@
 **/*.txt
 **/*.json
 **/*.md
+**/*.ts
 **/*.d.ts
 **/*.js.map
+**/*.mjs.map
 **/LICENSE
 **/CONTRIBUTORS
 
@@ -28,6 +30,9 @@ vscode-textmate/webpack.config.js
 
 @xterm/addon-ligatures/src/**
 @xterm/addon-ligatures/out/**
+
+@xterm/addon-progress/src/**
+@xterm/addon-progress/out/**
 
 @xterm/addon-search/src/**
 @xterm/addon-search/out/**

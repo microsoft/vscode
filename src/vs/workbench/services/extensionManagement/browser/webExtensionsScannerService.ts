@@ -54,12 +54,13 @@ function isGalleryExtensionInfo(obj: unknown): obj is GalleryExtensionInfo {
 		&& (galleryExtensionInfo.migrateStorageFrom === undefined || typeof galleryExtensionInfo.migrateStorageFrom === 'string');
 }
 
-function isUriComponents(thing: unknown): thing is UriComponents {
-	if (!thing) {
+function isUriComponents(obj: unknown): obj is UriComponents {
+	if (!obj) {
 		return false;
 	}
-	return isString((<any>thing).path) &&
-		isString((<any>thing).scheme);
+	const thing = obj as UriComponents | undefined;
+	return typeof thing?.path === 'string' &&
+		typeof thing?.scheme === 'string';
 }
 
 interface IStoredWebExtension {

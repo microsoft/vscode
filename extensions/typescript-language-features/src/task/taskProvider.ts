@@ -9,6 +9,7 @@ import * as vscode from 'vscode';
 import { wait } from '../test/testUtils';
 import { ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
 import { coalesce } from '../utils/arrays';
+import { readUnifiedConfig } from '../utils/configuration';
 import { Disposable } from '../utils/dispose';
 import { exists } from '../utils/fs';
 import { isTsConfigFileName } from '../configuration/languageDescription';
@@ -57,7 +58,7 @@ class TscTaskProvider extends Disposable implements vscode.TaskProvider {
 			return [];
 		}
 
-		const configPaths: Set<string> = new Set();
+		const configPaths = new Set<string>();
 		const tasks: vscode.Task[] = [];
 		for (const project of await this.getAllTsConfigs(token)) {
 			if (!configPaths.has(project.fsPath)) {
@@ -289,7 +290,7 @@ class TscTaskProvider extends Disposable implements vscode.TaskProvider {
 	}
 
 	private onConfigurationChanged(): void {
-		const type = vscode.workspace.getConfiguration('typescript.tsc').get<AutoDetect>('autoDetect');
+		const type = readUnifiedConfig<AutoDetect | undefined>('tsc.autoDetect', undefined, { fallbackSection: 'typescript' });
 		this.autoDetect = typeof type === 'undefined' ? AutoDetect.on : type;
 	}
 }

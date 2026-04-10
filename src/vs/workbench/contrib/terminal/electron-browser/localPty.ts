@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IProcessPropertyMap, IPtyService, ITerminalChildProcess, ITerminalLaunchError, ProcessPropertyType } from '../../../../platform/terminal/common/terminal.js';
+import { ITerminalLaunchResult, IProcessPropertyMap, IPtyService, ITerminalChildProcess, ITerminalLaunchError, ProcessPropertyType } from '../../../../platform/terminal/common/terminal.js';
 import { BasePty } from '../common/basePty.js';
 
 /**
@@ -19,7 +19,7 @@ export class LocalPty extends BasePty implements ITerminalChildProcess {
 		super(id, shouldPersist);
 	}
 
-	start(): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
+	start(): Promise<ITerminalLaunchError | ITerminalLaunchResult | undefined> {
 		return this._proxy.start(this.id);
 	}
 
@@ -52,13 +52,13 @@ export class LocalPty extends BasePty implements ITerminalChildProcess {
 		this._proxy.sendSignal(this.id, signal);
 	}
 
-	resize(cols: number, rows: number): void {
+	resize(cols: number, rows: number, pixelWidth?: number, pixelHeight?: number): void {
 		if (this._inReplay || this._lastDimensions.cols === cols && this._lastDimensions.rows === rows) {
 			return;
 		}
 		this._lastDimensions.cols = cols;
 		this._lastDimensions.rows = rows;
-		this._proxy.resize(this.id, cols, rows);
+		this._proxy.resize(this.id, cols, rows, pixelWidth, pixelHeight);
 	}
 
 	async clearBuffer(): Promise<void> {

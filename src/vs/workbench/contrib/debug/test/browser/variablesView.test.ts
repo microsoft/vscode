@@ -22,7 +22,7 @@ import { MockDebugService, MockSession } from '../common/mockDebug.js';
 
 const $ = dom.$;
 
-function assertVariable(disposables: Pick<DisposableStore, "add">, variablesRenderer: VariablesRenderer, displayType: boolean) {
+function assertVariable(disposables: Pick<DisposableStore, 'add'>, variablesRenderer: VariablesRenderer, displayType: boolean) {
 	const session = new MockSession();
 	const thread = new Thread(session, 'mockthread', 1);
 	const range = {

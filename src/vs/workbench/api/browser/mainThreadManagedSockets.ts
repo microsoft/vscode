@@ -4,20 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { Emitter } from '../../../base/common/event.js';
-import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../base/common/event.js';
+import { Disposable, DisposableMap, DisposableStore } from '../../../base/common/lifecycle.js';
 import { ISocket, SocketCloseEventType } from '../../../base/parts/ipc/common/ipc.net.js';
 import { ManagedSocket, RemoteSocketHalf, connectManagedSocket } from '../../../platform/remote/common/managedSocket.js';
 import { ManagedRemoteConnection, RemoteConnectionType } from '../../../platform/remote/common/remoteAuthorityResolver.js';
 import { IRemoteSocketFactoryService, ISocketFactory } from '../../../platform/remote/common/remoteSocketFactoryService.js';
-import { ExtHostContext, ExtHostManagedSocketsShape, MainContext, MainThreadManagedSocketsShape } from '../common/extHost.protocol.js';
 import { IExtHostContext, extHostNamedCustomer } from '../../services/extensions/common/extHostCustomers.js';
+import { ExtHostContext, ExtHostManagedSocketsShape, MainContext, MainThreadManagedSocketsShape } from '../common/extHost.protocol.js';
 
 @extHostNamedCustomer(MainContext.MainThreadManagedSockets)
 export class MainThreadManagedSockets extends Disposable implements MainThreadManagedSocketsShape {
 
 	private readonly _proxy: ExtHostManagedSocketsShape;
-	private readonly _registrations = new Map<number, IDisposable>();
+	private readonly _registrations = this._register(new DisposableMap<number>());
 	private readonly _remoteSockets = new Map<number, RemoteSocketHalf>();
 
 	constructor(
@@ -30,6 +30,7 @@ export class MainThreadManagedSockets extends Disposable implements MainThreadMa
 
 	async $registerSocketFactory(socketFactoryId: number): Promise<void> {
 		const that = this;
+		const store = new DisposableStore();
 		const socketFactory = new class implements ISocketFactory<RemoteConnectionType.Managed> {
 
 			supports(connectTo: ManagedRemoteConnection): boolean {
@@ -54,7 +55,7 @@ export class MainThreadManagedSockets extends Disposable implements MainThreadMa
 						MainThreadManagedSocket.connect(socketId, that._proxy, path, query, debugLabel, half)
 							.then(
 								socket => {
-									socket.onDidDispose(() => that._remoteSockets.delete(socketId));
+									store.add(Event.once(socket.onDidDispose)(() => that._remoteSockets.delete(socketId)));
 									resolve(socket);
 								},
 								err => {
@@ -65,12 +66,13 @@ export class MainThreadManagedSockets extends Disposable implements MainThreadMa
 				});
 			}
 		};
-		this._registrations.set(socketFactoryId, this._remoteSocketFactoryService.register(RemoteConnectionType.Managed, socketFactory));
+		store.add(this._remoteSocketFactoryService.register(RemoteConnectionType.Managed, socketFactory));
+		this._registrations.set(socketFactoryId, store);
 
 	}
 
 	async $unregisterSocketFactory(socketFactoryId: number): Promise<void> {
-		this._registrations.get(socketFactoryId)?.dispose();
+		this._registrations.deleteAndDispose(socketFactoryId);
 	}
 
 	$onDidManagedSocketHaveData(socketId: number, data: VSBuffer): void {
@@ -115,7 +117,7 @@ export class MainThreadManagedSocket extends ManagedSocket {
 		this.proxy.$remoteSocketWrite(this.socketId, buffer);
 	}
 
-	protected override  closeRemote(): void {
+	protected override closeRemote(): void {
 		this.proxy.$remoteSocketEnd(this.socketId);
 	}
 

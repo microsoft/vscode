@@ -11,45 +11,49 @@ import { getStrings } from './strings';
  * Shows an alert when there is a content security policy violation.
  */
 export class CspAlerter {
-	private _didShow = false;
-	private _didHaveCspWarning = false;
+	#didShow = false;
+	#didHaveCspWarning = false;
 
-	private _messaging?: MessagePoster;
+	#messaging?: MessagePoster;
+
+	readonly #settingsManager: SettingsManager;
 
 	constructor(
-		private readonly _settingsManager: SettingsManager,
+		settingsManager: SettingsManager,
 	) {
+		this.#settingsManager = settingsManager;
+
 		document.addEventListener('securitypolicyviolation', () => {
-			this._onCspWarning();
+			this.#onCspWarning();
 		});
 
 		window.addEventListener('message', (event) => {
-			if (event && event.data && event.data.name === 'vscode-did-block-svg') {
-				this._onCspWarning();
+			if (event?.data && event.data.name === 'vscode-did-block-svg') {
+				this.#onCspWarning();
 			}
 		});
 	}
 
 	public setPoster(poster: MessagePoster) {
-		this._messaging = poster;
-		if (this._didHaveCspWarning) {
-			this._showCspWarning();
+		this.#messaging = poster;
+		if (this.#didHaveCspWarning) {
+			this.#showCspWarning();
 		}
 	}
 
-	private _onCspWarning() {
-		this._didHaveCspWarning = true;
-		this._showCspWarning();
+	#onCspWarning() {
+		this.#didHaveCspWarning = true;
+		this.#showCspWarning();
 	}
 
-	private _showCspWarning() {
+	#showCspWarning() {
 		const strings = getStrings();
-		const settings = this._settingsManager.settings;
+		const settings = this.#settingsManager.settings;
 
-		if (this._didShow || settings.disableSecurityWarnings || !this._messaging) {
+		if (this.#didShow || settings.disableSecurityWarnings || !this.#messaging) {
 			return;
 		}
-		this._didShow = true;
+		this.#didShow = true;
 
 		const notification = document.createElement('a');
 		notification.innerText = strings.cspAlertMessageText;
@@ -59,7 +63,7 @@ export class CspAlerter {
 		notification.setAttribute('role', 'button');
 		notification.setAttribute('aria-label', strings.cspAlertMessageLabel);
 		notification.onclick = () => {
-			this._messaging!.postMessage('showPreviewSecuritySelector', { source: settings.source });
+			this.#messaging!.postMessage('showPreviewSecuritySelector', { source: settings.source });
 		};
 		document.body.appendChild(notification);
 	}

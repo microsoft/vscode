@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable local/code-no-native-private */
-
 import { validateConstraint } from '../../../base/common/types.js';
 import { ICommandMetadata } from '../../../platform/commands/common/commands.js';
 import * as extHostTypes from './extHostTypes.js';
@@ -171,12 +169,12 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		});
 	}
 
-	executeCommand<T>(id: string, ...args: any[]): Promise<T> {
+	executeCommand<T>(id: string, ...args: unknown[]): Promise<T> {
 		this._logService.trace('ExtHostCommands#executeCommand', id);
 		return this._doExecuteCommand(id, args, true);
 	}
 
-	private async _doExecuteCommand<T>(id: string, args: any[], retry: boolean): Promise<T> {
+	private async _doExecuteCommand<T>(id: string, args: unknown[], retry: boolean): Promise<T> {
 
 		if (this._commands.has(id)) {
 			// - We stay inside the extension host and support
@@ -229,7 +227,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		}
 	}
 
-	private async _executeContributedCommand<T = unknown>(id: string, args: any[], annotateError: boolean): Promise<T> {
+	private async _executeContributedCommand<T = unknown>(id: string, args: unknown[], annotateError: boolean): Promise<T> {
 		const command = this._commands.get(id);
 		if (!command) {
 			throw new Error('Unknown command');
@@ -287,6 +285,10 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		if (!command.extension) {
 			return;
 		}
+		if (id.startsWith('code.copilot.logStructured')) {
+			// This command is very active. See https://github.com/microsoft/vscode/issues/254153.
+			return;
+		}
 		type ExtensionActionTelemetry = {
 			extensionId: string;
 			id: TelemetryTrustedValue<string>;
@@ -306,7 +308,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		});
 	}
 
-	$executeContributedCommand(id: string, ...args: any[]): Promise<unknown> {
+	$executeContributedCommand(id: string, ...args: unknown[]): Promise<unknown> {
 		this._logService.trace('ExtHostCommands#$executeContributedCommand', id);
 
 		const cmdHandler = this._commands.get(id);
@@ -423,11 +425,11 @@ export class CommandsConverter implements extHostTypeConverter.Command.ICommands
 	}
 
 
-	getActualCommand(...args: any[]): vscode.Command | undefined {
-		return this._cache.get(args[0]);
+	getActualCommand(...args: unknown[]): vscode.Command | undefined {
+		return this._cache.get(args[0] as string);
 	}
 
-	private _executeConvertedCommand<R>(...args: any[]): Promise<R> {
+	private _executeConvertedCommand<R>(...args: unknown[]): Promise<R> {
 		const actualCmd = this.getActualCommand(...args);
 		this._logService.trace('CommandsConverter#EXECUTE', args[0], actualCmd ? actualCmd.command : 'MISSING');
 

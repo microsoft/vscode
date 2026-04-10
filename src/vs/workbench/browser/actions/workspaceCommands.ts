@@ -65,7 +65,7 @@ CommandsRegistry.registerCommand({
 		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
 
 		const folders = await selectWorkspaceFolders(accessor);
-		if (!folders || !folders.length) {
+		if (!folders?.length) {
 			return;
 		}
 
@@ -80,7 +80,7 @@ CommandsRegistry.registerCommand({
 		const contextService = accessor.get(IWorkspaceContextService);
 
 		const folders = await selectWorkspaceFolders(accessor);
-		if (!folders || !folders.length) {
+		if (!folders?.length) {
 			return;
 		}
 
@@ -199,7 +199,7 @@ CommandsRegistry.registerCommand({
 		};
 
 		const workspaceToOpen: IWorkspaceToOpen | IFolderToOpen = (hasWorkspaceFileExtension(uri) || uri.scheme === Schemas.untitled) ? { workspaceUri: uri } : { folderUri: uri };
-		const filesToOpen: IFileToOpen[] = typeof arg === 'object' ? arg.filesToOpen?.map(file => ({ fileUri: URI.from(file, true) })) ?? [] : [];
+		const filesToOpen: IFileToOpen[] = arg?.filesToOpen?.map(file => ({ fileUri: URI.from(file, true) })) ?? [];
 		return commandService.executeCommand('_files.windowOpen', [workspaceToOpen, ...filesToOpen], options);
 	},
 	metadata: {
@@ -207,7 +207,7 @@ CommandsRegistry.registerCommand({
 		args: [
 			{
 				name: 'uri', description: '(optional) Uri of the folder or workspace file to open. If not provided, a native dialog will ask the user for the folder',
-				constraint: (value: any) => value === undefined || value === null || value instanceof URI
+				constraint: (value: unknown) => value === undefined || value === null || value instanceof URI
 			},
 			{
 				name: 'options',
@@ -220,7 +220,7 @@ CommandsRegistry.registerCommand({
 					'`forceTempProfile`: Whether to use a temporary profile when opening the folder/workspace. Defaults to false. ' +
 					'`filesToOpen`: An array of files to open in the new window. Defaults to an empty array. ' +
 					'Note, for backward compatibility, options can also be of type boolean, representing the `forceNewWindow` setting.',
-				constraint: (value: any) => value === undefined || typeof value === 'object' || typeof value === 'boolean'
+				constraint: (value: unknown) => value === undefined || typeof value === 'object' || typeof value === 'boolean'
 			}
 		]
 	}
@@ -241,8 +241,8 @@ CommandsRegistry.registerCommand({
 		const commandService = accessor.get(ICommandService);
 
 		const commandOptions: IOpenEmptyWindowOptions = {
-			forceReuseWindow: options && options.reuseWindow,
-			remoteAuthority: options && options.remoteAuthority
+			forceReuseWindow: options?.reuseWindow,
+			remoteAuthority: options?.remoteAuthority
 		};
 
 		return commandService.executeCommand('_files.newWindow', commandOptions);
@@ -254,7 +254,7 @@ CommandsRegistry.registerCommand({
 				name: 'options',
 				description: '(optional) Options. Object with the following properties: ' +
 					'`reuseWindow`: Whether to open a new window or the same. Defaults to opening in a new window. ',
-				constraint: (value: any) => value === undefined || typeof value === 'object'
+				constraint: (value: unknown) => value === undefined || typeof value === 'object'
 			}
 		]
 	}
@@ -283,7 +283,7 @@ CommandsRegistry.registerCommand({
 	metadata: {
 		description: 'Removes an entry with the given path from the recently opened list.',
 		args: [
-			{ name: 'path', description: 'URI or URI string to remove from recently opened.', constraint: (value: any) => typeof value === 'string' || value instanceof URI }
+			{ name: 'path', description: 'URI or URI string to remove from recently opened.', constraint: (value: unknown) => typeof value === 'string' || value instanceof URI }
 		]
 	}
 });

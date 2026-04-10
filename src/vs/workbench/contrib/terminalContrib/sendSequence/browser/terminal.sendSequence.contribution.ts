@@ -9,16 +9,19 @@ import { isIOS, isMacintosh, isWindows } from '../../../../../base/common/platfo
 import { isObject, isString } from '../../../../../base/common/types.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { CONTEXT_ACCESSIBILITY_MODE_ENABLED } from '../../../../../platform/accessibility/common/accessibility.js';
+import { IClipboardService } from '../../../../../platform/clipboard/common/clipboardService.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr, type ContextKeyExpression } from '../../../../../platform/contextkey/common/contextkey.js';
 import type { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
 import { KeybindingsRegistry, KeybindingWeight, type IKeybindings } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
-import { GeneralShellType, WindowsShellType } from '../../../../../platform/terminal/common/terminal.js';
+import { GeneralShellType, TerminalSettingId, WindowsShellType } from '../../../../../platform/terminal/common/terminal.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IConfigurationResolverService } from '../../../../services/configurationResolver/common/configurationResolver.js';
 import { IHistoryService } from '../../../../services/history/common/history.js';
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
 import { registerTerminalAction } from '../../../terminal/browser/terminalActions.js';
+import { TerminalCommandId } from '../../../terminal/common/terminal.js';
 import { TerminalContextKeys, TerminalContextKeyStrings } from '../../../terminal/common/terminalContextKey.js';
 
 export const enum TerminalSendSequenceCommandId {
@@ -38,7 +41,10 @@ export const terminalSendSequenceCommand = async (accessor: ServicesAccessor, ar
 
 	const instance = terminalService.activeInstance;
 	if (instance) {
-		let text = isObject(args) && 'text' in args ? toOptionalString(args.text) : undefined;
+		function isTextArg(obj: unknown): obj is { text: string } {
+			return isObject(obj) && 'text' in obj;
+		}
+		let text = isTextArg(args) ? toOptionalString(args.text) : undefined;
 
 		// If no text provided, prompt user for input and process special characters
 		if (!text) {
@@ -67,7 +73,7 @@ export const terminalSendSequenceCommand = async (accessor: ServicesAccessor, ar
 			text = processedText;
 		}
 
-		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(instance.isRemote ? Schemas.vscodeRemote : Schemas.file);
+		const activeWorkspaceRootUri = historyService.getLastActiveWorkspaceRoot(instance.hasRemoteAuthority ? Schemas.vscodeRemote : Schemas.file);
 		const lastActiveWorkspaceRoot = activeWorkspaceRootUri ? workspaceContextService.getWorkspaceFolder(activeWorkspaceRootUri) ?? undefined : undefined;
 		const resolvedText = await configurationResolverService.resolveAsync(lastActiveWorkspaceRoot, text);
 		instance.sendText(resolvedText, false);
@@ -123,10 +129,25 @@ const enum Constants {
 // shell, this gets handled by PSReadLine which properly handles multi-line pastes. This is
 // disabled in accessibility mode as PowerShell does not run PSReadLine when it detects a screen
 // reader. This works even when clipboard.readText is not supported.
+//
+// When the clipboard contains a VS Code file resource but no text, PSReadLine
+// cannot see it (it only reads CF_UNICODETEXT from the Win32 clipboard), so we delegate to the
+// standard paste command instead.
 if (isWindows) {
-	registerSendSequenceKeybinding(String.fromCharCode('V'.charCodeAt(0) - Constants.CtrlLetterOffset), { // ctrl+v
+	const ctrlV = String.fromCharCode('V'.charCodeAt(0) - Constants.CtrlLetterOffset);
+	KeybindingsRegistry.registerCommandAndKeybindingRule({
+		id: TerminalCommandId.PastePwsh,
+		weight: KeybindingWeight.WorkbenchContrib,
 		when: ContextKeyExpr.and(TerminalContextKeys.focus, ContextKeyExpr.equals(TerminalContextKeyStrings.ShellType, GeneralShellType.PowerShell), CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
-		primary: KeyMod.CtrlCmd | KeyCode.KeyV
+		primary: KeyMod.CtrlCmd | KeyCode.KeyV,
+		handler: async accessor => {
+			const clipboardService = accessor.get(IClipboardService);
+			const commandService = accessor.get(ICommandService);
+			if (!await clipboardService.readText() && await clipboardService.hasResources()) {
+				return commandService.executeCommand(TerminalCommandId.Paste);
+			}
+			return commandService.executeCommand(TerminalCommandId.SendSequence, { text: ctrlV });
+		}
 	});
 }
 
@@ -134,32 +155,33 @@ if (isWindows) {
 // shell integration script. This allows keystrokes that cannot be sent via VT sequences to work.
 // See https://github.com/microsoft/terminal/issues/879#issuecomment-497775007
 registerSendSequenceKeybinding('\x1b[24~a', { // F12,a -> ctrl+space (MenuComplete)
-	when: ContextKeyExpr.and(TerminalContextKeys.focus, ContextKeyExpr.equals(TerminalContextKeyStrings.ShellType, GeneralShellType.PowerShell), TerminalContextKeys.terminalShellIntegrationEnabled, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
+	when: ContextKeyExpr.and(TerminalContextKeys.focus, ContextKeyExpr.equals(TerminalContextKeyStrings.ShellType, GeneralShellType.PowerShell), TerminalContextKeys.terminalShellIntegrationEnabled, ContextKeyExpr.equals(`config.${TerminalSettingId.EnableWin32InputMode}`, true), CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
 	primary: KeyMod.CtrlCmd | KeyCode.Space,
 	mac: { primary: KeyMod.WinCtrl | KeyCode.Space }
 });
 registerSendSequenceKeybinding('\x1b[24~b', { // F12,b -> alt+space (SetMark)
-	when: ContextKeyExpr.and(TerminalContextKeys.focus, ContextKeyExpr.equals(TerminalContextKeyStrings.ShellType, GeneralShellType.PowerShell), TerminalContextKeys.terminalShellIntegrationEnabled, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
+	when: ContextKeyExpr.and(TerminalContextKeys.focus, ContextKeyExpr.equals(TerminalContextKeyStrings.ShellType, GeneralShellType.PowerShell), TerminalContextKeys.terminalShellIntegrationEnabled, ContextKeyExpr.equals(`config.${TerminalSettingId.EnableWin32InputMode}`, true), CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
 	primary: KeyMod.Alt | KeyCode.Space
 });
 registerSendSequenceKeybinding('\x1b[24~c', { // F12,c -> shift+enter (AddLine)
-	when: ContextKeyExpr.and(TerminalContextKeys.focus, ContextKeyExpr.equals(TerminalContextKeyStrings.ShellType, GeneralShellType.PowerShell), TerminalContextKeys.terminalShellIntegrationEnabled, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
+	when: ContextKeyExpr.and(TerminalContextKeys.focus, ContextKeyExpr.equals(TerminalContextKeyStrings.ShellType, GeneralShellType.PowerShell), TerminalContextKeys.terminalShellIntegrationEnabled, ContextKeyExpr.equals(`config.${TerminalSettingId.EnableWin32InputMode}`, true), CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
 	primary: KeyMod.Shift | KeyCode.Enter
 });
 registerSendSequenceKeybinding('\x1b[24~d', { // F12,d -> shift+end (SelectLine) - HACK: \x1b[1;2F is supposed to work but it doesn't
-	when: ContextKeyExpr.and(TerminalContextKeys.focus, ContextKeyExpr.equals(TerminalContextKeyStrings.ShellType, GeneralShellType.PowerShell), TerminalContextKeys.terminalShellIntegrationEnabled, CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
+	when: ContextKeyExpr.and(TerminalContextKeys.focus, ContextKeyExpr.equals(TerminalContextKeyStrings.ShellType, GeneralShellType.PowerShell), TerminalContextKeys.terminalShellIntegrationEnabled, ContextKeyExpr.equals(`config.${TerminalSettingId.EnableWin32InputMode}`, true), CONTEXT_ACCESSIBILITY_MODE_ENABLED.negate()),
 	mac: { primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.RightArrow }
 });
 
 // Always on pwsh keybindings
 registerSendSequenceKeybinding('\x1b[1;2H', { // Shift+home
-	when: ContextKeyExpr.and(TerminalContextKeys.focus, ContextKeyExpr.equals(TerminalContextKeyStrings.ShellType, GeneralShellType.PowerShell)),
+	when: ContextKeyExpr.and(TerminalContextKeys.focus, ContextKeyExpr.equals(TerminalContextKeyStrings.ShellType, GeneralShellType.PowerShell), ContextKeyExpr.equals(`config.${TerminalSettingId.EnableWin32InputMode}`, true)),
 	mac: { primary: KeyMod.Shift | KeyMod.CtrlCmd | KeyCode.LeftArrow }
 });
 
 // Map alt+arrow to ctrl+arrow to allow word navigation in most shells to just work with alt. This
-// is non-standard behavior, but a lot of terminals act like this (see #190629). Note that
-// macOS uses different sequences here to get the desired behavior.
+// is non-standard behavior, but a lot of terminals act like this (see
+// https://github.com/microsoft/vscode/issues/190629). Note that macOS uses different sequences here
+// to get the desired behavior.
 registerSendSequenceKeybinding('\x1b[1;5A', {
 	when: ContextKeyExpr.and(TerminalContextKeys.focus),
 	primary: KeyMod.Alt | KeyCode.UpArrow
@@ -238,9 +260,4 @@ registerSendSequenceKeybinding('\u0000', {
 registerSendSequenceKeybinding('\u001e', {
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.Digit6,
 	mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.Digit6 }
-});
-// US (Undo): ctrl+/
-registerSendSequenceKeybinding('\u001f', {
-	primary: KeyMod.CtrlCmd | KeyCode.Slash,
-	mac: { primary: KeyMod.WinCtrl | KeyCode.Slash }
 });

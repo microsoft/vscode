@@ -426,3 +426,14 @@
 		margin: 0 4px;
 	}
 }
+
+.monaco-editor .line-delete-selectable {
+	user-select: text !important;
+	-webkit-user-select: text !important;
+	z-index: 1 !important;
+}
+
+.line-delete-selectable .view-line {
+	user-select: text !important;
+	-webkit-user-select: text !important;
+}

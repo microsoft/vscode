@@ -8,8 +8,8 @@ import { localize2 } from '../../../../../nls.js';
 import { Categories } from '../../../../../platform/action/common/actionCommonCategories.js';
 import { Action2, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { INativeHostService } from '../../../../../platform/native/common/native.js';
-import { ChatContextKeys } from '../../common/chatContextKeys.js';
-import { IChatService } from '../../common/chatService.js';
+import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { IChatService } from '../../common/chatService/chatService.js';
 
 export function registerChatDeveloperActions() {
 	registerAction2(OpenChatStorageFolderAction);
@@ -29,7 +29,7 @@ class OpenChatStorageFolderAction extends Action2 {
 		});
 	}
 
-	override async run(accessor: ServicesAccessor, ...args: any[]): Promise<void> {
+	override async run(accessor: ServicesAccessor, ...args: unknown[]): Promise<void> {
 		const chatService = accessor.get(IChatService);
 		const nativeHostService = accessor.get(INativeHostService);
 		const storagePath = chatService.getChatStorageFolder();
