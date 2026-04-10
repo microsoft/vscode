@@ -13,7 +13,7 @@ import { ICodeEditorService } from '../../../../editor/browser/services/codeEdit
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -346,7 +346,7 @@ registerAction2(class ResetMoveToPanelChatChoice extends Action2 {
 	constructor() {
 		super({
 			id: 'inlineChat.resetMoveToPanelChatChoice',
-			precondition: ChatContextKeys.Setup.hidden.negate(),
+			precondition: ContextKeyExpr.and(ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 			title: localize2('resetChoice.label', "Reset Choice for 'Move Inline Chat to Panel Chat'"),
 			f1: true
 		});
