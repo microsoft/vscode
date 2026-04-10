@@ -212,6 +212,8 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					reason: payloadValidationResult.reason,
 				};
 			} else {
+				let tokenCountPromise: Promise<number> | undefined;
+				const countTokens = () => tokenCountPromise ??= chatEndpoint.acquireTokenizer().countMessagesTokens(messages);
 				const copilotToken = await this._authenticationService.getCopilotToken();
 				usernameToScrub = copilotToken.username;
 				const fetchResult = await this._fetchAndStreamChat(
@@ -225,6 +227,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					ourRequestId,
 					postOptions.n,
 					token,
+					countTokens,
 					userInitiatedRequest,
 					useWebSocket,
 					turnId,
@@ -291,7 +294,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 						otelInferenceSpan.setAttribute(GenAiAttr.INPUT_MESSAGES, truncateForOTel(JSON.stringify(toInputMessages(normalized))));
 					}
 				}
-				tokenCount = await chatEndpoint.acquireTokenizer().countMessagesTokens(messages);
+				tokenCount = await countTokens();
 				const extensionId = source?.extensionId ?? EXTENSION_ID;
 				this._onDidMakeChatMLRequest.fire({
 					messages,
@@ -835,6 +838,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		ourRequestId: string,
 		nChoices: number | undefined,
 		cancellationToken: CancellationToken,
+		countTokens: () => Promise<number>,
 		userInitiatedRequest?: boolean,
 		useWebSocket?: boolean,
 		turnId?: string,
@@ -872,6 +876,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				ourRequestId,
 				nChoices,
 				cancellationToken,
+				countTokens,
 				userInitiatedRequest,
 				useWebSocket,
 				turnId,
@@ -908,6 +913,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		ourRequestId: string,
 		nChoices: number | undefined,
 		cancellationToken: CancellationToken,
+		countTokens: () => Promise<number>,
 		userInitiatedRequest?: boolean,
 		useWebSocket?: boolean,
 		turnId?: string,
@@ -984,6 +990,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 					turnId,
 					conversationId,
 					cancellationToken,
+					countTokens,
 					userInitiatedRequest,
 					telemetryProperties,
 					requestKindOptions,
@@ -1040,6 +1047,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		turnId: string,
 		conversationId: string,
 		cancellationToken: CancellationToken,
+		countTokens: () => Promise<number>,
 		userInitiatedRequest: boolean | undefined,
 		telemetryProperties: TelemetryProperties | undefined,
 		requestKindOptions: IBackgroundRequestOptions | ISubagentRequestOptions | undefined,
@@ -1100,7 +1108,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		this._telemetryService.sendGHTelemetryEvent('request.sent', telemetryData.properties, telemetryData.measurements);
 
 		const requestStart = Date.now();
-		const handle = connection.sendRequest(request, { userInitiated: !!userInitiatedRequest, turnId, requestId: ourRequestId }, cancellationToken);
+		const handle = connection.sendRequest(request, { userInitiated: !!userInitiatedRequest, turnId, requestId: ourRequestId, countTokens, tokenCountMax: chatEndpointInfo.maxOutputTokens }, cancellationToken);
 
 		const extendedBaseTelemetryData = baseTelemetryData.extendedBy({ modelCallId });
 		const processor = this._instantiationService.createInstance(OpenAIResponsesProcessor, extendedBaseTelemetryData, this._telemetryService, modelRequestId.headerRequestId, modelRequestId.gitHubRequestId, getResponsesApiCompactionThresholdFromBody(request));
