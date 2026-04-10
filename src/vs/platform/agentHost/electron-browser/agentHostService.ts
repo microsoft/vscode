@@ -147,6 +147,10 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 		return this._subscriptionManager.getSubscription<T>(kind, resource);
 	}
 
+	getSubscriptionUnmanaged<T>(_kind: StateComponents, resource: URI): IAgentSubscription<T> | undefined {
+		return this._subscriptionManager.getSubscriptionUnmanaged<T>(resource);
+	}
+
 	dispatch(action: ISessionAction | ITerminalAction): void {
 		const seq = this._subscriptionManager.dispatchOptimistic(action);
 		this.dispatchAction(action, this.clientId, seq);

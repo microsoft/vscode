@@ -31,6 +31,7 @@ import { InstantiationService } from '../../instantiation/common/instantiationSe
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
 import { AgentService } from './agentService.js';
+import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { WebSocketProtocolServer } from './webSocketTransport.js';
 import { ProtocolServerHandler } from './protocolServerHandler.js';
 import { FileService } from '../../files/common/fileService.js';
@@ -171,6 +172,7 @@ async function main(): Promise<void> {
 		diServices.set(ISessionDataService, sessionDataService);
 		diServices.set(IAgentPluginManager, pluginManager);
 		diServices.set(IDiffComputeService, disposables.add(new NodeWorkerDiffComputeService(logService)));
+		diServices.set(IAgentHostTerminalManager, agentService.terminalManager);
 		const instantiationService = new InstantiationService(diServices);
 		const copilotAgent = disposables.add(instantiationService.createInstance(CopilotAgent));
 		agentService.registerProvider(copilotAgent);

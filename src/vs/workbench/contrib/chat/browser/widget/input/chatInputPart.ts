@@ -2741,11 +2741,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			dom.clearNode(this.chatArtifactsWidgetContainer);
 			dom.append(this.chatArtifactsWidgetContainer, widget.domNode);
 		}
-		this._chatArtifactsWidget.value.render(chatSessionResource);
+		this._chatArtifactsWidget.value.setSessionResource(chatSessionResource);
 	}
 
 	clearArtifactsWidget(): void {
-		this._chatArtifactsWidget.value?.hide();
+		this._chatArtifactsWidget.value?.setSessionResource(undefined);
 	}
 
 	renderQuestionCarousel(carousel: IChatQuestionCarousel, context: IChatContentPartRenderContext, options: IChatQuestionCarouselOptions): ChatQuestionCarouselPart {

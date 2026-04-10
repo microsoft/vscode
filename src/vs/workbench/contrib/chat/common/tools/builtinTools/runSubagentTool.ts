@@ -19,7 +19,7 @@ import { IProductService } from '../../../../../../platform/product/common/produ
 import { ChatRequestVariableSet } from '../../attachments/chatVariableEntries.js';
 import { IChatProgress, IChatService } from '../../chatService/chatService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, GeneralPurposeAgentName } from '../../constants.js';
-import { ILanguageModelsService } from '../../languageModels.js';
+import { ILanguageModelChatMetadata, ILanguageModelsService } from '../../languageModels.js';
 import { ChatModel, IChatRequestModeInstructions } from '../../model/chatModel.js';
 import { IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../participants/chatAgents.js';
 import { ComputeAutomaticInstructions } from '../../promptSyntax/computeAutomaticInstructions.js';
@@ -57,6 +57,7 @@ export interface IRunSubagentToolInputParams {
 	prompt: string;
 	description: string;
 	agentName?: string;
+	model?: string;
 }
 
 export const RUN_SUBAGENT_MAX_NESTING_DEPTH = 5;
@@ -117,6 +118,11 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 					: 'Optional name of a specific agent to invoke. If not provided, uses the current agent.'
 			};
 		}
+
+		properties.model = {
+			type: 'string',
+			description: 'Optional model for the subagent. Format: "Model Name (Vendor)", vendor is usually "copilot". Only use to enforce a specific model.',
+		};
 
 		const required: string[] = ['prompt', 'description'];
 		if (generalPurposeAgentEnabled) {
@@ -192,7 +198,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 						resolvedModelName = cached.resolvedModelName;
 					} else {
 						// Fallback: resolve the model here if prepare didn't cache it
-						const resolved = this.resolveSubagentModel(subagent, invocation.modelId);
+						const resolved = this.resolveSubagentModel(subagent, invocation.modelId, args.model);
 						modeModelId = resolved.modeModelId;
 						resolvedModelName = resolved.resolvedModelName;
 					}
@@ -226,14 +232,16 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 					throw new Error(`Requested agent '${subAgentName}' not found.${baseHint}${gpHint}`);
 				}
 			} else {
-				// No subagent name - clean up any cached entry and resolve model name from main model
+				// No subagent name - clean up any cached entry and resolve model from explicit parameter or main model
 				const cached = this._resolvedModels.get(invocation.callId);
 				if (cached) {
 					this._resolvedModels.delete(invocation.callId);
+					modeModelId = cached.modeModelId;
 					resolvedModelName = cached.resolvedModelName;
 				} else {
-					const resolvedModelMetadata = modeModelId ? this.languageModelsService.lookupLanguageModel(modeModelId) : undefined;
-					resolvedModelName = resolvedModelMetadata?.name;
+					const resolved = this.resolveSubagentModel(undefined, invocation.modelId, args.model);
+					modeModelId = resolved.modeModelId;
+					resolvedModelName = resolved.resolvedModelName;
 				}
 			}
 
@@ -416,36 +424,114 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 	}
 
 	/**
-	 * Resolves the model to be used by a subagent, applying multiplier-based
-	 * fallback to avoid using a more expensive model than the main agent.
+	 * Checks if a model exceeds the main model's cost tier based on multiplier.
+	 * @returns An object with `exceeds: true` and a reason string if blocked, or `exceeds: false` if allowed.
 	 */
-	private resolveSubagentModel(subagent: ICustomAgent | undefined, mainModelId: string | undefined): { modeModelId: string | undefined; resolvedModelName: string | undefined } {
-		let modeModelId = mainModelId;
+	private checkMultiplierConstraint(modelId: string, mainModelId: string | undefined): { exceeds: false } | { exceeds: true; reason: string } {
+		if (!mainModelId || modelId === mainModelId) {
+			return { exceeds: false };
+		}
 
-		if (subagent) {
+		const mainModelMetadata = this.languageModelsService.lookupLanguageModel(mainModelId);
+		const modelMetadata = this.languageModelsService.lookupLanguageModel(modelId);
+		const mainMultiplier = mainModelMetadata?.multiplierNumeric;
+		const modelMultiplier = modelMetadata?.multiplierNumeric;
+
+		if (mainMultiplier !== undefined && modelMultiplier !== undefined && modelMultiplier > mainMultiplier) {
+			return {
+				exceeds: true,
+				reason: `exceeds the current model's cost tier (${modelMultiplier}x vs ${mainMultiplier}x)`
+			};
+		}
+
+		return { exceeds: false };
+	}
+
+	/**
+	 * Returns information about available models for error messages.
+	 * Includes which models are unavailable due to multiplier restrictions.
+	 */
+	private getAvailableModelsInfo(mainModelId: string | undefined): string {
+		const models = this.languageModelsService.getLanguageModelIds()
+			.map(id => ({ id, metadata: this.languageModelsService.lookupLanguageModel(id) }))
+			.filter((m): m is { id: string; metadata: ILanguageModelChatMetadata } =>
+				!!m.metadata
+				&& ILanguageModelChatMetadata.suitableForAgentMode(m.metadata)
+				&& m.metadata.isUserSelectable !== false
+				&& !m.metadata.targetChatSessionType
+			);
+
+		if (models.length === 0) {
+			return 'No models available.';
+		}
+
+		const available: string[] = [];
+		const unavailableDueToMultiplier: string[] = [];
+
+		for (const { id, metadata } of models) {
+			const qualifiedName = ILanguageModelChatMetadata.asQualifiedName(metadata);
+			const check = this.checkMultiplierConstraint(id, mainModelId);
+
+			if (check.exceeds) {
+				unavailableDueToMultiplier.push(qualifiedName);
+			} else {
+				available.push(qualifiedName);
+			}
+		}
+
+		const parts: string[] = [];
+		if (available.length > 0) {
+			parts.push(`Available models: ${available.join(', ')}`);
+		}
+		if (unavailableDueToMultiplier.length > 0) {
+			parts.push(`Unavailable (exceeds current model's cost tier): ${unavailableDueToMultiplier.join(', ')}`);
+		}
+
+		return parts.join('. ') || 'No models available.';
+	}
+
+	/**
+	 * Resolves the model to be used by a subagent.
+	 * @param explicitModelQualifiedName Optional explicit model specified by the caller.
+	 *        If provided and not found or not allowed, throws an error with available models.
+	 * @throws Error if the requested model is not found or exceeds the main model's cost tier.
+	 */
+	private resolveSubagentModel(subagent: ICustomAgent | undefined, mainModelId: string | undefined, explicitModelQualifiedName?: string): { modeModelId: string | undefined; resolvedModelName: string | undefined } {
+		let modeModelId = mainModelId;
+		let explicitModelResolved = false;
+
+		// Explicit model parameter takes highest priority
+		if (explicitModelQualifiedName) {
+			const lm = this.languageModelsService.lookupLanguageModelByQualifiedName(explicitModelQualifiedName);
+			if (lm?.identifier) {
+				modeModelId = lm.identifier;
+				explicitModelResolved = true;
+			} else {
+				// Model not found - throw error with available models
+				throw new Error(`Requested model '${explicitModelQualifiedName}' not found. ${this.getAvailableModelsInfo(mainModelId)}`);
+			}
+		}
+
+		if (subagent && !explicitModelResolved) {
 			const modeModelQualifiedNames = subagent.model;
 			if (modeModelQualifiedNames) {
 				// Find the actual model identifier from the qualified name(s)
-				outer: for (const qualifiedName of modeModelQualifiedNames) {
+				for (const qualifiedName of modeModelQualifiedNames) {
 					const lmByQualifiedName = this.languageModelsService.lookupLanguageModelByQualifiedName(qualifiedName);
 					if (lmByQualifiedName?.identifier) {
 						modeModelId = lmByQualifiedName.identifier;
-						break outer;
+						break;
 					}
 				}
 			}
+		}
 
-			// If the subagent's model has a larger multiplier than the main agent's model,
-			// fall back to the main agent's model to avoid using a more expensive model.
-			if (modeModelId && modeModelId !== mainModelId) {
-				const mainModelMetadata = mainModelId ? this.languageModelsService.lookupLanguageModel(mainModelId) : undefined;
-				const subagentModelMetadata = this.languageModelsService.lookupLanguageModel(modeModelId);
-				const mainMultiplier = mainModelMetadata?.multiplierNumeric;
-				const subagentMultiplier = subagentModelMetadata?.multiplierNumeric;
-				if (mainMultiplier !== undefined && subagentMultiplier !== undefined && subagentMultiplier > mainMultiplier) {
-					this.logService.warn(`[RunSubagentTool] Subagent '${subagent.name}' requested model '${subagentModelMetadata?.name}' (multiplier: ${subagentMultiplier}) which has a larger multiplier than the main agent model '${mainModelMetadata?.name}' (multiplier: ${mainMultiplier}). Falling back to the main agent model.`);
-					modeModelId = mainModelId;
-				}
+		// Check multiplier constraint - throw error if requested model exceeds main model's cost tier
+		if (modeModelId) {
+			const check = this.checkMultiplierConstraint(modeModelId, mainModelId);
+			if (check.exceeds) {
+				const modelMetadata = this.languageModelsService.lookupLanguageModel(modeModelId);
+				throw new Error(`Requested model '${modelMetadata?.name}' ${check.reason}. ${this.getAvailableModelsInfo(mainModelId)}`);
 			}
 		}
 
@@ -463,7 +549,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		const subagent = (args.agentName && !isGeneralPurpose && customAgentsEnabled) ? await this.getSubAgentByName(args.agentName) : undefined;
 
 		// Resolve the model early and cache it for invoke()
-		const resolved = this.resolveSubagentModel(subagent, context.modelId);
+		const resolved = this.resolveSubagentModel(subagent, context.modelId, args.model);
 		this._resolvedModels.set(context.toolCallId, resolved);
 
 		return {

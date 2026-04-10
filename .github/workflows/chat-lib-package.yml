@@ -31,24 +31,25 @@ jobs:
           node-version: 22.x
           cache: npm
           cache-dependency-path: |
-            package-lock.json
-            chat-lib/package-lock.json
+            extensions/copilot/package-lock.json
+            extensions/copilot/chat-lib/package-lock.json
 
       - name: Extract chat-lib
         shell: bash
+        working-directory: extensions/copilot
         run: |
           npm ci
           npm run extract-chat-lib
           rm -rf node_modules
 
       - name: Install chat-lib dependencies
-        working-directory: chat-lib
+        working-directory: extensions/copilot/chat-lib
         run: npm ci
 
       - name: Build chat-lib
-        working-directory: chat-lib
+        working-directory: extensions/copilot/chat-lib
         run: npm run build
 
       - name: Test chat-lib
-        working-directory: chat-lib
+        working-directory: extensions/copilot/chat-lib
         run: npm test

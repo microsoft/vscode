@@ -583,6 +583,12 @@ export class PluginListWidget extends Disposable {
 		}
 	}
 
+	public showBrowseMarketplace(): void {
+		if (!this.browseMode) {
+			this.toggleBrowseMode(true);
+		}
+	}
+
 	private toggleBrowseMode(browse: boolean): void {
 		this.browseMode = browse;
 		this.searchInput.value = '';

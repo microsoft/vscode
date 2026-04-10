@@ -698,6 +698,13 @@ class ChatPromptItem extends vscode.TreeItem {
 	}
 
 	/**
+	 * The main entry associated with this parent node. Stored so that
+	 * `withFilteredChildren` can re-resolve the icon freshly from the entry
+	 * rather than copying a potentially stale `iconPath` snapshot.
+	 */
+	private _mainEntryRef: ILoggedRequestInfo | undefined;
+
+	/**
 	 * Associate a main entry directly with this parent item.
 	 * The main entry's icon and click command are shown on the parent node.
 	 * The entry is NOT added as a child — it stays in the request logger
@@ -707,10 +714,9 @@ class ChatPromptItem extends vscode.TreeItem {
 		if (info.entry.type !== LoggedRequestKind.MarkdownContentRequest) {
 			return;
 		}
+		this._mainEntryRef = info;
 		const resolvedIcon = resolveMarkdownIcon(info.entry);
-		if (resolvedIcon !== undefined) {
-			this.iconPath = new vscode.ThemeIcon(resolvedIcon.id);
-		}
+		this.iconPath = resolvedIcon !== undefined ? new vscode.ThemeIcon(resolvedIcon.id) : undefined;
 		this.command = {
 			command: 'vscode.open',
 			title: '',
@@ -722,8 +728,12 @@ class ChatPromptItem extends vscode.TreeItem {
 		const item = new ChatPromptItem(this.token);
 		item.children = this.children.filter(filter);
 		item.id = this.id;
-		item.iconPath = this.iconPath;
-		item.command = this.command;
+		if (this._mainEntryRef) {
+			item.setMainEntry(this._mainEntryRef);
+		} else {
+			item.iconPath = this.iconPath;
+			item.command = this.command;
+		}
 		item.collapsibleState = item.children.length > 0
 			? vscode.TreeItemCollapsibleState.Expanded
 			: vscode.TreeItemCollapsibleState.None;

@@ -5,7 +5,6 @@
 
 import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
-import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { IAgentConnection, IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
@@ -14,8 +13,7 @@ import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickin
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { LoggingAgentConnection } from '../../../contrib/chat/browser/agentSessions/agentHost/loggingAgentConnection.js';
 import { ITerminalProfileProvider, ITerminalProfileService } from '../common/terminal.js';
-import { AgentHostPty } from './agentHostPty.js';
-import { ITerminalService } from './terminal.js';
+import { IAgentHostTerminalService } from './agentHostTerminalService.js';
 
 const AGENT_HOST_PROFILE_EXT_ID = 'vscode.agent-host-terminal';
 
@@ -43,9 +41,9 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService,
-		@ITerminalService private readonly _terminalService: ITerminalService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IAgentHostTerminalService private readonly _agentHostTerminalService: IAgentHostTerminalService,
 	) {
 		super();
 
@@ -186,26 +184,9 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 					return;
 				}
 
-				const terminalUri = URI.from({ scheme: 'agenthost-terminal', path: `/${generateUuid()}` });
-				const capturedConnection = connection;
-
-				await this._terminalService.createTerminal({
-					config: {
-						customPtyImplementation: (id, cols, rows) => {
-							const pty = new AgentHostPty(id, capturedConnection, terminalUri, {
-								name: `Agent Host (${displayName})`,
-								cwd: options.cwd ? (typeof options.cwd === 'string' ? URI.file(options.cwd) : options.cwd) : undefined,
-							});
-							// Set initial dimensions before start
-							if (cols > 0 && rows > 0) {
-								pty.resize(cols, rows);
-							}
-							return pty;
-						},
-						name: localize('agentHostTerminal.profileName', "Agent Host ({0})", displayName),
-						icon: { id: 'remote' },
-						isFeatureTerminal: false,
-					},
+				await this._agentHostTerminalService.createTerminal(connection, {
+					name: localize('agentHostTerminal.profileName', "Agent Host ({0})", displayName),
+					cwd: options.cwd ? (typeof options.cwd === 'string' ? URI.file(options.cwd) : options.cwd) : undefined,
 					location: options.location,
 				});
 			},

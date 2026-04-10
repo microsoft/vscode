@@ -594,8 +594,15 @@ declare module 'vscode' {
 		/**
 		 * The initial option selections for the session, provided with the first request.
 		 * Contains the options the user selected (or defaults) before the session was created.
+		 *
+		 * @deprecated Use `inputState` instead
 		 */
 		readonly initialSessionOptions?: ReadonlyArray<{ optionId: string; value: string | ChatSessionProviderOptionItem }>;
+
+		/**
+		 * The current input state of the chat session.
+		 */
+		readonly inputState: ChatSessionInputState;
 	}
 
 	export interface ChatSessionCapabilities {
@@ -691,6 +698,8 @@ declare module 'vscode' {
 		 * Optional commands.
 		 *
 		 * These commands will be displayed at the bottom of the group.
+		 *
+		 * For extensions using the legacy `commands` API, these commands are passed the sessionResource as the first argument.
 		 *
 		 * For extensions that use the new `provideChatSessionInputState` API, these commands are passed a context object
 		 * `{ inputState: ChatSessionInputState; sessionResource: Uri | undefined }` that they can use to determine which session and options they are being invoked for.

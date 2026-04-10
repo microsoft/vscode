@@ -1354,7 +1354,7 @@ export class CodeApplication extends Disposable {
 		const args = this.environmentMainService.args;
 
 		// Handle agents window first based on context
-		if ((process as INodeProcess).isEmbeddedApp || (args['agents'] && this.productService.quality !== 'stable')) {
+		if ((process as INodeProcess).isEmbeddedApp || args['agents']) {
 			return windowsMainService.openAgentsWindow({
 				context,
 				cli: args,
@@ -1736,7 +1736,7 @@ export class CodeApplication extends Disposable {
 	}
 
 	private registerEmbeddedAppWithLaunchServices(): void {
-		if (!isMacintosh || (process as INodeProcess).isEmbeddedApp || !this.productService.embedded?.nameShort || this.productService.quality === 'stable') {
+		if (!isMacintosh || (process as INodeProcess).isEmbeddedApp || !this.productService.embedded?.nameShort) {
 			return;
 		}
 

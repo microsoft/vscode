@@ -127,6 +127,10 @@ variables:
     value: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false)) }}
   - name: VSCODE_SCHEDULEDBUILD
     value: ${{ eq(variables['Build.Reason'], 'Schedule') }}
+  - name: VSCODE_PUBLISH_COUNTER_PREFIX
+    value: $[format('{0:yyyyMMdd}-{1}-{2}-{3}', pipeline.startTime, variables['VSCODE_QUALITY'], variables['VSCODE_PUBLISH'], variables['Build.SourceBranch'])]
+  - name: VSCODE_PUBLISH_COUNTER
+    value: $[counter(variables['VSCODE_PUBLISH_COUNTER_PREFIX'], 1)]
   - name: VSCODE_STEP_ON_IT
     value: ${{ eq(parameters.VSCODE_STEP_ON_IT, true) }}
   - name: VSCODE_BUILD_MACOS_UNIVERSAL

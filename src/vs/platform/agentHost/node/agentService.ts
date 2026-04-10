@@ -11,14 +11,14 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { FileSystemProviderErrorCode, IFileService, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentMessageEvent, IAgentService, IAgentSessionMetadata, IAgentToolCompleteEvent, IAgentToolStartEvent, IAuthenticateParams, IAuthenticateResult } from '../common/agentService.js';
+import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentMessageEvent, IAgentService, IAgentSessionMetadata, IAgentSubagentStartedEvent, IAgentToolCompleteEvent, IAgentToolStartEvent, IAuthenticateParams, IAuthenticateResult } from '../common/agentService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { ActionType, IActionEnvelope, INotification, ISessionAction, ITerminalAction, isSessionAction } from '../common/state/sessionActions.js';
 import type { ICreateTerminalParams } from '../common/state/protocol/commands.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, type IDirectoryEntry, type IResourceCopyParams, type IResourceCopyResult, type IResourceDeleteParams, type IResourceDeleteResult, type IResourceListResult, type IResourceMoveParams, type IResourceMoveResult, type IResourceReadResult, type IResourceWriteParams, type IResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
-import { ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, TurnState, type IResponsePart, type ISessionFileDiff, type ISessionSummary, type IToolCallCompletedState, type ITurn } from '../common/state/sessionState.js';
+import { ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, parseSubagentSessionUri, type IResponsePart, type ISessionFileDiff, type ISessionSummary, type IToolCallCompletedState, type IToolResultSubagentContent, type ITurn } from '../common/state/sessionState.js';
 import { AgentSideEffects } from './agentSideEffects.js';
-import { AgentHostTerminalManager } from './agentHostTerminalManager.js';
+import { AgentHostTerminalManager, type IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { ISessionDbUriFields, parseSessionDbUri } from './copilot/fileEditTracker.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
 
@@ -27,6 +27,25 @@ import { AgentHostStateManager } from './agentHostStateManager.js';
  * process. Dispatches to registered {@link IAgent} instances based
  * on the provider identifier in the session configuration.
  */
+/**
+ * Extracts subagent metadata from a tool start event's arguments,
+ * matching the event mapper's extraction for the eager toolKind path.
+ */
+function extractSubagentMeta(start: IAgentToolStartEvent | undefined): { subagentDescription?: string; subagentAgentName?: string } {
+	if (!start?.toolKind || start.toolKind !== 'subagent' || !start.toolArguments) {
+		return {};
+	}
+	try {
+		const args = JSON.parse(start.toolArguments) as Record<string, unknown>;
+		return {
+			subagentDescription: typeof args.description === 'string' && args.description.length > 0 ? args.description : undefined,
+			subagentAgentName: typeof args.agentName === 'string' && args.agentName.length > 0 ? args.agentName : undefined,
+		};
+	} catch {
+		return {};
+	}
+}
+
 export class AgentService extends Disposable implements IAgentService {
 	declare readonly _serviceBrand: undefined;
 
@@ -58,6 +77,9 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _sideEffects: AgentSideEffects;
 	/** Manages PTY-backed terminals for the agent host protocol. */
 	private readonly _terminalManager: AgentHostTerminalManager;
+
+	/** Exposes the terminal manager for use by agent providers. */
+	get terminalManager(): IAgentHostTerminalManager { return this._terminalManager; }
 
 	constructor(
 		private readonly _logService: ILogService,
@@ -154,8 +176,17 @@ export class AgentService extends Disposable implements IAgentService {
 			return s;
 		}));
 
-		this._logService.trace(`[AgentService] listSessions returned ${result.length} sessions`);
-		return result;
+		// Overlay live session status from the state manager
+		const withStatus = result.map(s => {
+			const liveState = this._stateManager.getSessionState(s.session.toString());
+			if (liveState) {
+				return { ...s, status: liveState.summary.status };
+			}
+			return s;
+		});
+
+		this._logService.trace(`[AgentService] listSessions returned ${withStatus.length} sessions`);
+		return withStatus;
 	}
 
 	async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
@@ -226,6 +257,8 @@ export class AgentService extends Disposable implements IAgentService {
 			await provider.disposeSession(session);
 			this._sessionToProvider.delete(session.toString());
 		}
+		// Remove all subagent sessions for this parent
+		this._sideEffects.removeSubagentSessions(session.toString());
 		this._stateManager.deleteSession(session.toString());
 	}
 
@@ -251,7 +284,13 @@ export class AgentService extends Disposable implements IAgentService {
 
 		let snapshot = this._stateManager.getSnapshot(resourceStr);
 		if (!snapshot) {
-			await this.restoreSession(resource);
+			// Try subagent restore before regular session restore
+			const parsed = parseSubagentSessionUri(resourceStr);
+			if (parsed) {
+				await this._restoreSubagentSession(resourceStr, parsed.parentSession, parsed.toolCallId);
+			} else {
+				await this.restoreSession(resource);
+			}
 			snapshot = this._stateManager.getSnapshot(resourceStr);
 		}
 		if (!snapshot) {
@@ -505,9 +544,12 @@ export class AgentService extends Disposable implements IAgentService {
 	 * closes it.
 	 */
 	private _buildTurnsFromMessages(
-		messages: readonly (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[],
+		messages: readonly (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent | IAgentSubagentStartedEvent)[],
 	): ITurn[] {
 		const turns: ITurn[] = [];
+		// Track subagent metadata by parent tool call ID so we can inject
+		// IToolResultSubagentContent into the parent tool call's completion content
+		const subagentsByToolCallId = new Map<string, IAgentSubagentStartedEvent>();
 		let currentTurn: {
 			id: string;
 			userMessage: { text: string };
@@ -539,6 +581,12 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 				currentTurn = startTurn(msg.messageId, msg.content);
 			} else if (msg.type === 'message' && msg.role === 'assistant') {
+				// Skip inner assistant messages from subagent sessions.
+				// These have parentToolCallId set and belong to the child
+				// session, not the parent turn.
+				if (msg.parentToolCallId) {
+					continue;
+				}
 				if (!currentTurn) {
 					currentTurn = startTurn(msg.messageId, '');
 				}
@@ -555,12 +603,37 @@ export class AgentService extends Disposable implements IAgentService {
 					finalizeTurn(currentTurn, TurnState.Complete);
 					currentTurn = undefined;
 				}
+			} else if (msg.type === 'subagent_started') {
+				subagentsByToolCallId.set(msg.toolCallId, msg);
 			} else if (msg.type === 'tool_start') {
+				// Skip inner tool calls from subagent sessions — they belong
+				// to the child session, not the parent turn.
+				if (msg.parentToolCallId) {
+					continue;
+				}
 				currentTurn?.pendingTools.set(msg.toolCallId, msg);
 			} else if (msg.type === 'tool_complete') {
+				// Skip inner tool completions from subagent sessions.
+				if (msg.parentToolCallId) {
+					continue;
+				}
 				if (currentTurn) {
 					const start = currentTurn.pendingTools.get(msg.toolCallId);
 					currentTurn.pendingTools.delete(msg.toolCallId);
+
+					// Inject subagent content if this tool call spawned a subagent
+					const subagentEvent = subagentsByToolCallId.get(msg.toolCallId);
+					const contentWithSubagent = msg.result.content ? [...msg.result.content] : [];
+					if (subagentEvent) {
+						const parentSessionStr = msg.session.toString();
+						contentWithSubagent.push({
+							type: ToolResultContentType.Subagent,
+							resource: buildSubagentSessionUri(parentSessionStr, msg.toolCallId),
+							title: subagentEvent.agentDisplayName,
+							agentName: subagentEvent.agentName,
+							description: subagentEvent.agentDescription,
+						});
+					}
 
 					const tc: IToolCallCompletedState = {
 						status: ToolCallStatus.Completed,
@@ -571,13 +644,14 @@ export class AgentService extends Disposable implements IAgentService {
 						toolInput: start?.toolInput,
 						success: msg.result.success,
 						pastTenseMessage: msg.result.pastTenseMessage,
-						content: msg.result.content,
+						content: contentWithSubagent.length > 0 ? contentWithSubagent : undefined,
 						error: msg.result.error,
 						confirmed: ToolCallConfirmationReason.NotNeeded,
-						_meta: start ? {
-							toolKind: start.toolKind,
-							language: start.language,
-						} : undefined,
+						_meta: {
+							toolKind: start?.toolKind,
+							language: start?.language,
+							...extractSubagentMeta(start),
+						},
 					};
 					currentTurn.responseParts.push({
 						kind: ResponsePartKind.ToolCall,
@@ -592,6 +666,117 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 
 		return turns;
+	}
+
+	/**
+	 * Builds turns for a subagent child session by extracting events
+	 * from the parent session's messages that have the matching
+	 * `parentToolCallId`. Creates a single turn containing all inner
+	 * tool calls.
+	 */
+	private _buildSubagentTurns(
+		parentMessages: readonly (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent | IAgentSubagentStartedEvent)[],
+		parentToolCallId: string,
+		childSessionUri: string,
+	): ITurn[] {
+		// Collect all inner tool call IDs that belong to this subagent
+		const innerToolCallIds = new Set<string>();
+		for (const msg of parentMessages) {
+			if ((msg.type === 'tool_start' || msg.type === 'tool_complete') && msg.parentToolCallId === parentToolCallId) {
+				innerToolCallIds.add(msg.toolCallId);
+			}
+		}
+
+		// Collect subagent_started events for nested subagents spawned by
+		// inner tool calls of this child session
+		const subagentsByToolCallId = new Map<string, IAgentSubagentStartedEvent>();
+		for (const msg of parentMessages) {
+			if (msg.type === 'subagent_started' && innerToolCallIds.has(msg.toolCallId)) {
+				subagentsByToolCallId.set(msg.toolCallId, msg);
+			}
+		}
+
+		// Filter for events belonging to this subagent
+		const innerMessages = parentMessages.filter(msg => {
+			if (msg.type === 'tool_start' || msg.type === 'tool_complete') {
+				return msg.parentToolCallId === parentToolCallId;
+			}
+			if (msg.type === 'message') {
+				return msg.parentToolCallId === parentToolCallId;
+			}
+			return false;
+		});
+
+		if (innerMessages.length === 0) {
+			return [];
+		}
+
+		// Build a single turn with all inner tool calls
+		const responseParts: IResponsePart[] = [];
+		const pendingTools = new Map<string, IAgentToolStartEvent>();
+
+		for (const msg of innerMessages) {
+			if (msg.type === 'tool_start') {
+				pendingTools.set(msg.toolCallId, msg);
+			} else if (msg.type === 'tool_complete') {
+				const start = pendingTools.get(msg.toolCallId);
+				pendingTools.delete(msg.toolCallId);
+
+				// Inject nested subagent content if applicable
+				const subagentEvent = subagentsByToolCallId.get(msg.toolCallId);
+				const contentWithSubagent = msg.result.content ? [...msg.result.content] : [];
+				if (subagentEvent) {
+					contentWithSubagent.push({
+						type: ToolResultContentType.Subagent,
+						resource: buildSubagentSessionUri(childSessionUri, msg.toolCallId),
+						title: subagentEvent.agentDisplayName,
+						agentName: subagentEvent.agentName,
+						description: subagentEvent.agentDescription,
+					});
+				}
+
+				const tc: IToolCallCompletedState = {
+					status: ToolCallStatus.Completed,
+					toolCallId: msg.toolCallId,
+					toolName: start?.toolName ?? 'unknown',
+					displayName: start?.displayName ?? 'Unknown Tool',
+					invocationMessage: start?.invocationMessage ?? '',
+					toolInput: start?.toolInput,
+					success: msg.result.success,
+					pastTenseMessage: msg.result.pastTenseMessage,
+					content: contentWithSubagent.length > 0 ? contentWithSubagent : undefined,
+					error: msg.result.error,
+					confirmed: ToolCallConfirmationReason.NotNeeded,
+					_meta: {
+						toolKind: start?.toolKind,
+						language: start?.language,
+						...extractSubagentMeta(start),
+					},
+				};
+				responseParts.push({
+					kind: ResponsePartKind.ToolCall,
+					toolCall: tc,
+				});
+			} else if (msg.type === 'message' && msg.role === 'assistant' && msg.content) {
+				responseParts.push({
+					kind: ResponsePartKind.Markdown,
+					id: generateUuid(),
+					content: msg.content,
+				});
+			}
+		}
+
+		if (responseParts.length === 0) {
+			return [];
+		}
+
+		return [{
+			id: generateUuid(),
+			userMessage: { text: '' },
+			responseParts,
+			usage: undefined,
+			state: TurnState.Complete,
+		}];
 	}
 
 	private async _fetchSessionDbContent(fields: ISessionDbUriFields): Promise<IResourceReadResult> {
@@ -614,6 +799,89 @@ export class AgentService extends Disposable implements IAgentService {
 		} finally {
 			ref.dispose();
 		}
+	}
+
+	/**
+	 * Restores a subagent session from its parent session's event history.
+	 * Loads the parent's raw messages, filters for events belonging to
+	 * the subagent (by `parentToolCallId`), and builds the child session's
+	 * turns from those events.
+	 */
+	private async _restoreSubagentSession(subagentUri: string, parentSession: string, toolCallId: string): Promise<void> {
+		// Ensure the parent session is loaded first
+		const parentUri = URI.parse(parentSession);
+		if (!this._stateManager.getSessionState(parentSession)) {
+			try {
+				await this.restoreSession(parentUri);
+			} catch {
+				this._logService.warn(`[AgentService] Cannot restore parent session for subagent: ${parentSession}`);
+				return;
+			}
+		}
+
+		const parentState = this._stateManager.getSessionState(parentSession);
+		if (!parentState) {
+			return;
+		}
+
+		// Search completed turns and active turn for the subagent content metadata
+		const allTurns = [...parentState.turns];
+		if (parentState.activeTurn) {
+			allTurns.push(parentState.activeTurn as ITurn);
+		}
+
+		let subagentContent: IToolResultSubagentContent | undefined;
+		for (const turn of allTurns) {
+			for (const part of turn.responseParts) {
+				if (part.kind === ResponsePartKind.ToolCall) {
+					const tc = part.toolCall;
+					// Check both completed and running tool calls — running
+					// tool calls receive subagent content via ContentChanged
+					const content = tc.status === ToolCallStatus.Completed
+						? tc.content
+						: (tc.status === ToolCallStatus.Running ? tc.content : undefined);
+					if (content) {
+						for (const c of content) {
+							if (c.type === ToolResultContentType.Subagent && c.resource === subagentUri) {
+								subagentContent = c;
+								break;
+							}
+						}
+					}
+				}
+			}
+			if (subagentContent) {
+				break;
+			}
+		}
+
+		// Load parent's raw messages and extract inner events for this subagent
+		let childTurns: ITurn[] = [];
+		const agent = this._findProviderForSession(parentUri);
+		if (agent) {
+			try {
+				const messages = await agent.getSessionMessages(parentUri);
+				childTurns = this._buildSubagentTurns(messages, toolCallId, subagentUri);
+			} catch (err) {
+				this._logService.warn(`[AgentService] Failed to load parent messages for subagent restore: ${subagentUri}`, err);
+			}
+		}
+
+		// Use metadata from subagent content if available, otherwise synthesize
+		const title = subagentContent?.title ?? 'Subagent';
+
+		this._stateManager.restoreSession(
+			{
+				resource: subagentUri,
+				provider: 'subagent',
+				title,
+				status: SessionStatus.Idle,
+				createdAt: Date.now(),
+				modifiedAt: Date.now(),
+			},
+			childTurns,
+		);
+		this._logService.info(`[AgentService] Restored subagent session: ${subagentUri} with ${childTurns.length} turn(s)`);
 	}
 
 	private _findProviderForSession(session: URI | string): IAgent | undefined {

@@ -382,7 +382,7 @@ export class ProtocolServerHandler extends Disposable {
 				resource: s.session.toString(),
 				provider: AgentSession.provider(s.session) ?? 'copilot',
 				title: s.summary ?? 'Session',
-				status: SessionStatus.Idle,
+				status: s.status ?? SessionStatus.Idle,
 				createdAt: s.startTime,
 				modifiedAt: s.modifiedTime,
 				workingDirectory: s.workingDirectory?.toString(),

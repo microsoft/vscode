@@ -195,7 +195,8 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 		const { description, isDefaultDescription, agentName, prompt, modelName } = ChatSubagentContentPart.extractSubagentInfo(toolInvocation);
 
 		// Build title: "AgentName: description" or "Subagent: description"
-		const prefix = agentName || localize('chat.subagent.prefix', 'Subagent');
+		const rawPrefix = agentName || localize('chat.subagent.prefix', 'Subagent');
+		const prefix = rawPrefix.charAt(0).toUpperCase() + rawPrefix.slice(1);
 		const initialTitle = `${prefix}: ${description}`;
 		super(initialTitle, context, undefined, hoverService, configurationService);
 
@@ -469,7 +470,8 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 	}
 
 	private updateTitle(): void {
-		const prefix = this.agentName || localize('chat.subagent.prefix', 'Subagent');
+		const rawName = this.agentName || localize('chat.subagent.prefix', 'Subagent');
+		const prefix = rawName.charAt(0).toUpperCase() + rawName.slice(1);
 		const shimmerText = `${prefix}: ${this.description}`;
 		const toolCallText = this.currentRunningToolMessage && this.isActive ? ` \u2014 ${this.currentRunningToolMessage}` : ``;
 
@@ -738,6 +740,18 @@ export class ChatSubagentContentPart extends ChatCollapsibleContentPart implemen
 					}
 					this.renderPromptSection();
 					this.updateTitle();
+				} else if (this._isDefaultDescription && toolInvocation.toolSpecificData?.kind === 'subagent') {
+					// toolSpecificData was updated after initial render (e.g.
+					// subagent content arrived via SessionToolCallContentChanged).
+					// Re-read metadata and update the title if real values are
+					// now available.
+					const { description, isDefaultDescription, agentName } = ChatSubagentContentPart.extractSubagentInfo(toolInvocation);
+					if (!isDefaultDescription || agentName) {
+						this.description = description;
+						this._isDefaultDescription = isDefaultDescription;
+						this.agentName = agentName;
+						this.updateTitle();
+					}
 				}
 			}));
 		} else if (toolInvocation.toolSpecificData?.kind === 'subagent' && toolInvocation.toolSpecificData.result) {

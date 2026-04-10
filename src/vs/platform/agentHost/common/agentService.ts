@@ -14,7 +14,7 @@ import type { IActionEnvelope, INotification, ISessionAction, ITerminalAction } 
 import type { IAgentSubscription } from './state/agentSubscription.js';
 import type { ICreateTerminalParams } from './state/protocol/commands.js';
 import type { IResourceCopyParams, IResourceCopyResult, IResourceDeleteParams, IResourceDeleteResult, IResourceListResult, IResourceMoveParams, IResourceMoveResult, IResourceReadResult, IResourceWriteParams, IResourceWriteResult, IStateSnapshot } from './state/sessionProtocol.js';
-import { AttachmentType, ComponentToState, StateComponents, type ICustomizationRef, type IPendingMessage, type IRootState, type IToolCallResult, type PolicyState, type StringOrMarkdown } from './state/sessionState.js';
+import { AttachmentType, ComponentToState, SessionStatus, StateComponents, type ICustomizationRef, type IPendingMessage, type IRootState, type ISessionInputAnswer, type ISessionInputRequest, type IToolCallResult, type PolicyState, type StringOrMarkdown, SessionInputResponseKind } from './state/sessionState.js';
 
 // IPC contract between the renderer and the agent host utility process.
 // Defines all serializable event types, the IAgent provider interface,
@@ -42,6 +42,7 @@ export interface IAgentSessionMetadata {
 	readonly startTime: number;
 	readonly modifiedTime: number;
 	readonly summary?: string;
+	readonly status?: SessionStatus;
 	readonly workingDirectory?: URI;
 	readonly isRead?: boolean;
 	readonly isDone?: boolean;
@@ -168,8 +169,8 @@ export interface IAgentToolStartEvent extends IAgentProgressEventBase {
 	readonly invocationMessage: string;
 	/** A representative input string for display in the UI (e.g., the shell command). */
 	readonly toolInput?: string;
-	/** Hint for the renderer about how to display this tool (e.g., 'terminal' for shell commands). */
-	readonly toolKind?: 'terminal';
+	/** Hint for the renderer about how to display this tool (e.g., 'terminal' for shell commands, 'subagent' for subagent-spawning tools). */
+	readonly toolKind?: 'terminal' | 'subagent';
 	/** Language identifier for syntax highlighting (e.g., 'shellscript', 'powershell'). Used with toolKind 'terminal'. */
 	readonly language?: string;
 	/** Serialized JSON of the tool arguments, if available. */
@@ -245,6 +246,21 @@ export interface IAgentSteeringConsumedEvent extends IAgentProgressEventBase {
 	readonly id: string;
 }
 
+/** The agent's ask_user tool is requesting user input. */
+export interface IAgentUserInputRequestEvent extends IAgentProgressEventBase {
+	readonly type: 'user_input_request';
+	readonly request: ISessionInputRequest;
+}
+
+/** A subagent has been spawned by a tool call. */
+export interface IAgentSubagentStartedEvent extends IAgentProgressEventBase {
+	readonly type: 'subagent_started';
+	readonly toolCallId: string;
+	readonly agentName: string;
+	readonly agentDisplayName: string;
+	readonly agentDescription?: string;
+}
+
 export type IAgentProgressEvent =
 	| IAgentDeltaEvent
 	| IAgentMessageEvent
@@ -256,7 +272,9 @@ export type IAgentProgressEvent =
 	| IAgentErrorEvent
 	| IAgentUsageEvent
 	| IAgentReasoningEvent
-	| IAgentSteeringConsumedEvent;
+	| IAgentSteeringConsumedEvent
+	| IAgentUserInputRequestEvent
+	| IAgentSubagentStartedEvent;
 
 // ---- Session URI helpers ----------------------------------------------------
 
@@ -320,7 +338,7 @@ export interface IAgent {
 	setPendingMessages?(session: URI, steeringMessage: IPendingMessage | undefined, queuedMessages: readonly IPendingMessage[]): void;
 
 	/** Retrieve all session events/messages for reconstruction. */
-	getSessionMessages(session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]>;
+	getSessionMessages(session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent | IAgentSubagentStartedEvent)[]>;
 
 	/** Dispose a session, freeing resources. */
 	disposeSession(session: URI): Promise<void>;
@@ -333,6 +351,9 @@ export interface IAgent {
 
 	/** Respond to a pending permission request from the SDK. */
 	respondToPermissionRequest(requestId: string, approved: boolean): void;
+
+	/** Respond to a pending user input request from the SDK's ask_user tool. */
+	respondToUserInputRequest(requestId: string, response: SessionInputResponseKind, answers?: Record<string, ISessionInputAnswer>): void;
 
 	/** Return the descriptor for this agent. */
 	getDescriptor(): IAgentDescriptor;
@@ -512,6 +533,7 @@ export interface IAgentConnection {
 	// ---- State subscriptions ------------------------------------------------
 	readonly rootState: IAgentSubscription<IRootState>;
 	getSubscription<T extends StateComponents>(kind: T, resource: URI): IReference<IAgentSubscription<ComponentToState[T]>>;
+	getSubscriptionUnmanaged<T extends StateComponents>(kind: T, resource: URI): IAgentSubscription<ComponentToState[T]> | undefined;
 
 	// ---- Action dispatch ----------------------------------------------------
 	dispatch(action: ISessionAction | ITerminalAction): void;

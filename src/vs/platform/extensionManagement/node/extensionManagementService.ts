@@ -941,19 +941,14 @@ export class ExtensionsScanner extends Disposable {
 		if (this.environmentService.extensionTestsLocationURI) {
 			return;
 		}
-		const autoUpdateBuiltinExtensions = this.productService.builtInExtensionsEnabledWithAutoUpdates;
-		if (!autoUpdateBuiltinExtensions?.length) {
-			return;
-		}
-		const productVersion = this.productService.version;
-		const productMajorMinor = `${semver.major(productVersion)}.${semver.minor(productVersion)}`;
-		const extensions = await this.extensionsScannerService.scanAllUserExtensions();
-		const staleExtensions = extensions.filter(extension => {
-			if (!autoUpdateBuiltinExtensions.some(id => id.toLowerCase() === extension.identifier.id.toLowerCase())) {
+		const builtinExtensions = await this.extensionsScannerService.scanSystemExtensions({});
+		const userExtensions = await this.extensionsScannerService.scanAllUserExtensions();
+		const staleExtensions = userExtensions.filter(userExtension => {
+			if (!this.productService.builtInExtensionsEnabledWithAutoUpdates.some(id => id.toLowerCase() === userExtension.identifier.id.toLowerCase())) {
 				return false;
 			}
-			const extensionMajorMinor = `${semver.major(extension.manifest.version)}.${semver.minor(extension.manifest.version)}`;
-			return productMajorMinor !== extensionMajorMinor;
+			const builtinExtension = builtinExtensions.find(e => areSameExtensions(e.identifier, userExtension.identifier));
+			return builtinExtension && semver.lt(userExtension.manifest.version, builtinExtension.manifest.version);
 		});
 		if (staleExtensions.length) {
 			this.logService.info('Removing stale auto-update builtin extensions:', staleExtensions.map(e => `${e.identifier.id}@${e.manifest.version}`).join(', '));

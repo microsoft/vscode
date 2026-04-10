@@ -33,7 +33,7 @@ import { ICopilotCLISessionService } from '../copilotcli/node/copilotcliSessionS
 /**
  * Message shown when user needs to trust a folder to continue.
  */
-const UNTRUSTED_FOLDER_MESSAGE = l10n.t('The selected folder is not trusted. Please trust the folder to continue with the {0}.', 'Copilot CLI');
+export const UNTRUSTED_FOLDER_MESSAGE = l10n.t('The selected folder is not trusted. Please trust the folder to continue with the {0}.', 'Copilot CLI');
 
 // #region FolderRepositoryManager (abstract base)
 
@@ -168,7 +168,7 @@ export abstract class FolderRepositoryManager extends Disposable implements IFol
 				repositoryUri = vscode.Uri.file(worktreeProperties.repositoryPath);
 			} else {
 				const repoContext = await this.gitService.getRepository(selectedFolder);
-				const branchBase = repoContext?.headBranchName
+				const branchBase = repoContext?.headBranchName && repoContext.headCommitHash
 					? await this.gitService.getBranchBase(repoContext.rootUri, repoContext.headBranchName)
 					: undefined;
 

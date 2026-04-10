@@ -2252,61 +2252,43 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	font-size: 13px;
-	flex: 1;
+	flex-shrink: 1;
+	min-width: 0;
 }
 
-.chat-artifacts-widget .chat-artifacts-list-save {
+.chat-artifacts-widget .chat-artifacts-list-description {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-size: 12px;
+	opacity: 0.7;
+	margin-left: 6px;
+	flex-shrink: 0;
+}
+
+.chat-artifacts-widget .chat-artifacts-list-actions {
 	display: none;
-	align-items: center;
-	justify-content: center;
-	cursor: pointer;
+	margin-left: auto;
+	flex-shrink: 0;
+}
+
+.chat-artifacts-widget .chat-artifacts-list-actions .monaco-action-bar .actions-container {
+	gap: 4px;
+}
+
+.chat-artifacts-widget .chat-artifacts-list-row:hover .chat-artifacts-list-actions,
+.chat-artifacts-widget .chat-artifacts-list-row.force-hover .chat-artifacts-list-actions {
+	display: flex;
+}
+
+.chat-artifacts-widget .chat-artifacts-list-actions .action-item .action-label {
 	padding: 2px;
 	border-radius: 2px;
-	margin-left: auto;
-}
-
-.chat-artifacts-widget .chat-artifacts-list-row:hover .chat-artifacts-list-save {
-	display: flex;
-}
-
-.chat-artifacts-widget .chat-artifacts-list-save:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-}
-
-.chat-artifacts-widget .artifacts-clear-button-container {
-	padding-right: 2px;
-	display: flex;
-	align-items: center;
-	height: 18px;
-	opacity: 1;
-}
-
-.chat-artifacts-widget .artifacts-clear-button-container .monaco-button {
-	background-color: transparent;
-	border-color: transparent;
-	color: var(--vscode-foreground);
 	cursor: pointer;
-	height: 16px;
-	padding: 3px;
-	border-radius: 2px;
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	min-width: unset;
 }
 
-.chat-artifacts-widget .artifacts-clear-button-container .monaco-button:hover {
+.chat-artifacts-widget .chat-artifacts-list-actions .action-item .action-label:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
-}
-
-.chat-artifacts-widget .artifacts-clear-button-container .monaco-button:focus {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: 1px;
-}
-
-.chat-artifacts-widget .artifacts-clear-button-container .monaco-button .codicon {
-	font-size: 10px;
-	color: var(--vscode-foreground);
 }
 
 .interactive-session .checkpoint-file-changes-summary {

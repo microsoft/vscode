@@ -1058,6 +1058,8 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			return undefined;
 		}
 
+		controllerData.controller.items.add(item);
+
 		return typeConvert.ChatSessionItem.from(item);
 	}
 

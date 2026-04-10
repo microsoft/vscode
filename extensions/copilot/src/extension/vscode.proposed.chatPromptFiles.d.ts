@@ -63,6 +63,16 @@ declare module 'vscode' {
 		readonly argumentHint?: string;
 
 		/**
+		 * Optional tool restrictions declared by the custom agent.
+		 */
+		readonly tools?: readonly string[];
+
+		/**
+		 * Optional model preferences declared by the custom agent.
+		 */
+		readonly model?: readonly string[];
+
+		/**
 		 * Whether this custom agent should be shown to users as invocable.
 		 */
 		readonly userInvocable: boolean;

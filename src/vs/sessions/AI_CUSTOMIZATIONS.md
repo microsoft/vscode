@@ -67,6 +67,7 @@ The `IAICustomizationWorkspaceService` interface controls per-window behavior:
 | `getStorageSourceFilter(type)` | Delegates to `ICustomizationHarnessService` | Delegates to `ICustomizationHarnessService` |
 | `isSessionsWindow` | `false` | `true` |
 | `activeProjectRoot` | First workspace folder | Active session worktree |
+| `welcomePageFeatures` | Shows getting-started banner + per-card AI actions | Shows getting-started banner, hides per-card AI actions |
 
 ### ICustomizationHarnessService
 
@@ -76,8 +77,8 @@ Storage answers "where did this come from?"; harness answers "who consumes it?".
 The service is defined in `common/customizationHarnessService.ts` which also provides:
 - **`CustomizationHarnessServiceBase`** — reusable base class handling active-harness state, the observable list, and `getStorageSourceFilter` dispatch.
 - **`ISectionOverride`** — per-section UI customization: `commandId` (command invocation), `rootFile` + `label` (root-file creation), `typeLabel` (custom type name), `fileExtension` (override default), `rootFileShortcuts` (dropdown shortcuts).
-- **Factory functions** — `createVSCodeHarnessDescriptor`, `createCliHarnessDescriptor`. The VS Code harness receives `[PromptsStorage.extension, BUILTIN_STORAGE]` as extras; Sessions CLI receives `[BUILTIN_STORAGE]`.
-- **Well-known root helpers** — `getCliUserRoots(userHome)` centralizes the `~/.copilot`, `~/.claude`, `~/.agents` path knowledge.
+- **Factory functions** — `createVSCodeHarnessDescriptor`, `createCliHarnessDescriptor`, `createClaudeHarnessDescriptor`. The VS Code harness receives `[PromptsStorage.extension, BUILTIN_STORAGE]` as extras; CLI and Claude in core receive `[]` (no extension source). Sessions CLI receives `[BUILTIN_STORAGE]`.
+- **Well-known root helpers** — `getCliUserRoots(userHome)` and `getClaudeUserRoots(userHome)` centralize the `~/.copilot`, `~/.claude`, `~/.agents` path knowledge.
 - **Filter helpers** — `matchesWorkspaceSubpath()` for segment-safe subpath matching; `matchesInstructionFileFilter()` for filename/path-prefix pattern matching.
 
 Available harnesses:
@@ -86,8 +87,9 @@ Available harnesses:
 |---------|-------|-------------|
 | `vscode` | Local | Shows all storage sources (default in core) |
 | `cli` | Copilot CLI | Restricts user roots to `~/.copilot`, `~/.claude`, `~/.agents` |
+| `claude` | Claude | Restricts user roots to `~/.claude`; hides Prompts + Plugins sections |
 
-In core VS Code, only the Local harness is registered statically. Additional harnesses (e.g. Copilot CLI) are contributed by extensions via the provider API.
+In core VS Code, all three harnesses are registered but CLI and Claude only appear when their respective agents are registered (`requiredAgentId` checked via `IChatAgentService`). VS Code is the default.
 In sessions, only CLI is registered (single harness, toggle bar hidden).
 
 ### IHarnessDescriptor
@@ -96,8 +98,8 @@ Key properties on the harness descriptor:
 
 | Property | Purpose |
 |----------|--------|
-| `hiddenSections` | Sidebar sections to hide |
-| `workspaceSubpaths` | Restrict file creation/display to directories |
+| `hiddenSections` | Sidebar sections to hide (e.g. Claude: `[Prompts, Plugins]`) |
+| `workspaceSubpaths` | Restrict file creation/display to directories (e.g. Claude: `['.claude']`) |
 | `hideGenerateButton` | Replace "Generate X" sparkle button with "New X" |
 | `sectionOverrides` | Per-section `ISectionOverride` map for button behavior |
 | `requiredAgentId` | Agent ID that must be registered for harness to appear |
@@ -136,6 +138,20 @@ CLI harness (core):
 | Hooks | `[local, plugin]` | N/A |
 | Prompts | `[local, user, plugin]` | `undefined` (all roots) |
 | Agents, Skills, Instructions | `[local, user, plugin]` | `[~/.copilot, ~/.claude, ~/.agents]` |
+
+Claude harness (core):
+
+| Type | sources | includedUserFileRoots |
+|------|---------|----------------------|
+| Hooks | `[local, plugin]` | N/A |
+| Prompts | `[local, user, plugin]` | `undefined` (all roots) |
+| Agents, Skills, Instructions | `[local, user, plugin]` | `[~/.claude]` |
+
+Claude additionally applies:
+- `hiddenSections: [Prompts, Plugins]`
+- `instructionFileFilter: ['CLAUDE.md', 'CLAUDE.local.md', '.claude/rules/', 'copilot-instructions.md']`
+- `workspaceSubpaths: ['.claude']` (instruction files matching `instructionFileFilter` are exempt)
+- `sectionOverrides`: Hooks → `copilot.claude.hooks` command; Instructions → "Add CLAUDE.md" primary, "Rule" type label, `.md` file extension
 
 ### Built-in Extension Grouping (Core VS Code)
 
@@ -213,6 +229,13 @@ Browser compatibility is required — no Node.js APIs.
 ## Feature Gating
 
 All commands and UI respect `ChatContextKeys.enabled`.
+
+### Commands
+
+| Command ID | Purpose |
+|-----------|---------|
+| `aiCustomization.openManagementEditor` | Opens the management editor, optionally accepting an `AICustomizationManagementSection` to deep-link |
+| `aiCustomization.openMarketplace` | Opens the management editor with marketplace browse mode active. Accepts an optional section (`mcpServers` or `plugins`); defaults to `mcpServers` |
 
 ## Settings
 
