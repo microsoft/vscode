@@ -172,6 +172,44 @@ const LAST_USED_ISOLATION_OPTION_KEY = 'github.copilot.cli.lastUsedIsolationOpti
 const MAX_MRU_ENTRIES = 10;
 const COPILOT_WORKTREE_PATTERN = 'copilot-worktree-';
 
+function optionItemsEqual(a: vscode.ChatSessionProviderOptionItem | undefined, b: vscode.ChatSessionProviderOptionItem | undefined): boolean {
+	if (a === b) {
+		return true;
+	}
+	if (!a || !b) {
+		return false;
+	}
+	return a.id === b.id && a.locked === b.locked;
+}
+
+function optionGroupsEqual(
+	oldGroups: readonly vscode.ChatSessionProviderOptionGroup[],
+	newGroups: readonly vscode.ChatSessionProviderOptionGroup[],
+): boolean {
+	if (oldGroups.length !== newGroups.length) {
+		return false;
+	}
+	for (let i = 0; i < oldGroups.length; i++) {
+		const oldGroup = oldGroups[i];
+		const newGroup = newGroups[i];
+		if (oldGroup.id !== newGroup.id) {
+			return false;
+		}
+		if (!optionItemsEqual(oldGroup.selected, newGroup.selected)) {
+			return false;
+		}
+		if (oldGroup.items.length !== newGroup.items.length) {
+			return false;
+		}
+		for (let j = 0; j < oldGroup.items.length; j++) {
+			if (!optionItemsEqual(oldGroup.items[j], newGroup.items[j])) {
+				return false;
+			}
+		}
+	}
+	return true;
+}
+
 export function getSelectedOption(groups: readonly vscode.ChatSessionProviderOptionGroup[], groupId: string): vscode.ChatSessionProviderOptionItem | undefined {
 	return groups.find(g => g.id === groupId)?.selected;
 }
@@ -292,6 +330,7 @@ export class SessionOptionGroupBuilder implements ISessionOptionGroupBuilder {
 	declare readonly _serviceBrand: undefined;
 	private _lastUsedFolderIdInUntitledWorkspace?: { kind: 'folder' | 'repo'; uri: vscode.Uri; lastAccessed: number };
 	private readonly _getBranchOptionItemsForRepositorySequencer = new SequencerByKey<string>();
+	private readonly _pendingBuildGroups = new WeakMap<vscode.ChatSessionInputState, Promise<vscode.ChatSessionProviderOptionGroup[]>>();
 
 	constructor(
 		@IGitService private readonly gitService: IGitService,
@@ -440,8 +479,8 @@ export class SessionOptionGroupBuilder implements ISessionOptionGroupBuilder {
 		}
 		// BUG: Work around for https://github.com/microsoft/vscode/issues/288457#issuecomment-4157935788
 		// Locked doesn't work, once locked, we cannot unlock.
-		// const { locked } = resolveBranchLockState(isolationEnabled, currentIsolation);
-		const locked = false;
+		const { locked } = resolveBranchLockState(isolationEnabled, currentIsolation);
+		// const locked = false;
 		// When locked (workspace isolation), ignore the previous selection so we
 		// always snap back to the active branch instead of keeping a stale pick.
 		const selectedItem = resolveBranchSelection(branches, headBranchName, locked ? undefined : previousSelection);
@@ -467,7 +506,10 @@ export class SessionOptionGroupBuilder implements ISessionOptionGroupBuilder {
 			void this.context.globalState.update(LAST_USED_ISOLATION_OPTION_KEY, currentIsolation);
 		}
 
-		state.groups = await this.provideChatSessionProviderOptionGroups(state);
+		const newGroups = await this._buildGroupsOnce(state);
+		if (!optionGroupsEqual(state.groups, newGroups)) {
+			state.groups = newGroups;
+		}
 	}
 
 	/**
@@ -477,7 +519,26 @@ export class SessionOptionGroupBuilder implements ISessionOptionGroupBuilder {
 	 * entire dropdown groups — not just updating branch/isolation.
 	 */
 	async rebuildInputState(state: vscode.ChatSessionInputState): Promise<void> {
-		state.groups = await this.provideChatSessionProviderOptionGroups(state);
+		const newGroups = await this._buildGroupsOnce(state);
+		if (!optionGroupsEqual(state.groups, newGroups)) {
+			state.groups = newGroups;
+		}
+	}
+
+	/**
+	 * Deduplicate concurrent builds for the same state object.
+	 * If a build is already in-flight for this state, return the same promise.
+	 */
+	private _buildGroupsOnce(state: vscode.ChatSessionInputState): Promise<vscode.ChatSessionProviderOptionGroup[]> {
+		const pending = this._pendingBuildGroups.get(state);
+		if (pending) {
+			return pending;
+		}
+		const promise = this.provideChatSessionProviderOptionGroups(state).finally(() => {
+			this._pendingBuildGroups.delete(state);
+		});
+		this._pendingBuildGroups.set(state, promise);
+		return promise;
 	}
 
 	async buildExistingSessionInputStateGroups(resource: vscode.Uri, token: vscode.CancellationToken): Promise<vscode.ChatSessionProviderOptionGroup[]> {
