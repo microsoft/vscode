@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import type { Attachment, SessionOptions } from '@github/copilot/sdk';
+import type { Attachment, SessionOptions, SweCustomAgent } from '@github/copilot/sdk';
 import * as l10n from '@vscode/l10n';
 import * as vscode from 'vscode';
 import { ChatExtendedRequestHandler, ChatRequestTurn2, Uri } from 'vscode';
@@ -47,10 +47,10 @@ import { ICopilotCLIChatSessionInitializer, SessionInitOptions } from './copilot
 import { convertReferenceToVariable } from './copilotCLIPromptReferences';
 import { ICopilotCLITerminalIntegration, TerminalOpenLocation } from './copilotCLITerminalIntegration';
 import { CopilotCloudSessionsProvider } from './copilotCloudSessionsProvider';
+import { UNTRUSTED_FOLDER_MESSAGE } from './folderRepositoryManagerImpl';
 import { IPullRequestDetectionService } from './pullRequestDetectionService';
 import { getSelectedSessionOptions, ISessionOptionGroupBuilder, OPEN_REPOSITORY_COMMAND_ID, toRepositoryOptionItem, toWorkspaceFolderOptionItem } from './sessionOptionGroupBuilder';
 import { ISessionRequestLifecycle } from './sessionRequestLifecycle';
-import { UNTRUSTED_FOLDER_MESSAGE } from './folderRepositoryManagerImpl';
 
 /**
  * ODO:
@@ -580,7 +580,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		return this.handleRequest.bind(this);
 	}
 
-	private readonly contextForRequest = new Map<string, { prompt: string; attachments: Attachment[] }>();
+	private readonly contextForRequest = new Map<string, { prompt: string; attachments: Attachment[]; agent?: string }>();
 
 	/**
 	 * Outer request handler that supports *yielding* for session steering.
@@ -733,14 +733,14 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			const selectedOptions = getSelectedSessionOptions(chatSessionContext.inputState);
 			const sessionResult = await this.getOrCreateSession(request, chatSessionContext.chatSessionItem.resource, { ...selectedOptions, newBranch: branchNamePromise, stream }, disposables, token);
 			({ session } = sessionResult);
-			const { model } = sessionResult;
+			const { model, agent } = sessionResult;
 			if (!session || token.isCancellationRequested) {
 				return {};
 			}
 
 			sdkSessionId = session.object.sessionId;
 
-			await this.sessionRequestLifecycle.startRequest(sdkSessionId, request, context.history.length === 0);
+			await this.sessionRequestLifecycle.startRequest(sdkSessionId, request, context.history.length === 0, session.object.workspace, agent?.name ?? this.contextForRequest.get(session.object.sessionId)?.agent);
 
 			if (request.command === 'delegate') {
 				await this.handleDelegationToCloud(session.object, request, context, stream, token);
@@ -769,18 +769,18 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		}
 	}
 
-	private async getOrCreateSession(request: vscode.ChatRequest, chatResource: vscode.Uri, options: SessionInitOptions, disposables: DisposableStore, token: vscode.CancellationToken): Promise<{ session: IReference<ICopilotCLISession> | undefined; isNewSession: boolean; model: { model: string; reasoningEffort?: string } | undefined; trusted: boolean }> {
+	private async getOrCreateSession(request: vscode.ChatRequest, chatResource: vscode.Uri, options: SessionInitOptions, disposables: DisposableStore, token: vscode.CancellationToken): Promise<{ session: IReference<ICopilotCLISession> | undefined; isNewSession: boolean; model: { model: string; reasoningEffort?: string } | undefined; agent: SweCustomAgent | undefined; trusted: boolean }> {
 		const result = await this.sessionInitializer.getOrCreateSession(request, chatResource, options, disposables, token);
-		const { session, isNewSession, model, trusted } = result;
+		const { session, isNewSession, model, agent, trusted } = result;
 		if (!session || token.isCancellationRequested) {
-			return { session: undefined, isNewSession, model, trusted };
+			return { session: undefined, isNewSession, model, agent, trusted };
 		}
 
 		if (isNewSession) {
 			this.sessionItemProvider.refreshSession({ reason: 'update', sessionId: session.object.sessionId });
 		}
 
-		return { session, isNewSession, model, trusted };
+		return { session, isNewSession, model, agent, trusted };
 	}
 
 	private async handleDelegationToCloud(session: ICopilotCLISession, request: vscode.ChatRequest, context: vscode.ChatContext, stream: vscode.ChatResponseStream, token: vscode.CancellationToken) {
@@ -835,7 +835,8 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		const { prompt, attachments, references } = await this.promptResolver.resolvePrompt(request, await requestPromptPromise, (otherReferences || []).concat([]), workspaceInfo, [], token);
 
 		const mcpServerMappings = buildMcpServerMappings(request.tools);
-		const { session, model } = await this.sessionInitializer.createDelegatedSession(request, workspaceInfo, { mcpServerMappings }, token);
+		const { session, model, agent } = await this.sessionInitializer.createDelegatedSession(request, workspaceInfo, { mcpServerMappings }, token);
+
 		if (summary) {
 			const summaryRef = await this.chatDelegationSummaryService.trackSummaryUsage(session.object.sessionId, summary);
 			if (summaryRef) {
@@ -844,7 +845,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		}
 
 		try {
-			this.contextForRequest.set(session.object.sessionId, { prompt, attachments });
+			this.contextForRequest.set(session.object.sessionId, { prompt, attachments, agent: agent?.name });
 			// this.sessionItemProvider.notifySessionsChange();
 			// TODO @DonJayamanne I don't think we need to refresh the list of session here just yet, or perhaps we do,
 			// Same as getOrCreate session, we need a dummy title or the initial prompt to show in the sessions list.

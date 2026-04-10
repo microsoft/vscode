@@ -173,13 +173,10 @@ function createInitializer(overrides?: {
 	const initializer = new CopilotCLIChatSessionInitializer(
 		sessionService,
 		folderRepoManager,
-		worktreeService,
-		workspaceFolderService,
 		workspaceService,
 		models,
 		agents,
 		promptsService,
-		metadataStore,
 		logService,
 		configurationService,
 	);
@@ -507,7 +504,7 @@ describe('ChatSessionInitializer', () => {
 			disposables.dispose();
 		});
 
-		it('sets worktree properties for new session with worktree', async () => {
+		it('does not set worktree properties (moved to startRequest)', async () => {
 			const sessionService = new TestSessionService();
 			sessionService.isNewSessionId.mockReturnValue(true);
 			const folderRepoManager = new TestFolderRepositoryManager();
@@ -534,14 +531,11 @@ describe('ChatSessionInitializer', () => {
 				disposables, CancellationToken.None
 			);
 
-			expect(worktreeService.setWorktreeProperties).toHaveBeenCalledWith(
-				'test-session-id',
-				expect.objectContaining({ branchName: 'copilot/test' })
-			);
+			expect(worktreeService.setWorktreeProperties).not.toHaveBeenCalled();
 			disposables.dispose();
 		});
 
-		it('tracks workspace folder for new non-isolated session', async () => {
+		it('does not track workspace folder (moved to startRequest)', async () => {
 			const sessionService = new TestSessionService();
 			sessionService.isNewSessionId.mockReturnValue(true);
 			const { initializer, workspaceFolderService } = createInitializer({ sessionService });
@@ -552,11 +546,11 @@ describe('ChatSessionInitializer', () => {
 				disposables, CancellationToken.None
 			);
 
-			expect(workspaceFolderService.trackSessionWorkspaceFolder).toHaveBeenCalled();
+			expect(workspaceFolderService.trackSessionWorkspaceFolder).not.toHaveBeenCalled();
 			disposables.dispose();
 		});
 
-		it('records request metadata', async () => {
+		it('does not record request metadata (moved to startRequest)', async () => {
 			const { initializer, metadataStore } = createInitializer();
 			const disposables = new DisposableStore();
 
@@ -565,19 +559,14 @@ describe('ChatSessionInitializer', () => {
 				disposables, CancellationToken.None
 			);
 
-			expect(metadataStore.updateRequestDetails).toHaveBeenCalledWith(
-				expect.any(String),
-				expect.arrayContaining([
-					expect.objectContaining({ vscodeRequestId: 'request-1' })
-				])
-			);
+			expect(metadataStore.updateRequestDetails).not.toHaveBeenCalled();
 			disposables.dispose();
 		});
 	});
 
 	describe('createDelegatedSession', () => {
-		it('creates session and finalizes', async () => {
-			const { initializer, sessionService, workspaceFolderService, metadataStore } = createInitializer();
+		it('creates session and resolves model', async () => {
+			const { initializer, sessionService } = createInitializer();
 			const workspace: IWorkspaceInfo = {
 				folder: URI.file('/workspace') as unknown as vscode.Uri,
 				repository: undefined,
@@ -594,12 +583,10 @@ describe('ChatSessionInitializer', () => {
 			expect(result.session).toBeDefined();
 			expect(result.model).toEqual(expect.objectContaining({ model: 'resolved-model' }));
 			expect(sessionService.createSession).toHaveBeenCalled();
-			expect(workspaceFolderService.trackSessionWorkspaceFolder).toHaveBeenCalled();
-			expect(metadataStore.updateRequestDetails).toHaveBeenCalled();
 		});
 
-		it('sets worktree properties when workspace has worktree', async () => {
-			const { initializer, worktreeService } = createInitializer();
+		it('does not set worktree properties or track workspace folder (moved to startRequest)', async () => {
+			const { initializer, worktreeService, workspaceFolderService, metadataStore } = createInitializer();
 			const workspace: IWorkspaceInfo = {
 				folder: URI.file('/workspace') as unknown as vscode.Uri,
 				repository: URI.file('/repo') as unknown as vscode.Uri,
@@ -620,36 +607,9 @@ describe('ChatSessionInitializer', () => {
 				CancellationToken.None
 			);
 
-			expect(worktreeService.setWorktreeProperties).toHaveBeenCalledWith(
-				'test-session-id',
-				expect.objectContaining({ branchName: 'copilot/test' })
-			);
-		});
-
-		it('does not track workspace folder for isolated session', async () => {
-			const { initializer, workspaceFolderService } = createInitializer();
-			const workspace: IWorkspaceInfo = {
-				folder: URI.file('/workspace') as unknown as vscode.Uri,
-				repository: URI.file('/repo') as unknown as vscode.Uri,
-				repositoryProperties: undefined,
-				worktree: URI.file('/worktree') as unknown as vscode.Uri,
-				worktreeProperties: {
-					version: 2,
-					baseCommit: 'abc',
-					baseBranchName: 'main',
-					branchName: 'copilot/test',
-					repositoryPath: '/repo',
-					worktreePath: '/worktree',
-				},
-			};
-
-			await initializer.createDelegatedSession(
-				makeRequest(), workspace, { mcpServerMappings: new Map() },
-				CancellationToken.None
-			);
-
-			// Isolated session (has worktreeProperties) should NOT track workspace folder
+			expect(worktreeService.setWorktreeProperties).not.toHaveBeenCalled();
 			expect(workspaceFolderService.trackSessionWorkspaceFolder).not.toHaveBeenCalled();
+			expect(metadataStore.updateRequestDetails).not.toHaveBeenCalled();
 		});
 	});
 });
