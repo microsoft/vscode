@@ -27,6 +27,7 @@ import {
 	SessionOptionGroupBuilder,
 	folderMRUToChatProviderOptions,
 	getSelectedOption,
+	getSelectedSessionOptions,
 	isBranchOptionFeatureEnabled,
 	isIsolationOptionFeatureEnabled,
 	resolveBranchLockState,
@@ -123,6 +124,49 @@ describe('getSelectedOption', () => {
 			{ id: 'branch', name: 'Branch', description: '', items: [] },
 		];
 		expect(getSelectedOption(groups, 'branch')).toBeUndefined();
+	});
+});
+
+describe('getSelectedSessionOptions', () => {
+	it('extracts folder, branch, and isolation from input state groups', () => {
+		const inputState: vscode.ChatSessionInputState = {
+			onDidChange: Event.None,
+			groups: [
+				{ id: REPOSITORY_OPTION_ID, name: 'Folder', items: [{ id: '/my-repo', name: 'my-repo' }], selected: { id: '/my-repo', name: 'my-repo' } },
+				{ id: BRANCH_OPTION_ID, name: 'Branch', items: [{ id: 'main', name: 'main' }], selected: { id: 'main', name: 'main' } },
+				{ id: ISOLATION_OPTION_ID, name: 'Isolation', items: [{ id: IsolationMode.Worktree, name: 'Worktree' }], selected: { id: IsolationMode.Worktree, name: 'Worktree' } },
+			],
+		};
+		const result = getSelectedSessionOptions(inputState);
+		expect(result.folder?.fsPath).toBe(URI.file('/my-repo').fsPath);
+		expect(result.branch).toBe('main');
+		expect(result.isolation).toBe(IsolationMode.Worktree);
+	});
+
+	it('returns undefined values when no groups are present', () => {
+		const inputState: vscode.ChatSessionInputState = {
+			onDidChange: Event.None,
+			groups: [],
+		};
+		const result = getSelectedSessionOptions(inputState);
+		expect(result.folder).toBeUndefined();
+		expect(result.branch).toBeUndefined();
+		expect(result.isolation).toBeUndefined();
+	});
+
+	it('returns undefined values when groups have no selection', () => {
+		const inputState: vscode.ChatSessionInputState = {
+			onDidChange: Event.None,
+			groups: [
+				{ id: REPOSITORY_OPTION_ID, name: 'Folder', items: [] },
+				{ id: BRANCH_OPTION_ID, name: 'Branch', items: [] },
+				{ id: ISOLATION_OPTION_ID, name: 'Isolation', items: [] },
+			],
+		};
+		const result = getSelectedSessionOptions(inputState);
+		expect(result.folder).toBeUndefined();
+		expect(result.branch).toBeUndefined();
+		expect(result.isolation).toBeUndefined();
 	});
 });
 

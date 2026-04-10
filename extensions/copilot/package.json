@@ -6404,7 +6404,7 @@
 		"node-gyp": "npm:node-gyp@10.3.1",
 		"zod": "3.25.76"
 	},
-	"vscodeCommit": "eb014b61a9ac4d91acc39984167e2ca84c03b758",
+	"vscodeCommit": "afba0a4a1fc1e34dae9073d6787b6b541bda23eb",
 	"__metadata": {
 		"id": "7ec7d6e6-b89e-4cc5-a59b-d6c4d238246f",
 		"publisherId": {
