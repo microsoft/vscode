@@ -727,6 +727,9 @@ export interface ITerminalGroupService extends ITerminalInstanceHost {
 	 */
 	moveGroup(source: SingleOrMany<ITerminalInstance>, target: ITerminalInstance): void;
 	moveGroupToEnd(source: SingleOrMany<ITerminalInstance>): void;
+	moveGroupUp(group: ITerminalGroup): void;
+	moveGroupDown(group: ITerminalGroup): void;
+	getGroupsBelow(group: ITerminalGroup): ITerminalGroup[];
 
 	moveInstance(source: ITerminalInstance, target: ITerminalInstance, side: 'before' | 'after'): void;
 	unsplitInstance(instance: ITerminalInstance): void;

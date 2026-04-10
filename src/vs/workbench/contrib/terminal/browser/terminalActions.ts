@@ -562,6 +562,50 @@ export function registerTerminalActions() {
 	});
 
 	registerTerminalAction({
+		id: TerminalCommandId.MoveTabUp,
+		title: localize2('workbench.action.terminal.moveTabUp', 'Move Terminal Tab Up'),
+		precondition: ContextKeyExpr.greater(TerminalContextKeys.groupCount.key, 1),
+		run: (c) => {
+			const group = c.groupService.activeGroup;
+			if (group) {
+				c.groupService.moveGroupUp(group);
+			}
+		}
+	});
+
+	registerTerminalAction({
+		id: TerminalCommandId.MoveTabDown,
+		title: localize2('workbench.action.terminal.moveTabDown', 'Move Terminal Tab Down'),
+		precondition: ContextKeyExpr.greater(TerminalContextKeys.groupCount.key, 1),
+		run: (c) => {
+			const group = c.groupService.activeGroup;
+			if (group) {
+				c.groupService.moveGroupDown(group);
+			}
+		}
+	});
+
+	registerTerminalAction({
+		id: TerminalCommandId.KillGroupsBelow,
+		title: localize2('workbench.action.terminal.killGroupsBelow', 'Kill Terminals Below'),
+		f1: true,
+		precondition: ContextKeyExpr.greater(TerminalContextKeys.groupCount.key, 1),
+		run: async (c) => {
+			const group = c.groupService.activeGroup;
+			if (group) {
+				const groupsBelow = c.groupService.getGroupsBelow(group);
+				const disposePromises: Promise<void>[] = [];
+				for (const g of groupsBelow) {
+					for (const instance of g.terminalInstances) {
+						disposePromises.push(c.service.safeDisposeTerminal(instance));
+					}
+				}
+				await Promise.all(disposePromises);
+			}
+		}
+	});
+
+	registerTerminalAction({
 		id: TerminalCommandId.RunSelectedText,
 		title: localize2('workbench.action.terminal.runSelectedText', 'Run Selected Text In Active Terminal'),
 		run: async (c, accessor) => {
