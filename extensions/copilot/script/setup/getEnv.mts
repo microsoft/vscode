@@ -90,4 +90,5 @@ async function main() {
 
 main().catch(error => {
 	console.error(red(`Error when setting up .env file:\n${error}`));
+	process.exit(1);
 });
