@@ -168,8 +168,8 @@ export class ClassicAICustomizationWelcomePage extends Disposable implements IAI
 					e.stopPropagation();
 					this.callbacks.closeEditor();
 					if (this.workspaceService.isSessionsWindow) {
-						const typeLabel = category.label.toLowerCase();
-						this.callbacks.prefillChat(`Create me a ${typeLabel} that `, { isPartialQuery: true });
+						const typeLabel = category.label.toLowerCase().replace(/s$/, '');
+						this.callbacks.prefillChat(`Create me a custom ${typeLabel} that `, { isPartialQuery: true });
 					} else {
 						this.workspaceService.generateCustomization(category.promptType!);
 					}
