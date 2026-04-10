@@ -109,7 +109,7 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 			const inputRow = DOM.append(gettingStarted, $('.welcome-prompts-input-row'));
 			this.inputElement = DOM.append(inputRow, $('input.welcome-prompts-input')) as HTMLInputElement;
 			this.inputElement.type = 'text';
-			this.inputElement.placeholder = localize('workflowInputPlaceholder', "Describe your project and coding patterns...");
+			this.inputElement.placeholder = localize('workflowInputPlaceholder', "I'm building a React app with TypeScript and Tailwind...");
 			this.inputElement.setAttribute('aria-label', localize('workflowInputAriaLabel', "Describe your project to generate a workflow"));
 
 			const submitBtn = DOM.append(inputRow, $('button.welcome-prompts-input-submit'));
