@@ -91,6 +91,7 @@ function renderClassicWelcomePage(ctx: ComponentFixtureContext): void {
 		workspaceService.welcomePageFeatures,
 		{
 			selectSection: () => { },
+			selectSectionWithMarketplace: () => { },
 			closeEditor: () => { },
 			prefillChat: () => { },
 		},
@@ -108,6 +109,7 @@ function renderPromptLaunchersWelcomePage(ctx: ComponentFixtureContext): void {
 		workspaceService.welcomePageFeatures,
 		{
 			selectSection: () => { },
+			selectSectionWithMarketplace: () => { },
 			closeEditor: () => { },
 			prefillChat: () => { },
 		},
@@ -128,6 +130,7 @@ function renderSelectedWelcomePage(ctx: ComponentFixtureContext, variant: AICust
 		workspaceService.welcomePageFeatures,
 		{
 			selectSection: () => { },
+			selectSectionWithMarketplace: () => { },
 			closeEditor: () => { },
 			prefillChat: () => { },
 		},
