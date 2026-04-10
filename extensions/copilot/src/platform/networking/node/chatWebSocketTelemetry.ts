@@ -64,6 +64,7 @@ export interface IChatWebSocketRequestSentTelemetryProperties extends IChatWebSo
 	statefulMarkerMatched: boolean;
 	previousResponseIdUnset: boolean;
 	hasCompactionData: boolean;
+	summarizedAtRoundIdMatched: boolean;
 	tokenCountMax: number;
 	connectionDurationMs: number;
 	totalSentMessageCount: number;
@@ -90,6 +91,7 @@ export interface IChatWebSocketRequestOutcomeTelemetryProperties extends IChatWe
 	statefulMarkerMatched: boolean;
 	previousResponseIdUnset: boolean;
 	hasCompactionData: boolean;
+	summarizedAtRoundIdMatched: boolean;
 	promptTokenCount: number;
 	tokenCountMax: number;
 	connectionDurationMs: number;
@@ -306,6 +308,7 @@ export class ChatWebSocketTelemetrySender {
 				"statefulMarkerMatched": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the connection stateful marker matched the previous_response_id sent in the request", "isMeasurement": true },
 				"previousResponseIdUnset": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether previous_response_id was undefined in the request", "isMeasurement": true },
 				"hasCompactionData": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the request input contains compaction data", "isMeasurement": true },
+				"summarizedAtRoundIdMatched": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the summarized round ID matches the one stored on the connection", "isMeasurement": true },
 				"tokenCountMax": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Maximum generated tokens", "isMeasurement": true },
 				"totalSentMessageCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of messages sent over this connection", "isMeasurement": true },
 				"totalReceivedMessageCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of messages received over this connection", "isMeasurement": true },
@@ -328,6 +331,7 @@ export class ChatWebSocketTelemetrySender {
 			statefulMarkerMatched: properties.statefulMarkerMatched ? 1 : 0,
 			previousResponseIdUnset: properties.previousResponseIdUnset ? 1 : 0,
 			hasCompactionData: properties.hasCompactionData ? 1 : 0,
+			summarizedAtRoundIdMatched: properties.summarizedAtRoundIdMatched ? 1 : 0,
 			tokenCountMax: properties.tokenCountMax,
 			totalSentMessageCount: properties.totalSentMessageCount,
 			totalReceivedMessageCount: properties.totalReceivedMessageCount,
@@ -403,6 +407,7 @@ export class ChatWebSocketTelemetrySender {
 				"statefulMarkerMatched": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the connection stateful marker matched the previous_response_id sent in the request", "isMeasurement": true },
 				"previousResponseIdUnset": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether previous_response_id was undefined in the request", "isMeasurement": true },
 				"hasCompactionData": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the request input contains compaction data", "isMeasurement": true },
+				"summarizedAtRoundIdMatched": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the summarized round ID matches the one stored on the connection", "isMeasurement": true },
 				"promptTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of prompt tokens, locally counted", "isMeasurement": true },
 				"tokenCountMax": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Maximum generated tokens", "isMeasurement": true },
 				"totalSentMessageCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of messages sent over this connection", "isMeasurement": true },
@@ -438,6 +443,7 @@ export class ChatWebSocketTelemetrySender {
 			statefulMarkerMatched: properties.statefulMarkerMatched ? 1 : 0,
 			previousResponseIdUnset: properties.previousResponseIdUnset ? 1 : 0,
 			hasCompactionData: properties.hasCompactionData ? 1 : 0,
+			summarizedAtRoundIdMatched: properties.summarizedAtRoundIdMatched ? 1 : 0,
 			promptTokenCount: properties.promptTokenCount,
 			tokenCountMax: properties.tokenCountMax,
 			totalSentMessageCount: properties.totalSentMessageCount,
