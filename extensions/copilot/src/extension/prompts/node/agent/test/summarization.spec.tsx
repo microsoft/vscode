@@ -582,27 +582,6 @@ suite('extractInlineSummary', () => {
 	});
 });
 
-suite('Inline Summarization Prompt', () => {
-	let accessor: ITestingServicesAccessor;
-
-	beforeAll(() => {
-		const services = createExtensionUnitTestingServices();
-		services.define(IWorkspaceService, new SyncDescriptor(
-			TestWorkspaceService,
-			[
-				[URI.file('/workspace')],
-				[]
-			]
-		));
-		services.define(IChatMLFetcher, new StaticChatMLFetcher([]));
-		accessor = services.createTestingAccessor();
-	});
-
-	afterAll(() => {
-		accessor.dispose();
-	});
-});
-
 suite('stripToolSearchMessages', () => {
 	function makeAssistantMessage(toolCalls: { id: string; name: string }[], text = 'response'): Raw.ChatMessage {
 		return {
