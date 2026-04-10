@@ -333,8 +333,9 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			logger.trace('cached edit was previously rejected');
 			telemetryBuilder.setStatus('previouslyRejectedCache');
 			telemetryBuilder.setWasPreviouslyRejected();
-			if (cachedEdit.edit) {
-				this._rejectionCollector.reject(docId, cachedEdit.edit);
+			const rejectedEdit = cachedEdit.rebasedEdit ?? cachedEdit.edit;
+			if (rejectedEdit) {
+				this._rejectionCollector.reject(docId, rejectedEdit);
 			}
 			const nextEditResult = new NextEditResult(logContext.requestId, cachedEdit.source, undefined);
 			return nextEditResult;
@@ -834,7 +835,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 					ithEdit === 0 ? targetDocState.nextEdits : undefined,
 					ithEdit === 0 ? nextEditRequest.intermediateUserEdit : undefined,
 					req,
-					{ isFromCursorJump: streamedEdit.isFromCursorJump, originalEditWindow: streamedEdit.originalWindow, cursorOffset: activeDocSelection?.start }
+					{ isFromCursorJump: streamedEdit.isFromCursorJump, originalEditWindow: streamedEdit.originalWindow, cursorOffset: targetDocState.docId === curDocId ? activeDocSelection?.start : undefined }
 				);
 				myLogger.trace(`populated cache for ${ithEdit}`);
 			}
@@ -1371,7 +1372,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 								ithEdit === 0 ? targetDocState.nextEdits : undefined,
 								undefined, // no userEditSince for speculative
 								req,
-								{ isFromCursorJump: streamedEdit.isFromCursorJump, originalEditWindow: streamedEdit.originalWindow, cursorOffset }
+								{ isFromCursorJump: streamedEdit.isFromCursorJump, originalEditWindow: streamedEdit.originalWindow, cursorOffset: targetDocState.docId === curDocId ? cursorOffset : undefined }
 							);
 
 							if (!nextEditRequest.firstEdit.isSettled && cachedEdit) {

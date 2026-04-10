@@ -14,6 +14,7 @@ import { NullExperimentationService } from '../../../../platform/telemetry/commo
 import { URI } from '../../../../util/vs/base/common/uri';
 import { generateUuid } from '../../../../util/vs/base/common/uuid';
 import { StringReplacement } from '../../../../util/vs/editor/common/core/edits/stringEdit';
+import { Position } from '../../../../util/vs/editor/common/core/position';
 import { OffsetRange } from '../../../../util/vs/editor/common/core/ranges/offsetRange';
 import { StringText } from '../../../../util/vs/editor/common/core/text/abstractText';
 import { NextEditCache } from '../../node/nextEditCache';
@@ -43,7 +44,7 @@ describe('NextEditCache cursor distance check', () => {
 
 	/** Get the offset of the start of a 1-indexed line in docContent. */
 	function lineStartOffset(lineNumber: number): number {
-		return docText.getTransformer().getOffset({ lineNumber, column: 1 } as any);
+		return docText.getTransformer().getOffset(new Position(lineNumber, 1));
 	}
 
 	function cursorAtLine(lineNumber: number): OffsetRange[] {
