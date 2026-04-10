@@ -88,7 +88,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sandbox-runtime": "0.0.42",
-    "electron-osx-spaces": "0.1.0",
+    "electron-osx-spaces": "0.1.1",
     "@github/copilot": "^1.0.11",
     "@github/copilot-sdk": "^0.2.0",
     "@microsoft/1ds-core-js": "^3.2.13",
