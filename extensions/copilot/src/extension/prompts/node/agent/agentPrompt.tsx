@@ -59,11 +59,6 @@ export interface AgentPromptProps extends GenericBasePromptElementProps {
 	/**
 	 * When true, appends a summarization instruction as a user message in the
 	 * current agent loop iteration instead of making a separate LLM call.
-	 * The model outputs ONLY a summary (no tool calls) and the loop continues
-	 * with the compacted history on the next iteration.
-	 */
-	readonly inlineSummarization?: boolean;
-
 	/**
 	 * Enables cache breakpoints and summarization
 	 */
@@ -151,7 +146,6 @@ export class AgentPrompt extends PromptElement<AgentPromptProps> {
 				<SummarizedConversationHistory
 					flexGrow={1}
 					triggerSummarize={this.props.triggerSummarize}
-					inlineSummarization={this.props.inlineSummarization}
 					priority={900}
 					promptContext={this.props.promptContext}
 					location={this.props.location}

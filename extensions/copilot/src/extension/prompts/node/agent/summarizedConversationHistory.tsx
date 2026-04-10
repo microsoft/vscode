@@ -397,8 +397,6 @@ export interface SummarizedAgentHistoryProps extends BasePromptElementProps, Age
 	readonly location: ChatLocation;
 	readonly promptContext: IBuildPromptContext;
 	readonly triggerSummarize?: boolean;
-	/** When true, appends a summarization instruction in the agent loop instead of a separate LLM call. */
-	readonly inlineSummarization?: boolean;
 	readonly tools?: ReadonlyArray<LanguageModelToolInformation> | undefined;
 	readonly enableCacheBreakpoints?: boolean;
 	readonly workingNotebook?: NotebookDocument;
@@ -474,18 +472,12 @@ export class SummarizedConversationHistory extends PromptElement<SummarizedAgent
 			}
 		}
 
-		// Inline summarization: append instruction as a user message in the agent loop
-		// instead of making a separate LLM call. The model outputs only a summary.
-		const inlineSummarizationRequested = this.props.inlineSummarization && !this.props.triggerSummarize;
-
 		return <>
 			{historyMetadata && <meta value={historyMetadata} />}
-			{inlineSummarizationRequested && <meta value={new InlineSummarizationRequestedMetadata()} />}
 			<ConversationHistory
 				{...this.props}
 				promptContext={promptContext}
 				enableCacheBreakpoints={this.props.enableCacheBreakpoints} />
-			{inlineSummarizationRequested && <InlineSummarizationUserMessage priority={1000} endpoint={this.props.endpoint} />}
 		</>;
 	}
 
@@ -1066,13 +1058,6 @@ class SummaryMessageElement extends PromptElement<SummaryMessageProps> {
 		</UserMessage>;
 	}
 }
-
-/**
- * Metadata flag indicating that inline summarization was requested in this render.
- * The caller (agentIntent) checks for this to know the model response should
- * contain only a summary.
- */
-export class InlineSummarizationRequestedMetadata extends PromptMetadata { }
 
 export interface InlineSummarizationUserMessageProps extends BasePromptElementProps {
 	readonly endpoint: IChatEndpoint;

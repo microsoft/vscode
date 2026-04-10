@@ -753,8 +753,9 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 
 		const bgStartTime = Date.now();
 
-		// Snapshot rounds and history so telemetry reflects state at kick-off
-		// time, not at completion time (the main loop mutates toolCallRounds).
+		// Snapshot rounds so telemetry reflects state at kick-off time, not at
+		// completion time (the main loop mutates toolCallRounds). History is
+		// stable across a single user turn so a reference is sufficient.
 		const rounds = [...(promptContext.toolCallRounds ?? [])];
 		const history = promptContext.history;
 		let toolCallRoundId: string | undefined;
