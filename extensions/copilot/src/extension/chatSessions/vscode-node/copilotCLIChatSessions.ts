@@ -50,6 +50,7 @@ import { CopilotCloudSessionsProvider } from './copilotCloudSessionsProvider';
 import { IPullRequestDetectionService } from './pullRequestDetectionService';
 import { getSelectedSessionOptions, ISessionOptionGroupBuilder, OPEN_REPOSITORY_COMMAND_ID, toRepositoryOptionItem, toWorkspaceFolderOptionItem } from './sessionOptionGroupBuilder';
 import { ISessionRequestLifecycle } from './sessionRequestLifecycle';
+import { UNTRUSTED_FOLDER_MESSAGE } from './folderRepositoryManagerImpl';
 
 /**
  * ODO:
@@ -307,6 +308,10 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 		this._register(this._workspaceService.onDidChangeWorkspaceFolders(refreshActiveInputState));
 	}
 
+	public async updateInputStateAfterFolderSelection(inputState: vscode.ChatSessionInputState, folderUri: vscode.Uri): Promise<void> {
+		return this._optionGroupBuilder.setNewFolderForInputState(inputState, folderUri);
+	}
+
 	public async refreshSession(refreshOptions: { reason: 'update'; sessionId: string } | { reason: 'update'; sessionIds: string[] } | { reason: 'delete'; sessionId: string }): Promise<void> {
 		if (refreshOptions.reason === 'delete') {
 			const uri = SessionIdForCLI.getResource(refreshOptions.sessionId);
@@ -542,9 +547,6 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 		}
 	}
 
-	public async updateInputStateAfterFolderSelection(inputState: vscode.ChatSessionInputState, folderUri: vscode.Uri): Promise<void> {
-		return this._optionGroupBuilder.updateInputStateAfterFolderSelection(inputState, folderUri);
-	}
 }
 
 export class CopilotCLIChatSessionParticipant extends Disposable {
@@ -1114,10 +1116,7 @@ export function registerCLIChatCommands(
 	}
 
 	// Command handler receives `{ inputState, sessionResource }` context args (new API)
-	disposableStore.add(vscode.commands.registerCommand(OPEN_REPOSITORY_COMMAND_ID, async (contextArg?: { inputState: vscode.ChatSessionInputState; sessionResource: vscode.Uri | undefined } | vscode.Uri) => {
-		// Support both new API shape and legacy Uri shape for backward compat
-		const inputState = contextArg && !isUri(contextArg) ? contextArg.inputState : undefined;
-
+	disposableStore.add(vscode.commands.registerCommand(OPEN_REPOSITORY_COMMAND_ID, async ({ inputState }: { inputState: vscode.ChatSessionInputState; sessionResource: vscode.Uri | undefined }) => {
 		let selectedFolderUri: Uri | undefined = undefined;
 		const mruItems = await copilotCLIFolderMruService.getRecentlyUsedFolders(CancellationToken.None);
 
@@ -1209,11 +1208,15 @@ export function registerCLIChatCommands(
 			return;
 		}
 
-		// // We need to check trust now, as we need to determine whether this is a Git repo or not.
-		// // Using the relevant services to check if its a git repo result in checking trust as well, might as well check now instead of complicating code later to handle both trusted and untrusted cases.
-		// if (!(await vscode.workspace.isResourceTrusted(selectedFolderUri))) {
-		// 	return;
-		// }
+		// First check if user trusts the folder.
+		const trusted = await vscode.workspace.requestResourceTrust({
+			uri: selectedFolderUri,
+			message: UNTRUSTED_FOLDER_MESSAGE
+		});
+		if (!trusted) {
+			return;
+		}
+
 
 		// Update inputState groups with newly selected folder and reload branches
 		if (inputState) {

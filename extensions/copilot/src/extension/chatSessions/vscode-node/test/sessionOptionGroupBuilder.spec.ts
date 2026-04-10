@@ -725,6 +725,99 @@ describe('SessionOptionGroupBuilder', () => {
 				const repoGroup = groups.find(g => g.id === REPOSITORY_OPTION_ID);
 				expect(repoGroup!.selected?.id).toBe(currentUri.fsPath);
 			});
+
+			it('adds new folder (git repo) to top of items in welcome view', async () => {
+				workspaceService = new NullWorkspaceService([]);
+				builder = new SessionOptionGroupBuilder(
+					gitService, configurationService, context, workspaceService,
+					folderMruService, agentSessionsWorkspace, worktreeService, folderRepositoryManager,
+				);
+				const mruUri = URI.file('/existing-repo');
+				folderMruService.getRecentlyUsedFolders.mockResolvedValue([
+					{ folder: mruUri, repository: mruUri, lastAccessed: Date.now() },
+				]);
+				const newFolderUri = URI.file('/new-git-folder');
+				const newRepo = makeRepo(newFolderUri.fsPath);
+				gitService.getRepository.mockResolvedValue(newRepo);
+
+				const previousState: vscode.ChatSessionInputState = {
+					onDidChange: Event.None,
+					groups: [],
+				};
+				builder.setNewFolderForInputState(previousState, newFolderUri as any);
+
+				const groups = await builder.provideChatSessionProviderOptionGroups(previousState);
+				const repoGroup = groups.find(g => g.id === REPOSITORY_OPTION_ID);
+				expect(repoGroup).toBeDefined();
+				expect(repoGroup!.items[0].id).toBe(newFolderUri.fsPath);
+			});
+
+			it('adds new folder (non-git) to top of items in welcome view', async () => {
+				workspaceService = new NullWorkspaceService([]);
+				builder = new SessionOptionGroupBuilder(
+					gitService, configurationService, context, workspaceService,
+					folderMruService, agentSessionsWorkspace, worktreeService, folderRepositoryManager,
+				);
+				const mruUri = URI.file('/existing-repo');
+				folderMruService.getRecentlyUsedFolders.mockResolvedValue([
+					{ folder: mruUri, repository: mruUri, lastAccessed: Date.now() },
+				]);
+				const newFolderUri = URI.file('/new-plain-folder');
+				gitService.getRepository.mockResolvedValue(undefined);
+
+				const previousState: vscode.ChatSessionInputState = {
+					onDidChange: Event.None,
+					groups: [],
+				};
+				builder.setNewFolderForInputState(previousState, newFolderUri as any);
+
+				const groups = await builder.provideChatSessionProviderOptionGroups(previousState);
+				const repoGroup = groups.find(g => g.id === REPOSITORY_OPTION_ID);
+				expect(repoGroup).toBeDefined();
+				expect(repoGroup!.items[0].id).toBe(newFolderUri.fsPath);
+			});
+
+			it('deduplicates new folder if already in MRU list', async () => {
+				workspaceService = new NullWorkspaceService([]);
+				builder = new SessionOptionGroupBuilder(
+					gitService, configurationService, context, workspaceService,
+					folderMruService, agentSessionsWorkspace, worktreeService, folderRepositoryManager,
+				);
+				const sharedUri = URI.file('/shared-repo');
+				folderMruService.getRecentlyUsedFolders.mockResolvedValue([
+					{ folder: sharedUri, repository: sharedUri, lastAccessed: Date.now() },
+				]);
+				const newRepo = makeRepo(sharedUri.fsPath);
+				gitService.getRepository.mockResolvedValue(newRepo);
+
+				const previousState: vscode.ChatSessionInputState = {
+					onDidChange: Event.None,
+					groups: [],
+				};
+				builder.setNewFolderForInputState(previousState, sharedUri as any);
+
+				const groups = await builder.provideChatSessionProviderOptionGroups(previousState);
+				const repoGroup = groups.find(g => g.id === REPOSITORY_OPTION_ID);
+				expect(repoGroup).toBeDefined();
+				// Should not have duplicates
+				const matchingItems = repoGroup!.items.filter(i => i.id === sharedUri.fsPath);
+				expect(matchingItems).toHaveLength(1);
+				// And it should be at the top
+				expect(repoGroup!.items[0].id).toBe(sharedUri.fsPath);
+			});
+
+			it('does not add new folder when no previousInputState', async () => {
+				workspaceService = new NullWorkspaceService([]);
+				builder = new SessionOptionGroupBuilder(
+					gitService, configurationService, context, workspaceService,
+					folderMruService, agentSessionsWorkspace, worktreeService, folderRepositoryManager,
+				);
+				folderMruService.getRecentlyUsedFolders.mockResolvedValue([]);
+
+				const groups = await builder.provideChatSessionProviderOptionGroups(undefined);
+				const repoGroup = groups.find(g => g.id === REPOSITORY_OPTION_ID);
+				expect(repoGroup!.items).toHaveLength(0);
+			});
 		});
 
 		describe('handleInputStateChange', () => {

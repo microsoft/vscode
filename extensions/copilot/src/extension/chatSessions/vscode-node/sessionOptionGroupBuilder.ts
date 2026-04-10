@@ -315,6 +315,7 @@ export function folderMRUToChatProviderOptions(mruItems: FolderRepositoryMRUEntr
  */
 export interface ISessionOptionGroupBuilder {
 	readonly _serviceBrand: undefined;
+	setNewFolderForInputState(inputState: vscode.ChatSessionInputState, folderUri: vscode.Uri): void;
 	provideChatSessionProviderOptionGroups(previousInputState: vscode.ChatSessionInputState | undefined): Promise<vscode.ChatSessionProviderOptionGroup[]>;
 	buildBranchOptionGroup(branches: vscode.ChatSessionProviderOptionItem[], headBranchName: string | undefined, isolationEnabled: boolean, currentIsolation: IsolationMode | undefined, previousSelection: vscode.ChatSessionProviderOptionItem | undefined): vscode.ChatSessionProviderOptionGroup | undefined;
 	handleInputStateChange(state: vscode.ChatSessionInputState): Promise<void>;
@@ -331,7 +332,8 @@ export class SessionOptionGroupBuilder implements ISessionOptionGroupBuilder {
 	private _lastUsedFolderIdInUntitledWorkspace?: { kind: 'folder' | 'repo'; uri: vscode.Uri; lastAccessed: number };
 	private readonly _getBranchOptionItemsForRepositorySequencer = new SequencerByKey<string>();
 	private readonly _pendingBuildGroups = new WeakMap<vscode.ChatSessionInputState, Promise<vscode.ChatSessionProviderOptionGroup[]>>();
-
+	// Keeps track of the new folders selected by user, by using folder dialog to select a new folder.
+	private readonly _inputStateNewFolders = new WeakMap<vscode.ChatSessionInputState, vscode.Uri>();
 	constructor(
 		@IGitService private readonly gitService: IGitService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -343,6 +345,10 @@ export class SessionOptionGroupBuilder implements ISessionOptionGroupBuilder {
 		@IFolderRepositoryManager private readonly folderRepositoryManager: IFolderRepositoryManager,
 	) { }
 
+
+	setNewFolderForInputState(inputState: vscode.ChatSessionInputState, folderUri: vscode.Uri): void {
+		this._inputStateNewFolders.set(inputState, folderUri);
+	}
 	/**
 	 * Return the git repository for a URI only if the folder is trusted.
 	 * Untrusted folders are treated as non-git.
@@ -391,8 +397,18 @@ export class SessionOptionGroupBuilder implements ISessionOptionGroupBuilder {
 
 			// For untitled workspaces, show last used repositories and "Open Repository..." command
 			const repositories = await this.copilotCLIFolderMruService.getRecentlyUsedFolders(CancellationToken.None);
+			const newFolder = previousInputState ? this._inputStateNewFolders.get(previousInputState) : undefined;
 			items = folderMRUToChatProviderOptions(repositories);
 			items.splice(MAX_MRU_ENTRIES); // Limit to max entries
+			if (newFolder) {
+				const newFolderRepo = await this.getTrustedRepository(newFolder, true);
+				const newFolderItem = newFolderRepo
+					? toRepositoryOptionItem(newFolderRepo.rootUri)
+					: toWorkspaceFolderOptionItem(newFolder, newFolder.path.split('/').pop() ?? newFolder.fsPath);
+				// Remove duplicate if already in the list, then add to top
+				items = items.filter(item => item.id !== newFolderItem.id);
+				items.unshift(newFolderItem);
+			}
 			if (this._lastUsedFolderIdInUntitledWorkspace) {
 				const folder = this._lastUsedFolderIdInUntitledWorkspace.uri;
 				const isRepo = this._lastUsedFolderIdInUntitledWorkspace.kind === 'repo';
