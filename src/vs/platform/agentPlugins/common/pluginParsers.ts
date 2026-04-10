@@ -191,7 +191,7 @@ export function parseComponentPathConfig(raw: unknown): IComponentPathConfig {
  * @param boundaryUri The outermost directory that resolved paths must stay within. Defaults to {@link pluginUri}.
  */
 export function resolveComponentDirs(pluginUri: URI, defaultDir: string, config: IComponentPathConfig, boundaryUri?: URI): readonly URI[] {
-	const boundary = boundaryUri ?? pluginUri;
+	const boundary = (boundaryUri && isEqualOrParent(pluginUri, boundaryUri)) ? boundaryUri : pluginUri;
 	const dirs: URI[] = [];
 	if (!config.exclusive) {
 		dirs.push(joinPath(pluginUri, defaultDir));

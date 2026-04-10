@@ -116,6 +116,13 @@ suite('pluginParsers', () => {
 			const dirs = resolveComponentDirs(pluginUri, 'skills', { paths: ['../../outside'], exclusive: false }, boundaryUri);
 			assert.strictEqual(dirs.length, 1);
 		});
+
+		test('falls back to pluginUri when boundaryUri is not an ancestor of pluginUri', () => {
+			const boundaryUri = URI.file('/unrelated/directory');
+			const dirs = resolveComponentDirs(pluginUri, 'skills', { paths: ['custom'], exclusive: false }, boundaryUri);
+			assert.strictEqual(dirs.length, 2);
+			assert.ok(dirs[1].path.endsWith('/custom'));
+		});
 	});
 
 	// ---- normalizeMcpServerConfiguration --------------------------------
