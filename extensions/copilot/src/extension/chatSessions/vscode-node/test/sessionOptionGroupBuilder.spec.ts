@@ -545,6 +545,48 @@ describe('SessionOptionGroupBuilder', () => {
 				expect(repoGroup!.items.length).toBe(2);
 			});
 
+			it('pre-selects selectedFolderUri in multi-repo workspace', async () => {
+				workspaceService = new NullWorkspaceService([URI.file('/repo1'), URI.file('/repo2')]);
+				builder = new SessionOptionGroupBuilder(
+					gitService, configurationService, context, workspaceService,
+					folderMruService, agentSessionsWorkspace, worktreeService, folderRepositoryManager,
+				);
+				gitService.repositories = [makeRepo('/repo1'), makeRepo('/repo2')];
+				gitService.getRepository.mockResolvedValue(makeRepo('/repo2'));
+				await configurationService.setConfig(ConfigKey.Advanced.CLIBranchSupport, false);
+
+				const groups = await builder.provideChatSessionProviderOptionGroups(undefined, URI.file('/repo2') as any);
+				const repoGroup = groups.find(g => g.id === REPOSITORY_OPTION_ID);
+				expect(repoGroup).toBeDefined();
+				expect(repoGroup!.selected?.id).toBe(URI.file('/repo2').fsPath);
+			});
+
+			it('pre-selects selectedFolderUri over previous selection in multi-repo workspace', async () => {
+				workspaceService = new NullWorkspaceService([URI.file('/repo1'), URI.file('/repo2')]);
+				builder = new SessionOptionGroupBuilder(
+					gitService, configurationService, context, workspaceService,
+					folderMruService, agentSessionsWorkspace, worktreeService, folderRepositoryManager,
+				);
+				gitService.repositories = [makeRepo('/repo1'), makeRepo('/repo2')];
+				gitService.getRepository.mockResolvedValue(makeRepo('/repo2'));
+				await configurationService.setConfig(ConfigKey.Advanced.CLIBranchSupport, false);
+
+				const previousState: vscode.ChatSessionInputState = {
+					onDidChange: Event.None,
+					groups: [{
+						id: REPOSITORY_OPTION_ID,
+						name: 'Folder',
+						description: '',
+						items: [],
+						selected: { id: URI.file('/repo1').fsPath, name: 'repo1' },
+					}],
+				};
+
+				const groups = await builder.provideChatSessionProviderOptionGroups(previousState, URI.file('/repo2') as any);
+				const repoGroup = groups.find(g => g.id === REPOSITORY_OPTION_ID);
+				expect(repoGroup!.selected?.id).toBe(URI.file('/repo2').fsPath);
+			});
+
 			it('does not include repository group for single-repo workspace', async () => {
 				gitService.repositories = [makeRepo('/workspace')];
 				await configurationService.setConfig(ConfigKey.Advanced.CLIBranchSupport, false);
@@ -659,6 +701,53 @@ describe('SessionOptionGroupBuilder', () => {
 				const groups = await builder.provideChatSessionProviderOptionGroups(undefined);
 				const repoGroup = groups.find(g => g.id === REPOSITORY_OPTION_ID);
 				expect(repoGroup!.items).toHaveLength(10);
+			});
+
+			it('pre-selects selectedFolderUri in welcome view', async () => {
+				workspaceService = new NullWorkspaceService([]);
+				builder = new SessionOptionGroupBuilder(
+					gitService, configurationService, context, workspaceService,
+					folderMruService, agentSessionsWorkspace, worktreeService, folderRepositoryManager,
+				);
+				const mruUri1 = URI.file('/repo-a');
+				const mruUri2 = URI.file('/repo-b');
+				folderMruService.getRecentlyUsedFolders.mockResolvedValue([
+					{ folder: mruUri1, repository: mruUri1, lastAccessed: Date.now() },
+					{ folder: mruUri2, repository: mruUri2, lastAccessed: Date.now() - 1000 },
+				]);
+
+				const groups = await builder.provideChatSessionProviderOptionGroups(undefined, mruUri2 as any);
+				const repoGroup = groups.find(g => g.id === REPOSITORY_OPTION_ID);
+				expect(repoGroup!.selected?.id).toBe(mruUri2.fsPath);
+			});
+
+			it('pre-selects selectedFolderUri over previous selection in welcome view', async () => {
+				workspaceService = new NullWorkspaceService([]);
+				builder = new SessionOptionGroupBuilder(
+					gitService, configurationService, context, workspaceService,
+					folderMruService, agentSessionsWorkspace, worktreeService, folderRepositoryManager,
+				);
+				const mruUri1 = URI.file('/repo-a');
+				const mruUri2 = URI.file('/repo-b');
+				folderMruService.getRecentlyUsedFolders.mockResolvedValue([
+					{ folder: mruUri1, repository: mruUri1, lastAccessed: Date.now() },
+					{ folder: mruUri2, repository: mruUri2, lastAccessed: Date.now() - 1000 },
+				]);
+
+				const previousState: vscode.ChatSessionInputState = {
+					onDidChange: Event.None,
+					groups: [{
+						id: REPOSITORY_OPTION_ID,
+						name: 'Folder',
+						description: '',
+						items: [],
+						selected: { id: mruUri1.fsPath, name: 'repo-a' },
+					}],
+				};
+
+				const groups = await builder.provideChatSessionProviderOptionGroups(previousState, mruUri2 as any);
+				const repoGroup = groups.find(g => g.id === REPOSITORY_OPTION_ID);
+				expect(repoGroup!.selected?.id).toBe(mruUri2.fsPath);
 			});
 
 			it('shows branch dropdown in welcome view when first MRU item is a git repo', async () => {
@@ -1135,176 +1224,6 @@ describe('SessionOptionGroupBuilder', () => {
 				const groups = await builder.buildExistingSessionInputStateGroups(resource, CancellationToken.None);
 
 				expect(groups.find(g => g.id === BRANCH_OPTION_ID)).toBeUndefined();
-			});
-		});
-
-		describe('updateInputStateAfterFolderSelection', () => {
-			it('updates repo group selected item', async () => {
-				await configurationService.setConfig(ConfigKey.Advanced.CLIBranchSupport, false);
-				const repo = makeRepo('/new-folder');
-				gitService.getRepository.mockResolvedValue(repo);
-
-				const state: vscode.ChatSessionInputState = {
-					onDidChange: Event.None,
-					groups: [{
-						id: REPOSITORY_OPTION_ID,
-						name: 'Folder',
-						description: '',
-						items: [{ id: URI.file('/old-folder').fsPath, name: 'old-folder' }],
-						selected: { id: URI.file('/old-folder').fsPath, name: 'old-folder' },
-					}],
-				};
-
-				await builder.updateInputStateAfterFolderSelection(state, URI.file('/new-folder') as any);
-
-				const repoGroup = state.groups.find(g => g.id === REPOSITORY_OPTION_ID);
-				expect(repoGroup!.selected!.id).toBe(URI.file('/new-folder').fsPath);
-			});
-
-			it('rebuilds branch group when new folder is a git repo', async () => {
-				await configurationService.setConfig(ConfigKey.Advanced.CLIBranchSupport, true);
-				await configurationService.setConfig(ConfigKey.Advanced.CLIIsolationOption, true);
-				const repo = makeRepo('/new-repo');
-				gitService.getRepository.mockResolvedValue(repo);
-				gitService.getRefs.mockResolvedValue([makeRef('main'), makeRef('feature')]);
-
-				const state: vscode.ChatSessionInputState = {
-					onDidChange: Event.None,
-					groups: [
-						{
-							id: ISOLATION_OPTION_ID,
-							name: 'Isolation',
-							description: '',
-							items: [],
-							selected: { id: IsolationMode.Worktree, name: 'Worktree' },
-						},
-						{
-							id: REPOSITORY_OPTION_ID,
-							name: 'Folder',
-							description: '',
-							items: [],
-						},
-					],
-				};
-
-				await builder.updateInputStateAfterFolderSelection(state, URI.file('/new-repo') as any);
-
-				const branchGroup = state.groups.find(g => g.id === BRANCH_OPTION_ID);
-				expect(branchGroup).toBeDefined();
-				expect(branchGroup!.items.length).toBe(2);
-			});
-
-			it('removes branch group when new folder is not a git repo', async () => {
-				await configurationService.setConfig(ConfigKey.Advanced.CLIBranchSupport, true);
-				gitService.getRepository.mockResolvedValue(undefined);
-
-				const state: vscode.ChatSessionInputState = {
-					onDidChange: Event.None,
-					groups: [
-						{
-							id: REPOSITORY_OPTION_ID,
-							name: 'Folder',
-							description: '',
-							items: [],
-						},
-						{
-							id: BRANCH_OPTION_ID,
-							name: 'Branch',
-							description: '',
-							items: [{ id: 'main', name: 'main' }],
-						},
-					],
-				};
-
-				await builder.updateInputStateAfterFolderSelection(state, URI.file('/non-git-folder') as any);
-
-				const branchGroup = state.groups.find(g => g.id === BRANCH_OPTION_ID);
-				expect(branchGroup).toBeUndefined();
-			});
-
-			it('adds new folder to items if not already present', async () => {
-				await configurationService.setConfig(ConfigKey.Advanced.CLIBranchSupport, false);
-				gitService.getRepository.mockResolvedValue(undefined);
-
-				const existingItem = { id: URI.file('/old').fsPath, name: 'old' };
-				const state: vscode.ChatSessionInputState = {
-					onDidChange: Event.None,
-					groups: [{
-						id: REPOSITORY_OPTION_ID,
-						name: 'Folder',
-						description: '',
-						items: [existingItem],
-					}],
-				};
-
-				await builder.updateInputStateAfterFolderSelection(state, URI.file('/new-folder') as any);
-
-				const repoGroup = state.groups.find(g => g.id === REPOSITORY_OPTION_ID);
-				expect(repoGroup!.items.length).toBe(2);
-			});
-
-			it('treats untrusted folder as non-git and updates state', async () => {
-				await configurationService.setConfig(ConfigKey.Advanced.CLIBranchSupport, false);
-				gitService.getRepository.mockResolvedValue(undefined);
-
-				// Override isResourceTrusted to return false for this test
-				const origWorkspace = (vscodeShim as Record<string, unknown>).workspace;
-				(vscodeShim as Record<string, unknown>).workspace = {
-					...(origWorkspace as object),
-					isResourceTrusted: async () => false,
-				};
-				try {
-					const state: vscode.ChatSessionInputState = {
-						onDidChange: Event.None,
-						groups: [{
-							id: REPOSITORY_OPTION_ID,
-							name: 'Folder',
-							description: '',
-							items: [{ id: URI.file('/old').fsPath, name: 'old' }],
-							selected: { id: URI.file('/old').fsPath, name: 'old' },
-						}],
-					};
-
-					await builder.updateInputStateAfterFolderSelection(state, URI.file('/untrusted') as any);
-
-					// Dropdown updates to show the new folder, treated as non-git
-					const repoGroup = state.groups.find(g => g.id === REPOSITORY_OPTION_ID);
-					expect(repoGroup!.selected!.id).toBe(URI.file('/untrusted').fsPath);
-					// getRepository should not have been called
-					expect(gitService.getRepository).not.toHaveBeenCalled();
-				} finally {
-					(vscodeShim as Record<string, unknown>).workspace = origWorkspace;
-				}
-			});
-
-			it('tracks MRU in welcome view when updating folder selection', async () => {
-				// Use empty workspace to trigger welcome view
-				workspaceService = new NullWorkspaceService([]);
-				builder = new SessionOptionGroupBuilder(
-					gitService, configurationService, context, workspaceService,
-					folderMruService, agentSessionsWorkspace, worktreeService, folderRepositoryManager,
-				);
-				await configurationService.setConfig(ConfigKey.Advanced.CLIBranchSupport, false);
-				const repo = makeRepo('/my-repo');
-				gitService.getRepository.mockResolvedValue(repo);
-
-				const state: vscode.ChatSessionInputState = {
-					onDidChange: Event.None,
-					groups: [{
-						id: REPOSITORY_OPTION_ID,
-						name: 'Folder',
-						description: '',
-						items: [],
-					}],
-				};
-
-				await builder.updateInputStateAfterFolderSelection(state, URI.file('/my-repo') as any);
-
-				// Verify the last used folder appears in subsequent option group builds
-				folderMruService.getRecentlyUsedFolders.mockResolvedValue([]);
-				const groups = await builder.provideChatSessionProviderOptionGroups(undefined);
-				const repoGroup = groups.find(g => g.id === REPOSITORY_OPTION_ID);
-				expect(repoGroup!.items.find(i => i.id === URI.file('/my-repo').fsPath)).toBeDefined();
 			});
 		});
 

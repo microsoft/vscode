@@ -310,7 +310,7 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 
 	public async updateInputStateAfterFolderSelection(inputState: vscode.ChatSessionInputState, folderUri: vscode.Uri): Promise<void> {
 		this._optionGroupBuilder.setNewFolderForInputState(inputState, folderUri);
-		await this._optionGroupBuilder.handleInputStateChange(inputState);
+		await this._optionGroupBuilder.rebuildInputState(inputState, folderUri);
 	}
 
 	public async refreshSession(refreshOptions: { reason: 'update'; sessionId: string } | { reason: 'update'; sessionIds: string[] } | { reason: 'delete'; sessionId: string }): Promise<void> {
