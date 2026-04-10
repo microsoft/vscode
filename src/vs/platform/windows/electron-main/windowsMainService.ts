@@ -17,9 +17,9 @@ import { Disposable, DisposableStore, IDisposable } from '../../../base/common/l
 import { Schemas } from '../../../base/common/network.js';
 import { basename, join, normalize, posix } from '../../../base/common/path.js';
 import { getMarks, mark } from '../../../base/common/performance.js';
-import { IProcessEnvironment, isMacintosh, isWindows, OS } from '../../../base/common/platform.js';
+import { INodeProcess, IProcessEnvironment, isMacintosh, isWindows, OS } from '../../../base/common/platform.js';
 import { cwd } from '../../../base/common/process.js';
-import { extUriBiasedIgnorePathCase, isEqualAuthority, normalizePath, originalFSPath, removeTrailingPathSeparator } from '../../../base/common/resources.js';
+import { extUriBiasedIgnorePathCase, isEqual, isEqualAuthority, normalizePath, originalFSPath, removeTrailingPathSeparator } from '../../../base/common/resources.js';
 import { assertReturnsDefined } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { getNLSLanguage, getNLSMessages, localize } from '../../../nls.js';
@@ -58,6 +58,7 @@ import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-mai
 import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
 import { ICSSDevelopmentService } from '../../cssDev/node/cssDevService.js';
 import { ResourceSet } from '../../../base/common/map.js';
+import { VSBuffer } from '../../../base/common/buffer.js';
 
 //#region Helper Interfaces
 
@@ -291,8 +292,45 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		this.handleChatRequest(openConfig, [window]);
 	}
 
+	async openAgentsWindow(openConfig: IOpenConfiguration): Promise<ICodeWindow[]> {
+		this.logService.trace('windowsManager#openAgentsWindow');
+
+		// Open in a new browser window with the agent sessions workspace
+		return this.open(await this.ensureAgentsWindow(openConfig));
+	}
+
+	private async ensureAgentsWindow(openConfig: IOpenConfiguration): Promise<IOpenConfiguration> {
+		const agentSessionsWorkspaceUri = this.environmentMainService.agentSessionsWorkspace;
+		if (!agentSessionsWorkspaceUri) {
+			throw new Error('Agents workspace is not configured');
+		}
+
+		// Ensure the workspace file exists
+		const workspaceExists = await this.fileService.exists(agentSessionsWorkspaceUri);
+		if (!workspaceExists) {
+			const emptyWorkspaceContent = JSON.stringify({ folders: [] }, null, '\t');
+			await this.fileService.writeFile(agentSessionsWorkspaceUri, VSBuffer.fromString(emptyWorkspaceContent));
+		}
+
+		return {
+			urisToOpen: [{ workspaceUri: agentSessionsWorkspaceUri }],
+			userEnv: openConfig.userEnv,
+			cli: openConfig.cli,
+			noRecentEntry: true,
+			context: openConfig.context,
+			contextWindowId: openConfig.contextWindowId,
+			initialStartup: openConfig.initialStartup,
+		};
+	}
+
 	async open(openConfig: IOpenConfiguration): Promise<ICodeWindow[]> {
 		this.logService.trace('windowsManager#open');
+
+		// Take care of agents app specially
+		const isAgentsApp = (process as INodeProcess).isEmbeddedApp;
+		if (isAgentsApp) {
+			openConfig = await this.ensureAgentsWindow(openConfig);
+		}
 
 		// Make sure addMode/removeMode is only enabled if we have an active window
 		if ((openConfig.addMode || openConfig.removeMode) && (openConfig.initialStartup || !this.getLastActiveWindow())) {
@@ -362,7 +400,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		}
 
 		// These are windows to restore because of hot-exit or from previous session (only performed once on startup!)
-		if (openConfig.initialStartup) {
+		if (openConfig.initialStartup && !isAgentsApp /* skipped for agents app */) {
 
 			// Untitled workspaces are always restored
 			untitledWorkspacesToRestore.push(...this.workspacesManagementMainService.getUntitledWorkspaces());
@@ -1541,7 +1579,9 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			policiesData: this.policyService.serialize(),
 			continueOn: this.environmentMainService.continueOn,
 
-			cssModules: this.cssDevelopmentService.isEnabled ? await this.cssDevelopmentService.getCssModules() : undefined
+			cssModules: this.cssDevelopmentService.isEnabled ? await this.cssDevelopmentService.getCssModules() : undefined,
+
+			isSessionsWindow: isWorkspaceIdentifier(options.workspace) && isEqual(options.workspace.configPath, this.environmentMainService.agentSessionsWorkspace),
 		};
 
 		// New window

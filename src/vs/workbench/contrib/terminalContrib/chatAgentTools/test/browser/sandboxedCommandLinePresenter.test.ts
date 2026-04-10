@@ -20,7 +20,10 @@ suite('SandboxedCommandLinePresenter', () => {
 		instantiationService.stub(ITerminalSandboxService, {
 			_serviceBrand: undefined,
 			isEnabled: async () => enabled,
-			wrapCommand: command => command,
+			wrapCommand: command => ({
+				command,
+				isSandboxWrapped: false,
+			}),
 			getSandboxConfigPath: async () => '/tmp/sandbox.json',
 			getTempDir: () => undefined,
 			setNeedsForceUpdateConfigFile: () => { },
@@ -54,6 +57,17 @@ suite('SandboxedCommandLinePresenter', () => {
 		strictEqual(result.commandLine, commandLine);
 		strictEqual(result.language, undefined);
 		strictEqual(result.languageDisplayName, undefined);
+	});
+
+	test('should use forDisplay over original when both are provided', async () => {
+		const presenter = createPresenter();
+		const result = await presenter.present({
+			commandLine: { original: 'cd /some/path && ls -lh', forDisplay: 'ls -lh' },
+			shell: 'bash',
+			os: OperatingSystem.Linux
+		});
+		ok(result);
+		strictEqual(result.commandLine, 'ls -lh');
 	});
 
 	test('should return undefined when sandboxing is disabled', async () => {

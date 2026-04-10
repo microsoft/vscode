@@ -370,7 +370,7 @@ export abstract class AbstractChatEditingModifiedFileEntry extends Disposable im
 	// --- inital content
 
 	abstract resetToInitialContent(): Promise<void>;
-
+	abstract resetEditTrackerToInitialContent(): Promise<void>;
 	abstract initialContent: string;
 
 	/**

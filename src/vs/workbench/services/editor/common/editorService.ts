@@ -270,7 +270,7 @@ export interface IEditorService {
 	openEditor(editor: IUntypedEditorInput, group?: PreferredGroup): Promise<IEditorPane | undefined>;
 
 	/**
-	 * @deprecated using this method is a sign that your editor has not adopted the editor
+	 * Using this method is a sign that your editor has not adopted the editor
 	 * resolver yet. Please use `IEditorResolverService.registerEditor` to make your editor
 	 * known to the workbench and then use untyped editor inputs for opening:
 	 *

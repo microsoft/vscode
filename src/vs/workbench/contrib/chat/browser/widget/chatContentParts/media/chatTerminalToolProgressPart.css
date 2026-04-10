@@ -10,7 +10,7 @@
 
 .chat-terminal-content-part .chat-terminal-content-title {
 	border: 1px solid var(--vscode-chat-requestBorder);
-	border-radius: 4px;
+	border-radius: var(--vscode-cornerRadius-medium);
 	padding: 0px 9px 0px 5px;
 	max-width: 100%;
 	box-sizing: border-box;
@@ -132,17 +132,22 @@
 	}
 }
 
-.chat-terminal-output-container.collapsed { display: none; }
 .chat-terminal-output-container {
 	border: 1px solid var(--vscode-chat-requestBorder);
-	border-bottom-left-radius: 4px;
-	border-bottom-right-radius: 4px;
+	border-bottom-left-radius: var(--vscode-cornerRadius-medium);
+	border-bottom-right-radius: var(--vscode-cornerRadius-medium);
 	max-height: 300px;
 	box-sizing: border-box;
 	overflow: hidden;
 	position: relative;
 	max-width: 100%;
 	padding: 0;
+}
+
+/* Keep collapsed output fully hidden so it cannot contribute an extra border line. */
+.chat-terminal-output-container.collapsed,
+.chat-terminal-output-container:not(.expanded) {
+	display: none;
 }
 
 .chat-terminal-content-part .chat-terminal-content-title.chat-terminal-content-title-no-bottom-radius {
@@ -172,7 +177,7 @@ div.chat-terminal-content-part.progress-step > div.chat-terminal-output-containe
 	background: inherit;
 }
 .chat-terminal-output-body {
-	padding: 5px 0px 1px;
+	padding: 5px 0px 3px;
 	max-width: 100%;
 	box-sizing: border-box;
 	min-height: 0;

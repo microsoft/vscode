@@ -8,7 +8,7 @@ import { IJSONContribution, ISuggestionsCollector } from './jsonContributions';
 import { XHRRequest } from 'request-light';
 import { Location } from 'jsonc-parser';
 
-import * as cp from 'child_process';
+import type * as cp from 'child_process';
 import { dirname } from 'path';
 import { fromNow } from './date';
 
@@ -283,7 +283,8 @@ export class PackageJSONContribution implements IJSONContribution {
 		return info;
 	}
 
-	private npmView(npmCommandPath: string, pack: string, resource: Uri | undefined): Promise<ViewPackageInfo | undefined> {
+	private async npmView(npmCommandPath: string, pack: string, resource: Uri | undefined): Promise<ViewPackageInfo | undefined> {
+		const cp = await import('child_process');
 		return new Promise((resolve, _reject) => {
 			const args = ['view', '--json', '--', pack, 'description', 'dist-tags.latest', 'homepage', 'version', 'time'];
 			const cwd = resource && resource.scheme === 'file' ? dirname(resource.fsPath) : undefined;

@@ -22,9 +22,15 @@ RUN if [ "$TARGETARCH" = "amd64" ]; then \
 RUN apt-get update && \
 	apt-get install -y curl iproute2
 
-# Node.js 22
-RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
-	apt-get install -y nodejs
+# Node.js (arm32 uses official tarball since NodeSource dropped armhf support)
+ARG TARGETARCH
+RUN if [ "$TARGETARCH" = "arm" ]; then \
+		apt-get install -y libatomic1 && \
+		curl -fsSL https://nodejs.org/dist/v20.18.3/node-v20.18.3-linux-armv7l.tar.gz | tar -xz -C /usr/local --strip-components=1; \
+	else \
+		curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
+		apt-get install -y nodejs; \
+	fi
 
 # No UI on arm32 on Ubuntu 24.04
 ARG BASE_IMAGE

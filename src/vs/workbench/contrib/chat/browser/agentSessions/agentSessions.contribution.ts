@@ -13,10 +13,10 @@ import { Extensions as QuickAccessExtensions, IQuickAccessRegistry } from '../..
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { AgentSessionsViewerOrientation, AgentSessionsViewerPosition } from './agentSessions.js';
 import { IAgentSessionsService, AgentSessionsService } from './agentSessionsService.js';
-import { LocalAgentsSessionsProvider } from './localAgentSessionsProvider.js';
+import { LocalAgentsSessionsController } from './localAgentSessionsController.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
 import { ISubmenuItem, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { ArchiveAgentSessionAction, ArchiveAgentSessionSectionAction, UnarchiveAgentSessionAction, OpenAgentSessionInEditorGroupAction, OpenAgentSessionInNewEditorGroupAction, OpenAgentSessionInNewWindowAction, ShowAgentSessionsSidebar, HideAgentSessionsSidebar, ToggleAgentSessionsSidebar, RefreshAgentSessionsViewerAction, FindAgentSessionInViewerAction, MarkAgentSessionUnreadAction, MarkAgentSessionReadAction, FocusAgentSessionsAction, SetAgentSessionsOrientationStackedAction, SetAgentSessionsOrientationSideBySideAction, PickAgentSessionAction, ArchiveAllAgentSessionsAction, MarkAllAgentSessionsReadAction, RenameAgentSessionAction, DeleteAgentSessionAction, DeleteAllLocalSessionsAction, MarkAgentSessionSectionReadAction, ToggleShowAgentSessionsAction, UnarchiveAgentSessionSectionAction } from './agentSessionsActions.js';
+import { ArchiveAgentSessionAction, ArchiveAgentSessionSectionAction, UnarchiveAgentSessionAction, OpenAgentSessionInEditorGroupAction, OpenAgentSessionInNewEditorGroupAction, OpenAgentSessionInNewWindowAction, ShowAgentSessionsSidebar, HideAgentSessionsSidebar, ToggleAgentSessionsSidebar, RefreshAgentSessionsViewerAction, FindAgentSessionInViewerAction, MarkAgentSessionUnreadAction, MarkAgentSessionReadAction, FocusAgentSessionsAction, SetAgentSessionsOrientationStackedAction, SetAgentSessionsOrientationSideBySideAction, PickAgentSessionAction, ArchiveAllAgentSessionsAction, MarkAllAgentSessionsReadAction, RenameAgentSessionAction, DeleteAgentSessionAction, DeleteAllLocalSessionsAction, MarkAgentSessionSectionReadAction, ToggleShowAgentSessionsAction, UnarchiveAgentSessionSectionAction, PinAgentSessionAction, UnpinAgentSessionAction, CollapseAllAgentSessionSectionsAction } from './agentSessionsActions.js';
 import { AgentSessionsQuickAccessProvider, AGENT_SESSIONS_QUICK_ACCESS_PREFIX } from './agentSessionsQuickAccess.js';
 
 //#region Actions and Menus
@@ -28,8 +28,11 @@ registerAction2(MarkAllAgentSessionsReadAction);
 registerAction2(ArchiveAgentSessionSectionAction);
 registerAction2(UnarchiveAgentSessionSectionAction);
 registerAction2(MarkAgentSessionSectionReadAction);
+registerAction2(CollapseAllAgentSessionSectionsAction);
 registerAction2(ArchiveAgentSessionAction);
 registerAction2(UnarchiveAgentSessionAction);
+registerAction2(PinAgentSessionAction);
+registerAction2(UnpinAgentSessionAction);
 registerAction2(RenameAgentSessionAction);
 registerAction2(DeleteAgentSessionAction);
 registerAction2(DeleteAllLocalSessionsAction);
@@ -169,7 +172,7 @@ Registry.as<IQuickAccessRegistry>(QuickAccessExtensions.Quickaccess).registerQui
 
 //#region Workbench Contributions
 
-registerWorkbenchContribution2(LocalAgentsSessionsProvider.ID, LocalAgentsSessionsProvider, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(LocalAgentsSessionsController.ID, LocalAgentsSessionsController, WorkbenchPhase.AfterRestored);
 
 registerSingleton(IAgentSessionsService, AgentSessionsService, InstantiationType.Delayed);
 

@@ -25,6 +25,7 @@ export interface ILegacyQuotaSnapshotData {
 
 export interface IEntitlementsData extends ILegacyQuotaSnapshotData {
 	readonly access_type_sku: string;
+	readonly chat_enabled: boolean;
 	readonly assigned_date: string;
 	readonly can_signup_for_limited: boolean;
 	readonly copilot_plan: string;
@@ -48,6 +49,11 @@ export interface IPolicyData {
 	readonly mcpAccess?: 'allow_all' | 'registry_only';
 }
 
+export interface ICopilotTokenInfo {
+	readonly sn?: string;
+	readonly fcv1?: string;
+}
+
 export interface IDefaultAccountAuthenticationProvider {
 	readonly id: string;
 	readonly name: string;
@@ -56,6 +62,7 @@ export interface IDefaultAccountAuthenticationProvider {
 
 export interface IDefaultAccount {
 	readonly authenticationProvider: IDefaultAccountAuthenticationProvider;
+	readonly accountName: string;
 	readonly sessionId: string;
 	readonly enterprise: boolean;
 	readonly entitlementsData?: IEntitlementsData | null;

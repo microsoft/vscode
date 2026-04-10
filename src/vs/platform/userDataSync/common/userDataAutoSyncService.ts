@@ -14,6 +14,7 @@ import { isWeb } from '../../../base/common/platform.js';
 import { isEqual } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
+import { IMeteredConnectionService } from '../../meteredConnection/common/meteredConnection.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
@@ -75,6 +76,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@IUserDataSyncMachinesService private readonly userDataSyncMachinesService: IUserDataSyncMachinesService,
 		@IStorageService private readonly storageService: IStorageService,
+		@IMeteredConnectionService private readonly meteredConnectionService: IMeteredConnectionService,
 	) {
 		super();
 		this.syncTriggerDelayer = this._register(new ThrottledDelayer<void>(this.getSyncTriggerDelayTime()));
@@ -114,6 +116,7 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 			this._register(userDataSyncService.onDidChangeLocal(source => this.triggerSync([source])));
 			this._register(Event.filter(this.userDataSyncEnablementService.onDidChangeResourceEnablement, ([, enabled]) => enabled)(() => this.triggerSync(['resourceEnablement'])));
 			this._register(this.userDataSyncStoreManagementService.onDidChangeUserDataSyncStore(() => this.triggerSync(['userDataSyncStoreChanged'])));
+			this._register(meteredConnectionService.onDidChangeIsConnectionMetered(() => this.updateAutoSync()));
 		}
 	}
 
@@ -159,6 +162,9 @@ export class UserDataAutoSyncService extends Disposable implements IUserDataAuto
 		}
 		if (this.suspendUntilRestart) {
 			return { enabled: false, message: '[AutoSync] Suspended until restart.' };
+		}
+		if (this.meteredConnectionService.isConnectionMetered) {
+			return { enabled: false, message: '[AutoSync] Suspended because connection is metered.' };
 		}
 		return { enabled: true };
 	}
@@ -449,6 +455,7 @@ class AutoSync extends Disposable {
 
 	private async doSync(reason: string, disableCache: boolean, token: CancellationToken): Promise<void> {
 		this.logService.info(`[AutoSync] Triggered by ${reason}`);
+
 		this._onDidStartSync.fire();
 
 		let error: Error | undefined;

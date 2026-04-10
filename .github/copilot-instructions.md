@@ -24,6 +24,7 @@ Visual Studio Code is built with a layered architecture using TypeScript, web AP
   - `workbench/api/` - Extension host and VS Code API implementation
 - `src/vs/code/` - Electron main process specific implementation
 - `src/vs/server/` - Server specific implementation
+- `src/vs/sessions/` - Agent sessions window, a dedicated workbench layer for agentic workflows (sits alongside `vs/workbench`, may import from it but not vice versa)
 
 The core architecture follows these principles:
 - **Layered architecture** - from `base`, `platform`, `editor`, to `workbench`
@@ -49,15 +50,16 @@ Each extension follows the standard VS Code extension structure with `package.js
 
 ## Validating TypeScript changes
 
-MANDATORY: Always check the `VS Code - Build` watch task output via #runTasks/getTaskOutput for compilation errors before running ANY script or declaring work complete, then fix all compilation errors before moving forward.
+MANDATORY: Always check for compilation errors before running any tests or validation scripts, or declaring work complete, then fix all compilation errors before moving forward.
 
 - NEVER run tests if there are compilation errors
-- NEVER use `npm run compile` to compile TypeScript files but call #runTasks/getTaskOutput instead
+- NEVER use `npm run compile` to compile TypeScript files
 
 ### TypeScript compilation steps
-- Monitor the `VS Code - Build` task outputs for real-time compilation errors as you make changes
-- This task runs `Core - Build` and `Ext - Build` to incrementally compile VS Code TypeScript sources and built-in extensions
-- Start the task if it's not already running in the background
+- If the `#runTasks/getTaskOutput` tool is available, check the `VS Code - Build` watch task output for compilation errors. This task runs `Core - Build` and `Ext - Build` to incrementally compile VS Code TypeScript sources and built-in extensions. Start the task if it's not already running in the background.
+- If the tool is not available (e.g. in CLI environments) and you only changed code under `src/`, run `npm run compile-check-ts-native` after making changes to type-check the main VS Code sources (it validates `./src/tsconfig.json`).
+- If you changed built-in extensions under `extensions/` and the tool is not available, run the corresponding gulp task `npm run gulp compile-extensions` instead so that TypeScript errors in extensions are also reported.
+- For TypeScript changes in the `build` folder, you can simply run `npm run typecheck` in the `build` folder.
 
 ### TypeScript validation steps
 - Use the run test tool if you need to run tests. If that tool is not available, then you can use `scripts/test.sh` (or `scripts\test.bat` on Windows) for unit tests (add `--grep <pattern>` to filter tests) or `scripts/test-integration.sh` (or `scripts\test-integration.bat` on Windows) for integration tests (integration tests end with .integrationTest.ts or are in /extensions/).
@@ -134,12 +136,17 @@ function f(x: number, y: string): void { }
 - Prefer regex capture groups with names over numbered capture groups.
 - If you create any temporary new files, scripts, or helper files for iteration, clean up these files by removing them at the end of the task
 - Never duplicate imports. Always reuse existing imports if they are present.
+- When removing an import, do not leave behind blank lines where the import was. Ensure the surrounding code remains compact.
 - Do not use `any` or `unknown` as the type for variables, parameters, or return values unless absolutely necessary. If they need type annotations, they should have proper types or interfaces defined.
 - When adding file watching, prefer correlated file watchers (via fileService.createWatcher) to shared ones.
 - When adding tooltips to UI elements, prefer the use of IHoverService service.
 - Do not duplicate code. Always look for existing utility functions, helpers, or patterns in the codebase before implementing new functionality. Reuse and extend existing code whenever possible.
 - You MUST deal with disposables by registering them immediately after creation for later disposal. Use helpers such as `DisposableStore`, `MutableDisposable` or `DisposableMap`. Do NOT register a disposable to the containing class if the object is created within a method that is called repeadedly to avoid leaks. Instead, return a `IDisposable` from such method and let the caller register it.
 - You MUST NOT use storage keys of another component only to make changes to that component. You MUST come up with proper API to change another component.
+- Use `IEditorService` to open editors instead of `IEditorGroupsService.activeGroup.openEditor` to ensure that the editor opening logic is properly followed and to avoid bypassing important features such as `revealIfOpened` or `preserveFocus`.
+- Avoid using `bind()`, `call()` and `apply()` solely to control `this` or partially apply arguments; prefer arrow functions or closures to capture the necessary context, and use these methods only when required by an API or interoperability.
+- Avoid using events to drive control flow between components. Instead, prefer direct method calls or service interactions to ensure clearer dependencies and easier traceability of logic. Events should be reserved for broadcasting state changes or notifications rather than orchestrating behavior across components.
+- Service dependencies MUST be declared in constructors and MUST NOT be accessed through the `IInstantiationService` at any other point in time.
 
 ## Learnings
 - Minimize the amount of assertions in tests. Prefer one snapshot-style `assert.deepStrictEqual` over multiple precise assertions, as they are much more difficult to understand and to update.

@@ -48,6 +48,7 @@ import { Color } from '../../../../../base/common/color.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import { ChatViewId } from '../chat.js';
 import { isCompletionsEnabled } from '../../../../../editor/common/services/completionsEnablement.js';
+import { AgentSessionProviders } from '../agentSessions/agentSessions.js';
 
 const defaultChat = product.defaultChatAgent;
 
@@ -117,6 +118,19 @@ registerColor('gauge.errorBackground', {
 	hcLight: Color.white
 }, localize('gaugeErrorBackground', "Gauge error background color."));
 
+export interface IChatStatusDashboardOptions {
+	/** When true, disables the Inline Suggestions settings section (toggles for all files, language, next edit). */
+	disableInlineSuggestionsSettings?: boolean;
+	/** When true, disables the inline completions model selection section. */
+	disableModelSelection?: boolean;
+	/** When true, disables the inline completions provider options section. */
+	disableProviderOptions?: boolean;
+	/** When true, disables the completions snooze button. */
+	disableCompletionsSnooze?: boolean;
+	/** When true, disables contributed status items (e.g. Workspace Index). */
+	disableContributions?: boolean;
+}
+
 export class ChatStatusDashboard extends DomWidget {
 
 	readonly element = $('div.chat-status-bar-entry-tooltip');
@@ -127,6 +141,7 @@ export class ChatStatusDashboard extends DomWidget {
 	private readonly quotaOverageFormatter = safeIntl.NumberFormat(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 0 });
 
 	constructor(
+		private readonly options: IChatStatusDashboardOptions | undefined,
 		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
 		@IChatStatusItemService private readonly chatStatusItemService: IChatStatusItemService,
 		@ICommandService private readonly commandService: ICommandService,
@@ -179,7 +194,8 @@ export class ChatStatusDashboard extends DomWidget {
 
 			const completionsQuotaIndicator = completionsQuota && (completionsQuota.total > 0 || completionsQuota.unlimited) ? this.createQuotaIndicator(this.element, this._store, completionsQuota, localize('completionsLabel', "Inline Suggestions"), false) : undefined;
 			const chatQuotaIndicator = chatQuota && (chatQuota.total > 0 || chatQuota.unlimited) ? this.createQuotaIndicator(this.element, this._store, chatQuota, localize('chatsLabel', "Chat messages"), false) : undefined;
-			const premiumChatQuotaIndicator = premiumChatQuota && (premiumChatQuota.total > 0 || premiumChatQuota.unlimited) ? this.createQuotaIndicator(this.element, this._store, premiumChatQuota, localize('premiumChatsLabel', "Premium requests"), true) : undefined;
+			const premiumChatLabel = premiumChatQuota?.overageEnabled && !premiumChatQuota?.unlimited ? localize('includedPremiumChatsLabel', "Included premium requests") : localize('premiumChatsLabel', "Premium requests");
+			const premiumChatQuotaIndicator = premiumChatQuota && (premiumChatQuota.total > 0 || premiumChatQuota.unlimited) ? this.createQuotaIndicator(this.element, this._store, premiumChatQuota, premiumChatLabel, true) : undefined;
 
 			if (resetDate) {
 				this.element.appendChild($('div.description', undefined, localize('limitQuota', "Allowance resets {0}.", resetDateHasTime ? this.dateTimeFormatter.value.format(new Date(resetDate)) : this.dateFormatter.value.format(new Date(resetDate)))));
@@ -211,7 +227,7 @@ export class ChatStatusDashboard extends DomWidget {
 		}
 
 		// Anonymous Indicator
-		else if (this.chatEntitlementService.anonymous && this.chatEntitlementService.sentiment.installed) {
+		else if (this.chatEntitlementService.anonymous && this.chatEntitlementService.sentiment.completed) {
 			addSeparator(localize('anonymousTitle', "Copilot Usage"));
 
 			this.createQuotaIndicator(this.element, this._store, localize('quotaLimited', "Limited"), localize('completionsLabel', "Inline Suggestions"), false);
@@ -234,19 +250,22 @@ export class ChatStatusDashboard extends DomWidget {
 					}
 				}));
 
-				for (const { displayName, count } of inProgress) {
+				for (const { chatSessionType, count } of inProgress) {
 					if (count > 0) {
-						const text = localize('inProgressChatSession', "$(loading~spin) {0} in progress", displayName);
-						const chatSessionsElement = this.element.appendChild($('div.description'));
-						const parts = renderLabelWithIcons(text);
-						chatSessionsElement.append(...parts);
+						const displayName = this.getDisplayNameForChatSessionType(chatSessionType);
+						if (displayName) {
+							const text = '$(loading~spin) ' + localize('inProgressChatSession', "{0} in progress", displayName);
+							const chatSessionsElement = this.element.appendChild($('div.description'));
+							const parts = renderLabelWithIcons(text);
+							chatSessionsElement.append(...parts);
+						}
 					}
 				}
 			}
 		}
 
 		// Contributions
-		{
+		if (!this.options?.disableContributions) {
 			for (const item of this.chatStatusItemService.getEntries()) {
 				addSeparator();
 
@@ -269,10 +288,10 @@ export class ChatStatusDashboard extends DomWidget {
 			}
 		}
 
-		// Settings
-		{
+		// Settings (editor-specific)
+		if (!this.options?.disableInlineSuggestionsSettings) {
 			const chatSentiment = this.chatEntitlementService.sentiment;
-			addSeparator(localize('inlineSuggestions', "Inline Suggestions"), chatSentiment.installed && !chatSentiment.disabled && !chatSentiment.untrusted ? toAction({
+			addSeparator(localize('inlineSuggestions', "Inline Suggestions"), !chatSentiment.disabled && !chatSentiment.untrusted ? toAction({
 				id: 'workbench.action.openChatSettings',
 				label: localize('settingsLabel', "Settings"),
 				tooltip: localize('settingsTooltip', "Open Settings"),
@@ -283,8 +302,8 @@ export class ChatStatusDashboard extends DomWidget {
 			this.createSettings(this.element, this._store);
 		}
 
-		// Model Selection
-		{
+		// Model Selection (editor-specific)
+		if (!this.options?.disableModelSelection) {
 			const providers = this.languageFeaturesService.inlineCompletionsProvider.allNoModel();
 			const provider = providers.find(p => p.modelInfo && p.modelInfo.models.length > 0);
 
@@ -295,25 +314,53 @@ export class ChatStatusDashboard extends DomWidget {
 				if (currentModel) {
 					const modelContainer = this.element.appendChild($('div.model-selection'));
 
-					modelContainer.appendChild($('span.model-text', undefined, localize('modelLabel', "Model: {0}", currentModel.name)));
+					modelContainer.appendChild($('span.model-text', undefined, localize('modelLabel', "Model")));
 
 					const actionBar = modelContainer.appendChild($('div.model-action-bar'));
 					const toolbar = this._store.add(new ActionBar(actionBar, { hoverDelegate: nativeHoverDelegate }));
 					toolbar.push([toAction({
 						id: 'workbench.action.selectInlineCompletionsModel',
-						label: localize('selectModel', "Select Model"),
+						label: currentModel.name,
 						tooltip: localize('selectModel', "Select Model"),
 						class: ThemeIcon.asClassName(Codicon.gear),
 						run: async () => {
 							await this.showModelPicker(provider);
 						}
-					})], { icon: true, label: false });
+					})], { icon: false, label: true });
 				}
 			}
 		}
 
-		// Completions Snooze
-		if (this.canUseChat()) {
+		// Provider Options (editor-specific)
+		if (!this.options?.disableProviderOptions) {
+			const providers = this.languageFeaturesService.inlineCompletionsProvider.allNoModel();
+			for (const provider of providers) {
+				if (provider.providerOptions && provider.providerOptions.length > 0) {
+					for (const option of provider.providerOptions) {
+						const currentValue = option.values.find(v => v.id === option.currentValueId);
+						if (currentValue) {
+							const optionContainer = this.element.appendChild($('div.suggest-option-selection'));
+
+							optionContainer.appendChild($('span.suggest-option-text', undefined, option.label));
+
+							const actionBar = optionContainer.appendChild($('div.suggest-option-action-bar'));
+							const toolbar = this._store.add(new ActionBar(actionBar, { hoverDelegate: nativeHoverDelegate }));
+							toolbar.push([toAction({
+								id: `workbench.action.selectProviderOption.${option.id}`,
+								label: currentValue.label,
+								tooltip: localize('selectOption', "Select {0}", option.label),
+								run: async () => {
+									await this.showProviderOptionPicker(provider, option);
+								}
+							})], { icon: false, label: true });
+						}
+					}
+				}
+			}
+		}
+
+		// Completions Snooze (editor-specific)
+		if (!this.options?.disableCompletionsSnooze && this.canUseChat()) {
 			const snooze = append(this.element, $('div.snooze-completions'));
 			this.createCompletionsSnooze(snooze, localize('settings.snooze', "Snooze"), this._store);
 		}
@@ -373,9 +420,21 @@ export class ChatStatusDashboard extends DomWidget {
 		}
 	}
 
+	private getDisplayNameForChatSessionType(chatSessionType: string): string | undefined {
+		if (chatSessionType === AgentSessionProviders.Local) {
+			return localize('chat.session.inProgress.local', "Local Agent");
+		} else if (chatSessionType === AgentSessionProviders.Background) {
+			return localize('chat.session.inProgress.background', "Background Agent");
+		} else if (chatSessionType === AgentSessionProviders.Cloud) {
+			return localize('chat.session.inProgress.cloud', "Cloud Agent");
+		} else {
+			return this.chatSessionsService.getChatSessionContribution(chatSessionType)?.displayName;
+		}
+	}
+
 	private canUseChat(): boolean {
-		if (!this.chatEntitlementService.sentiment.installed || this.chatEntitlementService.sentiment.disabled || this.chatEntitlementService.sentiment.untrusted) {
-			return false; // chat not installed or not enabled
+		if (!this.chatEntitlementService.sentiment.completed || this.chatEntitlementService.sentiment.disabled || this.chatEntitlementService.sentiment.untrusted) {
+			return false; // chat not completed or not enabled
 		}
 
 		if (this.chatEntitlementService.entitlement === ChatEntitlement.Unknown || this.chatEntitlementService.entitlement === ChatEntitlement.Available) {
@@ -471,7 +530,7 @@ export class ChatStatusDashboard extends DomWidget {
 			)
 		));
 
-		if (supportsOverage && (this.chatEntitlementService.entitlement === ChatEntitlement.Pro || this.chatEntitlementService.entitlement === ChatEntitlement.ProPlus)) {
+		if (supportsOverage && (this.chatEntitlementService.entitlement === ChatEntitlement.EDU || this.chatEntitlementService.entitlement === ChatEntitlement.Pro || this.chatEntitlementService.entitlement === ChatEntitlement.ProPlus)) {
 			const manageOverageButton = disposables.add(new Button(quotaIndicator, { ...defaultButtonStyles, secondary: true, hoverDelegate: nativeHoverDelegate }));
 			manageOverageButton.label = localize('enableAdditionalUsage', "Manage paid premium requests");
 			disposables.add(manageOverageButton.onDidClick(() => this.runCommandAndClose(() => this.openerService.open(URI.parse(defaultChat.manageOverageUrl)))));
@@ -500,15 +559,22 @@ export class ChatStatusDashboard extends DomWidget {
 
 			quotaBit.style.width = `${usedPercentage}%`;
 
-			if (usedPercentage >= 90) {
+			const overageEnabled = supportsOverage && typeof quota !== 'string' && quota?.overageEnabled;
+			if (usedPercentage >= 90 && !overageEnabled) {
 				quotaIndicator.classList.add('error');
-			} else if (usedPercentage >= 75) {
+			} else if (usedPercentage >= 75 && !overageEnabled) {
 				quotaIndicator.classList.add('warning');
 			}
 
 			if (supportsOverage) {
-				if (typeof quota !== 'string' && quota?.overageEnabled) {
-					overageLabel.textContent = localize('additionalUsageEnabled', "Additional paid premium requests enabled.");
+				if (typeof quota !== 'string' && quota.unlimited) {
+					overageLabel.textContent = '';
+				} else if (typeof quota !== 'string' && quota?.overageEnabled) {
+					overageLabel.replaceChildren(
+						localize('additionalUsageApprovedLine1', "Additional premium requests approved."),
+						$('br'),
+						localize('additionalUsageApprovedLine2', "You can continue after the included premium requests limit reaches 100%.")
+					);
 				} else {
 					overageLabel.textContent = localize('additionalUsageDisabled', "Additional paid premium requests disabled.");
 				}
@@ -747,6 +813,30 @@ export class ChatStatusDashboard extends DomWidget {
 
 		if (selected && selected.id && selected.id !== modelInfo.currentModelId) {
 			await provider.setModelId(selected.id);
+		}
+
+		this.hoverService.hideHover(true);
+	}
+
+	private async showProviderOptionPicker(provider: languages.InlineCompletionsProvider, option: languages.IInlineCompletionProviderOption): Promise<void> {
+		if (!provider.setProviderOption) {
+			return;
+		}
+
+		const items: IQuickPickItem[] = option.values.map(value => ({
+			id: value.id,
+			label: value.label,
+			description: value.id === option.currentValueId ? localize('currentOption.description', "Currently selected") : undefined,
+			picked: value.id === option.currentValueId,
+		}));
+
+		const selected = await this.quickInputService.pick(items, {
+			placeHolder: localize('selectProviderOptionFor', "Select {0}", option.label),
+			canPickMany: false
+		});
+
+		if (selected && selected.id && selected.id !== option.currentValueId) {
+			await provider.setProviderOption(option.id, selected.id);
 		}
 
 		this.hoverService.hideHover(true);

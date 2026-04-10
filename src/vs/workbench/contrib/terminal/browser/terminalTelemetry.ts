@@ -80,10 +80,12 @@ export class TerminalTelemetryContribution extends Disposable implements IWorkbe
 			shellIntegrationInjected: boolean;
 			shellIntegrationInjectionFailureReason: ShellIntegrationInjectionFailureReason | undefined;
 
+			imageAddonLoaded: boolean;
+
 			terminalSessionId: string;
 		};
 		type TerminalCreationTelemetryClassification = {
-			owner: 'tyriar';
+			owner: 'anthonykim1';
 			comment: 'Track details about terminal creation, such as the shell type';
 
 			location: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The location of the terminal.' };
@@ -100,6 +102,8 @@ export class TerminalTelemetryContribution extends Disposable implements IWorkbe
 			shellIntegrationQuality: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The shell integration quality (rich=2, basic=1 or none=0).' };
 			shellIntegrationInjected: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the shell integration script was injected.' };
 			shellIntegrationInjectionFailureReason: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Info about shell integration injection.' };
+
+			imageAddonLoaded: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'Whether the xterm.js image addon was loaded.' };
 
 			terminalSessionId: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The session ID of the terminal instance.' };
 		};
@@ -122,6 +126,7 @@ export class TerminalTelemetryContribution extends Disposable implements IWorkbe
 			shellIntegrationQuality: commandDetection?.hasRichCommandDetection ? 2 : commandDetection ? 1 : 0,
 			shellIntegrationInjected: instance.usedShellIntegrationInjection,
 			shellIntegrationInjectionFailureReason: instance.shellIntegrationInjectionFailureReason,
+			imageAddonLoaded: instance.xterm?.isImageAddonLoaded ?? false,
 			terminalSessionId: instance.sessionId,
 		});
 	}

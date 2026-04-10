@@ -9,7 +9,6 @@ import { WorkbenchActionExecutedClassification, WorkbenchActionExecutedEvent } f
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles } from '../../../../../../platform/theme/browser/defaultStyles.js';
@@ -23,7 +22,8 @@ const $ = dom.$;
 
 /**
  * Widget that displays a status message with an optional action button.
- * Only shown for free tier users when the setting is enabled (experiment controlled via onExP tag).
+ * Shown only when chat quota is exceeded and the chat session is empty, and only for
+ * anonymous or free tier users.
  */
 export class ChatStatusWidget extends Disposable implements IChatInputPartWidget {
 
@@ -37,7 +37,6 @@ export class ChatStatusWidget extends Disposable implements IChatInputPartWidget
 	constructor(
 		@IChatEntitlementService private readonly chatEntitlementService: IChatEntitlementService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
@@ -51,10 +50,7 @@ export class ChatStatusWidget extends Disposable implements IChatInputPartWidget
 		const entitlement = this.chatEntitlementService.entitlement;
 		const isAnonymous = this.chatEntitlementService.anonymous;
 
-		// Free tier is always enabled, anonymous is controlled by experiment via chat.statusWidget.sku
-		const enabledSku = this.configurationService.getValue<string | null>('chat.statusWidget.sku');
-
-		if (isAnonymous && enabledSku === 'anonymous') {
+		if (isAnonymous) {
 			this.createWidgetContent('anonymous');
 		} else if (entitlement === ChatEntitlement.Free) {
 			this.createWidgetContent('free');
@@ -82,7 +78,7 @@ export class ChatStatusWidget extends Disposable implements IChatInputPartWidget
 		this.actionButton.element.classList.add('chat-status-button');
 
 		if (enabledSku === 'anonymous') {
-			const message = localize('chat.anonymousRateLimited.message', "You've reached the limit for chat messages. Try Copilot Pro for free.");
+			const message = localize('chat.anonymousRateLimited.message', "You've reached the limit for chat messages. Sign in to use Copilot Free.");
 			const buttonLabel = localize('chat.anonymousRateLimited.signIn', "Sign In");
 			this.messageElement.textContent = message;
 			this.actionButton.label = buttonLabel;

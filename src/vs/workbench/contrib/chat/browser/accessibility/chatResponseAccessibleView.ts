@@ -8,19 +8,21 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { IMarkdownString, isMarkdownString } from '../../../../../base/common/htmlContent.js';
 import { stripIcons } from '../../../../../base/common/iconLabels.js';
 import { Disposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { basename } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { AccessibleViewProviderId, AccessibleViewType, IAccessibleViewContentProvider } from '../../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibleViewImplementation } from '../../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
 import { AccessibilityVerbositySettingId } from '../../../accessibility/browser/accessibilityConfiguration.js';
 import { migrateLegacyTerminalToolSpecificData } from '../../common/chat.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { IChatExtensionsContent, IChatPullRequestContent, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolResourcesInvocationData, ILegacyChatTerminalToolInvocationData, IToolResultOutputDetailsSerialized, isLegacyChatTerminalToolInvocationData } from '../../common/chatService/chatService.js';
+import { IChatExtensionsContent, IChatModifiedFilesConfirmationData, IChatPullRequestContent, IChatSimpleToolInvocationData, IChatSubagentToolInvocationData, IChatTerminalToolInvocationData, IChatTodoListContent, IChatToolInputInvocationData, IChatToolInvocation, IChatToolResourcesInvocationData, ILegacyChatTerminalToolInvocationData, IToolResultOutputDetailsSerialized, isLegacyChatTerminalToolInvocationData } from '../../common/chatService/chatService.js';
 import { isResponseVM } from '../../common/model/chatViewModel.js';
 import { IToolResultInputOutputDetails, IToolResultOutputDetails, isToolResultInputOutputDetails, isToolResultOutputDetails, toolContentToA11yString } from '../../common/tools/languageModelToolsService.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
-import { Location } from '../../../../../editor/common/languages.js';
+import { isLocation, Location } from '../../../../../editor/common/languages.js';
 
 export class ChatResponseAccessibleView implements IAccessibleViewImplementation {
 	readonly priority = 100;
@@ -29,6 +31,7 @@ export class ChatResponseAccessibleView implements IAccessibleViewImplementation
 	readonly when = ChatContextKeys.inChatSession;
 	getProvider(accessor: ServicesAccessor) {
 		const widgetService = accessor.get(IChatWidgetService);
+		const storageService = accessor.get(IStorageService);
 		const widget = widgetService.lastFocusedWidget;
 		if (!widget) {
 			return;
@@ -39,17 +42,33 @@ export class ChatResponseAccessibleView implements IAccessibleViewImplementation
 		}
 
 		const verifiedWidget: IChatWidget = widget;
-		const focusedItem = verifiedWidget.getFocus();
-		if (!focusedItem) {
+		let focusedItem = verifiedWidget.getFocus();
+		if (!focusedItem || !isResponseVM(focusedItem)) {
+			const responseItems = verifiedWidget.viewModel?.getItems().filter(isResponseVM);
+			const lastResponse = responseItems?.at(-1);
+			if (lastResponse) {
+				focusedItem = lastResponse;
+				verifiedWidget.focus(lastResponse);
+			}
+		}
+
+		if (!focusedItem || !isResponseVM(focusedItem)) {
 			return;
 		}
 
-		return new ChatResponseAccessibleProvider(verifiedWidget, focusedItem, chatInputFocused);
+		return new ChatResponseAccessibleProvider(verifiedWidget, focusedItem, chatInputFocused, storageService);
 	}
 }
 
-type ToolSpecificData = IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatToolResourcesInvocationData;
+type ToolSpecificData = IChatTerminalToolInvocationData | ILegacyChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatPullRequestContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatToolResourcesInvocationData | IChatModifiedFilesConfirmationData;
 type ResultDetails = Array<URI | Location> | IToolResultInputOutputDetails | IToolResultOutputDetails | IToolResultOutputDetailsSerialized;
+
+export const CHAT_ACCESSIBLE_VIEW_INCLUDE_THINKING_STORAGE_KEY = 'chat.accessibleView.includeThinking';
+const CHAT_ACCESSIBLE_VIEW_INCLUDE_THINKING_DEFAULT = true;
+
+export function isThinkingContentIncludedInAccessibleView(storageService: IStorageService): boolean {
+	return storageService.getBoolean(CHAT_ACCESSIBLE_VIEW_INCLUDE_THINKING_STORAGE_KEY, StorageScope.PROFILE, CHAT_ACCESSIBLE_VIEW_INCLUDE_THINKING_DEFAULT);
+}
 
 function isOutputDetailsSerialized(obj: unknown): obj is IToolResultOutputDetailsSerialized {
 	return typeof obj === 'object' && obj !== null && 'output' in obj &&
@@ -122,6 +141,16 @@ export function getToolSpecificDataDescription(toolSpecificData: ToolSpecificDat
 			const inputText = toolSpecificData.input;
 			const outputText = toolSpecificData.output;
 			return localize('simpleToolInvocation', "Input: {0}, Output: {1}", inputText, outputText);
+		}
+		case 'modifiedFilesConfirmation': {
+			if (toolSpecificData.modifiedFiles.length === 0) {
+				return '';
+			}
+
+			return localize('modifiedFilesConfirmation', "Modified files: {0}", toolSpecificData.modifiedFiles.map(file => {
+				const revivedUri = URI.revive(file.uri);
+				return revivedUri.fsPath || revivedUri.path;
+			}).join(', '));
 		}
 		default:
 			return '';
@@ -203,14 +232,19 @@ export function getToolInvocationA11yDescription(
 class ChatResponseAccessibleProvider extends Disposable implements IAccessibleViewContentProvider {
 	private _focusedItem!: ChatTreeItem;
 	private readonly _focusedItemDisposables = this._register(new DisposableStore());
+	private readonly _storageDisposables = this._register(new DisposableStore());
 	private readonly _onDidChangeContent = this._register(new Emitter<void>());
 	readonly onDidChangeContent: Event<void> = this._onDidChangeContent.event;
 	constructor(
 		private readonly _widget: IChatWidget,
 		item: ChatTreeItem,
-		private readonly _wasOpenedFromInput: boolean
+		private readonly _wasOpenedFromInput: boolean,
+		private readonly _storageService: IStorageService
 	) {
 		super();
+		this._storageDisposables.add(this._storageService.onDidChangeValue(StorageScope.PROFILE, CHAT_ACCESSIBLE_VIEW_INCLUDE_THINKING_STORAGE_KEY, this._storageDisposables)(() => {
+			this._onDidChangeContent.fire();
+		}));
 		this._setFocusedItem(item);
 	}
 
@@ -249,6 +283,9 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 		for (const part of item.response.value) {
 			switch (part.kind) {
 				case 'thinking': {
+					if (!this._shouldIncludeThinkingContent()) {
+						break;
+					}
 					const thinkingValue = Array.isArray(part.value) ? part.value.join('') : (part.value || '');
 					const trimmed = thinkingValue.trim();
 					if (trimmed) {
@@ -261,6 +298,25 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 					if (text.trim()) {
 						contentParts.push(text);
 					}
+					break;
+				}
+				case 'inlineReference': {
+					const ref = part.inlineReference;
+					let text: string;
+					if (URI.isUri(ref)) {
+						const name = part.name || basename(ref);
+						const path = ref.scheme === 'file' ? ref.path : ref.toString(true);
+						text = name !== path ? `${name} (${path})` : path;
+					} else if (isLocation(ref)) {
+						const name = part.name || basename(ref.uri);
+						const path = ref.uri.scheme === 'file' ? ref.uri.path : ref.uri.toString(true);
+						text = `${name} (${path}:${ref.range.startLineNumber})`;
+					} else {
+						// IWorkspaceSymbol
+						const path = ref.location.uri.scheme === 'file' ? (ref.location.uri.fsPath || ref.location.uri.path) : ref.location.uri.toString(true);
+						text = `${ref.name} (${path}:${ref.location.range.startLineNumber})`;
+					}
+					contentParts.push(text);
 					break;
 				}
 				case 'elicitation2':
@@ -349,6 +405,10 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 			normalized.push(line);
 		}
 		return normalized.join('\n');
+	}
+
+	private _shouldIncludeThinkingContent(): boolean {
+		return isThinkingContentIncludedInAccessibleView(this._storageService);
 	}
 
 	onClose(): void {

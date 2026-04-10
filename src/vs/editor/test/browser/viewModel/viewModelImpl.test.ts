@@ -426,4 +426,227 @@ suite('ViewModel', () => {
 			}
 		);
 	});
+
+	suite('hidden areas must always leave at least one visible line', () => {
+
+		test('replacing the only visible line content does not make it hidden', () => {
+			const text = [
+				'line1',
+				'line2',
+				'line3',
+			];
+			testViewModel(text, {}, (viewModel, model) => {
+				// Hide lines 1 and 3, leaving only line 2 visible
+				viewModel.setHiddenAreas([
+					new Range(1, 1, 1, 1),
+					new Range(3, 1, 3, 1),
+				]);
+				assert.strictEqual(viewModel.getLineCount(), 1);
+
+				// Replace line 2 content entirely
+				model.applyEdits([{
+					range: new Range(2, 1, 2, 6),
+					text: 'new content'
+				}]);
+
+				assert.ok(viewModel.getLineCount() >= 1, `expected at least 1 view line but got ${viewModel.getLineCount()}`);
+			});
+		});
+
+		test('deleting the only visible line when it is the last line', () => {
+			const text = [
+				'line1',
+				'line2',
+				'line3',
+			];
+			testViewModel(text, {}, (viewModel, model) => {
+				// Hide lines 1-2, leaving only line 3 visible
+				viewModel.setHiddenAreas([new Range(1, 1, 2, 1)]);
+				assert.strictEqual(viewModel.getLineCount(), 1);
+
+				// Delete line 3 by merging it into line 2
+				model.applyEdits([{
+					range: new Range(2, 6, 3, 6),
+					text: null
+				}]);
+
+				assert.ok(viewModel.getLineCount() >= 1, `expected at least 1 view line but got ${viewModel.getLineCount()}`);
+			});
+		});
+
+		test('deleting the only visible line when it is in the middle', () => {
+			const text = [
+				'line1',
+				'line2',
+				'line3',
+				'line4',
+				'line5',
+			];
+			testViewModel(text, {}, (viewModel, model) => {
+				// Hide lines 1-2 and 4-5, leaving only line 3 visible
+				viewModel.setHiddenAreas([
+					new Range(1, 1, 2, 1),
+					new Range(4, 1, 5, 1),
+				]);
+				assert.strictEqual(viewModel.getLineCount(), 1);
+
+				// Delete line 3 by merging adjacent lines
+				model.applyEdits([{
+					range: new Range(2, 6, 4, 1),
+					text: null
+				}]);
+
+				assert.ok(viewModel.getLineCount() >= 1, `expected at least 1 view line but got ${viewModel.getLineCount()}`);
+			});
+		});
+
+		test('undo that removes the only visible line', () => {
+			const text = [
+				'line1',
+			];
+			testViewModel(text, {}, (viewModel, model) => {
+				assert.strictEqual(viewModel.getLineCount(), 1);
+
+				// Insert lines to create content
+				model.pushEditOperations([], [{
+					range: new Range(1, 6, 1, 6),
+					text: '\nline2\nline3\nline4\nline5'
+				}], () => ([]));
+
+				assert.strictEqual(viewModel.getLineCount(), 5);
+
+				// Hide lines 1-2 and 4-5, leaving only line 3 visible
+				viewModel.setHiddenAreas([
+					new Range(1, 1, 2, 1),
+					new Range(4, 1, 5, 1),
+				]);
+				assert.strictEqual(viewModel.getLineCount(), 1);
+
+				// Undo collapses back to 1 line, but hidden area decorations may grow
+				model.undo();
+
+				assert.ok(viewModel.getLineCount() >= 1, `expected at least 1 view line but got ${viewModel.getLineCount()}`);
+			});
+		});
+
+		test('deleting the only visible line between two hidden areas leaves all lines hidden', () => {
+			const text = [
+				'line1',
+				'line2',
+				'line3',
+				'line4',
+				'line5',
+				'line6',
+				'line7',
+				'line8',
+			];
+			testViewModel(text, {}, (viewModel, model) => {
+				assert.strictEqual(viewModel.getLineCount(), 8);
+
+				// Hide lines 1-5 and 7-8, leaving only line 6 visible
+				viewModel.setHiddenAreas([
+					new Range(1, 1, 5, 1),
+					new Range(7, 1, 8, 1),
+				]);
+				assert.strictEqual(viewModel.getLineCount(), 1);
+
+				// Delete lines 6, 7, 8 — the only visible line plus some hidden ones
+				model.applyEdits([{
+					range: new Range(6, 1, 8, 5),
+					text: null
+				}]);
+
+				// The view model must still have at least one visible line
+				assert.ok(viewModel.getLineCount() >= 1, `expected at least 1 view line but got ${viewModel.getLineCount()}`);
+			});
+		});
+
+		test('multiple visible lines deleted leaving only hidden lines', () => {
+			const text = [
+				'hidden1',
+				'hidden2',
+				'visible1',
+				'visible2',
+				'hidden3',
+				'hidden4',
+			];
+			testViewModel(text, {}, (viewModel, model) => {
+				viewModel.setHiddenAreas([
+					new Range(1, 1, 2, 1),
+					new Range(5, 1, 6, 1),
+				]);
+				assert.strictEqual(viewModel.getLineCount(), 2);
+
+				// Delete visible lines 3 and 4
+				model.applyEdits([{
+					range: new Range(2, 8, 5, 1),
+					text: null
+				}]);
+
+				assert.ok(viewModel.getLineCount() >= 1, `expected at least 1 view line but got ${viewModel.getLineCount()}`);
+			});
+		});
+
+		test('hidden areas from multiple sources that overlap produce valid merged result', () => {
+			const text: string[] = [];
+			for (let i = 1; i <= 10; i++) {
+				text.push(`line${i}`);
+			}
+			testViewModel(text, {}, (viewModel, model) => {
+				// Source A hides a large range [1-8].
+				// Source B hides small ranges [2-3] and [5-6] that are subsumed by A.
+				// mergeLineRangeArray has a bug where it advances both pointers after
+				// merging [1-8]+[2-3]=[1-8], leaving [5-6] and [8,9] as separate entries
+				// that overlap with or are subsumed by [1-8].
+				// normalizeLineRanges in setHiddenAreas cleans this up, so the result
+				// should still be correct: lines 1-8 hidden, lines 9-10 visible.
+				viewModel.setHiddenAreas([new Range(1, 1, 8, 1)], 'sourceA');
+				viewModel.setHiddenAreas([new Range(2, 1, 3, 1), new Range(5, 1, 6, 1), new Range(8, 1, 9, 1)], 'sourceB');
+
+				// Lines 1-9 should be hidden (merged from [1-8] and [8-9]), line 10 visible
+				assert.strictEqual(viewModel.getLineCount(), 1, 'only line 10 should be visible');
+
+				// The hidden areas returned should be non-overlapping and sorted
+				const hiddenAreas = viewModel.getHiddenAreas();
+				for (let i = 1; i < hiddenAreas.length; i++) {
+					assert.ok(
+						hiddenAreas[i].startLineNumber > hiddenAreas[i - 1].endLineNumber,
+						`hidden areas should not overlap: [${hiddenAreas[i - 1].startLineNumber}-${hiddenAreas[i - 1].endLineNumber}] and [${hiddenAreas[i].startLineNumber}-${hiddenAreas[i].endLineNumber}]`
+					);
+				}
+			});
+		});
+
+		test('tab size change with drifted hidden area decorations must not leave 0 visible lines', () => {
+			const text = [
+				'line1',
+				'line2',
+				'line3',
+			];
+			testViewModel(text, {}, (viewModel, model) => {
+				// Hide lines 1-2, leaving only line 3 visible.
+				viewModel.setHiddenAreas([new Range(1, 1, 2, 1)]);
+				assert.strictEqual(viewModel.getLineCount(), 1);
+
+				// Insert at (2,1) — the end edge of the hidden area decoration.
+				// AlwaysGrowsWhenTypingAtEdges causes the decoration to grow from
+				// [1,1 → 2,1] to [1,1 → 3,1], covering what was the visible line 3.
+				// After this insert, the file has 4 lines, decoration covers [1-3], line 4 visible.
+				model.applyEdits([{ range: new Range(2, 1, 2, 1), text: 'x\n' }]);
+				// Insert again to push decoration further
+				model.applyEdits([{ range: new Range(3, 1, 3, 1), text: 'y\n' }]);
+				// Now file has 5 lines, decoration covers [1-4], line 5 visible.
+
+				// Delete lines 4-5 to collapse back, making decoration cover everything
+				model.applyEdits([{ range: new Range(4, 1, 5, 6), text: '' }]);
+				// Now file has 4 lines. acceptVersionId ensures viewLines >= 1.
+
+				// Tab size change: triggers _constructLines(resetHiddenAreas=false)
+				// which re-reads the decoration ranges (which may cover all lines).
+				model.updateOptions({ tabSize: 8 });
+
+				assert.ok(viewModel.getLineCount() >= 1, `expected at least 1 view line but got ${viewModel.getLineCount()}`);
+			});
+		});
+	});
 });

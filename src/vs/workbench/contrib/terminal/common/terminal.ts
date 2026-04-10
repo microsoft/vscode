@@ -67,7 +67,7 @@ export interface ITerminalProfileResolverService {
 export const ShellIntegrationExitCode = 633;
 
 export interface IRegisterContributedProfileArgs {
-	extensionIdentifier: string; id: string; title: string; options: ICreateContributedTerminalProfileOptions;
+	extensionIdentifier: string; id: string; title: string; options: ICreateContributedTerminalProfileOptions; titleTemplate?: string;
 }
 
 export const ITerminalProfileService = createDecorator<ITerminalProfileService>('terminalProfileService');
@@ -83,6 +83,7 @@ export interface ITerminalProfileService {
 	readonly onDidChangeAvailableProfiles: Event<ITerminalProfile[]>;
 	getContributedDefaultProfile(shellLaunchConfig: IShellLaunchConfig): Promise<IExtensionTerminalProfile | undefined>;
 	registerContributedProfile(args: IRegisterContributedProfileArgs): Promise<void>;
+	registerInternalContributedProfile(profile: IExtensionTerminalProfile): IDisposable;
 	getContributedProfileProvider(extensionIdentifier: string, id: string): ITerminalProfileProvider | undefined;
 	registerTerminalProfileProvider(extensionIdentifier: string, id: string, profileProvider: ITerminalProfileProvider): IDisposable;
 }
@@ -300,9 +301,9 @@ export interface ITerminalProcessManager extends IDisposable, ITerminalProcessIn
 	relaunch(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number, reset: boolean): Promise<ITerminalLaunchError | ITerminalLaunchResult | undefined>;
 	write(data: string): Promise<void>;
 	sendSignal(signal: string): Promise<void>;
-	setDimensions(cols: number, rows: number): Promise<void>;
-	setDimensions(cols: number, rows: number, sync: false): Promise<void>;
-	setDimensions(cols: number, rows: number, sync: true): void;
+	setDimensions(cols: number, rows: number, sync?: undefined, pixelWidth?: number, pixelHeight?: number): Promise<void>;
+	setDimensions(cols: number, rows: number, sync: false, pixelWidth?: number, pixelHeight?: number): Promise<void>;
+	setDimensions(cols: number, rows: number, sync: true, pixelWidth?: number, pixelHeight?: number): void;
 	clearBuffer(): Promise<void>;
 	setUnicodeVersion(version: '6' | '11'): Promise<void>;
 	setNextCommandId(commandLine: string, commandId: string): Promise<void>;
@@ -452,6 +453,7 @@ export const enum TerminalCommandId {
 	FocusNext = 'workbench.action.terminal.focusNext',
 	FocusPrevious = 'workbench.action.terminal.focusPrevious',
 	Paste = 'workbench.action.terminal.paste',
+	PastePwsh = 'workbench.action.terminal.pastePwsh',
 	PasteSelection = 'workbench.action.terminal.pasteSelection',
 	SelectDefaultProfile = 'workbench.action.terminal.selectDefaultShell',
 	RunSelectedText = 'workbench.action.terminal.runSelectedText',
@@ -522,6 +524,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.New,
 	TerminalCommandId.NewInNewWindow,
 	TerminalCommandId.Paste,
+	TerminalCommandId.PastePwsh,
 	TerminalCommandId.PasteSelection,
 	TerminalCommandId.ResizePaneDown,
 	TerminalCommandId.ResizePaneLeft,
@@ -623,6 +626,9 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	'workbench.action.togglePanel',
 	'workbench.action.quickOpenView',
 	'workbench.action.toggleMaximizedPanel',
+	'workbench.action.zoomIn',
+	'workbench.action.zoomOut',
+	'workbench.action.zoomReset',
 	'notification.acceptPrimaryAction',
 	'runCommands',
 	'workbench.action.terminal.chat.start',
@@ -692,6 +698,10 @@ export const terminalContributionsDescriptor: IExtensionPointDescriptor<ITermina
 									}
 								}
 							}]
+						},
+						titleTemplate: {
+							description: nls.localize('vscode.extension.contributes.terminal.profiles.titleTemplate', "A title template string for the terminal tab. Supports variables like $\{sequence}, $\{process}, $\{cwd}, etc. Overrides the default terminal.integrated.tabs.title setting for terminals created with this profile."),
+							type: 'string',
 						},
 					},
 				},

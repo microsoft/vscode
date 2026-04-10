@@ -11,7 +11,8 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { mcpAutoStartConfig, McpAutoStartValue } from '../../../../platform/mcp/common/mcpManagement.js';
-import { StorageScope } from '../../../../platform/storage/common/storage.js';
+import { IStorageService, StorageScope } from '../../../../platform/storage/common/storage.js';
+import { EnablementModel, isContributionEnabled } from '../../chat/common/enablement.js';
 import { IMcpRegistry } from './mcpRegistryTypes.js';
 import { McpServer, McpServerMetadataCache } from './mcpServer.js';
 import { IAutostartResult, IMcpServer, IMcpService, McpCollectionDefinition, McpConnectionState, McpDefinitionReference, McpServerCacheState, McpServerDefinition, McpStartServerInteraction, McpToolName, UserInteractionRequiredError } from './mcpTypes.js';
@@ -29,6 +30,8 @@ export class McpService extends Disposable implements IMcpService {
 
 	public get lazyCollectionState() { return this._mcpRegistry.lazyCollectionState; }
 
+	public readonly enablementModel: EnablementModel;
+
 	protected readonly userCache: McpServerMetadataCache;
 	protected readonly workspaceCache: McpServerMetadataCache;
 
@@ -36,9 +39,12 @@ export class McpService extends Disposable implements IMcpService {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IMcpRegistry private readonly _mcpRegistry: IMcpRegistry,
 		@ILogService private readonly _logService: ILogService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IStorageService storageService: IStorageService,
 	) {
 		super();
+
+		this.enablementModel = this._register(new EnablementModel('mcp.enablement', storageService));
 
 		this.userCache = this._register(_instantiationService.createInstance(McpServerMetadataCache, StorageScope.PROFILE));
 		this.workspaceCache = this._register(_instantiationService.createInstance(McpServerMetadataCache, StorageScope.WORKSPACE));
@@ -96,8 +102,11 @@ export class McpService extends Disposable implements IMcpService {
 			return;
 		}
 
-		// don't try re-running errored servers, let the user choose if they want that
-		const candidates = this.servers.get().filter(s => s.connectionState.get().state !== McpConnectionState.Kind.Error);
+		// don't try re-running errored servers or disabled servers
+		const candidates = this.servers.get().filter(s =>
+			s.connectionState.get().state !== McpConnectionState.Kind.Error
+			&& isContributionEnabled(s.enablement.get())
+		);
 
 		let todo = new Set<IMcpServer>();
 		if (autoStartConfig === McpAutoStartValue.OnlyNew) {
@@ -203,6 +212,7 @@ export class McpService extends Disposable implements IMcpService {
 				!!def.collectionDefinition.lazy,
 				def.collectionDefinition.scope === StorageScope.WORKSPACE ? this.workspaceCache : this.userCache,
 				def.toolPrefix,
+				this.enablementModel,
 			);
 
 			nextServers.push({ object, toolPrefix: def.toolPrefix });

@@ -1,0 +1,387 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* ---- Multi-step Walkthrough Overlay ---- */
+
+.sessions-walkthrough-overlay {
+	position: absolute;
+	inset: 0;
+	z-index: 200;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: var(--vscode-editor-background);
+	opacity: 1;
+	transition: opacity 200ms ease-out;
+}
+
+.sessions-walkthrough-overlay .hidden {
+	display: none;
+}
+
+/* Hide titlebar right actions during sign-in */
+.monaco-workbench:has(.sessions-walkthrough-overlay) .part.titlebar .titlebar-right {
+	visibility: hidden;
+}
+
+.sessions-walkthrough-overlay.sessions-walkthrough-dismissed {
+	opacity: 0;
+	pointer-events: none;
+}
+
+/* ---- Card ---- */
+
+.sessions-walkthrough-card {
+	display: flex;
+	flex-direction: column;
+	width: 640px;
+	max-width: calc(100vw - 64px);
+	max-height: calc(100vh - 80px);
+	text-align: left;
+	gap: 24px;
+}
+
+/* ---- Content area (scrollable middle) ---- */
+
+.sessions-walkthrough-content {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 24px;
+	width: 100%;
+	flex: 1;
+	overflow-y: auto;
+	overflow-x: hidden;
+	min-height: 0;
+	padding: 4px 0 8px;
+	box-sizing: border-box;
+	opacity: 1;
+	transition: opacity 200ms ease-out;
+}
+
+.sessions-walkthrough-content.sessions-walkthrough-fade-out {
+	opacity: 0;
+}
+
+.sessions-walkthrough-content.sessions-walkthrough-fade-in {
+	opacity: 1;
+}
+
+/* Progress bar (replaces provider buttons during setup) */
+.sessions-walkthrough-progress-bar {
+	width: 100%;
+	height: 3px;
+	background: color-mix(in srgb, var(--vscode-foreground) 10%, transparent);
+	border-radius: 2px;
+	overflow: hidden;
+	margin-top: 16px;
+}
+
+.sessions-walkthrough-progress-bar-fill {
+	width: 30%;
+	height: 100%;
+	background: var(--vscode-progressBar-background, #0078d4);
+	border-radius: 2px;
+	animation: sessions-walkthrough-progress 2s ease-in-out infinite;
+}
+
+@keyframes sessions-walkthrough-progress {
+	0% {
+		transform: translateX(0%);
+	}
+
+	50% {
+		transform: translateX(233%);
+	}
+
+	100% {
+		transform: translateX(0%);
+	}
+}
+
+/* ---- Fixed footer (always at bottom) ---- */
+
+.sessions-walkthrough-footer {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 12px;
+	width: 100%;
+	flex-shrink: 0;
+}
+
+.sessions-walkthrough-success-actions {
+	display: flex;
+	flex-direction: row;
+	gap: 8px;
+	margin-top: 8px;
+}
+
+/* ---- Sign-in provider buttons ---- */
+
+.sessions-walkthrough-provider-btn {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 10px;
+	padding: 10px 16px;
+	border-radius: 6px;
+	border: 1px solid color-mix(in srgb, var(--vscode-foreground) 15%, transparent);
+	background: transparent;
+	color: var(--vscode-foreground);
+	font-size: 13px;
+	font-weight: 500;
+	cursor: pointer;
+	transition: background 100ms, border-color 100ms;
+	white-space: nowrap;
+}
+
+.sessions-walkthrough-provider-label {
+	line-height: 1;
+}
+
+.sessions-walkthrough-provider-btn:hover {
+	background: color-mix(in srgb, var(--vscode-foreground) 8%, transparent);
+	border-color: color-mix(in srgb, var(--vscode-foreground) 25%, transparent);
+}
+
+.sessions-walkthrough-provider-btn:disabled {
+	opacity: 0.5;
+	cursor: default;
+}
+
+.sessions-walkthrough-provider-btn::before {
+	content: '';
+	width: 18px;
+	height: 18px;
+	background-size: contain;
+	background-repeat: no-repeat;
+	background-position: center;
+	flex-shrink: 0;
+}
+
+.sessions-walkthrough-provider-btn.provider-github::before {
+	-webkit-mask-image: url('./github-mark.svg');
+	mask-image: url('./github-mark.svg');
+	-webkit-mask-repeat: no-repeat;
+	mask-repeat: no-repeat;
+	-webkit-mask-position: center;
+	mask-position: center;
+	-webkit-mask-size: contain;
+	mask-size: contain;
+	background-color: currentColor;
+}
+
+.sessions-walkthrough-provider-btn.provider-google::before {
+	background-image: url('./google.svg');
+}
+
+.sessions-walkthrough-provider-btn.provider-apple::before {
+	background-image: url('./apple-dark.svg');
+}
+
+.monaco-workbench.hc-light .sessions-walkthrough-provider-btn.provider-apple::before,
+.monaco-workbench.vs .sessions-walkthrough-provider-btn.provider-apple::before {
+	background-image: url('./apple-light.svg');
+}
+
+/* ---- Provider button row ---- */
+
+.sessions-walkthrough-sign-in-actions {
+	display: flex;
+	flex-direction: column;
+	align-items: stretch;
+	gap: 0;
+	width: min(100%, 400px);
+	margin-top: 16px;
+}
+
+.sessions-walkthrough-providers-row {
+	display: flex;
+	gap: 8px;
+	align-items: center;
+	justify-content: flex-start;
+	width: 100%;
+	flex-wrap: nowrap;
+}
+
+.sessions-walkthrough-providers-row > .sessions-walkthrough-provider-btn {
+	flex: 0 0 auto;
+}
+
+.sessions-walkthrough-provider-btn.sessions-walkthrough-provider-primary {
+	flex: 1 1 auto;
+	min-width: 0;
+	padding: 10px 12px;
+	gap: 8px;
+}
+
+.sessions-walkthrough-provider-btn.sessions-walkthrough-provider-icon-only {
+	width: 40px;
+	height: 40px;
+	padding: 0;
+	border-radius: 8px;
+	justify-content: center;
+	flex: 0 0 40px;
+}
+
+.sessions-walkthrough-provider-btn.sessions-walkthrough-provider-icon-only::before {
+	width: 18px;
+	height: 18px;
+}
+
+.sessions-walkthrough-provider-btn.sessions-walkthrough-provider-compact {
+	min-height: 40px;
+	padding: 0 6px;
+	border-radius: 8px;
+	font-size: 11px;
+	gap: 0;
+	justify-content: center;
+	flex: 0 0 auto;
+}
+
+.sessions-walkthrough-provider-btn.sessions-walkthrough-provider-compact::before {
+	display: none;
+}
+
+/* ---- Hero layout (icon left, text right) ---- */
+
+.sessions-walkthrough-hero {
+	display: flex;
+	align-items: stretch;
+	gap: 24px;
+}
+
+.sessions-walkthrough-hero .sessions-walkthrough-icon {
+	display: flex;
+	align-items: center;
+}
+
+.sessions-walkthrough-hero-text {
+	display: flex;
+	flex-direction: column;
+	justify-content: center;
+	gap: 6px;
+}
+
+.sessions-walkthrough-hero-text h2 {
+	margin: 0;
+	font-size: 22px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+.sessions-walkthrough-hero-text p {
+	margin: 0;
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.5;
+}
+
+.sessions-walkthrough-icon .codicon {
+	font-size: 48px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.sessions-walkthrough-icon.sessions-walkthrough-icon-large .codicon {
+	font-size: 112px;
+}
+
+/* Sessions logo for sign-in screen */
+.sessions-walkthrough-logo {
+	width: 112px;
+	height: 112px;
+	background-image: url('../../../../browser/media/sessions-logo-light.svg');
+	background-size: contain;
+	background-repeat: no-repeat;
+	background-position: center;
+	flex-shrink: 0;
+	align-self: center;
+}
+
+.vs .sessions-walkthrough-logo,
+.hc-light .sessions-walkthrough-logo {
+	background-image: url('../../../../browser/media/sessions-logo-dark.svg');
+}
+
+/* ---- Action area (used inside content for sign-in step spinner) ---- */
+
+.sessions-walkthrough-spinner {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.sessions-walkthrough-spinner .codicon-loading {
+	animation: sessions-walkthrough-spin 1.5s linear infinite;
+}
+
+@keyframes sessions-walkthrough-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+.sessions-walkthrough-error {
+	margin: 0;
+	font-size: 12px;
+	color: var(--vscode-errorForeground);
+}
+
+.sessions-walkthrough-disclaimer {
+	position: absolute;
+	left: 50%;
+	bottom: 24px;
+	transform: translateX(-50%);
+	width: min(720px, calc(100vw - 64px));
+	margin: 0;
+	color: var(--vscode-descriptionForeground);
+	font-size: 11px;
+	line-height: 1.4;
+	text-align: center;
+}
+
+.sessions-walkthrough-disclaimer > a,
+.sessions-walkthrough-disclaimer > a:link,
+.sessions-walkthrough-disclaimer > a:visited {
+	color: var(--vscode-textLink-foreground) !important;
+	-webkit-text-fill-color: var(--vscode-textLink-foreground) !important;
+	text-decoration: none !important;
+	outline: none !important;
+}
+
+.sessions-walkthrough-disclaimer > a:hover,
+.sessions-walkthrough-disclaimer > a:active {
+	color: var(--vscode-textLink-activeForeground) !important;
+	-webkit-text-fill-color: var(--vscode-textLink-activeForeground) !important;
+	text-decoration: underline !important;
+}
+
+.sessions-walkthrough-disclaimer > a:focus-visible {
+	outline: none !important;
+	box-shadow: 0 0 0 1px var(--vscode-focusBorder) !important;
+	border-radius: 2px !important;
+}
+
+/* Reduced motion */
+
+.monaco-reduce-motion .sessions-walkthrough-overlay,
+.monaco-reduce-motion .sessions-walkthrough-content,
+.monaco-reduce-motion .sessions-walkthrough-provider-btn,
+.monaco-reduce-motion .sessions-walkthrough-provider-secondary,
+.agent-sessions-workbench.monaco-reduce-motion .sessions-walkthrough-overlay,
+.agent-sessions-workbench.monaco-reduce-motion .sessions-walkthrough-content,
+.agent-sessions-workbench.monaco-reduce-motion .sessions-walkthrough-provider-btn,
+.agent-sessions-workbench.monaco-reduce-motion .sessions-walkthrough-provider-secondary {
+	transition-duration: 0ms !important;
+}
+
+.monaco-reduce-motion .sessions-walkthrough-progress-bar-fill,
+.agent-sessions-workbench.monaco-reduce-motion .sessions-walkthrough-progress-bar-fill {
+	animation: none !important;
+}

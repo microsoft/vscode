@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { Disposable, DisposableMap, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -13,7 +13,7 @@ import { IContextKey, IContextKeyService } from '../../../../../platform/context
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
 import { TerminalChatContextKeys } from './terminalChat.js';
-import { chatSessionResourceToId, LocalChatSessionUri } from '../../../chat/common/model/chatUri.js';
+import { LocalChatSessionUri } from '../../../chat/common/model/chatUri.js';
 import { isNumber, isString } from '../../../../../base/common/types.js';
 
 const enum StorageKeys {
@@ -81,11 +81,14 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 
 		// Clear session auto-approve rules when chat sessions end
 		this._register(this._chatService.onDidDisposeSession(e => {
-			for (const resource of e.sessionResource) {
+			for (const resource of e.sessionResources) {
 				this._sessionAutoApproveRules.delete(resource);
 				this._sessionAutoApprovalEnabled.delete(resource);
 			}
 		}));
+
+		// Update context keys when terminal instances change (registered once, not per-registration)
+		this._register(this._terminalService.onDidChangeInstances(() => this._updateHasToolTerminalContextKeys()));
 	}
 
 	registerTerminalInstanceWithToolSession(terminalToolSessionId: string | undefined, instance: ITerminalInstance): void {
@@ -96,16 +99,16 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 		this._terminalInstancesByToolSessionId.set(terminalToolSessionId, instance);
 		this._toolSessionIdByTerminalInstance.set(instance, terminalToolSessionId);
 		this._onDidRegisterTerminalInstanceForToolSession.fire(instance);
-		this._terminalInstanceListenersByToolSessionId.set(terminalToolSessionId, instance.onDisposed(() => {
+		const instanceStore = new DisposableStore();
+		instanceStore.add(instance.onDisposed(() => {
 			this._terminalInstancesByToolSessionId.delete(terminalToolSessionId);
 			this._toolSessionIdByTerminalInstance.delete(instance);
 			this._terminalInstanceListenersByToolSessionId.deleteAndDispose(terminalToolSessionId);
 			this._persistToStorage();
 			this._updateHasToolTerminalContextKeys();
 		}));
-
-		this._register(this._chatService.onDidDisposeSession(e => {
-			for (const resource of e.sessionResource) {
+		instanceStore.add(this._chatService.onDidDisposeSession(e => {
+			for (const resource of e.sessionResources) {
 				if (LocalChatSessionUri.parseLocalSessionId(resource) === terminalToolSessionId) {
 					this._terminalInstancesByToolSessionId.delete(terminalToolSessionId);
 					this._toolSessionIdByTerminalInstance.delete(instance);
@@ -117,9 +120,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 				}
 			}
 		}));
-
-		// Update context keys when terminal instances change (including when terminals are created, disposed, revealed, or hidden)
-		this._register(this._terminalService.onDidChangeInstances(() => this._updateHasToolTerminalContextKeys()));
+		this._terminalInstanceListenersByToolSessionId.set(terminalToolSessionId, instanceStore);
 
 		if (isNumber(instance.shellLaunchConfig?.attachPersistentProcess?.id) || isNumber(instance.persistentProcessId)) {
 			this._persistToStorage();
@@ -178,11 +179,6 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 
 	getChatSessionResourceForInstance(instance: ITerminalInstance): URI | undefined {
 		return this._chatSessionResourceByTerminalInstance.get(instance);
-	}
-
-	getChatSessionIdForInstance(instance: ITerminalInstance): string | undefined {
-		const resource = this._chatSessionResourceByTerminalInstance.get(instance);
-		return resource ? chatSessionResourceToId(resource) : undefined;
 	}
 
 	isBackgroundTerminal(terminalToolSessionId?: string): boolean {

@@ -67,8 +67,8 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true,
 			scope: ConfigurationScope.APPLICATION,
-			title: localize('enableWindowsBackgroundUpdatesTitle', "Enable Background Updates on Windows"),
-			description: localize('enableWindowsBackgroundUpdates', "Enable to download and install new VS Code versions in the background on Windows."),
+			title: localize('enableWindowsBackgroundUpdatesTitle', "Enable Background Updates"),
+			description: localize('enableWindowsBackgroundUpdates', "Enable to download and install new VS Code versions in the background."),
 			included: isWindows && !isWeb
 		},
 		'update.showReleaseNotes': {
@@ -78,17 +78,12 @@ configurationRegistry.registerConfiguration({
 			description: localize('showReleaseNotes', "Show Release Notes after an update. The Release Notes are fetched from a Microsoft online service."),
 			tags: ['usesOnlineServices']
 		},
-		'update.statusBar': {
-			type: 'string',
-			enum: ['hidden', 'actionable', 'detailed'],
-			default: 'detailed',
+		'update.showPostInstallInfo': {
+			type: 'boolean',
+			default: true,
 			scope: ConfigurationScope.APPLICATION,
-			description: localize('statusBar', "Controls the visibility of the update status bar entry."),
-			enumDescriptions: [
-				localize('hidden', "The status bar entry is never shown."),
-				localize('actionable', "The status bar entry is shown when an action is required (e.g., download, install, or restart)."),
-				localize('detailed', "The status bar entry is shown for all update states including progress.")
-			]
+			description: localize('showPostInstallInfo', "Show update information tooltip in the title bar after a new version is installed."),
+			included: false,
 		}
 	}
 });

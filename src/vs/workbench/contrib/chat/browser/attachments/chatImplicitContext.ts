@@ -26,7 +26,6 @@ import { IChatService } from '../../common/chatService/chatService.js';
 import { IChatRequestImplicitVariableEntry, IChatRequestVariableEntry, isStringImplicitContextValue, StringChatContextValue } from '../../common/attachments/chatVariableEntries.js';
 import { ChatAgentLocation } from '../../common/constants.js';
 import { ILanguageModelIgnoredFilesService } from '../../common/ignoredFiles.js';
-import { getPromptsTypeForLanguageId } from '../../common/promptSyntax/promptTypes.js';
 import { IChatWidget, IChatWidgetService } from '../chat.js';
 import { IChatContextService } from '../contextContrib/chatContextService.js';
 import { ITextModel } from '../../../../../editor/common/model.js';
@@ -258,8 +257,6 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 			return;
 		}
 
-		const isPromptFile = languageId && getPromptsTypeForLanguageId(languageId) !== undefined;
-
 		const widgets = updateWidget ? [updateWidget] : [...this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.Chat), ...this.chatWidgetService.getWidgetsByLocations(ChatAgentLocation.EditorInline)];
 		for (const widget of widgets) {
 			if (!widget.input.implicitContext) {
@@ -267,8 +264,14 @@ export class ChatImplicitContextContribution extends Disposable implements IWork
 			}
 			const setting = this._implicitContextEnablement[widget.location];
 			const isFirstInteraction = widget.viewModel?.getItems().length === 0;
-			if ((setting === 'always' || setting === 'first' && isFirstInteraction) && !isPromptFile) { // disable implicit context for prompt files
-				widget.input.implicitContext.setValues([{ value: newValue, isSelection }, { value: providerContext, isSelection: false }]);
+			if ((setting === 'always' || setting === 'first' && isFirstInteraction)) {
+				// When there's a non-code active editor (e.g. Settings is open), preserve
+				// existing values so the attachment bar stays visible.
+				// But when there's no active editor at all, clear the values.
+				const hasActiveEditor = !!this.editorService.activeEditor;
+				if (newValue !== undefined || !widget.input.implicitContext.hasValue || !hasActiveEditor) {
+					widget.input.implicitContext.setValues([{ value: newValue, isSelection }, { value: providerContext, isSelection: false }]);
+				}
 			} else {
 				widget.input.implicitContext.setValues([]);
 			}
@@ -294,6 +297,7 @@ export class ChatImplicitContexts extends Disposable {
 
 	private _values: DisposableMap<ChatImplicitContext, DisposableStore> = this._register(new DisposableMap());
 	private readonly _valuesDisposables: DisposableStore = this._register(new DisposableStore());
+	private _enabled = false;
 
 	setValues(values: ImplicitContextWithSelection[]): void {
 		this._valuesDisposables.clear();
@@ -308,6 +312,7 @@ export class ChatImplicitContexts extends Disposable {
 		for (const value of definedValues) {
 			const implicitContext = new ChatImplicitContext();
 			implicitContext.setValue(value.value, value.isSelection);
+			implicitContext.enabled = this._enabled;
 			const disposableStore = new DisposableStore();
 			disposableStore.add(implicitContext.onDidChangeValue(() => {
 				this._onDidChangeValue.fire();
@@ -327,6 +332,7 @@ export class ChatImplicitContexts extends Disposable {
 	}
 
 	setEnabled(enabled: boolean): void {
+		this._enabled = enabled;
 		this.values.forEach((v) => v.enabled = enabled);
 	}
 

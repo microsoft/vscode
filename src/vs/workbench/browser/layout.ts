@@ -22,7 +22,7 @@ import { getMenuBarVisibility, IPath, hasNativeTitlebar, hasCustomTitlebar, Titl
 import { IHostService } from '../services/host/browser/host.js';
 import { IBrowserWorkbenchEnvironmentService } from '../services/environment/browser/environmentService.js';
 import { IEditorService } from '../services/editor/common/editorService.js';
-import { EditorGroupLayout, GroupOrientation, GroupsOrder, IEditorGroupsService } from '../services/editor/common/editorGroupsService.js';
+import { EditorGroupLayout, GroupActivationReason, GroupOrientation, GroupsOrder, IEditorGroupsService } from '../services/editor/common/editorGroupsService.js';
 import { SerializableGrid, ISerializableView, ISerializedGrid, Orientation, ISerializedNode, ISerializedLeafNode, Direction, IViewSize, Sizing } from '../../base/browser/ui/grid/grid.js';
 import { Part } from './part.js';
 import { IStatusbarService } from '../services/statusbar/browser/statusbar.js';
@@ -100,7 +100,8 @@ enum LayoutClasses {
 	STATUSBAR_HIDDEN = 'nostatusbar',
 	FULLSCREEN = 'fullscreen',
 	MAXIMIZED = 'maximized',
-	WINDOW_BORDER = 'border'
+	WINDOW_BORDER = 'border',
+	NO_SHADOWS = 'no-shadows'
 }
 
 interface IPathToOpen extends IPath {
@@ -380,7 +381,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 					showEditorIfHidden();
 				}
 			}));
-			this._register(this.editorGroupService.mainPart.onDidActivateGroup(showEditorIfHidden));
+			this._register(this.editorGroupService.mainPart.onDidActivateGroup(e => {
+				if (e.reason !== GroupActivationReason.PART_CLOSE) {
+					showEditorIfHidden(); // only show unless a modal/auxiliary part closes
+				}
+			}));
 
 			// Revalidate center layout when active editor changes: diff editor quits centered mode
 			this._register(this.mainPartEditorService.onDidActiveEditorChange(() => this.centerMainEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.MAIN_EDITOR_CENTERED))));
@@ -420,6 +425,11 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				}
 
 				this.doUpdateLayoutConfiguration();
+			}
+
+			// Shadows
+			if (e.affectsConfiguration(LayoutSettings.SHADOWS)) {
+				this.updateShadows();
 			}
 
 			// Auxiliary Sidebar
@@ -582,6 +592,18 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 		// Centered Layout
 		this.editorGroupService.whenRestored.then(() => this.centerMainEditorLayout(this.stateModel.getRuntimeValue(LayoutStateKeys.MAIN_EDITOR_CENTERED), skipLayout));
+	}
+
+	private isShadowsDisabled(): boolean {
+		return this.configurationService.getValue<boolean>(LayoutSettings.SHADOWS) === false;
+	}
+
+	private updateShadows(): void {
+		const noShadows = this.isShadowsDisabled();
+
+		for (const container of Array.from(this.containers)) {
+			container.classList.toggle(LayoutClasses.NO_SHADOWS, noShadows);
+		}
 	}
 
 	private setSideBarPosition(position: Position): void {
@@ -1593,7 +1615,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		this.auxiliaryBarPartView = auxiliaryBarPart;
 		this.statusBarPartView = statusBar;
 
-		const viewMap = {
+		const viewMap: Record<string, ISerializableView> = {
 			[Parts.ACTIVITYBAR_PART]: this.activityBarPartView,
 			[Parts.BANNER_PART]: this.bannerPartView,
 			[Parts.TITLEBAR_PART]: this.titleBarPartView,
@@ -1853,7 +1875,8 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 			!this.isVisible(Parts.PANEL_PART) ? LayoutClasses.PANEL_HIDDEN : undefined,
 			!this.isVisible(Parts.AUXILIARYBAR_PART) ? LayoutClasses.AUXILIARYBAR_HIDDEN : undefined,
 			!this.isVisible(Parts.STATUSBAR_PART) ? LayoutClasses.STATUSBAR_HIDDEN : undefined,
-			this.state.runtime.mainWindowFullscreen ? LayoutClasses.FULLSCREEN : undefined
+			this.state.runtime.mainWindowFullscreen ? LayoutClasses.FULLSCREEN : undefined,
+			this.isShadowsDisabled() ? LayoutClasses.NO_SHADOWS : undefined
 		]);
 	}
 

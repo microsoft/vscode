@@ -246,7 +246,8 @@ function handleSetResponse(expression: ExpressionContainer, response: DebugProto
 		expression.reference = response.body.variablesReference;
 		expression.namedVariables = response.body.namedVariables;
 		expression.indexedVariables = response.body.indexedVariables;
-		// todo @weinand: the set responses contain most properties, but not memory references. Should they?
+		expression.memoryReference = response.body.memoryReference;
+		expression.valueLocationReference = response.body.valueLocationReference;
 	}
 }
 

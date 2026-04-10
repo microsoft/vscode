@@ -144,6 +144,14 @@
 	box-shadow: none;
 }
 
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active {
+	box-shadow: inset var(--vscode-shadow-active-tab);
+}
+
+.monaco-workbench .part.editor > .content .editor-group-container > .title .tabs-container > .tab:hover:not(.active) {
+	box-shadow: var(--vscode-shadow-sm);
+}
+
 .monaco-workbench .part.editor > .content .editor-group-container > .title > .tabs-and-actions-container.wrapping .tabs-container > .tab:last-child {
 	margin-right: var(--last-tab-margin-right); /* when tabs wrap, we need a margin away from the absolute positioned editor actions */
 }

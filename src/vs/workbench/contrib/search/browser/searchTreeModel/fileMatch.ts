@@ -101,7 +101,7 @@ export class FileMatchImpl extends Disposable implements ISearchTreeFileMatch {
 		this._resource = this.rawMatch.resource;
 		this._textMatches = new Map<string, ISearchTreeMatch>();
 		this._removedTextMatches = new Set<string>();
-		this._updateScheduler = new RunOnceScheduler(this.updateMatchesForModel.bind(this), 250);
+		this._updateScheduler = this._register(new RunOnceScheduler(this.updateMatchesForModel.bind(this), 250));
 		this._name = new Lazy(() => labelService.getUriBasenameLabel(this.resource));
 	}
 

@@ -75,6 +75,11 @@ import { ExcludeSettingWidget, IBoolObjectDataItem, IIncludeExcludeDataItem, ILi
 
 const $ = DOM.$;
 
+const multiGroupTocSettings = new Set([
+	'accessibility.signals.chatUserActionRequired',
+	'accessibility.signals.chatResponseReceived'
+]);
+
 function getIncludeExcludeDisplayValue(element: SettingsTreeSettingElement): IIncludeExcludeDataItem[] {
 	const elementDefaultValue: Record<string, unknown> = typeof element.defaultValue === 'object'
 		? element.defaultValue ?? {}
@@ -488,6 +493,7 @@ export async function createTocTreeForExtensionSettings(extensionService: IExten
 	const processGroupEntry = async (group: ISettingsGroup) => {
 		const flatSettings = group.sections.map(section => section.settings).flat();
 		const settings = filter ? getMatchingSettings(new Set(flatSettings), filter) : flatSettings;
+		sortSettings(settings);
 
 		const extensionId = group.extensionInfo!.id;
 		const extension = await extensionService.getExtension(extensionId);
@@ -512,14 +518,6 @@ export async function createTocTreeForExtensionSettings(extensionService: IExten
 	return Promise.all(processPromises).then(() => {
 		const extGroups: ITOCEntry<ISetting>[] = [];
 		for (const extensionRootEntry of extGroupTree.values()) {
-			for (const child of extensionRootEntry.children!) {
-				// Sort the individual settings of the child by order.
-				// Leave the undefined order settings untouched.
-				child.settings?.sort((a, b) => {
-					return compareTwoNullableNumbers(a.order, b.order);
-				});
-			}
-
 			if (extensionRootEntry.children!.length === 1) {
 				// There is a single category for this extension.
 				// Push a flattened setting.
@@ -583,6 +581,7 @@ function _resolveSettingsTree(tocData: ITOCEntry<string>, allSettings: Set<ISett
 			},
 			exclude: filter?.exclude ?? {}
 		});
+		sortSettings(settings);
 	}
 
 	if (!children && !settings) {
@@ -595,6 +594,36 @@ function _resolveSettingsTree(tocData: ITOCEntry<string>, allSettings: Set<ISett
 		children,
 		settings
 	};
+}
+
+/**
+ * Sort settings so that preview and experimental settings are deprioritized.
+ * Within each tier, sort the settings by order, then alphabetically.
+ */
+function sortSettings(settings: ISetting[]): void {
+	const SETTING_STATUS_NORMAL = 0;
+	const SETTING_STATUS_PREVIEW = 1;
+	const SETTING_STATUS_EXPERIMENTAL = 2;
+
+	const getExperimentalStatus = (setting: ISetting) => {
+		if (setting.tags?.includes('experimental')) {
+			return SETTING_STATUS_EXPERIMENTAL;
+		} else if (setting.tags?.includes('preview')) {
+			return SETTING_STATUS_PREVIEW;
+		}
+		return SETTING_STATUS_NORMAL;
+	};
+
+	settings.sort((a, b) => {
+		const experimentalStatusA = getExperimentalStatus(a);
+		const experimentalStatusB = getExperimentalStatus(b);
+		if (experimentalStatusA !== experimentalStatusB) {
+			return experimentalStatusA - experimentalStatusB;
+		}
+
+		const orderComparison = compareTwoNullableNumbers(a.order, b.order);
+		return orderComparison !== 0 ? orderComparison : a.key.localeCompare(b.key);
+	});
 }
 
 function getMatchingSettings(allSettings: Set<ISetting>, filter: ITOCFilter): ISetting[] {
@@ -641,11 +670,13 @@ function getMatchingSettings(allSettings: Set<ISetting>, filter: ITOCFilter): IS
 		// Include if matches include filter and doesn't match exclude filter
 		if (shouldInclude && !shouldExclude) {
 			result.push(setting);
-			allSettings.delete(setting);
+			if (!multiGroupTocSettings.has(setting.key)) {
+				allSettings.delete(setting);
+			}
 		}
 	});
 
-	return result.sort((a, b) => a.key.localeCompare(b.key));
+	return result;
 }
 
 const settingPatternCache = new Map<string, RegExp>();
@@ -2087,12 +2118,12 @@ class SettingBoolRenderer extends AbstractSettingRenderer implements ITreeRender
 			template.descriptionElement.classList.remove('disabled');
 
 			// Need to listen for mouse clicks on description and toggle checkbox - use target ID for safety
-			// Also have to ignore embedded links - too buried to stop propagation
+			// Also have to ignore embedded links - use closest('a') to handle clicks on child elements of links (e.g. SVG icons inside <a> tags)
 			template.elementDisposables.add(DOM.addDisposableListener(template.descriptionElement, DOM.EventType.MOUSE_DOWN, (e) => {
-				const targetElement = <HTMLElement>e.target;
+				const targetElement: Element | null = e.target instanceof Element ? e.target : null;
 
 				// Toggle target checkbox
-				if (targetElement.tagName.toLowerCase() !== 'a') {
+				if (!targetElement || !targetElement.closest('a')) {
 					template.checkbox.checked = !template.checkbox.checked;
 					template.onChange!(template.checkbox.checked);
 				}
@@ -2403,14 +2434,14 @@ function escapeInvisibleChars(enumValue: string): string {
 export class SettingsTreeFilter implements ITreeFilter<SettingsTreeElement> {
 	constructor(
 		private viewState: ISettingsEditorViewState,
-		private filterGroups: boolean,
+		private isFilteringGroups: boolean,
 		@IWorkbenchEnvironmentService private environmentService: IWorkbenchEnvironmentService,
 	) { }
 
 	filter(element: SettingsTreeElement, parentVisibility: TreeVisibility): TreeFilterResult<void> {
 		// Filter during search
-		if (this.viewState.filterToCategory && element instanceof SettingsTreeSettingElement) {
-			if (!this.settingBelongsToCategory(element, this.viewState.filterToCategory)) {
+		if (this.viewState.categoryFilter && element instanceof SettingsTreeSettingElement) {
+			if (!this.settingContainedInGroup(element.setting, this.viewState.categoryFilter)) {
 				return false;
 			}
 		}
@@ -2426,8 +2457,8 @@ export class SettingsTreeFilter implements ITreeFilter<SettingsTreeElement> {
 		// Group with no visible children
 		if (element instanceof SettingsTreeGroupElement) {
 			// When filtering to a specific category, only show that category and its descendants
-			if (this.filterGroups && this.viewState.filterToCategory) {
-				if (!this.groupIsRelatedToCategory(element, this.viewState.filterToCategory)) {
+			if (this.isFilteringGroups && this.viewState.categoryFilter) {
+				if (!this.groupIsRelatedToCategory(element, this.viewState.categoryFilter)) {
 					return false;
 				}
 				// For groups related to the category, skip the count check and recurse
@@ -2444,7 +2475,7 @@ export class SettingsTreeFilter implements ITreeFilter<SettingsTreeElement> {
 
 		// Filtered "new extensions" button
 		if (element instanceof SettingsTreeNewExtensionsElement) {
-			if (this.viewState.tagFilters?.size || this.viewState.filterToCategory) {
+			if (this.viewState.tagFilters?.size || this.viewState.categoryFilter) {
 				return false;
 			}
 		}
@@ -2452,19 +2483,16 @@ export class SettingsTreeFilter implements ITreeFilter<SettingsTreeElement> {
 		return true;
 	}
 
-	/**
-	 * Checks if a setting element belongs to the category or any of its subcategories
-	 * by traversing up the setting's parent chain using IDs.
-	 */
-	private settingBelongsToCategory(element: SettingsTreeSettingElement, category: SettingsTreeGroupElement): boolean {
-		let parent = element.parent;
-		while (parent) {
-			if (parent.id === category.id) {
-				return true;
+	private settingContainedInGroup(setting: ISetting, group: SettingsTreeGroupElement): boolean {
+		return group.children.some(child => {
+			if (child instanceof SettingsTreeGroupElement) {
+				return this.settingContainedInGroup(setting, child);
+			} else if (child instanceof SettingsTreeSettingElement) {
+				return child.setting.key === setting.key;
+			} else {
+				return false;
 			}
-			parent = parent.parent;
-		}
-		return false;
+		});
 	}
 
 	/**

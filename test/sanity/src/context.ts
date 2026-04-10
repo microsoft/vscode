@@ -32,10 +32,15 @@ interface ITargetMetadata {
  */
 export class TestContext {
 	private static readonly authenticodeInclude = /^.+\.(exe|dll|sys|cab|cat|msi|jar|ocx|ps1|psm1|psd1|ps1xml|pssc1)$/i;
+	private static readonly versionInfoInclude = /^.+\.(exe|dll|node|msi)$/i;
+	private static readonly versionInfoExclude = /^(dxil\.dll|ffmpeg\.dll|msalruntime\.dll)$/i;
+	private static readonly dpkgLockError = /dpkg frontend lock was locked by another process|unable to acquire the dpkg frontend lock|could not get lock \/var\/lib\/dpkg\/lock-frontend/i;
 
 	private readonly tempDirs = new Set<string>();
 	private readonly wslTempDirs = new Set<string>();
 	private nextPort = 3010;
+	private currentTestName: string | undefined;
+	private screenshotCounter = 0;
 
 	public constructor(public readonly options: Readonly<{
 		quality: 'stable' | 'insider' | 'exploration';
@@ -45,6 +50,7 @@ export class TestContext {
 		checkSigning: boolean;
 		headlessBrowser: boolean;
 		downloadOnly: boolean;
+		screenshotsDir: string | undefined;
 	}>) {
 	}
 
@@ -61,15 +67,12 @@ export class TestContext {
 	/**
 	 * Returns the OS temp directory with expanded long names on Windows.
 	 */
-	public readonly osTempDir = (function () {
+	public readonly osTempDir = (() => {
 		let tempDir = fs.realpathSync(os.tmpdir());
 
 		// On Windows, expand short 8.3 file names to long names
 		if (os.platform() === 'win32') {
-			const result = spawnSync('powershell', ['-Command', `(Get-Item "${tempDir}").FullName`], { encoding: 'utf-8' });
-			if (result.status === 0 && result.stdout) {
-				tempDir = result.stdout.trim();
-			}
+			tempDir = fs.realpathSync.native(tempDir);
 		}
 
 		return tempDir;
@@ -89,6 +92,8 @@ export class TestContext {
 
 		const self = this;
 		return test(name, async function () {
+			self.currentTestName = name;
+			self.screenshotCounter = 0;
 			self.log(`Starting test: ${name}`);
 
 			const homeDir = os.homedir();
@@ -103,6 +108,8 @@ export class TestContext {
 				throw error;
 
 			} finally {
+				self.currentTestName = undefined;
+
 				process.chdir(homeDir);
 				self.log(`Changed working directory to: ${homeDir}`);
 
@@ -137,8 +144,25 @@ export class TestContext {
 	public error(message: string): never {
 		const line = `[${new Date().toISOString()}] ERROR: ${message}`;
 		this.consoleOutputs.push(line);
-		console.error(line);
+		console.error(`##vso[task.logissue type=error]${line}`);
 		throw new Error(message);
+	}
+
+	/**
+	 * Logs a warning message with a timestamp.
+	 */
+	public warn(message: string) {
+		const line = `[${new Date().toISOString()}] WARNING: ${message}`;
+		this.consoleOutputs.push(line);
+		console.warn(`##vso[task.logissue type=warning]${line}`);
+	}
+
+	/**
+	 * Returns a promise that resolves after the specified delay in milliseconds.
+	 * @param delay The delay in milliseconds to wait before resolving the promise.
+	 */
+	private timeout(delay: number) {
+		return new Promise(resolve => setTimeout(resolve, delay));
 	}
 
 	/**
@@ -216,7 +240,7 @@ export class TestContext {
 				fs.rmSync(dir, { recursive: true, force: true });
 				this.log(`Deleted temp directory: ${dir}`);
 			} catch (error) {
-				this.log(`Failed to delete temp directory: ${dir}: ${error}`);
+				this.warn(`Failed to delete temp directory: ${dir}: ${error}`);
 			}
 		}
 		this.tempDirs.clear();
@@ -225,7 +249,7 @@ export class TestContext {
 			try {
 				this.deleteWslDir(dir);
 			} catch (error) {
-				this.log(`Failed to delete WSL temp directory: ${dir}: ${error}`);
+				this.warn(`Failed to delete WSL temp directory: ${dir}: ${error}`);
 			}
 		}
 		this.wslTempDirs.clear();
@@ -243,8 +267,8 @@ export class TestContext {
 		for (let attempt = 0; attempt < maxRetries; attempt++) {
 			if (attempt > 0) {
 				const delay = Math.pow(2, attempt - 1) * 1000;
-				this.log(`Retrying fetch (attempt ${attempt + 1}/${maxRetries}) after ${delay}ms`);
-				await new Promise(resolve => setTimeout(resolve, delay));
+				this.warn(`Retrying fetch (attempt ${attempt + 1}/${maxRetries}) after ${delay}ms`);
+				await this.timeout(delay);
 			}
 
 			try {
@@ -262,7 +286,7 @@ export class TestContext {
 				return response as Response & { body: NodeJS.ReadableStream };
 			} catch (error) {
 				lastError = error instanceof Error ? error : new Error(String(error));
-				this.log(`Fetch attempt ${attempt + 1} failed: ${lastError.message}`);
+				this.warn(`Fetch attempt ${attempt + 1} failed: ${lastError.message}`);
 			}
 		}
 
@@ -299,19 +323,10 @@ export class TestContext {
 		const filePath = path.join(this.createTempDir(), path.basename(url));
 
 		this.log(`Downloading ${url} to ${filePath}`);
-		const { body } = await this.fetchNoErrors(url);
-
-		const stream = fs.createWriteStream(filePath);
-		await new Promise<void>((resolve, reject) => {
-			body.on('error', reject);
-			stream.on('error', reject);
-			stream.on('finish', resolve);
-			body.pipe(stream);
-		});
-
+		this.runNoErrors('curl', '-fSL', '--retry', '5', '--retry-delay', '2', '--retry-all-errors', '-o', filePath, url);
 		this.log(`Downloaded ${url} to ${filePath}`);
-		this.validateSha256Hash(filePath, sha256hash);
 
+		this.validateSha256Hash(filePath, sha256hash);
 		return filePath;
 	}
 
@@ -342,15 +357,50 @@ export class TestContext {
 		}
 
 		this.log(`Validating Authenticode signature for ${filePath}`);
+		this.validateAuthenticodeSignaturesForFiles([filePath]);
+	}
 
-		const result = this.run('powershell', '-Command', `Get-AuthenticodeSignature "${filePath}" | Select-Object -ExpandProperty Status`);
-		if (result.error !== undefined) {
-			this.error(`Failed to run Get-AuthenticodeSignature: ${result.error.message}`);
+	/**
+	 * Collects all files matching the Authenticode include pattern from the specified directory recursively.
+	 */
+	private collectAuthenticodeFiles(dir: string, files: string[]): void {
+		const entries = fs.readdirSync(dir, { withFileTypes: true });
+		for (const entry of entries) {
+			const filePath = path.join(dir, entry.name);
+			if (entry.isDirectory()) {
+				this.collectAuthenticodeFiles(filePath, files);
+			} else if (TestContext.authenticodeInclude.test(entry.name)) {
+				files.push(filePath);
+			}
+		}
+	}
+
+	/**
+	 * Validates Authenticode signatures for the specified list of files in a single PowerShell call.
+	 */
+	private validateAuthenticodeSignaturesForFiles(files: string[]): void {
+		if (files.length === 0) {
+			return;
 		}
 
-		const status = result.stdout.trim();
-		if (status !== 'Valid') {
-			this.error(`Authenticode signature is not valid for ${filePath}: ${status}`);
+		const fileList = files.map(file => `"${file}"`).join(',');
+		const command = `@(${fileList}) | ForEach-Object { $sig = Get-AuthenticodeSignature $_; "$($sig.Path)|$($sig.Status)" }`;
+		const result = this.runNoErrors('powershell', '-NoProfile', '-Command', command);
+
+		const invalid: string[] = [];
+		for (const line of result.stdout.trim().split('\n')) {
+			const [, filePath, status] = /^(.+)\|(\w+)$/.exec(line.trim()) ?? [];
+			if (filePath) {
+				if (status === 'Valid') {
+					this.log(`Authenticode signature is valid for ${filePath}`);
+				} else {
+					invalid.push(`${filePath}: ${status}`);
+				}
+			}
+		}
+
+		if (invalid.length > 0) {
+			this.error(`Authenticode signatures are not valid for:\n${invalid.join('\n')}`);
 		}
 	}
 
@@ -364,15 +414,88 @@ export class TestContext {
 			return;
 		}
 
-		const files = fs.readdirSync(dir, { withFileTypes: true });
-		for (const file of files) {
-			const filePath = path.join(dir, file.name);
-			if (file.isDirectory()) {
-				this.validateAllAuthenticodeSignatures(filePath);
-			} else if (TestContext.authenticodeInclude.test(file.name)) {
-				this.validateAuthenticodeSignature(filePath);
+		const files: string[] = [];
+		this.collectAuthenticodeFiles(dir, files);
+		this.log(`Found ${files.length} file(s) to validate Authenticode signatures`);
+		this.validateAuthenticodeSignaturesForFiles(files);
+	}
+
+	/**
+	 * Collects all files matching the VersionInfo include pattern from the specified directory recursively.
+	 */
+	private collectVersionInfoFiles(dir: string, files: string[]): void {
+		const entries = fs.readdirSync(dir, { withFileTypes: true });
+		for (const entry of entries) {
+			const filePath = path.join(dir, entry.name);
+			if (entry.isDirectory()) {
+				this.collectVersionInfoFiles(filePath, files);
+			} else if (TestContext.versionInfoInclude.test(entry.name)) {
+				if (TestContext.versionInfoExclude.test(entry.name)) {
+					this.log(`Skipping excluded file from VersionInfo validation: ${filePath}`);
+				} else {
+					files.push(filePath);
+				}
 			}
 		}
+	}
+
+	/**
+	 * Validates that a Windows binary has a non-empty ProductName in VersionInfo.
+	 * @param filePath The path to the file to validate.
+	 */
+	public validateVersionInfo(filePath: string) {
+		if (!this.options.checkSigning || !this.capabilities.has('windows')) {
+			this.log(`Skipping VersionInfo validation for ${filePath} (signing checks disabled)`);
+			return;
+		}
+
+		this.log(`Validating VersionInfo for ${filePath}`);
+		this.validateVersionInfoForFiles([filePath]);
+	}
+
+	/**
+	 * Validates VersionInfo ProductName for the specified list of files in a single PowerShell call.
+	 */
+	private validateVersionInfoForFiles(files: string[]): void {
+		if (files.length === 0) {
+			return;
+		}
+
+		const fileList = files.map(file => `"${file}"`).join(',');
+		const command = `@(${fileList}) | ForEach-Object { $vi = (Get-Item $_).VersionInfo; "$($_.ToString())|$($vi.ProductName)" }`;
+		const result = this.runNoErrors('powershell', '-NoProfile', '-Command', command);
+
+		const invalid: string[] = [];
+		for (const line of result.stdout.trim().split('\n')) {
+			const [, filePath, productName] = /^(.+)\|(.*)$/.exec(line.trim()) ?? [];
+			if (filePath) {
+				if (productName && productName.trim().length > 0) {
+					this.log(`VersionInfo ProductName is set for ${filePath}: ${productName.trim()}`);
+				} else {
+					invalid.push(filePath);
+				}
+			}
+		}
+
+		if (invalid.length > 0) {
+			this.error(`VersionInfo ProductName is missing or empty for:\n${invalid.join('\n')}`);
+		}
+	}
+
+	/**
+	 * Validates that all .exe, .dll, .node and .msi binaries in the specified directory have a non-empty ProductName in VersionInfo.
+	 * @param dir The directory to scan for binary files.
+	 */
+	public validateAllVersionInfo(dir: string) {
+		if (!this.options.checkSigning || !this.capabilities.has('windows')) {
+			this.log(`Skipping VersionInfo validation for ${dir} (signing checks disabled)`);
+			return;
+		}
+
+		const files: string[] = [];
+		this.collectVersionInfoFiles(dir, files);
+		this.log(`Found ${files.length} file(s) to validate VersionInfo`);
+		this.validateVersionInfoForFiles(files);
 	}
 
 	/**
@@ -541,6 +664,58 @@ export class TestContext {
 	}
 
 	/**
+	 * Runs a command with sudo if not running as root, and ensures it succeeds.
+	 * @param command The command to run.
+	 * @param args Optional arguments for the command.
+	 * @returns The result of the spawnSync call.
+	 */
+	private runSudoNoErrors(command: string, ...args: string[]): SpawnSyncReturns<string> {
+		if (this.isRootUser) {
+			return this.runNoErrors(command, ...args);
+		} else {
+			return this.runNoErrors('sudo', command, ...args);
+		}
+	}
+
+	/**
+	 * Runs a dpkg command with retries if the frontend lock is busy, and ensures it succeeds.
+	 */
+	private async runDpkgNoErrors(...args: string[]) {
+		const command = this.isRootUser ? 'dpkg' : 'sudo';
+		const commandArgs = this.isRootUser ? args : ['dpkg', ...args];
+		const maxRetries = 5;
+		let lastError: string | undefined;
+
+		for (let attempt = 0; attempt < maxRetries; attempt++) {
+			if (attempt > 0) {
+				const delay = Math.pow(2, attempt - 1) * 1000;
+				this.log(`Retrying dpkg command (attempt ${attempt + 1}/${maxRetries}) after ${delay}ms`);
+				await this.timeout(delay);
+			}
+
+			const result = this.run(command, ...commandArgs);
+			if (result.error !== undefined) {
+				lastError = `Failed to run command: ${result.error.message}`;
+				break;
+			}
+
+			if (result.status === 0) {
+				return;
+			}
+
+			lastError = `Command exited with code ${result.status}: ${result.stderr}`;
+			const output = `${result.stdout}${result.stderr}`;
+			if (!TestContext.dpkgLockError.test(output)) {
+				break;
+			}
+
+			this.log(`dpkg lock is busy, waiting for the other package manager process to finish`);
+		}
+
+		this.error(lastError ?? `Command failed after ${maxRetries} attempts because the dpkg frontend lock remained busy`);
+	}
+
+	/**
 	 * Kills a process and all its child processes.
 	 * @param pid The process ID to kill.
 	 */
@@ -624,7 +799,7 @@ export class TestContext {
 		this.runNoErrors(uninstallerPath, '/silent');
 		this.log(`Uninstalled VS Code from ${appDir} successfully`);
 
-		await new Promise(resolve => setTimeout(resolve, 2000));
+		await this.timeout(2000);
 		if (fs.existsSync(appDir)) {
 			this.error(`Installation directory still exists after uninstall: ${appDir}`);
 		}
@@ -635,13 +810,9 @@ export class TestContext {
 	 * @param packagePath The path to the DEB file.
 	 * @returns The path to the installed VS Code executable.
 	 */
-	public installDeb(packagePath: string): string {
+	public async installDeb(packagePath: string): Promise<string> {
 		this.log(`Installing ${packagePath} using DEB package manager`);
-		if (this.isRootUser) {
-			this.runNoErrors('dpkg', '-i', packagePath);
-		} else {
-			this.runNoErrors('sudo', 'dpkg', '-i', packagePath);
-		}
+		await this.runDpkgNoErrors('-i', packagePath);
 		this.log(`Installed ${packagePath} successfully`);
 
 		const name = this.getLinuxBinaryName();
@@ -658,14 +829,10 @@ export class TestContext {
 		const packagePath = path.join('/usr/share', name, name);
 
 		this.log(`Uninstalling DEB package ${packagePath}`);
-		if (this.isRootUser) {
-			this.runNoErrors('dpkg', '-r', name);
-		} else {
-			this.runNoErrors('sudo', 'dpkg', '-r', name);
-		}
+		await this.runDpkgNoErrors('-r', name);
 		this.log(`Uninstalled DEB package ${packagePath} successfully`);
 
-		await new Promise(resolve => setTimeout(resolve, 1000));
+		await this.timeout(1000);
 		if (fs.existsSync(packagePath)) {
 			this.error(`Package still exists after uninstall: ${packagePath}`);
 		}
@@ -678,11 +845,7 @@ export class TestContext {
 	 */
 	public installRpm(packagePath: string): string {
 		this.log(`Installing ${packagePath} using RPM package manager`);
-		if (this.isRootUser) {
-			this.runNoErrors('rpm', '-i', packagePath);
-		} else {
-			this.runNoErrors('sudo', 'rpm', '-i', packagePath);
-		}
+		this.runSudoNoErrors('rpm', '-i', packagePath);
 		this.log(`Installed ${packagePath} successfully`);
 
 		const name = this.getLinuxBinaryName();
@@ -699,14 +862,10 @@ export class TestContext {
 		const packagePath = path.join('/usr/bin', name);
 
 		this.log(`Uninstalling RPM package ${packagePath}`);
-		if (this.isRootUser) {
-			this.runNoErrors('rpm', '-e', name);
-		} else {
-			this.runNoErrors('sudo', 'rpm', '-e', name);
-		}
+		this.runSudoNoErrors('rpm', '-e', name);
 		this.log(`Uninstalled RPM package ${packagePath} successfully`);
 
-		await new Promise(resolve => setTimeout(resolve, 1000));
+		await this.timeout(1000);
 		if (fs.existsSync(packagePath)) {
 			this.error(`Package still exists after uninstall: ${packagePath}`);
 		}
@@ -719,11 +878,7 @@ export class TestContext {
 	 */
 	public installSnap(packagePath: string): string {
 		this.log(`Installing ${packagePath} using Snap package manager`);
-		if (this.isRootUser) {
-			this.runNoErrors('snap', 'install', packagePath, '--classic', '--dangerous');
-		} else {
-			this.runNoErrors('sudo', 'snap', 'install', packagePath, '--classic', '--dangerous');
-		}
+		this.runSudoNoErrors('snap', 'install', packagePath, '--classic', '--dangerous');
 		this.log(`Installed ${packagePath} successfully`);
 
 		// Snap wrapper scripts are in /snap/bin, but actual Electron binary is in /snap/<package>/current/usr/share/
@@ -741,14 +896,10 @@ export class TestContext {
 		const packagePath = path.join('/snap/bin', name);
 
 		this.log(`Uninstalling Snap package ${packagePath}`);
-		if (this.isRootUser) {
-			this.runNoErrors('snap', 'remove', name);
-		} else {
-			this.runNoErrors('sudo', 'snap', 'remove', name);
-		}
+		this.runSudoNoErrors('snap', 'remove', name);
 		this.log(`Uninstalled Snap package ${packagePath} successfully`);
 
-		await new Promise(resolve => setTimeout(resolve, 1000));
+		await this.timeout(1000);
 		if (fs.existsSync(packagePath)) {
 			this.error(`Package still exists after uninstall: ${packagePath}`);
 		}
@@ -973,6 +1124,26 @@ export class TestContext {
 	}
 
 	/**
+	 * Captures a screenshot of the current page if one is active.
+	 */
+	public async captureScreenshot(page: Page) {
+		if (!this.currentTestName) {
+			return;
+		}
+
+		try {
+			const screenshotDir = this.options.screenshotsDir ?? path.join(this.osTempDir, 'vscode-sanity-screenshots');
+			fs.mkdirSync(screenshotDir, { recursive: true });
+			const sanitizedName = this.currentTestName.replace(/[^a-zA-Z0-9_-]/g, '_');
+			const screenshotPath = path.join(screenshotDir, `${sanitizedName}-${++this.screenshotCounter}.png`);
+			await page.screenshot({ path: screenshotPath, fullPage: true });
+			this.log(`Screenshot saved to: ${screenshotPath}`);
+		} catch (e) {
+			this.warn(`Failed to capture screenshot: ${e instanceof Error ? e.message : String(e)}`);
+		}
+	}
+
+	/**
 	 * Constructs a web server URL with optional token and folder parameters.
 	 * @param port The port number of the web server.
 	 * @param token The optional authentication token.
@@ -1067,7 +1238,7 @@ export class TestContext {
 			await new Promise<void>((resolve, reject) => {
 				app.stderr.on('data', (data) => {
 					const text = `[${name}] ${data.toString().trim()}`;
-					if (/ECONNRESET/.test(text)) {
+					if (/ECONNRESET|ECONNABORTED/.test(text)) {
 						this.log(text);
 					} else {
 						reject(new Error(text));

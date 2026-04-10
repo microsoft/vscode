@@ -88,17 +88,21 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 	private renderMainContext(context: ChatImplicitContext, isSelection?: boolean) {
 		const contextNode = dom.$('.chat-attached-context-attachment.show-file-icons.implicit');
 		this.domNode.appendChild(contextNode);
+		contextNode.tabIndex = 0;
 
 		contextNode.classList.toggle('disabled', !context.enabled);
 		const file: URI | undefined = context.uri;
 		const attachmentTypeName = file?.scheme === Schemas.vscodeNotebookCell ? localize('cell.lowercase', "cell") : localize('file.lowercase', "file");
+		const contextLabel = context.name ?? (file ? basename(file) : localize('implicitContextFallback', "context"));
 
 		const isSuggestedEnabled = this.configService.getValue('chat.implicitContext.suggestedContext');
 
 		// Create toggle button BEFORE the label so it appears on the left
 		if (isSuggestedEnabled) {
 			if (!isSelection) {
-				const buttonMsg = context.enabled ? localize('disable', "Disable current {0} context", attachmentTypeName) : '';
+				const buttonMsg = context.enabled
+					? localize('disableImplicitContext', "Disable {0} context {1}", attachmentTypeName, contextLabel)
+					: localize('addToContext', "Add {0} to context", contextLabel);
 				const toggleButton = this.renderDisposables.add(new Button(contextNode, { supportIcons: true, title: buttonMsg }));
 				toggleButton.icon = context.enabled ? Codicon.x : Codicon.plus;
 				this.renderDisposables.add(toggleButton.onDidClick(async (e) => {
@@ -157,8 +161,9 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		if (isStringImplicitContextValue(context.value)) {
 			markdownTooltip = context.value.tooltip;
 			title = this.renderString(label, context.name, context.icon, context.value.resourceUri, markdownTooltip, localize('openFile', "Current file context"));
+			contextNode.ariaLabel = localize('chat.implicitStringContext', "Suggested context, {0}", context.name);
 		} else {
-			title = this.renderResource(context.value, context.isSelection, context.enabled, label);
+			title = this.renderResource(context.value, context.isSelection, context.enabled, label, contextNode);
 		}
 
 		if (markdownTooltip || title) {
@@ -204,7 +209,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		return title;
 	}
 
-	private renderResource(attachmentValue: Location | URI | undefined, isSelection: boolean, enabled: boolean, label: IResourceLabel): string {
+	private renderResource(attachmentValue: Location | URI | undefined, isSelection: boolean, enabled: boolean, label: IResourceLabel, contextNode: HTMLElement): string {
 		const file = URI.isUri(attachmentValue) ? attachmentValue : attachmentValue!.uri;
 		const range = URI.isUri(attachmentValue) || !isSelection ? undefined : attachmentValue!.range;
 
@@ -213,7 +218,9 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 		const fileBasename = basename(file);
 		const fileDirname = dirname(file);
 		const friendlyName = `${fileBasename} ${fileDirname}`;
-		const ariaLabel = range ? localize('chat.fileAttachmentWithRange', "Attached {0}, {1}, line {2} to line {3}", attachmentTypeName, friendlyName, range.startLineNumber, range.endLineNumber) : localize('chat.fileAttachment', "Attached {0}, {1}", attachmentTypeName, friendlyName);
+		const ariaLabel = range
+			? localize('chat.implicitFileContextWithRange', "Suggested context, {0}, {1}, line {2} to line {3}", attachmentTypeName, friendlyName, range.startLineNumber, range.endLineNumber)
+			: localize('chat.implicitFileContext', "Suggested context, {0}, {1}", attachmentTypeName, friendlyName);
 
 		const uriLabel = this.labelService.getUriLabel(file, { relative: true });
 		const currentFile = localize('openEditor', "Current {0} context", attachmentTypeName);
@@ -227,8 +234,7 @@ export class ImplicitContextAttachmentWidget extends Disposable {
 			range,
 			title
 		});
-		this.domNode.ariaLabel = ariaLabel;
-		this.domNode.tabIndex = 0;
+		contextNode.ariaLabel = ariaLabel;
 
 		return title;
 	}

@@ -7,6 +7,34 @@ import { assertNever } from '../../../../../base/common/assert.js';
 import { VSBuffer } from '../../../../../base/common/buffer.js';
 import { isUndefinedOrNull } from '../../../../../base/common/types.js';
 
+/**
+ * Updates an error's message and stack trace with a prefix. In V8 the stack
+ * string starts with "ErrorName: message\n  at …", so we rebuild the header
+ * after mutating the message.
+ */
+function prefixError(e: Error, prefix: string): void {
+	e.message = prefix + e.message;
+	if (e.stack) {
+		const nlIdx = e.stack.indexOf('\n');
+		e.stack = nlIdx !== -1
+			? `${e.name}: ${e.message}${e.stack.slice(nlIdx)}`
+			: `${e.name}: ${e.message}`;
+	}
+}
+
+/**
+ * Prepends a path segment to an error as it unwinds through nested extract
+ * calls. Each level adds its segment so the final message reads e.g.
+ * `.responses[2].content: Cannot read property 'x' of undefined`.
+ */
+function rethrowWithPathSegment(e: unknown, segment: string | number): never {
+	if (e instanceof Error) {
+		const part = typeof segment === 'number' ? `[${segment}]` : `.${segment}`;
+		const needsSep = !e.message.startsWith('[') && !e.message.startsWith('.');
+		prefixError(e, part + (needsSep ? ': ' : ''));
+	}
+	throw e;
+}
 
 /** IMPORTANT: `Key` comes first. Then we should sort in order of least->most expensive to diff */
 const enum TransformKind {
@@ -96,7 +124,13 @@ export function array<T, R>(schema: TransformObject<T, R> | TransformValue<T, R>
 	return {
 		kind: TransformKind.Array,
 		itemSchema: schema,
-		extract: from => from?.map(item => schema.extract(item)),
+		extract: from => from?.map((item, i) => {
+			try {
+				return schema.extract(item);
+			} catch (e) {
+				rethrowWithPathSegment(e, i);
+			}
+		}),
 	};
 }
 
@@ -124,7 +158,11 @@ export function object<T, R extends object>(schema: Schema<T, R>, options?: Obje
 
 			const result: Record<string, unknown> = Object.create(null);
 			for (const [key, transform] of entries) {
-				result[key] = transform.extract(from);
+				try {
+					result[key] = transform.extract(from);
+				} catch (e) {
+					rethrowWithPathSegment(e, key);
+				}
 			}
 			return result as R;
 		},
@@ -278,7 +316,15 @@ export class ObjectMutationLog<TFrom, TTo> {
 		// Generate diff entries
 		const entries: Entry[] = [];
 		const path: ObjectPath = [];
-		this._diff(this._transform, path, this._previous, currentValue, entries);
+		try {
+			this._diff(this._transform, path, this._previous, currentValue, entries);
+		} catch (e) {
+			if (e instanceof Error) {
+				const pathStr = path.map(s => typeof s === 'number' ? `[${s}]` : `.${s}`).join('') || '<root>';
+				prefixError(e, `error diffing at ${pathStr}: `);
+			}
+			throw e;
+		}
 
 		if (entries.length === 0) {
 			// No changes

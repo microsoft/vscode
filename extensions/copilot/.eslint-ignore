@@ -1,0 +1,31 @@
+node_modules
+dist
+coverage
+lint-staged.config.js
+vite.config.ts
+**/vscode.proposed.*.ts
+**/vscode.d.ts
+.esbuild/extension.esbuild.ts
+test/simulation/fixtures/**
+test/scenarios/**
+.simulation/**
+.eslintplugin/**
+chat-lib/**
+test/aml/out/**
+.vscode-test/**
+
+# ignore vs
+src/util/vs/**
+
+# ignore test fixtures
+src/platform/parser/test/node/fixtures/**
+src/extension/test/node/fixtures/**
+src/extension/prompts/node/test/fixtures/**
+
+# TypeScript server plugin
+src/extension/typescriptContext/serverPlugin/fixtures/**
+src/extension/typescriptContext/serverPlugin/lib/**
+src/extension/typescriptContext/serverPlugin/dist/**
+
+# Ignore Built test-extension
+.vscode/extensions/test-extension/dist/**

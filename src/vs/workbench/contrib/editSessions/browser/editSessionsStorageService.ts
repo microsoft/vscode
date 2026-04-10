@@ -48,12 +48,12 @@ export class EditSessionsWorkbenchService extends Disposable implements IEditSes
 		return this.existingSessionId !== undefined;
 	}
 
-	private _didSignIn = new Emitter<void>();
+	private _didSignIn = this._register(new Emitter<void>());
 	get onDidSignIn() {
 		return this._didSignIn.event;
 	}
 
-	private _didSignOut = new Emitter<void>();
+	private _didSignOut = this._register(new Emitter<void>());
 	get onDidSignOut() {
 		return this._didSignOut.event;
 	}

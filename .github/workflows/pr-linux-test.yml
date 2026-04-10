@@ -17,7 +17,7 @@ on:
 jobs:
   linux-test:
     name: ${{ inputs.job_name }}
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64 ]
+    runs-on: ubuntu-24.04
     env:
       ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}
       NPM_ARCH: x64
@@ -25,6 +25,8 @@ jobs:
     steps:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@v6
+        with:
+          lfs: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -34,6 +36,9 @@ jobs:
       - name: Setup system services
         run: |
           set -e
+          # Allow unprivileged user namespaces for Chromium's namespace sandbox
+          # Ubuntu 24.04 restricts this by default via AppArmor
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           # Start X server
           ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get update
           ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get install -y pkg-config \
@@ -42,7 +47,9 @@ jobs:
             libxkbfile-dev \
             libkrb5-dev \
             libgbm1 \
-            rpm
+            rpm \
+            bubblewrap \
+            socat
           sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
           sudo chmod +x /etc/init.d/xvfb
           sudo update-rc.d xvfb defaults
@@ -128,6 +135,38 @@ jobs:
         run: node build/lib/builtInExtensions.ts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fontconfig diagnostics and cache reset
+        run: |
+          set -e
+          echo "--- Font package versions ---"
+          dpkg -l | grep -E 'libexpat|fontconfig|libfreetype|libpango' || true
+          echo ""
+          echo "--- Installed font packages ---"
+          apt list --installed 2>/dev/null | grep -E 'fonts-|fontconfig' || true
+          echo ""
+          echo "--- Verify fonts.conf integrity ---"
+          python3 -c "
+          import xml.etree.ElementTree as ET, glob, sys
+          for f in ['/etc/fonts/fonts.conf'] + sorted(glob.glob('/etc/fonts/conf.d/*.conf')):
+              try:
+                  ET.parse(f)
+              except Exception as e:
+                  print(f'WARNING: {f} is invalid: {e}', file=sys.stderr)
+          print('Font config XML validation complete')
+          "
+          echo ""
+          echo "--- Check for symlink loops in font dirs ---"
+          find /usr/share/fonts -maxdepth 3 -type l -exec test -d {} \; -print 2>/dev/null | head -10 || true
+          echo ""
+          echo "--- Clear and rebuild font cache ---"
+          sudo rm -rf /var/cache/fontconfig 2>/dev/null || true
+          rm -rf ~/.cache/fontconfig 2>/dev/null || true
+          fc-cache -f -v 2>&1 | tail -5
+          echo ""
+          echo "--- fontconfig version ---"
+          fc-cache --version 2>&1 | head -1
+        continue-on-error: true
 
       - name: Transpile client and extensions
         run: npm run gulp transpile-client-esbuild transpile-extensions
@@ -258,7 +297,7 @@ jobs:
         if: always()
 
       - name: Publish Crash Reports
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: failure()
         continue-on-error: true
         with:
@@ -269,7 +308,7 @@ jobs:
       # In order to properly symbolify above crash reports
       # (if any), we need the compiled native modules too
       - name: Publish Node Modules
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: failure()
         continue-on-error: true
         with:
@@ -278,7 +317,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Publish Log Files
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: always()
         continue-on-error: true
         with:

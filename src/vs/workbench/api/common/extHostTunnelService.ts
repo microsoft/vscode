@@ -68,7 +68,7 @@ export class ExtHostTunnelService extends Disposable implements IExtHostTunnelSe
 	private _forwardPortProvider: ((tunnelOptions: TunnelOptions, tunnelCreationOptions: TunnelCreationOptions, token?: vscode.CancellationToken) => Thenable<vscode.Tunnel | undefined> | undefined) | undefined;
 	private _showCandidatePort: (host: string, port: number, detail: string) => Thenable<boolean> = () => { return Promise.resolve(true); };
 	private _extensionTunnels: Map<string, Map<number, { tunnel: vscode.Tunnel; disposeListener: IDisposable }>> = new Map();
-	private _onDidChangeTunnels: Emitter<void> = new Emitter<void>();
+	private _onDidChangeTunnels: Emitter<void> = this._register(new Emitter<void>());
 	onDidChangeTunnels: vscode.Event<void> = this._onDidChangeTunnels.event;
 
 	private _providerHandleCounter: number = 0;

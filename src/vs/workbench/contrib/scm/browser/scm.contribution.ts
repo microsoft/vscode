@@ -49,6 +49,7 @@ import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.j
 import { SCMHistoryItemContextContribution } from './scmHistoryChatContext.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../../chat/browser/actions/chatActions.js';
+import { SCMInputContextKeys } from './scmInput.js';
 import product from '../../../../platform/product/common/product.js';
 
 ModesRegistry.registerLanguage({
@@ -465,7 +466,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingWeight.WorkbenchContrib,
 	when: ContextKeyExpr.and(
 		ContextKeyExpr.has('scmRepository'),
-		ContextKeys.SCMInputHasValidationMessage),
+		SCMInputContextKeys.SCMInputHasValidationMessage),
 	primary: KeyCode.Escape,
 	handler: async (accessor) => {
 		const scmViewService = accessor.get(ISCMViewService);
@@ -480,7 +481,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		ContextKeyExpr.has('scmRepository'),
 		SuggestContext.Visible.toNegated(),
 		InlineCompletionContextKeys.inlineSuggestionVisible.toNegated(),
-		ContextKeys.SCMInputHasValidationMessage.toNegated(),
+		SCMInputContextKeys.SCMInputHasValidationMessage.toNegated(),
 		EditorContextKeys.hasNonEmptySelection.toNegated()),
 	primary: KeyCode.Escape,
 	handler: async (accessor) => {
@@ -701,8 +702,8 @@ registerAction2(class extends Action2 {
 				id: MenuId.EditorContent,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.Setup.hidden.negate(),
-					ChatContextKeys.Setup.disabled.negate(),
-					ChatContextKeys.Setup.installed.negate(),
+					ChatContextKeys.Setup.disabledInWorkspace.negate(),
+					ChatContextKeys.Setup.completed.negate(),
 					ContextKeyExpr.in(ResourceContextKey.Resource.key, 'git.mergeChanges'),
 					ContextKeyExpr.equals('git.activeResourceHasMergeConflicts', true)
 				)

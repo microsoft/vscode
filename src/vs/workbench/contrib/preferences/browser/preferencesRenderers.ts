@@ -61,7 +61,7 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 
 	private settingHighlighter: SettingHighlighter;
 	private editSettingActionRenderer: EditSettingRenderer;
-	private modelChangeDelayer: Delayer<void> = new Delayer<void>(200);
+	private modelChangeDelayer = this._register(new Delayer<void>(200));
 	private associatedPreferencesModel!: IPreferencesEditorModel<ISetting>;
 
 	private unsupportedSettingsRenderer: UnsupportedSettingsRenderer;
@@ -194,7 +194,7 @@ class EditSettingRenderer extends Disposable {
 
 		this.editPreferenceWidgetForCursorPosition = this._register(this.instantiationService.createInstance(EditPreferenceWidget<IIndexedSetting>, editor));
 		this.editPreferenceWidgetForMouseMove = this._register(this.instantiationService.createInstance(EditPreferenceWidget<IIndexedSetting>, editor));
-		this.toggleEditPreferencesForMouseMoveDelayer = new Delayer<void>(75);
+		this.toggleEditPreferencesForMouseMoveDelayer = this._register(new Delayer<void>(75));
 
 		this._register(this.editPreferenceWidgetForCursorPosition.onClick(e => this.onEditSettingClicked(this.editPreferenceWidgetForCursorPosition, e)));
 		this._register(this.editPreferenceWidgetForMouseMove.onClick(e => this.onEditSettingClicked(this.editPreferenceWidgetForMouseMove, e)));
@@ -486,7 +486,7 @@ class SettingHighlighter extends Disposable {
 
 class UnsupportedSettingsRenderer extends Disposable implements languages.CodeActionProvider {
 
-	private renderingDelayer: Delayer<void> = new Delayer<void>(200);
+	private renderingDelayer = this._register(new Delayer<void>(200));
 
 	private readonly codeActions = new ResourceMap<[Range, languages.CodeAction[]][]>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
 
@@ -791,7 +791,7 @@ class UnsupportedSettingsRenderer extends Disposable implements languages.CodeAc
 
 class McpSettingsRenderer extends Disposable implements languages.CodeActionProvider {
 
-	private renderingDelayer: Delayer<void> = new Delayer<void>(200);
+	private renderingDelayer = this._register(new Delayer<void>(200));
 	private readonly codeActions = new ResourceMap<[Range, languages.CodeAction[]][]>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
 
 	constructor(
@@ -913,7 +913,7 @@ class WorkspaceConfigurationRenderer extends Disposable {
 	private static readonly supportedKeys = ['folders', 'tasks', 'launch', 'extensions', 'settings', 'remoteAuthority', 'transient'];
 
 	private readonly decorations: editorCommon.IEditorDecorationsCollection;
-	private renderingDelayer: Delayer<void> = new Delayer<void>(200);
+	private renderingDelayer = this._register(new Delayer<void>(200));
 
 	constructor(private editor: ICodeEditor, private workspaceSettingsEditorModel: SettingsEditorModel,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,

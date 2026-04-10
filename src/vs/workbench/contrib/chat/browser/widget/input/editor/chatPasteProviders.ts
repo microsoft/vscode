@@ -5,6 +5,7 @@
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { createStringDataTransferItem, IDataTransferItem, IReadonlyVSDataTransfer, VSDataTransfer } from '../../../../../../../base/common/dataTransfer.js';
+import { alert } from '../../../../../../../base/browser/ui/aria/aria.js';
 import { HierarchicalKind } from '../../../../../../../base/common/hierarchicalKind.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { revive } from '../../../../../../../base/common/marshalling.js';
@@ -12,20 +13,25 @@ import { Mimes } from '../../../../../../../base/common/mime.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
 import { basename, joinPath } from '../../../../../../../base/common/resources.js';
 import { URI, UriComponents } from '../../../../../../../base/common/uri.js';
+import { Position } from '../../../../../../../editor/common/core/position.js';
 import { IRange } from '../../../../../../../editor/common/core/range.js';
-import { DocumentPasteContext, DocumentPasteEdit, DocumentPasteEditProvider, DocumentPasteEditsSession } from '../../../../../../../editor/common/languages.js';
+import { DocumentPasteContext, DocumentPasteEdit, DocumentPasteEditProvider, DocumentPasteEditsSession, SymbolKinds } from '../../../../../../../editor/common/languages.js';
 import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { ILanguageFeaturesService } from '../../../../../../../editor/common/services/languageFeatures.js';
 import { IModelService } from '../../../../../../../editor/common/services/model.js';
+import { IOutlineModelService } from '../../../../../../../editor/contrib/documentSymbols/browser/outlineModel.js';
+import { getDefinitionsAtPosition } from '../../../../../../../editor/contrib/gotoSymbol/browser/goToSymbol.js';
 import { localize } from '../../../../../../../nls.js';
 import { IEnvironmentService } from '../../../../../../../platform/environment/common/environment.js';
 import { IFileService } from '../../../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../../platform/log/common/log.js';
 import { IExtensionService, isProposedApiEnabled } from '../../../../../../services/extensions/common/extensions.js';
-import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
-import { IChatVariablesService, IDynamicVariable } from '../../../../common/attachments/chatVariables.js';
+import { IChatRequestPasteVariableEntry, IChatRequestVariableEntry, isImageVariableEntry } from '../../../../common/attachments/chatVariableEntries.js';
+import { chatVariableLeader } from '../../../../common/requestParser/chatParserTypes.js';
+import { IDynamicVariable } from '../../../../common/attachments/chatVariables.js';
 import { IChatWidgetService } from '../../../chat.js';
+import { getDynamicVariablesForWidget } from '../../../attachments/chatVariables.js';
 import { ChatDynamicVariableModel } from '../../../attachments/chatDynamicVariables.js';
 import { cleanupOldImages, createFileForMedia, resizeImage } from '../../../chatImageUtils.js';
 
@@ -34,6 +40,16 @@ const COPY_MIME_TYPES = 'application/vnd.code.additional-editor-data';
 interface SerializedCopyData {
 	readonly uri: UriComponents;
 	readonly range: IRange;
+}
+
+interface ResolvedSymbolReference {
+	id: string;
+	fullName: string;
+	data: {
+		uri: URI;
+		range: IRange;
+	};
+	icon: IDynamicVariable['icon'];
 }
 
 export class PasteImageProvider implements DocumentPasteEditProvider {
@@ -177,6 +193,12 @@ export class CopyTextProvider implements DocumentPasteEditProvider {
 	public readonly copyMimeTypes = [COPY_MIME_TYPES];
 	public readonly pasteMimeTypes = [];
 
+	constructor(
+		@IModelService private readonly modelService: IModelService,
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
+		@IOutlineModelService private readonly outlineModelService: IOutlineModelService,
+	) { }
+
 	async prepareDocumentPaste(model: ITextModel, ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, token: CancellationToken): Promise<undefined | IReadonlyVSDataTransfer> {
 		if (model.uri.scheme === Schemas.vscodeChatInput) {
 			return;
@@ -185,7 +207,34 @@ export class CopyTextProvider implements DocumentPasteEditProvider {
 		const customDataTransfer = new VSDataTransfer();
 		const data: SerializedCopyData = { range: ranges[0], uri: model.uri.toJSON() };
 		customDataTransfer.append(COPY_MIME_TYPES, createStringDataTransferItem(JSON.stringify(data)));
+
+		const text = dataTransfer.get(Mimes.text);
+		if (text && ranges.length) {
+			void this.primeSymbolReferenceCache(model, ranges[0], text, token);
+		}
+
 		return customDataTransfer;
+	}
+
+	private async primeSymbolReferenceCache(model: ITextModel, range: IRange, textItem: IDataTransferItem, token: CancellationToken): Promise<void> {
+		const copiedText = model.getValueInRange(range);
+		if (range.startLineNumber !== range.endLineNumber) {
+			return;
+		}
+
+		if (token.isCancellationRequested || !identifierPattern.test(copiedText)) {
+			return;
+		}
+
+		cacheSymbolReference(model.uri, range, copiedText, resolveSymbolReference(
+			this.modelService,
+			this.languageFeaturesService,
+			this.outlineModelService,
+			model.uri,
+			range,
+			copiedText,
+			token,
+		));
 	}
 }
 
@@ -201,7 +250,6 @@ class CopyAttachmentsProvider implements DocumentPasteEditProvider {
 
 	constructor(
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
-		@IChatVariablesService private readonly chatVariableService: IChatVariablesService
 	) { }
 
 	async prepareDocumentPaste(model: ITextModel, _ranges: readonly IRange[], _dataTransfer: IReadonlyVSDataTransfer, _token: CancellationToken): Promise<undefined | IReadonlyVSDataTransfer> {
@@ -212,7 +260,7 @@ class CopyAttachmentsProvider implements DocumentPasteEditProvider {
 		}
 
 		const attachments = widget.attachmentModel.attachments;
-		const dynamicVariables = this.chatVariableService.getDynamicVariables(widget.viewModel.sessionResource);
+		const dynamicVariables = getDynamicVariablesForWidget(widget);
 
 		if (attachments.length === 0 && dynamicVariables.length === 0) {
 			return undefined;
@@ -386,6 +434,7 @@ function createCustomPasteEdit(model: ITextModel, context: IChatRequestVariableE
 	const label = context.length === 1
 		? context[0].name
 		: localize('pastedAttachment.multiple', '{0} and {1} more', context[0].name, context.length - 1);
+	const announceImageAttachment = context.length === 1 && isImageVariableEntry(context[0]);
 
 	const customEdit = {
 		resource: model.uri,
@@ -403,6 +452,9 @@ function createCustomPasteEdit(model: ITextModel, context: IChatRequestVariableE
 				throw new Error('No widget found for redo');
 			}
 			widget.attachmentModel.addContext(...context);
+			if (announceImageAttachment) {
+				alert(localize('chat.pastedImageAttached', 'Attached image'));
+			}
 		},
 		metadata: {
 			needsConfirmation: false,
@@ -428,6 +480,205 @@ function createEditSession(edit: DocumentPasteEdit): DocumentPasteEditsSession {
 	};
 }
 
+const identifierPattern = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/;
+const symbolCacheMaxSize = 3;
+type SymbolReferenceCacheEntry = {
+	key: string;
+	promise?: Promise<ResolvedSymbolReference | undefined>;
+};
+
+const symbolReferenceCache: SymbolReferenceCacheEntry[] = [];
+
+function getSymbolReferenceCacheKey(uri: URI, range: IRange, text: string): string {
+	return `${uri.toString()}|${range.startLineNumber}:${range.startColumn}-${range.endLineNumber}:${range.endColumn}|${text}`;
+}
+
+async function getCachedSymbolReference(uri: URI, range: IRange, text: string): Promise<ResolvedSymbolReference | undefined> {
+	const key = getSymbolReferenceCacheKey(uri, range, text);
+	return symbolReferenceCache.find(e => e.key === key)?.promise;
+}
+
+function cacheSymbolReference(uri: URI, range: IRange, text: string, valuePromise: Promise<ResolvedSymbolReference | undefined>): void {
+	const entry: SymbolReferenceCacheEntry = {
+		key: getSymbolReferenceCacheKey(uri, range, text),
+		promise: valuePromise,
+	};
+	symbolReferenceCache.unshift(entry);
+	while (symbolReferenceCache.length > symbolCacheMaxSize) {
+		symbolReferenceCache.pop();
+	}
+
+	valuePromise.catch(() => {
+		const i = symbolReferenceCache.indexOf(entry);
+		if (i !== -1) {
+			symbolReferenceCache.splice(i, 1);
+		}
+	});
+}
+
+async function resolveSymbolReference(
+	modelService: IModelService,
+	languageFeaturesService: ILanguageFeaturesService,
+	outlineModelService: IOutlineModelService,
+	sourceUri: URI,
+	sourceRange: IRange,
+	pastedText: string,
+	token: CancellationToken,
+): Promise<ResolvedSymbolReference | undefined> {
+	const sourceModel = modelService.getModel(sourceUri);
+	if (!sourceModel) {
+		return;
+	}
+
+	const sourcePosition = new Position(sourceRange.startLineNumber, sourceRange.startColumn);
+	const definitions = await getDefinitionsAtPosition(languageFeaturesService.definitionProvider, sourceModel, sourcePosition, false, token);
+	if (token.isCancellationRequested || !definitions.length) {
+		return;
+	}
+
+	const def = definitions[0];
+	const defRange = def.targetSelectionRange ?? def.range;
+	const defLocation = { uri: def.uri, range: defRange };
+
+	let icon = Codicon.symbolProperty;
+	const defModel = modelService.getModel(def.uri);
+	if (defModel) {
+		try {
+			const outline = await outlineModelService.getOrCreate(defModel, token);
+			if (!token.isCancellationRequested) {
+				const element = outline.getItemEnclosingPosition({ lineNumber: defRange.startLineNumber, column: defRange.startColumn });
+				if (element) {
+					icon = SymbolKinds.toIcon(element.symbol.kind);
+				}
+			}
+		} catch {
+			// Use default icon.
+		}
+	}
+
+	if (token.isCancellationRequested) {
+		return;
+	}
+
+	return {
+		id: `vscode.symbol/${JSON.stringify(defLocation)}`,
+		fullName: pastedText,
+		data: defLocation,
+		icon
+	};
+}
+
+class PasteSymbolProvider implements DocumentPasteEditProvider {
+
+	public readonly kind = new HierarchicalKind('chat.attach.symbol');
+	public readonly providedPasteEditKinds = [this.kind];
+
+	public readonly copyMimeTypes = [];
+	public readonly pasteMimeTypes = [COPY_MIME_TYPES];
+
+	constructor(
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IModelService private readonly modelService: IModelService,
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
+		@IOutlineModelService private readonly outlineModelService: IOutlineModelService,
+	) { }
+
+	async provideDocumentPasteEdits(model: ITextModel, ranges: readonly IRange[], dataTransfer: IReadonlyVSDataTransfer, _context: DocumentPasteContext, token: CancellationToken): Promise<DocumentPasteEditsSession | undefined> {
+		if (model.uri.scheme !== Schemas.vscodeChatInput) {
+			return;
+		}
+
+		const text = dataTransfer.get(Mimes.text);
+		const additionalEditorData = dataTransfer.get(COPY_MIME_TYPES);
+		if (!text || !additionalEditorData) {
+			return;
+		}
+
+		const pastedText = await text.asString();
+		if (!identifierPattern.test(pastedText)) {
+			return;
+		}
+
+		let additionalData: SerializedCopyData;
+		try {
+			additionalData = JSON.parse(await additionalEditorData.asString());
+		} catch {
+			return;
+		}
+
+		const sourceUri = URI.revive(additionalData.uri);
+		const sourceRange = additionalData.range;
+
+		const widget = this.chatWidgetService.getWidgetByInputUri(model.uri);
+		if (!widget) {
+			return;
+		}
+
+		const cached = await getCachedSymbolReference(sourceUri, sourceRange, pastedText);
+		let resolved = cached;
+		if (!resolved) {
+			resolved = await resolveSymbolReference(
+				this.modelService,
+				this.languageFeaturesService,
+				this.outlineModelService,
+				sourceUri,
+				sourceRange,
+				pastedText,
+				token,
+			);
+		}
+		if (!resolved) {
+			return;
+		}
+
+		if (token.isCancellationRequested) {
+			return;
+		}
+
+		const symText = `${chatVariableLeader}sym:${pastedText}`;
+		const pasteRange = ranges[0];
+		const insertText = `${symText} `;
+
+		const refRange = {
+			startLineNumber: pasteRange.startLineNumber,
+			startColumn: pasteRange.startColumn,
+			endLineNumber: pasteRange.startLineNumber,
+			endColumn: pasteRange.startColumn + symText.length
+		};
+
+		const dynamicRef = {
+			id: resolved.id,
+			fullName: resolved.fullName,
+			range: refRange,
+			data: resolved.data,
+			icon: resolved.icon
+		};
+
+		const edit: DocumentPasteEdit = {
+			insertText,
+			title: localize('pastedSymbolReference', 'Pasted Symbol Reference'),
+			kind: this.kind,
+			handledMimeType: COPY_MIME_TYPES,
+			additionalEdit: {
+				edits: [{
+					resource: model.uri,
+					redo: () => {
+						const w = this.chatWidgetService.getWidgetByInputUri(model.uri);
+						w?.getContrib<ChatDynamicVariableModel>(ChatDynamicVariableModel.ID)?.addReference(dynamicRef);
+					},
+					undo: () => {
+						// The text removal by undo is sufficient; the dynamic variable
+						// model auto-cleans when the decoration text changes.
+					}
+				}]
+			}
+		};
+
+		edit.yieldTo = [{ kind: new HierarchicalKind('chat.attach.text') }];
+		return createEditSession(edit);
+	}
+}
+
 export class ChatPasteProvidersFeature extends Disposable {
 	constructor(
 		@IInstantiationService instaService: IInstantiationService,
@@ -443,7 +694,7 @@ export class ChatPasteProvidersFeature extends Disposable {
 		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: Schemas.vscodeChatInput, pattern: '*', hasAccessToAllModels: true }, instaService.createInstance(CopyAttachmentsProvider)));
 		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: Schemas.vscodeChatInput, pattern: '*', hasAccessToAllModels: true }, new PasteImageProvider(chatWidgetService, extensionService, fileService, environmentService, logService)));
 		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: Schemas.vscodeChatInput, pattern: '*', hasAccessToAllModels: true }, new PasteTextProvider(chatWidgetService, modelService)));
-		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new CopyTextProvider()));
-		this._register(languageFeaturesService.documentPasteEditProvider.register('*', new CopyTextProvider()));
+		this._register(languageFeaturesService.documentPasteEditProvider.register({ scheme: Schemas.vscodeChatInput, pattern: '*', hasAccessToAllModels: true }, instaService.createInstance(PasteSymbolProvider)));
+		this._register(languageFeaturesService.documentPasteEditProvider.register('*', instaService.createInstance(CopyTextProvider)));
 	}
 }

@@ -10,7 +10,7 @@ import type { TestInstantiationService } from '../../../../../../platform/instan
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { CommandLineSandboxRewriter } from '../../browser/tools/commandLineRewriter/commandLineSandboxRewriter.js';
 import type { ICommandLineRewriterOptions } from '../../browser/tools/commandLineRewriter/commandLineRewriter.js';
-import { ITerminalSandboxService } from '../../common/terminalSandboxService.js';
+import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck } from '../../common/terminalSandboxService.js';
 
 suite('CommandLineSandboxRewriter', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -22,8 +22,14 @@ suite('CommandLineSandboxRewriter', () => {
 		instantiationService.stub(ITerminalSandboxService, {
 			_serviceBrand: undefined,
 			isEnabled: async () => false,
-			wrapCommand: command => command,
+			wrapCommand: (command, _requestUnsandboxedExecution) => {
+				return {
+					command,
+					isSandboxWrapped: false,
+				};
+			},
 			getSandboxConfigPath: async () => '/tmp/sandbox.json',
+			checkForSandboxingPrereqs: async () => ({ enabled: false, sandboxConfigPath: undefined, failedCheck: TerminalSandboxPrerequisiteCheck.Config }),
 			getTempDir: () => undefined,
 			setNeedsForceUpdateConfigFile: () => { },
 			...overrides
@@ -48,9 +54,26 @@ suite('CommandLineSandboxRewriter', () => {
 
 	test('returns undefined when sandbox config is unavailable', async () => {
 		stubSandboxService({
-			isEnabled: async () => true,
-			wrapCommand: command => `wrapped:${command}`,
-			getSandboxConfigPath: async () => undefined,
+			wrapCommand: command => ({
+				command: `wrapped:${command}`,
+				isSandboxWrapped: true,
+			}),
+			checkForSandboxingPrereqs: async () => ({ enabled: false, sandboxConfigPath: undefined, failedCheck: TerminalSandboxPrerequisiteCheck.Config }),
+		});
+
+		const rewriter = store.add(instantiationService.createInstance(CommandLineSandboxRewriter));
+		const result = await rewriter.rewrite(createRewriteOptions('echo hello'));
+		strictEqual(result, undefined);
+	});
+
+	test('returns undefined when sandbox dependencies are unavailable', async () => {
+		stubSandboxService({
+			checkForSandboxingPrereqs: async () => ({
+				enabled: false,
+				sandboxConfigPath: '/tmp/sandbox.json',
+				failedCheck: TerminalSandboxPrerequisiteCheck.Dependencies,
+				missingDependencies: ['bubblewrap'],
+			}),
 		});
 
 		const rewriter = store.add(instantiationService.createInstance(CommandLineSandboxRewriter));
@@ -61,14 +84,16 @@ suite('CommandLineSandboxRewriter', () => {
 	test('wraps command when sandbox is enabled and config exists', async () => {
 		const calls: string[] = [];
 		stubSandboxService({
-			isEnabled: async () => true,
-			wrapCommand: command => {
+			wrapCommand: (command, _requestUnsandboxedExecution) => {
 				calls.push('wrapCommand');
-				return `wrapped:${command}`;
+				return {
+					command: `wrapped:${command}`,
+					isSandboxWrapped: true,
+				};
 			},
-			getSandboxConfigPath: async () => {
-				calls.push('getSandboxConfigPath');
-				return '/tmp/sandbox.json';
+			checkForSandboxingPrereqs: async () => {
+				calls.push('checkForSandboxingPrereqs');
+				return { enabled: true, sandboxConfigPath: '/tmp/sandbox.json', failedCheck: undefined };
 			},
 		});
 
@@ -76,6 +101,33 @@ suite('CommandLineSandboxRewriter', () => {
 		const result = await rewriter.rewrite(createRewriteOptions('echo hello'));
 		strictEqual(result?.rewritten, 'wrapped:echo hello');
 		strictEqual(result?.reasoning, 'Wrapped command for sandbox execution');
-		deepStrictEqual(calls, ['getSandboxConfigPath', 'wrapCommand']);
+		deepStrictEqual(calls, ['checkForSandboxingPrereqs', 'wrapCommand']);
+	});
+
+	test('wraps command and forwards sandbox bypass flag when explicitly requested', async () => {
+		const calls: string[] = [];
+		stubSandboxService({
+			wrapCommand: (command, requestUnsandboxedExecution) => {
+				calls.push(`wrap:${command}:${String(requestUnsandboxedExecution)}`);
+				return {
+					command: `wrapped:${command}`,
+					isSandboxWrapped: !requestUnsandboxedExecution,
+				};
+			},
+			checkForSandboxingPrereqs: async () => {
+				calls.push('prereqs');
+				return { enabled: true, sandboxConfigPath: '/tmp/sandbox.json', failedCheck: undefined };
+			},
+		});
+
+		const rewriter = store.add(instantiationService.createInstance(CommandLineSandboxRewriter));
+		const result = await rewriter.rewrite({
+			...createRewriteOptions('echo hello'),
+			requestUnsandboxedExecution: true,
+		});
+
+		strictEqual(result?.rewritten, 'wrapped:echo hello');
+		strictEqual(result?.reasoning, 'Wrapped command for sandbox execution');
+		deepStrictEqual(calls, ['prereqs', 'wrap:echo hello:true']);
 	});
 });

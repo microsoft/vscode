@@ -1,6 +1,5 @@
 ARG MIRROR
 ARG BASE_IMAGE=debian:10
-ARG TARGETARCH
 FROM ${MIRROR}${BASE_IMAGE}
 
 # Update to archive repos since Debian 10 is EOL
@@ -17,7 +16,9 @@ RUN apt-get update && \
 RUN apt-get install -y -t bullseye libstdc++6
 
 # Node.js (arm32/arm64 use official builds, others use NodeSource)
+ARG TARGETARCH
 RUN if [ "$TARGETARCH" = "arm" ]; then \
+		apt-get install -y libatomic1 && \
 		curl -fsSL https://nodejs.org/dist/v20.18.3/node-v20.18.3-linux-armv7l.tar.gz | tar -xz -C /usr/local --strip-components=1; \
 	elif [ "$TARGETARCH" = "arm64" ]; then \
 		curl -fsSL https://nodejs.org/dist/v22.21.1/node-v22.21.1-linux-arm64.tar.gz | tar -xz -C /usr/local --strip-components=1; \

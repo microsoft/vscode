@@ -217,6 +217,10 @@
 	.monaco-keybinding-key {
 		font-size: 13px;
 		opacity: 0.7;
+		padding: 0;
+		border: none;
+		margin: 0;
+		min-width: unset;
 	}
 
 	&.active {
@@ -270,4 +274,3 @@
 	background-position: center;
 	background-repeat: no-repeat;
 }
-

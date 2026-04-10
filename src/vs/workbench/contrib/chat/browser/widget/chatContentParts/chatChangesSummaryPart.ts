@@ -9,7 +9,7 @@ import { ButtonWithIcon } from '../../../../../../base/browser/ui/button/button.
 import { IListRenderer, IListVirtualDelegate } from '../../../../../../base/browser/ui/list/list.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Iterable } from '../../../../../../base/common/iterator.js';
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { combinedDisposable, Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
@@ -21,7 +21,6 @@ import { IInstantiationService } from '../../../../../../platform/instantiation/
 import { WorkbenchList } from '../../../../../../platform/list/browser/listService.js';
 import { IThemeService } from '../../../../../../platform/theme/common/themeService.js';
 import { IResourceLabel, ResourceLabels } from '../../../../../browser/labels.js';
-import { IEditorGroupsService } from '../../../../../services/editor/common/editorGroupsService.js';
 import { IEditorService } from '../../../../../services/editor/common/editorService.js';
 import { createFileIconThemableTreeContainerScope } from '../../../../files/browser/views/explorerView.js';
 import { MultiDiffEditorInput } from '../../../../multiDiffEditor/browser/multiDiffEditorInput.js';
@@ -53,7 +52,6 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 		@IHoverService private readonly hoverService: IHoverService,
 		@IChatService private readonly chatService: IChatService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
 		super();
@@ -112,14 +110,14 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 
 	private renderViewAllFileChangesButton(container: HTMLElement): IDisposable {
 		const button = container.appendChild($('.chat-view-changes-icon'));
-		this.hoverService.setupDelayedHover(button, () => ({
+		const hoverDisposable = this.hoverService.setupDelayedHover(button, () => ({
 			content: localize2('chat.viewFileChangesSummary', 'View All File Changes')
 		}));
 		button.classList.add(...ThemeIcon.asClassNameArray(Codicon.diffMultiple));
 		button.setAttribute('role', 'button');
 		button.tabIndex = 0;
 
-		return dom.addDisposableListener(button, 'click', (e) => {
+		return combinedDisposable(hoverDisposable, dom.addDisposableListener(button, 'click', (e) => {
 			const resources: { originalUri: URI; modifiedUri?: URI }[] = this.fileChangesDiffsObservable.get().map(diff => ({
 				originalUri: diff.originalURI,
 				modifiedUri: diff.modifiedURI
@@ -139,9 +137,9 @@ export class ChatCheckpointFileChangesSummaryContentPart extends Disposable impl
 				}),
 				false
 			);
-			this.editorGroupsService.activeGroup.openEditor(input);
+			this.editorService.openEditor(input);
 			dom.EventHelper.stop(e, true);
-		});
+		}));
 	}
 
 	private renderFilesList(container: HTMLElement): IDisposable {

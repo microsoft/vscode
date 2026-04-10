@@ -17,12 +17,15 @@ import { autorun, autorunSelfDisposable, IObservable, observableValue } from '..
 import { basename } from '../../../../../../../base/common/resources.js';
 import { isFalsyOrWhitespace } from '../../../../../../../base/common/strings.js';
 import { hasKey, isDefined } from '../../../../../../../base/common/types.js';
+import { URI } from '../../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../../nls.js';
+import { IChatResponseResourceFileSystemProvider } from '../../../../common/widget/chatResponseResourceFileSystemProvider.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../../../../platform/product/common/productService.js';
 import { IStorageService } from '../../../../../../../platform/storage/common/storage.js';
+
 import { IMcpAppResourceContent, McpToolCallUI } from '../../../../../mcp/browser/mcpToolCallUI.js';
 import { McpResourceURI } from '../../../../../mcp/common/mcpTypes.js';
 import { MCP } from '../../../../../mcp/common/modelContextProtocol.js';
@@ -32,6 +35,7 @@ import { IChatRequestVariableEntry } from '../../../../common/attachments/chatVa
 import { IChatToolInvocation, IChatToolInvocationSerialized } from '../../../../common/chatService/chatService.js';
 import { isToolResultInputOutputDetails, IToolResult } from '../../../../common/tools/languageModelToolsService.js';
 import { IChatWidgetService } from '../../../chat.js';
+import { IChatCollapsibleIODataPart } from '../chatToolInputOutputContentPart.js';
 import { IMcpAppRenderData } from './chatMcpAppSubPart.js';
 
 /** Storage key for persistent webview origins */
@@ -84,6 +88,10 @@ export class ChatMcpAppModel extends Disposable {
 	private readonly _onDidChangeHeight = this._register(new Emitter<void>());
 	public readonly onDidChangeHeight: Event<void> = this._onDidChangeHeight.event;
 
+	/** Accumulated download resource parts from ui/download-file calls */
+	private readonly _downloadParts = observableValue<IChatCollapsibleIODataPart[]>(this, []);
+	public readonly downloadParts: IObservable<IChatCollapsibleIODataPart[]> = this._downloadParts;
+
 	/** Full host context for the MCP App */
 	public readonly hostContext: IObservable<McpApps.McpUiHostContext>;
 
@@ -97,6 +105,7 @@ export class ChatMcpAppModel extends Disposable {
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@IWebviewService private readonly _webviewService: IWebviewService,
 		@IStorageService storageService: IStorageService,
+		@IChatResponseResourceFileSystemProvider private readonly _chatResponseResourceFsProvider: IChatResponseResourceFileSystemProvider,
 		@ILogService private readonly _logService: ILogService,
 		@IProductService private readonly _productService: IProductService,
 		@IOpenerService private readonly _openerService: IOpenerService,
@@ -437,6 +446,10 @@ export class ChatMcpAppModel extends Disposable {
 					result = await this._handleOpenLink(request.params);
 					break;
 
+				case 'ui/download-file':
+					result = await this._handleDownloadFile(request.params);
+					break;
+
 				case 'ui/request-display-mode':
 					// VS Code only supports inline display mode
 					result = { mode: 'inline' } satisfies McpApps.McpUiRequestDisplayModeResult;
@@ -543,7 +556,8 @@ export class ChatMcpAppModel extends Disposable {
 					resourceLink: {},
 					resource: {},
 					structuredContent: {},
-				}
+				},
+				downloadFile: {},
 			},
 			hostContext: this.hostContext.get(),
 		} satisfies Required<McpApps.McpUiInitializeResult>;
@@ -680,6 +694,45 @@ export class ChatMcpAppModel extends Disposable {
 
 		const widget = this._chatWidgetService.getWidgetBySessionResource(this.renderData.sessionResource);
 		widget?.delegateScrollFromMouseWheelEvent(evt as IMouseWheelEvent);
+	}
+
+	private async _handleDownloadFile(params: McpApps.McpUiDownloadFileRequest['params']): Promise<McpApps.McpUiDownloadFileResult> {
+		const newParts: IChatCollapsibleIODataPart[] = [];
+		let hadError = false;
+
+		for (const content of params.contents) {
+			try {
+				if (content.type === 'resource') {
+					// EmbeddedResource — associate inline content with the chat response FS
+					const resource = content.resource;
+					const parsed = URI.parse(resource.uri);
+
+					const data: Uint8Array | { base64: string } = hasKey(resource, { text: true })
+						? new TextEncoder().encode(resource.text)
+						: { base64: resource.blob };
+
+					const uri = this._chatResponseResourceFsProvider.associate(this.renderData.sessionResource, data, basename(parsed));
+					newParts.push({ kind: 'data', mimeType: resource.mimeType, uri });
+				} else if (content.type === 'resource_link') {
+					// ResourceLink — create a part with an MCP resource URI, resolved lazily on save
+					const mcpUri = McpResourceURI.fromServer(
+						{ id: this.renderData.serverDefinitionId, label: '' },
+						content.uri,
+					);
+					newParts.push({ kind: 'data', mimeType: content.mimeType, uri: mcpUri });
+				}
+			} catch (error) {
+				hadError = true;
+				this._logService.warn('[MCP App] Failed to process ui/download-file content', error);
+			}
+		}
+
+		if (newParts.length > 0) {
+			const existing = this._downloadParts.get();
+			this._downloadParts.set([...existing, ...newParts], undefined);
+		}
+
+		return hadError ? { isError: true } : {};
 	}
 
 	private async _handleOpenLink(params: McpApps.McpUiOpenLinkRequest['params']): Promise<McpApps.McpUiOpenLinkResult> {

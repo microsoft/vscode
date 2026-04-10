@@ -86,7 +86,7 @@ type RunningRef = { path: readonly string[]; profiles: ISettableObservable<ITest
 export class TestingContinuousRunService extends Disposable implements ITestingContinuousRunService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly changeEmitter = new Emitter<string | undefined>();
+	private readonly changeEmitter = this._register(new Emitter<string | undefined>());
 	private readonly running = new WellDefinedPrefixTree<RunningRef>();
 	private readonly lastRun: StoredValue<Set<number>>;
 

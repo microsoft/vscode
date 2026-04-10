@@ -9,6 +9,7 @@ import * as vscode from 'vscode';
 import { wait } from '../test/testUtils';
 import { ITypeScriptServiceClient, ServerResponse } from '../typescriptService';
 import { coalesce } from '../utils/arrays';
+import { readUnifiedConfig } from '../utils/configuration';
 import { Disposable } from '../utils/dispose';
 import { exists } from '../utils/fs';
 import { isTsConfigFileName } from '../configuration/languageDescription';
@@ -289,7 +290,7 @@ class TscTaskProvider extends Disposable implements vscode.TaskProvider {
 	}
 
 	private onConfigurationChanged(): void {
-		const type = vscode.workspace.getConfiguration('typescript.tsc').get<AutoDetect>('autoDetect');
+		const type = readUnifiedConfig<AutoDetect | undefined>('tsc.autoDetect', undefined, { fallbackSection: 'typescript' });
 		this.autoDetect = typeof type === 'undefined' ? AutoDetect.on : type;
 	}
 }

@@ -7,6 +7,7 @@ jobs:
       os: linux
     variables:
       VSCODE_ARCH: x64
+      BUILDS_API_URL: $(System.CollectionUri)$(System.TeamProject)/_apis/build/builds/$(Build.BuildId)/
     templateContext:
       outputs:
         - output: pipelineArtifact
@@ -32,15 +33,6 @@ jobs:
           azureSubscription: vscode
           KeyVaultName: vscode-build-secrets
           SecretsFilter: "github-distro-mixin-password"
-
-      - task: DownloadPipelineArtifact@2
-        inputs:
-          artifact: Compilation
-          path: $(Build.ArtifactStagingDirectory)
-        displayName: Download compilation output
-
-      - script: tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
-        displayName: Extract compilation output
 
       - script: node build/setup-npm-registry.ts $NPM_REGISTRY
         condition: and(succeeded(), ne(variables['NPM_REGISTRY'], 'none'))
@@ -117,6 +109,21 @@ jobs:
         displayName: Mixin distro quality
 
       - template: ../common/install-builtin-extensions.yml@self
+
+      - script: npx deemon --detach --wait -- node build/azure-pipelines/common/downloadCopilotVsix.ts
+        env:
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+        displayName: Download Copilot VSIX (background)
+
+      - script: npm run gulp core-ci
+        env:
+          GITHUB_TOKEN: "$(github-distro-mixin-password)"
+        displayName: Compile
+
+      - script: npx deemon --attach -- node build/azure-pipelines/common/downloadCopilotVsix.ts
+        env:
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+        displayName: Download Copilot VSIX
 
       - script: |
           set -e
