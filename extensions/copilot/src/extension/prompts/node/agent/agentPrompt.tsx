@@ -57,9 +57,6 @@ export interface AgentPromptProps extends GenericBasePromptElementProps {
 	readonly triggerSummarize?: boolean;
 
 	/**
-	 * When true, appends a summarization instruction as a user message in the
-	 * current agent loop iteration instead of making a separate LLM call.
-	/**
 	 * Enables cache breakpoints and summarization
 	 */
 	readonly enableCacheBreakpoints?: boolean;

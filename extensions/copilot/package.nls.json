@@ -263,7 +263,6 @@
 	"github.copilot.config.editsNewNotebook.enabled": "Whether to enable the new notebook tool in Copilot Edits.",
 	"github.copilot.config.notebook.inlineEditAgent.enabled": "Enable agent-like behavior from the notebook inline chat widget.",
 	"github.copilot.config.summarizeAgentConversationHistory.enabled": "Whether to auto-compact agent conversation history once the context window is filled.",
-
 	"github.copilot.tools.createNewWorkspace.name": "Create New Workspace",
 	"github.copilot.tools.openEmptyFolder.name": "Open an empty folder as VS Code workspace",
 	"github.copilot.tools.getProjectSetupInfo.name": "Get Project Setup Info",
