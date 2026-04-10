@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { hasKey } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
 
 // =============================================================================
@@ -120,6 +121,13 @@ const HIDDEN_TOOL_NAMES: ReadonlySet<string> = new Set([
  */
 export function isHiddenTool(toolName: string): boolean {
 	return HIDDEN_TOOL_NAMES.has(toolName);
+}
+
+/**
+ * Returns true if the tool executes shell commands.
+ */
+export function isShellTool(toolName: string): boolean {
+	return SHELL_TOOL_NAMES.has(toolName);
 }
 
 // =============================================================================
@@ -271,7 +279,15 @@ export function getToolInputString(toolName: string, parameters: Record<string, 
 
 	if (SHELL_TOOL_NAMES.has(toolName)) {
 		const args = parameters as ICopilotShellToolArgs | undefined;
-		return args?.command ?? rawArguments;
+		// Custom tool overrides may wrap the args: { kind: 'custom-tool', args: { command: '...' } }
+		const command = args?.command ?? (args as Record<string, unknown> | undefined)?.args;
+		if (typeof command === 'string') {
+			return command;
+		}
+		if (typeof command === 'object' && command !== null && hasKey(command, { command: true })) {
+			return (command as ICopilotShellToolArgs).command;
+		}
+		return rawArguments;
 	}
 
 	switch (toolName) {

@@ -1618,6 +1618,16 @@ export default tseslint.config(
 					]
 				},
 				{
+					'target': 'src/vs/platform/agentHost/node/diffWorkerMain.ts',
+					'layer': 'node',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/editor/common/diff/**', // diffing logic used by the agent host
+					]
+				},
+				{
 					'target': 'src/vs/platform/*/~',
 					'restrictions': [
 						'vs/base/~',

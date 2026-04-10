@@ -314,7 +314,7 @@ async function registerChatServices(testingServiceCollection: TestingServiceColl
 		async getRepositoryProperties() { return undefined; },
 		async handleRequestCompleted() { },
 		async getWorkspaceChanges() { return undefined; },
-		clearWorkspaceChanges() { },
+		clearWorkspaceChanges() { return []; },
 	} as IChatSessionWorkspaceFolderService);
 	testingServiceCollection.define(IChatSessionWorktreeService, {
 		_serviceBrand: undefined,

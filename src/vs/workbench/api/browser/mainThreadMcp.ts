@@ -223,10 +223,10 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		if (!server) {
 			return undefined;
 		}
-		return this._getSessionForProvider(id, server, providerId, scopes, undefined, options.errorOnUserInteraction);
+		return this._getSessionForProvider(id, server, providerId, scopes, undefined, options.errorOnUserInteraction, options.clientId);
 	}
 
-	async $getTokenFromServerMetadata(id: number, authDetails: IMcpAuthenticationDetails, { errorOnUserInteraction, forceNewRegistration }: IMcpAuthenticationOptions = {}): Promise<string | undefined> {
+	async $getTokenFromServerMetadata(id: number, authDetails: IMcpAuthenticationDetails, { errorOnUserInteraction, forceNewRegistration, clientId }: IMcpAuthenticationOptions = {}): Promise<string | undefined> {
 		const server = this._serverDefinitions.get(id);
 		if (!server) {
 			return undefined;
@@ -246,14 +246,14 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		}
 
 		if (!providerId) {
-			const provider = await this._authenticationService.createDynamicAuthenticationProvider(authorizationServer, authDetails.authorizationServerMetadata, authDetails.resourceMetadata);
+			const provider = await this._authenticationService.createDynamicAuthenticationProvider(authorizationServer, authDetails.authorizationServerMetadata, authDetails.resourceMetadata, authDetails.clientId);
 			if (!provider) {
 				return undefined;
 			}
 			providerId = provider.id;
 		}
 
-		return this._getSessionForProvider(id, server, providerId, resolvedScopes, authorizationServer, errorOnUserInteraction);
+		return this._getSessionForProvider(id, server, providerId, resolvedScopes, authorizationServer, errorOnUserInteraction, clientId ?? authDetails.clientId);
 	}
 
 	private async _getSessionForProvider(
@@ -262,9 +262,10 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 		providerId: string,
 		scopes: string[],
 		authorizationServer?: URI,
-		errorOnUserInteraction: boolean = false
+		errorOnUserInteraction: boolean = false,
+		clientId?: string,
 	): Promise<string | undefined> {
-		const sessions = await this._authenticationService.getSessions(providerId, scopes, { authorizationServer }, true);
+		const sessions = await this._authenticationService.getSessions(providerId, scopes, { authorizationServer, clientId }, true);
 		const accountNamePreference = this.authenticationMcpServersService.getAccountPreference(server.id, providerId);
 		let matchingAccountPreferenceSession: AuthenticationSession | undefined;
 		if (accountNamePreference) {
@@ -316,7 +317,8 @@ export class MainThreadMcp extends Disposable implements MainThreadMcpShape {
 					{
 						activateImmediate: true,
 						account: accountToCreate,
-						authorizationServer
+						authorizationServer,
+						clientId
 					});
 			} while (
 				accountToCreate

@@ -77,6 +77,7 @@ suite('RunInTerminalTool', () => {
 	let terminalServiceDisposeEmitter: Emitter<ITerminalInstance>;
 	let chatServiceDisposeEmitter: Emitter<{ sessionResources: URI[]; reason: 'cleared' }>;
 	let chatSessionArchivedEmitter: Emitter<IAgentSession>;
+	let capturedSteeringRequests: { sessionResource: URI; message: string }[];
 	let sandboxEnabled: boolean;
 	let sandboxPrereqResult: ITerminalSandboxPrerequisiteCheckResult;
 	let terminalSandboxService: ITerminalSandboxService;
@@ -129,16 +130,29 @@ suite('RunInTerminalTool', () => {
 		terminalServiceDisposeEmitter = new Emitter<ITerminalInstance>();
 		chatServiceDisposeEmitter = new Emitter<{ sessionResources: URI[]; reason: 'cleared' }>();
 		chatSessionArchivedEmitter = new Emitter<IAgentSession>();
+		capturedSteeringRequests = [];
 
 		instantiationService = workbenchInstantiationService({
 			configurationService: () => configurationService,
 			fileService: () => fileService,
 		}, store);
 
-		instantiationService.stub(IChatService, {
+		const chatServiceStub = {
 			onDidDisposeSession: chatServiceDisposeEmitter.event,
 			getSession: () => undefined,
-		});
+			sendRequest: async (sessionResource: URI, message: string) => {
+				capturedSteeringRequests.push({ sessionResource, message });
+				return { kind: 'rejected', reason: 'test' };
+			},
+			acquireExistingSession: () => ({
+				object: {
+					lastRequest: undefined,
+					onDidChange: Event.None,
+				},
+				dispose: () => { },
+			}) as unknown as NonNullable<ReturnType<IChatService['acquireExistingSession']>>,
+		} as unknown as IChatService;
+		instantiationService.stub(IChatService, chatServiceStub);
 		instantiationService.stub(IAgentSessionsService, {
 			onDidChangeSessionArchivedState: chatSessionArchivedEmitter.event,
 			model: {
@@ -684,7 +698,7 @@ suite('RunInTerminalTool', () => {
 			ok(actions, 'Expected custom actions to be defined');
 			strictEqual(actions.length, 11);
 			ok(!isSeparator(actions[0]));
-			strictEqual(actions[0].label, 'Allow `unsandboxed:echo …` in this Session');
+			strictEqual(actions[0].label, 'Allow `echo …` in this Session');
 			ok(!isSeparator(actions[4]));
 			strictEqual(actions[4].label, 'Allow Exact Command Line in this Session');
 			ok(!isSeparator(actions[10]));
@@ -1721,6 +1735,45 @@ suite('RunInTerminalTool', () => {
 			chatServiceDisposeEmitter.fire({ sessionResources: [LocalChatSessionUri.forSession('non-existent-session')], reason: 'cleared' });
 			strictEqual(runInTerminalTool.sessionTerminalAssociations.size, 0, 'No associations should exist after handling non-existent session');
 		});
+	});
+
+	test('should dedupe rapid repeated background input-needed notifications', () => {
+		const termId = 'test-input-needed-term';
+		const sessionResource = LocalChatSessionUri.forSession('test-input-needed-session');
+		let output = 'Enter value:';
+
+		const commandFinishedEmitter = new Emitter<{ exitCode: number | undefined }>();
+		const terminalDisposedEmitter = new Emitter<void>();
+		const inputNeededEmitter = new Emitter<void>();
+
+		const terminalInstance = {
+			capabilities: {
+				get: (cap: TerminalCapability) => cap === TerminalCapability.CommandDetection ? { onCommandFinished: commandFinishedEmitter.event } : undefined,
+			},
+			onDisposed: terminalDisposedEmitter.event,
+		} as unknown as ITerminalInstance;
+
+		const outputMonitor = {
+			onDidDetectInputNeeded: inputNeededEmitter.event,
+			continueMonitoringAsync: () => { },
+			dispose: () => { },
+		} as unknown as { onDidDetectInputNeeded: Event<void>; continueMonitoringAsync: () => void; dispose: () => void };
+
+		(runInTerminalTool.constructor as unknown as { _activeExecutions: Map<string, { getOutput(): string }> })._activeExecutions.set(termId, {
+			getOutput: () => output,
+		});
+
+		// eslint-disable-next-line @typescript-eslint/naming-convention
+		(runInTerminalTool as unknown as { _registerCompletionNotification: (terminal: ITerminalInstance, termId: string, session: URI, commandName: string, outputMonitor: { onDidDetectInputNeeded: Event<void>; continueMonitoringAsync: () => void; dispose: () => void }) => void })
+			._registerCompletionNotification(terminalInstance, termId, sessionResource, 'npm init', outputMonitor);
+
+		inputNeededEmitter.fire();
+		inputNeededEmitter.fire();
+		strictEqual(capturedSteeringRequests.length, 1, 'Expected duplicate rapid input-needed events to be suppressed');
+
+		output = 'Confirm (y/N):';
+		inputNeededEmitter.fire();
+		strictEqual(capturedSteeringRequests.length, 2, 'Expected a changed prompt to trigger a new notification');
 	});
 
 	suite('auto approve warning acceptance mechanism', () => {

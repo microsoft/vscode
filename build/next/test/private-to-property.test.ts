@@ -290,6 +290,133 @@ suite('convertPrivateFields', () => {
 		const result = convertPrivateFields(code, 'test.js');
 		assert.deepStrictEqual(result.edits, []);
 	});
+
+	test('heritage clause — extends expression resolves outer private field, not inner', () => {
+		const code = [
+			'class Outer {',
+			'  #x = "outer";',
+			'  method() {',
+			'    return class extends (this.#x, Object) {',
+			'      #x = "inner";',
+			'    };',
+			'  }',
+			'}',
+		].join('\n');
+		const result = convertPrivateFields(code, 'test.js');
+		// Outer.#x → $a (first class scanned), Inner.#x → $b (second)
+		// this.#x in the extends clause lexically refers to Outer.#x,
+		// so it must become this.$a, NOT this.$b
+		assert.ok(result.code.includes('this.$a, Object'),
+			'heritage clause should reference outer replacement ($a), got:\n' + result.code);
+	});
+
+	test('heritage clause runtime — extends uses correct outer private field', () => {
+		const code = [
+			'class Base { }',
+			'class Outer {',
+			'  #Base = Base;',
+			'  createInner() {',
+			'    return class extends this.#Base {',
+			'      #Base = null;',
+			'    };',
+			'  }',
+			'}',
+			'const o = new Outer();',
+			'const Inner = o.createInner();',
+			'const inst = new Inner();',
+			'return inst instanceof Base;',
+		].join('\n');
+		const result = convertPrivateFields(code, 'test.js');
+		// With the bug, this.#Base in extends resolves to Inner's replacement
+		// ($b) instead of Outer's ($a). Since the Outer instance has no $b
+		// property, `class extends undefined` throws TypeError.
+		assert.strictEqual(new Function(result.code)(), true,
+			'inner class should extend Base via outer private field, code:\n' + result.code);
+	});
+
+	test('generated name must not collide with existing public property', () => {
+		const code = [
+			'class Foo {',
+			'  $a = "public";',
+			'  #x = "private";',
+			'  getPublic() { return this.$a; }',
+			'  getPrivate() { return this.#x; }',
+			'}',
+		].join('\n');
+		const result = convertPrivateFields(code, 'test.js');
+		// #x must not be renamed to $a since the class already has a public $a
+		const fieldDecls = result.code.match(/\$a\s*=/g);
+		assert.ok(!fieldDecls || fieldDecls.length <= 1,
+			'should not produce duplicate $a property declarations, got:\n' + result.code);
+	});
+
+	test('collision with existing property — runtime correctness', () => {
+		const code = [
+			'class Foo {',
+			'  $a = "public";',
+			'  #x = "private";',
+			'  getPublic() { return this.$a; }',
+			'  getPrivate() { return this.#x; }',
+			'}',
+			'const f = new Foo();',
+			'return f.getPublic() + "," + f.getPrivate();',
+		].join('\n');
+		const result = convertPrivateFields(code, 'test.js');
+		// Original: getPublic() → "public", getPrivate() → "private"
+		// With the bug: both return "private" because $a overwrites $a
+		assert.strictEqual(new Function(result.code)(), 'public,private',
+			'public and private properties must remain distinct, code:\n' + result.code);
+	});
+
+	test('collision avoidance — string-literal public property name', () => {
+		const code = [
+			'class Foo {',
+			'  \'$a\' = "public";',
+			'  #x = "private";',
+			'  getPublic() { return this[\'$a\']; }',
+			'  getPrivate() { return this.#x; }',
+			'}',
+			'const f = new Foo();',
+			'return f.getPublic() + "," + f.getPrivate();',
+		].join('\n');
+		const result = convertPrivateFields(code, 'test.js');
+		assert.strictEqual(new Function(result.code)(), 'public,private',
+			'string-literal public property must not collide, code:\n' + result.code);
+	});
+
+	test('collision avoidance — computed string-literal public property name', () => {
+		const code = [
+			'class Foo {',
+			'  [\'$a\'] = "public";',
+			'  #x = "private";',
+			'  getPublic() { return this[\'$a\']; }',
+			'  getPrivate() { return this.#x; }',
+			'}',
+			'const f = new Foo();',
+			'return f.getPublic() + "," + f.getPrivate();',
+		].join('\n');
+		const result = convertPrivateFields(code, 'test.js');
+		assert.strictEqual(new Function(result.code)(), 'public,private',
+			'computed string-literal public property must not collide, code:\n' + result.code);
+	});
+
+	test('brand check in heritage clause resolves to outer scope', () => {
+		const code = [
+			'class Outer {',
+			'  #brand;',
+			'  createChecked(obj) {',
+			'    return class extends (#brand in obj ? Object : Object) {',
+			'      #brand;',
+			'    };',
+			'  }',
+			'}',
+		].join('\n');
+		const result = convertPrivateFields(code, 'test.js');
+		// #brand in the extends clause should resolve to Outer.#brand ($a),
+		// not Inner.#brand ($b)
+		assert.ok(result.code.includes('\'$a\' in obj'),
+			'brand check in heritage clause should use outer replacement, got:\n' + result.code);
+	});
 });
 
 suite('adjustSourceMap', () => {

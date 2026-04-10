@@ -63,7 +63,7 @@ type CustomizationEditorDeleteItemClassification = {
 	promptType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of customization being deleted.' };
 	storage: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The storage location of the deleted item.' };
 	owner: 'joshspicer';
-	comment: 'Tracks item deletion in the Chat Customizations editor.';
+	comment: 'Tracks item deletion in the Agent Customizations editor.';
 };
 
 //#endregion
@@ -74,7 +74,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	EditorPaneDescriptor.create(
 		AICustomizationManagementEditor,
 		AI_CUSTOMIZATION_MANAGEMENT_EDITOR_ID,
-		localize('aiCustomizationManagementEditor', "Chat Customizations Editor")
+		localize('aiCustomizationManagementEditor', "Agent Customizations Editor")
 	),
 	[
 		// Note: Using the class directly since we use a singleton pattern
@@ -697,6 +697,28 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 				const pane = await editorService.openEditor(input, { pinned: true });
 				if (section && pane instanceof AICustomizationManagementEditor) {
 					pane.selectSectionById(section);
+				}
+			}
+		}));
+
+		// Open Marketplace (hidden command for deep-linking into browse mode)
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: AICustomizationManagementCommands.OpenMarketplace,
+					title: localize2('openMarketplace', "Open Marketplace"),
+					category: CHAT_CATEGORY,
+					precondition: ChatContextKeys.enabled,
+				});
+			}
+
+			async run(accessor: ServicesAccessor, section?: AICustomizationManagementSection): Promise<void> {
+				const editorService = accessor.get(IEditorService);
+				const input = AICustomizationManagementEditorInput.getOrCreate();
+				const pane = await editorService.openEditor(input, { pinned: true });
+				if (pane instanceof AICustomizationManagementEditor) {
+					const targetSection = section ?? AICustomizationManagementSection.McpServers;
+					pane.selectSectionById(targetSection, { showMarketplace: true });
 				}
 			}
 		}));

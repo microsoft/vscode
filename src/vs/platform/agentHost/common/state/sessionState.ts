@@ -25,6 +25,7 @@ import {
 	type IToolCallState,
 	type IToolResultTextContent,
 	type IUserMessage,
+	ITerminalState,
 } from './protocol/state.js';
 
 // Re-export everything from the protocol state module
@@ -39,6 +40,7 @@ export {
 	type IResponsePart,
 	type IRootState,
 	type ISessionActiveClient,
+	type ISessionFileDiff,
 	type ISessionModelInfo,
 	type ISessionState,
 	type ISessionSummary,
@@ -67,11 +69,19 @@ export {
 	type IPendingMessage,
 	type StringOrMarkdown,
 	type URI,
+	type ISessionInputRequest,
+	type ISessionInputQuestion,
+	type ISessionInputAnswer,
+	type ISessionInputOption,
 	AttachmentType,
 	CustomizationStatus,
 	PendingMessageKind,
 	PolicyState,
 	ResponsePartKind,
+	SessionInputAnswerState,
+	SessionInputAnswerValueKind,
+	SessionInputQuestionKind,
+	SessionInputResponseKind,
 	SessionLifecycle,
 	SessionStatus,
 	ToolCallConfirmationReason,
@@ -182,3 +192,15 @@ export function createActiveTurn(id: string, userMessage: IUserMessage): IActive
 		usage: undefined,
 	};
 }
+
+export const enum StateComponents {
+	Root,
+	Session,
+	Terminal,
+}
+
+export type ComponentToState = {
+	[StateComponents.Root]: IRootState;
+	[StateComponents.Session]: ISessionState;
+	[StateComponents.Terminal]: ITerminalState;
+};

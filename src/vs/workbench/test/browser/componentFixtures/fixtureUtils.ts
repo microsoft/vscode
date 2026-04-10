@@ -500,8 +500,22 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		markPRReviewCommentConverted: () => { },
 	});
 
-	// Allow additional services to be registered
-	options?.additionalServices?.({ define, defineInstance, definePartialInstance });
+	// Allow additional services to override defaults
+	options?.additionalServices?.({
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		define: <T>(id: ServiceIdentifier<T>, ctor: new (...args: any[]) => T) => {
+			services.set(id, new SyncDescriptor(ctor));
+			serviceIdentifiers.push(id);
+		},
+		defineInstance: <T>(id: ServiceIdentifier<T>, instance: T) => {
+			services.set(id, instance);
+			serviceIdentifiers.push(id);
+		},
+		definePartialInstance: <T>(id: ServiceIdentifier<T>, instance: Partial<T>) => {
+			services.set(id, instance as T);
+			serviceIdentifiers.push(id);
+		},
+	});
 
 	const instantiationService = disposables.add(new TestInstantiationService(services, true));
 

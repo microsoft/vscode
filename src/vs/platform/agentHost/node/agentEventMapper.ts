@@ -13,12 +13,14 @@ import type {
 	IAgentTitleChangedEvent,
 	IAgentToolCompleteEvent,
 	IAgentToolStartEvent,
-	IAgentUsageEvent
+	IAgentUsageEvent,
+	IAgentUserInputRequestEvent
 } from '../common/agentService.js';
 import {
 	ActionType,
 	type ISessionAction,
 	type ISessionErrorAction,
+	type ISessionInputRequestedAction,
 	type ITitleChangedAction,
 	type IToolCallCompleteAction,
 	type IToolCallReadyAction,
@@ -227,6 +229,15 @@ export class AgentEventMapper {
 					turnId,
 					part: { kind: ResponsePartKind.Markdown, id: partId, content: e.content },
 				};
+			}
+
+			case 'user_input_request': {
+				const e = event as IAgentUserInputRequestEvent;
+				return {
+					type: ActionType.SessionInputRequested,
+					session,
+					request: e.request,
+				} satisfies ISessionInputRequestedAction;
 			}
 
 			default:

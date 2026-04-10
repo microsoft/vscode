@@ -17,7 +17,7 @@ on:
 jobs:
   linux-test:
     name: ${{ inputs.job_name }}
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     env:
       ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}
       NPM_ARCH: x64
@@ -36,6 +36,9 @@ jobs:
       - name: Setup system services
         run: |
           set -e
+          # Allow unprivileged user namespaces for Chromium's namespace sandbox
+          # Ubuntu 24.04 restricts this by default via AppArmor
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           # Start X server
           ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get update
           ./build/azure-pipelines/linux/apt-retry.sh sudo apt-get install -y pkg-config \
@@ -132,6 +135,38 @@ jobs:
         run: node build/lib/builtInExtensions.ts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Fontconfig diagnostics and cache reset
+        run: |
+          set -e
+          echo "--- Font package versions ---"
+          dpkg -l | grep -E 'libexpat|fontconfig|libfreetype|libpango' || true
+          echo ""
+          echo "--- Installed font packages ---"
+          apt list --installed 2>/dev/null | grep -E 'fonts-|fontconfig' || true
+          echo ""
+          echo "--- Verify fonts.conf integrity ---"
+          python3 -c "
+          import xml.etree.ElementTree as ET, glob, sys
+          for f in ['/etc/fonts/fonts.conf'] + sorted(glob.glob('/etc/fonts/conf.d/*.conf')):
+              try:
+                  ET.parse(f)
+              except Exception as e:
+                  print(f'WARNING: {f} is invalid: {e}', file=sys.stderr)
+          print('Font config XML validation complete')
+          "
+          echo ""
+          echo "--- Check for symlink loops in font dirs ---"
+          find /usr/share/fonts -maxdepth 3 -type l -exec test -d {} \; -print 2>/dev/null | head -10 || true
+          echo ""
+          echo "--- Clear and rebuild font cache ---"
+          sudo rm -rf /var/cache/fontconfig 2>/dev/null || true
+          rm -rf ~/.cache/fontconfig 2>/dev/null || true
+          fc-cache -f -v 2>&1 | tail -5
+          echo ""
+          echo "--- fontconfig version ---"
+          fc-cache --version 2>&1 | head -1
+        continue-on-error: true
 
       - name: Transpile client and extensions
         run: npm run gulp transpile-client-esbuild transpile-extensions

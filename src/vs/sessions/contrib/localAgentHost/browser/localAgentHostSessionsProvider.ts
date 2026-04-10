@@ -360,7 +360,7 @@ export class LocalAgentHostSessionsProvider extends Disposable implements ISessi
 			cached.isArchived.set(true, undefined);
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 			const action = { type: ActionType.SessionIsDoneChanged as const, session: AgentSession.uri(cached.agentProvider, rawId).toString(), isDone: true };
-			this._agentHostService.dispatchAction(action, this._agentHostService.clientId, this._agentHostService.nextClientSeq());
+			this._agentHostService.dispatch(action);
 		}
 	}
 
@@ -371,7 +371,7 @@ export class LocalAgentHostSessionsProvider extends Disposable implements ISessi
 			cached.isArchived.set(false, undefined);
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 			const action = { type: ActionType.SessionIsDoneChanged as const, session: AgentSession.uri(cached.agentProvider, rawId).toString(), isDone: false };
-			this._agentHostService.dispatchAction(action, this._agentHostService.clientId, this._agentHostService.nextClientSeq());
+			this._agentHostService.dispatch(action);
 		}
 	}
 
@@ -392,7 +392,7 @@ export class LocalAgentHostSessionsProvider extends Disposable implements ISessi
 			cached.title.set(title, undefined);
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 			const action = { type: ActionType.SessionTitleChanged as const, session: AgentSession.uri(cached.agentProvider, rawId).toString(), title };
-			this._agentHostService.dispatchAction(action, this._agentHostService.clientId, this._agentHostService.nextClientSeq());
+			this._agentHostService.dispatch(action);
 		}
 	}
 
@@ -406,7 +406,7 @@ export class LocalAgentHostSessionsProvider extends Disposable implements ISessi
 		if (cached && rawId) {
 			cached.isRead.set(read, undefined);
 			const action = { type: ActionType.SessionIsReadChanged as const, session: AgentSession.uri(cached.agentProvider, rawId).toString(), isRead: read };
-			this._agentHostService.dispatchAction(action, this._agentHostService.clientId, this._agentHostService.nextClientSeq());
+			this._agentHostService.dispatch(action);
 		}
 	}
 

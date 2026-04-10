@@ -103,7 +103,6 @@ function createMockWorkspaceService(): IAICustomizationWorkspaceService {
 		override readonly isSessionsWindow = false;
 		override readonly welcomePageFeatures = {
 			showGettingStartedBanner: true,
-			showGenerateActions: true,
 		};
 		override readonly activeProjectRoot = activeProjectRoot;
 		override readonly hasOverrideProjectRoot = observableValue('hasOverride', false);
@@ -159,9 +158,9 @@ async function renderInstructionsTab(ctx: ComponentFixtureContext, instructionFi
 	const instantiationService = createEditorServices(ctx.disposableStore, {
 		colorTheme: ctx.theme,
 		additionalServices: (reg) => {
+			registerWorkbenchServices(reg);
 			reg.defineInstance(IContextMenuService, contextMenuService);
 			reg.defineInstance(IContextViewService, contextViewService);
-			registerWorkbenchServices(reg);
 			reg.define(IListService, ListService);
 			reg.defineInstance(IPromptsService, createMockPromptsService(instructionFiles, agentInstructionFiles));
 			reg.defineInstance(IAICustomizationWorkspaceService, createMockWorkspaceService());

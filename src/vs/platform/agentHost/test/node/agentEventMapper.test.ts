@@ -16,6 +16,7 @@ import type {
 	IAgentToolCompleteEvent,
 	IAgentToolStartEvent,
 	IAgentUsageEvent,
+	IAgentUserInputRequestEvent,
 } from '../../common/agentService.js';
 import type {
 	IDeltaAction,
@@ -23,6 +24,7 @@ import type {
 	IResponsePartAction,
 	ISessionAction,
 	ISessionErrorAction,
+	ISessionInputRequestedAction,
 	ITitleChangedAction,
 	IToolCallCompleteAction,
 	IToolCallReadyAction,
@@ -30,7 +32,7 @@ import type {
 	ITurnCompleteAction,
 	IUsageAction,
 } from '../../common/state/sessionActions.js';
-import { ToolResultContentType, type IMarkdownResponsePart, type IReasoningResponsePart } from '../../common/state/sessionState.js';
+import { SessionInputQuestionKind, ToolResultContentType, type IMarkdownResponsePart, type IReasoningResponsePart, type ISessionInputRequest } from '../../common/state/sessionState.js';
 import { AgentEventMapper } from '../../node/agentEventMapper.js';
 
 /** Helper: flatten the result of mapProgressEventToActions into an array. */
@@ -311,5 +313,30 @@ suite('AgentEventMapper', () => {
 		};
 		const result = mapper.mapProgressEventToActions(event, session.toString(), turnId);
 		assert.strictEqual(result, undefined);
+	});
+
+	test('user_input_request event maps to session/inputRequested action', () => {
+		const request: ISessionInputRequest = {
+			id: 'req-1',
+			message: 'What is your name?',
+			questions: [{
+				kind: SessionInputQuestionKind.Text,
+				id: 'q-1',
+				message: 'What is your name?',
+				required: true,
+			}],
+		};
+		const event: IAgentUserInputRequestEvent = {
+			session,
+			type: 'user_input_request',
+			request,
+		};
+
+		const actions = mapToArray(mapper.mapProgressEventToActions(event, session.toString(), turnId));
+		assert.strictEqual(actions.length, 1);
+		const action = actions[0] as ISessionInputRequestedAction;
+		assert.strictEqual(action.type, 'session/inputRequested');
+		assert.strictEqual(action.session, session.toString());
+		assert.strictEqual(action.request, request);
 	});
 });

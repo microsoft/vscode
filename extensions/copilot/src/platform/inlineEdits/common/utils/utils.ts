@@ -53,6 +53,16 @@ export namespace Icon {
 		themeIcon: ThemeIcon.fromId('database'),
 		svg: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M13 3.5C13 2.119 10.761 1 8 1S3 2.119 3 3.5c0 .04.02.077.024.117H3v8.872l.056.357C3.336 14.056 5.429 15 8 15s4.664-.944 4.944-2.154l.056-.357V3.617h-.024c.004-.04.024-.077.024-.117M8 2.032c2.442 0 4 .964 4 1.468s-1.558 1.468-4 1.468S4 4 4 3.5s1.558-1.468 4-1.468m4 10.458l-.03.131C11.855 13.116 10.431 14 8 14s-3.855-.884-3.97-1.379L4 12.49v-7.5A7.4 7.4 0 0 0 8 6a7.4 7.4 0 0 0 4-1.014z"/></svg>`,
 	};
+
+	export const loading: t = {
+		themeIcon: ThemeIcon.fromId('loading~spin'),
+		svg: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" fill-rule="evenodd" d="M13.917 7A6.002 6.002 0 0 0 2.083 7H1.071a7.002 7.002 0 0 1 13.858 0zm0 2a6.002 6.002 0 0 1-11.834 0H1.071a7.002 7.002 0 0 0 13.858 0z" clip-rule="evenodd"/></svg>`,
+	};
+
+	export const check: t = {
+		themeIcon: ThemeIcon.fromId('check'),
+		svg: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" fill-rule="evenodd" d="m14.431 3.323l-8.47 10l-.79-.036l-3.35-4.77l.818-.574l2.978 4.24l8.051-9.506z" clip-rule="evenodd"/></svg>`,
+	};
 }
 
 export function shortenOpportunityId(opportunityId: string): string {

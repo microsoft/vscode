@@ -36,7 +36,18 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	public readonly chatRequestId?: string;
 	public isAttachedToThinking: boolean = false;
 
-	public toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatModifiedFilesConfirmationData;
+	private _toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatModifiedFilesConfirmationData;
+	private readonly _toolSpecificDataKind = observableValue<string | undefined>(this, undefined);
+	public readonly toolSpecificDataKind: IObservable<string | undefined> = this._toolSpecificDataKind;
+
+	public get toolSpecificData() {
+		return this._toolSpecificData;
+	}
+
+	public set toolSpecificData(value: typeof this._toolSpecificData) {
+		this._toolSpecificData = value;
+		this._toolSpecificDataKind.set(value?.kind, undefined);
+	}
 
 	private readonly _progress = observableValue<{ message?: string | IMarkdownString; progress: number | undefined }>(this, { progress: 0 });
 	private readonly _state: ISettableObservable<IChatToolInvocation.State>;

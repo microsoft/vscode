@@ -26,8 +26,9 @@ import { TelemetryData } from '../../telemetry/common/telemetryData';
 import { getVerbosityForModelSync } from '../common/chatModelCapabilities';
 import { rawPartAsCompactionData } from '../common/compactionDataContainer';
 import { rawPartAsPhaseData } from '../common/phaseDataContainer';
-import { getStatefulMarkerAndIndex } from '../common/statefulMarkerContainer';
+import { getIndexOfStatefulMarker, getStatefulMarkerAndIndex } from '../common/statefulMarkerContainer';
 import { rawPartAsThinkingData } from '../common/thinkingDataContainer';
+import { IChatWebSocketManager } from '../../networking/node/chatWebSocketManager';
 
 export function getResponsesApiCompactionThreshold(configService: IConfigurationService, expService: IExperimentationService, endpoint: IChatEndpoint): number | undefined {
 	const contextManagementEnabled = configService.getExperimentBasedConfig(ConfigKey.ResponsesApiContextManagementEnabled, expService) && !modelsWithoutResponsesContextManagement.has(endpoint.family);
@@ -49,7 +50,7 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 
 	const body: IEndpointBody = {
 		model,
-		...rawMessagesToResponseAPI(model, options.messages, !!options.ignoreStatefulMarker),
+		...rawMessagesToResponseAPI(model, options.messages, !!options.ignoreStatefulMarker, resolveWebSocketStatefulMarker(accessor, options)),
 		stream: true,
 		tools: options.requestOptions?.tools?.map((tool): OpenAI.Responses.FunctionTool & OpenAiResponsesFunctionTool => ({
 			...tool.function,
@@ -131,22 +132,43 @@ interface LatestCompactionOutput {
 	readonly outputIndex: number;
 }
 
-function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMessage[], ignoreStatefulMarker: boolean): { input: OpenAI.Responses.ResponseInputItem[]; previous_response_id?: string } {
+function resolveWebSocketStatefulMarker(accessor: ServicesAccessor, options: ICreateEndpointBodyOptions): string | undefined {
+	if (options.ignoreStatefulMarker || !options.useWebSocket || !options.conversationId) {
+		return undefined;
+	}
+	return accessor.get(IChatWebSocketManager).getStatefulMarker(options.conversationId);
+}
+
+function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMessage[], ignoreStatefulMarker: boolean, webSocketStatefulMarker: string | undefined): { input: OpenAI.Responses.ResponseInputItem[]; previous_response_id?: string } {
 	const latestCompactionMessageIndex = getLatestCompactionMessageIndex(messages);
 	const latestCompactionMessage = latestCompactionMessageIndex !== undefined ? createCompactionRoundTripMessage(messages[latestCompactionMessageIndex]) : undefined;
-	const statefulMarkerAndIndex = !ignoreStatefulMarker && getStatefulMarkerAndIndex(modelId, messages);
 
 	let previousResponseId: string | undefined;
-	if (statefulMarkerAndIndex) {
-		previousResponseId = statefulMarkerAndIndex.statefulMarker;
+	let markerIndex: number | undefined;
 
+	if (webSocketStatefulMarker) {
+		// WebSocket path: use the connection's current stateful marker if present in messages
+		markerIndex = getIndexOfStatefulMarker(webSocketStatefulMarker, messages);
+		if (markerIndex !== undefined) {
+			previousResponseId = webSocketStatefulMarker;
+		}
+	} else if (!ignoreStatefulMarker) {
+		// HTTP path: look up the latest marker for this model from messages
+		const statefulMarkerAndIndex = getStatefulMarkerAndIndex(modelId, messages);
+		if (statefulMarkerAndIndex) {
+			previousResponseId = statefulMarkerAndIndex.statefulMarker;
+			markerIndex = statefulMarkerAndIndex.index;
+		}
+	}
+
+	if (markerIndex !== undefined) {
 		// Requests that resume from previous_response_id send only post-marker history,
 		// but they still need the latest compaction item even when that item predates
 		// the marker. This keeps both websocket and non-websocket traffic aligned.
-		messages = messages.slice(statefulMarkerAndIndex.index + 1);
+		messages = messages.slice(markerIndex + 1);
 		if (latestCompactionMessageIndex !== undefined) {
-			if (latestCompactionMessageIndex > statefulMarkerAndIndex.index) {
-				messages = messages.slice(latestCompactionMessageIndex - (statefulMarkerAndIndex.index + 1));
+			if (latestCompactionMessageIndex > markerIndex) {
+				messages = messages.slice(latestCompactionMessageIndex - (markerIndex + 1));
 			} else if (latestCompactionMessage) {
 				messages = [latestCompactionMessage, ...messages];
 			}

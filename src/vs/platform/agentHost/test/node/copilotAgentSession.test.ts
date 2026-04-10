@@ -11,12 +11,15 @@ import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService, ILogService } from '../../../log/common/log.js';
 import { IFileService } from '../../../files/common/files.js';
-import { AgentSession, IAgentProgressEvent } from '../../common/agentService.js';
-import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
+import { AgentSession, IAgentProgressEvent, IAgentUserInputRequestEvent } from '../../common/agentService.js';
+import { IDiffComputeService } from '../../common/diffComputeService.js';
+import { ISessionDataService } from '../../common/sessionDataService.js';
+import { SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind } from '../../common/state/sessionState.js';
 import { CopilotAgentSession, SessionWrapperFactory } from '../../node/copilot/copilotAgentSession.js';
 import { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
+import { createSessionDataService, createZeroDiffComputeService } from '../common/sessionTestHelpers.js';
 
 // ---- Mock CopilotSession (SDK level) ----------------------------------------
 
@@ -61,29 +64,6 @@ class MockCopilotSession {
 
 // ---- Helpers ----------------------------------------------------------------
 
-function createMockSessionDataService(): ISessionDataService {
-	const mockDb: ISessionDatabase = {
-		createTurn: async () => { },
-		deleteTurn: async () => { },
-		storeFileEdit: async () => { },
-		getFileEdits: async () => [],
-		readFileEditContent: async () => undefined,
-		getMetadata: async () => undefined,
-		setMetadata: async () => { },
-		close: async () => { },
-		dispose: () => { },
-	};
-	return {
-		_serviceBrand: undefined,
-		getSessionDataDir: () => URI.from({ scheme: 'test', path: '/data' }),
-		getSessionDataDirById: () => URI.from({ scheme: 'test', path: '/data' }),
-		openDatabase: () => ({ object: mockDb, dispose: () => { } }),
-		tryOpenDatabase: async () => ({ object: mockDb, dispose: () => { } }),
-		deleteSessionData: async () => { },
-		cleanupOrphanedData: async () => { },
-	};
-}
-
 async function createAgentSession(disposables: DisposableStore, options?: { workingDirectory?: URI }): Promise<{
 	session: CopilotAgentSession;
 	mockSession: MockCopilotSession;
@@ -101,7 +81,8 @@ async function createAgentSession(disposables: DisposableStore, options?: { work
 	const services = new ServiceCollection();
 	services.set(ILogService, new NullLogService());
 	services.set(IFileService, { _serviceBrand: undefined } as IFileService);
-	services.set(ISessionDataService, createMockSessionDataService());
+	services.set(ISessionDataService, createSessionDataService());
+	services.set(IDiffComputeService, createZeroDiffComputeService());
 	const instantiationService = disposables.add(new InstantiationService(services));
 
 	const session = disposables.add(instantiationService.createInstance(
@@ -111,6 +92,7 @@ async function createAgentSession(disposables: DisposableStore, options?: { work
 		options?.workingDirectory,
 		progressEmitter,
 		factory,
+		undefined, // shellManager
 	));
 
 	await session.initializeSession();
@@ -360,6 +342,115 @@ suite('CopilotAgentSession', () => {
 				assert.strictEqual(progressEvents[0].toolRequests?.length, 1);
 				assert.strictEqual(progressEvents[0].toolRequests?.[0].toolCallId, 'tc-20');
 			}
+		});
+	});
+
+	// ---- user input handling ----
+
+	suite('user input handling', () => {
+
+		function assertUserInputEvent(event: IAgentProgressEvent): asserts event is IAgentUserInputRequestEvent {
+			assert.strictEqual(event.type, 'user_input_request');
+		}
+
+		test('handleUserInputRequest fires user_input_request progress event', async () => {
+			const { session, progressEvents } = await createAgentSession(disposables);
+
+			// Start the request (don't await — it blocks waiting for response)
+			const resultPromise = session.handleUserInputRequest(
+				{ question: 'What is your name?' },
+				{ sessionId: 'test-session-1' }
+			);
+
+			// Verify progress event was fired
+			assert.strictEqual(progressEvents.length, 1);
+			const event = progressEvents[0];
+			assertUserInputEvent(event);
+			assert.strictEqual(event.request.message, 'What is your name?');
+			const requestId = event.request.id;
+			assert.ok(event.request.questions);
+			const questionId = event.request.questions[0].id;
+
+			// Respond to unblock the promise
+			session.respondToUserInputRequest(requestId, SessionInputResponseKind.Accept, {
+				[questionId]: {
+					state: SessionInputAnswerState.Submitted,
+					value: { kind: SessionInputAnswerValueKind.Text, value: 'Alice' }
+				}
+			});
+
+			const result = await resultPromise;
+			assert.strictEqual(result.answer, 'Alice');
+			assert.strictEqual(result.wasFreeform, true);
+		});
+
+		test('handleUserInputRequest with choices generates SingleSelect question', async () => {
+			const { session, progressEvents } = await createAgentSession(disposables);
+
+			const resultPromise = session.handleUserInputRequest(
+				{ question: 'Pick a color', choices: ['red', 'blue', 'green'] },
+				{ sessionId: 'test-session-1' }
+			);
+
+			assert.strictEqual(progressEvents.length, 1);
+			const event = progressEvents[0];
+			assertUserInputEvent(event);
+			assert.ok(event.request.questions);
+			assert.strictEqual(event.request.questions.length, 1);
+			assert.strictEqual(event.request.questions[0].kind, SessionInputQuestionKind.SingleSelect);
+			if (event.request.questions[0].kind === SessionInputQuestionKind.SingleSelect) {
+				assert.strictEqual(event.request.questions[0].options.length, 3);
+				assert.strictEqual(event.request.questions[0].options[0].label, 'red');
+			}
+
+			// Respond with a selected choice
+			const questions = event.request.questions;
+			session.respondToUserInputRequest(event.request.id, SessionInputResponseKind.Accept, {
+				[questions[0].id]: {
+					state: SessionInputAnswerState.Submitted,
+					value: { kind: SessionInputAnswerValueKind.Selected, value: 'blue' }
+				}
+			});
+
+			const result = await resultPromise;
+			assert.strictEqual(result.answer, 'blue');
+			assert.strictEqual(result.wasFreeform, false);
+		});
+
+		test('handleUserInputRequest returns empty answer on cancel', async () => {
+			const { session, progressEvents } = await createAgentSession(disposables);
+
+			const resultPromise = session.handleUserInputRequest(
+				{ question: 'Cancel me' },
+				{ sessionId: 'test-session-1' }
+			);
+
+			const event = progressEvents[0];
+			assertUserInputEvent(event);
+			session.respondToUserInputRequest(event.request.id, SessionInputResponseKind.Cancel);
+
+			const result = await resultPromise;
+			assert.strictEqual(result.answer, '');
+			assert.strictEqual(result.wasFreeform, true);
+		});
+
+		test('respondToUserInputRequest returns false for unknown id', async () => {
+			const { session } = await createAgentSession(disposables);
+			assert.strictEqual(session.respondToUserInputRequest('unknown-id', SessionInputResponseKind.Accept), false);
+		});
+
+		test('pending user inputs are cancelled on dispose', async () => {
+			const { session } = await createAgentSession(disposables);
+
+			const resultPromise = session.handleUserInputRequest(
+				{ question: 'Will be cancelled' },
+				{ sessionId: 'test-session-1' }
+			);
+
+			session.dispose();
+			const result = await resultPromise;
+			assert.strictEqual(result.answer, '');
+			assert.strictEqual(result.wasFreeform, true);
 		});
 	});
 });

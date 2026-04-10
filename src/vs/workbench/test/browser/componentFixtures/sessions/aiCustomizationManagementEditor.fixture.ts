@@ -29,7 +29,7 @@ import { IPathService } from '../../../../services/path/common/pathService.js';
 import { IWorkingCopyService } from '../../../../services/workingCopy/common/workingCopyService.js';
 import { IWebviewService } from '../../../../contrib/webview/browser/webview.js';
 import { IAICustomizationWorkspaceService, AICustomizationManagementSection } from '../../../../contrib/chat/common/aiCustomizationWorkspaceService.js';
-import { CustomizationHarness, ICustomizationHarnessService, IHarnessDescriptor, createVSCodeHarnessDescriptor, createClaudeHarnessDescriptor, createCliHarnessDescriptor, getCliUserRoots, getClaudeUserRoots } from '../../../../contrib/chat/common/customizationHarnessService.js';
+import { CustomizationHarness, ICustomizationHarnessService, IHarnessDescriptor, createVSCodeHarnessDescriptor, createCliHarnessDescriptor, getCliUserRoots } from '../../../../contrib/chat/common/customizationHarnessService.js';
 import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { PromptsType } from '../../../../contrib/chat/common/promptSyntax/promptTypes.js';
 import { IPromptsService, AgentInstructionFileType, PromptsStorage, IAgentSkill, IChatPromptSlashCommand, IAgentInstructionFile } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
@@ -433,7 +433,6 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 	const availableHarnesses = options.availableHarnesses ?? [
 		createVSCodeHarnessDescriptor([PromptsStorage.extension, BUILTIN_STORAGE]),
 		createCliHarnessDescriptor(getCliUserRoots(userHome), []),
-		createClaudeHarnessDescriptor(getClaudeUserRoots(userHome), []),
 	];
 
 	const allMcpServers = [...mcpWorkspaceServers, ...mcpUserServers];
@@ -461,8 +460,7 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
 				override readonly isSessionsWindow = isSessionsWindow;
 				override readonly welcomePageFeatures = {
-					showGettingStartedBanner: !isSessionsWindow,
-					showGenerateActions: !isSessionsWindow,
+					showGettingStartedBanner: true,
 				};
 				override readonly activeProjectRoot = observableValue('root', URI.file('/workspace'));
 				override readonly hasOverrideProjectRoot = observableValue('hasOverride', false);
@@ -640,7 +638,6 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 				override readonly isSessionsWindow = false;
 				override readonly welcomePageFeatures = {
 					showGettingStartedBanner: true,
-					showGenerateActions: true,
 				};
 				override readonly activeProjectRoot = observableValue('root', URI.file('/workspace'));
 				override readonly hasOverrideProjectRoot = observableValue('hasOverride', false);
@@ -826,13 +823,6 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 	CliHarness: defineComponentFixture({
 		labels: { kind: 'screenshot' },
 		render: ctx => renderEditor(ctx, { harness: CustomizationHarness.CLI, selectedSection: AICustomizationManagementSection.Agents }),
-	}),
-
-	// Full editor with Claude harness — Prompts+Plugins hidden, Agents visible,
-	// "Add CLAUDE.md" button, "New Rule" dropdown, instruction filtering, bridged MCP badge
-	ClaudeHarness: defineComponentFixture({
-		labels: { kind: 'screenshot' },
-		render: ctx => renderEditor(ctx, { harness: CustomizationHarness.Claude, selectedSection: AICustomizationManagementSection.Agents }),
 	}),
 
 	// Sessions-window variant of the full editor with workspace override UX

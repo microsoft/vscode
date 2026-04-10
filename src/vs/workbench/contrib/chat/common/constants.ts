@@ -62,11 +62,9 @@ export enum ChatConfiguration {
 	AutopilotEnabled = 'chat.autopilot.enabled',
 	ImageCarouselEnabled = 'imageCarousel.chat.enabled',
 	ArtifactsEnabled = 'chat.artifacts.enabled',
-	ArtifactsMode = 'chat.artifacts.mode',
 	ArtifactsRulesByMimeType = 'chat.artifacts.rules.byMimeType',
 	ArtifactsRulesByFilePath = 'chat.artifacts.rules.byFilePath',
 	ArtifactsRulesByMemoryFilePath = 'chat.artifacts.rules.byMemoryFilePath',
-	CustomizationsProviderApi = 'chat.customizations.providerApi.enabled',
 	ToolConfirmationCarousel = 'chat.tools.confirmationCarousel.enabled',
 	DefaultNewSessionMode = 'chat.newSession.defaultMode',
 }

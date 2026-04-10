@@ -11,13 +11,15 @@ import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { ISessionType } from '../../../services/sessions/common/session.js';
 
 export class SessionTypePicker extends Disposable {
 
 	private _sessionType: string | undefined;
-	private _sessionTypes: ISessionType[] = [];
+	private _supportedSessionTypes: ISessionType[] = [];
+	private _allProviderSessionTypes: ISessionType[] = [];
 
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	private _triggerElement: HTMLElement | undefined;
@@ -25,16 +27,20 @@ export class SessionTypePicker extends Disposable {
 	constructor(
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 	) {
 		super();
 
 		this._register(autorun(reader => {
 			const session = this.sessionsManagementService.activeSession.read(reader);
 			if (session) {
-				this._sessionTypes = this.sessionsManagementService.getSessionTypes(session);
+				this._supportedSessionTypes = this.sessionsManagementService.getSessionTypes(session);
+				const provider = this.sessionsProvidersService.getProvider(session.providerId);
+				this._allProviderSessionTypes = provider ? [...provider.sessionTypes] : [];
 				this._sessionType = session.sessionType;
 			} else {
-				this._sessionTypes = [];
+				this._supportedSessionTypes = [];
+				this._allProviderSessionTypes = [];
 				this._sessionType = undefined;
 			}
 			this._updateTriggerLabel();
@@ -71,7 +77,7 @@ export class SessionTypePicker extends Disposable {
 			return;
 		}
 
-		if (this._sessionTypes.length <= 1) {
+		if (this._allProviderSessionTypes.length <= 1) {
 			return;
 		}
 
@@ -80,10 +86,13 @@ export class SessionTypePicker extends Disposable {
 			return;
 		}
 
-		const items: IActionListItem<ISessionType>[] = this._sessionTypes.map(type => ({
+		const supportedTypeIds = new Set(this._supportedSessionTypes.map(t => t.id));
+
+		const items: IActionListItem<ISessionType>[] = this._allProviderSessionTypes.map(type => ({
 			kind: ActionListItemKind.Action,
 			label: type.label,
 			group: { title: '', icon: type.icon },
+			disabled: !supportedTypeIds.has(type.id),
 			item: type.id === this._sessionType ? { ...type, checked: true } : type,
 		}));
 
@@ -118,13 +127,13 @@ export class SessionTypePicker extends Disposable {
 
 		dom.clearNode(this._triggerElement);
 
-		if (this._sessionTypes.length === 0) {
+		if (this._allProviderSessionTypes.length === 0) {
 			this._triggerElement.classList.add('hidden');
 			return;
 		}
 
 		this._triggerElement.classList.remove('hidden');
-		const currentType = this._sessionTypes.find(t => t.id === this._sessionType);
+		const currentType = this._allProviderSessionTypes.find(t => t.id === this._sessionType);
 		const modeIcon = currentType?.icon ?? Codicon.terminal;
 		const modeLabel = currentType?.label ?? this._sessionType ?? '';
 
