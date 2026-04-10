@@ -438,16 +438,19 @@ export class SessionOptionGroupBuilder implements ISessionOptionGroupBuilder {
 		if (branches.length === 0) {
 			return undefined;
 		}
-		const { locked } = resolveBranchLockState(isolationEnabled, currentIsolation);
+		// BUG: Work around for https://github.com/microsoft/vscode/issues/288457#issuecomment-4157935788
+		// Locked doesn't work, once locked, we cannot unlock.
+		// const { locked } = resolveBranchLockState(isolationEnabled, currentIsolation);
+		const locked = false;
 		// When locked (workspace isolation), ignore the previous selection so we
 		// always snap back to the active branch instead of keeping a stale pick.
 		const selectedItem = resolveBranchSelection(branches, headBranchName, locked ? undefined : previousSelection);
-		const lockedSelected = selectedItem && locked ? { ...selectedItem, locked: true } : undefined;
+		const lockedSelected = selectedItem && locked ? { ...selectedItem, locked } : undefined;
 		return {
 			id: BRANCH_OPTION_ID,
 			name: l10n.t('Branch'),
 			description: l10n.t('Pick Branch'),
-			items: lockedSelected ? [lockedSelected] : locked ? branches.map(b => ({ ...b, locked: true })) : branches,
+			items: lockedSelected ? [lockedSelected] : locked ? branches.map(b => ({ ...b, locked })) : branches,
 			selected: lockedSelected ?? selectedItem,
 		};
 	}
@@ -474,8 +477,7 @@ export class SessionOptionGroupBuilder implements ISessionOptionGroupBuilder {
 	 * entire dropdown groups — not just updating branch/isolation.
 	 */
 	async rebuildInputState(state: vscode.ChatSessionInputState): Promise<void> {
-		const groups = await this.provideChatSessionProviderOptionGroups(state);
-		state.groups = groups;
+		state.groups = await this.provideChatSessionProviderOptionGroups(state);
 	}
 
 	async buildExistingSessionInputStateGroups(resource: vscode.Uri, token: vscode.CancellationToken): Promise<vscode.ChatSessionProviderOptionGroup[]> {
