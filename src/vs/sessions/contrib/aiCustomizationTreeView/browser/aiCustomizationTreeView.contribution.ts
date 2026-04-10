@@ -300,7 +300,7 @@ registerAction2(class extends Action2 {
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
 				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyC,
-				when: IsSessionsWindowContext,
+				when: ContextKeyExpr.and(IsSessionsWindowContext, TerminalContextKeys.focus.negate()),
 			},
 		});
 	}
