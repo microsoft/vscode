@@ -819,7 +819,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 					];
 
 					const response = await this.endpoint.makeChatRequest2({
-						debugName: 'summarizeConversationHistory-background',
+						debugName: 'summarizeConversationHistory-inline',
 						messages,
 						finishedCb: undefined,
 						location: ChatLocation.Agent,
