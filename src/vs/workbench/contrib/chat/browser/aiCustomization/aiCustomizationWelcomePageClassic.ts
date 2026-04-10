@@ -93,7 +93,7 @@ export class ClassicAICustomizationWelcomePage extends Disposable implements IAI
 		heading.textContent = localize('welcomeHeading', "Chat Customizations");
 
 		const subtitle = DOM.append(welcomeInner, $('p.welcome-classic-subtitle'));
-		subtitle.textContent = localize('welcomeSubtitle', "Tailor how AI agents work in your projects. Configure workspace customizations for the entire team, or create personal ones that follow you across projects.");
+		subtitle.textContent = localize('welcomeSubtitle', "Tailor how agents work in your projects. Configure workspace customizations for the entire team, or create personal ones that follow you across projects.");
 
 		if (this.welcomePageFeatures?.showGettingStartedBanner !== false) {
 			const gettingStarted = DOM.append(welcomeInner, $('button.welcome-classic-getting-started')) as HTMLButtonElement;

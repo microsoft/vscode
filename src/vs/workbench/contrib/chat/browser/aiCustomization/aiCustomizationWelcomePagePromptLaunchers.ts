@@ -93,7 +93,7 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 		heading.textContent = localize('welcomeHeading', "Agent Customizations");
 
 		const subtitle = DOM.append(welcomeInner, $('p.welcome-prompts-subtitle'));
-		subtitle.textContent = localize('welcomeSubtitle', "Tailor how your agents work in your projects. Configure workspace customizations for the entire team, or create personal ones that follow you across projects.");
+		subtitle.textContent = localize('welcomeSubtitle', "Tailor how agents work in your projects. Configure workspace customizations for the entire team, or create personal ones that follow you across projects.");
 
 		if (this.welcomePageFeatures?.showGettingStartedBanner !== false) {
 			const gettingStarted = DOM.append(welcomeInner, $('.welcome-prompts-primary'));
