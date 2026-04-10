@@ -298,7 +298,7 @@ registerAction2(class extends Action2 {
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyU,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyC,
 				when: IsSessionsWindowContext,
 			},
 		});
