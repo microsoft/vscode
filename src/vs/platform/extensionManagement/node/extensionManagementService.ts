@@ -1070,7 +1070,7 @@ class InstallExtensionInProfileTask extends AbstractExtensionTask<ILocalExtensio
 			this._operation = InstallOperation.Update;
 		}
 
-		const system = await this.extensionsScanner.scanExtensions(ExtensionType.System, undefined, this.options.productVersion);
+		const system = await this.extensionsScanner.scanExtensions(ExtensionType.System, this.options.profileLocation, this.options.productVersion);
 		const existingSystemExtension = system.find(i => areSameExtensions(i.identifier, this.identifier));
 		if (existingSystemExtension) {
 			if (!existingSystemExtension.forceAutoUpdate) {
