@@ -230,6 +230,13 @@ Browser compatibility is required — no Node.js APIs.
 
 All commands and UI respect `ChatContextKeys.enabled`.
 
+### Commands
+
+| Command ID | Purpose |
+|-----------|---------|
+| `aiCustomization.openManagementEditor` | Opens the management editor, optionally accepting an `AICustomizationManagementSection` to deep-link |
+| `aiCustomization.openMarketplace` | Opens the management editor with marketplace browse mode active. Accepts an optional section (`mcpServers` or `plugins`); defaults to `mcpServers` |
+
 ## Settings
 
 User-facing settings use the `chat.customizations.` namespace:

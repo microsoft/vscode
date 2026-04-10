@@ -145,9 +145,14 @@ export class ClassicAICustomizationWelcomePage extends Disposable implements IAI
 			const footer = DOM.append(card, $('.welcome-classic-card-footer'));
 			const browseBtn = DOM.append(footer, $('button.welcome-classic-card-browse'));
 			browseBtn.textContent = localize('browse', "Browse");
+			const hasMarketplace = category.id === AICustomizationManagementSection.McpServers || category.id === AICustomizationManagementSection.Plugins;
 			this.cardDisposables.add(DOM.addDisposableListener(browseBtn, 'click', e => {
 				e.stopPropagation();
-				this.callbacks.selectSection(category.id);
+				if (hasMarketplace) {
+					this.callbacks.selectSectionWithMarketplace(category.id);
+				} else {
+					this.callbacks.selectSection(category.id);
+				}
 			}));
 
 			if (category.promptType && this.welcomePageFeatures?.showGenerateActions !== false) {

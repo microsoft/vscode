@@ -701,6 +701,28 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 			}
 		}));
 
+		// Open Marketplace (hidden command for deep-linking into browse mode)
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: AICustomizationManagementCommands.OpenMarketplace,
+					title: localize2('openMarketplace', "Open Marketplace"),
+					category: CHAT_CATEGORY,
+					precondition: ChatContextKeys.enabled,
+				});
+			}
+
+			async run(accessor: ServicesAccessor, section?: AICustomizationManagementSection): Promise<void> {
+				const editorService = accessor.get(IEditorService);
+				const input = AICustomizationManagementEditorInput.getOrCreate();
+				const pane = await editorService.openEditor(input, { pinned: true });
+				if (pane instanceof AICustomizationManagementEditor) {
+					const targetSection = section ?? AICustomizationManagementSection.McpServers;
+					pane.selectSectionById(targetSection, { showMarketplace: true });
+				}
+			}
+		}));
+
 		// Generate Debug Report
 		this._register(registerAction2(class extends Action2 {
 			constructor() {

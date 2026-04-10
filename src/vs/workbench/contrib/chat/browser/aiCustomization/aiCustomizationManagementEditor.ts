@@ -771,6 +771,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.workspaceService.welcomePageFeatures,
 			{
 				selectSection: (section) => this.selectSection(section),
+				selectSectionWithMarketplace: (section) => this.selectSection(section, { showMarketplace: true }),
 				closeEditor: () => {
 					if (this.input) {
 						this.group.closeEditor(this.input);
@@ -1008,8 +1009,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.ensureSectionsListReflectsActiveSection(undefined);
 	}
 
-	private selectSection(section: AICustomizationManagementSection): void {
-		if (this.selectedSection === section) {
+	private selectSection(section: AICustomizationManagementSection, options?: { showMarketplace?: boolean }): void {
+		if (this.selectedSection === section && !options?.showMarketplace) {
 			this.ensureSectionsListReflectsActiveSection(section);
 			return;
 		}
@@ -1043,6 +1044,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 		}
 
 		this.ensureSectionsListReflectsActiveSection(section);
+
+		// Activate marketplace browse mode if requested
+		if (options?.showMarketplace) {
+			if (section === AICustomizationManagementSection.McpServers) {
+				this.mcpListWidget?.showBrowseMarketplace();
+			} else if (section === AICustomizationManagementSection.Plugins) {
+				this.pluginListWidget?.showBrowseMarketplace();
+			}
+		}
 	}
 
 	private ensureSectionsListReflectsActiveSection(section: AICustomizationManagementSection | undefined = this.selectedSection): void {
@@ -1396,7 +1406,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	/**
 	 * Selects a specific section programmatically.
 	 */
-	public selectSectionById(sectionId: AICustomizationManagementSection): void {
+	public selectSectionById(sectionId: AICustomizationManagementSection, options?: { showMarketplace?: boolean }): void {
 		const index = this.sections.findIndex(s => s.id === sectionId);
 		if (index >= 0) {
 			// Directly update state and UI, bypassing the early-return guard in selectSection
@@ -1424,6 +1434,15 @@ export class AICustomizationManagementEditor extends EditorPane {
 				this.layout(this.dimension);
 			}
 			this.ensureSectionsListReflectsActiveSection(sectionId);
+
+			// Activate marketplace browse mode if requested
+			if (options?.showMarketplace) {
+				if (sectionId === AICustomizationManagementSection.McpServers) {
+					this.mcpListWidget?.showBrowseMarketplace();
+				} else if (sectionId === AICustomizationManagementSection.Plugins) {
+					this.pluginListWidget?.showBrowseMarketplace();
+				}
+			}
 		}
 	}
 

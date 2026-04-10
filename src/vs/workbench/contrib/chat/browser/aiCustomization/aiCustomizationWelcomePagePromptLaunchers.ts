@@ -175,7 +175,7 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 				browseBtn.textContent = localize('browse', "Browse...");
 				this.cardDisposables.add(DOM.addDisposableListener(browseBtn, 'click', e => {
 					e.stopPropagation();
-					this.callbacks.selectSection(category.id);
+					this.callbacks.selectSectionWithMarketplace(category.id);
 				}));
 			}
 

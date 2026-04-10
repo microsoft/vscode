@@ -32,6 +32,7 @@ export type AICustomizationWelcomePageVariant = typeof AI_CUSTOMIZATION_WELCOME_
  */
 export const AICustomizationManagementCommands = {
 	OpenEditor: 'aiCustomization.openManagementEditor',
+	OpenMarketplace: 'aiCustomization.openMarketplace',
 	CreateNewAgent: 'aiCustomization.createNewAgent',
 	CreateNewSkill: 'aiCustomization.createNewSkill',
 	CreateNewInstructions: 'aiCustomization.createNewInstructions',
