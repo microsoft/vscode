@@ -313,17 +313,6 @@ export class CodeApplication extends Disposable {
 			return callback({ cancel: false });
 		});
 
-		// test-workbench_change start - Fix CORS for TSCode gateway API by setting Origin header
-		session.defaultSession.webRequest.onBeforeSendHeaders(
-			{ urls: ['https://testhub-gateway-dev.paas.cmbchina.cn/*'] },
-			(details, callback) => {
-				const requestHeaders = details.requestHeaders;
-				requestHeaders['Origin'] = 'https://testhub-dev.paas.cmbchina.cn';
-				callback({ requestHeaders });
-			}
-		);
-		// test-workbench_change end
-
 		// Configure SVG header content type properly
 		// https://github.com/microsoft/vscode/issues/97564
 		session.defaultSession.webRequest.onHeadersReceived((details, callback) => {

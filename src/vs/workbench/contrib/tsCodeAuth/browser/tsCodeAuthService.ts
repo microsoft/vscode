@@ -13,10 +13,8 @@ import {
 	ITsCodeTokenStore,
 	StoredToken,
 	TokenResponse,
-	TSCODE_AUTH_BASE_URL,
+	TSCODE_BASE_URL,
 	TSCODE_GATEWAY_BASE_URL,
-	TSCODE_OAUTH_CLIENT_ID,
-	TSCODE_OAUTH_REDIRECT_URI,
 	TSCODE_AUTH_MOCK_ENABLED,
 	TSCODE_AUTH_MOCK_TOKEN,
 } from '../common/tsCodeAuth.js';
@@ -71,16 +69,8 @@ export class TsCodeAuthService extends Disposable implements ITsCodeAuthService 
 	buildAuthorizationUrl(): string {
 		const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 		const randomSegment = (len: number) => Array.from({ length: len }, () => chars[Math.floor(Math.random() * chars.length)]).join('');
-		// test-workbench_change start
 		this._currentAppCode = `${randomSegment(4)}-${randomSegment(4)}`;
-		const params = new URLSearchParams({
-			client_id: TSCODE_OAUTH_CLIENT_ID,
-			redirect_uri: TSCODE_OAUTH_REDIRECT_URI,
-			response_type: 'code',
-			app_code: this._currentAppCode,
-		});
-		// test-workbench_change end
-		return `${TSCODE_AUTH_BASE_URL}?${params.toString()}`;
+		return `${TSCODE_BASE_URL}/sign-in?app_code=${this._currentAppCode}`;
 	}
 
 	async startOAuthFlow(): Promise<void> {

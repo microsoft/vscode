@@ -9,9 +9,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 
 // --- Constants ---
 
-export const TSCODE_OAUTH_CLIENT_ID = '710fb85ab0e24eadbff4d74da2ce6b7b';
-export const TSCODE_OAUTH_REDIRECT_URI = 'https://testhub-dev.paas.cmbchina.cn/login'; // test-workbench_change
-export const TSCODE_AUTH_BASE_URL = 'https://oa-auth.paas.cmbchina.com/auth/sso-login';
+export const TSCODE_BASE_URL = 'https://testhub-dev.paas.cmbchina.cn';
 export const TSCODE_GATEWAY_BASE_URL = 'https://testhub-gateway-dev.paas.cmbchina.cn'; // test-workbench_change
 export const TSCODE_SECRET_STORAGE_KEY = 'tscode-oauth.accessToken';
 
