@@ -333,6 +333,9 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			logger.trace('cached edit was previously rejected');
 			telemetryBuilder.setStatus('previouslyRejectedCache');
 			telemetryBuilder.setWasPreviouslyRejected();
+			if (cachedEdit.edit) {
+				this._rejectionCollector.reject(docId, cachedEdit.edit);
+			}
 			const nextEditResult = new NextEditResult(logContext.requestId, cachedEdit.source, undefined);
 			return nextEditResult;
 		}
@@ -831,7 +834,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 					ithEdit === 0 ? targetDocState.nextEdits : undefined,
 					ithEdit === 0 ? nextEditRequest.intermediateUserEdit : undefined,
 					req,
-					{ isFromCursorJump: streamedEdit.isFromCursorJump, originalEditWindow: streamedEdit.originalWindow }
+					{ isFromCursorJump: streamedEdit.isFromCursorJump, originalEditWindow: streamedEdit.originalWindow, cursorOffset: activeDocSelection?.start }
 				);
 				myLogger.trace(`populated cache for ${ithEdit}`);
 			}
@@ -1283,7 +1286,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		void this._requestLogger.captureInvocation(capturingToken, async () => {
 			this._addLiveLogContextEntry(logContext, label);
 			try {
-				await this._runSpeculativeProviderCall(nextEditRequest, projectedDocuments, curDocId, req, logger);
+				await this._runSpeculativeProviderCall(nextEditRequest, projectedDocuments, curDocId, req, shiftedSelection.start, logger);
 			} catch (e) {
 				logContext.setError(e);
 			} finally {
@@ -1302,6 +1305,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		projectedDocuments: readonly ProcessedDoc[],
 		curDocId: DocumentId,
 		req: NextEditFetchRequest,
+		cursorOffset: number,
 		parentLogger: ILogger
 	): Promise<void> {
 		const logger = parentLogger.createSubLogger('_runSpeculativeProviderCall');
@@ -1367,7 +1371,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 								ithEdit === 0 ? targetDocState.nextEdits : undefined,
 								undefined, // no userEditSince for speculative
 								req,
-								{ isFromCursorJump: streamedEdit.isFromCursorJump, originalEditWindow: streamedEdit.originalWindow }
+								{ isFromCursorJump: streamedEdit.isFromCursorJump, originalEditWindow: streamedEdit.originalWindow, cursorOffset }
 							);
 
 							if (!nextEditRequest.firstEdit.isSettled && cachedEdit) {
