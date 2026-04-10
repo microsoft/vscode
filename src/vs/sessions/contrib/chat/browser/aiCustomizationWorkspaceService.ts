@@ -114,7 +114,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 
 	readonly welcomePageFeatures = {
 		showGettingStartedBanner: true,
-		showGenerateActions: false,
+		showGenerateActions: true,
 	};
 
 	/**

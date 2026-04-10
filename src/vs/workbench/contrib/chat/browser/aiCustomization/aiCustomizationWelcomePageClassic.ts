@@ -109,7 +109,11 @@ export class ClassicAICustomizationWelcomePage extends Disposable implements IAI
 			chevron.setAttribute('aria-hidden', 'true');
 			this._register(DOM.addDisposableListener(gettingStarted, 'click', () => {
 				this.callbacks.closeEditor();
-				this.commandService.executeCommand('workbench.action.chat.open', { query: '/agent-customization ', isPartialQuery: true });
+				if (this.workspaceService.isSessionsWindow) {
+					this.callbacks.prefillChat('Generate agent customizations. ', { isPartialQuery: true });
+				} else {
+					this.commandService.executeCommand('workbench.action.chat.open', { query: '/agent-customization ', isPartialQuery: true });
+				}
 			}));
 		}
 
@@ -163,7 +167,12 @@ export class ClassicAICustomizationWelcomePage extends Disposable implements IAI
 				this.cardDisposables.add(DOM.addDisposableListener(generateBtn, 'click', e => {
 					e.stopPropagation();
 					this.callbacks.closeEditor();
-					this.workspaceService.generateCustomization(category.promptType!);
+					if (this.workspaceService.isSessionsWindow) {
+						const typeLabel = category.label.toLowerCase();
+						this.callbacks.prefillChat(`Create me a ${typeLabel} that `, { isPartialQuery: true });
+					} else {
+						this.workspaceService.generateCustomization(category.promptType!);
+					}
 				}));
 			}
 

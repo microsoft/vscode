@@ -120,7 +120,12 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 			const submit = () => {
 				const value = this.inputElement?.value?.trim();
 				this.callbacks.closeEditor();
-				const query = value ? `/agent-customization ${value}` : '/agent-customization ';
+				let query: string;
+				if (this.workspaceService.isSessionsWindow) {
+					query = value ? `Generate agent customizations. ${value}` : 'Generate agent customizations. ';
+				} else {
+					query = value ? `/agent-customization ${value}` : '/agent-customization ';
+				}
 				this.callbacks.prefillChat(query, { isPartialQuery: !value });
 			};
 			this._register(DOM.addDisposableListener(submitBtn, 'click', submit));
@@ -168,7 +173,12 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 				this.cardDisposables.add(DOM.addDisposableListener(generateBtn, 'click', e => {
 					e.stopPropagation();
 					this.callbacks.closeEditor();
-					this.workspaceService.generateCustomization(category.promptType!);
+					if (this.workspaceService.isSessionsWindow) {
+						const typeLabel = category.label.toLowerCase();
+						this.callbacks.prefillChat(`Create me a ${typeLabel} that `, { isPartialQuery: true });
+					} else {
+						this.workspaceService.generateCustomization(category.promptType!);
+					}
 				}));
 			} else {
 				const browseBtn = DOM.append(footer, $('button.welcome-prompts-card-action'));
