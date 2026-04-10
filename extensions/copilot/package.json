@@ -4582,7 +4582,7 @@
 					},
 					"github.copilot.chat.cli.thinkingEffort.enabled": {
 						"type": "boolean",
-						"default": false,
+						"default": true,
 						"markdownDescription": "%github.copilot.config.cli.thinkingEffort.enabled%",
 						"tags": [
 							"advanced"
