@@ -1807,6 +1807,11 @@ class EnableAIFeaturesGloballyAction extends ExtensionAction {
 		super(EnableAIFeaturesGloballyAction.ID, EnableAIFeaturesGloballyAction.LABEL, ExtensionAction.LABEL_ACTION_CLASS);
 		this.tooltip = localize('enableAIGloballyActionToolTip', "Enable AI features");
 		this.update();
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(CHAT_AI_DISABLED_SETTING)) {
+				this.update();
+			}
+		}));
 	}
 
 	update(): void {
@@ -1863,6 +1868,11 @@ class DisableAIFeaturesGloballyAction extends ExtensionAction {
 		super(DisableAIFeaturesGloballyAction.ID, DisableAIFeaturesGloballyAction.LABEL, ExtensionAction.LABEL_ACTION_CLASS);
 		this.tooltip = localize('disableAIGloballyActionToolTip', "Disable AI features");
 		this.update();
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(CHAT_AI_DISABLED_SETTING)) {
+				this.update();
+			}
+		}));
 	}
 
 	update(): void {
