@@ -159,7 +159,7 @@ export class ClassicAICustomizationWelcomePage extends Disposable implements IAI
 				}
 			}));
 
-			if (category.promptType && this.welcomePageFeatures?.showGenerateActions !== false) {
+			if (category.promptType) {
 				const generateBtn = DOM.append(footer, $('button.welcome-classic-card-generate'));
 				DOM.append(generateBtn, $('span.codicon.codicon-sparkle'));
 				const label = DOM.append(generateBtn, $('span'));

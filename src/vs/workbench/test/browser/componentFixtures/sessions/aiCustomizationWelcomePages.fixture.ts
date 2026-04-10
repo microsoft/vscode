@@ -43,7 +43,6 @@ function createMockWorkspaceService(): IAICustomizationWorkspaceService {
 		override readonly managementSections = Array.from(visibleSections);
 		override readonly welcomePageFeatures = {
 			showGettingStartedBanner: true,
-			showGenerateActions: true,
 		};
 		override readonly activeProjectRoot = constObservable(URI.file('/workspace'));
 		override readonly hasOverrideProjectRoot = constObservable(false);

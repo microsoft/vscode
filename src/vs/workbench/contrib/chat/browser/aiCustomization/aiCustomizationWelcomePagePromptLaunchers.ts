@@ -167,7 +167,7 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 			descEl.textContent = category.description;
 
 			const footer = DOM.append(card, $('.welcome-prompts-card-footer'));
-			if (category.promptType && this.welcomePageFeatures?.showGenerateActions !== false) {
+			if (category.promptType) {
 				const generateBtn = DOM.append(footer, $('button.welcome-prompts-card-action'));
 				generateBtn.textContent = localize('new', "New...");
 				this.cardDisposables.add(DOM.addDisposableListener(generateBtn, 'click', e => {

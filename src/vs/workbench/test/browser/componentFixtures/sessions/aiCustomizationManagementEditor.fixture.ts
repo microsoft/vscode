@@ -461,7 +461,6 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 				override readonly isSessionsWindow = isSessionsWindow;
 				override readonly welcomePageFeatures = {
 					showGettingStartedBanner: true,
-					showGenerateActions: !isSessionsWindow,
 				};
 				override readonly activeProjectRoot = observableValue('root', URI.file('/workspace'));
 				override readonly hasOverrideProjectRoot = observableValue('hasOverride', false);
@@ -639,7 +638,6 @@ async function renderMcpBrowseMode(ctx: ComponentFixtureContext): Promise<void> 
 				override readonly isSessionsWindow = false;
 				override readonly welcomePageFeatures = {
 					showGettingStartedBanner: true,
-					showGenerateActions: true,
 				};
 				override readonly activeProjectRoot = observableValue('root', URI.file('/workspace'));
 				override readonly hasOverrideProjectRoot = observableValue('hasOverride', false);
