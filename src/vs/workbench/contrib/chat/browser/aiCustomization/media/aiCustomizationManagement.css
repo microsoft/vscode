@@ -26,6 +26,52 @@
 	flex-direction: column;
 }
 
+.ai-customization-management-editor .sidebar-header-row {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 6px 4px 4px;
+}
+
+.ai-customization-management-editor .sidebar-home-button {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 5px 8px;
+	border: 1px solid var(--vscode-dropdown-border, transparent);
+	border-radius: 4px;
+	background: var(--vscode-dropdown-background);
+	color: var(--vscode-dropdown-foreground);
+	cursor: pointer;
+	font-size: 12px;
+	font-weight: 600;
+	line-height: 18px;
+	font-family: inherit;
+}
+
+.ai-customization-management-editor .sidebar-home-button:hover {
+	border-color: var(--vscode-focusBorder);
+}
+
+.ai-customization-management-editor .sidebar-home-button:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.ai-customization-management-editor .sidebar-home-icon {
+	flex-shrink: 0;
+	font-size: 14px;
+	opacity: 0.85;
+}
+
+.ai-customization-management-editor .sidebar-home-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
 .ai-customization-management-editor .sidebar-sections-list {
 	flex: 1;
 	overflow: hidden;
@@ -173,8 +219,8 @@
 
 /* Harness dropdown in sidebar */
 .ai-customization-management-editor .sidebar-harness-dropdown {
-	flex-shrink: 0;
-	padding: 6px 4px 4px;
+	flex: 1;
+	min-width: 0;
 }
 
 .ai-customization-management-editor .harness-dropdown-button {
