@@ -124,7 +124,7 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 				if (this.workspaceService.isSessionsWindow) {
 					query = value ? `Generate agent customizations. ${value}` : 'Generate agent customizations. ';
 				} else {
-					query = value ? `/agent-customization ${value}` : '/agent-customization ';
+					query = value ? `/init ${value}` : '/init ';
 				}
 				this.callbacks.prefillChat(query, { isPartialQuery: !value });
 			};

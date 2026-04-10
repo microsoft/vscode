@@ -112,7 +112,7 @@ export class ClassicAICustomizationWelcomePage extends Disposable implements IAI
 				if (this.workspaceService.isSessionsWindow) {
 					this.callbacks.prefillChat('Generate agent customizations. ', { isPartialQuery: true });
 				} else {
-					this.commandService.executeCommand('workbench.action.chat.open', { query: '/agent-customization ', isPartialQuery: true });
+					this.commandService.executeCommand('workbench.action.chat.open', { query: '/init ', isPartialQuery: true });
 				}
 			}));
 		}
