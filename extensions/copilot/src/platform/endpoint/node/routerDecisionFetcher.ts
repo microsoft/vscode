@@ -124,9 +124,11 @@ export class RouterDecisionFetcher {
 				"routingMethod": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The routing method used for this request (empty=server default, binary, hydra). Identifies the A/B/C experiment path." },
 				"fallback": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the router signaled a fallback to default automod selection." },
 				"fallbackReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The reason provided by the server when fallback is true." },
+				"candidateModel": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The top candidate model recommended by the router before any sticky-provider or vision overrides are applied." },
 				"confidence": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The confidence score of the routing decision" },
 				"latencyMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "The latency of the router API call in milliseconds" },
-				"e2eLatencyMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "The end-to-end latency of the router request in milliseconds, including network overhead" }
+				"e2eLatencyMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "The end-to-end latency of the router request in milliseconds, including network overhead" },
+				"stickyOverride": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Whether the router applied a sticky override (1) or not (0)" }
 			}
 		*/
 		this._telemetryService.sendMSFTTelemetryEvent('automode.routerDecision',
@@ -137,11 +139,13 @@ export class RouterDecisionFetcher {
 				routingMethod: result.routing_method ?? '',
 				fallback: String(result.fallback ?? false),
 				fallbackReason: result.fallback_reason ?? '',
+				candidateModel: result.candidate_models[0] ?? '',
 			},
 			{
 				confidence: result.confidence,
 				latencyMs: result.latency_ms,
 				e2eLatencyMs: e2eLatencyMs,
+				stickyOverride: result.sticky_override ? 1 : 0,
 			}
 		);
 		return result;

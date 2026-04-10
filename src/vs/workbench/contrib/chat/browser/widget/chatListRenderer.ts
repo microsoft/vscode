@@ -2148,11 +2148,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						return false;
 					}
 
-					dom.show(part.domNode);
 					widget.inputPart.addToolToConfirmationCarousel(toolInvocation, factory, undefined, undefined, undefined, part);
 					if (part.domNode.parentElement === inlinePartAnchor.parentElement) {
 						part.domNode.remove();
 					}
+					dom.show(part.domNode);
 					return true;
 				};
 				let hasScheduledCarouselRoute = false;
@@ -2183,6 +2183,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 					if (isCarouselConfirmation) {
 						if (!routePartToCarousel()) {
+							dom.hide(part.domNode);
 							scheduleRoutePartToCarousel();
 						}
 					} else if (IChatToolInvocation.isEffectivelyHidden(toolInvocation, reader)) {
@@ -2295,8 +2296,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			part.addDisposable(autorun(reader => {
 				const currentState = toolInvocation.state.read(reader);
 				if (currentState.type === IChatToolInvocation.StateKind.WaitingForConfirmation && currentState.confirmationMessages?.title) {
-					widget.inputPart.addToolToConfirmationCarousel(toolInvocation, factory);
-					dom.hide(part.domNode);
+					widget.inputPart.addToolToConfirmationCarousel(toolInvocation, factory, undefined, undefined, undefined, part);
 				} else if (IChatToolInvocation.isEffectivelyHidden(toolInvocation, reader)) {
 					dom.hide(part.domNode);
 				} else {
@@ -2431,6 +2431,21 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private renderQuestionCarousel(context: IChatContentPartRenderContext, carousel: IChatQuestionCarousel, templateData: IChatListItemTemplate): IChatContentPart {
 		this.finalizeCurrentThinkingPart(context, templateData);
 		this._notifyOnQuestionCarousel(context, carousel);
+
+		// Backfill terminal correlation on the carousel from the originating request.
+		// This keeps focus button / send_to_terminal correlation working even when
+		// askQuestions couldn't stamp terminalId during tool execution.
+		if (!carousel.terminalId && isResponseVM(context.element)) {
+			const responseElement = context.element;
+			const model = this.chatService.getSession(responseElement.sessionResource);
+			const request = model?.getRequests().find(r => r.id === responseElement.requestId);
+			if (request?.terminalExecutionId) {
+				carousel.terminalId = request.terminalExecutionId;
+				this.logService.trace(`ChatListItemRenderer#renderQuestionCarousel: backfilled terminalId=${carousel.terminalId} for request=${responseElement.requestId}`);
+			} else {
+				this.logService.trace(`ChatListItemRenderer#renderQuestionCarousel: no terminalExecutionId to backfill for request=${responseElement.requestId}`);
+			}
+		}
 
 		const widget = isResponseVM(context.element) ? this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource) : undefined;
 		const shouldAutoFocus = widget ? widget.getInput() === '' : true;
@@ -2689,7 +2704,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						() => ({ domNode: markdownPart.domNode, disposable: markdownPart }),
 						markdownPart.codeblocksPartId,
 						markdown,
-						templateData.value
+						templateData.value,
+						markdownPart,
 					);
 					return subagentPart;
 				}
@@ -2709,7 +2725,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 						markdownPart.codeblocksPartId,
 						markdown,
 						templateData.value,
-						markdownPart.onDidChangeDiff
+						markdownPart.onDidChangeDiff,
+						markdownPart,
 					);
 				}
 
@@ -2718,7 +2735,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 			if (this.shouldPinPart(markdown, context.element) && isComplete) {
 				if (lastThinking && markdownPart?.domNode) {
-					// Factory wrapping already-created markdown part
+					// Factory wrapping already-created markdown part.
+					// No eagerDisposable needed here because the markdownPart is returned
+					// from this method and tracked directly in renderedParts, so it will
+					// be disposed by clearRenderedParts.
 					lastThinking.appendItem(
 						() => ({ domNode: markdownPart.domNode, disposable: markdownPart }),
 						markdownPart.codeblocksPartId,

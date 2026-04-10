@@ -544,6 +544,8 @@ export class RepoContextImpl implements RepoContext {
 	public readonly kind = this._repo.kind;
 	public readonly headBranchName = this._repo.state.HEAD?.name;
 	public readonly headCommitHash = this._repo.state.HEAD?.commit;
+	public readonly headIncomingChanges = this._repo.state.HEAD?.behind;
+	public readonly headOutgoingChanges = this._repo.state.HEAD?.ahead;
 	public readonly upstreamBranchName = this._repo.state.HEAD?.upstream?.name;
 	public readonly upstreamRemote = this._repo.state.HEAD?.upstream?.remote;
 	public readonly isRebasing = this._repo.state.rebaseCommit !== null;

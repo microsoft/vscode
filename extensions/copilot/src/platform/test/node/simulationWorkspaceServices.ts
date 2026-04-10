@@ -729,6 +729,8 @@ export class TestingGitService implements IGitService {
 				kind: 'repository',
 				headBranchName: undefined,
 				headCommitHash: undefined,
+				headIncomingChanges: 0,
+				headOutgoingChanges: 0,
 				upstreamBranchName: undefined,
 				upstreamRemote: undefined,
 				isRebasing: false,

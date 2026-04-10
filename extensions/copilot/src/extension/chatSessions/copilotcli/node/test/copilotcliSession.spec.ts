@@ -132,6 +132,7 @@ class MockSdkSession {
 	async getSelectedModel() { return this._selectedModel; }
 	async setSelectedModel(model: string, _reasoningEffort?: string) { this._selectedModel = model; }
 	async getEvents() { return []; }
+	getPlanPath(): string | null { return null; }
 }
 
 function createWorkspaceService(root: string): IWorkspaceService {

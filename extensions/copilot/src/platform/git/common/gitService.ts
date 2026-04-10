@@ -15,6 +15,8 @@ import { Branch, Change, Commit, CommitOptions, CommitShortStat, DiffChange, Log
 export interface RepoContext {
 	readonly rootUri: URI;
 	readonly kind: RepositoryKind;
+	readonly headIncomingChanges: number | undefined;
+	readonly headOutgoingChanges: number | undefined;
 	readonly headBranchName: string | undefined;
 	readonly headCommitHash: string | undefined;
 	readonly upstreamBranchName: string | undefined;

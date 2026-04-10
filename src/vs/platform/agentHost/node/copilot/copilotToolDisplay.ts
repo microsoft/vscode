@@ -108,6 +108,11 @@ const SHELL_TOOL_NAMES: ReadonlySet<string> = new Set([
 	CopilotToolName.PowerShell,
 ]);
 
+/** Set of tool names that spawn subagent sessions. */
+const SUBAGENT_TOOL_NAMES: ReadonlySet<string> = new Set([
+	'task',
+]);
+
 /**
  * Tools that should not be shown to the user. These are internal tools
  * used by the CLI for its own purposes (e.g., reporting intent to the model).
@@ -313,9 +318,12 @@ export function getToolInputString(toolName: string, parameters: Record<string, 
  * supported, which tells the renderer to display the tool as a terminal command
  * block.
  */
-export function getToolKind(toolName: string): 'terminal' | undefined {
+export function getToolKind(toolName: string): 'terminal' | 'subagent' | undefined {
 	if (SHELL_TOOL_NAMES.has(toolName)) {
 		return 'terminal';
+	}
+	if (SUBAGENT_TOOL_NAMES.has(toolName)) {
+		return 'subagent';
 	}
 	return undefined;
 }

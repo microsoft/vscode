@@ -178,6 +178,16 @@ export class ChatToolInvocation implements IChatToolInvocation {
 	}
 
 	/**
+	 * Notifies state observers that `toolSpecificData` has been mutated.
+	 * Since `toolSpecificData` isn't observable, this re-sets the internal
+	 * state to trigger autoruns that need to re-read tool metadata.
+	 */
+	public notifyToolSpecificDataChanged(): void {
+		const current = this._state.get();
+		this._state.set({ ...current }, undefined);
+	}
+
+	/**
 	 * Cancel a streaming invocation directly (e.g., when preToolUse hook denies).
 	 * Only works when in Streaming state.
 	 * @returns true if the cancellation was applied, false if not in streaming state

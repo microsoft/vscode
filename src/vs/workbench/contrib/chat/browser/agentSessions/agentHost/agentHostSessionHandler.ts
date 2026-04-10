@@ -20,7 +20,7 @@ import { ISessionTruncatedAction } from '../../../../../../platform/agentHost/co
 import { ICustomizationRef, TerminalClaimKind, type IProtectedResourceMetadata } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, ISessionTurnStartedAction, type ISessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { AttachmentType, getToolFileEdits, PendingMessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, type IMessageAttachment, type IRootState, type ISessionInputAnswer, type ISessionInputRequest, type ISessionState, type IToolCallState, type ITurn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { AttachmentType, buildSubagentSessionUri, getToolFileEdits, getToolSubagentContent, PendingMessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, type ICompletedToolCall, type IMessageAttachment, type IRootState, type IResponsePart, type ISessionInputAnswer, type ISessionInputRequest, type ISessionState, type IToolCallState, type ITurn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
@@ -34,10 +34,12 @@ import { IChatEditingService } from '../../../common/editing/chatEditingService.
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentResult, IChatAgentService } from '../../../common/participants/chatAgents.js';
+import { ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { getAgentHostIcon } from '../agentSessions.js';
 import { AgentHostEditingSession } from './agentHostEditingSession.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
-import { activeTurnToProgress, finalizeToolInvocation, getTerminalContentUri, toolCallStateToInvocation, turnsToHistory, type IToolCallFileEdit } from './stateToProgressAdapter.js';
+import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, getTerminalContentUri, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, type IToolCallFileEdit } from './stateToProgressAdapter.js';
+import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 
 // =============================================================================
 // AgentHostSessionHandler - renderer-side handler for a single agent host
@@ -364,6 +366,11 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				const sessionState = this._getSessionState(resolvedSession.toString());
 				if (sessionState) {
 					history.push(...turnsToHistory(sessionState.turns, this._config.agentId));
+
+					// Enrich history with inner tool calls from subagent
+					// child sessions. Subscribes to each child session so
+					// its tool calls appear grouped under the parent widget.
+					await this._enrichHistoryWithSubagentCalls(history, resolvedSession);
 
 					// Store turns with file edits so the editing session
 					// can be hydrated when it's created lazily.
@@ -734,6 +741,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const activeToolInvocations = new Map<string, ChatToolInvocation>();
 		const lastEmittedLengths = new Map<string, number>();
 		const activeInputRequests = new Map<string, ChatQuestionCarouselData>();
+		const observedSubagentToolIds = new Set<string>();
 		const throttler = new Throttler();
 		turnDisposables.add(throttler);
 
@@ -772,6 +780,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 			const isActive = this._processSessionState(sessionState, ctx);
 			this._syncInputRequests(activeInputRequests, sessionState.inputRequests, backendSession, CancellationToken.None, progress);
+
+			// Observe subagent sessions for subagent tool calls
+			this._observeSubagentToolCalls(sessionState, turnId, activeToolInvocations, observedSubagentToolIds, backendSession, progress, turnDisposables);
+
 			if (!isActive && !finished) {
 				finish();
 			}
@@ -885,6 +897,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// Track last-emitted content lengths per response part to compute deltas
 		const lastEmittedLengths = new Map<string, number>();
 
+		// Track subagent child sessions we're already observing
+		const observedSubagentToolIds = new Set<string>();
+
 		const turnDisposables = new DisposableStore();
 
 		// We throttle updates because generation of edits is async, if this breaks
@@ -937,6 +952,9 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 				// Process input requests (ask_user tool elicitations)
 				this._syncInputRequests(activeInputRequests, rawSessionState.inputRequests, session, cancellationToken, progress);
+
+				// Observe subagent sessions for subagent tool calls
+				this._observeSubagentToolCalls(rawSessionState, turnId, activeToolInvocations, observedSubagentToolIds, session, progress, turnDisposables);
 
 				if (!isActive && !finished) {
 					finish();
@@ -1033,6 +1051,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				? tc.invocationMessage
 				: new MarkdownString(tc.invocationMessage.markdown);
 			this._reviveTerminalIfNeeded(existing, tc, ctx.backendSession);
+			updateRunningToolSpecificData(existing, tc);
 		}
 
 		// Finalize terminal-state tools
@@ -1307,6 +1326,219 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		return carousel;
 	}
 
+	// ---- Subagent child session observation ---------------------------------
+
+	/**
+	 * Scans the response parts of a turn for subagent tool calls and starts
+	 * observing their child sessions. Deduplicates against previously observed
+	 * tool call IDs.
+	 */
+	private _observeSubagentToolCalls(
+		sessionState: ISessionState,
+		turnId: string,
+		activeToolInvocations: Map<string, ChatToolInvocation>,
+		observedSubagentToolIds: Set<string>,
+		backendSession: URI,
+		progress: (parts: IChatProgress[]) => void,
+		disposables: DisposableStore,
+	): void {
+		const activeTurn = sessionState.activeTurn;
+		const isActiveTurn = activeTurn?.id === turnId;
+		const parts = isActiveTurn
+			? activeTurn.responseParts
+			: sessionState.turns.find(t => t.id === turnId)?.responseParts;
+		if (!parts) {
+			return;
+		}
+		for (const rp of parts) {
+			if (rp.kind === ResponsePartKind.ToolCall) {
+				const tc = rp.toolCall;
+				const existing = activeToolInvocations.get(tc.toolCallId);
+				if (existing && !observedSubagentToolIds.has(tc.toolCallId) && (getToolKind(tc) === 'subagent' || ((tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.Completed) && getToolSubagentContent(tc)))) {
+					observedSubagentToolIds.add(tc.toolCallId);
+					this._observeSubagentSession(backendSession, tc.toolCallId, progress, disposables, observedSubagentToolIds);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Enriches serialized history with inner tool calls from subagent child
+	 * sessions. For each subagent tool call found in the history, subscribes
+	 * to the corresponding child session and appends its inner tool calls
+	 * (with `subAgentInvocationId` set) to the response parts.
+	 */
+	private async _enrichHistoryWithSubagentCalls(
+		history: IChatSessionHistoryItem[],
+		parentSession: URI,
+	): Promise<void> {
+		const parentSessionStr = parentSession.toString();
+
+		for (const item of history) {
+			if (item.type !== 'response') {
+				continue;
+			}
+
+			// Collect subagent tool calls from this response's parts
+			const subagentInsertions: { index: number; toolCallId: string }[] = [];
+			for (let i = 0; i < item.parts.length; i++) {
+				const part = item.parts[i];
+				if (part.kind === 'toolInvocationSerialized' && part.toolSpecificData?.kind === 'subagent') {
+					subagentInsertions.push({ index: i, toolCallId: part.toolCallId });
+				}
+			}
+
+			// Process insertions in reverse order so indices remain valid
+			for (let j = subagentInsertions.length - 1; j >= 0; j--) {
+				const { index, toolCallId } = subagentInsertions[j];
+				const childSessionUri = buildSubagentSessionUri(parentSessionStr, toolCallId);
+
+				try {
+					const childSub = this._ensureSessionSubscription(childSessionUri);
+					let childState = this._getSessionState(childSessionUri);
+					if (!childState) {
+						if (childSub.value instanceof Error) {
+							throw childSub.value;
+						}
+						await new Promise<void>(resolve => {
+							const d = childSub.onDidChange(() => { d.dispose(); resolve(); });
+						});
+						if (childSub.value instanceof Error) {
+							throw childSub.value;
+						}
+						childState = this._getSessionState(childSessionUri);
+					}
+					if (childState) {
+						const innerParts: IChatProgress[] = [];
+						for (const turn of childState.turns) {
+							for (const rp of turn.responseParts) {
+								if (rp.kind === ResponsePartKind.ToolCall) {
+									const tc = rp.toolCall;
+									if (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled) {
+										const completedTc = tc as ICompletedToolCall;
+										const fileEditParts = completedToolCallToEditParts(completedTc);
+										const serialized = completedToolCallToSerialized(completedTc, toolCallId);
+										if (fileEditParts.length > 0) {
+											serialized.presentation = ToolInvocationPresentation.Hidden;
+										}
+										innerParts.push(serialized);
+										innerParts.push(...fileEditParts);
+									}
+								}
+							}
+						}
+						if (innerParts.length > 0) {
+							// Insert inner tool calls right after the subagent tool call
+							item.parts.splice(index + 1, 0, ...innerParts);
+						}
+					}
+				} catch (err) {
+					this._logService.warn(`[AgentHost] Failed to enrich history with subagent calls: ${childSessionUri}`, err);
+				} finally {
+					this._releaseSessionSubscription(childSessionUri);
+				}
+			}
+		}
+	}
+
+	/**
+	 * Subscribes to a child subagent session and forwards its tool calls
+	 * as progress parts into the parent session's response, with
+	 * `subAgentInvocationId` set so the renderer groups them under the parent
+	 * subagent widget.
+	 */
+	private _observeSubagentSession(
+		parentSession: URI,
+		parentToolCallId: string,
+		emitProgress: (parts: IChatProgress[]) => void,
+		disposables: DisposableStore,
+		observedSet: Set<string>,
+	): void {
+		const childSessionUri = buildSubagentSessionUri(parentSession.toString(), parentToolCallId);
+
+		const activeChildToolInvocations = new Map<string, ChatToolInvocation>();
+		const childCts = new CancellationTokenSource();
+		disposables.add(toDisposable(() => childCts.dispose(true)));
+
+		// Helper to process response parts from a child turn
+		const processChildParts = (responseParts: readonly IResponsePart[], turnId: string) => {
+			for (const rp of responseParts) {
+				if (rp.kind === ResponsePartKind.ToolCall) {
+					const tc = rp.toolCall;
+					let existing = activeChildToolInvocations.get(tc.toolCallId);
+
+					if (!existing) {
+						existing = toolCallStateToInvocation(tc, parentToolCallId);
+						activeChildToolInvocations.set(tc.toolCallId, existing);
+						emitProgress([existing]);
+
+						if (tc.status === ToolCallStatus.PendingConfirmation) {
+							this._awaitToolConfirmation(existing, tc.toolCallId, URI.parse(childSessionUri), turnId, childCts.token);
+						}
+					} else if (tc.status === ToolCallStatus.PendingConfirmation) {
+						const existingState = existing.state.get();
+						if (existingState.type !== IChatToolInvocation.StateKind.WaitingForConfirmation) {
+							existing.didExecuteTool(undefined);
+							const confirmInvocation = toolCallStateToInvocation(tc, parentToolCallId);
+							activeChildToolInvocations.set(tc.toolCallId, confirmInvocation);
+							emitProgress([confirmInvocation]);
+							this._awaitToolConfirmation(confirmInvocation, tc.toolCallId, URI.parse(childSessionUri), turnId, childCts.token);
+						}
+					} else if (tc.status === ToolCallStatus.Running) {
+						updateRunningToolSpecificData(existing, tc);
+					}
+
+					if (existing && (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled) && !IChatToolInvocation.isComplete(existing)) {
+						finalizeToolInvocation(existing, tc);
+					}
+				}
+			}
+		};
+
+		try {
+			const childSub = this._ensureSessionSubscription(childSessionUri);
+
+			// Attach the state listener BEFORE replaying the snapshot so any
+			// state change arriving in the gap is not lost. This mirrors the
+			// pattern used for parent turn observation.
+			disposables.add(childSub.onDidChange(state => {
+				if (disposables.isDisposed) {
+					return;
+				}
+
+				const activeTurn = state.activeTurn;
+				const turnId = activeTurn?.id ?? state.turns[state.turns.length - 1]?.id;
+				const responseParts = activeTurn?.responseParts
+					?? state.turns[state.turns.length - 1]?.responseParts;
+
+				if (responseParts && turnId) {
+					processChildParts(responseParts, turnId);
+				}
+			}));
+
+			// Replay any existing content from the child session snapshot
+			// (handles both active turns and already-completed ones)
+			const childState = this._getSessionState(childSessionUri);
+			if (childState) {
+				for (const turn of childState.turns) {
+					processChildParts(turn.responseParts, turn.id);
+				}
+				if (childState.activeTurn) {
+					processChildParts(childState.activeTurn.responseParts, childState.activeTurn.id);
+				}
+			}
+
+			// Clean up when disposables are disposed
+			disposables.add(toDisposable(() => {
+				this._releaseSessionSubscription(childSessionUri);
+			}));
+		} catch (err) {
+			// Remove from observed set so a later state change can retry
+			observedSet.delete(parentToolCallId);
+			this._logService.warn(`[AgentHost] Failed to subscribe to subagent session: ${childSessionUri}`, err);
+		}
+	}
+
 	// ---- Reconnection to active turn ----------------------------------------
 
 	/**
@@ -1346,6 +1578,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		}
 
 		const reconnectDisposables = chatSession.registerDisposable(new DisposableStore());
+		const observedSubagentToolIds = new Set<string>();
 		const throttler = new Throttler();
 		reconnectDisposables.add(throttler);
 
@@ -1363,11 +1596,16 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 
 		// Wire up awaitConfirmation for tool calls that were already pending
 		// confirmation at snapshot time so the user can approve/deny them.
+		// Also start observing any subagent tools that were already running.
 		const cts = new CancellationTokenSource();
 		reconnectDisposables.add(toDisposable(() => cts.dispose(true)));
 		for (const [toolCallId, invocation] of activeToolInvocations) {
 			if (!IChatToolInvocation.isComplete(invocation)) {
 				this._awaitToolConfirmation(invocation, toolCallId, backendSession, turnId, cts.token);
+			}
+			if (invocation.toolSpecificData?.kind === 'subagent' && !observedSubagentToolIds.has(toolCallId)) {
+				observedSubagentToolIds.add(toolCallId);
+				this._observeSubagentSession(backendSession, toolCallId, (parts) => chatSession.appendProgress(parts), reconnectDisposables, observedSubagentToolIds);
 			}
 		}
 
@@ -1390,6 +1628,10 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		const processStateChange = (sessionState: ISessionState) => {
 			const isActive = this._processSessionState(sessionState, ctx);
 			this._syncInputRequests(activeInputRequests, sessionState.inputRequests, backendSession, cts.token, appendProgress);
+
+			// Observe subagent sessions for subagent tool calls
+			this._observeSubagentToolCalls(sessionState, turnId, activeToolInvocations, observedSubagentToolIds, backendSession, (parts: IChatProgress[]) => chatSession.appendProgress(parts), reconnectDisposables);
+
 			if (!isActive) {
 				chatSession.complete();
 				reconnectDisposables.dispose();

@@ -473,20 +473,25 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 						this._sdkSession.respondToExitPlanMode(event.data.requestId, { approved: false });
 						return;
 					}
-					const actionDescriptions: Record<ActionType, string> = {
-						'autopilot': l10n.t('Auto-approve all tool calls and continue until the task is done'),
-						'interactive': l10n.t('Let the agent continue in interactive mode, asking for user input and approval for each action.'),
-						'exit_only': l10n.t('Exit plan mode, but do not execute the plan. I will execute the plan myself after reviewing it.'),
-						'autopilot_fleet': l10n.t('Auto-approve all tool calls, including fleet management actions, and continue until the task is done.'),
-					};
+					const actionDescriptions: Record<string, { label: string; description: string }> = {
+						'autopilot': { label: 'Autopilot', description: l10n.t('Auto-approve all tool calls and continue until the task is done') },
+						'interactive': { label: 'Interactive', description: l10n.t('Let the agent continue in interactive mode, asking for input and approval for each action.') },
+						'exit_only': { label: 'Approve and exit', description: l10n.t('Exit planning, but do not execute the plan. I will execute the plan myself.') },
+						'autopilot_fleet': { label: 'Autopilot Fleet', description: l10n.t('Auto-approve all tool calls, including fleet management actions, and continue until the task is done.') },
+					} satisfies Record<ActionType, { label: string; description: string }>;
 
 					const approved = true;
-					event.data.actions;
 					try {
+						const planPath = this._sdkSession.getPlanPath();
+
 						const userInputRequest: IQuestion = {
-							question: l10n.t('Approve this plan?'),
+							question: planPath ? l10n.t('Approve this plan {0}?', `[Plan.md](${Uri.file(planPath).toString()})`) : l10n.t('Approve this plan?'),
 							header: l10n.t('Approve this plan?'),
-							options: event.data.actions.map(a => ({ label: (actionDescriptions as Record<string, string>)[a] ?? a, recommended: a === event.data.recommendedAction })),
+							options: event.data.actions.map(a => ({
+								label: actionDescriptions[a]?.label ?? a,
+								recommended: a === event.data.recommendedAction,
+								description: actionDescriptions[a]?.description ?? '',
+							})),
 							allowFreeformInput: true,
 						};
 						const answer = await this._userQuestionHandler.askUserQuestion(userInputRequest, this._toolInvocationToken as unknown as never, token);
@@ -499,8 +504,8 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 							this._sdkSession.respondToExitPlanMode(event.data.requestId, { approved: false, feedback: answer.freeText });
 						} else {
 							let selectedAction: ActionType = answer.selected[0] as ActionType;
-							Object.entries(actionDescriptions).forEach(([action, description]) => {
-								if (description === selectedAction) {
+							Object.entries(actionDescriptions).forEach(([action, item]) => {
+								if (item.label === selectedAction) {
 									selectedAction = action as ActionType;
 								}
 							});

@@ -145,8 +145,11 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 				const context = (chatEntitlementService as ChatEntitlementService).context;
 				if (context) {
 					if (context.value.state.completed) {
+						// User has used chat features before
 						if (this._isDisabledGlobally({ id: this._chatExtensionId })) {
+							// User had specifically disabled the chat extension to disable AI features
 							if (this.configurationService.getValue('chat.disableAIFeatures') !== true) {
+								// Honor that choice by disabling AI features
 								this.logService.debug('Disabling AI features because builtin chat extension is disabled');
 								this.configurationService.updateValue('chat.disableAIFeatures', true)
 									.catch(err => this.logService.error('Failed to update chat.disableAIFeatures setting during builtin chat extension enablement migration', err));
@@ -154,6 +157,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 						}
 					} else {
 						try {
+							// User has not used chat features before so avoid activating the chat extension by disabling it
 							this.logService.debug('Disabling builtin chat extension as chat set up is not completed');
 							this._disableExtension({ id: this._chatExtensionId });
 						} catch (error) {

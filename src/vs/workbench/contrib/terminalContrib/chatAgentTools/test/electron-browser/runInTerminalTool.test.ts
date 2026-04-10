@@ -1745,12 +1745,14 @@ suite('RunInTerminalTool', () => {
 		const commandFinishedEmitter = new Emitter<{ exitCode: number | undefined }>();
 		const terminalDisposedEmitter = new Emitter<void>();
 		const inputNeededEmitter = new Emitter<void>();
+		const inputDataEmitter = new Emitter<string>();
 
 		const terminalInstance = {
 			capabilities: {
 				get: (cap: TerminalCapability) => cap === TerminalCapability.CommandDetection ? { onCommandFinished: commandFinishedEmitter.event } : undefined,
 			},
 			onDisposed: terminalDisposedEmitter.event,
+			onDidInputData: inputDataEmitter.event,
 		} as unknown as ITerminalInstance;
 
 		const outputMonitor = {
