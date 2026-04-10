@@ -18,7 +18,6 @@ import { CUSTOM_TOOL_SEARCH_NAME } from '../../../../platform/networking/common/
 import { IChatEndpoint } from '../../../../platform/networking/common/networking';
 import { APIUsage } from '../../../../platform/networking/common/openai';
 import { IPromptPathRepresentationService } from '../../../../platform/prompts/common/promptPathRepresentationService';
-import { IExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
 import { ThinkingData } from '../../../../platform/thinking/common/thinking';
 import { computePromptTokenDetails } from '../../../../platform/tokenizer/node/promptTokenDetails';
@@ -420,8 +419,6 @@ export class SummarizedConversationHistory extends PromptElement<SummarizedAgent
 		props: SummarizedAgentHistoryProps,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ISessionTranscriptService private readonly sessionTranscriptService: ISessionTranscriptService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IExperimentationService private readonly experimentationService: IExperimentationService,
 	) {
 		super(props);
 	}
@@ -429,12 +426,10 @@ export class SummarizedConversationHistory extends PromptElement<SummarizedAgent
 	override async render(state: void, sizing: PromptSizing, progress: Progress<ChatResponsePart> | undefined, token: CancellationToken | undefined) {
 		const promptContext = { ...this.props.promptContext };
 		let historyMetadata: SummarizedConversationHistoryMetadata | undefined;
-		const transcriptLookupEnabled = this.configurationService.getExperimentBasedConfig(ConfigKey.ConversationTranscriptLookup, this.experimentationService);
-
 		// Resolve transcript path and flush to disk so the model can read the up-to-date file
 		let transcriptPath: string | undefined;
 		const sessionId = this.props.promptContext.conversation?.sessionId;
-		if (transcriptLookupEnabled && sessionId) {
+		if (sessionId) {
 			// Lazily start the transcript session now (before summarization) so it
 			// captures the full pre-compaction conversation. startSession is
 			// idempotent — if hooks already started it, this is a no-op.
@@ -687,7 +682,7 @@ class ConversationHistorySummarizer {
 			const budgetExceeded = e instanceof BudgetExceededError;
 			const outcome = budgetExceeded ? 'budget_exceeded' : 'renderError';
 			this.logInfo(`Error rendering summarization prompt in mode: ${mode}. ${e.stack}`, mode);
-			this.sendSummarizationTelemetry(outcome, '', this.props.endpoint.model, mode, stopwatch.elapsed(), undefined);
+			this.sendSummarizationTelemetry(outcome, '', this.props.endpoint.model, mode, stopwatch.elapsed(), undefined, e instanceof Error ? e.message : String(e));
 			throw e;
 		}
 
@@ -704,7 +699,7 @@ class ConversationHistorySummarizer {
 					}, type: 'function'
 				})),
 				(tool, rule) => {
-					this.logService.warn(`Tool ${tool} failed validation: ${rule}`);
+					this.logService.warn(`[ConversationHistorySummarizer] Tool ${tool} failed validation: ${rule}`);
 				},
 			) : undefined;
 			const toolOpts = normalizedTools?.length ? {
@@ -766,7 +761,7 @@ class ConversationHistorySummarizer {
 			}, this.token ?? CancellationToken.None);
 		} catch (e) {
 			this.logInfo(`Error from summarization request. ${e.message}`, mode);
-			this.sendSummarizationTelemetry('requestThrow', '', this.props.endpoint.model, mode, stopwatch.elapsed(), undefined);
+			this.sendSummarizationTelemetry('requestThrow', '', this.props.endpoint.model, mode, stopwatch.elapsed(), undefined, e instanceof Error ? e.message : String(e));
 			throw e;
 		}
 
@@ -806,7 +801,7 @@ class ConversationHistorySummarizer {
 				? Math.min(this.sizing.tokenBudget, this.props.maxSummaryTokens)
 				: this.sizing.tokenBudget;
 		if (summarySize > effectiveBudget) {
-			this.sendSummarizationTelemetry('too_large', response.requestId, this.props.endpoint.model, mode, elapsedTime, response.usage);
+			this.sendSummarizationTelemetry('too_large', response.requestId, this.props.endpoint.model, mode, elapsedTime, response.usage, `${summarySize} tokens exceeds budget ${effectiveBudget}`);
 			this.logInfo(`Summary too large: ${summarySize} tokens (effective budget ${effectiveBudget})`, mode);
 			throw new Error('Summary too large');
 		}

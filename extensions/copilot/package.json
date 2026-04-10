@@ -3224,15 +3224,6 @@
 							"onExp"
 						]
 					},
-					"github.copilot.chat.backgroundCompaction": {
-						"type": "boolean",
-						"default": false,
-						"markdownDescription": "%github.copilot.config.backgroundCompaction%",
-						"tags": [
-							"preview",
-							"onExp"
-						]
-					},
 					"github.copilot.chat.anthropic.toolSearchTool.enabled": {
 						"type": "boolean",
 						"default": true,
@@ -3249,15 +3240,6 @@
 						],
 						"default": "server",
 						"markdownDescription": "%github.copilot.config.anthropic.toolSearchTool.mode%",
-						"tags": [
-							"preview",
-							"onExp"
-						]
-					},
-					"github.copilot.chat.conversationTranscriptLookup.enabled": {
-						"type": "boolean",
-						"default": false,
-						"description": "%github.copilot.config.conversationTranscriptLookup.enabled%",
 						"tags": [
 							"preview",
 							"onExp"
