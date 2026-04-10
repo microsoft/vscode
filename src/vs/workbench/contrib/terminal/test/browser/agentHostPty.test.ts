@@ -110,6 +110,9 @@ class MockAgentConnection implements IAgentConnection {
 			dispose: () => { listener.dispose(); onDidChange.dispose(); onWillApplyAction.dispose(); onDidApplyAction.dispose(); },
 		};
 	}
+	getSubscriptionUnmanaged<T>(_kind: StateComponents, _resource: URI): IAgentSubscription<T> | undefined {
+		return undefined;
+	}
 	dispatch(action: ISessionAction | ITerminalAction): void {
 		this.dispatchedActions.push(action);
 	}

@@ -8,13 +8,13 @@ import { ICopilotTokenStore } from '../../authentication/common/copilotTokenStor
 import { ICAPIClientService } from '../../endpoint/common/capiClient';
 import { BaseGHTelemetrySender } from './ghTelemetrySender';
 import { BaseMsftTelemetrySender } from './msftTelemetrySender';
-import { ITelemetryService, TelemetryDestination, TelemetryEventMeasurements, TelemetryEventProperties } from './telemetry';
+import { ITelemetryService, TelemetryDestination, TelemetryEventMeasurements, TelemetryEventProperties, TelemetryTrustedValue } from './telemetry';
 
 export class BaseTelemetryService implements ITelemetryService {
 	declare readonly _serviceBrand: undefined;
 	// Properties that are applied to all telemetry events (currently only used by the exp service
 	// TODO @lramos15 extend further to include more
-	private _sharedProperties: Record<string, string> = {};
+	private _sharedProperties: Record<string, string | TelemetryTrustedValue<string>> = {};
 	private _originalExpAssignments: string | undefined;
 	private _additionalExpAssignments: string[] = [];
 	private _disposables: IDisposable[] = [];
@@ -143,7 +143,7 @@ export class BaseTelemetryService implements ITelemetryService {
 			}
 		}
 		this._capiClientService.abExpContext = value;
-		this._sharedProperties['abexp.assignmentcontext'] = value;
+		this._sharedProperties['abexp.assignmentcontext'] = new TelemetryTrustedValue(value);
 	}
 
 	setSharedProperty(name: string, value: string): void {
@@ -165,9 +165,11 @@ export class BaseTelemetryService implements ITelemetryService {
 	}
 
 	postEvent(eventName: string, props: Map<string, string>): void {
-		for (const [key, value] of Object.entries(this._sharedProperties)) {
-			props.set(key, value);
-		}
-		this._microsoftTelemetrySender.postEvent(eventName, props);
+		const properties: Record<string, string | TelemetryTrustedValue<string>> = {
+			...Object.fromEntries(props),
+			...this._sharedProperties
+		};
+		this._microsoftTelemetrySender.sendInternalTelemetryEvent(eventName, properties);
+		this._microsoftTelemetrySender.sendTelemetryEvent(eventName, properties);
 	}
 }

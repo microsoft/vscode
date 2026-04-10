@@ -113,8 +113,7 @@ export class SessionsAICustomizationWorkspaceService implements IAICustomization
 	readonly isSessionsWindow = true;
 
 	readonly welcomePageFeatures = {
-		showGettingStartedBanner: false,
-		showGenerateActions: false,
+		showGettingStartedBanner: true,
 	};
 
 	/**

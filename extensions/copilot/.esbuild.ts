@@ -322,7 +322,8 @@ async function moveSourceMapsToSeparateDir(): Promise<void> {
 }
 
 async function main() {
-	if (!isDev) { // TODO@joaomoreno
+	if (process.env['BUILD_SOURCEVERSION']) {
+		console.log('Running in CI environment, applying package.json patch for correct versioning and pre-release status...');
 		applyPackageJsonPatch();
 	}
 
@@ -432,34 +433,47 @@ function applyPackageJsonPatch() {
 		throw new Error('VSCODE_QUALITY environment variable is not set. This should be set by the build pipeline to ensure correct versioning and pre-release status in package.json.');
 	}
 
-	const packagejsonPath = path.join(import.meta.dirname, './package.json');
-	const json = JSON.parse(fs.readFileSync(packagejsonPath).toString());
+	const packageJsonPath = path.join(import.meta.dirname, './package.json');
+	const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+	let version = packageJson.version;
 	const isPreRelease = quality !== 'stable';
 
-	const rootPackageJsonPath = path.join(import.meta.dirname, '../../package.json');
-	const rootPackageJson = JSON.parse(fs.readFileSync(rootPackageJsonPath).toString());
-	const vscodeVersion = rootPackageJson.version;
+	if (isPreRelease) {
+		const counterStr = process.env['VSCODE_PUBLISH_COUNTER'];
 
-	const [, vscodeMinor, vscodePatch] = vscodeVersion.split('.');
-	const newMajor = 0; // Keep major version at 0
-	const newMinor = parseInt(vscodeMinor, 10) - (115 - 43); // VS Code 1.115.x -> Copilot Chat 0.43.x
-	const newPatch = isPreRelease ? getDateBasedPatch() : vscodePatch; // For stable releases, keep the same patch number as VS Code
+		if (!counterStr) {
+			throw new Error('VSCODE_PUBLISH_COUNTER environment variable is not set. This should be set by the build pipeline to ensure unique versioning for each pre-release build.');
+		}
+
+		if (!/^\d+$/.test(counterStr)) {
+			throw new Error('VSCODE_PUBLISH_COUNTER must be a non-negative integer. This should be set by the build pipeline to ensure unique versioning for each pre-release build.');
+		}
+
+		const counter = Number.parseInt(counterStr, 10);
+
+		if (!Number.isInteger(counter) || counter >= 100) {
+			throw new Error('VSCODE_PUBLISH_COUNTER is out of range. This should be a whole number between 0 and 99 that increments with each build, but resets periodically (e.g. daily) to avoid excessively long version numbers.');
+		}
+
+		const [major, minor] = version.split('.');
+		version = `${major}.${minor}.${getDateBasedPatch(counter)}`;
+	}
 
 	const newProps = {
 		buildType: 'prod',
 		isPreRelease,
-		version: `${newMajor}.${newMinor}.${newPatch}`
+		version
 	};
 
-	fs.writeFileSync(packagejsonPath, JSON.stringify({ ...json, ...newProps }, null, '\t'));
+	fs.writeFileSync(packageJsonPath, JSON.stringify({ ...packageJson, ...newProps }, null, '\t'));
 }
 
-function getDateBasedPatch(): string {
+function getDateBasedPatch(counter: number): string {
 	const now = new Date();
 	const year = now.getFullYear();
 	const month = String(now.getMonth() + 1).padStart(2, '0');
 	const day = String(now.getDate()).padStart(2, '0');
-	return `${year}${month}${day}01`; // TODO@joaomoreno fix this asap
+	return `${year}${month}${day}${String(counter).padStart(2, '0')}`;
 }
 
 main();

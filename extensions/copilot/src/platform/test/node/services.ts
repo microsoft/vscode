@@ -81,6 +81,7 @@ import { IScopeSelector } from '../../scopeSelection/common/scopeSelection';
 import { ISearchService } from '../../search/common/searchService';
 import { ISimulationTestContext, NulSimulationTestContext } from '../../simulationTestContext/common/simulationTestContext';
 import { ISnippyService, NullSnippyService } from '../../snippy/common/snippyService';
+import { IChatWebSocketManager, NullChatWebSocketManager } from '../../networking/node/chatWebSocketManager';
 import { ISurveyService, NullSurveyService } from '../../survey/common/surveyService';
 import { ITabsAndEditorsService } from '../../tabs/common/tabsAndEditorsService';
 import { ITasksService } from '../../tasks/common/tasksService';
@@ -278,6 +279,7 @@ export function createPlatformServices(disposables: Pick<DisposableStore, 'add'>
 		}
 	}));
 	testingServiceCollection.define(ISnippyService, new SyncDescriptor(NullSnippyService));
+	testingServiceCollection.define(IChatWebSocketManager, new SyncDescriptor(NullChatWebSocketManager));
 	testingServiceCollection.define(IInteractiveSessionService, new SyncDescriptor(class implements IInteractiveSessionService {
 		_serviceBrand: undefined;
 		async transferActiveChat(workspaceUri: Uri): Promise<void> {

@@ -201,10 +201,15 @@ export class ChatSessionWorkspaceFolderService extends Disposable implements ICh
 			}
 		} else {
 			// Tracked changes
-			const result = repositoryProperties.baseBranchName
-				? await this.gitService.exec(repository.rootUri, ['diff', '--raw', '--numstat', '--diff-filter=ADMR', '-z', '--merge-base', repositoryProperties.baseBranchName, '--'])
-				: await this.gitService.exec(repository.rootUri, ['diff', '--raw', '--numstat', '--diff-filter=ADMR', '-z', '--']);
-			diffChanges.push(...parseGitChangesRaw(repository.rootUri.fsPath, result));
+			try {
+				const result = repositoryProperties.baseBranchName
+					? await this.gitService.exec(repository.rootUri, ['diff', '--raw', '--numstat', '--diff-filter=ADMR', '-z', '--merge-base', repositoryProperties.baseBranchName, '--'])
+					: await this.gitService.exec(repository.rootUri, ['diff', '--raw', '--numstat', '--diff-filter=ADMR', '-z', '--']);
+				diffChanges.push(...parseGitChangesRaw(repository.rootUri.fsPath, result));
+			} catch (error) {
+				this.logService.error(`[ChatSessionWorkspaceFolderService][getWorkspaceChanges] Error while processing workspace changes: ${error}`);
+				return [];
+			}
 		}
 
 		return diffChanges.map(change => ({

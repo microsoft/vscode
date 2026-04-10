@@ -22,6 +22,13 @@ export interface IAgentHostPtyOptions {
 	readonly name?: string;
 	/** Initial working directory URI. */
 	readonly cwd?: URI;
+	/**
+	 * When true, attach to an existing terminal on the agent host instead of
+	 * creating a new one. The terminal must already exist server-side (e.g.
+	 * created by a tool). The pty will subscribe to its state and replay
+	 * content without calling `createTerminal`.
+	 */
+	readonly attachOnly?: boolean;
 }
 
 /**
@@ -55,15 +62,18 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 
 	async start(): Promise<ITerminalLaunchError | ITerminalLaunchResult | undefined> {
 		try {
-			// 1. Create the terminal on the agent host
-			await this._connection.createTerminal({
-				terminal: this._terminalUri.toString(),
-				claim: { kind: TerminalClaimKind.Client, clientId: this._connection.clientId },
-				name: this._options?.name,
-				cwd: this._options?.cwd?.toString(),
-				cols: this._lastDimensions.cols > 0 ? this._lastDimensions.cols : undefined,
-				rows: this._lastDimensions.rows > 0 ? this._lastDimensions.rows : undefined,
-			});
+			// 1. Create the terminal on the agent host (skip for attach-only mode
+			//    where the terminal already exists, e.g. created by a tool)
+			if (!this._options?.attachOnly) {
+				await this._connection.createTerminal({
+					terminal: this._terminalUri.toString(),
+					claim: { kind: TerminalClaimKind.Client, clientId: this._connection.clientId },
+					name: this._options?.name,
+					cwd: this._options?.cwd?.toString(),
+					cols: this._lastDimensions.cols > 0 ? this._lastDimensions.cols : undefined,
+					rows: this._lastDimensions.rows > 0 ? this._lastDimensions.rows : undefined,
+				});
+			}
 
 			// 2. Get a subscription for the terminal URI (auto-subscribes)
 			this._subscriptionRef = this._connection.getSubscription(StateComponents.Terminal, this._terminalUri);
@@ -167,7 +177,11 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 
 	shutdown(_immediate: boolean): void {
 		this._startBarrier.wait().then(() => {
-			this._connection.disposeTerminal(this._terminalUri);
+			// In attach-only mode, don't dispose the server-side terminal —
+			// it's owned by the tool/session, not by this client.
+			if (!this._options?.attachOnly) {
+				this._connection.disposeTerminal(this._terminalUri);
+			}
 			this._subscriptionRef?.dispose();
 			this._subscriptionRef = undefined;
 			this._subscriptionDisposables.clear();

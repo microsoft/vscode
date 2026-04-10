@@ -48,7 +48,7 @@ export class ChatSessionWorktreeCheckpointService extends Disposable implements 
 		const repositoryUri = await this._getSessionRepository(sessionId);
 		const repository = repositoryUri ? await this.gitService.getRepository(repositoryUri) : undefined;
 
-		if (!repository) {
+		if (!repository || !repository.headCommitHash) {
 			this.logService.warn(`[ChatSessionWorktreeCheckpointService][handleRequest] No repository found for session ${sessionId}, skipping baseline checkpoint creation`);
 			return;
 		}
@@ -83,7 +83,7 @@ export class ChatSessionWorktreeCheckpointService extends Disposable implements 
 		const repositoryUri = await this._getSessionRepository(sessionId);
 		const repository = repositoryUri ? await this.gitService.getRepository(repositoryUri) : undefined;
 
-		if (!repository) {
+		if (!repository || !repository.headCommitHash) {
 			this.logService.warn(`[ChatSessionWorktreeCheckpointService][handleRequestCompleted] No repository found for session ${sessionId}, skipping post-turn checkpoint`);
 			return;
 		}
@@ -165,7 +165,7 @@ export class ChatSessionWorktreeCheckpointService extends Disposable implements 
 			}
 			const repoUri = Uri.file(props.worktreePath);
 			const repository = await this.gitService.getRepository(repoUri);
-			if (!repository) {
+			if (!repository || !repository.headCommitHash) {
 				this.logService.warn(`[ChatSessionWorktreeCheckpointService][handleAdditionalWorktreesRequest] No repository found for additional worktree ${props.worktreePath}`);
 				continue;
 			}
@@ -187,7 +187,7 @@ export class ChatSessionWorktreeCheckpointService extends Disposable implements 
 			}
 			const repoUri = Uri.file(props.worktreePath);
 			const repository = await this.gitService.getRepository(repoUri);
-			if (!repository) {
+			if (!repository || !repository.headCommitHash) {
 				return;
 			}
 

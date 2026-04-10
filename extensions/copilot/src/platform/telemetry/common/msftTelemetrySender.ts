@@ -37,23 +37,6 @@ export class BaseMsftTelemetrySender implements IMSFTTelemetrySender {
 	}
 
 	/**
-	 * **NOTE**: Do not call directly
-	 * This is just used by the experimentation service to log events to the scorecards
-	 * @param eventName
-	 * @param props
-	 */
-	postEvent(eventName: string, props: Map<string, string>): void {
-		const event: Record<string, string> = {};
-		for (const [key, value] of props) {
-			event[key] = value;
-		}
-		if (this._isInternal) {
-			this.sendInternalTelemetryEvent(eventName, event);
-		}
-		this.sendTelemetryEvent(eventName, event);
-	}
-
-	/**
 	 * Sends a telemetry event regarding internal Microsoft staff only. Will be dropped if telemetry level is below Usage
 	 * @param eventName The name of the event to send
 	 * @param properties The properties to send
@@ -61,7 +44,7 @@ export class BaseMsftTelemetrySender implements IMSFTTelemetrySender {
 	 * @returns
 	 */
 	sendInternalTelemetryEvent(eventName: string, properties?: TelemetryEventProperties, measurements?: TelemetryEventMeasurements): void {
-		if (!this._internalTelemetryReporter) {
+		if (!this._internalTelemetryReporter || !this._isInternal) {
 			return;
 		}
 		properties = { ...properties, 'common.tid': this._tid, 'common.userName': this._username ?? 'undefined' };

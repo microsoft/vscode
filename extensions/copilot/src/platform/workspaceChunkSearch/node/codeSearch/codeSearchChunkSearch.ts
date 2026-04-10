@@ -662,7 +662,7 @@ export class CodeSearchChunkSearch extends Disposable {
 			// Also force it to search the local diff too so we can can override stale code-search results.
 			await raceCancellationError(this._externalIngestIndex.value.updateForceIncludeFiles(diffArray, token), token);
 
-			const externalResult = await this._externalIngestIndex.value.search(sizing, query, innerTelemetryInfo.callTracker, token);
+			const externalResult = await this._externalIngestIndex.value.search(sizing, query, innerTelemetryInfo, token);
 			if (externalResult) {
 				const diffFilePattern = diffArray.map(uri => new RelativePattern(uri, '*'));
 				const filtered = externalResult.filter(x => shouldInclude(x.chunk.file, { include: diffFilePattern }));

@@ -1256,7 +1256,8 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 							resource: request.sessionResource,
 						},
 						isUntitled: false,
-						initialSessionOptions: undefined
+						initialSessionOptions: undefined,
+						inputState: undefined as unknown as vscode.ChatSessionInputState
 					};
 					context = {
 						chatSessionContext,

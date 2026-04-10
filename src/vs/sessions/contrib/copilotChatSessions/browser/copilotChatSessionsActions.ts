@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce } from '../../../../base/common/arrays.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
 import { IReader, autorun, observableValue } from '../../../../base/common/observable.js';
 import { localize2 } from '../../../../nls.js';
 import { Action2, registerAction2, MenuId, MenuRegistry, isIMenuItem } from '../../../../platform/actions/common/actions.js';
@@ -158,8 +158,11 @@ registerAction2(class extends Action2 {
  * so it can be rendered by a {@link MenuWorkbenchToolBar}.
  */
 class PickerActionViewItem extends BaseActionViewItem {
-	constructor(private readonly picker: { render(container: HTMLElement): void; dispose(): void }) {
+	constructor(private readonly picker: { render(container: HTMLElement): void; dispose(): void }, disposable?: IDisposable) {
 		super(undefined, { id: '', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } });
+		if (disposable) {
+			this._register(disposable);
+		}
 	}
 
 	override render(container: HTMLElement): void {
@@ -248,9 +251,21 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 					}
 				};
 				initModel();
-				this._register(languageModelsService.onDidChangeLanguageModels(() => initModel()));
 
-				return modelPicker;
+				const disposableStore = new DisposableStore();
+				disposableStore.add(languageModelsService.onDidChangeLanguageModels(() => initModel()));
+
+				// When the active session changes, push the selected model to the new session
+				disposableStore.add(autorun(reader => {
+					const session = sessionsManagementService.activeSession.read(reader);
+					const model = currentModel.read(reader);
+					if (session && model) {
+						const provider = sessionsProvidersService.getProviders().find(p => p.id === session.providerId);
+						provider?.setModel(session.sessionId, model.identifier);
+					}
+				}));
+
+				return new PickerActionViewItem(modelPicker, disposableStore);
 			},
 		));
 		this._register(actionViewItemService.register(

@@ -58,6 +58,8 @@
 			"request": "attach",
 			"name": "Attach to Agent Host Process",
 			"port": 5878,
+			"restart": true,
+			"timeout": 0,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			]
@@ -816,6 +818,16 @@
 			"configurations": [
 				"Launch VS Code Internal",
 				"Attach to Main Process"
+			],
+			"preLaunchTask": "Ensure Prelaunch Dependencies"
+		},
+		{
+			"name": "Renderer and Agent Host processes",
+			"stopAll": true,
+			"configurations": [
+				"Launch VS Code Internal",
+				"Attach to Main Process",
+				"Attach to Agent Host Process"
 			],
 			"preLaunchTask": "Ensure Prelaunch Dependencies"
 		},

@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { autorun, derived } from '../../../../base/common/observable.js';
+import { autorun, derived, derivedOpts } from '../../../../base/common/observable.js';
+import { isEqual } from '../../../../base/common/resources.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -33,6 +34,13 @@ export class LayoutController extends Disposable {
 	) {
 		super();
 
+		const activeSessionResourceObs = derivedOpts<URI | undefined>({
+			equalsFn: isEqual
+		}, reader => {
+			const activeSession = this._sessionManagementService.activeSession.read(reader);
+			return activeSession?.resource;
+		});
+
 		const activeSessionHasChangesObs = derived<boolean>(reader => {
 			const activeSession = this._sessionManagementService.activeSession.read(reader);
 			if (!activeSession) {
@@ -42,12 +50,16 @@ export class LayoutController extends Disposable {
 			return changes.length > 0;
 		});
 
-		// Switch between sessions — sync auxiliary bar and panel visibility
+		// Switch between sessions — sync auxiliary bar
 		this._register(autorun(reader => {
-			const activeSession = this._sessionManagementService.activeSession.read(reader);
 			const activeSessionHasChanges = activeSessionHasChangesObs.read(reader);
 			this._syncAuxiliaryBarVisibility(activeSessionHasChanges);
-			this._syncPanelVisibility(activeSession?.resource);
+		}));
+
+		// Switch between sessions — sync panel visibility
+		this._register(autorun(reader => {
+			const activeSessionResource = activeSessionResourceObs.read(reader);
+			this._syncPanelVisibility(activeSessionResource);
 		}));
 
 		// When a turn is completed, check if there were changes before the turn and

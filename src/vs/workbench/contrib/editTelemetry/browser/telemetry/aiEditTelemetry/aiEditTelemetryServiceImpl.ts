@@ -84,7 +84,7 @@ export class AiEditTelemetryServiceImpl implements IAiEditTelemetryService {
 			editLinesDeleted: data.editDeltaInfo?.linesRemoved,
 
 			modeId: data.modeId,
-			modelId: data.modelId?.replace(/[\/\\]/g, '_'),
+			modelId: data.modelId?.replace(/[\/\\]/g, '|'),
 			applyCodeBlockSuggestionId: data.applyCodeBlockSuggestionId as unknown as string,
 
 			...forwardToChannelIf(isCopilotLikeExtension(data.source?.extensionId)),
@@ -165,7 +165,7 @@ export class AiEditTelemetryServiceImpl implements IAiEditTelemetryService {
 			editLinesDeleted: data.editDeltaInfo?.linesRemoved,
 
 			modeId: data.modeId,
-			modelId: data.modelId?.replace(/[\/\\]/g, '_'),
+			modelId: data.modelId?.replace(/[\/\\]/g, '|'),
 			applyCodeBlockSuggestionId: data.applyCodeBlockSuggestionId as unknown as string,
 			acceptanceMethod: data.acceptanceMethod,
 

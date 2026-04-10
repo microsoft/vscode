@@ -687,10 +687,9 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 
 	protected override async fetch(opts: ToolCallingLoopFetchOptions, token: CancellationToken): Promise<ChatResponse> {
 		const messageSourcePrefix = this.options.location === ChatLocation.Editor ? 'inline' : 'chat';
-		const baseDebugName = this.options.request.subAgentInvocationId ?
+		const debugName = this.options.request.subAgentInvocationId ?
 			`tool/runSubagent${this.options.request.subAgentName ? `-${this.options.request.subAgentName}` : ''}` :
 			`${ChatLocation.toStringShorter(this.options.location)}/${this.options.intent?.id}`;
-		const debugName = this._isInlineSummarizationRequest ? 'inlineSummarizeConversationHistory-full' : baseDebugName;
 		const location = this.options.overrideRequestLocation ?? this.options.location;
 		const isThinkingLocation = location === ChatLocation.Agent || location === ChatLocation.MessagesProxy;
 		const rawEffort = this.options.request.modelConfiguration?.reasoningEffort;

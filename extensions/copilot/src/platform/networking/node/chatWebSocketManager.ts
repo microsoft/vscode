@@ -39,6 +39,13 @@ export interface IChatWebSocketManager {
 	hasActiveConnection(conversationId: string): boolean;
 
 	/**
+	 * Returns the stateful marker (last completed response ID) for the given
+	 * conversation's active WebSocket connection, or undefined if there is
+	 * no active connection or no marker yet.
+	 */
+	getStatefulMarker(conversationId: string): string | undefined;
+
+	/**
 	 * Closes and removes the connection for a specific conversation.
 	 */
 	closeConnection(conversationId: string): void;
@@ -58,6 +65,7 @@ export class NullChatWebSocketManager implements IChatWebSocketManager {
 		throw new Error('WebSocket not available');
 	}
 	hasActiveConnection(_conversationId: string): boolean { return false; }
+	getStatefulMarker(_conversationId: string): string | undefined { return undefined; }
 	closeConnection(_conversationId: string): void { }
 	closeAll(): void { }
 }
@@ -199,6 +207,11 @@ export class ChatWebSocketManager extends Disposable implements IChatWebSocketMa
 	hasActiveConnection(conversationId: string): boolean {
 		const connection = this._connections.get(conversationId);
 		return !!connection?.isOpen;
+	}
+
+	getStatefulMarker(conversationId: string): string | undefined {
+		const connection = this._connections.get(conversationId);
+		return connection?.isOpen ? connection.statefulMarker : undefined;
 	}
 
 	closeConnection(conversationId: string): void {

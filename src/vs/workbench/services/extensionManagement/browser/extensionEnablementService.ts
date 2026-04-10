@@ -136,7 +136,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 			});
 		}
 
-		if (!this.environmentService.isSessionsWindow) {
+		if (!this.environmentService.isSessionsWindow && !this.environmentService.skipBuiltinExtensions?.some(id => id.toLowerCase() === this._chatExtensionId)) {
 			const builtinChatExtensionEnablementMigrationKey = 'builtinChatExtensionEnablementMigration';
 			const builtinChatExtensionEnablementMigration = this.storageService.getBoolean(builtinChatExtensionEnablementMigrationKey, StorageScope.PROFILE) === true;
 			if (!builtinChatExtensionEnablementMigration) {

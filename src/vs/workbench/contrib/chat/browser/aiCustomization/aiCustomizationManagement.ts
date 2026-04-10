@@ -23,11 +23,16 @@ export const AI_CUSTOMIZATION_MANAGEMENT_EDITOR_ID = 'workbench.editor.aiCustomi
  */
 export const AI_CUSTOMIZATION_MANAGEMENT_EDITOR_INPUT_ID = 'workbench.input.aiCustomizationManagement';
 
+export const AI_CUSTOMIZATION_WELCOME_PAGE_VARIANT_SETTING = 'chat.customizations.welcomePageVariant';
+export const AI_CUSTOMIZATION_WELCOME_PAGE_VARIANTS = ['classic', 'promptLaunchers'] as const;
+export type AICustomizationWelcomePageVariant = typeof AI_CUSTOMIZATION_WELCOME_PAGE_VARIANTS[number];
+
 /**
  * Command IDs for the AI Customizations Management Editor.
  */
 export const AICustomizationManagementCommands = {
 	OpenEditor: 'aiCustomization.openManagementEditor',
+	OpenMarketplace: 'aiCustomization.openMarketplace',
 	CreateNewAgent: 'aiCustomization.createNewAgent',
 	CreateNewSkill: 'aiCustomization.createNewSkill',
 	CreateNewInstructions: 'aiCustomization.createNewInstructions',
@@ -41,7 +46,7 @@ export const AICustomizationManagementCommands = {
 export const CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR = new RawContextKey<boolean>(
 	'aiCustomizationManagementEditorFocused',
 	false,
-	localize('aiCustomizationManagementEditorFocused', "Whether the Chat Customizations editor is focused")
+	localize('aiCustomizationManagementEditorFocused', "Whether the Agent Customizations editor is focused")
 );
 
 /**
@@ -50,7 +55,7 @@ export const CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_EDITOR = new RawContextKey<bool
 export const CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_SECTION = new RawContextKey<string>(
 	'chatCustomizationSection',
 	AICustomizationManagementSection.Agents,
-	localize('chatCustomizationSection', "The currently selected section in the Chat Customizations editor")
+	localize('chatCustomizationSection', "The currently selected section in the Agent Customizations editor")
 );
 
 /**
@@ -60,7 +65,7 @@ export const CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_SECTION = new RawContextKey<str
 export const CONTEXT_AI_CUSTOMIZATION_MANAGEMENT_HARNESS = new RawContextKey<string>(
 	'chatCustomizationSessionType',
 	'',
-	localize('chatCustomizationSessionType', "The active harness (session type) in the Chat Customizations editor")
+	localize('chatCustomizationSessionType', "The active harness (session type) in the Agent Customizations editor")
 );
 
 /**

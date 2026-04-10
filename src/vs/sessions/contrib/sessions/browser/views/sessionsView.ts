@@ -6,13 +6,13 @@
 import '../media/sessionsViewPane.css';
 import * as DOM from '../../../../../base/browser/dom.js';
 import { KeybindingLabel } from '../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
-import { Codicon } from '../../../../../base/common/codicons.js';
 import { Event } from '../../../../../base/common/event.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { OS } from '../../../../../base/common/platform.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { IKeybindingService } from '../../../../../platform/keybinding/common/keybinding.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
@@ -33,6 +33,8 @@ import { ITelemetryService } from '../../../../../platform/telemetry/common/tele
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
 import { logSessionsInteraction } from '../../../../common/sessionsTelemetry.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
+import { Menus } from '../../../../browser/menus.js';
 
 const $ = DOM.$;
 export const SessionsViewId = 'sessions.workbench.view.sessionsView';
@@ -50,6 +52,12 @@ export class SessionsView extends ViewPane {
 
 	private viewPaneContainer: HTMLElement | undefined;
 	private sessionsControlContainer: HTMLElement | undefined;
+	private findWidgetContainer: HTMLElement | undefined;
+	private headerRow: HTMLElement | undefined;
+	private headerLabel: HTMLElement | undefined;
+	private headerActions: HTMLElement | undefined;
+	private headerLabelWidth = 56;
+	private isFindWidgetOpen = false;
 	sessionsControl: SessionsList | undefined;
 	private _customizationsWidget: AICustomizationShortcutsWidget | undefined;
 	private currentGrouping: SessionsGrouping = SessionsGrouping.Workspace;
@@ -129,20 +137,40 @@ export class SessionsView extends ViewPane {
 		// Sessions content container
 		const sessionsContent = DOM.append(sessionsSection, $('.agent-sessions-content'));
 
-		// New Session Button
-		const newSessionButtonContainer = DOM.append(sessionsContent, $('.agent-sessions-new-button-container'));
-		const newSessionButton = this._register(new Button(newSessionButtonContainer, {
+		// Header row: "Sessions" label (left) + compact "New" button (right)
+		const headerRow = this.headerRow = DOM.append(sessionsContent, $('.agent-sessions-header-row'));
+		const headerLabel = this.headerLabel = DOM.append(headerRow, $('.agent-sessions-header-label'));
+		headerLabel.textContent = localize('sessionsHeader', "Sessions");
+		this.headerLabelWidth = Math.ceil(headerLabel.getBoundingClientRect().width) || this.headerLabelWidth;
+
+		const headerActions = this.headerActions = DOM.append(headerRow, $('.agent-sessions-header-actions'));
+
+		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
+		this._register(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, headerActions, Menus.SidebarSessionsHeader, {
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
+			telemetrySource: 'sessionsView.header',
+			toolbarOptions: { primaryGroup: () => true },
+		}));
+
+		// Container for the tree's find widget (rendered in-place in the header)
+		const findWidgetContainer = this.findWidgetContainer = DOM.append(headerRow, $('.agent-sessions-find-widget-container'));
+		findWidgetContainer.style.display = 'none';
+
+		// Compact New Session Button
+		const newSessionButton = this._register(new Button(headerActions, {
 			...defaultButtonStyles,
+			buttonSecondaryBorder: '',
 			secondary: true,
 			supportIcons: true,
 		}));
-		newSessionButton.label = `$(${Codicon.plus.id}) ${localize('sessionLabel', "Session")}`;
+		newSessionButton.element.classList.add('agent-sessions-compact-new-button');
 		this._register(newSessionButton.onDidClick(() => {
 			logSessionsInteraction(this.telemetryService, 'newSession');
 			this.sessionsManagementService.openNewSessionView();
 		}));
 
-		const buttonLabel = $('.new-session-button-label');
+		newSessionButton.label = localize('newCompact', "New");
+		const buttonLabel = $('span.new-session-button-label', undefined, localize('newCompact', "New"));
 		const keybindingHint = $('span.new-session-keybinding-hint');
 		const keybindingHintLabel = this._register(new KeybindingLabel(keybindingHint, OS, {
 			disableTitle: true,
@@ -152,18 +180,17 @@ export class SessionsView extends ViewPane {
 			keybindingLabelBottomBorder: undefined,
 			keybindingLabelShadow: undefined,
 		}));
-		DOM.append(buttonLabel, ...Array.from(newSessionButton.element.childNodes));
 		DOM.reset(newSessionButton.element, buttonLabel);
 
 		const getNewSessionKeybinding = () => {
-			const primaryKeybinding = this.keybindingService.lookupKeybinding(ACTION_ID_NEW_SESSION);
+			const primaryKeybinding = this.keybindingService.lookupKeybinding(ACTION_ID_NEW_SESSION, this.scopedContextKeyService, true);
 			const resolvedKeybindings = this.keybindingService.lookupKeybindings(ACTION_ID_NEW_SESSION);
 			return primaryKeybinding ?? resolvedKeybindings[0];
 		};
 
-		let lastRenderedKeybindingLabel: string | undefined;
-		let lastRenderedKeybindingAriaLabel: string | undefined;
-		const updateNewSessionButtonKeybinding = () => {
+		let lastRenderedKeybindingLabel: string | undefined | null = null;
+		let lastRenderedKeybindingAriaLabel: string | undefined | null = null;
+		const updateNewSessionButton = () => {
 			const keybinding = getNewSessionKeybinding();
 			const keybindingLabel = keybinding?.getLabel() ?? undefined;
 			const keybindingAriaLabel = keybinding?.getAriaLabel() ?? undefined;
@@ -173,20 +200,24 @@ export class SessionsView extends ViewPane {
 
 			lastRenderedKeybindingLabel = keybindingLabel;
 			lastRenderedKeybindingAriaLabel = keybindingAriaLabel;
+
+			keybindingHintLabel.set(keybinding);
+			if (keybinding) {
+				if (keybindingHint.parentElement !== newSessionButton.element) {
+					DOM.append(newSessionButton.element, keybindingHint);
+				}
+			} else {
+				keybindingHint.remove();
+			}
+
 			newSessionButton.element.title = keybindingLabel
 				? localize('newSessionButtonTitle', "New Session ({0})", keybindingLabel)
 				: localize('newSessionButtonTitleWithoutKeybinding', "New Session");
 			newSessionButton.element.setAttribute('aria-label', keybindingAriaLabel
 				? localize('newSessionButtonAriaLabel', "New Session ({0})", keybindingAriaLabel)
 				: localize('newSessionButtonAriaLabelWithoutKeybinding', "New Session"));
-
-			DOM.reset(newSessionButton.element, buttonLabel);
-			keybindingHintLabel.set(keybinding);
-			if (keybinding) {
-				DOM.append(newSessionButton.element, keybindingHint);
-			}
 		};
-		this._register(Event.runAndSubscribe(this.keybindingService.onDidUpdateKeybindings, updateNewSessionButtonKeybinding));
+		this._register(Event.runAndSubscribe(this.keybindingService.onDidUpdateKeybindings, updateNewSessionButton));
 
 		// Sessions List Control
 		this.sessionsControlContainer = DOM.append(sessionsContent, $('.agent-sessions-control-container'));
@@ -194,9 +225,25 @@ export class SessionsView extends ViewPane {
 			overrideStyles: this.getLocationBasedColors().listOverrideStyles,
 			grouping: () => this.currentGrouping,
 			sorting: () => this.currentSorting,
+			findWidgetContainer,
 			onSessionOpen: (resource, preserveFocus) => this.sessionsManagementService.openSession(resource, { preserveFocus }),
 		}));
 		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));
+
+		// Toggle header label/actions visibility when find widget opens/closes
+		this._register(sessionsControl.onDidChangeFindOpenState(open => {
+			this.isFindWidgetOpen = open;
+			findWidgetContainer.style.display = open ? '' : 'none';
+			this.updateHeaderLayout();
+		}));
+
+		// Close find widget on Escape
+		this._register(DOM.addDisposableListener(findWidgetContainer, 'keydown', (e: KeyboardEvent) => {
+			if (e.key === 'Escape') {
+				sessionsControl.closeFind();
+				e.stopPropagation();
+			}
+		}));
 
 		// Sync workspace group capped context key with persisted state
 		this.workspaceGroupCappedContextKey?.set(sessionsControl.isWorkspaceGroupCapped());
@@ -409,6 +456,8 @@ export class SessionsView extends ViewPane {
 	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 
+		this.updateHeaderLayout(width);
+
 		if (!this.sessionsControl || !this.sessionsControlContainer) {
 			return;
 		}
@@ -427,7 +476,33 @@ export class SessionsView extends ViewPane {
 	}
 
 	openFind(): void {
+		this.isFindWidgetOpen = true;
+		if (this.findWidgetContainer) {
+			// Show container before opening find so the widget can be focused
+			this.findWidgetContainer.style.display = '';
+		}
+		this.updateHeaderLayout();
 		this.sessionsControl?.openFind();
+	}
+
+	private updateHeaderLayout(width?: number): void {
+		if (!this.headerRow || !this.headerLabel || !this.headerActions) {
+			return;
+		}
+
+		if (this.isFindWidgetOpen) {
+			this.headerLabel.style.display = 'none';
+			this.headerActions.style.display = 'none';
+			return;
+		}
+
+		this.headerActions.style.display = '';
+		const headerWidth = width ?? this.headerRow.offsetWidth;
+		const actionsWidth = Math.ceil(this.headerActions.getBoundingClientRect().width) || this.headerActions.offsetWidth;
+		const shouldHideLabel = headerWidth > 0 && headerWidth < actionsWidth + this.headerLabelWidth + 12;
+
+		this.headerLabel.style.display = shouldHideLabel ? 'none' : '';
+		this.headerActions.style.display = '';
 	}
 
 	setGrouping(grouping: SessionsGrouping): void {

@@ -190,7 +190,6 @@ function createProvider() {
 		override buildExistingSessionInputStateGroups = vi.fn(async () => []);
 		override getBranchOptionItemsForRepository = vi.fn(async () => []);
 		override getRepositoryOptionItems = vi.fn(() => []);
-		override updateInputStateAfterFolderSelection = vi.fn(async () => { });
 	}();
 	const provider = new CopilotCLIChatSessionContentProvider(
 		sessionService,
@@ -376,13 +375,6 @@ describe('CopilotCLIChatSessionContentProvider (additional)', () => {
 
 		const item = await provider.toChatSessionItem(sessionItem);
 		expect(item.label).toBe('Test Session');
-	});
-
-	it('delegates updateInputStateAfterFolderSelection to option group builder', async () => {
-		const { provider } = createProvider();
-		const state = { groups: [] } as any;
-		// Should not throw
-		await provider.updateInputStateAfterFolderSelection(state, URI.file('/folder') as any);
 	});
 
 	it('does not call refreshSession when PR detection finds no update', async () => {

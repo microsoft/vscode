@@ -251,14 +251,19 @@ export const enum SessionLifecycle {
 }
 
 /**
- * Current session status.
+ * Bitset of summary-level session status flags.
+ *
+ * Use bitwise checks instead of equality for non-terminal activity. For example,
+ * `status & SessionStatus.InProgress` matches both ordinary in-progress turns
+ * and turns that are paused waiting for input.
  *
  * @category Session State
  */
 export const enum SessionStatus {
-	Idle = 'idle',
-	InProgress = 'in-progress',
-	Error = 'error',
+	Idle = 1,
+	Error = 1 << 1,
+	InProgress = 1 << 3,
+	InputNeeded = (1 << 3) | (1 << 4),
 }
 
 /**
@@ -287,6 +292,8 @@ export interface ISessionState {
 	steeringMessage?: IPendingMessage;
 	/** Messages to send automatically as new turns after the current turn finishes */
 	queuedMessages?: IPendingMessage[];
+	/** Requests for user input that are currently blocking or informing session progress */
+	inputRequests?: ISessionInputRequest[];
 	/**
 	 * Server-provided customizations active in this session.
 	 *
@@ -356,6 +363,231 @@ export interface ISessionSummary {
 	/** Files changed during this session with diff statistics */
 	diffs?: ISessionFileDiff[];
 }
+
+// ─── Session Input Types ────────────────────────────────────────────────────
+
+/**
+ * How a client completed an input request.
+ *
+ * @category Session Input Types
+ */
+export const enum SessionInputResponseKind {
+	Accept = 'accept',
+	Decline = 'decline',
+	Cancel = 'cancel',
+}
+
+/**
+ * Question/input control kind.
+ *
+ * @category Session Input Types
+ */
+export const enum SessionInputQuestionKind {
+	Text = 'text',
+	Number = 'number',
+	Integer = 'integer',
+	Boolean = 'boolean',
+	SingleSelect = 'single-select',
+	MultiSelect = 'multi-select',
+}
+
+/**
+ * A choice in a select-style question.
+ *
+ * @category Session Input Types
+ */
+export interface ISessionInputOption {
+	/** Stable option identifier; for MCP enum values this is the enum string */
+	id: string;
+	/** Display label */
+	label: string;
+	/** Optional secondary text */
+	description?: string;
+	/** Whether this option is the recommended/default choice */
+	recommended?: boolean;
+}
+
+interface ISessionInputQuestionBase {
+	/** Stable question identifier used as the key in `answers` */
+	id: string;
+	/** Short display title */
+	title?: string;
+	/** Prompt shown to the user */
+	message: string;
+	/** Whether the user must answer this question to accept the request */
+	required?: boolean;
+}
+
+/** Text question within a session input request. */
+export interface ISessionInputTextQuestion extends ISessionInputQuestionBase {
+	kind: SessionInputQuestionKind.Text;
+	/** Format hint for text questions, such as `email`, `uri`, `date`, or `date-time` */
+	format?: string;
+	/** Minimum string length */
+	min?: number;
+	/** Maximum string length */
+	max?: number;
+	/** Default text */
+	defaultValue?: string;
+}
+
+/** Numeric question within a session input request. */
+export interface ISessionInputNumberQuestion extends ISessionInputQuestionBase {
+	kind: SessionInputQuestionKind.Number | SessionInputQuestionKind.Integer;
+	/** Minimum value */
+	min?: number;
+	/** Maximum value */
+	max?: number;
+	/** Default numeric value */
+	defaultValue?: number;
+}
+
+/** Boolean question within a session input request. */
+export interface ISessionInputBooleanQuestion extends ISessionInputQuestionBase {
+	kind: SessionInputQuestionKind.Boolean;
+	/** Default boolean value */
+	defaultValue?: boolean;
+}
+
+/** Single-select question within a session input request. */
+export interface ISessionInputSingleSelectQuestion extends ISessionInputQuestionBase {
+	kind: SessionInputQuestionKind.SingleSelect;
+	/** Options the user may select from */
+	options: ISessionInputOption[];
+	/** Whether the user may enter text instead of selecting an option */
+	allowFreeformInput?: boolean;
+}
+
+/** Multi-select question within a session input request. */
+export interface ISessionInputMultiSelectQuestion extends ISessionInputQuestionBase {
+	kind: SessionInputQuestionKind.MultiSelect;
+	/** Options the user may select from */
+	options: ISessionInputOption[];
+	/** Whether the user may enter text in addition to selecting options */
+	allowFreeformInput?: boolean;
+	/** Minimum selected item count */
+	min?: number;
+	/** Maximum selected item count */
+	max?: number;
+}
+
+/**
+ * One question within a session input request.
+ *
+ * @category Session Input Types
+ */
+export type ISessionInputQuestion = ISessionInputTextQuestion
+	| ISessionInputNumberQuestion
+	| ISessionInputBooleanQuestion
+	| ISessionInputSingleSelectQuestion
+	| ISessionInputMultiSelectQuestion;
+
+/**
+ * A live request for user input.
+ *
+ * The server creates or replaces requests with `session/inputRequested`.
+ * Clients sync drafts with `session/inputAnswerChanged` and complete requests
+ * with `session/inputCompleted`.
+ *
+ * @category Session Input Types
+ */
+export interface ISessionInputRequest {
+	/** Stable request identifier */
+	id: string;
+	/** Display message for the request as a whole */
+	message: string;
+	/** URL the user should review or open, for URL-style elicitations */
+	url?: URI;
+	/** Ordered questions to ask the user */
+	questions?: ISessionInputQuestion[];
+	/** Current draft or submitted answers, keyed by question ID */
+	answers?: Record<string, ISessionInputAnswer>;
+}
+
+/**
+ * Answer value kind.
+ *
+ * @category Session Input Types
+ */
+export const enum SessionInputAnswerValueKind {
+	Text = 'text',
+	Number = 'number',
+	Boolean = 'boolean',
+	Selected = 'selected',
+	SelectedMany = 'selected-many',
+}
+
+/**
+ * Value captured for one answer.
+ *
+ * @category Session Input Types
+ */
+export interface ISessionInputTextAnswerValue {
+	kind: SessionInputAnswerValueKind.Text;
+	value: string;
+}
+
+export interface ISessionInputNumberAnswerValue {
+	kind: SessionInputAnswerValueKind.Number;
+	value: number;
+}
+
+export interface ISessionInputBooleanAnswerValue {
+	kind: SessionInputAnswerValueKind.Boolean;
+	value: boolean;
+}
+
+export interface ISessionInputSelectedAnswerValue {
+	kind: SessionInputAnswerValueKind.Selected;
+	value: string;
+	/** Free-form text entered instead of selecting an option */
+	freeformValues?: string[];
+}
+
+export interface ISessionInputSelectedManyAnswerValue {
+	kind: SessionInputAnswerValueKind.SelectedMany;
+	value: string[];
+	/** Free-form text entered in addition to selected options */
+	freeformValues?: string[];
+}
+
+export type ISessionInputAnswerValue = ISessionInputTextAnswerValue
+	| ISessionInputNumberAnswerValue
+	| ISessionInputBooleanAnswerValue
+	| ISessionInputSelectedAnswerValue
+	| ISessionInputSelectedManyAnswerValue;
+
+export interface ISessionInputAnswered {
+	/** Answer state */
+	state: SessionInputAnswerState.Draft | SessionInputAnswerState.Submitted;
+	/** Answer value */
+	value: ISessionInputAnswerValue;
+}
+
+export interface ISessionInputSkipped {
+	/** Answer state */
+	state: SessionInputAnswerState.Skipped;
+	/** Free-form reason or value captured while skipping, if any */
+	freeformValues?: string[];
+}
+
+/**
+ * Answer lifecycle state.
+ *
+ * @category Session Input Types
+ */
+export const enum SessionInputAnswerState {
+	Draft = 'draft',
+	Submitted = 'submitted',
+	Skipped = 'skipped',
+}
+
+/**
+ * Draft, submitted, or skipped answer for one question.
+ *
+ * @category Session Input Types
+ */
+export type ISessionInputAnswer = ISessionInputAnswered | ISessionInputSkipped;
 
 // ─── Turn Types ──────────────────────────────────────────────────────────────
 

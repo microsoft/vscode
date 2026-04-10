@@ -1211,6 +1211,7 @@ suite('ChatThinkingContentPart', () => {
 					partialInput: observableValue('partialInput', undefined),
 					streamingMessage: observableValue('streamingMessage', undefined),
 				}),
+				toolSpecificDataKind: observableValue('test', undefined),
 				toJSON: () => ({} as IChatToolInvocationSerialized),
 			} as IChatToolInvocation;
 		}
@@ -1234,6 +1235,7 @@ suite('ChatThinkingContentPart', () => {
 					parameters: {},
 					confirmationMessages: undefined,
 				}),
+				toolSpecificDataKind: observableValue('test', undefined),
 				toJSON: () => ({} as IChatToolInvocationSerialized),
 			} as IChatToolInvocation;
 		}

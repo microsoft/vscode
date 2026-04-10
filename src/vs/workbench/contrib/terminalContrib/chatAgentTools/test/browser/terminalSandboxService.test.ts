@@ -427,6 +427,36 @@ suite('TerminalSandboxService - network domains', () => {
 		strictEqual(jsonResult.blockedDomains, undefined, 'File extensions such as .json should not be reported as domains');
 	});
 
+	test('should ignore bare dotted values with unknown domain suffixes', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const commands = [
+			'echo test.invalidtld',
+			'echo test.org.invalidtld',
+			'echo session.completed',
+		];
+
+		for (const command of commands) {
+			const wrapResult = sandboxService.wrapCommand(command, false, 'bash');
+			strictEqual(wrapResult.isSandboxWrapped, true, `Command ${command} should remain sandboxed`);
+			strictEqual(wrapResult.blockedDomains, undefined, `Command ${command} should not report a blocked domain`);
+		}
+	});
+
+	test('should still detect bare hosts with well-known domain suffixes', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const testComResult = sandboxService.wrapCommand('curl test.com', false, 'bash');
+		strictEqual(testComResult.isSandboxWrapped, false, 'Well-known bare domain suffixes should trigger domain checks');
+		deepStrictEqual(testComResult.blockedDomains, ['test.com']);
+
+		const testOrgComResult = sandboxService.wrapCommand('curl test.org.com', false, 'bash');
+		strictEqual(testOrgComResult.isSandboxWrapped, false, 'Well-known bare domain suffixes should trigger domain checks for multi-label hosts');
+		deepStrictEqual(testOrgComResult.blockedDomains, ['test.org.com']);
+	});
+
 	test('should still treat URL authorities with file-like suffixes as domains', async () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
@@ -435,6 +465,16 @@ suite('TerminalSandboxService - network domains', () => {
 
 		strictEqual(wrapResult.isSandboxWrapped, false, 'URL authorities should still trigger blocked-domain prompts even when their suffix looks like a file extension');
 		deepStrictEqual(wrapResult.blockedDomains, ['example.zip']);
+	});
+
+	test('should still treat URL authorities with unknown suffixes as domains', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const wrapResult = sandboxService.wrapCommand('curl https://example.bar/path', false, 'bash');
+
+		strictEqual(wrapResult.isSandboxWrapped, false, 'URL authorities should not require a well-known bare-host suffix');
+		deepStrictEqual(wrapResult.blockedDomains, ['example.bar']);
 	});
 
 	test('should still treat ssh remotes with file-like suffixes as domains', async () => {

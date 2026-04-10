@@ -23,11 +23,18 @@ import { COPILOT_CLI_REASONING_EFFORT_PROPERTY, ICopilotCLIAgents, ICopilotCLIMo
 import { ICopilotCLISession } from '../copilotcli/node/copilotcliSession';
 import { ICopilotCLISessionService } from '../copilotcli/node/copilotcliSessionService';
 import { buildMcpServerMappings, McpServerMappings } from '../copilotcli/node/mcpHandler';
-import { BRANCH_OPTION_ID, ISOLATION_OPTION_ID, REPOSITORY_OPTION_ID } from './sessionOptionGroupBuilder';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 
 function isReasoningEffortFeatureEnabled(configurationService: IConfigurationService): boolean {
 	return configurationService.getConfig(ConfigKey.Advanced.CLIThinkingEffortEnabled);
+}
+
+export interface SessionInitOptions {
+	isolation?: IsolationMode;
+	branch?: string;
+	folder?: vscode.Uri;
+	newBranch?: Promise<string | undefined>;
+	stream: vscode.ChatResponseStream;
 }
 
 export interface ICopilotCLIChatSessionInitializer {
@@ -41,9 +48,8 @@ export interface ICopilotCLIChatSessionInitializer {
 	 */
 	getOrCreateSession(
 		request: vscode.ChatRequest,
-		chatSessionContext: vscode.ChatSessionContext,
-		stream: vscode.ChatResponseStream,
-		options: { branchName: Promise<string | undefined> },
+		chatResource: vscode.Uri,
+		options: SessionInitOptions,
 		disposables: DisposableStore,
 		token: vscode.CancellationToken
 	): Promise<{ session: IReference<ICopilotCLISession> | undefined; isNewSession: boolean; model: { model: string; reasoningEffort?: string } | undefined; agent: SweCustomAgent | undefined; trusted: boolean }>;
@@ -53,10 +59,8 @@ export interface ICopilotCLIChatSessionInitializer {
 	 * Used for both normal requests and delegation flows.
 	 */
 	initializeWorkingDirectory(
-		chatSessionContext: vscode.ChatSessionContext | undefined,
-		isolation: IsolationMode | undefined,
-		branchName: Promise<string | undefined> | undefined,
-		stream: vscode.ChatResponseStream,
+		chatResource: vscode.Uri | undefined,
+		options: SessionInitOptions,
 		toolInvocationToken: vscode.ChatParticipantToolToken,
 		token: vscode.CancellationToken
 	): Promise<{ workspaceInfo: IWorkspaceInfo; cancelled: boolean; trusted: boolean }>;
@@ -94,18 +98,17 @@ export class CopilotCLIChatSessionInitializer implements ICopilotCLIChatSessionI
 
 	async getOrCreateSession(
 		request: vscode.ChatRequest,
-		chatSessionContext: vscode.ChatSessionContext,
-		stream: vscode.ChatResponseStream,
-		options: { branchName: Promise<string | undefined> },
+		chatResource: vscode.Uri,
+		options: SessionInitOptions,
 		disposables: DisposableStore,
 		token: vscode.CancellationToken
 	): Promise<{ session: IReference<ICopilotCLISession> | undefined; isNewSession: boolean; model: { model: string; reasoningEffort?: string } | undefined; agent: SweCustomAgent | undefined; trusted: boolean }> {
-		const { resource } = chatSessionContext.chatSessionItem;
-		const sessionId = SessionIdForCLI.parse(resource);
+		const sessionId = SessionIdForCLI.parse(chatResource);
 		const isNewSession = this.sessionService.isNewSessionId(sessionId);
+		const { stream } = options;
 
 		const [{ workspaceInfo, cancelled, trusted }, model, agent] = await Promise.all([
-			this.initializeWorkingDirectory(chatSessionContext, undefined, options.branchName, stream, request.toolInvocationToken, token),
+			this.initializeWorkingDirectory(chatResource, options, request.toolInvocationToken, token),
 			this.resolveModel(request, token),
 			this.resolveAgent(request, token),
 		]);
@@ -144,46 +147,35 @@ export class CopilotCLIChatSessionInitializer implements ICopilotCLIChatSessionI
 	}
 
 	async initializeWorkingDirectory(
-		chatSessionContext: vscode.ChatSessionContext | undefined,
-		isolation: IsolationMode | undefined,
-		branchName: Promise<string | undefined> | undefined,
-		stream: vscode.ChatResponseStream,
+		chatResource: vscode.Uri | undefined,
+		options: SessionInitOptions,
 		toolInvocationToken: vscode.ChatParticipantToolToken,
 		token: vscode.CancellationToken
 	): Promise<{ workspaceInfo: IWorkspaceInfo; cancelled: boolean; trusted: boolean }> {
 		let folderInfo: FolderRepositoryInfo;
-		let folder: undefined | vscode.Uri = undefined;
+		const { stream } = options;
+		let folder: undefined | vscode.Uri = options?.folder;
 		const workspaceFolders = this.workspaceService.getWorkspaceFolders();
-		if (workspaceFolders.length === 1) {
+		if (workspaceFolders.length === 1 && !folder) {
 			folder = workspaceFolders[0];
 		}
-		if (chatSessionContext) {
-			const sessionId = SessionIdForCLI.parse(chatSessionContext.chatSessionItem.resource);
+		if (chatResource) {
+			const sessionId = SessionIdForCLI.parse(chatResource);
 			const isNewSession = this.sessionService.isNewSessionId(sessionId);
 
 			if (isNewSession) {
-				let isolation = IsolationMode.Workspace;
-				let branch: string | undefined = undefined;
-				for (const opt of (chatSessionContext.initialSessionOptions || [])) {
-					const value = typeof opt.value === 'string' ? opt.value : opt.value.id;
-					if (opt.optionId === REPOSITORY_OPTION_ID && value) {
-						folder = vscode.Uri.file(value);
-					} else if (opt.optionId === BRANCH_OPTION_ID && value) {
-						branch = value;
-					} else if (opt.optionId === ISOLATION_OPTION_ID && value) {
-						isolation = value as IsolationMode;
-					}
-				}
+				const isolation = options?.isolation ?? IsolationMode.Workspace;
+				const branch = options?.branch;
 
 				// Use FolderRepositoryManager to initialize folder/repository with worktree creation
-				folderInfo = await this.folderRepositoryManager.initializeFolderRepository(sessionId, { stream, toolInvocationToken, branch, isolation, folder, newBranch: branchName }, token);
+				folderInfo = await this.folderRepositoryManager.initializeFolderRepository(sessionId, { stream, toolInvocationToken, branch, isolation, folder, newBranch: options?.newBranch }, token);
 			} else {
 				// Existing session - use getFolderRepository for resolution with trust check
 				folderInfo = await this.folderRepositoryManager.getFolderRepository(sessionId, { promptForTrust: true, stream }, token);
 			}
 		} else {
 			// No chat session context (e.g., delegation) - initialize with active repository
-			folderInfo = await this.folderRepositoryManager.initializeFolderRepository(undefined, { stream, toolInvocationToken, isolation, folder }, token);
+			folderInfo = await this.folderRepositoryManager.initializeFolderRepository(undefined, { stream, toolInvocationToken, isolation: options?.isolation, folder }, token);
 		}
 
 		if (folderInfo.trusted === false || folderInfo.cancelled) {

@@ -26,6 +26,52 @@
 	flex-direction: column;
 }
 
+.ai-customization-management-editor .sidebar-header-row {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 6px 4px 4px;
+}
+
+.ai-customization-management-editor .sidebar-home-button {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 5px 8px;
+	border: 1px solid var(--vscode-dropdown-border, transparent);
+	border-radius: 4px;
+	background: var(--vscode-dropdown-background);
+	color: var(--vscode-dropdown-foreground);
+	cursor: pointer;
+	font-size: 12px;
+	font-weight: 600;
+	line-height: 18px;
+	font-family: inherit;
+}
+
+.ai-customization-management-editor .sidebar-home-button:hover {
+	border-color: var(--vscode-focusBorder);
+}
+
+.ai-customization-management-editor .sidebar-home-button:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.ai-customization-management-editor .sidebar-home-icon {
+	flex-shrink: 0;
+	font-size: 14px;
+	opacity: 0.85;
+}
+
+.ai-customization-management-editor .sidebar-home-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
 .ai-customization-management-editor .sidebar-sections-list {
 	flex: 1;
 	overflow: hidden;
@@ -173,8 +219,8 @@
 
 /* Harness dropdown in sidebar */
 .ai-customization-management-editor .sidebar-harness-dropdown {
-	flex-shrink: 0;
-	padding: 6px 4px 4px;
+	flex: 1;
+	min-width: 0;
 }
 
 .ai-customization-management-editor .harness-dropdown-button {
@@ -1096,169 +1142,4 @@
 	border-radius: 4px;
 }
 
-/* Welcome Page */
-.ai-customization-management-editor .welcome-content-container {
-	height: 100%;
-	overflow-y: auto;
-	padding: 24px;
-	box-sizing: border-box;
-}
-
-.ai-customization-management-editor .welcome-inner {
-	max-width: 800px;
-	margin: 0 auto;
-	padding-top: 16px;
-}
-
-.ai-customization-management-editor .welcome-heading {
-	font-size: 18px;
-	font-weight: 400;
-	letter-spacing: -0.01em;
-	margin: 0 0 6px;
-	color: var(--vscode-foreground);
-}
-
-.ai-customization-management-editor .welcome-subtitle {
-	font-size: 13px;
-	color: var(--vscode-descriptionForeground);
-	margin: 0 0 20px;
-	line-height: 1.6;
-}
-
-/* Getting Started banner */
-.ai-customization-management-editor .welcome-getting-started {
-	display: flex;
-	align-items: center;
-	gap: 12px;
-	width: 100%;
-	padding: 12px 16px;
-	margin-bottom: 20px;
-	border: 1px solid var(--vscode-button-background, #007acc);
-	border-radius: 6px;
-	background: color-mix(in srgb, var(--vscode-button-background, #007acc) 8%, transparent);
-	cursor: pointer;
-	transition: background-color 0.15s ease;
-	font-family: inherit;
-	font-size: inherit;
-	color: inherit;
-	text-align: left;
-	outline: none;
-}
-
-.ai-customization-management-editor .welcome-getting-started:hover {
-	background: color-mix(in srgb, var(--vscode-button-background, #007acc) 14%, transparent);
-}
-
-.ai-customization-management-editor .welcome-getting-started:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
-}
-
-.ai-customization-management-editor .welcome-getting-started-icon {
-	font-size: 20px;
-	color: var(--vscode-button-background);
-	flex-shrink: 0;
-}
-
-.ai-customization-management-editor .welcome-getting-started-text {
-	display: flex;
-	flex-direction: column;
-	gap: 2px;
-}
-
-.ai-customization-management-editor .welcome-getting-started-title {
-	font-size: 13px;
-	font-weight: 500;
-	color: var(--vscode-foreground);
-}
-
-.ai-customization-management-editor .welcome-getting-started-desc {
-	font-size: 12px;
-	color: var(--vscode-descriptionForeground);
-}
-
-.ai-customization-management-editor .welcome-getting-started-chevron {
-	margin-left: auto;
-	font-size: 16px;
-	color: var(--vscode-descriptionForeground);
-	flex-shrink: 0;
-}
-
-.ai-customization-management-editor .welcome-cards {
-	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-	gap: 10px;
-}
-
-.ai-customization-management-editor .welcome-card {
-	display: flex;
-	flex-direction: column;
-	padding: 16px;
-	border: 1px solid var(--vscode-widget-border);
-	border-radius: 6px;
-	background: var(--vscode-sideBar-background);
-	cursor: pointer;
-	transition: background-color 0.15s ease, border-color 0.15s ease;
-}
-
-.ai-customization-management-editor .welcome-card:hover {
-	border-color: var(--vscode-focusBorder);
-	background: var(--vscode-list-hoverBackground);
-}
-
-.ai-customization-management-editor .welcome-card:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
-}
-
-.ai-customization-management-editor .welcome-card-header {
-	display: flex;
-	align-items: center;
-	gap: 8px;
-	margin-bottom: 8px;
-}
-
-.ai-customization-management-editor .welcome-card-icon {
-	font-size: 16px;
-	color: var(--vscode-icon-foreground);
-}
-
-.ai-customization-management-editor .welcome-card-label {
-	font-size: 13px;
-	font-weight: 500;
-	color: var(--vscode-foreground);
-}
-
-.ai-customization-management-editor .welcome-card-description {
-	font-size: 12px;
-	color: var(--vscode-descriptionForeground);
-	line-height: 1.5;
-	margin: 0 0 12px;
-	flex: 1;
-}
-
-.ai-customization-management-editor .welcome-card-footer {
-	display: flex;
-	align-items: center;
-	gap: 4px;
-}
-
-.ai-customization-management-editor .welcome-card-browse,
-.ai-customization-management-editor .welcome-card-generate {
-	font-size: 11px;
-	color: var(--vscode-foreground);
-	text-decoration: none;
-	cursor: pointer;
-	display: flex;
-	align-items: center;
-	gap: 4px;
-	padding: 3px 8px;
-	border-radius: 4px;
-	background: var(--vscode-button-secondaryBackground);
-	border: none;
-}
-
-.ai-customization-management-editor .welcome-card-browse:hover,
-.ai-customization-management-editor .welcome-card-generate:hover {
-	background: var(--vscode-button-secondaryHoverBackground);
-}
+/* Welcome page styles live in the welcome page variant stylesheets. */

@@ -798,7 +798,7 @@ function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, la
 	markdown.appendMarkdown(`**${model.metadata.name}**`);
 	markdown.appendText(`\n`);
 
-	if (model.metadata.statusIcon && model.metadata.tooltip) {
+	if (model.metadata.tooltip) {
 		if (model.metadata.statusIcon) {
 			markdown.appendMarkdown(`$(${model.metadata.statusIcon.id})&nbsp;`);
 		}

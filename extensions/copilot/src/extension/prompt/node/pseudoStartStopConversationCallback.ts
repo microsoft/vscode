@@ -32,6 +32,10 @@ export class PseudoStopStartResponseProcessor implements IResponseProcessor {
 	private nonReportedDeltas: IResponseDelta[] = [];
 	private thinkingActive: boolean = false;
 
+	private static readonly _toolStreamThrottleMs = 100;
+	private readonly _lastToolStreamUpdate = new Map<string, number>();
+	private readonly _pendingToolStreamUpdates = new Map<string, { id: string; arguments: string | undefined }>();
+
 	constructor(
 		private readonly stopStartMappings: readonly StartStopMapping[],
 		private readonly processNonReportedDelta: ((deltas: IResponseDelta[]) => string[]) | undefined,
@@ -43,12 +47,32 @@ export class PseudoStopStartResponseProcessor implements IResponseProcessor {
 	}
 
 	async doProcessResponse(responseStream: AsyncIterable<IResponsePart>, progress: ChatResponseStream, token: CancellationToken): Promise<void> {
-		for await (const { delta } of responseStream) {
-			if (token.isCancellationRequested) {
-				return;
+		try {
+			for await (const { delta } of responseStream) {
+				if (token.isCancellationRequested) {
+					return;
+				}
+				this.applyDelta(delta, progress);
 			}
-			this.applyDelta(delta, progress);
+		} finally {
+			if (token.isCancellationRequested) {
+				this._clearPendingToolStreamUpdates();
+			} else {
+				this._flushPendingToolStreamUpdates(progress);
+			}
 		}
+	}
+
+	private _clearPendingToolStreamUpdates(): void {
+		this._pendingToolStreamUpdates.clear();
+		this._lastToolStreamUpdate.clear();
+	}
+
+	private _flushPendingToolStreamUpdates(progress: ChatResponseStream): void {
+		for (const update of this._pendingToolStreamUpdates.values()) {
+			progress.updateToolInvocation(update.id, { partialInput: tryParsePartialToolInput(update.arguments) });
+		}
+		this._clearPendingToolStreamUpdates();
 	}
 
 	protected applyDeltaToProgress(delta: IResponseDelta, progress: ChatResponseStream) {
@@ -79,11 +103,20 @@ export class PseudoStopStartResponseProcessor implements IResponseProcessor {
 		}
 
 		if (delta.copilotToolCallStreamUpdates?.length) {
+			const now = Date.now();
 			for (const update of delta.copilotToolCallStreamUpdates) {
 				if (!update.name) {
 					continue;
 				}
-				progress.updateToolInvocation(update.id ?? '', { partialInput: tryParsePartialToolInput(update.arguments) });
+				const toolId = update.id ?? '';
+				const lastUpdate = this._lastToolStreamUpdate.get(toolId) ?? 0;
+				if (now - lastUpdate >= PseudoStopStartResponseProcessor._toolStreamThrottleMs) {
+					this._lastToolStreamUpdate.set(toolId, now);
+					this._pendingToolStreamUpdates.delete(toolId);
+					progress.updateToolInvocation(toolId, { partialInput: tryParsePartialToolInput(update.arguments) });
+				} else {
+					this._pendingToolStreamUpdates.set(toolId, { id: toolId, arguments: update.arguments });
+				}
 			}
 		}
 	}
@@ -176,6 +209,7 @@ export class PseudoStopStartResponseProcessor implements IResponseProcessor {
 			this.currentStartStop = undefined;
 			this.nonReportedDeltas = [];
 			this.thinkingActive = false;
+			this._clearPendingToolStreamUpdates();
 			if (delta.retryReason === 'network_error' || delta.retryReason === 'server_error') {
 				progress.clearToPreviousToolInvocation(ChatResponseClearToPreviousToolInvocationReason.NoReason);
 			} else if (delta.retryReason === FilterReason.Copyright) {

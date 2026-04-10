@@ -48,7 +48,7 @@ import { ChatSessionStore, IChatSessionEntryMetadata } from '../model/chatSessio
 import { IChatSlashCommandService } from '../participants/chatSlashCommands.js';
 import { IChatTransferService } from '../model/chatTransferService.js';
 import { chatSessionResourceToId, getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../model/chatUri.js';
-import { ChatRequestVariableSet, IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
+import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptTextVariableEntry } from '../attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from '../constants.js';
 import { ChatMessageRole, IChatMessage, ILanguageModelsService } from '../languageModels.js';
 import { ILanguageModelToolsService } from '../tools/languageModelToolsService.js';
@@ -1171,8 +1171,17 @@ export class ChatService extends Disposable implements IChatService {
 					if (instructionEntries.length > 0) {
 						allContext.push(...instructionEntries);
 					}
+
+					// Store only non-instruction variables on the model.
+					// Automatically-added promptText entries (~33 KB each) are
+					// ephemeral — re-collected every turn, never rendered in
+					// the UI, and not needed in serialized session history.
+					const storedVariables = allContext.filter(v => !(isPromptTextVariableEntry(v) && v.automaticallyAdded));
+					model.updateRequest(request, { variables: storedVariables });
+
+					// The full set (including instructions) is passed to the
+					// agent request only — not stored on the request model.
 					let variableData: IChatRequestVariableData = { variables: allContext };
-					model.updateRequest(request, variableData);
 
 					// Merge resolved variables (e.g. images from directories) for the
 					// agent request only - they are not stored on the request model.

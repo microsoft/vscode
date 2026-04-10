@@ -441,6 +441,7 @@ export class ClaudeChatSessionItemController extends Disposable {
 				permissionMode,
 				cwd: folder,
 			};
+			this._controller.items.add(item);
 			return item;
 		};
 

@@ -177,7 +177,7 @@ div.chat-terminal-content-part.progress-step > div.chat-terminal-output-containe
 	background: inherit;
 }
 .chat-terminal-output-body {
-	padding: 5px 0px 1px;
+	padding: 5px 0px 3px;
 	max-width: 100%;
 	box-sizing: border-box;
 	min-height: 0;

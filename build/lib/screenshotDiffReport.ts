@@ -16,7 +16,6 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const COMMENT_MARKER = '<!-- screenshot-diff-report -->';
 const EXPAND_FIRST_N = 5;
 const EXCLUDED_LABELS = new Set(['animated', 'flaky']);
-const SCREENSHOT_LABEL = '.screenshot';
 
 interface CompareEntry {
 	readonly fixtureId: string;
@@ -42,10 +41,7 @@ interface CompareResult {
 }
 
 function shouldIncludeInReport(labels: readonly string[] | undefined): boolean {
-	if (!labels?.includes(SCREENSHOT_LABEL)) {
-		return false;
-	}
-	return !labels.some(l => EXCLUDED_LABELS.has(l));
+	return !labels?.some(l => EXCLUDED_LABELS.has(l));
 }
 
 function generateMarkdown(result: CompareResult, baseSha: string, currentSha: string): string {
@@ -149,9 +145,13 @@ async function main(): Promise<void> {
 	}
 
 	const result = await fetchCompare(serviceUrl, owner, repo, baseSha, currentSha);
+
+	console.error(`Compare result: ${result.changed.length} changed, ${result.added.length} added, ${result.removed.length} removed, ${result.unchanged.length} unchanged`);
+
 	const markdown = generateMarkdown(result, baseSha, currentSha);
 
 	if (!markdown) {
+		console.error('No reportable changes (all entries may be excluded by labels).');
 		process.exit(0);
 	}
 

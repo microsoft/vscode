@@ -382,6 +382,7 @@ export interface IExtensionInfo extends IExtensionIdentifier {
 	version?: string;
 	preRelease?: boolean;
 	hasPreRelease?: boolean;
+	currentVersion?: string;
 }
 
 export interface IExtensionQueryOptions {

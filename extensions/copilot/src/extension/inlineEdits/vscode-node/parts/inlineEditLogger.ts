@@ -9,7 +9,6 @@ import { Disposable } from '../../../../util/vs/base/common/lifecycle';
 
 export class InlineEditLogger extends Disposable {
 	private readonly _requests: InlineEditRequestLogContext[] = [];
-	private readonly _liveRequestIds = new Set<number>();
 
 	constructor(
 		@IRequestLogger private readonly _requestLogger: IRequestLogger,
@@ -23,7 +22,6 @@ export class InlineEditLogger extends Disposable {
 	 * refreshes automatically as the logContext state changes.
 	 */
 	addLive(request: InlineEditRequestLogContext): void {
-		this._liveRequestIds.add(request.requestId);
 		this._requestLogger.addEntry({
 			type: LoggedRequestKind.MarkdownContentRequest,
 			debugName: request.getDebugName(),
@@ -36,32 +34,10 @@ export class InlineEditLogger extends Disposable {
 		this._pushRequest(request);
 	}
 
-	add(request: InlineEditRequestLogContext): void {
-		if (this._liveRequestIds.has(request.requestId)) {
-			return; // already added as a live entry
-		}
-
-		if (!request.includeInLogTree) {
-			return;
-		}
-
-		this._requestLogger.addEntry({
-			type: LoggedRequestKind.MarkdownContentRequest,
-			debugName: request.getDebugName(),
-			icon: request.getIcon(),
-			startTimeMs: request.time,
-			markdownContent: request.toLogDocument(),
-		});
-		this._pushRequest(request);
-	}
-
 	private _pushRequest(request: InlineEditRequestLogContext): void {
 		this._requests.push(request);
 		if (this._requests.length > 100) {
-			const evicted = this._requests.shift();
-			if (evicted) {
-				this._liveRequestIds.delete(evicted.requestId);
-			}
+			this._requests.shift();
 		}
 	}
 

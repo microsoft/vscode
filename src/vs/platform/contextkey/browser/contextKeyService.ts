@@ -529,9 +529,9 @@ class ScopedContextKeyService extends AbstractContextKeyService {
 	}
 
 	public disposeContext(contextId: number): void {
-		if (this._isDisposed) {
-			return;
-		}
+		// Always forward to parent even after disposal — a child context may
+		// be disposed after us and must still reach the root ContextKeyService
+		// to delete its entry from _contexts.
 		this._parent.disposeContext(contextId);
 	}
 

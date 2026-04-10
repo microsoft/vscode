@@ -141,14 +141,8 @@ function makeStream(): vscode.ChatResponseStream {
 	} as unknown as vscode.ChatResponseStream;
 }
 
-function makeChatSessionContext(sessionId: string = 'untitled:new-session', initialOptions?: { optionId: string; value: string }[]): vscode.ChatSessionContext {
-	return {
-		chatSessionItem: {
-			resource: URI.from({ scheme: 'copilotcli', path: `/${sessionId}` }) as unknown as vscode.Uri,
-			label: 'Test',
-		},
-		initialSessionOptions: initialOptions ?? [],
-	} as unknown as vscode.ChatSessionContext;
+function makeChatResource(sessionId: string = 'untitled:new-session'): vscode.Uri {
+	return URI.from({ scheme: 'copilotcli', path: `/${sessionId}` }) as unknown as vscode.Uri;
 }
 
 function createInitializer(overrides?: {
@@ -326,10 +320,9 @@ describe('ChatSessionInitializer', () => {
 			const sessionService = new TestSessionService();
 			sessionService.isNewSessionId.mockReturnValue(true);
 			const { initializer, folderRepoManager } = createInitializer({ sessionService });
-			const context = makeChatSessionContext('untitled:new');
 
 			const result = await initializer.initializeWorkingDirectory(
-				context, undefined, undefined, makeStream(),
+				makeChatResource('untitled:new'), { stream: makeStream() },
 				{} as vscode.ChatParticipantToolToken, CancellationToken.None
 			);
 
@@ -343,10 +336,9 @@ describe('ChatSessionInitializer', () => {
 			const sessionService = new TestSessionService();
 			sessionService.isNewSessionId.mockReturnValue(false);
 			const { initializer, folderRepoManager } = createInitializer({ sessionService });
-			const context = makeChatSessionContext('existing-session');
 
 			const result = await initializer.initializeWorkingDirectory(
-				context, undefined, undefined, makeStream(),
+				makeChatResource('existing-session'), { stream: makeStream() },
 				{} as vscode.ChatParticipantToolToken, CancellationToken.None
 			);
 
@@ -358,7 +350,7 @@ describe('ChatSessionInitializer', () => {
 			const { initializer, folderRepoManager } = createInitializer();
 
 			const result = await initializer.initializeWorkingDirectory(
-				undefined, undefined, undefined, makeStream(),
+				undefined, { stream: makeStream() },
 				{} as vscode.ChatParticipantToolToken, CancellationToken.None
 			);
 
@@ -381,7 +373,7 @@ describe('ChatSessionInitializer', () => {
 			const { initializer } = createInitializer({ folderRepoManager });
 
 			const result = await initializer.initializeWorkingDirectory(
-				undefined, undefined, undefined, makeStream(),
+				undefined, { stream: makeStream() },
 				{} as vscode.ChatParticipantToolToken, CancellationToken.None
 			);
 
@@ -403,7 +395,7 @@ describe('ChatSessionInitializer', () => {
 			const { initializer } = createInitializer({ folderRepoManager });
 
 			const result = await initializer.initializeWorkingDirectory(
-				undefined, undefined, undefined, makeStream(),
+				undefined, { stream: makeStream() },
 				{} as vscode.ChatParticipantToolToken, CancellationToken.None
 			);
 
@@ -416,15 +408,14 @@ describe('ChatSessionInitializer', () => {
 			sessionService.isNewSessionId.mockReturnValue(true);
 			const { initializer, folderRepoManager } = createInitializer({ sessionService });
 
-			const options = [
-				{ optionId: 'repository', value: '/selected-repo' },
-				{ optionId: 'branch', value: 'feature-branch' },
-				{ optionId: 'isolation', value: IsolationMode.Worktree },
-			];
-			const context = makeChatSessionContext('untitled:new', options);
-
 			await initializer.initializeWorkingDirectory(
-				context, undefined, undefined, makeStream(),
+				makeChatResource('untitled:new'),
+				{
+					folder: URI.file('/selected-repo') as unknown as vscode.Uri,
+					branch: 'feature-branch',
+					isolation: IsolationMode.Worktree,
+					stream: makeStream(),
+				},
 				{} as vscode.ChatParticipantToolToken, CancellationToken.None
 			);
 
@@ -447,8 +438,7 @@ describe('ChatSessionInitializer', () => {
 			const stream = makeStream();
 
 			const result = await initializer.getOrCreateSession(
-				makeRequest(), makeChatSessionContext(), stream,
-				{ branchName: Promise.resolve(undefined) },
+				makeRequest(), makeChatResource(), { stream },
 				disposables, CancellationToken.None
 			);
 
@@ -468,8 +458,7 @@ describe('ChatSessionInitializer', () => {
 			const disposables = new DisposableStore();
 
 			const result = await initializer.getOrCreateSession(
-				makeRequest(), makeChatSessionContext('existing-session'), makeStream(),
-				{ branchName: Promise.resolve(undefined) },
+				makeRequest(), makeChatResource('existing-session'), { stream: makeStream() },
 				disposables, CancellationToken.None
 			);
 
@@ -491,8 +480,7 @@ describe('ChatSessionInitializer', () => {
 			const disposables = new DisposableStore();
 
 			const result = await initializer.getOrCreateSession(
-				makeRequest(), makeChatSessionContext(), makeStream(),
-				{ branchName: Promise.resolve(undefined) },
+				makeRequest(), makeChatResource(), { stream: makeStream() },
 				disposables, CancellationToken.None
 			);
 
@@ -510,8 +498,7 @@ describe('ChatSessionInitializer', () => {
 			const stream = makeStream();
 
 			const result = await initializer.getOrCreateSession(
-				makeRequest(), makeChatSessionContext('missing'), stream,
-				{ branchName: Promise.resolve(undefined) },
+				makeRequest(), makeChatResource('missing'), { stream },
 				disposables, CancellationToken.None
 			);
 
@@ -543,8 +530,7 @@ describe('ChatSessionInitializer', () => {
 			const disposables = new DisposableStore();
 
 			await initializer.getOrCreateSession(
-				makeRequest(), makeChatSessionContext(), makeStream(),
-				{ branchName: Promise.resolve(undefined) },
+				makeRequest(), makeChatResource(), { stream: makeStream() },
 				disposables, CancellationToken.None
 			);
 
@@ -562,8 +548,7 @@ describe('ChatSessionInitializer', () => {
 			const disposables = new DisposableStore();
 
 			await initializer.getOrCreateSession(
-				makeRequest(), makeChatSessionContext(), makeStream(),
-				{ branchName: Promise.resolve(undefined) },
+				makeRequest(), makeChatResource(), { stream: makeStream() },
 				disposables, CancellationToken.None
 			);
 
@@ -576,8 +561,7 @@ describe('ChatSessionInitializer', () => {
 			const disposables = new DisposableStore();
 
 			await initializer.getOrCreateSession(
-				makeRequest(), makeChatSessionContext(), makeStream(),
-				{ branchName: Promise.resolve(undefined) },
+				makeRequest(), makeChatResource(), { stream: makeStream() },
 				disposables, CancellationToken.None
 			);
 

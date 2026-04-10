@@ -174,7 +174,7 @@ jobs:
           node-version-file: extensions/copilot/.nvmrc
 
       - name: Restore build cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         id: build-cache
         with:
           key: copilot-build_cache-${{ hashFiles('extensions/copilot/build/.cachesalt', 'extensions/copilot/package-lock.json') }}
@@ -258,7 +258,7 @@ jobs:
           sudo apt-get install -y xvfb libgtk-3-0 libgbm1
 
       - name: Restore build cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         id: build-cache
         with:
           key: copilot-build_cache-${{ hashFiles('extensions/copilot/build/.cachesalt', 'extensions/copilot/package-lock.json') }}
@@ -330,7 +330,7 @@ jobs:
 
       - name: Upload simulation output
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: copilot-simulation-output-linux-${{ github.run_attempt }}
           path: extensions/copilot/.simulation-archive/simulation.tgz
@@ -366,7 +366,7 @@ jobs:
         run: pip install setuptools
 
       - name: Restore build cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         id: build-cache
         with:
           key: copilot-windows-build_cache-${{ hashFiles('extensions/copilot/build/.cachesalt', 'extensions/copilot/package-lock.json') }}

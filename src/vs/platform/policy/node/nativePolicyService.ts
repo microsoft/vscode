@@ -29,6 +29,7 @@ export class NativePolicyService extends AbstractPolicyService implements IPolic
 
 		await this.throttler.queue(() => new Promise<void>((c, e) => {
 			try {
+				this.logService.trace(`Creating watcher for productName ${this.productName}`);
 				this.watcher.value = createWatcher(this.productName, policyDefinitions, update => {
 					this._onDidPolicyChange(update);
 					c();

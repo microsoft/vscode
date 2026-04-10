@@ -85,12 +85,20 @@ export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 			return;
 		}
 
+		const scheme = productService.quality === 'stable'
+			? 'vscode'
+			: productService.quality === 'exploration'
+				? 'vscode-exploration'
+				: productService.quality === 'insider'
+					? 'vscode-insiders'
+					: productService.urlProtocol;
+
 		const params = new URLSearchParams();
 		params.set('windowId', '_blank');
 		params.set('session', activeSession.resource.toString());
 
 		await openerService.open(URI.from({
-			scheme: productService.urlProtocol,
+			scheme,
 			authority: Schemas.file,
 			path: folderUri.path,
 			query: params.toString(),

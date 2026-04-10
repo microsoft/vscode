@@ -293,7 +293,7 @@
 .sessions-walkthrough-logo {
 	width: 112px;
 	height: 112px;
-	background-image: url('./sessions-logo-light.svg');
+	background-image: url('../../../../browser/media/sessions-logo-light.svg');
 	background-size: contain;
 	background-repeat: no-repeat;
 	background-position: center;
@@ -303,7 +303,7 @@
 
 .vs .sessions-walkthrough-logo,
 .hc-light .sessions-walkthrough-logo {
-	background-image: url('./sessions-logo-dark.svg');
+	background-image: url('../../../../browser/media/sessions-logo-dark.svg');
 }
 
 /* ---- Action area (used inside content for sign-in step spinner) ---- */

@@ -1,0 +1,73 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.sessions-policy-blocked-overlay {
+	position: absolute;
+	inset: 0;
+	z-index: 200;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	background: var(--vscode-editor-background);
+}
+
+/* Hide titlebar actions while policy-blocked */
+.monaco-workbench:has(.sessions-policy-blocked-overlay) .part.titlebar .titlebar-right {
+	visibility: hidden;
+}
+
+.sessions-policy-blocked-card {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	text-align: center;
+	gap: 12px;
+	max-width: 420px;
+	padding: 32px;
+}
+
+.sessions-policy-blocked-card .sessions-policy-blocked-logo {
+	width: 64px;
+	height: 64px;
+	background-image: url('../../../../browser/media/sessions-logo-light.svg');
+	background-size: contain;
+	background-repeat: no-repeat;
+	background-position: center;
+	opacity: 0.4;
+}
+
+.vs .sessions-policy-blocked-card .sessions-policy-blocked-logo,
+.hc-light .sessions-policy-blocked-card .sessions-policy-blocked-logo {
+	background-image: url('../../../../browser/media/sessions-logo-dark.svg');
+}
+
+.sessions-policy-blocked-card h2 {
+	margin: 0;
+	font-size: 22px;
+	font-weight: 600;
+	color: var(--vscode-foreground);
+}
+
+.sessions-policy-blocked-card p {
+	margin: 0;
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+	line-height: 1.5;
+}
+
+.sessions-policy-blocked-card .sessions-policy-blocked-link {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+	text-decoration: none;
+}
+
+.sessions-policy-blocked-card .sessions-policy-blocked-link:hover {
+	text-decoration: underline;
+}
+
+.sessions-policy-blocked-card .monaco-button {
+	margin-top: 4px;
+	width: auto;
+}

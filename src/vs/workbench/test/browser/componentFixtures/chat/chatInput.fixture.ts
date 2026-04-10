@@ -30,8 +30,9 @@ import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSes
 import { IChatAttachmentResolveService } from '../../../../contrib/chat/browser/attachments/chatAttachmentResolveService.js';
 import { IChatAttachmentWidgetRegistry } from '../../../../contrib/chat/browser/attachments/chatAttachmentWidgetRegistry.js';
 import { IChatContextService } from '../../../../contrib/chat/browser/contextContrib/chatContextService.js';
+import { IChatImageCarouselService } from '../../../../contrib/chat/browser/chatImageCarouselService.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../../../../contrib/chat/browser/widget/input/chatInputPart.js';
-import { IChatArtifacts, IChatArtifactsService } from '../../../../contrib/chat/common/tools/chatArtifactsService.js';
+import { IArtifactSourceGroup, IChatArtifacts, IChatArtifactsService } from '../../../../contrib/chat/common/tools/chatArtifactsService.js';
 import { ChatEditingSessionState, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../../contrib/chat/common/editing/chatEditingService.js';
 import { IChatRequestDisablement } from '../../../../contrib/chat/common/model/chatModel.js';
 import { IChatTodo, IChatTodoListService } from '../../../../contrib/chat/common/tools/chatTodoListService.js';
@@ -100,13 +101,14 @@ interface ChatInputFixtureOptions {
 async function renderChatInput(context: ComponentFixtureContext, fixtureOptions: ChatInputFixtureOptions = {}): Promise<void> {
 	const { container, disposableStore } = context;
 	const { artifacts = [], editingSession, todos = [] } = fixtureOptions;
-	const artifactsObs = observableValue<readonly typeof artifacts[number][]>('artifacts', artifacts);
+	const artifactGroups: IArtifactSourceGroup[] = artifacts.length > 0 ? [{ source: { kind: 'agent' as const }, artifacts }] : [];
+	const artifactsObs = observableValue<readonly IArtifactSourceGroup[]>('artifactGroups', artifactGroups);
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: context.theme,
 		additionalServices: (reg) => {
-			reg.define(IMenuService, FixtureMenuService);
 			registerWorkbenchServices(reg);
+			reg.define(IMenuService, FixtureMenuService);
 			reg.defineInstance(IDecorationsService, new class extends mock<IDecorationsService>() { override onDidChangeDecorations = Event.None; }());
 			reg.defineInstance(ITextFileService, new class extends mock<ITextFileService>() { override readonly untitled = new class extends mock<ITextFileService['untitled']>() { override readonly onDidChangeLabel = Event.None; }(); }());
 			reg.defineInstance(ILanguageModelsService, new class extends mock<ILanguageModelsService>() { override onDidChangeLanguageModels = Event.None; override getLanguageModelIds() { return []; } }());
@@ -142,16 +144,16 @@ async function renderChatInput(context: ComponentFixtureContext, fixtureOptions:
 			reg.defineInstance(IActionWidgetService, new class extends mock<IActionWidgetService>() { override show() { } override hide() { } override get isVisible() { return false; } }());
 			reg.defineInstance(IFileDialogService, new class extends mock<IFileDialogService>() { }());
 			reg.defineInstance(IProductService, new class extends mock<IProductService>() { }());
+			reg.defineInstance(IChatImageCarouselService, new class extends mock<IChatImageCarouselService>() { }());
 			reg.defineInstance(IUpdateService, new class extends mock<IUpdateService>() { override onStateChange = Event.None; override get state() { return { type: StateType.Uninitialized as const }; } }());
 			reg.defineInstance(IUriIdentityService, new class extends mock<IUriIdentityService>() { }());
 			reg.defineInstance(IChatArtifactsService, new class extends mock<IChatArtifactsService>() {
 				override getArtifacts(): IChatArtifacts {
-					const mutableObs = observableValue<boolean>('mutable', true);
 					return new class extends mock<IChatArtifacts>() {
-						override readonly artifacts = artifactsObs;
-						override readonly mutable = mutableObs;
-						override set() { }
-						override clear() { }
+						override readonly artifactGroups = artifactsObs;
+						override setAgentArtifacts() { }
+						override clearAgentArtifacts() { }
+						override clearSubagentArtifacts() { }
 						override migrate() { }
 					}();
 				}

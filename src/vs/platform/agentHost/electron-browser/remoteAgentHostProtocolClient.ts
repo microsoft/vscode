@@ -144,6 +144,10 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		return this._subscriptionManager.getSubscription<T>(kind, resource);
 	}
 
+	getSubscriptionUnmanaged<T>(_kind: StateComponents, resource: URI): IAgentSubscription<T> | undefined {
+		return this._subscriptionManager.getSubscriptionUnmanaged<T>(resource);
+	}
+
 	dispatch(action: ISessionAction | ITerminalAction): void {
 		const seq = this._subscriptionManager.dispatchOptimistic(action);
 		this.dispatchAction(action, this._clientId, seq);
@@ -232,6 +236,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			startTime: s.createdAt,
 			modifiedTime: s.modifiedAt,
 			summary: s.title,
+			status: s.status,
 			workingDirectory: typeof s.workingDirectory === 'string' ? toAgentHostUri(URI.parse(s.workingDirectory), this._connectionAuthority) : undefined,
 			isRead: s.isRead,
 			isDone: s.isDone,

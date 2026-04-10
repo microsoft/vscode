@@ -209,10 +209,13 @@ class CodeMain {
 
 		// Policy
 		let policyService: IPolicyService | undefined;
-		if (isWindows && productService.win32RegValueName) {
-			policyService = disposables.add(new NativePolicyService(logService, productService.win32RegValueName));
-		} else if (isMacintosh && productService.darwinBundleIdentifier) {
-			policyService = disposables.add(new NativePolicyService(logService, productService.darwinBundleIdentifier));
+		const policyProductName = isWindows
+			? (productService.parentPolicyConfig?.win32RegValueName ?? productService.win32RegValueName)
+			: (productService.parentPolicyConfig?.darwinBundleIdentifier ?? productService.darwinBundleIdentifier);
+		if (isWindows && policyProductName) {
+			policyService = disposables.add(new NativePolicyService(logService, policyProductName));
+		} else if (isMacintosh && policyProductName) {
+			policyService = disposables.add(new NativePolicyService(logService, policyProductName));
 		} else if (isLinux) {
 			policyService = disposables.add(new FilePolicyService(URI.file(LINUX_SYSTEM_POLICY_FILE_PATH), fileService, logService));
 		} else if (environmentMainService.policyFile) {

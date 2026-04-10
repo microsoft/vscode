@@ -80,7 +80,7 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 	 * Get the endpoint to use for the execution subagent
 	 */
 	private async getEndpoint() {
-		const modelName = this._configurationService.getConfig(ConfigKey.Advanced.ExecutionSubagentModel) as ChatEndpointFamily;
+		const modelName = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentModel, this._experimentationService) as ChatEndpointFamily;
 		if (modelName) {
 			try {
 				let endpoint = await this.endpointProvider.getChatEndpoint(modelName);

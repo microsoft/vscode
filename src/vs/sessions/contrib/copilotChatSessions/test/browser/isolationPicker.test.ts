@@ -13,6 +13,7 @@ import { IActionListItem } from '../../../../../platform/actionWidget/browser/ac
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { GitRefType } from '../../../../../workbench/contrib/git/common/gitService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { IsolationMode, IsolationPicker } from '../../browser/isolationPicker.js';
@@ -40,9 +41,17 @@ function createPicker(
 		loading: observableValue('loading', false),
 	} as unknown as IActiveSession;
 	const isolationMode = observableValue<IsolationMode | undefined>('isolationMode', mode);
+	const gitState = observableValue('gitState', {
+		HEAD: { type: GitRefType.Head, name: 'main', commit: 'abc123' },
+		remotes: [],
+		mergeChanges: [],
+		indexChanges: [],
+		workingTreeChanges: [],
+		untrackedChanges: [],
+	});
 	const provider = {
 		getSession: () => ({
-			gitRepository: {},
+			gitRepository: { state: gitState },
 			isolationMode,
 		}),
 	};

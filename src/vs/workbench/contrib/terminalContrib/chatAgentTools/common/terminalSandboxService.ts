@@ -142,6 +142,11 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		'py', 'rar', 'rs', 'so', 'sql', 'svg', 'tar', 'tgz', 'toml', 'ts', 'tsx', 'txt', 'wasm', 'webp',
 		'xml', 'yaml', 'yml', 'zip'
 	]);
+	// Bare host detection is a heuristic used only to prompt before running commands that appear to access the network.
+	// Keep this list intentionally conservative and focused on TLDs commonly used for coding-related hosts and services.
+	private static readonly _wellKnownDomainSuffixes = new Set([
+		'ai', 'cloud', 'com', 'dev', 'io', 'me', 'net', 'org', 'tech'
+	]);
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
@@ -579,6 +584,9 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 		if (!fromUrl) {
 			const lastLabel = host.slice(host.lastIndexOf('.') + 1);
 			if (TerminalSandboxService._fileExtensionSuffixes.has(lastLabel)) {
+				return undefined;
+			}
+			if (!TerminalSandboxService._wellKnownDomainSuffixes.has(lastLabel)) {
 				return undefined;
 			}
 		}

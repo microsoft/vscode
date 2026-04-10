@@ -9,7 +9,7 @@ import * as fs from 'node:fs';
 import sql from 'node:sqlite';
 import { toErrorMessage } from '../../../../util/common/errorMessage';
 import { Result } from '../../../../util/common/result';
-import { CallTracker } from '../../../../util/common/telemetryCorrelationId';
+import { CallTracker, TelemetryCorrelationId } from '../../../../util/common/telemetryCorrelationId';
 import { coalesce } from '../../../../util/vs/base/common/arrays';
 import { CancelablePromise, createCancelablePromise, Limiter, raceCancellationError, timeout } from '../../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
@@ -409,13 +409,13 @@ export class ExternalIngestIndex extends Disposable {
 		return updatePromise;
 	}
 
-	async search(sizing: StrategySearchSizing, query: WorkspaceChunkQueryWithEmbeddings, inCallTracker: CallTracker, token: CancellationToken): Promise<readonly FileChunkAndScore[] | undefined> {
+	async search(sizing: StrategySearchSizing, query: WorkspaceChunkQueryWithEmbeddings, telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<readonly FileChunkAndScore[] | undefined> {
 		const filesetName = this.getFilesetName();
 		if (!filesetName) {
 			return undefined;
 		}
 
-		const callTracker = inCallTracker.add('ExternalIngestIndex::search');
+		const callTracker = telemetryInfo.callTracker.add('ExternalIngestIndex::search');
 		const sw = new StopWatch();
 
 		try {
@@ -446,7 +446,7 @@ export class ExternalIngestIndex extends Disposable {
 				return [];
 			}
 
-			const embeddingType = EmbeddingType.metis_1024_I16_Binary;
+			const embeddingType = new EmbeddingType(searchResult.embedding_model);
 			const primaryRoot = this._workspaceService.getWorkspaceFolders().at(0);
 
 			const chunks: readonly FileChunkAndScore[] = coalesce(searchResult.results.map((r): FileChunkAndScore | undefined => {
@@ -482,11 +482,18 @@ export class ExternalIngestIndex extends Disposable {
 				"externalIngestIndex.search.success" : {
 					"owner": "mjbvz",
 					"comment": "Logged when external ingest search completes successfully",
+					"resultEmbeddingType": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The embedding model used for the search" },
+					"workspaceSearchSource": { "classification": "SystemMetaData", "purpose": "FeatureInsight",  "comment": "Caller of the search" },
+					"workspaceSearchCorrelationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight",  "comment": "Correlation id for the search" },
 					"resultCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Number of chunks returned from the search" },
 					"durationMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Time taken to complete the search in milliseconds" }
 				}
 			*/
-			this._telemetryService.sendMSFTTelemetryEvent('externalIngestIndex.search.success', undefined, {
+			this._telemetryService.sendMSFTTelemetryEvent('externalIngestIndex.search.success', {
+				resultEmbeddingType: embeddingType.toString(),
+				workspaceSearchSource: telemetryInfo.callTracker.toString(),
+				workspaceSearchCorrelationId: telemetryInfo.correlationId,
+			}, {
 				resultCount: chunks.length,
 				durationMs: sw.elapsed()
 			});
@@ -498,10 +505,15 @@ export class ExternalIngestIndex extends Disposable {
 					"externalIngestIndex.search.cancelled" : {
 						"owner": "mjbvz",
 						"comment": "Logged info about cancellation of external ingest search. Mostly for timeouts",
+						"workspaceSearchSource": { "classification": "SystemMetaData", "purpose": "FeatureInsight",  "comment": "Caller of the search" },
+						"workspaceSearchCorrelationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight",  "comment": "Correlation id for the search" },
 						"durationMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Time taken before the search was cancelled or aborted in milliseconds" }
 					}
 				*/
-				this._telemetryService.sendMSFTTelemetryEvent('externalIngestIndex.search.cancelled', undefined, {
+				this._telemetryService.sendMSFTTelemetryEvent('externalIngestIndex.search.cancelled', {
+					workspaceSearchSource: telemetryInfo.callTracker.toString(),
+					workspaceSearchCorrelationId: telemetryInfo.correlationId,
+				}, {
 					durationMs: sw.elapsed()
 				});
 				throw e;
@@ -512,10 +524,16 @@ export class ExternalIngestIndex extends Disposable {
 					"owner": "mjbvz",
 					"comment": "Logged when external ingest search fails",
 					"error": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "comment": "The error message" },
+					"workspaceSearchSource": { "classification": "SystemMetaData", "purpose": "FeatureInsight",  "comment": "Caller of the search" },
+					"workspaceSearchCorrelationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight",  "comment": "Correlation id for the search" },
 					"durationMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Time taken before failure in milliseconds" }
 				}
 			*/
-			this._telemetryService.sendMSFTTelemetryErrorEvent('externalIngestIndex.search.error', { error: (e as Error).message }, { durationMs: sw.elapsed() });
+			this._telemetryService.sendMSFTTelemetryErrorEvent('externalIngestIndex.search.error', {
+				error: (e as Error).message,
+				workspaceSearchSource: telemetryInfo.callTracker.toString(),
+				workspaceSearchCorrelationId: telemetryInfo.correlationId,
+			}, { durationMs: sw.elapsed() });
 			throw e;
 		}
 	}

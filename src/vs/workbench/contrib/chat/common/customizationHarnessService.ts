@@ -362,7 +362,7 @@ export function createCliHarnessDescriptor(cliUserRoots: readonly URI[], extras:
 	return createRestrictedHarnessDescriptor(
 		CustomizationHarness.CLI,
 		localize('harness.cli', "Copilot CLI"),
-		ThemeIcon.fromId(Codicon.worktree.id),
+		ThemeIcon.fromId(Codicon.copilot.id),
 		cliUserRoots,
 		extras,
 		{

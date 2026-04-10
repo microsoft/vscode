@@ -296,9 +296,10 @@ if (import.meta.main) {
 						const result = cp.spawnSync('npx', ['lint-staged'], {
 							cwd: path.join(process.cwd(), 'extensions', 'copilot'),
 							stdio: 'inherit',
+							shell: true,
 						});
 						if (result.status !== 0) {
-							console.error('Copilot pre-commit checks failed');
+							console.error('Copilot pre-commit checks failed.');
 							process.exit(1);
 						}
 					}

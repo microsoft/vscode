@@ -125,7 +125,7 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 		let resource = EditorResourceAccessor.getCanonicalUri(untypedEditor, { supportSideBySide: SideBySideEditor.PRIMARY });
 
 		// If it was resolved before we await for the extensions to activate and then proceed with resolution or else the backing extensions won't be registered
-		if (this.cache && resource && this.resourceMatchesCache(resource)) {
+		if (this.cache && resource && (this.resourceMatchesCache(resource) || this.resourceMatchesUserAssociation(resource))) {
 			await this.extensionService.whenInstalledExtensionsRegistered();
 		}
 
@@ -823,6 +823,22 @@ export class EditorResolverService extends Disposable implements IEditorResolver
 			}
 		}
 		this.storageService.store(EditorResolverService.cacheStorageID, JSON.stringify(Array.from(cacheStorage)), StorageScope.PROFILE, StorageTarget.MACHINE);
+	}
+
+	/**
+	 * Checks if a resource matches any user-configured editor association that
+	 * points to a non-default editor. This ensures that on first startup (when
+	 * the cache is empty), we still wait for extensions to register before
+	 * resolving the editor, so that user-configured custom editors are available.
+	 */
+	private resourceMatchesUserAssociation(resource: URI): boolean {
+		const userAssociations = this.getAllUserAssociations();
+		for (const association of userAssociations) {
+			if (association.filenamePattern && association.viewType !== DEFAULT_EDITOR_ASSOCIATION.id && globMatchesResource(association.filenamePattern, resource)) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	private resourceMatchesCache(resource: URI): boolean {

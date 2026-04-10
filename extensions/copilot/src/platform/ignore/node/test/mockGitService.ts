@@ -10,7 +10,7 @@ import { IObservable } from '../../../../util/vs/base/common/observableInternal'
 import { observableValue } from '../../../../util/vs/base/common/observableInternal/observables/observableValue';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IGitService, RepoContext } from '../../../git/common/gitService';
-import { Branch, Change, Commit, CommitOptions, CommitShortStat, DiffChange, LogOptions, Ref, RefQuery, RepositoryAccessDetails, RepositoryState } from '../../../git/vscode/git';
+import { Branch, Change, Commit, CommitOptions, CommitShortStat, DiffChange, LogOptions, Ref, RefQuery, RepositoryAccessDetails } from '../../../git/vscode/git';
 
 /**
  * A configurable mock implementation of IGitService for testing.
@@ -59,10 +59,6 @@ export class MockGitService implements IGitService {
 	}
 
 	getRepository(_uri: URI, _forceOpen?: boolean): Promise<RepoContext | undefined> {
-		return Promise.resolve(undefined);
-	}
-
-	getRepositoryState(uri: URI, forceOpen?: boolean): Promise<RepositoryState | undefined> {
 		return Promise.resolve(undefined);
 	}
 

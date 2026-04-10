@@ -35,6 +35,8 @@ const debugReportFeedbackContextKey = 'github.copilot.debugReportFeedback';
 
 const previewFeaturesDisabledContextKey = 'github.copilot.previewFeaturesDisabled';
 
+const clientByokEnabledContextKey = 'github.copilot.clientByokEnabled';
+
 const debugContextKey = 'github.copilot.chat.debug';
 
 const missingPermissiveSessionContextKey = 'github.copilot.auth.missingPermissiveSession';
@@ -197,6 +199,15 @@ export class ContextKeysContribution extends Disposable {
 		}
 	}
 
+	private async _updateClientByokEnabledContext() {
+		try {
+			const copilotToken = await this._authenticationService.getCopilotToken();
+			commands.executeCommand('setContext', clientByokEnabledContextKey, copilotToken.isClientBYOKEnabled());
+		} catch (e) {
+			commands.executeCommand('setContext', clientByokEnabledContextKey, undefined);
+		}
+	}
+
 	private _updateShowLogViewContext() {
 		if (this._showLogView) {
 			return;
@@ -221,6 +232,7 @@ export class ContextKeysContribution extends Disposable {
 		this._inspectContext();
 		this._updateQuotaExceededContext();
 		this._updatePreviewFeaturesDisabledContext();
+		this._updateClientByokEnabledContext();
 		this._updateShowLogViewContext();
 		this._updatePermissiveSessionContext();
 	}

@@ -530,7 +530,7 @@ export class OctoKitService extends BaseOctoKitService implements IOctoKitServic
 					return { enabled: false, statusCode: 422 };
 				default:
 					this._logService.trace(`Unexpected status code for isCCAEnabled: ${response.status}`);
-					return { enabled: undefined };
+					return { enabled: undefined, statusCode: response.status };
 			}
 		} catch (e) {
 			this._logService.error(`Error checking if CCA is enabled: ${e}`);

@@ -83,3 +83,16 @@ export function getStatefulMarkerAndIndex(modelId: string, messages: readonly Ra
 	}
 	return undefined;
 }
+
+/**
+ * Finds the message index of a specific stateful marker value in the message history.
+ * Returns the index if found, undefined otherwise.
+ */
+export function getIndexOfStatefulMarker(markerValue: string, messages: readonly Raw.ChatMessage[]): number | undefined {
+	for (const entry of getAllStatefulMarkersAndIndicies(messages)) {
+		if (entry.statefulMarker.marker === markerValue) {
+			return entry.index;
+		}
+	}
+	return undefined;
+}

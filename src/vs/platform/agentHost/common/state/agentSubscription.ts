@@ -5,6 +5,7 @@
 
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IReference } from '../../../../base/common/lifecycle.js';
+import { ResourceMap } from '../../../../base/common/map.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IActionEnvelope, ISessionAction, IStateAction, isSessionAction } from './sessionActions.js';
 import { rootReducer, sessionReducer } from './sessionReducers.js';
@@ -350,7 +351,7 @@ export class TerminalStateSubscription extends BaseAgentSubscription<ITerminalSt
 export class AgentSubscriptionManager extends Disposable {
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	private readonly _subscriptions = new Map<string, { sub: BaseAgentSubscription<any>; refCount: number }>();
+	private readonly _subscriptions = new ResourceMap<{ sub: BaseAgentSubscription<any>; refCount: number }>();
 	private readonly _rootState: RootStateSubscription;
 	private readonly _clientId: string;
 	private readonly _seqAllocator: () => number;
@@ -388,42 +389,51 @@ export class AgentSubscriptionManager extends Disposable {
 	}
 
 	/**
+	 * Returns an existing subscription without affecting its refcount.
+	 * Returns `undefined` if no subscription is active for the given resource.
+	 */
+	getSubscriptionUnmanaged<T>(resource: URI): IAgentSubscription<T> | undefined {
+		const entry = this._subscriptions.get(resource);
+		return entry?.sub as unknown as IAgentSubscription<T> | undefined;
+	}
+
+	/**
 	 * Get or create a refcounted subscription to any resource. Disposing
 	 * the returned reference decrements the refcount; when it reaches zero
 	 * the subscription is torn down and the server is notified.
 	 */
 	getSubscription<T>(kind: StateComponents, resource: URI): IReference<IAgentSubscription<T>> {
-		const key = resource.toString();
-		const existing = this._subscriptions.get(key);
+		const existing = this._subscriptions.get(resource);
 		if (existing) {
 			existing.refCount++;
 			return {
 				object: existing.sub,
-				dispose: () => this._releaseSubscription(key),
+				dispose: () => this._releaseSubscription(resource),
 			};
 		}
 
 		// Create new subscription based on caller-specified kind
+		const key = resource.toString();
 		const sub = this._createSubscription(kind, key);
 		const entry = { sub, refCount: 1 };
-		this._subscriptions.set(key, entry);
+		this._subscriptions.set(resource, entry);
 
 		// Kick off server subscription asynchronously.
 		// Capture the entry reference so we can validate it hasn't been
 		// replaced by a new subscription for the same key (race guard).
 		this._subscribe(resource).then(snapshot => {
-			if (this._subscriptions.get(key) === entry) {
+			if (this._subscriptions.get(resource) === entry) {
 				sub.handleSnapshot(snapshot.state as never, snapshot.fromSeq);
 			}
 		}).catch(err => {
-			if (this._subscriptions.get(key) === entry) {
+			if (this._subscriptions.get(resource) === entry) {
 				sub.setError(err instanceof Error ? err : new Error(String(err)));
 			}
 		});
 
 		return {
 			object: sub,
-			dispose: () => this._releaseSubscription(key),
+			dispose: () => this._releaseSubscription(resource),
 		};
 	}
 
@@ -445,8 +455,7 @@ export class AgentSubscriptionManager extends Disposable {
 	 */
 	dispatchOptimistic(action: ISessionAction | ITerminalAction): number {
 		if (isSessionAction(action)) {
-			const key = action.session.toString();
-			const entry = this._subscriptions.get(key);
+			const entry = this._subscriptions.get(URI.parse(action.session));
 			if (entry && entry.sub instanceof SessionStateSubscription) {
 				return entry.sub.applyOptimistic(action);
 			}
@@ -466,15 +475,15 @@ export class AgentSubscriptionManager extends Disposable {
 		}
 	}
 
-	private _releaseSubscription(key: string): void {
-		const entry = this._subscriptions.get(key);
+	private _releaseSubscription(resource: URI): void {
+		const entry = this._subscriptions.get(resource);
 		if (!entry) {
 			return;
 		}
 		entry.refCount--;
 		if (entry.refCount <= 0) {
-			this._subscriptions.delete(key);
-			try { this._unsubscribe(URI.parse(key)); } catch { /* best-effort */ }
+			this._subscriptions.delete(resource);
+			try { this._unsubscribe(resource); } catch { /* best-effort */ }
 			if (entry.sub instanceof SessionStateSubscription) {
 				entry.sub.clearPending();
 			}
@@ -483,8 +492,8 @@ export class AgentSubscriptionManager extends Disposable {
 	}
 
 	override dispose(): void {
-		for (const [key, entry] of this._subscriptions) {
-			try { this._unsubscribe(URI.parse(key)); } catch { /* best-effort */ }
+		for (const [resource, entry] of this._subscriptions) {
+			try { this._unsubscribe(resource); } catch { /* best-effort */ }
 			entry.sub.dispose();
 		}
 		this._subscriptions.clear();

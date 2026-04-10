@@ -30,6 +30,7 @@ export const enum AuthRequiredReason {
 export const enum NotificationType {
 	SessionAdded = 'notify/sessionAdded',
 	SessionRemoved = 'notify/sessionRemoved',
+	SessionSummaryChanged = 'notify/sessionSummaryChanged',
 	AuthRequired = 'notify/authRequired',
 }
 
@@ -50,7 +51,7 @@ export const enum NotificationType {
  *         "resource": "copilot:/<uuid>",
  *         "provider": "copilot",
  *         "title": "New Session",
- *         "status": "idle",
+ *         "status": 1,
  *         "createdAt": 1710000000000,
  *         "modifiedAt": 1710000000000
  *       }
@@ -88,6 +89,71 @@ export interface ISessionRemovedNotification {
 	type: NotificationType.SessionRemoved;
 	/** URI of the removed session */
 	session: URI;
+}
+
+/**
+ * Broadcast to all connected clients when an existing session's summary
+ * changes (title, status, `modifiedAt`, model, working directory, read/done
+ * state, or diff statistics).
+ *
+ * This notification lets clients that maintain a cached session list — for
+ * example, the result of a previous `listSessions()` call — stay in sync with
+ * in-flight sessions without having to subscribe to every session URI
+ * individually. It is complementary to, not a replacement for,
+ * `notify/sessionAdded` and `notify/sessionRemoved`: those signal lifecycle
+ * (creation/disposal), while this signals summary-level mutations on an
+ * already-known session.
+ *
+ * Semantics:
+ *
+ * - Only fields present in `changes` have new values; omitted fields are
+ *   unchanged on the client's cached summary.
+ * - Identity fields (`resource`, `provider`, `createdAt`) never change and
+ *   are not carried.
+ * - Like all protocol notifications, this is ephemeral: it is **not**
+ *   replayed on reconnect. On reconnect, clients should re-fetch the full
+ *   catalog via `listSessions()` as usual.
+ * - The server SHOULD emit this notification whenever any mutable field on
+ *   {@link ISessionSummary | `ISessionSummary`} changes for a session the
+ *   server has surfaced via `listSessions()` or `notify/sessionAdded`.
+ *   Servers MAY coalesce or debounce updates for noisy fields (for example,
+ *   `modifiedAt` bumps while a turn is streaming, or rapidly changing
+ *   `diffs`) at their discretion.
+ * - Clients that have no cached entry for `session` MAY ignore the
+ *   notification; it is not a substitute for `notify/sessionAdded`.
+ *
+ * @category Protocol Notifications
+ * @version 1
+ * @example
+ * ```json
+ * {
+ *   "jsonrpc": "2.0",
+ *   "method": "notification",
+ *   "params": {
+ *     "notification": {
+ *       "type": "notify/sessionSummaryChanged",
+ *       "session": "copilot:/<uuid>",
+ *       "changes": {
+ *         "title": "Refactor auth middleware",
+ *         "status": 8,
+ *         "modifiedAt": 1710000123456
+ *       }
+ *     }
+ *   }
+ * }
+ * ```
+ */
+export interface ISessionSummaryChangedNotification {
+	type: NotificationType.SessionSummaryChanged;
+	/** URI of the session whose summary changed */
+	session: URI;
+	/**
+	 * Mutable summary fields that changed; omitted fields are unchanged.
+	 *
+	 * Identity fields (`resource`, `provider`, `createdAt`) never change and
+	 * MUST be omitted by senders; receivers SHOULD ignore them if present.
+	 */
+	changes: Partial<ISessionSummary>;
 }
 
 /**
@@ -130,4 +196,5 @@ export interface IAuthRequiredNotification {
 export type IProtocolNotification =
 	| ISessionAddedNotification
 	| ISessionRemovedNotification
+	| ISessionSummaryChangedNotification
 	| IAuthRequiredNotification;
