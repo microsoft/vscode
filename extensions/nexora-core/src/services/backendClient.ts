@@ -13,7 +13,8 @@ export class BackendClient {
 
 	constructor(config?: Partial<BackendConfig>) {
 		this.config = {
-			baseUrl: config?.baseUrl || 'http://localhost:8000',
+			// Use 127.0.0.1 so health checks succeed on Windows when localhost resolves to IPv6 first
+			baseUrl: config?.baseUrl || 'http://127.0.0.1:8000',
 			timeout: config?.timeout || 30000
 		};
 	}
@@ -45,11 +46,123 @@ export class BackendClient {
 		}
 	}
 
+	/**
+	 * Semantic search for platforms using natural language.
+	 * Uses ChromaDB vector embeddings to find platforms by meaning.
+	 * 
+	 * @param query Natural language query (e.g., "I need to deploy my app")
+	 * @param limit Maximum number of results (default: 5)
+	 * @returns Array of matching platforms with relevance scores
+	 */
+	async semanticSearchPlatforms(query: string, limit: number = 5): Promise<any[]> {
+		try {
+			const response = await this._get(
+				`/api/platforms/semantic-search?q=${encodeURIComponent(query)}&limit=${limit}`
+			);
+			return response?.results || [];
+		} catch {
+			return [];
+		}
+	}
+
+	/**
+	 * Index a workspace into Memvid memory for context-aware processing.
+	 * 
+	 * @param workspacePath Absolute path to the workspace directory
+	 * @returns Indexing result with workspace_id and statistics
+	 */
+	async indexWorkspace(workspacePath: string): Promise<any> {
+		try {
+			return await this._post('/api/memory/index', { workspace_path: workspacePath });
+		} catch (error) {
+			console.error('Failed to index workspace:', error);
+			throw error;
+		}
+	}
+
+	/**
+	 * Query workspace memory for relevant context.
+	 * 
+	 * @param workspaceId Workspace identifier from indexing
+	 * @param query Natural language query
+	 * @param limit Maximum number of results (default: 5)
+	 * @returns Memory query results with relevant entries
+	 */
+	async queryMemory(workspaceId: string, query: string, limit: number = 5): Promise<any> {
+		try {
+			const response = await this._get(
+				`/api/memory/query?workspace_id=${encodeURIComponent(workspaceId)}&q=${encodeURIComponent(query)}&limit=${limit}`
+			);
+			return response;
+		} catch {
+			return { entries: [], total: 0 };
+		}
+	}
+
+	/**
+	 * Get relevant context for a task from workspace memory.
+	 * Used before intent classification for context-aware processing.
+	 * 
+	 * @param workspaceId Workspace identifier
+	 * @param task Task description
+	 * @returns Task context with relevant files and snippets
+	 */
+	async getTaskContext(workspaceId: string, task: string): Promise<any> {
+		try {
+			const response = await this._get(
+				`/api/memory/context?workspace_id=${encodeURIComponent(workspaceId)}&task=${encodeURIComponent(task)}`
+			);
+			return response;
+		} catch {
+			return { relevant_files: [], code_snippets: [], languages_involved: [], total_matches: 0 };
+		}
+	}
+
+	/**
+	 * List all indexed workspaces.
+	 * 
+	 * @returns List of indexed workspace IDs
+	 */
+	async listIndexedWorkspaces(): Promise<any[]> {
+		try {
+			const response = await this._get('/api/memory/workspaces');
+			return response?.workspaces || [];
+		} catch {
+			return [];
+		}
+	}
+
 	async sendMessage(message: string): Promise<any> {
 		try {
 			return await this._post('/api/cognitive/classify', { message });
 		} catch (error) {
 			throw error;
+		}
+	}
+
+	/**
+	 * Classify user intent with optional workspace context.
+	 * 
+	 * @param userRequest Natural language user request
+	 * @param workspacePath Optional workspace path for context
+	 * @returns Classification result with intent, confidence, sub-intents, etc.
+	 */
+	async classifyIntent(userRequest: string, workspacePath?: string): Promise<any> {
+		try {
+			const response = await this._post('/api/cognitive/classify', {
+				user_request: userRequest,
+				workspace_path: workspacePath
+			});
+			return response;
+		} catch (error) {
+			return {
+				intent: 'UNKNOWN',
+				confidence: 0,
+				sub_intents: [],
+				entities: {},
+				complexity: 'MEDIUM',
+				error: 'Classification failed'
+			};
 		}
 	}
 

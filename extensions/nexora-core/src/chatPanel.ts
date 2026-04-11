@@ -69,13 +69,46 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 				this._view.webview.postMessage({
 					type: 'addMessage',
 					role: 'assistant',
-					content: `Backend is offline. Your message: "${message}"\n\nThe Cognitive Layer (intent classification) will be implemented in Week 5. For now, the Platform Registry is available at http://localhost:8000/docs`,
+					content: `Backend is offline. Your message: "${message}"\n\nPlease start the backend server and try again.\nBackend should be available at http://localhost:8000`,
 					isLoading: false
 				});
 				return;
 			}
 
-			const response = `Backend connected! Your message: "${message}"\n\nThe Cognitive Layer (intent classification) will process this in Week 5.\n\nFor now, try:\n- View platforms in the Platform Browser\n- Visit http://localhost:8000/docs for API docs`;
+			// Get workspace path for context
+			const workspaceFolders = vscode.workspace.workspaceFolders;
+			const workspacePath = workspaceFolders && workspaceFolders.length > 0
+				? workspaceFolders[0].uri.fsPath
+				: undefined;
+
+			// Classify the intent
+			const classification = await client.classifyIntent(message, workspacePath);
+
+			// Format the response (ASCII only - VS Code hygiene forbids emoji in source)
+			let response = `**Intent Classification Results:**\n\n`;
+			response += `**Intent:** ${classification.intent}\n`;
+			response += `**Confidence:** ${Math.round(classification.confidence * 100)}%\n`;
+			response += `**Complexity:** ${classification.complexity}\n`;
+
+			if (classification.sub_intents && classification.sub_intents.length > 0) {
+				response += `**Sub-intents:** ${classification.sub_intents.join(', ')}\n`;
+			}
+
+			if (classification.entities && Object.keys(classification.entities).length > 0) {
+				response += `**Entities:** ${JSON.stringify(classification.entities, null, 2)}\n`;
+			}
+
+			if (classification.context && Object.keys(classification.context).length > 0) {
+				response += `\n**Workspace Context:**\n`;
+				if (classification.context.relevant_files) {
+					response += `Found ${classification.context.relevant_files.length} relevant files\n`;
+				}
+				if (classification.context.detected_tech) {
+					response += `Tech stack detected\n`;
+				}
+			}
+
+			response += `\n*Note: Week 5 Cognitive Layer is now active! Week 6 will add task decomposition.*`;
 
 			this._view.webview.postMessage({
 				type: 'addMessage',
@@ -88,7 +121,7 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 			this._view.webview.postMessage({
 				type: 'addMessage',
 				role: 'assistant',
-				content: `Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
+				content: `Error classifying intent: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease check that the backend is running and try again.`,
 				isLoading: false
 			});
 		}
