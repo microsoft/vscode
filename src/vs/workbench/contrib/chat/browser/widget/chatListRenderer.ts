@@ -50,7 +50,7 @@ import { annotateSpecialMarkdownContent, extractSubAgentInvocationIdFromText, ha
 import { checkModeOption } from '../../common/chat.js';
 import { IChatAgentMetadata } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { IChatTextEditGroup } from '../../common/model/chatModel.js';
+import { IChatProgressResponseContent, IChatTextEditGroup } from '../../common/model/chatModel.js';
 import { chatSubcommandLeader } from '../../common/requestParser/chatParserTypes.js';
 import { ChatAgentVoteDirection, ChatErrorLevel, ChatRequestQueueKind, IChatConfirmation, IChatContentReference, IChatDisabledClaudeHooksPart, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatFollowup, IChatHookPart, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatPullRequestContent, IChatQuestionAnswerValue, IChatQuestionAnswers, IChatQuestionCarousel, IChatService, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, isChatFollowup } from '../../common/chatService/chatService.js';
 import { ChatQuestionCarouselData } from '../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
@@ -1106,8 +1106,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		return undefined;
 	}
 
-	private getPendingToolConfirmationCount(partsToRender: IChatRendererContent[], includeSubagentConfirmations: boolean): number {
-		return partsToRender.filter(part => {
+	private getPendingToolConfirmationCount(parts: ReadonlyArray<IChatRendererContent | IChatProgressResponseContent>, includeSubagentConfirmations: boolean): number {
+		return parts.filter(part => {
 			if (part.kind !== 'toolInvocation') {
 				return false;
 			}
@@ -1151,7 +1151,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return;
 		}
 
-		const pendingConfirmationCount = this.getPendingToolConfirmationCount(annotateSpecialMarkdownContent(element.response.value), false);
+		const pendingConfirmationCount = this.getPendingToolConfirmationCount(element.response.value, false);
 		if (pendingConfirmationCount === 0) {
 			this.removeWorkingProgressContentPart(templateData);
 			return;
