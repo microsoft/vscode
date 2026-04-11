@@ -16,15 +16,18 @@
 		],
 		// Needed for tsx to run test files
 		"paths": {
-			"vscode": ["./src/util/common/test/shims/vscodeTypesShim.ts"]
+			"vscode": [
+				"./src/util/common/test/shims/vscodeTypesShim.ts"
+			]
 		}
 	},
 	"include": [
 		"vscodeTypes.ts",
 		"src",
 		"test",
-		".vscode/extensions/test-extension"
-, "../lmstudio-byok/lmstudioProvider.ts"	],
+		".vscode/extensions/test-extension",
+		"../lmstudio-byok/lmstudioProvider.ts"
+	],
 	"exclude": [
 		"test/scenarios/**/*",
 		"test/simulation/fixtures/**/*",
