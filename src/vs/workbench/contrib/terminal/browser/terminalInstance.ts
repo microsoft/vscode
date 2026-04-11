@@ -3,14 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isFirefox } from '../../../../base/browser/browser.js';
+import { isFirefox, onDidChangeZoomLevel } from '../../../../base/browser/browser.js';
+import { PixelRatio } from '../../../../base/browser/pixelRatio.js';
 import { BrowserFeatures } from '../../../../base/browser/canIUse.js';
 import { DataTransfers } from '../../../../base/browser/dnd.js';
 import * as dom from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
-import { AutoOpenBarrier, Promises, disposableTimeout, timeout } from '../../../../base/common/async.js';
+import { AutoOpenBarrier, Promises, RunOnceScheduler, disposableTimeout, timeout } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { debounce } from '../../../../base/common/decorators.js';
 import { BugIndicatingError, onUnexpectedError } from '../../../../base/common/errors.js';
@@ -608,6 +609,18 @@ export class TerminalInstance extends Disposable implements ITerminalInstance {
 			}
 		}));
 		this._register(this._workspaceContextService.onDidChangeWorkspaceFolders(() => this._labelComputer?.refreshLabel(this)));
+
+		const zoomRecalcScheduler = this._register(new RunOnceScheduler(() => {
+			this._layoutSettingsChanged = true;
+			this.xterm?.forceRedraw();
+			if (this._lastLayoutDimensions) {
+				this.layout(this._lastLayoutDimensions);
+			} else {
+				this._resize();
+			}
+		}, 50));
+		this._register(PixelRatio.getInstance(dom.getWindow(this._wrapperElement)).onDidChange(() => zoomRecalcScheduler.schedule()));
+		this._register(onDidChangeZoomLevel(() => zoomRecalcScheduler.schedule()));
 
 		// Clear out initial data events after 10 seconds, hopefully extension hosts are up and
 		// running at that point.
