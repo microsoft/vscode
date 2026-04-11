@@ -12,7 +12,7 @@ import { mock } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { AgentSession, IAgentHostService, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
-import type { ISessionAction } from '../../../../../platform/agentHost/common/state/protocol/action-origin.generated.js';
+import type { ISessionAction, ITerminalAction } from '../../../../../platform/agentHost/common/state/protocol/action-origin.generated.js';
 import { NotificationType } from '../../../../../platform/agentHost/common/state/protocol/notifications.js';
 import { SessionStatus as ProtocolSessionStatus } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { ActionType, type IActionEnvelope, type INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
@@ -22,9 +22,9 @@ import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browse
 import { IChatService, type ChatSendResult } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
-import { ISessionChangeEvent } from '../../../sessions/browser/sessionsProvider.js';
+import { ISessionChangeEvent } from '../../../../services/sessions/common/sessionsProvider.js';
 
-import { SessionStatus } from '../../../sessions/common/sessionData.js';
+import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { LocalAgentHostSessionsProvider } from '../../browser/localAgentHostSessionsProvider.js';
 
 // ---- Mock IAgentHostService -------------------------------------------------
@@ -40,11 +40,11 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	override readonly clientId = 'test-local-client';
 	private readonly _sessions = new Map<string, IAgentSessionMetadata>();
 	public disposedSessions: URI[] = [];
-	public dispatchedActions: { action: ISessionAction; clientId: string; clientSeq: number }[] = [];
+	public dispatchedActions: { action: ISessionAction | ITerminalAction; clientId: string; clientSeq: number }[] = [];
 
 	private _nextSeq = 0;
 
-	override nextClientSeq(): number {
+	nextClientSeq(): number {
 		return this._nextSeq++;
 	}
 
@@ -58,8 +58,12 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this._sessions.delete(rawId);
 	}
 
-	override dispatchAction(action: ISessionAction, clientId: string, clientSeq: number): void {
+	dispatchAction(action: ISessionAction | ITerminalAction, clientId: string, clientSeq: number): void {
 		this.dispatchedActions.push({ action, clientId, clientSeq });
+	}
+
+	override dispatch(action: ISessionAction | ITerminalAction): void {
+		this.dispatchedActions.push({ action, clientId: this.clientId, clientSeq: this._nextSeq++ });
 	}
 
 	// Test helpers
@@ -83,12 +87,13 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 // ---- Test helpers -----------------------------------------------------------
 
-function createSession(id: string, opts?: { provider?: string; summary?: string; workingDirectory?: URI; startTime?: number; modifiedTime?: number }): IAgentSessionMetadata {
+function createSession(id: string, opts?: { provider?: string; summary?: string; project?: { uri: URI; displayName: string }; workingDirectory?: URI; startTime?: number; modifiedTime?: number }): IAgentSessionMetadata {
 	return {
 		session: AgentSession.uri(opts?.provider ?? 'copilot', id),
 		startTime: opts?.startTime ?? 1000,
 		modifiedTime: opts?.modifiedTime ?? 2000,
 		summary: opts?.summary,
+		project: opts?.project,
 		workingDirectory: opts?.workingDirectory,
 	};
 }
@@ -116,7 +121,7 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 	return disposables.add(instantiationService.createInstance(LocalAgentHostSessionsProvider));
 }
 
-function fireSessionAdded(agentHost: MockAgentHostService, rawId: string, opts?: { provider?: string; title?: string; workingDirectory?: string }): void {
+function fireSessionAdded(agentHost: MockAgentHostService, rawId: string, opts?: { provider?: string; title?: string; project?: { uri: string; displayName: string }; workingDirectory?: string }): void {
 	const provider = opts?.provider ?? 'copilot';
 	const sessionUri = AgentSession.uri(provider, rawId);
 	agentHost.fireNotification({
@@ -128,6 +133,7 @@ function fireSessionAdded(agentHost: MockAgentHostService, rawId: string, opts?:
 			status: ProtocolSessionStatus.Idle,
 			createdAt: Date.now(),
 			modifiedAt: Date.now(),
+			project: opts?.project,
 			workingDirectory: opts?.workingDirectory,
 		},
 	});
@@ -253,6 +259,31 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.ok(changes.length > 0);
 		const sessions = provider.getSessions();
 		assert.strictEqual(sessions.length, 2);
+	}));
+
+	test('uses project metadata as workspace group source', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const projectUri = URI.file('/home/user/vscode');
+		const workingDirectory = URI.file('/tmp/copilot-worktrees/vscode-feature');
+		agentHost.addSession(createSession('project-1', {
+			summary: 'Project Session',
+			project: { uri: projectUri, displayName: 'vscode' },
+			workingDirectory,
+		}));
+
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+
+		const workspace = provider.getSessions()[0].workspace.get();
+		assert.deepStrictEqual({
+			label: workspace?.label,
+			repository: workspace?.repositories[0]?.uri.toString(),
+			workingDirectory: workspace?.repositories[0]?.workingDirectory?.toString(),
+		}, {
+			label: 'vscode',
+			repository: projectUri.toString(),
+			workingDirectory: workingDirectory.toString(),
+		});
 	}));
 
 	// ---- Session lifecycle -------

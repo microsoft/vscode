@@ -31,6 +31,7 @@ import { InstantiationService } from '../../instantiation/common/instantiationSe
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
 import { AgentService } from './agentService.js';
+import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { WebSocketProtocolServer } from './webSocketTransport.js';
 import { ProtocolServerHandler } from './protocolServerHandler.js';
 import { FileService } from '../../files/common/fileService.js';
@@ -38,6 +39,8 @@ import { IFileService } from '../../files/common/files.js';
 import { DiskFileSystemProvider } from '../../files/node/diskFileSystemProvider.js';
 import { Schemas } from '../../../base/common/network.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
+import { IDiffComputeService } from '../common/diffComputeService.js';
+import { NodeWorkerDiffComputeService } from './diffComputeService.js';
 import { SessionDataService } from './sessionDataService.js';
 import { AgentHostClientFileSystemProvider } from '../common/agentHostClientFileSystemProvider.js';
 import { AGENT_CLIENT_SCHEME } from '../common/agentClientUri.js';
@@ -153,7 +156,7 @@ async function main(): Promise<void> {
 	// Session data service
 	const sessionDataService = new SessionDataService(URI.file(environmentService.userDataPath), fileService, logService);
 
-	// Create the agent service (owns SessionStateManager + AgentSideEffects internally)
+	// Create the agent service (owns AgentHostStateManager + AgentSideEffects internally)
 	const agentService = new AgentService(logService, fileService, sessionDataService);
 	disposables.add(agentService);
 
@@ -168,6 +171,8 @@ async function main(): Promise<void> {
 		diServices.set(IFileService, fileService);
 		diServices.set(ISessionDataService, sessionDataService);
 		diServices.set(IAgentPluginManager, pluginManager);
+		diServices.set(IDiffComputeService, disposables.add(new NodeWorkerDiffComputeService(logService)));
+		diServices.set(IAgentHostTerminalManager, agentService.terminalManager);
 		const instantiationService = new InstantiationService(diServices);
 		const copilotAgent = disposables.add(instantiationService.createInstance(CopilotAgent));
 		agentService.registerProvider(copilotAgent);

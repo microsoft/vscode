@@ -91,12 +91,20 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 	private readonly _sessionBuffers = new ResourceMap<SessionEventBuffer>();
 	/** Ordered list of session URIs for LRU eviction. */
 	private readonly _sessionOrder: URI[] = [];
+	/** Per-session tracking of seen event IDs to deduplicate events
+	 *  that share the same ID (e.g. subagentInvocation + userMessage
+	 *  emitted from the same span). Stores id → event kind so we can
+	 *  keep the richer event kind on collision. */
+	private readonly _seenEventIds = new ResourceMap<Map<string, IChatDebugEvent['kind']>>();
 
 	private readonly _onDidAddEvent = this._register(new Emitter<IChatDebugEvent>());
 	readonly onDidAddEvent: Event<IChatDebugEvent> = this._onDidAddEvent.event;
 
 	private readonly _onDidClearProviderEvents = this._register(new Emitter<URI>());
 	readonly onDidClearProviderEvents: Event<URI> = this._onDidClearProviderEvents.event;
+
+	private readonly _onDidChangeAvailableSessionResources = this._register(new Emitter<void>());
+	readonly onDidChangeAvailableSessionResources: Event<void> = this._onDidChangeAvailableSessionResources.event;
 
 	private readonly _providers = new Set<IChatDebugLogProvider>();
 	private readonly _invocationCts = new ResourceMap<CancellationTokenSource>();
@@ -107,10 +115,27 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 	/** Session URIs created via import. */
 	private readonly _importedSessions = new ResourceMap<boolean>();
 
+	/** Session URIs reported by providers as available on disk (historical sessions). */
+	private readonly _availableSessionResources: URI[] = [];
+	private readonly _availableSessionResourceSet = new Set<string>();
+
+	/** Titles for historical sessions discovered from disk. */
+	private readonly _historicalSessionTitles = new ResourceMap<string>();
+
 	/** Human-readable titles for imported sessions. */
 	private readonly _importedSessionTitles = new ResourceMap<string>();
 
 	activeSessionResource: URI | undefined;
+
+	/** Priority for deduplicating events with the same ID: lower = richer. */
+	private static readonly _eventKindPriority: Record<string, number> = {
+		subagentInvocation: 0,
+		modelTurn: 1,
+		toolCall: 2,
+		agentResponse: 3,
+		userMessage: 4,
+		generic: 5,
+	};
 
 	/** Schemes eligible for debug logging and provider invocation. */
 	private static readonly _debugEligibleSchemes = new Set([
@@ -142,6 +167,36 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 	}
 
 	addEvent(event: IChatDebugEvent): void {
+		// Deduplicate events that share the same ID. The extension may emit
+		// both a subagentInvocation and a userMessage from the same span;
+		// keep the richer kind and discard the duplicate.
+		if (event.id) {
+			let seen = this._seenEventIds.get(event.sessionResource);
+			if (!seen) {
+				seen = new Map();
+				this._seenEventIds.set(event.sessionResource, seen);
+			}
+			const existingKind = seen.get(event.id);
+			if (existingKind !== undefined) {
+				const priority = ChatDebugServiceImpl._eventKindPriority;
+				if ((priority[event.kind] ?? 5) >= (priority[existingKind] ?? 5)) {
+					return; // existing is richer or equal; skip this event
+				}
+				// New event is richer — we can't remove the old one from
+				// the ring buffer, but the duplicate will be filtered out
+				// in getEvents(). Update the tracked kind.
+			}
+			seen.set(event.id, event.kind);
+			// Cap the dedup map to prevent unbounded growth in long sessions.
+			if (seen.size > ChatDebugServiceImpl.MAX_EVENTS_PER_SESSION) {
+				// Delete the oldest entry (first key in insertion order).
+				const firstKey = seen.keys().next().value;
+				if (firstKey !== undefined) {
+					seen.delete(firstKey);
+				}
+			}
+		}
+
 		let buffer = this._sessionBuffers.get(event.sessionResource);
 		if (!buffer) {
 			// Evict least-recently-used session if we are at the session cap.
@@ -180,7 +235,7 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 			if (!buffer) {
 				return [];
 			}
-			const result = buffer.toArray();
+			let result = buffer.toArray();
 			// Sort only when the buffer is not in chronological order,
 			// which can happen when events arrive out of order (e.g.
 			// tail-first backfill). When events arrive in
@@ -188,6 +243,10 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 			if (!this._isSorted(result)) {
 				result.sort((a, b) => a.created.getTime() - b.created.getTime());
 			}
+			// Deduplicate: when multiple events share the same ID (e.g.
+			// subagentInvocation + userMessage from the same span), keep
+			// the one with the richest kind.
+			result = this._deduplicateEvents(result);
 			return result;
 		}
 
@@ -209,6 +268,29 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 		return true;
 	}
 
+	private _deduplicateEvents(events: IChatDebugEvent[]): IChatDebugEvent[] {
+		const seen = new Map<string, number>(); // id → index in result
+		const priority = ChatDebugServiceImpl._eventKindPriority;
+		const result: IChatDebugEvent[] = [];
+		for (const event of events) {
+			if (!event.id) {
+				result.push(event);
+				continue;
+			}
+			const existingIdx = seen.get(event.id);
+			if (existingIdx === undefined) {
+				seen.set(event.id, result.length);
+				result.push(event);
+			} else {
+				const existing = result[existingIdx];
+				if ((priority[event.kind] ?? 5) < (priority[existing.kind] ?? 5)) {
+					result[existingIdx] = event;
+				}
+			}
+		}
+		return result;
+	}
+
 	getSessionResources(): readonly URI[] {
 		return [...this._sessionOrder];
 	}
@@ -216,13 +298,18 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 	clear(): void {
 		this._sessionBuffers.clear();
 		this._sessionOrder.length = 0;
+		this._seenEventIds.clear();
 		this._importedSessions.clear();
 		this._importedSessionTitles.clear();
+		this._availableSessionResources.length = 0;
+		this._availableSessionResourceSet.clear();
+		this._historicalSessionTitles.clear();
 	}
 
 	/** Remove all ancillary state for an evicted session. */
 	private _evictSession(sessionResource: URI): void {
 		this._sessionBuffers.delete(sessionResource);
+		this._seenEventIds.delete(sessionResource);
 		this._importedSessions.delete(sessionResource);
 		this._importedSessionTitles.delete(sessionResource);
 		const cts = this._invocationCts.get(sessionResource);
@@ -337,6 +424,8 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 				buffer.push(e);
 			}
 		}
+		// Reset dedup tracking so re-invoked provider events are accepted
+		this._seenEventIds.delete(sessionResource);
 		this._onDidClearProviderEvents.fire(sessionResource);
 	}
 
@@ -366,6 +455,70 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 
 	getImportedSessionTitle(sessionResource: URI): string | undefined {
 		return this._importedSessionTitles.get(sessionResource);
+	}
+
+	addAvailableSessionResources(resources: readonly { uri: URI; title?: string }[]): void {
+		let added = false;
+		for (const { uri, title } of resources) {
+			const key = uri.toString();
+			if (!this._availableSessionResourceSet.has(key)) {
+				this._availableSessionResourceSet.add(key);
+				this._availableSessionResources.push(uri);
+				added = true;
+			}
+			if (title) {
+				this._historicalSessionTitles.set(uri, title);
+			}
+		}
+		if (added) {
+			this._onDidChangeAvailableSessionResources.fire();
+		}
+	}
+
+	/** Lazy fetcher for available sessions from the extension. */
+	private _availableSessionsFetcher: ((token: CancellationToken) => Promise<{ uri: URI; title?: string }[]>) | undefined;
+	private _availableSessionsFetchStarted = false;
+	private _availableSessionsRequested = false;
+
+	getAvailableSessionResources(): readonly URI[] {
+		// Trigger lazy fetch when both a fetcher is registered and this getter is called.
+		this._availableSessionsRequested = true;
+		this._tryFetchAvailableSessions();
+
+		const known = new Set(this._sessionOrder.map(u => u.toString()));
+		const result = [...this._sessionOrder];
+		for (const uri of this._availableSessionResources) {
+			if (!known.has(uri.toString())) {
+				known.add(uri.toString());
+				result.push(uri);
+			}
+		}
+		return result;
+	}
+
+	registerAvailableSessionsFetcher(fetcher: (token: CancellationToken) => Promise<{ uri: URI; title?: string }[]>): void {
+		this._availableSessionsFetcher = fetcher;
+		this._availableSessionsFetchStarted = false;
+		// If the UI already requested sessions before the fetcher was registered, fetch now.
+		this._tryFetchAvailableSessions();
+	}
+
+	private _tryFetchAvailableSessions(): void {
+		if (!this._availableSessionsFetcher || !this._availableSessionsRequested || this._availableSessionsFetchStarted) {
+			return;
+		}
+		this._availableSessionsFetchStarted = true;
+		// Fire-and-forget: don't block the caller.
+		const fetcher = this._availableSessionsFetcher;
+		fetcher(CancellationToken.None).then(entries => {
+			if (entries.length > 0) {
+				this.addAvailableSessionResources(entries);
+			}
+		}).catch(onUnexpectedError);
+	}
+
+	getHistoricalSessionTitle(sessionResource: URI): string | undefined {
+		return this._historicalSessionTitles.get(sessionResource);
 	}
 
 	async exportLog(sessionResource: URI): Promise<Uint8Array | undefined> {

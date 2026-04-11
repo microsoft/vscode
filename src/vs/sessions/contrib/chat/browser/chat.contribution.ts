@@ -18,12 +18,13 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { IViewContainersRegistry, IViewsRegistry, ViewContainerLocation, Extensions as ViewExtensions, WindowVisibility } from '../../../../workbench/common/views.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IsActiveSessionBackgroundProviderContext, IsNewChatSessionContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { Menus } from '../../../browser/menus.js';
 import { BranchChatSessionAction } from './branchChatSessionAction.js';
 import { RunScriptContribution } from './runScriptAction.js';
 import './nullInlineChatSessionService.js';
+import './nullChatTipService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { AgenticPromptsService } from './promptsService.js';
@@ -41,7 +42,9 @@ import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js'
 import { ChatViewPane } from '../../../../workbench/contrib/chat/browser/widgetHosts/viewPane/chatViewPane.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { CopilotCLISessionType } from '../../sessions/browser/sessionTypes.js';
+import { CopilotCLISessionType } from '../../../services/sessions/common/session.js';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { SessionsChatAccessibilityHelp } from './sessionsChatAccessibilityHelp.js';
 
 export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 	static readonly ID = 'chat.openSessionWorktreeInVSCode';
@@ -86,7 +89,9 @@ export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 			? 'vscode'
 			: productService.quality === 'exploration'
 				? 'vscode-exploration'
-				: 'vscode-insiders';
+				: productService.quality === 'insider'
+					? 'vscode-insiders'
+					: productService.urlProtocol;
 
 		const params = new URLSearchParams();
 		params.set('windowId', '_blank');
@@ -205,3 +210,6 @@ registerSingleton(IPromptsService, AgenticPromptsService, InstantiationType.Dela
 registerSingleton(ISessionsConfigurationService, SessionsConfigurationService, InstantiationType.Delayed);
 registerSingleton(IAICustomizationWorkspaceService, SessionsAICustomizationWorkspaceService, InstantiationType.Delayed);
 registerSingleton(ICustomizationHarnessService, SessionsCustomizationHarnessService, InstantiationType.Delayed);
+
+// register accessibility help
+AccessibleViewRegistry.register(new SessionsChatAccessibilityHelp());

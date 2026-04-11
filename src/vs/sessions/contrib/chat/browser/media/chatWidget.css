@@ -26,7 +26,7 @@
 	width: 100%;
 	max-width: 800px;
 	box-sizing: border-box;
-	border: 1px solid var(--vscode-input-border, var(--vscode-contrastBorder, transparent));
+	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border, var(--vscode-contrastBorder, transparent)));
 	border-radius: 8px;
 	background-color: var(--vscode-input-background);
 	overflow: hidden;
@@ -35,7 +35,7 @@
 }
 
 .sessions-chat-input-area:focus-within {
-	border-color: var(--vscode-input-border, var(--vscode-contrastBorder, transparent));
+	border-color: var(--vscode-focusBorder);
 }
 
 /* Editor */

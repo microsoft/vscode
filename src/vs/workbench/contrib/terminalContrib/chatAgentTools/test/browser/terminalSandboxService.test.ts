@@ -17,6 +17,7 @@ import { IProductService } from '../../../../../../platform/product/common/produ
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { TerminalChatAgentToolsSandboxEnabledValue, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
+import { AgentNetworkDomainSettingId } from '../../../../../../platform/networkFilter/common/settings.js';
 import { Event, Emitter } from '../../../../../../base/common/event.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
@@ -175,8 +176,8 @@ suite('TerminalSandboxService - network domains', () => {
 
 		// Setup default configuration
 		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxEnabled, TerminalChatAgentToolsSandboxEnabledValue.On);
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains, []);
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkDeniedDomains, []);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, []);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, []);
 
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IFileService, fileService);
@@ -229,8 +230,8 @@ suite('TerminalSandboxService - network domains', () => {
 	});
 
 	test('should preserve configured network domains', async () => {
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains, ['example.com', '*.github.com']);
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkDeniedDomains, ['blocked.example.com']);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['example.com', '*.github.com']);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['blocked.example.com']);
 
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		deepStrictEqual(sandboxService.getResolvedNetworkDomains(), {
@@ -359,7 +360,7 @@ suite('TerminalSandboxService - network domains', () => {
 	});
 
 	test('should allow exact allowlisted domains', async () => {
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains, ['example.com']);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['example.com']);
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 
@@ -370,7 +371,7 @@ suite('TerminalSandboxService - network domains', () => {
 	});
 
 	test('should allow wildcard domains', async () => {
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains, ['*.github.com']);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['*.github.com']);
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 
@@ -381,8 +382,8 @@ suite('TerminalSandboxService - network domains', () => {
 	});
 
 	test('should give denied domains precedence over allowlisted domains', async () => {
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains, ['*.github.com']);
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkDeniedDomains, ['api.github.com']);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['*.github.com']);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['api.github.com']);
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 
@@ -394,7 +395,7 @@ suite('TerminalSandboxService - network domains', () => {
 	});
 
 	test('should match uppercase hostnames when checking allowlisted domains', async () => {
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains, ['*.github.com']);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['*.github.com']);
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 
@@ -427,6 +428,36 @@ suite('TerminalSandboxService - network domains', () => {
 		strictEqual(jsonResult.blockedDomains, undefined, 'File extensions such as .json should not be reported as domains');
 	});
 
+	test('should ignore bare dotted values with unknown domain suffixes', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const commands = [
+			'echo test.invalidtld',
+			'echo test.org.invalidtld',
+			'echo session.completed',
+		];
+
+		for (const command of commands) {
+			const wrapResult = sandboxService.wrapCommand(command, false, 'bash');
+			strictEqual(wrapResult.isSandboxWrapped, true, `Command ${command} should remain sandboxed`);
+			strictEqual(wrapResult.blockedDomains, undefined, `Command ${command} should not report a blocked domain`);
+		}
+	});
+
+	test('should still detect bare hosts with well-known domain suffixes', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const testComResult = sandboxService.wrapCommand('curl test.com', false, 'bash');
+		strictEqual(testComResult.isSandboxWrapped, false, 'Well-known bare domain suffixes should trigger domain checks');
+		deepStrictEqual(testComResult.blockedDomains, ['test.com']);
+
+		const testOrgComResult = sandboxService.wrapCommand('curl test.org.com', false, 'bash');
+		strictEqual(testOrgComResult.isSandboxWrapped, false, 'Well-known bare domain suffixes should trigger domain checks for multi-label hosts');
+		deepStrictEqual(testOrgComResult.blockedDomains, ['test.org.com']);
+	});
+
 	test('should still treat URL authorities with file-like suffixes as domains', async () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
@@ -435,6 +466,16 @@ suite('TerminalSandboxService - network domains', () => {
 
 		strictEqual(wrapResult.isSandboxWrapped, false, 'URL authorities should still trigger blocked-domain prompts even when their suffix looks like a file extension');
 		deepStrictEqual(wrapResult.blockedDomains, ['example.zip']);
+	});
+
+	test('should still treat URL authorities with unknown suffixes as domains', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const wrapResult = sandboxService.wrapCommand('curl https://example.bar/path', false, 'bash');
+
+		strictEqual(wrapResult.isSandboxWrapped, false, 'URL authorities should not require a well-known bare-host suffix');
+		deepStrictEqual(wrapResult.blockedDomains, ['example.bar']);
 	});
 
 	test('should still treat ssh remotes with file-like suffixes as domains', async () => {

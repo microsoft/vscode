@@ -236,6 +236,35 @@ export interface IChatDebugService extends IDisposable {
 	 */
 	getImportedSessionTitle(sessionResource: URI): string | undefined;
 
+	/**
+	 * Fired when available session resources change (e.g. historical sessions discovered from disk).
+	 */
+	readonly onDidChangeAvailableSessionResources: Event<void>;
+
+	/**
+	 * Store session resources that have debug log data available on disk.
+	 * Called by the main thread after the extension reports historical sessions.
+	 */
+	addAvailableSessionResources(resources: readonly { uri: URI; title?: string }[]): void;
+
+	/**
+	 * Get all session resources that have debug log data available,
+	 * including historical sessions persisted on disk by the provider.
+	 * Triggers a lazy fetch from the registered fetcher on first call.
+	 */
+	getAvailableSessionResources(): readonly URI[];
+
+	/**
+	 * Register a callback that fetches available session resources from a provider.
+	 * Called lazily when `getAvailableSessionResources()` is first invoked.
+	 */
+	registerAvailableSessionsFetcher(fetcher: (token: CancellationToken) => Promise<{ uri: URI; title?: string }[]>): void;
+
+	/**
+	 * Get the stored title for a historical session discovered from disk.
+	 */
+	getHistoricalSessionTitle(sessionResource: URI): string | undefined;
+
 }
 
 /**

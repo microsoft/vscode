@@ -67,6 +67,7 @@ The `IAICustomizationWorkspaceService` interface controls per-window behavior:
 | `getStorageSourceFilter(type)` | Delegates to `ICustomizationHarnessService` | Delegates to `ICustomizationHarnessService` |
 | `isSessionsWindow` | `false` | `true` |
 | `activeProjectRoot` | First workspace folder | Active session worktree |
+| `welcomePageFeatures` | Shows getting-started banner + per-card AI actions | Shows getting-started banner, hides per-card AI actions |
 
 ### ICustomizationHarnessService
 
@@ -227,13 +228,19 @@ Browser compatibility is required — no Node.js APIs.
 
 ## Feature Gating
 
-All commands and UI respect `ChatContextKeys.enabled` and the `chat.customizationsMenu.enabled` setting.
+All commands and UI respect `ChatContextKeys.enabled`.
+
+### Commands
+
+| Command ID | Purpose |
+|-----------|---------|
+| `aiCustomization.openManagementEditor` | Opens the management editor, optionally accepting an `AICustomizationManagementSection` to deep-link |
+| `aiCustomization.openMarketplace` | Opens the management editor with marketplace browse mode active. Accepts an optional section (`mcpServers` or `plugins`); defaults to `mcpServers` |
 
 ## Settings
 
-Settings use the `chat.customizationsMenu.` and `chat.customizations.` namespaces:
+User-facing settings use the `chat.customizations.` namespace:
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `chat.customizationsMenu.enabled` | `true` | Show the Chat Customizations editor in the Command Palette |
 | `chat.customizations.harnessSelector.enabled` | `true` | Show the harness selector dropdown in the sidebar |

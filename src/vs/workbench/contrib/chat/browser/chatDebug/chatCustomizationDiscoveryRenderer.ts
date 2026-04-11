@@ -74,7 +74,7 @@ function createInlineFileLink(uri: URI, displayText: string, fileKind: FileKind,
 	disposables.add(DOM.addDisposableListener(link, DOM.EventType.CLICK, (e) => {
 		e.preventDefault();
 		e.stopPropagation();
-		openerService.open(uri);
+		openerService.open(uri, { editorOptions: { preserveFocus: true } });
 	}));
 
 	return link;
@@ -194,7 +194,7 @@ export function renderCustomizationDiscoveryContent(content: IChatDebugEventFile
 				const relativeLabel = labelService.getUriLabel(file.uri, { relative: true });
 				row.setAttribute('aria-label', relativeLabel);
 				const uri = file.uri;
-				rows.push({ element: row, activate: () => openerService.open(uri) });
+				rows.push({ element: row, activate: () => openerService.open(uri, { editorOptions: { preserveFocus: true } }) });
 			}
 		}
 		setupFileListNavigation(listEl, rows, disposables);
@@ -252,7 +252,7 @@ export function renderCustomizationDiscoveryContent(content: IChatDebugEventFile
 				const relativeLabel = labelService.getUriLabel(file.uri, { relative: true });
 				row.setAttribute('aria-label', relativeLabel);
 				const uri = file.uri;
-				rows.push({ element: row, activate: () => openerService.open(uri) });
+				rows.push({ element: row, activate: () => openerService.open(uri, { editorOptions: { preserveFocus: true } }) });
 			}
 		}
 		setupFileListNavigation(listEl, rows, disposables);
@@ -455,29 +455,68 @@ export function renderCustomizationSummaryContent(content: IChatDebugEventCustom
 		listEl.setAttribute('aria-label', title);
 
 		const rows: { element: HTMLElement; activate: () => void }[] = [];
-		for (const entry of entries) {
-			const row = DOM.append(listEl, $('div.chat-debug-file-list-row'));
-			DOM.append(row, $(`span.chat-debug-file-list-icon${ThemeIcon.asCSSSelector(icon)}`));
 
-			// Hide the reason for skills (e.g. "local") and hooks — it's noise in the UI.
-			const showReason = entry.category !== 'skill' && entry.category !== 'hook' && entry.category !== 'custom-agent';
-
-			if (entry.uri) {
-				row.appendChild(createInlineFileLink(
-					entry.uri, entry.name, FileKind.FILE,
-					openerService, modelService, languageService, hoverService, labelService, disposables,
-					showReason ? entry.reason : undefined
-				));
-				const uri = entry.uri;
-				rows.push({ element: row, activate: () => openerService.open(uri) });
-			} else {
-				DOM.append(row, $('span', undefined, entry.name));
+		// For hooks, group entries by lifecycle event (stored in reason).
+		const isHookSection = entries.length > 0 && entries[0].category === 'hook';
+		if (isHookSection) {
+			// Collect entries by hook type, preserving insertion order.
+			const groupedByType = new Map<string, IChatDebugCustomizationLogEntry[]>();
+			for (const entry of entries) {
+				const hookType = entry.reason ?? '';
+				let group = groupedByType.get(hookType);
+				if (!group) {
+					group = [];
+					groupedByType.set(hookType, group);
+				}
+				group.push(entry);
 			}
 
-			if (showReason && entry.reason) {
-				DOM.append(row, $('span.chat-debug-file-list-detail', undefined, ` — ${entry.reason}`));
+			for (const [hookType, groupEntries] of groupedByType) {
+				if (hookType) {
+					DOM.append(listEl, $('div.chat-debug-file-list-group-header', undefined, hookType));
+				}
+				for (const entry of groupEntries) {
+					const row = DOM.append(listEl, $('div.chat-debug-file-list-row'));
+					DOM.append(row, $(`span.chat-debug-file-list-icon${ThemeIcon.asCSSSelector(icon)}`));
+
+					if (entry.uri) {
+						row.appendChild(createInlineFileLink(
+							entry.uri, entry.name, FileKind.FILE,
+							openerService, modelService, languageService, hoverService, labelService, disposables,
+						));
+						const uri = entry.uri;
+						rows.push({ element: row, activate: () => openerService.open(uri, { editorOptions: { preserveFocus: true } }) });
+					} else {
+						DOM.append(row, $('span', undefined, entry.name));
+					}
+					row.setAttribute('aria-label', entry.reason ? `${entry.name} — ${entry.reason}` : entry.name);
+				}
 			}
-			row.setAttribute('aria-label', entry.reason ? `${entry.name} — ${entry.reason}` : entry.name);
+		} else {
+			for (const entry of entries) {
+				const row = DOM.append(listEl, $('div.chat-debug-file-list-row'));
+				DOM.append(row, $(`span.chat-debug-file-list-icon${ThemeIcon.asCSSSelector(icon)}`));
+
+				// Hide the reason for skills (e.g. "local") and custom-agents — it's noise in the UI.
+				const showReason = entry.category !== 'skill' && entry.category !== 'custom-agent';
+
+				if (entry.uri) {
+					row.appendChild(createInlineFileLink(
+						entry.uri, entry.name, FileKind.FILE,
+						openerService, modelService, languageService, hoverService, labelService, disposables,
+						showReason ? entry.reason : undefined
+					));
+					const uri = entry.uri;
+					rows.push({ element: row, activate: () => openerService.open(uri, { editorOptions: { preserveFocus: true } }) });
+				} else {
+					DOM.append(row, $('span', undefined, entry.name));
+				}
+
+				if (showReason && entry.reason) {
+					DOM.append(row, $('span.chat-debug-file-list-detail', undefined, ` — ${entry.reason}`));
+				}
+				row.setAttribute('aria-label', entry.reason ? `${entry.name} — ${entry.reason}` : entry.name);
+			}
 		}
 		setupFileListNavigation(listEl, rows, disposables);
 	}
