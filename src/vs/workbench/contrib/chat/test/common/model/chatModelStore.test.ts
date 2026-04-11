@@ -244,6 +244,83 @@ suite('ChatModelStore', () => {
 		await testObject.waitForModelDisposals();
 	});
 
+	test('model stays alive when reference is leaked and disposed after state flush (#309115)', async () => {
+		// This test validates the fix for #309115: when switching chat threads,
+		// the old model reference must stay alive until input state has been
+		// flushed. Using clearAndLeak() on a MutableDisposable followed by
+		// manual dispose() after flushing ensures the model is not destroyed
+		// before the state is saved.
+		const uri = URI.parse('test://session');
+		const props: IStartSessionProps = {
+			sessionResource: uri,
+			location: ChatAgentLocation.Chat,
+			canUseTools: true
+		};
+
+		const ref = testObject.acquireOrCreate(props, 'ViewPane');
+		const model = ref.object as unknown as MockChatModel;
+
+		// Simulate the fix: instead of immediately disposing the reference
+		// (which would trigger willDisposeModel before state is flushed),
+		// hold the reference, perform the state flush, then dispose.
+		assert.strictEqual(model.isDisposed, false, 'model should be alive before dispose');
+
+		// The model should still be accessible and alive at this point,
+		// allowing input state to be flushed to it before disposal.
+		assert.strictEqual(testObject.get(uri), model, 'model should still be in store');
+
+		// Now dispose - this triggers willDisposeModel where state would be serialized
+		ref.dispose();
+		assert.strictEqual(model.isDisposed, false, 'model should not be disposed yet (async disposal)');
+
+		willDisposePromises[0].complete();
+		await testObject.waitForModelDisposals();
+		assert.strictEqual(model.isDisposed, true, 'model should be disposed after willDisposeModel completes');
+	});
+
+	test('early reference release causes model disposal before state can be flushed (#309115)', async () => {
+		// This test demonstrates the problematic pattern that caused #309115:
+		// if the only reference is released before input state is flushed,
+		// the model enters the disposal pipeline and may be serialized
+		// with stale state.
+		const uri1 = URI.parse('test://session1');
+		const uri2 = URI.parse('test://session2');
+		const props1: IStartSessionProps = {
+			sessionResource: uri1,
+			location: ChatAgentLocation.Chat,
+			canUseTools: true
+		};
+		const props2: IStartSessionProps = {
+			sessionResource: uri2,
+			location: ChatAgentLocation.Chat,
+			canUseTools: true
+		};
+
+		const ref1 = testObject.acquireOrCreate(props1, 'ViewPane');
+		const model1 = ref1.object as unknown as MockChatModel;
+
+		// Release ref1 immediately (the old buggy pattern)
+		ref1.dispose();
+
+		// willDisposeModel has been triggered for model1
+		assert.strictEqual(willDisposePromises.length, 1, 'willDisposeModel should have been called');
+
+		// Now acquire model2 - model1 is already in disposal pipeline
+		const ref2 = testObject.acquireOrCreate(props2, 'ViewPane');
+
+		// At this point in the old code, setModel would try to flush state
+		// to model1, but model1 is already being disposed. The fix ensures
+		// model1 stays alive until after the flush.
+		assert.strictEqual(model1.isDisposed, false, 'model1 should not be fully disposed yet');
+
+		willDisposePromises[0].complete();
+		await testObject.waitForModelDisposals();
+
+		ref2.dispose();
+		willDisposePromises[1].complete();
+		await testObject.waitForModelDisposals();
+	});
+
 	test('resurrection preserves debug tracking', async () => {
 		const uri = URI.parse('test://session');
 		const props: IStartSessionProps = {

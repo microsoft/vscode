@@ -704,7 +704,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 	private async showModel(token: CancellationToken, modelRef?: IChatModelReference | undefined, startNewSession = true): Promise<IChatModel | undefined> {
 		const oldModelResource = this.modelRef.value?.object.sessionResource;
-		this.modelRef.value = undefined;
+
+		// Hold a temporary reference to the old model so it stays alive until
+		// the widget has flushed unsaved input state (e.g. draft text the user
+		// was typing). Releasing the reference too early can cause the model to
+		// be disposed and serialized before the input state is saved, losing the
+		// user's in-progress prompt. See #309115.
+		const oldModelRef = this.modelRef.clearAndLeak();
 
 		let ref: IChatModelReference | undefined;
 		if (startNewSession) {
@@ -712,12 +718,14 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 				? await this.chatService.acquireOrLoadSession(this.chatService.transferredSessionResource, ChatAgentLocation.Chat, token, 'ChatViewPane#showModel')
 				: this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { debugOwner: 'ChatViewPane#showModel' }));
 			if (!ref) {
+				oldModelRef?.dispose();
 				throw new Error('Could not start chat session');
 			}
 		}
 
 		if (token.isCancellationRequested) {
 			ref?.dispose();
+			oldModelRef?.dispose();
 			return undefined;
 		}
 
@@ -729,6 +737,7 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 			if (token.isCancellationRequested) {
 				this.modelRef.value = undefined;
+				oldModelRef?.dispose();
 				return undefined;
 			}
 
@@ -736,7 +745,13 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 			this.viewState.sessionResource = model.sessionResource;
 		}
 
+		// setModel triggers setInputModel on the input part, which flushes
+		// the current editor text to the outgoing model before switching.
+		// The old model reference must still be alive at this point.
 		this._widget.setModel(model);
+
+		// Now that input state has been flushed, release the old model reference.
+		oldModelRef?.dispose();
 
 		// Update title control
 		this.titleControl?.update(model);
