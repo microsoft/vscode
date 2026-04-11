@@ -10,27 +10,57 @@ import { INotificationService, Severity } from '../../../../platform/notificatio
 import { encodeBase64, VSBuffer } from '../../../../base/common/buffer.js';
 import { IRequestService, asJson } from '../../../../platform/request/common/request.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 export class BonianAgentController extends Disposable {
 	constructor(
 		@IFileService private readonly fileService: IFileService,
 		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IRequestService private readonly requestService: IRequestService
+		@IRequestService private readonly requestService: IRequestService,
+		@ILogService private readonly logService: ILogService
 	) {
 		super();
 	}
 
-	public async processImage(imageUri: URI, onProgress: (stage: number, status: string) => void): Promise<void> {
+	public async processImage(
+		input: { uri: URI } | { base64: string; mimeType: string; filename: string },
+		onImageLoaded: (dataUrl: string) => void,
+		onProgress: (stage: number, status: string) => void
+	): Promise<void> {
 		try {
 			// Stage 1: Start Loading
 			onProgress(1, 'loading');
 
-			// Read and Convert File to Base64
-			const fileStats = await this.fileService.readFile(imageUri);
-			const base64Str = encodeBase64(fileStats.value);
-			const ext = imageUri.path.split('.').pop()?.toLowerCase();
-			const mimeType = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : (ext === 'svg' ? 'image/svg+xml' : 'image/png');
+			let base64Str: string;
+			let mimeType: string;
+			let targetRoot: URI;
+
+			const workspace = this.workspaceContextService.getWorkspace();
+
+			if ('uri' in input) {
+				const fileStats = await this.fileService.readFile(input.uri);
+				base64Str = encodeBase64(fileStats.value);
+				const ext = input.uri.path.split('.').pop()?.toLowerCase();
+				mimeType = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : (ext === 'svg' ? 'image/svg+xml' : 'image/png');
+
+				if (workspace.folders.length > 0) {
+					targetRoot = URI.joinPath(workspace.folders[0].uri, 'bonian-generated');
+				} else {
+					targetRoot = URI.joinPath(input.uri, '..', 'bonian-generated');
+				}
+			} else {
+				base64Str = input.base64;
+				mimeType = input.mimeType;
+
+				if (workspace.folders.length > 0) {
+					targetRoot = URI.joinPath(workspace.folders[0].uri, 'bonian-generated');
+				} else {
+					throw new Error('A workspace folder must be open to process uploaded images.');
+				}
+			}
+
+			onImageLoaded(`data:${mimeType};base64,${base64Str}`);
 
 			const payload = {
 				imageBase64: base64Str,
@@ -54,6 +84,8 @@ export class BonianAgentController extends Disposable {
 			}
 
 			const data = await asJson<any>(requestContext);
+
+			this.logService.info('[BonianAgentController] Full API Response:', JSON.stringify(data));
 
 			if (!data) {
 				throw new Error('API returned empty response');
@@ -81,17 +113,6 @@ export class BonianAgentController extends Disposable {
 			// Stage 5: Write to Workspace
 			onProgress(5, 'loading');
 
-			const workspace = this.workspaceContextService.getWorkspace();
-			let targetRoot: URI;
-
-			if (workspace.folders.length > 0) {
-				// Create 'bonian-generated' directory at the root of the active workspace
-				targetRoot = URI.joinPath(workspace.folders[0].uri, 'bonian-generated');
-			} else {
-				// Fallback to sibling of the image if no workspace is active
-				targetRoot = URI.joinPath(imageUri, '..', 'bonian-generated');
-			}
-
 			const generatedProject = data.generatedProject;
 			const generatedFiles = generatedProject?.files || [];
 
@@ -108,11 +129,17 @@ export class BonianAgentController extends Disposable {
 				await this.fileService.writeFile(fileUri, VSBuffer.fromString(fileContent));
 			}
 
+			if (data.plantUML) {
+				const plantUmlUri = URI.joinPath(targetRoot, 'plantuml.md');
+				const plantUmlContent = '```plantuml\n' + data.plantUML + '\n```';
+				await this.fileService.writeFile(plantUmlUri, VSBuffer.fromString(plantUmlContent));
+			}
+
 			onProgress(5, 'success');
 			this.notificationService.info('Bonian Agent: Project generated successfully!');
 
 		} catch (error: any) {
-			console.error('[BonianAgentController]', error);
+			this.logService.error('[BonianAgentController]', error);
 			this.notificationService.notify({
 				severity: Severity.Error,
 				message: 'Bonian Agent Pipeline Failed: ' + error.message

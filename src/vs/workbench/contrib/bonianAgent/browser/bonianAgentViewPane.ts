@@ -76,6 +76,8 @@ export class BonianAgentViewPane extends ViewPane {
 						this.startPipeline(this.pendingUri);
 						this.pendingUri = undefined;
 					}
+				} else if (e.message.command === 'uploadImage') {
+					this.startPipelineWithRawData(e.message.filename, e.message.dataUrl);
 				}
 			}));
 
@@ -88,6 +90,32 @@ export class BonianAgentViewPane extends ViewPane {
 
 		this.layoutWebview();
 		this.updateWebviewVisibility();
+	}
+
+	public async startPipelineWithRawData(filename: string, dataUrl: string) {
+		if (!this.webview) {
+			return;
+		}
+		this.webview.postMessage({ command: 'reset' });
+		this.webview.postMessage({ command: 'setFile', file: filename });
+
+		if (!this.controller) {
+			this.controller = this._register(this.instantiationService.createInstance(BonianAgentController));
+		}
+
+		const match = dataUrl.match(/^data:(image\/[^;]+);base64,(.+)$/);
+		if (!match) {
+			return;
+		}
+
+		const mimeType = match[1];
+		const base64Str = match[2];
+
+		await this.controller.processImage({ base64: base64Str, mimeType, filename }, dataUrl => {
+			this.webview?.postMessage({ command: 'showImage', dataUrl });
+		}, (stage, status) => {
+			this.webview?.postMessage({ command: 'setStage', stage, status });
+		});
 	}
 
 	public async startPipeline(uri: string) {
@@ -108,7 +136,9 @@ export class BonianAgentViewPane extends ViewPane {
 		}
 
 		const parsedUri = URI.parse(uri);
-		await this.controller.processImage(parsedUri, (stage, status) => {
+		await this.controller.processImage({ uri: parsedUri }, dataUrl => {
+			this.webview?.postMessage({ command: 'showImage', dataUrl });
+		}, (stage, status) => {
 			this.webview?.postMessage({ command: 'setStage', stage, status });
 		});
 	}
@@ -135,10 +165,22 @@ export class BonianAgentViewPane extends ViewPane {
 				.step.loading .step-label { opacity: 1; color: var(--vscode-progressBar-background); }
 				.step.success .step-icon { border-color: var(--vscode-testing-iconPassed); background-color: var(--vscode-testing-iconPassed); color: white; }
 				.step.success .step-label { opacity: 1; }
+				.upload-box { border: 2px dashed var(--vscode-panel-border); border-radius: 6px; padding: 20px; text-align: center; margin-bottom: 20px; cursor: pointer; transition: border-color 0.2s; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+				.upload-box:hover { border-color: var(--vscode-focusBorder); }
+				.upload-box.drag-over { border-color: var(--vscode-focusBorder); background-color: var(--vscode-editor-inactiveSelectionBackground); }
+				.upload-label { font-size: 0.9rem; opacity: 0.8; margin-bottom: 5px; }
+				#imagePreview { max-width: 100%; max-height: 200px; border-radius: 4px; display: none; margin-top: 10px; }
 			</style>
 		</head>
 		<body>
 			<div class="header">Pipeline Status</div>
+
+			<div class="upload-box" id="uploadBox">
+				<input type="file" id="fileInput" accept="image/*" style="display: none;">
+				<div class="upload-label" id="uploadLabel">Click or drag image here to upload</div>
+				<img id="imagePreview" />
+			</div>
+
 			<div class="file-name" id="fileName">Waiting for image...</div>
 			<div class="stepper">
 				<div class="step" id="step-1"><div class="step-icon">1</div><div class="step-label">Image → Structured Data</div></div>
@@ -149,10 +191,47 @@ export class BonianAgentViewPane extends ViewPane {
 			</div>
 			<script>
 				const vscode = acquireVsCodeApi();
+
+				const uploadBox = document.getElementById('uploadBox');
+				const fileInput = document.getElementById('fileInput');
+				const imagePreview = document.getElementById('imagePreview');
+				const uploadLabel = document.getElementById('uploadLabel');
+
+				uploadBox.addEventListener('click', () => fileInput.click());
+				uploadBox.addEventListener('dragover', (e) => { e.preventDefault(); uploadBox.classList.add('drag-over'); });
+				uploadBox.addEventListener('dragleave', () => uploadBox.classList.remove('drag-over'));
+				uploadBox.addEventListener('drop', (e) => {
+					e.preventDefault();
+					uploadBox.classList.remove('drag-over');
+					if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+						handleFile(e.dataTransfer.files[0]);
+					}
+				});
+				fileInput.addEventListener('change', (e) => {
+					if (e.target.files && e.target.files.length > 0) {
+						handleFile(e.target.files[0]);
+					}
+				});
+
+				function handleFile(file) {
+					const reader = new FileReader();
+					reader.onload = (e) => {
+						const dataUrl = e.target.result;
+						vscode.postMessage({
+							command: 'uploadImage',
+							filename: file.name,
+							dataUrl: dataUrl
+						});
+					};
+					reader.readAsDataURL(file);
+				}
+
 				window.addEventListener('message', event => {
 					const msg = event.data;
 					if (msg.command === 'reset') {
 						document.querySelectorAll('.step').forEach((el, i) => { el.className = 'step'; el.querySelector('.step-icon').innerText = i+1; });
+						imagePreview.style.display = 'none';
+						uploadLabel.style.display = 'block';
 					} else if (msg.command === 'setFile') {
 						const parts = msg.file.split(/[\\\\/]/);
 						document.getElementById('fileName').innerText = decodeURIComponent(parts[parts.length-1]);
@@ -162,6 +241,10 @@ export class BonianAgentViewPane extends ViewPane {
 							el.className = 'step ' + msg.status;
 							if (msg.status === 'success') el.querySelector('.step-icon').innerHTML = '✓';
 						}
+					} else if (msg.command === 'showImage') {
+						imagePreview.src = msg.dataUrl;
+						imagePreview.style.display = 'block';
+						uploadLabel.style.display = 'none';
 					}
 				});
 				vscode.postMessage({ command: 'ready' });
