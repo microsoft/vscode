@@ -6,6 +6,7 @@
 import { Sequencer } from '../../../base/common/async.js'; import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../base/common/map.js';
+import { waitForState } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { GitRepository } from '../../contrib/git/browser/gitService.js';
 import { IGitExtensionDelegate, IGitService, GitRef, GitRefQuery, GitRefType, GitRepositoryState, GitBranch, GitChange, GitDiffChange, IGitRepository } from '../../contrib/git/common/gitService.js';
@@ -115,6 +116,9 @@ export class MainThreadGitExtensionService extends Disposable implements MainThr
 
 			this._repositories.set(result.handle, repository);
 			this._repositoryHandles.set(repositoryRootUri, result.handle);
+
+			// Wait for the repository to be fully initialized before returning it
+			await waitForState(repository.state, state => state.HEAD !== undefined);
 
 			return repository;
 		});

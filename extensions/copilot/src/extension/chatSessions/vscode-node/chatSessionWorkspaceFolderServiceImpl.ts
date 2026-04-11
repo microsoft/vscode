@@ -201,7 +201,7 @@ export class ChatSessionWorkspaceFolderService extends Disposable implements ICh
 				}
 
 				// Stage entire working directory into temp index
-				await this.gitService.exec(repository.rootUri, ['add', '--', '.'], { GIT_INDEX_FILE: diffIndexFile });
+				await this.gitService.exec(repository.rootUri, ['add', '-A', '--', '.'], { GIT_INDEX_FILE: diffIndexFile });
 
 				// Diff the temp index with the base branch
 				const result = repositoryProperties.baseBranchName

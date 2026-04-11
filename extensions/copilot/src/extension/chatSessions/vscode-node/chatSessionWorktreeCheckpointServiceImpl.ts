@@ -221,7 +221,7 @@ export class ChatSessionWorktreeCheckpointService extends Disposable implements 
 			await this.gitService.exec(repositoryUri, ['read-tree', parentCommitOid ?? 'HEAD'], { GIT_INDEX_FILE: checkpointIndexFile });
 
 			// Stage entire working directory into temp index
-			await this.gitService.exec(repositoryUri, ['add', '--', '.'], { GIT_INDEX_FILE: checkpointIndexFile });
+			await this.gitService.exec(repositoryUri, ['add', '-A', '--', '.'], { GIT_INDEX_FILE: checkpointIndexFile });
 
 			// Write the temp index as a tree object
 			const treeOid = await this.gitService.exec(repositoryUri, ['write-tree'], { GIT_INDEX_FILE: checkpointIndexFile });
