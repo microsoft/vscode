@@ -24,7 +24,7 @@
 		"src",
 		"test",
 		".vscode/extensions/test-extension"
-	],
+, "../lmstudio-byok/lmstudioProvider.ts"	],
 	"exclude": [
 		"test/scenarios/**/*",
 		"test/simulation/fixtures/**/*",

@@ -1,0 +1,45 @@
+{
+  "name": "lmstudio-byok",
+  "displayName": "LM Studio BYOK",
+  "description": "LM Studio language model support for VS Code chat.",
+  "version": "0.0.1",
+  "publisher": "nullsetindustries",
+  "private": true,
+  "engines": {
+    "vscode": "^1.115.0"
+  },
+  "categories": [
+    "AI"
+  ],
+  "activationEvents": [
+    "onLanguageModelChat:lmstudio"
+  ],
+  "main": "./out/extension",
+  "contributes": {
+    "languageModelChatProviders": [
+      {
+        "vendor": "lmstudio",
+        "displayName": "LM Studio"
+      }
+    ],
+    "configuration": {
+      "title": "LM Studio",
+      "properties": {
+        "lmstudioByok.endpoint": {
+          "type": "string",
+          "default": "http://localhost:1234/v1",
+          "description": "The endpoint URL for the LM Studio server."
+        }
+      }
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^20.17.0",
+    "@types/vscode": "^1.115.0",
+    "typescript": "^5.7.3"
+  },
+  "scripts": {
+    "compile": "tsc -p .",
+    "watch": "tsc -w -p ."
+  }
+}

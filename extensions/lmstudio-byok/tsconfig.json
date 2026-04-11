@@ -1,0 +1,33 @@
+{
+	"compilerOptions": {
+		"target": "ES2020",
+		"module": "commonjs",
+		"lib": [
+			"ES2020"
+		],
+		"rootDir": ".",
+		"outDir": "./out",
+		"strict": true,
+		"esModuleInterop": true,
+		"skipLibCheck": true,
+		"forceConsistentCasingInFileNames": true,
+		"resolveJsonModule": true,
+		"declaration": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"noImplicitReturns": true,
+		"noFallthroughCasesInSwitch": true,
+		"types": [
+			"node",
+			"vscode"
+		]
+	},
+	"include": [
+		"extension.ts",
+		"lmstudioProvider.ts"
+	],
+	"exclude": [
+		"node_modules",
+		"out"
+	]
+}

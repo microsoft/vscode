@@ -1815,24 +1815,6 @@
 				}
 			},
 			{
-				"vendor": "lmstudio",
-				"displayName": "LM Studio",
-				"configuration": {
-					"type": "object",
-					"properties": {
-						"url": {
-							"type": "string",
-							"description": "The endpoint URL for the LM Studio server",
-							"default": "http://localhost:1234/v1",
-							"title": "URL"
-						}
-					},
-					"required": [
-						"url"
-					]
-				}
-			},
-			{
 				"vendor": "ollama",
 				"displayName": "Ollama",
 				"configuration": {
