@@ -2,7 +2,7 @@
 	"name": "copilot-chat",
 	"displayName": "GitHub Copilot Chat",
 	"description": "AI chat features powered by Copilot",
-	"version": "1.0.0",
+	"version": "0.44.0",
 	"build": "1",
 	"internalAIKey": "1058ec22-3c95-4951-8443-f26c1f325911",
 	"completionsCoreVersion": "1.378.1799",
@@ -23,7 +23,7 @@
 	"icon": "assets/copilot.png",
 	"pricing": "Trial",
 	"engines": {
-		"vscode": "^1.115.0",
+		"vscode": "^1.116.0",
 		"npm": ">=9.0.0",
 		"node": ">=22.14.0"
 	},
@@ -2488,11 +2488,6 @@
 				"category": "Developer"
 			},
 			{
-				"command": "github.copilot.debug.showNodeSystemCertificatesErrors",
-				"title": "%github.copilot.command.showNodeSystemCertificatesErrors%",
-				"category": "Developer"
-			},
-			{
 				"command": "github.copilot.debug.inlineEdit.clearCache",
 				"title": "%github.copilot.command.inlineEdit.clearCache%",
 				"category": "Developer"
@@ -3224,15 +3219,6 @@
 							"onExp"
 						]
 					},
-					"github.copilot.chat.backgroundCompaction": {
-						"type": "boolean",
-						"default": false,
-						"markdownDescription": "%github.copilot.config.backgroundCompaction%",
-						"tags": [
-							"preview",
-							"onExp"
-						]
-					},
 					"github.copilot.chat.anthropic.toolSearchTool.enabled": {
 						"type": "boolean",
 						"default": true,
@@ -3249,15 +3235,6 @@
 						],
 						"default": "server",
 						"markdownDescription": "%github.copilot.config.anthropic.toolSearchTool.mode%",
-						"tags": [
-							"preview",
-							"onExp"
-						]
-					},
-					"github.copilot.chat.conversationTranscriptLookup.enabled": {
-						"type": "boolean",
-						"default": false,
-						"description": "%github.copilot.config.conversationTranscriptLookup.enabled%",
 						"tags": [
 							"preview",
 							"onExp"
@@ -4349,7 +4326,8 @@
 						"markdownDescription": "%github.copilot.config.executionSubagent.enabled%",
 						"tags": [
 							"advanced",
-							"experimental"
+							"experimental",
+							"onExp"
 						]
 					},
 					"github.copilot.chat.executionSubagent.model": {
@@ -4358,16 +4336,18 @@
 						"markdownDescription": "%github.copilot.config.executionSubagent.model%",
 						"tags": [
 							"advanced",
-							"experimental"
+							"experimental",
+							"onExp"
 						]
 					},
 					"github.copilot.chat.executionSubagent.toolCallLimit": {
 						"type": "number",
-						"default": 5,
+						"default": 10,
 						"markdownDescription": "%github.copilot.config.executionSubagent.toolCallLimit%",
 						"tags": [
 							"advanced",
-							"experimental"
+							"experimental",
+							"onExp"
 						]
 					},
 					"github.copilot.chat.summarizeAgentConversationHistoryThreshold": {
@@ -4554,6 +4534,14 @@
 							"advanced"
 						]
 					},
+					"github.copilot.chat.cli.aiGenerateBranchNames.enabled": {
+						"type": "boolean",
+						"default": false,
+						"markdownDescription": "%github.copilot.config.cli.aiGenerateBranchNames.enabled%",
+						"tags": [
+							"advanced"
+						]
+					},
 					"github.copilot.chat.cli.forkSessions.enabled": {
 						"type": "boolean",
 						"default": false,
@@ -4589,7 +4577,7 @@
 					},
 					"github.copilot.chat.cli.thinkingEffort.enabled": {
 						"type": "boolean",
-						"default": false,
+						"default": true,
 						"markdownDescription": "%github.copilot.config.cli.thinkingEffort.enabled%",
 						"tags": [
 							"advanced"
@@ -4887,12 +4875,12 @@
 				},
 				{
 					"command": "github.copilot.sessions.commitAndSync",
-					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == workspace && sessions.hasGitRepository && sessions.hasUncommittedChanges",
+					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == workspace && sessions.hasGitRepository && sessions.hasUncommittedChanges && sessions.hasUpstream",
 					"group": "commit@2"
 				},
 				{
 					"command": "github.copilot.sessions.sync",
-					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == workspace && sessions.hasGitRepository && !sessions.hasUncommittedChanges",
+					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == workspace && sessions.hasGitRepository && !sessions.hasUncommittedChanges && sessions.hasUpstream",
 					"group": "sync@1"
 				},
 				{
@@ -4907,17 +4895,17 @@
 				},
 				{
 					"command": "github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR",
-					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && !sessions.hasPullRequest && (sessions.hasUncommittedChanges || sessions.hasOutgoingChanges)",
+					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && sessions.hasGitHubRemote && !sessions.hasPullRequest && (sessions.hasUncommittedChanges || sessions.hasOutgoingChanges)",
 					"group": "pull_request@1"
 				},
 				{
 					"command": "github.copilot.chat.createDraftPullRequestCopilotCLIAgentSession.createDraftPR",
-					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && !sessions.hasPullRequest && (sessions.hasUncommittedChanges || sessions.hasOutgoingChanges)",
+					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && sessions.hasGitHubRemote && !sessions.hasPullRequest && (sessions.hasUncommittedChanges || sessions.hasOutgoingChanges)",
 					"group": "pull_request@2"
 				},
 				{
 					"command": "github.copilot.chat.createPullRequestCopilotCLIAgentSession.updatePR",
-					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && sessions.hasPullRequest && sessions.hasOpenPullRequest",
+					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isolationMode == worktree && sessions.hasGitRepository && sessions.hasGitHubRemote && sessions.hasPullRequest && sessions.hasOpenPullRequest",
 					"group": "pull_request@1"
 				}
 			],
@@ -6081,7 +6069,7 @@
 				"type": "copilotcli",
 				"name": "cli",
 				"displayName": "Copilot CLI",
-				"icon": "$(worktree)",
+				"icon": "$(copilot)",
 				"welcomeTitle": "Copilot CLI",
 				"welcomeMessage": "Run tasks in the background with the Copilot CLI",
 				"inputPlaceholder": "Run tasks in the background with the Copilot CLI, type `#` for adding context",
@@ -6113,12 +6101,12 @@
 					{
 						"name": "plan",
 						"description": "%github.copilot.command.cli.plan.description%",
-						"when": "config.github.copilot.chat.cli.planExitMode.enabled"
+						"when": "false"
 					},
 					{
 						"name": "fleet",
 						"description": "%github.copilot.command.cli.fleet.description%",
-						"when": "config.github.copilot.chat.cli.planExitMode.enabled"
+						"when": "false"
 					}
 				],
 				"customAgentTarget": "github-copilot",
@@ -6222,7 +6210,6 @@
 	},
 	"scripts": {
 		"postinstall": "tsx ./script/postinstall.ts",
-		"prepare": "husky",
 		"vscode-dts:update": "node script/build/vscodeDtsUpdate.js",
 		"vscode-dts:check": "node script/build/vscodeDtsCheck.js",
 		"vscode-dts:dev": "node node_modules/@vscode/dts/index.js dev && node script/build/moveProposedDts.js",
@@ -6320,7 +6307,6 @@
 		"eslint-plugin-no-only-tests": "^3.3.0",
 		"fastq": "^1.19.1",
 		"glob": "^11.1.0",
-		"husky": "^9.1.7",
 		"js-yaml": "^4.1.1",
 		"keyv": "^5.3.2",
 		"lint-staged": "15.2.9",
@@ -6362,10 +6348,10 @@
 		"zod": "3.25.76"
 	},
 	"dependencies": {
-		"@anthropic-ai/claude-agent-sdk": "^0.2.91",
+		"@anthropic-ai/claude-agent-sdk": "0.2.98",
 		"@anthropic-ai/sdk": "^0.82.0",
 		"@github/blackbird-external-ingest-utils": "^0.3.0",
-		"@github/copilot": "^1.0.17",
+		"@github/copilot": "^1.0.21",
 		"@google/genai": "^1.22.0",
 		"@humanwhocodes/gitignore-to-minimatch": "1.0.2",
 		"@microsoft/tiktokenizer": "^1.0.10",
@@ -6413,7 +6399,7 @@
 		"node-gyp": "npm:node-gyp@10.3.1",
 		"zod": "3.25.76"
 	},
-	"vscodeCommit": "20b24833bc088c84b778ee89be4c17f15660441a",
+	"vscodeCommit": "94c8e2adc50e26ef70af85a0de3a9efed757acaa",
 	"__metadata": {
 		"id": "7ec7d6e6-b89e-4cc5-a59b-d6c4d238246f",
 		"publisherId": {

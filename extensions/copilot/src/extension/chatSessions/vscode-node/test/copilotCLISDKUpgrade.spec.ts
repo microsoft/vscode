@@ -49,6 +49,16 @@ describe('CopilotCLI SDK Upgrade', function () {
 			path.join('ripgrep', 'bin', 'win32-x64', 'rg.exe'),
 			path.join('prebuilds', 'darwin-arm64', 'spawn-helper'),
 			path.join('prebuilds', 'darwin-x64', 'spawn-helper'),
+			// computer use
+			path.join('prebuilds', 'darwin-arm64', 'computer.node'),
+			path.join('prebuilds', 'darwin-x64', 'computer.node'),
+			path.join('prebuilds', 'linux-arm64', 'computer.node'),
+			path.join('prebuilds', 'linux-x64', 'computer.node'),
+			path.join('prebuilds', 'win32-arm64', 'computer.node'),
+			path.join('prebuilds', 'win32-x64', 'computer.node'),
+			// win_error_mode
+			path.join('prebuilds', 'win32-arm64', 'win_error_mode.node'),
+			path.join('prebuilds', 'win32-x64', 'win_error_mode.node'),
 			path.join('ripgrep', 'bin', 'darwin-arm64', 'rg'),
 			path.join('ripgrep', 'bin', 'darwin-x64', 'rg'),
 			path.join('ripgrep', 'bin', 'linux-x64', 'rg'),

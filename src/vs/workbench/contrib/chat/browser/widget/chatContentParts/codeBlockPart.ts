@@ -475,6 +475,13 @@ export class CodeBlockPart extends Disposable {
 		}
 
 		this.layout();
+
+		// The editor element is typically not yet connected to the live DOM at
+		// this point (the caller still needs to attach it). Any render pass
+		// scheduled by setText/setLanguage/layout is silently dropped by the
+		// editor view when `isConnected` is false. Schedule a deferred render
+		// so the view lines are painted once the element is in the document.
+		this.editor.renderAsync(true);
 	}
 
 	reset() {
@@ -915,6 +922,9 @@ export class CodeCompareBlockPart extends Disposable {
 		}
 
 		const diffData = await data.diffData;
+		if (token.isCancellationRequested) {
+			return;
+		}
 
 		if (!isEditApplied && diffData) {
 			const viewModel = this.diffEditor.createViewModel({

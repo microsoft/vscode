@@ -15,7 +15,7 @@ import { IInstantiationService } from '../../../../../../util/vs/platform/instan
 import { createExtensionUnitTestingServices } from '../../../../../test/node/services';
 import { MockChatResponseStream } from '../../../../../test/node/testHelpers';
 import { ClaudeLanguageModelServer } from '../../../node/claudeLanguageModelServer';
-import { IClaudeSessionStateService } from '../../../node/claudeSessionStateService';
+import { IClaudeSessionStateService } from '../../../common/claudeSessionStateService';
 import { TerminalSlashCommand } from '../terminalCommand';
 
 // Mock child_process.execFile

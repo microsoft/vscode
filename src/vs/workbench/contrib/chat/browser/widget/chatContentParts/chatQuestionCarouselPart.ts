@@ -33,6 +33,8 @@ import { IContextKey, IContextKeyService } from '../../../../../../platform/cont
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { ChatContextKeys } from '../../../common/actions/chatContextKeys.js';
 import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
+import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { RunInTerminalTool } from '../../../../terminal/terminalContribChatExports.js';
 import './media/chatQuestionCarousel.css';
 
 const PREVIOUS_QUESTION_ACTION_ID = 'workbench.action.chat.previousQuestion';
@@ -87,6 +89,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	private readonly _inChatQuestionCarouselContextKey: IContextKey<boolean>;
 	private _validationMessageElement: HTMLElement | undefined;
 	private _currentValidationError: string | undefined;
+	private _focusTerminalButtonContainer: HTMLElement | undefined;
 
 	constructor(
 		public readonly carousel: IChatQuestionCarousel,
@@ -97,6 +100,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@ICommandService private readonly _commandService: ICommandService,
 	) {
 		super();
 
@@ -173,6 +177,32 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			skipAllButton.element.setAttribute('aria-label', skipAllTitle);
 			interactiveStore.add(this._hoverService.setupDelayedHover(skipAllButton.element, { content: skipAllTitle }));
 			this._skipAllButton = skipAllButton;
+		}
+
+		// Focus Terminal button - shown when the carousel was triggered by terminal input
+		if (carousel.terminalId) {
+			this._focusTerminalButtonContainer = dom.$('.chat-question-focus-terminal-container');
+			const focusTerminalTitle = localize('chat.questionCarousel.focusTerminalTitle', 'Focus Terminal');
+			const focusTerminalButton = interactiveStore.add(new Button(this._focusTerminalButtonContainer, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+			focusTerminalButton.label = `$(${Codicon.terminal.id})`;
+			focusTerminalButton.element.classList.add('chat-question-focus-terminal');
+			focusTerminalButton.element.setAttribute('aria-label', focusTerminalTitle);
+			interactiveStore.add(this._hoverService.setupDelayedHover(focusTerminalButton.element, { content: focusTerminalTitle }));
+			interactiveStore.add(focusTerminalButton.onDidClick(() => this._focusTerminal()));
+
+			// Dismiss the carousel when the user types directly in the terminal,
+			// since they are answering the prompt themselves.
+			const execution = RunInTerminalTool.getExecution(carousel.terminalId);
+			if (execution) {
+				interactiveStore.add(execution.instance.onDidInputData(() => {
+					if (!this._isSkipped) {
+						if (carousel instanceof ChatQuestionCarouselData) {
+							carousel.dismissedByTerminalInput = true;
+						}
+						this.ignore();
+					}
+				}));
+			}
 		}
 
 		// Register event listeners
@@ -255,6 +285,14 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this.persistDraftState();
 		this.updateCollapsedPresentation();
 		this._onDidChangeHeight.fire();
+	}
+
+	private _focusTerminal(): void {
+		const terminalId = this.carousel.terminalId;
+		if (!terminalId) {
+			return;
+		}
+		this._commandService.executeCommand('workbench.action.terminal.chat.focusTerminalByExecutionId', terminalId);
 	}
 
 	private updateCollapsedPresentation(): void {
@@ -385,6 +423,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this._questionContainer = undefined;
 		this._headerActionsContainer = undefined;
 		this._closeButtonContainer = undefined;
+		this._focusTerminalButtonContainer = undefined;
 		this._collapseButton = undefined;
 		this._footerRow = undefined;
 		this._stepIndicator = undefined;
@@ -661,6 +700,9 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		if (this._headerActionsContainer) {
 			dom.clearNode(this._headerActionsContainer);
+			if (this._focusTerminalButtonContainer) {
+				this._headerActionsContainer.appendChild(this._focusTerminalButtonContainer);
+			}
 			if (this._closeButtonContainer) {
 				this._headerActionsContainer.appendChild(this._closeButtonContainer);
 			}
@@ -1479,7 +1521,10 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 	private renderSkippedMessage(): void {
 		const skippedContainer = dom.$('.chat-question-carousel-summary');
 		const skippedMessage = dom.$('.chat-question-summary-skipped');
-		skippedMessage.textContent = localize('chat.questionCarousel.skipped', 'Skipped');
+		const isDismissedByTerminal = this.carousel instanceof ChatQuestionCarouselData && this.carousel.dismissedByTerminalInput;
+		skippedMessage.textContent = isDismissedByTerminal
+			? localize('chat.questionCarousel.deferredToTerminal', "Deferring to user's input in the terminal")
+			: localize('chat.questionCarousel.skipped', 'Skipped');
 		skippedContainer.appendChild(skippedMessage);
 		this.domNode.appendChild(skippedContainer);
 	}

@@ -6,23 +6,15 @@
 interface IMonacoPerformanceMarks {
 	mark(name: string, markOptions?: { startTime?: number }): void;
 	getMarks(): { name: string; startTime: number }[];
-	clearMarks(prefix: string): void;
+	clearMarks(name?: string): void;
 }
 
 function _getNativePolyfill(): IMonacoPerformanceMarks {
 	return {
 		mark: (name, markOptions) => performance.mark(name, markOptions),
 		getMarks: () => performance.getEntries().filter(e => e.entryType === 'mark').map(e => ({ name: e.name, startTime: e.startTime })),
-		clearMarks: prefix => {
-			const toRemove = new Set<string>();
-			for (const entry of performance.getEntries()) {
-				if (entry.entryType === 'mark' && entry.name.startsWith(prefix)) {
-					toRemove.add(entry.name);
-				}
-			}
-			for (const name of toRemove) {
-				performance.clearMarks(name);
-			}
+		clearMarks: name => {
+			performance.clearMarks(name);
 		},
 	};
 }
@@ -30,6 +22,9 @@ function _getNativePolyfill(): IMonacoPerformanceMarks {
 const perf: IMonacoPerformanceMarks = (globalThis as { MonacoPerformanceMarks?: IMonacoPerformanceMarks }).MonacoPerformanceMarks ?? _getNativePolyfill();
 
 const chatExtPrefix = 'code/chat/ext/';
+
+/** Tracks all mark names emitted per session so they can be cleared individually. */
+const chatExtMarksBySession = new Map<string, Set<string>>();
 
 /**
  * Well-defined perf marks for the chat extension request lifecycle.
@@ -87,7 +82,14 @@ export type ChatExtPerfMarkName = typeof ChatExtPerfMark[keyof typeof ChatExtPer
  */
 export function markChatExt(sessionId: string | undefined, name: ChatExtPerfMarkName): void {
 	if (sessionId) {
-		perf.mark(`${chatExtPrefix}${sessionId}/${name}`);
+		const fullName = `${chatExtPrefix}${sessionId}/${name}`;
+		let names = chatExtMarksBySession.get(sessionId);
+		if (!names) {
+			names = new Set();
+			chatExtMarksBySession.set(sessionId, names);
+		}
+		names.add(fullName);
+		perf.mark(fullName);
 	}
 }
 
@@ -95,7 +97,13 @@ export function markChatExt(sessionId: string | undefined, name: ChatExtPerfMark
  * Clears all performance marks for the given chat session.
  */
 export function clearChatExtMarks(sessionId: string): void {
-	perf.clearMarks(`${chatExtPrefix}${sessionId}/`);
+	const names = chatExtMarksBySession.get(sessionId);
+	if (names) {
+		for (const name of names) {
+			perf.clearMarks(name);
+		}
+		chatExtMarksBySession.delete(sessionId);
+	}
 }
 
 export const ChatExtGlobalPerfMark = {

@@ -32,6 +32,7 @@ import { SessionsCategories } from '../../../common/categories.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IsActiveSessionBackgroundProviderContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { ISession } from '../../../services/sessions/common/session.js';
+import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { Menus } from '../../../browser/menus.js';
 import { INonSessionTaskEntry, ISessionsConfigurationService, ISessionTaskWithTarget, ITaskEntry, TaskStorageTarget } from './sessionsConfigurationService.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
@@ -123,6 +124,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 		@IActionViewItemService private readonly _actionViewItemService: IActionViewItemService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 	) {
 		super();
 
@@ -171,6 +173,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 					that._activeRunState,
 					(session: ISession) => that._showConfigureQuickPick(session),
 					(session: ISession, existingTask: INonSessionTaskEntry, mode?: TaskConfigurationMode) => that._showCustomCommandInput(session, existingTask, mode),
+					(session: ISession) => that._generateNewTask(session),
 				);
 			},
 		));
@@ -267,10 +270,22 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 
 				async run(): Promise<void> {
 					logSessionsInteraction(that._telemetryService, 'generateNewTask', 'menu');
-					await that._sessionManagementService.sendAndCreateChat(session, { query: '/generate-run-commands' });
+					await that._generateNewTask(session);
 				}
 			}));
 		}));
+	}
+
+	private async _generateNewTask(session: ISession): Promise<void> {
+		const query = '/generate-run-commands';
+		// Prefer sending to the already-open chat widget for the session;
+		// fall back to sendAndCreateChat for untitled sessions or when no widget is loaded.
+		const widget = this._chatWidgetService.getWidgetBySessionResource(session.mainChat.resource);
+		if (widget) {
+			await widget.acceptInput(query);
+		} else {
+			await this._sessionManagementService.sendAndCreateChat(session, { query });
+		}
 	}
 
 	private async _showConfigureQuickPick(session: ISession): Promise<ITaskEntry | undefined> {
@@ -338,7 +353,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				let updatedTask: ITaskEntry = {
 					...existingTask.task,
 					label: newLabel,
-					inSessions: true,
+					inAgents: true,
 				};
 
 				if (taskConfiguration.command && existingTask.task.command !== undefined) {
@@ -365,7 +380,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 			await this._sessionsConfigService.addTaskToSessions(existingTask.task, session, existingTask.target, { runOn: taskConfiguration.runOn ?? 'default' });
 			return {
 				...existingTask.task,
-				inSessions: true,
+				inAgents: true,
 				...(taskConfiguration.runOn ? { runOptions: { runOn: taskConfiguration.runOn } } : {}),
 			};
 		}
@@ -480,13 +495,13 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 		private readonly _activeRunState: IObservable<IRunScriptActionContext | undefined>,
 		private readonly _showConfigureQuickPick: (session: ISession) => Promise<ITaskEntry | undefined>,
 		private readonly _showCustomCommandInput: (session: ISession, existingTask: INonSessionTaskEntry, mode?: TaskConfigurationMode) => Promise<ITaskEntry | undefined>,
+		private readonly _generateNewTask: (session: ISession) => Promise<void>,
 		@ICommandService private readonly _commandService: ICommandService,
 		@ISessionsConfigurationService private readonly _sessionsConfigService: ISessionsConfigurationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 	) {
 		super(undefined, action);
 
@@ -706,7 +721,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 			category: tasksCategory,
 			run: async () => {
 				logSessionsInteraction(this._telemetryService, 'generateNewTask', 'actionWidget');
-				await this._sessionsManagementService.sendAndCreateChat(session, { query: '/generate-run-commands' });
+				await this._generateNewTask(session);
 			},
 		});
 

@@ -21,14 +21,14 @@ import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { ClaudeFolderInfo } from '../claude/common/claudeFolderInfo';
 import { ClaudeSessionUri } from '../claude/common/claudeSessionUri';
 import { ClaudeAgentManager } from '../claude/node/claudeCodeAgent';
-import { IClaudeCodeModels } from '../claude/node/claudeCodeModels';
 import { IClaudeCodeSdkService } from '../claude/node/claudeCodeSdkService';
-import { IClaudeSessionStateService } from '../claude/node/claudeSessionStateService';
+import { parseClaudeModelId } from '../claude/node/claudeModelId';
+import { IClaudeSessionStateService } from '../claude/common/claudeSessionStateService';
 import { IClaudeCodeSessionService } from '../claude/node/sessionParser/claudeCodeSessionService';
-import { IClaudeCodeSession, IClaudeCodeSessionInfo } from '../claude/node/sessionParser/claudeSessionSchema';
+import { IClaudeCodeSessionInfo } from '../claude/node/sessionParser/claudeSessionSchema';
 import { IClaudeSlashCommandService } from '../claude/vscode-node/claudeSlashCommandService';
 import { FolderRepositoryMRUEntry, IFolderRepositoryManager } from '../common/folderRepositoryManager';
-import { buildChatHistory, collectSdkModelIds } from './chatHistoryBuilder';
+import { buildChatHistory } from './chatHistoryBuilder';
 
 const permissionModes: ReadonlySet<string> = new Set<PermissionMode>(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'dontAsk']);
 
@@ -38,9 +38,6 @@ function isPermissionMode(value: string): value is PermissionMode {
 
 // Import the tool permission handlers
 import '../claude/vscode-node/toolPermissionHandlers/index';
-
-// Import the hooks to trigger self-registration
-import '../claude/vscode-node/hooks/index';
 
 // Import the MCP server contributors to trigger self-registration
 import '../claude/vscode-node/mcpServers/index';
@@ -63,7 +60,6 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 	constructor(
 		private readonly claudeAgentManager: ClaudeAgentManager,
 		@IClaudeCodeSessionService private readonly sessionService: IClaudeCodeSessionService,
-		@IClaudeCodeModels private readonly claudeCodeModels: IClaudeCodeModels,
 		@IClaudeSessionStateService private readonly sessionStateService: IClaudeSessionStateService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IClaudeSlashCommandService private readonly slashCommandService: IClaudeSlashCommandService,
@@ -243,7 +239,7 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 			const existingSession = await this.sessionService.getSession(sessionUri, token);
 			const isNewSession = !existingSession;
 
-			const modelId = request.model.id;
+			const modelId = parseClaudeModelId(request.model.id);
 			const permissionMode = this.getPermissionModeForSession(effectiveSessionId);
 			const folderInfo = await this.getFolderInfoForSession(effectiveSessionId);
 
@@ -351,11 +347,8 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 	async provideChatSessionContent(sessionResource: vscode.Uri, token: vscode.CancellationToken): Promise<vscode.ChatSession> {
 		const sessionId = ClaudeSessionUri.getSessionId(sessionResource);
 		const existingSession = await this.sessionService.getSession(sessionResource, token);
-		const modelIdMap = existingSession
-			? await this._buildModelIdMap(existingSession)
-			: undefined;
 		const history = existingSession ?
-			buildChatHistory(existingSession, modelIdMap) :
+			buildChatHistory(existingSession) :
 			[];
 
 		const permissionMode = this.getPermissionModeForSession(sessionId);
@@ -390,23 +383,6 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 			requestHandler: undefined,
 			options,
 		};
-	}
-
-	/**
-	 * Builds a map from SDK model IDs to endpoint model IDs for all models
-	 * referenced in a session's assistant messages. This allows {@link buildChatHistory}
-	 * to tag each request turn with the endpoint model ID that was used.
-	 */
-	private async _buildModelIdMap(session: IClaudeCodeSession): Promise<ReadonlyMap<string, string>> {
-		const sdkModelIds = collectSdkModelIds(session);
-		const map = new Map<string, string>();
-		for (const sdkModelId of sdkModelIds) {
-			const endpointModelId = await this.claudeCodeModels.mapSdkModelToEndpointModel(sdkModelId);
-			if (endpointModelId) {
-				map.set(sdkModelId, endpointModelId);
-			}
-		}
-		return map;
 	}
 
 }
@@ -462,6 +438,7 @@ export class ClaudeChatSessionItemController extends Disposable {
 				permissionMode,
 				cwd: folder,
 			};
+			this._controller.items.add(item);
 			return item;
 		};
 

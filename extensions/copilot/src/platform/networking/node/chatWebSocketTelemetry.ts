@@ -12,6 +12,7 @@ interface IChatWebSocketConnectionTelemetryProperties {
 }
 
 interface IChatWebSocketRequestTelemetryProperties extends IChatWebSocketConnectionTelemetryProperties {
+	modelId: string | undefined;
 	requestId: string | undefined;
 	turnId: string | undefined;
 	previousTurnId: string | undefined;
@@ -63,6 +64,8 @@ export interface IChatWebSocketRequestSentTelemetryProperties extends IChatWebSo
 	statefulMarkerMatched: boolean;
 	previousResponseIdUnset: boolean;
 	hasCompactionData: boolean;
+	summarizedAtRoundIdMatched: boolean;
+	tokenCountMax: number;
 	connectionDurationMs: number;
 	totalSentMessageCount: number;
 	totalReceivedMessageCount: number;
@@ -88,6 +91,9 @@ export interface IChatWebSocketRequestOutcomeTelemetryProperties extends IChatWe
 	statefulMarkerMatched: boolean;
 	previousResponseIdUnset: boolean;
 	hasCompactionData: boolean;
+	summarizedAtRoundIdMatched: boolean;
+	promptTokenCount: number;
+	tokenCountMax: number;
 	connectionDurationMs: number;
 	requestDurationMs: number;
 	totalSentMessageCount: number;
@@ -175,6 +181,7 @@ export class ChatWebSocketTelemetrySender {
 				"hadActiveRequest": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the previous request was still active when the new one began", "isMeasurement": true },
 				"requestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the current turn request" },
 				"gitHubRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "GitHub request id if available" },
+				"modelId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Model identifier from the request body" },
 				"closeReason": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Human-readable description of the close code" },
 				"closeEventReason": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Close event reason string from server" },
 				"closeEventWasClean": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the connection closed cleanly" },
@@ -193,6 +200,7 @@ export class ChatWebSocketTelemetrySender {
 			previousTurnId: properties.previousTurnId,
 			requestId: properties.requestId,
 			gitHubRequestId: properties.gitHubRequestId,
+			modelId: properties.modelId,
 			closeReason: properties.closeReason,
 			closeEventReason: properties.closeEventReason,
 			closeEventWasClean: properties.closeEventWasClean,
@@ -222,6 +230,7 @@ export class ChatWebSocketTelemetrySender {
 				"hadActiveRequest": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the previous request was still active when the new one began", "isMeasurement": true },
 				"requestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the current turn request" },
 				"gitHubRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "GitHub request id if available" },
+				"modelId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Model identifier from the request body" },
 				"error": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Error message" },
 				"totalSentMessageCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of messages sent over this connection", "isMeasurement": true },
 				"totalReceivedMessageCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of messages received over this connection", "isMeasurement": true },
@@ -237,6 +246,7 @@ export class ChatWebSocketTelemetrySender {
 			previousTurnId: properties.previousTurnId,
 			requestId: properties.requestId,
 			gitHubRequestId: properties.gitHubRequestId,
+			modelId: properties.modelId,
 			error: properties.error,
 		}, {
 			hadActiveRequest: properties.hadActiveRequest ? 1 : 0,
@@ -294,9 +304,12 @@ export class ChatWebSocketTelemetrySender {
 				"hadActiveRequest": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the previous request was still active when the new one began", "isMeasurement": true },
 				"requestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the current turn request" },
 				"gitHubRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "GitHub request id if available" },
+				"modelId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Model identifier from the request body" },
 				"statefulMarkerMatched": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the connection stateful marker matched the previous_response_id sent in the request", "isMeasurement": true },
 				"previousResponseIdUnset": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether previous_response_id was undefined in the request", "isMeasurement": true },
 				"hasCompactionData": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the request input contains compaction data", "isMeasurement": true },
+				"summarizedAtRoundIdMatched": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the summarized round ID matches the one stored on the connection", "isMeasurement": true },
+				"tokenCountMax": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Maximum generated tokens", "isMeasurement": true },
 				"totalSentMessageCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of messages sent over this connection", "isMeasurement": true },
 				"totalReceivedMessageCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of messages received over this connection", "isMeasurement": true },
 				"sentMessageCharacters": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Character count of this sent message payload", "isMeasurement": true },
@@ -312,11 +325,14 @@ export class ChatWebSocketTelemetrySender {
 			previousTurnId: properties.previousTurnId,
 			requestId: properties.requestId,
 			gitHubRequestId: properties.gitHubRequestId,
+			modelId: properties.modelId,
 		}, {
 			hadActiveRequest: properties.hadActiveRequest ? 1 : 0,
 			statefulMarkerMatched: properties.statefulMarkerMatched ? 1 : 0,
 			previousResponseIdUnset: properties.previousResponseIdUnset ? 1 : 0,
 			hasCompactionData: properties.hasCompactionData ? 1 : 0,
+			summarizedAtRoundIdMatched: properties.summarizedAtRoundIdMatched ? 1 : 0,
+			tokenCountMax: properties.tokenCountMax,
 			totalSentMessageCount: properties.totalSentMessageCount,
 			totalReceivedMessageCount: properties.totalReceivedMessageCount,
 			sentMessageCharacters: properties.sentMessageCharacters,
@@ -341,6 +357,7 @@ export class ChatWebSocketTelemetrySender {
 				"hadActiveRequest": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the previous request was still active when the new one began", "isMeasurement": true },
 				"requestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the current turn request" },
 				"gitHubRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "GitHub request id if available" },
+				"modelId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Model identifier from the request body" },
 				"error": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Parse error message" },
 				"totalSentMessageCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of messages sent over this connection", "isMeasurement": true },
 				"totalReceivedMessageCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of messages received over this connection", "isMeasurement": true },
@@ -357,6 +374,7 @@ export class ChatWebSocketTelemetrySender {
 			previousTurnId: properties.previousTurnId,
 			requestId: properties.requestId,
 			gitHubRequestId: properties.gitHubRequestId,
+			modelId: properties.modelId,
 			error: properties.error,
 		}, {
 			hadActiveRequest: properties.hadActiveRequest ? 1 : 0,
@@ -384,10 +402,14 @@ export class ChatWebSocketTelemetrySender {
 				"hadActiveRequest": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the previous request was still active when the new one began", "isMeasurement": true },
 				"requestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Id of the current turn request" },
 				"gitHubRequestId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "GitHub request id if available" },
+				"modelId": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Model identifier from the request body" },
 				"requestOutcome": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Terminal outcome of the websocket request" },
 				"statefulMarkerMatched": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the connection stateful marker matched the previous_response_id sent in the request", "isMeasurement": true },
 				"previousResponseIdUnset": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether previous_response_id was undefined in the request", "isMeasurement": true },
 				"hasCompactionData": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the request input contains compaction data", "isMeasurement": true },
+				"summarizedAtRoundIdMatched": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the summarized round ID matches the one stored on the connection", "isMeasurement": true },
+				"promptTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of prompt tokens, locally counted", "isMeasurement": true },
+				"tokenCountMax": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Maximum generated tokens", "isMeasurement": true },
 				"totalSentMessageCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of messages sent over this connection", "isMeasurement": true },
 				"totalReceivedMessageCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of messages received over this connection", "isMeasurement": true },
 				"totalSentCharacters": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Total characters sent over this connection", "isMeasurement": true },
@@ -411,6 +433,7 @@ export class ChatWebSocketTelemetrySender {
 			previousTurnId: properties.previousTurnId,
 			requestId: properties.requestId,
 			gitHubRequestId: properties.gitHubRequestId,
+			modelId: properties.modelId,
 			requestOutcome: properties.requestOutcome,
 			closeReason: properties.closeReason,
 			serverErrorMessage: properties.serverErrorMessage,
@@ -420,6 +443,9 @@ export class ChatWebSocketTelemetrySender {
 			statefulMarkerMatched: properties.statefulMarkerMatched ? 1 : 0,
 			previousResponseIdUnset: properties.previousResponseIdUnset ? 1 : 0,
 			hasCompactionData: properties.hasCompactionData ? 1 : 0,
+			summarizedAtRoundIdMatched: properties.summarizedAtRoundIdMatched ? 1 : 0,
+			promptTokenCount: properties.promptTokenCount,
+			tokenCountMax: properties.tokenCountMax,
 			totalSentMessageCount: properties.totalSentMessageCount,
 			totalReceivedMessageCount: properties.totalReceivedMessageCount,
 			totalSentCharacters: properties.totalSentCharacters,

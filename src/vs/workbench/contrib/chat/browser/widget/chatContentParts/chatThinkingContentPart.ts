@@ -243,6 +243,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private pendingRemovalFlushDisposable: IDisposable | undefined;
 	private pendingScrollDisposable: IDisposable | undefined;
 	private wrapperResizeObserverDisposable: IDisposable | undefined;
+	private childResizeObserver: DisposableResizeObserver | undefined;
 	private isUpdatingDimensions: boolean = false;
 	private lastKnownContentHeight: number = 0;
 	private lastKnownScrollTop: number = 0;
@@ -475,6 +476,22 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				alwaysConsumeMouseWheel: false
 			}));
 			this._register(this.scrollableElement.onScroll(e => this.handleScroll(e.scrollTop)));
+
+			// Observe child elements for resizes (e.g. terminal output growing)
+			// so we can update scroll dimensions when the wrapper box is pinned at max-height.
+			this.childResizeObserver = this._register(new DisposableResizeObserver(() => {
+				if (this.streamingCompleted || !this.domNode.classList.contains('chat-used-context-collapsed')) {
+					return;
+				}
+
+				this.syncDimensionsAndScheduleScroll();
+			}));
+			if (this.textContainer) {
+				this._register(this.childResizeObserver.observe(this.textContainer));
+			}
+			if (this.workingSpinnerElement) {
+				this._register(this.childResizeObserver.observe(this.workingSpinnerElement));
+			}
 
 			// Cache wrapper scrollHeight post-layout via ResizeObserver to avoid forced reflows.
 			const wrapperResizeObserver = this._register(new DisposableResizeObserver((entries) => {
@@ -1313,13 +1330,22 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 	 * Appends a tool invocation or content item to the thinking group.
 	 * The factory is called lazily - only when the thinking section is expanded.
 	 * If already expanded, the factory is called immediately.
+	 *
+	 * When the caller has already created the content part eagerly (for example, a
+	 * pre-built `ChatMarkdownContentPart` wrapped in a factory), the caller MUST pass
+	 * that part as `eagerDisposable` so it is registered on this thinking part
+	 * immediately. Otherwise, if the thinking section is collapsed and the lazy item
+	 * is never materialized (because the user never expands it), the eagerly-created
+	 * part would leak: its disposable is only referenced from inside the factory's
+	 * closure, which nothing ever calls.
 	 */
 	public appendItem(
 		factory: () => { domNode: HTMLElement; disposable?: IDisposable },
 		toolInvocationId?: string,
 		toolInvocationOrMarkdown?: IChatToolInvocation | IChatToolInvocationSerialized | IChatMarkdownContent,
 		originalParent?: HTMLElement,
-		onDidChangeDiff?: Event<IEditSessionDiffStats>
+		onDidChangeDiff?: Event<IEditSessionDiffStats>,
+		eagerDisposable?: IDisposable,
 	): void {
 		this.processPendingRemovals();
 
@@ -1333,6 +1359,12 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 				this.diffStatsByPartId.set(toolInvocationId, stats);
 				this.updateAggregatedDiff();
 			}));
+		}
+
+		// Register any caller-owned disposable up-front so it is always cleaned up
+		// with this thinking part, even if the lazy item is never materialized.
+		if (eagerDisposable) {
+			this._register(eagerDisposable);
 		}
 
 		// get random message based on tool type
@@ -1362,7 +1394,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 				toolInvocationId,
 				toolInvocationOrMarkdown,
 				originalParent,
-				isHook: !toolInvocationOrMarkdown && !!toolInvocationId
+				isHook: !toolInvocationOrMarkdown && !!toolInvocationId,
 			};
 			this.lazyItems.push(item);
 		}
@@ -1807,6 +1839,22 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		this.appendToWrapper(itemWrapper);
 
 		if (this.fixedScrollingMode && this.scrollableElement) {
+			// Observe the child wrapper for resizes (e.g. terminal expanding)
+			if (this.childResizeObserver && !this.streamingCompleted) {
+				const observeDisposable = this.childResizeObserver.observe(itemWrapper);
+				const toolCallId = isToolInvocation ? toolInvocationOrMarkdown.toolCallId : undefined;
+				if (toolCallId) {
+					let store = this.toolDisposables.get(toolCallId);
+					if (!store) {
+						store = new DisposableStore();
+						this.toolDisposables.set(toolCallId, store);
+					}
+					store.add(observeDisposable);
+				} else {
+					this._register(observeDisposable);
+				}
+			}
+
 			this.refreshContentHeight();
 			this.updateScrollDimensionsFromCache();
 		}
@@ -1863,6 +1911,10 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 		this.appendedItemCount++;
 		this.allThinkingParts.push(content);
 		this.textContainer = $('.chat-thinking-item.markdown-content');
+		// Observe the new textContainer for child resizes in fixed scrolling mode
+		if (this.childResizeObserver && this.fixedScrollingMode && !this.streamingCompleted) {
+			this._register(this.childResizeObserver.observe(this.textContainer));
+		}
 		if (content.value) {
 			// Use lazy rendering when collapsed to preserve order with tool items
 			if (this.isExpanded() || this.hasExpandedOnce || (this.fixedScrollingMode && !this.streamingCompleted)) {

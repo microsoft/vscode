@@ -101,6 +101,10 @@ export interface ICopilotCLISessionService {
 	getSession(options: IGetSessionOptions, token: CancellationToken): Promise<IReference<ICopilotCLISession> | undefined>;
 	createSession(options: ICreateSessionOptions, token: CancellationToken): Promise<IReference<ICopilotCLISession>>;
 	getChatHistory(options: { sessionId: string; workspace: IWorkspaceInfo }, token: CancellationToken): Promise<(ChatRequestTurn2 | ChatResponseTurn2)[]>;
+	/**
+	 * @deprecated Use `forkSession` instead
+	 */
+	forkSessionV1(options: { sessionId: string; requestId: string | undefined; workspace: IWorkspaceInfo }, token: CancellationToken): Promise<string>;
 	forkSession(options: { sessionId: string; requestId: string | undefined; workspace: IWorkspaceInfo }, token: CancellationToken): Promise<string>;
 	tryGetPartialSesionHistory(sessionId: string): Promise<readonly (ChatRequestTurn2 | ChatResponseTurn2)[] | undefined>;
 }
@@ -860,6 +864,61 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 
 
 	/**
+	 * Fork an existing session using the SDK's `forkSession` API.
+	 *
+	 * The SDK handles copying the event log and (optionally) truncating to a boundary event.
+	 * This method additionally stores VS Code-specific workspace metadata and custom title.
+	 *
+	 * Returns the id of the forked session.
+	 */
+	public async forkSession({ sessionId, requestId, workspace }: { sessionId: string; requestId: string | undefined; workspace: IWorkspaceInfo }, token: CancellationToken): Promise<string> {
+		// Resolve the SDK event ID boundary for truncation BEFORE forking.
+		// We need the source session's history and request details to translate the VS Code requestId
+		// into the SDK event ID that the SDK's forkSession accepts.
+		const [sessionManager, title, { history, events: originalSessionEvents }] = await Promise.all([
+			raceCancellationError(this.getSessionManager(), token),
+			this.getSessionTitle(sessionId, token),
+			requestId ? this.getChatHistoryImpl({ sessionId, workspace }, token) : Promise.resolve({ history: [], events: [] }),
+		]);
+
+		let toEventId: string | undefined;
+		if (requestId) {
+			const requestToTruncateTo = history.find(event => event instanceof ChatRequestTurn2 && event.id === requestId);
+			if (requestToTruncateTo) {
+				const storedDetails = await this._chatSessionMetadataStore.getRequestDetails(sessionId);
+				const translatedSDKEvent = storedDetails.find(d => d.vscodeRequestId === requestToTruncateTo.id || d.copilotRequestId === requestToTruncateTo.id)?.copilotRequestId;
+				const sdkEvent = originalSessionEvents.find(e => e.type === 'user.message' && e.id === requestToTruncateTo.id)?.id;
+				toEventId = translatedSDKEvent ?? sdkEvent;
+				if (!toEventId) {
+					this.logService.warn(`[CopilotCLISession] Cannot find SDK event id for request id ${requestId} in session ${sessionId}. Will fork without truncation.`);
+				}
+			} else {
+				this.logService.warn(`[CopilotCLISession] Failed to find request ${requestId} in session ${sessionId} history. Will fork without truncation.`);
+			}
+		}
+
+		const { sessionId: newSessionId } = await sessionManager.forkSession(sessionId, toEventId);
+		this._sessionsBeingCreatedViaFork.add(newSessionId);
+		try {
+			const forkedTitlePrefix = l10n.t("Forked: ");
+			const customTitle = title.startsWith(forkedTitlePrefix) ? title : l10n.t("Forked: {0}", title);
+			await this._chatSessionMetadataStore.storeForkedSessionMetadata(sessionId, newSessionId, customTitle);
+
+			this._onDidChangeSessions.fire();
+			this._onDidCreateSession.fire({
+				id: newSessionId,
+				label: customTitle,
+				timing: { created: Date.now(), startTime: Date.now() },
+				workingDirectory: getWorkingDirectory(workspace)
+			});
+
+			return newSessionId;
+		} finally {
+			this._sessionsBeingCreatedViaFork.delete(newSessionId);
+		}
+	}
+
+	/**
 	 * Fork an existing session by creating a new session id and copying the underlying
 	 * Copilot CLI session workspace and metadata.
 	 *
@@ -870,8 +929,10 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	 * 4. Close and reopen the new session (via `getSession`) so in-memory state reflects the updated data.
 	 *
 	 * Returns the id of the forked session.
+	 *
+	 * @deprecated Use `forkSession` which delegates to the SDK's `forkSession` API.
 	 */
-	public async forkSession({ sessionId, requestId, workspace }: { sessionId: string; requestId: string | undefined; workspace: IWorkspaceInfo }, token: CancellationToken): Promise<string> {
+	public async forkSessionV1({ sessionId, requestId, workspace }: { sessionId: string; requestId: string | undefined; workspace: IWorkspaceInfo }, token: CancellationToken): Promise<string> {
 		const newSessionId = generateUuid();
 		this._sessionsBeingCreatedViaFork.add(newSessionId);
 		try {

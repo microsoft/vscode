@@ -20,6 +20,7 @@ import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatImageMimeType } from '../../common/languageModels.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultDataPart, IToolResultTextPart, ToolDataSource, ToolProgress } from '../../common/tools/languageModelToolsService.js';
 import { InternalFetchWebPageToolId } from '../../common/tools/builtinTools/tools.js';
+import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
 
 export const FetchWebPageToolData: IToolData = {
 	id: InternalFetchWebPageToolId,
@@ -58,14 +59,15 @@ export class FetchWebPageTool implements IToolImpl {
 		@ITrustedDomainService private readonly _trustedDomainService: ITrustedDomainService,
 		@IChatService private readonly _chatService: IChatService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IAgentNetworkFilterService private readonly _agentNetworkFilterService: IAgentNetworkFilterService,
 	) { }
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
 		const urls = (invocation.parameters as IFetchWebPageToolParams).urls || [];
-		const { webUris, fileUris, invalidUris } = this._parseUris(urls);
+		const { webUris, fileUris, invalidUris, blockedUris } = this._parseUris(urls);
 		const allValidUris = [...webUris.values(), ...fileUris.values()];
 
-		if (!allValidUris.length && invalidUris.size === 0) {
+		if (!allValidUris.length && invalidUris.size === 0 && blockedUris.size === 0) {
 			return {
 				content: [{ kind: 'text', value: localize('fetchWebPage.noValidUrls', 'No valid URLs provided.') }]
 			};
@@ -125,7 +127,9 @@ export class FetchWebPageTool implements IToolImpl {
 		let webIndex = 0;
 		let fileIndex = 0;
 		for (const url of urls) {
-			if (invalidUris.has(url)) {
+			if (blockedUris.has(url)) {
+				results.push(this._agentNetworkFilterService.formatError(URI.parse(url)));
+			} else if (invalidUris.has(url)) {
 				results.push(undefined);
 			} else if (webUris.has(url)) {
 				results.push({ type: 'extracted', value: webContents[webIndex] });
@@ -156,7 +160,7 @@ export class FetchWebPageTool implements IToolImpl {
 	}
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
-		const { webUris, fileUris, invalidUris } = this._parseUris(context.parameters.urls);
+		const { webUris, fileUris, invalidUris, blockedUris } = this._parseUris(context.parameters.urls);
 
 		// Check which file URIs can actually be read
 		const validFileUris: URI[] = [];
@@ -171,7 +175,7 @@ export class FetchWebPageTool implements IToolImpl {
 			}
 		}
 
-		const invalid = [...Array.from(invalidUris), ...additionalInvalidUrls];
+		const invalid = [...Array.from(invalidUris), ...additionalInvalidUrls, ...Array.from(blockedUris)];
 		// All valid URIs (web + file) for display in messages
 		const allFetchedUris = new ResourceSet([...webUris.values(), ...validFileUris]);
 		// File URIs that are inside the workspace don't need confirmation — they're already accessible
@@ -276,16 +280,21 @@ export class FetchWebPageTool implements IToolImpl {
 		return result;
 	}
 
-	private _parseUris(urls?: string[]): { webUris: Map<string, URI>; fileUris: Map<string, URI>; invalidUris: Set<string> } {
+	private _parseUris(urls?: string[]): { webUris: Map<string, URI>; fileUris: Map<string, URI>; invalidUris: Set<string>; blockedUris: Set<string> } {
 		const webUris = new Map<string, URI>();
 		const fileUris = new Map<string, URI>();
 		const invalidUris = new Set<string>();
+		const blockedUris = new Set<string>();
 
 		urls?.forEach(url => {
 			try {
 				const uriObj = URI.parse(url);
 				if (uriObj.scheme === 'http' || uriObj.scheme === 'https') {
-					webUris.set(url, uriObj);
+					if (!this._agentNetworkFilterService.isUriAllowed(uriObj)) {
+						blockedUris.add(url);
+					} else {
+						webUris.set(url, uriObj);
+					}
 				} else {
 					// Try to handle other schemes via file service
 					fileUris.set(url, uriObj);
@@ -295,7 +304,7 @@ export class FetchWebPageTool implements IToolImpl {
 			}
 		});
 
-		return { webUris, fileUris, invalidUris };
+		return { webUris, fileUris, invalidUris, blockedUris };
 	}
 
 	private _getPromptPartsForResults(urls: string[], results: ResultType[]): (IToolResultTextPart | IToolResultDataPart)[] {

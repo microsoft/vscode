@@ -55,6 +55,13 @@ export interface IChatDebugFileLoggerService {
 	startChildSession(childSessionId: string, parentSessionId: string, label: string, parentToolSpanId?: string): void;
 
 	/**
+	 * Register a span ID → session ID mapping so that child spans
+	 * (e.g. hooks) are routed to the correct session before the
+	 * parent span completes.
+	 */
+	registerSpanSession(spanId: string, sessionId: string): void;
+
+	/**
 	 * End logging for a session. Performs a final flush and removes the
 	 * session from the active set.
 	 */
@@ -132,6 +139,12 @@ export interface IChatDebugFileLoggerService {
 	 * Uses a streaming parser to avoid loading the entire file into memory.
 	 */
 	streamEntries(sessionId: string, onEntry: (entry: IDebugLogEntry) => void): Promise<void>;
+
+	/**
+	 * List session IDs that have debug log directories on disk.
+	 * Returns both active and historical sessions found in the debug-logs/ directory.
+	 */
+	listSessionIds(): Promise<string[]>;
 }
 
 /**
@@ -170,6 +183,7 @@ export class NullChatDebugFileLoggerService implements IChatDebugFileLoggerServi
 
 	async startSession(): Promise<void> { }
 	startChildSession(): void { }
+	registerSpanSession(): void { }
 	async endSession(): Promise<void> { }
 	async flush(): Promise<void> { }
 	getLogPath(_sessionId?: string): URI | undefined { return undefined; }
@@ -183,4 +197,5 @@ export class NullChatDebugFileLoggerService implements IChatDebugFileLoggerServi
 	async readEntries(): Promise<IDebugLogEntry[]> { return []; }
 	async readTailEntries(): Promise<IDebugLogEntry[]> { return []; }
 	async streamEntries(): Promise<void> { }
+	async listSessionIds(): Promise<string[]> { return []; }
 }

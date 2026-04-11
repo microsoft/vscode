@@ -45,7 +45,6 @@ import {
 	computeAreaAroundEditWindowLinesRange,
 	determineLanguageContextOptions,
 	filterOutEditsWithSubstrings,
-	findMergeConflictMarkersRange,
 	getPredictionContents,
 	mapChatFetcherErrorToNoNextEditReason,
 	ModelConfig,
@@ -53,291 +52,6 @@ import {
 	pickSystemPrompt,
 	XtabProvider,
 } from '../../node/xtabProvider';
-
-suite('findMergeConflictMarkersRange', () => {
-
-	test('should find merge conflict markers within edit window', () => {
-		const lines = [
-			'function foo() {',
-			'<<<<<<< HEAD',
-			'  return 1;',
-			'=======',
-			'  return 2;',
-			'>>>>>>> branch',
-			'}',
-		];
-		const editWindowRange = new OffsetRange(0, 7);
-		const maxMergeConflictLines = 10;
-
-		const result = findMergeConflictMarkersRange(lines, editWindowRange, maxMergeConflictLines);
-
-		expect(result).toBeDefined();
-		expect(result?.start).toBe(1);
-		expect(result?.endExclusive).toBe(6);
-	});
-
-	test('should return undefined when no merge conflict markers present', () => {
-		const lines = [
-			'function foo() {',
-			'  return 1;',
-			'}',
-		];
-		const editWindowRange = new OffsetRange(0, 3);
-		const maxMergeConflictLines = 10;
-
-		const result = findMergeConflictMarkersRange(lines, editWindowRange, maxMergeConflictLines);
-
-		expect(result).toBeUndefined();
-	});
-
-	test('should return undefined when start marker exists but no end marker', () => {
-		const lines = [
-			'function foo() {',
-			'<<<<<<< HEAD',
-			'  return 1;',
-			'=======',
-			'  return 2;',
-			'}',
-		];
-		const editWindowRange = new OffsetRange(0, 6);
-		const maxMergeConflictLines = 10;
-
-		const result = findMergeConflictMarkersRange(lines, editWindowRange, maxMergeConflictLines);
-
-		expect(result).toBeUndefined();
-	});
-
-	test('should return undefined when conflict exceeds maxMergeConflictLines', () => {
-		const lines = [
-			'<<<<<<< HEAD',
-			'line 1',
-			'line 2',
-			'line 3',
-			'line 4',
-			'>>>>>>> branch',
-		];
-		const editWindowRange = new OffsetRange(0, 6);
-		const maxMergeConflictLines = 3; // Too small to reach end marker
-
-		const result = findMergeConflictMarkersRange(lines, editWindowRange, maxMergeConflictLines);
-
-		expect(result).toBeUndefined();
-	});
-
-	test('should find conflict when exactly at maxMergeConflictLines boundary', () => {
-		const lines = [
-			'<<<<<<< HEAD',
-			'line 1',
-			'line 2',
-			'>>>>>>> branch',
-		];
-		const editWindowRange = new OffsetRange(0, 4);
-		const maxMergeConflictLines = 4;
-
-		const result = findMergeConflictMarkersRange(lines, editWindowRange, maxMergeConflictLines);
-
-		expect(result).toBeDefined();
-		expect(result?.start).toBe(0);
-		expect(result?.endExclusive).toBe(4);
-	});
-
-	test('should only search within edit window range', () => {
-		const lines = [
-			'function foo() {',
-			'  return 1;',
-			'<<<<<<< HEAD',
-			'  return 2;',
-			'>>>>>>> branch',
-			'}',
-		];
-		const editWindowRange = new OffsetRange(0, 2); // Excludes the conflict
-		const maxMergeConflictLines = 10;
-
-		const result = findMergeConflictMarkersRange(lines, editWindowRange, maxMergeConflictLines);
-
-		expect(result).toBeUndefined();
-	});
-
-	test('should find first conflict when multiple conflicts exist', () => {
-		const lines = [
-			'<<<<<<< HEAD',
-			'first conflict',
-			'>>>>>>> branch',
-			'some code',
-			'<<<<<<< HEAD',
-			'second conflict',
-			'>>>>>>> branch',
-		];
-		const editWindowRange = new OffsetRange(0, 7);
-		const maxMergeConflictLines = 10;
-
-		const result = findMergeConflictMarkersRange(lines, editWindowRange, maxMergeConflictLines);
-
-		expect(result).toBeDefined();
-		expect(result?.start).toBe(0);
-		expect(result?.endExclusive).toBe(3);
-	});
-
-	test('should handle conflict at start of edit window', () => {
-		const lines = [
-			'<<<<<<< HEAD',
-			'content',
-			'>>>>>>> branch',
-		];
-		const editWindowRange = new OffsetRange(0, 3);
-		const maxMergeConflictLines = 10;
-
-		const result = findMergeConflictMarkersRange(lines, editWindowRange, maxMergeConflictLines);
-
-		expect(result).toBeDefined();
-		expect(result?.start).toBe(0);
-		expect(result?.endExclusive).toBe(3);
-	});
-
-	test('should handle conflict at end of edit window', () => {
-		const lines = [
-			'some code',
-			'<<<<<<< HEAD',
-			'content',
-			'>>>>>>> branch',
-		];
-		const editWindowRange = new OffsetRange(0, 4);
-		const maxMergeConflictLines = 10;
-
-		const result = findMergeConflictMarkersRange(lines, editWindowRange, maxMergeConflictLines);
-
-		expect(result).toBeDefined();
-		expect(result?.start).toBe(1);
-		expect(result?.endExclusive).toBe(4);
-	});
-
-	test('should handle empty lines array', () => {
-		const lines: string[] = [];
-		const editWindowRange = new OffsetRange(0, 0);
-		const maxMergeConflictLines = 10;
-
-		const result = findMergeConflictMarkersRange(lines, editWindowRange, maxMergeConflictLines);
-
-		expect(result).toBeUndefined();
-	});
-
-	test('should handle single line with start marker only', () => {
-		const lines = ['<<<<<<< HEAD'];
-		const editWindowRange = new OffsetRange(0, 1);
-		const maxMergeConflictLines = 10;
-
-		const result = findMergeConflictMarkersRange(lines, editWindowRange, maxMergeConflictLines);
-
-		expect(result).toBeUndefined();
-	});
-
-	test('should handle lines with merge markers that do not start at beginning', () => {
-		const lines = [
-			'function foo() {',
-			'  <<<<<<< HEAD',
-			'  return 1;',
-			'  >>>>>>> branch',
-			'}',
-		];
-		const editWindowRange = new OffsetRange(0, 5);
-		const maxMergeConflictLines = 10;
-
-		const result = findMergeConflictMarkersRange(lines, editWindowRange, maxMergeConflictLines);
-
-		expect(result).toBeUndefined(); // Should not match as markers don't start at line beginning
-	});
-
-	test('should handle conflict that extends beyond lines array', () => {
-		const lines = [
-			'<<<<<<< HEAD',
-			'content',
-		];
-		const editWindowRange = new OffsetRange(0, 2);
-		const maxMergeConflictLines = 10;
-
-		const result = findMergeConflictMarkersRange(lines, editWindowRange, maxMergeConflictLines);
-
-		expect(result).toBeUndefined();
-	});
-
-	test('should handle edit window extending beyond lines array', () => {
-		const lines = [
-			'<<<<<<< HEAD',
-			'content',
-			'>>>>>>> branch',
-		];
-		const editWindowRange = new OffsetRange(0, 100); // Beyond array length
-		const maxMergeConflictLines = 10;
-
-		const result = findMergeConflictMarkersRange(lines, editWindowRange, maxMergeConflictLines);
-
-		expect(result).toBeDefined();
-		expect(result?.start).toBe(0);
-		expect(result?.endExclusive).toBe(3);
-	});
-
-	test('should handle minimal conflict (start and end markers only)', () => {
-		const lines = [
-			'<<<<<<< HEAD',
-			'>>>>>>> branch',
-		];
-		const editWindowRange = new OffsetRange(0, 2);
-		const maxMergeConflictLines = 10;
-
-		const result = findMergeConflictMarkersRange(lines, editWindowRange, maxMergeConflictLines);
-
-		expect(result).toBeDefined();
-		expect(result?.start).toBe(0);
-		expect(result?.endExclusive).toBe(2);
-	});
-
-	test('should handle maxMergeConflictLines of 1', () => {
-		const lines = [
-			'<<<<<<< HEAD',
-			'>>>>>>> branch',
-		];
-		const editWindowRange = new OffsetRange(0, 2);
-		const maxMergeConflictLines = 1;
-
-		const result = findMergeConflictMarkersRange(lines, editWindowRange, maxMergeConflictLines);
-
-		expect(result).toBeUndefined(); // Cannot find end marker within limit
-	});
-
-	test('should handle maxMergeConflictLines of 2', () => {
-		const lines = [
-			'<<<<<<< HEAD',
-			'>>>>>>> branch',
-		];
-		const editWindowRange = new OffsetRange(0, 2);
-		const maxMergeConflictLines = 2;
-
-		const result = findMergeConflictMarkersRange(lines, editWindowRange, maxMergeConflictLines);
-
-		expect(result).toBeDefined();
-		expect(result?.start).toBe(0);
-		expect(result?.endExclusive).toBe(2);
-	});
-
-	test('should find conflict starting in middle of edit window', () => {
-		const lines = [
-			'line 1',
-			'line 2',
-			'<<<<<<< HEAD',
-			'conflict',
-			'>>>>>>> branch',
-			'line 5',
-		];
-		const editWindowRange = new OffsetRange(0, 6);
-		const maxMergeConflictLines = 10;
-
-		const result = findMergeConflictMarkersRange(lines, editWindowRange, maxMergeConflictLines);
-
-		expect(result).toBeDefined();
-		expect(result?.start).toBe(2);
-		expect(result?.endExclusive).toBe(5);
-	});
-});
 
 // ============================================================================
 // Test Helpers
@@ -1854,6 +1568,172 @@ describe('XtabProvider integration', () => {
 			expect(finalReason.v).toBeInstanceOf(NoNextEditReason.GotCancelled);
 			// Cursor prediction must not have been issued — only the main LLM call was made
 			expect(streamingFetcher.callCount).toBe(1);
+		});
+
+		it('same-file cursor jump with edit: retry yields edits with isFromCursorJump', async () => {
+			const provider = createProvider();
+			await configService.setConfig(ConfigKey.InlineEditsNextCursorPredictionEnabled, true);
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsNextCursorPredictionModelName, 'test-model');
+
+			// Document with 30 lines; cursor near the top.
+			// Cursor is after the inserted '\n' at the end of line 4 → cursorLineOffset=5.
+			// Edit window: [max(0,5-2), min(30,5+5+1)) = [3, 11) → lines 3..10.
+			const lines = Array.from({ length: 30 }, (_, i) => `line ${i} content`);
+			const cursorOffset = lines.slice(0, 5).join('\n').length;
+			const request = createRequestWithEdit(lines, {
+				insertionOffset: cursorOffset,
+				// insertedText defaults to afterText[cursorOffset] = '\n', so documentAfterEdits matches lines
+			});
+
+			// 1st call (main LLM): stream back edit-window lines unchanged → no diff
+			const mainEditWindowLines = lines.slice(3, 11);
+			streamingFetcher.enqueueResponse({
+				type: ChatFetchResponseType.Success,
+				requestId: 'req-main',
+				serverRequestId: 'srv-main',
+				usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, prompt_tokens_details: { cached_tokens: 0 } },
+				value: mainEditWindowLines.join('\n'),
+				resolvedModel: 'test-model',
+			});
+
+			// 2nd call (cursor prediction): return line 20 (outside the edit window)
+			streamingFetcher.enqueueResponse({
+				type: ChatFetchResponseType.Success,
+				requestId: 'req-cursor',
+				serverRequestId: 'srv-cursor',
+				usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, prompt_tokens_details: { cached_tokens: 0 } },
+				value: '20',
+				resolvedModel: 'test-model',
+			});
+
+			// 3rd call (retry at predicted cursor line 20):
+			// Retry edit window: [max(0,20-2), min(30,20+5+1)) = [18, 26) → lines 18..25.
+			// Return modified edit-window lines.
+			const retryEditWindowLines = lines.slice(18, 26).map((l, i) => i === 2 ? 'MODIFIED line 20 content' : l);
+			streamingFetcher.setStreamingLines(retryEditWindowLines);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { edits, finalReason } = await collectEdits(gen);
+
+			// Edits should have been yielded from the retry
+			expect(edits.length).toBeGreaterThan(0);
+			// All yielded edits should be marked as from cursor jump
+			for (const edit of edits) {
+				expect(edit.v.isFromCursorJump).toBe(true);
+			}
+			// All yielded edits should have an originalWindow (the pre-jump edit window)
+			for (const edit of edits) {
+				expect(edit.v.originalWindow).toBeDefined();
+			}
+			expect(finalReason.v).toBeInstanceOf(NoNextEditReason.NoSuggestions);
+			// 3 total calls: main LLM + cursor prediction + retry
+			expect(streamingFetcher.callCount).toBe(3);
+		});
+
+		it('cursor jump retry does not double-retry when second call also yields no edits', async () => {
+			const provider = createProvider();
+			await configService.setConfig(ConfigKey.InlineEditsNextCursorPredictionEnabled, true);
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsNextCursorPredictionModelName, 'test-model');
+
+			const lines = Array.from({ length: 30 }, (_, i) => `line ${i} content`);
+			const cursorOffset = lines.slice(0, 5).join('\n').length;
+			const request = createRequestWithEdit(lines, {
+				insertionOffset: cursorOffset,
+			});
+
+			// 1st call (main LLM): edit-window lines unchanged → no edits → cursor jump
+			const mainEditWindowLines = lines.slice(3, 11);
+			streamingFetcher.enqueueResponse({
+				type: ChatFetchResponseType.Success,
+				requestId: 'req-main',
+				serverRequestId: 'srv-main',
+				usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, prompt_tokens_details: { cached_tokens: 0 } },
+				value: mainEditWindowLines.join('\n'),
+				resolvedModel: 'test-model',
+			});
+
+			// 2nd call (cursor prediction): return line 20
+			streamingFetcher.enqueueResponse({
+				type: ChatFetchResponseType.Success,
+				requestId: 'req-cursor',
+				serverRequestId: 'srv-cursor',
+				usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, prompt_tokens_details: { cached_tokens: 0 } },
+				value: '20',
+				resolvedModel: 'test-model',
+			});
+
+			// 3rd call (retry at predicted cursor line 20): edit-window lines unchanged → no edits.
+			// On the retry, retryState is Retrying so doGetNextEditsWithCursorJump returns
+			// NoSuggestions immediately (no further recursion).
+			const retryEditWindowLines = lines.slice(18, 26);
+			streamingFetcher.setStreamingLines(retryEditWindowLines);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { edits, finalReason } = await collectEdits(gen);
+
+			expect(edits.length).toBe(0);
+			expect(finalReason.v).toBeInstanceOf(NoNextEditReason.NoSuggestions);
+			// Exactly 3 calls: main + cursor prediction + retry (no further retry)
+			expect(streamingFetcher.callCount).toBe(3);
+		});
+
+		it('model fallback retry on NotFound then yields edits on second attempt', async () => {
+			const provider = createProvider();
+
+			const lines = ['function foo() {', '  return 1;', '}'];
+			const request = createRequestWithEdit(lines, { insertionOffset: 5 });
+
+			// 1st call → NotFound, triggers fallback to default model
+			streamingFetcher.enqueueResponse({
+				type: ChatFetchResponseType.NotFound,
+				reason: 'test',
+				requestId: 'req-1',
+				serverRequestId: undefined,
+			});
+
+			// 2nd call (retry with default model) → success with modification
+			const modifiedLines = ['function foo() {', '  return 42;', '}'];
+			streamingFetcher.setStreamingLines(modifiedLines);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { edits, finalReason } = await collectEdits(gen);
+
+			// Should have produced edits from the retry
+			expect(edits.length).toBeGreaterThan(0);
+			// Edits are NOT from cursor jump
+			for (const edit of edits) {
+				expect(edit.v.isFromCursorJump).toBe(false);
+			}
+			expect(finalReason.v).toBeInstanceOf(NoNextEditReason.NoSuggestions);
+			expect(streamingFetcher.callCount).toBe(2);
+		});
+
+		it('model fallback + identical content → NoSuggestions without looping', async () => {
+			const provider = createProvider();
+			await configService.setConfig(ConfigKey.InlineEditsNextCursorPredictionEnabled, false);
+
+			const lines = ['const a = 1;', 'const b = 2;', 'const c = 3;'];
+			const request = createRequestWithEdit(lines, { insertionOffset: 3 });
+
+			// 1st call → NotFound
+			streamingFetcher.enqueueResponse({
+				type: ChatFetchResponseType.NotFound,
+				reason: 'test',
+				requestId: 'req-1',
+				serverRequestId: undefined,
+			});
+
+			// 2nd call (default model) → identical edit-window content → no edits
+			// With cursor prediction disabled, should return NoSuggestions directly
+			streamingFetcher.setStreamingLines(lines);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { edits, finalReason } = await collectEdits(gen);
+
+			expect(edits.length).toBe(0);
+			expect(finalReason.v).toBeInstanceOf(NoNextEditReason.NoSuggestions);
+			// Exactly 2 calls: initial NotFound + retry with default model
+			expect(streamingFetcher.callCount).toBe(2);
 		});
 	});
 

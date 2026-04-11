@@ -292,7 +292,7 @@ function getQuotaHitMessage(fetchResult: ChatFetchError, copilotPlan: string | u
 	if (fetchResult.capiError?.code === 'quota_exceeded') {
 		switch (copilotPlan) {
 			case 'free':
-				return l10n.t(`You've reached your monthly chat messages quota. Upgrade to Copilot Pro (30-day free trial) or wait for your allowance to renew.`);
+				return l10n.t(`You've reached your monthly chat messages quota. Upgrade to Copilot Pro or wait for your allowance to renew.`);
 			case 'individual':
 				return l10n.t(`You've exhausted your premium model quota. Please enable additional paid premium requests, upgrade to Copilot Pro+, or wait for your allowance to renew.`);
 			case 'individual_pro':

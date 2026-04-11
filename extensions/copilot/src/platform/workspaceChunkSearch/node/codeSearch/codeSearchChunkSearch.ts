@@ -6,7 +6,7 @@
 import * as l10n from '@vscode/l10n';
 import { shouldInclude } from '../../../../util/common/glob';
 import { Result } from '../../../../util/common/result';
-import { CallTracker, TelemetryCorrelationId } from '../../../../util/common/telemetryCorrelationId';
+import { TelemetryCorrelationId } from '../../../../util/common/telemetryCorrelationId';
 import { coalesce } from '../../../../util/vs/base/common/arrays';
 import { raceCancellationError, raceTimeout } from '../../../../util/vs/base/common/async';
 import { CancellationToken, CancellationTokenSource } from '../../../../util/vs/base/common/cancellation';
@@ -662,7 +662,7 @@ export class CodeSearchChunkSearch extends Disposable {
 			// Also force it to search the local diff too so we can can override stale code-search results.
 			await raceCancellationError(this._externalIngestIndex.value.updateForceIncludeFiles(diffArray, token), token);
 
-			const externalResult = await this._externalIngestIndex.value.search(sizing, query, innerTelemetryInfo.callTracker, token);
+			const externalResult = await this._externalIngestIndex.value.search(sizing, query, innerTelemetryInfo, token);
 			if (externalResult) {
 				const diffFilePattern = diffArray.map(uri => new RelativePattern(uri, '*'));
 				const filtered = externalResult.filter(x => shouldInclude(x.chunk.file, { include: diffFilePattern }));
@@ -840,7 +840,7 @@ export class CodeSearchChunkSearch extends Disposable {
 		// Update external ingest index if enabled
 		const externalIndexEnabled = this.isExternalIngestEnabled();
 		if (externalIndexEnabled) {
-			const result = await raceCancellationError(this._externalIngestIndex.value.doIngest(telemetryInfo.callTracker, onProgress, token), token);
+			const result = await raceCancellationError(this._externalIngestIndex.value.doIngest(telemetryInfo, onProgress, token), token);
 			if (result.isError()) {
 				return Result.error(result.err);
 			}
@@ -978,7 +978,7 @@ export class CodeSearchChunkSearch extends Disposable {
 		return undefined;
 	}
 
-	public deleteExternalIngestWorkspaceIndex(callTracker: CallTracker, token: CancellationToken): Promise<void> {
-		return this._externalIngestIndex.value.deleteIndex(callTracker, token);
+	public deleteExternalIngestWorkspaceIndex(telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<void> {
+		return this._externalIngestIndex.value.deleteIndex(telemetryInfo, token);
 	}
 }

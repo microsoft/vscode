@@ -17,7 +17,7 @@ import { IEnvService } from '../../env/common/envService';
 import { GitHubOutageStatus, IOctoKitService } from '../../github/common/githubService';
 import { ILogService } from '../../log/common/logService';
 import { getRequest } from '../../networking/common/networking';
-import { IRequestLogger } from '../../requestLogger/node/requestLogger';
+import { IRequestLogger } from '../../requestLogger/common/requestLogger';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { ChatEndpointFamily, IChatModelInformation, ICompletionModelInformation, IEmbeddingModelInformation, IModelAPIResponse, isChatModelInformation, isCompletionModelInformation, isEmbeddingModelInformation } from '../common/endpointProvider';
 import { ModelAliasRegistry } from '../common/modelAliasRegistry';
