@@ -212,7 +212,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		return getInstanceFromResource(this.instances, resource);
 	}
 
-	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig: IShellLaunchConfig = {}): ITerminalInstance {
+	async splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig: IShellLaunchConfig = {}): Promise<ITerminalInstance> {
 		if (instanceToSplit.target === TerminalLocation.Editor) {
 			// Make sure the instance to split's group is active
 			const group = this._editorInputs.get(instanceToSplit.resource.path)?.group;
@@ -223,7 +223,7 @@ export class TerminalEditorService extends Disposable implements ITerminalEditor
 		const instance = this._terminalInstanceService.createInstance(shellLaunchConfig, TerminalLocation.Editor);
 		const resource = this.resolveResource(instance);
 		if (resource) {
-			this._editorService.openEditor({
+			await this._editorService.openEditor({
 				resource: URI.revive(resource),
 				description: instance.description,
 				options: {
