@@ -10,7 +10,7 @@ import { Event } from '../../../util/vs/base/common/event';
 import { IObservable } from '../../../util/vs/base/common/observableInternal';
 import { equalsIgnoreCase } from '../../../util/vs/base/common/strings';
 import { URI } from '../../../util/vs/base/common/uri';
-import { Branch, Change, Commit, CommitOptions, CommitShortStat, DiffChange, LogOptions, Ref, RefQuery, RepositoryAccessDetails, RepositoryKind, Worktree } from '../vscode/git';
+import { Branch, Change, Commit, CommitOptions, CommitShortStat, DiffChange, LogOptions, Ref, RefQuery, Repository, RepositoryAccessDetails, RepositoryKind, Worktree } from '../vscode/git';
 
 export interface RepoContext {
 	readonly rootUri: URI;
@@ -53,9 +53,11 @@ export interface IGitService extends IDisposable {
 	readonly repositories: Array<RepoContext>;
 	readonly isInitialized: boolean;
 
-	initRepository(uri: URI): Promise<RepoContext | undefined>;
+	initRepository(uri: URI): Promise<Repository | undefined>;
 	getRecentRepositories(): Iterable<RepositoryAccessDetails>;
 	getRepository(uri: URI, forceOpen?: boolean): Promise<RepoContext | undefined>;
+	getRepository2(uri: URI): Promise<Repository | undefined>;
+	openRepository(uri: URI): Promise<Repository | undefined>;
 	getRepositoryFetchUrls(uri: URI): Promise<Pick<RepoContext, 'rootUri' | 'remoteFetchUrls'> | undefined>;
 	initialize(): Promise<void>;
 	add(uri: URI, paths: string[]): Promise<void>;

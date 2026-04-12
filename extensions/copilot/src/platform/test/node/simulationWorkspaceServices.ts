@@ -29,7 +29,7 @@ import { IFileSystemService } from '../../filesystem/common/fileSystemService';
 import { FileType, RelativePattern } from '../../filesystem/common/fileTypes';
 import { NodeFileSystemService } from '../../filesystem/node/fileSystemServiceImpl';
 import { IGitService, RepoContext } from '../../git/common/gitService';
-import { Branch, Change, CommitOptions, CommitShortStat, DiffChange, Ref, RefQuery, RepositoryAccessDetails } from '../../git/vscode/git';
+import { Branch, Change, CommitOptions, CommitShortStat, DiffChange, Ref, RefQuery, Repository, RepositoryAccessDetails } from '../../git/vscode/git';
 import { AbstractLanguageDiagnosticsService } from '../../languages/common/languageDiagnosticsService';
 import { ILanguageFeaturesService } from '../../languages/common/languageFeaturesService';
 import { ILogService } from '../../log/common/logService';
@@ -685,6 +685,14 @@ export class TestingGitService implements IGitService {
 		return Promise.resolve(undefined);
 	}
 
+	getRepository2(uri: URI): Promise<Repository | undefined> {
+		return Promise.resolve(undefined);
+	}
+
+	openRepository(uri: URI): Promise<Repository | undefined> {
+		return Promise.resolve(undefined);
+	}
+
 	getRepositoryFetchUrls(uri: URI): Promise<Pick<RepoContext, 'rootUri' | 'remoteFetchUrls'> | undefined> {
 		return Promise.resolve(undefined);
 	}
@@ -693,7 +701,7 @@ export class TestingGitService implements IGitService {
 		return [];
 	}
 
-	async initRepository(_uri: URI): Promise<RepoContext | undefined> {
+	async initRepository(_uri: URI): Promise<Repository | undefined> {
 		return Promise.resolve(undefined);
 	}
 

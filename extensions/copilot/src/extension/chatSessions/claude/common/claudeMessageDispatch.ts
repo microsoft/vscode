@@ -11,8 +11,10 @@ import type * as vscode from 'vscode';
 import { vBoolean, vLiteral, vObj, vString, type ValidatorType } from '../../../../platform/configuration/common/validator';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { CopilotChatAttr, GenAiAttr, GenAiOperationName, IOTelService, SpanKind, SpanStatusCode, truncateForOTel, type ISpanHandle } from '../../../../platform/otel/common/index';
+import { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
+import { IRequestLogger } from '../../../../platform/requestLogger/common/requestLogger';
 import { ServicesAccessor } from '../../../../util/vs/platform/instantiation/common/instantiation';
-import { ChatResponseThinkingProgressPart, type ChatHookType } from '../../../../vscodeTypes';
+import { ChatResponseThinkingProgressPart, LanguageModelTextPart, type ChatHookType } from '../../../../vscodeTypes';
 import { ExternalEditTracker } from '../../../chatSessions/common/externalEditTracker';
 import { ToolName } from '../../../tools/common/toolNames';
 import { IToolsService } from '../../../tools/common/toolsService';
@@ -28,7 +30,6 @@ export interface MessageHandlerRequestContext {
 	readonly toolInvocationToken: vscode.ChatParticipantToolToken;
 	readonly token: vscode.CancellationToken;
 	readonly editTracker?: ExternalEditTracker;
-	readonly logToolCall?: (toolUseId: string, toolName: string, toolInput: unknown, resultContent: string) => void;
 }
 
 /** Mutable state shared across handlers within a single _processMessages loop */
@@ -176,8 +177,12 @@ export function handleAssistantMessage(
 			otelToolSpans.set(item.id, toolSpan);
 
 			if (request.editTracker && claudeEditTools.includes(item.name)) {
-				const uris = getAffectedUrisForEditTool(item.name, item.input);
-				request.editTracker.trackEdit(item.id, uris, stream, request.token);
+				try {
+					const uris = getAffectedUrisForEditTool(item.name, item.input);
+					void request.editTracker.trackEdit(item.id, uris, stream, request.token);
+				} catch (e) {
+					logService.warn(`[ClaudeMessageDispatch] Failed to track edit for ${item.name}: ${e}`);
+				}
 			}
 
 			const invocation = createFormattedToolInvocation(item, false);
@@ -209,25 +214,16 @@ export function handleUserMessage(
 	}
 }
 
-function processToolResult(
+function logToolResult(
+	toolUseId: string,
+	toolUse: Anthropic.Beta.Messages.BetaToolUseBlock,
 	toolResult: Anthropic.Messages.ToolResultBlockParam,
-	accessor: ServicesAccessor,
-	sessionId: string,
-	request: MessageHandlerRequestContext,
-	state: MessageHandlerState,
+	logService: ILogService,
+	requestLogger: IRequestLogger,
+	otelToolSpans: Map<string, ISpanHandle>,
+	capturingToken: CapturingToken | undefined,
 ): void {
-	const logService = accessor.get(ILogService);
-	const { stream } = request;
-	const { unprocessedToolCalls, otelToolSpans } = state;
-
-	const toolUseId = toolResult.tool_use_id;
-	const toolUse = unprocessedToolCalls.get(toolUseId);
-	if (!toolUse) {
-		return;
-	}
-
-	unprocessedToolCalls.delete(toolUseId);
-
+	// OTel span
 	const toolSpan = otelToolSpans.get(toolUseId);
 	if (toolSpan) {
 		if (toolResult.is_error) {
@@ -249,6 +245,68 @@ function processToolResult(
 		otelToolSpans.delete(toolUseId);
 	}
 
+	// Request logger
+	try {
+		const resultContent = typeof toolResult.content === 'string'
+			? toolResult.content
+			: JSON.stringify(toolResult.content, undefined, 2) ?? '';
+		const response = { content: [new LanguageModelTextPart(resultContent)] };
+		if (capturingToken) {
+			void requestLogger.captureInvocation(capturingToken, async () =>
+				requestLogger.logToolCall(toolUseId, toolUse.name, toolUse.input, response));
+		} else {
+			requestLogger.logToolCall(toolUseId, toolUse.name, toolUse.input, response);
+		}
+	} catch (e) {
+		logService.warn(`[ClaudeMessageDispatch] Failed to log tool result: ${e}`);
+	}
+}
+
+function processToolResult(
+	toolResult: Anthropic.Messages.ToolResultBlockParam,
+	accessor: ServicesAccessor,
+	sessionId: string,
+	request: MessageHandlerRequestContext,
+	state: MessageHandlerState,
+): void {
+	const logService = accessor.get(ILogService);
+	const requestLogger = accessor.get(IRequestLogger);
+	const claudeSessionStateService = accessor.get(IClaudeSessionStateService);
+
+	const { stream } = request;
+	const { unprocessedToolCalls, otelToolSpans } = state;
+
+	const toolUseId = toolResult.tool_use_id;
+	const toolUse = unprocessedToolCalls.get(toolUseId);
+	if (!toolUse) {
+		logService.warn(`[ClaudeMessageDispatch] Received tool result for unknown tool use ID: ${toolUseId}`);
+		return;
+	}
+
+	unprocessedToolCalls.delete(toolUseId);
+
+	logToolResult(
+		toolUseId,
+		toolUse,
+		toolResult,
+		logService,
+		requestLogger,
+		otelToolSpans,
+		claudeSessionStateService.getCapturingTokenForSession(sessionId)
+	);
+
+	// Tool-specific handling
+	if (toolUse.name === ClaudeToolNames.TodoWrite) {
+		processTodoWriteTool(toolUse, accessor, request);
+	} else if (toolUse.name === ClaudeToolNames.EnterPlanMode) {
+		claudeSessionStateService.setPermissionModeForSession(sessionId, 'plan');
+	} else if (toolUse.name === ClaudeToolNames.ExitPlanMode) {
+		claudeSessionStateService.setPermissionModeForSession(sessionId, 'acceptEdits');
+	} else if (claudeEditTools.includes(toolUse.name)) {
+		request.editTracker?.completeEdit(toolUseId);
+	}
+
+	// Create and push a formatted tool invocation to the stream
 	const invocation = createFormattedToolInvocation(toolUse, true);
 	if (invocation) {
 		invocation.enablePartialUpdate = true;
@@ -258,30 +316,6 @@ function processToolResult(
 			invocation.isConfirmed = false;
 		}
 		completeToolInvocation(toolUse, toolResult, invocation);
-	}
-
-	if (toolUse.name === ClaudeToolNames.TodoWrite) {
-		processTodoWriteTool(toolUse, accessor, request);
-	}
-
-	if (toolUse.name === ClaudeToolNames.EnterPlanMode) {
-		accessor.get(IClaudeSessionStateService).setPermissionModeForSession(sessionId, 'plan');
-	} else if (toolUse.name === ClaudeToolNames.ExitPlanMode) {
-		accessor.get(IClaudeSessionStateService).setPermissionModeForSession(sessionId, 'acceptEdits');
-	}
-
-	if (claudeEditTools.includes(toolUse.name)) {
-		request.editTracker?.completeEdit(toolUseId);
-	}
-
-	if (request.logToolCall) {
-		const resultContent = typeof toolResult.content === 'string'
-			? toolResult.content
-			: JSON.stringify(toolResult.content, undefined, 2);
-		request.logToolCall(toolUseId, toolUse.name, toolUse.input, resultContent);
-	}
-
-	if (invocation) {
 		stream.push(invocation);
 	}
 }

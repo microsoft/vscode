@@ -114,10 +114,30 @@ export class GitServiceImpl extends Disposable implements IGitService {
 		return gitAPI.recentRepositories;
 	}
 
-	async initRepository(uri: URI): Promise<RepoContext | undefined> {
+	async initRepository(uri: URI): Promise<Repository | undefined> {
 		const gitAPI = this.gitExtensionService.getExtensionApi();
 		const repository = await gitAPI?.init(uri);
-		return repository ? GitServiceImpl.repoToRepoContext(repository) : undefined;
+		if (!repository) {
+			return undefined;
+		}
+
+		await this.waitForRepositoryState(repository);
+		return repository;
+	}
+
+	async openRepository(uri: URI): Promise<Repository | undefined> {
+		const repository = await this._getRepository(uri, true);
+		if (!repository) {
+			return undefined;
+		}
+
+		await this.waitForRepositoryState(repository);
+		return repository;
+	}
+
+	async getRepository2(uri: URI): Promise<Repository | undefined> {
+		const repository = await this._getRepository(uri, false);
+		return repository;
 	}
 
 	async getRepository(uri: URI, forceOpen = true): Promise<RepoContext | undefined> {
@@ -405,15 +425,8 @@ export class GitServiceImpl extends Disposable implements IGitService {
 		}
 	}
 
-	async exec(uri: URI, args: string[], env?: Record<string, string>): Promise<string> {
+	async exec(cwd: URI, args: string[], env?: Record<string, string>): Promise<string> {
 		const gitAPI = this.gitExtensionService.getExtensionApi();
-		const repository = await this.getRepository(uri);
-
-		if (!repository) {
-			this.logService.error(`[GitServiceImpl][exec] No repository found for URI: ${uri.toString()}`);
-			throw new Error(`No repository found for URI: ${uri.toString()}`);
-		}
-
 		const gitPath = gitAPI?.git.path ?? 'git';
 		const gitEnv = Object.assign({}, process.env, env, {
 			GIT_AUTHOR_NAME: 'VS Code',
@@ -429,7 +442,7 @@ export class GitServiceImpl extends Disposable implements IGitService {
 
 		try {
 			const result = await execFileAsync(gitPath, args, {
-				cwd: repository.rootUri.fsPath,
+				cwd: cwd.fsPath,
 				encoding: 'utf8',
 				env: gitEnv
 			});

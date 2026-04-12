@@ -2423,10 +2423,10 @@ export function registerCLIChatCommands(
 			return;
 		}
 
-		const repositoryProperties = repository.headBranchName
+		const repositoryProperties = repository.state.HEAD?.name
 			? {
 				repositoryPath: repository.rootUri.fsPath,
-				branchName: repository.headBranchName
+				branchName: repository.state.HEAD.name
 			} satisfies RepositoryProperties
 			: undefined;
 

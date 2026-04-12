@@ -13,14 +13,13 @@ import { ILogService } from '../../../../platform/log/common/logService';
 import { IMcpService } from '../../../../platform/mcp/common/mcpService';
 import { CopilotChatAttr, GenAiAttr, IOTelService, type ISpanHandle, SpanKind, SpanStatusCode, truncateForOTel } from '../../../../platform/otel/common/index';
 import { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
-import { IRequestLogger } from '../../../../platform/requestLogger/node/requestLogger';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { DeferredPromise } from '../../../../util/vs/base/common/async';
 import { Disposable, DisposableMap } from '../../../../util/vs/base/common/lifecycle';
 import { isWindows } from '../../../../util/vs/base/common/platform';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
-import { LanguageModelTextPart, LanguageModelToolMCPSource } from '../../../../vscodeTypes';
+import { LanguageModelToolMCPSource } from '../../../../vscodeTypes';
 import { ExternalEditTracker } from '../../common/externalEditTracker';
 import { buildMcpServersFromRegistry } from '../common/claudeMcpServerRegistry';
 import { dispatchMessage, KnownClaudeError } from '../common/claudeMessageDispatch';
@@ -216,7 +215,6 @@ export class ClaudeCodeSession extends Disposable {
 		@IMcpService private readonly mcpService: IMcpService,
 		@IOTelService private readonly _otelService: IOTelService,
 		@IChatDebugFileLoggerService private readonly _debugFileLogger: IChatDebugFileLoggerService,
-		@IRequestLogger private readonly _requestLogger: IRequestLogger,
 	) {
 		super();
 		this._currentModelId = initialModelId;
@@ -604,17 +602,6 @@ export class ClaudeCodeSession extends Disposable {
 					toolInvocationToken: this._currentRequest.toolInvocationToken,
 					editTracker: this._editTracker,
 					token: this._currentRequest.token,
-					// TODO: Move this into the dispatchMessage function
-					logToolCall: (toolUseId, toolName, toolInput, resultContent) => {
-						const response = { content: [new LanguageModelTextPart(resultContent)] };
-						const capturingToken = this.sessionStateService.getCapturingTokenForSession(this.sessionId);
-						if (capturingToken) {
-							this._requestLogger.captureInvocation(capturingToken, async () =>
-								this._requestLogger.logToolCall(toolUseId, toolName, toolInput, response));
-						} else {
-							this._requestLogger.logToolCall(toolUseId, toolName, toolInput, response);
-						}
-					},
 				}, {
 					unprocessedToolCalls,
 					otelToolSpans,

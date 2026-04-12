@@ -765,7 +765,7 @@ export class ChatSessionWorktreeService extends Disposable implements IChatSessi
 				await this.gitService.exec(worktreePath, ['read-tree', 'HEAD'], { GIT_INDEX_FILE: diffIndexFile });
 
 				// Stage entire working directory into temp index
-				await this.gitService.exec(worktreePath, ['add', '--', '.'], { GIT_INDEX_FILE: diffIndexFile });
+				await this.gitService.exec(worktreePath, ['add', '-A', '--', '.'], { GIT_INDEX_FILE: diffIndexFile });
 
 				// Diff the temp index with the base branch
 				const result = await this.gitService.exec(worktreePath, ['diff', '--cached', '--raw', '--numstat', '--diff-filter=ADMR', '-z', '--merge-base', worktreeProperties.baseBranchName, '--'], { GIT_INDEX_FILE: diffIndexFile });

@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type * as vscode from 'vscode';
 import { ILogService } from '../../../../../platform/log/common/logService';
 import { IOTelService, type ISpanHandle } from '../../../../../platform/otel/common/otelService';
+import { IRequestLogger } from '../../../../../platform/requestLogger/common/requestLogger';
 import { TestLogService } from '../../../../../platform/testing/common/testLogService';
 import type { ServicesAccessor } from '../../../../../util/vs/platform/instantiation/common/instantiation';
 import { IToolsService } from '../../../../tools/common/toolsService';
@@ -52,7 +53,8 @@ interface TestServices {
 	readonly logService: TestLogService;
 	readonly otelService: IOTelService;
 	readonly toolsService: IToolsService;
-	readonly sessionStateService: { setPermissionModeForSession: ReturnType<typeof vi.fn> };
+	readonly requestLogger: { logToolCall: ReturnType<typeof vi.fn>; captureInvocation: ReturnType<typeof vi.fn> };
+	readonly sessionStateService: { setPermissionModeForSession: ReturnType<typeof vi.fn>; getCapturingTokenForSession: ReturnType<typeof vi.fn> };
 }
 
 function createTestServices(): TestServices {
@@ -60,7 +62,8 @@ function createTestServices(): TestServices {
 		logService: new TestLogService(),
 		otelService: { startSpan: () => noopSpan } as Pick<IOTelService, 'startSpan'> as IOTelService,
 		toolsService: { invokeTool: vi.fn() } as Pick<IToolsService, 'invokeTool'> as IToolsService,
-		sessionStateService: { setPermissionModeForSession: vi.fn() },
+		requestLogger: { logToolCall: vi.fn(), captureInvocation: vi.fn() },
+		sessionStateService: { setPermissionModeForSession: vi.fn(), getCapturingTokenForSession: vi.fn().mockReturnValue(undefined) },
 	};
 }
 
@@ -71,6 +74,7 @@ function createAccessor(services: TestServices): ServicesAccessor {
 		[ILogService, services.logService],
 		[IOTelService, services.otelService],
 		[IToolsService, services.toolsService],
+		[IRequestLogger, services.requestLogger],
 		[IClaudeSessionStateService, services.sessionStateService],
 	]);
 	return { get: <T>(id: { toString(): string }): T => serviceMap.get(id) as T };
@@ -570,9 +574,24 @@ describe('handleUserMessage', () => {
 		expect(services.sessionStateService.setPermissionModeForSession).not.toHaveBeenCalled();
 	});
 
-	it('calls logToolCall with tool result content for completed tools', () => {
-		const logToolCall = vi.fn();
-		request = { ...createRequestContext(), logToolCall };
+	it('calls logToolCall on IRequestLogger for completed tools', () => {
+		state.unprocessedToolCalls.set('tool-1', { type: 'tool_use', id: 'tool-1', name: ClaudeToolNames.Read, input: { file_path: '/test.ts' } });
+		handleUserMessage(
+			makeUserMessage([{ type: 'tool_result', tool_use_id: 'tool-1', content: 'file contents here' }]),
+			accessor, TEST_SESSION_ID, request, state,
+		);
+
+		expect(services.requestLogger.logToolCall).toHaveBeenCalledWith(
+			'tool-1',
+			ClaudeToolNames.Read,
+			{ file_path: '/test.ts' },
+			{ content: [expect.objectContaining({ value: 'file contents here' })] },
+		);
+	});
+
+	it('uses captureInvocation when a capturing token is set', () => {
+		const mockToken = { label: 'test' };
+		services.sessionStateService.getCapturingTokenForSession.mockReturnValue(mockToken);
 
 		state.unprocessedToolCalls.set('tool-1', { type: 'tool_use', id: 'tool-1', name: ClaudeToolNames.Read, input: { file_path: '/test.ts' } });
 		handleUserMessage(
@@ -580,17 +599,7 @@ describe('handleUserMessage', () => {
 			accessor, TEST_SESSION_ID, request, state,
 		);
 
-		expect(logToolCall).toHaveBeenCalledWith('tool-1', ClaudeToolNames.Read, { file_path: '/test.ts' }, 'file contents here');
-	});
-
-	it('does not call logToolCall when not provided on context', () => {
-		state.unprocessedToolCalls.set('tool-1', { type: 'tool_use', id: 'tool-1', name: ClaudeToolNames.Read, input: { file_path: '/test.ts' } });
-		expect(() => {
-			handleUserMessage(
-				makeUserMessage([{ type: 'tool_result', tool_use_id: 'tool-1', content: 'file contents here' }]),
-				accessor, TEST_SESSION_ID, request, state,
-			);
-		}).not.toThrow();
+		expect(services.requestLogger.captureInvocation).toHaveBeenCalledWith(mockToken, expect.any(Function));
 	});
 });
 

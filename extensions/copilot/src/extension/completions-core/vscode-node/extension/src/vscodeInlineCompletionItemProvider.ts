@@ -20,7 +20,7 @@ import {
 } from 'vscode';
 import { ILogger, ILogService, LogTarget } from '../../../../../platform/log/common/logService';
 import { CapturingToken } from '../../../../../platform/requestLogger/common/capturingToken';
-import { IRequestLogger } from '../../../../../platform/requestLogger/node/requestLogger';
+import { IRequestLogger } from '../../../../../platform/requestLogger/common/requestLogger';
 import { softAssert } from '../../../../../util/vs/base/common/assert';
 import { Disposable } from '../../../../../util/vs/base/common/lifecycle';
 import { StopWatch } from '../../../../../util/vs/base/common/stopwatch';
