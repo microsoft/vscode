@@ -192,7 +192,9 @@ export async function getCwd(
 	logService?: ILogService
 ): Promise<string> {
 	if (shell.cwd) {
-		const unresolved = (typeof shell.cwd === 'object') ? shell.cwd.fsPath : shell.cwd;
+		const unresolved = (typeof shell.cwd === 'object')
+			? (shell.cwd.scheme === 'vsls' ? shell.cwd.path : shell.cwd.fsPath)
+			: shell.cwd;
 		const resolved = await _resolveCwd(unresolved, variableResolver);
 		return sanitizeCwd(resolved || unresolved);
 	}
@@ -207,14 +209,15 @@ export async function getCwd(
 			if (path.isAbsolute(customCwd)) {
 				cwd = customCwd;
 			} else if (root) {
-				cwd = path.join(root.fsPath, customCwd);
+				const rootPath = root.scheme === 'vsls' ? root.path : root.fsPath;
+				cwd = path.join(rootPath, customCwd);
 			}
 		}
 	}
 
 	// If there was no custom cwd or it was relative with no workspace
 	if (!cwd) {
-		cwd = root ? root.fsPath : userHome || '';
+		cwd = root ? (root.scheme === 'vsls' ? root.path : root.fsPath) : userHome || '';
 	}
 
 	return sanitizeCwd(cwd);
