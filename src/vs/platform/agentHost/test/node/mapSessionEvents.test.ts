@@ -225,4 +225,31 @@ suite('mapSessionEvents', () => {
 			assert.strictEqual(content[0].type, ToolResultContentType.Text);
 		});
 	});
+
+	// ---- Subagent events ------------------------------------------------
+
+	suite('subagent events', () => {
+
+		test('maps subagent.started event to subagent_started progress event', async () => {
+			const events: ISessionEvent[] = [
+				{
+					type: 'subagent.started',
+					data: {
+						toolCallId: 'tc-1',
+						agentName: 'code-reviewer',
+						agentDisplayName: 'Code Reviewer',
+						agentDescription: 'Reviews code',
+					},
+				},
+			];
+
+			const result = await mapSessionEvents(session, undefined, events);
+			assert.strictEqual(result.length, 1);
+			assert.strictEqual(result[0].type, 'subagent_started');
+			const event = result[0] as { type: string; toolCallId: string; agentName: string; agentDisplayName: string };
+			assert.strictEqual(event.toolCallId, 'tc-1');
+			assert.strictEqual(event.agentName, 'code-reviewer');
+			assert.strictEqual(event.agentDisplayName, 'Code Reviewer');
+		});
+	});
 });

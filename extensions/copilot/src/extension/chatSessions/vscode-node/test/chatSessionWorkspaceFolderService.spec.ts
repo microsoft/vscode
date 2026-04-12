@@ -293,6 +293,8 @@ describe('ChatSessionWorkspaceFolderService', () => {
 				kind: 'repository' as const,
 				headBranchName: 'main',
 				headCommitHash: 'abc123',
+				headIncomingChanges: 0,
+				headOutgoingChanges: 0,
 				upstreamBranchName: undefined,
 				upstreamRemote: undefined,
 				isRebasing: false,

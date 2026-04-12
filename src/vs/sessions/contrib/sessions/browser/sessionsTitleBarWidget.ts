@@ -173,13 +173,18 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 
 			// Folder shown next to the title
 			if (repoLabel) {
+				const detailsEl = $('span.agent-sessions-titlebar-details');
+
 				const separator1 = $('span.agent-sessions-titlebar-separator');
 				separator1.textContent = '\u00B7';
-				centerGroup.appendChild(separator1);
+				separator1.setAttribute('aria-hidden', 'true');
+				detailsEl.appendChild(separator1);
 
 				const repoEl = $('span.agent-sessions-titlebar-repo');
 				repoEl.textContent = repoDetailLabel ? `${repoLabel} (${repoDetailLabel})` : repoLabel;
-				centerGroup.appendChild(repoEl);
+				detailsEl.appendChild(repoEl);
+
+				centerGroup.appendChild(detailsEl);
 			}
 
 			sessionPill.appendChild(centerGroup);

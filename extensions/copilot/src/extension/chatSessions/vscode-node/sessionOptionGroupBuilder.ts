@@ -172,8 +172,60 @@ const LAST_USED_ISOLATION_OPTION_KEY = 'github.copilot.cli.lastUsedIsolationOpti
 const MAX_MRU_ENTRIES = 10;
 const COPILOT_WORKTREE_PATTERN = 'copilot-worktree-';
 
+function optionItemsEqual(a: vscode.ChatSessionProviderOptionItem | undefined, b: vscode.ChatSessionProviderOptionItem | undefined): boolean {
+	if (a === b) {
+		return true;
+	}
+	if (!a || !b) {
+		return false;
+	}
+	return a.id === b.id && a.locked === b.locked;
+}
+
+function optionGroupsEqual(
+	oldGroups: readonly vscode.ChatSessionProviderOptionGroup[],
+	newGroups: readonly vscode.ChatSessionProviderOptionGroup[],
+): boolean {
+	if (oldGroups.length !== newGroups.length) {
+		return false;
+	}
+	for (let i = 0; i < oldGroups.length; i++) {
+		const oldGroup = oldGroups[i];
+		const newGroup = newGroups[i];
+		if (oldGroup.id !== newGroup.id) {
+			return false;
+		}
+		if (!optionItemsEqual(oldGroup.selected, newGroup.selected)) {
+			return false;
+		}
+		if (oldGroup.items.length !== newGroup.items.length) {
+			return false;
+		}
+		for (let j = 0; j < oldGroup.items.length; j++) {
+			if (!optionItemsEqual(oldGroup.items[j], newGroup.items[j])) {
+				return false;
+			}
+		}
+	}
+	return true;
+}
+
 export function getSelectedOption(groups: readonly vscode.ChatSessionProviderOptionGroup[], groupId: string): vscode.ChatSessionProviderOptionItem | undefined {
 	return groups.find(g => g.id === groupId)?.selected;
+}
+
+/**
+ * Extract the selected repository, branch, and isolation values from an input state.
+ */
+export function getSelectedSessionOptions(inputState: vscode.ChatSessionInputState): { folder?: vscode.Uri; branch?: string; isolation?: IsolationMode } {
+	const repoId = getSelectedOption(inputState.groups, REPOSITORY_OPTION_ID)?.id;
+	const branch = getSelectedOption(inputState.groups, BRANCH_OPTION_ID)?.id;
+	const isolationId = getSelectedOption(inputState.groups, ISOLATION_OPTION_ID)?.id;
+	return {
+		folder: repoId ? vscode.Uri.file(repoId) : undefined,
+		branch: branch || undefined,
+		isolation: (isolationId === IsolationMode.Workspace || isolationId === IsolationMode.Worktree) ? isolationId : undefined,
+	};
 }
 
 export function isBranchOptionFeatureEnabled(configurationService: IConfigurationService): boolean {
@@ -263,22 +315,23 @@ export function folderMRUToChatProviderOptions(mruItems: FolderRepositoryMRUEntr
  */
 export interface ISessionOptionGroupBuilder {
 	readonly _serviceBrand: undefined;
+	setNewFolderForInputState(inputState: vscode.ChatSessionInputState, folderUri: vscode.Uri): void;
 	provideChatSessionProviderOptionGroups(previousInputState: vscode.ChatSessionInputState | undefined): Promise<vscode.ChatSessionProviderOptionGroup[]>;
 	buildBranchOptionGroup(branches: vscode.ChatSessionProviderOptionItem[], headBranchName: string | undefined, isolationEnabled: boolean, currentIsolation: IsolationMode | undefined, previousSelection: vscode.ChatSessionProviderOptionItem | undefined): vscode.ChatSessionProviderOptionGroup | undefined;
 	handleInputStateChange(state: vscode.ChatSessionInputState): Promise<void>;
-	rebuildInputState(state: vscode.ChatSessionInputState): Promise<void>;
+	rebuildInputState(state: vscode.ChatSessionInputState, selectedFolderUri?: vscode.Uri): Promise<void>;
 	buildExistingSessionInputStateGroups(resource: vscode.Uri, token: vscode.CancellationToken): Promise<vscode.ChatSessionProviderOptionGroup[]>;
 	getBranchOptionItemsForRepository(repoUri: Uri, headBranchName: string | undefined): Promise<vscode.ChatSessionProviderOptionItem[]>;
 	getRepositoryOptionItems(): vscode.ChatSessionProviderOptionItem[];
-	updateInputStateAfterFolderSelection(inputState: vscode.ChatSessionInputState, folderUri: vscode.Uri): Promise<void>;
 }
 export const ISessionOptionGroupBuilder = createServiceIdentifier<ISessionOptionGroupBuilder>('ISessionOptionGroupBuilder');
 
 export class SessionOptionGroupBuilder implements ISessionOptionGroupBuilder {
 	declare readonly _serviceBrand: undefined;
-	private _lastUsedFolderIdInUntitledWorkspace?: { kind: 'folder' | 'repo'; uri: vscode.Uri; lastAccessed: number };
 	private readonly _getBranchOptionItemsForRepositorySequencer = new SequencerByKey<string>();
-
+	private readonly _pendingBuildGroups = new WeakMap<vscode.ChatSessionInputState, Promise<vscode.ChatSessionProviderOptionGroup[]>>();
+	// Keeps track of the new folders selected by user, by using folder dialog to select a new folder.
+	private readonly _inputStateNewFolders = new WeakMap<vscode.ChatSessionInputState, vscode.Uri>();
 	constructor(
 		@IGitService private readonly gitService: IGitService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
@@ -290,6 +343,10 @@ export class SessionOptionGroupBuilder implements ISessionOptionGroupBuilder {
 		@IFolderRepositoryManager private readonly folderRepositoryManager: IFolderRepositoryManager,
 	) { }
 
+
+	setNewFolderForInputState(inputState: vscode.ChatSessionInputState, folderUri: vscode.Uri): void {
+		this._inputStateNewFolders.set(inputState, folderUri);
+	}
 	/**
 	 * Return the git repository for a URI only if the folder is trusted.
 	 * Untrusted folders are treated as non-git.
@@ -305,7 +362,7 @@ export class SessionOptionGroupBuilder implements ISessionOptionGroupBuilder {
 		return this.gitService.getRepository(uri, discover);
 	}
 
-	async provideChatSessionProviderOptionGroups(previousInputState: vscode.ChatSessionInputState | undefined): Promise<vscode.ChatSessionProviderOptionGroup[]> {
+	async provideChatSessionProviderOptionGroups(previousInputState: vscode.ChatSessionInputState | undefined, selectedFolderUri?: vscode.Uri): Promise<vscode.ChatSessionProviderOptionGroup[]> {
 		const optionGroups: vscode.ChatSessionProviderOptionGroup[] = [];
 		const isolationEnabled = isIsolationOptionFeatureEnabled(this.configurationService);
 		const previouslySelectedIsolationOption = previousInputState ? getSelectedOption(previousInputState.groups, ISOLATION_OPTION_ID) : undefined;
@@ -330,7 +387,11 @@ export class SessionOptionGroupBuilder implements ISessionOptionGroupBuilder {
 		}
 
 		// Handle repository options based on workspace type
-		let defaultRepoUri = !isWelcomeView(this.workspaceService) && !this.agentSessionsWorkspace.isAgentSessionsWorkspace && this.workspaceService.getWorkspaceFolders()?.length === 1 ? this.workspaceService.getWorkspaceFolders()![0] : undefined;
+		const folders = this.workspaceService.getWorkspaceFolders();
+		const isSingleFolderWorkspace = !isWelcomeView(this.workspaceService)
+			&& !this.agentSessionsWorkspace.isAgentSessionsWorkspace
+			&& folders?.length === 1;
+		let defaultRepoUri = selectedFolderUri ?? (isSingleFolderWorkspace ? folders![0] : undefined);
 		if (isWelcomeView(this.workspaceService)) {
 			const commands: vscode.Command[] = [];
 			const previouslySelected = previousInputState ? getSelectedOption(previousInputState.groups, REPOSITORY_OPTION_ID) : undefined;
@@ -338,22 +399,32 @@ export class SessionOptionGroupBuilder implements ISessionOptionGroupBuilder {
 
 			// For untitled workspaces, show last used repositories and "Open Repository..." command
 			const repositories = await this.copilotCLIFolderMruService.getRecentlyUsedFolders(CancellationToken.None);
+			const newFolder = previousInputState ? this._inputStateNewFolders.get(previousInputState) : undefined;
 			items = folderMRUToChatProviderOptions(repositories);
-			items.splice(MAX_MRU_ENTRIES); // Limit to max entries
-			if (this._lastUsedFolderIdInUntitledWorkspace) {
-				const folder = this._lastUsedFolderIdInUntitledWorkspace.uri;
-				const isRepo = this._lastUsedFolderIdInUntitledWorkspace.kind === 'repo';
-				const lastAccessed = this._lastUsedFolderIdInUntitledWorkspace.lastAccessed;
-				const id = folder.fsPath;
-				if (!items.find(item => item.id === id)) {
-					const lastUsedEntry = folderMRUToChatProviderOptions([{
-						folder,
-						repository: isRepo ? folder : undefined,
-						lastAccessed
-					}])[0];
-					items.unshift(lastUsedEntry);
-				}
+			const selectedFolderItem = selectedFolderUri ? items.find(i => i.id === selectedFolderUri.fsPath) : undefined;
+			const selectedItem = selectedFolderItem
+				?? (previouslySelected
+					? items.find(i => i.id === previouslySelected.id) ?? items[0]
+					: items[0]);
+			if (selectedItem) {
+				defaultRepoUri = vscode.Uri.file(selectedItem.id);
 			}
+
+			items.splice(MAX_MRU_ENTRIES); // Limit to max entries
+			if (newFolder) {
+				const newFolderRepo = await this.getTrustedRepository(newFolder, true);
+				const newFolderItem = newFolderRepo
+					? toRepositoryOptionItem(newFolderRepo.rootUri)
+					: toWorkspaceFolderOptionItem(newFolder, newFolder.path.split('/').pop() ?? newFolder.fsPath);
+				// Remove duplicate if already in the list, then add to top
+				items = items.filter(item => item.id !== newFolderItem.id);
+				items.unshift(newFolderItem);
+			}
+			// If user selected something from the list but it's not there anymore (perhaps its an item at the end of MRU).
+			if (selectedItem && !items.some(item => item.id === selectedItem.id)) {
+				items.push(selectedItem);
+			}
+
 			commands.push({
 				command: OPEN_REPOSITORY_COMMAND_ID,
 				title: l10n.t('Browse folders...')
@@ -364,14 +435,15 @@ export class SessionOptionGroupBuilder implements ISessionOptionGroupBuilder {
 				name: l10n.t('Folder'),
 				description: l10n.t('Pick Folder'),
 				items,
-				selected: previouslySelected,
+				selected: selectedItem,
 				commands
 			});
 		} else {
 			const repositories = this.getRepositoryOptionItems();
 			if (repositories.length > 1) {
 				const previouslySelected = previousInputState ? getSelectedOption(previousInputState.groups, REPOSITORY_OPTION_ID) : undefined;
-				const selectedRepository = previouslySelected ? repositories.find(repository => repository.id === previouslySelected.id) ?? repositories[0] : repositories[0];
+				const selectedFolderRepo = selectedFolderUri ? repositories.find(repository => repository.id === selectedFolderUri.fsPath) : undefined;
+				const selectedRepository = selectedFolderRepo ?? (previouslySelected ? repositories.find(repository => repository.id === previouslySelected.id) ?? repositories[0] : repositories[0]);
 				defaultRepoUri = selectedRepository.id ? vscode.Uri.file(selectedRepository.id) : defaultRepoUri;
 				optionGroups.push({
 					id: REPOSITORY_OPTION_ID,
@@ -418,14 +490,20 @@ export class SessionOptionGroupBuilder implements ISessionOptionGroupBuilder {
 		if (branches.length === 0) {
 			return undefined;
 		}
-		const selectedItem = resolveBranchSelection(branches, headBranchName, previousSelection);
+		// BUG: Work around for https://github.com/microsoft/vscode/issues/288457#issuecomment-4157935788
+		// Locked doesn't work, once locked, we cannot unlock.
 		const { locked } = resolveBranchLockState(isolationEnabled, currentIsolation);
+		// const locked = false;
+		// When locked (workspace isolation), ignore the previous selection so we
+		// always snap back to the active branch instead of keeping a stale pick.
+		const selectedItem = resolveBranchSelection(branches, headBranchName, locked ? undefined : previousSelection);
+		const lockedSelected = selectedItem && locked ? { ...selectedItem, locked } : undefined;
 		return {
 			id: BRANCH_OPTION_ID,
 			name: l10n.t('Branch'),
 			description: l10n.t('Pick Branch'),
-			items: locked ? branches.map(b => ({ ...b, locked: true })) : branches,
-			selected: selectedItem && locked ? { ...selectedItem, locked: true } : selectedItem,
+			items: lockedSelected ? [lockedSelected] : locked ? branches.map(b => ({ ...b, locked })) : branches,
+			selected: lockedSelected ?? selectedItem,
 		};
 	}
 
@@ -435,57 +513,16 @@ export class SessionOptionGroupBuilder implements ISessionOptionGroupBuilder {
 	 * property to determine the current state and update accordingly.
 	 */
 	async handleInputStateChange(state: vscode.ChatSessionInputState): Promise<void> {
-		const currentIsolation = getSelectedOption(state.groups, ISOLATION_OPTION_ID)?.id as IsolationMode | undefined;
-		const currentRepoId = getSelectedOption(state.groups, REPOSITORY_OPTION_ID)?.id;
-		const previousBranchSelection = getSelectedOption(state.groups, BRANCH_OPTION_ID);
-		const isolationEnabled = isIsolationOptionFeatureEnabled(this.configurationService);
-
 		// Persist the user's isolation choice so it's remembered across sessions
+		const currentIsolation = getSelectedOption(state.groups, ISOLATION_OPTION_ID)?.id as IsolationMode | undefined;
 		if (currentIsolation) {
 			void this.context.globalState.update(LAST_USED_ISOLATION_OPTION_KEY, currentIsolation);
 		}
 
-		// Remove existing branch group, rebuild from scratch
-		const groups = [...state.groups.filter(g => g.id !== BRANCH_OPTION_ID)];
-
-		// Determine the repo URI — from the dropdown if present, or from the
-		// single workspace folder when no repo dropdown is shown.
-		let repoUri: vscode.Uri | undefined;
-		if (currentRepoId) {
-			repoUri = vscode.Uri.file(currentRepoId);
-		} else if (!isWelcomeView(this.workspaceService)) {
-			const repositories = this.getRepositoryOptionItems();
-			if (repositories.length === 1) {
-				repoUri = vscode.Uri.file(repositories[0].id);
-			}
+		const newGroups = await this._buildGroupsOnce(state);
+		if (!optionGroupsEqual(state.groups, newGroups)) {
+			state.groups = newGroups;
 		}
-
-		const repo = await this.getTrustedRepository(repoUri);
-
-		// When the selected folder is not a git repo (or untrusted), lock
-		// isolation to workspace and keep the branch dropdown hidden.
-		// When it is a git repo, unlock isolation.
-		if (repoUri && !repo) {
-			forceWorkspaceIsolation(groups);
-		} else if (repo) {
-			resetIsolationLock(groups);
-		}
-
-		if (repo && isBranchOptionFeatureEnabled(this.configurationService)) {
-			let branches: vscode.ChatSessionProviderOptionItem[] = [];
-			try {
-				branches = await this.getBranchOptionItemsForRepository(repo.rootUri, repo.headBranchName);
-			} catch {
-				// On failure, branches remain empty — dropdown will be hidden
-			}
-
-			const branchGroup = this.buildBranchOptionGroup(branches, repo.headBranchName, isolationEnabled, currentIsolation, previousBranchSelection);
-			if (branchGroup) {
-				groups.push(branchGroup);
-			}
-		}
-
-		state.groups = groups;
 	}
 
 	/**
@@ -494,9 +531,27 @@ export class SessionOptionGroupBuilder implements ISessionOptionGroupBuilder {
 	 * git repos discovered/closed) that may require adding or removing
 	 * entire dropdown groups — not just updating branch/isolation.
 	 */
-	async rebuildInputState(state: vscode.ChatSessionInputState): Promise<void> {
-		const groups = await this.provideChatSessionProviderOptionGroups(state);
-		state.groups = groups;
+	async rebuildInputState(state: vscode.ChatSessionInputState, selectedFolderUri?: vscode.Uri): Promise<void> {
+		const newGroups = await this._buildGroupsOnce(state, selectedFolderUri);
+		if (!optionGroupsEqual(state.groups, newGroups)) {
+			state.groups = newGroups;
+		}
+	}
+
+	/**
+	 * Deduplicate concurrent builds for the same state object.
+	 * If a build is already in-flight for this state, return the same promise.
+	 */
+	private _buildGroupsOnce(state: vscode.ChatSessionInputState, selectedFolderUri?: vscode.Uri): Promise<vscode.ChatSessionProviderOptionGroup[]> {
+		const pending = this._pendingBuildGroups.get(state);
+		if (pending) {
+			return pending;
+		}
+		const promise = this.provideChatSessionProviderOptionGroups(state, selectedFolderUri).finally(() => {
+			this._pendingBuildGroups.delete(state);
+		});
+		this._pendingBuildGroups.set(state, promise);
+		return promise;
 	}
 
 	async buildExistingSessionInputStateGroups(resource: vscode.Uri, token: vscode.CancellationToken): Promise<vscode.ChatSessionProviderOptionGroup[]> {
@@ -653,72 +708,5 @@ export class SessionOptionGroupBuilder implements ISessionOptionGroupBuilder {
 		}
 
 		return repoItems.sort((a, b) => a.name.localeCompare(b.name));
-	}
-
-	/**
-	 * After a folder is selected via "Browse folders..." command,
-	 * update the repo group's selected item and rebuild the branch group.
-	 */
-	async updateInputStateAfterFolderSelection(inputState: vscode.ChatSessionInputState, folderUri: vscode.Uri): Promise<void> {
-		const repo = await this.getTrustedRepository(folderUri, true);
-		// Untrusted folders return undefined — treated as non-git below.
-		// We still update the dropdown so the user sees their selection.
-		// Update MRU tracking for untitled workspaces
-		if (isWelcomeView(this.workspaceService)) {
-			if (repo) {
-				this._lastUsedFolderIdInUntitledWorkspace = { kind: 'repo', uri: repo.rootUri, lastAccessed: Date.now() };
-			} else {
-				this._lastUsedFolderIdInUntitledWorkspace = { kind: 'folder', uri: folderUri, lastAccessed: Date.now() };
-			}
-		}
-
-
-		const repoItem = repo
-			? toRepositoryOptionItem(repo.rootUri)
-			: toWorkspaceFolderOptionItem(folderUri, folderUri.path.split('/').pop() ?? folderUri.fsPath);
-
-		// Update repo group's selected item
-		const groups = [...inputState.groups];
-		const repoGroupIdx = groups.findIndex(g => g.id === REPOSITORY_OPTION_ID);
-		if (repoGroupIdx !== -1) {
-			const repoGroup = groups[repoGroupIdx];
-			const items = repoGroup.items.find(i => i.id === repoItem.id)
-				? [...repoGroup.items]
-				: [repoItem, ...repoGroup.items];
-			groups[repoGroupIdx] = { ...repoGroup, items, selected: repoItem };
-		}
-
-		// Remove existing branch group, rebuild
-		const previousBranchSelection = getSelectedOption(inputState.groups, BRANCH_OPTION_ID);
-		const branchIdx = groups.findIndex(g => g.id === BRANCH_OPTION_ID);
-		if (branchIdx !== -1) {
-			groups.splice(branchIdx, 1);
-		}
-
-		// When the folder is not a git repo, lock isolation to workspace.
-		// When it is a git repo, unlock isolation (e.g. user switched folders).
-		if (!repo) {
-			forceWorkspaceIsolation(groups);
-		} else {
-			resetIsolationLock(groups);
-		}
-
-		if (repo && isBranchOptionFeatureEnabled(this.configurationService)) {
-			let branches: vscode.ChatSessionProviderOptionItem[] = [];
-			try {
-				branches = await this.getBranchOptionItemsForRepository(repo.rootUri, repo.headBranchName);
-			} catch {
-				// branches remain empty
-			}
-			const isolationEnabled = isIsolationOptionFeatureEnabled(this.configurationService);
-			const currentIsolation = getSelectedOption(inputState.groups, ISOLATION_OPTION_ID)?.id as IsolationMode | undefined;
-			// Preserve previous branch selection if the same branch exists in the new repo
-			const branchGroup = this.buildBranchOptionGroup(branches, repo.headBranchName, isolationEnabled, currentIsolation, previousBranchSelection);
-			if (branchGroup) {
-				groups.push(branchGroup);
-			}
-		}
-
-		inputState.groups = groups;
 	}
 }

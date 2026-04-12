@@ -39,6 +39,19 @@ export interface IChatWebSocketManager {
 	hasActiveConnection(conversationId: string): boolean;
 
 	/**
+	 * Returns the stateful marker (last completed response ID) for the given
+	 * conversation's active WebSocket connection, or undefined if there is
+	 * no active connection or no marker yet.
+	 */
+	getStatefulMarker(conversationId: string): string | undefined;
+
+	/**
+	 * Returns the round ID at which the last client-side summarization
+	 * occurred for this connection, or undefined if none.
+	 */
+	getSummarizedAtRoundId(conversationId: string): string | undefined;
+
+	/**
 	 * Closes and removes the connection for a specific conversation.
 	 */
 	closeConnection(conversationId: string): void;
@@ -58,6 +71,8 @@ export class NullChatWebSocketManager implements IChatWebSocketManager {
 		throw new Error('WebSocket not available');
 	}
 	hasActiveConnection(_conversationId: string): boolean { return false; }
+	getStatefulMarker(_conversationId: string): string | undefined { return undefined; }
+	getSummarizedAtRoundId(_conversationId: string): string | undefined { return undefined; }
 	closeConnection(_conversationId: string): void { }
 	closeAll(): void { }
 }
@@ -66,6 +81,9 @@ export interface IChatWebSocketRequestOptions {
 	userInitiated: boolean;
 	turnId: string;
 	requestId: string;
+	countTokens: () => Promise<number>;
+	tokenCountMax: number;
+	summarizedAtRoundId?: string;
 }
 
 export interface IChatWebSocketConnection extends IDisposable {
@@ -201,6 +219,16 @@ export class ChatWebSocketManager extends Disposable implements IChatWebSocketMa
 		return !!connection?.isOpen;
 	}
 
+	getStatefulMarker(conversationId: string): string | undefined {
+		const connection = this._connections.get(conversationId);
+		return connection?.isOpen ? connection.statefulMarker : undefined;
+	}
+
+	getSummarizedAtRoundId(conversationId: string): string | undefined {
+		const connection = this._connections.get(conversationId);
+		return connection?.isOpen ? connection.summarizedAtRoundId : undefined;
+	}
+
 	closeConnection(conversationId: string): void {
 		const connection = this._connections.get(conversationId);
 		if (connection) {
@@ -259,6 +287,7 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 	private _state: ConnectionState = ConnectionState.Closed;
 	private _activeRequest: ChatWebSocketActiveRequest | undefined;
 	private _statefulMarker: string | undefined;
+	private _summarizedAtRoundId: string | undefined;
 
 	private readonly _onDidDispose = this._register(new Emitter<void>());
 	readonly onDidDispose = this._onDidDispose.event;
@@ -303,6 +332,10 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 
 	get statefulMarker(): string | undefined {
 		return this._statefulMarker;
+	}
+
+	get summarizedAtRoundId(): string | undefined {
+		return this._summarizedAtRoundId;
 	}
 
 	get responseHeaders(): IHeaders {
@@ -440,6 +473,7 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 					hadActiveRequest: this._hadActiveRequest,
 					requestId: this._activeRequest?.requestId,
 					gitHubRequestId: this.gitHubRequestId,
+					modelId: this._activeRequest?.modelId,
 					error: parseErrorMessage,
 					connectionDurationMs,
 					totalSentMessageCount: this._totalSentMessageCount,
@@ -453,6 +487,7 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 
 			if (!isCAPIWebSocketError(parsed) && parsed.type === 'response.completed') {
 				this._statefulMarker = parsed.response.id;
+				this._summarizedAtRoundId = this._activeRequest?.summarizedAtRoundId;
 			}
 
 			this._activeRequest?.handleEvent(parsed);
@@ -471,6 +506,7 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 				hadActiveRequest: this._hadActiveRequest,
 				requestId: this._activeRequest?.requestId,
 				gitHubRequestId: this.gitHubRequestId,
+				modelId: this._activeRequest?.modelId,
 				closeCode: event.code,
 				closeReason: closeCodeDescription,
 				closeEventReason: event.reason,
@@ -499,6 +535,7 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 				hadActiveRequest: this._hadActiveRequest,
 				requestId: this._activeRequest?.requestId,
 				gitHubRequestId: this.gitHubRequestId,
+				modelId: this._activeRequest?.modelId,
 				error: errorMessage,
 				connectionDurationMs,
 				totalSentMessageCount: this._totalSentMessageCount,
@@ -518,12 +555,13 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 		const statefulMarkerMatched = this._statefulMarker === body.previous_response_id;
 		const previousResponseIdUnset = body.previous_response_id === undefined;
 		const hasCompactionData = body.input?.some(item => item?.type === 'compaction') ?? false;
+		const summarizedAtRoundIdMatched = options.summarizedAtRoundId === this._summarizedAtRoundId;
 		const statefulMarkerPrefix = this._statefulMarker?.slice(0, 5).concat('...') ?? '<none>';
 		const previousResponsePrefix = body.previous_response_id?.slice(0, 5).concat('...') ?? '<none>';
 		if (statefulMarkerMatched) {
-			this._logService.trace(`[ChatWebSocketManager] WebSocket stateful marker matches previous_response_id (${previousResponsePrefix})`);
+			this._logService.trace(`[ChatWebSocketManager] WebSocket stateful marker matches previous_response_id (${previousResponsePrefix}), summarizedAtRoundIdMatched: ${summarizedAtRoundIdMatched}`);
 		} else {
-			this._logService.info(`[ChatWebSocketManager] WebSocket stateful marker (${statefulMarkerPrefix}) does not match previous_response_id (${previousResponsePrefix})`);
+			this._logService.debug(`[ChatWebSocketManager] WebSocket stateful marker (${statefulMarkerPrefix}) does not match previous_response_id (${previousResponsePrefix}), summarizedAtRoundIdMatched: ${summarizedAtRoundIdMatched}`);
 		}
 
 		// Supersede any in-flight request before updating turn state
@@ -551,7 +589,10 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 		const requestStartReceivedMessageCount = this._totalReceivedMessageCount;
 		const requestStartSentCharacters = this._totalSentCharacters;
 		const requestStartReceivedCharacters = this._totalReceivedCharacters;
-		const request = new ChatWebSocketActiveRequest(requestId, this._configurationService, this._logService);
+		const promptTokenCountPromise = options.countTokens();
+		let promptTokenCount = -1;
+		promptTokenCountPromise.then(count => { promptTokenCount = count; }, () => { promptTokenCount = -2; });
+		const request = new ChatWebSocketActiveRequest(requestId, body.model, options.summarizedAtRoundId, this._configurationService, this._logService);
 		request.onDidSettle(({ outcome, closeCode, closeReason, serverErrorMessage, serverErrorCode }) => {
 			if (this._activeRequest === request) {
 				this._activeRequest = undefined;
@@ -570,10 +611,14 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 				hadActiveRequest,
 				requestId,
 				gitHubRequestId: this.gitHubRequestId,
+				modelId: body.model,
 				requestOutcome: outcome,
 				statefulMarkerMatched,
 				previousResponseIdUnset,
 				hasCompactionData,
+				summarizedAtRoundIdMatched,
+				promptTokenCount,
+				tokenCountMax: options.tokenCountMax,
 				connectionDurationMs,
 				requestDurationMs,
 				totalSentMessageCount: this._totalSentMessageCount,
@@ -622,9 +667,12 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 			hadActiveRequest,
 			requestId,
 			gitHubRequestId: this.gitHubRequestId,
+			modelId: body.model,
 			statefulMarkerMatched,
 			previousResponseIdUnset,
 			hasCompactionData,
+			summarizedAtRoundIdMatched,
+			tokenCountMax: options.tokenCountMax,
 			connectionDurationMs,
 			totalSentMessageCount: this._totalSentMessageCount,
 			totalReceivedMessageCount: this._totalReceivedMessageCount,
@@ -675,6 +723,8 @@ class ChatWebSocketActiveRequest implements IChatWebSocketRequestHandle {
 
 	constructor(
 		readonly requestId: string,
+		readonly modelId: string | undefined,
+		readonly summarizedAtRoundId: string | undefined,
 		private readonly _configurationService: IConfigurationService,
 		private readonly _logService: ILogService,
 	) {

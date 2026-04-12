@@ -462,8 +462,18 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 				},
 			}
 		));
-		this._initializeTerminalActions();
-		this._terminalService.whenConnected.then(() => this._initializeTerminalActions());
+		let didInitializeTerminalActions = false;
+		const initializeTerminalActionsOnce = () => {
+			if (didInitializeTerminalActions || this._store.isDisposed) {
+				return;
+			}
+			didInitializeTerminalActions = true;
+			this._initializeTerminalActions();
+		};
+		initializeTerminalActionsOnce();
+		this._terminalService.whenConnected.then(() => {
+			initializeTerminalActionsOnce();
+		});
 
 		// Listen for continue in background — sets context key so toolbar auto-hides the action
 		const terminalToolSessionId = this._terminalData.terminalToolSessionId;
@@ -1469,13 +1479,17 @@ class ChatTerminalToolOutputSection extends Disposable {
 		const scrollableDomNode = this._scrollableContainer.getDomNode();
 		const rowHeight = this._computeRowHeightPx();
 		const padding = this._getOutputPadding();
-		const minHeight = rowHeight * MIN_OUTPUT_ROWS + padding;
 		const maxHeight = rowHeight * MAX_OUTPUT_ROWS + padding;
 		const contentHeight = this._getOutputContentHeight(lineCount, rowHeight, padding);
 		const clampedHeight = Math.min(contentHeight, maxHeight);
-		const measuredBodyHeight = Math.max(this._outputBody.clientHeight, minHeight);
-		const appliedHeight = Math.min(clampedHeight, measuredBodyHeight);
-		scrollableDomNode.style.height = appliedHeight < maxHeight ? `${appliedHeight}px` : '';
+		// Use the line-count-based calculation directly rather than constraining by
+		// _outputBody.clientHeight. The DOM measurement races with xterm's async
+		// rendering — when new lines arrive, clientHeight reflects the stale
+		// (pre-render) size, causing the viewport to be too short and clipping the
+		// last line. The calculated height still has enough headroom because it
+		// includes the output padding and may round slightly differently from
+		// xterm's actual rendered cell height.
+		scrollableDomNode.style.height = clampedHeight < maxHeight ? `${clampedHeight}px` : '';
 		this._scrollableContainer.scanDomNode();
 	}
 
@@ -1502,9 +1516,7 @@ class ChatTerminalToolOutputSection extends Disposable {
 
 	private _getOutputContentHeight(lineCount: number, rowHeight: number, padding: number): number {
 		const contentRows = Math.max(lineCount, MIN_OUTPUT_ROWS);
-		// Always add an extra row for buffer space to prevent the last line from being cut off during streaming
-		const adjustedRows = contentRows + 1;
-		return (adjustedRows * rowHeight) + padding;
+		return (contentRows * rowHeight) + padding;
 	}
 
 	private _getOutputPadding(): number {

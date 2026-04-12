@@ -1156,6 +1156,21 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	public setOptionGroupsForSessionType(chatSessionType: string, handle: number, optionGroups?: IChatSessionProviderOptionGroup[]): void {
 		if (optionGroups) {
 			this._sessionTypeOptions.set(chatSessionType, optionGroups);
+
+			// Apply selected values from the updated option groups directly to all active
+			// sessions of this type. We write to the session's option cache without firing
+			// _onDidChangeSessionOptions to avoid a feedback loop: that event triggers
+			// $provideHandleOptionsChange back to the extension host, which may re-set
+			// inputState.groups -> $updateChatSessionInputState -> here again.
+			for (const [_, sessionData] of this._sessions) {
+				if (sessionData.chatSessionType === chatSessionType) {
+					for (const group of optionGroups) {
+						if (group.selected) {
+							sessionData.setOption(group.id, group.selected);
+						}
+					}
+				}
+			}
 		} else {
 			this._sessionTypeOptions.delete(chatSessionType);
 		}

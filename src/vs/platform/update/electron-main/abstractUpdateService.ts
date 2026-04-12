@@ -86,6 +86,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	private _hasCheckedForOverwriteOnQuit: boolean = false;
 	private readonly overwriteUpdatesCheckInterval = new IntervalTimer();
 	private _internalOrg: string | undefined = undefined;
+	private _suspended = false;
 
 	private readonly _onStateChange = new Emitter<State>();
 	readonly onStateChange: Event<State> = this._onStateChange.event;
@@ -95,7 +96,11 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	}
 
 	protected setState(state: State): void {
-		this.logService.info('update#setState', state.type);
+		if (state.type === StateType.Updating) {
+			this.logService.trace('update#setState', state.type);
+		} else {
+			this.logService.info('update#setState', state.type);
+		}
 		this._state = state;
 		this._onStateChange.fire(state);
 
@@ -284,11 +289,29 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	async checkForUpdates(explicit: boolean): Promise<void> {
 		this.logService.trace('update#checkForUpdates, state = ', this.state.type);
 
+		if (this._suspended) {
+			this.logService.trace('update#checkForUpdates - suspended, skipping');
+			return;
+		}
+
 		if (this.state.type !== StateType.Idle) {
 			return;
 		}
 
 		this.doCheckForUpdates(explicit);
+	}
+
+	/**
+	 * Prevents all update checks (automatic and manual) from running.
+	 * Used by the cross-app update coordinator when another app owns
+	 * the update client.
+	 */
+	suspend(): void {
+		this._suspended = true;
+	}
+
+	resume(): void {
+		this._suspended = false;
 	}
 
 	async downloadUpdate(explicit: boolean): Promise<void> {

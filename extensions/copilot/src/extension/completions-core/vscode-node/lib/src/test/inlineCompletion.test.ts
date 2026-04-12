@@ -5,6 +5,8 @@
 
 import assert from 'assert';
 import Sinon from 'sinon';
+import { ILogService } from '../../../../../../platform/log/common/logService';
+import { ICompletionsFetchService } from '../../../../../../platform/nesFetch/common/completionsFetchService';
 import { CancellationToken } from '../../../../../../util/vs/base/common/cancellation';
 import { SyncDescriptor } from '../../../../../../util/vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from '../../../../../../util/vs/platform/instantiation/common/instantiation';
@@ -18,10 +20,9 @@ import { CompletionRequest, ICompletionsOpenAIFetcherService, LiveOpenAIFetcher 
 import { LocationFactory } from '../textDocument';
 import { Deferred, delay } from '../util/async';
 import { createLibTestingContext } from './context';
-import { createFakeCompletionResponse, StaticFetcher } from './fetcher';
+import { createFakeCompletionResponse, StaticCompletionsFetchService, StaticFetcher } from './fetcher';
 import { withInMemoryTelemetry } from './telemetry';
 import { createTextDocument } from './textDocument';
-import { ILogService } from '../../../../../../platform/log/common/logService';
 
 suite('getInlineCompletions()', function () {
 	function setupCompletion(
@@ -33,7 +34,8 @@ suite('getInlineCompletions()', function () {
 		const serviceCollection = createLibTestingContext();
 		const doc = createTextDocument('file:///example.ts', languageId, 1, docText);
 		serviceCollection.define(ICompletionsFetcherService, fetcher);
-		serviceCollection.define(ICompletionsOpenAIFetcherService, new SyncDescriptor(LiveOpenAIFetcher)); // gets results from static fetcher
+		serviceCollection.define(ICompletionsFetchService, new StaticCompletionsFetchService(fetcher));
+		serviceCollection.define(ICompletionsOpenAIFetcherService, new SyncDescriptor(LiveOpenAIFetcher));
 		const accessor = serviceCollection.createTestingAccessor();
 
 		// Setup closures with the state as default

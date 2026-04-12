@@ -151,6 +151,10 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 		return this._inner.getSubscription(kind, resource);
 	}
 
+	getSubscriptionUnmanaged<T extends StateComponents>(kind: T, resource: URI): IAgentSubscription<ComponentToState[T]> | undefined {
+		return this._inner.getSubscriptionUnmanaged(kind, resource);
+	}
+
 	dispatch(action: ISessionAction | ITerminalAction): void {
 		this._log('>>', 'dispatch', action);
 		this._inner.dispatch(action);
