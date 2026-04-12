@@ -139,11 +139,11 @@ namespace FetchResult {
 		) { }
 	}
 	export class ModelNotFound { public static INSTANCE = new ModelNotFound(); }
-	export class Error {
+	export class FetchFailure {
 		constructor(readonly reason: NoNextEditReason) { }
 	}
 
-	export type t = Lines | ModelNotFound | Error;
+	export type t = Lines | ModelNotFound | FetchFailure;
 }
 
 export class XtabProvider implements IStatelessNextEditProvider {
@@ -800,21 +800,6 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		telemetry.setResponse(fetchResultPromise.then((response) => ({ response, ttft })));
 		logContext.setFullResponse(fetchResultPromise.then((response) => response.type === ChatFetchResponseType.Success ? response.value : undefined));
 
-		const fetchRes = await Promise.race([firstTokenReceived.p, fetchResultPromise]);
-		if (fetchRes && fetchRes.type !== ChatFetchResponseType.Success) {
-			if (fetchRes.type === ChatFetchResponseType.NotFound &&
-				!this.forceUseDefaultModel // if we haven't already forced using the default model; otherwise, this could cause an infinite loop
-			) {
-				this.forceUseDefaultModel = true;
-				return FetchResult.ModelNotFound.INSTANCE;
-			}
-			// diff-patch based model returns no choices if it has no edits to suggest
-			if (fetchRes.type === ChatFetchResponseType.Unknown && fetchRes.reason === RESPONSE_CONTAINED_NO_CHOICES) {
-				return new FetchResult.Error(new NoNextEditReason.NoSuggestions(documentBeforeEdits, editWindow));
-			}
-			return new FetchResult.Error(mapChatFetcherErrorToNoNextEditReason(fetchRes));
-		}
-
 		fetchResultPromise
 			.then((response) => {
 				// this's a way to signal the edit-pushing code to know if the request failed and
@@ -836,6 +821,21 @@ export class XtabProvider implements IStatelessNextEditProvider {
 
 				logContext.setResponse(responseSoFar);
 			});
+
+		const fetchRes = await Promise.race([firstTokenReceived.p, fetchResultPromise]);
+		if (fetchRes && fetchRes.type !== ChatFetchResponseType.Success) {
+			if (fetchRes.type === ChatFetchResponseType.NotFound &&
+				!this.forceUseDefaultModel // if we haven't already forced using the default model; otherwise, this could cause an infinite loop
+			) {
+				this.forceUseDefaultModel = true;
+				return FetchResult.ModelNotFound.INSTANCE;
+			}
+			// diff-patch based model returns no choices if it has no edits to suggest
+			if (fetchRes.type === ChatFetchResponseType.Unknown && fetchRes.reason === RESPONSE_CONTAINED_NO_CHOICES) {
+				return new FetchResult.FetchFailure(new NoNextEditReason.NoSuggestions(documentBeforeEdits, editWindow));
+			}
+			return new FetchResult.FetchFailure(mapChatFetcherErrorToNoNextEditReason(fetchRes));
+		}
 
 		const getFetchFailure = (): NoNextEditReason | undefined =>
 			chatResponseFailure ? mapChatFetcherErrorToNoNextEditReason(chatResponseFailure) : undefined;
@@ -888,7 +888,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 		if (fetchResult instanceof FetchResult.ModelNotFound) {
 			return yield* this.doGetNextEdit(request, delaySession, tracing, cancellationToken, retryState);
 		}
-		if (fetchResult instanceof FetchResult.Error) {
+		if (fetchResult instanceof FetchResult.FetchFailure) {
 			return fetchResult.reason;
 		}
 

@@ -10,6 +10,7 @@
 import { DeferredPromise } from '../../../base/common/async.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, IReference } from '../../../base/common/lifecycle.js';
+import { Schemas } from '../../../base/common/network.js';
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -235,12 +236,22 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			session: URI.parse(s.resource),
 			startTime: s.createdAt,
 			modifiedTime: s.modifiedAt,
+			...(s.project ? {
+				project: {
+					uri: this._toLocalProjectUri(URI.parse(s.project.uri)),
+					displayName: s.project.displayName,
+				}
+			} : {}),
 			summary: s.title,
 			status: s.status,
 			workingDirectory: typeof s.workingDirectory === 'string' ? toAgentHostUri(URI.parse(s.workingDirectory), this._connectionAuthority) : undefined,
 			isRead: s.isRead,
 			isDone: s.isDone,
 		}));
+	}
+
+	private _toLocalProjectUri(uri: URI): URI {
+		return uri.scheme === Schemas.file ? toAgentHostUri(uri, this._connectionAuthority) : uri;
 	}
 
 	/**

@@ -813,3 +813,146 @@ describe('processResponseFromChatEndpoint telemetry', () => {
 		services.dispose();
 	});
 });
+
+describe('summarizedAtRoundId and stateful marker interaction', () => {
+	it('skips stateful marker when summarizedAtRoundId differs from connection', () => {
+		const services = createPlatformServices();
+		const wsManager: IChatWebSocketManager = {
+			_serviceBrand: undefined,
+			getOrCreateConnection: () => { throw new Error('not implemented'); },
+			hasActiveConnection: () => false,
+			getStatefulMarker: () => 'resp-prev',
+			getSummarizedAtRoundId: () => 'round-old',
+			closeConnection: () => { },
+			closeAll: () => { },
+		};
+		services.set(IChatWebSocketManager, wsManager);
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const messages: Raw.ChatMessage[] = [
+			{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'summarized history' }] },
+			createStatefulMarkerMessage(testEndpoint.model, 'resp-prev'),
+			{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'after marker' }] },
+		];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(
+			servicesAccessor,
+			{ ...createRequestOptions(messages, true), conversationId: 'conv-1', summarizedAtRoundId: 'round-new' },
+			testEndpoint.model, testEndpoint,
+		));
+
+		expect(body.previous_response_id).toBeUndefined();
+		expect(body.input).toHaveLength(2);
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('uses stateful marker when summarizedAtRoundId matches connection', () => {
+		const services = createPlatformServices();
+		const wsManager = new NullChatWebSocketManager();
+		wsManager.getStatefulMarker = () => 'resp-prev';
+		wsManager.getSummarizedAtRoundId = () => 'round-5';
+		services.set(IChatWebSocketManager, wsManager);
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const messages: Raw.ChatMessage[] = [
+			{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'summarized history' }] },
+			createStatefulMarkerMessage(testEndpoint.model, 'resp-prev'),
+			{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'after marker' }] },
+		];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(
+			servicesAccessor,
+			{ ...createRequestOptions(messages, true), conversationId: 'conv-1', summarizedAtRoundId: 'round-5' },
+			testEndpoint.model, testEndpoint,
+		));
+
+		expect(body.previous_response_id).toBe('resp-prev');
+		expect(body.input).toHaveLength(1);
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('uses stateful marker when both sides have no summary', () => {
+		const services = createPlatformServices();
+		const wsManager = new NullChatWebSocketManager();
+		wsManager.getStatefulMarker = () => 'resp-prev';
+		wsManager.getSummarizedAtRoundId = () => undefined;
+		services.set(IChatWebSocketManager, wsManager);
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const messages: Raw.ChatMessage[] = [
+			{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'first message' }] },
+			createStatefulMarkerMessage(testEndpoint.model, 'resp-prev'),
+			{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'second message' }] },
+		];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(
+			servicesAccessor,
+			{ ...createRequestOptions(messages, true), conversationId: 'conv-1' },
+			testEndpoint.model, testEndpoint,
+		));
+
+		expect(body.previous_response_id).toBe('resp-prev');
+		expect(body.input).toHaveLength(1);
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('skips stateful marker when conversation is rolled back past summary', () => {
+		const services = createPlatformServices();
+		const wsManager = new NullChatWebSocketManager();
+		wsManager.getStatefulMarker = () => 'resp-prev';
+		wsManager.getSummarizedAtRoundId = () => 'round-5';
+		services.set(IChatWebSocketManager, wsManager);
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const messages: Raw.ChatMessage[] = [
+			{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'first message' }] },
+			createStatefulMarkerMessage(testEndpoint.model, 'resp-prev'),
+			{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'second message' }] },
+		];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(
+			servicesAccessor,
+			{ ...createRequestOptions(messages, true), conversationId: 'conv-1', summarizedAtRoundId: undefined },
+			testEndpoint.model, testEndpoint,
+		));
+
+		expect(body.previous_response_id).toBeUndefined();
+		expect(body.input).toHaveLength(2);
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('skips stateful marker on first request after new summarization', () => {
+		const services = createPlatformServices();
+		const wsManager = new NullChatWebSocketManager();
+		wsManager.getStatefulMarker = () => 'resp-prev';
+		wsManager.getSummarizedAtRoundId = () => undefined;
+		services.set(IChatWebSocketManager, wsManager);
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const messages: Raw.ChatMessage[] = [
+			{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'summarized history' }] },
+			createStatefulMarkerMessage(testEndpoint.model, 'resp-prev'),
+			{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'after marker' }] },
+		];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(
+			servicesAccessor,
+			{ ...createRequestOptions(messages, true), conversationId: 'conv-1', summarizedAtRoundId: 'round-new' },
+			testEndpoint.model, testEndpoint,
+		));
+
+		expect(body.previous_response_id).toBeUndefined();
+		expect(body.input).toHaveLength(2);
+
+		accessor.dispose();
+		services.dispose();
+	});
+});

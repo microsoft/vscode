@@ -535,7 +535,7 @@ export class ChangesViewPane extends ViewPane {
 			// Hide the actions toolbar for untitled sessions.
 			const activeSessionStatus = activeSessionStatusObs.read(reader);
 			if (this.actionsContainer) {
-				dom.setVisibility(activeSessionStatus !== SessionStatus.Untitled, this.actionsContainer);
+				dom.setVisibility(activeSessionStatus !== undefined && activeSessionStatus !== SessionStatus.Untitled, this.actionsContainer);
 			}
 
 			const hasGitRepository = this.viewModel.activeSessionHasGitRepositoryObs.read(reader);

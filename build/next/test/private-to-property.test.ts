@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { suite, test } from 'node:test';
 import { convertPrivateFields, adjustSourceMap } from '../private-to-property.ts';
 import { SourceMapConsumer, SourceMapGenerator, type RawSourceMap } from 'source-map';
 
@@ -289,6 +290,54 @@ suite('convertPrivateFields', () => {
 		const code = 'class Foo { x = 1; }';
 		const result = convertPrivateFields(code, 'test.js');
 		assert.deepStrictEqual(result.edits, []);
+	});
+
+	test('async private method — replacement must not merge with async keyword', async () => {
+		// In minified output, there is no space between `async` and `#method`:
+		//   class Foo{async#run(){await Promise.resolve(1)}}
+		// Replacing `#run` with `$a` naively produces `async$a()` which is a
+		// single identifier, not `async $a()`. The `await` inside then becomes
+		// invalid because the method is no longer async.
+		const code = 'class Foo{async#run(){return await Promise.resolve(1)}call(){return this.#run()}}';
+		const result = convertPrivateFields(code, 'test.js');
+		assert.ok(!result.code.includes('#run'), 'should replace #run');
+		// The replacement must NOT fuse with `async` into a single token
+		assert.doesNotThrow(() => new Function(result.code), 'transformed code must be valid JS');
+		// Verify it actually executes (the async method should still work)
+		const exec = new Function(`
+			${result.code}
+			return new Foo().call();
+		`);
+		const val = await exec();
+		assert.strictEqual(val, 1);
+	});
+
+	test('async private method — space inserted in declaration and not in usage', () => {
+		// More readable version: ensure that `async #method()` becomes
+		// `async $a()` (with space), while `this.#method()` becomes
+		// `this.$a()` (no extra space needed since `.` separates tokens).
+		const code = [
+			'class Foo {',
+			'  async #doWork() { return await 42; }',
+			'  run() { return this.#doWork(); }',
+			'}',
+		].join('\n');
+		const result = convertPrivateFields(code, 'test.js');
+		assert.ok(!result.code.includes('#doWork'), 'should replace #doWork');
+		assert.doesNotThrow(() => new Function(result.code), 'transformed code must be valid JS');
+	});
+
+	test('static async private method — no token fusion', async () => {
+		const code = 'class Foo{static async#init(){return await Promise.resolve(1)}static go(){return Foo.#init()}}';
+		const result = convertPrivateFields(code, 'test.js');
+		assert.doesNotThrow(() => new Function(result.code),
+			'static async private method must produce valid JS, got:\n' + result.code);
+		const exec = new Function(`
+			${result.code}
+			return Foo.go();
+		`);
+		const value = await exec();
+		assert.strictEqual(value, 1);
 	});
 
 	test('heritage clause — extends expression resolves outer private field, not inner', () => {

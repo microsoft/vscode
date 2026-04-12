@@ -11,7 +11,7 @@ import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
-import { IChatQuestion, IChatQuestionAnswers, IChatQuestionAnswerValue, IChatMultiSelectAnswer, IChatService, IChatSingleSelectAnswer } from '../../chatService/chatService.js';
+import { IChatQuestion, IChatQuestionAnswers, IChatQuestionAnswerValue, IChatMultiSelectAnswer, IChatService, IChatSingleSelectAnswer, IChatToolInvocation } from '../../chatService/chatService.js';
 import { ChatQuestionCarouselData } from '../../model/chatProgressTypes/chatQuestionCarouselData.js';
 import { IChatRequestModel } from '../../model/chatModel.js';
 import { ChatConfiguration, ChatPermissionLevel } from '../../constants.js';
@@ -24,6 +24,7 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { raceCancellation } from '../../../../../../base/common/async.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { TerminalToolId } from '../terminalToolIds.js';
 
 /**
  * Response returned to the model when the user is not available (autopilot mode).
@@ -204,6 +205,7 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 			const reason = request.modeInfo?.permissionLevel === ChatPermissionLevel.Autopilot ? 'Autopilot mode' : 'Auto-reply enabled';
 			this.logService.info(`[AskQuestionsTool] ${reason}: auto-responding to questions`);
 			const { carousel, idToHeaderMap } = this.toQuestionCarousel(questions);
+			carousel.terminalId = this.extractTerminalId(request);
 			carousel.data = this.buildAutopilotCarouselAnswers(questions, carousel, idToHeaderMap);
 			carousel.isUsed = true;
 			this.chatService.appendProgress(request, carousel);
@@ -211,11 +213,25 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 		}
 
 		const { carousel, idToHeaderMap } = this.toQuestionCarousel(questions);
+		carousel.terminalId = this.extractTerminalId(request);
+		this.logService.trace(`[AskQuestionsTool] request=${request.id} terminalExecutionId=${request.terminalExecutionId ?? 'undefined'} carousel.terminalId=${carousel.terminalId ?? 'undefined'}`);
 		this.chatService.appendProgress(request, carousel);
 
 		const answerResult = await raceCancellation(carousel.completion.p, token);
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
+		}
+
+		// When the user typed directly in the terminal (bypassing the carousel),
+		// tell the agent to stop asking questions and wait for the command to finish.
+		if (carousel.dismissedByTerminalInput && carousel.terminalId) {
+			this.logService.info(`[AskQuestionsTool] Carousel dismissed because user typed directly in terminal ${carousel.terminalId}`);
+			return {
+				content: [{
+					kind: 'text',
+					value: `The user is replying to the terminal prompts directly. Do not ask more questions or send input to the terminal. You will be automatically notified when the command in terminal ${carousel.terminalId} completes.`
+				}]
+			};
 		}
 
 		progress.report({ message: localize('askQuestionsTool.progress', 'Analyzing your answers...') });
@@ -289,6 +305,50 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 		}
 
 		return { request, sessionResource: chatSessionResource };
+	}
+
+	/**
+	 * Resolves the terminal execution ID for the request.
+	 * Prefer structured metadata and fall back to legacy message parsing for
+	 * old sessions that may not carry the metadata yet.
+	 * As a final fallback, search completed runInTerminal tool invocations in
+	 * the response for the terminal ID (foreground/timeout path where the
+	 * model calls ask_questions from the same turn as runInTerminal).
+	 */
+	private extractTerminalId(request: IChatRequestModel): string | undefined {
+		if (request.terminalExecutionId) {
+			return request.terminalExecutionId;
+		}
+
+		const match = request.message.text.match(/\[Terminal (?<termId>\S+) notification:/);
+		if (match?.groups?.termId) {
+			return match.groups.termId;
+		}
+
+		// Search completed runInTerminal tool invocations in the response
+		// for the terminal execution ID (covers foreground/timeout path).
+		const response = request.response;
+		if (response) {
+			const parts = response.response.value;
+			for (let i = parts.length - 1; i >= 0; i--) {
+				const part = parts[i];
+				if (part.kind === 'toolInvocation' && part.toolId === TerminalToolId.RunInTerminal) {
+					const state = part.state.get();
+					if (state.type === IChatToolInvocation.StateKind.Completed && state.contentForModel) {
+						for (const item of state.contentForModel) {
+							if (item.kind === 'text') {
+								const idMatch = item.value.match(/terminal ID ([0-9a-fA-F-]+)/);
+								if (idMatch) {
+									return idMatch[1];
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
+		return undefined;
 	}
 
 	private toQuestionCarousel(questions: IQuestion[]): { carousel: ChatQuestionCarouselData; idToHeaderMap: Map<string, string> } {

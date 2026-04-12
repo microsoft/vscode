@@ -5,14 +5,16 @@
 
 import type { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { createCommandUri, MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { createCommandUri, isMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { hasKey } from '../../../../../../base/common/types.js';
 import { IChatWidgetService } from '../../../../chat/browser/chat.js';
-import { IChatService } from '../../../../chat/common/chatService/chatService.js';
+import { IChatService, IChatMultiSelectAnswer, IChatQuestionAnswerValue, IChatQuestionCarousel, IChatSingleSelectAnswer } from '../../../../chat/common/chatService/chatService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
+import { URI } from '../../../../../../base/common/uri.js';
 import { ITerminalService } from '../../../../terminal/browser/terminal.js';
 import { buildCommandDisplayText, normalizeCommandForExecution } from '../runInTerminalHelpers.js';
 import { RunInTerminalTool } from './runInTerminalTool.js';
@@ -56,12 +58,24 @@ export interface ISendToTerminalInputParams {
 }
 
 const FocusTerminalByIdCommandId = 'workbench.action.terminal.chat.focusTerminalById';
-CommandsRegistry.registerCommand(FocusTerminalByIdCommandId, (accessor, instanceId: number) => {
+CommandsRegistry.registerCommand(FocusTerminalByIdCommandId, async (accessor, instanceId: number) => {
 	const terminalService = accessor.get(ITerminalService);
 	const instance = terminalService.getInstanceFromId(instanceId);
 	if (instance) {
 		terminalService.setActiveInstance(instance);
-		terminalService.revealActiveTerminal(true);
+		await terminalService.revealActiveTerminal();
+		instance.focus();
+	}
+});
+
+const FocusTerminalByExecutionIdCommandId = 'workbench.action.terminal.chat.focusTerminalByExecutionId';
+CommandsRegistry.registerCommand(FocusTerminalByExecutionIdCommandId, async (accessor, executionId: string) => {
+	const execution = RunInTerminalTool.getExecution(executionId);
+	if (execution) {
+		const terminalService = accessor.get(ITerminalService);
+		terminalService.setActiveInstance(execution.instance);
+		await terminalService.revealActiveTerminal();
+		execution.instance.focus();
 	}
 });
 
@@ -97,6 +111,10 @@ export class SendToTerminalTool extends Disposable implements IToolImpl {
 
 		const invocationMessage = new MarkdownString();
 		const pastTenseMessage = new MarkdownString();
+
+		// Look for the question that prompted this send_to_terminal call
+		const questionText = this._getQuestionContextForTerminal(context.chatSessionResource, args);
+
 		if (isEmptyInput) {
 			invocationMessage.appendMarkdown(localize('send.progressive.enter', "Pressing `Enter` in terminal"));
 			pastTenseMessage.appendMarkdown(localize('send.past.enter', "Pressed `Enter` in terminal"));
@@ -105,6 +123,16 @@ export class SendToTerminalTool extends Disposable implements IToolImpl {
 			const safeInlineCode = toMarkdownInlineCode(displayCommand);
 			invocationMessage.appendMarkdown(localize('send.progressive', "Sending {0} to terminal", safeInlineCode));
 			pastTenseMessage.appendMarkdown(localize('send.past', "Sent {0} to terminal", safeInlineCode));
+		}
+
+		if (questionText) {
+			const replyPrefix = ` (${localize('send.replyingTo', "replying to: ")}`;
+			invocationMessage.appendMarkdown(replyPrefix);
+			invocationMessage.appendText(questionText);
+			invocationMessage.appendMarkdown(')');
+			pastTenseMessage.appendMarkdown(replyPrefix);
+			pastTenseMessage.appendText(questionText);
+			pastTenseMessage.appendMarkdown(')');
 		}
 
 		// Build the confirmation message with a "Focus Terminal" command link
@@ -180,6 +208,109 @@ export class SendToTerminalTool extends Disposable implements IToolImpl {
 			}
 		}
 		return undefined;
+	}
+
+	/**
+	 * Searches the current session's responses for the most recent question
+	 * carousel associated with the target terminal, then matches the command
+	 * text being sent against the carousel's submitted answers to return the
+	 * specific question that this send_to_terminal call is answering.
+	 *
+	 * When a carousel contains multiple questions, the model calls
+	 * send_to_terminal once per answer. This method correlates each call to
+	 * the right question by matching the sent text against answer values.
+	 */
+	private _getQuestionContextForTerminal(chatSessionResource: URI | undefined, args: ISendToTerminalInputParams): string | undefined {
+		if (!chatSessionResource) {
+			return undefined;
+		}
+
+		const model = this._chatService.getSession(chatSessionResource);
+		if (!model) {
+			return undefined;
+		}
+
+		// Resolve the terminal ID that will match the carousel's terminalId
+		if (!args.id && args.terminalId === undefined) {
+			return undefined;
+		}
+
+		const commandText = args.command?.trim();
+
+		// Walk requests in reverse to find the most recent carousel for this terminal
+		const requests = model.getRequests();
+		for (let i = requests.length - 1; i >= 0; i--) {
+			const response = requests[i].response;
+			if (!response) {
+				continue;
+			}
+			const parts = response.response.value;
+			for (let j = parts.length - 1; j >= 0; j--) {
+				const part = parts[j];
+				if (part.kind === 'questionCarousel') {
+					const carousel = part as IChatQuestionCarousel;
+					if (!carousel.terminalId || carousel.questions.length === 0) {
+						continue;
+					}
+					// Match by execution UUID or by resolving the carousel's UUID to an instance ID
+					const matchesById = !!args.id && carousel.terminalId === args.id;
+					const matchesByInstanceId = args.terminalId !== undefined &&
+						RunInTerminalTool.getExecution(carousel.terminalId)?.instance.instanceId === args.terminalId;
+					if (!matchesById && !matchesByInstanceId) {
+						continue;
+					}
+
+					// If there's only one question, return it directly
+					if (carousel.questions.length === 1) {
+						return this._getQuestionText(carousel.questions[0]);
+					}
+
+					// Multiple questions: match the command text against submitted answers
+					if (carousel.data) {
+						for (const question of carousel.questions) {
+							const answer = carousel.data[question.id];
+							if (this._answerMatchesCommand(answer, commandText)) {
+								return this._getQuestionText(question);
+							}
+						}
+					}
+
+					// Fallback: return the first question's text
+					return this._getQuestionText(carousel.questions[0]);
+				}
+			}
+		}
+		return undefined;
+	}
+
+	private _getQuestionText(question: IChatQuestionCarousel['questions'][0]): string {
+		const text = question.message ?? question.title;
+		return isMarkdownString(text) ? text.value : text;
+	}
+
+	/**
+	 * Checks whether a carousel answer value matches the command text being sent.
+	 */
+	private _answerMatchesCommand(answer: IChatQuestionAnswerValue | undefined, commandText: string): boolean {
+		if (answer === undefined) {
+			return false;
+		}
+		if (typeof answer === 'string') {
+			return answer.trim() === commandText;
+		}
+		// answer is now IChatSingleSelectAnswer | IChatMultiSelectAnswer
+		if (hasKey(answer, { selectedValues: true })) {
+			const multi = answer as IChatMultiSelectAnswer;
+			if (multi.selectedValues.some(v => v.trim() === commandText)) {
+				return true;
+			}
+			return multi.freeformValue?.trim() === commandText;
+		}
+		if (hasKey(answer, { selectedValue: true })) {
+			const single = answer as IChatSingleSelectAnswer;
+			return single.selectedValue?.trim() === commandText || single.freeformValue?.trim() === commandText;
+		}
+		return false;
 	}
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, _token: CancellationToken): Promise<IToolResult> {

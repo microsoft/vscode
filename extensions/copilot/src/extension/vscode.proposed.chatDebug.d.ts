@@ -737,6 +737,17 @@ declare module 'vscode' {
 			data: Uint8Array,
 			token: CancellationToken
 		): ProviderResult<ChatDebugLogImportResult>;
+
+		/**
+		 * Return session resource URIs that have debug log data available,
+		 * including historical sessions persisted on disk.
+		 *
+		 * @param token A cancellation token.
+		 * @returns Session URIs with available debug data and optional titles.
+		 */
+		provideAvailableDebugSessionResources?(
+			token: CancellationToken
+		): ProviderResult<{ uri: Uri; title?: string }[]>;
 	}
 
 	export namespace chat {

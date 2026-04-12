@@ -336,6 +336,8 @@ export interface IToolConfirmationMessages {
 		label: string | IMarkdownString;
 		/** Precomputed SHA-256 key for the combination (set during tool preparation) */
 		key: string;
+		/** String representation of the arguments for this combination */
+		arguments?: string;
 	};
 }
 

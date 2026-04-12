@@ -23,6 +23,7 @@ import { IChatSendRequestOptions, IChatService } from '../../../../workbench/con
 import { IChatSessionFileChange, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
+import { agentHostSessionWorkspaceKey, buildAgentHostSessionWorkspace } from '../../../common/agentHostSessionWorkspace.js';
 import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
 import { IChat, ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SessionStatus, type IGitHubInfo, ISessionType } from '../../../services/sessions/common/session.js';
 
@@ -96,9 +97,7 @@ class LocalSessionAdapter implements ISession {
 		this.updatedAt = observableValue('updatedAt', new Date(metadata.modifiedTime));
 		this.lastTurnEnd = observableValue('lastTurnEnd', metadata.modifiedTime ? new Date(metadata.modifiedTime) : undefined);
 		this.description = observableValue('description', new MarkdownString().appendText(localize('localAgentHostDescription', "Local")));
-		this.workspace = observableValue('workspace', metadata.workingDirectory
-			? LocalAgentHostSessionsProvider.buildWorkspace(metadata.workingDirectory)
-			: undefined);
+		this.workspace = observableValue('workspace', LocalAgentHostSessionsProvider.buildWorkspace(metadata.project, metadata.workingDirectory));
 
 		if (metadata.isRead === false) {
 			this.isRead.set(false, undefined);
@@ -143,6 +142,12 @@ class LocalSessionAdapter implements ISession {
 		const nextLastTurnEndTime = modifiedTime ? modifiedTime : undefined;
 		if (currentLastTurnEndTime !== nextLastTurnEndTime) {
 			this.lastTurnEnd.set(nextLastTurnEndTime !== undefined ? new Date(nextLastTurnEndTime) : undefined, undefined);
+			didChange = true;
+		}
+
+		const workspace = LocalAgentHostSessionsProvider.buildWorkspace(metadata.project, metadata.workingDirectory);
+		if (agentHostSessionWorkspaceKey(workspace) !== agentHostSessionWorkspaceKey(this.workspace.get())) {
+			this.workspace.set(workspace, undefined);
 			didChange = true;
 		}
 
@@ -249,14 +254,8 @@ export class LocalAgentHostSessionsProvider extends Disposable implements ISessi
 
 	// -- Workspaces --
 
-	static buildWorkspace(workingDirectory: URI): ISessionWorkspace {
-		const folderName = basename(workingDirectory) || workingDirectory.path;
-		return {
-			label: folderName,
-			icon: Codicon.folder,
-			repositories: [{ uri: workingDirectory, workingDirectory: undefined, detail: undefined, baseBranchName: undefined, baseBranchProtected: undefined }],
-			requiresWorkspaceTrust: true,
-		};
+	static buildWorkspace(project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined): ISessionWorkspace | undefined {
+		return buildAgentHostSessionWorkspace(project, workingDirectory, { fallbackIcon: Codicon.folder, requiresWorkspaceTrust: true });
 	}
 
 	resolveWorkspace(repositoryUri: URI): ISessionWorkspace {
@@ -566,7 +565,7 @@ export class LocalAgentHostSessionsProvider extends Disposable implements ISessi
 		}
 	}
 
-	private _handleSessionAdded(summary: { resource: string; provider: string; title: string; createdAt: number; modifiedAt: number; workingDirectory?: string; isRead?: boolean; isDone?: boolean }): void {
+	private _handleSessionAdded(summary: { resource: string; provider: string; title: string; createdAt: number; modifiedAt: number; project?: { uri: string; displayName: string }; workingDirectory?: string; isRead?: boolean; isDone?: boolean }): void {
 		const sessionUri = URI.parse(summary.resource);
 		const rawId = AgentSession.id(sessionUri);
 		if (this._sessionCache.has(rawId)) {
@@ -581,6 +580,7 @@ export class LocalAgentHostSessionsProvider extends Disposable implements ISessi
 			startTime: summary.createdAt,
 			modifiedTime: summary.modifiedAt,
 			summary: summary.title,
+			...(summary.project ? { project: { uri: URI.parse(summary.project.uri), displayName: summary.project.displayName } } : {}),
 			workingDirectory: workingDir,
 			isRead: summary.isRead,
 			isDone: summary.isDone,

@@ -208,7 +208,6 @@
 	"github.copilot.chat.attachFile": "Add File to Chat",
 	"github.copilot.chat.attachSelection": "Add Selection to Chat",
 	"github.copilot.command.collectDiagnostics": "Chat Diagnostics",
-	"github.copilot.command.showNodeSystemCertificatesErrors": "Show Node.js System Certificates Errors",
 	"github.copilot.command.inlineEdit.clearCache": "Clear Inline Suggestion Cache",
 	"github.copilot.command.inlineEdit.reportNotebookNESIssue": "Report Notebook Inline Suggestion Issue",
 	"github.copilot.command.showNotebookLog": "Show Chat Log Notebook",

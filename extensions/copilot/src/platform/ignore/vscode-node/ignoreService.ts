@@ -10,7 +10,7 @@ import { VSCodeFileSystemService } from '../../filesystem/vscode/fileSystemServi
 import { IGitExtensionService } from '../../git/common/gitExtensionService';
 import { IGitService } from '../../git/common/gitService';
 import { ILogService } from '../../log/common/logService';
-import { IRequestLogger } from '../../requestLogger/node/requestLogger';
+import { IRequestLogger } from '../../requestLogger/common/requestLogger';
 import { BaseSearchServiceImpl } from '../../search/vscode/baseSearchServiceImpl';
 import { IWorkspaceService } from '../../workspace/common/workspaceService';
 import { BaseIgnoreService } from '../node/ignoreServiceImpl';

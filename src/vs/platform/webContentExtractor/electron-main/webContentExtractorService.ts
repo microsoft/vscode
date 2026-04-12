@@ -5,14 +5,16 @@
 
 import { BrowserWindow } from 'electron';
 import { Limiter } from '../../../base/common/async.js';
+import { Disposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
+import { IAgentNetworkFilterService } from '../../networkFilter/common/networkFilterService.js';
 import { isURLDomainTrusted } from '../../url/common/trustedDomains.js';
 import { IWebContentExtractorOptions, IWebContentExtractorService, WebContentExtractResult } from '../common/webContentExtractor.js';
 import { WebContentCache } from './webContentCache.js';
 import { WebPageLoader } from './webPageLoader.js';
 
-export class NativeWebContentExtractorService implements IWebContentExtractorService {
+export class NativeWebContentExtractorService extends Disposable implements IWebContentExtractorService {
 	_serviceBrand: undefined;
 
 	// Only allow 3 windows to be opened at a time
@@ -20,7 +22,13 @@ export class NativeWebContentExtractorService implements IWebContentExtractorSer
 	private _limiter = new Limiter<WebContentExtractResult>(3);
 	private _webContentsCache = new WebContentCache();
 
-	constructor(@ILogService private readonly _logger: ILogService) { }
+	constructor(
+		@ILogService private readonly _logger: ILogService,
+		@IAgentNetworkFilterService private readonly _agentNetworkFilterService: IAgentNetworkFilterService,
+	) {
+		super();
+		this._register(this._agentNetworkFilterService.onDidChange(() => this._webContentsCache.clear()));
+	}
 
 	extract(uris: URI[], options?: IWebContentExtractorOptions): Promise<WebContentExtractResult[]> {
 		if (uris.length === 0) {
@@ -43,7 +51,8 @@ export class NativeWebContentExtractorService implements IWebContentExtractorSer
 			this._logger,
 			uri,
 			options,
-			(uri) => isURLDomainTrusted(uri, options?.trustedDomains || []));
+			(uri) => isURLDomainTrusted(uri, options?.trustedDomains || []),
+			this._agentNetworkFilterService);
 
 		try {
 			const result = await loader.load();

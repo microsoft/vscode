@@ -8,7 +8,7 @@ import './media/chatWelcomePart.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -356,6 +356,12 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 				e.preventDefault();
 				e.stopPropagation();
 				this._send();
+			}
+			// Cmd+/ / Ctrl+/ — open the context picker (same as the attach button)
+			if (e.equals(KeyMod.CtrlCmd | KeyCode.Slash)) {
+				e.preventDefault();
+				e.stopPropagation();
+				this._contextAttachments.showPicker(this._getContextFolderUri());
 			}
 		}));
 

@@ -101,19 +101,19 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 			const icon = DOM.append(header, $('span.welcome-prompts-section-label-icon.codicon.codicon-sparkle'));
 			icon.setAttribute('aria-hidden', 'true');
 			const title = DOM.append(header, $('span'));
-			title.textContent = localize('gettingStartedTitle', "Generate Workflow");
+			title.textContent = localize('gettingStartedTitle', "Customize Your Agent");
 
 			const description = DOM.append(gettingStarted, $('p.welcome-prompts-input-helper'));
-			description.textContent = localize('gettingStartedDesc', "Describe your stack, conventions, and workflow to draft agents, skills, and instructions.");
+			description.textContent = localize('gettingStartedDesc', "Describe your preferences and conventions to draft agents, skills, and instructions.");
 
 			const inputRow = DOM.append(gettingStarted, $('.welcome-prompts-input-row'));
 			this.inputElement = DOM.append(inputRow, $('input.welcome-prompts-input')) as HTMLInputElement;
 			this.inputElement.type = 'text';
-			this.inputElement.placeholder = localize('workflowInputPlaceholder', "I'm building a React app with TypeScript and Tailwind...");
-			this.inputElement.setAttribute('aria-label', localize('workflowInputAriaLabel', "Describe your project to generate a workflow"));
+			this.inputElement.placeholder = localize('workflowInputPlaceholder', "Prefer concise commits, thorough reviews, and tested code...");
+			this.inputElement.setAttribute('aria-label', localize('workflowInputAriaLabel', "Describe your preferences to customize your agent"));
 
 			const submitBtn = DOM.append(inputRow, $('button.welcome-prompts-input-submit'));
-			submitBtn.setAttribute('aria-label', localize('workflowSubmitAriaLabel', "Generate workflow"));
+			submitBtn.setAttribute('aria-label', localize('workflowSubmitAriaLabel', "Customize agent"));
 			const chevron = DOM.append(submitBtn, $('span.codicon.codicon-arrow-up'));
 			chevron.setAttribute('aria-hidden', 'true');
 

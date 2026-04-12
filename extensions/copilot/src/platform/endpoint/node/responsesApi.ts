@@ -48,9 +48,15 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 	const compactThreshold = getResponsesApiCompactionThreshold(configService, expService, endpoint);
 	// compaction supported for all the models but works well for codex models and any future models after 5.3
 
+	const webSocketStatefulMarker = resolveWebSocketStatefulMarker(accessor, options);
+	// When WebSocket is in use, always defer to the WebSocket marker (which may be
+	// undefined if the connection is new or the summary state changed). Never fall
+	// back to the HTTP marker lookup in that case.
+	const ignoreStatefulMarker = !!options.ignoreStatefulMarker || !!options.useWebSocket;
+
 	const body: IEndpointBody = {
 		model,
-		...rawMessagesToResponseAPI(model, options.messages, !!options.ignoreStatefulMarker, resolveWebSocketStatefulMarker(accessor, options)),
+		...rawMessagesToResponseAPI(model, options.messages, ignoreStatefulMarker, webSocketStatefulMarker),
 		stream: true,
 		tools: options.requestOptions?.tools?.map((tool): OpenAI.Responses.FunctionTool & OpenAiResponsesFunctionTool => ({
 			...tool.function,
@@ -136,7 +142,15 @@ function resolveWebSocketStatefulMarker(accessor: ServicesAccessor, options: ICr
 	if (options.ignoreStatefulMarker || !options.useWebSocket || !options.conversationId) {
 		return undefined;
 	}
-	return accessor.get(IChatWebSocketManager).getStatefulMarker(options.conversationId);
+	const wsManager = accessor.get(IChatWebSocketManager);
+	// If client-side summarization state changed since the stateful marker
+	// was stored (new summary, or rollback removing a summary), the server's
+	// state no longer matches. Skip the marker so the full history is sent.
+	const connSummarizedAt = wsManager.getSummarizedAtRoundId(options.conversationId);
+	if (options.summarizedAtRoundId !== connSummarizedAt) {
+		return undefined;
+	}
+	return wsManager.getStatefulMarker(options.conversationId);
 }
 
 function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMessage[], ignoreStatefulMarker: boolean, webSocketStatefulMarker: string | undefined): { input: OpenAI.Responses.ResponseInputItem[]; previous_response_id?: string } {

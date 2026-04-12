@@ -46,6 +46,7 @@ suite('AgentSideEffects', () => {
 			status: SessionStatus.Idle,
 			createdAt: Date.now(),
 			modifiedAt: Date.now(),
+			project: { uri: 'file:///test-project', displayName: 'Test Project' },
 			workingDirectory,
 		});
 		stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri.toString() });
@@ -783,6 +784,7 @@ suite('AgentSideEffects', () => {
 				status: SessionStatus.Idle,
 				createdAt: Date.now(),
 				modifiedAt: Date.now(),
+				project: { uri: 'file:///test-project', displayName: 'Test Project' },
 			});
 
 			localSideEffects.handleAction({
@@ -825,7 +827,7 @@ suite('AgentSideEffects', () => {
 			localService.registerProvider(localAgent);
 
 			// Create a session on the agent backend
-			const session = await localAgent.createSession();
+			const { session } = await localAgent.createSession();
 			const sessions = await localAgent.listSessions();
 			const sessionResource = sessions[0].session;
 

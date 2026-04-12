@@ -88,12 +88,13 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 
 // ---- Test helpers -----------------------------------------------------------
 
-function createSession(id: string, opts?: { provider?: string; summary?: string; workingDirectory?: URI; startTime?: number; modifiedTime?: number }): IAgentSessionMetadata {
+function createSession(id: string, opts?: { provider?: string; summary?: string; project?: { uri: URI; displayName: string }; workingDirectory?: URI; startTime?: number; modifiedTime?: number }): IAgentSessionMetadata {
 	return {
 		session: AgentSession.uri(opts?.provider ?? 'copilot', id),
 		startTime: opts?.startTime ?? 1000,
 		modifiedTime: opts?.modifiedTime ?? 2000,
 		summary: opts?.summary,
+		project: opts?.project,
 		workingDirectory: opts?.workingDirectory,
 	};
 }
@@ -129,7 +130,7 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	return provider;
 }
 
-function fireSessionAdded(connection: MockAgentConnection, rawId: string, opts?: { provider?: string; title?: string; workingDirectory?: string }): void {
+function fireSessionAdded(connection: MockAgentConnection, rawId: string, opts?: { provider?: string; title?: string; project?: { uri: string; displayName: string }; workingDirectory?: string }): void {
 	const provider = opts?.provider ?? 'copilot';
 	const sessionUri = AgentSession.uri(provider, rawId);
 	connection.fireNotification({
@@ -141,6 +142,7 @@ function fireSessionAdded(connection: MockAgentConnection, rawId: string, opts?:
 			status: ProtocolSessionStatus.Idle,
 			createdAt: Date.now(),
 			modifiedAt: Date.now(),
+			project: opts?.project,
 			workingDirectory: opts?.workingDirectory,
 		},
 	});
@@ -256,6 +258,51 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		fireSessionAdded(connection, 'dup-sess', { title: 'Dup' });
 
 		assert.strictEqual(changes.length, 1);
+	});
+
+	test('uses project metadata as workspace group source', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const projectUri = URI.parse('vscode-agent-host://localhost__4321/file/-/home/user/vscode');
+		const workingDirectory = URI.parse('vscode-agent-host://localhost__4321/file/-/tmp/copilot-worktrees/vscode-feature');
+		connection.addSession(createSession('project-1', {
+			summary: 'Project Session',
+			project: { uri: projectUri, displayName: 'vscode' },
+			workingDirectory,
+		}));
+
+		const provider = createProvider(disposables, connection);
+		provider.getSessions();
+		await timeout(0);
+
+		const workspace = provider.getSessions()[0].workspace.get();
+		assert.deepStrictEqual({
+			label: workspace?.label,
+			repository: workspace?.repositories[0]?.uri.toString(),
+			workingDirectory: workspace?.repositories[0]?.workingDirectory?.toString(),
+		}, {
+			label: 'vscode',
+			repository: projectUri.toString(),
+			workingDirectory: workingDirectory.toString(),
+		});
+	}));
+
+	test('session added converts file project URIs and preserves repository URLs', () => {
+		const provider = createProvider(disposables, connection);
+
+		fireSessionAdded(connection, 'file-project', {
+			title: 'File Project',
+			project: { uri: 'file:///home/user/vscode', displayName: 'vscode' },
+			workingDirectory: 'file:///tmp/copilot-worktrees/vscode-feature',
+		});
+		fireSessionAdded(connection, 'url-project', {
+			title: 'URL Project',
+			project: { uri: 'https://github.com/microsoft/vscode', displayName: 'vscode' },
+		});
+
+		const workspaces = provider.getSessions().map(session => session.workspace.get());
+		assert.deepStrictEqual(workspaces.map(workspace => workspace?.repositories[0]?.uri.toString()), [
+			'vscode-agent-host://localhost__4321/file/-/home/user/vscode',
+			'https://github.com/microsoft/vscode',
+		]);
 	});
 
 	test('removing non-existent session is no-op', () => {

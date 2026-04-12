@@ -106,6 +106,25 @@
 			flex-shrink: 0;
 		}
 
+		.chat-question-focus-terminal-container {
+			flex-shrink: 0;
+
+			.monaco-button.chat-question-focus-terminal {
+				min-width: 22px;
+				width: 22px;
+				height: 22px;
+				padding: 0;
+				border: none !important;
+				box-shadow: none !important;
+				background: transparent !important;
+				color: var(--vscode-icon-foreground) !important;
+			}
+
+			.monaco-button.chat-question-focus-terminal:hover:not(.disabled) {
+				background: var(--vscode-toolbar-hoverBackground) !important;
+			}
+		}
+
 		.chat-question-close-container {
 			flex-shrink: 0;
 

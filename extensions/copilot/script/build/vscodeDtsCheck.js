@@ -4,48 +4,47 @@
  *--------------------------------------------------------------------------------------------*/
 
 // Usage: node script/build/vscodeDtsCheck.js
-// Reads vscodeCommit from package.json, re-downloads proposed d.ts files
-// at that commit, checks if any differ from what's committed, then restores
-// the originals. Exits with code 1 if files are out of date.
+// Compares proposed d.ts files in src/extension/ against the repo's
+// src/vscode-dts/ directory. Exits with code 1 if files are out of date.
 
-const { execSync } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 
+const vscodeDtsDir = path.resolve('..', '..', 'src', 'vscode-dts');
 const targetDir = path.resolve('src', 'extension');
 
 function main() {
 	const pkg = JSON.parse(fs.readFileSync('package.json', 'utf-8'));
-	const sha = pkg.vscodeCommit;
-	if (!sha) {
-		console.error('No vscodeCommit found in package.json. Run "npm run vscode-dts:update" first.');
+	const proposals = pkg.enabledApiProposals;
+	if (!proposals || proposals.length === 0) {
+		console.error('No enabledApiProposals found in package.json.');
 		process.exit(1);
 	}
 
-	console.log(`Checking proposed d.ts files against vscodeCommit: ${sha}`);
+	console.log('Checking proposed d.ts files against src/vscode-dts/...');
 
-	// Download proposed d.ts files using the commit SHA
-	execSync(`node node_modules/@vscode/dts/index.js dev ${sha}`, { stdio: 'inherit' });
-
-	// Compare downloaded files with committed ones
-	const downloaded = fs.readdirSync('.').filter(f => f.startsWith('vscode.') && f.endsWith('.ts'));
 	const mismatched = [];
 
-	for (const f of downloaded) {
-		const committedPath = path.join(targetDir, f);
-		const newContent = fs.readFileSync(f, 'utf-8');
+	for (const proposal of proposals) {
+		const fileName = `vscode.proposed.${proposal}.d.ts`;
+		const sourcePath = path.join(vscodeDtsDir, fileName);
+		const committedPath = path.join(targetDir, fileName);
 
-		if (!fs.existsSync(committedPath)) {
-			mismatched.push(f + ' (missing)');
-		} else {
-			const oldContent = fs.readFileSync(committedPath, 'utf-8');
-			if (oldContent !== newContent) {
-				mismatched.push(f);
-			}
+		if (!fs.existsSync(sourcePath)) {
+			console.warn(`Warning: ${fileName} not found in src/vscode-dts/, skipping`);
+			continue;
 		}
 
-		// Clean up the downloaded file
-		fs.unlinkSync(f);
+		const sourceContent = fs.readFileSync(sourcePath, 'utf-8');
+
+		if (!fs.existsSync(committedPath)) {
+			mismatched.push(fileName + ' (missing)');
+		} else {
+			const committedContent = fs.readFileSync(committedPath, 'utf-8');
+			if (sourceContent !== committedContent) {
+				mismatched.push(fileName);
+			}
+		}
 	}
 
 	if (mismatched.length > 0) {

@@ -401,6 +401,15 @@ export class SessionOptionGroupBuilder implements ISessionOptionGroupBuilder {
 			const repositories = await this.copilotCLIFolderMruService.getRecentlyUsedFolders(CancellationToken.None);
 			const newFolder = previousInputState ? this._inputStateNewFolders.get(previousInputState) : undefined;
 			items = folderMRUToChatProviderOptions(repositories);
+			const selectedFolderItem = selectedFolderUri ? items.find(i => i.id === selectedFolderUri.fsPath) : undefined;
+			const selectedItem = selectedFolderItem
+				?? (previouslySelected
+					? items.find(i => i.id === previouslySelected.id) ?? items[0]
+					: items[0]);
+			if (selectedItem) {
+				defaultRepoUri = vscode.Uri.file(selectedItem.id);
+			}
+
 			items.splice(MAX_MRU_ENTRIES); // Limit to max entries
 			if (newFolder) {
 				const newFolderRepo = await this.getTrustedRepository(newFolder, true);
@@ -411,19 +420,16 @@ export class SessionOptionGroupBuilder implements ISessionOptionGroupBuilder {
 				items = items.filter(item => item.id !== newFolderItem.id);
 				items.unshift(newFolderItem);
 			}
+			// If user selected something from the list but it's not there anymore (perhaps its an item at the end of MRU).
+			if (selectedItem && !items.some(item => item.id === selectedItem.id)) {
+				items.push(selectedItem);
+			}
+
 			commands.push({
 				command: OPEN_REPOSITORY_COMMAND_ID,
 				title: l10n.t('Browse folders...')
 			});
 
-			const selectedFolderItem = selectedFolderUri ? items.find(i => i.id === selectedFolderUri.fsPath) : undefined;
-			const selectedItem = selectedFolderItem
-				?? (previouslySelected
-					? items.find(i => i.id === previouslySelected.id) ?? items[0]
-					: items[0]);
-			if (selectedItem) {
-				defaultRepoUri = vscode.Uri.file(selectedItem.id);
-			}
 			optionGroups.push({
 				id: REPOSITORY_OPTION_ID,
 				name: l10n.t('Folder'),

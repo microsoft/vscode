@@ -114,16 +114,6 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 		return url;
 	}
 
-	override async checkForUpdates(explicit: boolean): Promise<void> {
-		this.logService.trace('update#checkForUpdates, state = ', this.state.type);
-
-		if (this.state.type !== StateType.Idle) {
-			return;
-		}
-
-		this.doCheckForUpdates(explicit);
-	}
-
 	protected doCheckForUpdates(explicit: boolean, pendingCommit?: string): void {
 		if (!this.quality) {
 			return;

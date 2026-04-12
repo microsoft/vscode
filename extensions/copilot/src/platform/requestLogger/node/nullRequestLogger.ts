@@ -5,7 +5,8 @@
 
 import type { RequestMetadata } from '@vscode/copilot-api';
 import type { LanguageModelToolResult, LanguageModelToolResult2 } from 'vscode';
-import { AbstractRequestLogger, ILoggedRequestInfo, LoggedRequest } from '../../../platform/requestLogger/node/requestLogger';
+import { ILoggedRequestInfo, LoggedRequest } from '../../../platform/requestLogger/common/requestLogger';
+import { AbstractRequestLogger } from '../../../platform/requestLogger/node/requestLogger';
 import { Event } from '../../../util/vs/base/common/event';
 import { IModelAPIResponse } from '../../endpoint/common/endpointProvider';
 

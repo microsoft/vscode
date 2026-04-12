@@ -75,6 +75,7 @@ export interface IProductConfiguration {
 
 	readonly win32AppUserModelId?: string;
 	readonly win32MutexName?: string;
+	readonly win32SetupMutexName?: string;
 	readonly win32RegValueName?: string;
 	readonly win32NameVersion?: string;
 	readonly win32VersionedUpdate?: boolean;
@@ -235,6 +236,10 @@ export interface IProductConfiguration {
 
 	readonly extensionConfigurationPolicy?: IStringDictionary<IPolicy>;
 
+	readonly onboardingKeymaps?: readonly IProductOnboardingKeymap[];
+	readonly onboardingExtensions?: readonly IProductOnboardingExtension[];
+	readonly onboardingThemes?: readonly IProductOnboardingTheme[];
+
 	readonly embedded?: IEmbeddedProductConfiguration;
 
 	/**
@@ -247,6 +252,28 @@ export interface IProductConfiguration {
 		darwinBundleIdentifier?: string;
 		urlProtocol?: string;
 	};
+}
+
+export interface IProductOnboardingKeymap {
+	readonly id: string;
+	readonly label: string;
+	readonly extensionId?: string;
+	readonly description: string;
+}
+
+export interface IProductOnboardingExtension {
+	readonly id: string;
+	readonly name: string;
+	readonly publisher: string;
+	readonly description: string;
+	readonly icon: string;
+}
+
+export interface IProductOnboardingTheme {
+	readonly id: string;
+	readonly label: string;
+	readonly themeId: string;
+	readonly type: 'dark' | 'light' | 'hcDark' | 'hcLight';
 }
 
 export type IEmbeddedProductConfiguration = Pick<IProductConfiguration,

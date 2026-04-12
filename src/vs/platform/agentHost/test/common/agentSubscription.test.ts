@@ -32,6 +32,7 @@ function makeSessionState(sessionUri: string, overrides?: Partial<ISessionState>
 			status: SessionStatus.Idle,
 			createdAt: 1,
 			modifiedAt: 1,
+			project: { uri: 'file:///test-project', displayName: 'Test Project' },
 		},
 		lifecycle: SessionLifecycle.Ready,
 		turns: [],

@@ -1,4 +1,4 @@
-# [Workspace Instructions](https://code.visualstudio.com/docs/copilot/customization/custom-instructions)
+# [agent instructions](https://code.visualstudio.com/docs/copilot/customization/custom-instructions)
 
 Guidelines that automatically apply to all chat requests across your entire workspace.
 
@@ -10,18 +10,6 @@ Guidelines that automatically apply to all chat requests across your entire work
 | `AGENTS.md` | Root or subfolders | Open standard, monorepo hierarchy support |
 
 Use **only one**—not both.
-
-## AGENTS.md Hierarchy
-
-For monorepos, the closest file in the directory tree takes precedence:
-
-```
-/AGENTS.md              # Root defaults
-/frontend/AGENTS.md     # Frontend-specific (overrides root)
-/backend/AGENTS.md      # Backend-specific (overrides root)
-```
-
-Use nested `AGENTS.md` files for monorepos when different areas need different defaults.
 
 ## Template
 

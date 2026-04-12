@@ -9,7 +9,7 @@ import * as fs from 'node:fs';
 import sql from 'node:sqlite';
 import { toErrorMessage } from '../../../../util/common/errorMessage';
 import { Result } from '../../../../util/common/result';
-import { CallTracker, TelemetryCorrelationId } from '../../../../util/common/telemetryCorrelationId';
+import { TelemetryCorrelationId } from '../../../../util/common/telemetryCorrelationId';
 import { coalesce } from '../../../../util/vs/base/common/arrays';
 import { CancelablePromise, createCancelablePromise, Limiter, raceCancellationError, timeout } from '../../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
@@ -206,7 +206,7 @@ export class ExternalIngestIndex extends Disposable {
 	 * This deletes the remote file set and the checkpoint. We keep around the local database because it
 	 * has a cache of file shas.
 	 */
-	public async deleteIndex(callTracker: CallTracker, token: CancellationToken): Promise<void> {
+	public async deleteIndex(telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<void> {
 		const filesetName = this.getFilesetName();
 		if (!filesetName) {
 			return;
@@ -214,7 +214,7 @@ export class ExternalIngestIndex extends Disposable {
 		this._logService.info(`ExternalIngestIndex: Deleting index for fileset ${filesetName}`);
 
 		try {
-			await this._client.deleteFileset(filesetName, callTracker, token);
+			await this._client.deleteFileset(filesetName, telemetryInfo.callTracker, token);
 			this.clearCurrentIndexCheckpoint();
 			this._onDidChangeState.fire();
 
@@ -223,19 +223,30 @@ export class ExternalIngestIndex extends Disposable {
 			/* __GDPR__
 				"externalIngestIndex.deleteIndex" : {
 					"owner": "mjbvz",
-					"comment": "Logged when external ingest index is deleted successfully"
+					"comment": "Logged when external ingest index is deleted successfully",
+					"workspaceSearchSource": { "classification": "SystemMetaData", "purpose": "FeatureInsight",  "comment": "Caller of the operation" },
+					"workspaceSearchCorrelationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight",  "comment": "Correlation id for the operation" }
 				}
 			*/
-			this._telemetryService.sendMSFTTelemetryEvent('externalIngestIndex.deleteIndex');
+			this._telemetryService.sendMSFTTelemetryEvent('externalIngestIndex.deleteIndex', {
+				workspaceSearchSource: telemetryInfo.callTracker.toString(),
+				workspaceSearchCorrelationId: telemetryInfo.correlationId,
+			});
 		} catch (e) {
 			/* __GDPR__
 				"externalIngestIndex.deleteIndex.error" : {
 					"owner": "mjbvz",
 					"comment": "Logged when deleting external ingest index fails",
-					"error": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "comment": "The error message" }
+					"error": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "comment": "The error message" },
+					"workspaceSearchSource": { "classification": "SystemMetaData", "purpose": "FeatureInsight",  "comment": "Caller of the operation" },
+					"workspaceSearchCorrelationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight",  "comment": "Correlation id for the operation" }
 				}
 			*/
-			this._telemetryService.sendMSFTTelemetryErrorEvent('externalIngestIndex.deleteIndex.error', { error: (e as Error).message });
+			this._telemetryService.sendMSFTTelemetryErrorEvent('externalIngestIndex.deleteIndex.error', {
+				error: (e as Error).message,
+				workspaceSearchSource: telemetryInfo.callTracker.toString(),
+				workspaceSearchCorrelationId: telemetryInfo.correlationId,
+			});
 			throw e;
 		}
 	}
@@ -301,7 +312,7 @@ export class ExternalIngestIndex extends Disposable {
 		return this._initializePromise;
 	}
 
-	async doIngest(callTracker: CallTracker, onProgress: (message: string) => void, callerToken: CancellationToken): Promise<Result<true, TriggerIndexingError>> {
+	async doIngest(telemetryInfo: TelemetryCorrelationId, onProgress: (message: string) => void, callerToken: CancellationToken): Promise<Result<true, TriggerIndexingError>> {
 		await raceCancellationError(this.initialize(), callerToken);
 
 		const filesetName = this.getFilesetName();
@@ -337,7 +348,7 @@ export class ExternalIngestIndex extends Disposable {
 					filesetName,
 					currentCheckpoint,
 					this.getFilesToIndexFromDb(token),
-					callTracker,
+					telemetryInfo.callTracker,
 					token,
 					wrappedOnProgress
 				);
@@ -348,12 +359,17 @@ export class ExternalIngestIndex extends Disposable {
 						"externalIngestIndex.updateIndex.success" : {
 							"owner": "mjbvz",
 							"comment": "Logged when external ingest index update completes successfully",
-							"durationMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Time taken to complete the update in milliseconds" },
-							"totalFileCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total number of files in the index" },
-							"updatedFileCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Number of files that were updated" }
-						}
-					*/
-					this._telemetryService.sendMSFTTelemetryEvent('externalIngestIndex.updateIndex.success', undefined, { durationMs: sw.elapsed(), totalFileCount: result.val.totalFileCount, updatedFileCount: result.val.updatedFileCount });
+"workspaceSearchSource": { "classification": "SystemMetaData", "purpose": "FeatureInsight",  "comment": "Caller of the operation" },
+					"workspaceSearchCorrelationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight",  "comment": "Correlation id for the operation" },
+					"durationMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Time taken to complete the update in milliseconds" },
+					"totalFileCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total number of files in the index" },
+					"updatedFileCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Number of files that were updated" }
+					}
+				*/
+					this._telemetryService.sendMSFTTelemetryEvent('externalIngestIndex.updateIndex.success', {
+						workspaceSearchSource: telemetryInfo.callTracker.toString(),
+						workspaceSearchCorrelationId: telemetryInfo.correlationId,
+					}, { durationMs: sw.elapsed(), totalFileCount: result.val.totalFileCount, updatedFileCount: result.val.updatedFileCount });
 
 					return Result.ok(true);
 				} else {
@@ -362,11 +378,16 @@ export class ExternalIngestIndex extends Disposable {
 							"owner": "mjbvz",
 							"comment": "Logged when external ingest index update fails",
 							"error": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "comment": "The error message" },
-							"durationMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Time taken before failure in milliseconds" }
-						}
-					*/
-					this._telemetryService.sendMSFTTelemetryErrorEvent('externalIngestIndex.updateIndex.error', { error: result.err.message }, { durationMs: sw.elapsed() });
-
+					"workspaceSearchSource": { "classification": "SystemMetaData", "purpose": "FeatureInsight",  "comment": "Caller of the operation" },
+					"workspaceSearchCorrelationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight",  "comment": "Correlation id for the operation" },
+					"durationMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Time taken before failure in milliseconds" }
+					}
+				*/
+					this._telemetryService.sendMSFTTelemetryErrorEvent('externalIngestIndex.updateIndex.error', {
+						error: result.err.message,
+						workspaceSearchSource: telemetryInfo.callTracker.toString(),
+						workspaceSearchCorrelationId: telemetryInfo.correlationId,
+					}, { durationMs: sw.elapsed() });
 					return Result.error({
 						id: 'external-ingest-error',
 						userMessage: l10n.t("Failed to update external ingest index: {0}", result.err.message)
@@ -382,11 +403,16 @@ export class ExternalIngestIndex extends Disposable {
 						"owner": "mjbvz",
 						"comment": "Logged when external ingest index update throws an exception",
 						"error": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "comment": "The exception message" },
-						"durationMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Time taken before exception in milliseconds" }
+					"workspaceSearchSource": { "classification": "SystemMetaData", "purpose": "FeatureInsight",  "comment": "Caller of the operation" },
+					"workspaceSearchCorrelationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight",  "comment": "Correlation id for the operation" },
+					"durationMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Time taken before exception in milliseconds" }
 					}
 				*/
-				this._telemetryService.sendMSFTTelemetryErrorEvent('externalIngestIndex.updateIndex.exception', { error: (e as Error).message }, { durationMs: sw.elapsed() });
-
+				this._telemetryService.sendMSFTTelemetryErrorEvent('externalIngestIndex.updateIndex.exception', {
+					error: (e as Error).message,
+					workspaceSearchSource: telemetryInfo.callTracker.toString(),
+					workspaceSearchCorrelationId: telemetryInfo.correlationId,
+				}, { durationMs: sw.elapsed() });
 				return Result.error({
 					id: 'external-ingest-error',
 					userMessage: l10n.t("Exception updating external ingest index: {0}", (e as Error).message)
@@ -421,7 +447,7 @@ export class ExternalIngestIndex extends Disposable {
 		try {
 			const resolvedQuery = query.queryText;
 
-			const ingestResult = await raceCancellationError(this.doIngest(callTracker, () => { }, token), token);
+			const ingestResult = await raceCancellationError(this.doIngest(telemetryInfo, () => { }, token), token);
 			if (!ingestResult.isOk()) {
 				return undefined;
 			}

@@ -72,9 +72,11 @@
 	display: flex;
 	align-items: center;
 	gap: 6px;
+	flex: 1 1 auto;
 	min-width: 0;
 	justify-content: flex-start;
 	cursor: pointer;
+	overflow: hidden;
 }
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-icon {
 	display: flex;
@@ -89,17 +91,30 @@
 
 /* Label (title) */
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-label {
+	flex: 0 1 auto;
+	min-width: 0;
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 	font-weight: 500;
 }
 
-/* Repository/folder label */
-.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-repo {
+/* Repository/worktree metadata shrinks before the primary title. */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-details {
 	display: flex;
 	align-items: center;
-	flex-shrink: 0;
+	flex: 0 999 auto;
+	gap: 6px;
+	min-width: 0;
+	overflow: hidden;
+}
+
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-repo {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 	opacity: 0.7;
 }
 

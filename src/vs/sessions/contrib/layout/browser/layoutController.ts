@@ -13,6 +13,8 @@ import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/l
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { CHANGES_VIEW_ID } from '../../changes/common/changes.js';
+import { SESSIONS_FILES_CONTAINER_ID } from '../../files/browser/files.contribution.js';
+import { SessionStatus } from '../../../services/sessions/common/session.js';
 
 interface IPendingTurnState {
 	readonly hadChangesBeforeSend: boolean;
@@ -50,10 +52,25 @@ export class LayoutController extends Disposable {
 			return changes.length > 0;
 		});
 
+		const activeSessionIsUntitledObs = derived<boolean>(reader => {
+			const activeSession = this._sessionManagementService.activeSession.read(reader);
+			const activeSessionStatus = activeSession?.status.read(reader);
+
+			return activeSessionStatus === SessionStatus.Untitled;
+		});
+
+		const activeSessionHasWorkspaceObs = derived<boolean>(reader => {
+			const activeSession = this._sessionManagementService.activeSession.read(reader);
+			return activeSession?.workspace.read(reader)?.repositories?.[0]?.uri !== undefined;
+		});
+
 		// Switch between sessions — sync auxiliary bar
 		this._register(autorun(reader => {
+			const isUntitled = activeSessionIsUntitledObs.read(reader);
+			const activeSessionHasWorkspace = activeSessionHasWorkspaceObs.read(reader);
 			const activeSessionHasChanges = activeSessionHasChangesObs.read(reader);
-			this._syncAuxiliaryBarVisibility(activeSessionHasChanges);
+
+			this._syncAuxiliaryBarVisibility(activeSessionHasWorkspace, isUntitled, activeSessionHasChanges);
 		}));
 
 		// Switch between sessions — sync panel visibility
@@ -109,11 +126,16 @@ export class LayoutController extends Disposable {
 		}));
 	}
 
-	private _syncAuxiliaryBarVisibility(hasChanges: boolean): void {
-		if (hasChanges) {
+	private _syncAuxiliaryBarVisibility(hasWorkspace: boolean, isUntitled: boolean, hasChanges: boolean): void {
+		if (!hasWorkspace) {
+			// Hide the auxiliary bar
+			this._viewsService.closeViewContainer(SESSIONS_FILES_CONTAINER_ID);
+		} else if (isUntitled) {
+			// Show the auxiliary bar (files view)
+			this._viewsService.openViewContainer(SESSIONS_FILES_CONTAINER_ID, false);
+		} else if (hasChanges) {
+			// Show the auxiliary bar (changes view)
 			this._viewsService.openView(CHANGES_VIEW_ID, false);
-		} else {
-			this._layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
 		}
 	}
 

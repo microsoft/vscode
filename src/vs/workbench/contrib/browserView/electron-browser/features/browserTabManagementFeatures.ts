@@ -420,6 +420,10 @@ class OpenBrowserFromViewMenuAction extends Action2 {
 			id: OpenBrowserFromViewMenuAction.ID,
 			title: localize2('browser.openFromViewMenuAction', "Browser"),
 			f1: false,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Slash,
+			},
 		});
 	}
 

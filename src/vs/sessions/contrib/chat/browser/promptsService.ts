@@ -14,8 +14,8 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
-import { HOOKS_SOURCE_FOLDER, SKILL_FILENAME } from '../../../../workbench/contrib/chat/common/promptSyntax/config/promptFileLocations.js';
-import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
+import { HOOKS_SOURCE_FOLDER, IPromptSourceFolder, SKILL_FILENAME } from '../../../../workbench/contrib/chat/common/promptSyntax/config/promptFileLocations.js';
+import { PromptFileSource, PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { IAgentSkill, IPromptPath, PromptsStorage } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { BUILTIN_STORAGE, IBuiltinPromptPath } from '../../chat/common/builtinPromptsStorage.js';
 import { IWorkbenchEnvironmentService } from '../../../../workbench/services/environment/common/environmentService.js';
@@ -253,6 +253,18 @@ class AgenticPromptFilesLocator extends PromptFilesLocator {
 		return Event.fromObservableLight(this.customizationWorkspaceService.activeProjectRoot);
 	}
 
+	/**
+	 * Filter out Claude-specific source folders in the sessions app.
+	 * Claude customization directories are not supported in the sessions window.
+	 */
+	protected override getPromptSourceFolders(type: PromptsType): IPromptSourceFolder[] {
+		return super.getPromptSourceFolders(type).filter(f => !isClaudeFolder(f));
+	}
+
+	protected override getDefaultSourceFolders(type: PromptsType): readonly IPromptSourceFolder[] {
+		return super.getDefaultSourceFolders(type).filter(f => !isClaudeFolder(f));
+	}
+
 	public override async getHookSourceFolders(): Promise<readonly URI[]> {
 		const configured = await super.getHookSourceFolders();
 		if (configured.length > 0) {
@@ -299,5 +311,20 @@ function getCliUserSubfolder(type: PromptsType): string | undefined {
 function sanitizeSkillText(text: string, maxLength: number): string {
 	const sanitized = text.replace(/<[^>]+>/g, '');
 	return sanitized.length > maxLength ? sanitized.substring(0, maxLength) : sanitized;
+}
+
+/**
+ * Returns whether the given source folder targets a Claude-specific location.
+ * Checks both the typed source enum and the path string to also catch
+ * user-configured entries that use ConfigWorkspace/ConfigPersonal sources.
+ */
+function isClaudeFolder(folder: IPromptSourceFolder): boolean {
+	if (folder.source === PromptFileSource.ClaudePersonal
+		|| folder.source === PromptFileSource.ClaudeWorkspace
+		|| folder.source === PromptFileSource.ClaudeWorkspaceLocal) {
+		return true;
+	}
+	// User-configured paths get Config* source types, so also check the path
+	return folder.path.startsWith('.claude/') || folder.path.includes('/.claude/');
 }
 

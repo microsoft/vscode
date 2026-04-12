@@ -15,7 +15,7 @@ import { IMarkdownRenderer } from '../../../../../../platform/markdown/browser/m
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { localize } from '../../../../../../nls.js';
 import { IChatProgressMessage, IChatTask, IChatTaskSerialized, IChatToolInvocation, IChatToolInvocationSerialized } from '../../../common/chatService/chatService.js';
-import { IChatRendererContent, isResponseVM } from '../../../common/model/chatViewModel.js';
+import { IChatRendererContent, IChatWorkingProgress, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
 import { renderFileWidgets } from './chatInlineAnchorWidget.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
@@ -85,7 +85,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 		this.renderedMessage.value = result;
 	}
 
-	updateMessage(content: MarkdownString): void {
+	updateMessage(content: IMarkdownString): void {
 		if (this.isHidden) {
 			return;
 		}
@@ -166,8 +166,10 @@ export class ChatProgressSubPart extends Disposable {
 }
 
 export class ChatWorkingProgressContentPart extends ChatProgressContentPart implements IChatContentPart {
+	private explicitContent: IMarkdownString | undefined;
+
 	constructor(
-		_workingProgress: { kind: 'working' },
+		workingProgress: IChatWorkingProgress,
 		chatContentMarkdownRenderer: IMarkdownRenderer,
 		context: IChatContentPartRenderContext,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -175,15 +177,17 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		@IConfigurationService configurationService: IConfigurationService,
 		@ILanguageModelToolsService languageModelToolsService: ILanguageModelToolsService
 	) {
+		const explicitContent = workingProgress.content;
 		const defaultLabel = localize('workingMessage', "Working");
 		const pool = buildPhrasePool([defaultLabel], configurationService);
 		const label = pool[Math.floor(Math.random() * pool.length)];
 
 		const progressMessage: IChatProgressMessage = {
 			kind: 'progressMessage',
-			content: new MarkdownString().appendText(label)
+			content: explicitContent ?? new MarkdownString().appendText(label)
 		};
 		super(progressMessage, chatContentMarkdownRenderer, context, undefined, undefined, undefined, undefined, true, instantiationService, chatMarkdownAnchorService, configurationService);
+		this.explicitContent = explicitContent;
 		this._register(languageModelToolsService.onDidPrepareToolCallBecomeUnresponsive(e => {
 			if (isEqual(context.element.sessionResource, e.sessionResource)) {
 				this.updateMessage(new MarkdownString(localize('toolCallUnresponsive', "Waiting for tool '{0}' to respond...", e.toolData.displayName)));
@@ -191,7 +195,12 @@ export class ChatWorkingProgressContentPart extends ChatProgressContentPart impl
 		}));
 	}
 
+	updateWorkingContent(content: IMarkdownString): void {
+		this.explicitContent = content;
+		this.updateMessage(content);
+	}
+
 	override hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
-		return other.kind === 'working';
+		return other.kind === 'working' && other.content?.value === this.explicitContent?.value;
 	}
 }

@@ -7,11 +7,13 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Lazy } from '../../../../../base/common/lazy.js';
 import { Disposable, DisposableStore, IDisposable } from '../../../../../base/common/lifecycle.js';
 import { LRUCache } from '../../../../../base/common/map.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
-import { IQuickInputButtonWithToggle, IQuickInputService, IQuickTreeItem, QuickInputButtonLocation } from '../../../../../platform/quickinput/common/quickInput.js';
+import { IQuickInputButton, IQuickInputButtonWithToggle, IQuickInputService, IQuickTreeItem, QuickInputButtonLocation } from '../../../../../platform/quickinput/common/quickInput.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { ConfirmedReason, ToolConfirmKind } from '../../common/chatService/chatService.js';
 import { ILanguageModelToolConfirmationActions, ILanguageModelToolConfirmationContribution, ILanguageModelToolConfirmationContributionQuickTreeItem, ILanguageModelToolConfirmationRef, ILanguageModelToolsConfirmationService } from '../../common/tools/languageModelToolsConfirmationService.js';
 import { IToolData, ToolDataSource } from '../../common/tools/languageModelToolsService.js';
@@ -28,6 +30,7 @@ const CONTINUE_WITHOUT_REVIEWING_RESULTS = localize('continueWithoutReviewingRes
 interface IAutoConfirmEntry {
 	readonly confirmed: true;
 	readonly label?: string;
+	readonly arguments?: string;
 }
 
 
@@ -45,13 +48,13 @@ class GenericConfirmStore extends Disposable {
 		this._profileStore = new Lazy(() => this._register(this._instantiationService.createInstance(ToolConfirmStore, StorageScope.PROFILE, this._storageKey)));
 	}
 
-	public setAutoConfirmation(id: string, scope: 'workspace' | 'profile' | 'session' | 'never', label?: string): void {
+	public setAutoConfirmation(id: string, scope: 'workspace' | 'profile' | 'session' | 'never', label?: string, args?: string): void {
 		// Clear from all scopes first
 		this._workspaceStore.value.setAutoConfirm(id, undefined);
 		this._profileStore.value.setAutoConfirm(id, undefined);
 		this._memoryStore.delete(id);
 
-		const entry: IAutoConfirmEntry = { confirmed: true, label };
+		const entry: IAutoConfirmEntry = { confirmed: true, label, arguments: args };
 		// Set in the appropriate scope
 		if (scope === 'workspace') {
 			this._workspaceStore.value.setAutoConfirm(id, entry);
@@ -89,6 +92,12 @@ class GenericConfirmStore extends Disposable {
 		return this._workspaceStore.value.getAutoConfirm(id)?.label
 			?? this._profileStore.value.getAutoConfirm(id)?.label
 			?? this._memoryStore.get(id)?.label;
+	}
+
+	public getArguments(id: string): string | undefined {
+		return this._workspaceStore.value.getAutoConfirm(id)?.arguments
+			?? this._profileStore.value.getAutoConfirm(id)?.arguments
+			?? this._memoryStore.get(id)?.arguments;
 	}
 
 	public reset(): void {
@@ -136,7 +145,7 @@ class ToolConfirmStore extends Disposable {
 	) {
 		super();
 
-		// Read stored data — supports both legacy string[] and new Record<string, string | boolean> formats
+		// Read stored data — supports both legacy string[] and new Record<string, string | boolean | object> formats
 		const raw = storageService.get(this._storageKey, this._scope);
 		if (raw) {
 			try {
@@ -147,9 +156,15 @@ class ToolConfirmStore extends Disposable {
 						this._autoConfirmTools.set(key, { confirmed: true });
 					}
 				} else if (typeof parsed === 'object' && parsed !== null) {
-					// New format: Record<string, string | boolean>
 					for (const [key, value] of Object.entries(parsed)) {
-						this._autoConfirmTools.set(key, { confirmed: true, label: typeof value === 'string' ? value : undefined });
+						if (typeof value === 'object' && value !== null) {
+							// New format: { label?: string; arguments?: string }
+							const obj = value as { label?: string; arguments?: string };
+							this._autoConfirmTools.set(key, { confirmed: true, label: obj.label, arguments: obj.arguments });
+						} else {
+							// Legacy format: string | boolean
+							this._autoConfirmTools.set(key, { confirmed: true, label: typeof value === 'string' ? value : undefined });
+						}
 					}
 				}
 			} catch {
@@ -159,9 +174,13 @@ class ToolConfirmStore extends Disposable {
 
 		this._register(storageService.onWillSaveState(() => {
 			if (this._didChange) {
-				const data: Record<string, string | boolean> = {};
+				const data: Record<string, string | boolean | { label?: string; arguments?: string }> = {};
 				for (const [key, entry] of this._autoConfirmTools) {
-					data[key] = entry.label ?? true;
+					if (entry.arguments) {
+						data[key] = { label: entry.label, arguments: entry.arguments };
+					} else {
+						data[key] = entry.label ?? true;
+					}
 				}
 				this.storageService.store(this._storageKey, JSON.stringify(data), this._scope, StorageTarget.MACHINE);
 				this._didChange = false;
@@ -211,6 +230,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 	constructor(
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
+		@IDialogService private readonly _dialogService: IDialogService,
 	) {
 		super();
 
@@ -309,7 +329,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 
 		// Add combination-level actions when approveCombination is provided
 		if (ref.combination) {
-			const { label: combinationLabel, key: combinationKey } = ref.combination;
+			const { label: combinationLabel, key: combinationKey, arguments: combinationArgs } = ref.combination;
 			actions.push(
 				{
 					label: localize('allowCombinationSession', '{0} in this Session', combinationLabel),
@@ -317,7 +337,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 					divider: !!actions.length,
 					scope: 'session',
 					select: async () => {
-						this._combinationConfirmStore.setAutoConfirmation(combinationKey, 'session', combinationLabel);
+						this._combinationConfirmStore.setAutoConfirmation(combinationKey, 'session', combinationLabel, combinationArgs);
 						return true;
 					}
 				},
@@ -326,7 +346,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 					detail: localize('allowCombinationWorkspaceTooltip', 'Allow this particular combination of tool and arguments in this workspace without confirmation.'),
 					scope: 'workspace',
 					select: async () => {
-						this._combinationConfirmStore.setAutoConfirmation(combinationKey, 'workspace', combinationLabel);
+						this._combinationConfirmStore.setAutoConfirmation(combinationKey, 'workspace', combinationLabel, combinationArgs);
 						return true;
 					}
 				},
@@ -335,7 +355,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 					detail: localize('allowCombinationGloballyTooltip', 'Always allow this particular combination of tool and arguments without confirmation.'),
 					scope: 'profile',
 					select: async () => {
-						this._combinationConfirmStore.setAutoConfirmation(combinationKey, 'profile', combinationLabel);
+						this._combinationConfirmStore.setAutoConfirmation(combinationKey, 'profile', combinationLabel, combinationArgs);
 						return true;
 					}
 				},
@@ -524,13 +544,14 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 		return false;
 	}
 
-	private _getCombinationApprovalsForTool(toolId: string, scope: 'workspace' | 'profile' | 'session'): { key: string; label: string }[] {
+	private _getCombinationApprovalsForTool(toolId: string, scope: 'workspace' | 'profile' | 'session'): { key: string; label: string; arguments?: string }[] {
 		const prefix = toolId + ':combination:';
-		const results: { key: string; label: string }[] = [];
+		const results: { key: string; label: string; arguments?: string }[] = [];
 		for (const key of this._combinationConfirmStore.getAllConfirmed()) {
 			if (key.startsWith(prefix) && this._combinationConfirmStore.getAutoConfirmationIn(key, scope)) {
 				const label = this._combinationConfirmStore.getLabel(key) ?? key;
-				results.push({ key, label });
+				const args = this._combinationConfirmStore.getArguments(key);
+				results.push({ key, label, arguments: args });
 			}
 		}
 		return results;
@@ -543,7 +564,13 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 			serverId?: string;
 			scope?: 'workspace' | 'profile';
 			combinationKey?: string;
+			combinationArgs?: string;
 		}
+
+		const viewArgsButton: IQuickInputButton = {
+			iconClass: ThemeIcon.asClassName(Codicon.info),
+			tooltip: localize('viewCombinationArguments', "View Arguments"),
+		};
 
 		// Helper to track tools under servers
 		const trackServerTool = (serverId: string, label: string, toolId: string, serversWithTools: Map<string, { label: string; tools: Set<string> }>) => {
@@ -661,13 +688,15 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 
 					// Add combination approval children
 					const combinationApprovals = this._getCombinationApprovalsForTool(tool.id, currentScope);
-					for (const { key, label } of combinationApprovals) {
+					for (const { key, label, arguments: args } of combinationApprovals) {
 						toolChildren.push({
 							type: 'combination',
 							toolId: tool.id,
 							combinationKey: key,
+							combinationArgs: args,
 							label,
 							checked: true,
+							buttons: args ? [viewArgsButton] : undefined,
 						});
 					}
 
@@ -690,6 +719,12 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 						// Tool has combination approvals only
 						checked = false;
 					} else {
+						continue;
+					}
+
+					// Skip tools with no active approvals, no children, and no approval capabilities.
+					// Tools that can request pre/post approval should always remain visible.
+					if (checked === false && toolChildren.length === 0 && !tool.canRequestPreApproval && !tool.canRequestPostApproval) {
 						continue;
 					}
 
@@ -802,13 +837,15 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 
 					// Add combination approval children
 					const combinationApprovals = this._getCombinationApprovalsForTool(tool.id, currentScope);
-					for (const { key, label } of combinationApprovals) {
+					for (const { key, label, arguments: args } of combinationApprovals) {
 						toolChildren.push({
 							type: 'combination',
 							toolId: tool.id,
 							combinationKey: key,
+							combinationArgs: args,
 							label,
 							checked: true,
+							buttons: args ? [viewArgsButton] : undefined,
 						});
 					}
 
@@ -829,6 +866,12 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 						// No approval capabilities - shouldn't happen but handle it
 						checked = false;
 					}
+				}
+
+				// Skip tools with no active approvals, no children, and no approval capabilities.
+				// Tools that can request pre/post approval should always remain visible.
+				if (checked === false && toolChildren.length === 0 && !tool.canRequestPreApproval && !tool.canRequestPostApproval && !this._contributions.has(tool.id)) {
+					continue;
 				}
 
 				treeItems.push({
@@ -922,7 +965,7 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 			} else if (item.type === 'manage') {
 				(item as ILanguageModelToolConfirmationContributionQuickTreeItem).onDidChangeChecked?.(!!item.checked);
 			} else if (item.type === 'combination' && item.combinationKey) {
-				this._combinationConfirmStore.setAutoConfirmation(item.combinationKey, newState);
+				this._combinationConfirmStore.setAutoConfirmation(item.combinationKey, newState, item.label, item.combinationArgs);
 				quickTree.setItemTree(buildTreeItems());
 			}
 		}));
@@ -930,6 +973,16 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 		disposables.add(quickTree.onDidTriggerItemButton(i => {
 			if (i.item.type === 'manage') {
 				(i.item as ILanguageModelToolConfirmationContributionQuickTreeItem).onDidTriggerItemButton?.(i.button);
+			} else if (i.item.type === 'combination' && i.button === viewArgsButton && i.item.combinationArgs) {
+				this._dialogService.prompt({
+					message: localize('combinationArguments', "Arguments"),
+					buttons: [],
+					custom: {
+						markdownDetails: [{
+							markdown: new MarkdownString().appendCodeblock('json', i.item.combinationArgs),
+						}],
+					},
+				});
 			}
 		}));
 

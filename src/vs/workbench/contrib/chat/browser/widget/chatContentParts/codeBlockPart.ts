@@ -922,6 +922,9 @@ export class CodeCompareBlockPart extends Disposable {
 		}
 
 		const diffData = await data.diffData;
+		if (token.isCancellationRequested) {
+			return;
+		}
 
 		if (!isEditApplied && diffData) {
 			const viewModel = this.diffEditor.createViewModel({

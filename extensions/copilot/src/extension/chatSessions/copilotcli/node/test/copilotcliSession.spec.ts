@@ -10,7 +10,7 @@ import { ConfigKey, IConfigurationService } from '../../../../../platform/config
 import { ILogService } from '../../../../../platform/log/common/logService';
 import { NoopOTelService, resolveOTelConfig } from '../../../../../platform/otel/common/index';
 import { NullRequestLogger } from '../../../../../platform/requestLogger/node/nullRequestLogger';
-import { IRequestLogger } from '../../../../../platform/requestLogger/node/requestLogger';
+import { IRequestLogger } from '../../../../../platform/requestLogger/common/requestLogger';
 import { TestWorkspaceService } from '../../../../../platform/test/node/testWorkspaceService';
 import { IWorkspaceService } from '../../../../../platform/workspace/common/workspaceService';
 import { CancellationToken } from '../../../../../util/vs/base/common/cancellation';
@@ -132,6 +132,7 @@ class MockSdkSession {
 	async getSelectedModel() { return this._selectedModel; }
 	async setSelectedModel(model: string, _reasoningEffort?: string) { this._selectedModel = model; }
 	async getEvents() { return []; }
+	getPlanPath(): string | null { return null; }
 }
 
 function createWorkspaceService(root: string): IWorkspaceService {

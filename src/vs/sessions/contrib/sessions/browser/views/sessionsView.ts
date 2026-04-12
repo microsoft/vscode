@@ -56,7 +56,6 @@ export class SessionsView extends ViewPane {
 	private headerRow: HTMLElement | undefined;
 	private headerLabel: HTMLElement | undefined;
 	private headerActions: HTMLElement | undefined;
-	private headerLabelWidth = 56;
 	private isFindWidgetOpen = false;
 	sessionsControl: SessionsList | undefined;
 	private _customizationsWidget: AICustomizationShortcutsWidget | undefined;
@@ -141,7 +140,6 @@ export class SessionsView extends ViewPane {
 		const headerRow = this.headerRow = DOM.append(sessionsContent, $('.agent-sessions-header-row'));
 		const headerLabel = this.headerLabel = DOM.append(headerRow, $('.agent-sessions-header-label'));
 		headerLabel.textContent = localize('sessionsHeader', "Sessions");
-		this.headerLabelWidth = Math.ceil(headerLabel.getBoundingClientRect().width) || this.headerLabelWidth;
 
 		const headerActions = this.headerActions = DOM.append(headerRow, $('.agent-sessions-header-actions'));
 
@@ -456,7 +454,7 @@ export class SessionsView extends ViewPane {
 	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 
-		this.updateHeaderLayout(width);
+		this.updateHeaderLayout();
 
 		if (!this.sessionsControl || !this.sessionsControlContainer) {
 			return;
@@ -485,7 +483,7 @@ export class SessionsView extends ViewPane {
 		this.sessionsControl?.openFind();
 	}
 
-	private updateHeaderLayout(width?: number): void {
+	private updateHeaderLayout(): void {
 		if (!this.headerRow || !this.headerLabel || !this.headerActions) {
 			return;
 		}
@@ -496,12 +494,7 @@ export class SessionsView extends ViewPane {
 			return;
 		}
 
-		this.headerActions.style.display = '';
-		const headerWidth = width ?? this.headerRow.offsetWidth;
-		const actionsWidth = Math.ceil(this.headerActions.getBoundingClientRect().width) || this.headerActions.offsetWidth;
-		const shouldHideLabel = headerWidth > 0 && headerWidth < actionsWidth + this.headerLabelWidth + 12;
-
-		this.headerLabel.style.display = shouldHideLabel ? 'none' : '';
+		this.headerLabel.style.display = '';
 		this.headerActions.style.display = '';
 	}
 

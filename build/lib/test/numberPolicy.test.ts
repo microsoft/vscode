@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { suite, test } from 'node:test';
 import { NumberPolicy } from '../policies/numberPolicy.ts';
 import { type LanguageTranslations, PolicyType } from '../policies/types.ts';
 import type { CategoryDto, PolicyDto } from '../policies/policyDto.ts';

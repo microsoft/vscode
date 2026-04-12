@@ -23,13 +23,13 @@ export class OpenAgentsWindowAction extends Action2 {
 			id: 'workbench.action.openAgentsWindow',
 			title: localize2('openAgentsWindow', "Open Agents Application"),
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(ChatEntitlementContextKeys.Setup.hidden.negate(), IsSessionsWindowContext.negate()),
+			precondition: ContextKeyExpr.and(ChatEntitlementContextKeys.Setup.hidden.negate(), ChatEntitlementContextKeys.Setup.disabledInWorkspace.negate(), IsSessionsWindowContext.negate()),
 			f1: true,
 			menu: [{
 				id: MenuId.ChatTitleBarMenu,
 				group: 'c_sessions',
 				order: 1,
-				when: ContextKeyExpr.and(ChatEntitlementContextKeys.Setup.hidden.negate(), IsSessionsWindowContext.negate())
+				when: ContextKeyExpr.and(ChatEntitlementContextKeys.Setup.hidden.negate(), ChatEntitlementContextKeys.Setup.disabledInWorkspace.negate(), IsSessionsWindowContext.negate())
 			}]
 		});
 	}

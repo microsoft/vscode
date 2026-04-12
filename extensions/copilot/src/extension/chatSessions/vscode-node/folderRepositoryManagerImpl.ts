@@ -7,7 +7,7 @@ import * as l10n from '@vscode/l10n';
 import * as vscode from 'vscode';
 import { LanguageModelTextPart } from 'vscode';
 import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
-import { IGitService } from '../../../platform/git/common/gitService';
+import { getGitHubRepoInfoFromContext, IGitService } from '../../../platform/git/common/gitService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { raceCancellation } from '../../../util/vs/base/common/async';
@@ -172,6 +172,16 @@ export abstract class FolderRepositoryManager extends Disposable implements IFol
 					? await this.gitService.getBranchBase(repoContext.rootUri, repoContext.headBranchName)
 					: undefined;
 
+				const gitHubRemote = repoContext
+					? getGitHubRepoInfoFromContext(repoContext)
+					: undefined;
+				const incomingChanges = repoContext?.headIncomingChanges ?? 0;
+				const outgoingChanges = repoContext?.headOutgoingChanges ?? 0;
+				const uncommittedChanges = (repoContext?.changes?.mergeChanges.length ?? 0) +
+					(repoContext?.changes?.indexChanges.length ?? 0) +
+					(repoContext?.changes?.workingTree.length ?? 0) +
+					(repoContext?.changes?.untrackedChanges.length ?? 0);
+
 				repositoryUri = repoContext?.rootUri;
 				repositoryProperties = repoContext
 					? {
@@ -180,6 +190,13 @@ export abstract class FolderRepositoryManager extends Disposable implements IFol
 						baseBranchName: branchBase && branchBase.remote && branchBase.name
 							? `${branchBase.remote}/${branchBase.name}`
 							: undefined,
+						upstreamBranchName: repoContext?.upstreamRemote && repoContext?.upstreamBranchName
+							? `${repoContext.upstreamRemote}/${repoContext.upstreamBranchName}`
+							: undefined,
+						hasGitHubRemote: gitHubRemote !== undefined,
+						incomingChanges,
+						outgoingChanges,
+						uncommittedChanges
 					} satisfies RepositoryProperties
 					: undefined;
 			}

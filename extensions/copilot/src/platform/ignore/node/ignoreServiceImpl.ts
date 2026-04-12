@@ -14,7 +14,7 @@ import { IFileSystemService } from '../../filesystem/common/fileSystemService';
 import { RelativePattern } from '../../filesystem/common/fileTypes';
 import { IGitService } from '../../git/common/gitService';
 import { ILogService } from '../../log/common/logService';
-import { IRequestLogger } from '../../requestLogger/node/requestLogger';
+import { IRequestLogger } from '../../requestLogger/common/requestLogger';
 import { ISearchService } from '../../search/common/searchService';
 import { IWorkspaceService } from '../../workspace/common/workspaceService';
 import { IIgnoreService } from '../common/ignoreService';

@@ -7,7 +7,8 @@ import sinon from 'sinon';
 import { afterEach, assert, beforeEach, describe, it } from 'vitest';
 import type { ClaudeFolderInfo } from '../../common/claudeFolderInfo';
 import { parseClaudeModelId } from '../claudeModelId';
-import { ClaudeSessionStateService, SessionStateChangeEvent } from '../claudeSessionStateService';
+import type { SessionStateChangeEvent } from '../../common/claudeSessionStateService';
+import { ClaudeSessionStateService } from '../claudeSessionStateService';
 
 const OPUS_4 = parseClaudeModelId('claude-opus-4-20250514');
 const HAIKU_3_5 = parseClaudeModelId('claude-haiku-3-5-20250514');

@@ -6,13 +6,14 @@
 import { describe, expect, test } from 'vitest';
 import type * as vscode from 'vscode';
 import { IChatHookService, type IPreToolUseHookResult } from '../../../../../platform/chat/common/chatHookService';
+import { ConfigKey, IConfigurationService } from '../../../../../platform/configuration/common/configurationService';
 import { IEndpointProvider } from '../../../../../platform/endpoint/common/endpointProvider';
 import { DeferredPromise } from '../../../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../../../util/vs/base/common/cancellation';
 import { Event } from '../../../../../util/vs/base/common/event';
 import { constObservable } from '../../../../../util/vs/base/common/observable';
 import { IInstantiationService } from '../../../../../util/vs/platform/instantiation/common/instantiation';
-import { LanguageModelTextPart, LanguageModelToolResult } from '../../../../../vscodeTypes';
+import { LanguageModelDataPart, LanguageModelTextPart, LanguageModelToolResult } from '../../../../../vscodeTypes';
 import { ChatVariablesCollection } from '../../../../prompt/common/chatVariablesCollection';
 import type { Conversation } from '../../../../prompt/common/conversation';
 import type { IBuildPromptContext, IToolCallRound } from '../../../../prompt/common/intents';
@@ -449,5 +450,140 @@ describe('ChatToolCalls (toolCalling.tsx)', () => {
 		expect(contentText).toContain('<PreToolUse-context>');
 		expect(contentText).toContain(denyContext);
 		expect(contentText).not.toContain('<PostToolUse-context>');
+	});
+
+	test('replaces images with placeholders for historical turns', async () => {
+		const toolName = 'viewImage';
+		const toolCallId = 'call-img-1';
+
+		const toolInfo: vscode.LanguageModelToolInformation = {
+			name: toolName,
+			description: 'view image tool',
+			source: undefined,
+			inputSchema: undefined,
+			tags: [],
+		};
+
+		const testingServiceCollection = createExtensionUnitTestingServices();
+		const toolsService = new CapturingToolsService(toolInfo);
+		testingServiceCollection.define(IToolsService, toolsService);
+
+		const accessor = testingServiceCollection.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const endpointProvider = accessor.get(IEndpointProvider);
+		const endpoint = await endpointProvider.getChatEndpoint('copilot-base');
+
+		const imageData = new Uint8Array(1024);
+		const toolCallResults: Record<string, vscode.LanguageModelToolResult> = {
+			[toolCallId]: new LanguageModelToolResult([
+				new LanguageModelTextPart('some text result'),
+				LanguageModelDataPart.image(imageData, 'image/png'),
+			]),
+		};
+
+		const round: IToolCallRound = {
+			id: 'round-1',
+			response: 'viewing image',
+			toolInputRetry: 0,
+			toolCalls: [{ name: toolName, arguments: '{}', id: toolCallId }],
+		};
+
+		const promptContext: IBuildPromptContext = {
+			query: 'test',
+			history: [],
+			chatVariables: new ChatVariablesCollection(),
+			conversation: { sessionId: 'session-img' } as unknown as Conversation,
+			request: {} as vscode.ChatRequest,
+			tools: {
+				toolReferences: [],
+				toolInvocationToken: {} as vscode.ChatParticipantToolToken,
+				availableTools: [toolInfo],
+			},
+		};
+
+		const { messages } = await renderPromptElement(instantiationService, endpoint, ChatToolCalls, {
+			promptContext,
+			toolCallRounds: [round],
+			toolCallResults,
+			isHistorical: true,
+		});
+
+		const serialized = JSON.stringify(messages);
+		expect(serialized).toContain('Image was previously shown to you');
+		expect(serialized).toContain('some text result');
+		// Should not contain base64 image data
+		expect(serialized).not.toContain('image_url');
+	});
+
+	test('enforces shared image budget across tool results', async () => {
+		const toolName = 'viewImage';
+		const firstCallId = 'call-big-1';
+		const secondCallId = 'call-big-2';
+
+		const toolInfo: vscode.LanguageModelToolInformation = {
+			name: toolName,
+			description: 'view image tool',
+			source: undefined,
+			inputSchema: undefined,
+			tags: [],
+		};
+
+		const testingServiceCollection = createExtensionUnitTestingServices();
+		const toolsService = new CapturingToolsService(toolInfo);
+		testingServiceCollection.define(IToolsService, toolsService);
+
+		const accessor = testingServiceCollection.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const endpointProvider = accessor.get(IEndpointProvider);
+		const endpoint = await endpointProvider.getChatEndpoint('copilot-base');
+
+		// Disable image uploads so images go through the base64 path where the budget applies
+		const configService = accessor.get(IConfigurationService);
+		await configService.setConfig(ConfigKey.EnableChatImageUpload, false);
+
+		// Each image is 3MB — individually exceeds the 2.5MB shared budget (half of 5MB CAPI limit)
+		const bigImage = new Uint8Array(3 * 1024 * 1024);
+		const toolCallResults: Record<string, vscode.LanguageModelToolResult> = {
+			[firstCallId]: new LanguageModelToolResult([
+				LanguageModelDataPart.image(bigImage, 'image/png'),
+			]),
+			[secondCallId]: new LanguageModelToolResult([
+				LanguageModelDataPart.image(bigImage, 'image/png'),
+			]),
+		};
+
+		const round: IToolCallRound = {
+			id: 'round-1',
+			response: 'viewing images',
+			toolInputRetry: 0,
+			toolCalls: [
+				{ name: toolName, arguments: '{}', id: firstCallId },
+				{ name: toolName, arguments: '{}', id: secondCallId },
+			],
+		};
+
+		const promptContext: IBuildPromptContext = {
+			query: 'test',
+			history: [],
+			chatVariables: new ChatVariablesCollection(),
+			conversation: { sessionId: 'session-budget' } as unknown as Conversation,
+			request: {} as vscode.ChatRequest,
+			tools: {
+				toolReferences: [],
+				toolInvocationToken: {} as vscode.ChatParticipantToolToken,
+				availableTools: [toolInfo],
+			},
+		};
+
+		const { messages } = await renderPromptElement(instantiationService, endpoint, ChatToolCalls, {
+			promptContext,
+			toolCallRounds: [round],
+			toolCallResults,
+		});
+
+		const serialized = JSON.stringify(messages);
+		// Both images exceed the 2.5MB shared budget and should be replaced with placeholders
+		expect(serialized).toContain('context image budget exceeded');
+		expect(serialized).not.toContain('image_url');
 	});
 });

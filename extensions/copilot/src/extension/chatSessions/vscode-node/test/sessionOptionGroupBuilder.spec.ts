@@ -895,6 +895,36 @@ describe('SessionOptionGroupBuilder', () => {
 				expect(repoGroup!.items[0].id).toBe(sharedUri.fsPath);
 			});
 
+			it('does not duplicate selected item when new folder replaces its MRU entry', async () => {
+				// Regression: the selected item was resolved from MRU before
+				// deduplication replaced it with a fresh object. Using reference
+				// equality (Array.includes) caused the stale reference to be
+				// re-appended, creating a duplicate.
+				workspaceService = new NullWorkspaceService([]);
+				builder = new SessionOptionGroupBuilder(
+					gitService, configurationService, context, workspaceService,
+					folderMruService, agentSessionsWorkspace, worktreeService, folderRepositoryManager,
+				);
+				const repoUri = URI.file('/my-repo');
+				folderMruService.getRecentlyUsedFolders.mockResolvedValue([
+					{ folder: repoUri, repository: repoUri, lastAccessed: Date.now() },
+				]);
+				gitService.getRepository.mockResolvedValue(makeRepo(repoUri.fsPath));
+
+				const previousState: vscode.ChatSessionInputState = {
+					onDidChange: Event.None,
+					groups: [],
+				};
+				builder.setNewFolderForInputState(previousState, repoUri as any);
+
+				const groups = await builder.provideChatSessionProviderOptionGroups(previousState);
+				const repoGroup = groups.find(g => g.id === REPOSITORY_OPTION_ID)!;
+				// Selected item must reference an object that is in the items list
+				expect(repoGroup.items.some(i => i.id === repoGroup.selected?.id)).toBe(true);
+				// And there must be exactly one item with that id
+				expect(repoGroup.items.filter(i => i.id === repoUri.fsPath)).toHaveLength(1);
+			});
+
 			it('does not add new folder when no previousInputState', async () => {
 				workspaceService = new NullWorkspaceService([]);
 				builder = new SessionOptionGroupBuilder(

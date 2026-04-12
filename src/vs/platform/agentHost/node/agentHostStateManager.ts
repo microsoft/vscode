@@ -301,6 +301,7 @@ export class AgentHostStateManager extends Disposable {
 			if (current.title !== lastNotified.title) { changes.title = current.title; }
 			if (current.status !== lastNotified.status) { changes.status = current.status; }
 			if (current.modifiedAt !== lastNotified.modifiedAt) { changes.modifiedAt = current.modifiedAt; }
+			if (current.project !== lastNotified.project) { changes.project = current.project; }
 			if (current.model !== lastNotified.model) { changes.model = current.model; }
 			if (current.workingDirectory !== lastNotified.workingDirectory) { changes.workingDirectory = current.workingDirectory; }
 			if (current.isRead !== lastNotified.isRead) { changes.isRead = current.isRead; }

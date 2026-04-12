@@ -565,15 +565,15 @@ class AgentPluginsBrowseCommand extends Action2 {
 			title: localize2('agentPlugins.browse', "Agent Plugins"),
 			tooltip: localize2('agentPlugins.browse.tooltip', "Browse Agent Plugins"),
 			icon: Codicon.search,
-			precondition: ChatContextKeys.Setup.hidden.negate(),
+			precondition: ContextKeyExpr.and(ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 			menu: [{
 				id: extensionsFilterSubMenu,
 				group: '1_predefined',
 				order: 2,
-				when: ChatContextKeys.Setup.hidden.negate(),
+				when: ContextKeyExpr.and(ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 			}, {
 				id: MenuId.ViewTitle,
-				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', InstalledAgentPluginsViewId), ChatContextKeys.Setup.hidden.negate()),
+				when: ContextKeyExpr.and(ContextKeyExpr.equals('view', InstalledAgentPluginsViewId), ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 				group: 'navigation',
 			}],
 		});

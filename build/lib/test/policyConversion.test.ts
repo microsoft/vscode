@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { suite, test } from 'node:test';
 import { promises as fs } from 'fs';
 import path from 'path';
 import type { ExportedPolicyDataDto, CategoryDto } from '../policies/policyDto.ts';

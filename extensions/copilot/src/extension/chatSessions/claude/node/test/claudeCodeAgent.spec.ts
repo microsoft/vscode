@@ -18,8 +18,9 @@ import type { ClaudeFolderInfo } from '../../common/claudeFolderInfo';
 import { ClaudeAgentManager, ClaudeCodeSession } from '../claudeCodeAgent';
 import { IClaudeCodeSdkService } from '../claudeCodeSdkService';
 import { ClaudeLanguageModelServer } from '../claudeLanguageModelServer';
-import { parseClaudeModelId, type ParsedClaudeModelId } from '../claudeModelId';
-import { IClaudeSessionStateService } from '../claudeSessionStateService';
+import { parseClaudeModelId } from '../claudeModelId';
+import type { ParsedClaudeModelId } from '../../common/claudeModelId';
+import { IClaudeSessionStateService } from '../../common/claudeSessionStateService';
 import { MockClaudeCodeSdkService } from './mockClaudeCodeSdkService';
 
 function createMockLangModelServer(): ClaudeLanguageModelServer {

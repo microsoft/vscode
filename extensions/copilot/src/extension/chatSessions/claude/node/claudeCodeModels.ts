@@ -10,7 +10,8 @@ import { IChatEndpoint } from '../../../../platform/networking/common/networking
 import { createServiceIdentifier } from '../../../../util/common/services';
 import { Emitter } from '../../../../util/vs/base/common/event';
 import { Disposable } from '../../../../util/vs/base/common/lifecycle';
-import { ParsedClaudeModelId, tryParseClaudeModelId } from './claudeModelId';
+import type { ParsedClaudeModelId } from '../common/claudeModelId';
+import { tryParseClaudeModelId } from './claudeModelId';
 
 export interface IClaudeCodeModels {
 	readonly _serviceBrand: undefined;

@@ -59,7 +59,6 @@ async function fetchSecrets(): Promise<{ [key: string]: string | undefined }> {
 	if (!process.stdin.isTTY) { // only in automation
 		secrets["GITHUB_OAUTH_TOKEN"] = await fetchSecret(keyVaultClient, "capi-oauth");
 		secrets["VSCODE_COPILOT_CHAT_TOKEN"] = await fetchSecret(keyVaultClient, "copilot-token");
-		secrets["GHCR_PAT"] = await fetchSecret(keyVaultClient, "ghcr-pat");
 		secrets["BLACKBIRD_EMBEDDINGS_KEY"] = await fetchSecret(keyVaultClient, "vsc-aoai-key");
 		secrets["BLACKBIRD_REDIS_CACHE_KEY"] = await fetchSecret(keyVaultClient, "blackbird-redis-cache-key");
 
@@ -91,4 +90,5 @@ async function main() {
 
 main().catch(error => {
 	console.error(red(`Error when setting up .env file:\n${error}`));
+	process.exit(1);
 });

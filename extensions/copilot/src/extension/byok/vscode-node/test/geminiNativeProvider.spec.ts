@@ -7,7 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as vscode from 'vscode';
 import { NoopOTelService, resolveOTelConfig } from '../../../../platform/otel/common/index';
 import type { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
-import type { IRequestLogger } from '../../../../platform/requestLogger/node/requestLogger';
+import type { IRequestLogger } from '../../../../platform/requestLogger/common/requestLogger';
 import { NullTelemetryService } from '../../../../platform/telemetry/common/nullTelemetryService';
 import { TestLogService } from '../../../../platform/testing/common/testLogService';
 import type { IBYOKStorageService } from '../byokStorageService';

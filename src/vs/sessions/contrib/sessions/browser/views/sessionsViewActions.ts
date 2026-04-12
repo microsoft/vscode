@@ -18,7 +18,7 @@ import { EditorsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContex
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { AUX_WINDOW_GROUP } from '../../../../../workbench/services/editor/common/editorService.js';
 import { SessionsCategories } from '../../../../common/categories.js';
-import { ChatSessionProviderIdContext, IsNewChatSessionContext, SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
+import { ChatSessionProviderIdContext, IsActiveSessionArchivedContext, IsNewChatSessionContext, SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
 import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext, IsSessionPinnedContext, IsSessionArchivedContext, IsSessionReadContext, SessionsGrouping, SessionsSorting, ISessionSection } from './sessionsList.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IsWorkspaceGroupCappedContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext } from './sessionsView.js';
@@ -502,15 +502,28 @@ registerAction2(class UnarchiveSessionAction extends Action2 {
 				group: '1_edit',
 				order: 2,
 				when: ContextKeyExpr.equals(IsSessionArchivedContext.key, true),
+			}, {
+				id: Menus.CommandCenter,
+				order: 103,
+				when: ContextKeyExpr.and(
+					IsAuxiliaryWindowContext.negate(),
+					SessionsWelcomeVisibleContext.negate(),
+					IsNewChatSessionContext.negate(),
+					IsActiveSessionArchivedContext
+				)
 			}]
 		});
 	}
 	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		if (!context) {
+			const activeSession = sessionsManagementService.activeSession.get();
+			if (activeSession) {
+				await sessionsManagementService.unarchiveSession(activeSession);
+			}
 			return;
 		}
 		const sessions = Array.isArray(context) ? context : [context];
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		for (const session of sessions) {
 			await sessionsManagementService.unarchiveSession(session);
 		}
@@ -680,7 +693,8 @@ registerAction2(class MarkSessionAsDoneAction extends Action2 {
 				when: ContextKeyExpr.and(
 					IsAuxiliaryWindowContext.negate(),
 					SessionsWelcomeVisibleContext.negate(),
-					IsNewChatSessionContext.negate()
+					IsNewChatSessionContext.negate(),
+					IsActiveSessionArchivedContext.negate()
 				)
 			},
 			{

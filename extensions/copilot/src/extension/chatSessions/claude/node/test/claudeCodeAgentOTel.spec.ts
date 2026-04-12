@@ -21,9 +21,7 @@ import { ClaudeCodeSession } from '../claudeCodeAgent';
 import { IClaudeCodeSdkService } from '../claudeCodeSdkService';
 import { ClaudeLanguageModelServer } from '../claudeLanguageModelServer';
 import { parseClaudeModelId } from '../claudeModelId';
-import { IClaudeSessionStateService } from '../claudeSessionStateService';
-// Side-effect import: registers all hook handlers in the global registry
-import '../hooks/index';
+import { IClaudeSessionStateService } from '../../common/claudeSessionStateService';
 
 const TEST_MODEL_ID_STRING = 'claude-3-sonnet';
 const TEST_MODEL_ID = parseClaudeModelId(TEST_MODEL_ID_STRING);
@@ -79,59 +77,6 @@ function createToolCallSdkService(messageFactory: (sessionId: string) => AsyncGe
 		async listSubagents() { return []; },
 		async getSubagentMessages() { return []; },
 	};
-}
-
-/**
- * Creates a mock SDK service that captures hooks from options and invokes them during the message flow.
- * The hookInvoker callback receives the hooks from options so tests can call them.
- */
-function createSdkServiceWithHooks(
-	messageFactory: (sessionId: string, hooks: Options['hooks']) => AsyncGenerator<SDKAssistantMessage | SDKUserMessageType | SDKResultMessage, void, unknown>
-): IClaudeCodeSdkService {
-	return {
-		_serviceBrand: undefined,
-		async query(queryOptions: { prompt: AsyncIterable<SDKUserMessageType>; options: Options }) {
-			const prompt = queryOptions.prompt;
-			const hooks = queryOptions.options.hooks;
-			const generator = (async function* () {
-				for await (const msg of prompt) {
-					const sessionId = msg.session_id ?? '';
-					yield* messageFactory(sessionId, hooks);
-				}
-			})();
-			return {
-				[Symbol.asyncIterator]: () => generator,
-				setModel: async () => { },
-				setPermissionMode: async () => { },
-				abort: () => { },
-			} as unknown as Query;
-		},
-		async listSessions() { return []; },
-		async getSessionInfo() { return undefined; },
-		async getSessionMessages() { return []; },
-		async renameSession() { },
-		async forkSession() { return { sessionId: 'forked' }; },
-		async listSubagents() { return []; },
-		async getSubagentMessages() { return []; },
-	};
-}
-
-/**
- * Invokes a hook callback from the SDK hooks configuration.
- * Finds a matcher in the given hook event type and calls the first hook function.
- */
-async function invokeHook(
-	hooks: Options['hooks'],
-	hookEvent: string,
-	input: Record<string, unknown>,
-	signal?: AbortSignal
-): Promise<unknown> {
-	const matchers = hooks?.[hookEvent as keyof typeof hooks];
-	if (!matchers || matchers.length === 0) {
-		throw new Error(`No hooks found for event: ${hookEvent}`);
-	}
-	const hookFn = matchers[0].hooks[0];
-	return hookFn(input as never, undefined, { signal: signal ?? new AbortController().signal });
 }
 
 function createOTelService() {
@@ -406,78 +351,5 @@ describe('Claude Session OTel Tool Spans', () => {
 		const toolSpan = spans.find(s => s.name === 'execute_tool Bash');
 		expect(toolSpan).toBeDefined();
 		expect(toolSpan!.attributes['gen_ai.tool.call.arguments']).toContain('ls -la');
-	});
-
-	it('emits execute_hook span for a successful hook invocation', async () => {
-		const sessionId = 'otel-hook-1';
-		const sdkService = createSdkServiceWithHooks((sid, hooks) => (async function* () {
-			// Invoke the SessionStart hook before emitting messages
-			await invokeHook(hooks, 'SessionStart', { session_id: sid, source: 'test', cwd: '/test' });
-
-			yield makeAssistantMessage(sid, [
-				{ type: 'text', text: 'Done', citations: [] },
-			]);
-			yield makeResultMessage(sid);
-		})());
-
-		const services = store.add(createExtensionUnitTestingServices());
-		const { otelService, spans: localSpans } = createOTelService();
-		spans = localSpans;
-		services.define(IOTelService, otelService);
-		services.define(IClaudeCodeSdkService, sdkService);
-		const accessor = services.createTestingAccessor();
-		const localInstantiationService = accessor.get(IInstantiationService);
-		const localSessionStateService = accessor.get(IClaudeSessionStateService);
-
-		commitTestState(localSessionStateService, sessionId);
-		const session = store.add(localInstantiationService.createInstance(
-			ClaudeCodeSession, SERVER_CONFIG, createMockLangModelServer(), sessionId, TEST_MODEL_ID, TEST_PERMISSION_MODE, true
-		));
-		const stream = new MockChatResponseStream();
-
-		await session.invoke(createMockChatRequest(), toPromptBlocks('Test'), {} as vscode.ChatParticipantToolToken, stream, CancellationToken.None);
-
-		const hookSpan = spans.find(s => s.name === 'execute_hook SessionStart');
-		expect(hookSpan).toBeDefined();
-		expect(hookSpan!.attributes['gen_ai.operation.name']).toBe('execute_hook');
-		expect(hookSpan!.attributes['copilot_chat.hook_type']).toBe('SessionStart');
-		expect(hookSpan!.attributes['copilot_chat.hook_command']).toBe('SessionStart');
-		expect(hookSpan!.attributes['copilot_chat.chat_session_id']).toBe(sessionId);
-		expect(hookSpan!.attributes['copilot_chat.hook_result_kind']).toBe('success');
-		expect(hookSpan!.attributes['copilot_chat.hook_input']).toContain('test');
-		expect(hookSpan!.status.code).toBe(1); // SpanStatusCode.OK
-	});
-
-	it('records hook input on successful hook invocation', async () => {
-		const sessionId = 'otel-hook-3';
-		const sdkService = createSdkServiceWithHooks((sid, hooks) => (async function* () {
-			await invokeHook(hooks, 'SessionStart', { session_id: sid, source: 'test', cwd: '/workspace' });
-
-			yield makeAssistantMessage(sid, [
-				{ type: 'text', text: 'Done', citations: [] },
-			]);
-			yield makeResultMessage(sid);
-		})());
-
-		const services = store.add(createExtensionUnitTestingServices());
-		const { otelService, spans: localSpans } = createOTelService();
-		spans = localSpans;
-		services.define(IOTelService, otelService);
-		services.define(IClaudeCodeSdkService, sdkService);
-		const accessor = services.createTestingAccessor();
-		const localInstantiationService = accessor.get(IInstantiationService);
-		const localSessionStateService = accessor.get(IClaudeSessionStateService);
-
-		commitTestState(localSessionStateService, sessionId);
-		const session = store.add(localInstantiationService.createInstance(
-			ClaudeCodeSession, SERVER_CONFIG, createMockLangModelServer(), sessionId, TEST_MODEL_ID, TEST_PERMISSION_MODE, true
-		));
-		const stream = new MockChatResponseStream();
-
-		await session.invoke(createMockChatRequest(), toPromptBlocks('Test'), {} as vscode.ChatParticipantToolToken, stream, CancellationToken.None);
-
-		const hookSpan = spans.find(s => s.name === 'execute_hook SessionStart');
-		expect(hookSpan).toBeDefined();
-		expect(hookSpan!.attributes['copilot_chat.hook_input']).toBeDefined();
 	});
 });

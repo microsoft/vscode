@@ -31,6 +31,8 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { AuxiliaryBarMaximizedContext } from '../../../common/contextkeys.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { getActiveElement } from '../../../../base/browser/dom.js';
+import { IOnboardingService } from '../../welcomeOnboarding/common/onboardingService.js';
+import { ONBOARDING_STORAGE_KEY } from '../../welcomeOnboarding/common/onboardingTypes.js';
 
 export const restoreWalkthroughsConfigurationKey = 'workbench.welcomePage.restorableWalkthroughs';
 export type RestoreWalkthroughsConfigurationValue = { folder: string; category?: string; step?: string };
@@ -78,7 +80,6 @@ export class StartupPageEditorResolverContribution extends Disposable implements
 export class StartupPageRunnerContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.startupPageRunner';
-
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -91,9 +92,16 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IStorageService private readonly storageService: IStorageService,
 		@INotificationService private readonly notificationService: INotificationService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IOnboardingService private readonly onboardingService: IOnboardingService,
 	) {
 		super();
+
+		// Show onboarding overlay immediately (before waiting for lifecycle restore)
+		if (!this.environmentService.skipWelcome && this.configurationService.getValue<boolean>('workbench.welcomePage.experimentalOnboarding')) {
+			this.tryShowOnboarding();
+		}
+
 		this.run().then(undefined, onUnexpectedError);
 		this._register(this.editorService.onDidCloseEditor((e) => {
 			if (e.editor instanceof GettingStartedInput) {
@@ -224,6 +232,20 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 		}
 
 		return true; // do not steal focus
+	}
+
+	private tryShowOnboarding(): void {
+		if (this.storageService.get(ONBOARDING_STORAGE_KEY, StorageScope.PROFILE)) {
+			return; // onboarding already completed
+		}
+
+		// Show the onboarding overlay on top of the welcome page
+		this.onboardingService.show();
+
+		// Mark onboarding as completed when dismissed
+		this._register(this.onboardingService.onDidDismiss(() => {
+			this.storageService.store(ONBOARDING_STORAGE_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
+		}));
 	}
 }
 
