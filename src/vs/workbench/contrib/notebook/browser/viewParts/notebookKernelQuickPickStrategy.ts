@@ -421,7 +421,8 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 	 */
 	private getSuggestedLanguage(notebookTextModel: NotebookTextModel): string | undefined {
 		const metaData = notebookTextModel.metadata;
-		let suggestedKernelLanguage: string | undefined = (metaData as any)?.metadata?.language_info?.name;
+		const language_info = (metaData?.metadata as Record<string, unknown>)?.language_info as Record<string, string> | undefined;
+		let suggestedKernelLanguage: string | undefined = language_info?.name;
 		// TODO how do we suggest multi language notebooks?
 		if (!suggestedKernelLanguage) {
 			const cellLanguages = notebookTextModel.cells.map(cell => cell.language).filter(language => language !== 'markdown');
@@ -554,8 +555,10 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 			}));
 			disposables.add(quickPick.onDidTriggerItemButton(async (e) => {
 				if (isKernelSourceQuickPickItem(e.item) && e.item.documentation !== undefined) {
-					const uri = URI.isUri(e.item.documentation) ? URI.parse(e.item.documentation) : await this._commandService.executeCommand(e.item.documentation);
-					void this._openerService.open(uri, { openExternal: true });
+					const uri = URI.isUri(e.item.documentation) ? URI.parse(e.item.documentation) : await this._commandService.executeCommand<URI>(e.item.documentation);
+					if (uri) {
+						void this._openerService.open(uri, { openExternal: true });
+					}
 				}
 			}));
 			disposables.add(quickPick.onDidAccept(async () => {

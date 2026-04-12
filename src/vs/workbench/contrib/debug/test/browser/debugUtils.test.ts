@@ -4,9 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IConfig } from '../../common/debug.js';
-import { formatPII, getExactExpressionStartAndEnd, getVisibleAndSorted } from '../../common/debugUtils.js';
+import { formatPII, getEffectiveConfigForPlatform, getEffectivePresentationForConfig, getExactExpressionStartAndEnd, getVisibleAndSorted } from '../../common/debugUtils.js';
+
+function platformSection(os: OperatingSystem, value: NonNullable<IConfig['windows']>): Pick<IConfig, 'windows' | 'osx' | 'linux'> {
+	switch (os) {
+		case OperatingSystem.Windows:
+			return { windows: value };
+		case OperatingSystem.Macintosh:
+			return { osx: value };
+		case OperatingSystem.Linux:
+			return { linux: value };
+	}
+}
 
 suite('Debug - Utils', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -25,6 +37,7 @@ suite('Debug - Utils', () => {
 
 	test('getExactExpressionStartAndEnd', () => {
 		assert.deepStrictEqual(getExactExpressionStartAndEnd('foo', 1, 2), { start: 1, end: 3 });
+		assert.deepStrictEqual(getExactExpressionStartAndEnd('!foo', 2, 3), { start: 2, end: 4 });
 		assert.deepStrictEqual(getExactExpressionStartAndEnd('foo', 1, 3), { start: 1, end: 3 });
 		assert.deepStrictEqual(getExactExpressionStartAndEnd('foo', 1, 4), { start: 1, end: 3 });
 		assert.deepStrictEqual(getExactExpressionStartAndEnd('this.name = "John"', 1, 10), { start: 1, end: 9 });
@@ -44,6 +57,60 @@ suite('Debug - Utils', () => {
 
 		assert.deepStrictEqual(getExactExpressionStartAndEnd('var aøñéå文 = a.b.c-d.name', 5, 5), { start: 5, end: 10 });
 		assert.deepStrictEqual(getExactExpressionStartAndEnd('aøñéå文.aøñéå文.aøñéå文', 9, 9), { start: 1, end: 13 });
+
+		// Spread syntax should extract just the identifier
+		assert.deepStrictEqual(getExactExpressionStartAndEnd('[...bar]', 5, 7), { start: 5, end: 7 });
+		assert.deepStrictEqual(getExactExpressionStartAndEnd('...variable', 5, 5), { start: 4, end: 11 });
+	});
+
+	test('getEffectivePresentationForConfig - platform override', () => {
+		// No platform override: returns base presentation
+		const config1: IConfig = { type: 'node', request: 'launch', name: 'a', presentation: { hidden: false } };
+		assert.deepStrictEqual(getEffectivePresentationForConfig(config1, OperatingSystem.Macintosh), { hidden: false });
+
+		// Platform-specific presentation overrides base hidden value
+		const config2: IConfig = {
+			type: 'node', request: 'launch', name: 'b',
+			presentation: { hidden: false },
+			...platformSection(OperatingSystem.Windows, { presentation: { hidden: true } })
+		};
+		assert.deepStrictEqual(getEffectivePresentationForConfig(config2, OperatingSystem.Windows), { hidden: true });
+
+		// Non-matching platform override does not affect result
+		const config3: IConfig = {
+			type: 'node', request: 'launch', name: 'c',
+			presentation: { hidden: false },
+			...platformSection(OperatingSystem.Windows, { presentation: { hidden: true } })
+		};
+		assert.deepStrictEqual(getEffectivePresentationForConfig(config3, OperatingSystem.Linux), { hidden: false });
+
+		// No base presentation, platform-specific sets hidden
+		const config4: IConfig = {
+			type: 'node', request: 'launch', name: 'd',
+			...platformSection(OperatingSystem.Macintosh, { presentation: { hidden: true } })
+		};
+		assert.deepStrictEqual(getEffectivePresentationForConfig(config4, OperatingSystem.Macintosh), { hidden: true });
+
+		// Platform-specific merges with base (group and order preserved)
+		const config5: IConfig = {
+			type: 'node', request: 'launch', name: 'e',
+			presentation: { group: 'myGroup', order: 2 },
+			...platformSection(OperatingSystem.Linux, { presentation: { hidden: true } })
+		};
+		assert.deepStrictEqual(getEffectivePresentationForConfig(config5, OperatingSystem.Linux), { group: 'myGroup', order: 2, hidden: true });
+
+		// Platform-specific config overrides other launch attributes while preserving nested sections
+		const config6: IConfig = {
+			type: 'node', request: 'launch', name: 'f',
+			preLaunchTask: 'base-task',
+			presentation: { group: 'base' },
+			...platformSection(OperatingSystem.Windows, { preLaunchTask: 'windows-task', presentation: { hidden: true } })
+		};
+		assert.deepStrictEqual(getEffectiveConfigForPlatform(config6, OperatingSystem.Windows), {
+			...config6,
+			preLaunchTask: 'windows-task',
+			presentation: { group: 'base', hidden: true }
+		});
 	});
 
 	test('config presentation', () => {

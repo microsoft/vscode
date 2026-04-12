@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { safeIntl } from '../../../../base/common/date.js';
+import { Lazy } from '../../../../base/common/lazy.js';
 import { EditOperation, ISingleEditOperation } from '../../../common/core/editOperation.js';
 import { Range } from '../../../common/core/range.js';
 import { Selection } from '../../../common/core/selection.js';
@@ -11,13 +13,7 @@ import { ITextModel } from '../../../common/model.js';
 
 export class SortLinesCommand implements ICommand {
 
-	private static _COLLATOR: Intl.Collator | null = null;
-	public static getCollator(): Intl.Collator {
-		if (!SortLinesCommand._COLLATOR) {
-			SortLinesCommand._COLLATOR = new Intl.Collator();
-		}
-		return SortLinesCommand._COLLATOR;
-	}
+	static _COLLATOR: Lazy<Intl.Collator> = safeIntl.Collator();
 
 	private readonly selection: Selection;
 	private readonly descending: boolean;
@@ -84,7 +80,7 @@ function getSortData(model: ITextModel, selection: Selection, descending: boolea
 	}
 
 	let sorted = linesToSort.slice(0);
-	sorted.sort(SortLinesCommand.getCollator().compare);
+	sorted.sort(SortLinesCommand._COLLATOR.value.compare);
 
 	// If descending, reverse the order.
 	if (descending === true) {

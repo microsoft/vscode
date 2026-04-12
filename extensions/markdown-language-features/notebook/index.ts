@@ -3,9 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as DOMPurify from 'dompurify';
+import DOMPurify from 'dompurify';
 import MarkdownIt from 'markdown-it';
-import type * as MarkdownItToken from 'markdown-it/lib/token';
 import type { ActivationFunction } from 'vscode-notebook-renderer';
 
 const allowedHtmlTags = Object.freeze(['a',
@@ -352,11 +351,11 @@ export const activate: ActivationFunction<void> = (ctx) => {
 };
 
 
-function addNamedHeaderRendering(md: InstanceType<typeof MarkdownIt>): void {
+function addNamedHeaderRendering(md: MarkdownIt): void {
 	const slugCounter = new Map<string, number>();
 
 	const originalHeaderOpen = md.renderer.rules.heading_open;
-	md.renderer.rules.heading_open = (tokens: MarkdownItToken[], idx: number, options, env, self) => {
+	md.renderer.rules.heading_open = (tokens: MarkdownIt.Token[], idx: number, options, env, self) => {
 		const title = tokens[idx + 1].children!.reduce<string>((acc, t) => acc + t.content, '');
 		let slug = slugify(title);
 
@@ -378,16 +377,16 @@ function addNamedHeaderRendering(md: InstanceType<typeof MarkdownIt>): void {
 	};
 
 	const originalRender = md.render;
-	md.render = function () {
+	md.render = function (str: string, env?: unknown) {
 		slugCounter.clear();
-		return originalRender.apply(this, arguments as any);
+		return originalRender.call(this, str, env);
 	};
 }
 
 function addLinkRenderer(md: MarkdownIt): void {
 	const original = md.renderer.rules.link_open;
 
-	md.renderer.rules.link_open = (tokens: MarkdownItToken[], idx: number, options, env, self) => {
+	md.renderer.rules.link_open = (tokens: MarkdownIt.Token[], idx: number, options, env, self) => {
 		const token = tokens[idx];
 		const href = token.attrGet('href');
 		if (typeof href === 'string' && href.startsWith('#')) {

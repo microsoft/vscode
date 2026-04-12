@@ -17,7 +17,7 @@ import { ALL_SYNC_RESOURCES, IResourceRefHandle, IUserDataSyncLocalStoreService,
 
 export class UserDataSyncLocalStoreService extends Disposable implements IUserDataSyncLocalStoreService {
 
-	_serviceBrand: any;
+	_serviceBrand: undefined;
 
 	constructor(
 		@IEnvironmentService private readonly environmentService: IEnvironmentService,

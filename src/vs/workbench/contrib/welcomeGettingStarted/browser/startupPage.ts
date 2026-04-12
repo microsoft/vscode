@@ -12,12 +12,11 @@ import { IEditorService } from '../../../services/editor/common/editorService.js
 import { onUnexpectedError } from '../../../../base/common/errors.js';
 import { IWorkspaceContextService, UNKNOWN_EMPTY_WINDOW_WORKSPACE, WorkbenchState } from '../../../../platform/workspace/common/workspace.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IWorkingCopyBackupService } from '../../../services/workingCopy/common/workingCopyBackup.js';
 import { ILifecycleService, LifecyclePhase, StartupKind } from '../../../services/lifecycle/common/lifecycle.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Disposable, } from '../../../../base/common/lifecycle.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { joinPath } from '../../../../base/common/resources.js';
-import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { GettingStartedEditorOptions, GettingStartedInput, gettingStartedInputTypeId } from './gettingStartedInput.js';
 import { IWorkbenchEnvironmentService } from '../../../services/environment/common/environmentService.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -28,7 +27,12 @@ import { INotificationService } from '../../../../platform/notification/common/n
 import { localize } from '../../../../nls.js';
 import { IEditorResolverService, RegisteredEditorPriority } from '../../../services/editor/common/editorResolverService.js';
 import { TerminalCommandId } from '../../terminal/common/terminal.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { AuxiliaryBarMaximizedContext } from '../../../common/contextkeys.js';
+import { mainWindow } from '../../../../base/browser/window.js';
+import { getActiveElement } from '../../../../base/browser/dom.js';
+import { IOnboardingService } from '../../welcomeOnboarding/common/onboardingService.js';
+import { ONBOARDING_STORAGE_KEY } from '../../welcomeOnboarding/common/onboardingTypes.js';
 
 export const restoreWalkthroughsConfigurationKey = 'workbench.welcomePage.restorableWalkthroughs';
 export type RestoreWalkthroughsConfigurationValue = { folder: string; category?: string; step?: string };
@@ -46,10 +50,8 @@ export class StartupPageEditorResolverContribution extends Disposable implements
 		@IEditorResolverService editorResolverService: IEditorResolverService
 	) {
 		super();
-		const disposables = new DisposableStore();
-		this._register(disposables);
 
-		editorResolverService.registerEditor(
+		this._register(editorResolverService.registerEditor(
 			`${GettingStartedInput.RESOURCE.scheme}:/**`,
 			{
 				id: GettingStartedInput.ID,
@@ -57,13 +59,13 @@ export class StartupPageEditorResolverContribution extends Disposable implements
 				priority: RegisteredEditorPriority.builtin,
 			},
 			{
-				singlePerResource: false,
+				singlePerResource: true,
 				canSupportResource: uri => uri.scheme === GettingStartedInput.RESOURCE.scheme,
 			},
 			{
-				createEditorInput: ({ resource, options }) => {
+				createEditorInput: ({ options }) => {
 					return {
-						editor: disposables.add(this.instantiationService.createInstance(GettingStartedInput, options as GettingStartedEditorOptions)),
+						editor: this.instantiationService.createInstance(GettingStartedInput, options as GettingStartedEditorOptions),
 						options: {
 							...options,
 							pinned: false
@@ -71,18 +73,16 @@ export class StartupPageEditorResolverContribution extends Disposable implements
 					};
 				}
 			}
-		);
+		));
 	}
 }
 
 export class StartupPageRunnerContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'workbench.contrib.startupPageRunner';
-
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
-		@IWorkingCopyBackupService private readonly workingCopyBackupService: IWorkingCopyBackupService,
 		@IFileService private readonly fileService: IFileService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
@@ -91,10 +91,17 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 		@ICommandService private readonly commandService: ICommandService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
 		@IStorageService private readonly storageService: IStorageService,
-		@ILogService private readonly logService: ILogService,
-		@INotificationService private readonly notificationService: INotificationService
+		@INotificationService private readonly notificationService: INotificationService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IOnboardingService private readonly onboardingService: IOnboardingService,
 	) {
 		super();
+
+		// Show onboarding overlay immediately (before waiting for lifecycle restore)
+		if (!this.environmentService.skipWelcome && this.configurationService.getValue<boolean>('workbench.welcomePage.experimentalOnboarding')) {
+			this.tryShowOnboarding();
+		}
+
 		this.run().then(undefined, onUnexpectedError);
 		this._register(this.editorService.onDidCloseEditor((e) => {
 			if (e.editor instanceof GettingStartedInput) {
@@ -108,6 +115,11 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 
 		// Wait for resolving startup editor until we are restored to reduce startup pressure
 		await this.lifecycleService.when(LifecyclePhase.Restored);
+
+		if (AuxiliaryBarMaximizedContext.getValue(this.contextKeyService)) {
+			// If the auxiliary bar is maximized, we do not show the welcome page.
+			return;
+		}
 
 		// Always open Welcome page for first-launch, no matter what is open or which startupEditor is set.
 		if (
@@ -124,10 +136,8 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 			return;
 		}
 
-		const enabled = isStartupPageEnabled(this.configurationService, this.contextService, this.environmentService, this.logService);
+		const enabled = isStartupPageEnabled(this.configurationService, this.contextService, this.environmentService);
 		if (enabled && this.lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
-			const hasBackups = await this.workingCopyBackupService.hasBackups();
-			if (hasBackups) { return; }
 
 			// Open the welcome even if we opened a set of default editors
 			if (!this.editorService.activeEditor || this.layoutService.openedDefaultEditors) {
@@ -153,7 +163,7 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 			const restoreData: RestoreWalkthroughsConfigurationValue = JSON.parse(toRestore);
 			const currentWorkspace = this.contextService.getWorkspace();
 			if (restoreData.folder === UNKNOWN_EMPTY_WINDOW_WORKSPACE.id || restoreData.folder === currentWorkspace.folders[0].uri.toString()) {
-				const options: GettingStartedEditorOptions = { selectedCategory: restoreData.category, selectedStep: restoreData.step, pinned: false };
+				const options: GettingStartedEditorOptions = { selectedCategory: restoreData.category, selectedStep: restoreData.step, pinned: false, preserveFocus: this.shouldPreserveFocus() };
 				this.editorService.openEditor({
 					resource: GettingStartedInput.RESOURCE,
 					options
@@ -184,7 +194,7 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 					this.commandService.executeCommand('markdown.showPreview', null, readmes.filter(isMarkDown), { locked: true }).catch(error => {
 						this.notificationService.error(localize('startupPage.markdownPreviewError', 'Could not open markdown preview: {0}.\n\nPlease make sure the markdown extension is enabled.', error.message));
 					}),
-					this.editorService.openEditors(readmes.filter(readme => !isMarkDown(readme)).map(readme => ({ resource: readme }))),
+					this.editorService.openEditors(readmes.filter(readme => !isMarkDown(readme)).map(readme => ({ resource: readme, options: { preserveFocus: this.shouldPreserveFocus() } }))),
 				]);
 			} else {
 				// If no readme is found, default to showing the welcome page.
@@ -202,17 +212,44 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 			return;
 		}
 
-		const options: GettingStartedEditorOptions = editor ? { pinned: false, index: 0, showTelemetryNotice } : { pinned: false, showTelemetryNotice };
 		if (startupEditorTypeID === gettingStartedInputTypeId) {
 			this.editorService.openEditor({
 				resource: GettingStartedInput.RESOURCE,
-				options,
+				options: {
+					index: editor ? 0 : undefined,
+					pinned: false,
+					preserveFocus: this.shouldPreserveFocus(),
+					...{ showTelemetryNotice }
+				},
 			});
 		}
 	}
+
+	private shouldPreserveFocus(): boolean {
+		const activeElement = getActiveElement();
+		if (!activeElement || activeElement === mainWindow.document.body || this.layoutService.hasFocus(Parts.EDITOR_PART)) {
+			return false; // steal focus if nothing meaningful is focused or editor area has focus
+		}
+
+		return true; // do not steal focus
+	}
+
+	private tryShowOnboarding(): void {
+		if (this.storageService.get(ONBOARDING_STORAGE_KEY, StorageScope.PROFILE)) {
+			return; // onboarding already completed
+		}
+
+		// Show the onboarding overlay on top of the welcome page
+		this.onboardingService.show();
+
+		// Mark onboarding as completed when dismissed
+		this._register(this.onboardingService.onDidDismiss(() => {
+			this.storageService.store(ONBOARDING_STORAGE_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
+		}));
+	}
 }
 
-function isStartupPageEnabled(configurationService: IConfigurationService, contextService: IWorkspaceContextService, environmentService: IWorkbenchEnvironmentService, logService: ILogService) {
+function isStartupPageEnabled(configurationService: IConfigurationService, contextService: IWorkspaceContextService, environmentService: IWorkbenchEnvironmentService) {
 	if (environmentService.skipWelcome) {
 		return false;
 	}

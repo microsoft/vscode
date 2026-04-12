@@ -66,7 +66,6 @@ export interface IRemoteDiagnosticError {
 export interface IDiagnosticInfoOptions {
 	includeProcesses?: boolean;
 	folders?: UriComponents[];
-	includeExtensions?: boolean;
 }
 
 export interface WorkspaceStatItem {
@@ -94,8 +93,9 @@ export interface IWorkspaceInformation extends IWorkspace {
 	rendererSessionId: string;
 }
 
-export function isRemoteDiagnosticError(x: any): x is IRemoteDiagnosticError {
-	return !!x.hostName && !!x.errorMessage;
+export function isRemoteDiagnosticError(x: unknown): x is IRemoteDiagnosticError {
+	const candidate = x as IRemoteDiagnosticError | undefined;
+	return !!candidate?.hostName && !!candidate?.errorMessage;
 }
 
 export class NullDiagnosticsService implements IDiagnosticsService {
@@ -142,6 +142,11 @@ export interface IProcessDiagnostics {
 	readonly name: string;
 }
 
+export interface IGPULogMessage {
+	readonly header: string;
+	readonly message: string;
+}
+
 export interface IMainProcessDiagnostics {
 	readonly mainPID: number;
 	readonly mainArguments: string[]; // All arguments after argv[0], the exec path
@@ -149,4 +154,5 @@ export interface IMainProcessDiagnostics {
 	readonly pidToNames: IProcessDiagnostics[];
 	readonly screenReader: boolean;
 	readonly gpuFeatureStatus: any;
+	readonly gpuLogMessages: IGPULogMessage[];
 }

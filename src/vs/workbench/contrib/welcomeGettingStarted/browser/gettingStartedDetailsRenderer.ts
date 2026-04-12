@@ -10,7 +10,7 @@ import { DEFAULT_MARKDOWN_STYLES, renderMarkdownDocument } from '../../markdown/
 import { URI } from '../../../../base/common/uri.js';
 import { language } from '../../../../base/common/platform.js';
 import { joinPath } from '../../../../base/common/resources.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { asWebviewUri } from '../../webview/common/webview.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
@@ -21,7 +21,7 @@ import { gettingStartedContentRegistry } from '../common/gettingStartedContent.j
 
 
 export class GettingStartedDetailsRenderer {
-	private mdCache = new ResourceMap<string>();
+	private mdCache = new ResourceMap<TrustedHTML>();
 	private svgCache = new ResourceMap<string>();
 
 	constructor(
@@ -230,16 +230,38 @@ export class GettingStartedDetailsRenderer {
 			const contents = await this.readContentsOfPath(path, false);
 			this.svgCache.set(path, contents);
 		}
-		return assertIsDefined(this.svgCache.get(path));
+		return assertReturnsDefined(this.svgCache.get(path));
 	}
 
-	private async readAndCacheStepMarkdown(path: URI, base: URI): Promise<string> {
+	private async readAndCacheStepMarkdown(path: URI, base: URI): Promise<TrustedHTML> {
 		if (!this.mdCache.has(path)) {
 			const contents = await this.readContentsOfPath(path);
-			const markdownContents = await renderMarkdownDocument(transformUris(contents, base), this.extensionService, this.languageService, { allowUnknownProtocols: true });
+			const markdownContents = await renderMarkdownDocument(transformUris(contents, base), this.extensionService, this.languageService, {
+				sanitizerConfig: {
+					allowedLinkProtocols: {
+						override: '*'
+					},
+					allowedTags: {
+						augment: [
+							'select',
+							'checkbox',
+							'checklist',
+						]
+					},
+					allowedAttributes: {
+						augment: [
+							'x-dispatch',
+							'data-command',
+							'when-checked',
+							'checked-on',
+							'checked',
+						]
+					},
+				}
+			});
 			this.mdCache.set(path, markdownContents);
 		}
-		return assertIsDefined(this.mdCache.get(path));
+		return assertReturnsDefined(this.mdCache.get(path));
 	}
 
 	private async readContentsOfPath(path: URI, useModuleId = true): Promise<string> {

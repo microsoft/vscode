@@ -3,7 +3,7 @@
   "displayName": "%displayName%",
   "description": "%description%",
   "icon": "media/icon.png",
-  "version": "1.0.0",
+  "version": "10.0.0",
   "publisher": "vscode",
   "license": "MIT",
   "engines": {
@@ -27,7 +27,7 @@
     "onCommand:editor.action.showReferences"
   ],
   "main": "./out/extension",
-  "browser": "./dist/extension.js",
+  "browser": "./dist/browser/extension",
   "contributes": {
     "configuration": {
       "properties": {
@@ -129,13 +129,13 @@
         "command": "references-view.showOutgoingCalls",
         "title": "%cmd.references-view.showOutgoingCalls%",
         "category": "Calls",
-        "icon": "$(call-outgoing)"
+        "icon": "$(call-incoming)"
       },
       {
         "command": "references-view.showIncomingCalls",
         "title": "%cmd.references-view.showIncomingCalls%",
         "category": "Calls",
-        "icon": "$(call-incoming)"
+        "icon": "$(call-outgoing)"
       },
       {
         "command": "references-view.removeCallItem",
@@ -396,9 +396,15 @@
   },
   "scripts": {
     "compile": "npx gulp compile-extension:references-view",
-    "watch": "npx gulp watch-extension:references-view"
+    "watch": "npx gulp watch-extension:references-view",
+    "compile-web": "npm-run-all2 -lp bundle-web typecheck-web",
+    "bundle-web": "node ./esbuild.browser.mts",
+    "typecheck-web": "tsgo --project ./tsconfig.json --noEmit",
+    "watch-web": "npm-run-all2 -lp watch-bundle-web watch-typecheck-web",
+    "watch-bundle-web": "node ./esbuild.browser.mts --watch",
+    "watch-typecheck-web": "tsgo --project ./tsconfig.json --noEmit --watch"
   },
   "devDependencies": {
-    "@types/node": "20.x"
+    "@types/node": "22.x"
   }
 }

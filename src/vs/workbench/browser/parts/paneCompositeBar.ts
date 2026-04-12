@@ -88,7 +88,6 @@ export interface IPaneCompositeBarOptions {
 export class PaneCompositeBar extends Disposable {
 
 	private readonly viewContainerDisposables = this._register(new DisposableMap<string, IDisposable>());
-	private readonly location: ViewContainerLocation;
 
 	private readonly compositeBar: CompositeBar;
 	readonly dndHandler: ICompositeDragAndDrop;
@@ -97,6 +96,7 @@ export class PaneCompositeBar extends Disposable {
 	private hasExtensionsRegistered: boolean = false;
 
 	constructor(
+		private readonly location: ViewContainerLocation,
 		protected readonly options: IPaneCompositeBarOptions,
 		protected readonly part: Parts,
 		private readonly paneCompositePart: IPaneCompositePart,
@@ -110,9 +110,6 @@ export class PaneCompositeBar extends Disposable {
 		@IWorkbenchLayoutService protected readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super();
-		this.location = paneCompositePart.partId === Parts.PANEL_PART
-			? ViewContainerLocation.Panel : paneCompositePart.partId === Parts.AUXILIARYBAR_PART
-				? ViewContainerLocation.AuxiliaryBar : ViewContainerLocation.Sidebar;
 
 		this.dndHandler = new CompositeDragAndDrop(this.viewDescriptorService, this.location, this.options.orientation,
 			async (id: string, focus?: boolean) => { return await this.paneCompositePart.openPaneComposite(id, focus) ?? null; },
@@ -219,6 +216,7 @@ export class PaneCompositeBar extends Disposable {
 	}
 
 	private registerListeners(): void {
+
 		// View Container Changes
 		this._register(this.viewDescriptorService.onDidChangeViewContainers(({ added, removed }) => this.onDidChangeViewContainers(added, removed)));
 		this._register(this.viewDescriptorService.onDidChangeContainerLocation(({ viewContainer, from, to }) => this.onDidChangeViewContainerLocation(viewContainer, from, to)));
@@ -401,9 +399,9 @@ export class PaneCompositeBar extends Disposable {
 				classNames = [iconId, 'uri-icon'];
 				createCSSRule(iconClass, `
 				mask: ${cssUrl} no-repeat 50% 50%;
-				mask-size: ${this.options.iconSize}px;
+				mask-size: var(--activity-bar-icon-size, ${this.options.iconSize}px);
 				-webkit-mask: ${cssUrl} no-repeat 50% 50%;
-				-webkit-mask-size: ${this.options.iconSize}px;
+				-webkit-mask-size: var(--activity-bar-icon-size, ${this.options.iconSize}px);
 				mask-origin: padding;
 				-webkit-mask-origin: padding;
 			`);

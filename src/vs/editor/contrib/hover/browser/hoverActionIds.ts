@@ -21,3 +21,4 @@ export const INCREASE_HOVER_VERBOSITY_ACTION_LABEL = nls.localize({ key: 'increa
 export const DECREASE_HOVER_VERBOSITY_ACTION_ID = 'editor.action.decreaseHoverVerbosityLevel';
 export const DECREASE_HOVER_VERBOSITY_ACCESSIBLE_ACTION_ID = 'editor.action.decreaseHoverVerbosityLevelFromAccessibleView';
 export const DECREASE_HOVER_VERBOSITY_ACTION_LABEL = nls.localize({ key: 'decreaseHoverVerbosityLevel', comment: ['Label for action that will decrease the hover verbosity level.'] }, "Decrease Hover Verbosity Level");
+export const HIDE_LONG_LINE_WARNING_HOVER_ACTION_ID = 'editor.action.hideLongLineWarningHover';

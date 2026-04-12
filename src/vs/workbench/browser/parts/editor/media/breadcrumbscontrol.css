@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.monaco-workbench.vs .breadcrumbs-control {
+	border-bottom: 1px solid var(--vscode-editorWidget-border);
+}
+
 .monaco-workbench .part.editor > .content .editor-group-container .breadcrumbs-control.hidden {
 	display: none;
 }
@@ -60,6 +64,6 @@
 	height: 100%;
 }
 
-.monaco-workbench .monaco-breadcrumbs-picker .highlighting-tree .monaco-highlighted-label .highlight{
+.monaco-workbench .monaco-breadcrumbs-picker .highlighting-tree .monaco-highlighted-label .highlight {
 	font-weight: bold;
 }

@@ -614,6 +614,32 @@ suite('Color', () => {
 				assert.deepStrictEqual(Color.Format.CSS.parseHex('#CFA')!.rgba, new RGBA(204, 255, 170, 1));
 				assert.deepStrictEqual(Color.Format.CSS.parseHex('#CFA8')!.rgba, new RGBA(204, 255, 170, 0.533));
 			});
+
+			suite('format', () => {
+				test('formatHSL should use whole numbers for percentages', () => {
+					// Test case matching the issue: color with fractional percentages that should be rounded
+					const color1 = new Color(new HSLA(0, 0.857, 0.437, 1)); // Should format as hsl(0, 86%, 44%)
+					assert.strictEqual(Color.Format.CSS.formatHSL(color1), 'hsl(0, 86%, 44%)');
+
+					// Test edge cases
+					const color2 = new Color(new HSLA(120, 0.5, 0.75, 1)); // Should format as hsl(120, 50%, 75%)
+					assert.strictEqual(Color.Format.CSS.formatHSL(color2), 'hsl(120, 50%, 75%)');
+
+					// Test case with values that would round differently
+					const color3 = new Color(new HSLA(240, 0.334, 0.666, 1)); // Should format as hsl(240, 33%, 67%)
+					assert.strictEqual(Color.Format.CSS.formatHSL(color3), 'hsl(240, 33%, 67%)');
+				});
+
+				test('formatHSLA should use whole numbers for percentages', () => {
+					// Test case with alpha
+					const color1 = new Color(new HSLA(0, 0.857, 0.437, 0.85)); // Should format as hsla(0, 86%, 44%, 0.85)
+					assert.strictEqual(Color.Format.CSS.formatHSLA(color1), 'hsla(0, 86%, 44%, 0.85)');
+
+					// Test edge cases
+					const color2 = new Color(new HSLA(180, 0.25, 0.5, 0.5)); // Should format as hsla(180, 25%, 50%, 0.50)
+					assert.strictEqual(Color.Format.CSS.formatHSLA(color2), 'hsla(180, 25%, 50%, 0.50)');
+				});
+			});
 		});
 	});
 

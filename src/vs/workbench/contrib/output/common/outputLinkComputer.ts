@@ -19,7 +19,7 @@ export interface IResourceCreator {
 }
 
 export class OutputLinkComputer implements IWebWorkerServerRequestHandler {
-	_requestHandlerBrand: any;
+	_requestHandlerBrand: void = undefined;
 
 	private readonly workerTextModelSyncServer = new WorkerTextModelSyncServer();
 	private patterns = new Map<URI /* folder uri */, RegExp[]>();

@@ -40,6 +40,7 @@ export class NullTelemetryServiceShape implements ITelemetryService {
 	publicLogError() { }
 	publicLogError2() { }
 	setExperimentProperty() { }
+	setCommonProperty() { }
 }
 
 export const NullTelemetryService = new NullTelemetryServiceShape();
@@ -60,7 +61,7 @@ export const telemetryLogId = 'telemetry';
 export const TelemetryLogGroup: LoggerGroup = { id: telemetryLogId, name: localize('telemetryLogName', "Telemetry") };
 
 export interface ITelemetryAppender {
-	log(eventName: string, data: any): void;
+	log(eventName: string, data: ITelemetryData): void;
 	flush(): Promise<void>;
 }
 
@@ -165,12 +166,12 @@ export interface Measurements {
 	[key: string]: number;
 }
 
-export function validateTelemetryData(data?: any): { properties: Properties; measurements: Measurements } {
+export function validateTelemetryData(data?: unknown): { properties: Properties; measurements: Measurements } {
 
 	const properties: Properties = {};
 	const measurements: Measurements = {};
 
-	const flat: Record<string, any> = {};
+	const flat: Record<string, unknown> = {};
 	flatten(data, flat);
 
 	for (let prop in flat) {
@@ -193,7 +194,7 @@ export function validateTelemetryData(data?: any): { properties: Properties; mea
 			properties[prop] = value.substring(0, 8191);
 
 		} else if (typeof value !== 'undefined' && value !== null) {
-			properties[prop] = value;
+			properties[prop] = String(value);
 		}
 	}
 
@@ -203,23 +204,39 @@ export function validateTelemetryData(data?: any): { properties: Properties; mea
 	};
 }
 
-const telemetryAllowedAuthorities = new Set(['ssh-remote', 'dev-container', 'attached-container', 'wsl', 'tunnel', 'codespaces', 'amlext']);
+interface IRemoteAuthoringConfig {
+	remoteExtensionTips?: { readonly [remoteName: string]: unknown };
+	virtualWorkspaceExtensionTips?: { readonly [remoteName: string]: unknown };
+}
 
-export function cleanRemoteAuthority(remoteAuthority?: string): string {
+export function cleanRemoteAuthority(remoteAuthority: string | undefined, config: IRemoteAuthoringConfig): string {
 	if (!remoteAuthority) {
 		return 'none';
 	}
+
 	const remoteName = getRemoteName(remoteAuthority);
-	return telemetryAllowedAuthorities.has(remoteName) ? remoteName : 'other';
+
+	const set1 = config?.remoteExtensionTips;
+	if (set1 && Object.prototype.hasOwnProperty.call(set1, remoteName)) {
+		return remoteName;
+	}
+
+	const set2 = config?.virtualWorkspaceExtensionTips;
+	if (set2 && Object.prototype.hasOwnProperty.call(set2, remoteName)) {
+		return remoteName;
+	}
+
+	return 'other';
 }
 
-function flatten(obj: any, result: { [key: string]: any }, order: number = 0, prefix?: string): void {
-	if (!obj) {
+function flatten(obj: unknown, result: Record<string, unknown>, order: number = 0, prefix?: string): void {
+	if (!obj || (typeof obj !== 'object' && typeof obj !== 'function')) {
 		return;
 	}
 
-	for (const item of Object.getOwnPropertyNames(obj)) {
-		const value = obj[item];
+	const source = obj as Record<string, unknown>;
+	for (const item of Object.getOwnPropertyNames(source)) {
+		const value = source[item];
 		const index = prefix ? prefix + item : item;
 
 		if (Array.isArray(value)) {
@@ -293,8 +310,14 @@ function anonymizeFilePaths(stack: string, cleanupPatterns: RegExp[]): string {
 		}
 	}
 
-	const nodeModulesRegex = /^[\\\/]?(node_modules|node_modules\.asar)[\\\/]/;
-	const fileRegex = /(file:\/\/)?([a-zA-Z]:(\\\\|\\|\/)|(\\\\|\\|\/))?([\w-\._]+(\\\\|\\|\/))+[\w-\._]*/g;
+	// Match node_modules or node_modules.asar at any position in the path, capturing the node_modules/... suffix
+	const nodeModulesRegex = /(?:^|[\\\/])((node_modules|node_modules\.asar)[\\\/].*)$/;
+	// Match VS Code extension paths:
+	// 1. User extensions: .vscode/extensions/, .vscode-insiders/extensions/, .vscode-server/extensions/, .vscode-server-insiders/extensions/, etc.
+	// 2. Built-in extensions: resources/app/extensions/
+	// Capture everything from the vscode folder or resources/app/extensions onwards
+	const vscodeExtensionsPathRegex = /^(.*?)((?:\.vscode(?:-[a-z]+)*|resources[\\\/]app)[\\\/]extensions[\\\/].*)$/i;
+	const fileRegex = /(file:\/\/)?([a-zA-Z]:(\\\\|\\|\/)|(\\\\|\\|\/))?([\w\-\._@]+(\\\\|\\|\/))+[\w\-\._@]*/g;
 	let lastIndex = 0;
 	updatedStack = '';
 
@@ -308,8 +331,21 @@ function anonymizeFilePaths(stack: string, cleanupPatterns: RegExp[]): string {
 		const overlappingRange = cleanUpIndexes.some(([start, end]) => result.index < end && start < fileRegex.lastIndex);
 
 		// anoynimize user file paths that do not need to be retained or cleaned up.
-		if (!nodeModulesRegex.test(result[0]) && !overlappingRange) {
-			updatedStack += stack.substring(lastIndex, result.index) + '<REDACTED: user-file-path>';
+		if (!overlappingRange) {
+			// Check if this is a VS Code extension path - if so, preserve the .vscode*/extensions/... portion
+			const vscodeExtMatch = vscodeExtensionsPathRegex.exec(result[0]);
+			if (vscodeExtMatch) {
+				// Keep ".vscode[-variant]/extensions/extension-name/..." but redact the parent folder
+				updatedStack += stack.substring(lastIndex, result.index) + '<REDACTED: user-file-path>/' + vscodeExtMatch[2];
+			} else {
+				// Check if node_modules appears in the path — preserve node_modules/... suffix
+				const nodeModulesMatch = nodeModulesRegex.exec(result[0]);
+				if (nodeModulesMatch) {
+					updatedStack += stack.substring(lastIndex, result.index) + '<REDACTED: user-file-path>/' + nodeModulesMatch[1];
+				} else {
+					updatedStack += stack.substring(lastIndex, result.index) + '<REDACTED: user-file-path>';
+				}
+			}
 			lastIndex = fileRegex.lastIndex;
 		}
 	}
@@ -332,7 +368,9 @@ function removePropertiesWithPossibleUserInfo(property: string): string {
 	}
 
 	const userDataRegexes = [
+		{ label: 'URL', regex: /[a-zA-Z][a-zA-Z0-9+.-]*:\/\/[^\s]*/ },
 		{ label: 'Google API Key', regex: /AIza[A-Za-z0-9_\\\-]{35}/ },
+		{ label: 'JWT', regex: /eyJ[0eXAiOiJKV1Qi|hbGci|a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+\.[a-zA-Z0-9\-_]+/ },
 		{ label: 'Slack Token', regex: /xox[pbar]\-[A-Za-z0-9]/ },
 		{ label: 'GitHub Token', regex: /(gh[psuro]_[a-zA-Z0-9]{36}|github_pat_[a-zA-Z0-9]{22}_[a-zA-Z0-9]{59})/ },
 		{ label: 'Generic Secret', regex: /(key|token|sig|secret|signature|password|passwd|pwd|android:value)[^a-zA-Z0-9]/i },
@@ -358,7 +396,10 @@ function removePropertiesWithPossibleUserInfo(property: string): string {
  * @param paths Any additional patterns that should be removed from the data set
  * @returns A new object with the PII removed
  */
-export function cleanData(data: Record<string, any>, cleanUpPatterns: RegExp[]): Record<string, any> {
+export function cleanData(data: ITelemetryData | undefined, cleanUpPatterns: RegExp[]): Record<string, unknown> {
+	if (!data) {
+		return {};
+	}
 	return cloneAndChange(data, value => {
 
 		// If it's a trusted value it means it's okay to skip cleaning so we don't clean it

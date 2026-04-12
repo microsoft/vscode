@@ -36,10 +36,10 @@ export class VSCodeTelemetryReporter implements TelemetryReporter {
 		reporter.postEventObj(eventName, properties);
 	}
 
-	public logTraceEvent(point: string, id: string, data?: string): void {
-		const event: { point: string; id: string; data?: string | undefined } = {
+	public logTraceEvent(point: string, traceId: string, data?: string): void {
+		const event: { point: string; traceId: string; data?: string | undefined } = {
 			point,
-			id
+			traceId
 		};
 		if (data) {
 			event.data = data;
@@ -52,7 +52,7 @@ export class VSCodeTelemetryReporter implements TelemetryReporter {
 					"${TypeScriptCommonProperties}"
 				],
 				"point" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The trace point." },
-				"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The traceId is used to correlate the request with other trace points." },
+				"traceId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The traceId is used to correlate the request with other trace points." },
 				"data": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Additional data" }
 			}
 		*/

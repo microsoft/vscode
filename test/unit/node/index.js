@@ -57,10 +57,11 @@ Options:
 const TEST_GLOB = '**/test/**/*.test.js';
 
 const excludeGlobs = [
-	'**/{browser,electron-sandbox,electron-main,electron-utility}/**/*.test.js',
+	'**/{browser,electron-browser,electron-main,electron-utility}/**/*.test.js',
 	'**/vs/platform/environment/test/node/nativeModules.test.js', // native modules are compiled against Electron and this test would fail with node.js
 	'**/vs/base/parts/storage/test/node/storage.test.js', // same as above, due to direct dependency to sqlite native module
-	'**/vs/workbench/contrib/testing/test/**' // flaky (https://github.com/microsoft/vscode/issues/137853)
+	'**/vs/workbench/contrib/testing/test/**', // flaky (https://github.com/microsoft/vscode/issues/137853)
+	'**/vs/sessions/test/web.test.js', // web-only E2E test that imports CSS — cannot run in Node
 ];
 
 const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
@@ -104,7 +105,7 @@ function main() {
 		__mkdirPInTests: (/** @type {string} */ path) => fs.promises.mkdir(path, { recursive: true }),
 	});
 
-	process.on('uncaughtException', function (e) {
+	process.on('uncaughtException', function(e) {
 		console.error(e.stack || e);
 	});
 
@@ -113,7 +114,7 @@ function main() {
 	 * @param onLoad
 	 * @param onError
 	 */
-	const loader = function (modules, onLoad, onError) {
+	const loader = function(modules, onLoad, onError) {
 		const loads = modules.map(mod => import(`${baseUrl}/${mod}.js`).catch(err => {
 			console.error(`FAILED to load ${mod} as ${baseUrl}/${mod}.js`);
 			throw err;
@@ -124,7 +125,7 @@ function main() {
 
 	let didErr = false;
 	const write = process.stderr.write;
-	process.stderr.write = function (...args) {
+	process.stderr.write = function(...args) {
 		didErr = didErr || !!args[0];
 		return write.apply(process.stderr, args);
 	};
@@ -162,11 +163,11 @@ function main() {
 				loadModules(modulesToLoad).then(() => cb(null), cb);
 			};
 
-			glob(args.runGlob, { cwd: src }, function (err, files) { doRun(files); });
+			glob(args.runGlob, { cwd: src }, function(err, files) { doRun(files); });
 		};
 	} else if (args.run) {
 		const tests = (typeof args.run === 'string') ? [args.run] : args.run;
-		const modulesToLoad = tests.map(function (test) {
+		const modulesToLoad = tests.map(function(test) {
 			test = test.replace(/^src/, 'out');
 			test = test.replace(/\.ts$/, '.js');
 			return path.relative(src, path.resolve(test)).replace(/(\.js)|(\.js\.map)$/, '').replace(/\\/g, '/');
@@ -176,7 +177,7 @@ function main() {
 		};
 	} else {
 		loadFunc = (cb) => {
-			glob(TEST_GLOB, { cwd: src }, function (err, files) {
+			glob(TEST_GLOB, { cwd: src }, function(err, files) {
 				/** @type {string[]} */
 				const modules = [];
 				for (const file of files) {
@@ -189,7 +190,7 @@ function main() {
 		};
 	}
 
-	loadFunc(function (err) {
+	loadFunc(function(err) {
 		if (err) {
 			console.error(err);
 			return process.exit(1);
@@ -199,8 +200,8 @@ function main() {
 
 		if (!args.run && !args.runGlob) {
 			// set up last test
-			Mocha.suite('Loader', function () {
-				test('should not explode while loading', function () {
+			Mocha.suite('Loader', function() {
+				test('should not explode while loading', function() {
 					assert.ok(!didErr, `should not explode while loading: ${didErr}`);
 				});
 			});
@@ -208,10 +209,10 @@ function main() {
 
 		// report failing test for every unexpected error during any of the tests
 		const unexpectedErrors = [];
-		Mocha.suite('Errors', function () {
-			test('should not have unexpected errors in tests', function () {
+		Mocha.suite('Errors', function() {
+			test('should not have unexpected errors in tests', function() {
 				if (unexpectedErrors.length) {
-					unexpectedErrors.forEach(function (stack) {
+					unexpectedErrors.forEach(function(stack) {
 						console.error('');
 						console.error(stack);
 					});
@@ -223,7 +224,7 @@ function main() {
 
 		// replace the default unexpected error handler to be useful during tests
 		import(`${baseUrl}/vs/base/common/errors.js`).then(errors => {
-			errors.setUnexpectedErrorHandler(function (err) {
+			errors.setUnexpectedErrorHandler(function(err) {
 				const stack = (err && err.stack) || (new Error().stack);
 				unexpectedErrors.push((err && err.message ? err.message : err) + '\n' + stack);
 			});

@@ -4,9 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { equals } from '../../../base/common/arrays.js';
+import { Event } from '../../../base/common/event.js';
 import { IDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { IUriIdentityService } from '../../uriIdentity/common/uriIdentity.js';
+import { IRectangle } from '../../window/common/window.js';
 
 export interface IResolvableEditorModel extends IDisposable {
 
@@ -300,12 +302,113 @@ export interface IEditorOptions {
 	transient?: boolean;
 
 	/**
-	 * A hint that the editor should have compact chrome when showing if possible.
-	 *
-	 * Note: this currently is only working if AUX_GROUP is specified as target to
-	 * open the editor in a floating window.
+	 * Options that only apply when `AUX_WINDOW_GROUP` is used for opening.
 	 */
-	compact?: boolean;
+	auxiliary?: {
+
+		/**
+		 * Define the bounds of the editor window.
+		 */
+		bounds?: Partial<IRectangle>;
+
+		/**
+		 * Show editor compact, hiding unnecessary elements.
+		 */
+		compact?: boolean;
+
+		/**
+		 * Show the editor always on top of other windows.
+		 */
+		alwaysOnTop?: boolean;
+	};
+
+	/**
+	 * Options that only apply when `MODAL_GROUP` is used for opening.
+	 */
+	modal?: IModalEditorPartOptions;
+}
+
+export interface IModalEditorPartOptions {
+
+	/**
+	 * Whether the modal editor should be maximized.
+	 */
+	readonly maximized?: boolean;
+
+	/**
+	 * Size of the modal editor part unless it is maximized.
+	 */
+	readonly size?: { readonly width: number; readonly height: number };
+
+	/**
+	 * Position of the modal editor part unless it is maximized.
+	 */
+	readonly position?: { readonly left: number; readonly top: number };
+
+	/**
+	 * The navigation context for navigating between items
+	 * within this modal editor. Pass `undefined` to clear.
+	 */
+	readonly navigation?: IModalEditorNavigation;
+
+	/**
+	 * Optional sidebar content to render on the left side of the
+	 * modal editor. The caller provides a render callback that
+	 * receives a container element and a layout callback, and
+	 * returns a disposable to clean up when the modal closes.
+	 *
+	 * Note: the sidebar will only be shown when provided during
+	 * opening and cannot currently be added, removed, or updated
+	 * after the modal editor is opened.
+	 */
+	readonly sidebar?: IModalEditorSidebar;
+}
+
+/**
+ * Modal sidebar supports rendering custom content in a sidebar next to the main editor content.
+ */
+export interface IModalEditorSidebar {
+
+	/**
+	 * Sidebar width set by the user via resizing, if any.
+	 */
+	readonly sidebarWidth?: number;
+
+	/**
+	 * Whether the sidebar is hidden.
+	 */
+	readonly sidebarHidden?: boolean;
+
+	/**
+	 * Render the sidebar content into the given container.
+	 *
+	 * @param container The DOM element to render into.
+	 * @param onDidLayout An event that fires when the sidebar is
+	 * 		laid out with the available dimensions.
+	 * @returns A disposable to clean up when the modal closes.
+	 */
+	readonly render: (container: unknown /* HTMLElement */, onDidLayout: Event<{ readonly height: number; readonly width: number }>) => IDisposable;
+}
+
+/**
+ * Context for navigating between items within a modal editor.
+ */
+export interface IModalEditorNavigation {
+
+	/**
+	 * Total number of items in the navigation list.
+	 */
+	readonly total: number;
+
+	/**
+	 * Current 0-based index in the navigation list.
+	 */
+	readonly current: number;
+
+	/**
+	 * Navigate to the item at the given 0-based index.
+	 */
+	readonly navigate: (index: number) => void;
 }
 
 export interface ITextEditorSelection {

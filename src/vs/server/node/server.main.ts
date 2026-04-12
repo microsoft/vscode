@@ -17,7 +17,7 @@ import product from '../../platform/product/common/product.js';
 import * as perf from '../../base/common/performance.js';
 
 perf.mark('code/server/codeLoaded');
-(<any>global).vscodeServerCodeLoadedTime = performance.now();
+(global as unknown as { vscodeServerCodeLoadedTime?: number }).vscodeServerCodeLoadedTime = performance.now();
 
 const errorReporter: ErrorReporter = {
 	onMultipleValues: (id: string, usedValue: string) => {
@@ -51,7 +51,7 @@ args['extensions-dir'] = args['extensions-dir'] || join(REMOTE_DATA_FOLDER, 'ext
 [REMOTE_DATA_FOLDER, args['extensions-dir'], USER_DATA_PATH, APP_SETTINGS_HOME, MACHINE_SETTINGS_HOME, GLOBAL_STORAGE_HOME, LOCAL_HISTORY_HOME].forEach(f => {
 	try {
 		if (!fs.existsSync(f)) {
-			fs.mkdirSync(f, { mode: 0o700 });
+			fs.mkdirSync(f, { mode: 0o700, recursive: true });
 		}
 	} catch (err) { console.error(err); }
 });

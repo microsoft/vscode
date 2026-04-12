@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
 import { URI } from '../../../base/common/uri.js';
 import { MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, SaveDialogOptions, SaveDialogReturnValue } from '../../../base/parts/sandbox/common/electronTypes.js';
@@ -15,6 +14,24 @@ import { IV8Profile } from '../../profiling/common/profiling.js';
 import { AuthInfo, Credentials } from '../../request/common/request.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
 import { IColorScheme, IOpenedAuxiliaryWindow, IOpenedMainWindow, IOpenEmptyWindowOptions, IOpenWindowOptions, IPoint, IRectangle, IWindowOpenable } from '../../window/common/window.js';
+
+export interface IToastOptions {
+	readonly id: string;
+
+	readonly title: string;
+	readonly body?: string;
+
+	readonly actions?: readonly string[];
+
+	readonly silent?: boolean;
+}
+
+export interface IToastResult {
+	readonly supported: boolean;
+
+	readonly clicked: boolean;
+	readonly actionIndex?: number;
+}
 
 export interface ICPUProperties {
 	model: string;
@@ -39,10 +56,26 @@ export interface INativeHostOptions {
 	readonly targetWindowId?: number;
 }
 
-export interface IElementData {
-	readonly outerHTML: string;
-	readonly computedStyle: string;
-	readonly bounds: IRectangle;
+export const enum FocusMode {
+
+	/**
+	 * (Default) Transfer focus to the target window
+	 * when the editor is focused.
+	 */
+	Transfer,
+
+	/**
+	 * Transfer focus to the target window when the
+	 * editor is focused, otherwise notify the user that
+	 * the app has activity (macOS/Windows only).
+	 */
+	Notify,
+
+	/**
+	 * Force the window to be focused, even if the editor
+	 * is not currently focused.
+	 */
+	Force,
 }
 
 export interface ICommonNativeHostService {
@@ -69,7 +102,15 @@ export interface ICommonNativeHostService {
 
 	readonly onDidChangeDisplay: Event<void>;
 
+	readonly onDidSuspendOS: Event<void>;
 	readonly onDidResumeOS: Event<unknown>;
+
+	readonly onDidChangeOnBatteryPower: Event<boolean>;
+	readonly onDidChangeThermalState: Event<ThermalState>;
+	readonly onDidChangeSpeedLimit: Event<number>;
+	readonly onWillShutdownOS: Event<void>;
+	readonly onDidLockScreen: Event<void>;
+	readonly onDidUnlockScreen: Event<void>;
 
 	readonly onDidChangeColorScheme: Event<IColorScheme>;
 
@@ -88,6 +129,8 @@ export interface ICommonNativeHostService {
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
 
+	openAgentsWindow(): Promise<void>;
+
 	isFullScreen(options?: INativeHostOptions): Promise<boolean>;
 	toggleFullScreen(options?: INativeHostOptions): Promise<void>;
 
@@ -104,26 +147,22 @@ export interface ICommonNativeHostService {
 	toggleWindowAlwaysOnTop(options?: INativeHostOptions): Promise<void>;
 	setWindowAlwaysOnTop(alwaysOnTop: boolean, options?: INativeHostOptions): Promise<void>;
 
-	/**
-	 * Only supported on Windows and macOS. Updates the window controls to match the title bar size.
-	 *
-	 * @param options `backgroundColor` and `foregroundColor` are only supported on Windows
-	 */
-	updateWindowControls(options: INativeHostOptions & { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void>;
+	updateWindowControls(options: INativeHostOptions & { height?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): Promise<void>;
+
+	updateWindowAccentColor(color: 'default' | 'off' | string, inactiveColor: string | undefined): Promise<void>;
 
 	setMinimumSize(width: number | undefined, height: number | undefined): Promise<void>;
 
 	saveWindowSplash(splash: IPartsSplash): Promise<void>;
 
+	setBackgroundThrottling(allowed: boolean): Promise<void>;
+
 	/**
 	 * Make the window focused.
-	 *
-	 * @param options Pass `force: true` if you want to make the window take
-	 * focus even if the application does not have focus currently. This option
-	 * should only be used if it is necessary to steal focus from the current
-	 * focused application which may not be VSCode.
+	 * @param options specify the specific window to focus and the focus mode.
+	 * Defaults to {@link FocusMode.Transfer}.
 	 */
-	focusWindow(options?: INativeHostOptions & { force?: boolean }): Promise<void>;
+	focusWindow(options?: INativeHostOptions & { mode?: FocusMode }): Promise<void>;
 
 	// Dialogs
 	showMessageBox(options: MessageBoxOptions & INativeHostOptions): Promise<MessageBoxReturnValue>;
@@ -156,7 +195,6 @@ export interface ICommonNativeHostService {
 
 	// Screenshots
 	getScreenshot(rect?: IRectangle): Promise<VSBuffer | undefined>;
-	getElementData(offsetX: number, offsetY: number, token: CancellationToken, cancellationId?: number): Promise<IElementData | undefined>;
 
 	// Process
 	getProcessId(): Promise<number | undefined>;
@@ -198,20 +236,63 @@ export interface ICommonNativeHostService {
 	openDevTools(options?: Partial<OpenDevToolsOptions> & INativeHostOptions): Promise<void>;
 	toggleDevTools(options?: INativeHostOptions): Promise<void>;
 	openGPUInfoWindow(): Promise<void>;
+	openDevToolsWindow(url: string): Promise<void>;
+	openContentTracingWindow(): Promise<void>;
+	stopTracing(): Promise<void>;
 
 	// Perf Introspection
 	profileRenderer(session: string, duration: number): Promise<IV8Profile>;
+	startTracing(categories: string): Promise<void>;
 
 	// Connectivity
 	resolveProxy(url: string): Promise<string | undefined>;
 	lookupAuthorization(authInfo: AuthInfo): Promise<Credentials | undefined>;
 	lookupKerberosAuthorization(url: string): Promise<string | undefined>;
 	loadCertificates(): Promise<string[]>;
+	isPortFree(port: number): Promise<boolean>;
 	findFreePort(startPort: number, giveUpAfter: number, timeout: number, stride?: number): Promise<number>;
 
 	// Registry (Windows only)
 	windowsGetStringRegKey(hive: 'HKEY_CURRENT_USER' | 'HKEY_LOCAL_MACHINE' | 'HKEY_CLASSES_ROOT' | 'HKEY_USERS' | 'HKEY_CURRENT_CONFIG', path: string, name: string): Promise<string | undefined>;
+
+	// Toast Notifications
+	showToast(options: IToastOptions): Promise<IToastResult>;
+	clearToast(id: string): Promise<void>;
+	clearToasts(): Promise<void>;
+
+	// Zip
+	/**
+	 * Creates a zip file at the specified path containing the provided files.
+	 *
+	 * @param zipPath The URI where the zip file should be created.
+	 * @param files An array of file entries to include in the zip, each with a relative path and string contents.
+	 */
+	createZipFile(zipPath: URI, files: { path: string; contents: string }[]): Promise<void>;
+
+	// Power
+	getSystemIdleState(idleThreshold: number): Promise<SystemIdleState>;
+	getSystemIdleTime(): Promise<number>;
+	getCurrentThermalState(): Promise<ThermalState>;
+	isOnBatteryPower(): Promise<boolean>;
+	startPowerSaveBlocker(type: PowerSaveBlockerType): Promise<number>;
+	stopPowerSaveBlocker(id: number): Promise<boolean>;
+	isPowerSaveBlockerStarted(id: number): Promise<boolean>;
 }
+
+/**
+ * Represents the system's idle state.
+ */
+export type SystemIdleState = 'active' | 'idle' | 'locked' | 'unknown';
+
+/**
+ * Represents the system's thermal state.
+ */
+export type ThermalState = 'unknown' | 'nominal' | 'fair' | 'serious' | 'critical';
+
+/**
+ * The type of power save blocker.
+ */
+export type PowerSaveBlockerType = 'prevent-app-suspension' | 'prevent-display-sleep';
 
 export const INativeHostService = createDecorator<INativeHostService>('nativeHostService');
 

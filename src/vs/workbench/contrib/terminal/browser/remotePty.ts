@@ -4,10 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Barrier } from '../../../../base/common/async.js';
-import { IProcessPropertyMap, ITerminalChildProcess, ITerminalLaunchError, ITerminalLogService, ProcessPropertyType } from '../../../../platform/terminal/common/terminal.js';
+import { ITerminalLaunchResult, IProcessPropertyMap, ITerminalChildProcess, ITerminalLaunchError, ITerminalLogService, ProcessPropertyType } from '../../../../platform/terminal/common/terminal.js';
 import { BasePty } from '../common/basePty.js';
 import { RemoteTerminalChannelClient } from '../common/remote/remoteTerminalChannel.js';
 import { IRemoteAgentService } from '../../../services/remote/common/remoteAgentService.js';
+import { hasKey } from '../../../../base/common/types.js';
 
 export class RemotePty extends BasePty implements ITerminalChildProcess {
 	private readonly _startBarrier: Barrier;
@@ -23,7 +24,7 @@ export class RemotePty extends BasePty implements ITerminalChildProcess {
 		this._startBarrier = new Barrier();
 	}
 
-	async start(): Promise<ITerminalLaunchError | { injectedArgs: string[] } | undefined> {
+	async start(): Promise<ITerminalLaunchError | ITerminalLaunchResult | undefined> {
 		// Fetch the environment to check shell permissions
 		const env = await this._remoteAgentService.getEnvironment();
 		if (!env) {
@@ -35,7 +36,7 @@ export class RemotePty extends BasePty implements ITerminalChildProcess {
 
 		const startResult = await this._remoteTerminalChannel.start(this.id);
 
-		if (startResult && 'message' in startResult) {
+		if (startResult && hasKey(startResult, { message: true })) {
 			// An error occurred
 			return startResult;
 		}
@@ -65,18 +66,28 @@ export class RemotePty extends BasePty implements ITerminalChildProcess {
 		});
 	}
 
+	sendSignal(signal: string): void {
+		if (this._inReplay) {
+			return;
+		}
+
+		this._startBarrier.wait().then(_ => {
+			this._remoteTerminalChannel.sendSignal(this.id, signal);
+		});
+	}
+
 	processBinary(e: string): Promise<void> {
 		return this._remoteTerminalChannel.processBinary(this.id, e);
 	}
 
-	resize(cols: number, rows: number): void {
+	resize(cols: number, rows: number, pixelWidth?: number, pixelHeight?: number): void {
 		if (this._inReplay || this._lastDimensions.cols === cols && this._lastDimensions.rows === rows) {
 			return;
 		}
 		this._startBarrier.wait().then(_ => {
 			this._lastDimensions.cols = cols;
 			this._lastDimensions.rows = rows;
-			this._remoteTerminalChannel.resize(this.id, cols, rows);
+			this._remoteTerminalChannel.resize(this.id, cols, rows, pixelWidth, pixelHeight);
 		});
 	}
 

@@ -286,7 +286,7 @@ suite('Inline Completions', () => {
 					assert.deepStrictEqual(context.getAndClearViewStates(), ['', 'foo[bar]']);
 
 					context.keyboardType('b');
-					assert.deepStrictEqual(context.getAndClearViewStates(), (["foob[ar]"]));
+					assert.deepStrictEqual(context.getAndClearViewStates(), (['foob[ar]']));
 					await timeout(1000);
 					assert.deepStrictEqual(provider.getAndClearCallHistory(), [
 						{ position: '(1,5)', text: 'foob', triggerKind: 0, }
@@ -294,7 +294,7 @@ suite('Inline Completions', () => {
 					assert.deepStrictEqual(context.getAndClearViewStates(), []);
 
 					context.keyboardType('a');
-					assert.deepStrictEqual(context.getAndClearViewStates(), (["fooba[r]"]));
+					assert.deepStrictEqual(context.getAndClearViewStates(), (['fooba[r]']));
 					await timeout(1000);
 					assert.deepStrictEqual(provider.getAndClearCallHistory(), [
 						{ position: '(1,6)', text: 'fooba', triggerKind: 0, }
@@ -310,8 +310,8 @@ suite('Inline Completions', () => {
 			context.keyboardType('f');
 			model.triggerExplicitly();
 			await timeout(10000);
-			assert.deepStrictEqual(provider.getAndClearCallHistory(), ([{ position: "(1,2)", triggerKind: 1, text: "f" }]));
-			assert.deepStrictEqual(context.getAndClearViewStates(), (["f[oo bar]"]));
+			assert.deepStrictEqual(provider.getAndClearCallHistory(), ([{ position: '(1,2)', triggerKind: 1, text: 'f' }]));
+			assert.deepStrictEqual(context.getAndClearViewStates(), (['f[oo bar]']));
 
 			provider.setReturnValue({ insertText: 'foo baz' });
 			await timeout(10000);
@@ -340,6 +340,7 @@ suite('Inline Completions', () => {
 
 		test('when accepting word by word', async function () {
 			// The user types the text as suggested and the provider reports a different suggestion.
+			// Even when triggering explicitly, we want to keep the suggestion.
 
 			const provider = new MockInlineCompletionsProvider();
 			await withAsyncTestCodeEditorAndInlineCompletionsModel('',
@@ -348,15 +349,15 @@ suite('Inline Completions', () => {
 					await setupScenario(ctx, provider);
 
 					await ctx.model.acceptNextWord();
-					assert.deepStrictEqual(ctx.context.getAndClearViewStates(), (["foo[ bar]"]));
+					assert.deepStrictEqual(ctx.context.getAndClearViewStates(), (['foo[ bar]']));
 
 					await timeout(10000);
-					assert.deepStrictEqual(provider.getAndClearCallHistory(), ([{ position: "(1,4)", triggerKind: 0, text: "foo" }]));
+					assert.deepStrictEqual(provider.getAndClearCallHistory(), ([{ position: '(1,4)', triggerKind: 0, text: 'foo' }]));
 					assert.deepStrictEqual(ctx.context.getAndClearViewStates(), ([]));
 
 					await ctx.model.triggerExplicitly(); // reset to provider truth
 					await timeout(10000);
-					assert.deepStrictEqual(ctx.context.getAndClearViewStates(), (["foo[ baz]"]));
+					assert.deepStrictEqual(ctx.context.getAndClearViewStates(), ([]));
 				}
 			);
 		});
@@ -371,21 +372,21 @@ suite('Inline Completions', () => {
 					await setupScenario(ctx, provider);
 
 					await ctx.model.acceptNextWord();
-					assert.deepStrictEqual(ctx.context.getAndClearViewStates(), (["foo[ bar]"]));
+					assert.deepStrictEqual(ctx.context.getAndClearViewStates(), (['foo[ bar]']));
 
 					await timeout(10000);
 					assert.deepStrictEqual(ctx.context.getAndClearViewStates(), ([]));
-					assert.deepStrictEqual(provider.getAndClearCallHistory(), ([{ position: "(1,4)", triggerKind: 0, text: "foo" }]));
+					assert.deepStrictEqual(provider.getAndClearCallHistory(), ([{ position: '(1,4)', triggerKind: 0, text: 'foo' }]));
 
 					await ctx.editor.getModel().undo();
 					await timeout(10000);
-					assert.deepStrictEqual(ctx.context.getAndClearViewStates(), (["f[oo bar]"]));
-					assert.deepStrictEqual(provider.getAndClearCallHistory(), ([{ position: "(1,2)", triggerKind: 0, text: "f" }]));
+					assert.deepStrictEqual(ctx.context.getAndClearViewStates(), (['f[oo bar]']));
+					assert.deepStrictEqual(provider.getAndClearCallHistory(), ([{ position: '(1,2)', triggerKind: 0, text: 'f' }]));
 
 					await ctx.editor.getModel().redo();
 					await timeout(10000);
-					assert.deepStrictEqual(ctx.context.getAndClearViewStates(), (["foo[ bar]"]));
-					assert.deepStrictEqual(provider.getAndClearCallHistory(), ([{ position: "(1,4)", triggerKind: 0, text: "foo" }]));
+					assert.deepStrictEqual(ctx.context.getAndClearViewStates(), (['foo[ bar]']));
+					assert.deepStrictEqual(provider.getAndClearCallHistory(), ([{ position: '(1,4)', triggerKind: 0, text: 'foo' }]));
 				}
 			);
 		});
@@ -417,6 +418,48 @@ suite('Inline Completions', () => {
 						'foob[ar]',
 						'foob[az]'
 					]);
+				}
+			);
+		});
+
+		test('Push item to preserve to front', async function () {
+			const provider = new MockInlineCompletionsProvider(true);
+			await withAsyncTestCodeEditorAndInlineCompletionsModel('',
+				{ fakeClock: true, provider },
+				async ({ editor, editorViewModel, model, context }) => {
+					provider.setReturnValue({ insertText: 'foobar', range: new Range(1, 1, 1, 4) });
+					context.keyboardType('foo');
+					await timeout(1000);
+
+					assert.deepStrictEqual(provider.getAndClearCallHistory(), ([
+						{
+							position: '(1,4)',
+							triggerKind: 0,
+							text: 'foo'
+						}
+					]));
+					assert.deepStrictEqual(context.getAndClearViewStates(),
+						([
+							'',
+							'foo[bar]'
+						])
+					);
+
+					provider.setReturnValues([{ insertText: 'foobar1', range: new Range(1, 1, 1, 4) }, { insertText: 'foobar', range: new Range(1, 1, 1, 4) }]);
+
+					await model.triggerExplicitly();
+					await timeout(1000);
+
+					assert.deepStrictEqual(provider.getAndClearCallHistory(), ([
+						{
+							position: '(1,4)',
+							triggerKind: 1,
+							text: 'foo'
+						}
+					]));
+					assert.deepStrictEqual(context.getAndClearViewStates(),
+						([])
+					);
 				}
 			);
 		});
@@ -513,7 +556,7 @@ suite('Inline Completions', () => {
 
 				model.accept(editor);
 
-				assert.deepStrictEqual(provider.getAndClearCallHistory(), ([{ position: "(2,4)", triggerKind: 1, text: "buzz\nbaz" }]));
+				assert.deepStrictEqual(provider.getAndClearCallHistory(), ([{ position: '(2,4)', triggerKind: 1, text: 'buzz\nbaz' }]));
 
 				assert.deepStrictEqual(context.getAndClearViewStates(), [
 					'',
@@ -578,7 +621,7 @@ suite('Multi Cursor Support', () => {
 					editor.getValue(),
 					[
 						`console.log("hello");`,
-						`console.log("hello");`,
+						`console.log`,
 						``
 					].join('\n')
 				);
@@ -607,7 +650,7 @@ suite('Multi Cursor Support', () => {
 					editor.getValue(),
 					[
 						`console.log("hello");`,
-						`console.warn("hello");`,
+						`console.warn`,
 						``
 					].join('\n')
 				);
@@ -678,7 +721,7 @@ suite('Multi Cursor Support', () => {
 					editor.getValue(),
 					[
 						`for (let i)`,
-						`for (let i`,
+						`for `,
 						``
 					].join('\n')
 				);
@@ -711,9 +754,85 @@ suite('Multi Cursor Support', () => {
 					editor.getValue(),
 					[
 						`console.log("hello" + )`,
-						`console.warnnnn("hello" + `,
+						`console.warnnnn`,
 						``
 					].join('\n')
+				);
+			}
+		);
+	});
+
+	test('Change hint is passed from onDidChange to provideInlineCompletions', async function () {
+		const provider = new MockInlineCompletionsProvider();
+		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
+			{ fakeClock: true, provider, inlineSuggest: { enabled: true } },
+			async ({ editor, editorViewModel, model, context }) => {
+				context.keyboardType('foo');
+				provider.setReturnValue({ insertText: 'foobar', range: new Range(1, 1, 1, 4) });
+				model.triggerExplicitly();
+				await timeout(1000);
+
+				const firstCallHistory = provider.getAndClearCallHistory();
+				assert.strictEqual(firstCallHistory.length, 1);
+				assert.strictEqual((firstCallHistory[0] as { changeHint?: unknown }).changeHint, undefined);
+
+				// Change cursor position to avoid cache hit
+				editor.setPosition({ lineNumber: 1, column: 3 });
+
+
+				const changeHintData = { reason: 'modelUpdated', version: 42 };
+				provider.setReturnValue({ insertText: 'foobaz', range: new Range(1, 1, 1, 4) });
+				provider.fireOnDidChange({ data: changeHintData });
+				await timeout(1000);
+
+				const secondCallHistory = provider.getAndClearCallHistory();
+
+				assert.deepStrictEqual(
+					secondCallHistory,
+					[{
+						changeHint: {
+							data: {
+								reason: 'modelUpdated',
+								version: 42,
+							}
+						},
+						position: '(1,3)',
+						text: 'foo',
+						triggerKind: 0
+					}]
+				);
+			}
+		);
+	});
+
+	test('Change hint is undefined when onDidChange fires without hint', async function () {
+		const provider = new MockInlineCompletionsProvider();
+		await withAsyncTestCodeEditorAndInlineCompletionsModel('',
+			{ fakeClock: true, provider, inlineSuggest: { enabled: true } },
+			async ({ editor, editorViewModel, model, context }) => {
+				context.keyboardType('foo');
+				provider.setReturnValue({ insertText: 'foobar', range: new Range(1, 1, 1, 4) });
+				model.triggerExplicitly();
+				await timeout(1000);
+
+				provider.getAndClearCallHistory();
+
+				// Change cursor position to avoid cache hit
+				editor.setPosition({ lineNumber: 1, column: 3 });
+
+				provider.setReturnValue({ insertText: 'foobaz', range: new Range(1, 1, 1, 4) });
+				provider.fireOnDidChange();
+				await timeout(1000);
+
+				const callHistory = provider.getAndClearCallHistory();
+
+				assert.deepStrictEqual(
+					callHistory,
+					[{
+						position: '(1,3)',
+						text: 'foo',
+						triggerKind: 0
+					}]
 				);
 			}
 		);

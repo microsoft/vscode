@@ -4,50 +4,54 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { protocol } from 'electron';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { IDisposable } from '../../../base/common/lifecycle.js';
 import { AppResourcePath, COI, FileAccess, Schemas } from '../../../base/common/network.js';
 import { URI } from '../../../base/common/uri.js';
+import { IFileService } from '../../files/common/files.js';
 
 
-export class WebviewProtocolProvider extends Disposable {
+export class WebviewProtocolProvider implements IDisposable {
 
-	private static validWebviewFilePaths = new Map([
-		['/index.html', 'index.html'],
-		['/fake.html', 'fake.html'],
-		['/service-worker.js', 'service-worker.js'],
+	private static validWebviewFilePaths = new Map<string, { readonly mime: string }>([
+		['/index.html', { mime: 'text/html' }],
+		['/fake.html', { mime: 'text/html' }],
+		['/service-worker.js', { mime: 'application/javascript' }],
 	]);
 
-	constructor() {
-		super();
-
+	constructor(
+		@IFileService private readonly _fileService: IFileService
+	) {
 		// Register the protocol for loading webview html
 		const webviewHandler = this.handleWebviewRequest.bind(this);
-		protocol.registerFileProtocol(Schemas.vscodeWebview, webviewHandler);
+		protocol.handle(Schemas.vscodeWebview, webviewHandler);
 	}
 
-	private handleWebviewRequest(
-		request: Electron.ProtocolRequest,
-		callback: (response: string | Electron.ProtocolResponse) => void
-	) {
+	dispose(): void {
+		protocol.unhandle(Schemas.vscodeWebview);
+	}
+
+	private async handleWebviewRequest(request: GlobalRequest): Promise<GlobalResponse> {
 		try {
 			const uri = URI.parse(request.url);
 			const entry = WebviewProtocolProvider.validWebviewFilePaths.get(uri.path);
-			if (typeof entry === 'string') {
-				const relativeResourcePath: AppResourcePath = `vs/workbench/contrib/webview/browser/pre/${entry}`;
+			if (entry) {
+				const relativeResourcePath: AppResourcePath = `vs/workbench/contrib/webview/browser/pre${uri.path}`;
 				const url = FileAccess.asFileUri(relativeResourcePath);
-				return callback({
-					path: url.fsPath,
+
+				const content = await this._fileService.readFile(url);
+				return new Response(content.value.buffer.buffer as ArrayBuffer, {
 					headers: {
+						'Content-Type': entry.mime,
 						...COI.getHeadersFromQuery(request.url),
-						'Cross-Origin-Resource-Policy': 'cross-origin'
+						'Cross-Origin-Resource-Policy': 'cross-origin',
 					}
 				});
 			} else {
-				return callback({ error: -10 /* ACCESS_DENIED - https://cs.chromium.org/chromium/src/net/base/net_error_list.h?l=32 */ });
+				return new Response(null, { status: 403 });
 			}
 		} catch {
 			// noop
 		}
-		return callback({ error: -2 /* FAILED - https://cs.chromium.org/chromium/src/net/base/net_error_list.h?l=32 */ });
+		return new Response(null, { status: 500 });
 	}
 }

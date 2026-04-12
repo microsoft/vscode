@@ -13,8 +13,8 @@ export interface IHistoryNavigationWidget {
 
 	showNextValue(): void;
 
-	onDidFocus: Event<void>;
+	readonly onDidFocus: Event<void>;
 
-	onDidBlur: Event<void>;
+	readonly onDidBlur: Event<void>;
 
 }

@@ -10,7 +10,7 @@ import { Disposable } from '../../../../../base/common/lifecycle.js';
 import { ICodeEditor } from '../../../../browser/editorBrowser.js';
 import { Position } from '../../../../common/core/position.js';
 import { Range } from '../../../../common/core/range.js';
-import { SingleTextEdit } from '../../../../common/core/textEdit.js';
+import { TextReplacement } from '../../../../common/core/edits/textEdit.js';
 import { CompletionItemInsertTextRule, CompletionItemKind, SelectedSuggestionInfo } from '../../../../common/languages.js';
 import { ITextModel } from '../../../../common/model.js';
 import { singleTextEditAugments, singleTextRemoveCommonPrefix } from './singleTextEditHelpers.js';
@@ -20,6 +20,7 @@ import { CompletionItem } from '../../../suggest/browser/suggest.js';
 import { SuggestController } from '../../../suggest/browser/suggestController.js';
 import { ObservableCodeEditor } from '../../../../browser/observableCodeEditor.js';
 import { observableFromEvent } from '../../../../../base/common/observable.js';
+import { EditorOption } from '../../../../common/config/editorOptions.js';
 
 export class SuggestWidgetAdaptor extends Disposable {
 	private isSuggestWidgetVisible: boolean = false;
@@ -34,7 +35,7 @@ export class SuggestWidgetAdaptor extends Disposable {
 
 	constructor(
 		private readonly editor: ICodeEditor,
-		private readonly suggestControllerPreselector: () => SingleTextEdit | undefined,
+		private readonly suggestControllerPreselector: () => TextReplacement | undefined,
 		private readonly onWillAccept: (item: SuggestItemInfo) => void,
 	) {
 		super();
@@ -82,9 +83,9 @@ export class SuggestWidgetAdaptor extends Disposable {
 
 					const result = findFirstMax(
 						candidates,
-						compareBy(s => s!.prefixLength, numberComparator)
+						compareBy(s => s.prefixLength, numberComparator)
 					);
-					return result ? result.index : - 1;
+					return result ? result.index : -1;
 				}
 			}));
 
@@ -149,6 +150,17 @@ export class SuggestWidgetAdaptor extends Disposable {
 			return undefined;
 		}
 
+		// When offWhenInlineCompletions is active, don't expose the selected
+		// suggest item to the inline completions model so that it does not
+		// trigger an inline completion request while the suggest widget is open
+		const quickSuggestions = this.editor.getOption(EditorOption.quickSuggestions);
+		if (typeof quickSuggestions === 'object'
+			&& (quickSuggestions.other === 'offWhenInlineCompletions'
+				|| quickSuggestions.comments === 'offWhenInlineCompletions'
+				|| quickSuggestions.strings === 'offWhenInlineCompletions')) {
+			return undefined;
+		}
+
 		const focusedItem = suggestController.widget.value.getFocusedItem();
 		const position = this.editor.getPosition();
 		const model = this.editor.getModel();
@@ -203,6 +215,7 @@ export class SuggestItemInfo {
 			insertText,
 			item.completion.kind,
 			isSnippetText,
+			item.container.incomplete ?? false,
 		);
 	}
 
@@ -211,6 +224,7 @@ export class SuggestItemInfo {
 		public readonly insertText: string,
 		public readonly completionItemKind: CompletionItemKind,
 		public readonly isSnippetText: boolean,
+		public readonly listIncomplete: boolean,
 	) { }
 
 	public equals(other: SuggestItemInfo): boolean {
@@ -224,8 +238,8 @@ export class SuggestItemInfo {
 		return new SelectedSuggestionInfo(this.range, this.insertText, this.completionItemKind, this.isSnippetText);
 	}
 
-	public getSingleTextEdit(): SingleTextEdit {
-		return new SingleTextEdit(this.range, this.insertText);
+	public getSingleTextEdit(): TextReplacement {
+		return new TextReplacement(this.range, this.insertText);
 	}
 }
 
@@ -240,29 +254,31 @@ function suggestItemInfoEquals(a: SuggestItemInfo | undefined, b: SuggestItemInf
 }
 
 export class ObservableSuggestWidgetAdapter extends Disposable {
-	private readonly _suggestWidgetAdaptor = this._register(new SuggestWidgetAdaptor(
-		this._editorObs.editor,
-		() => {
-			this._editorObs.forceUpdate();
-			return this._suggestControllerPreselector();
-		},
-		(item) => this._editorObs.forceUpdate(_tx => {
-			/** @description InlineCompletionsController.handleSuggestAccepted */
-			this._handleSuggestAccepted(item);
-		})
-	));
+	private readonly _suggestWidgetAdaptor;
 
-	public readonly selectedItem = observableFromEvent(this, cb => this._suggestWidgetAdaptor.onDidSelectedItemChange(() => {
-		this._editorObs.forceUpdate(_tx => cb(undefined));
-	}), () => this._suggestWidgetAdaptor.selectedItem);
+	public readonly selectedItem;
 
 	constructor(
 		private readonly _editorObs: ObservableCodeEditor,
 
 		private readonly _handleSuggestAccepted: (item: SuggestItemInfo) => void,
-		private readonly _suggestControllerPreselector: () => SingleTextEdit | undefined,
+		private readonly _suggestControllerPreselector: () => TextReplacement | undefined,
 	) {
 		super();
+		this._suggestWidgetAdaptor = this._register(new SuggestWidgetAdaptor(
+			this._editorObs.editor,
+			() => {
+				this._editorObs.forceUpdate();
+				return this._suggestControllerPreselector();
+			},
+			(item) => this._editorObs.forceUpdate(_tx => {
+				/** @description InlineCompletionsController.handleSuggestAccepted */
+				this._handleSuggestAccepted(item);
+			})
+		));
+		this.selectedItem = observableFromEvent(this, cb => this._suggestWidgetAdaptor.onDidSelectedItemChange(() => {
+			this._editorObs.forceUpdate(_tx => cb(undefined));
+		}), () => this._suggestWidgetAdaptor.selectedItem);
 	}
 
 	public stopForceRenderingAbove(): void {

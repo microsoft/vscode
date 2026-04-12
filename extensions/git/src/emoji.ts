@@ -24,7 +24,7 @@ export async function ensureEmojis() {
 
 async function loadEmojiMap() {
 	const context = getExtensionContext();
-	const uri = (Uri as any).joinPath(context.extensionUri, 'resources', 'emojis.json');
+	const uri = Uri.joinPath(context.extensionUri, 'resources', 'emojis.json');
 	emojiMap = JSON.parse(new TextDecoder('utf8').decode(await workspace.fs.readFile(uri)));
 }
 

@@ -13,4 +13,5 @@ export interface INotebookLoggingService {
 	warn(category: string, output: string): void;
 	error(category: string, output: string): void;
 	debug(category: string, output: string): void;
+	trace(category: string, output: string): void;
 }

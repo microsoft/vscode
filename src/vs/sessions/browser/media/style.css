@@ -1,0 +1,349 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* ---- Sidebar & Auxiliary Bar Card Appearance ---- */
+
+/**
+ * The auxiliary bar and panel use a card-like appearance with margins and border-radius
+ * applied directly on the .part element. The grid allocates full space; CSS margin shrinks
+ * the part within its split-view-view wrapper. Layout dimensions are reduced in code
+ * (AgenticAuxiliaryBarPart) to keep internal layout correct.
+ *
+ * No z-index or stacking-context changes - sashes render naturally on top.
+ *
+ * Margin values (must match the constants in the Part classes):
+ *   Sidebar:       no card (flush, spans full height)
+ *   Auxiliary bar:  top=16, bottom=18, right=16
+ *   Panel:          bottom=18, left=16, right=16
+ */
+
+.agent-sessions-workbench .part.sidebar {
+	background: var(--vscode-sessionsSidebar-background);
+}
+
+.agent-sessions-workbench .part.chatbar {
+	margin: 0 10px 0px 10px;
+	background: var(--part-background);
+	border: 1px solid var(--part-border-color, transparent);
+	border-radius: 8px;
+	box-sizing: border-box;
+}
+
+.agent-sessions-workbench:not(.nosidebar) .part.chatbar {
+	margin-left: 0;
+}
+
+.agent-sessions-workbench .part.auxiliarybar {
+	margin: 0 10px 0px 0;
+	background: var(--part-background);
+	border: 1px solid var(--part-border-color, transparent);
+	border-radius: 8px;
+	box-sizing: border-box;
+}
+
+.agent-sessions-workbench .part.auxiliarybar > .content .pane-body {
+	background-color: var(--vscode-sessionsAuxiliaryBar-background);
+}
+
+.agent-sessions-workbench .part.panel {
+	margin: 0 10px 10px 10px;
+	background: var(--part-background);
+	border: 1px solid var(--part-border-color, transparent);
+	border-radius: 8px;
+	box-sizing: border-box;
+}
+
+.agent-sessions-workbench:not(.nosidebar) .part.panel {
+	margin-left: 0;
+}
+
+/* Grid background matches the sessions sidebar background */
+.agent-sessions-workbench > .monaco-grid-view {
+	background-color: var(--vscode-sessionsSidebar-background);
+}
+
+.agent-sessions-workbench .monaco-sash:before {
+	border-radius: calc(var(--vscode-sash-hover-size) / 2);
+}
+
+.agent-sessions-workbench .monaco-sash:not(.disabled) > .orthogonal-drag-handle {
+	border-radius: var(--vscode-sash-size);
+}
+
+.monaco-workbench.vs.agent-sessions-workbench .part.chatbar,
+.monaco-workbench.vs.agent-sessions-workbench .part.auxiliarybar,
+.monaco-workbench.vs.agent-sessions-workbench .part.panel {
+	border-color: var(--vscode-editorWidget-border, var(--vscode-widget-border, transparent));
+}
+
+/* ---- Chat Layout ---- */
+
+/* Remove max-width from the session container so the scrollbar extends full width */
+.agent-sessions-workbench .interactive-session {
+	max-width: none;
+}
+
+.monaco-workbench.vs.agent-sessions-workbench .part.chatbar .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows {
+	background: transparent !important;
+}
+
+.monaco-workbench.vs.agent-sessions-workbench .part.chatbar .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.request:hover,
+.monaco-workbench.vs.agent-sessions-workbench .part.chatbar .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.response:hover,
+.monaco-workbench.vs.agent-sessions-workbench .part.chatbar .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused.request,
+.monaco-workbench.vs.agent-sessions-workbench .part.chatbar .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused.response,
+.monaco-workbench.vs.agent-sessions-workbench .part.chatbar .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.selected.request,
+.monaco-workbench.vs.agent-sessions-workbench .part.chatbar .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.selected.response {
+	background: transparent !important;
+}
+
+/* Constrain content items to the same max-width, centered */
+.agent-sessions-workbench .interactive-session .interactive-item-container {
+	max-width: 950px;
+	margin: 0 auto;
+	padding-left: 12px !important;
+	padding-right: 12px !important;
+	box-sizing: border-box;
+}
+
+.agent-sessions-workbench .interactive-session > .chat-suggest-next-widget {
+	max-width: 950px;
+	margin: 0 auto;
+	padding-left: 12px !important;
+	padding-right: 12px !important;
+	box-sizing: border-box;
+}
+
+/* ---- Chat Output ---- */
+
+/* Top fade overlay: dims content scrolled near the top edge of the chat bar card.
+ * Use the Monaco scroll shadow element, which is only shown when scrollTop > 0. */
+.agent-sessions-workbench .part.chatbar .monaco-scrollable-element > .shadow.top {
+	height: 16px;
+	background: linear-gradient(to bottom, var(--part-background), transparent);
+	box-shadow: none;
+}
+
+/* Same fade overlay for the chat renderer inside an editor (e.g. floating aux window). */
+.agent-sessions-workbench .chat-editor-relative .interactive-list .monaco-scrollable-element > .shadow.top {
+	height: 16px;
+	background: linear-gradient(to bottom, var(--vscode-editor-background), transparent);
+	box-shadow: none;
+}
+
+/* ---- Chat Input ---- */
+
+.agent-sessions-workbench .interactive-session .chat-input-container {
+	border-radius: var(--vscode-cornerRadius-large);
+	border-color: var(--vscode-editorWidget-border, var(--vscode-widget-border)) !important;
+}
+
+.agent-sessions-workbench .interactive-session .chat-input-container.focused {
+	border-color: var(--vscode-focusBorder) !important;
+}
+.agent-sessions-workbench .interactive-session .interactive-input-part {
+	width: 100%;
+	max-width: 950px;
+	margin: 0 auto !important;
+	display: inherit !important;
+	/* Align with panel (terminal) card margin */
+	padding: 4px 10px 10px 10px !important;
+	box-sizing: border-box;
+}
+
+/* Hide shared chat-session option-group pickers in the sessions app active chat UI.
+ * The sessions workbench provides its own new-session configuration controls and
+ * should not surface the shared workbench chat session pickers here. */
+.agent-sessions-workbench .interactive-session .chat-input-toolbars .chat-sessionPicker-container {
+	display: none;
+}
+
+/* ---- Sessions Action Widget Pickers ---- */
+
+.agent-sessions-workbench .action-widget {
+	background-color: var(--vscode-sessionsPanel-background);
+}
+
+.agent-sessions-workbench .action-widget .action-widget-action-bar,
+.agent-sessions-workbench .action-widget .action-list-filter {
+	background-color: var(--vscode-sessionsPanel-background);
+}
+
+.agent-sessions-workbench .action-widget .monaco-scrollable-element > .monaco-list-rows {
+	background-color: var(--vscode-sessionsPanel-background) !important;
+}
+
+/* ---- Sessions Quick Picks ---- */
+
+.agent-sessions-workbench .quick-input-widget,
+.agent-sessions-workbench .quick-input-titlebar {
+	background-color: var(--vscode-sessionsPanel-background) !important;
+}
+
+.agent-sessions-workbench .quick-input-header,
+.agent-sessions-workbench .quick-input-html-widget,
+.agent-sessions-workbench .quick-input-list .monaco-scrollable-element > .monaco-list-rows,
+.agent-sessions-workbench .quick-input-tree .monaco-scrollable-element > .monaco-list-rows {
+	background-color: var(--vscode-sessionsPanel-background) !important;
+}
+
+/* ---- Sessions Context Menus ---- */
+
+.agent-sessions-workbench .context-view.monaco-menu-container,
+.agent-sessions-workbench .context-view.monaco-menu-container .monaco-menu,
+.agent-sessions-workbench .context-view.monaco-menu-container .monaco-scrollable-element {
+	background-color: var(--vscode-sessionsPanel-background) !important;
+}
+
+/* Keep code block backgrounds stable across themes; add separation in older light themes via border only */
+.agent-sessions-workbench .interactive-session .interactive-response .interactive-result-code-block {
+	border-color: var(--vscode-editorWidget-border, var(--vscode-widget-border));
+}
+/* ---- Modal Editor Block ---- */
+
+.agent-sessions-workbench .monaco-modal-editor-block {
+	background: rgba(0, 0, 0, 0.5);
+}
+
+.agent-sessions-workbench .monaco-modal-editor-block .modal-editor-sidebar .monaco-tl-twistie.force-no-twistie {
+	width: 0 !important;
+	padding-left: 0 !important;
+	padding-right: 0 !important;
+}
+
+
+/* ---- Customization Empty State ---- */
+
+/* Icon + title side by side in a row, description underneath */
+.agent-sessions-workbench .ai-customization-list-widget .list-empty-state .empty-state-header {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 6px;
+}
+
+.agent-sessions-workbench .ai-customization-list-widget .list-empty-state .empty-state-header > .empty-state-icon {
+	font-size: 16px;
+	margin-bottom: 0;
+	flex-shrink: 0;
+}
+
+/* MCP / Plugin empty state: icon + title side by side */
+.agent-sessions-workbench .mcp-empty-state .empty-state-header {
+	display: flex;
+	flex-direction: row;
+	align-items: center;
+	gap: 6px;
+}
+
+.agent-sessions-workbench .mcp-empty-state .empty-state-header > .empty-icon {
+	font-size: 16px;
+	margin-bottom: 0;
+	flex-shrink: 0;
+}
+
+/* ---- Part Appear Transitions ---- */
+
+/*
+ * Subtle appear animation when parts transition from display:none → visible
+ * (via split-view-view .visible class).
+ *
+ * Auxiliary bar, panel, and chat bar animate their container via opacity,
+ * margin, border-color, and background. The sidebar reveal animation applies
+ * only to `.part.sidebar > .content`, using opacity + transform so the
+ * sidebar container, header, and footer stay visually fixed.
+ *
+ * Opacity transiently creates a stacking context while it animates from 0 to 1
+ * over 250ms — once settled at opacity: 1, no additional stacking context is
+ * introduced by this animation. Margin and transform shifts are purely visual
+ * within the grid-allocated space.
+ */
+
+.agent-sessions-workbench .part.auxiliarybar,
+.agent-sessions-workbench .part.panel,
+.agent-sessions-workbench .part.chatbar {
+	transition:
+		opacity 250ms ease-out,
+		margin-top 250ms ease-out,
+		margin-right 250ms ease-out,
+		margin-bottom 250ms ease-out,
+		border-color 250ms ease-out,
+		background 250ms ease-out;
+}
+
+/* Auxiliary bar also transitions horizontal margin */
+.agent-sessions-workbench .part.auxiliarybar {
+	transition:
+		opacity 250ms ease-out,
+		margin 250ms ease-out,
+		border-color 250ms ease-out,
+		background 250ms ease-out;
+}
+
+.agent-sessions-workbench .part.sidebar > .content {
+	transition:
+		opacity 250ms ease-out,
+		transform 250ms ease-out;
+}
+
+@starting-style {
+	/* Shared starting values */
+	.agent-sessions-workbench .part.auxiliarybar,
+	.agent-sessions-workbench .part.panel,
+	.agent-sessions-workbench .part.chatbar {
+		opacity: 0;
+		border-color: transparent;
+	}
+
+	/* Card parts: blend from surrounding background */
+	.agent-sessions-workbench .part.auxiliarybar,
+	.agent-sessions-workbench .part.panel,
+	.agent-sessions-workbench .part.chatbar {
+		background: color-mix(in srgb, var(--part-background) 60%, var(--vscode-sideBar-background));
+	}
+
+	.agent-sessions-workbench .part.sidebar > .content {
+		opacity: 0;
+		transform: translateX(-6px);
+	}
+
+	/* Panel (bottom): slides down from 6px above → margin: 0 10px 10px 10px */
+	.agent-sessions-workbench .part.panel {
+		margin: 6px 16px 16px 16px;
+	}
+
+	/* Auxiliary bar (right): slides in from 6px right → margin: 0 10px 0px 0 */
+	.agent-sessions-workbench .part.auxiliarybar {
+		margin: 0 16px 0px 6px;
+	}
+
+	/* Chat bar (center-bottom): slides up from 6px below → margin: 0 10px 0px 10px */
+	.agent-sessions-workbench .part.chatbar {
+		margin: 6px 16px 0px 16px;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.agent-sessions-workbench .part.auxiliarybar,
+	.agent-sessions-workbench .part.panel,
+	.agent-sessions-workbench .part.chatbar {
+		transition: none;
+	}
+
+	.agent-sessions-workbench .part.sidebar > .content {
+		transition: none;
+	}
+}
+
+/* ---- Widget Customizations ---- */
+
+/* Action Widget */
+.agent-sessions-workbench .action-widget .monaco-list .monaco-list-row {
+	padding-right: 0;
+}
+
+/* Badge */
+.agent-sessions-workbench .badge > .badge-content {
+	border-radius: 4px !important;
+}

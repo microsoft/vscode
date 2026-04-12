@@ -13,10 +13,10 @@ import { IWorkbenchEnvironmentService } from '../../../services/environment/comm
 import { dirname, basename, isEqual } from '../../../../base/common/resources.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IOutputChannelDescriptor, IOutputService, isMultiSourceOutputChannelDescriptor, isSingleSourceOutputChannelDescriptor } from '../../../services/output/common/output.js';
-import { IDefaultLogLevelsService } from './defaultLogLevels.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { IDefaultLogLevelsService } from '../../../services/log/common/defaultLogLevels.js';
 
 type LogLevelQuickPickItem = IQuickPickItem & { level: LogLevel };
 type LogChannelQuickPickItem = IQuickPickItem & { id: string; channel: IOutputChannelDescriptor };
@@ -47,7 +47,7 @@ export class SetLogLevelAction extends Action {
 	}
 
 	private async selectLogLevelOrChannel(): Promise<LogChannelQuickPickItem | LogLevel | null> {
-		const defaultLogLevels = await this.defaultLogLevelsService.getDefaultLogLevels();
+		const defaultLogLevels = this.defaultLogLevelsService.defaultLogLevels;
 		const extensionLogs: LogChannelQuickPickItem[] = [], logs: LogChannelQuickPickItem[] = [];
 		const logLevel = this.loggerService.getLogLevel();
 		for (const channel of this.outputService.getChannelDescriptors()) {
@@ -105,7 +105,7 @@ export class SetLogLevelAction extends Action {
 	}
 
 	private async setLogLevelForChannel(logChannel: LogChannelQuickPickItem): Promise<void> {
-		const defaultLogLevels = await this.defaultLogLevelsService.getDefaultLogLevels();
+		const defaultLogLevels = this.defaultLogLevelsService.defaultLogLevels;
 		const defaultLogLevel = defaultLogLevels.extensions.find(e => e[0] === logChannel.channel.extensionId?.toLowerCase())?.[1] ?? defaultLogLevels.default;
 		const entries = this.getLogLevelEntries(defaultLogLevel, this.outputService.getLogLevel(logChannel.channel) ?? defaultLogLevel, !!logChannel.channel.extensionId);
 

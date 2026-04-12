@@ -5,6 +5,7 @@
 
 mod context;
 
+pub mod agent_host;
 pub mod args;
 pub mod serve_web;
 pub mod tunnels;

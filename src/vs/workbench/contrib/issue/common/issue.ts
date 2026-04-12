@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { UriComponents } from '../../../../base/common/uri.js';
-import { ISandboxConfiguration } from '../../../../base/parts/sandbox/common/sandboxTypes.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 
 // Since data sent through the service is serialized to JSON, functions will be lost, so Color objects
@@ -62,6 +61,7 @@ export interface IssueReporterExtensionData {
 	extensionTemplate?: string;
 	data?: string;
 	uri?: UriComponents;
+	privateUri?: UriComponents;
 }
 
 export interface IssueReporterData extends WindowData {
@@ -78,38 +78,13 @@ export interface IssueReporterData extends WindowData {
 	issueBody?: string;
 	data?: string;
 	uri?: UriComponents;
+	privateUri?: UriComponents;
 }
 
 export interface ISettingSearchResult {
 	extensionId: string;
 	key: string;
 	score: number;
-}
-
-export interface ProcessExplorerStyles extends WindowStyles {
-	listHoverBackground?: string;
-	listHoverForeground?: string;
-	listFocusBackground?: string;
-	listFocusForeground?: string;
-	listFocusOutline?: string;
-	listActiveSelectionBackground?: string;
-	listActiveSelectionForeground?: string;
-	listHoverOutline?: string;
-	scrollbarShadowColor?: string;
-	scrollbarSliderBackgroundColor?: string;
-	scrollbarSliderHoverBackgroundColor?: string;
-	scrollbarSliderActiveBackgroundColor?: string;
-}
-
-export interface ProcessExplorerData extends WindowData {
-	pid: number;
-	styles: ProcessExplorerStyles;
-	platform: string;
-	applicationName: string;
-}
-
-export interface ProcessExplorerWindowConfiguration extends ISandboxConfiguration {
-	data: ProcessExplorerData;
 }
 
 export const IIssueFormService = createDecorator<IIssueFormService>('issueFormService');
@@ -132,11 +107,3 @@ export interface IWorkbenchIssueService {
 	readonly _serviceBrand: undefined;
 	openReporter(dataOverrides?: Partial<IssueReporterData>): Promise<void>;
 }
-
-export const IWorkbenchProcessService = createDecorator<IWorkbenchProcessService>('workbenchProcessService');
-
-export interface IWorkbenchProcessService {
-	readonly _serviceBrand: undefined;
-	openProcessExplorer(): Promise<void>;
-}
-

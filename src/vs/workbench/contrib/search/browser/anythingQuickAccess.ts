@@ -52,9 +52,10 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { stripIcons } from '../../../../base/common/iconLabels.js';
 import { Lazy } from '../../../../base/common/lazy.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
+import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { ASK_QUICK_QUESTION_ACTION_ID } from '../../chat/browser/actions/chatQuickInputActions.js';
-import { IQuickChatService } from '../../chat/browser/chat.js';
+import { IChatWidgetService, IQuickChatService } from '../../chat/browser/chat.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { ICustomEditorLabelService } from '../../../services/editor/common/customEditorLabelService.js';
 
@@ -136,9 +137,11 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
+		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IQuickChatService private readonly quickChatService: IQuickChatService,
 		@ILogService private readonly logService: ILogService,
-		@ICustomEditorLabelService private readonly customEditorLabelService: ICustomEditorLabelService
+		@ICustomEditorLabelService private readonly customEditorLabelService: ICustomEditorLabelService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService
 	) {
 		super(AnythingQuickAccessProvider.PREFIX, {
 			canAcceptInBackground: true,
@@ -264,7 +267,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			return Disposable.None; // we need a text editor control to decorate and reveal
 		}
 
-		// we must remember our curret view state to be able to restore
+		// we must remember our current view state to be able to restore
 		this.pickState.editorViewState.set();
 
 		// Reveal
@@ -417,8 +420,8 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			// Slow picks: files and symbols
 			additionalPicks: (async (): Promise<Picks<IAnythingQuickPickItem>> => {
 
-				// Exclude any result that is already present in editor history
-				const additionalPicksExcludes = new ResourceMap<boolean>();
+				// Exclude any result that is already present in editor history.
+				const additionalPicksExcludes = new ResourceMap<boolean>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
 				for (const historyEditorPick of historyEditorPicks) {
 					if (historyEditorPick.resource) {
 						additionalPicksExcludes.set(historyEditorPick.resource, true);
@@ -638,7 +641,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 		// Otherwise, make sure to filter relative path results from
 		// the search results to prevent duplicates
-		const relativePathFileResultsMap = new ResourceMap<boolean>();
+		const relativePathFileResultsMap = new ResourceMap<boolean>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
 		for (const relativePathFileResult of relativePathFileResults) {
 			relativePathFileResultsMap.set(relativePathFileResult, true);
 		}
@@ -681,7 +684,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			}
 
 			// Remember which result we already covered
-			const existingFileSearchResultsMap = new ResourceMap<boolean>();
+			const existingFileSearchResultsMap = new ResourceMap<boolean>(uri => this.uriIdentityService.extUri.getComparisonKey(uri));
 			for (const fileSearchResult of fileSearchResults.results) {
 				existingFileSearchResultsMap.set(fileSearchResult.resource, true);
 			}
@@ -751,8 +754,9 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			}
 
 			try {
-				if ((await this.fileService.stat(resource)).isFile) {
-					return resource;
+				const stat = await this.fileService.stat(resource);
+				if (stat.isFile) {
+					return await this.matchFilenameCasing(resource);
 				}
 			} catch (error) {
 				// ignore if file does not exist
@@ -784,8 +788,9 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 				);
 
 				try {
-					if ((await this.fileService.stat(resource)).isFile) {
-						resources.push(resource);
+					const stat = await this.fileService.stat(resource);
+					if (stat.isFile) {
+						resources.push(await this.matchFilenameCasing(resource));
 					}
 				} catch (error) {
 					// ignore if file does not exist
@@ -796,6 +801,21 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		}
 
 		return;
+	}
+
+	/**
+	 * Attempts to match the filename casing to file system by checking the parent folder's children.
+	 */
+	private async matchFilenameCasing(resource: URI): Promise<URI> {
+		const parent = dirname(resource);
+		const stat = await this.fileService.resolve(parent, { resolveTo: [resource] });
+		if (stat?.children) {
+			const match = stat.children.find(child => this.uriIdentityService.extUri.isEqual(child.resource, resource));
+			if (match) {
+				return URI.joinPath(parent, match.name);
+			}
+		}
+		return resource;
 	}
 
 	//#endregion
@@ -810,7 +830,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		}
 
 		type IHelpAnythingQuickPickItem = IAnythingQuickPickItem & { commandCenterOrder: number };
-		const providers: IHelpAnythingQuickPickItem[] = this.lazyRegistry.value.getQuickAccessProviders()
+		const providers: IHelpAnythingQuickPickItem[] = this.lazyRegistry.value.getQuickAccessProviders(this.contextKeyService)
 			.filter(p => p.helpEntries.some(h => h.commandCenterOrder !== undefined))
 			.flatMap(provider => provider.helpEntries
 				.filter(h => h.commandCenterOrder !== undefined)
@@ -912,7 +932,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		// Bring the editor to front to review symbols to go to
 		try {
 
-			// we must remember our curret view state to be able to restore
+			// we must remember our current view state to be able to restore
 			this.pickState.editorViewState.set();
 
 			// open it
@@ -992,7 +1012,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 		let description: string | undefined = undefined;
 		let isDirty: boolean | undefined = undefined;
 		let extraClasses: string[];
-		let icon: ThemeIcon | undefined = undefined;
+		let icon: ThemeIcon | URI | undefined = undefined;
 
 		if (isEditorInput(resourceOrEditor)) {
 			resource = EditorResourceAccessor.getOriginalUri(resourceOrEditor);
@@ -1043,6 +1063,7 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 			label,
 			ariaLabel: isDirty ? localize('filePickAriaLabelDirty', "{0} unsaved changes", labelAndDescription) : labelAndDescription,
 			description,
+			iconPath: URI.isUri(icon) ? { dark: icon } : undefined,
 			get iconClasses() { return iconClassesValue.value; },
 			get buttons() { return buttonsValue.value; },
 			trigger: (buttonIndex, keyMods) => {
@@ -1065,7 +1086,20 @@ export class AnythingQuickAccessProvider extends PickerQuickAccessProvider<IAnyt
 
 				return TriggerAction.NO_ACTION;
 			},
-			accept: (keyMods, event) => this.openAnything(resourceOrEditor, { keyMods, range: this.pickState.lastRange, preserveFocus: event.inBackground, forcePinned: event.inBackground })
+			accept: (keyMods, event) => this.openAnything(resourceOrEditor, { keyMods, range: this.pickState.lastRange, preserveFocus: event.inBackground, forcePinned: event.inBackground }),
+			attach: (keyMods, event) => {
+				// Only support adding context to chat when shift is pressed
+				if (keyMods.shift) {
+					const widget = this.chatWidgetService.lastFocusedWidget;
+					if (widget && resource) {
+						widget.attachmentModel.addContext(widget.attachmentModel.asFileVariableEntry(resource));
+					}
+					return;
+				}
+
+				// Fallback to accept behavior.
+				this.openAnything(resourceOrEditor, { keyMods, range: this.pickState.lastRange, preserveFocus: event.inBackground, forcePinned: event.inBackground });
+			}
 		};
 	}
 

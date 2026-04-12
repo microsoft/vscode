@@ -15,6 +15,7 @@ import { XtermAttributes, IXtermCore } from '../../../terminal/browser/xterm-pri
 import { IBeforeProcessDataEvent, ITerminalProcessManager, TERMINAL_CONFIG_SECTION } from '../../../terminal/common/terminal.js';
 import type { IBuffer, IBufferCell, IDisposable, ITerminalAddon, Terminal } from '@xterm/xterm';
 import { DEFAULT_LOCAL_ECHO_EXCLUDE, type ITerminalTypeAheadConfiguration } from '../common/terminalTypeAheadConfiguration.js';
+import { isNumber, type SingleOrMany } from '../../../../../base/common/types.js';
 
 const enum VT {
 	Esc = '\x1b',
@@ -50,7 +51,12 @@ const enum StatsConstants {
  */
 const PREDICTION_OMIT_RE = /^(\x1b\[(\??25[hl]|\??[0-9;]+n))+/;
 
-const core = (terminal: Terminal): IXtermCore => (terminal as any)._core;
+const core = (terminal: Terminal): IXtermCore => {
+	interface XtermWithCore extends Terminal {
+		_core: IXtermCore;
+	}
+	return (terminal as XtermWithCore)._core;
+};
 const flushOutput = (terminal: Terminal) => {
 	// TODO: Flushing output is not possible anymore without async
 };
@@ -642,7 +648,7 @@ export class PredictionStats extends Disposable {
 	private readonly _stats: [latency: number, correct: boolean][] = [];
 	private _index = 0;
 	private readonly _addedAtTime = new WeakMap<IPrediction, number>();
-	private readonly _changeEmitter = new Emitter<void>();
+	private readonly _changeEmitter = this._register(new Emitter<void>());
 	readonly onChange = this._changeEmitter.event;
 
 	/**
@@ -709,7 +715,7 @@ export class PredictionStats extends Disposable {
 	}
 }
 
-export class PredictionTimeline {
+export class PredictionTimeline extends Disposable {
 	/**
 	 * Expected queue of events. Only predictions for the lowest are
 	 * written into the terminal.
@@ -754,11 +760,11 @@ export class PredictionTimeline {
 	 */
 	private _lookBehind?: IPrediction;
 
-	private readonly _addedEmitter = new Emitter<IPrediction>();
+	private readonly _addedEmitter = this._register(new Emitter<IPrediction>());
 	readonly onPredictionAdded = this._addedEmitter.event;
-	private readonly _failedEmitter = new Emitter<IPrediction>();
+	private readonly _failedEmitter = this._register(new Emitter<IPrediction>());
 	readonly onPredictionFailed = this._failedEmitter.event;
-	private readonly _succeededEmitter = new Emitter<IPrediction>();
+	private readonly _succeededEmitter = this._register(new Emitter<IPrediction>());
 	readonly onPredictionSucceeded = this._succeededEmitter.event;
 
 	private get _currentGenerationPredictions() {
@@ -773,7 +779,7 @@ export class PredictionTimeline {
 		return this._expected.length;
 	}
 
-	constructor(readonly terminal: Terminal, private readonly _style: TypeAheadStyle) { }
+	constructor(readonly terminal: Terminal, private readonly _style: TypeAheadStyle) { super(); }
 
 	setShowPredictions(show: boolean) {
 		if (show === this._showPredictions) {
@@ -1085,15 +1091,15 @@ const arrayHasPrefixAt = <T>(a: ReadonlyArray<T>, ai: number, b: ReadonlyArray<T
 /**
  * @see https://github.com/xtermjs/xterm.js/blob/065eb13a9d3145bea687239680ec9696d9112b8e/src/common/InputHandler.ts#L2127
  */
-const getColorWidth = (params: (number | number[])[], pos: number) => {
+const getColorWidth = (params: SingleOrMany<number>[], pos: number) => {
 	const accu = [0, 0, -1, 0, 0, 0];
 	let cSpace = 0;
 	let advance = 0;
 
 	do {
 		const v = params[pos + advance];
-		accu[advance + cSpace] = typeof v === 'number' ? v : v[0];
-		if (typeof v !== 'number') {
+		accu[advance + cSpace] = isNumber(v) ? v : v[0];
+		if (!isNumber(v)) {
 			let i = 0;
 			do {
 				if (accu[1] === 5) {
@@ -1179,11 +1185,11 @@ class TypeAheadStyle implements IDisposable {
 		this._csiHandler = undefined;
 	}
 
-	private _onDidWriteSGR(args: (number | number[])[]) {
+	private _onDidWriteSGR(args: SingleOrMany<number>[]) {
 		const originalUndo = this._undoArgs;
 		for (let i = 0; i < args.length;) {
 			const px = args[i];
-			const p = typeof px === 'number' ? px : px[0];
+			const p = isNumber(px) ? px : px[0];
 
 			if (this._expectedIncomingStyles) {
 				if (arrayHasPrefixAt(args, i, this._undoArgs)) {
@@ -1315,7 +1321,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 
 	activate(terminal: Terminal): void {
 		const style = this._typeaheadStyle = this._register(new TypeAheadStyle(this._configurationService.getValue<ITerminalTypeAheadConfiguration>(TERMINAL_CONFIG_SECTION).localEchoStyle, terminal));
-		const timeline = this._timeline = new PredictionTimeline(terminal, this._typeaheadStyle);
+		const timeline = this._timeline = this._register(new PredictionTimeline(terminal, this._typeaheadStyle));
 		const stats = this.stats = this._register(new PredictionStats(this._timeline));
 
 		timeline.setShowPredictions(this._typeaheadThreshold === 0);
@@ -1346,7 +1352,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 		}));
 		this._register(this._processManager.onBeforeProcessData(e => this._onBeforeProcessData(e)));
 
-		let nextStatsSend: any;
+		let nextStatsSend: Timeout | undefined;
 		this._register(stats.onChange(() => {
 			if (!nextStatsSend) {
 				nextStatsSend = setTimeout(() => {
@@ -1422,7 +1428,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 	private _sendLatencyStats(stats: PredictionStats) {
 		/* __GDPR__
 			"terminalLatencyStats" : {
-				"owner": "Tyriar",
+				"owner": "anthonykim1",
 				"min" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				"max" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				"median" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },

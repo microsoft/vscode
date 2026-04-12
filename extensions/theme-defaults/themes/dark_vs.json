@@ -156,7 +156,8 @@
 		{
 			"scope": "markup.italic",
 			"settings": {
-				"fontStyle": "italic"
+				"fontStyle": "italic",
+				"foreground": "#C586C0"
 			}
 		},
 		{

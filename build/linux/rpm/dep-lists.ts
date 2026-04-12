@@ -13,7 +13,12 @@ export const additionalDeps = [
 	'rpmlib(FileDigests) <= 4.6.0-1',
 	'libvulkan.so.1()(64bit)',
 	'libcurl.so.4()(64bit)',
-	'xdg-utils' // OS integration
+	'xdg-utils', // OS integration
+];
+
+export const recommendedDeps = [
+	'bubblewrap', // agent command sandboxing
+	'socat', // agent command sandboxing
 ];
 
 export const referenceGeneratedDepsByArch = {
@@ -52,6 +57,7 @@ export const referenceGeneratedDepsByArch = {
 		'libc.so.6(GLIBC_2.3.3)(64bit)',
 		'libc.so.6(GLIBC_2.3.4)(64bit)',
 		'libc.so.6(GLIBC_2.4)(64bit)',
+		'libc.so.6(GLIBC_2.5)(64bit)',
 		'libc.so.6(GLIBC_2.6)(64bit)',
 		'libc.so.6(GLIBC_2.7)(64bit)',
 		'libc.so.6(GLIBC_2.8)(64bit)',
@@ -67,6 +73,7 @@ export const referenceGeneratedDepsByArch = {
 		'libgcc_s.so.1()(64bit)',
 		'libgcc_s.so.1(GCC_3.0)(64bit)',
 		'libgcc_s.so.1(GCC_3.3)(64bit)',
+		'libgcc_s.so.1(GCC_4.0.0)(64bit)',
 		'libgcc_s.so.1(GCC_4.2.0)(64bit)',
 		'libgio-2.0.so.0()(64bit)',
 		'libglib-2.0.so.0()(64bit)',
@@ -143,6 +150,7 @@ export const referenceGeneratedDepsByArch = {
 		'libc.so.6(GLIBC_2.27)',
 		'libc.so.6(GLIBC_2.28)',
 		'libc.so.6(GLIBC_2.4)',
+		'libc.so.6(GLIBC_2.5)',
 		'libc.so.6(GLIBC_2.6)',
 		'libc.so.6(GLIBC_2.7)',
 		'libc.so.6(GLIBC_2.8)',
@@ -207,6 +215,7 @@ export const referenceGeneratedDepsByArch = {
 		'libstdc++.so.6(GLIBCXX_3.4.20)',
 		'libstdc++.so.6(GLIBCXX_3.4.21)',
 		'libstdc++.so.6(GLIBCXX_3.4.22)',
+		'libstdc++.so.6(GLIBCXX_3.4.26)',
 		'libstdc++.so.6(GLIBCXX_3.4.5)',
 		'libstdc++.so.6(GLIBCXX_3.4.9)',
 		'libudev.so.1',
@@ -298,6 +307,7 @@ export const referenceGeneratedDepsByArch = {
 		'libstdc++.so.6(GLIBCXX_3.4.20)(64bit)',
 		'libstdc++.so.6(GLIBCXX_3.4.21)(64bit)',
 		'libstdc++.so.6(GLIBCXX_3.4.22)(64bit)',
+		'libstdc++.so.6(GLIBCXX_3.4.26)(64bit)',
 		'libstdc++.so.6(GLIBCXX_3.4.5)(64bit)',
 		'libstdc++.so.6(GLIBCXX_3.4.9)(64bit)',
 		'libudev.so.1()(64bit)',

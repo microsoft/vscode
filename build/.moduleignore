@@ -60,6 +60,8 @@ fsevents/test/**
 !@vscode/tree-sitter-wasm/wasm/tree-sitter-regex.wasm
 !@vscode/tree-sitter-wasm/wasm/tree-sitter-ini.wasm
 !@vscode/tree-sitter-wasm/wasm/tree-sitter-css.wasm
+!@vscode/tree-sitter-wasm/wasm/tree-sitter-powershell.wasm
+!@vscode/tree-sitter-wasm/wasm/tree-sitter-bash.wasm
 
 native-keymap/binding.gyp
 native-keymap/build/**
@@ -73,10 +75,10 @@ native-is-elevated/src/**
 native-is-elevated/deps/**
 !native-is-elevated/build/Release/*.node
 
-native-watchdog/binding.gyp
-native-watchdog/build/**
-native-watchdog/src/**
-!native-watchdog/build/Release/*.node
+@vscode/native-watchdog/binding.gyp
+@vscode/native-watchdog/build/**
+@vscode/native-watchdog/src/**
+!@vscode/native-watchdog/build/Release/*.node
 
 @vscode/vsce-sign/**
 !@vscode/vsce-sign/src/main.d.ts
@@ -94,6 +96,31 @@ kerberos/build/**
 kerberos/src/**
 kerberos/node_modules/**
 !kerberos/**/*.node
+
+cpu-features/**
+
+# utf-8-validate and bufferutil are native modules pulled in by the websocket
+# package. They include prebuilds for multiple platforms which break cross-platform
+# bundling (rcedit fails on non-PE .node files). Both modules have pure JS fallbacks
+# that are sufficient for Node.js >= 18.14.0, so we strip all native artifacts.
+utf-8-validate/binding.gyp
+utf-8-validate/build/**
+utf-8-validate/prebuilds/**
+utf-8-validate/src/**
+
+bufferutil/binding.gyp
+bufferutil/build/**
+bufferutil/prebuilds/**
+bufferutil/src/**
+
+ssh2/lib/protocol/crypto/binding.gyp
+ssh2/lib/protocol/crypto/build/**
+ssh2/lib/protocol/crypto/src/**
+ssh2/util/**
+ssh2/install.js
+ssh2/.github/**
+ssh2/.eslint*
+ssh2/SFTP.md
 
 node-pty/binding.gyp
 node-pty/build/**
@@ -186,3 +213,28 @@ zone.js/dist/**
 @xterm/xterm-addon-*/fixtures/**
 @xterm/xterm-addon-*/out/**
 @xterm/xterm-addon-*/out-test/**
+
+# @github/copilot - strip unneeded binaries and files
+@github/copilot/sdk/index.js
+@github/copilot/prebuilds/**
+@github/copilot/clipboard/**
+@github/copilot/ripgrep/**
+@github/copilot/**/keytar.node
+
+# @github/copilot platform binaries - not needed
+@github/copilot-darwin-arm64/**
+@github/copilot-darwin-x64/**
+@github/copilot-linux-arm64/**
+@github/copilot-linux-x64/**
+@github/copilot-win32-arm64/**
+@github/copilot-win32-x64/**
+
+# @github/copilot-sdk - strip the nested @github/copilot CLI runtime
+# The SDK only needs its own dist/ files; the CLI is resolved via cliPath at runtime
+@github/copilot-sdk/node_modules/@github/copilot/**
+@github/copilot-sdk/node_modules/@github/copilot-darwin-arm64/**
+@github/copilot-sdk/node_modules/@github/copilot-darwin-x64/**
+@github/copilot-sdk/node_modules/@github/copilot-linux-arm64/**
+@github/copilot-sdk/node_modules/@github/copilot-linux-x64/**
+@github/copilot-sdk/node_modules/@github/copilot-win32-arm64/**
+@github/copilot-sdk/node_modules/@github/copilot-win32-x64/**

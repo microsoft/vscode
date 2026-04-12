@@ -89,14 +89,19 @@ export class QuickDiffService extends Disposable implements IQuickDiffService {
 			.filter(provider => !provider.rootUri || this.uriIdentityService.extUri.isEqualOrParent(uri, provider.rootUri))
 			.sort(createProviderComparer(uri));
 
-		const quickDiffOriginalResources = await Promise.all(providers.map(async provider => {
+		const quickDiffOriginalResources = await Promise.allSettled(providers.map(async provider => {
 			const scoreValue = provider.selector ? score(provider.selector, uri, language, isSynchronized, undefined, undefined) : 10;
 			const originalResource = scoreValue > 0 ? await provider.getOriginalResource(uri) ?? undefined : undefined;
 			return { provider, originalResource };
 		}));
 
 		const quickDiffs: QuickDiff[] = [];
-		for (const { provider, originalResource } of quickDiffOriginalResources) {
+		for (const quickDiffOriginalResource of quickDiffOriginalResources) {
+			if (quickDiffOriginalResource.status === 'rejected') {
+				continue;
+			}
+
+			const { provider, originalResource } = quickDiffOriginalResource.value;
 			if (!originalResource) {
 				continue;
 			}
@@ -147,5 +152,6 @@ export class QuickDiffService extends Disposable implements IQuickDiffService {
 
 export async function getOriginalResource(quickDiffService: IQuickDiffService, uri: URI, language: string | undefined, isSynchronized: boolean | undefined): Promise<URI | null> {
 	const quickDiffs = await quickDiffService.getQuickDiffs(uri, language, isSynchronized);
-	return quickDiffs.length > 0 ? quickDiffs[0].originalResource : null;
+	const primaryQuickDiffs = quickDiffs.find(quickDiff => quickDiff.kind === 'primary');
+	return primaryQuickDiffs ? primaryQuickDiffs.originalResource : null;
 }

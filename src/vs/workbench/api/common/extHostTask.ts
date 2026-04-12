@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* eslint-disable local/code-no-native-private */
-
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { asPromise } from '../../../base/common/async.js';
 import { Event, Emitter } from '../../../base/common/event.js';
@@ -36,12 +34,12 @@ export interface IExtHostTask extends ExtHostTaskShape {
 	readonly _serviceBrand: undefined;
 
 	taskExecutions: vscode.TaskExecution[];
-	onDidStartTask: Event<vscode.TaskStartEvent>;
-	onDidEndTask: Event<vscode.TaskEndEvent>;
-	onDidStartTaskProcess: Event<vscode.TaskProcessStartEvent>;
-	onDidEndTaskProcess: Event<vscode.TaskProcessEndEvent>;
-	onDidStartTaskProblemMatchers: Event<vscode.TaskProblemMatcherStartedEvent>;
-	onDidEndTaskProblemMatchers: Event<vscode.TaskProblemMatcherEndedEvent>;
+	readonly onDidStartTask: Event<vscode.TaskStartEvent>;
+	readonly onDidEndTask: Event<vscode.TaskEndEvent>;
+	readonly onDidStartTaskProcess: Event<vscode.TaskProcessStartEvent>;
+	readonly onDidEndTaskProcess: Event<vscode.TaskProcessEndEvent>;
+	readonly onDidStartTaskProblemMatchers: Event<vscode.TaskProblemMatcherStartedEvent>;
+	readonly onDidEndTaskProblemMatchers: Event<vscode.TaskProblemMatcherEndedEvent>;
 
 	registerTaskProvider(extension: IExtensionDescription, type: string, provider: vscode.TaskProvider): vscode.Disposable;
 	registerTaskSystem(scheme: string, info: tasks.ITaskSystemInfoDTO): void;
@@ -334,6 +332,9 @@ export namespace TaskDTO {
 		if (value.presentationOptions) {
 			result.presentationOptions = TaskPresentationOptionsDTO.to(value.presentationOptions)!;
 		}
+		if (value.runOptions) {
+			result.runOptions = value.runOptions;
+		}
 		if (value._id) {
 			result._id = value._id;
 		}
@@ -360,6 +361,7 @@ namespace TaskFilterDTO {
 class TaskExecutionImpl implements vscode.TaskExecution {
 
 	readonly #tasks: ExtHostTaskBase;
+	private _terminal: vscode.Terminal | undefined;
 
 	constructor(tasks: ExtHostTaskBase, readonly _id: string, private readonly _task: vscode.Task) {
 		this.#tasks = tasks;
@@ -377,6 +379,14 @@ class TaskExecutionImpl implements vscode.TaskExecution {
 	}
 
 	public fireDidEndProcess(value: tasks.ITaskProcessEndedDTO): void {
+	}
+
+	public get terminal(): vscode.Terminal | undefined {
+		return this._terminal;
+	}
+
+	public set terminal(term: vscode.Terminal | undefined) {
+		this._terminal = term;
 	}
 }
 
@@ -497,8 +507,14 @@ export abstract class ExtHostTaskBase implements ExtHostTaskShape, IExtHostTask 
 		}
 		this._lastStartedTask = execution.id;
 
+		const taskExecution = await this.getTaskExecution(execution);
+		const terminal = this._terminalService.getTerminalById(terminalId)?.value;
+		if (taskExecution) {
+			taskExecution.terminal = terminal;
+		}
+
 		this._onDidExecuteTask.fire({
-			execution: await this.getTaskExecution(execution)
+			execution: taskExecution
 		});
 	}
 

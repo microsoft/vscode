@@ -43,7 +43,6 @@
 	display: inline-flex;
 	width: inherit;
 	margin: 0 4px;
-	padding: 4px 8px;
 }
 
 .monaco-workbench .bulk-edit-panel .monaco-tl-contents {

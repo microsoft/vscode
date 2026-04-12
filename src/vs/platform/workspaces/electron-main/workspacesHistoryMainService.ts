@@ -10,7 +10,7 @@ import { Emitter, Event as CommonEvent } from '../../../base/common/event.js';
 import { normalizeDriveLetter, splitRecentLabel } from '../../../base/common/labels.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
-import { isMacintosh, isWindows } from '../../../base/common/platform.js';
+import { isMacintosh, INodeProcess, isWindows } from '../../../base/common/platform.js';
 import { basename, extUriBiasedIgnorePathCase, originalFSPath } from '../../../base/common/resources.js';
 import { URI } from '../../../base/common/uri.js';
 import { Promises } from '../../../base/node/pfs.js';
@@ -25,6 +25,7 @@ import { IWorkspaceIdentifier, WORKSPACE_EXTENSION } from '../../workspace/commo
 import { IWorkspacesManagementMainService } from './workspacesManagementMainService.js';
 import { ResourceMap } from '../../../base/common/map.js';
 import { IDialogMainService } from '../../dialogs/electron-main/dialogMainService.js';
+import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 
 export const IWorkspacesHistoryMainService = createDecorator<IWorkspacesHistoryMainService>('workspacesHistoryMainService');
 
@@ -56,7 +57,8 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		@IWorkspacesManagementMainService private readonly workspacesManagementMainService: IWorkspacesManagementMainService,
 		@ILifecycleMainService private readonly lifecycleMainService: ILifecycleMainService,
 		@IApplicationStorageMainService private readonly applicationStorageMainService: IApplicationStorageMainService,
-		@IDialogMainService private readonly dialogMainService: IDialogMainService
+		@IDialogMainService private readonly dialogMainService: IDialogMainService,
+		@IEnvironmentMainService private readonly environmentMainService: IEnvironmentMainService
 	) {
 		super();
 
@@ -104,7 +106,9 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 					files.push(recent);
 
 					// Add to recent documents (Windows only, macOS later)
-					if (isWindows && recent.fileUri.scheme === Schemas.file) {
+					// Skip in portable mode to avoid leaving traces on the machine
+					// Skip in the sessions app to avoid polluting the jump list
+					if (isWindows && recent.fileUri.scheme === Schemas.file && !this.environmentMainService.isPortable && !(process as INodeProcess).isEmbeddedApp) {
 						app.addRecentDocument(recent.fileUri.fsPath);
 					}
 				}
@@ -127,7 +131,8 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		this._onDidChangeRecentlyOpened.fire();
 
 		// Schedule update to recent documents on macOS dock
-		if (isMacintosh) {
+		// Skip in portable mode to avoid leaving traces on the machine
+		if (isMacintosh && !this.environmentMainService.isPortable) {
 			this.macOSRecentDocumentsUpdater.trigger(() => this.updateMacOSRecentDocuments());
 		}
 	}
@@ -153,7 +158,8 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 			this._onDidChangeRecentlyOpened.fire();
 
 			// Schedule update to recent documents on macOS dock
-			if (isMacintosh) {
+			// Skip in portable mode to avoid leaving traces on the machine
+			if (isMacintosh && !this.environmentMainService.isPortable) {
 				this.macOSRecentDocumentsUpdater.trigger(() => this.updateMacOSRecentDocuments());
 			}
 		}
@@ -178,7 +184,11 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 		}
 
 		await this.saveRecentlyOpened({ workspaces: [], files: [] });
-		app.clearRecentDocuments();
+
+		// Skip in portable mode to avoid leaving traces on the machine
+		if (!this.environmentMainService.isPortable) {
+			app.clearRecentDocuments();
+		}
 
 		// Event
 		this._onDidChangeRecentlyOpened.fire();
@@ -311,6 +321,16 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 			return; // only on windows
 		}
 
+		// Skip in portable mode to avoid leaving traces on the machine
+		if (this.environmentMainService.isPortable) {
+			return;
+		}
+
+		// Skip in the sessions app to avoid polluting the jump list
+		if ((process as INodeProcess).isEmbeddedApp) {
+			return;
+		}
+
 		await this.updateWindowsJumpList();
 		this._register(this.onDidChangeRecentlyOpened(() => this.updateWindowsJumpList()));
 	}
@@ -438,6 +458,11 @@ export class WorkspacesHistoryMainService extends Disposable implements IWorkspa
 
 	private async updateMacOSRecentDocuments(): Promise<void> {
 		if (!isMacintosh) {
+			return;
+		}
+
+		// Skip in the sessions app to avoid polluting the dock
+		if ((process as INodeProcess).isEmbeddedApp) {
 			return;
 		}
 

@@ -71,6 +71,7 @@ export interface IEnvironmentService {
 	debugExtensionHost: IExtensionHostDebugParams;
 	isExtensionDevelopment: boolean;
 	disableExtensions: boolean | string[];
+	skipBuiltinExtensions?: readonly string[];
 	enableExtensions?: readonly string[];
 	extensionDevelopmentLocationURI?: URI[];
 	extensionDevelopmentKind?: ExtensionKind[];
@@ -83,9 +84,13 @@ export interface IEnvironmentService {
 	verbose: boolean;
 	isBuilt: boolean;
 
-	// --- telemetry
+	// --- telemetry/exp
 	disableTelemetry: boolean;
+	disableExperiments: boolean;
 	serviceMachineIdResource: URI;
+
+	// --- agent sessions workspace
+	agentSessionsWorkspace?: URI;
 
 	// --- Policy
 	policyFile?: URI;
@@ -134,7 +139,6 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	appSettingsHome: URI;
 	tmpDir: URI;
 	userDataPath: string;
-	machineSettingsResource: URI;
 
 	// --- extensions
 	extensionsPath: string;
@@ -145,6 +149,8 @@ export interface INativeEnvironmentService extends IEnvironmentService {
 	useInMemorySecretStorage?: boolean;
 
 	crossOriginIsolated?: boolean;
+	exportPolicyData?: string;
+	exportDefaultKeybindings?: string;
 
 	// !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 	//

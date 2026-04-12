@@ -26,7 +26,7 @@ import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { Dimension, append, $, hide, show } from '../../../base/browser/dom.js';
 import { AnchorAlignment } from '../../../base/browser/ui/contextview/contextview.js';
-import { assertIsDefined } from '../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../base/common/types.js';
 import { createActionViewItem } from '../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { AbstractProgressScope, ScopedProgressIndicator } from '../../services/progress/browser/progressIndicator.js';
 import { WorkbenchToolBar } from '../../../platform/actions/browser/toolbar.js';
@@ -56,7 +56,11 @@ interface CompositeItem {
 	readonly progress: IProgressIndicator;
 }
 
-export abstract class CompositePart<T extends Composite> extends Part {
+export interface ICompositePartOptions extends IPartOptions {
+	readonly trailingSeparator?: boolean;
+}
+
+export abstract class CompositePart<T extends Composite, MementoType extends object = object> extends Part<MementoType> {
 
 	protected readonly onDidCompositeOpen = this._register(new Emitter<{ composite: IComposite; focus: boolean }>());
 	protected readonly onDidCompositeClose = this._register(new Emitter<IComposite>());
@@ -76,6 +80,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	private readonly actionsListener = this._register(new MutableDisposable());
 	private currentCompositeOpenToken: string | undefined;
 	private boundarySashes: IBoundarySashes | undefined;
+	private readonly trailingSeparator: boolean;
 
 	constructor(
 		private readonly notificationService: INotificationService,
@@ -89,17 +94,18 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		protected readonly registry: CompositeRegistry<T>,
 		private readonly activeCompositeSettingsKey: string,
 		private readonly defaultCompositeId: string,
-		private readonly nameForTelemetry: string,
+		protected readonly nameForTelemetry: string,
 		private readonly compositeCSSClass: string,
 		private readonly titleForegroundColor: string | undefined,
 		private readonly titleBorderColor: string | undefined,
 		id: string,
-		options: IPartOptions
+		options: ICompositePartOptions
 	) {
 		super(id, options, themeService, storageService, layoutService);
 
 		this.lastActiveCompositeId = storageService.get(activeCompositeSettingsKey, StorageScope.WORKSPACE, this.defaultCompositeId);
 		this.toolbarHoverDelegate = this._register(createInstantHoverDelegate());
+		this.trailingSeparator = options.trailingSeparator ?? false;
 	}
 
 	protected openComposite(id: string, focus?: boolean): Composite | undefined {
@@ -181,13 +187,13 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		const compositeDescriptor = this.registry.getComposite(id);
 		if (compositeDescriptor) {
 			const that = this;
-			const compositeProgressIndicator = new ScopedProgressIndicator(assertIsDefined(this.progressBar), new class extends AbstractProgressScope {
+			const compositeProgressIndicator = new ScopedProgressIndicator(assertReturnsDefined(this.progressBar), this._register(new class extends AbstractProgressScope {
 				constructor() {
 					super(compositeDescriptor!.id, !!isActive);
 					this._register(that.onDidCompositeOpen.event(e => this.onScopeOpened(e.composite.getId())));
 					this._register(that.onDidCompositeClose.event(e => this.onScopeClosed(e.getId())));
 				}
-			}());
+			}()));
 			const compositeInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection(
 				[IEditorProgressService, compositeProgressIndicator] // provide the editor progress service for any editors instantiated within the composite
 			)));
@@ -247,13 +253,13 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		}
 
 		// Take Composite on-DOM and show
-		const contentArea = this.getContentArea();
-		contentArea?.appendChild(compositeContainer);
+		this.contentArea?.appendChild(compositeContainer);
 		show(compositeContainer);
 
 		// Setup action runner
-		const toolBar = assertIsDefined(this.toolBar);
-		toolBar.actionRunner = composite.getActionRunner();
+		if (this.toolBar) {
+			this.toolBar.actionRunner = composite.getActionRunner();
+		}
 
 		// Update title with composite title if it differs from descriptor
 		const descriptor = this.registry.getComposite(composite.getId());
@@ -270,13 +276,15 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		actionsBinding();
 
 		// Action Run Handling
-		this.actionsListener.value = toolBar.actionRunner.onDidRun(e => {
+		if (this.toolBar) {
+			this.actionsListener.value = this.toolBar.actionRunner.onDidRun(e => {
 
-			// Check for Error
-			if (e.error && !isCancellationError(e.error)) {
-				this.notificationService.error(e.error);
-			}
-		});
+				// Check for Error
+				if (e.error && !isCancellationError(e.error)) {
+					this.notificationService.error(e.error);
+				}
+			});
+		}
 
 		// Indicate to composite that it is now visible
 		composite.setVisible(true);
@@ -333,8 +341,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 
 		this.titleLabel.updateTitle(compositeId, compositeTitle, keybinding?.getLabel() ?? undefined);
 
-		const toolBar = assertIsDefined(this.toolBar);
-		toolBar.setAriaLabel(localize('ariaCompositeToolbarLabel', "{0} actions", compositeTitle));
+		this.toolBar?.setAriaLabel(localize('ariaCompositeToolbarLabel', "{0} actions", compositeTitle));
 	}
 
 	private collectCompositeActions(composite?: Composite): () => void {
@@ -345,11 +352,15 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		const secondaryActions: IAction[] = composite?.getSecondaryActions().slice(0) || [];
 
 		// Update context
-		const toolBar = assertIsDefined(this.toolBar);
-		toolBar.context = this.actionsContextProvider();
+		if (this.toolBar) {
+			this.toolBar.context = this.actionsContextProvider();
+		}
 
 		// Return fn to set into toolbar
-		return () => toolBar.setActions(prepareActions(primaryActions), prepareActions(secondaryActions), menuIds);
+		return () => {
+			this.toolBar?.setActions(prepareActions(primaryActions), prepareActions(secondaryActions), menuIds);
+			this.titleArea?.classList.toggle('has-actions', primaryActions.length > 0 || secondaryActions.length > 0);
+		};
 	}
 
 	protected getActiveComposite(): IComposite | undefined {
@@ -391,7 +402,10 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return composite;
 	}
 
-	protected override createTitleArea(parent: HTMLElement): HTMLElement {
+	protected override createTitleArea(parent: HTMLElement): HTMLElement | undefined {
+		if (!this.options.hasTitle) {
+			return undefined;
+		}
 
 		// Title Area Container
 		const titleArea = append(parent, $('.composite'));
@@ -411,7 +425,8 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			anchorAlignmentProvider: () => this.getTitleAreaDropDownAnchorAlignment(),
 			toggleMenuTitle: localize('viewsAndMoreActions', "Views and More Actions..."),
 			telemetrySource: this.nameForTelemetry,
-			hoverDelegate: this.toolbarHoverDelegate
+			hoverDelegate: this.toolbarHoverDelegate,
+			trailingSeparator: this.trailingSeparator,
 		}));
 
 		this.collectCompositeActions()();
@@ -430,7 +445,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 			updateTitle: (id, title, keybinding) => {
 				// The title label is shared for all composites in the base CompositePart
 				if (!this.activeComposite || this.activeComposite.getId() === id) {
-					titleLabel.innerText = title;
+					titleLabel.textContent = title;
 					hover.update(keybinding ? localize('titleTooltip', "{0} ({1})", title, keybinding) : title);
 				}
 			},
@@ -454,9 +469,8 @@ export abstract class CompositePart<T extends Composite> extends Part {
 	override updateStyles(): void {
 		super.updateStyles();
 
-		// Forward to title label
-		const titleLabel = assertIsDefined(this.titleLabel);
-		titleLabel.updateStyles();
+		// Forward to title label if present
+		this.titleLabel?.updateStyles();
 	}
 
 	protected actionViewItemProvider(action: IAction, options: IBaseActionViewItemOptions): IActionViewItem | undefined {

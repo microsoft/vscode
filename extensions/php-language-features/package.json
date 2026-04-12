@@ -2,7 +2,7 @@
   "name": "php-language-features",
   "displayName": "%displayName%",
   "description": "%description%",
-  "version": "1.0.0",
+  "version": "10.0.0",
   "publisher": "vscode",
   "license": "MIT",
   "icon": "icons/logo.png",
@@ -77,7 +77,7 @@
     "which": "^2.0.2"
   },
   "devDependencies": {
-    "@types/node": "20.x",
+    "@types/node": "22.x",
     "@types/which": "^2.0.0"
   },
   "repository": {

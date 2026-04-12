@@ -506,6 +506,11 @@ export class Filter implements ITreeFilter<MarkerElement, FilterData> {
 			return false;
 		}
 
+		// Check source filters if present
+		if (!this.options.matchesSourceFilters(marker.marker.source)) {
+			return false;
+		}
+
 		if (!this.options.textFilter.text) {
 			return true;
 		}
@@ -706,7 +711,7 @@ export class MarkersViewModel extends Disposable {
 	private bulkUpdate: boolean = false;
 
 	private hoveredMarker: Marker | null = null;
-	private hoverDelayer: Delayer<void> = new Delayer<void>(300);
+	private hoverDelayer: Delayer<void> = this._register(new Delayer<void>(300));
 	private viewModeContextKey: IContextKey<MarkersViewMode>;
 
 	constructor(

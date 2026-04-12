@@ -49,7 +49,7 @@ class TerminalQuickFixContribution extends DisposableStore implements ITerminalC
 
 	xtermReady(xterm: IXtermTerminal & { raw: RawXtermTerminal }): void {
 		// Create addon
-		this._addon = this._instantiationService.createInstance(TerminalQuickFixAddon, undefined, this._ctx.instance.capabilities);
+		this._addon = this._instantiationService.createInstance(TerminalQuickFixAddon, this._ctx.instance.sessionId, undefined, this._ctx.instance.capabilities);
 		xterm.raw.loadAddon(this._addon);
 
 		// Hook up listeners

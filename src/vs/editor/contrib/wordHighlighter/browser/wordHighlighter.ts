@@ -225,7 +225,7 @@ class WordHighlighter {
 	private workerRequestValue: ResourceMap<DocumentHighlight[]> = new ResourceMap();
 
 	private lastCursorPositionChangeTime: number = 0;
-	private renderDecorationsTimer: any = -1;
+	private renderDecorationsTimer: Timeout | undefined = undefined;
 
 	private readonly _hasWordHighlights: IContextKey<boolean>;
 	private _ignorePositionChangeEvent: boolean;
@@ -272,7 +272,7 @@ class WordHighlighter {
 				return;
 			}
 
-			this.runDelayer.trigger(() => { this._onPositionChanged(e); });
+			this.runDelayer.trigger(() => { this._onPositionChanged(e); }).catch(onUnexpectedError);
 		}));
 		this.toUnhook.add(editor.onDidFocusEditorText((e) => {
 			if (this.occurrencesHighlightEnablement === 'off') {
@@ -281,7 +281,7 @@ class WordHighlighter {
 			}
 
 			if (!this.workerRequest) {
-				this.runDelayer.trigger(() => { this._run(); });
+				this.runDelayer.trigger(() => { this._run(); }).catch(onUnexpectedError);
 			}
 		}));
 		this.toUnhook.add(editor.onDidChangeModelContent((e) => {
@@ -346,7 +346,7 @@ class WordHighlighter {
 		this.workerRequestCompleted = false;
 
 		this.lastCursorPositionChangeTime = 0;
-		this.renderDecorationsTimer = -1;
+		this.renderDecorationsTimer = undefined;
 
 		// if there is a query already, highlight off that query
 		if (WordHighlighter.query) {
@@ -364,7 +364,7 @@ class WordHighlighter {
 		}
 
 		this.runDelayer.cancel();
-		this.runDelayer.trigger(() => { this._run(false, delay); });
+		this.runDelayer.trigger(() => { this._run(false, delay); }).catch(onUnexpectedError);
 	}
 
 	public trigger() {
@@ -495,9 +495,9 @@ class WordHighlighter {
 		}
 
 		// Cancel any renderDecorationsTimer
-		if (this.renderDecorationsTimer !== -1) {
+		if (this.renderDecorationsTimer !== undefined) {
 			clearTimeout(this.renderDecorationsTimer);
-			this.renderDecorationsTimer = -1;
+			this.renderDecorationsTimer = undefined;
 		}
 
 		// Cancel any worker request
@@ -520,9 +520,9 @@ class WordHighlighter {
 		this._removeAllDecorations(preservedModel);
 
 		// Cancel any renderDecorationsTimer
-		if (this.renderDecorationsTimer !== -1) {
+		if (this.renderDecorationsTimer !== undefined) {
 			clearTimeout(this.renderDecorationsTimer);
-			this.renderDecorationsTimer = -1;
+			this.renderDecorationsTimer = undefined;
 		}
 
 		// Cancel any worker request
@@ -761,7 +761,7 @@ class WordHighlighter {
 
 		if (currentTime >= minimumRenderTime) {
 			// Synchronous
-			this.renderDecorationsTimer = -1;
+			this.renderDecorationsTimer = undefined;
 			this.renderDecorations();
 		} else {
 			// Asynchronous
@@ -772,7 +772,7 @@ class WordHighlighter {
 	}
 
 	private renderDecorations(): void {
-		this.renderDecorationsTimer = -1;
+		this.renderDecorationsTimer = undefined;
 		// create new loop, iterate over current editors using this.codeEditorService.listCodeEditors(),
 		// if the URI of that codeEditor is in the map, then add the decorations to the decorations array
 		// then set the decorations for the editor
@@ -969,7 +969,7 @@ class TriggerWordHighlightAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const controller = WordHighlighterContribution.get(editor);
 		if (!controller) {
 			return;

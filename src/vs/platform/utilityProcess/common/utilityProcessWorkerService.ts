@@ -15,6 +15,11 @@ export interface IUtilityProcessWorkerProcess {
 	 * forked process to identify it easier.
 	 */
 	readonly type: string;
+
+	/**
+	 * A human-readable name for the utility process.
+	 */
+	readonly name: string;
 }
 
 export interface IOnDidTerminateUtilityrocessWorkerProcess {

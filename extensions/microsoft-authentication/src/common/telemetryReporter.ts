@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { AuthError, ClientAuthError } from '@azure/msal-node';
 import TelemetryReporter, { TelemetryEventProperties } from '@vscode/extension-telemetry';
 import { IExperimentationTelemetry } from 'vscode-tas-client';
 
@@ -33,6 +34,13 @@ export class MicrosoftAuthenticationTelemetryReporter implements IExperimentatio
 			eventName,
 			eventProperties
 		);
+	}
+
+	sendActivatedWithMsalNoBrokerEvent(): void {
+		/* __GDPR__
+			"activatingMsalNoBroker" : { "owner": "TylerLeonhardt", "comment": "Used to determine how often users use the msal-no-broker login flow. This only fires if the user explictly opts in to this." }
+		*/
+		this._telemetryReporter.sendTelemetryEvent('activatingmsalnobroker');
 	}
 
 	sendLoginEvent(scopes: readonly string[]): void {
@@ -67,21 +75,74 @@ export class MicrosoftAuthenticationTelemetryReporter implements IExperimentatio
 		this._telemetryReporter.sendTelemetryEvent('logoutFailed');
 	}
 
-	sendTelemetryErrorEvent(error: unknown): void {
-		const errorMessage = error instanceof Error ? error.message : String(error);
-		const errorStack = error instanceof Error ? error.stack : undefined;
-		const errorName = error instanceof Error ? error.name : undefined;
+	sendTelemetryErrorEvent(error: Error | string): void {
+		let errorMessage: string | undefined;
+		let errorName: string | undefined;
+		let errorCode: string | undefined;
+		let errorCorrelationId: string | undefined;
+		if (typeof error === 'string') {
+			errorMessage = error;
+		} else {
+			const authError: AuthError = error as AuthError;
+			// don't set error message or stack because it contains PII
+			errorCode = authError.errorCode;
+			errorCorrelationId = authError.correlationId;
+			errorName = authError.name;
+		}
 
 		/* __GDPR__
 			"msalError" : {
 				"owner": "TylerLeonhardt",
 				"comment": "Used to determine how often users run into issues with the login flow.",
-				"errorMessage": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The error message from the exception." },
-				"errorStack": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The stack trace from the exception." },
-				"errorName": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The name of the error." }
+				"errorMessage": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The error message." },
+				"errorName": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The name of the error." },
+				"errorCode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The error code." },
+				"errorCorrelationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The error correlation id." }
 			}
 		*/
-		this._telemetryReporter.sendTelemetryErrorEvent('msalError', { errorMessage, errorStack, errorName });
+		this._telemetryReporter.sendTelemetryErrorEvent('msalError', {
+			errorMessage,
+			errorName,
+			errorCode,
+			errorCorrelationId,
+		});
+	}
+
+	sendTelemetryClientAuthErrorEvent(error: AuthError): void {
+		const errorCode = error.errorCode;
+		const correlationId = error.correlationId;
+		const errorName = error.name;
+		let brokerErrorCode: string | undefined;
+		let brokerStatusCode: string | undefined;
+		let brokerTag: string | undefined;
+
+		// Extract platform broker error information if available
+		if (error.platformBrokerError) {
+			brokerErrorCode = error.platformBrokerError.errorCode;
+			brokerStatusCode = `${error.platformBrokerError.statusCode}`;
+			brokerTag = error.platformBrokerError.tag;
+		}
+
+		/* __GDPR__
+			"msalClientAuthError" : {
+				"owner": "TylerLeonhardt",
+				"comment": "Used to determine how often users run into client auth errors during the login flow.",
+				"errorName": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The name of the client auth error." },
+				"errorCode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The client auth error code." },
+				"correlationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The client auth error correlation id." },
+				"brokerErrorCode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The broker error code." },
+				"brokerStatusCode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The broker error status code." },
+				"brokerTag": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The broker error tag." }
+			}
+		*/
+		this._telemetryReporter.sendTelemetryErrorEvent('msalClientAuthError', {
+			errorName,
+			errorCode,
+			correlationId,
+			brokerErrorCode,
+			brokerStatusCode,
+			brokerTag
+		});
 	}
 
 	/**
@@ -92,7 +153,7 @@ export class MicrosoftAuthenticationTelemetryReporter implements IExperimentatio
 	 */
 	sendAccountEvent(scopes: string[], accountType: MicrosoftAccountType): void {
 		/* __GDPR__
-			"login" : {
+			"account" : {
 				"owner": "TylerLeonhardt",
 				"comment": "Used to determine the usage of the Microsoft Auth Provider.",
 				"scopes": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight", "comment": "Used to determine what scope combinations are being requested." },

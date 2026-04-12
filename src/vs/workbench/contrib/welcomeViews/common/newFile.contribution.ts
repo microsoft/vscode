@@ -6,12 +6,13 @@
 import { promiseWithResolvers } from '../../../../base/common/async.js';
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
 import { Action2, IMenuService, MenuId, registerAction2, IMenu, MenuRegistry, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
@@ -30,6 +31,7 @@ registerAction2(class extends Action2 {
 			title: localize2('welcome.newFile', 'New File...'),
 			category,
 			f1: true,
+			precondition: IsSessionsWindowContext.negate(),
 			keybinding: {
 				primary: KeyMod.Alt + KeyMod.CtrlCmd + KeyMod.WinCtrl + KeyCode.KeyN,
 				weight: KeybindingWeight.WorkbenchContrib,
@@ -37,17 +39,18 @@ registerAction2(class extends Action2 {
 			menu: {
 				id: MenuId.MenubarFileMenu,
 				group: '1_new',
-				order: 2
+				order: 2,
+				when: IsSessionsWindowContext.negate()
 			}
 		});
 	}
 
 	async run(accessor: ServicesAccessor): Promise<boolean> {
-		return assertIsDefined(NewFileTemplatesManager.Instance).run();
+		return assertReturnsDefined(NewFileTemplatesManager.Instance).run();
 	}
 });
 
-type NewFileItem = { commandID: string; title: string; from: string; group: string; commandArgs?: any };
+type NewFileItem = { commandID: string; title: string; from: string; group: string; commandArgs?: unknown };
 class NewFileTemplatesManager extends Disposable {
 	static Instance: NewFileTemplatesManager | undefined;
 

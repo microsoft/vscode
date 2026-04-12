@@ -5,7 +5,7 @@
 
 import { localize } from '../../../../nls.js';
 import { Event, Emitter } from '../../../../base/common/event.js';
-import { assertIsDefined } from '../../../../base/common/types.js';
+import { assertReturnsDefined } from '../../../../base/common/types.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from '../../../common/contributions.js';
 import { ILifecycleService, LifecyclePhase, WillShutdownEvent } from '../../lifecycle/common/lifecycle.js';
@@ -155,9 +155,9 @@ export class WorkingCopyHistoryModel {
 	}
 
 	private async doAddEntry(source: SaveSource, sourceDescription: string | undefined = undefined, timestamp: number, token: CancellationToken): Promise<IWorkingCopyHistoryEntry> {
-		const workingCopyResource = assertIsDefined(this.workingCopyResource);
-		const workingCopyName = assertIsDefined(this.workingCopyName);
-		const historyEntriesFolder = assertIsDefined(this.historyEntriesFolder);
+		const workingCopyResource = assertReturnsDefined(this.workingCopyResource);
+		const workingCopyName = assertReturnsDefined(this.workingCopyName);
+		const historyEntriesFolder = assertReturnsDefined(this.historyEntriesFolder);
 
 		// Perform a fast clone operation with minimal overhead to a new random location
 		const id = `${randomPath(undefined, undefined, 4)}${extname(workingCopyResource)}`;
@@ -185,7 +185,7 @@ export class WorkingCopyHistoryModel {
 	}
 
 	private async doReplaceEntry(entry: IWorkingCopyHistoryEntry, source: SaveSource, sourceDescription: string | undefined = undefined, timestamp: number, token: CancellationToken): Promise<IWorkingCopyHistoryEntry> {
-		const workingCopyResource = assertIsDefined(this.workingCopyResource);
+		const workingCopyResource = assertReturnsDefined(this.workingCopyResource);
 
 		// Perform a fast clone operation with minimal overhead to the existing location
 		await this.fileService.cloneFile(workingCopyResource, entry.location);
@@ -317,8 +317,8 @@ export class WorkingCopyHistoryModel {
 	}
 
 	private async resolveEntriesFromDisk(): Promise<Map<string /* ID */, IWorkingCopyHistoryEntry>> {
-		const workingCopyResource = assertIsDefined(this.workingCopyResource);
-		const workingCopyName = assertIsDefined(this.workingCopyName);
+		const workingCopyResource = assertReturnsDefined(this.workingCopyResource);
+		const workingCopyName = assertReturnsDefined(this.workingCopyName);
 
 		const [entryListing, entryStats] = await Promise.all([
 
@@ -364,13 +364,13 @@ export class WorkingCopyHistoryModel {
 
 	async moveEntries(target: WorkingCopyHistoryModel, source: SaveSource, token: CancellationToken): Promise<void> {
 		const timestamp = Date.now();
-		const sourceDescription = this.labelService.getUriLabel(assertIsDefined(this.workingCopyResource));
+		const sourceDescription = this.labelService.getUriLabel(assertReturnsDefined(this.workingCopyResource));
 
 		// Move all entries into the target folder so that we preserve
 		// any existing history entries that might already be present
 
-		const sourceHistoryEntriesFolder = assertIsDefined(this.historyEntriesFolder);
-		const targetHistoryEntriesFolder = assertIsDefined(target.historyEntriesFolder);
+		const sourceHistoryEntriesFolder = assertReturnsDefined(this.historyEntriesFolder);
+		const targetHistoryEntriesFolder = assertReturnsDefined(target.historyEntriesFolder);
 		try {
 			for (const entry of this.entries) {
 				await this.fileService.move(entry.location, joinPath(targetHistoryEntriesFolder, entry.id), true);
@@ -393,11 +393,11 @@ export class WorkingCopyHistoryModel {
 		const allEntries = distinct([...this.entries, ...target.entries], entry => entry.id).sort((entryA, entryB) => entryA.timestamp - entryB.timestamp);
 
 		// Update our associated working copy
-		const targetWorkingCopyResource = assertIsDefined(target.workingCopyResource);
+		const targetWorkingCopyResource = assertReturnsDefined(target.workingCopyResource);
 		this.setWorkingCopy(targetWorkingCopyResource);
 
 		// Restore our entries and ensure correct metadata
-		const targetWorkingCopyName = assertIsDefined(target.workingCopyName);
+		const targetWorkingCopyName = assertReturnsDefined(target.workingCopyName);
 		for (const entry of allEntries) {
 			this.entries.push({
 				id: entry.id,
@@ -441,7 +441,7 @@ export class WorkingCopyHistoryModel {
 	}
 
 	private async doStore(token: CancellationToken): Promise<void> {
-		const historyEntriesFolder = assertIsDefined(this.historyEntriesFolder);
+		const historyEntriesFolder = assertReturnsDefined(this.historyEntriesFolder);
 
 		// Make sure to await resolving when persisting
 		await this.resolveEntriesOnce();
@@ -505,8 +505,8 @@ export class WorkingCopyHistoryModel {
 	}
 
 	private async writeEntriesFile(): Promise<void> {
-		const workingCopyResource = assertIsDefined(this.workingCopyResource);
-		const historyEntriesListingFile = assertIsDefined(this.historyEntriesListingFile);
+		const workingCopyResource = assertReturnsDefined(this.workingCopyResource);
+		const historyEntriesListingFile = assertReturnsDefined(this.historyEntriesListingFile);
 
 		const serializedModel: ISerializedWorkingCopyHistoryModel = {
 			version: 1,
@@ -525,7 +525,7 @@ export class WorkingCopyHistoryModel {
 	}
 
 	private async readEntriesFile(): Promise<ISerializedWorkingCopyHistoryModel | undefined> {
-		const historyEntriesListingFile = assertIsDefined(this.historyEntriesListingFile);
+		const historyEntriesListingFile = assertReturnsDefined(this.historyEntriesListingFile);
 
 		let serializedModel: ISerializedWorkingCopyHistoryModel | undefined = undefined;
 		try {
@@ -540,8 +540,8 @@ export class WorkingCopyHistoryModel {
 	}
 
 	private async readEntriesFolder(): Promise<IFileStatWithMetadata[] | undefined> {
-		const historyEntriesFolder = assertIsDefined(this.historyEntriesFolder);
-		const historyEntriesNameMatcher = assertIsDefined(this.historyEntriesNameMatcher);
+		const historyEntriesFolder = assertReturnsDefined(this.historyEntriesFolder);
+		const historyEntriesNameMatcher = assertReturnsDefined(this.historyEntriesNameMatcher);
 
 		let rawEntries: IFileStatWithMetadata[] | undefined = undefined;
 

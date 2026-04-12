@@ -1,0 +1,110 @@
+{
+	"name": "sessions-e2e-mock",
+	"displayName": "Sessions E2E Mock",
+	"description": "Mock auth, chat participant, and file system for E2E testing",
+	"version": "0.0.1",
+	"publisher": "vscode",
+	"engines": {
+		"vscode": "^1.100.0"
+	},
+	"extensionKind": ["ui", "workspace"],
+	"browser": "./extension.js",
+	"activationEvents": ["*"],
+	"enabledApiProposals": ["chatSessionsProvider"],
+	"capabilities": {
+		"virtualWorkspaces": true,
+		"untrustedWorkspaces": {
+			"supported": true
+		}
+	},
+	"contributes": {
+		"authentication": [
+			{
+				"id": "github",
+				"label": "GitHub (Mock)"
+			}
+		],
+		"commands": [
+			{
+				"command": "github.copilot.chat.applyCopilotCLIAgentSessionChanges.apply",
+				"title": "Apply Changes",
+				"icon": "$(check)"
+			},
+			{
+				"command": "github.copilot.chat.checkoutPullRequestReroute",
+				"title": "Checkout Pull Request",
+				"icon": "$(git-pull-request)"
+			},
+			{
+				"command": "github.copilot.chat.openPullRequestCopilotCLIAgentSession.openPR",
+				"title": "Open Pull Request",
+				"icon": "$(link-external)"
+			},
+			{
+				"command": "github.copilot.chat.mergeCopilotCLIAgentSessionChanges.merge",
+				"title": "Merge",
+				"icon": "$(git-merge)"
+			},
+			{
+				"command": "github.copilot.chat.mergeCopilotCLIAgentSessionChanges.mergeAndSync",
+				"title": "Merge and Sync",
+				"icon": "$(git-merge)"
+			},
+			{
+				"command": "github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR",
+				"title": "Create Pull Request",
+				"icon": "$(git-pull-request-create)"
+			},
+			{
+				"command": "github.copilot.chat.updateCopilotCLIAgentSessionChanges.update",
+				"title": "Update",
+				"icon": "$(cloud-upload)"
+			},
+			{
+				"command": "github.copilot.chat.codeReview.run",
+				"title": "Run Code Review"
+			}
+		],
+		"menus": {
+			"chat/input/editing/sessionToolbar": [
+				{
+					"command": "github.copilot.chat.applyCopilotCLIAgentSessionChanges.apply",
+					"when": "chatSessionType == copilotcli && workbenchState != empty && !isSessionsWindow",
+					"group": "navigation@0"
+				},
+				{
+					"command": "github.copilot.chat.checkoutPullRequestReroute",
+					"when": "chatSessionType == copilot-cloud-agent && !github.vscode-pull-request-github.activated && gitOpenRepositoryCount != 0",
+					"group": "navigation@0"
+				},
+				{
+					"command": "github.copilot.chat.openPullRequestCopilotCLIAgentSession.openPR",
+					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.hasOpenPullRequest",
+					"group": "navigation@1"
+				}
+			],
+			"chat/input/editing/sessionApplyActions": [
+				{
+					"command": "github.copilot.chat.mergeCopilotCLIAgentSessionChanges.merge",
+					"when": "chatSessionType == copilotcli && isSessionsWindow && !sessions.isMergeBaseBranchProtected",
+					"group": "merge@1"
+				},
+				{
+					"command": "github.copilot.chat.mergeCopilotCLIAgentSessionChanges.mergeAndSync",
+					"when": "chatSessionType == copilotcli && isSessionsWindow && !sessions.isMergeBaseBranchProtected",
+					"group": "merge@2"
+				},
+				{
+					"command": "github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR",
+					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.isMergeBaseBranchProtected && !sessions.hasOpenPullRequest",
+					"group": "pull_request@1"
+				},
+				{
+					"command": "github.copilot.chat.updateCopilotCLIAgentSessionChanges.update",
+					"when": "chatSessionType == copilotcli && isSessionsWindow",
+					"group": "update@1"
+				}
+			]
+		}
+	}
+}

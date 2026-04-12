@@ -24,6 +24,10 @@ export class ElectronServiceConfigurationProvider extends BaseServiceConfigurati
 	}
 
 	protected readGlobalTsdk(configuration: vscode.WorkspaceConfiguration): string | null {
+		const unifiedInspect = configuration.inspect('js/ts.tsdk.path');
+		if (unifiedInspect && typeof unifiedInspect.globalValue === 'string') {
+			return this.fixPathPrefixes(unifiedInspect.globalValue);
+		}
 		const inspect = configuration.inspect('typescript.tsdk');
 		if (inspect && typeof inspect.globalValue === 'string') {
 			return this.fixPathPrefixes(inspect.globalValue);
@@ -32,6 +36,10 @@ export class ElectronServiceConfigurationProvider extends BaseServiceConfigurati
 	}
 
 	protected readLocalTsdk(configuration: vscode.WorkspaceConfiguration): string | null {
+		const unifiedInspect = configuration.inspect('js/ts.tsdk.path');
+		if (unifiedInspect && typeof unifiedInspect.workspaceValue === 'string') {
+			return this.fixPathPrefixes(unifiedInspect.workspaceValue);
+		}
 		const inspect = configuration.inspect('typescript.tsdk');
 		if (inspect && typeof inspect.workspaceValue === 'string') {
 			return this.fixPathPrefixes(inspect.workspaceValue);
@@ -44,7 +52,10 @@ export class ElectronServiceConfigurationProvider extends BaseServiceConfigurati
 	}
 
 	private readLocalNodePathWorker(configuration: vscode.WorkspaceConfiguration): string | null {
-		const inspect = configuration.inspect('typescript.tsserver.nodePath');
+		const unifiedInspect = configuration.inspect('js/ts.tsserver.node.path');
+		const inspect = (unifiedInspect?.workspaceValue && typeof unifiedInspect.workspaceValue === 'string')
+			? unifiedInspect
+			: configuration.inspect('typescript.tsserver.nodePath');
 		if (inspect?.workspaceValue && typeof inspect.workspaceValue === 'string') {
 			if (inspect.workspaceValue === 'node') {
 				return this.findNodePath();
@@ -64,7 +75,10 @@ export class ElectronServiceConfigurationProvider extends BaseServiceConfigurati
 	}
 
 	private readGlobalNodePathWorker(configuration: vscode.WorkspaceConfiguration): string | null {
-		const inspect = configuration.inspect('typescript.tsserver.nodePath');
+		const unifiedInspect = configuration.inspect('js/ts.tsserver.node.path');
+		const inspect = (unifiedInspect?.globalValue && typeof unifiedInspect.globalValue === 'string')
+			? unifiedInspect
+			: configuration.inspect('typescript.tsserver.nodePath');
 		if (inspect?.globalValue && typeof inspect.globalValue === 'string') {
 			if (inspect.globalValue === 'node') {
 				return this.findNodePath();

@@ -5,18 +5,18 @@
 
 import { strictEquals } from '../../../base/common/equals.js';
 import { DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
-// eslint-disable-next-line local/code-no-deep-import-of-internal
-import { ObservableValue } from '../../../base/common/observableInternal/base.js';
+import { DebugLocation } from '../../../base/common/observable.js';
 // eslint-disable-next-line local/code-no-deep-import-of-internal
 import { DebugNameData } from '../../../base/common/observableInternal/debugName.js';
+// eslint-disable-next-line local/code-no-deep-import-of-internal
+import { ObservableValue } from '../../../base/common/observableInternal/observables/observableValue.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
 
 interface IObservableMementoOpts<T> {
 	defaultValue: T;
 	key: string;
-	/** Storage options, defaults to JSON storage if the defaultValue is an object */
-	toStorage?: (value: T) => string;
-	fromStorage?: (value: string) => T;
+	toStorage: (value: T) => string;
+	fromStorage: (value: string) => T;
 }
 
 /**
@@ -37,50 +37,37 @@ export function observableMemento<T>(opts: IObservableMementoOpts<T>) {
  */
 export class ObservableMemento<T> extends ObservableValue<T> implements IDisposable {
 	private readonly _store = new DisposableStore();
-	private _didChange = false;
+	private _noStorageUpdateNeeded = false;
 
 	constructor(
-		opts: IObservableMementoOpts<T>,
-		storageScope: StorageScope,
-		storageTarget: StorageTarget,
-		@IStorageService storageService: IStorageService,
+		private readonly opts: IObservableMementoOpts<T>,
+		private readonly storageScope: StorageScope,
+		private readonly storageTarget: StorageTarget,
+		@IStorageService private readonly storageService: IStorageService,
 	) {
-		if (opts.defaultValue && typeof opts.defaultValue === 'object') {
-			opts.toStorage ??= (value: T) => JSON.stringify(value);
-			opts.fromStorage ??= (value: string) => JSON.parse(value);
-		}
-
-		let initialValue = opts.defaultValue;
-
-		const fromStorage = storageService.get(opts.key, storageScope);
-		if (fromStorage !== undefined) {
-			if (opts.fromStorage) {
+		const getStorageValue = (): T => {
+			const fromStorage = storageService.get(opts.key, storageScope);
+			if (fromStorage !== undefined) {
 				try {
-					initialValue = opts.fromStorage(fromStorage);
+					return opts.fromStorage(fromStorage);
 				} catch {
-					initialValue = opts.defaultValue;
+					return opts.defaultValue;
 				}
 			}
-		}
+			return opts.defaultValue;
+		};
 
-		super(new DebugNameData(undefined, `storage/${opts.key}`, undefined), initialValue, strictEquals);
+		const initialValue = getStorageValue();
+		super(new DebugNameData(undefined, `storage/${opts.key}`, undefined), initialValue, strictEquals, DebugLocation.ofCaller());
 
 		const didChange = storageService.onDidChangeValue(storageScope, opts.key, this._store);
-		// only take external changes if there aren't local changes we've made
 		this._store.add(didChange((e) => {
-			if (e.external && e.key === opts.key && !this._didChange) {
-				this.set(opts.defaultValue, undefined);
-			}
-		}));
-
-		this._store.add(storageService.onWillSaveState(() => {
-			if (this._didChange) {
-				this._didChange = false;
-				const value = this.get();
-				if (opts.toStorage) {
-					storageService.store(opts.key, opts.toStorage(value), storageScope, storageTarget);
-				} else {
-					storageService.store(opts.key, String(value), storageScope, storageTarget);
+			if (e.external && e.key === opts.key) {
+				this._noStorageUpdateNeeded = true;
+				try {
+					this.set(getStorageValue(), undefined);
+				} finally {
+					this._noStorageUpdateNeeded = false;
 				}
 			}
 		}));
@@ -88,7 +75,11 @@ export class ObservableMemento<T> extends ObservableValue<T> implements IDisposa
 
 	protected override _setValue(newValue: T): void {
 		super._setValue(newValue);
-		this._didChange = true;
+		if (this._noStorageUpdateNeeded) {
+			return;
+		}
+		const valueToStore = this.opts.toStorage(this.get());
+		this.storageService.store(this.opts.key, valueToStore, this.storageScope, this.storageTarget);
 	}
 
 	dispose(): void {

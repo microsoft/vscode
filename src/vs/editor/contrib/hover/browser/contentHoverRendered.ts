@@ -7,6 +7,7 @@ import { IEditorHoverContext, IEditorHoverParticipant, IEditorHoverRenderContext
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { EditorHoverStatusBar } from './contentHoverStatusBar.js';
 import { HoverStartSource } from './hoverOperation.js';
+import { HoverCopyButton } from './hoverCopyButton.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
 import { ModelDecorationOptions } from '../../../common/model/textModel.js';
 import { ICodeEditor } from '../../../browser/editorBrowser.js';
@@ -22,7 +23,9 @@ import { InlayHintsHover } from '../../inlayHints/browser/inlayHintsHover.js';
 import { BugIndicatingError } from '../../../../base/common/errors.js';
 import { HoverAction } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { IOffsetRange } from '../../../common/core/offsetRange.js';
+import { IOffsetRange } from '../../../common/core/ranges/offsetRange.js';
+import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { MarkerHover } from './markerHoverParticipant.js';
 
 export class RenderedContentHover extends Disposable {
 
@@ -44,7 +47,8 @@ export class RenderedContentHover extends Disposable {
 		participants: IEditorHoverParticipant<IHoverPart>[],
 		context: IEditorHoverContext,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IHoverService hoverService: IHoverService
+		@IHoverService hoverService: IHoverService,
+		@IClipboardService clipboardService: IClipboardService
 	) {
 		super();
 		const parts = hoverResult.hoverParts;
@@ -54,7 +58,8 @@ export class RenderedContentHover extends Disposable {
 			parts,
 			context,
 			keybindingService,
-			hoverService
+			hoverService,
+			clipboardService
 		));
 		const contentHoverComputerOptions = hoverResult.options;
 		const anchor = contentHoverComputerOptions.anchor;
@@ -235,12 +240,13 @@ class RenderedContentHoverParts extends Disposable {
 		hoverParts: IHoverPart[],
 		context: IEditorHoverContext,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IHoverService hoverService: IHoverService
+		@IHoverService private readonly _hoverService: IHoverService,
+		@IClipboardService private readonly _clipboardService: IClipboardService
 	) {
 		super();
 		this._context = context;
 		this._fragment = document.createDocumentFragment();
-		this._register(this._renderParts(participants, hoverParts, context, keybindingService, hoverService));
+		this._register(this._renderParts(participants, hoverParts, context, keybindingService, this._hoverService));
 		this._register(this._registerListenersOnRenderedParts());
 		this._register(this._createEditorDecorations(editor, hoverParts));
 		this._updateMarkdownAndColorParticipantInfo(participants);
@@ -327,6 +333,15 @@ class RenderedContentHoverParts extends Disposable {
 				event.stopPropagation();
 				this._focusedHoverPartIndex = -1;
 			}));
+			// Add copy button for marker hovers
+			if (renderedPart.type === 'hoverPart' && renderedPart.hoverPart instanceof MarkerHover) {
+				disposables.add(new HoverCopyButton(
+					element,
+					() => renderedPart.participant.getAccessibleContent(renderedPart.hoverPart),
+					this._clipboardService,
+					this._hoverService
+				));
+			}
 		});
 		return disposables;
 	}

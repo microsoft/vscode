@@ -13,5 +13,5 @@ export const enum TerminalStorageKeys {
 	TerminalBufferState = 'terminal.integrated.bufferState',
 	TerminalLayoutInfo = 'terminal.integrated.layoutInfo',
 	PinnedRecentCommandsPrefix = 'terminal.pinnedRecentCommands',
-	TerminalSuggestSize = 'terminal.integrated.suggestSize'
+	TerminalSuggestSize = 'terminal.integrated.suggestSize',
 }

@@ -5,24 +5,26 @@
 
 import * as DOM from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
+import { HoverStyle, type IHoverOptions, type IHoverWidget } from '../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { SimpleIconLabel } from '../../../../base/browser/ui/iconLabel/simpleIconLabel.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { IMarkdownString, MarkdownString, createMarkdownLink } from '../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { IDisposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget } from '../../../../platform/configuration/common/configuration.js';
+import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IUserDataSyncEnablementService } from '../../../../platform/userDataSync/common/userDataSync.js';
-import { SettingsTreeSettingElement } from './settingsTreeModels.js';
-import { EXPERIMENTAL_INDICATOR_DESCRIPTION, POLICY_SETTING_TAG, PREVIEW_INDICATOR_DESCRIPTION } from '../common/preferences.js';
 import { IWorkbenchConfigurationService } from '../../../services/configuration/common/configuration.js';
-import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import type { IHoverOptions, IHoverWidget } from '../../../../base/browser/ui/hover/hover.js';
+import { ADVANCED_INDICATOR_DESCRIPTION, EXPERIMENTAL_INDICATOR_DESCRIPTION, POLICY_SETTING_TAG, PREVIEW_INDICATOR_DESCRIPTION } from '../common/preferences.js';
+import { SettingsTreeSettingElement } from './settingsTreeModels.js';
 
 const $ = DOM.$;
 
@@ -65,6 +67,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 	private readonly indicatorsContainerElement: HTMLElement;
 
 	private readonly previewIndicator: SettingIndicator;
+	private readonly advancedIndicator: SettingIndicator;
 	private readonly workspaceTrustIndicator: SettingIndicator;
 	private readonly scopeOverridesIndicator: SettingIndicator;
 	private readonly syncIgnoredIndicator: SettingIndicator;
@@ -89,7 +92,8 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		this.indicatorsContainerElement.style.display = 'inline';
 
 		this.previewIndicator = this.createPreviewIndicator();
-		this.isolatedIndicators = [this.previewIndicator];
+		this.advancedIndicator = this.createAdvancedIndicator();
+		this.isolatedIndicators = [this.previewIndicator, this.advancedIndicator];
 
 		this.workspaceTrustIndicator = this.createWorkspaceTrustIndicator();
 		this.scopeOverridesIndicator = this.createScopeOverridesIndicator();
@@ -100,13 +104,10 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 
 	private defaultHoverOptions: Partial<IHoverOptions> = {
 		trapFocus: true,
+		style: HoverStyle.Pointer,
 		position: {
 			hoverPosition: HoverPosition.BELOW,
 		},
-		appearance: {
-			showPointer: true,
-			compact: false,
-		}
 	};
 
 	private addHoverDisposables(disposables: DisposableStore, element: HTMLElement, showHover: (focus: boolean) => IHoverWidget | undefined) {
@@ -226,6 +227,28 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		};
 	}
 
+	private createAdvancedIndicator(): SettingIndicator {
+		const disposables = new DisposableStore();
+		const advancedIndicator = $('span.setting-indicator.setting-item-preview');
+		const advancedLabel = disposables.add(new SimpleIconLabel(advancedIndicator));
+		advancedLabel.text = localize('advancedLabel', "Advanced");
+
+		const showHover = (focus: boolean) => {
+			return this.hoverService.showInstantHover({
+				...this.defaultHoverOptions,
+				content: ADVANCED_INDICATOR_DESCRIPTION,
+				target: advancedIndicator
+			}, focus);
+		};
+		this.addHoverDisposables(disposables, advancedIndicator, showHover);
+
+		return {
+			element: advancedIndicator,
+			label: advancedLabel,
+			disposables
+		};
+	}
+
 	private render() {
 		this.indicatorsContainerElement.innerText = '';
 		this.indicatorsContainerElement.style.display = 'none';
@@ -337,6 +360,12 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 		};
 		this.addHoverDisposables(this.previewIndicator.disposables, this.previewIndicator.element, showHover);
 
+		this.render();
+	}
+
+	updateAdvancedIndicator(element: SettingsTreeSettingElement) {
+		const isAdvancedSetting = element.tags?.has('advanced');
+		this.advancedIndicator.element.style.display = isAdvancedSetting ? 'inline' : 'none';
 		this.render();
 	}
 
@@ -455,7 +484,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 					contentMarkdownString = prefaceText;
 					for (const scope of element.overriddenScopeList) {
 						const scopeDisplayText = this.getInlineScopeDisplayText(scope);
-						contentMarkdownString += `\n- [${scopeDisplayText}](${encodeURIComponent(scope)} "${getAccessibleScopeDisplayText(scope, this.languageService)}")`;
+						contentMarkdownString += '\n- ' + createMarkdownLink(scopeDisplayText, SettingScopeLink.create(scope).toString(), getAccessibleScopeDisplayText(scope, this.languageService));
 					}
 				}
 				if (element.overriddenDefaultsLanguageList.length) {
@@ -466,7 +495,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 					contentMarkdownString += prefaceText;
 					for (const language of element.overriddenDefaultsLanguageList) {
 						const scopeDisplayText = this.languageService.getLanguageName(language);
-						contentMarkdownString += `\n- [${scopeDisplayText}](${encodeURIComponent(`default:${language}`)} "${scopeDisplayText}")`;
+						contentMarkdownString += '\n- ' + createMarkdownLink(scopeDisplayText ?? language, SettingScopeLink.create(`default:${language}`).toString());
 					}
 				}
 				const content: IMarkdownString = {
@@ -478,7 +507,7 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 					...this.defaultHoverOptions,
 					content,
 					linkHandler: (url: string) => {
-						const [scope, language] = decodeURIComponent(url).split(':');
+						const [scope, language] = SettingScopeLink.parse(url).split(':');
 						onDidClickOverrideElement.fire({
 							settingKey: element.setting.key,
 							scope: scope as ScopeString,
@@ -515,13 +544,10 @@ export class SettingsTreeIndicatorsLabel implements IDisposable {
 				return this.hoverService.showInstantHover({
 					content: new MarkdownString().appendMarkdown(defaultOverrideHoverContent),
 					target: this.defaultOverrideIndicator.element,
+					style: HoverStyle.Pointer,
 					position: {
 						hoverPosition: HoverPosition.BELOW,
 					},
-					appearance: {
-						showPointer: true,
-						compact: false
-					}
 				}, focus);
 			};
 			this.addHoverDisposables(this.defaultOverrideIndicator.disposables, this.defaultOverrideIndicator.element, showHover);
@@ -583,6 +609,10 @@ export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement,
 		ariaLabelSections.push(localize('experimentalLabel', "Experimental"));
 	}
 
+	if (element.tags?.has('advanced')) {
+		ariaLabelSections.push(localize('advancedLabel', "Advanced"));
+	}
+
 	// Add workspace trust text
 	if (element.isUntrusted) {
 		ariaLabelSections.push(localize('workspaceUntrustedAriaLabel', "Workspace untrusted; setting value not applied"));
@@ -635,4 +665,22 @@ export function getIndicatorsLabelAriaLabel(element: SettingsTreeSettingElement,
 
 	const ariaLabel = ariaLabelSections.join('. ');
 	return ariaLabel;
+}
+
+/**
+ * Internal links used to open a specific scope in the settings editor
+ */
+namespace SettingScopeLink {
+	export function create(scope: string): URI {
+		return URI.from({
+			scheme: Schemas.internal,
+			path: '/',
+			query: encodeURIComponent(scope)
+		});
+	}
+
+	export function parse(link: string): string {
+		const uri = URI.parse(link);
+		return decodeURIComponent(uri.query);
+	}
 }

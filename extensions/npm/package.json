@@ -18,13 +18,19 @@
   ],
   "scripts": {
     "compile": "npx gulp compile-extension:npm",
-    "watch": "npx gulp watch-extension:npm"
+    "watch": "npx gulp watch-extension:npm",
+    "compile-web": "npm-run-all2 -lp bundle-web typecheck-web",
+    "bundle-web": "node ./esbuild.browser.mts",
+    "typecheck-web": "tsgo --project ./tsconfig.browser.json --noEmit",
+    "watch-web": "npm-run-all2 -lp watch-bundle-web watch-typecheck-web",
+    "watch-bundle-web": "node ./esbuild.browser.mts --watch",
+    "watch-typecheck-web": "tsgo --project ./tsconfig.browser.json --noEmit --watch"
   },
   "dependencies": {
     "find-up": "^5.0.0",
     "find-yarn-workspace-root": "^2.0.0",
     "jsonc-parser": "^3.2.0",
-    "minimatch": "^5.1.6",
+    "minimatch": "^5.1.8",
     "request-light": "^0.7.0",
     "which": "^4.0.0",
     "which-pm": "^2.1.1",
@@ -32,7 +38,7 @@
   },
   "devDependencies": {
     "@types/minimatch": "^5.1.2",
-    "@types/node": "20.x",
+    "@types/node": "22.x",
     "@types/which": "^3.0.0"
   },
   "main": "./out/npmMain",
@@ -289,7 +295,7 @@
           "default": false,
           "scope": "resource",
           "deprecationMessage": "The NPM Script Explorer is now available in 'Views' menu in the Explorer in all folders.",
-          "description": "%config.npm.enableScriptExplorer%"
+          "markdownDescription": "%config.npm.enableScriptExplorer%"
         },
         "npm.enableRunFromFolder": {
           "type": "boolean",
@@ -327,7 +333,7 @@
         },
         "npm.scriptHover": {
           "type": "boolean",
-          "description": "%config.npm.scriptHover%",
+          "markdownDescription": "%config.npm.scriptHover%",
           "default": true,
           "scope": "window"
         }
@@ -336,11 +342,11 @@
     "jsonValidation": [
       {
         "fileMatch": "package.json",
-        "url": "https://json.schemastore.org/package"
+        "url": "https://www.schemastore.org/package"
       },
       {
         "fileMatch": "bower.json",
-        "url": "https://json.schemastore.org/bower"
+        "url": "https://www.schemastore.org/bower"
       }
     ],
     "taskDefinitions": [

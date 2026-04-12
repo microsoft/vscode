@@ -6,7 +6,7 @@
 import assert from 'assert';
 import * as fs from 'fs';
 import * as os from 'os';
-import * as path from 'path';
+import { join } from '../../../base/common/path.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { getRandomTestPath } from '../../../base/test/node/testUtils.js';
 import { parseServerConnectionToken, ServerConnectionToken, ServerConnectionTokenParseError, ServerConnectionTokenType } from '../../node/serverConnectionToken.js';
@@ -51,7 +51,7 @@ suite('parseServerConnectionToken', () => {
 		this.timeout(10000);
 		const testDir = getRandomTestPath(os.tmpdir(), 'vsctests', 'server-connection-token');
 		fs.mkdirSync(testDir, { recursive: true });
-		const filename = path.join(testDir, 'connection-token-file');
+		const filename = join(testDir, 'connection-token-file');
 		const connectionToken = `12345-123-abc`;
 		fs.writeFileSync(filename, connectionToken);
 		const result = await parseServerConnectionToken({ 'connection-token-file': filename } as ServerParsedArgs, async () => 'defaultTokenValue');

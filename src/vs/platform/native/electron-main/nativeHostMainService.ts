@@ -5,21 +5,20 @@
 
 import * as fs from 'fs';
 import { exec } from 'child_process';
-import { app, BrowserWindow, clipboard, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, SaveDialogOptions, SaveDialogReturnValue, screen, shell, webContents } from 'electron';
+import { app, BrowserWindow, clipboard, contentTracing, Display, Menu, MessageBoxOptions, MessageBoxReturnValue, Notification, OpenDevToolsOptions, OpenDialogOptions, OpenDialogReturnValue, powerMonitor, powerSaveBlocker, SaveDialogOptions, SaveDialogReturnValue, screen, shell, webContents } from 'electron';
 import { arch, cpus, freemem, loadavg, platform, release, totalmem, type } from 'os';
 import { promisify } from 'util';
 import { memoize } from '../../../base/common/decorators.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { matchesSomeScheme, Schemas } from '../../../base/common/network.js';
 import { dirname, join, posix, resolve, win32 } from '../../../base/common/path.js';
 import { isLinux, isMacintosh, isWindows } from '../../../base/common/platform.js';
 import { AddFirstParameterToFunctions } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
-import { realpath } from '../../../base/node/extpath.js';
 import { virtualMachineHint } from '../../../base/node/id.js';
 import { Promises, SymlinkSupport } from '../../../base/node/pfs.js';
-import { findFreePort } from '../../../base/node/ports.js';
+import { findFreePort, isPortFree } from '../../../base/node/ports.js';
 import { localize } from '../../../nls.js';
 import { ISerializableCommandAction } from '../../action/common/action.js';
 import { INativeOpenDialogOptions } from '../../dialogs/common/dialogs.js';
@@ -28,7 +27,7 @@ import { IEnvironmentMainService } from '../../environment/electron-main/environ
 import { createDecorator, IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { ILifecycleMainService, IRelaunchOptions } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
-import { ICommonNativeHostService, IElementData, INativeHostOptions, IOSProperties, IOSStatistics } from '../common/native.js';
+import { FocusMode, ICommonNativeHostService, INativeHostOptions, IOSProperties, IOSStatistics, IToastOptions, IToastResult, PowerSaveBlockerType, SystemIdleState, ThermalState } from '../common/native.js';
 import { IProductService } from '../../product/common/productService.js';
 import { IPartsSplash } from '../../theme/common/themeService.js';
 import { IThemeMainService } from '../../theme/electron-main/themeMainService.js';
@@ -44,21 +43,16 @@ import { IV8Profile } from '../../profiling/common/profiling.js';
 import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-main/auxiliaryWindows.js';
 import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
 import { CancellationError } from '../../../base/common/errors.js';
+import { zip } from '../../../base/node/zip.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { IProxyAuthService } from './auth.js';
 import { AuthInfo, Credentials, IRequestService } from '../../request/common/request.js';
 import { randomPath } from '../../../base/common/extpath.js';
-import { CancellationToken } from '../../../base/common/cancellation.js';
+import { CancellationTokenSource } from '../../../base/common/cancellation.js';
 
 export interface INativeHostMainService extends AddFirstParameterToFunctions<ICommonNativeHostService, Promise<unknown> /* only methods, not events */, number | undefined /* window ID */> { }
 
 export const INativeHostMainService = createDecorator<INativeHostMainService>('nativeHostMainService');
-
-interface NodeDataResponse {
-	outerHTML: string;
-	computedStyle: string;
-	bounds: IRectangle;
-}
 
 export class NativeHostMainService extends Disposable implements INativeHostMainService {
 
@@ -124,7 +118,33 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				Event.map(Event.filter(Event.fromNodeEventEmitter(app, 'browser-window-focus', (event, window: BrowserWindow) => this.auxiliaryWindowsMainService.getWindowByWebContents(window.webContents)), window => !!window), window => window!.id)
 			);
 
+			this.onDidSuspendOS = Event.fromNodeEventEmitter(powerMonitor, 'suspend');
 			this.onDidResumeOS = Event.fromNodeEventEmitter(powerMonitor, 'resume');
+
+			// Battery power events (macOS and Windows only)
+			this.onDidChangeOnBatteryPower = Event.any(
+				Event.map(Event.fromNodeEventEmitter(powerMonitor, 'on-ac'), () => false),
+				Event.map(Event.fromNodeEventEmitter(powerMonitor, 'on-battery'), () => true)
+			);
+
+			// Thermal state events (macOS only)
+			this.onDidChangeThermalState = Event.map(
+				Event.fromNodeEventEmitter<{ state: ThermalState }>(powerMonitor, 'thermal-state-change'),
+				e => e.state
+			);
+
+			// Speed limit events (macOS and Windows only)
+			this.onDidChangeSpeedLimit = Event.map(
+				Event.fromNodeEventEmitter<{ limit: number }>(powerMonitor, 'speed-limit-change'),
+				e => e.limit
+			);
+
+			// Shutdown event (Linux and macOS only)
+			this.onWillShutdownOS = Event.fromNodeEventEmitter(powerMonitor, 'shutdown');
+
+			// Screen lock events (macOS and Windows only)
+			this.onDidLockScreen = Event.fromNodeEventEmitter(powerMonitor, 'lock-screen');
+			this.onDidUnlockScreen = Event.fromNodeEventEmitter(powerMonitor, 'unlock-screen');
 
 			this.onDidChangeColorScheme = this.themeMainService.onDidChangeColorScheme;
 
@@ -168,7 +188,15 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 
 	readonly onDidChangeWindowAlwaysOnTop: Event<{ readonly windowId: number; readonly alwaysOnTop: boolean }>;
 
+	readonly onDidSuspendOS: Event<void>;
 	readonly onDidResumeOS: Event<void>;
+
+	readonly onDidChangeOnBatteryPower: Event<boolean>;
+	readonly onDidChangeThermalState: Event<ThermalState>;
+	readonly onDidChangeSpeedLimit: Event<number>;
+	readonly onWillShutdownOS: Event<void>;
+	readonly onDidLockScreen: Event<void>;
+	readonly onDidUnlockScreen: Event<void>;
 
 	readonly onDidChangeColorScheme: Event<IColorScheme>;
 
@@ -276,6 +304,14 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}, options);
 	}
 
+	async openAgentsWindow(windowId: number | undefined): Promise<void> {
+		await this.windowsMainService.openAgentsWindow({
+			context: OpenContext.API,
+			contextWindowId: windowId,
+			cli: this.environmentMainService.args
+		});
+	}
+
 	async isFullScreen(windowId: number | undefined, options?: INativeHostOptions): Promise<boolean> {
 		const window = this.windowById(options?.targetWindowId, windowId);
 		return window?.isFullScreen ?? false;
@@ -346,14 +382,50 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 	}
 
-	async updateWindowControls(windowId: number | undefined, options: INativeHostOptions & { height?: number; backgroundColor?: string; foregroundColor?: string }): Promise<void> {
+	async updateWindowControls(windowId: number | undefined, options: INativeHostOptions & { height?: number; backgroundColor?: string; foregroundColor?: string; dimmed?: boolean }): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
 		window?.updateWindowControls(options);
 	}
 
-	async focusWindow(windowId: number | undefined, options?: INativeHostOptions & { force?: boolean }): Promise<void> {
+	async updateWindowAccentColor(windowId: number | undefined, color: 'default' | 'off' | string, inactiveColor: string | undefined): Promise<void> {
+		if (!isWindows) {
+			return; // windows only
+		}
+
+		const window = this.windowById(windowId);
+		if (!window) {
+			return;
+		}
+
+		let activeWindowAccentColor: string | boolean | null;
+		let inactiveWindowAccentColor: string | boolean | null;
+
+		if (color === 'default') {
+			activeWindowAccentColor = null;
+			inactiveWindowAccentColor = null;
+		} else if (color === 'off') {
+			activeWindowAccentColor = false;
+			inactiveWindowAccentColor = false;
+		} else {
+			activeWindowAccentColor = color;
+			inactiveWindowAccentColor = inactiveColor ?? color;
+		}
+
+		const windows = [window];
+		for (const auxiliaryWindow of this.auxiliaryWindowsMainService.getWindows()) {
+			if (auxiliaryWindow.parentId === windowId) {
+				windows.push(auxiliaryWindow);
+			}
+		}
+
+		for (const window of windows) {
+			window.win?.setAccentColor(window.win.isFocused() ? activeWindowAccentColor : inactiveWindowAccentColor);
+		}
+	}
+
+	async focusWindow(windowId: number | undefined, options?: INativeHostOptions & { mode?: FocusMode }): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
-		window?.focus({ force: options?.force ?? false });
+		window?.focus({ mode: options?.mode ?? FocusMode.Transfer });
 	}
 
 	async setMinimumSize(windowId: number | undefined, width: number | undefined, height: number | undefined): Promise<void> {
@@ -379,6 +451,14 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		this.themeMainService.saveWindowSplash(windowId, window?.openedWorkspace, splash);
 	}
 
+	async setBackgroundThrottling(windowId: number | undefined, allowed: boolean): Promise<void> {
+		const window = this.codeWindowById(windowId);
+
+		this.logService.trace(`Setting background throttling for window ${windowId} to '${allowed}'`);
+
+		window?.win?.webContents?.setBackgroundThrottling(allowed);
+	}
+
 	//#endregion
 
 
@@ -391,46 +471,39 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		try {
 			const { symbolicLink } = await SymlinkSupport.stat(source);
 			if (symbolicLink && !symbolicLink.dangling) {
-				const linkTargetRealPath = await realpath(source);
+				const linkTargetRealPath = await Promises.realpath(source);
 				if (target === linkTargetRealPath) {
 					return;
 				}
 			}
-
-			// Different source, delete it first
-			await fs.promises.unlink(source);
 		} catch (error) {
 			if (error.code !== 'ENOENT') {
 				throw error; // throw on any error but file not found
 			}
 		}
 
+		await this.installShellCommandWithPrivileges(windowId, source, target);
+	}
+
+	private async installShellCommandWithPrivileges(windowId: number | undefined, source: string, target: string): Promise<void> {
+		const { response } = await this.showMessageBox(windowId, {
+			type: 'info',
+			message: localize('warnEscalation', "{0} will now prompt with 'osascript' for Administrator privileges to install the shell command.", this.productService.nameShort),
+			buttons: [
+				localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"),
+				localize('cancel', "Cancel")
+			]
+		});
+
+		if (response === 1 /* Cancel */) {
+			throw new CancellationError();
+		}
+
 		try {
-			await fs.promises.symlink(target, source);
+			const command = `osascript -e "do shell script \\"mkdir -p /usr/local/bin && ln -sf \'${target}\' \'${source}\'\\" with administrator privileges"`;
+			await promisify(exec)(command);
 		} catch (error) {
-			if (error.code !== 'EACCES' && error.code !== 'ENOENT') {
-				throw error;
-			}
-
-			const { response } = await this.showMessageBox(windowId, {
-				type: 'info',
-				message: localize('warnEscalation', "{0} will now prompt with 'osascript' for Administrator privileges to install the shell command.", this.productService.nameShort),
-				buttons: [
-					localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK"),
-					localize('cancel', "Cancel")
-				]
-			});
-
-			if (response === 1 /* Cancel */) {
-				throw new CancellationError();
-			}
-
-			try {
-				const command = `osascript -e "do shell script \\"mkdir -p /usr/local/bin && ln -sf \'${target}\' \'${source}\'\\" with administrator privileges"`;
-				await promisify(exec)(command);
-			} catch (error) {
-				throw new Error(localize('cantCreateBinFolder', "Unable to install the shell command '{0}'.", source));
-			}
+			throw new Error(localize('cantCreateBinFolder', "Unable to install the shell command '{0}'.", source));
 		}
 	}
 
@@ -565,9 +638,9 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		this.environmentMainService.unsetSnapExportedVariables();
 		try {
 			if (matchesSomeScheme(url, Schemas.http, Schemas.https)) {
-				this.openExternalBrowser(url, defaultApplication);
+				this.openExternalBrowser(windowId, url, defaultApplication);
 			} else {
-				shell.openExternal(url);
+				this.doOpenShellExternal(windowId, url);
 			}
 		} finally {
 			this.environmentMainService.restoreSnapExportedVariables();
@@ -576,28 +649,28 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return true;
 	}
 
-	private async openExternalBrowser(url: string, defaultApplication?: string): Promise<void> {
+	private async openExternalBrowser(windowId: number | undefined, url: string, defaultApplication?: string): Promise<void> {
 		const configuredBrowser = defaultApplication ?? this.configurationService.getValue<string>('workbench.externalBrowser');
 		if (!configuredBrowser) {
-			return shell.openExternal(url);
+			return this.doOpenShellExternal(windowId, url);
 		}
 
 		if (configuredBrowser.includes(posix.sep) || configuredBrowser.includes(win32.sep)) {
 			const browserPathExists = await Promises.exists(configuredBrowser);
 			if (!browserPathExists) {
 				this.logService.error(`Configured external browser path does not exist: ${configuredBrowser}`);
-				return shell.openExternal(url);
+				return this.doOpenShellExternal(windowId, url);
 			}
 		}
 
 		try {
-			const { default: open } = await import('open');
+			const { default: open, apps } = await import('open');
 			const res = await open(url, {
 				app: {
 					// Use `open.apps` helper to allow cross-platform browser
 					// aliases to be looked up properly. Fallback to the
 					// configured value if not found.
-					name: Object.hasOwn(open.apps, configuredBrowser) ? open.apps[(configuredBrowser as keyof typeof open['apps'])] : configuredBrowser
+					name: Object.hasOwn(apps, configuredBrowser) ? apps[(configuredBrowser as keyof typeof apps)] : configuredBrowser
 				}
 			});
 
@@ -609,12 +682,46 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 				// (see also https://github.com/microsoft/vscode/issues/230636)
 				res.stderr?.once('data', (data: Buffer) => {
 					this.logService.error(`Error openening external URL '${url}' using browser '${configuredBrowser}': ${data.toString()}`);
-					return shell.openExternal(url);
+					return this.doOpenShellExternal(windowId, url);
 				});
 			}
 		} catch (error) {
 			this.logService.error(`Unable to open external URL '${url}' using browser '${configuredBrowser}' due to ${error}.`);
-			return shell.openExternal(url);
+			return this.doOpenShellExternal(windowId, url);
+		}
+	}
+
+	private async doOpenShellExternal(windowId: number | undefined, url: string): Promise<void> {
+		try {
+			await shell.openExternal(url);
+		} catch (error) {
+			let isLink: boolean;
+			let message: string;
+			if (matchesSomeScheme(url, Schemas.http, Schemas.https)) {
+				isLink = true;
+				message = localize('openExternalErrorLinkMessage', "An error occurred opening a link in your default browser.");
+			} else {
+				isLink = false;
+				message = localize('openExternalProgramErrorMessage', "An error occurred opening an external program.");
+			}
+
+			const { response } = await this.dialogMainService.showMessageBox({
+				type: 'error',
+				message,
+				detail: error.message,
+				buttons: isLink ? [
+					localize({ key: 'copyLink', comment: ['&& denotes a mnemonic'] }, "&&Copy Link"),
+					localize('cancel', "Cancel")
+				] : [
+					localize({ key: 'ok', comment: ['&& denotes a mnemonic'] }, "&&OK")
+				]
+			}, this.windowById(windowId)?.win ?? undefined);
+
+			if (response === 1 /* Cancel */) {
+				return;
+			}
+
+			this.writeClipboardText(windowId, url);
 		}
 	}
 
@@ -757,298 +864,6 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return buf && VSBuffer.wrap(buf);
 	}
 
-	async getElementData(windowId: number | undefined, offsetX: number = 0, offsetY: number = 0, token: CancellationToken, cancellationId?: number): Promise<IElementData | undefined> {
-		const window = this.windowById(windowId, windowId);
-		if (!window?.win) {
-			return undefined;
-		}
-
-		// Find the simple browser webview
-		const allWebContents = webContents.getAllWebContents();
-		const simpleBrowserWebview = allWebContents.find(webContent => webContent.id === windowId);
-
-		if (!simpleBrowserWebview) {
-			return undefined;
-		}
-
-		const debuggers = simpleBrowserWebview.debugger;
-		debuggers.attach();
-
-		const { targetInfos } = await debuggers.sendCommand('Target.getTargets');
-		let resultId: string | undefined = undefined;
-		let target: typeof targetInfos[number] | undefined = undefined;
-		let targetSessionId: number | undefined = undefined;
-		try {
-			// find parent id and extract id
-			const matchingTarget = targetInfos.find((targetInfo: { url: string }) => {
-				const url = new URL(targetInfo.url);
-				return url.searchParams.get('parentId') === window?.id.toString() && url.searchParams.get('extensionId') === 'vscode.simple-browser';
-			});
-
-			if (matchingTarget) {
-				const url = new URL(matchingTarget.url);
-				resultId = url.searchParams.get('id')!;
-			}
-
-			// use id to grab simple browser target
-			if (resultId) {
-				target = targetInfos.find((targetInfo: { url: string }) => {
-					const url = new URL(targetInfo.url);
-					return url.searchParams.get('id') === resultId && url.searchParams.get('vscodeBrowserReqId')!;
-				});
-			}
-
-			const { sessionId } = await debuggers.sendCommand('Target.attachToTarget', {
-				targetId: target.targetId,
-				flatten: true,
-			});
-
-			targetSessionId = sessionId;
-
-			await debuggers.sendCommand('DOM.enable', {}, sessionId);
-			await debuggers.sendCommand('CSS.enable', {}, sessionId);
-			await debuggers.sendCommand('Overlay.enable', {}, sessionId);
-			await debuggers.sendCommand('Debugger.enable', {}, sessionId);
-			await debuggers.sendCommand('Runtime.enable', {}, sessionId);
-
-			await debuggers.sendCommand('Runtime.evaluate', {
-				expression: `(function() {
-					const style = document.createElement('style');
-					style.id = '__pseudoBlocker__';
-					style.textContent = '*::before, *::after { pointer-events: none !important; }';
-					document.head.appendChild(style);
-				})();`,
-			}, sessionId);
-
-			// slightly changed default CDP debugger inspect colors
-			await debuggers.sendCommand('Overlay.setInspectMode', {
-				mode: 'searchForNode',
-				highlightConfig: {
-					showInfo: true,
-					showRulers: false,
-					showStyles: true,
-					showAccessibilityInfo: true,
-					showExtensionLines: false,
-					contrastAlgorithm: 'aa',
-					contentColor: { r: 173, g: 216, b: 255, a: 0.8 },
-					paddingColor: { r: 150, g: 200, b: 255, a: 0.5 },
-					borderColor: { r: 120, g: 180, b: 255, a: 0.7 },
-					marginColor: { r: 200, g: 220, b: 255, a: 0.4 },
-					eventTargetColor: { r: 130, g: 160, b: 255, a: 0.8 },
-					shapeColor: { r: 130, g: 160, b: 255, a: 0.8 },
-					shapeMarginColor: { r: 130, g: 160, b: 255, a: 0.5 },
-					gridHighlightConfig: {
-						rowGapColor: { r: 140, g: 190, b: 255, a: 0.3 },
-						rowHatchColor: { r: 140, g: 190, b: 255, a: 0.7 },
-						columnGapColor: { r: 140, g: 190, b: 255, a: 0.3 },
-						columnHatchColor: { r: 140, g: 190, b: 255, a: 0.7 },
-						rowLineColor: { r: 120, g: 180, b: 255 },
-						columnLineColor: { r: 120, g: 180, b: 255 },
-						rowLineDash: true,
-						columnLineDash: true
-					},
-					flexContainerHighlightConfig: {
-						containerBorder: {
-							color: { r: 120, g: 180, b: 255 },
-							pattern: 'solid'
-						},
-						itemSeparator: {
-							color: { r: 140, g: 190, b: 255 },
-							pattern: 'solid'
-						},
-						lineSeparator: {
-							color: { r: 140, g: 190, b: 255 },
-							pattern: 'solid'
-						},
-						mainDistributedSpace: {
-							hatchColor: { r: 140, g: 190, b: 255, a: 0.7 },
-							fillColor: { r: 140, g: 190, b: 255, a: 0.4 }
-						},
-						crossDistributedSpace: {
-							hatchColor: { r: 140, g: 190, b: 255, a: 0.7 },
-							fillColor: { r: 140, g: 190, b: 255, a: 0.4 }
-						},
-						rowGapSpace: {
-							hatchColor: { r: 140, g: 190, b: 255, a: 0.7 },
-							fillColor: { r: 140, g: 190, b: 255, a: 0.4 }
-						},
-						columnGapSpace: {
-							hatchColor: { r: 140, g: 190, b: 255, a: 0.7 },
-							fillColor: { r: 140, g: 190, b: 255, a: 0.4 }
-						}
-					},
-					flexItemHighlightConfig: {
-						baseSizeBox: {
-							hatchColor: { r: 130, g: 170, b: 255, a: 0.6 }
-						},
-						baseSizeBorder: {
-							color: { r: 120, g: 180, b: 255 },
-							pattern: 'solid'
-						},
-						flexibilityArrow: {
-							color: { r: 130, g: 190, b: 255 }
-						}
-					},
-				},
-			}, sessionId);
-		} catch (e) {
-			debuggers.detach();
-			throw new Error('No target found', e);
-		}
-
-		if (!targetSessionId) {
-			debuggers.detach();
-			throw new Error('No target session id found');
-		}
-
-		const nodeData = await this.getNodeData(targetSessionId, debuggers, window.win, cancellationId);
-		debuggers.detach();
-
-		const zoomFactor = simpleBrowserWebview.getZoomFactor();
-		const scaledBounds = {
-			x: (nodeData.bounds.x + offsetX) * zoomFactor,
-			y: (nodeData.bounds.y + offsetY) * zoomFactor,
-			width: nodeData.bounds.width * zoomFactor,
-			height: nodeData.bounds.height * zoomFactor
-		};
-
-		return { outerHTML: nodeData.outerHTML, computedStyle: nodeData.computedStyle, bounds: scaledBounds };
-	}
-
-	async getNodeData(sessionId: number, debuggers: any, window: BrowserWindow, cancellationId?: number): Promise<NodeDataResponse> {
-		return new Promise((resolve, reject) => {
-			const onMessage = async (event: any, method: string, params: { backendNodeId: number }) => {
-				if (method === 'Overlay.inspectNodeRequested') {
-					debuggers.off('message', onMessage);
-					await debuggers.sendCommand('Runtime.evaluate', {
-						expression: `(() => {
-								const style = document.getElementById('__pseudoBlocker__');
-								if (style) style.remove();
-							})();`,
-					}, sessionId);
-
-					const backendNodeId = params?.backendNodeId;
-					if (!backendNodeId) {
-						throw new Error('Missing backendNodeId in inspectNodeRequested event');
-					}
-
-					try {
-						await debuggers.sendCommand('DOM.getDocument', {}, sessionId);
-						const { nodeIds } = await debuggers.sendCommand('DOM.pushNodesByBackendIdsToFrontend', { backendNodeIds: [backendNodeId] }, sessionId);
-						if (!nodeIds || nodeIds.length === 0) {
-							throw new Error('Failed to get node IDs.');
-						}
-						const nodeId = nodeIds[0];
-
-						const { model } = await debuggers.sendCommand('DOM.getBoxModel', { nodeId }, sessionId);
-						if (!model) {
-							throw new Error('Failed to get box model.');
-						}
-
-						const content = model.content;
-						const margin = model.margin;
-						const x = Math.min(margin[0], content[0]);
-						const y = Math.min(margin[1], content[1]) + 32.4 + 35; // 32.4 is height of the title bar, 35 is height of the tab bar
-						const width = Math.max(margin[2] - margin[0], content[2] - content[0]);
-						const height = Math.max(margin[5] - margin[1], content[5] - content[1]);
-
-						const matched = await debuggers.sendCommand('CSS.getMatchedStylesForNode', { nodeId }, sessionId);
-						if (!matched) {
-							throw new Error('Failed to get matched css.');
-						}
-
-						const formatted = this.formatMatchedStyles(matched);
-						const { outerHTML } = await debuggers.sendCommand('DOM.getOuterHTML', { nodeId }, sessionId);
-						if (!outerHTML) {
-							throw new Error('Failed to get outerHTML.');
-						}
-
-						resolve({
-							outerHTML,
-							computedStyle: formatted,
-							bounds: { x, y, width, height }
-						});
-					} catch (err) {
-						debuggers.off('message', onMessage);
-						debuggers.detach();
-						reject(err);
-
-					}
-				}
-			};
-
-			window.webContents.on('ipc-message', async (event, channel, closedCancellationId) => {
-				if (channel === `vscode:cancelElementSelection${cancellationId}`) {
-					if (cancellationId !== closedCancellationId) {
-						return;
-					}
-					debuggers.off('message', onMessage);
-					if (debuggers.isAttached()) {
-						debuggers.detach();
-					}
-					window.webContents.removeAllListeners('ipc-message');
-				}
-			});
-
-			debuggers.on('message', onMessage);
-		});
-	}
-
-	formatMatchedStyles(matched: any): string {
-		const lines: string[] = [];
-
-		// inline
-		if (matched.inlineStyle?.cssProperties?.length) {
-			lines.push('/* Inline style */');
-			lines.push('element {');
-			for (const prop of matched.inlineStyle.cssProperties) {
-				if (prop.name && prop.value) {
-					lines.push(`  ${prop.name}: ${prop.value};`);
-				}
-			}
-			lines.push('}\n');
-		}
-
-		// matched
-		if (matched.matchedCSSRules?.length) {
-			for (const ruleEntry of matched.matchedCSSRules) {
-				const rule = ruleEntry.rule;
-				const selectors = rule.selectorList.selectors.map((s: any) => s.text).join(', ');
-				lines.push(`/* Matched Rule from ${rule.origin} */`);
-				lines.push(`${selectors} {`);
-				for (const prop of rule.style.cssProperties) {
-					if (prop.name && prop.value) {
-						lines.push(`  ${prop.name}: ${prop.value};`);
-					}
-				}
-				lines.push('}\n');
-			}
-		}
-
-		// inherited rules
-		if (matched.inherited?.length) {
-			let level = 1;
-			for (const inherited of matched.inherited) {
-				const rules = inherited.matchedCSSRules || [];
-				for (const ruleEntry of rules) {
-					const rule = ruleEntry.rule;
-					const selectors = rule.selectorList.selectors.map((s: any) => s.text).join(', ');
-					lines.push(`/* Inherited from ancestor level ${level} (${rule.origin}) */`);
-					lines.push(`${selectors} {`);
-					for (const prop of rule.style.cssProperties) {
-						if (prop.name && prop.value) {
-							lines.push(`  ${prop.name}: ${prop.value};`);
-						}
-					}
-					lines.push('}\n');
-				}
-				level++;
-			}
-		}
-
-		return '\n' + lines.join('\n');
-	}
-
 	//#endregion
 
 
@@ -1069,10 +884,14 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region Clipboard
 
 	async readClipboardText(windowId: number | undefined, type?: 'selection' | 'clipboard'): Promise<string> {
-		return clipboard.readText(type);
+		this.logService.trace(`readClipboardText in window ${windowId} with type:`, type);
+		const clipboardText = clipboard.readText(type);
+		this.logService.trace(`clipboardText.length :`, clipboardText.length);
+		return clipboardText;
 	}
 
 	async triggerPaste(windowId: number | undefined, options?: INativeHostOptions): Promise<void> {
+		this.logService.trace(`Triggering paste in window ${windowId} with options:`, options);
 		const window = this.windowById(options?.targetWindowId, windowId);
 		return window?.win?.webContents.paste() ?? Promise.resolve();
 	}
@@ -1231,6 +1050,10 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		return this.requestService.loadCertificates();
 	}
 
+	isPortFree(windowId: number | undefined, port: number): Promise<boolean> {
+		return isPortFree(port, 1_000);
+	}
+
 	findFreePort(windowId: number | undefined, startPort: number, giveUpAfter: number, timeout: number, stride = 1): Promise<number> {
 		return findFreePort(startPort, giveUpAfter, timeout, stride);
 	}
@@ -1241,6 +1064,7 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	//#region Development
 
 	private gpuInfoWindowId: number | undefined;
+	private contentTracingWindowId: number | undefined;
 
 	async openDevTools(windowId: number | undefined, options?: Partial<OpenDevToolsOptions> & INativeHostOptions): Promise<void> {
 		const window = this.windowById(options?.targetWindowId, windowId);
@@ -1252,6 +1076,33 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		window?.win?.webContents.toggleDevTools();
 	}
 
+	async openDevToolsWindow(windowId: number | undefined, url: string): Promise<void> {
+		const parentWindow = this.codeWindowById(windowId);
+		if (!parentWindow) {
+			return;
+		}
+
+		this.openChildWindow(parentWindow.win, url);
+	}
+
+	private openChildWindow(parentWindow: BrowserWindow | null, url: string, overrideWindowOptions: Electron.BrowserWindowConstructorOptions = {}): BrowserWindow {
+		const options = this.instantiationService.invokeFunction(defaultBrowserWindowOptions, defaultWindowState(), { forceNativeTitlebar: true });
+
+		const windowOptions: Electron.BrowserWindowConstructorOptions = {
+			...options,
+			parent: parentWindow ?? undefined,
+			...overrideWindowOptions
+		};
+
+		const window = new BrowserWindow(windowOptions);
+		window.setMenuBarVisibility(false);
+		window.loadURL(url);
+
+		window.once('ready-to-show', () => window.show());
+
+		return window;
+	}
+
 	async openGPUInfoWindow(windowId: number | undefined): Promise<void> {
 		const parentWindow = this.codeWindowById(windowId);
 		if (!parentWindow) {
@@ -1259,22 +1110,8 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 
 		if (typeof this.gpuInfoWindowId !== 'number') {
-			const options = this.instantiationService.invokeFunction(defaultBrowserWindowOptions, defaultWindowState(), { forceNativeTitlebar: true });
-			options.backgroundColor = undefined;
-
-			const gpuInfoWindow = new BrowserWindow(options);
-			gpuInfoWindow.setMenuBarVisibility(false);
-			gpuInfoWindow.loadURL('chrome://gpu');
-
-			gpuInfoWindow.once('ready-to-show', () => gpuInfoWindow.show());
+			const gpuInfoWindow = this.openChildWindow(parentWindow.win, 'chrome://gpu');
 			gpuInfoWindow.once('close', () => this.gpuInfoWindowId = undefined);
-
-			parentWindow.win?.on('close', () => {
-				if (this.gpuInfoWindowId) {
-					BrowserWindow.fromId(this.gpuInfoWindowId)?.close();
-					this.gpuInfoWindowId = undefined;
-				}
-			});
 
 			this.gpuInfoWindowId = gpuInfoWindow.id;
 		}
@@ -1288,13 +1125,84 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}
 	}
 
+	async openContentTracingWindow(): Promise<void> {
+		if (typeof this.contentTracingWindowId !== 'number') {
+			// Disable ready-to-show event with paintWhenInitiallyHidden to
+			// customize content tracing window below.
+			const contentTracingWindow = this.openChildWindow(null, 'chrome://tracing', {
+				paintWhenInitiallyHidden: false,
+				webPreferences: {
+					backgroundThrottling: false
+				}
+			});
+			contentTracingWindow.webContents.once('did-finish-load', async () => {
+				// Mock window.prompt to support save action from the tracing UI
+				// since Electron by default doesn't provide the api.
+				// See requestFilename_ implementation under
+				// https://source.chromium.org/chromium/chromium/src/+/main:third_party/catapult/tracing/tracing/ui/extras/about_tracing/profiling_view.html;l=334-379
+				await contentTracingWindow.webContents.executeJavaScript(`
+					window.prompt = () => '';
+					null
+				`);
+				contentTracingWindow.show();
+			});
+			contentTracingWindow.once('close', () => this.contentTracingWindowId = undefined);
+			this.contentTracingWindowId = contentTracingWindow.id;
+		}
+
+		if (typeof this.contentTracingWindowId === 'number') {
+			const window = BrowserWindow.fromId(this.contentTracingWindowId);
+			if (window?.isMinimized()) {
+				window?.restore();
+			}
+			window?.focus();
+		}
+	}
+
+	private _isTracing = false;
+
+	async startTracing(windowId: number | undefined, categories: string): Promise<void> {
+		if (this._isTracing) {
+			throw new Error(localize('tracing.alreadyInProgress', 'A tracing session is already in progress. Use command `"{0}"` to stop it first.', 'workbench.action.stopTracing'));
+		}
+
+		const traceOptions = ['record-until-full', 'enable-sampling'];
+
+		await contentTracing.startRecording({
+			categoryFilter: categories,
+			traceOptions: traceOptions.join(',')
+		});
+		this._isTracing = true;
+	}
+
+	async stopTracing(windowId: number | undefined): Promise<void> {
+		if (!this._isTracing && !this.environmentMainService.args.trace) {
+			return; // no tracing in progress
+		}
+
+		this._isTracing = false;
+
+		const path = await contentTracing.stopRecording(`${randomPath(this.environmentMainService.userHome.fsPath, this.productService.applicationName)}.trace.txt`);
+
+		// Inform user to report an issue
+		await this.dialogMainService.showMessageBox({
+			type: 'info',
+			message: localize('trace.message', "Successfully created the trace file"),
+			detail: localize('trace.detail', "Please create an issue and manually attach the following file:\n{0}", path),
+			buttons: [localize({ key: 'trace.ok', comment: ['&& denotes a mnemonic'] }, "&&OK")],
+		}, BrowserWindow.getFocusedWindow() ?? undefined);
+
+		// Show item in explorer
+		this.showItemInFolder(undefined, path);
+	}
+
 	//#endregion
 
 	// #region Performance
 
 	async profileRenderer(windowId: number | undefined, session: string, duration: number): Promise<IV8Profile> {
 		const window = this.codeWindowById(windowId);
-		if (!window || !window.win) {
+		if (!window?.win) {
 			throw new Error();
 		}
 
@@ -1304,6 +1212,64 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 	}
 
 	// #endregion
+
+	//#region Toast Notifications
+
+	private readonly activeToasts = this._register(new DisposableMap<string>());
+
+	async showToast(windowId: number | undefined, options: IToastOptions): Promise<IToastResult> {
+		if (!Notification.isSupported()) {
+			return { supported: false, clicked: false };
+		}
+
+		const toast = new Notification({
+			title: options.title,
+			body: options.body,
+			silent: options.silent,
+			actions: options.actions?.map(action => ({
+				type: 'button',
+				text: action
+			}))
+		});
+
+		const disposables = new DisposableStore();
+		this.activeToasts.set(options.id, disposables);
+
+		const cts = new CancellationTokenSource();
+
+		disposables.add(toDisposable(() => {
+			this.activeToasts.deleteAndDispose(options.id);
+			toast.removeAllListeners();
+			toast.close();
+			cts.dispose(true);
+		}));
+
+		return new Promise<IToastResult>(r => {
+			const resolve = (result: IToastResult) => {
+				r(result);				// first return the result before...
+				disposables.dispose();	// ...disposing which would invalidate the result object
+			};
+
+			disposables.add(cts.token.onCancellationRequested(() => resolve({ supported: true, clicked: false })));
+
+			toast.on('click', () => resolve({ supported: true, clicked: true }));
+			toast.on('action', (_event, actionIndex) => resolve({ supported: true, clicked: true, actionIndex }));
+			toast.on('close', () => resolve({ supported: true, clicked: false }));
+			toast.on('failed', () => resolve({ supported: false, clicked: false }));
+
+			toast.show();
+		});
+	}
+
+	async clearToast(windowId: number | undefined, toastId: string): Promise<void> {
+		this.activeToasts.deleteAndDispose(toastId);
+	}
+
+	async clearToasts(): Promise<void> {
+		this.activeToasts.clearAndDisposeAll();
+	}
+
+	//#endregion
 
 	//#region Registry (windows)
 
@@ -1318,6 +1284,47 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		} catch {
 			return undefined;
 		}
+	}
+
+	//#endregion
+
+	//#region Zip
+
+	async createZipFile(windowId: number | undefined, zipPath: URI, files: { path: string; contents: string }[]): Promise<void> {
+		await zip(zipPath.fsPath, files);
+	}
+
+	//#endregion
+
+
+	//#region Power
+
+	async getSystemIdleState(windowId: number | undefined, idleThreshold: number): Promise<SystemIdleState> {
+		return powerMonitor.getSystemIdleState(idleThreshold);
+	}
+
+	async getSystemIdleTime(windowId: number | undefined): Promise<number> {
+		return powerMonitor.getSystemIdleTime();
+	}
+
+	async getCurrentThermalState(windowId: number | undefined): Promise<ThermalState> {
+		return powerMonitor.getCurrentThermalState();
+	}
+
+	async isOnBatteryPower(windowId: number | undefined): Promise<boolean> {
+		return powerMonitor.isOnBatteryPower();
+	}
+
+	async startPowerSaveBlocker(windowId: number | undefined, type: PowerSaveBlockerType): Promise<number> {
+		return powerSaveBlocker.start(type);
+	}
+
+	async stopPowerSaveBlocker(windowId: number | undefined, id: number): Promise<boolean> {
+		return powerSaveBlocker.stop(id);
+	}
+
+	async isPowerSaveBlockerStarted(windowId: number | undefined, id: number): Promise<boolean> {
+		return powerSaveBlocker.isStarted(id);
 	}
 
 	//#endregion
