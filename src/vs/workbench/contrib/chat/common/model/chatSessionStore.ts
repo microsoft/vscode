@@ -371,14 +371,17 @@ export class ChatSessionStore extends Disposable {
 							this.dialogService.prompt({
 								custom: true, // so text is copyable
 								title: localize('chatSessionStore.serializationError', 'Error saving chat session'),
-								message: localize('chatSessionStore.writeError', 'Error serializing chat session for storage. The session will be lost if the window is closed. Please report this issue to the VS Code team:\n\n{0}', e.stack || toErrorMessage(e)),
+								message: localize('chatSessionStore.writeError', 'Error serializing chat session for storage. VS Code will try to recover by writing a full snapshot, but the session may still be lost if that fallback also fails. Please report this issue to the VS Code team:\n\n{0}', e.stack || toErrorMessage(e)),
 								buttons: [
 									{ label: localize('reportIssue', 'Report Issue'), run: () => this.openerService.open('https://github.com/microsoft/vscode/issues/new?template=bug_report.md') }
 								]
 							});
 						}
 
-						throw e;
+						this.logService.warn('ChatSessionStore: Falling back to a full snapshot after incremental chat session serialization failed', toErrorMessage(e));
+						session.dataSerializer = new ChatSessionOperationLog();
+						op = 'replace';
+						data = session.dataSerializer.createInitialFromSerialized(session.toJSON());
 					}
 
 					if (data.byteLength > 0) {

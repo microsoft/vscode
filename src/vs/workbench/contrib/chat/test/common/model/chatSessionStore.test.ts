@@ -22,7 +22,7 @@ import { TestWorkspace, Workspace } from '../../../../../../platform/workspace/t
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { IDidEnterWorkspaceEvent, IWorkspaceEditingService } from '../../../../../services/workspaces/common/workspaceEditing.js';
 import { InMemoryTestFileService, TestContextService, TestLifecycleService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
-import { ChatModel, ISerializableChatData3 } from '../../../common/model/chatModel.js';
+import { ChatModel, IChatDataSerializerLog, ISerializableChatData3 } from '../../../common/model/chatModel.js';
 import { ChatSessionStore, IChatTransfer } from '../../../common/model/chatSessionStore.js';
 import { LocalChatSessionUri } from '../../../common/model/chatUri.js';
 import { MockChatModel } from './mockChatModel.js';
@@ -164,6 +164,27 @@ suite('ChatSessionStore', () => {
 		await store.storeSessions([model]);
 		const session = await store.readSession('session-1');
 
+		assert.ok(session);
+		assert.strictEqual((session.value as ISerializableChatData3).sessionId, 'session-1');
+	});
+
+	test('storeSessions falls back to a full snapshot when incremental serialization fails', async () => {
+		const store = createChatSessionStore();
+		const model = testDisposables.add(createMockChatModel(LocalChatSessionUri.forSession('session-1')));
+		const failingSerializer = {
+			write: () => {
+				throw new Error('boom');
+			}
+		} as unknown as IChatDataSerializerLog;
+		model.dataSerializer = failingSerializer;
+
+		await store.storeSessions([model]);
+
+		assert.notStrictEqual(model.dataSerializer, failingSerializer);
+		const index = await store.getIndex();
+		assert.ok(index['session-1']);
+
+		const session = await store.readSession('session-1');
 		assert.ok(session);
 		assert.strictEqual((session.value as ISerializableChatData3).sessionId, 'session-1');
 	});
