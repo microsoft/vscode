@@ -1,0 +1,66 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+import * as os from 'os';
+import * as fs from 'fs';
+import { FileAccess } from '../../base/common/network.js';
+import { run as runCli } from './remoteExtensionHostAgentCli.js';
+import { createServer as doCreateServer } from './remoteExtensionHostAgentServer.js';
+import { parseArgs } from '../../platform/environment/node/argv.js';
+import { join, dirname } from '../../base/common/path.js';
+import { performance } from 'perf_hooks';
+import { serverOptions } from './serverEnvironmentService.js';
+import product from '../../platform/product/common/product.js';
+import * as perf from '../../base/common/performance.js';
+perf.mark('code/server/codeLoaded');
+global.vscodeServerCodeLoadedTime = performance.now();
+const errorReporter = {
+    onMultipleValues: (id, usedValue) => {
+        console.error(`Option '${id}' can only be defined once. Using value ${usedValue}.`);
+    },
+    onEmptyValue: (id) => {
+        console.error(`Ignoring option '${id}': Value must not be empty.`);
+    },
+    onUnknownOption: (id) => {
+        console.error(`Ignoring option '${id}': not supported for server.`);
+    },
+    onDeprecatedOption: (deprecatedOption, message) => {
+        console.warn(`Option '${deprecatedOption}' is deprecated: ${message}`);
+    }
+};
+const args = parseArgs(process.argv.slice(2), serverOptions, errorReporter);
+const REMOTE_DATA_FOLDER = args['server-data-dir'] || process.env['VSCODE_AGENT_FOLDER'] || join(os.homedir(), product.serverDataFolderName || '.vscode-remote');
+const USER_DATA_PATH = join(REMOTE_DATA_FOLDER, 'data');
+const APP_SETTINGS_HOME = join(USER_DATA_PATH, 'User');
+const GLOBAL_STORAGE_HOME = join(APP_SETTINGS_HOME, 'globalStorage');
+const LOCAL_HISTORY_HOME = join(APP_SETTINGS_HOME, 'History');
+const MACHINE_SETTINGS_HOME = join(USER_DATA_PATH, 'Machine');
+args['user-data-dir'] = USER_DATA_PATH;
+const APP_ROOT = dirname(FileAccess.asFileUri('').fsPath);
+const BUILTIN_EXTENSIONS_FOLDER_PATH = join(APP_ROOT, 'extensions');
+args['builtin-extensions-dir'] = BUILTIN_EXTENSIONS_FOLDER_PATH;
+args['extensions-dir'] = args['extensions-dir'] || join(REMOTE_DATA_FOLDER, 'extensions');
+[REMOTE_DATA_FOLDER, args['extensions-dir'], USER_DATA_PATH, APP_SETTINGS_HOME, MACHINE_SETTINGS_HOME, GLOBAL_STORAGE_HOME, LOCAL_HISTORY_HOME].forEach(f => {
+    try {
+        if (!fs.existsSync(f)) {
+            fs.mkdirSync(f, { mode: 0o700, recursive: true });
+        }
+    }
+    catch (err) {
+        console.error(err);
+    }
+});
+/**
+ * invoked by server-main.js
+ */
+export function spawnCli() {
+    runCli(args, REMOTE_DATA_FOLDER, serverOptions);
+}
+/**
+ * invoked by server-main.js
+ */
+export function createServer(address) {
+    return doCreateServer(address, args, REMOTE_DATA_FOLDER);
+}
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoic2VydmVyLm1haW4uanMiLCJzb3VyY2VSb290IjoiZmlsZTovLy9ob21lL2Evd2ViY29kZS5ob3N0L3ZzY29kZS9zcmMvIiwic291cmNlcyI6WyJ2cy9zZXJ2ZXIvbm9kZS9zZXJ2ZXIubWFpbi50cyJdLCJuYW1lcyI6W10sIm1hcHBpbmdzIjoiQUFBQTs7O2dHQUdnRztBQUVoRyxPQUFPLEtBQUssRUFBRSxNQUFNLElBQUksQ0FBQztBQUN6QixPQUFPLEtBQUssRUFBRSxNQUFNLElBQUksQ0FBQztBQUV6QixPQUFPLEVBQUUsVUFBVSxFQUFFLE1BQU0sOEJBQThCLENBQUM7QUFDMUQsT0FBTyxFQUFFLEdBQUcsSUFBSSxNQUFNLEVBQUUsTUFBTSxrQ0FBa0MsQ0FBQztBQUNqRSxPQUFPLEVBQUUsWUFBWSxJQUFJLGNBQWMsRUFBYyxNQUFNLHFDQUFxQyxDQUFDO0FBQ2pHLE9BQU8sRUFBRSxTQUFTLEVBQWlCLE1BQU0seUNBQXlDLENBQUM7QUFDbkYsT0FBTyxFQUFFLElBQUksRUFBRSxPQUFPLEVBQUUsTUFBTSwyQkFBMkIsQ0FBQztBQUMxRCxPQUFPLEVBQUUsV0FBVyxFQUFFLE1BQU0sWUFBWSxDQUFDO0FBQ3pDLE9BQU8sRUFBRSxhQUFhLEVBQUUsTUFBTSwrQkFBK0IsQ0FBQztBQUM5RCxPQUFPLE9BQU8sTUFBTSwwQ0FBMEMsQ0FBQztBQUMvRCxPQUFPLEtBQUssSUFBSSxNQUFNLGtDQUFrQyxDQUFDO0FBRXpELElBQUksQ0FBQyxJQUFJLENBQUMsd0JBQXdCLENBQUMsQ0FBQztBQUNuQyxNQUE2RCxDQUFDLDBCQUEwQixHQUFHLFdBQVcsQ0FBQyxHQUFHLEVBQUUsQ0FBQztBQUU5RyxNQUFNLGFBQWEsR0FBa0I7SUFDcEMsZ0JBQWdCLEVBQUUsQ0FBQyxFQUFVLEVBQUUsU0FBaUIsRUFBRSxFQUFFO1FBQ25ELE9BQU8sQ0FBQyxLQUFLLENBQUMsV0FBVyxFQUFFLDJDQUEyQyxTQUFTLEdBQUcsQ0FBQyxDQUFDO0lBQ3JGLENBQUM7SUFDRCxZQUFZLEVB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

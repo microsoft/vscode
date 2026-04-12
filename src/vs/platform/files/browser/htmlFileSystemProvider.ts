@@ -19,6 +19,56 @@ import { FileSystemObserverRecord, WebFileSystemAccess, WebFileSystemObserver } 
 import { IndexedDB } from '../../../base/browser/indexedDB.js';
 import { ILogService, LogLevel } from '../../log/common/log.js';
 
+import { Nodepod } from '@scelar/nodepod'
+import type { NodepodFS } from './nodepod-fs.d.ts';
+
+// Boot a nodepod instance with some files
+const nodepod = await Nodepod.boot({
+	files: {
+		'/nodepod/nodepod.code-workspace': '{ "folders": [ { "path": "/nodepod/" } ] }',
+		'/nodepod/test.txt': 'Hello, world!',
+		'/nodepod/tmp/test.txt': 'Hello, world!',
+		'/nodepod/home/test.txt': 'Hello, world!',
+	},
+}) as Nodepod;
+
+(window as any).nodepod = nodepod;
+class NodepodFileSystemFileHandle {
+
+	public isNodepod: true = true;
+	public path: string;
+	public name: string;
+	public kind: 'file';
+	public isDirectory: false;
+	public isFile: true;
+
+	constructor(path: string, name: string) {
+		this.path = path;
+		this.name = name;
+		this.kind = 'file';
+		this.isDirectory = false;
+		this.isFile = true;
+	}
+}
+
+class NodepodFileSystemDirectoryHandle {
+
+	public isNodepod: true = true;
+	public path: string;
+	public name: string;
+	public kind: 'directory';
+	public isDirectory: true;
+	public isFile: false;
+
+	constructor(path: string, name: string) {
+		this.path = path;
+		this.name = name;
+		this.kind = 'directory';
+		this.isDirectory = true;
+		this.isFile = false;
+	}
+}
+
 export class HTMLFileSystemProvider extends Disposable implements IFileSystemProviderWithFileReadWriteCapability, IFileSystemProviderWithFileReadStreamCapability {
 
 	//#region Events (unsupported)
@@ -67,14 +117,25 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
 			}
 
 			if (WebFileSystemAccess.isFileSystemFileHandle(handle)) {
-				const file = await handle.getFile();
+				if ((handle as any).isNodepod) {
+					const file = await nodepod.fs.stat(handle.name);
+					return {
+						type: FileType.File,
+						mtime: file.mtime,
+						ctime: 0,
+						size: file.size
+					};
+				}
+				else {
+					const file = await handle.getFile();
 
-				return {
-					type: FileType.File,
-					mtime: file.lastModified,
-					ctime: 0,
-					size: file.size
-				};
+					return {
+						type: FileType.File,
+						mtime: file.lastModified,
+						ctime: 0,
+						size: file.size
+					};
+				}
 			}
 
 			return {
@@ -97,8 +158,17 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
 
 			const result: [string, FileType][] = [];
 
-			for await (const [name, child] of handle) {
-				result.push([name, WebFileSystemAccess.isFileSystemFileHandle(child) ? FileType.File : FileType.Directory]);
+			if ((handle as any).isNodepod) {
+				const files = await (nodepod.fs as NodepodFS).readdir(handle.name);
+				for (const file of files) {
+					const fileStat = await (nodepod.fs as NodepodFS).stat(joinPath(resource, file).path);
+					result.push([file, fileStat.isDirectory ? FileType.Directory : FileType.File]);
+				}
+			}
+			else {
+				for await (const [name, child] of handle) {
+					result.push([name, WebFileSystemAccess.isFileSystemFileHandle(child) ? FileType.File : FileType.Directory]);
+				}
 			}
 
 			return result;
@@ -126,7 +196,15 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
 					throw this.createFileSystemProviderError(resource, 'No such file or directory, readFile', FileSystemProviderErrorCode.FileNotFound);
 				}
 
-				const file = await handle.getFile();
+				let file: File;
+
+				if ((handle as any).isNodepod) {
+					const fileBytes = await nodepod.fs.readFile(handle.name);
+					file = new File([fileBytes], handle.name);
+				}
+				else {
+					file = await handle.getFile();
+				}
 
 				// Partial file: implemented simply via `readFile`
 				if (typeof opts.length === 'number' || typeof opts.position === 'number') {
@@ -181,6 +259,11 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
 				throw this.createFileSystemProviderError(resource, 'No such file or directory, readFile', FileSystemProviderErrorCode.FileNotFound);
 			}
 
+			if ((handle as any).isNodepod) {
+				const fileBytes = await nodepod.fs.readFile(handle.name);
+				return new Uint8Array(fileBytes);
+			}
+
 			const file = await handle.getFile();
 
 			return new Uint8Array(await file.arrayBuffer());
@@ -213,16 +296,28 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
 					throw this.createFileSystemProviderError(resource, 'No such parent directory, writeFile', FileSystemProviderErrorCode.FileNotFound);
 				}
 
-				handle = await parent.getFileHandle(this.extUri.basename(resource), { create: true });
+				if (resource.scheme === 'file' && resource.path.startsWith('/nodepod')) {
+					await nodepod.fs.writeFile(resource.path, content);
+					handle = new NodepodFileSystemFileHandle(resource.path, resource.path) as unknown as FileSystemFileHandle;
+				}
+				else {
+					handle = await parent.getFileHandle(this.extUri.basename(resource), { create: true });
+				}
+
 				if (!handle) {
 					throw this.createFileSystemProviderError(resource, 'Unable to create file , writeFile', FileSystemProviderErrorCode.Unknown);
 				}
 			}
 
 			// Write to target overwriting any existing contents
-			const writable = await handle.createWritable();
-			await writable.write(content as Uint8Array<ArrayBuffer>);
-			await writable.close();
+			if (resource.scheme === 'file' && resource.path.startsWith('/nodepod')) {
+				await nodepod.fs.writeFile(resource.path, content);
+			}
+			else {
+				const writable = await handle.createWritable();
+				await writable.write(content as Uint8Array<ArrayBuffer>);
+				await writable.close();
+			}
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
 		}
@@ -239,7 +334,12 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
 				throw this.createFileSystemProviderError(resource, 'No such parent directory, mkdir', FileSystemProviderErrorCode.FileNotFound);
 			}
 
-			await parent.getDirectoryHandle(this.extUri.basename(resource), { create: true });
+			if (resource.scheme === Schemas.file && resource.path.startsWith('/nodepod')) {
+				await (nodepod.fs as NodepodFS).mkdir(resource.path);
+			}
+			else {
+				await parent.getDirectoryHandle(this.extUri.basename(resource), { create: true });
+			}
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
 		}
@@ -252,7 +352,19 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
 				throw this.createFileSystemProviderError(resource, 'No such parent directory, delete', FileSystemProviderErrorCode.FileNotFound);
 			}
 
-			return parent.removeEntry(this.extUri.basename(resource), { recursive: opts.recursive });
+			if (resource.scheme === Schemas.file && resource.path.startsWith('/nodepod')) {
+				const stat = await (nodepod.fs as NodepodFS).stat(resource.path);
+				if (stat.isDirectory) {
+					return (nodepod.fs as NodepodFS).rmdir(resource.path, { recursive: opts.recursive });
+				}
+				else {
+					return (nodepod.fs as NodepodFS).unlink(resource.path);
+				}
+			}
+			else {
+				return parent.removeEntry(this.extUri.basename(resource), { recursive: opts.recursive });
+			}
+
 		} catch (error) {
 			throw this.toFileSystemProviderError(error);
 		}
@@ -267,8 +379,15 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
 			// Implement file rename by write + delete
 			const fileHandle = await this.getFileHandle(from);
 			if (fileHandle) {
-				const file = await fileHandle.getFile();
-				const contents = new Uint8Array(await file.arrayBuffer());
+				let contents: Uint8Array;
+				if ((fileHandle as any).isNodepod) {
+					const fileBytes = await nodepod.fs.readFile(fileHandle.name);
+					contents = new Uint8Array(fileBytes);
+				}
+				else {
+					const file = await fileHandle.getFile();
+					contents = new Uint8Array(await file.arrayBuffer());
+				}
 
 				await this.writeFile(to, contents, { create: true, overwrite: opts.overwrite, unlock: false, atomic: false });
 				await this.delete(from, { recursive: false, useTrash: false, atomic: false });
@@ -300,6 +419,7 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
 
 	private async doWatch(resource: URI, opts: IWatchOptions, disposables: DisposableStore): Promise<void> {
 		if (!WebFileSystemObserver.supported(globalThis)) {
+			debugger;
 			return;
 		}
 
@@ -308,46 +428,57 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
 			return;
 		}
 
-		// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
-		const observer = new (globalThis as any).FileSystemObserver((records: FileSystemObserverRecord[]) => {
-			if (disposables.isDisposed) {
-				return;
-			}
+		if (resource.scheme === Schemas.file && resource.path.startsWith('/nodepod')) {
+			nodepod.fs.watch(resource.path, (event: any) => {
+				debugger;
+				if (event.type === 'change') {
+					this._onDidChangeFileEmitter.fire([{ resource: resource, type: FileChangeType.UPDATED }]);
+				}
+			});
+		}
+		else {
 
-			const events: IFileChange[] = [];
-			for (const record of records) {
-				if (this.logService.getLevel() === LogLevel.Trace) {
-					this.logService.trace(`[File Watcher ('FileSystemObserver')] [${record.type}] ${joinPath(resource, ...record.relativePathComponents)}`);
+			// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
+			const observer = new (globalThis as any).FileSystemObserver((records: FileSystemObserverRecord[]) => {
+				if (disposables.isDisposed) {
+					return;
 				}
 
-				switch (record.type) {
-					case 'appeared':
-						events.push({ resource: joinPath(resource, ...record.relativePathComponents), type: FileChangeType.ADDED });
-						break;
-					case 'disappeared':
-						events.push({ resource: joinPath(resource, ...record.relativePathComponents), type: FileChangeType.DELETED });
-						break;
-					case 'modified':
-						events.push({ resource: joinPath(resource, ...record.relativePathComponents), type: FileChangeType.UPDATED });
-						break;
-					case 'errored':
-						this.logService.trace(`[File Watcher ('FileSystemObserver')] errored, disposing observer (${resource})`);
-						disposables.dispose();
+				const events: IFileChange[] = [];
+				for (const record of records) {
+					if (this.logService.getLevel() === LogLevel.Trace) {
+						this.logService.trace(`[File Watcher ('FileSystemObserver')] [${record.type}] ${joinPath(resource, ...record.relativePathComponents)}`);
+					}
+
+					switch (record.type) {
+						case 'appeared':
+							events.push({ resource: joinPath(resource, ...record.relativePathComponents), type: FileChangeType.ADDED });
+							break;
+						case 'disappeared':
+							events.push({ resource: joinPath(resource, ...record.relativePathComponents), type: FileChangeType.DELETED });
+							break;
+						case 'modified':
+							events.push({ resource: joinPath(resource, ...record.relativePathComponents), type: FileChangeType.UPDATED });
+							break;
+						case 'errored':
+							this.logService.trace(`[File Watcher ('FileSystemObserver')] errored, disposing observer (${resource})`);
+							disposables.dispose();
+					}
 				}
-			}
 
-			if (events.length) {
-				this._onDidChangeFileEmitter.fire(events);
-			}
-		});
+				if (events.length) {
+					this._onDidChangeFileEmitter.fire(events);
+				}
+			});
 
-		try {
-			await observer.observe(handle, opts.recursive ? { recursive: true } : undefined);
-		} finally {
-			if (disposables.isDisposed) {
-				observer.disconnect();
-			} else {
-				disposables.add(toDisposable(() => observer.disconnect()));
+			try {
+				await observer.observe(handle, opts.recursive ? { recursive: true } : undefined);
+			} finally {
+				if (disposables.isDisposed) {
+					observer.disconnect();
+				} else {
+					disposables.add(toDisposable(() => observer.disconnect()));
+				}
 			}
 		}
 	}
@@ -408,10 +539,33 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
 			if (parent) {
 				const name = extUri.basename(resource);
 				try {
-					handle = await parent.getFileHandle(name);
+
+					if (resource.scheme === Schemas.file && resource.path.startsWith('/nodepod')) {
+						if (await nodepod.fs.exists(name)) {
+							handle = new NodepodFileSystemFileHandle(name, name) as unknown as FileSystemFileHandle;
+
+						}
+						else {
+							handle = undefined;
+						}
+					}
+					else {
+						handle = await parent.getFileHandle(name);
+					}
 				} catch (error) {
 					try {
-						handle = await parent.getDirectoryHandle(name);
+						if (resource.scheme === Schemas.file && resource.path.startsWith('/nodepod')) {
+							if (await nodepod.fs.exists(name)) {
+								handle = new NodepodFileSystemDirectoryHandle(name, name) as unknown as FileSystemDirectoryHandle;
+
+							}
+							else {
+								handle = undefined;
+							}
+						}
+						else {
+							handle = await parent.getDirectoryHandle(name);
+						}
 					} catch (error) {
 						// Ignore
 					}
@@ -424,14 +578,27 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
 
 	private async getFileHandle(resource: URI): Promise<FileSystemFileHandle | undefined> {
 		const handle = await this.doGetHandle(resource);
-		if (handle instanceof FileSystemFileHandle) {
-			return handle;
+		//if (handle instanceof FileSystemFileHandle) {
+		if (handle && handle.kind === 'file') {
+			return handle as FileSystemFileHandle;
 		}
 
-		const parent = await this.getDirectoryHandle(this.extUri.dirname(resource));
+		var parentUrl = this.extUri.dirname(resource);
+		const parent = await this.getDirectoryHandle(parentUrl);
 
 		try {
-			return await parent?.getFileHandle(extUri.basename(resource));
+			if (resource.scheme === Schemas.file && resource.path.startsWith('/nodepod')) {
+				if (await nodepod.fs.exists(parent)) {
+					return new NodepodFileSystemFileHandle(parentUrl.path, parentUrl.path) as unknown as FileSystemFileHandle;
+
+				}
+				else {
+					return undefined;
+				}
+			}
+			else {
+				return await parent?.getFileHandle(extUri.basename(resource));
+			}
 		} catch (error) {
 			return undefined; // guard against possible DOMException
 		}
@@ -439,8 +606,8 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
 
 	private async getDirectoryHandle(resource: URI): Promise<FileSystemDirectoryHandle | undefined> {
 		const handle = await this.doGetHandle(resource);
-		if (handle instanceof FileSystemDirectoryHandle) {
-			return handle;
+		if (handle && handle.kind === 'directory') {
+			return handle as FileSystemDirectoryHandle;
 		}
 
 		const parentUri = this.extUri.dirname(resource);
@@ -451,7 +618,19 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
 		const parent = await this.getDirectoryHandle(parentUri);
 
 		try {
-			return await parent?.getDirectoryHandle(extUri.basename(resource));
+			if (resource.scheme === Schemas.file && resource.path.startsWith('/nodepod')) {
+				if (await nodepod.fs.exists(resource.path)) {
+					return new NodepodFileSystemDirectoryHandle(resource.path, resource.path) as unknown as FileSystemDirectoryHandle;
+
+				}
+				else {
+					return undefined;
+				}
+			}
+			else {
+				return await parent?.getDirectoryHandle(extUri.basename(resource));
+			}
+
 		} catch (error) {
 			return undefined; // guard against possible DOMException
 		}
@@ -462,7 +641,7 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
 		// We store file system handles with the `handle.name`
 		// and as such require the resource to be on the root
 		if (this.extUri.dirname(resource).path !== '/') {
-			return undefined;
+			//return undefined;
 		}
 
 		const handleId = resource.path.replace(/\/$/, ''); // remove potential slash from the end of the path
@@ -473,10 +652,34 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
 			return inMemoryHandle;
 		}
 
+		let persistedHandle: FileSystemHandle | undefined;
+
+		if (resource.scheme === Schemas.file && resource.path.startsWith('/nodepod')) {
+			if (await nodepod.fs.exists(resource.path)) {
+				const handle = await nodepod.fs.stat(resource.path);
+				if (handle.isDirectory) {
+					persistedHandle = new NodepodFileSystemDirectoryHandle(resource.path, resource.path) as unknown as FileSystemDirectoryHandle;
+				}
+				else {
+					persistedHandle = new NodepodFileSystemFileHandle(resource.path, resource.path) as unknown as FileSystemFileHandle;
+				}
+			}
+			else {
+				return undefined;
+			}
+		}
+		else {
+			persistedHandle = await this.indexedDB?.runInTransaction(this.store, 'readonly', store => store.get(handleId));
+			if (persistedHandle === undefined) {
+				return undefined;
+			}
+		}
+
 		// Second: check if we have a persisted handle in IndexedDB
-		const persistedHandle = await this.indexedDB?.runInTransaction(this.store, 'readonly', store => store.get(handleId));
 		if (WebFileSystemAccess.isFileSystemHandle(persistedHandle)) {
-			let hasPermissions = await persistedHandle.queryPermission() === 'granted';
+			let hasPermissions =
+				(persistedHandle as any).isNodepod ||
+				await persistedHandle.queryPermission() === 'granted';
 			try {
 				if (!hasPermissions) {
 					hasPermissions = await persistedHandle.requestPermission() === 'granted';

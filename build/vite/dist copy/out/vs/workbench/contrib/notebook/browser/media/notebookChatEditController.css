@@ -1,0 +1,55 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .view-zones .cell-editor-container > div {
+	padding: 12px 16px;
+}
+
+/** Cell delete higlight */
+.monaco-workbench .notebookOverlay > .cell-list-container > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .view-zones .cell-inner-container {
+	background-color: var(--vscode-diffEditor-removedLineBackground);
+	padding: 8px 0;
+	margin-bottom: 16px;
+}
+
+/** Cell insert higlight */
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.nb-insertHighlight .cell-focus-indicator,
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.markdown-cell-row.nb-insertHighlight {
+	background-color: var(--vscode-diffEditor-insertedLineBackground, var(--vscode-diffEditor-insertedTextBackground)) !important;
+}
+
+.notebookOverlay .cell .cell-statusbar-container .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.nb-insertHighlight .cell-focus-indicator .cell-inner-container,
+.notebookOverlay .cell .cell-statusbar-container .monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.markdown-cell-row.nb-insertHighlight .cell-focus-indicator .cell-inner-container,
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.nb-insertHighlight .monaco-editor-background,
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.markdown-cell-row.nb-insertHighlight .monaco-editor-background,
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.nb-insertHighlight .margin-view-overlays,
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.markdown-cell-row.nb-insertHighlight .margin-view-overlays,
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.code-cell-row.nb-insertHighlight .cell-statusbar-container {
+	background-color: var(--vscode-diffEditor-insertedLineBackground, var(--vscode-diffEditor-insertedTextBackground)) !important;
+}
+.monaco-workbench .notebookOverlay .monaco-list .monaco-list-row.markdown-cell-row.nb-insertHighlight .cell-statusbar-container {
+	background-color: inherit !important;
+}
+
+.monaco-workbench .notebookOverlay .view-zones .cell-editor-part {
+	outline: solid 1px var(--vscode-notebook-cellBorderColor);
+}
+
+
+.monaco-workbench .notebookOverlay .view-zones .cell-editor-container > div > div {
+	line-height: initial;
+	overflow-x: hidden;
+	font-family: var(--notebook-editor-font-family);
+}
+
+.monaco-workbench .notebookOverlay .view-zones .cell-editor-container > div > div span {
+	font-family: var(--notebook-editor-font-family);
+	font-size: var(--notebook-editor-font-size);
+	font-weight: var(--notebook-editor-font-weight);
+}
+
+.monaco-workbench .notebookOverlay .view-zones .cell-editor-part {
+	outline: solid 1px var(--vscode-notebook-cellBorderColor);
+}

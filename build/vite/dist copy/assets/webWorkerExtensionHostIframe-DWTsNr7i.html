@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Security-Policy" content="
+			default-src 'none';
+			child-src 'self' data: blob:;
+			script-src 'self' 'unsafe-eval' 'sha256-cl8ijlOzEe+0GRCQNJQu2k6nUQ0fAYNYIuuKEm72JDs=' https: http://localhost:* blob:;
+			connect-src 'self' https: wss: http://localhost:* http://127.0.0.1:* ws://localhost:* ws://127.0.0.1:*;"/>
+	</head>
+	<body>
+	<script>
+(function () {
+	const searchParams = new URL(document.location.href).searchParams;
+	const vscodeWebWorkerExtHostId = searchParams.get('vscodeWebWorkerExtHostId') || '';
+	// DO NOT CHANGE the name of the worker without also updating js-debug, as that
+	// is used to filter targets to attach to (e.g. #232544)
+	const name = searchParams.get('debugged') ? 'DebugExtensionHostWorker' : 'ExtensionHostWorker';
+	const parentOrigin = searchParams.get('parentOrigin') || window.origin;
+	const salt = searchParams.get('salt');
+
+	(async function () {
+		const hostnameValidationMarker = 'v--';
+		const hostname = location.hostname;
+		if (!hostname.startsWith(hostnameValidationMarker)) {
+			// validation not requested
+			return start();
+		}
+		if (!crypto.subtle) {
+			// cannot validate, not running in a secure context
+			return sendError(new Error(`Cannot validate in current context!`));
+		}
+
+		// Here the `parentOriginHash()` function from `src/vs/base/browser/iframe.ts` is inlined
+		// compute a sha-256 composed of `parentOrigin` and `salt` converted to base 32
+		/** @type {string} */
+		let parentOriginHash;
+		try {
+			const strData = JSON.stringify({ parentOrigin, salt });
+			const encoder = new TextEncoder();
+			const arrData = encoder.encode(strData);
+			const hash = await crypto.subtle.digest('sha-256', arrData);
+			const hashArray = Array.from(new Uint8Array(hash));
+			const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+			// sha256 has 256 bits, so we need at most ceil(lg(2^256-1)/lg(32)) = 52 chars to represent it in base 32
+			parentOriginHash = BigInt(`0x${hashHex}`).toString(32).padStart(52, '0');
+		} catch (err) {
+			return sendError(err instanceof Error ? err : new Error(String(err)));
+		}
+
+		const requiredSubdomain = `${hostnameValidationMarker}${parentOriginHash}.`;
+		if (hostname.substring(0, requiredSubdomain.length) === requiredSubdomain) {
+			// validation succeeded!
+			return start();
+		}
+
+		return sendError(new Error(`Expected '${requiredSubdomain}' as subdomain!`));
+	})();
+
+	function sendError(error) {
+		window.parent.postMessage({
+			vscodeWebWorkerExtHostId,
+			error: {
+				name: error ? error.name : '',
+				message: error ? error.message : '',
+				stack: error ? error.stack : []
+			}
+		}, '*');
+	}
+
+	function start() {
+
+		// Before we can load the worker, we need to get the current set of NLS
+		// configuration into this iframe. We ask the parent window to send it
+		// together with the necessary information to load the worker via Blob.
+
+		const bootstrapNlsType = 'vscode.bootstrap.nls';
+
+		self.onmessage = (event) => {
+			if (event.origin !== parentOrigin || event.data.type !== bootstrapNlsType) {
+				return;
+			}
+			const { data } = event.data;
+			createWorker(data.workerUrl, data.fileRoot, data.nls.messages, data.nls.language);
+		};
+
+		window.parent.postMessage({
+			vscodeWebWorkerExtHostId,
+			type: bootstrapNlsType
+		}, '*');
+	}
+
+	function createWorker(workerUrl, fileRoot, nlsMessages, nlsLanguage) {
+		try {
+			if (globalThis.crossOriginIsolated) {
+				workerUrl += '?vscode-coi=2'; // COEP
+			}
+
+			// In below blob code, we are using JSON.stringify to ensure the passed
+			// in values are not breaking our script. The values may contain string
+			// terminating characters (such as ' or ").
+
+			const blob = new Blob([[
+				`/*extensionHostWorker*/`,
+				`globalThis._VSCODE_NLS_MESSAGES = ${JSON.stringify(nlsMessages)};`,
+				`globalThis._VSCODE_NLS_LANGUAGE = ${JSON.stringify(nlsLanguage)};`,
+				`globalThis._VSCODE_FILE_ROOT = ${JSON.stringify(fileRoot)};`,
+				`await import(${JSON.stringify(workerUrl)});`,
+				`/*extensionHostWorker*/`
+			].join('')], { type: 'application/javascript' });
+
+			const worker = new Worker(URL.createObjectURL(blob), { name, type: 'module' });
+			const nestedWorkers = new Map();
+
+			worker.onmessage = (event) => {
+				const { data } = event;
+
+				if (data?.type === '_newWorker') {
+					const { id, port, url, options } = data;
+					const newWorker = new Worker(url, options);
+					newWorker.postMessage(port, [port]);
+					newWorker.onerror = console.error.bind(console);
+					nestedWorkers.set(id, newWorker);
+
+				} else if (data?.type === '_terminateWorker') {
+					const { id } = data;
+					if (nestedWorkers.has(id)) {
+						nestedWorkers.get(id).terminate();
+						nestedWorkers.delete(id);
+					}
+				} else {
+					worker.onerror = console.error.bind(console);
+					window.parent.postMessage({
+						vscodeWebWorkerExtHostId,
+						data
+					}, parentOrigin, [data]);
+				}
+			};
+
+			worker.onerror = (event) => {
+				console.error(event.message, event.error);
+				sendError(event.error);
+			};
+
+			self.onmessage = (event) => {
+				if (event.origin !== parentOrigin) {
+					return;
+				}
+				worker.postMessage(event.data, event.ports);
+			};
+		} catch (err) {
+			console.error(err);
+			sendError(err);
+		}
+	}
+})();
+	</script>
+	</body>
+</html>

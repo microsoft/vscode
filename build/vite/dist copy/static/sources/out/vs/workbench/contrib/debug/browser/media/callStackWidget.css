@@ -1,0 +1,71 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.multiCallStackFrame {
+	.header {
+		display: flex;
+
+		align-items: center;
+		height: 24px;
+		background: var(--vscode-multiDiffEditor-headerBackground);
+		border-top: 1px solid var(--vscode-multiDiffEditor-border);
+		color: var(--vscode-foreground);
+		padding: 0 5px;
+	}
+
+	.title {
+		flex-grow: 1;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+
+		&[role="link"] {
+			cursor: pointer;
+		}
+
+		.monaco-icon-label::before {
+			height: auto;
+		}
+	}
+
+	&.collapsed {
+		.header {
+			border-bottom: 1px solid var(--vscode-multiDiffEditor-border);
+		}
+
+		.editorParent {
+			display: none;
+		}
+	}
+
+	.collapse-button {
+		width: 16px;
+		min-height: 1px; /* show even if empty */
+		line-height: 0;
+
+		a {
+			cursor: pointer;
+		}
+	}
+
+	.actions {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		margin-right: 12px;
+	}
+}
+
+.multiCallStackWidget {
+	.multiCallStackFrameContainer {
+		background: none !important;
+	}
+}
+
+.monaco-editor .call-stack-go-to-file-link {
+	text-decoration: underline;
+	cursor: pointer;
+	color: var(--vscode-editorLink-activeForeground) !important;
+}

@@ -1,0 +1,16 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+import { localize } from '../../../../nls.js';
+import { registerColor, editorInfoForeground, editorWarningForeground, editorErrorForeground } from '../../../../platform/theme/common/colorRegistry.js';
+import { chartsGreen, chartsPurple } from '../../../../platform/theme/common/colors/chartsColors.js';
+/*
+ * Markdown alert colors for GitHub-style alert syntax.
+ */
+export const markdownAlertNoteColor = registerColor('markdownAlert.note.foreground', editorInfoForeground, localize('markdownAlertNoteForeground', "Foreground color for note alerts in markdown."));
+export const markdownAlertTipColor = registerColor('markdownAlert.tip.foreground', chartsGreen, localize('markdownAlertTipForeground', "Foreground color for tip alerts in markdown."));
+export const markdownAlertImportantColor = registerColor('markdownAlert.important.foreground', chartsPurple, localize('markdownAlertImportantForeground', "Foreground color for important alerts in markdown."));
+export const markdownAlertWarningColor = registerColor('markdownAlert.warning.foreground', editorWarningForeground, localize('markdownAlertWarningForeground', "Foreground color for warning alerts in markdown."));
+export const markdownAlertCautionColor = registerColor('markdownAlert.caution.foreground', editorErrorForeground, localize('markdownAlertCautionForeground', "Foreground color for caution alerts in markdown."));
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoibWFya2Rvd25Db2xvcnMuanMiLCJzb3VyY2VSb290IjoiZmlsZTovLy9ob21lL2Evd2ViY29kZS5ob3N0L3ZzY29kZS9zcmMvIiwic291cmNlcyI6WyJ2cy93b3JrYmVuY2gvY29udHJpYi9tYXJrZG93bi9jb21tb24vbWFya2Rvd25Db2xvcnMudHMiXSwibmFtZXMiOltdLCJtYXBwaW5ncyI6IkFBQUE7OztnR0FHZ0c7QUFFaEcsT0FBTyxFQUFFLFFBQVEsRUFBRSxNQUFNLG9CQUFvQixDQUFDO0FBQzlDLE9BQU8sRUFBRSxhQUFhLEVBQUUsb0JBQW9CLEVBQUUsdUJBQXVCLEVBQUUscUJBQXFCLEVBQUUsTUFBTSxvREFBb0QsQ0FBQztBQUN6SixPQUFPLEVBQUUsV0FBVyxFQUFFLFlBQVksRUFBRSxNQUFNLDBEQUEwRCxDQUFDO0FBRXJHOztHQUVHO0FBRUgsTUFBTSxDQUFDLE1BQU0sc0JBQXNCLEdBQUcsYUFBYSxDQUFDLCtCQUErQixFQUNsRixvQkFBb0IsRUFDcEIsUUFBUSxDQUFDLDZCQUE2QixFQUFFLCtDQUErQyxDQUFDLENBQUMsQ0FBQztBQUUzRixNQUFNLENBQUMsTUFBTSxxQkFBcUIsR0FBRyxhQUFhLENBQUMsOEJBQThCLEVBQ2hGLFdBQVcsRUFDWCxRQUFRLENBQUMsNEJBQTRCLEVBQUUsOENBQThDLENBQUMsQ0FBQyxDQUFDO0FBRXpGLE1BQU0sQ0FBQyxNQUFNLDJCQUEyQixHQUFHLGFBQWEsQ0FBQyxvQ0FBb0MsRUFDNUYsWUFBWSxFQUNaLFFBQVEsQ0FBQyxrQ0FBa0MsRUFBRSxvREFBb0QsQ0FBQyxDQUFDLENBQUM7QUFFckcsTUFBTSxDQUFDLE1BQU0seUJBQXlCLEdBQUcsYUFBYSxDQUFDLGtDQUFrQyxFQUN4Rix1QkFBdUIsRUFDdkIsUUFBUSxDQUFDLGdDQUFnQyxFQUFFLGtEQUFrRCxDQUFDLENBQUMsQ0FBQztBQUVqRyxNQUFNLENBQUMsTUFBTSx5QkFBeUIsR0FBRyxhQUFhLENBQUMsa0NBQWtDLEVBQ3hGLHFCQUFxQixFQUNyQixRQUFRLENBQUMsZ0NBQWdDLEVBQUUsa0RBQWtELENBQUMsQ0FBQyxDQUFDIn0=

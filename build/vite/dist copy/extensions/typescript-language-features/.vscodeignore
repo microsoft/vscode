@@ -1,0 +1,10 @@
+build/**
+src/**
+web/**
+test/**
+test-workspace/**
+out/**
+tsconfig*.json
+esbuild*.mts
+cgmanifest.json
+package-lock.json

@@ -1,0 +1,30 @@
+{
+	"original": {
+		"content": "const { selected, all, suggestions, hidden } = notebookKernelService.getMatchingKernel(notebook);\n",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "const scopedContextKeyService = editor.scopedContextKeyService;\nconst matchResult = notebookKernelService.getMatchingKernel(notebook);\nconst { selected, all } = matchResult;\n",
+		"fileName": "./2.tst"
+	},
+	"diffs": [
+		{
+			"originalRange": "[1,2)",
+			"modifiedRange": "[1,4)",
+			"innerChanges": [
+				{
+					"originalRange": "[1,7 -> 1,32]",
+					"modifiedRange": "[1,7 -> 2,2]"
+				},
+				{
+					"originalRange": "[1,35 -> 1,45]",
+					"modifiedRange": "[2,5 -> 2,18]"
+				},
+				{
+					"originalRange": "[1,98 -> 1,98 EOL]",
+					"modifiedRange": "[2,71 -> 3,39 EOL]"
+				}
+			]
+		}
+	]
+}

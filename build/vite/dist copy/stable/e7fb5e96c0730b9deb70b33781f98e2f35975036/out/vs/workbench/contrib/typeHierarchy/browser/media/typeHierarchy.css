@@ -1,0 +1,62 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .type-hierarchy .results,
+.monaco-workbench .type-hierarchy .message {
+	display: none;
+}
+
+.monaco-workbench .type-hierarchy[data-state="data"] .results {
+	display: inherit;
+	height: 100%;
+}
+
+.monaco-workbench .type-hierarchy[data-state="message"] .message {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: 100%;
+}
+
+.monaco-workbench .type-hierarchy .editor,
+.monaco-workbench .type-hierarchy .tree {
+	height: 100%;
+}
+
+.monaco-editor .type-hierarchy .tree {
+	background-color: var(--vscode-peekViewResult-background);
+	color: var(--vscode-peekViewResult-fileForeground);
+}
+
+.monaco-editor .type-hierarchy .tree .monaco-list:focus .monaco-list-rows > .monaco-list-row.selected:not(.highlighted) {
+	background-color: var(--vscode-peekViewResult-selectionBackground);
+	color: var(--vscode-peekViewResult-selectionForeground) !important;
+}
+
+.monaco-workbench .type-hierarchy .tree .typehierarchy-element {
+	display: flex;
+	flex: 1;
+	flex-flow: row nowrap;
+	align-items: center;
+}
+
+.monaco-workbench .type-hierarchy .tree .typehierarchy-element .monaco-icon-label {
+	padding-left: 4px;
+}
+
+.monaco-editor .type-hierarchy .type-decoration {
+	background-color: var(--vscode-peekViewEditor-matchHighlightBackground);
+	border: 2px solid var(--vscode-peekViewEditor-matchHighlightBorder);
+	box-sizing: border-box;
+}
+
+.monaco-editor .type-hierarchy .editor .monaco-editor .monaco-editor-background,
+.monaco-editor .type-hierarchy .editor .monaco-editor .inputarea.ime-input {
+	background-color: var(--vscode-peekViewEditor-background);
+}
+
+.monaco-editor .type-hierarchy .editor .monaco-editor .margin {
+	background-color: var(--vscode-peekViewEditorGutter-background);
+}

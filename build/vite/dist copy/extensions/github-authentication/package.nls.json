@@ -1,0 +1,8 @@
+{
+	"displayName": "GitHub Authentication",
+	"description": "GitHub Authentication Provider",
+	"config.github-enterprise.title": "GHE.com & GitHub Enterprise Server Authentication",
+	"config.github-enterprise.uri.description": "The URI for your GHE.com or GitHub Enterprise Server instance.\n\nExamples:\n* GHE.com: `https://octocat.ghe.com`\n* GitHub Enterprise Server: `https://github.octocat.com`\n\n> **Note:** This should _not_ be set to a GitHub.com URI. If your account exists on GitHub.com or is a GitHub Enterprise Managed User, you do not need any additional configuration and can simply log in to GitHub.",
+	"config.github-authentication.useElectronFetch.description": "When true, uses Electron's built-in fetch function for HTTP requests. When false, uses the Node.js global fetch function. This setting only applies when running in the Electron environment. **Note:** A restart is required for this setting to take effect.",
+	"config.github-authentication.preferDeviceCodeFlow.description": "When true, prioritize the device code flow for authentication instead of other available flows. This is useful for environments like WSL where the local server or URL handler flows may not work as expected."
+}

@@ -1,0 +1,6 @@
+test/**
+src/**
+tsconfig*.json
+out/**
+esbuild*
+package-lock.json

@@ -1,0 +1,62 @@
+export declare const constants: {
+    kFSEventStreamEventFlagNone: number;
+    kFSEventStreamEventFlagMustScanSubDirs: number;
+    kFSEventStreamEventFlagUserDropped: number;
+    kFSEventStreamEventFlagKernelDropped: number;
+    kFSEventStreamEventFlagEventIdsWrapped: number;
+    kFSEventStreamEventFlagHistoryDone: number;
+    kFSEventStreamEventFlagRootChanged: number;
+    kFSEventStreamEventFlagMount: number;
+    kFSEventStreamEventFlagUnmount: number;
+    kFSEventStreamEventFlagItemCreated: number;
+    kFSEventStreamEventFlagItemRemoved: number;
+    kFSEventStreamEventFlagItemInodeMetaMod: number;
+    kFSEventStreamEventFlagItemRenamed: number;
+    kFSEventStreamEventFlagItemModified: number;
+    kFSEventStreamEventFlagItemFinderInfoMod: number;
+    kFSEventStreamEventFlagItemChangeOwner: number;
+    kFSEventStreamEventFlagItemXattrMod: number;
+    kFSEventStreamEventFlagItemIsFile: number;
+    kFSEventStreamEventFlagItemIsDir: number;
+    kFSEventStreamEventFlagItemIsSymlink: number;
+};
+export declare function watch(_path: string, _handler: (filePath: string, flags: number, id: number) => void): () => Promise<void>;
+export declare function getInfo(filePath: string, flags: number): {
+    event: string;
+    path: string;
+    type: string;
+    changes: {
+        inode: boolean;
+        finder: boolean;
+        access: boolean;
+        xattrs: boolean;
+    };
+    flags: number;
+};
+declare const _default: {
+    watch: typeof watch;
+    getInfo: typeof getInfo;
+    constants: {
+        kFSEventStreamEventFlagNone: number;
+        kFSEventStreamEventFlagMustScanSubDirs: number;
+        kFSEventStreamEventFlagUserDropped: number;
+        kFSEventStreamEventFlagKernelDropped: number;
+        kFSEventStreamEventFlagEventIdsWrapped: number;
+        kFSEventStreamEventFlagHistoryDone: number;
+        kFSEventStreamEventFlagRootChanged: number;
+        kFSEventStreamEventFlagMount: number;
+        kFSEventStreamEventFlagUnmount: number;
+        kFSEventStreamEventFlagItemCreated: number;
+        kFSEventStreamEventFlagItemRemoved: number;
+        kFSEventStreamEventFlagItemInodeMetaMod: number;
+        kFSEventStreamEventFlagItemRenamed: number;
+        kFSEventStreamEventFlagItemModified: number;
+        kFSEventStreamEventFlagItemFinderInfoMod: number;
+        kFSEventStreamEventFlagItemChangeOwner: number;
+        kFSEventStreamEventFlagItemXattrMod: number;
+        kFSEventStreamEventFlagItemIsFile: number;
+        kFSEventStreamEventFlagItemIsDir: number;
+        kFSEventStreamEventFlagItemIsSymlink: number;
+    };
+};
+export default _default;

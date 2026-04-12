@@ -1,0 +1,22 @@
+{
+	"original": {
+		"content": "",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "Tempor duis sunt laborum aliqua id eu irure.\nConsequat aliquip excepteur.\nAdipisicing incididunt do magn.\n",
+		"fileName": "./2.tst"
+	},
+	"diffs": [
+		{
+			"originalRange": "[1,2)",
+			"modifiedRange": "[1,5)",
+			"innerChanges": [
+				{
+					"originalRange": "[1,1 -> 1,1 EOL]",
+					"modifiedRange": "[1,1 -> 4,1 EOL]"
+				}
+			]
+		}
+	]
+}

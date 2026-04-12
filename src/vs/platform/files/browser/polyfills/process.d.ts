@@ -1,0 +1,190 @@
+import { EventHandler } from "./events.js";
+export interface ProcessEnvVars {
+    [key: string]: string | undefined;
+}
+interface OutputStreamBridge {
+    isTTY: boolean;
+    columns: number;
+    rows: number;
+    write: (data: string | Buffer, encoding?: string, cb?: () => void) => boolean;
+    end?: (data?: string, cb?: () => void) => void;
+    on: (evt: string, fn: EventHandler) => OutputStreamBridge;
+    once: (evt: string, fn: EventHandler) => OutputStreamBridge;
+    off: (evt: string, fn: EventHandler) => OutputStreamBridge;
+    emit: (evt: string, ...args: unknown[]) => boolean;
+    addListener: (evt: string, fn: EventHandler) => OutputStreamBridge;
+    removeListener: (evt: string, fn: EventHandler) => OutputStreamBridge;
+    removeAllListeners: (evt?: string) => OutputStreamBridge;
+    setMaxListeners: (n: number) => OutputStreamBridge;
+    getMaxListeners: () => number;
+    listenerCount: (evt: string) => number;
+    listeners: (evt: string) => EventHandler[];
+    rawListeners: (evt: string) => EventHandler[];
+    prependListener: (evt: string, fn: EventHandler) => OutputStreamBridge;
+    prependOnceListener: (evt: string, fn: EventHandler) => OutputStreamBridge;
+    eventNames: () => string[];
+    pause?: () => OutputStreamBridge;
+    resume?: () => OutputStreamBridge;
+    setEncoding?: (enc: string) => OutputStreamBridge;
+    clearLine?: (dir: number, cb?: () => void) => boolean;
+    cursorTo?: (x: number, y?: number, cb?: () => void) => boolean;
+    moveCursor?: (dx: number, dy: number, cb?: () => void) => boolean;
+    getWindowSize?: () => [number, number];
+    getColorDepth?: (env?: Record<string, string>) => number;
+    hasColors?: (countOrEnv?: number | Record<string, string>, env?: Record<string, string>) => boolean;
+}
+interface InputStreamBridge extends OutputStreamBridge {
+    read?: (size?: number) => string | Buffer | null;
+    setRawMode?: (flag: boolean) => InputStreamBridge;
+    isRaw?: boolean;
+    destroy?: () => InputStreamBridge;
+    pipe?: (dest: any) => any;
+    unpipe?: () => InputStreamBridge;
+    unshift?: (...args: unknown[]) => void;
+    wrap?: (stream: any) => InputStreamBridge;
+    readable?: boolean;
+    writable?: boolean;
+    destroyed?: boolean;
+    [Symbol.asyncIterator]?: () => AsyncIterator<any>;
+}
+export interface ProcessObject {
+    env: ProcessEnvVars;
+    cwd: () => string;
+    chdir: (dir: string) => void;
+    _chdirHook?: (dir: string) => void;
+    platform: string;
+    version: string;
+    versions: {
+        node: string;
+        v8: string;
+        uv: string;
+        modules: string;
+        openssl: string;
+        napi: string;
+        webcontainer: string;
+    };
+    argv: string[];
+    argv0: string;
+    execPath: string;
+    execArgv: string[];
+    pid: number;
+    ppid: number;
+    exit: (code?: number) => never;
+    nextTick: (fn: (...args: unknown[]) => void, ...args: unknown[]) => void;
+    stdout: OutputStreamBridge;
+    stderr: OutputStreamBridge;
+    stdin: InputStreamBridge;
+    arch: string;
+    title: string;
+    hrtime: {
+        (prev?: [number, number]): [number, number];
+        bigint: () => bigint;
+    };
+    memoryUsage: () => {
+        rss: number;
+        heapTotal: number;
+        heapUsed: number;
+        external: number;
+        arrayBuffers: number;
+    };
+    uptime: () => number;
+    cpuUsage: () => {
+        user: number;
+        system: number;
+    };
+    resourceUsage: () => {
+        userCPUTime: number;
+        systemCPUTime: number;
+        maxRSS: number;
+        sharedMemorySize: number;
+        unsharedDataSize: number;
+        unsharedStackSize: number;
+        minorPageFault: number;
+        majorPageFault: number;
+        swappedOut: number;
+        fsRead: number;
+        fsWrite: number;
+        ipcSent: number;
+        ipcReceived: number;
+        signalsCount: number;
+        voluntaryContextSwitches: number;
+        involuntaryContextSwitches: number;
+    };
+    abort: () => never;
+    kill: (pid: number, signal?: string | number) => boolean;
+    umask: (mask?: number) => number;
+    config: {
+        variables: Record<string, unknown>;
+        target_defaults: Record<string, unknown>;
+    };
+    release: {
+        name: string;
+        sourceUrl: string;
+        headersUrl: string;
+    };
+    features: {
+        inspector: boolean;
+        debug: boolean;
+        uv: boolean;
+        ipv6: boolean;
+        tls_alpn: boolean;
+        tls_sni: boolean;
+        tls_ocsp: boolean;
+        tls: boolean;
+    };
+    debugPort: number;
+    allowedNodeEnvironmentFlags: Set<string>;
+    on: (evt: string, fn: EventHandler) => ProcessObject;
+    once: (evt: string, fn: EventHandler) => ProcessObject;
+    off: (evt: string, fn: EventHandler) => ProcessObject;
+    emit: (evt: string, ...args: unknown[]) => boolean;
+    addListener: (evt: string, fn: EventHandler) => ProcessObject;
+    removeListener: (evt: string, fn: EventHandler) => ProcessObject;
+    removeAllListeners: (evt?: string) => ProcessObject;
+    listeners: (evt: string) => EventHandler[];
+    listenerCount: (evt: string) => number;
+    prependListener: (evt: string, fn: EventHandler) => ProcessObject;
+    prependOnceListener: (evt: string, fn: EventHandler) => ProcessObject;
+    eventNames: () => string[];
+    setMaxListeners: (n: number) => ProcessObject;
+    getMaxListeners: () => number;
+    send?: (msg: unknown, cb?: (err: Error | null) => void) => boolean;
+    disconnect?: () => void;
+    connected?: boolean;
+    _debugCwdCalls?: number;
+    mainModule?: unknown;
+    channel?: unknown;
+    noDeprecation?: boolean;
+    throwDeprecation?: boolean;
+    traceDeprecation?: boolean;
+    traceProcessWarnings?: boolean;
+    report?: Record<string, unknown>;
+    binding?: (name: string) => Record<string, unknown>;
+    _linkedBinding?: (name: string) => Record<string, unknown>;
+    dlopen?: (module: unknown, filename: string, flags?: number) => void;
+    reallyExit?: (code?: number) => void;
+    _getActiveRequests?: () => unknown[];
+    _getActiveHandles?: () => unknown[];
+    emitWarning?: (warning: string | Error, typeOrOptions?: string | {
+        type?: string;
+        code?: string;
+        detail?: string;
+    }, code?: string) => void;
+    hasUncaughtExceptionCaptureCallback?: () => boolean;
+    setUncaughtExceptionCaptureCallback?: (fn: ((err: Error) => void) | null) => void;
+    sourceMapsEnabled?: boolean;
+    setSourceMapsEnabled?: (val: boolean) => void;
+    constrainedMemory?: () => number;
+    availableMemory?: () => number;
+}
+export declare function buildProcessEnv(config?: {
+    cwd?: string;
+    env?: ProcessEnvVars;
+    onExit?: (code: number) => void;
+    onStdout?: (text: string) => void;
+    onStderr?: (text: string) => void;
+    pid?: number;
+    ppid?: number;
+}): ProcessObject;
+export declare const process: ProcessObject;
+export default process;

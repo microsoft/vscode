@@ -1,0 +1,68 @@
+{
+  "name": "search-result",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "10.0.0",
+  "publisher": "vscode",
+  "license": "MIT",
+  "icon": "images/icon.png",
+  "engines": {
+    "vscode": "^1.39.0"
+  },
+  "main": "./out/extension.js",
+  "browser": "./dist/browser/extension",
+  "activationEvents": [
+    "onLanguage:search-result"
+  ],
+  "scripts": {
+    "generate-grammar": "node ./syntaxes/generateTMLanguage.js",
+    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.mjs compile-extension:search-result ./tsconfig.json",
+    "compile-web": "npm-run-all2 -lp bundle-web typecheck-web",
+    "bundle-web": "node ./esbuild.browser.mts",
+    "typecheck-web": "tsgo --project ./tsconfig.json --noEmit",
+    "watch-web": "npm-run-all2 -lp watch-bundle-web watch-typecheck-web",
+    "watch-bundle-web": "node ./esbuild.browser.mts --watch",
+    "watch-typecheck-web": "tsgo --project ./tsconfig.json --noEmit --watch"
+  },
+  "capabilities": {
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
+  "enabledApiProposals": [
+    "documentFiltersExclusive"
+  ],
+  "contributes": {
+    "configurationDefaults": {
+      "[search-result]": {
+        "editor.lineNumbers": "off"
+      }
+    },
+    "languages": [
+      {
+        "id": "search-result",
+        "extensions": [
+          ".code-search"
+        ],
+        "aliases": [
+          "Search Result"
+        ]
+      }
+    ],
+    "grammars": [
+      {
+        "language": "search-result",
+        "scopeName": "text.searchResult",
+        "path": "./syntaxes/searchResult.tmLanguage.json"
+      }
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  },
+  "devDependencies": {
+    "@types/node": "^22.18.10"
+  }
+}

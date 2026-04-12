@@ -1,0 +1,50 @@
+{
+	"type": "dark",
+	"tokenColors": [
+		{
+			"scope": "comment",
+			"settings": {
+				"foreground": "#000000"
+			}
+		},
+		{
+			"scope": "string",
+			"settings": {
+				"foreground": "#444444"
+			}
+		},
+		{
+			"scope": "constant.numeric",
+			"settings": {
+				"foreground": "#555555"
+			}
+		},
+		{
+			"scope": "variable",
+			"settings": {
+				"fontStyle": "",
+				"foreground": "#111111"
+			}
+		},
+		{
+			"scope": "keyword",
+			"settings": {
+				"foreground": "#666666"
+			}
+		},
+		{
+			"scope": "entity.name.type, entity.name.class, entity.name.namespace, entity.name.scope-resolution",
+			"settings": {
+				"fontStyle": "underline",
+				"foreground": "#333333"
+			}
+		},
+		{
+			"scope": "entity.name.function",
+			"settings": {
+				"fontStyle": "",
+				"foreground": "#333333"
+			}
+		}
+	]
+}

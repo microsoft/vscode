@@ -1,0 +1,8 @@
+export var InlineSuggestAlternativeAction;
+(function (InlineSuggestAlternativeAction) {
+    function toString(action) {
+        return action?.command.id ?? undefined;
+    }
+    InlineSuggestAlternativeAction.toString = toString;
+})(InlineSuggestAlternativeAction || (InlineSuggestAlternativeAction = {}));
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiSW5saW5lU3VnZ2VzdEFsdGVybmF0aXZlQWN0aW9uLmpzIiwic291cmNlUm9vdCI6ImZpbGU6Ly8vaG9tZS9hL3dlYmNvZGUuaG9zdC92c2NvZGUvc3JjLyIsInNvdXJjZXMiOlsidnMvZWRpdG9yL2NvbnRyaWIvaW5saW5lQ29tcGxldGlvbnMvYnJvd3Nlci9tb2RlbC9JbmxpbmVTdWdnZXN0QWx0ZXJuYXRpdmVBY3Rpb24udHMiXSwibmFtZXMiOltdLCJtYXBwaW5ncyI6IkFBY0EsTUFBTSxLQUFXLDhCQUE4QixDQUk5QztBQUpELFdBQWlCLDhCQUE4QjtJQUM5QyxTQUFnQixRQUFRLENBQUMsTUFBa0Q7UUFDMUUsT0FBTyxNQUFNLEVBQUUsT0FBTyxDQUFDLEVBQUUsSUFBSSxTQUFTLENBQUM7SUFDeEMsQ0FBQztJQUZlLHVDQUFRLFdBRXZCLENBQUE7QUFDRixDQUFDLEVBSmdCLDhCQUE4QixLQUE5Qiw4QkFBOEIsUUFJOUMifQ==

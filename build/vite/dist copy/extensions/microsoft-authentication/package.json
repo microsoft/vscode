@@ -1,0 +1,154 @@
+{
+  "name": "microsoft-authentication",
+  "publisher": "vscode",
+  "license": "MIT",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.42.0"
+  },
+  "icon": "media/icon.png",
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
+  "enabledApiProposals": [
+    "nativeWindowHandle",
+    "authIssuers",
+    "authenticationChallenges"
+  ],
+  "capabilities": {
+    "virtualWorkspaces": true,
+    "untrustedWorkspaces": {
+      "supported": true
+    }
+  },
+  "extensionKind": [
+    "ui",
+    "workspace"
+  ],
+  "contributes": {
+    "authentication": [
+      {
+        "label": "Microsoft",
+        "id": "microsoft",
+        "authorizationServerGlobs": [
+          "https://login.microsoftonline.com/*",
+          "https://login.microsoftonline.com/*/v2.0"
+        ]
+      },
+      {
+        "label": "Microsoft Sovereign Cloud",
+        "id": "microsoft-sovereign-cloud"
+      }
+    ],
+    "configuration": [
+      {
+        "title": "Microsoft Sovereign Cloud",
+        "properties": {
+          "microsoft-sovereign-cloud.environment": {
+            "type": "string",
+            "markdownDescription": "%microsoft-sovereign-cloud.environment.description%",
+            "enum": [
+              "ChinaCloud",
+              "USGovernment",
+              "custom"
+            ],
+            "enumDescriptions": [
+              "%microsoft-sovereign-cloud.environment.enumDescriptions.AzureChinaCloud%",
+              "%microsoft-sovereign-cloud.environment.enumDescriptions.AzureUSGovernment%",
+              "%microsoft-sovereign-cloud.environment.enumDescriptions.custom%"
+            ]
+          },
+          "microsoft-sovereign-cloud.customEnvironment": {
+            "type": "object",
+            "additionalProperties": true,
+            "markdownDescription": "%microsoft-sovereign-cloud.customEnvironment.description%",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "%microsoft-sovereign-cloud.customEnvironment.name.description%"
+              },
+              "portalUrl": {
+                "type": "string",
+                "description": "%microsoft-sovereign-cloud.customEnvironment.portalUrl.description%"
+              },
+              "managementEndpointUrl": {
+                "type": "string",
+                "description": "%microsoft-sovereign-cloud.customEnvironment.managementEndpointUrl.description%"
+              },
+              "resourceManagerEndpointUrl": {
+                "type": "string",
+                "description": "%microsoft-sovereign-cloud.customEnvironment.resourceManagerEndpointUrl.description%"
+              },
+              "activeDirectoryEndpointUrl": {
+                "type": "string",
+                "description": "%microsoft-sovereign-cloud.customEnvironment.activeDirectoryEndpointUrl.description%"
+              },
+              "activeDirectoryResourceId": {
+                "type": "string",
+                "description": "%microsoft-sovereign-cloud.customEnvironment.activeDirectoryResourceId.description%"
+              }
+            },
+            "required": [
+              "name",
+              "portalUrl",
+              "managementEndpointUrl",
+              "resourceManagerEndpointUrl",
+              "activeDirectoryEndpointUrl",
+              "activeDirectoryResourceId"
+            ]
+          }
+        }
+      },
+      {
+        "title": "Microsoft",
+        "properties": {
+          "microsoft-authentication.implementation": {
+            "type": "string",
+            "default": "msal",
+            "enum": [
+              "msal",
+              "msal-no-broker"
+            ],
+            "enumDescriptions": [
+              "%microsoft-authentication.implementation.enumDescriptions.msal%",
+              "%microsoft-authentication.implementation.enumDescriptions.msal-no-broker%"
+            ],
+            "markdownDescription": "%microsoft-authentication.implementation.description%",
+            "tags": [
+              "onExP"
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "aiKey": "0c6ae279ed8443289764825290e4f9e2-1a736e7c-1324-4338-be46-fc2a58ae4d14-7255",
+  "main": "./out/extension.js",
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "gulp compile-extension:microsoft-authentication",
+    "watch": "gulp watch-extension:microsoft-authentication"
+  },
+  "devDependencies": {
+    "@types/node": "22.x",
+    "@types/node-fetch": "^2.5.7",
+    "@types/randombytes": "^2.0.0",
+    "@types/sha.js": "^2.4.0",
+    "@types/uuid": "8.0.0"
+  },
+  "dependencies": {
+    "@azure/ms-rest-azure-env": "^2.0.0",
+    "@azure/msal-node": "^3.8.3",
+    "@azure/msal-node-extensions": "^1.5.25",
+    "@vscode/extension-telemetry": "^0.9.8",
+    "keytar": "file:./packageMocks/keytar",
+    "vscode-tas-client": "^0.1.84"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  }
+}

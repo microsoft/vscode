@@ -1,0 +1,1367 @@
+<!DOCTYPE html>
+<html lang="en" style="width: 100%; height: 100%;">
+
+<head>
+	<meta charset="UTF-8">
+
+	<meta http-equiv="Content-Security-Policy"
+		content="default-src 'none'; script-src 'sha256-TaWGDzV7c9rUH2q/5ygOyYUHSyHIqBMYfucPh3lnKvU=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+
+	<!-- Disable pinch zooming -->
+	<meta name="viewport"
+		content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
+</head>
+
+<body style="margin: 0; overflow: hidden; width: 100%; height: 100%; overscroll-behavior-x: none;" role="document">
+	<script async type="module">
+		// @ts-check
+		/// <reference lib="dom" />
+
+		const isSafari = (
+			navigator.vendor && navigator.vendor.indexOf('Apple') > -1 &&
+			navigator.userAgent &&
+			navigator.userAgent.indexOf('CriOS') === -1 &&
+			navigator.userAgent.indexOf('FxiOS') === -1
+		);
+
+		const isFirefox = (
+			navigator.userAgent &&
+			navigator.userAgent.indexOf('Firefox') >= 0
+		);
+
+		const searchParams = new URL(location.toString()).searchParams;
+		const ID = searchParams.get('id');
+		const webviewOrigin = searchParams.get('origin');
+		const onElectron = searchParams.get('platform') === 'electron';
+		const disableServiceWorker = searchParams.has('disableServiceWorker');
+		const expectedWorkerVersion = parseInt(searchParams.get('swVersion'));
+
+		/**
+		 * @param {string} name
+		 * @param {Record<string, string>} [options]
+		 */
+		const perfMark = (name, options = {}) => {
+			performance.mark(`webview/index.html/${name}`, {
+				detail: {
+					id: ID,
+					...options
+				}
+			});
+		}
+
+		perfMark('scriptStart');
+
+		/** @type {MessageChannel | undefined} */
+		let outerIframeMessageChannel;
+
+		/**
+		 * Use polling to track focus of main webview and iframes within the webview
+		 *
+		 * @param {Object} handlers
+		 * @param {() => void} handlers.onFocus
+		 * @param {() => void} handlers.onBlur
+		 */
+		const trackFocus = ({ onFocus, onBlur }) => {
+			const interval = 250;
+			let isFocused = document.hasFocus();
+			setInterval(() => {
+				const target = getActiveFrame();
+				const isCurrentlyFocused = document.hasFocus() || !!(target && target.contentDocument && target.contentDocument.body.classList.contains('vscode-context-menu-visible'));
+				if (isCurrentlyFocused === isFocused) {
+					return;
+				}
+				isFocused = isCurrentlyFocused;
+				if (isCurrentlyFocused) {
+					onFocus();
+				} else {
+					onBlur();
+				}
+			}, interval);
+		};
+
+		const getActiveFrame = () => {
+			return /** @type {HTMLIFrameElement | undefined} */ (document.getElementById('active-frame'));
+		};
+
+		const getPendingFrame = () => {
+			return /** @type {HTMLIFrameElement | undefined} */ (document.getElementById('pending-frame'));
+		};
+
+		/**
+		 * @template T
+		 * @param {T | undefined | null} obj
+		 * @return {T}
+		 */
+		function assertIsDefined(obj) {
+			if (typeof obj === 'undefined' || obj === null) {
+				throw new Error('Found unexpected null');
+			}
+			return obj;
+		}
+
+		const vscodePostMessageFuncName = '__vscode_post_message__';
+
+		const defaultStyles = document.createElement('style');
+		defaultStyles.id = '_defaultStyles';
+		defaultStyles.textContent = `
+		@layer vscode-default {
+			html {
+				scrollbar-color: var(--vscode-scrollbarSlider-background) var(--vscode-editor-background);
+			}
+
+			body {
+				overscroll-behavior-x: none;
+				background-color: transparent;
+				color: var(--vscode-editor-foreground);
+				font-family: var(--vscode-font-family);
+				font-weight: var(--vscode-font-weight);
+				font-size: var(--vscode-font-size);
+				margin: 0;
+				padding: 0 20px;
+			}
+
+			img, video {
+				max-width: 100%;
+				max-height: 100%;
+			}
+
+			a, a code {
+				color: var(--vscode-textLink-foreground);
+			}
+
+			p > a {
+				text-decoration: var(--text-link-decoration);
+			}
+
+			a:hover {
+				color: var(--vscode-textLink-activeForeground);
+			}
+
+			a:focus,
+			input:focus,
+			select:focus,
+			textarea:focus {
+				outline: 1px solid -webkit-focus-ring-color;
+				outline-offset: -1px;
+			}
+
+			code {
+				font-family: var(--monaco-monospace-font);
+				color: var(--vscode-textPreformat-foreground);
+				background-color: var(--vscode-textPreformat-background);
+				padding: 1px 3px;
+				border-radius: 4px;
+			}
+
+			pre code {
+				padding: 0;
+			}
+
+			blockquote {
+				background: var(--vscode-textBlockQuote-background);
+				border-color: var(--vscode-textBlockQuote-border);
+			}
+
+			kbd {
+				background-color: var(--vscode-keybindingLabel-background);
+				color: var(--vscode-keybindingLabel-foreground);
+				border-style: solid;
+				border-width: 1px;
+				border-radius: 3px;
+				border-color: var(--vscode-keybindingLabel-border);
+				border-bottom-color: var(--vscode-keybindingLabel-bottomBorder);
+				box-shadow: inset 0 -1px 0 var(--vscode-widget-shadow);
+				vertical-align: middle;
+				padding: 1px 3px;
+			}
+
+			::-webkit-scrollbar {
+				width: 10px;
+				height: 10px;
+			}
+
+			::-webkit-scrollbar-corner {
+				background-color: var(--vscode-editor-background);
+			}
+
+			::-webkit-scrollbar-thumb {
+				background-color: var(--vscode-scrollbarSlider-background);
+			}
+			::-webkit-scrollbar-thumb:hover {
+				background-color: var(--vscode-scrollbarSlider-hoverBackground);
+			}
+			::-webkit-scrollbar-thumb:active {
+				background-color: var(--vscode-scrollbarSlider-activeBackground);
+			}
+			::highlight(find-highlight) {
+				background-color: var(--vscode-editor-findMatchHighlightBackground);
+			}
+			::highlight(current-find-highlight) {
+				background-color: var(--vscode-editor-findMatchBackground);
+			}
+		}`;
+
+		/**
+		 * @param {boolean} allowMultipleAPIAcquire
+		 * @param {*} [state]
+		 * @return {string}
+		 */
+		function getVsCodeApiScript(allowMultipleAPIAcquire, state) {
+			const encodedState = state ? encodeURIComponent(state) : undefined;
+			return /* js */`
+					globalThis.acquireVsCodeApi = (function() {
+						const originalPostMessage = window.parent['${vscodePostMessageFuncName}'].bind(window.parent);
+						const doPostMessage = (channel, data, transfer) => {
+							originalPostMessage(channel, data, transfer);
+						};
+
+						let acquired = false;
+
+						let state = ${state ? `JSON.parse(decodeURIComponent("${encodedState}"))` : undefined};
+
+						return () => {
+							if (acquired && !${allowMultipleAPIAcquire}) {
+								throw new Error('An instance of the VS Code API has already been acquired');
+							}
+							acquired = true;
+							return Object.freeze({
+								postMessage: function(message, transfer) {
+									doPostMessage('onmessage', { message, transfer }, transfer);
+								},
+								setState: function(newState) {
+									state = newState;
+									doPostMessage('do-update-state', JSON.stringify(newState));
+									return newState;
+								},
+								getState: function() {
+									return state;
+								}
+							});
+						};
+					})();
+					window.parent = window;
+					window.top = window;
+					window.frameElement = null;
+				`;
+		}
+
+		/** @type {Promise<void>} */
+		const workerReady = new Promise((resolve, reject) => {
+			if (disableServiceWorker) {
+				return resolve();
+			}
+
+			if (!areServiceWorkersEnabled()) {
+				return reject(new Error('Service Workers are not enabled. Webviews will not work. Try disabling private/incognito mode.'));
+			}
+
+			const swPath = encodeURI(`service-worker.js?v=${expectedWorkerVersion}&vscode-resource-base-authority=${searchParams.get('vscode-resource-base-authority')}&remoteAuthority=${searchParams.get('remoteAuthority') ?? ''}`);
+			navigator.serviceWorker.register(swPath, { type: 'module' })
+				.then(async registration => {
+					/**
+					 * @param {MessageEvent} event
+					 */
+					const versionHandler = async (event) => {
+						if (event.data.channel !== 'version') {
+							return;
+						}
+
+						navigator.serviceWorker.removeEventListener('message', versionHandler);
+						if (event.data.version === expectedWorkerVersion) {
+							return resolve();
+						} else {
+							console.log(`Found unexpected service worker version. Found: ${event.data.version}. Expected: ${expectedWorkerVersion}`);
+							console.log(`Attempting to reload service worker`);
+
+							// If we have the wrong version, try once (and only once) to unregister and re-register
+							// Note that `.update` doesn't seem to work desktop electron at the moment so we use
+							// `unregister` and `register` here.
+							return registration.unregister()
+								.then(() => navigator.serviceWorker.register(swPath))
+								.finally(() => { resolve(); });
+						}
+					};
+					navigator.serviceWorker.addEventListener('message', versionHandler);
+
+					const postVersionMessage = (/** @type {ServiceWorker} */ controller) => {
+						outerIframeMessageChannel = new MessageChannel();
+						controller.postMessage({ channel: 'version' }, [outerIframeMessageChannel.port2]);
+					};
+
+					// At this point, either the service worker is ready and
+					// became our controller, or we need to wait for it.
+					// Note that navigator.serviceWorker.controller could be a
+					// controller from a previously loaded service worker.
+					const currentController = navigator.serviceWorker.controller;
+					if (currentController?.scriptURL.endsWith(swPath)) {
+						// service worker already loaded & ready to receive messages
+						postVersionMessage(currentController);
+					} else {
+						if (currentController) {
+							console.log(`Found unexpected service worker controller. Found: ${currentController.scriptURL}. Expected: ${swPath}. Waiting for controllerchange.`);
+						} else {
+							console.log(`No service worker controller found. Waiting for controllerchange.`);
+						}
+
+						// Either there's no controlling service worker, or it's an old one.
+						// Wait for it to change before posting the message
+						const onControllerChange = () => {
+							navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
+							if (navigator.serviceWorker.controller) {
+								postVersionMessage(navigator.serviceWorker.controller);
+							} else {
+								return reject(new Error('No controller found.'));
+							}
+						};
+						navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
+					}
+				}).catch(error => {
+					if (!onElectron && error instanceof Error && error.message.includes('user denied permission')) {
+						return reject(new Error(`Could not register service worker. Please make sure third party cookies are enabled: ${error}`));
+					}
+					return reject(new Error(`Could not register service worker: ${error}.`));
+				});
+		});
+
+		/**
+		 *  @type {import('../webviewMessages').WebviewHostMessaging}
+		 */
+		const hostMessaging = new class HostMessaging {
+
+			constructor() {
+				this.channel = new MessageChannel();
+
+				/** @type {Map<string, Array<(event: MessageEvent, data: any) => void>>} */
+				this.handlers = new Map();
+
+				this.channel.port1.onmessage = (e) => {
+					const channel = e.data.channel;
+					const handlers = this.handlers.get(channel);
+					if (handlers) {
+						for (const handler of handlers) {
+							handler(e, e.data.args);
+						}
+					} else {
+						console.log('no handler for ', e);
+					}
+				};
+			}
+
+			postMessage(channel, data, transfer) {
+				this.channel.port1.postMessage({ channel, data }, transfer);
+			}
+
+			onMessage(channel, handler) {
+				let handlers = this.handlers.get(channel);
+				if (!handlers) {
+					handlers = [];
+					this.handlers.set(channel, handlers);
+				}
+				handlers.push(handler);
+			}
+
+			async signalReady() {
+				const start = (/** @type {string} */ parentOrigin) => {
+					perfMark('signalingReady');
+					window.parent.postMessage({ target: ID, channel: 'webview-ready', data: {} }, parentOrigin, [this.channel.port2]);
+				};
+
+				const parentOrigin = searchParams.get('parentOrigin');
+
+				const hostname = location.hostname;
+
+				if (!crypto.subtle) {
+					// cannot validate, not running in a secure context
+					throw new Error(`'crypto.subtle' is not available so webviews will not work. This is likely because the editor is not running in a secure context (https://developer.mozilla.org/en-US/docs/Web/Security/Secure_Contexts).`);
+				}
+
+				// Here the `parentOriginHash()` function from `src/vs/workbench/common/webview.ts` is inlined
+				// compute a sha-256 composed of `parentOrigin` and `salt` converted to base 32
+				let parentOriginHash;
+				try {
+					const strData = JSON.stringify({ parentOrigin, salt: webviewOrigin });
+					const encoder = new TextEncoder();
+					const arrData = encoder.encode(strData);
+					const hash = await crypto.subtle.digest('sha-256', arrData);
+					const hashArray = Array.from(new Uint8Array(hash));
+					const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+					// sha256 has 256 bits, so we need at most ceil(lg(2^256-1)/lg(32)) = 52 chars to represent it in base 32
+					parentOriginHash = BigInt(`0x${hashHex}`).toString(32).padStart(52, '0');
+				} catch (err) {
+					throw err instanceof Error ? err : new Error(String(err));
+				}
+
+				if (hostname === parentOriginHash || hostname.startsWith(parentOriginHash + '.')) {
+					// validation succeeded!
+					return start(parentOrigin);
+				}
+
+				throw new Error(`Expected '${parentOriginHash}' as hostname or subdomain!`);
+			}
+		}();
+
+		const unloadMonitor = new class {
+
+			constructor() {
+				this.confirmBeforeClose = 'keyboardOnly';
+				this.isModifierKeyDown = false;
+
+				hostMessaging.onMessage('set-confirm-before-close', (_e, data) => {
+					this.confirmBeforeClose = data;
+				});
+
+				hostMessaging.onMessage('content', (_e, data) => {
+					this.confirmBeforeClose = data.confirmBeforeClose;
+				});
+
+				window.addEventListener('beforeunload', (event) => {
+					if (onElectron) {
+						return;
+					}
+
+					switch (this.confirmBeforeClose) {
+						case 'always': {
+							event.preventDefault();
+							event.returnValue = '';
+							return '';
+						}
+						case 'never': {
+							break;
+						}
+						case 'keyboardOnly':
+						default: {
+							if (this.isModifierKeyDown) {
+								event.preventDefault();
+								event.returnValue = '';
+								return '';
+							}
+							break;
+						}
+					}
+				});
+			}
+
+			onIframeLoaded(/** @type {HTMLIFrameElement} */ frame) {
+				assertIsDefined(frame.contentWindow).addEventListener('keydown', e => {
+					this.isModifierKeyDown = e.metaKey || e.ctrlKey || e.altKey;
+				});
+
+				assertIsDefined(frame.contentWindow).addEventListener('keyup', () => {
+					this.isModifierKeyDown = false;
+				});
+			}
+		};
+
+		// state
+		let firstLoad = true;
+		/** @type {any} */
+		let loadTimeout;
+		let styleVersion = 0;
+
+		/** @type {Array<{ readonly message: any, transfer?: ArrayBuffer[] }>} */
+		let pendingMessages = [];
+
+		const initData = {
+			/** @type {number | undefined} */
+			initialScrollProgress: undefined,
+
+			/** @type {{ [key: string]: string } | undefined} */
+			styles: undefined,
+
+			/** @type {string | undefined} */
+			activeTheme: undefined,
+
+			/** @type {string | undefined} */
+			themeId: undefined,
+
+			/** @type {string | undefined} */
+			themeLabel: undefined,
+
+			/** @type {boolean} */
+			screenReader: false,
+
+			/** @type {boolean} */
+			reduceMotion: false,
+		};
+
+		if (!disableServiceWorker) {
+			hostMessaging.onMessage('did-load-resource', (_event, data) => {
+				assertIsDefined(navigator.serviceWorker.controller).postMessage({ channel: 'did-load-resource', data }, data.data?.buffer ? [data.data.buffer] : []);
+			});
+
+			hostMessaging.onMessage('did-load-localhost', (_event, data) => {
+				assertIsDefined(navigator.serviceWorker.controller).postMessage({ channel: 'did-load-localhost', data });
+			});
+
+			navigator.serviceWorker.addEventListener('message', event => {
+				switch (event.data.channel) {
+					case 'load-resource':
+					case 'load-localhost':
+						hostMessaging.postMessage(event.data.channel, event.data);
+						return;
+				}
+			});
+		}
+
+		/**
+		 * @param {HTMLDocument?} document
+		 * @param {HTMLElement?} body
+		 */
+		const applyStyles = (document, body) => {
+			if (!document) {
+				return;
+			}
+
+			if (body) {
+				body.classList.remove('vscode-light', 'vscode-dark', 'vscode-high-contrast', 'vscode-high-contrast-light', 'vscode-reduce-motion', 'vscode-using-screen-reader');
+
+				if (initData.activeTheme) {
+					body.classList.add(initData.activeTheme);
+					if (initData.activeTheme === 'vscode-high-contrast-light') {
+						// backwards compatibility
+						body.classList.add('vscode-high-contrast');
+					}
+				}
+
+				if (initData.reduceMotion) {
+					body.classList.add('vscode-reduce-motion');
+				}
+
+				if (initData.screenReader) {
+					body.classList.add('vscode-using-screen-reader');
+				}
+
+				body.dataset.vscodeThemeKind = initData.activeTheme;
+				/** @deprecated data-vscode-theme-name will be removed, use data-vscode-theme-id instead */
+				body.dataset.vscodeThemeName = initData.themeLabel || '';
+				body.dataset.vscodeThemeId = initData.themeId || '';
+			}
+
+			if (initData.styles) {
+				const documentStyle = document.documentElement.style;
+
+				// Remove stale properties
+				for (let i = documentStyle.length - 1; i >= 0; i--) {
+					const property = documentStyle[i];
+
+					// Don't remove properties that the webview might have added separately
+					if (property && property.startsWith('--vscode-')) {
+						documentStyle.removeProperty(property);
+					}
+				}
+
+				// Re-add new properties
+				for (const [variable, value] of Object.entries(initData.styles)) {
+					documentStyle.setProperty(`--${variable}`, value);
+				}
+			}
+		};
+
+		/**
+		 * @param {MouseEvent} event
+		 */
+		const handleInnerClick = (event) => {
+			if (!event?.view?.document) {
+				return;
+			}
+
+			const baseElement = event.view.document.querySelector('base');
+
+			for (const pathElement of event.composedPath()) {
+				/** @type {any} */
+				const node = pathElement;
+				if (node.tagName && node.tagName.toLowerCase() === 'a' && node.href) {
+					if (node.getAttribute('href') === '#') {
+						event.view.scrollTo(0, 0);
+					} else if (node.hash && (node.getAttribute('href') === node.hash || (baseElement && node.href === baseElement.href + node.hash))) {
+						const fragment = node.hash.slice(1);
+						const decodedFragment = decodeURIComponent(fragment);
+						const scrollTarget = event.view.document.getElementById(fragment) ?? event.view.document.getElementById(decodedFragment);
+						if (scrollTarget) {
+							scrollTarget.scrollIntoView();
+						} else if (decodedFragment.toLowerCase() === 'top') {
+							event.view.scrollTo(0, 0);
+						}
+					} else {
+						hostMessaging.postMessage('did-click-link', { uri: node.href.baseVal || node.href });
+					}
+					event.preventDefault();
+					return;
+				}
+			}
+		};
+
+		/**
+		 * @param {MouseEvent} event
+		 */
+		const handleAuxClick = (event) => {
+			// Prevent middle clicks opening a broken link in the browser
+			if (!event?.view?.document) {
+				return;
+			}
+
+			if (event.button === 1) {
+				for (const pathElement of event.composedPath()) {
+					/** @type {any} */
+					const node = pathElement;
+					if (node.tagName && node.tagName.toLowerCase() === 'a' && node.href) {
+						event.preventDefault();
+						return;
+					}
+				}
+			}
+		};
+
+		/**
+		 * @param {KeyboardEvent} e
+		 */
+		const handleInnerKeydown = (e) => {
+			// If the keypress would trigger a browser event, such as copy or paste,
+			// make sure we block the browser from dispatching it. Instead VS Code
+			// handles these events and will dispatch a copy/paste back to the webview
+			// if needed
+			if (isUndoRedo(e) || isPrint(e) || isFindEvent(e) || isSaveEvent(e)) {
+				e.preventDefault();
+			} else if (isCopyPasteOrCut(e)) {
+				if (onElectron) {
+					e.preventDefault();
+				} else {
+					return; // let the browser handle this
+				}
+			} else if (!onElectron && (isCloseTab(e) || isNewWindow(e) || isHelp(e) || isRefresh(e))) {
+				// Prevent Ctrl+W closing window / Ctrl+N opening new window in PWA.
+				// (No effect in a regular browser tab.)
+				e.preventDefault();
+			}
+
+			hostMessaging.postMessage('did-keydown', {
+				key: e.key,
+				keyCode: e.keyCode,
+				code: e.code,
+				shiftKey: e.shiftKey,
+				altKey: e.altKey,
+				ctrlKey: e.ctrlKey,
+				metaKey: e.metaKey,
+				repeat: e.repeat
+			});
+		};
+		/**
+		 * @param {KeyboardEvent} e
+		 */
+		const handleInnerKeyup = (e) => {
+			hostMessaging.postMessage('did-keyup', {
+				key: e.key,
+				keyCode: e.keyCode,
+				code: e.code,
+				shiftKey: e.shiftKey,
+				altKey: e.altKey,
+				ctrlKey: e.ctrlKey,
+				metaKey: e.metaKey,
+				repeat: e.repeat
+			});
+		};
+
+		/**
+		 * @param {KeyboardEvent} e
+		 * @return {boolean}
+		 */
+		function isCopyPasteOrCut(e) {
+			const hasMeta = e.ctrlKey || e.metaKey;
+			// 45: keyCode of "Insert"
+			const shiftInsert = e.shiftKey && e.keyCode === 45;
+			// 67, 86, 88: keyCode of "C", "V", "X"
+			return (hasMeta && [67, 86, 88].includes(e.keyCode)) || shiftInsert;
+		}
+
+		/**
+		 * @param {KeyboardEvent} e
+		 * @return {boolean}
+		 */
+		function isUndoRedo(e) {
+			const hasMeta = e.ctrlKey || e.metaKey;
+			// 90, 89: keyCode of "Z", "Y"
+			return hasMeta && [90, 89].includes(e.keyCode);
+		}
+
+		/**
+		 * @param {KeyboardEvent} e
+		 * @return {boolean}
+		 */
+		function isPrint(e) {
+			const hasMeta = e.ctrlKey || e.metaKey;
+			// 80: keyCode of "P"
+			return hasMeta && e.keyCode === 80;
+		}
+
+		/**
+		 * @param {KeyboardEvent} e
+		 * @return {boolean}
+		 */
+		function isFindEvent(e) {
+			const hasMeta = e.ctrlKey || e.metaKey;
+			// 70: keyCode of "F"
+			return hasMeta && e.keyCode === 70;
+		}
+
+		/**
+		 * @param {KeyboardEvent} e
+		 * @return {boolean}
+		 */
+		function isSaveEvent(e) {
+			const hasMeta = e.ctrlKey || e.metaKey;
+			// 83: keyCode of "S"
+			return hasMeta && e.keyCode === 83;
+		}
+
+		/**
+		 * @param {KeyboardEvent} e
+		 * @return {boolean}
+		 */
+		function isCloseTab(e) {
+			const hasMeta = e.ctrlKey || e.metaKey;
+			// 87: keyCode of "W"
+			return hasMeta && e.keyCode === 87;
+		}
+
+		/**
+		 * @param {KeyboardEvent} e
+		 * @return {boolean}
+		 */
+		function isNewWindow(e) {
+			const hasMeta = e.ctrlKey || e.metaKey;
+			// 78: keyCode of "N"
+			return hasMeta && e.keyCode === 78;
+		}
+
+		/**
+		 * @param {KeyboardEvent} e
+		 * @return {boolean}
+		 */
+		function isHelp(e) {
+			// 112: keyCode of "F1"
+			return e.keyCode === 112;
+		}
+
+		/**
+		 * @param {KeyboardEvent} e
+		 * @return {boolean}
+		 */
+		function isRefresh(e) {
+			// 116: keyCode of "F5"
+			return e.keyCode === 116;
+		}
+
+		let isHandlingScroll = false;
+
+		/**
+		 * @param {WheelEvent} event
+		 */
+		const handleWheel = (event) => {
+			if (isHandlingScroll) {
+				return;
+			}
+
+			hostMessaging.postMessage('did-scroll-wheel', {
+				deltaMode: event.deltaMode,
+				deltaX: event.deltaX,
+				deltaY: event.deltaY,
+				deltaZ: event.deltaZ,
+				detail: event.detail,
+				type: event.type
+			});
+		};
+
+		/**
+		 * @param {Event} event
+		 */
+		const handleInnerScroll = (event) => {
+			if (isHandlingScroll) {
+				return;
+			}
+
+			const target = /** @type {HTMLDocument | null} */ (event.target);
+			const currentTarget = /** @type {Window | null} */ (event.currentTarget);
+			if (!currentTarget || !target?.body) {
+				return;
+			}
+
+			const progress = currentTarget.scrollY / target.body.clientHeight;
+			if (isNaN(progress)) {
+				return;
+			}
+
+			isHandlingScroll = true;
+			window.requestAnimationFrame(() => {
+				try {
+					hostMessaging.postMessage('did-scroll', { scrollYPercentage: progress });
+				} catch (e) {
+					// noop
+				}
+				isHandlingScroll = false;
+			});
+		};
+
+		function handleInnerDragStartEvent(/** @type {DragEvent} */ e) {
+			if (e.defaultPrevented) {
+				// Extension code has already handled this event
+				return;
+			}
+
+			if (!e.dataTransfer || e.shiftKey) {
+				return;
+			}
+
+			// Only handle drags from outside editor for now
+			if (e.dataTransfer.items.length && Array.prototype.every.call(e.dataTransfer.items, item => item.kind === 'file')) {
+				hostMessaging.postMessage('drag-start', undefined);
+			}
+		}
+
+
+		function handleInnerDragEvent(/** @type {DragEvent} */ e) {
+			/**
+			 * To ensure that the drop event always fires as expected, you should always include a preventDefault() call in the part of your code which handles the dragover event.
+			 * source: https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/drop_event
+			 **/
+			e.preventDefault();
+
+			if (!e.dataTransfer) {
+				return;
+			}
+
+
+			// Only handle drags from outside editor for now
+			if (e.dataTransfer.items.length && Array.prototype.every.call(e.dataTransfer.items, item => item.kind === 'file')) {
+				hostMessaging.postMessage('drag', {
+					shiftKey: e.shiftKey
+				});
+			}
+
+		}
+
+		function handleInnerDropEvent(/**@type {DragEvent} */e) {
+			e.preventDefault();
+		}
+
+		/**
+		 * @param {() => void} callback
+		 */
+		function onDomReady(callback) {
+			if (document.readyState === 'interactive' || document.readyState === 'complete') {
+				callback();
+			} else {
+				document.addEventListener('DOMContentLoaded', callback);
+			}
+		}
+
+		function areServiceWorkersEnabled() {
+			try {
+				return !!navigator.serviceWorker;
+			} catch (e) {
+				return false;
+			}
+		}
+
+		/**
+		 * @param {import('../webviewMessages').UpdateContentEvent} data
+		 * @return {string}
+		 */
+		function toContentHtml(data) {
+			const options = data.options;
+			const text = data.contents;
+			const newDocument = new DOMParser().parseFromString(text, 'text/html');
+
+			newDocument.querySelectorAll('a').forEach(a => {
+				if (!a.title) {
+					const href = a.getAttribute('href');
+					if (typeof href === 'string') {
+						a.title = href;
+					}
+				}
+			});
+
+			// Set default aria role
+			if (!newDocument.body.hasAttribute('role')) {
+				newDocument.body.setAttribute('role', 'document');
+			}
+
+			// Inject default script
+			if (options.allowScripts) {
+				const defaultScript = newDocument.createElement('script');
+				defaultScript.id = '_vscodeApiScript';
+				defaultScript.textContent = getVsCodeApiScript(options.allowMultipleAPIAcquire, data.state);
+				newDocument.head.prepend(defaultScript);
+			}
+
+			// Inject default styles
+			newDocument.head.prepend(defaultStyles.cloneNode(true));
+
+			applyStyles(newDocument, newDocument.body);
+
+			// Strip out unsupported http-equiv tags
+			for (const metaElement of Array.from(newDocument.querySelectorAll('meta'))) {
+				const httpEquiv = metaElement.getAttribute('http-equiv');
+				if (httpEquiv && !/^(content-security-policy|default-style|content-type)$/i.test(httpEquiv)) {
+					console.warn(`Removing unsupported meta http-equiv: ${httpEquiv}`);
+					metaElement.remove();
+				}
+			}
+
+			// Check for CSP
+			const csp = newDocument.querySelector('meta[http-equiv="Content-Security-Policy"]');
+			if (!csp) {
+				hostMessaging.postMessage('no-csp-found', undefined);
+			} else {
+				try {
+					// Attempt to rewrite CSPs that hardcode old-style resource endpoint
+					const cspContent = csp.getAttribute('content');
+					if (cspContent) {
+						const newCsp = cspContent.replace(/(vscode-webview-resource|vscode-resource):(?=(\s|;|$))/g, data.cspSource);
+						csp.setAttribute('content', newCsp);
+					}
+				} catch (e) {
+					console.error(`Could not rewrite csp: ${e}`);
+				}
+			}
+
+			// set DOCTYPE for newDocument explicitly as DOMParser.parseFromString strips it off
+			// and DOCTYPE is needed in the iframe to ensure that the user agent stylesheet is correctly overridden
+			return '<!DOCTYPE html>\n' + newDocument.documentElement.outerHTML;
+		}
+
+		// Also forward events before the contents of the webview have loaded
+		window.addEventListener('keydown', handleInnerKeydown);
+		window.addEventListener('keyup', handleInnerKeyup);
+		window.addEventListener('dragenter', handleInnerDragStartEvent);
+		window.addEventListener('dragover', handleInnerDragEvent);
+		window.addEventListener('drag', handleInnerDragEvent);
+		window.addEventListener('drop', handleInnerDropEvent);
+
+
+		onDomReady(() => {
+			if (!document.body) {
+				return;
+			}
+
+			hostMessaging.onMessage('styles', (_event, data) => {
+				++styleVersion;
+
+				initData.styles = data.styles;
+				initData.activeTheme = data.activeTheme;
+				initData.themeLabel = data.themeLabel;
+				initData.themeId = data.themeId;
+				initData.reduceMotion = data.reduceMotion;
+				initData.screenReader = data.screenReader;
+
+				const target = getActiveFrame();
+				if (!target) {
+					return;
+				}
+
+				if (target.contentDocument) {
+					applyStyles(target.contentDocument, target.contentDocument.body);
+				}
+			});
+
+			// propagate focus
+			hostMessaging.onMessage('focus', () => {
+				const activeFrame = getActiveFrame();
+				if (!activeFrame || !activeFrame.contentWindow) {
+					// Focus the top level webview instead
+					window.focus();
+					return;
+				}
+
+				if (document.activeElement === activeFrame) {
+					// We are already focused on the iframe (or one of its children) so no need
+					// to refocus.
+					return;
+				}
+
+				activeFrame.contentWindow.focus();
+			});
+
+			// update iframe-contents
+			let updateId = 0;
+			hostMessaging.onMessage('content', async (_event, /** @type {import('../webviewMessages').UpdateContentEvent} */ data) => {
+				perfMark('content/started');
+
+				const currentUpdateId = ++updateId;
+				try {
+					await workerReady;
+					perfMark('content/workerReady');
+				} catch (e) {
+					console.error(`Webview fatal error: ${e}`);
+					hostMessaging.postMessage('fatal-error', { message: e + '' });
+					return;
+				}
+
+				if (currentUpdateId !== updateId) {
+					return;
+				}
+
+				const options = data.options;
+				const newDocument = toContentHtml(data);
+
+				const initialStyleVersion = styleVersion;
+
+				const frame = getActiveFrame();
+				const wasFirstLoad = firstLoad;
+				// keep current scrollY around and use later
+				/** @type {(body: HTMLElement, window: Window) => void} */
+				let setInitialScrollPosition;
+				if (firstLoad) {
+					firstLoad = false;
+					setInitialScrollPosition = (body, window) => {
+						if (typeof initData.initialScrollProgress === 'number' && !isNaN(initData.initialScrollProgress)) {
+							if (window.scrollY === 0) {
+								window.scroll(0, body.clientHeight * initData.initialScrollProgress);
+							}
+						}
+					};
+				} else {
+					const scrollY = frame && frame.contentDocument && frame.contentDocument.body ? assertIsDefined(frame.contentWindow).scrollY : 0;
+					setInitialScrollPosition = (body, window) => {
+						if (window.scrollY === 0) {
+							window.scroll(0, scrollY);
+						}
+					};
+				}
+
+				// Clean up old pending frames and set current one as new one
+				const previousPendingFrame = getPendingFrame();
+				if (previousPendingFrame) {
+					previousPendingFrame.setAttribute('id', '');
+					previousPendingFrame.remove();
+				}
+				if (!wasFirstLoad) {
+					pendingMessages = [];
+				}
+
+				const newFrame = document.createElement('iframe');
+				newFrame.title = data.title;
+				newFrame.setAttribute('id', 'pending-frame');
+				newFrame.setAttribute('frameborder', '0');
+
+				const sandboxRules = new Set(['allow-same-origin', 'allow-pointer-lock']);
+				if (options.allowScripts) {
+					sandboxRules.add('allow-scripts');
+					sandboxRules.add('allow-downloads');
+				}
+				if (options.allowForms) {
+					sandboxRules.add('allow-forms');
+				}
+				newFrame.setAttribute('sandbox', Array.from(sandboxRules).join(' '));
+
+				const allowRules = ['cross-origin-isolated;', 'autoplay;', 'local-network-access;'];
+				if (!isFirefox && options.allowScripts) {
+					allowRules.push('clipboard-read;', 'clipboard-write;');
+				}
+				newFrame.setAttribute('allow', allowRules.join(' '));
+				// We should just be able to use srcdoc, but I wasn't
+				// seeing the service worker applying properly.
+				// Fake load an empty on the correct origin and then write real html
+				// into it to get around this.
+				const fakeUrlParams = new URLSearchParams({ id: ID });
+				if (globalThis.crossOriginIsolated) {
+					fakeUrlParams.set('vscode-coi', '3'); /*COOP+COEP*/
+				}
+				newFrame.src = `./fake.html?${fakeUrlParams.toString()}`;
+
+				newFrame.style.cssText = 'display: block; margin: 0; overflow: hidden; position: absolute; width: 100%; height: 100%; visibility: hidden';
+				document.body.appendChild(newFrame);
+
+				newFrame.contentWindow.addEventListener('keydown', handleInnerKeydown);
+				newFrame.contentWindow.addEventListener('keyup', handleInnerKeyup);
+
+				/**
+				 * @param {Document} contentDocument
+				 */
+				function onFrameLoaded(contentDocument) {
+					perfMark('content/innerFrameLoaded')
+
+					// Workaround for https://bugs.chromium.org/p/chromium/issues/detail?id=978325
+					setTimeout(() => {
+						contentDocument.open();
+						contentDocument.write(newDocument);
+						contentDocument.close();
+						hookupOnLoadHandlers(newFrame);
+						perfMark('content/wroteInnerContent')
+
+						if (initialStyleVersion !== styleVersion) {
+							applyStyles(contentDocument, contentDocument.body);
+						}
+					}, 0);
+				}
+
+				if (!options.allowScripts && isSafari) {
+					// On Safari for iframes with scripts disabled, the `DOMContentLoaded` never seems to be fired: https://bugs.webkit.org/show_bug.cgi?id=33604
+					// Use polling instead.
+					const interval = setInterval(() => {
+						// If the frame is no longer mounted, loading has stopped
+						if (!newFrame.parentElement) {
+							clearInterval(interval);
+							return;
+						}
+
+						const contentDocument = assertIsDefined(newFrame.contentDocument);
+						if (contentDocument.location.pathname.endsWith('/fake.html') && contentDocument.readyState !== 'loading') {
+							clearInterval(interval);
+							onFrameLoaded(contentDocument);
+						}
+					}, 10);
+				} else {
+					assertIsDefined(newFrame.contentWindow).addEventListener('DOMContentLoaded', e => {
+						const contentDocument = e.target ? (/** @type {HTMLDocument} */ (e.target)) : undefined;
+						onFrameLoaded(assertIsDefined(contentDocument));
+					});
+				}
+
+				/**
+				 * @param {Document} contentDocument
+				 * @param {Window} contentWindow
+				 */
+				const onLoad = (contentDocument, contentWindow) => {
+					if (contentDocument && contentDocument.body) {
+						// Workaround for https://github.com/microsoft/vscode/issues/12865
+						// check new scrollY and reset if necessary
+						setInitialScrollPosition(contentDocument.body, contentWindow);
+					}
+
+					const newFrame = getPendingFrame();
+					if (newFrame && newFrame.contentDocument && newFrame.contentDocument === contentDocument) {
+						const wasFocused = document.hasFocus();
+						const oldActiveFrame = getActiveFrame();
+						oldActiveFrame?.remove();
+						// Styles may have changed since we created the element. Make sure we re-style
+						if (initialStyleVersion !== styleVersion) {
+							applyStyles(newFrame.contentDocument, newFrame.contentDocument.body);
+						}
+						newFrame.setAttribute('id', 'active-frame');
+						newFrame.style.visibility = 'visible';
+
+						contentWindow.addEventListener('scroll', handleInnerScroll);
+						contentWindow.addEventListener('wheel', handleWheel);
+
+						if (wasFocused) {
+							contentWindow.focus();
+						}
+
+						// Get body size
+						const docEl = contentDocument.documentElement;
+						if (docEl) {
+							const postSize = () => {
+								hostMessaging.postMessage('updated-intrinsic-content-size', {
+									width: docEl.offsetWidth,
+									height: docEl.offsetHeight
+								});
+							};
+
+							const resizeObserver = new ResizeObserver(postSize);
+							resizeObserver.observe(docEl);
+							postSize();
+						}
+
+						pendingMessages.forEach((message) => {
+							contentWindow.postMessage(message.message, window.origin, message.transfer);
+						});
+						pendingMessages = [];
+					}
+				};
+
+				/**
+				 * @param {HTMLIFrameElement} newFrame
+				 */
+				function hookupOnLoadHandlers(newFrame) {
+					clearTimeout(loadTimeout);
+					loadTimeout = undefined;
+					loadTimeout = setTimeout(() => {
+						clearTimeout(loadTimeout);
+						loadTimeout = undefined;
+						onLoad(assertIsDefined(newFrame.contentDocument), assertIsDefined(newFrame.contentWindow));
+					}, 200);
+
+					const contentWindow = assertIsDefined(newFrame.contentWindow);
+
+					contentWindow.addEventListener('load', function (e) {
+						const contentDocument = /** @type {Document} */ (e.target);
+
+						if (loadTimeout) {
+							clearTimeout(loadTimeout);
+							loadTimeout = undefined;
+							onLoad(contentDocument, this);
+						}
+					});
+
+					// Bubble out various events
+					contentWindow.addEventListener('click', handleInnerClick);
+					contentWindow.addEventListener('auxclick', handleAuxClick);
+					contentWindow.addEventListener('keydown', handleInnerKeydown);
+					contentWindow.addEventListener('keyup', handleInnerKeyup);
+					contentWindow.addEventListener('contextmenu', e => {
+						if (e.defaultPrevented) {
+							// Extension code has already handled this event
+							return;
+						}
+
+						e.preventDefault();
+
+						/** @type { Record<string, boolean>} */
+						let context = {};
+
+						/** @type {HTMLElement | null} */
+						let el = e.target;
+						while (true) {
+							if (!el) {
+								break;
+							}
+
+							// Search self/ancestors for the closest context data attribute
+							el = el.closest('[data-vscode-context]');
+							if (!el) {
+								break;
+							}
+
+							try {
+								context = { ...JSON.parse(el.dataset.vscodeContext), ...context };
+							} catch (e) {
+								console.error(`Error parsing 'data-vscode-context' as json`, el, e);
+							}
+
+							el = el.parentElement;
+						}
+
+						hostMessaging.postMessage('did-context-menu', {
+							clientX: e.clientX,
+							clientY: e.clientY,
+							context: context
+						});
+					});
+
+					contentWindow.addEventListener('dragenter', handleInnerDragStartEvent);
+					contentWindow.addEventListener('dragover', handleInnerDragEvent);
+					contentWindow.addEventListener('drag', handleInnerDragEvent);
+					contentWindow.addEventListener('drop', handleInnerDropEvent);
+
+					unloadMonitor.onIframeLoaded(newFrame);
+				}
+
+				if (!disableServiceWorker && outerIframeMessageChannel) {
+					outerIframeMessageChannel.port1.onmessage = event => {
+						switch (event.data.channel) {
+							case 'load-resource':
+							case 'load-localhost':
+								hostMessaging.postMessage(event.data.channel, event.data);
+								return;
+						}
+					};
+				}
+			});
+
+			// propagate vscode-context-menu-visible class
+			hostMessaging.onMessage('set-context-menu-visible', (_event, data) => {
+				const target = getActiveFrame();
+				if (target && target.contentDocument) {
+					target.contentDocument.body.classList.toggle('vscode-context-menu-visible', data.visible);
+				}
+			});
+
+			hostMessaging.onMessage('set-title', async (_event, data) => {
+				const target = getActiveFrame();
+				if (target) {
+					target.title = data;
+				}
+			});
+
+			// Forward message to the embedded iframe
+			hostMessaging.onMessage('message', (_event, data) => {
+				const pending = getPendingFrame();
+				if (!pending) {
+					const target = getActiveFrame();
+					if (target) {
+						assertIsDefined(target.contentWindow).postMessage(data.message, window.origin, data.transfer);
+						return;
+					}
+				}
+				pendingMessages.push(data);
+			});
+
+			hostMessaging.onMessage('initial-scroll-position', (_event, progress) => {
+				initData.initialScrollProgress = progress;
+			});
+
+			hostMessaging.onMessage('execCommand', (_event, data) => {
+				const target = getActiveFrame();
+				if (!target) {
+					return;
+				}
+				assertIsDefined(target.contentDocument).execCommand(data);
+			});
+
+			/** @type {string | undefined} */
+			let lastFindValue = undefined;
+
+			hostMessaging.onMessage('find', (_event, data) => {
+				const target = getActiveFrame();
+				if (!target) {
+					return;
+				}
+
+				if (!data.previous && lastFindValue !== data.value && target.contentWindow) {
+					// Reset selection so we start search at the head of the last search
+					const selection = target.contentWindow.getSelection();
+					if (selection) {
+						selection.collapse(selection.anchorNode);
+					}
+				}
+				lastFindValue = data.value;
+
+				const didFind = (/** @type {any} */ (target.contentWindow)).find(
+					data.value,
+					/* caseSensitive*/ false,
+					/* backwards*/ data.previous,
+					/* wrapAround*/ true,
+					/* wholeWord */ false,
+					/* searchInFrames*/ false,
+					false);
+				hostMessaging.postMessage('did-find', didFind);
+			});
+
+			hostMessaging.onMessage('find-stop', (_event, data) => {
+				const target = getActiveFrame();
+				if (!target) {
+					return;
+				}
+
+				lastFindValue = undefined;
+
+				if (!data.clearSelection && target.contentWindow) {
+					const selection = target.contentWindow.getSelection();
+					if (selection) {
+						for (let i = 0; i < selection.rangeCount; i++) {
+							selection.removeRange(selection.getRangeAt(i));
+						}
+					}
+				}
+			});
+
+			trackFocus({
+				onFocus: () => hostMessaging.postMessage('did-focus', undefined),
+				onBlur: () => hostMessaging.postMessage('did-blur', undefined)
+			});
+
+			(/** @type {any} */ (window))[vscodePostMessageFuncName] = (/** @type {string} */ command, /** @type {any} */ data) => {
+				switch (command) {
+					case 'onmessage':
+					case 'do-update-state':
+						hostMessaging.postMessage(command, data);
+						break;
+				}
+			};
+
+			hostMessaging.signalReady();
+		});
+	</script>
+</body>
+
+</html>

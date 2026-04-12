@@ -415,6 +415,9 @@ class WorkspaceProvider implements IWorkspaceProvider {
 		let workspace: IWorkspace;
 		let payload = Object.create(null);
 
+		workspace = { workspaceUri: URI.parse("file:/nodepod/nodepod.code-workspace") };
+		foundWorkspace = true;
+
 		const query = new URL(document.location.href).searchParams;
 		query.forEach((value, key) => {
 			switch (key) {

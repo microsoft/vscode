@@ -1,0 +1,10 @@
+src/**
+out/**
+tsconfig*.json
+.vscode/**
+esbuild*.mts
+package-lock.json
+fixtures/**
+scripts/**
+testWorkspace/**
+cgmanifest.json

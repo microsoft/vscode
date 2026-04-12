@@ -1,0 +1,12 @@
+[
+  {
+    content: {
+      value: "markdown1markdown2",
+      isTrusted: false,
+      supportThemeIcons: false,
+      supportHtml: false,
+      baseUri: undefined
+    },
+    kind: "markdownContent"
+  }
+]

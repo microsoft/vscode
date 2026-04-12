@@ -1,0 +1,40 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .zoom-status {
+	display: flex;
+}
+
+.monaco-workbench .zoom-status .monaco-action-bar .action-label.codicon::before {
+	/*
+	 * the hover sets font-size: inherit which makes actions
+	 * have a size of 13px. but codicons have a size of 16px
+	 * so we want to ensure the icon is still centered
+	 */
+	margin: auto;
+}
+
+.monaco-workbench .zoom-status > .zoom-status-left {
+	display: flex;
+}
+
+.monaco-workbench .zoom-status > .zoom-status-left .monaco-action-bar .action-label.disabled,
+.monaco-workbench .zoom-status > .zoom-status-left .monaco-action-bar .action-label.disabled:hover {
+	/*
+	 * we use a disabled action as label for the zoom level
+	 * so we override the style to not show it disabled
+	 */
+	opacity: 1;
+	color: unset;
+}
+
+.monaco-workbench .zoom-status > .zoom-status-right {
+	display: flex;
+	margin-left: 10px;
+}
+
+.monaco-workbench .zoom-status > .zoom-status-right .monaco-action-bar .action-label {
+	color: unset;
+}

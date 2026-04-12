@@ -1,0 +1,26 @@
+[
+  {
+    content: {
+      value: "text before ",
+      isTrusted: false,
+      supportThemeIcons: false,
+      supportHtml: false,
+      supportAlertSyntax: false
+    },
+    kind: "markdownContent"
+  },
+  {
+    inlineReference: URI(https://microsoft.com/),
+    kind: "inlineReference"
+  },
+  {
+    content: {
+      value: " text after",
+      isTrusted: false,
+      supportThemeIcons: false,
+      supportHtml: false,
+      supportAlertSyntax: false
+    },
+    kind: "markdownContent"
+  }
+]

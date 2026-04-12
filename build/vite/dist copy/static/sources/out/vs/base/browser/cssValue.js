@@ -1,0 +1,81 @@
+import { FileAccess } from '../common/network.js';
+function asFragment(raw) {
+    return raw;
+}
+export function asCssValueWithDefault(cssPropertyValue, dflt) {
+    if (cssPropertyValue !== undefined) {
+        const variableMatch = cssPropertyValue.match(/^\s*var\((.+)\)$/);
+        if (variableMatch) {
+            const varArguments = variableMatch[1].split(',', 2);
+            if (varArguments.length === 2) {
+                dflt = asCssValueWithDefault(varArguments[1].trim(), dflt);
+            }
+            return `var(${varArguments[0]}, ${dflt})`;
+        }
+        return cssPropertyValue;
+    }
+    return dflt;
+}
+export function sizeValue(value) {
+    const out = value.replaceAll(/[^\w.%+-]/gi, '');
+    if (out !== value) {
+        console.warn(`CSS size ${value} modified to ${out} to be safe for CSS`);
+    }
+    return asFragment(out);
+}
+export function hexColorValue(value) {
+    const out = value.replaceAll(/[^[0-9a-fA-F#]]/gi, '');
+    if (out !== value) {
+        console.warn(`CSS hex color ${value} modified to ${out} to be safe for CSS`);
+    }
+    return asFragment(out);
+}
+export function identValue(value) {
+    const out = value.replaceAll(/[^_\-a-z0-9]/gi, '');
+    if (out !== value) {
+        console.warn(`CSS ident value ${value} modified to ${out} to be safe for CSS`);
+    }
+    return asFragment(out);
+}
+export function stringValue(value) {
+    return asFragment(`'${value.replaceAll(/'/g, '\\000027')}'`);
+}
+/**
+ * returns url('...')
+ */
+export function asCSSUrl(uri) {
+    if (!uri) {
+        return asFragment(`url('')`);
+    }
+    return inline `url('${asFragment(CSS.escape(FileAccess.uriToBrowserUri(uri).toString(true)))}')`;
+}
+export function className(value, escapingExpected = false) {
+    const out = CSS.escape(value);
+    if (!escapingExpected && out !== value) {
+        console.warn(`CSS class name ${value} modified to ${out} to be safe for CSS`);
+    }
+    return asFragment(out);
+}
+/**
+ * Template string tag that that constructs a CSS fragment.
+ *
+ * All expressions in the template must be css safe values.
+ */
+export function inline(strings, ...values) {
+    return asFragment(strings.reduce((result, str, i) => {
+        const value = values[i] || '';
+        return result + str + value;
+    }, ''));
+}
+export class Builder {
+    constructor() {
+        this._parts = [];
+    }
+    push(...parts) {
+        this._parts.push(...parts);
+    }
+    join(joiner = '\n') {
+        return asFragment(this._parts.join(joiner));
+    }
+}
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiY3NzVmFsdWUuanMiLCJzb3VyY2VSb290IjoiZmlsZTovLy9ob21lL2Evd2ViY29kZS5ob3N0L3ZzY29kZS9zcmMvIiwic291cmNlcyI6WyJ2cy9iYXNlL2Jyb3dzZXIvY3NzVmFsdWUudHMiXSwibmFtZXMiOltdLCJtYXBwaW5ncyI6IkFBS0EsT0FBTyxFQUFFLFVBQVUsRUFBRSxNQUFNLHNCQUFzQixDQUFDO0FBS2xELFNBQVMsVUFBVSxDQUFDLEdBQVc7SUFDOUIsT0FBTyxHQUFrQixDQUFDO0FBQzNCLENBQUM7QUFFRCxNQUFNLFVBQVUscUJBQXFCLENBQUMsZ0JBQW9DLEVBQUUsSUFBWTtJQUN2RixJQUFJLGdCQUFnQixLQUFLLFNBQVMsRUFBRSxDQUFDO1FBQ3BDLE1BQU0sYUFBYSxHQUFHLGdCQUFnQixDQUFDLEtBQUssQ0FBQyxrQkFBa0IsQ0FBQyxDQUFDO1FBQ2pFLElBQUksYUFBYSxFQUFFLENBQUM7WUFDbkIsTUFBTSxZQUFZLEdBQUcsYUFBYSxDQUFDLENBQUMsQ0FBQyxDQUFDLEtBQUssQ0FBQyxHQUFHLEVBQUUsQ0FBQyxDQUFDLENBQUM7WUFDcEQsSUFBSSxZQUFZLENBQUMsTUFBTSxLQUFLLENBQUMsRUFBRSxDQUFDO2dCQUMvQixJQUFJLEdBQUcscUJBQXFCLENBQUMsWUFBWSxDQUFDLENBQUMsQ0FBQyxDQUFDLElBQUksRUFBRSxFQUFFLElBQUksQ0FBQyxDQUFDO1lBQzVELENBQUM7WUFDRCxPQUFPLE9BQU8sWUFBWSxDQUFDLENBQUMsQ0FBQyxLQUFLLElBQUksR0FBRyxDQUFDO1FBQzNDLENBQUM7UUFDRCxPQUFPLGdCQUFnQixDQUFDO0lBQ3pCLENBQUM7SUFDRCxPQUFPLElBQUksQ0FBQztBQUNiLENBQUM7QUFFRCxNQUFNLFVBQVUsU0FBUyxDQUFDLEtBQWE7SUFDdEMsTUFBTSxHQUFHLEdBQUcsS0FBSyxDQUFDLFVBQVUsQ0FBQyxhQUFhLEVBQUUsRUFBRSxDQUFDLENBQUM7SUFDaEQsSUFBSSxHQUFHLEtBQUssS0FBSyxFQUFF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

@@ -1,0 +1,8 @@
+src/**
+!src/common/config.json
+out/**
+build/**
+esbuild*.mts
+tsconfig*.json
+package-lock.json
+testWorkspace/**

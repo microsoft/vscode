@@ -1,0 +1,173 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-editor .dirty-diff-glyph {
+	margin-left: 5px;
+	z-index: 5;
+}
+
+.monaco-editor .dirty-diff-glyph:before {
+	position: absolute;
+	content: '';
+	height: 100%;
+	width: 0;
+	left: -2px;
+}
+
+.monaco-workbench.monaco-enable-motion .monaco-editor .dirty-diff-glyph:before {
+	transition: width 80ms linear, left 80ms linear, transform 80ms linear;
+}
+
+/* Hide glyph decorations when inside the inline diff editor */
+.monaco-editor.modified-in-monaco-diff-editor .margin-view-overlays > div > .dirty-diff-glyph {
+	display: none;
+}
+
+.monaco-editor .dirty-diff-added:not(.pattern) {
+	border-left-style: solid;
+}
+
+.monaco-editor .dirty-diff-added.primary {
+	border-left-color: var(--vscode-editorGutter-addedBackground);
+}
+
+.monaco-editor .dirty-diff-added.primary:before {
+	background: var(--vscode-editorGutter-addedBackground);
+}
+
+.monaco-editor .dirty-diff-added.secondary {
+	border-left-color: var(--vscode-editorGutter-addedSecondaryBackground);
+}
+
+.monaco-editor .dirty-diff-added.secondary:before {
+	background: var(--vscode-editorGutter-addedSecondaryBackground);
+}
+
+.monaco-editor .dirty-diff-added.pattern {
+	background-repeat: repeat-y;
+}
+
+.monaco-editor .dirty-diff-added.pattern:before {
+	transform: translateX(3px);
+}
+
+.monaco-editor .dirty-diff-added.pattern.primary,
+.monaco-editor .dirty-diff-added.pattern.primary:before {
+	background-image: linear-gradient(-45deg, var(--vscode-editorGutter-addedBackground) 25%, var(--vscode-editorGutter-background) 25%, var(--vscode-editorGutter-background) 50%, var(--vscode-editorGutter-addedBackground) 50%, var(--vscode-editorGutter-addedBackground) 75%, var(--vscode-editorGutter-background) 75%, var(--vscode-editorGutter-background));
+}
+
+.monaco-editor .dirty-diff-added.pattern.secondary,
+.monaco-editor .dirty-diff-added.pattern.secondary:before {
+	background-image: linear-gradient(45deg, var(--vscode-editorGutter-addedSecondaryBackground) 25%, var(--vscode-editorGutter-background) 25%, var(--vscode-editorGutter-background) 50%, var(--vscode-editorGutter-addedSecondaryBackground) 50%, var(--vscode-editorGutter-addedSecondaryBackground) 75%, var(--vscode-editorGutter-background) 75%, var(--vscode-editorGutter-background));
+}
+
+.monaco-editor .dirty-diff-modified:not(.pattern) {
+	border-left-style: solid;
+}
+
+.monaco-editor .dirty-diff-modified.primary {
+	border-left-color: var(--vscode-editorGutter-modifiedBackground);
+}
+
+.monaco-editor .dirty-diff-modified.primary:before {
+	background: var(--vscode-editorGutter-modifiedBackground);
+}
+
+.monaco-editor .dirty-diff-modified.secondary {
+	border-left-color: var(--vscode-editorGutter-modifiedSecondaryBackground);
+}
+
+.monaco-editor .dirty-diff-modified.secondary:before {
+	background: var(--vscode-editorGutter-modifiedSecondaryBackground);
+}
+
+.monaco-editor .dirty-diff-modified.pattern {
+	background-repeat: repeat-y;
+}
+
+.monaco-editor .dirty-diff-modified.pattern:before {
+	transform: translateX(3px);
+}
+
+.monaco-editor .dirty-diff-modified.pattern.primary,
+.monaco-editor .dirty-diff-modified.pattern.primary:before {
+	background-image: linear-gradient(-45deg, var(--vscode-editorGutter-modifiedBackground) 25%, var(--vscode-editorGutter-background) 25%, var(--vscode-editorGutter-background) 50%, var(--vscode-editorGutter-modifiedBackground) 50%, var(--vscode-editorGutter-modifiedBackground) 75%, var(--vscode-editorGutter-background) 75%, var(--vscode-editorGutter-background));
+}
+
+.monaco-editor .dirty-diff-modified.pattern.secondary,
+.monaco-editor .dirty-diff-modified.pattern.secondary:before {
+	background-image: linear-gradient(45deg, var(--vscode-editorGutter-modifiedSecondaryBackground) 25%, var(--vscode-editorGutter-background) 25%, var(--vscode-editorGutter-background) 50%, var(--vscode-editorGutter-modifiedSecondaryBackground) 50%, var(--vscode-editorGutter-modifiedSecondaryBackground) 75%, var(--vscode-editorGutter-background) 75%, var(--vscode-editorGutter-background));
+}
+
+.monaco-workbench.monaco-enable-motion .monaco-editor .dirty-diff-added,
+.monaco-workbench.monaco-enable-motion .monaco-editor .dirty-diff-modified,
+.monaco-workbench.monaco-enable-motion .monaco-editor .dirty-diff-deleted {
+	transition: opacity 0.5s;
+}
+
+.monaco-editor .margin:hover .dirty-diff-added,
+.monaco-editor .margin:hover .dirty-diff-modified,
+.monaco-editor .margin:hover .dirty-diff-deleted {
+	opacity: 1;
+}
+
+.monaco-editor .dirty-diff-deleted:after {
+	content: '';
+	position: absolute;
+	bottom: -4px;
+	box-sizing: border-box;
+	width: 4px;
+	height: 0;
+	z-index: 9;
+	border-top: 4px solid transparent;
+	border-bottom: 4px solid transparent;
+	pointer-events: none;
+}
+
+.monaco-editor .dirty-diff-deleted.primary:after {
+	border-left: 4px solid var(--vscode-editorGutter-deletedBackground);
+}
+
+.monaco-editor .dirty-diff-deleted.secondary:after {
+	border-left: 4px solid var(--vscode-editorGutter-deletedSecondaryBackground);
+}
+
+.monaco-workbench.monaco-enable-motion .monaco-editor .dirty-diff-deleted:after {
+	transition: border-top-width 80ms linear, border-bottom-width 80ms linear, bottom 80ms linear, opacity 0.5s;
+}
+
+.monaco-editor .dirty-diff-deleted:before {
+	background: var(--vscode-editorGutter-deletedBackground);
+	margin-left: 3px;
+	height: 0;
+	bottom: 0;
+}
+
+.monaco-editor .dirty-diff-deleted.primary:before {
+	background: var(--vscode-editorGutter-deletedBackground);
+}
+
+.monaco-editor .dirty-diff-deleted.secondary:before {
+	background: var(--vscode-editorGutter-deletedSecondaryBackground);
+}
+
+.monaco-workbench.monaco-enable-motion .monaco-editor .dirty-diff-deleted:before {
+	transition: height 80ms linear;
+}
+
+.dirty-diff .peekview-title .dropdown {
+	margin-right: 10px;
+}
+
+.dirty-diff .peekview-title .dropdown.select-container {
+	cursor: default;
+}
+
+.dirty-diff .peekview-title .dropdown .monaco-select-box {
+	cursor: pointer;
+	min-width: 100px;
+	min-height: 18px;
+	padding: 0px 23px 0px 8px;
+}

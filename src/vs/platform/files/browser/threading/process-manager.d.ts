@@ -1,0 +1,52 @@
+import type { EventEmitter } from "../polyfills/events.d.ts";
+import type { MemoryVolume } from "../memory-volume.d.ts";
+import type { ProcessHandle } from "./process-handle.d.ts";
+import type { ProcessInfo } from "./worker-protocol.d.ts";
+import type { VFSBridge } from "./vfs-bridge.d.ts";
+export declare class ProcessManager extends EventEmitter {
+    private _processes;
+    private _nextPid;
+    private _volume;
+    private _vfsBridge;
+    private _sharedBuffer;
+    private _syncBuffer;
+    private _serverPorts;
+    private _childPids;
+    private _httpCallbacks;
+    private _nextHttpRequestId;
+    constructor(volume: MemoryVolume);
+    setVFSBridge(bridge: VFSBridge): void;
+    setSharedBuffer(buf: SharedArrayBuffer): void;
+    setSyncBuffer(buf: SharedArrayBuffer): void;
+    spawn(config: {
+        command: string;
+        args?: string[];
+        cwd?: string;
+        env?: Record<string, string>;
+        parentPid?: number;
+    }): ProcessHandle;
+    getProcess(pid: number): ProcessHandle | undefined;
+    listProcesses(): ProcessInfo[];
+    kill(pid: number, signal?: string): boolean;
+    private _cleanupServerPorts;
+    private _killDescendants;
+    teardown(): void;
+    get processCount(): number;
+    registerServerPort(port: number, pid: number): void;
+    unregisterServerPort(port: number): void;
+    getServerPorts(): number[];
+    dispatchHttpRequest(port: number, method: string, path: string, headers: Record<string, string>, body?: string | null): Promise<{
+        statusCode: number;
+        statusMessage: string;
+        headers: Record<string, string>;
+        body: string | ArrayBuffer;
+    }>;
+    dispatchWsUpgrade(port: number, uid: string, path: string, headers: Record<string, string>): number;
+    dispatchWsData(pid: number, uid: string, frame: number[]): void;
+    dispatchWsClose(pid: number, uid: string, code: number): void;
+    private static _workerBlobUrl;
+    private _createWorker;
+    private _wireHandleEvents;
+    private _createEmptySnapshot;
+    broadcastVFSChange(path: string, content: ArrayBuffer | null, isDirectory: boolean, excludePid: number): void;
+}

@@ -1,0 +1,35 @@
+export declare const builtinModules: string[];
+export declare function isBuiltin(id: string): boolean;
+export declare function createRequire(origin: string): (specifier: string) => unknown;
+export declare const _cache: Record<string, unknown>;
+export declare const _extensions: Record<string, unknown>;
+export declare const _pathCache: Record<string, string>;
+export declare function _resolveFilename(request: string, _parent?: unknown, _isMain?: boolean, _options?: unknown): string;
+export declare function _nodeModulePaths(from: string): string[];
+export declare function _load(request: string, _parent?: unknown, _isMain?: boolean): unknown;
+export declare function _findPath(request: string, _paths?: string[], _isMain?: boolean): string | false;
+export declare function wrap(script: string): string;
+export declare const wrapper: string[];
+export declare function syncBuiltinESMExports(): void;
+export declare function Module(this: any, id?: string, parent?: any): void;
+export declare namespace Module {
+    var createRequire: typeof import("./module.d.ts").createRequire;
+    var builtinModules: string[];
+    var isBuiltin: typeof import("./module.d.ts").isBuiltin;
+    var _cache: Record<string, unknown>;
+    var _extensions: Record<string, unknown>;
+    var _pathCache: Record<string, string>;
+    var _resolveFilename: typeof import("./module.d.ts")._resolveFilename;
+    var _nodeModulePaths: typeof import("./module.d.ts")._nodeModulePaths;
+    var _load: typeof import("./module.d.ts")._load;
+    var _findPath: typeof import("./module.d.ts")._findPath;
+    var syncBuiltinESMExports: typeof import("./module.d.ts").syncBuiltinESMExports;
+    var wrap: typeof import("./module.d.ts").wrap;
+    var wrapper: string[];
+    var Module: typeof import("./module.d.ts").Module;
+    var runMain: () => void;
+    var _preloadModules: (_requests?: string[]) => void;
+    var _initPaths: () => void;
+    var globalPaths: string[];
+}
+export default Module;

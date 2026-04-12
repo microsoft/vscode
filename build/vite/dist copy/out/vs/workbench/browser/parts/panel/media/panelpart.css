@@ -1,0 +1,100 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench.nopanel .part.panel {
+	display: none !important;
+	visibility: hidden !important;
+}
+
+.monaco-workbench .part.panel.bottom .composite.title {
+	border-top-width: 1px;
+	border-top-style: solid;
+}
+
+.monaco-workbench.nomaineditorarea .part.panel.bottom .composite.title {
+	border-top-width: 0; /* no border when main editor area is hiden */
+}
+
+.monaco-workbench .part.panel.top {
+	border-bottom-width: 1px;
+	border-bottom-style: solid;
+}
+
+.monaco-workbench.nomaineditorarea .part.panel.top {
+	border-bottom-width: 0; /* no border when main editor area is hiden */
+}
+
+.monaco-workbench .part.panel.right {
+	border-left-width: 1px;
+	border-left-style: solid;
+}
+
+.monaco-workbench.nomaineditorarea .part.panel.right {
+	border-left-width: 0; /* no border when main editor area is hiden */
+}
+
+.monaco-workbench .part.panel.left {
+	border-right-width: 1px;
+	border-right-style: solid;
+}
+
+.monaco-workbench.nomaineditorarea .part.panel.left {
+	border-right-width: 0; /* no border when main editor area is hiden */
+}
+
+.monaco-workbench .part.panel > .content .monaco-editor,
+.monaco-workbench .part.panel > .content .monaco-editor .margin,
+.monaco-workbench .part.panel > .content .monaco-editor .monaco-editor-background {
+	/* THIS DOESN'T WORK ANYMORE */
+	background-color: var(--vscode-panel-background);
+}
+
+.monaco-workbench .part.panel > .content .suggest-input-container .monaco-editor,
+.monaco-workbench .part.panel > .content .suggest-input-container .monaco-editor .margin,
+.monaco-workbench .part.panel > .content .suggest-input-container .monaco-editor .monaco-editor-background {
+	background-color: inherit;
+}
+
+.monaco-workbench .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked:not(:focus) .active-item-indicator:before,
+.monaco-workbench .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked.clicked:focus .active-item-indicator:before {
+	border-top-color: var(--vscode-panelTitle-activeBorder) !important;
+}
+
+.monaco-workbench .part.panel > .title > .composite-bar-container >.composite-bar > .monaco-action-bar .action-item:focus .action-label,
+.monaco-workbench .part.panel > .title > .composite-bar-container >.composite-bar > .monaco-action-bar .action-item:hover .action-label {
+	color: var(--vscode-panelTitle-activeForeground) !important;
+}
+
+.monaco-workbench .part.panel .monaco-inputbox {
+	border-color: var(--vscode-panelInput-border, transparent) !important;
+}
+
+.monaco-workbench .part.panel > .title > .composite-bar-container >.composite-bar > .monaco-action-bar .action-item:focus {
+	outline: none;
+}
+
+/* Rotate icons when panel is on right */
+.monaco-workbench .part.basepanel.right .title-actions .codicon-split-horizontal::before,
+.monaco-workbench .part.basepanel.right .global-actions .codicon-panel-maximize::before,
+.monaco-workbench .part.basepanel.right .global-actions .codicon-panel-restore::before {
+	display: inline-block;
+	transform: rotate(-90deg);
+}
+
+/* Rotate icons when panel is on left */
+.monaco-workbench .part.basepanel.left .title-actions .codicon-split-horizontal::before,
+.monaco-workbench .part.basepanel.left .global-actions .codicon-panel-maximize::before,
+.monaco-workbench .part.basepanel.left .global-actions .codicon-panel-restore::before {
+	display: inline-block;
+	transform: rotate(90deg);
+}
+
+/* Rotate icons when panel is on left */
+.monaco-workbench .part.basepanel.top .title-actions .codicon-split-horizontal::before,
+.monaco-workbench .part.basepanel.top .global-actions .codicon-panel-maximize::before,
+.monaco-workbench .part.basepanel.top .global-actions .codicon-panel-restore::before {
+	display: inline-block;
+	transform: rotate(180deg);
+}

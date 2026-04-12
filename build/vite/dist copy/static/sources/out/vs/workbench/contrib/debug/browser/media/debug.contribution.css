@@ -1,0 +1,150 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.codicon-debug-hint {
+	cursor: pointer;
+}
+
+.codicon-debug-hint:not([class*='codicon-debug-breakpoint']):not([class*='codicon-debug-stackframe']) {
+	opacity: 0.4 !important;
+}
+
+.inline-breakpoint-widget.codicon {
+	display: flex !important;
+	align-items: center;
+}
+
+.inline-breakpoint-widget.codicon-debug-breakpoint-disabled {
+	opacity: 0.7;
+}
+
+.monaco-editor .inline-breakpoint-widget.line-start {
+	left: -8px !important;
+}
+
+.monaco-editor .debug-breakpoint-placeholder {
+	width: 0.9em;
+	display: inline-flex;
+	vertical-align: middle;
+	margin-top: -1px;
+}
+
+
+.codicon-debug-breakpoint-conditional.codicon-debug-stackframe-focused::after,
+.codicon-debug-breakpoint-conditional.codicon-debug-stackframe::after,
+.codicon-debug-breakpoint.codicon-debug-stackframe-focused::after,
+.codicon-debug-breakpoint.codicon-debug-stackframe::after {
+	content: var(--vscode-icon-debug-stackframe-dot-content);
+	font-family: var(--vscode-icon-debug-stackframe-dot-font-family);
+	position: absolute;
+}
+
+.monaco-editor .debug-top-stack-frame-column {
+	font: normal normal normal 16px/1 codicon;
+	text-rendering: auto;
+	-webkit-font-smoothing: antialiased;
+	-moz-osx-font-smoothing: grayscale;
+	margin-left: 0;
+	margin-right: 4px;
+	margin-top: -1px; /* TODO @misolori: figure out a way to not use negative margin for alignment */
+	align-items: center;
+	width: 0.9em;
+	display: inline-flex;
+	vertical-align: middle;
+}
+
+.debug-var-hover-pre {
+	margin: 0;
+}
+
+.debug-var-hover-pre span {
+	display: inline !important;
+}
+
+/* Do not push text with inline decoration when decoration on start of line */
+.monaco-editor .debug-top-stack-frame-column.start-of-line {
+	position: absolute;
+	top: 50%;
+	transform: translate(-17px, -50%);
+	margin-top: 0px; /* TODO @misolori: figure out a way to not use negative margin for alignment */
+}
+
+.monaco-editor .inline-breakpoint-widget {
+	cursor: pointer;
+}
+
+.monaco-workbench .debug-view-content .monaco-list-row .monaco-tl-contents {
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* Expressions */
+
+
+.monaco-workbench .monaco-list-row .expression {
+	display: flex;
+}
+
+.monaco-workbench .debug-pane .monaco-list-row .expression,
+.monaco-workbench .debug-hover-widget .monaco-list-row .expression {
+	font-size: 13px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	font-family: var(--monaco-monospace-font);
+	white-space: pre;
+}
+
+.monaco-workbench.mac .debug-pane .monaco-list-row .expression,
+.monaco-workbench.mac .debug-hover-widget .monaco-list-row .expression {
+	font-size: 11px;
+}
+
+.monaco-workbench .monaco-list-row .expression .value {
+	margin-left: 6px;
+}
+
+.monaco-workbench .monaco-list-row .expression .lazy-button {
+	margin-left: 3px;
+	display: none;
+	border-radius: 5px;
+	align-self: center;
+}
+
+.monaco-workbench .monaco-list-row .expression.lazy .lazy-button {
+	display: inline;
+}
+
+/* Links */
+
+.monaco-workbench .monaco-list-row .expression .value a.link:hover {
+	text-decoration: underline;
+}
+
+.monaco-workbench .monaco-list-row .expression .value a.link.pointer {
+	cursor: pointer;
+}
+
+/* White color when element is selected and list is focused. White looks better on blue selection background. */
+.monaco-workbench .monaco-list:focus .monaco-list-row.selected .expression .name,
+.monaco-workbench .monaco-list:focus .monaco-list-row.selected .expression .value {
+	color: inherit;
+}
+
+.monaco-workbench .monaco-list-row .expression .name.virtual {
+	opacity: 0.5;
+}
+
+.monaco-workbench .monaco-list-row .expression .name.internal {
+	opacity: 0.5;
+}
+
+.monaco-workbench .monaco-list-row .expression .unavailable {
+	font-style: italic;
+}
+
+.monaco-workbench .debug-inline-value {
+	background-color: var(--vscode-editor-inlineValuesBackground);
+	color: var(--vscode-editor-inlineValuesForeground);
+}

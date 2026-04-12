@@ -1,0 +1,45 @@
+{
+	"comments": {
+		"blockComment": ["/*", "*/"],
+		"lineComment": "//"
+	},
+	"brackets": [
+		["{", "}"],
+		["[", "]"],
+		["(", ")"]
+	],
+	"autoClosingPairs": [
+		{ "open": "{", "close": "}", "notIn": ["string", "comment"] },
+		{ "open": "[", "close": "]", "notIn": ["string", "comment"] },
+		{ "open": "(", "close": ")", "notIn": ["string", "comment"] },
+		{ "open": "\"", "close": "\"", "notIn": ["string", "comment"] },
+		{ "open": "'", "close": "'", "notIn": ["string", "comment"] }
+	],
+	"surroundingPairs": [
+		["{", "}"],
+		["[", "]"],
+		["(", ")"],
+		["\"", "\""],
+		["'", "'"]
+	],
+	"folding": {
+		"markers": {
+			"start": "^\\s*\\/\\*\\s*#region\\b\\s*(.*?)\\s*\\*\\/",
+			"end": "^\\s*\\/\\*\\s*#endregion\\b.*\\*\\/"
+		}
+	},
+	"indentationRules": {
+		"increaseIndentPattern": "(^.*\\{[^}]*$)",
+		"decreaseIndentPattern": "^\\s*\\}"
+	},
+	"wordPattern": "(#?-?\\d*\\.\\d\\w*%?)|(::?[\\w-]*(?=[^,{;]*[,{]))|(([@$#.!])?[\\w-?]+%?|[@#!$.])",
+	"onEnterRules": [
+		{
+			"beforeText": "^[\\s]*///.*$",
+			"action": {
+				"indent": "none",
+				"appendText": "/// "
+			}
+		}
+	]
+}

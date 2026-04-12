@@ -1,0 +1,19 @@
+{
+	"extends": "../../tsconfig.base.json",
+	"compilerOptions": {
+		"rootDir": ".",
+		"outDir": "./dist/",
+		"jsx": "react",
+		"module": "esnext",
+		"lib": [
+			"ES2024",
+			"DOM",
+			"DOM.Iterable"
+		],
+		"types": [],
+		"typeRoots": [
+			"../node_modules/@types"
+		],
+		"skipLibCheck": true
+	}
+}

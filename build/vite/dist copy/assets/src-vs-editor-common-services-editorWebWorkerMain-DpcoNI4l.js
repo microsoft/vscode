@@ -1,0 +1,1 @@
+import"./mirrorTextModel-D55jNkaI.js";import{L as e,t}from"./editorWebWorker-CqDyWAQf.js";var n=!1;function r(t){if(n)throw Error(`WebWorker already initialized!`);n=!0;let r=new e(e=>globalThis.postMessage(e),e=>t(e));return globalThis.onmessage=e=>{r.onmessage(e.data)},r}function i(e){globalThis.onmessage=t=>{n||r(e)}}i(()=>new t(null));

@@ -1,0 +1,62 @@
+{
+  "name": "vscode-colorize-tests",
+  "description": "Colorize tests for VS Code",
+  "version": "0.0.1",
+  "publisher": "vscode",
+  "license": "MIT",
+  "private": true,
+  "activationEvents": [
+    "onLanguage:json"
+  ],
+  "main": "./out/colorizerTestMain",
+  "engines": {
+    "vscode": "*"
+  },
+  "icon": "media/icon.png",
+  "scripts": {
+    "vscode:prepublish": "node ../../node_modules/gulp/bin/gulp.js --gulpfile ../../build/gulpfile.extensions.mjs compile-extension:vscode-colorize-tests ./tsconfig.json",
+    "watch": "gulp watch-extension:vscode-colorize-tests",
+    "compile": "gulp compile-extension:vscode-colorize-tests"
+  },
+  "dependencies": {
+    "jsonc-parser": "^3.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.x"
+  },
+  "contributes": {
+    "semanticTokenTypes": [
+      {
+        "id": "testToken",
+        "description": "A test token"
+      }
+    ],
+    "semanticTokenModifiers": [
+      {
+        "id": "testModifier",
+        "description": "A test modifier"
+      }
+    ],
+    "semanticTokenScopes": [
+      {
+        "scopes": {
+          "testToken": [
+            "entity.name.function.special"
+          ]
+        }
+      }
+    ],
+    "productIconThemes": [
+      {
+        "id": "Test Product Icons",
+        "label": "The Test Product Icon Theme",
+        "path": "./producticons/test-product-icon-theme.json",
+        "_watch": true
+      }
+    ]
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/microsoft/vscode.git"
+  }
+}

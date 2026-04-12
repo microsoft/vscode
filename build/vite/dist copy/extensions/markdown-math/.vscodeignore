@@ -1,0 +1,7 @@
+src/**
+notebook/**
+tsconfig*.json
+esbuild*
+cgmanifest.json
+package-lock.json
+.gitignore

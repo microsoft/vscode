@@ -1,0 +1,10 @@
+test/**
+test-workspace/**
+src/**
+out/**
+tsconfig*.json
+esbuild*
+CONTRIBUTING.md
+cgmanifest.json
+package-lock.json
+.vscode

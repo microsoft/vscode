@@ -1,0 +1,161 @@
+{
+	"original": {
+		"content": "class Test {\n    // ---- BEGIN diff --------------------------------------------------------------------------\n\n\tpublic async computeDiff(originalUrl: string, modifiedUrl: string, ignoreTrimWhitespace: boolean, maxComputationTime: number): Promise<IDiffComputationResult | null> {\n\t\tconst original = this._getModel(originalUrl);\n\t\tconst modified = this._getModel(modifiedUrl);\n\t\tif (!original || !modified) {\n\t\t\treturn null;\n\t\t}\n\n\t\treturn EditorSimpleWorker.computeDiff(original, modified, ignoreTrimWhitespace, maxComputationTime);\n\t}\n\n\tpublic static computeDiff(originalTextModel: ICommonModel | ITextModel, modifiedTextModel: ICommonModel | ITextModel, ignoreTrimWhitespace: boolean, maxComputationTime: number): IDiffComputationResult | null {\n\t\tconst originalLines = originalTextModel.getLinesContent();\n\t\tconst modifiedLines = modifiedTextModel.getLinesContent();\n\t\tconst diffComputer = new DiffComputer(originalLines, modifiedLines, {\n\t\t\tshouldComputeCharChanges: true,\n\t\t\tshouldPostProcessCharChanges: true,\n\t\t\tshouldIgnoreTrimWhitespace: ignoreTrimWhitespace,\n\t\t\tshouldMakePrettyDiff: true,\n\t\t\tmaxComputationTime: maxComputationTime\n\t\t});\n\n\t\tconst diffResult = diffComputer.computeDiff();\n\t\tconst identical = (diffResult.changes.length > 0 ? false : this._modelsAreIdentical(originalTextModel, modifiedTextModel));\n\t\treturn {\n\t\t\tquitEarly: diffResult.quitEarly,\n\t\t\tidentical: identical,\n\t\t\tchanges: diffResult.changes\n\t\t};\n\t}\n}",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "class Test {\n\t// ---- BEGIN diff --------------------------------------------------------------------------\n\n\tpublic async computeDiff(originalUrl: string, modifiedUrl: string, options: ILinesDiffComputerOptions): Promise<IDiffComputationResult | null> {\n\t\tconst original = this._getModel(originalUrl);\n\t\tconst modified = this._getModel(modifiedUrl);\n\t\tif (!original || !modified) {\n\t\t\treturn null;\n\t\t}\n\n\t\treturn EditorSimpleWorker.computeDiff(original, modified, options);\n\t}\n\n\tpublic static computeDiff(originalTextModel: ICommonModel | ITextModel, modifiedTextModel: ICommonModel | ITextModel, options: ILinesDiffComputerOptions): IDiffComputationResult {\n\n\t\tconst diffAlgorithm: ILinesDiffComputer = options.diffAlgorithm === 'experimental' ? linesDiffComputers.experimental : linesDiffComputers.smart;\n\n\t\tconst originalLines = originalTextModel.getLinesContent();\n\t\tconst modifiedLines = modifiedTextModel.getLinesContent();\n\n\t\tconst result = diffAlgorithm.computeDiff(originalLines, modifiedLines, options);\n\n\t\tconst identical = (result.changes.length > 0 ? false : this._modelsAreIdentical(originalTextModel, modifiedTextModel));\n\n\t\treturn {\n\t\t\tidentical,\n\t\t\tquitEarly: result.quitEarly,\n\t\t\tchanges: result.changes.map(m => ([m.originalRange.startLineNumber, m.originalRange.endLineNumberExclusive, m.modifiedRange.startLineNumber, m.modifiedRange.endLineNumberExclusive, m.innerChanges?.map(m => [\n\t\t\t\tm.originalRange.startLineNumber,\n\t\t\t\tm.originalRange.startColumn,\n\t\t\t\tm.originalRange.endLineNumber,\n\t\t\t\tm.originalRange.endColumn,\n\t\t\t\tm.modifiedRange.startLineNumber,\n\t\t\t\tm.modifiedRange.startColumn,\n\t\t\t\tm.modifiedRange.endLineNumber,\n\t\t\t\tm.modifiedRange.endColumn,\n\t\t\t])]))\n\t\t};\n\t}\n}",
+		"fileName": "./2.tst"
+	},
+	"diffs": [
+		{
+			"originalRange": "[2,3)",
+			"modifiedRange": "[2,3)",
+			"innerChanges": [
+				{
+					"originalRange": "[2,1 -> 2,5]",
+					"modifiedRange": "[2,1 -> 2,2]"
+				}
+			]
+		},
+		{
+			"originalRange": "[4,5)",
+			"modifiedRange": "[4,5)",
+			"innerChanges": [
+				{
+					"originalRange": "[4,69 -> 4,103]",
+					"modifiedRange": "[4,69 -> 4,88]"
+				},
+				{
+					"originalRange": "[4,109 -> 4,110]",
+					"modifiedRange": "[4,94 -> 4,98]"
+				},
+				{
+					"originalRange": "[4,114 -> 4,126]",
+					"modifiedRange": "[4,102 -> 4,103]"
+				}
+			]
+		},
+		{
+			"originalRange": "[11,12)",
+			"modifiedRange": "[11,12)",
+			"innerChanges": [
+				{
+					"originalRange": "[11,61 -> 11,93]",
+					"modifiedRange": "[11,61 -> 11,63]"
+				},
+				{
+					"originalRange": "[11,97 -> 11,101]",
+					"modifiedRange": "[11,67 -> 11,68]"
+				}
+			]
+		},
+		{
+			"originalRange": "[14,15)",
+			"modifiedRange": "[14,18)",
+			"innerChanges": [
+				{
+					"originalRange": "[14,120 -> 14,154]",
+					"modifiedRange": "[14,120 -> 14,162]"
+				},
+				{
+					"originalRange": "[14,165 -> 14,178]",
+					"modifiedRange": "[14,173 -> 16,22]"
+				},
+				{
+					"originalRange": "[14,181 -> 14,181]",
+					"modifiedRange": "[16,25 -> 16,30]"
+				},
+				{
+					"originalRange": "[14,191 -> 14,192]",
+					"modifiedRange": "[16,40 -> 16,47]"
+				},
+				{
+					"originalRange": "[14,196 -> 14,211 EOL]",
+					"modifiedRange": "[16,51 -> 17,1 EOL]"
+				}
+			]
+		},
+		{
+			"originalRange": "[17,24)",
+			"modifiedRange": "[20,24)",
+			"innerChanges": [
+				{
+					"originalRange": "[17,1 -> 17,1]",
+					"modifiedRange": "[20,1 -> 21,1]"
+				},
+				{
+					"originalRange": "[17,9 -> 17,21]",
+					"modifiedRange": "[21,9 -> 21,15]"
+				},
+				{
+					"originalRange": "[17,24 -> 17,29]",
+					"modifiedRange": "[21,18 -> 21,19]"
+				},
+				{
+					"originalRange": "[17,32 -> 17,33]",
+					"modifiedRange": "[21,22 -> 21,33]"
+				},
+				{
+					"originalRange": "[17,39 -> 17,40]",
+					"modifiedRange": "[21,39 -> 21,43]"
+				},
+				{
+					"originalRange": "[17,71 -> 17,72 EOL]",
+					"modifiedRange": "[21,74 -> 22,1 EOL]"
+				},
+				{
+					"originalRange": "[18,3 -> 19,26]",
+					"modifiedRange": "[23,3 -> 23,30]"
+				},
+				{
+					"originalRange": "[19,32 -> 19,32]",
+					"modifiedRange": "[23,36 -> 23,56]"
+				},
+				{
+					"originalRange": "[19,35 -> 23,4]",
+					"modifiedRange": "[23,59 -> 23,120]"
+				}
+			]
+		},
+		{
+			"originalRange": "[25,27)",
+			"modifiedRange": "[25,25)",
+			"innerChanges": null
+		},
+		{
+			"originalRange": "[28,31)",
+			"modifiedRange": "[26,38)",
+			"innerChanges": [
+				{
+					"originalRange": "[28,1 -> 28,1]",
+					"modifiedRange": "[26,1 -> 27,1]"
+				},
+				{
+					"originalRange": "[28,15 -> 28,20]",
+					"modifiedRange": "[27,15 -> 27,16]"
+				},
+				{
+					"originalRange": "[29,4 -> 29,24]",
+					"modifiedRange": "[28,4 -> 32,30]"
+				},
+				{
+					"originalRange": "[30,4 -> 30,6]",
+					"modifiedRange": "[33,4 -> 33,16]"
+				},
+				{
+					"originalRange": "[30,10 -> 30,13]",
+					"modifiedRange": "[33,20 -> 34,9]"
+				},
+				{
+					"originalRange": "[30,16 -> 30,26]",
+					"modifiedRange": "[34,12 -> 36,16]"
+				},
+				{
+					"originalRange": "[30,30 -> 30,31 EOL]",
+					"modifiedRange": "[36,20 -> 37,9 EOL]"
+				}
+			]
+		}
+	]
+}

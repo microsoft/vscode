@@ -1,0 +1,9 @@
+.gitignore
+src/**
+!src/common/config.json
+out/**
+build/**
+esbuild.mts
+esbuild.browser.mts
+tsconfig*.json
+package-lock.json

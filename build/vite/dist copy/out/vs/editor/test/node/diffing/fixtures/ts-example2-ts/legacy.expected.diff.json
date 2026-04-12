@@ -1,0 +1,39 @@
+{
+	"original": {
+		"content": "function cloneTypeReference(source: TypeReference): TypeReference {\n    const type = <TypeReference>createType(source.flags);\n    type.symbol = source.symbol;\n    type.objectFlags = source.objectFlags;\n    type.target = source.target;\n    type.typeArguments = source.typeArguments;\n    return type;\n}",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "function cloneTypeReference(source: TypeReference): TypeReference {\n    const type = <TypeReference>createType(source.flags);\n    type.symbol = source.symbol;\n    type.objectFlags = source.objectFlags;\n    type.target = source.target;\n    type.resolvedTypeArguments = source.resolvedTypeArguments;\n    return type;\n}\n\nfunction createDeferredTypeReference(): DeferredTypeReference {\n    const aliasSymbol = getAliasSymbolForTypeNode(node);\n    const aliasTypeArguments = getTypeArgumentsForAliasSymbol(aliasSymbol);\n    type.target = target;\n    type.node = node;\n    type.mapper = mapper;\n    type.aliasSymbol = aliasSymbol;\n    return type;\n}\n\nfunction getTypeArguments(type: TypeReference): ReadonlyArray<Type> {\n    if (!type.resolvedTypeArguments) {\n        const node = type.node;\n    }\n    return type.resolvedTypeArguments;\n}",
+		"fileName": "./2.tst"
+	},
+	"diffs": [
+		{
+			"originalRange": "[6,7)",
+			"modifiedRange": "[6,17)",
+			"innerChanges": [
+				{
+					"originalRange": "[6,10 -> 6,11]",
+					"modifiedRange": "[6,10 -> 6,19]"
+				},
+				{
+					"originalRange": "[6,33 -> 6,33]",
+					"modifiedRange": "[6,41 -> 7,12]"
+				},
+				{
+					"originalRange": "[6,37 -> 6,37]",
+					"modifiedRange": "[7,16 -> 12,20]"
+				},
+				{
+					"originalRange": "[6,46 -> 6,46]",
+					"modifiedRange": "[12,29 -> 16,35]"
+				}
+			]
+		},
+		{
+			"originalRange": "[9,9)",
+			"modifiedRange": "[19,26)",
+			"innerChanges": null
+		}
+	]
+}

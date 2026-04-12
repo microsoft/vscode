@@ -1,0 +1,24 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench .kernel-action-view-item {
+	border-radius: 5px;
+}
+.monaco-workbench .kernel-action-view-item:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.monaco-workbench .kernel-action-view-item .action-label {
+	display: inline-flex;
+}
+
+.monaco-workbench .kernel-action-view-item .kernel-label {
+	font-size: 11px;
+	padding: 3px 5px 3px 3px;
+	border-radius: 5px;
+	height: 16px;
+	display: inline-flex;
+	vertical-align: text-bottom;
+}

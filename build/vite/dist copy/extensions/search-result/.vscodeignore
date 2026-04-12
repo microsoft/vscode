@@ -1,0 +1,6 @@
+src/**
+out/**
+tsconfig*.json
+esbuild*.mts
+package-lock.json
+syntaxes/generateTMLanguage.js

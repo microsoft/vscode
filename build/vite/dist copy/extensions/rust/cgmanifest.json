@@ -1,0 +1,18 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "rust-syntax",
+					"repositoryUrl": "https://github.com/dustypomerleau/rust-syntax",
+					"commitHash": "268fd42cfd4aa96a6ed9024a2850d17d6cd2dc7b"
+				}
+			},
+			"license": "MIT",
+			"description": "A TextMate-style grammar for Rust.",
+			"version": "0.6.1"
+		}
+	],
+	"version": 1
+}

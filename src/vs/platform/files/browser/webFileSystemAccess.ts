@@ -24,7 +24,8 @@ export namespace WebFileSystemAccess {
 			return false;
 		}
 
-		return typeof candidate.kind === 'string' && typeof candidate.queryPermission === 'function' && typeof candidate.requestPermission === 'function';
+		//return typeof candidate.kind === 'string' && typeof candidate.queryPermission === 'function' && typeof candidate.requestPermission === 'function';
+		return typeof candidate.kind === 'string';
 	}
 
 	export function isFileSystemFileHandle(handle: FileSystemHandle): handle is FileSystemFileHandle {

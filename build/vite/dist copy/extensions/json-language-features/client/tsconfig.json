@@ -1,0 +1,20 @@
+{
+	"extends": "../../tsconfig.base.json",
+	"compilerOptions": {
+		"rootDir": "./src",
+		"outDir": "./out",
+		"lib": [
+			"webworker"
+		],
+		"module": "Node16",
+		"typeRoots": [
+			"../node_modules/@types"
+		]
+	},
+	"include": [
+		"src/**/*",
+		"../../../src/vscode-dts/vscode.d.ts",
+		"../../../src/vscode-dts/vscode.proposed.languageStatus.d.ts",
+		"../../../src/vscode-dts/vscode.proposed.extensionsAny.d.ts"
+	]
+}

@@ -1,0 +1,14 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-mcp-servers-message {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	font-style: italic;
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	opacity: 0.8;
+}

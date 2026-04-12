@@ -1,0 +1,44 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "textmate/markdown.tmbundle",
+					"repositoryUrl": "https://github.com/textmate/markdown.tmbundle",
+					"commitHash": "11cf764606cb2cde54badb5d0e5a0758a8871c4b"
+				}
+			},
+			"licenseDetail": [
+				"Copyright (c) markdown.tmbundle authors",
+				"",
+				"If not otherwise specified (see below), files in this repository fall under the following license:",
+				"",
+				"Permission to copy, use, modify, sell and distribute this",
+				"software is granted. This software is provided \"as is\" without",
+				"express or implied warranty, and with no claim as to its",
+				"suitability for any purpose.",
+				"",
+				"An exception is made for files in readable text which contain their own license information,",
+				"or files where an accompanying file exists (in the same directory) with a \"-license\" suffix added",
+				"to the base-name name of the original file, and an extension of txt, html, or similar. For example",
+				"\"tidy\" is accompanied by \"tidy-license.txt\"."
+			],
+			"license": "TextMate Bundle License",
+			"version": "0.0.0"
+		},
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "microsoft/vscode-markdown-tm-grammar",
+					"repositoryUrl": "https://github.com/microsoft/vscode-markdown-tm-grammar",
+					"commitHash": "0812fc4b190efc17bfed0d5b4ff918eff8e4e377"
+				}
+			},
+			"license": "MIT",
+			"version": "1.0.0"
+		}
+	],
+	"version": 1
+}

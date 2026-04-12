@@ -194,7 +194,8 @@ export class FileDialogService extends AbstractFileDialogService implements IFil
 		}
 
 		let uri: URI | undefined;
-		const startIn = Iterable.first(this.fileSystemProvider.directories) ?? 'documents';
+		//const startIn = Iterable.first(this.fileSystemProvider.directories) ?? 'documents';
+		const startIn = 'documents';
 
 		try {
 			if (options.canSelectFiles) {

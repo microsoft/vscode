@@ -1,0 +1,112 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.ports-view .monaco-icon-label,
+.ports-view .monaco-icon-label {
+	flex: 1;
+}
+
+.ports-view .monaco-list .monaco-list-row:hover:not(.highlighted) .monaco-icon-label,
+.ports-view .monaco-list .monaco-list-row.focused .monaco-icon-label {
+	flex: 1;
+}
+
+.ports-view .monaco-list .monaco-list-row .actionBarContainer {
+	flex: 1 0 auto;
+}
+
+.ports-view .monaco-list .monaco-list-row .actionBarContainer {
+	flex: 0 0 auto;
+}
+
+.ports-view .monaco-list .monaco-list-row .actionBarContainer {
+	text-align: right;
+}
+
+.ports-view .monaco-list .monaco-list-row .ports-view-actionbar-cell {
+	display: flex;
+	flex: 1;
+	text-overflow: ellipsis;
+	overflow: hidden;
+	flex-wrap: nowrap;
+	height: 22px;
+}
+
+.ports-view .monaco-list .monaco-list-row .ports-view-actionbar-cell .monaco-inputbox {
+	line-height: 19px;
+	height: 22px;
+	flex: 1;
+}
+
+.ports-view .monaco-list .monaco-list-row .ports-view-actionbar-cell .monaco-inputbox input {
+	margin-top: -40px;
+}
+
+.ports-view .monaco-list .monaco-list-row .ports-view-actionbar-cell .ports-view-actionbar-cell-localaddress {
+	color: var(--vscode-textLink-foreground);
+	text-decoration: var(--text-link-decoration);
+}
+
+.ports-view .monaco-list .monaco-list-row .ports-view-actionbar-cell .ports-view-actionbar-cell-localaddress:hover {
+	text-decoration: underline;
+}
+
+.ports-view .monaco-table-th {
+	padding-left: 10px;
+}
+
+.ports-view .monaco-table-th[data-col-index="0"],
+.ports-view .monaco-table-td[data-col-index="0"] {
+	padding-left: 10px;
+}
+
+.ports-view .monaco-list .monaco-list-row .ports-view-actionbar-cell .monaco-button {
+	width: initial;
+	padding: 2px 14px;
+	line-height: 1.4em;
+	margin-top: 4px;
+	margin-bottom: 3px;
+	margin-left: 3px;
+}
+
+.ports-view .monaco-list .monaco-list-row .ports-view-actionbar-cell > .ports-view-actionbar-cell-icon.codicon {
+	margin-top: 3px;
+	padding-right: 3px;
+}
+
+.ports-view .monaco-list .monaco-list-row.selected .ports-view-actionbar-cell > .ports-view-actionbar-cell-icon.codicon {
+	color: currentColor !important;
+}
+
+.ports-view .monaco-list .monaco-list-row .ports-view-actionbar-cell .ports-view-actionbar-cell-resourceLabel .monaco-icon-label-container > .monaco-icon-name-container {
+	flex: 1;
+}
+
+.ports-view .monaco-list .monaco-list-row .ports-view-actionbar-cell .ports-view-actionbar-cell-resourceLabel::after {
+	padding-right: 0px;
+}
+
+.ports-view .monaco-list .monaco-list-row .ports-view-actionbar-cell .actions {
+	display: none;
+}
+
+.ports-view .monaco-list .monaco-list-row:hover .ports-view-actionbar-cell .actions,
+.ports-view .monaco-list .monaco-list-row.selected .ports-view-actionbar-cell .actions,
+.ports-view .monaco-list .monaco-list-row.focused .ports-view-actionbar-cell .actions {
+	display: block;
+}
+
+.ports-view .monaco-list .ports-view-actionbar-cell .actions .action-label {
+	width: 16px;
+	height: 100%;
+	background-size: 16px;
+	background-position: 50% 50%;
+	background-repeat: no-repeat;
+	padding: 2px;
+}
+
+.monaco-workbench .codicon.codicon-ports-forwarded-with-process-icon {
+	color: var(--vscode-ports-iconRunningProcessForeground);
+}

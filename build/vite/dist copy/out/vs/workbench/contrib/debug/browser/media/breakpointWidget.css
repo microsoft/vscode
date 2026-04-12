@@ -1,0 +1,70 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-editor .zone-widget .zone-widget-container.breakpoint-widget {
+	display: flex;
+	border-color: #007ACC;
+	background: var(--vscode-editor-background);
+
+	.breakpoint-select-container {
+		display: flex;
+		justify-content: center;
+		flex-direction: column;
+		padding: 0 10px;
+		flex-shrink: 0;
+	}
+
+	.monaco-select-box {
+		min-width: 100px;
+		min-height: 18px;
+		padding: 2px 20px 2px 8px;
+	}
+
+	.breakpoint-select-container:after {
+		right: 14px;
+	}
+
+	.inputContainer {
+		flex: 1;
+	}
+
+	.select-breakpoint-container {
+		display: flex;
+		align-items: center;
+		gap: 10px;
+		flex-grow: 1;
+		width: 0;
+	}
+
+	.select-breakpoint-container .monaco-button {
+		padding-left: 8px;
+		padding-right: 8px;
+		line-height: 14px;
+		flex-grow: 0;
+		width: initial;
+	}
+
+	.select-breakpoint-container .select-box-container,
+	.select-mode-container {
+		display: flex;
+		justify-content: center;
+		flex-direction: column;
+		width: 300px;
+	}
+
+	.select-breakpoint-container .select-box-container  {
+		width: 300px;
+	}
+
+	.select-mode-container .select-box-container  {
+		width: 100px;
+		margin-right: 10px;
+	}
+
+	.select-breakpoint-container:after {
+		right: 14px;
+	}
+
+}

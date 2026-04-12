@@ -1,0 +1,116 @@
+{
+	"information_for_contributors": [
+		"This file has been converted from https://github.com/RedCMD/YAML-Syntax-Highlighter/blob/master/syntaxes/yaml.tmLanguage.json",
+		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
+		"Once accepted there, we are happy to receive an update request."
+	],
+	"version": "https://github.com/RedCMD/YAML-Syntax-Highlighter/commit/c42cf86959ba238dc8a825bdd07bed6f5e97c978",
+	"name": "YAML Ain't Markup Language",
+	"scopeName": "source.yaml",
+	"patterns": [
+		{
+			"comment": "Default to YAML version 1.2",
+			"begin": "\\A",
+			"while": "^",
+			"patterns": [
+				{
+					"include": "source.yaml.1.2"
+				}
+			]
+		},
+		{
+			"comment": "Support legacy FrontMatter integration",
+			"//": "https://github.com/microsoft/vscode-markdown-tm-grammar/pull/162",
+			"begin": "(?<=^-{3,}\\s*+)\\G$",
+			"while": "^(?! {3,0}-{3,}[ \t]*+$|[ \t]*+\\.{3}$)",
+			"patterns": [
+				{
+					"include": "source.yaml.1.2"
+				}
+			]
+		},
+		{
+			"comment": "Basic version for embedding",
+			"include": "source.yaml.embedded"
+		}
+	],
+	"repository": {
+		"parity": {
+			"comment": "Yes... That is right. Due to the changes with \\x2028, \\x2029, \\x85 and 'tags'. This is all the code I was able to reuse between all YAML versions 1.3, 1.2, 1.1 and 1.0"
+		},
+		"block-map-key-single": {
+			"comment": "https://yaml.org/spec/1.2.2/#rule-c-single-quoted (BLOCK-KEY)",
+			"begin": "\\G'",
+			"end": "'(?!')",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.begin.yaml"
+				}
+			},
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.end.yaml"
+				}
+			},
+			"name": "meta.map.key.yaml string.quoted.single.yaml entity.name.tag.yaml",
+			"patterns": [
+				{
+					"match": ".[\t ]*+$",
+					"name": "invalid.illegal.multiline-key.yaml"
+				},
+				{
+					"match": "[^\t -\\x{10FFFF}]++",
+					"name": "invalid.illegal.character.yaml"
+				},
+				{
+					"match": "''",
+					"name": "constant.character.escape.single-quote.yaml"
+				}
+			]
+		},
+		"key-single": {
+			"comment": "https://yaml.org/spec/1.2.2/#rule-c-single-quoted (FLOW-OUT)",
+			"begin": "'",
+			"end": "'(?!')",
+			"beginCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.begin.yaml"
+				}
+			},
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.end.yaml"
+				}
+			},
+			"name": "meta.map.key.yaml string.quoted.single.yaml entity.name.tag.yaml",
+			"patterns": [
+				{
+					"match": "[^\r\n\t -\\x{10FFFF}]++",
+					"name": "invalid.illegal.character.yaml"
+				},
+				{
+					"match": "''",
+					"name": "constant.character.escape.single-quote.yaml"
+				}
+			]
+		},
+		"non-printable": {
+			"//": {
+				"85": "",
+				"2028": "",
+				"2029": "",
+				"10000": "𐀀",
+				"A0": " ",
+				"D7FF": "퟿",
+				"E000": "",
+				"FFFD": "�",
+				"FEFF": "﻿",
+				"FFFF": "￿",
+				"10FFFF": "􏿿"
+			},
+			"//match": "[\\p{Cntrl}\\p{Surrogate}\\x{FFFE FFFF}&&[^\t\n\r\\x{85}]]++",
+			"match": "[^\t\n\r -~\\x{85}\\x{A0}-\\x{D7FF}\\x{E000}-\\x{FFFD}\\x{010000}-\\x{10FFFF}]++",
+			"name": "invalid.illegal.non-printable.yaml"
+		}
+	}
+}

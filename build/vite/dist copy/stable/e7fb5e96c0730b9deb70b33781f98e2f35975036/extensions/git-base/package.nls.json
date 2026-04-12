@@ -1,0 +1,5 @@
+{
+	"displayName": "Git Base",
+	"description": "Git static contributions and pickers.",
+	"command.api.getRemoteSources": "Get Remote Sources"
+}

@@ -1,0 +1,15 @@
+pick    1fc6c95  Patch A
+squash  fa39187  Something to add to patch A
+pick    7b36971  Something to move before patch B
+pick    6b2481b  Patch B
+fixup   c619268  A fix for Patch B
+edit    dd1475d  Something I want to split
+reword  4ca2acc  i cant' typ goods
+
+# Commands:
+#  p, pick = use commit
+#  r, reword = use commit, but edit the commit message
+#  e, edit = use commit, but stop for amending
+#  s, squash = use commit, but meld into previous commit
+#  f, fixup = like "squash", but discard this commit's log message
+#  x, exec = run command (the rest of the line) using shell

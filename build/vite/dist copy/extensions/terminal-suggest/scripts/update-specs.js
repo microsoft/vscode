@@ -1,0 +1,242 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+// @ts-check
+
+const fs = require('fs');
+const path = require('path');
+
+/** @type {string[]} */
+const upstreamSpecs = [
+	'basename',
+	'cat',
+	'chmod',
+	'chown',
+	'clear',
+	'cp',
+	'curl',
+	'cut',
+	'date',
+	'dd',
+	'df',
+	'diff',
+	'dig',
+	'dirname',
+	'du',
+	'echo',
+	'env',
+	'export',
+	'fdisk',
+	'find',
+	'fmt',
+	'fold',
+	'grep',
+	'head',
+	'htop',
+	'id',
+	'jq',
+	'kill',
+	'killall',
+	'less',
+	'ln',
+	'ls',
+	'lsblk',
+	'lsof',
+	'mkdir',
+	'more',
+	'mount',
+	'mv',
+	'nl',
+	'od',
+	'paste',
+	'ping',
+	'pkill',
+	'ps',
+	'pwd',
+	'readlink',
+	'rm',
+	'rmdir',
+	'rsync',
+	'scp',
+	'sed',
+	'seq',
+	'shred',
+	'sort',
+	'source',
+	'split',
+	'stat',
+	'su',
+	'sudo',
+	'tac',
+	'tail',
+	'tar',
+	'tee',
+	'time',
+	'top',
+	'touch',
+	'tr',
+	'traceroute',
+	'tree',
+	'truncate',
+	'uname',
+	'uniq',
+	'unzip',
+	'wc',
+	'wget',
+	'where',
+	'whereis',
+	'which',
+	'who',
+	'xargs',
+	'xxd',
+	'zip',
+
+	// OS package management
+	'apt',
+	'brew',
+
+	// Editors
+	'nano',
+	'vim',
+
+	// Shells
+	'ssh',
+
+	// Android
+	'adb',
+
+	// Docker
+	'docker',
+	'docker-compose',
+
+	// Dotnet
+	'dotnet',
+
+	// Go
+	'go',
+
+	// JavaScript / TypeScript
+	'node',
+	'nvm',
+	'yo',
+
+	// Python
+	'python',
+	'python3',
+	'ruff',
+
+	// Ruby
+	'bundle',
+	'ruby',
+];
+
+const extRoot = path.resolve(path.join(__dirname, '..'));
+const replaceStrings = [
+	[
+		'import { filepaths } from "@fig/autocomplete-generators";',
+		'import { filepaths } from \'../../helpers/filepaths\';'
+	],
+	[
+		'import { filepaths, keyValue } from "@fig/autocomplete-generators";',
+		'import { filepaths } from \'../../helpers/filepaths\'; import { keyValue } from \'../../helpers/keyvalue\';'
+	],
+];
+const indentSearch = [20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1].map(e => new RegExp('^' + ' '.repeat(e * 2), 'gm'));
+const indentReplaceValue = [20, 19, 18, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1].map(e => '\t'.repeat(e));
+
+const specSpecificReplaceStrings = new Map([
+	['docker', [
+		[
+			'console.error(error);',
+			'console.error(error); return null!;'
+		]
+	]],
+	['dotnet', [
+		[
+			'.match(argRegex)',
+			'.match(argRegex)!'
+		], [
+			'"https://upload.wikimedia.org/wikipedia/commons/7/7d/Microsoft_.NET_logo.svg";',
+			'undefined;',
+		]
+	]],
+	['gh', [
+		[
+			'const parts = elm.match(/\\S+/g);',
+			'const parts = elm.match(/\\S+/g)!;'
+		],
+		[
+			'description: repo.description,',
+			'description: repo.description ?? undefined,'
+		],
+		[
+			'icon: "fig://icon?type=git"',
+			'icon: "vscode://icon?type=11"'
+		]
+	]],
+	['git', [
+		[
+			'import { ai } from "@fig/autocomplete-generators";',
+			'function ai(...args: any[]): undefined { return undefined; }'
+		], [
+			'prompt: async ({ executeCommand }) => {',
+			'prompt: async ({ executeCommand }: any) => {'
+		], [
+			'message: async ({ executeCommand }) =>',
+			'message: async ({ executeCommand }: any) =>'
+		]
+	]],
+	['yo', [
+		[
+			'icon: "https://avatars.githubusercontent.com/u/1714870?v=4",',
+			'icon: undefined,',
+		]
+	]],
+]);
+
+for (const spec of upstreamSpecs) {
+	const source = path.join(extRoot, `third_party/autocomplete/src/${spec}.ts`);
+	const destination = path.join(extRoot, `src/completions/upstream/${spec}.ts`);
+	fs.copyFileSync(source, destination);
+
+	let content = fs.readFileSync(destination).toString();
+	for (const replaceString of replaceStrings) {
+		content = content.replaceAll(replaceString[0], replaceString[1]);
+	}
+	for (let i = 0; i < indentSearch.length; i++) {
+		content = content.replaceAll(indentSearch[i], indentReplaceValue[i]);
+	}
+	const thisSpecReplaceStrings = specSpecificReplaceStrings.get(spec);
+	if (thisSpecReplaceStrings) {
+		for (const replaceString of thisSpecReplaceStrings) {
+			content = content.replaceAll(replaceString[0], replaceString[1]);
+		}
+	}
+
+	fs.writeFileSync(destination, content);
+}
+
+// Generate upstreamSpecs.ts with re-exports
+function specToExportName(spec) {
+	return spec.replace(/-([a-z])/g, (_, c) => c.toUpperCase());
+}
+
+function specToReExport(spec) {
+	return `export { default as ${specToExportName(spec)} } from './completions/upstream/${spec}';`;
+}
+
+const copyright = `/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/`;
+
+const lines = [
+	copyright,
+	'',
+	'// This file is generated by scripts/update-specs.js',
+	...upstreamSpecs.map(specToReExport),
+	'',
+];
+fs.writeFileSync(path.join(extRoot, 'src/upstreamSpecs.ts'), lines.join('\n'));

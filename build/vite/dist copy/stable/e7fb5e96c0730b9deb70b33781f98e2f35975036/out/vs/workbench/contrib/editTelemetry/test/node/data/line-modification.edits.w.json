@@ -1,0 +1,1 @@
+{"initialText":"abcd\r\nefgh\r\nijkl\r\nmnop","edits":[{"replacements":[{"start":9,"endEx":9,"text":"aitext"}]},{"replacements":[{"start":13,"endEx":13,"text":"\n"}]},{"replacements":[{"start":6,"endEx":18,"text":""}]}]}

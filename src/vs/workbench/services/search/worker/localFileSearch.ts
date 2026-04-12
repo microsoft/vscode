@@ -66,6 +66,16 @@ export class LocalFileSearchWorker implements ILocalFileSearchWorker, IWebWorker
 		this.cancellationTokens.get(queryId)?.cancel();
 	}
 
+	private readonly nodepodPromises: Map<number, Promise<any>> = new Map();
+
+	$nodepodDirectoryGetFileHandleResponse(promiseId: number, handle: any): void {
+		const promise = this.nodepodPromises.get(promiseId);
+		if (promise) {
+			(promise as any).resolve(handle);
+			this.nodepodPromises.delete(promiseId);
+		}
+	}
+
 	private registerCancellationToken(queryId: number): CancellationTokenSource {
 		const source = new CancellationTokenSource();
 		this.cancellationTokens.set(queryId, source);
@@ -224,17 +234,45 @@ export class LocalFileSearchWorker implements ILocalFileSearchWorker, IWebWorker
 		const processDirectory = async (directory: IWorkerFileSystemDirectoryHandle, prior: string, ignoreFile?: IgnoreFile): Promise<DirNode> => {
 
 			if (!folderQuery.disregardIgnoreFiles) {
-				const ignoreFiles = await Promise.all([
-					directory.getFileHandle('.gitignore').catch(e => undefined),
-					directory.getFileHandle('.ignore').catch(e => undefined),
-				]);
 
-				await Promise.all(ignoreFiles.map(async file => {
-					if (!file) { return; }
 
-					const ignoreContents = new TextDecoder('utf8').decode(new Uint8Array(await (await file.getFile()).arrayBuffer()));
-					ignoreFile = new IgnoreFile(ignoreContents, prior, ignoreFile, ignoreGlobCase);
-				}));
+				if ((directory as any).isNodepod) {
+					let id = Date.now();
+					const gitIgnorePromise = new Promise((resolve, reject) => {
+						(this.host as any).$nodepodDirectoryGetFileHandleRequest(directory.name, '.gitignore', id);
+					});
+					this.nodepodPromises.set(id, gitIgnorePromise);
+
+					id = Date.now();
+					const ignorePromise = new Promise((resolve, reject) => {
+						(this.host as any).$nodepodDirectoryGetFileHandleRequest(directory.name, '.ignore', id);
+					});
+					this.nodepodPromises.set(id, ignorePromise);
+
+					const ignoreFiles = await Promise.all([gitIgnorePromise, ignorePromise]);
+
+					await Promise.all(ignoreFiles.map(async file => {
+						if (!file) { return; }
+
+						const ignoreContents = new TextDecoder('utf8').decode(file as any);
+						ignoreFile = new IgnoreFile(ignoreContents, prior, ignoreFile, ignoreGlobCase);
+					}));
+
+
+				}
+				else {
+					const ignoreFiles = await Promise.all([
+						directory.getFileHandle('.gitignore').catch(e => undefined),
+						directory.getFileHandle('.ignore').catch(e => undefined),
+					]);
+
+					await Promise.all(ignoreFiles.map(async file => {
+						if (!file) { return; }
+
+						const ignoreContents = new TextDecoder('utf8').decode(new Uint8Array(await (await file.getFile()).arrayBuffer()));
+						ignoreFile = new IgnoreFile(ignoreContents, prior, ignoreFile, ignoreGlobCase);
+					}));
+				}
 			}
 
 			const entries = Promises.withAsyncBody<(FileNode | DirNode)[]>(async c => {

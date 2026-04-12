@@ -196,8 +196,12 @@ export default defineConfig({
 		}
 	},
 	server: {
+		watch: null,
+		allowedHosts: [
+			'.webcode.host'
+		],
 		cors: true,
-		port: 5199,
+		port: 8081,
 		fs: {
 			allow: [
 				// To allow loading from sources, not needed when loading monaco-editor from npm package

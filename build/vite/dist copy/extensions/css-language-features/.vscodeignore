@@ -1,0 +1,17 @@
+test/**
+.vscode/**
+server/.vscode/**
+server/node_modules/**
+client/src/**
+server/src/**
+client/out/**
+server/out/**
+**/tsconfig*.json
+server/test/**
+server/bin/**
+server/build/**
+server/package-lock.json
+server/.npmignore
+package-lock.json
+**/esbuild*.mts
+CONTRIBUTING.md

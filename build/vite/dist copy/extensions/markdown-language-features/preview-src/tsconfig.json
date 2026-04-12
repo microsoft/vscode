@@ -1,0 +1,26 @@
+{
+	"extends": "../../tsconfig.base.json",
+	"compilerOptions": {
+		"rootDir": ".",
+		"outDir": "./dist/",
+		"jsx": "react",
+		"esModuleInterop": true,
+		"lib": [
+			"es2024",
+			"DOM",
+			"DOM.Iterable"
+		],
+		"types": [
+			"vscode-webview"
+		],
+		"typeRoots": [
+			"../node_modules/@types"
+		],
+		"skipLibCheck": true
+	},
+	"typeAcquisition": {
+		"include": [
+			"@types/vscode-webview"
+		]
+	}
+}

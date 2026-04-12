@@ -1,0 +1,166 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+import assert from 'assert';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { SparseMultilineTokens } from '../../../common/tokens/sparseMultilineTokens.js';
+import { SemanticTokensProviderStyling, toMultilineTokens2 } from '../../../common/services/semanticTokensProviderStyling.js';
+import { createModelServices } from '../testTextModel.js';
+import { IThemeService } from '../../../../platform/theme/common/themeService.js';
+import { ILanguageService } from '../../../common/languages/language.js';
+import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+suite('ModelService', () => {
+    let disposables;
+    let instantiationService;
+    let languageService;
+    setup(() => {
+        disposables = new DisposableStore();
+        instantiationService = createModelServices(disposables);
+        languageService = instantiationService.get(ILanguageService);
+    });
+    teardown(() => {
+        disposables.dispose();
+    });
+    ensureNoDisposablesAreLeakedInTestSuite();
+    test('issue #134973: invalid semantic tokens should be handled better', () => {
+        const languageId = 'java';
+        disposables.add(languageService.registerLanguage({ id: languageId }));
+        const legend = {
+            tokenTypes: ['st0', 'st1', 'st2', 'st3', 'st4', 'st5', 'st6', 'st7', 'st8', 'st9', 'st10'],
+            tokenModifiers: []
+        };
+        instantiationService.stub(IThemeService, {
+            getColorTheme() {
+                return {
+                    getTokenStyleMetadata: (tokenType, tokenModifiers, languageId) => {
+                        return {
+                            foreground: parseInt(tokenType.substr(2), 10),
+                            bold: undefined,
+                            underline: undefined,
+                            strikethrough: undefined,
+                            italic: undefined
+                        };
+                    }
+                };
+            }
+        });
+        const styling = instantiationService.createInstance(SemanticTokensProviderStyling, legend);
+        const badTokens = {
+            data: new Uint32Array([
+                0, 13, 16, 1, 0,
+                1, 2, 6, 2, 0,
+                0, 7, 6, 3, 0,
+                0, 15, 8, 4, 0,
+                0, 17, 1, 5, 0,
+                0, 7, 5, 6, 0,
+                1, 12, 8, 7, 0,
+                0, 19, 5, 8, 0,
+                0, 7, 1, 9, 0,
+                0, 4294967294, 5, 10, 0
+            ])
+        };
+        const result = toMultilineTokens2(badTokens, styling, languageId);
+        const expected = SparseMultilineTokens.create(1, new Uint32Array([
+            0, 13, 29, (16 /* MetadataConsts.SEMANTIC_USE_FOREGROUND */ | (1 << 15 /* MetadataConsts.FOREGROUND_OFFSET */)),
+            1, 2, 8, (16 /* MetadataConsts.SEMANTIC_USE_FOREGROUND */ | (2 << 15 /* MetadataConsts.FOREGROUND_OFFSET */)),
+            1, 9, 15, (16 /* MetadataConsts.SEMANTIC_USE_FOREGROUND */ | (3 << 15 /* MetadataConsts.FOREGROUND_OFFSET */)),
+            1, 24, 32, (16 /* MetadataConsts.SEMANTIC_USE_FOREGROUND */ | (4 << 15 /* MetadataConsts.FOREGROUND_OFFSET */)),
+            1, 41, 42, (16 /* MetadataConsts.SEMANTIC_USE_FOREGROUND */ | (5 << 15 /* MetadataConsts.FOREGROUND_OFFSET */)),
+            1, 48, 53, (16 /* MetadataConsts.SEMANTIC_USE_FOREGROUND */ | (6 << 15 /* MetadataConsts.FOREGROUND_OFFSET */)),
+            2, 12, 20, (16 /* MetadataConsts.SEMANTIC_USE_FOREGROUND */ | (7 << 15 /* MetadataConsts.FOREGROUND_OFFSET */)),
+            2, 31, 36, (16 /* MetadataConsts.SEMANTIC_USE_FOREGROUND */ | (8 << 15 /* MetadataConsts.FOREGROUND_OFFSET */)),
+            2, 38, 39, (16 /* MetadataConsts.SEMANTIC_USE_FOREGROUND */ | (9 << 15 /* MetadataConsts.FOREGROUND_OFFSET */)),
+        ]));
+        assert.deepStrictEqual(result.toString(), expected.toString());
+    });
+    test('issue #148651: VSCode UI process can hang if a semantic token with negative values is returned by language service', () => {
+        const languageId = 'dockerfile';
+        disposables.add(languageService.registerLanguage({ id: languageId }));
+        const legend = {
+            tokenTypes: ['st0', 'st1', 'st2', 'st3', 'st4', 'st5', 'st6', 'st7', 'st8', 'st9'],
+            tokenModifiers: ['stm0', 'stm1', 'stm2']
+        };
+        instantiationService.stub(IThemeService, {
+            getColorTheme() {
+                return {
+                    getTokenStyleMetadata: (tokenType, tokenModifiers, languageId) => {
+                        return {
+                            foreground: parseInt(tokenType.substr(2), 10),
+                            bold: undefined,
+                            underline: undefined,
+                            strikethrough: undefined,
+                            italic: undefined
+                        };
+                    }
+                };
+            }
+        });
+        const styling = instantiationService.createInstance(SemanticTokensProviderStyling, legend);
+        const badTokens = {
+            data: new Uint32Array([
+                0, 0, 3, 0, 0,
+                0, 4, 2, 2, 0,
+                0, 2, 3, 8, 0,
+                0, 3, 1, 9, 0,
+                0, 1, 1, 10, 0,
+                0, 1, 4, 8, 0,
+                0, 4, 4294967292, 2, 0,
+                0, 4294967292, 4294967294, 8, 0,
+                0, 4294967294, 1, 9, 0,
+                0, 1, 1, 10, 0,
+                0, 1, 3, 8, 0,
+                0, 3, 4294967291, 8, 0,
+                0, 4294967291, 1, 9, 0,
+                0, 1, 1, 10, 0,
+                0, 1, 4, 8, 0
+            ])
+        };
+        const result = toMultilineTokens2(badTokens, styling, languageId);
+        const expected = SparseMultilineTokens.create(1, new Uint32Array([
+            0, 4, 6, (16 /* MetadataConsts.SEMANTIC_USE_FOREGROUND */ | (1 << 15 /* MetadataConsts.FOREGROUND_OFFSET */)),
+            0, 6, 9, (16 /* MetadataConsts.SEMANTIC_USE_FOREGROUND */ | (2 << 15 /* MetadataConsts.FOREGROUND_OFFSET */)),
+            0, 9, 10, (16 /* MetadataConsts.SEMANTIC_USE_FOREGROUND */ | (3 << 15 /* MetadataConsts.FOREGROUND_OFFSET */)),
+            0, 11, 15, (16 /* MetadataConsts.SEMANTIC_USE_FOREGROUND */ | (4 << 15 /* MetadataConsts.FOREGROUND_OFFSET */)),
+        ]));
+        assert.deepStrictEqual(result.toString(), expected.toString());
+    });
+    test('issue #149130: vscode freezes because of Bracket Pair Colorization', () => {
+        const languageId = 'q';
+        disposables.add(languageService.registerLanguage({ id: languageId }));
+        const legend = {
+            tokenTypes: ['st0', 'st1', 'st2', 'st3', 'st4', 'st5'],
+            tokenModifiers: ['stm0', 'stm1', 'stm2']
+        };
+        instantiationService.stub(IThemeService, {
+            getColorTheme() {
+                return {
+                    getTokenStyleMetadata: (tokenType, tokenModifiers, languageId) => {
+                        return {
+                            foreground: parseInt(tokenType.substr(2), 10),
+                            bold: undefined,
+                            underline: undefined,
+                            strikethrough: undefined,
+                            italic: undefined
+                        };
+                    }
+                };
+            }
+        });
+        const styling = instantiationService.createInstance(SemanticTokensProviderStyling, legend);
+        const badTokens = {
+            data: new Uint32Array([
+                0, 11, 1, 1, 0,
+                0, 4, 1, 1, 0,
+                0, 4294967289, 1, 1, 0
+            ])
+        };
+        const result = toMultilineTokens2(badTokens, styling, languageId);
+        const expected = SparseMultilineTokens.create(1, new Uint32Array([
+            0, 11, 12, (16 /* MetadataConsts.SEMANTIC_USE_FOREGROUND */ | (1 << 15 /* MetadataConsts.FOREGROUND_OFFSET */)),
+            0, 15, 16, (16 /* MetadataConsts.SEMANTIC_USE_FOREGROUND */ | (1 << 15 /* MetadataConsts.FOREGROUND_OFFSET */)),
+        ]));
+        assert.deepStrictEqual(result.toString(), expected.toString());
+    });
+});
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoic2VtYW50aWNUb2tlbnNQcm92aWRlclN0eWxpbmcudGVzdC5qcyIsInNvdXJjZVJvb3QiOiJmaWxlOi8vL2hvbWUvYS93ZWJjb2RlLmhvc3QvdnNjb2RlL3NyYy8iLCJzb3VyY2VzIjpbInZzL2VkaXRvci90ZXN0L2NvbW1vbi9zZXJ2aWNlcy9zZW1hbnRpY1Rva2Vuc1Byb3ZpZGVyU3R5bGluZy50ZXN0LnRzIl0sIm5hbWVzIjpbXSwibWFwcGluZ3MiOiJBQUFBOzs7Z0dBR2dHO0FBRWhHLE9BQU8sTUFBTSxNQUFNLFFBQVEsQ0FBQztBQUM1QixPQUFPLEVBQUUsZUFBZSxFQUFFLE1BQU0sc0NBQXNDLENBQUM7QUFDdkUsT0FBTyxFQUFFLHFCQUFxQixFQUFFLE1BQU0saURBQWlELENBQUM7QUFFeEYsT0FBTyxFQUFFLDZCQUE2QixFQUFFLGtCQUFrQixFQUFFLE1BQU0sMkRBQTJELENBQUM7QUFDOUgsT0FBTyxFQUFFLG1CQUFtQixFQUFFLE1BQU0scUJBQXFCLENBQUM7QUFFMUQsT0FBTyxFQUFlLGFBQWEsRUFBZSxNQUFNLG1EQUFtRCxDQUFDO0FBQzVHLE9BQU8sRUFBRSxnQkFBZ0IsRUFBRSxNQUFNLHVDQUF1QyxDQUFDO0FBQ3pFLE9BQU8sRUFBRSx1Q0FBdUMsRUFBRSxNQUFNLHVDQUF1QyxDQUFDO0FBRWhHLEtBQUssQ0FBQyxjQUFjLEVBQUUsR0FBRyxFQUFFO0lBQzFCLElBQUksV0FBNEIsQ0FBQztJQUNqQyxJQUFJLG9CQUE4QyxDQUFDO0lBQ25ELElBQUksZUFBaUMsQ0FBQztJQUV0QyxLQUFLLENBQUMsR0FBRyxFQUFFO1FBQ1YsV0FBVyxHQUFHLElBQUksZUFBZSxFQUFFLENBQUM7UUFDcEMsb0JBQW9CLEdBQUcsbUJBQW1CLENBQUMsV0FBVyxDQUFDLENBQUM7UUFDeEQsZUFBZSxHQUFHLG9CQUFvQixDQUFDLEdBQUcsQ0FBQyxnQkFBZ0IsQ0FBQyxDQUFDO0lBQzlELENBQUMsQ0FBQyxDQUFDO0lBRUgsUUFBUSxDQUFDLEdBQUcsRUFBRTtRQUNiLFdBQVcsQ0FBQyxPQUFPLEVBQUUsQ0FBQztJQUN2QixDQUFDLENBQUMsQ0FBQztJQUVILHVDQUF1QyxFQUFFLENBQUM7SUFFMUMsSUFBSSxDQUFDLGlFQUFpRSxFQUFFLEdBQUcsRUFBRTtRQUM1RSxNQUFNLFVBQVUsR0FBRyxNQUFNLENBQUM7UUFDMUIsV0FBVyxDQUFDLEdBQUcsQ0FBQyxlQUFlLENBQUMsZ0JBQWdCLENBQUMsRUFBRSxFQUFFLEVBQUUsVUFBVSxFQUFFLENBQUMsQ0FBQyxDQUFDO1FBQ3RFLE1BQU0sTUFBTSxHQUFHO1lBQ2QsVUFBVSxFQUFFLENBQUMsS0FBSyxFQUFFLEtBQUssRUFBRSxLQUFLLEVBQUUsS0FBSyxFQUFFLEtBQUssRUFBRSxLQUFLLEVBQUUsS0FBSyxFQUFFLEtBQUssRUFBRSxLQUFLLEVBQUUsS0FBSyxFQUFFLE1BQU0sQ0FBQztZQUMxRixjQUFjLEVBQUUsRUFBRTtTQUNsQixDQUFDO1FBQ0Ysb0JBQW9CLENBQUMsSUFBSSxDQUFDLGFBQWEsRUFBRTtZQUN4QyxhQUFhO2dCQUNaLE9BQW9CO29CQUNuQixxQkFBcUIsRUFBRSxDQUFDLFNBQVMsRUFBRSxjQUFjLEVBQUUsVUFBVSxFQUFlLEVBQUU7d0JBQzdFLE9BQU87NEJBQ04sVUFBVSxFQUFFLFFBQVEsQ0FBQyxTQUFTLENBQUMsTUFBTSxDQUFDLENBQUMsQ0FBQyxFQUFFLEVBQUUsQ0FBQzs0QkFDN0MsSUFBSSxFQUFFLFNBQVM7NEJBQ2YsU0FBUyxFQUFFLFNBQVM7NEJBQ3BCLGFBQWEsRUFBRSxTQUFTOzRCQUN4QixNQUFNLEVBQUUsU0FBUzt5QkFDakIsQ0FBQztvQkFDSCxDQUFDO2lCQUNELENBQUM7WUFDSCxDQUFDO1NBQ0QsQ0FBQyxDQUFDO1FBQ0gsTUFBTSxPQUFPLEdBQUcsb0JBQW9CLENBQUMsY0FBYyxDQUFDLDZCQUE2QixFQUFFLE1BQU0sQ0FBQyxDQUFDO1FBQzNGLE1BQU0sU0FBUyxHQUFHO1lBQ2pCLElBQUksRUFBRSxJQUFJLFdBQVcsQ0FBQztnQkFDckIsQ0FBQyxFQUFFLEVBQUUsRUFBRSxFQUFFLEVBQUUsQ0FBQyxFQUFFLENBQUM7Z0JBQ2YsQ0FBQyxFQUFFLENBQUMsRUFBRSxDQUFDLEVBQUUsQ0FBQyxFQUFFLENBQUM7Z0JBQ2IsQ0FBQyxFQUFFLENBQUMsRUFBRSxDQUFDLEVBQUUsQ0FBQyxFQUFFLENBQUM7Z0JBQ2IsQ0FBQyxFQUFFLEVBQUUsRUFBRSxDQUFDLEVBQUUsQ0FBQyxFQUFFLENBQUM7Z0JBQ2QsQ0FBQyxFQUFFLEVBQUUsRUFBRSxDQUFDLEVBQUUsQ0FBQyxFQUFFLENBQUM7Z0JBQ2QsQ0FBQyxFQUFFLENBQUMsRUFBRSxDQUFDLEVBQUUsQ0FBQyxFQUFFLENBQUM7Z0JBQ2IsQ0FBQyxFQUFFLEVBQUUsRUFBRSxDQUFDLEVBQUUsQ0FBQyxFQUFFLENBQUM7Z0JBQ2QsQ0FBQyxFQUFFLEVBQUUsRUFBRSxDQUFDLEVBQUUsQ0FBQyxFQUFFLENBQUM7Z0JBQ2QsQ0FBQyxFQUFFLENBQUMsRUFBRSxDQUFDLEVBQUUsQ0FBQyxFQUFFLENBQUM7Z0JBQ2IsQ0FBQyxFQUFFLFVBQVUsRUFBRSxDQUFDLEVBQUUsRUFBRSxFQUFFLENBQUM7YUFDdkIsQ0FBQztTQUNGLENBQUM7UUFDRixNQUFNLE1BQU0sR0FBRyxrQkFBa0IsQ0FBQyxTQUFTLEVBQUUsT0FBTyxFQUFFLFVBQVUsQ0FBQyxDQUFDO1FBQ2xFLE1BQU0sUUFBUSxHQUFHLHFCQUFxQixDQUFDLE1BQU0sQ0FBQyxDQUFDLEVBQUUsSUFBSSxXQUFXLENBQUM7WUFDaEUsQ0FBQyxFQUFFLEVBQUUsRUFBRSxFQUFFLEVBQUUsQ0FBQyxrREFBeUMsQ0FBQyxDQUFDLDZDQUFvQyxDQUFDLENBQUM7WUFDN0YsQ0FBQyxFQUFFLENBQUMsRUFBRSxDQUFDLEVBQUUsQ0FBQyxrREFBeUMsQ0FBQyxDQUFDLDZDQUFvQyxDQUFDLENBQUM7WUFDM0YsQ0FBQyxFQUFFLENBQUMsRUFBRSxFQUFFLEVBQUUsQ0FBQyxrREFBeUMsQ0FBQyxDQUFDLDZDQUFvQyxDQUFDLENBQUM7WUFDNUYsQ0FBQyxFQUFFLEVBQUUsRUFBRSxF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

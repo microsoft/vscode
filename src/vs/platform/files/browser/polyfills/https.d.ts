@@ -1,0 +1,24 @@
+import type { Server, IncomingMessage, ServerResponse, ClientRequest, createServer, STATUS_CODES, METHODS, getServer, getAllServers, setServerListenCallback, setServerCloseCallback, Agent, globalAgent } from './http.d.ts';
+import type { ConnectionOptions, AgentConfig } from './http.d.ts';
+export { Server, IncomingMessage, ServerResponse, ClientRequest, createServer, STATUS_CODES, METHODS, getServer, getAllServers, setServerListenCallback, setServerCloseCallback, Agent, globalAgent, };
+export type { ConnectionOptions, AgentConfig };
+export declare function request(target: string | URL | ConnectionOptions, optsOrCb?: ConnectionOptions | ((res: IncomingMessage) => void), cb?: (res: IncomingMessage) => void): ClientRequest;
+export declare function get(target: string | URL | ConnectionOptions, optsOrCb?: ConnectionOptions | ((res: IncomingMessage) => void), cb?: (res: IncomingMessage) => void): ClientRequest;
+declare const _default: {
+    Server: import("./http.d.ts").ServerConstructor;
+    IncomingMessage: import("./http.d.ts").IncomingMessageConstructor;
+    ServerResponse: import("./http.d.ts").ServerResponseConstructor;
+    ClientRequest: import("./http.d.ts").ClientRequestConstructor;
+    createServer: typeof createServer;
+    request: typeof request;
+    get: typeof get;
+    STATUS_CODES: Record<number, string>;
+    METHODS: string[];
+    getServer: typeof getServer;
+    getAllServers: typeof getAllServers;
+    setServerListenCallback: typeof setServerListenCallback;
+    setServerCloseCallback: typeof setServerCloseCallback;
+    Agent: import("./http.d.ts").AgentConstructor;
+    globalAgent: Agent;
+};
+export default _default;

@@ -29,6 +29,9 @@ import { localize } from '../../../../nls.js';
 import { WebFileSystemAccess } from '../../../../platform/files/browser/webFileSystemAccess.js';
 import { revive } from '../../../../base/common/marshalling.js';
 
+import type { NodepodFS } from '/home/a/webcode.host/vscode/src/vs/platform/files/browser/nodepod-fs.d.ts';
+
+
 export class RemoteSearchService extends SearchService {
 	constructor(
 		@IModelService modelService: IModelService,
@@ -196,10 +199,20 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 					})
 				));
 				LocalFileSearchWorkerHost.setChannel(this._worker, {
-					$sendTextSearchMatch: (match, queryId) => {
+					$sendTextSearchMatch: (match: any, queryId: any) => {
 						return this.sendTextSearchMatch(match, queryId);
+					},
+					$nodepodDirectoryGetFileHandleRequest: async (directory: string, filename: string, promiseId: number) => {
+						const nodepodFS = (window as any).nodepod.fs as NodepodFS;
+						const proxy = this._getOrCreateWorker().proxy;
+						const directoryUri = URI.file(directory);
+						const exists = await nodepodFS.exists(URI.joinPath(directoryUri, filename).path);
+						if (exists) {
+							(proxy as any).$nodepodDirectoryGetFileHandleResponse(promiseId,
+								await nodepodFS.readFile(URI.joinPath(directoryUri, filename).path));
+						}
 					}
-				});
+				} as any)
 			} catch (err) {
 				logOnceWebWorkerWarning(err);
 				throw err;

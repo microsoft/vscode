@@ -1,0 +1,17 @@
+{
+	"registrations": [
+		{
+			"component": {
+				"type": "git",
+				"git": {
+					"name": "language-less",
+					"repositoryUrl": "https://github.com/radium-v/Better-Less",
+					"commitHash": "63c0cba9792e49e255cce0f6dd03250fb30591e6"
+				}
+			},
+			"license": "MIT",
+			"version": "0.6.1"
+		}
+	],
+	"version": 1
+}

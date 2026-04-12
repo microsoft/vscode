@@ -1,0 +1,26 @@
+{
+	"original": {
+		"content": "const sequence2 = new SequenceFromIntArray(tgtDocLines);",
+		"fileName": "./1.tst"
+	},
+	"modified": {
+		"content": "const sequence2 = new LineSequence(tgtDocLines, modifiedLines);",
+		"fileName": "./2.tst"
+	},
+	"diffs": [
+		{
+			"originalRange": "[1,2)",
+			"modifiedRange": "[1,2)",
+			"innerChanges": [
+				{
+					"originalRange": "[1,23 -> 1,43]",
+					"modifiedRange": "[1,23 -> 1,35]"
+				},
+				{
+					"originalRange": "[1,55 -> 1,55]",
+					"modifiedRange": "[1,47 -> 1,62]"
+				}
+			]
+		}
+	]
+}

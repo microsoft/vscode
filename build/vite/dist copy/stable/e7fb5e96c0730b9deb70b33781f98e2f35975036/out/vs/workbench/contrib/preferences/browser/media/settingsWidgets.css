@@ -1,0 +1,391 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-item-value > .setting-item-control {
+	width: 100%;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-value,
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-key {
+	margin-right: 3px;
+	margin-left: 2px;
+}
+
+/* Deal with overflow */
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-value,
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-sibling,
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-key,
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-value {
+	white-space: nowrap;
+	text-overflow: ellipsis;
+	overflow: hidden;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-item-bool .setting-value-checkbox {
+	background-color: var(--vscode-settings-checkboxBackground) !important;
+	color: var(--vscode-settings-checkboxForeground) !important;
+	border-color: var(--vscode-settings-checkboxBorder) !important;
+}
+.settings-editor > .settings-body .settings-tree-container .setting-item-bool .setting-list-object-input-key-checkbox {
+	margin-left: 4px;
+	height: 24px;
+}
+.settings-editor > .settings-body .settings-tree-container .setting-item-bool .setting-list-object-input-key-checkbox .setting-value-checkbox {
+	margin-top: 3px;
+}
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-item-bool .setting-list-object-value {
+	width: 100%;
+	cursor: pointer;
+	flex: 1;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-key {
+	margin-left: 4px;
+	width: 40%;
+}
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-input-key {
+	margin-left: 0;
+	min-width: 40%;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-value {
+	width: 60%;
+}
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-sibling {
+	width: 40%;
+}
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-value.no-sibling {
+	width: 100%;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-input-value,
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-value {
+	width: 100%;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-row .setting-list-object-value,
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-value {
+	/* In case the text is too long, we don't want to block the pencil icon. */
+	box-sizing: border-box;
+	padding-right: 40px;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-value {
+	width: 60%;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-value,
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-sibling,
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-key,
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-value {
+	display: inline-block;
+	line-height: 24px;
+	min-height: 24px;
+	flex: none;
+}
+
+/* Use monospace to display glob patterns in include/exclude widget */
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-include-exclude-widget .setting-list-value,
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-include-exclude-widget .setting-list-sibling {
+	font-family: var(--monaco-monospace-font);
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-sibling {
+	opacity: 0.7;
+	margin-left: 0.5em;
+	font-size: 0.9em;
+	white-space: pre;
+
+	/* In case the text is too long, we don't want to block the pencil icon. */
+	box-sizing: border-box;
+	padding-right: 50px;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-row .monaco-action-bar {
+	display: none;
+	position: absolute;
+	right: 0px;
+	top: 0px;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-row {
+	display: flex;
+}
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-row:hover {
+	background-color: var(--vscode-list-hoverBackground);
+	color: var(--vscode-list-hoverForeground);
+}
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-row.selected:focus {
+	background-color: var(--vscode-list-activeSelectionBackground);
+	color: var(--vscode-list-activeSelectionForeground);
+}
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-row.selected:not(:focus) {
+	background-color: var(--vscode-list-inactiveSelectionBackground);
+	color: var(--vscode-list-inactiveSelectionForeground);
+}
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-row.draggable {
+	cursor: pointer;
+	user-select: none;
+}
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-row.drag-hover {
+	background-color: var(--vscode-list-dropBackground);
+}
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-row.drag-hover * {
+	pointer-events: none;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-row,
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-row-header {
+	position: relative;
+	max-height: 24px;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-row-header {
+	font-weight: bold;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-row,
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-row-header {
+	display: flex;
+	padding-right: 4px;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-row-header,
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-row:nth-child(odd):not(:hover):not(:focus):not(.selected),
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-edit-row.setting-list-object-row:nth-child(odd):hover {
+	background-color: rgba(130, 130, 130, 0.04);
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-row:hover .monaco-action-bar,
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-row.selected .monaco-action-bar {
+	display: block;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-row .monaco-action-bar .action-label {
+	width: 16px;
+	height: 20px;
+	padding: 2px;
+	margin-right: 2px;
+	display: flex;
+	color: inherit;
+	align-items: center;
+	justify-content: center;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-row .monaco-action-bar .setting-listAction-edit {
+	margin-right: 4px;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .monaco-text-button {
+	width: initial;
+	white-space: nowrap;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-item-control.setting-list-hide-add-button .setting-list-new-row {
+	display: none;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .monaco-text-button.setting-list-addButton {
+	display: inline-block;
+	margin-top: 4px;
+	margin-right: 4px;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-row,
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-edit-row {
+	display: flex
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-valueInput,
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-siblingInput,
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-input {
+	height: 24px;
+	max-width: 320px;
+	margin-right: 4px;
+}
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-valueInput.no-sibling,
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-input {
+	max-width: unset;
+}
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-valueInput.no-sibling {
+	/* Add more width to help with string arrays */
+	width: 100%;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-value-container .setting-list-object-input {
+	margin-right: 0;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-ok-button {
+	margin: 0 4px;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-widget,
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-include-exclude-widget,
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget {
+	margin-bottom: 1px;
+	padding: 1px;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-value-container,
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-object-widget .setting-list-object-input select {
+	width: 100%;
+	height: 24px;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-list-widget .setting-list-object-list-row.select-container {
+	width: 320px;
+}
+.settings-editor > .settings-body .settings-tree-container .setting-list-widget .setting-list-object-list-row.select-container > select {
+	width: inherit;
+}
+
+.settings-tabs-widget > .monaco-action-bar .action-item.disabled {
+	display: none;
+}
+
+.settings-tabs-widget > .monaco-action-bar .action-item {
+	max-width: 300px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.settings-tabs-widget > .monaco-action-bar .action-item .action-label {
+	text-transform: uppercase;
+	font-size: 11px;
+	margin-right: 5px;
+	cursor: pointer;
+	display: flex;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.settings-tabs-widget > .monaco-action-bar .action-item .action-label {
+	display: block;
+	padding: 0px;
+	border-radius: initial;
+	background: none !important;
+}
+
+.settings-tabs-widget > .monaco-action-bar .action-item .action-label.folder-settings {
+	display: flex;
+}
+
+.settings-tabs-widget > .monaco-action-bar .action-item {
+	padding: 3px 0px;
+}
+
+.settings-tabs-widget > .monaco-action-bar .action-item .action-title {
+	text-overflow: ellipsis;
+	overflow: hidden;
+}
+
+.settings-tabs-widget > .monaco-action-bar .action-item .action-details {
+	text-transform: none;
+	margin-left: 0.5em;
+	font-size: 10px;
+	opacity: 0.7;
+}
+
+.settings-tabs-widget .monaco-action-bar .action-item .dropdown-icon {
+	padding-left: 0.3em;
+	padding-top: 8px;
+	font-size: 12px;
+}
+
+.settings-tabs-widget .monaco-action-bar .action-item .dropdown-icon.hide {
+	display: none;
+}
+
+.settings-tabs-widget > .monaco-action-bar .action-item .action-label {
+	color: var(--vscode-panelTitle-inactiveForeground);
+}
+
+.settings-tabs-widget > .monaco-action-bar .action-item .action-label.checked,
+.settings-tabs-widget > .monaco-action-bar .action-item .action-label:hover {
+	color: var(--vscode-panelTitle-activeForeground);
+	border-bottom: 1px solid var(--vscode-panelTitle-activeBorder);
+	outline: 1px solid var(--vscode-contrastActiveBorder, transparent);
+	outline-offset: -1px;
+}
+
+.settings-tabs-widget > .monaco-action-bar .action-item .action-label:focus {
+	border-bottom: 1px solid var(--vscode-focusBorder);
+	outline: 1px solid transparent;
+	outline-offset: -1px;
+}
+
+.settings-tabs-widget > .monaco-action-bar .action-item .action-label:not(.checked):hover {
+	outline-style: dashed;
+}
+
+.settings-header-widget > .settings-search-controls > .settings-count-widget {
+	margin: 6px 0px;
+	padding: 0px 8px;
+	border-radius: 2px;
+	float: left;
+}
+
+.settings-header-widget > .settings-search-controls {
+	position: absolute;
+	right: 10px;
+}
+
+.settings-header-widget > .settings-search-controls > .settings-count-widget.hide {
+	display: none;
+}
+
+.settings-header-widget > .settings-search-container {
+	flex: 1;
+}
+
+.settings-header-widget > .settings-search-container > .settings-search-input {
+	vertical-align: middle;
+}
+
+.settings-header-widget > .settings-search-container > .settings-search-input > .monaco-inputbox {
+	height: 30px;
+}
+
+.monaco-workbench.vs .settings-header-widget > .settings-search-container > .settings-search-input > .monaco-inputbox {
+	border: 1px solid #ddd;
+}
+
+.settings-header-widget > .settings-search-container > .settings-search-input > .monaco-inputbox .input {
+	font-size: 14px;
+	padding-left:10px;
+}
+
+.monaco-editor .view-zones > .settings-header-widget {
+	z-index: 1;
+}
+
+.monaco-editor .settings-header-widget .title-container {
+	display: flex;
+	user-select: none;
+	-webkit-user-select: none;
+}
+
+.monaco-editor .settings-header-widget .title-container .title {
+	font-weight: bold;
+	white-space: nowrap;
+	text-transform: uppercase;
+}
+
+.monaco-editor .settings-header-widget .title-container .message {
+	white-space: nowrap;
+}
+
+.monaco-editor .dim-configuration {
+	color: #b1b1b1;
+}
+
+.codicon-settings-edit:hover {
+	cursor: pointer;
+}
+
+.settings-editor > .settings-body .settings-tree-container .setting-item.setting-item-list .setting-list-row.invalid-key .setting-list-object-key {
+	color: var(--vscode-list-errorForeground);
+}

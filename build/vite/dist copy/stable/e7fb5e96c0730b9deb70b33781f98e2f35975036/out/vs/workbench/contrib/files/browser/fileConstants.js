@@ -1,0 +1,41 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+import * as nls from '../../../../nls.js';
+import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+export const REVEAL_IN_EXPLORER_COMMAND_ID = 'revealInExplorer';
+export const REVERT_FILE_COMMAND_ID = 'workbench.action.files.revert';
+export const OPEN_TO_SIDE_COMMAND_ID = 'explorer.openToSide';
+export const OPEN_WITH_EXPLORER_COMMAND_ID = 'explorer.openWith';
+export const SELECT_FOR_COMPARE_COMMAND_ID = 'selectForCompare';
+export const COMPARE_SELECTED_COMMAND_ID = 'compareSelected';
+export const COMPARE_RESOURCE_COMMAND_ID = 'compareFiles';
+export const COMPARE_WITH_SAVED_COMMAND_ID = 'workbench.files.action.compareWithSaved';
+export const COPY_PATH_COMMAND_ID = 'copyFilePath';
+export const COPY_RELATIVE_PATH_COMMAND_ID = 'copyRelativeFilePath';
+export const SAVE_FILE_AS_COMMAND_ID = 'workbench.action.files.saveAs';
+export const SAVE_FILE_AS_LABEL = nls.localize2('saveAs', "Save As...");
+export const SAVE_FILE_COMMAND_ID = 'workbench.action.files.save';
+export const SAVE_FILE_LABEL = nls.localize2('save', "Save");
+export const SAVE_FILE_WITHOUT_FORMATTING_COMMAND_ID = 'workbench.action.files.saveWithoutFormatting';
+export const SAVE_FILE_WITHOUT_FORMATTING_LABEL = nls.localize2('saveWithoutFormatting', "Save without Formatting");
+export const SAVE_ALL_COMMAND_ID = 'saveAll';
+export const SAVE_ALL_LABEL = nls.localize2('saveAll', "Save All");
+export const SAVE_ALL_IN_GROUP_COMMAND_ID = 'workbench.files.action.saveAllInGroup';
+export const SAVE_FILES_COMMAND_ID = 'workbench.action.files.saveFiles';
+export const OpenEditorsGroupContext = new RawContextKey('groupFocusedInOpenEditors', false);
+export const OpenEditorsDirtyEditorContext = new RawContextKey('dirtyEditorFocusedInOpenEditors', false);
+export const OpenEditorsReadonlyEditorContext = new RawContextKey('readonlyEditorFocusedInOpenEditors', false);
+export const OpenEditorsSelectedFileOrUntitledContext = new RawContextKey('openEditorsSelectedFileOrUntitled', true);
+export const ResourceSelectedForCompareContext = new RawContextKey('resourceSelectedForCompare', false);
+export const REMOVE_ROOT_FOLDER_COMMAND_ID = 'removeRootFolder';
+export const REMOVE_ROOT_FOLDER_LABEL = nls.localize('removeFolderFromWorkspace', "Remove Folder from Workspace");
+export const PREVIOUS_COMPRESSED_FOLDER = 'previousCompressedFolder';
+export const NEXT_COMPRESSED_FOLDER = 'nextCompressedFolder';
+export const FIRST_COMPRESSED_FOLDER = 'firstCompressedFolder';
+export const LAST_COMPRESSED_FOLDER = 'lastCompressedFolder';
+export const NEW_UNTITLED_FILE_COMMAND_ID = 'workbench.action.files.newUntitledFile';
+export const NEW_UNTITLED_FILE_LABEL = nls.localize2('newUntitledFile', "New Untitled Text File");
+export const NEW_FILE_COMMAND_ID = 'workbench.action.files.newFile';
+//# sourceMappingURL=data:application/json;base64,eyJ2ZXJzaW9uIjozLCJmaWxlIjoiZmlsZUNvbnN0YW50cy5qcyIsInNvdXJjZVJvb3QiOiJmaWxlOi8vL2hvbWUvYS93ZWJjb2RlLmhvc3QvdnNjb2RlL3NyYy8iLCJzb3VyY2VzIjpbInZzL3dvcmtiZW5jaC9jb250cmliL2ZpbGVzL2Jyb3dzZXIvZmlsZUNvbnN0YW50cy50cyJdLCJuYW1lcyI6W10sIm1hcHBpbmdzIjoiQUFBQTs7O2dHQUdnRztBQUVoRyxPQUFPLEtBQUssR0FBRyxNQUFNLG9CQUFvQixDQUFDO0FBQzFDLE9BQU8sRUFBRSxhQUFhLEVBQUUsTUFBTSxzREFBc0QsQ0FBQztBQUVyRixNQUFNLENBQUMsTUFBTSw2QkFBNkIsR0FBRyxrQkFBa0IsQ0FBQztBQUNoRSxNQUFNLENBQUMsTUFBTSxzQkFBc0IsR0FBRywrQkFBK0IsQ0FBQztBQUN0RSxNQUFNLENBQUMsTUFBTSx1QkFBdUIsR0FBRyxxQkFBcUIsQ0FBQztBQUM3RCxNQUFNLENBQUMsTUFBTSw2QkFBNkIsR0FBRyxtQkFBbUIsQ0FBQztBQUNqRSxNQUFNLENBQUMsTUFBTSw2QkFBNkIsR0FBRyxrQkFBa0IsQ0FBQztBQUVoRSxNQUFNLENBQUMsTUFBTSwyQkFBMkIsR0FBRyxpQkFBaUIsQ0FBQztBQUM3RCxNQUFNLENBQUMsTUFBTSwyQkFBMkIsR0FBRyxjQUFjLENBQUM7QUFDMUQsTUFBTSxDQUFDLE1BQU0sNkJBQTZCLEdBQUcseUNBQXlDLENBQUM7QUFDdkYsTUFBTSxDQUFDLE1BQU0sb0JBQW9CLEdBQUcsY0FBYyxDQUFDO0FBQ25ELE1BQU0sQ0FBQyxNQUFNLDZCQUE2QixHQUFHLHNCQUFzQixDQUFDO0FBRXBFLE1BQU0sQ0FBQyxNQUFNLHVCQUF1QixHQUFHLCtCQUErQixDQUFDO0FBQ3ZFLE1BQU0sQ0FBQyxNQUFNLGtCQUFrQixHQUFHLEdBQUcsQ0FBQyxTQUFTLENBQUMsUUFBUSxFQUFFLFlBQVksQ0FBQyxDQUFDO0FBQ3hFLE1BQU0sQ0FBQyxNQUFNLG9CQUFvQixHQUFHLDZCQUE2QixDQUFDO0FBQ2xFLE1BQU0sQ0FBQyxNQUFNLGVBQWUsR0FBRyxHQUFHLENBQUMsU0FBUyxDQUFDLE1BQU0sRUFBRSxNQUFNLENBQUMsQ0FBQztBQUM3RCxNQUFNLENBQUMsTUFBTSx1Q0FBdUMsR0FBRyw4Q0FBOEMsQ0FBQztBQUN0RyxNQUFNLENBQUMsTUFBTSxrQ0FBa0MsR0FBRyxHQUFHLENBQUMsU0FBUyxDQUFDLHVCQUF1QixFQUFFLHlCQUF5QixDQUFDLENBQUM7QUFFcEgsTUFBTSxDQUFDLE1BQU0sbUJBQW1CLEdBQUcsU0FBUyxDQUFDO0FBQzdDLE1BQU0sQ0FBQyxNQUFNLGNBQWMsR0FBRyxHQUFHLENBQUMsU0FBUyxDQUFDLFNBQVMsRUFBRSxVQUFVLENBQUMsQ0FBQztBQUVuRSxNQUFNLENBQUMsTUFBTSw0QkFBNEIsR0FBRyx1Q0FBdUMsQ0FBQztBQUVwRixNQUFNLENBQUMsTUFBTSxxQkFBcUIsR0FBRyxrQ0FBa0MsQ0FBQztBQUV4RSxNQUFNLENBQUMsTUFBTSx1QkFBdUIsR0FBRyxJQUFJLGFBQWEsQ0FBVSwyQkFBMkIsRUFBRSxLQUFLLENBQUMsQ0FBQztBQUN0RyxNQUFNLENBQUMsTUFBTSw2QkFBNkIsR0FBRyxJQUFJLGFBQWEsQ0FBVSxpQ0FBaUMsRUFBRSxLQUFLLENBQUMsQ0FBQztBQUNsSCxNQUFNLENBQUMsTUFBTSxnQ0FBZ0MsR0FBRyxJQUFJLGFBQWEsQ0FBVSxvQ0FBb0MsRUFBRSxLQUFLLENBQUMsQ0FBQztBQUN4SCxNQUFNLENBQUMsTUFBTSx3Q0FBd0MsR0FBRyxJQUFJLGFBQWEsQ0FBVSxtQ0FBbUMsRUFBRSxJQUFJLENBQUMsQ0FBQztBQUM5SCxNQUFNLENBQUMsTUFBTSxpQ0FBaUMsR0FBRyxJQUFJLGFBQWEsQ0FBVSw0QkFBNEIsRUFBRSxLQUFLLENBQUMsQ0FBQztBQUVqSCxNQUFNLENBQUMsTUFBTSw2QkFBNkIsR0FBRyxrQkFBa0IsQ0FBQztBQUNoRSxNQUFNLENBQUMsTUFBTSx3QkFBd0IsR0FBRyxHQUFHLENBQUMsUUFBUSxDQUFDLDJCQUEyQixFQUFFLDhCQUE4QixDQUFDLENBQUM7QUFFbEgsTUFBTSxDQUFDLE1BQU0sMEJBQTBCLEdBQUcsMEJBQTBCLENBQUM7QUFDckUsTUFBTSxDQUFDLE1BQU0sc0JBQXNCLEdBQUcsc0JBQXNCLENBQUM7QUFDN0QsTUFBTSxDQUFDLE1BQU0sdUJBQXVCLEdBQUcsdUJBQXVCLENBQUM7QUFDL0QsTUFBTSxDQUFDLE1BQU0sc0JBQXNCLEdBQUcsc0JBQXNCLENBQUM7QUFDN0QsTUFBTSxDQUFDLE1BQU0sNEJBQTRCLEdBQUcsd0NBQXdDLENBQUM7QUFDckYsTUFBTSxDQUFDLE1BQU0sdUJBQXVCLEdBQUcsR0FBRyxDQUFDLFNBQVMsQ0FBQyxpQkFBaUIsRUFBRSx3QkFBd0IsQ0FBQyxDQUFDO0FBQ2xHLE1BQU0sQ0FBQyxNQUFNLG1CQUFtQixHQUFHLGdDQUFnQyxDQUFDIn0=
