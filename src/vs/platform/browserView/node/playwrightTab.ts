@@ -8,6 +8,8 @@ import type * as playwright from 'playwright-core';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { createCancelablePromise, raceCancellablePromises, timeout } from '../../../base/common/async.js';
+import { URI } from '../../../base/common/uri.js';
+import { IAgentNetworkFilterService } from '../../networkFilter/common/networkFilterService.js';
 
 type IAiAriaSnapshotOptions = NonNullable<Parameters<playwright.Locator['ariaSnapshot']>[0]> & { _track?: string };
 
@@ -51,13 +53,34 @@ export class PlaywrightTab {
 		 * @deprecated prefer accessing the page via safeRunAgainstPage.
 		 * Only use this directly if you are sure it cannot be blocked by dialogs.
 		 */
-		private readonly page: playwright.Page
+		private readonly page: playwright.Page,
+		private readonly agentNetworkFilterService: IAgentNetworkFilterService,
 	) {
 		page.on('console', event => this._handleConsoleMessage(event))
 			.on('pageerror', error => this._handlePageError(error))
 			.on('requestfailed', request => this._handleRequestFailed(request))
 			.on('dialog', dialog => this._handleDialog(dialog))
 			.on('download', download => this._handleDownload(download));
+
+		// Block outgoing network requests according to agent network policy.
+		page.route('**/*', (route) => {
+			const requestUrl = route.request().url();
+			try {
+				const uri = URI.parse(requestUrl);
+				if (!this.agentNetworkFilterService.isUriAllowed(uri)) {
+					this._logs.push({
+						type: 'requestBlocked',
+						time: Date.now(),
+						description: this.agentNetworkFilterService.formatError(uri)
+					});
+					route.abort('blockedbyclient').catch(() => { });
+					return;
+				}
+			} catch {
+				// If we can't parse the URL, let it through
+			}
+			route.continue().catch(() => { });
+		}).catch(() => { });
 
 		this._initialized = this._initialize();
 	}
@@ -130,6 +153,23 @@ export class PlaywrightTab {
 	}
 
 	/**
+	 * Returns a blocked-by-policy error message if the current page URL is
+	 * denied by the network filter, or `undefined` if the URL is allowed.
+	 */
+	private _getBlockedURLErrorMessage(): string | undefined {
+		const url = this.page.url();
+		if (!url || url === 'about:blank') {
+			return undefined;
+		}
+		let uri: URI | undefined;
+		try { uri = URI.parse(url); } catch { }
+		if (uri && !this.agentNetworkFilterService.isUriAllowed(uri)) {
+			return this.agentNetworkFilterService.formatError(uri);
+		}
+		return undefined;
+	}
+
+	/**
 	 * Run a callback against the page and wait for it to complete.
 	 *
 	 * Because dialogs pause the page, execution races against any dialog that opens -- if a dialog
@@ -141,6 +181,12 @@ export class PlaywrightTab {
 	async safeRunAgainstPage<T>(action: (page: playwright.Page, token: CancellationToken) => Promise<T>): Promise<T> {
 		if (this._dialog) {
 			throw new Error(`Cannot perform action while a dialog is open`);
+		}
+
+		// Block agent actions when the current page URL is on the deny list.
+		const blockedError = this._getBlockedURLErrorMessage();
+		if (blockedError) {
+			throw new Error(blockedError);
 		}
 
 		let actionDidComplete = false;
@@ -174,6 +220,14 @@ export class PlaywrightTab {
 
 	async getSummary(full = this._needsFullSnapshot): Promise<string> {
 		await this._initialized;
+
+		// When the current page URL is blocked by network policy, return only a
+		// policy error — do not expose title, URL, console logs, or snapshot to
+		// avoid prompt-injection via blocked content.
+		const blockedError = this._getBlockedURLErrorMessage();
+		if (blockedError) {
+			return blockedError;
+		}
 
 		if (full && this._needsFullSnapshot) {
 			this._needsFullSnapshot = false;

@@ -36,6 +36,7 @@ export {
 	type IAgentInfo,
 	type IContentRef,
 	type IErrorInfo,
+	type IProjectInfo,
 	type IMarkdownResponsePart,
 	type IMessageAttachment,
 	type IReasoningResponsePart,

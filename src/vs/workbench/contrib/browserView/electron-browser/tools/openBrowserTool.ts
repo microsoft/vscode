@@ -6,10 +6,12 @@
 import type { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
+import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../chat/common/tools/languageModelToolsService.js';
+import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
 import { createBrowserPageLink, getExistingPagesResult } from './browserToolHelpers.js';
 
 export const OpenPageToolId = 'open_browser_page';
@@ -47,6 +49,7 @@ export class OpenBrowserTool implements IToolImpl {
 	constructor(
 		@IPlaywrightService private readonly playwrightService: IPlaywrightService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IAgentNetworkFilterService private readonly agentNetworkFilterService: IAgentNetworkFilterService,
 	) { }
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
@@ -55,9 +58,15 @@ export class OpenBrowserTool implements IToolImpl {
 		if (!params.url) {
 			throw new Error('The "url" parameter is required.');
 		}
+
 		const parsed = URL.parse(params.url);
 		if (!parsed) {
 			throw new Error('You must provide a complete, valid URL.');
+		}
+
+		const uri = URI.parse(params.url);
+		if (!this.agentNetworkFilterService.isUriAllowed(uri)) {
+			throw new Error(this.agentNetworkFilterService.formatError(uri));
 		}
 
 		return {
@@ -75,7 +84,7 @@ export class OpenBrowserTool implements IToolImpl {
 		const params = invocation.parameters as IOpenBrowserToolParams;
 
 		if (!params.forceNew) {
-			const existingResult = await getExistingPagesResult(this.editorService, this.playwrightService, params.url);
+			const existingResult = await getExistingPagesResult(this.editorService, this.playwrightService, params.url, { agentNetworkFilterService: this.agentNetworkFilterService });
 			if (existingResult) {
 				return existingResult;
 			}

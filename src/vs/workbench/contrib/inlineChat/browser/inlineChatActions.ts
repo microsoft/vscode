@@ -416,12 +416,12 @@ export class ContinueInlineChatInChatViewAction extends AbstractInlineChatAction
 			id: 'inlineChat2.continueInChat',
 			title: localize2('continueInChat', "Ask in Chat"),
 			icon: Codicon.chatSparkle,
-			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, CTX_HOVER_MODE, CTX_INLINE_CHAT_TERMINATED),
+			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_TERMINATED),
 			menu: [{
 				id: MenuId.ChatEditorInlineExecute,
 				group: 'navigation',
 				order: 2,
-				when: ContextKeyExpr.and(CTX_HOVER_MODE, CTX_INLINE_CHAT_TERMINATED)
+				when: CTX_INLINE_CHAT_TERMINATED
 			}]
 		});
 	}
@@ -437,12 +437,12 @@ export class RephraseInlineChatSessionAction extends AbstractInlineChatAction {
 		super({
 			id: 'inlineChat2.rephrase',
 			title: localize2('rephrase', "Rephrase"),
-			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, CTX_HOVER_MODE, CTX_INLINE_CHAT_TERMINATED),
+			precondition: ContextKeyExpr.and(CTX_INLINE_CHAT_VISIBLE, CTX_INLINE_CHAT_TERMINATED),
 			menu: [{
 				id: MenuId.ChatEditorInlineExecute,
 				group: 'navigation',
 				order: 1,
-				when: ContextKeyExpr.and(CTX_HOVER_MODE, CTX_INLINE_CHAT_TERMINATED)
+				when: CTX_INLINE_CHAT_TERMINATED
 			}]
 		});
 	}
