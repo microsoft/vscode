@@ -29,7 +29,7 @@ class MockApiClient {
 		this._nextResponse = undefined;
 	}
 
-	async request<T>(_method: string, _path: string, _body?: unknown): Promise<T> {
+	async request<T>(_method: string, _path: string, _callSite: string, _body?: unknown): Promise<T> {
 		this.requestCalls.push({ method: _method, path: _path, body: _body });
 		if (this._nextError) {
 			throw this._nextError;
@@ -37,7 +37,7 @@ class MockApiClient {
 		return this._nextResponse as T;
 	}
 
-	async graphql<T>(query: string, variables?: Record<string, unknown>): Promise<T> {
+	async graphql<T>(query: string, _callSite: string, variables?: Record<string, unknown>): Promise<T> {
 		this.graphqlCalls.push({ query, variables });
 		if (this._nextError) {
 			throw this._nextError;
@@ -303,6 +303,19 @@ suite('GitHubPRCIFetcher', () => {
 		assert.ok(result.includes('[failure] src/a.ts:10'));
 		assert.ok(result.includes('(TS2345)'));
 		assert.ok(result.includes('[warning] src/b.ts:5-8'));
+	});
+
+	test('rerunFailedJobs sends POST to correct endpoint', async () => {
+		mockApi.setNextResponse(undefined);
+
+		await fetcher.rerunFailedJobs('myOwner', 'myRepo', 12345);
+
+		assert.strictEqual(mockApi.requestCalls.length, 1);
+		assert.deepStrictEqual(mockApi.requestCalls[0], {
+			method: 'POST',
+			path: '/repos/myOwner/myRepo/actions/runs/12345/rerun-failed-jobs',
+			body: undefined,
+		});
 	});
 });
 

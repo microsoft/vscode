@@ -23,16 +23,19 @@ jobs:
   check-version-changes:
     name: Check API Proposal Version Changes
     # Run on PR events, or on issue_comment if it's on a PR and contains the override command
-    if: false # temporarily disabled
-      # github.event_name == 'pull_request' ||
-      # (github.event_name == 'issue_comment' &&
-      #  github.event.issue.pull_request &&
-      #  contains(github.event.comment.body, '/api-proposal-change-required'))
+    if: |
+      github.event_name == 'pull_request' ||
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request &&
+       contains(github.event.comment.body, '/api-proposal-change-required') &&
+       (github.event.comment.author_association == 'OWNER' ||
+        github.event.comment.author_association == 'MEMBER' ||
+        github.event.comment.author_association == 'COLLABORATOR'))
     runs-on: ubuntu-latest
     steps:
       - name: Get PR info
         id: pr_info
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             let prNumber, headSha, baseSha;
@@ -59,7 +62,7 @@ jobs:
 
       - name: Check for override comment
         id: check_override
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const prNumber = ${{ steps.pr_info.outputs.number }};
@@ -71,25 +74,50 @@ jobs:
 
             // Only accept overrides from trusted users (repo members/collaborators)
             const trustedAssociations = ['OWNER', 'MEMBER', 'COLLABORATOR'];
-            const overrideComment = comments.find(comment =>
-              comment.body.includes('/api-proposal-change-required') &&
-              trustedAssociations.includes(comment.author_association)
-            );
+            let overrideComment = null;
+            const untrustedOverrides = [];
+
+            comments.forEach((comment, index) => {
+              const hasOverrideText = comment.body.includes('/api-proposal-change-required');
+              const isTrusted = trustedAssociations.includes(comment.author_association);
+              console.log(`Comment ${index + 1}:`);
+              console.log(`  Author: ${comment.user.login}`);
+              console.log(`  Author association: ${comment.author_association}`);
+              console.log(`  Created at: ${comment.created_at}`);
+              console.log(`  Contains override command: ${hasOverrideText}`);
+              console.log(`  Author is trusted: ${isTrusted}`);
+              console.log(`  Would be valid override: ${hasOverrideText && isTrusted}`);
+
+              if (hasOverrideText) {
+                if (isTrusted && !overrideComment) {
+                  overrideComment = comment;
+                } else if (!isTrusted) {
+                  untrustedOverrides.push(comment);
+                }
+              }
+            });
 
             if (overrideComment) {
-              console.log(`Override comment found by ${overrideComment.user.login} (${overrideComment.author_association})`);
+              console.log(`✅ Override comment FOUND`);
+              console.log(`  Comment ID: ${overrideComment.id}`);
+              console.log(`  Author: ${overrideComment.user.login}`);
+              console.log(`  Association: ${overrideComment.author_association}`);
+              console.log(`  Created at: ${overrideComment.created_at}`);
               core.setOutput('override_found', 'true');
               core.setOutput('override_user', overrideComment.user.login);
             } else {
-              // Check if there's an override from an untrusted user
-              const untrustedOverride = comments.find(comment =>
-                comment.body.includes('/api-proposal-change-required') &&
-                !trustedAssociations.includes(comment.author_association)
-              );
-              if (untrustedOverride) {
-                console.log(`Override comment by ${untrustedOverride.user.login} ignored (${untrustedOverride.author_association} is not trusted)`);
+              if (untrustedOverrides.length > 0) {
+                console.log(`⚠️ Found ${untrustedOverrides.length} override comment(s) from UNTRUSTED user(s):`);
+                untrustedOverrides.forEach((comment, index) => {
+                  console.log(`  Untrusted override ${index + 1}:`);
+                  console.log(`    Author: ${comment.user.login}`);
+                  console.log(`    Association: ${comment.author_association}`);
+                  console.log(`    Created at: ${comment.created_at}`);
+                  console.log(`    Comment ID: ${comment.id}`);
+                });
+                console.log(`  Trusted associations are: ${trustedAssociations.join(', ')}`);
               }
-              console.log('No valid override comment found');
+              console.log('❌ No valid override comment found');
               core.setOutput('override_found', 'false');
             }
 
@@ -102,7 +130,7 @@ jobs:
           (github.event.comment.author_association == 'OWNER' ||
            github.event.comment.author_association == 'MEMBER' ||
            github.event.comment.author_association == 'COLLABORATOR')
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const headSha = '${{ steps.pr_info.outputs.head_sha }}';
@@ -213,7 +241,7 @@ jobs:
 
       - name: Post warning comment
         if: steps.check_override.outputs.override_found != 'true' && steps.version_check.outputs.version_changed == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const prNumber = ${{ steps.pr_info.outputs.number }};

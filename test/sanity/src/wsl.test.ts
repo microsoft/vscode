@@ -149,6 +149,7 @@ export function setup(context: TestContext) {
 		const args = [
 			'--extensions-dir', context.createTempDir(),
 			'--user-data-dir', test.userDataDir,
+			'--skip-welcome',
 			'--folder-uri', `vscode-remote://wsl+${wslDistro}${wslWorkspaceDir}`,
 		];
 
@@ -157,11 +158,16 @@ export function setup(context: TestContext) {
 		try {
 			const window = await context.getPage(app.firstWindow());
 
-			context.log('Installing WSL extension');
-			await window.getByRole('button', { name: 'Install and Reload' }).click();
+			try {
+				context.log('Installing WSL extension');
+				await window.getByRole('button', { name: 'Install and Reload' }).click();
 
-			context.log('Waiting for WSL connection');
-			await window.getByText(/WSL/).waitFor();
+				context.log('Waiting for WSL connection');
+				await window.getByText(/WSL/).waitFor();
+			} catch (error) {
+				await context.captureScreenshot(window);
+				throw error;
+			}
 
 			await test.run(window);
 		} finally {

@@ -26,6 +26,7 @@ export function isContributionDisabled(state: ContributionEnablementState): bool
 export interface IEnablementModel {
 	readEnabled(key: string, reader?: IReader): ContributionEnablementState;
 	setEnabled(key: string, state: ContributionEnablementState): void;
+	remove(key: string): void;
 }
 
 type EnablementMap = ReadonlyMap<string, boolean>;
@@ -118,6 +119,11 @@ export class EnablementModel extends Disposable implements IEnablementModel {
 				break;
 			}
 		}
+	}
+
+	remove(key: string): void {
+		this._deleteFromMap(this._profileState, key);
+		this._deleteFromMap(this._workspaceState, key);
 	}
 
 	private _setInMap(memento: ObservableMemento<EnablementMap>, key: string, value: boolean): void {

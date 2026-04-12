@@ -167,10 +167,19 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 			const results = await this.installGalleryExtensions([{ extension, options }]);
 			const result = results.find(({ identifier }) => areSameExtensions(identifier, extension.identifier));
 			if (result?.local) {
-				return result?.local;
+				return result.local;
 			}
 			if (result?.error) {
 				throw result.error;
+			}
+			// Extension might have been redirected due to deprecation (e.g., github.copilot -> github.copilot-chat)
+			// In this case, the result will have the redirected extension's identifier
+			const redirectedResult = results[0];
+			if (redirectedResult?.local) {
+				return redirectedResult.local;
+			}
+			if (redirectedResult?.error) {
+				throw redirectedResult.error;
 			}
 			throw new ExtensionManagementError(`Unknown error while installing extension ${extension.identifier.id}`, ExtensionManagementErrorCode.Unknown);
 		} catch (error) {
@@ -322,11 +331,16 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 		};
 
 		try {
+			const systemExtensions = await this.getInstalled(ExtensionType.System);
 			// Start installing extensions
 			for (const { manifest, extension, options } of extensions) {
-				const isApplicationScoped = options.isApplicationScoped || options.isBuiltin || isApplicationScopedExtension(manifest);
+				const extensionId = getGalleryExtensionId(manifest.publisher, manifest.name);
+				const isSystemExtension = systemExtensions.some(e => areSameExtensions(e.identifier, { id: extensionId }));
+				const isBuiltin = options.isBuiltin || isSystemExtension;
+				const isApplicationScoped = options.isApplicationScoped || isBuiltin || isApplicationScopedExtension(manifest);
 				const installExtensionTaskOptions: InstallExtensionTaskOptions = {
 					...options,
+					isBuiltin,
 					isApplicationScoped,
 					profileLocation: isApplicationScoped ? this.userDataProfilesService.defaultProfile.extensionsResource : options.profileLocation ?? this.getCurrentExtensionsManifestLocation(),
 					productVersion: options.productVersion ?? { version: this.productService.version, date: this.productService.date }

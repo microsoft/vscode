@@ -11,9 +11,11 @@ import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { getPromptFileDefaultLocations } from '../../common/promptSyntax/config/promptFileLocations.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { URI } from '../../../../../base/common/uri.js';
+import { isEqualOrParent } from '../../../../../base/common/resources.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { localize } from '../../../../../nls.js';
+import { ICustomizationHarnessService, matchesWorkspaceSubpath } from '../../common/customizationHarnessService.js';
 
 /**
  * Service that opens an AI-guided chat session to help the user create
@@ -32,6 +34,7 @@ export class CustomizationCreatorService {
 		@IAICustomizationWorkspaceService private readonly workspaceService: IAICustomizationWorkspaceService,
 		@IPromptsService private readonly promptsService: IPromptsService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
+		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 	) { }
 
 	async createWithAI(type: PromptsType): Promise<void> {
@@ -58,7 +61,10 @@ export class CustomizationCreatorService {
 		// directory and have those changes tracked.
 
 		// Capture project root BEFORE opening new chat (which may change active session)
-		const targetDir = this.resolveTargetDirectory(type);
+		const targetDir = await this.resolveTargetDirectoryWithPicker(type);
+		if (targetDir === null) {
+			return; // User cancelled the picker
+		}
 		const systemInstructions = buildAgentInstructions(type, targetDir, trimmedName);
 		const userMessage = buildUserMessage(type, targetDir, trimmedName);
 
@@ -93,6 +99,65 @@ export class CustomizationCreatorService {
 	 */
 	resolveTargetDirectory(type: PromptsType): URI | undefined {
 		return resolveWorkspaceTargetDirectory(this.workspaceService, type);
+	}
+
+	/**
+	 * Resolves the workspace directory for a new customization file.
+	 * If multiple local source folders exist, shows a picker to let the user choose.
+	 *
+	 * @returns the resolved URI, `undefined` when no folder is available,
+	 *          or `null` when the user cancelled the picker.
+	 */
+	private async resolveTargetDirectoryWithPicker(type: PromptsType): Promise<URI | undefined | null> {
+		const allFolders = await this.promptsService.getSourceFolders(type);
+		const projectRoot = this.workspaceService.getActiveProjectRoot();
+		const descriptor = this.harnessService.getActiveDescriptor();
+		const subpaths = descriptor.workspaceSubpaths;
+
+		// Filter to only workspace-scoped folders (under the active project root).
+		// Don't rely on storage tags — tilde-expanded user paths can be tagged local.
+		// Deduplicate by URI to avoid inflated counts and duplicate picker entries.
+		// When the active harness specifies workspaceSubpaths, further restrict to
+		// directories whose path includes one of those sub-paths (e.g. `.claude`).
+		const seen = new Set<string>();
+		const workspaceFolders = projectRoot
+			? allFolders.filter(f => {
+				if (!isEqualOrParent(f.uri, projectRoot)) {
+					return false;
+				}
+				const key = f.uri.toString();
+				if (seen.has(key)) {
+					return false;
+				}
+				seen.add(key);
+				if (subpaths) {
+					return matchesWorkspaceSubpath(f.uri.path, subpaths);
+				}
+				return true;
+			})
+			: [];
+
+		if (workspaceFolders.length === 0) {
+			// No workspace folders — fall back to the existing resolution logic
+			return this.resolveTargetDirectory(type);
+		}
+
+		if (workspaceFolders.length === 1) {
+			return workspaceFolders[0].uri;
+		}
+
+		// Multiple directories — ask the user which one to use
+		const items = workspaceFolders.map(folder => ({
+			label: this.promptsService.getPromptLocationLabel(folder),
+			description: folder.uri.fsPath,
+			uri: folder.uri,
+		}));
+
+		const picked = await this.quickInputService.pick(items, {
+			placeHolder: localize('selectTargetDirectory', "Select a directory for the new customization file"),
+		});
+
+		return picked?.uri ?? null;
 	}
 
 	/**

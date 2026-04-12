@@ -385,9 +385,9 @@ export async function main(argv: string[]): Promise<void> {
 
 			const filenamePrefix = randomPath(homedir(), 'prof');
 
-			addArg(argv, `--inspect-brk=${profileHost}:${portMain}`);
-			addArg(argv, `--remote-debugging-port=${profileHost}:${portRenderer}`);
-			addArg(argv, `--inspect-brk-extensions=${profileHost}:${portExthost}`);
+			addArg(argv, `--inspect-brk=${portMain}`);
+			addArg(argv, `--remote-debugging-port=${portRenderer}`);
+			addArg(argv, `--inspect-brk-extensions=${portExthost}`);
 			addArg(argv, `--prof-startup-prefix`, filenamePrefix);
 			addArg(argv, `--no-cached-data`);
 
@@ -484,8 +484,23 @@ export async function main(argv: string[]): Promise<void> {
 			if (!args.verbose && args.status) {
 				options['stdio'] = ['ignore', 'pipe', 'ignore']; // restore ability to see output when --status is used
 			}
-			// We spawn process.execPath directly
-			child = spawn(process.execPath, argv.slice(2), options);
+
+			// Figure out the app to launch: with --agents we try to launch the embedded app on Windows
+			let execToLaunch = process.execPath;
+			if (isWindows && args.agents && product.embedded?.win32SiblingExeBasename) {
+				const siblingExe = join(dirname(process.execPath), `${product.embedded.win32SiblingExeBasename}.exe`);
+				try {
+					if (existsSync(siblingExe) && statSync(siblingExe).isFile()) {
+						execToLaunch = siblingExe;
+						argv = argv.filter(arg => arg !== '--agents');
+					}
+				} catch (error) {
+					/* may not exist on disk */
+				}
+			}
+
+			// We spawn the resolved executable directly
+			child = spawn(execToLaunch, argv.slice(2), options);
 		} else {
 			// On macOS, we spawn using the open command to obtain behavior
 			// similar to if the app was launched from the dock
@@ -500,9 +515,9 @@ export async function main(argv: string[]): Promise<void> {
 			//    focusing issues when the new instance only sends data to a previous instance and then closes.
 			const spawnArgs = ['-n', '-g'];
 
-			// Figure out the app to launch: with --sessions we try to launch the embedded app
+			// Figure out the app to launch: with --agents we try to launch the embedded app
 			let appToLaunch = process.execPath;
-			if (args.sessions) {
+			if (args.agents) {
 				// process.execPath is e.g. /Applications/Code.app/Contents/MacOS/Electron
 				// Embedded app is at /Applications/Code.app/Contents/Applications/<EmbeddedApp>.app
 				const contentsPath = dirname(dirname(process.execPath));
@@ -512,7 +527,7 @@ export async function main(argv: string[]): Promise<void> {
 					const embeddedApp = files.find(file => file.endsWith('.app'));
 					if (embeddedApp) {
 						appToLaunch = join(applicationsPath, embeddedApp);
-						argv = argv.filter(arg => arg !== '--sessions');
+						argv = argv.filter(arg => arg !== '--agents');
 					}
 				} catch (error) {
 					/* may not exist on disk */

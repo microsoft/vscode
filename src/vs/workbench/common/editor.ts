@@ -855,7 +855,13 @@ export const enum EditorInputCapabilities {
 	 * Signals that the editor should be revealed when being
 	 * opened if it is already opened in any editor group.
 	 */
-	ForceReveal = 1 << 10
+	ForceReveal = 1 << 10,
+
+	/**
+	 * Signals that the editor must be opened in a modal editor
+	 * part, overriding the `workbench.editor.useModal` setting.
+	 */
+	RequiresModal = 1 << 11
 }
 
 export type IUntypedEditorInput = IResourceEditorInput | ITextResourceEditorInput | IUntitledTextResourceEditorInput | IResourceDiffEditorInput | IResourceMultiDiffEditorInput | IResourceSideBySideEditorInput | IResourceMergeEditorInput;

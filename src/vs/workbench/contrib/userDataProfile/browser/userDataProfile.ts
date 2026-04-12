@@ -7,6 +7,7 @@ import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../
 import { isWeb } from '../../../../base/common/platform.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../nls.js';
+import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, ContextKeyExpression, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IUserDataProfile, IUserDataProfilesService } from '../../../../platform/userDataProfile/common/userDataProfile.js';
@@ -26,7 +27,7 @@ import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/edit
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
 import { UserDataProfilesEditor, UserDataProfilesEditorInput, UserDataProfilesEditorInputSerializer } from './userDataProfilesEditor.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
-import { IEditorService, MODAL_GROUP } from '../../../services/editor/common/editorService.js';
+import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IUserDataProfilesEditor } from '../common/userDataProfile.js';
@@ -107,7 +108,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 	}
 
 	private async openProfilesEditor(): Promise<IUserDataProfilesEditor | undefined> {
-		const editor = await this.editorService.openEditor(new UserDataProfilesEditorInput(this.instantiationService), undefined, MODAL_GROUP);
+		const editor = await this.editorService.openEditor(new UserDataProfilesEditorInput(this.instantiationService));
 		return editor as IUserDataProfilesEditor;
 	}
 
@@ -196,7 +197,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			submenu: ProfilesMenu,
 			group: '2_configuration',
 			order: 1,
-			when: HAS_PROFILES_CONTEXT
+			when: ContextKeyExpr.and(HAS_PROFILES_CONTEXT, IsSessionsWindowContext.negate())
 		});
 	}
 
@@ -206,6 +207,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			submenu: OpenProfileMenu,
 			group: '1_new',
 			order: 4,
+			when: IsSessionsWindowContext.negate()
 		});
 	}
 
@@ -375,7 +377,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 							id: MenuId.MenubarPreferencesMenu,
 							group: '2_configuration',
 							order: 1,
-							when: HAS_PROFILES_CONTEXT.negate()
+							when: ContextKeyExpr.and(HAS_PROFILES_CONTEXT.negate(), IsSessionsWindowContext.negate())
 						},
 						{
 							id: ProfilesMenu,
@@ -388,7 +390,7 @@ export class UserDataProfilesWorkbenchContribution extends Disposable implements
 			run(accessor: ServicesAccessor) {
 				const editorService = accessor.get(IEditorService);
 				const instantiationService = accessor.get(IInstantiationService);
-				return editorService.openEditor(new UserDataProfilesEditorInput(instantiationService), undefined, MODAL_GROUP);
+				return editorService.openEditor(new UserDataProfilesEditorInput(instantiationService));
 			}
 		}));
 		disposables.add(MenuRegistry.appendMenuItem(MenuId.CommandPalette, {

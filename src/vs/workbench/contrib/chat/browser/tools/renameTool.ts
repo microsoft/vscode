@@ -15,6 +15,7 @@ import { TextEdit } from '../../../../../editor/common/languages.js';
 import { IBulkEditService, ResourceTextEdit } from '../../../../../editor/browser/services/bulkEditService.js';
 import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+import { ILanguageService } from '../../../../../editor/common/languages/language.js';
 import { rename } from '../../../../../editor/contrib/rename/browser/rename.js';
 import { localize } from '../../../../../nls.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
@@ -53,6 +54,7 @@ export class RenameTool extends Disposable implements IToolImpl {
 
 	constructor(
 		@ILanguageFeaturesService private readonly _languageFeaturesService: ILanguageFeaturesService,
+		@ILanguageService private readonly _languageService: ILanguageService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@IChatService private readonly _chatService: IChatService,
@@ -67,26 +69,31 @@ export class RenameTool extends Disposable implements IToolImpl {
 		)((() => this._onDidUpdateToolData.fire())));
 	}
 
-	getToolData(): IToolData {
+	getToolData(): IToolData | undefined {
 		const languageIds = this._languageFeaturesService.renameProvider.registeredLanguageIds;
 
-		let modelDescription = BaseModelDescription;
-		if (languageIds.has('*')) {
-			modelDescription += '\n\nSupported for all languages.';
-		} else if (languageIds.size > 0) {
-			const sorted = [...languageIds].sort();
-			modelDescription += `\n\nCurrently supported for: ${sorted.join(', ')}.`;
-		} else {
-			modelDescription += '\n\nNo languages currently have rename providers registered.';
+		if (languageIds.size === 0) {
+			return undefined;
 		}
 
+		let modelDescription = BaseModelDescription;
+		let userDescription: string;
+		if (languageIds.has('*')) {
+			modelDescription += '\n\nSupported for all languages.';
+			userDescription = localize('tool.rename.userDescription', 'Rename a symbol across the workspace');
+		} else {
+			const sorted = [...languageIds].sort();
+			modelDescription += `\n\nCurrently supported for: ${sorted.join(', ')}.`;
+			const niceNames = sorted.map(id => this._languageService.getLanguageName(id) ?? id);
+			userDescription = localize('tool.rename.userDescriptionWithLanguages', 'Rename a symbol across the workspace ({0})', niceNames.join(', '));
+		}
 		return {
 			id: RenameToolId,
 			toolReferenceName: 'rename',
 			canBeReferencedInPrompt: false,
 			icon: ThemeIcon.fromId(Codicon.rename.id),
 			displayName: localize('tool.rename.displayName', 'Rename Symbol'),
-			userDescription: localize('tool.rename.userDescription', 'Rename a symbol across the workspace'),
+			userDescription,
 			modelDescription,
 			source: ToolDataSource.Internal,
 			when: ContextKeyExpr.has('config.chat.tools.renameTool.enabled'),
@@ -251,9 +258,12 @@ export class RenameToolContribution extends Disposable implements IWorkbenchCont
 		let registration: IDisposable | undefined;
 		const registerRenameTool = () => {
 			registration?.dispose();
+			registration = undefined;
 			toolsService.flushToolUpdates();
 			const toolData = renameTool.getToolData();
-			registration = toolsService.registerTool(toolData, renameTool);
+			if (toolData) {
+				registration = toolsService.registerTool(toolData, renameTool);
+			}
 		};
 		registerRenameTool();
 		this._store.add(renameTool.onDidUpdateToolData(registerRenameTool));

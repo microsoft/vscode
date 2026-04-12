@@ -330,6 +330,15 @@ export interface IToolConfirmationMessages {
 	confirmationNotNeededReason?: string | IMarkdownString;
 	/** Custom button labels to display instead of the default Allow/Skip buttons. */
 	customButtons?: string[];
+	/** When set, shows an additional approval option to approve this particular combination of tool and arguments */
+	approveCombination?: {
+		/** Human-readable label for the approval option */
+		label: string | IMarkdownString;
+		/** Precomputed SHA-256 key for the combination (set during tool preparation) */
+		key: string;
+		/** String representation of the arguments for this combination */
+		arguments?: string;
+	};
 }
 
 export interface IToolConfirmationAction {
@@ -365,6 +374,7 @@ export interface IPreparedToolInvocation {
 	originMessage?: string | IMarkdownString;
 	confirmationMessages?: IToolConfirmationMessages;
 	presentation?: ToolInvocationPresentation;
+	icon?: ThemeIcon;
 	toolSpecificData?: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatExtensionsContent | IChatTodoListContent | IChatSubagentToolInvocationData | IChatSimpleToolInvocationData | IChatModifiedFilesConfirmationData;
 }
 

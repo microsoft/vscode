@@ -101,6 +101,16 @@
 	flex-shrink: 0;
 }
 
+.chat-context-usage-details .quota-indicator.warning .output-buffer-swatch {
+	background: repeating-linear-gradient(
+		-45deg,
+		var(--vscode-gauge-warningForeground),
+		var(--vscode-gauge-warningForeground) 2px,
+		transparent 2px,
+		transparent 4px
+	);
+}
+
 .chat-context-usage-details .quota-indicator.warning .quota-bar {
 	background-color: var(--vscode-gauge-warningBackground);
 }
@@ -114,6 +124,16 @@
 		-45deg,
 		var(--vscode-gauge-warningForeground),
 		var(--vscode-gauge-warningForeground) 2px,
+		transparent 2px,
+		transparent 4px
+	);
+}
+
+.chat-context-usage-details .quota-indicator.error .output-buffer-swatch {
+	background: repeating-linear-gradient(
+		-45deg,
+		var(--vscode-gauge-errorForeground),
+		var(--vscode-gauge-errorForeground) 2px,
 		transparent 2px,
 		transparent 4px
 	);

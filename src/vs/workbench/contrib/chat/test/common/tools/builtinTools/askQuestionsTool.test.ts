@@ -7,6 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../../../../../platform/log/common/log.js';
 import { NullTelemetryService } from '../../../../../../../platform/telemetry/common/telemetryUtils.js';
+import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IChatQuestionAnswers, IChatService } from '../../../../common/chatService/chatService.js';
 import { AskQuestionsTool, IAnswerResult, IQuestion, IQuestionAnswer } from '../../../../common/tools/builtinTools/askQuestionsTool.js';
 
@@ -30,7 +31,8 @@ suite('AskQuestionsTool - convertCarouselAnswers', () => {
 		tool = store.add(new TestableAskQuestionsTool(
 			null! as IChatService,
 			NullTelemetryService,
-			new NullLogService()
+			new NullLogService(),
+			new TestConfigurationService()
 		));
 	});
 

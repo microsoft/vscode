@@ -92,6 +92,7 @@ import { IExtHostSearch } from './extHostSearch.js';
 import { IExtHostSecretState } from './extHostSecretState.js';
 import { ExtHostShare } from './extHostShare.js';
 import { ExtHostSpeech } from './extHostSpeech.js';
+import { ExtHostBrowsers } from './extHostBrowsers.js';
 import { ExtHostStatusBar } from './extHostStatusBar.js';
 import { IExtHostStorage } from './extHostStorage.js';
 import { IExtensionStoragePaths } from './extHostStoragePaths.js';
@@ -238,7 +239,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	rpcProtocol.set(ExtHostContext.ExtHostInteractive, new ExtHostInteractive(rpcProtocol, extHostNotebook, extHostDocumentsAndEditors, extHostCommands, extHostLogService));
 	const extHostLanguageModelTools = rpcProtocol.set(ExtHostContext.ExtHostLanguageModelTools, new ExtHostLanguageModelTools(rpcProtocol, extHostLanguageModels));
 	const extHostChatSessions = rpcProtocol.set(ExtHostContext.ExtHostChatSessions, new ExtHostChatSessions(extHostCommands, extHostLanguageModels, rpcProtocol, extHostLogService));
-	const extHostChatAgents2 = rpcProtocol.set(ExtHostContext.ExtHostChatAgents2, new ExtHostChatAgents2(rpcProtocol, extHostLogService, extHostCommands, extHostDocuments, extHostDocumentsAndEditors, extHostLanguageModels, extHostDiagnostics, extHostLanguageModelTools));
+	const extHostChatAgents2 = rpcProtocol.set(ExtHostContext.ExtHostChatAgents2, new ExtHostChatAgents2(rpcProtocol, extHostLogService, extHostCommands, extHostDocuments, extHostDocumentsAndEditors, extHostLanguageModels, extHostDiagnostics, extHostLanguageModelTools, extHostChatSessions));
 	const extHostChatContext = rpcProtocol.set(ExtHostContext.ExtHostChatContext, new ExtHostChatContext(rpcProtocol, extHostCommands));
 	const extHostChatDebug = rpcProtocol.set(ExtHostContext.ExtHostChatDebug, new ExtHostChatDebug(rpcProtocol));
 	const extHostAiRelatedInformation = rpcProtocol.set(ExtHostContext.ExtHostAiRelatedInformation, new ExtHostRelatedInformation(rpcProtocol));
@@ -247,6 +248,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 	const extHostStatusBar = rpcProtocol.set(ExtHostContext.ExtHostStatusBar, new ExtHostStatusBar(rpcProtocol, extHostCommands.converter));
 	const extHostSpeech = rpcProtocol.set(ExtHostContext.ExtHostSpeech, new ExtHostSpeech(rpcProtocol));
 	const extHostEmbeddings = rpcProtocol.set(ExtHostContext.ExtHostEmbeddings, new ExtHostEmbeddings(rpcProtocol));
+	const extHostBrowsers = rpcProtocol.set(ExtHostContext.ExtHostBrowsers, new ExtHostBrowsers(rpcProtocol));
 
 	rpcProtocol.set(ExtHostContext.ExtHostMcp, accessor.get(IExtHostMpcService));
 
@@ -351,11 +353,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 		// namespace: commands
 		const commands: typeof vscode.commands = {
-			registerCommand(id: string, command: <T>(...args: any[]) => T | Thenable<T>, thisArgs?: any): vscode.Disposable {
+			registerCommand(id: string, command: <T>(...args: unknown[]) => T | Thenable<T>, thisArgs?: unknown): vscode.Disposable {
 				return extHostCommands.registerCommand(true, id, command, thisArgs, undefined, extension);
 			},
-			registerTextEditorCommand(id: string, callback: (textEditor: vscode.TextEditor, edit: vscode.TextEditorEdit, ...args: any[]) => void, thisArg?: any): vscode.Disposable {
-				return extHostCommands.registerCommand(true, id, (...args: any[]): any => {
+			registerTextEditorCommand(id: string, callback: (textEditor: vscode.TextEditor, edit: vscode.TextEditorEdit, ...args: unknown[]) => void, thisArg?: unknown): vscode.Disposable {
+				return extHostCommands.registerCommand(true, id, (...args: unknown[]): any => {
 					const activeTextEditor = extHostEditors.getActiveTextEditor();
 					if (!activeTextEditor) {
 						extHostLogService.warn('Cannot execute ' + id + ' because there is no active text editor.');
@@ -364,7 +366,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 
 					return activeTextEditor.edit((edit: vscode.TextEditorEdit) => {
 						callback.apply(thisArg, [activeTextEditor, edit, ...args]);
-
 					}).then((result) => {
 						if (!result) {
 							extHostLogService.warn('Edits from command ' + id + ' were not applied.');
@@ -374,9 +375,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					});
 				}, undefined, undefined, extension);
 			},
-			registerDiffInformationCommand: (id: string, callback: (diff: vscode.LineChange[], ...args: any[]) => any, thisArg?: any): vscode.Disposable => {
+			registerDiffInformationCommand: (id: string, callback: (diff: vscode.LineChange[], ...args: unknown[]) => any, thisArg?: unknown): vscode.Disposable => {
 				checkProposedApiEnabled(extension, 'diffCommand');
-				return extHostCommands.registerCommand(true, id, async (...args: any[]): Promise<any> => {
+				return extHostCommands.registerCommand(true, id, async (...args: unknown[]): Promise<any> => {
 					const activeTextEditor = extHostDocumentsAndEditors.activeEditor(true);
 					if (!activeTextEditor) {
 						extHostLogService.warn('Cannot execute ' + id + ' because there is no active text editor.');
@@ -387,7 +388,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 					callback.apply(thisArg, [diff, ...args]);
 				}, undefined, undefined, extension);
 			},
-			executeCommand<T>(id: string, ...args: any[]): Thenable<T> {
+			executeCommand<T>(id: string, ...args: unknown[]): Thenable<T> {
 				return extHostCommands.executeCommand<T>(id, ...args);
 			},
 			getCommands(filterInternal: boolean = false): Thenable<string[]> {
@@ -1059,6 +1060,34 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatParticipantPrivate');
 				return _asExtensionEvent(extHostChatAgents2.onDidChangeActiveChatPanelSessionResource)(listeners, thisArgs, disposables);
 			},
+			get browserTabs() {
+				checkProposedApiEnabled(extension, 'browser');
+				return extHostBrowsers.browserTabs;
+			},
+			onDidOpenBrowserTab(listener, thisArg?, disposables?) {
+				checkProposedApiEnabled(extension, 'browser');
+				return _asExtensionEvent(extHostBrowsers.onDidOpenBrowserTab)(listener, thisArg, disposables);
+			},
+			onDidCloseBrowserTab(listener, thisArg?, disposables?) {
+				checkProposedApiEnabled(extension, 'browser');
+				return _asExtensionEvent(extHostBrowsers.onDidCloseBrowserTab)(listener, thisArg, disposables);
+			},
+			get activeBrowserTab() {
+				checkProposedApiEnabled(extension, 'browser');
+				return extHostBrowsers.activeBrowserTab;
+			},
+			onDidChangeActiveBrowserTab(listener, thisArg?, disposables?) {
+				checkProposedApiEnabled(extension, 'browser');
+				return _asExtensionEvent(extHostBrowsers.onDidChangeActiveBrowserTab)(listener, thisArg, disposables);
+			},
+			onDidChangeBrowserTabState(listener, thisArg?, disposables?) {
+				checkProposedApiEnabled(extension, 'browser');
+				return _asExtensionEvent(extHostBrowsers.onDidChangeBrowserTabState)(listener, thisArg, disposables);
+			},
+			openBrowserTab(url: string, options?: vscode.BrowserTabShowOptions) {
+				checkProposedApiEnabled(extension, 'browser');
+				return extHostBrowsers.openBrowserTab(url, options);
+			},
 		};
 
 		// namespace: workspace
@@ -1304,13 +1333,13 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			onDidRenameFiles: (listener, thisArg, disposables) => {
 				return _asExtensionEvent(extHostFileSystemEvent.onDidRenameFile)(listener, thisArg, disposables);
 			},
-			onWillCreateFiles: (listener: (e: vscode.FileWillCreateEvent) => any, thisArg?: any, disposables?: vscode.Disposable[]) => {
+			onWillCreateFiles: (listener: (e: vscode.FileWillCreateEvent) => any, thisArg?: unknown, disposables?: vscode.Disposable[]) => {
 				return _asExtensionEvent(extHostFileSystemEvent.getOnWillCreateFileEvent(extension))(listener, thisArg, disposables);
 			},
-			onWillDeleteFiles: (listener: (e: vscode.FileWillDeleteEvent) => any, thisArg?: any, disposables?: vscode.Disposable[]) => {
+			onWillDeleteFiles: (listener: (e: vscode.FileWillDeleteEvent) => any, thisArg?: unknown, disposables?: vscode.Disposable[]) => {
 				return _asExtensionEvent(extHostFileSystemEvent.getOnWillDeleteFileEvent(extension))(listener, thisArg, disposables);
 			},
-			onWillRenameFiles: (listener: (e: vscode.FileWillRenameEvent) => any, thisArg?: any, disposables?: vscode.Disposable[]) => {
+			onWillRenameFiles: (listener: (e: vscode.FileWillRenameEvent) => any, thisArg?: unknown, disposables?: vscode.Disposable[]) => {
 				return _asExtensionEvent(extHostFileSystemEvent.getOnWillRenameFileEvent(extension))(listener, thisArg, disposables);
 			},
 			openTunnel: (forward: vscode.TunnelOptions) => {
@@ -1676,13 +1705,25 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatPromptFiles');
 				return extHostChatAgents2.registerPromptFileProvider(extension, PromptsType.skill, provider);
 			},
+			registerHookProvider(provider: vscode.ChatHookProvider): vscode.Disposable {
+				checkProposedApiEnabled(extension, 'chatPromptFiles');
+				return extHostChatAgents2.registerPromptFileProvider(extension, PromptsType.hook, provider);
+			},
 			registerChatDebugLogProvider(provider: vscode.ChatDebugLogProvider): vscode.Disposable {
 				checkProposedApiEnabled(extension, 'chatDebug');
 				return extHostChatDebug.registerChatDebugLogProvider(provider);
 			},
+			onDidReceiveChatDebugEvent: (listener, thisArgs?, disposables?) => {
+				checkProposedApiEnabled(extension, 'chatDebug');
+				return extHostChatDebug.onDidAddCoreEvent(listener, thisArgs, disposables);
+			},
 			get customAgents() {
 				checkProposedApiEnabled(extension, 'chatPromptFiles');
-				return extHostChatAgents2.customAgents as readonly vscode.ChatResource[];
+				return extHostChatAgents2.customAgents as readonly vscode.ChatCustomAgent[];
+			},
+			getCustomAgents(token: vscode.CancellationToken) {
+				checkProposedApiEnabled(extension, 'chatPromptFiles');
+				return extHostChatAgents2.provideCustomAgents(token) as Thenable<readonly vscode.ChatCustomAgent[]>;
 			},
 			onDidChangeCustomAgents: (listener, thisArgs?, disposables?) => {
 				checkProposedApiEnabled(extension, 'chatPromptFiles');
@@ -1690,7 +1731,11 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			get instructions() {
 				checkProposedApiEnabled(extension, 'chatPromptFiles');
-				return extHostChatAgents2.instructions as readonly vscode.ChatResource[];
+				return extHostChatAgents2.instructions as readonly vscode.ChatInstruction[];
+			},
+			getInstructions(token: vscode.CancellationToken) {
+				checkProposedApiEnabled(extension, 'chatPromptFiles');
+				return extHostChatAgents2.provideInstructions(token) as Thenable<readonly vscode.ChatInstruction[]>;
 			},
 			onDidChangeInstructions: (listener, thisArgs?, disposables?) => {
 				checkProposedApiEnabled(extension, 'chatPromptFiles');
@@ -1698,11 +1743,55 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			get skills() {
 				checkProposedApiEnabled(extension, 'chatPromptFiles');
-				return extHostChatAgents2.skills as readonly vscode.ChatResource[];
+				return extHostChatAgents2.skills as readonly vscode.ChatSkill[];
+			},
+			getSkills(token: vscode.CancellationToken) {
+				checkProposedApiEnabled(extension, 'chatPromptFiles');
+				return extHostChatAgents2.provideSkills(token) as Thenable<readonly vscode.ChatSkill[]>;
 			},
 			onDidChangeSkills: (listener, thisArgs?, disposables?) => {
 				checkProposedApiEnabled(extension, 'chatPromptFiles');
 				return extHostChatAgents2.onDidChangeSkills(listener, thisArgs, disposables);
+			},
+			get slashCommands() {
+				checkProposedApiEnabled(extension, 'chatPromptFiles');
+				return extHostChatAgents2.slashCommands as readonly vscode.ChatSlashCommand[];
+			},
+			getSlashCommands(token: vscode.CancellationToken) {
+				checkProposedApiEnabled(extension, 'chatPromptFiles');
+				return extHostChatAgents2.provideSlashCommands(token) as Thenable<readonly vscode.ChatSlashCommand[]>;
+			},
+			onDidChangeSlashCommands: (listener, thisArgs?, disposables?) => {
+				checkProposedApiEnabled(extension, 'chatPromptFiles');
+				return extHostChatAgents2.onDidChangeSlashCommands(listener, thisArgs, disposables);
+			},
+			get hooks() {
+				checkProposedApiEnabled(extension, 'chatPromptFiles');
+				return extHostChatAgents2.hooks as readonly vscode.ChatResource[];
+			},
+			getHooks(token: vscode.CancellationToken) {
+				checkProposedApiEnabled(extension, 'chatPromptFiles');
+				return extHostChatAgents2.provideHooks(token) as Thenable<readonly vscode.ChatResource[]>;
+			},
+			onDidChangeHooks: (listener, thisArgs?, disposables?) => {
+				checkProposedApiEnabled(extension, 'chatPromptFiles');
+				return extHostChatAgents2.onDidChangeHooks(listener, thisArgs, disposables);
+			},
+			get plugins() {
+				checkProposedApiEnabled(extension, 'chatPromptFiles');
+				return extHostChatAgents2.plugins as readonly vscode.ChatResource[];
+			},
+			getPlugins(token: vscode.CancellationToken) {
+				checkProposedApiEnabled(extension, 'chatPromptFiles');
+				return extHostChatAgents2.providePlugins(token) as Thenable<readonly vscode.ChatResource[]>;
+			},
+			onDidChangePlugins: (listener, thisArgs?, disposables?) => {
+				checkProposedApiEnabled(extension, 'chatPromptFiles');
+				return extHostChatAgents2.onDidChangePlugins(listener, thisArgs, disposables);
+			},
+			registerChatSessionCustomizationProvider(chatSessionType: string, metadata: vscode.ChatSessionCustomizationProviderMetadata, provider: vscode.ChatSessionCustomizationProvider): vscode.Disposable {
+				checkProposedApiEnabled(extension, 'chatSessionCustomizationProvider');
+				return extHostChatAgents2.registerChatSessionCustomizationProvider(extension, chatSessionType, metadata, provider);
 			},
 		};
 
@@ -1786,9 +1875,9 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'mcpServerDefinitions');
 				return extHostMcp.mcpServerDefinitions;
 			},
-			startMcpGateway() {
+			startMcpGateway(chatSessionResource?: URI) {
 				checkProposedApiEnabled(extension, 'mcpServerDefinitions');
-				return extHostMcp.startMcpGateway();
+				return extHostMcp.startMcpGateway(chatSessionResource);
 			},
 			onDidChangeChatRequestTools(...args) {
 				checkProposedApiEnabled(extension, 'chatParticipantAdditions');
@@ -1942,6 +2031,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			TaskGroup: extHostTypes.TaskGroup,
 			TaskPanelKind: extHostTypes.TaskPanelKind,
 			TaskRevealKind: extHostTypes.TaskRevealKind,
+			TaskRunOn: extHostTypes.TaskRunOn,
 			TaskScope: extHostTypes.TaskScope,
 			TerminalLink: extHostTypes.TerminalLink,
 			TerminalQuickFixTerminalCommand: extHostTypes.TerminalQuickFixCommand,
@@ -2091,8 +2181,10 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatToolInvocationPart: extHostTypes.ChatToolInvocationPart,
 			ChatLocation: extHostTypes.ChatLocation,
 			ChatSessionStatus: extHostTypes.ChatSessionStatus,
+			ChatSessionCustomizationType: extHostTypes.ChatSessionCustomizationType,
 			ChatDebugLogLevel: extHostTypes.ChatDebugLogLevel,
 			ChatDebugToolCallResult: extHostTypes.ChatDebugToolCallResult,
+			ChatDebugHookResult: extHostTypes.ChatDebugHookResult,
 			ChatDebugToolCallEvent: extHostTypes.ChatDebugToolCallEvent,
 			ChatDebugModelTurnEvent: extHostTypes.ChatDebugModelTurnEvent,
 			ChatDebugGenericEvent: extHostTypes.ChatDebugGenericEvent,
@@ -2105,6 +2197,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			ChatDebugEventMessageContent: extHostTypes.ChatDebugEventMessageContent,
 			ChatDebugEventToolCallContent: extHostTypes.ChatDebugEventToolCallContent,
 			ChatDebugEventModelTurnContent: extHostTypes.ChatDebugEventModelTurnContent,
+			ChatDebugEventHookContent: extHostTypes.ChatDebugEventHookContent,
 			ChatRequestEditorData: extHostTypes.ChatRequestEditorData,
 			ChatRequestNotebookData: extHostTypes.ChatRequestNotebookData,
 			ChatReferenceBinaryData: extHostTypes.ChatReferenceBinaryData,

@@ -40,6 +40,7 @@
 .agentSessionsWelcome-header h1.product-name {
 	font-size: 32px;
 	font-weight: 400;
+	line-height: 1;
 	margin: 0 0 12px 0;
 	color: var(--vscode-foreground);
 }

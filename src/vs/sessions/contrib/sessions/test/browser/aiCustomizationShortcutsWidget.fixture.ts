@@ -6,6 +6,7 @@
 import { toAction } from '../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { ResourceSet } from '../../../../../base/common/map.js';
 import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
@@ -23,12 +24,12 @@ import { IAgentPluginService } from '../../../../../workbench/contrib/chat/commo
 import { ComponentFixtureContext, createEditorServices, defineComponentFixture, defineThemedFixtureGroup, registerWorkbenchServices } from '../../../../../workbench/test/browser/componentFixtures/fixtureUtils.js';
 import { AICustomizationShortcutsWidget } from '../../browser/aiCustomizationShortcutsWidget.js';
 import { CUSTOMIZATION_ITEMS, CustomizationLinkViewItem } from '../../browser/customizationsToolbar.contribution.js';
-import { IActiveSessionItem, ISessionsManagementService } from '../../browser/sessionsManagementService.js';
 import { Menus } from '../../../../browser/menus.js';
 
 // Ensure color registrations are loaded
 import '../../../../common/theme.js';
 import '../../../../../platform/theme/common/colors/inputColors.js';
+import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 
 // ============================================================================
 // One-time menu item registration (module-level).
@@ -128,7 +129,13 @@ function createMockPromptsServiceWithCounts(counts?: ICustomizationCounts): IPro
 	}));
 	const skills = Array.from({ length: counts?.skills ?? 0 }, (_, i) => fakeItem('skill', i));
 	const prompts = Array.from({ length: counts?.prompts ?? 0 }, (_, i) => ({
-		promptPath: { uri: fakeUri('prompt', i), storage: PromptsStorage.local, type: PromptsType.prompt },
+		uri: fakeUri('prompt', i),
+		name: `prompt-${i}`,
+		type: PromptsType.prompt,
+		storage: PromptsStorage.local,
+		userInvocable: true,
+		parsedPromptFile: undefined,
+		when: undefined,
 	}));
 	const instructions = Array.from({ length: counts?.instructions ?? 0 }, (_, i) => fakeItem('instructions', i));
 	const hooks = Array.from({ length: counts?.hooks ?? 0 }, (_, i) => fakeItem('hook', i));
@@ -136,6 +143,12 @@ function createMockPromptsServiceWithCounts(counts?: ICustomizationCounts): IPro
 	return new class extends mock<IPromptsService>() {
 		override readonly onDidChangeCustomAgents = Event.None;
 		override readonly onDidChangeSlashCommands = Event.None;
+		override readonly onDidChangeSkills = Event.None;
+		override readonly onDidChangeInstructions = Event.None;
+		override readonly onDidChangeHooks = Event.None;
+		override getDisabledPromptFiles(): ResourceSet { return new ResourceSet(); }
+		override async getInstructionFiles() { return instructions as never[]; }
+		override getPromptLocationLabel() { return ''; }
 		override async getCustomAgents() { return agents as never[]; }
 		override async findAgentSkills() { return skills as never[]; }
 		override async getPromptSlashCommands() { return prompts as never[]; }
@@ -183,10 +196,10 @@ function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?:
 	const instantiationService = createEditorServices(ctx.disposableStore, {
 		colorTheme: ctx.theme,
 		additionalServices: (reg) => {
-			// Register overrides BEFORE registerWorkbenchServices so they take priority
+			registerWorkbenchServices(reg);
+			// Register overrides AFTER registerWorkbenchServices so they take priority
 			reg.defineInstance(IMenuService, new FixtureMenuService());
 			reg.defineInstance(IActionViewItemService, actionViewItemService);
-			registerWorkbenchServices(reg);
 			// Services needed by AICustomizationShortcutsWidget
 			reg.defineInstance(IPromptsService, options?.counts ? createMockPromptsServiceWithCounts(options.counts) : createMockPromptsService());
 			reg.defineInstance(IMcpService, createMockMcpService(options?.mcpServerCount ?? 0));
@@ -200,7 +213,7 @@ function renderWidget(ctx: ComponentFixtureContext, options?: { mcpServerCount?:
 				override readonly onDidChangeLanguageModels = Event.None;
 			}());
 			reg.defineInstance(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
-				override readonly activeSession = observableValue<IActiveSessionItem | undefined>('activeSession', undefined);
+				override readonly activeSession = observableValue<IActiveSession | undefined>('activeSession', undefined);
 			}());
 			reg.defineInstance(IFileService, new class extends mock<IFileService>() {
 				override readonly onDidFilesChange = Event.None;

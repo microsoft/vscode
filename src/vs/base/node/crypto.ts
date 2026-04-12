@@ -16,6 +16,7 @@ export async function checksum(path: string, sha256hash: string | undefined): Pr
 		const done = createSingleCallFunction((err?: Error, result?: string) => {
 			input.removeAllListeners();
 			hash.removeAllListeners();
+			input.destroy();
 
 			if (err) {
 				reject(err);

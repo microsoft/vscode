@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { Terminal } from '@xterm/xterm';
-import { deepStrictEqual, ok } from 'assert';
+import { deepStrictEqual, ok, strictEqual } from 'assert';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ITerminalCommand } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
@@ -132,5 +132,17 @@ suite('CommandDetectionCapability', () => {
 				{ command: 'echo bar', exitCode: 0, cwd: '/home', marker: { line: 2 } }
 			]);
 		});
+	});
+
+	test('should preserve explicit newlines at 80-column wrap boundaries in command output', async () => {
+		const boundaryWidthLine = 'A'.repeat(80);
+		await printStandardCommand('$ ', 'cat content.txt', `${boundaryWidthLine}\r\nafter`, undefined, 0);
+		await printCommandStart('$ ');
+
+		strictEqual(capability.commands.length, 1);
+		const output = capability.commands[0].getOutput();
+		ok(!!output);
+		ok(output.includes(`${boundaryWidthLine}\nafter\n`));
+		ok(!output.includes(`${boundaryWidthLine}after`));
 	});
 });

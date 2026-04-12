@@ -18,6 +18,10 @@ class WebBrowserElementsService implements IBrowserElementsService {
 		throw new Error('Not implemented');
 	}
 
+	async getFocusedElementData(rect: IRectangle, token: CancellationToken, locator: IBrowserTargetLocator | undefined): Promise<IElementData | undefined> {
+		throw new Error('Not implemented');
+	}
+
 	async startDebugSession(token: CancellationToken, locator: IBrowserTargetLocator): Promise<void> {
 		throw new Error('Not implemented');
 	}

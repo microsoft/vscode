@@ -81,6 +81,12 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	private centerContent!: HTMLElement;
 	private rightContent!: HTMLElement;
 
+	get leftContainer(): HTMLElement { return this.leftContent; }
+	get rightContainer(): HTMLElement { return this.rightContent; }
+	get rightWindowControlsContainer(): HTMLElement | undefined { return this.windowControlsContainer; }
+
+	private chatBarResizeObserver: ResizeObserver | undefined;
+
 	private readonly titleBarStyle: TitlebarStyle;
 	private isInactive: boolean = false;
 
@@ -203,10 +209,11 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 			toolbarOptions: { primaryGroup: () => true },
 		}));
 
-		// Right toolbar (driven by Menus.TitleBarRight - includes account submenu)
-		const rightToolbarContainer = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-layout-actions-container'));
+		// Right toolbar (driven by Menus.TitleBarRightLayout - includes layout actions)
+		const rightToolbarContainer = prepend(this.rightContent, $('div.titlebar-actions-container.titlebar-right-layout-container'));
 		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, rightToolbarContainer, Menus.TitleBarRightLayout, {
 			contextMenu: Menus.TitleBarContext,
+			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			telemetrySource: 'titlePart.right',
 			toolbarOptions: { primaryGroup: () => true },
 		}));
@@ -277,6 +284,26 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	override layout(width: number, height: number): void {
 		this.updateLayout();
 		super.layoutContents(width, height);
+		this.installChatBarResizeObserver();
+	}
+
+	private installChatBarResizeObserver(): void {
+		if (this.chatBarResizeObserver) {
+			return;
+		}
+
+		const chatBarContainer = this.layoutService.getContainer(getWindow(this.element), Parts.CHATBAR_PART);
+		if (!chatBarContainer) {
+			return;
+		}
+
+		this.chatBarResizeObserver = new ResizeObserver(entries => {
+			for (const entry of entries) {
+				this.centerContent.style.maxWidth = `${entry.contentRect.width}px`;
+			}
+		});
+		this.chatBarResizeObserver.observe(chatBarContainer);
+		this._register({ dispose: () => this.chatBarResizeObserver?.disconnect() });
 	}
 
 	private updateLayout(): void {

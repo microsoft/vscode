@@ -259,6 +259,7 @@ export interface Repository {
 	add(paths: string[]): Promise<void>;
 	revert(paths: string[]): Promise<void>;
 	clean(paths: string[]): Promise<void>;
+	restore(paths: string[], options?: { staged?: boolean; ref?: string }): Promise<void>;
 
 	apply(patch: string, reverse?: boolean): Promise<void>;
 	apply(patch: string, options?: { allowEmpty?: boolean; reverse?: boolean; threeWay?: boolean; }): Promise<void>;
@@ -278,6 +279,7 @@ export interface Repository {
 	diffBetween(ref1: string, ref2: string, path: string): Promise<string>;
 	diffBetweenPatch(ref1: string, ref2: string, path?: string): Promise<string>;
 	diffBetweenWithStats(ref1: string, ref2: string, path?: string): Promise<DiffChange[]>;
+	diffBetweenWithStats2(ref: string, path?: string): Promise<DiffChange[]>;
 
 	hashObject(data: string): Promise<string>;
 
@@ -322,7 +324,7 @@ export interface Repository {
 	popStash(index?: number): Promise<void>;
 	dropStash(index?: number): Promise<void>;
 
-	createWorktree(options?: { path?: string; commitish?: string; branch?: string }): Promise<string>;
+	createWorktree(options?: { path?: string; commitish?: string; branch?: string; noTrack?: boolean }): Promise<string>;
 	deleteWorktree(path: string, options?: { force?: boolean }): Promise<void>;
 
 	migrateChanges(sourceRepositoryPath: string, options?: { confirmation?: boolean; deleteFromSource?: boolean; untracked?: boolean }): Promise<void>;

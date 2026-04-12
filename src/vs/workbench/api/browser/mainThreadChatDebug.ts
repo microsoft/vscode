@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
-import { ChatDebugLogLevel, IChatDebugEvent, IChatDebugService } from '../../contrib/chat/common/chatDebugService.js';
+import { ChatDebugHookResult, ChatDebugLogLevel, IChatDebugEvent, IChatDebugResolvedEventContent, IChatDebugService } from '../../contrib/chat/common/chatDebugService.js';
 import { IChatService } from '../../contrib/chat/common/chatService/chatService.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
-import { ExtHostChatDebugShape, ExtHostContext, IChatDebugEventDto, MainContext, MainThreadChatDebugShape } from '../common/extHost.protocol.js';
+import { ExtHostChatDebugShape, ExtHostContext, IChatDebugEventDto, IChatDebugResolvedEventContentDto, MainContext, MainThreadChatDebugShape } from '../common/extHost.protocol.js';
 import { Proxied } from '../../services/extensions/common/proxyIdentifier.js';
 
 @extHostNamedCustomer(MainContext.MainThreadChatDebug)
@@ -17,6 +17,7 @@ export class MainThreadChatDebug extends Disposable implements MainThreadChatDeb
 	private readonly _proxy: Proxied<ExtHostChatDebugShape>;
 	private readonly _providerDisposables = new Map<number, DisposableStore>();
 	private readonly _activeSessionResources = new Map<number, URI>();
+	private readonly _coreEventForwarder = this._register(new MutableDisposable());
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -25,6 +26,18 @@ export class MainThreadChatDebug extends Disposable implements MainThreadChatDeb
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatDebug);
+	}
+
+	$subscribeToCoreDebugEvents(): void {
+		this._coreEventForwarder.value = this._chatDebugService.onDidAddEvent(event => {
+			if (this._chatDebugService.isCoreEvent(event)) {
+				this._proxy.$onCoreDebugEvent(this._serializeEvent(event));
+			}
+		});
+	}
+
+	$unsubscribeFromCoreDebugEvents(): void {
+		this._coreEventForwarder.clear();
 	}
 
 	$registerChatDebugLogProvider(handle: number): void {
@@ -38,7 +51,8 @@ export class MainThreadChatDebug extends Disposable implements MainThreadChatDeb
 				return dtos?.map(dto => this._reviveEvent(dto, sessionResource));
 			},
 			resolveChatDebugLogEvent: async (eventId, token) => {
-				return this._proxy.$resolveChatDebugLogEvent(handle, eventId, token);
+				const dto = await this._proxy.$resolveChatDebugLogEvent(handle, eventId, token);
+				return dto ? this._reviveResolvedContent(dto) : undefined;
 			},
 			provideChatDebugLogExport: async (sessionResource, token) => {
 				// Gather core events and session title to pass to the extension.
@@ -61,6 +75,13 @@ export class MainThreadChatDebug extends Disposable implements MainThreadChatDeb
 				return uri;
 			}
 		}));
+
+		// Register a lazy fetcher so historical sessions are loaded from the
+		// extension only when the debug panel home page first needs them.
+		this._chatDebugService.registerAvailableSessionsFetcher(async (token) => {
+			const entries = await this._proxy.$getAvailableDebugSessionResources(handle, token);
+			return entries.map(e => ({ uri: URI.revive(e.uri), title: e.title }));
+		});
 	}
 
 	$unregisterChatDebugLogProvider(handle: number): void {
@@ -169,6 +190,58 @@ export class MainThreadChatDebug extends Disposable implements MainThreadChatDeb
 					kind: 'agentResponse',
 					message: dto.message,
 					sections: dto.sections,
+				};
+		}
+	}
+
+	private _reviveResolvedContent(dto: IChatDebugResolvedEventContentDto): IChatDebugResolvedEventContent {
+		switch (dto.kind) {
+			case 'text':
+				return { kind: 'text', value: dto.value };
+			case 'message':
+				return {
+					kind: 'message',
+					type: dto.type,
+					message: dto.message,
+					sections: dto.sections,
+				};
+			case 'toolCall':
+				return {
+					kind: 'toolCall',
+					toolName: dto.toolName,
+					result: dto.result,
+					durationInMillis: dto.durationInMillis,
+					input: dto.input,
+					output: dto.output,
+				};
+			case 'modelTurn':
+				return {
+					kind: 'modelTurn',
+					requestName: dto.requestName,
+					model: dto.model,
+					status: dto.status,
+					durationInMillis: dto.durationInMillis,
+					inputTokens: dto.inputTokens,
+					outputTokens: dto.outputTokens,
+					cachedTokens: dto.cachedTokens,
+					totalTokens: dto.totalTokens,
+					errorMessage: dto.errorMessage,
+					sections: dto.sections,
+				};
+			case 'hook':
+				return {
+					kind: 'hook',
+					hookType: dto.hookType,
+					command: dto.command,
+					result: dto.result === 'success' ? ChatDebugHookResult.Success
+						: dto.result === 'error' ? ChatDebugHookResult.Error
+							: dto.result === 'nonBlockingError' ? ChatDebugHookResult.NonBlockingError
+								: undefined,
+					durationInMillis: dto.durationInMillis,
+					input: dto.input,
+					output: dto.output,
+					exitCode: dto.exitCode,
+					errorMessage: dto.errorMessage,
 				};
 		}
 	}

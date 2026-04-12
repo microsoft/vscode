@@ -194,10 +194,7 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		// TODO@osortega,@rebornix double check: Chat Session Item icon is reserved for chat session list and deprecated for chat session status. thus here we use session type icon. We may want to show status for the Editor Title.
 		const sessionType = this.getSessionType();
 		if (sessionType !== localChatSessionType) {
-			const typeIcon = this.chatSessionsService.getIconForSessionType(sessionType);
-			if (typeIcon) {
-				return typeIcon;
-			}
+			return this.chatSessionsService.getChatSessionContribution(sessionType)?.icon;
 		}
 
 		return undefined;
@@ -216,16 +213,16 @@ export class ChatEditorInput extends EditorInput implements IEditorCloseHandler 
 		const inputType = chatSessionType ?? this.resource.authority;
 
 		if (this._sessionResource) {
-			this.modelRef.value = await this.chatService.acquireOrLoadSession(this._sessionResource, ChatAgentLocation.Chat, CancellationToken.None);
+			this.modelRef.value = await this.chatService.acquireOrLoadSession(this._sessionResource, ChatAgentLocation.Chat, CancellationToken.None, 'ChatEditorInput#resolve');
 
 			// For local session only, if we find no existing session, create a new one
 			if (!this.model && LocalChatSessionUri.parseLocalSessionId(this._sessionResource)) {
-				this.modelRef.value = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { canUseTools: true });
+				this.modelRef.value = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { canUseTools: true, debugOwner: 'ChatEditorInput#resolveNewLocalSession' });
 			}
 		} else if (!this.options.target) {
-			this.modelRef.value = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { canUseTools: !inputType });
+			this.modelRef.value = this.chatService.startNewLocalSession(ChatAgentLocation.Chat, { canUseTools: !inputType, debugOwner: 'ChatEditorInput#resolveUntitled' });
 		} else if (this.options.target.data) {
-			this.modelRef.value = this.chatService.loadSessionFromData(this.options.target.data);
+			this.modelRef.value = this.chatService.loadSessionFromData(this.options.target.data, 'ChatEditorInput#resolveImportedData');
 		}
 
 		if (!this.model || this.isDisposed()) {

@@ -44,6 +44,20 @@ export namespace ErrorEvent {
 	}
 }
 
+/**
+ * Extracts a callstack and message from an error object for telemetry.
+ * Handles the `Array.isArray(err.stack)` workaround from workerServer.ts
+ * and falls back to {@link safeStringify} when no message is available.
+ */
+export function packErrorForTelemetry(err: any): { callstack: string | undefined; msg: string } {
+	if (!err || typeof err !== 'object') {
+		return { callstack: undefined, msg: safeStringify(err) };
+	}
+	const callstack: string | undefined = Array.isArray(err.stack) ? err.stack.join('\n') : err.stack;
+	const msg = err.message ? err.message : safeStringify(err);
+	return { callstack, msg };
+}
+
 export default abstract class BaseErrorTelemetry {
 
 	public static ERROR_FLUSH_TIMEOUT: number = 5 * 1000;
@@ -98,8 +112,7 @@ export default abstract class BaseErrorTelemetry {
 		}
 
 		// work around behavior in workerServer.ts that breaks up Error.stack
-		const callstack = Array.isArray(err.stack) ? err.stack.join('\n') : err.stack;
-		const msg = err.message ? err.message : safeStringify(err);
+		const { callstack, msg } = packErrorForTelemetry(err);
 
 		// errors without a stack are not useful telemetry
 		if (!callstack) {

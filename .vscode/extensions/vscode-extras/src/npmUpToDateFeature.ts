@@ -112,7 +112,7 @@ export class NpmUpToDateFeature extends vscode.Disposable {
 		}
 		try {
 			const script = path.join(workspaceRoot, 'build', 'npm', 'installStateHash.ts');
-			const output = cp.execFileSync(process.execPath, [script], {
+			const output = cp.execFileSync(process.execPath, [script, '--ignore-node-version'], {
 				cwd: workspaceRoot,
 				timeout: 10_000,
 				encoding: 'utf8',

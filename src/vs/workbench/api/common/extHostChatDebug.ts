@@ -10,7 +10,7 @@ import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { ExtHostChatDebugShape, IChatDebugEventDto, IChatDebugResolvedEventContentDto, MainContext, MainThreadChatDebugShape } from './extHost.protocol.js';
-import { ChatDebugGenericEvent, ChatDebugLogLevel, ChatDebugMessageContentType, ChatDebugMessageSection, ChatDebugModelTurnEvent, ChatDebugSubagentInvocationEvent, ChatDebugSubagentStatus, ChatDebugToolCallEvent, ChatDebugToolCallResult, ChatDebugUserMessageEvent, ChatDebugAgentResponseEvent } from './extHostTypes.js';
+import { ChatDebugGenericEvent, ChatDebugHookResult, ChatDebugLogLevel, ChatDebugMessageContentType, ChatDebugMessageSection, ChatDebugModelTurnEvent, ChatDebugSubagentInvocationEvent, ChatDebugSubagentStatus, ChatDebugToolCallEvent, ChatDebugToolCallResult, ChatDebugUserMessageEvent, ChatDebugAgentResponseEvent, ChatDebugEventHookContent } from './extHostTypes.js';
 import { IExtHostRpcService } from './extHostRpcService.js';
 
 export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShape {
@@ -21,6 +21,12 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 	private _nextHandle: number = 0;
 	/** Progress pipelines keyed by `${handle}:${sessionResource}` so multiple sessions can stream concurrently. */
 	private readonly _activeProgress = new Map<string, DisposableStore>();
+
+	private readonly _onDidAddCoreEvent = this._register(new Emitter<vscode.ChatDebugEvent>({
+		onWillAddFirstListener: () => this._proxy.$subscribeToCoreDebugEvents(),
+		onDidRemoveLastListener: () => this._proxy.$unsubscribeFromCoreDebugEvents(),
+	}));
+	readonly onDidAddCoreEvent = this._onDidAddCoreEvent.event;
 
 	constructor(
 		@IExtHostRpcService extHostRpc: IExtHostRpcService,
@@ -287,6 +293,23 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 					sections: mt.sections?.map(s => ({ name: s.name, content: s.content })),
 				};
 			}
+			case 'hookContent': {
+				const hk = result as unknown as ChatDebugEventHookContent;
+				return {
+					kind: 'hook',
+					hookType: hk.hookType,
+					command: hk.command,
+					result: hk.result === ChatDebugHookResult.Success ? 'success'
+						: hk.result === ChatDebugHookResult.Error ? 'error'
+							: hk.result === ChatDebugHookResult.NonBlockingError ? 'nonBlockingError'
+								: undefined,
+					durationInMillis: hk.durationInMillis,
+					input: hk.input,
+					output: hk.output,
+					exitCode: hk.exitCode,
+					errorMessage: hk.errorMessage,
+				};
+			}
 			default:
 				return undefined;
 		}
@@ -367,6 +390,13 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 		}
 	}
 
+	$onCoreDebugEvent(dto: IChatDebugEventDto): void {
+		const event = this._deserializeEvent(dto);
+		if (event) {
+			this._onDidAddCoreEvent.fire(event);
+		}
+	}
+
 	async $exportChatDebugLog(_handle: number, sessionResource: UriComponents, coreEventDtos: IChatDebugEventDto[], sessionTitle: string | undefined, token: CancellationToken): Promise<VSBuffer | undefined> {
 		if (!this._provider?.provideChatDebugLogExport) {
 			return undefined;
@@ -390,6 +420,14 @@ export class ExtHostChatDebug extends Disposable implements ExtHostChatDebugShap
 			return undefined;
 		}
 		return { uri: result.uri, sessionTitle: result.sessionTitle };
+	}
+
+	async $getAvailableDebugSessionResources(_handle: number, token: CancellationToken): Promise<{ uri: UriComponents; title?: string }[]> {
+		if (!this._provider?.provideAvailableDebugSessionResources) {
+			return [];
+		}
+		const result = await this._provider.provideAvailableDebugSessionResources(token);
+		return result ?? [];
 	}
 
 	override dispose(): void {

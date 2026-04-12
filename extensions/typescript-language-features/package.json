@@ -2423,7 +2423,7 @@
           },
           "js/ts.tsserver.node.path": {
             "type": "string",
-            "description": "%configuration.tsserver.nodePath%",
+            "markdownDescription": "%configuration.tsserver.nodePath%",
             "scope": "window",
             "keywords": [
               "TypeScript"
@@ -2431,7 +2431,7 @@
           },
           "typescript.tsserver.nodePath": {
             "type": "string",
-            "description": "%configuration.tsserver.nodePath%",
+            "markdownDescription": "%configuration.tsserver.nodePath%",
             "markdownDeprecationMessage": "%configuration.tsserver.nodePath.unifiedDeprecationMessage%",
             "scope": "window"
           },

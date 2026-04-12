@@ -19,6 +19,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IThemeService } from '../../../../platform/theme/common/themeService.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
+import { ResourceSet } from '../../../../base/common/map.js';
 import { IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
@@ -27,7 +28,7 @@ import { AICustomizationManagementEditor } from '../../../../workbench/contrib/c
 import { agentIcon, instructionsIcon, mcpServerIcon, pluginIcon, promptIcon, skillIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
-import { IEditorService, MODAL_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
+import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IMcpService } from '../../../../workbench/contrib/mcp/common/mcpTypes.js';
 import { IAgentPluginService } from '../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
 
@@ -171,6 +172,17 @@ export class AICustomizationOverviewView extends ViewPane {
 			} else {
 				const allItems = await this.promptsService.listPromptFiles(type, CancellationToken.None);
 				count = allItems.length;
+
+				// For instructions, also count agent instructions (AGENTS.md, copilot-instructions.md, CLAUDE.md, etc.)
+				if (type === PromptsType.instructions) {
+					const existingUris = new ResourceSet(allItems.map(item => item.uri));
+					const agentInstructions = await this.promptsService.listAgentInstructions(CancellationToken.None);
+					for (const file of agentInstructions) {
+						if (!existingUris.has(file.uri)) {
+							count++;
+						}
+					}
+				}
 			}
 
 			const sectionData = this.sections.find(s => s.id === section);
@@ -213,7 +225,7 @@ export class AICustomizationOverviewView extends ViewPane {
 
 	private async openSection(sectionId: AICustomizationManagementSection): Promise<void> {
 		const input = AICustomizationManagementEditorInput.getOrCreate();
-		const editor = await this.editorService.openEditor(input, { pinned: true }, MODAL_GROUP);
+		const editor = await this.editorService.openEditor(input, { pinned: true });
 
 		// Deep-link to the section
 		if (editor instanceof AICustomizationManagementEditor) {

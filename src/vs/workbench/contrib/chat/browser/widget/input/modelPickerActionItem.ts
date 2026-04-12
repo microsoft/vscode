@@ -31,6 +31,8 @@ export interface IModelPickerDelegate {
 	getModels(): ILanguageModelChatMetadataAndIdentifier[];
 	useGroupedModelPicker(): boolean;
 	showManageModelsAction(): boolean;
+	showUnavailableFeatured(): boolean;
+	showFeatured(): boolean;
 }
 
 type ChatModelChangeClassification = {
@@ -98,6 +100,7 @@ function getModelPickerActionBarActionProvider(commandService: ICommandService, 
 			const additionalActions: IAction[] = [];
 			if (
 				chatEntitlementService.entitlement === ChatEntitlement.Free ||
+				chatEntitlementService.entitlement === ChatEntitlement.EDU ||
 				chatEntitlementService.entitlement === ChatEntitlement.Pro ||
 				chatEntitlementService.entitlement === ChatEntitlement.ProPlus ||
 				chatEntitlementService.entitlement === ChatEntitlement.Business ||
@@ -117,7 +120,7 @@ function getModelPickerActionBarActionProvider(commandService: ICommandService, 
 			}
 
 			// Add sign-in / upgrade option if entitlement is anonymous / free / new user
-			const isNewOrAnonymousUser = !chatEntitlementService.sentiment.installed ||
+			const isNewOrAnonymousUser = !chatEntitlementService.sentiment.completed ||
 				chatEntitlementService.entitlement === ChatEntitlement.Available ||
 				chatEntitlementService.anonymous ||
 				chatEntitlementService.entitlement === ChatEntitlement.Unknown;

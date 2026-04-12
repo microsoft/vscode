@@ -12,12 +12,12 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
-import { IUpdateService, State as UpdateState, StateType, IUpdate, DisablementReason, Ready, Overwriting } from '../../../../platform/update/common/update.js';
-import { INotificationService, INotificationHandle, NotificationPriority, Severity } from '../../../../platform/notification/common/notification.js';
+import { IUpdateService, State as UpdateState, StateType } from '../../../../platform/update/common/update.js';
+import { INotificationService, NotificationPriority, Severity } from '../../../../platform/notification/common/notification.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IBrowserWorkbenchEnvironmentService } from '../../../services/environment/browser/environmentService.js';
 import { ReleaseNotesManager } from './releaseNotesEditor.js';
-import { isMacintosh, isWeb, isWindows } from '../../../../base/common/platform.js';
+import { isWeb } from '../../../../base/common/platform.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { MenuRegistry, MenuId, registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
@@ -29,9 +29,9 @@ import { IsWebContext } from '../../../../platform/contextkey/common/contextkeys
 import { Promises, Throttler } from '../../../../base/common/async.js';
 import { IUserDataSyncWorkbenchService } from '../../../services/userDataSync/common/userDataSync.js';
 import { Event } from '../../../../base/common/event.js';
-import { toAction } from '../../../../base/common/actions.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { getInternalOrg } from '../../../../platform/assignment/common/assignment.js';
+import { IVersion, tryParseVersion } from '../common/updateUtils.js';
 
 export const CONTEXT_UPDATE_STATE = new RawContextKey<string>('updateState', StateType.Uninitialized);
 export const MAJOR_MINOR_UPDATE_AVAILABLE = new RawContextKey<boolean>('majorMinorUpdateAvailable', false);
@@ -146,26 +146,6 @@ export function appendUpdateMenuItems(menuId: MenuId, group: string): void {
 	});
 }
 
-interface IVersion {
-	major: number;
-	minor: number;
-	patch: number;
-}
-
-function parseVersion(version: string): IVersion | undefined {
-	const match = /([0-9]+)\.([0-9]+)\.([0-9]+)/.exec(version);
-
-	if (!match) {
-		return undefined;
-	}
-
-	return {
-		major: parseInt(match[1]),
-		minor: parseInt(match[2]),
-		patch: parseInt(match[3])
-	};
-}
-
 function isMajorMinorUpdate(before: IVersion, after: IVersion): boolean {
 	return before.major < after.major || before.minor < after.minor;
 }
@@ -193,8 +173,8 @@ export class ProductContribution implements IWorkbenchContribution {
 				return;
 			}
 
-			const lastVersion = parseVersion(storageService.get(ProductContribution.KEY, StorageScope.APPLICATION, ''));
-			const currentVersion = parseVersion(productService.version);
+			const lastVersion = tryParseVersion(storageService.get(ProductContribution.KEY, StorageScope.APPLICATION, ''));
+			const currentVersion = tryParseVersion(productService.version);
 			const shouldShowReleaseNotes = configurationService.getValue<boolean>('update.showReleaseNotes');
 			const releaseNotesUrl = productService.releaseNotesUrl;
 
@@ -226,27 +206,23 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 
 	private state: UpdateState;
 	private readonly badgeDisposable = this._register(new MutableDisposable());
-	private overwriteNotificationHandle: INotificationHandle | undefined;
 	private updateStateContextKey: IContextKey<string>;
 	private majorMinorUpdateAvailableContextKey: IContextKey<boolean>;
 
 	constructor(
-		@IStorageService private readonly storageService: IStorageService,
+		@IStorageService storageService: IStorageService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@INotificationService private readonly notificationService: INotificationService,
 		@IDialogService private readonly dialogService: IDialogService,
 		@IUpdateService private readonly updateService: IUpdateService,
 		@IActivityService private readonly activityService: IActivityService,
-		@IContextKeyService private readonly contextKeyService: IContextKeyService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IProductService private readonly productService: IProductService,
-		@IOpenerService private readonly openerService: IOpenerService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IHostService private readonly hostService: IHostService
+		@IHostService private readonly hostService: IHostService,
 	) {
 		super();
 		this.state = updateService.state;
-		this.updateStateContextKey = CONTEXT_UPDATE_STATE.bindTo(this.contextKeyService);
-		this.majorMinorUpdateAvailableContextKey = MAJOR_MINOR_UPDATE_AVAILABLE.bindTo(this.contextKeyService);
+		this.updateStateContextKey = CONTEXT_UPDATE_STATE.bindTo(contextKeyService);
+		this.majorMinorUpdateAvailableContextKey = MAJOR_MINOR_UPDATE_AVAILABLE.bindTo(contextKeyService);
 
 		this._register(updateService.onStateChange(this.onUpdateStateChange, this));
 		this.onUpdateStateChange(this.updateService.state);
@@ -260,12 +236,12 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		*/
 
 		const currentVersion = this.productService.commit;
-		const lastKnownVersion = this.storageService.get('update/lastKnownVersion', StorageScope.APPLICATION);
+		const lastKnownVersion = storageService.get('update/lastKnownVersion', StorageScope.APPLICATION);
 
 		// if current version != stored version, clear both fields
 		if (currentVersion !== lastKnownVersion) {
-			this.storageService.remove('update/lastKnownVersion', StorageScope.APPLICATION);
-			this.storageService.remove('update/updateNotificationTime', StorageScope.APPLICATION);
+			storageService.remove('update/lastKnownVersion', StorageScope.APPLICATION);
+			storageService.remove('update/updateNotificationTime', StorageScope.APPLICATION);
 		}
 
 		this.registerGlobalActivityActions();
@@ -275,53 +251,19 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		this.updateStateContextKey.set(state.type);
 
 		switch (state.type) {
-			case StateType.Disabled:
-				if (state.reason === DisablementReason.RunningAsAdmin) {
-					this.notificationService.notify({
-						severity: Severity.Info,
-						message: nls.localize('update service disabled', "Updates are disabled because you are running the user-scope installation of {0} as Administrator.", this.productService.nameLong),
-						actions: {
-							primary: [
-								toAction({
-									id: '',
-									label: nls.localize('learn more', "Learn More"),
-									run: () => this.openerService.open('https://aka.ms/vscode-windows-setup')
-								})
-							]
-						},
-						neverShowAgain: { id: 'no-updates-running-as-admin', }
-					});
-				}
-				break;
-
 			case StateType.Idle:
-				if (state.error) {
-					this.onError(state.error);
-				} else if (this.state.type === StateType.CheckingForUpdates && this.state.explicit && await this.hostService.hadLastFocus()) {
+				if (this.state.type === StateType.CheckingForUpdates && this.state.explicit && !state.error && await this.hostService.hadLastFocus()) {
 					this.onUpdateNotAvailable();
 				}
-				break;
-
-			case StateType.AvailableForDownload:
-				this.onUpdateAvailable(state.update);
-				break;
-
-			case StateType.Downloaded:
-				this.onUpdateDownloaded(state.update);
-				break;
-
-			case StateType.Overwriting:
-				this.onUpdateOverwriting(state);
 				break;
 
 			case StateType.Ready: {
 				const productVersion = state.update.productVersion;
 				if (productVersion) {
-					const currentVersion = parseVersion(this.productService.version);
-					const nextVersion = parseVersion(productVersion);
+					const currentVersion = tryParseVersion(this.productService.version);
+					const nextVersion = tryParseVersion(productVersion);
 					this.majorMinorUpdateAvailableContextKey.set(Boolean(currentVersion && nextVersion && isMajorMinorUpdate(currentVersion, nextVersion)));
 				}
-				this.onUpdateReady(state);
 				break;
 			}
 		}
@@ -347,174 +289,8 @@ export class UpdateContribution extends Disposable implements IWorkbenchContribu
 		this.state = state;
 	}
 
-	private onError(error: string): void {
-		if (/The request timed out|The network connection was lost/i.test(error)) {
-			return;
-		}
-
-		error = error.replace(/See https:\/\/github\.com\/Squirrel\/Squirrel\.Mac\/issues\/182 for more information/, 'This might mean the application was put on quarantine by macOS. See [this link](https://github.com/microsoft/vscode/issues/7426#issuecomment-425093469) for more information');
-
-		this.notificationService.notify({
-			severity: Severity.Error,
-			message: error,
-			source: nls.localize('update service', "Update Service"),
-		});
-	}
-
 	private onUpdateNotAvailable(): void {
 		this.dialogService.info(nls.localize('noUpdatesAvailable', "There are currently no updates available."));
-	}
-
-	// linux
-	private onUpdateAvailable(update: IUpdate): void {
-		if (!this.shouldShowNotification()) {
-			return;
-		}
-
-		const productVersion = update.productVersion;
-		if (!productVersion) {
-			return;
-		}
-
-		this.notificationService.prompt(
-			severity.Info,
-			nls.localize('thereIsUpdateAvailable', "There is an available update."),
-			[{
-				label: nls.localize('download update', "Download Update"),
-				run: () => this.updateService.downloadUpdate(true)
-			}, {
-				label: nls.localize('later', "Later"),
-				run: () => { }
-			}, {
-				label: nls.localize('releaseNotes', "Release Notes"),
-				run: () => {
-					this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, productVersion));
-				}
-			}],
-			{ priority: NotificationPriority.OPTIONAL }
-		);
-	}
-
-	// windows fast updates
-	private onUpdateDownloaded(update: IUpdate): void {
-		if (isMacintosh) {
-			return;
-		}
-		if (this.configurationService.getValue('update.enableWindowsBackgroundUpdates') && this.productService.target === 'user') {
-			return;
-		}
-
-		if (!this.shouldShowNotification()) {
-			return;
-		}
-
-		const productVersion = update.productVersion;
-		if (!productVersion) {
-			return;
-		}
-
-		this.notificationService.prompt(
-			severity.Info,
-			nls.localize('updateAvailable', "There's an update available: {0} {1}", this.productService.nameLong, productVersion),
-			[{
-				label: nls.localize('installUpdate', "Install Update"),
-				run: () => this.updateService.applyUpdate()
-			}, {
-				label: nls.localize('later', "Later"),
-				run: () => { }
-			}, {
-				label: nls.localize('releaseNotes', "Release Notes"),
-				run: () => {
-					this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, productVersion));
-				}
-			}],
-			{ priority: NotificationPriority.OPTIONAL }
-		);
-	}
-
-	// windows and mac
-	private onUpdateReady(state: Ready): void {
-		if (state.overwrite && this.overwriteNotificationHandle) {
-			const handle = this.overwriteNotificationHandle;
-			this.overwriteNotificationHandle = undefined;
-
-			// Update notification to show completion with restart action
-			handle.progress.done();
-			handle.updateMessage(nls.localize('newerUpdateReady', "The newer update is ready to install."));
-			handle.updateActions({
-				primary: [
-					toAction({
-						id: 'update.restartToUpdate',
-						label: nls.localize('restartToUpdate2', "Restart to Update"),
-						run: () => this.updateService.quitAndInstall()
-					})
-				]
-			});
-		} else if ((isWindows && this.productService.target !== 'user') || this.shouldShowNotification()) {
-
-			const actions = [{
-				label: nls.localize('updateNow', "Update Now"),
-				run: () => this.updateService.quitAndInstall()
-			}, {
-				label: nls.localize('later', "Later"),
-				run: () => { }
-			}];
-
-			const productVersion = state.update.productVersion;
-			if (productVersion) {
-				actions.push({
-					label: nls.localize('releaseNotes', "Release Notes"),
-					run: () => {
-						this.instantiationService.invokeFunction(accessor => showReleaseNotes(accessor, productVersion));
-					}
-				});
-			}
-
-			// windows user fast updates and mac
-			this.notificationService.prompt(
-				severity.Info,
-				nls.localize('updateAvailableAfterRestart', "Restart {0} to apply the latest update.", this.productService.nameLong),
-				actions,
-				{
-					sticky: true,
-					priority: NotificationPriority.OPTIONAL
-				}
-			);
-		}
-	}
-
-	// macOS overwrite update - overwriting
-	private onUpdateOverwriting(state: Overwriting): void {
-		if (!state.explicit) {
-			return;
-		}
-
-		// Show notification with progress
-		this.overwriteNotificationHandle = this.notificationService.notify({
-			severity: Severity.Info,
-			sticky: true,
-			message: nls.localize('newerUpdateDownloading', "We found a newer update available and have started to download it. We'll let you know as soon as it's ready to install."),
-			source: nls.localize('update service', "Update Service"),
-		});
-
-		this.overwriteNotificationHandle.progress.infinite();
-	}
-
-	private shouldShowNotification(): boolean {
-		const currentVersion = this.productService.commit;
-		const currentMillis = new Date().getTime();
-		const lastKnownVersion = this.storageService.get('update/lastKnownVersion', StorageScope.APPLICATION);
-
-		// if version != stored version, save version and date
-		if (currentVersion !== lastKnownVersion) {
-			this.storageService.store('update/lastKnownVersion', currentVersion, StorageScope.APPLICATION, StorageTarget.MACHINE);
-			this.storageService.store('update/updateNotificationTime', currentMillis, StorageScope.APPLICATION, StorageTarget.MACHINE);
-		}
-
-		const updateNotificationMillis = this.storageService.getNumber('update/updateNotificationTime', StorageScope.APPLICATION, currentMillis);
-		const diffDays = (currentMillis - updateNotificationMillis) / (1000 * 60 * 60 * 24);
-
-		return diffDays > 5;
 	}
 
 	private registerGlobalActivityActions(): void {

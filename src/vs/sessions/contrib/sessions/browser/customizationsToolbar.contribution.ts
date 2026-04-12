@@ -27,13 +27,13 @@ import { $, append } from '../../../../base/browser/dom.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
-import { ISessionsManagementService } from './sessionsManagementService.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
 import { getSourceCounts, getSourceCountsTotal } from './customizationCounts.js';
-import { IEditorService, MODAL_GROUP } from '../../../../workbench/services/editor/common/editorService.js';
+import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IAgentPluginService } from '../../../../workbench/contrib/chat/common/plugins/agentPluginService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
 export interface ICustomizationItemConfig {
 	readonly id: string;
@@ -248,7 +248,7 @@ export class CustomizationsToolbarContribution extends Disposable implements IWo
 				async run(accessor: ServicesAccessor): Promise<void> {
 					const editorService = accessor.get(IEditorService);
 					const input = AICustomizationManagementEditorInput.getOrCreate();
-					const editor = await editorService.openEditor(input, { pinned: true }, MODAL_GROUP);
+					const editor = await editorService.openEditor(input, { pinned: true });
 					if (editor instanceof AICustomizationManagementEditor) {
 						editor.selectSectionById(config.section);
 					}
