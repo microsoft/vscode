@@ -807,17 +807,17 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 				return;
 			}
 
-			if (repository.kind === 'worktree') {
-				this.logger.trace('[Model][open] Automatic detection of git worktrees is not skipped.');
-				return;
-			}
+			// Discover additional worktrees for the repository, but do not
+			// include the currently opened repository itself.
+			const candidateWorktrees = repository.worktrees
+				.filter(w => !pathEquals(w.path, repository.root));
 
-			if (repository.worktrees.length > worktreesLimit) {
-				window.showWarningMessage(l10n.t('The "{0}" repository has {1} worktrees which won\'t be opened automatically. You can still open each one individually by opening a file within.', path.basename(repository.root), repository.worktrees.length));
+			if (candidateWorktrees.length > worktreesLimit) {
+				window.showWarningMessage(l10n.t('The "{0}" repository has {1} worktrees which won\'t be opened automatically. You can still open each one individually by opening a file within.', path.basename(repository.root), candidateWorktrees.length - worktreesLimit));
 				statusListener.dispose();
 			}
 
-			repository.worktrees
+			candidateWorktrees
 				.slice(0, worktreesLimit)
 				.forEach(w => {
 					this.logger.trace(`[Model][open] Opening worktree: '${w.path}'`);
