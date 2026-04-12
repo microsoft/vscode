@@ -19,6 +19,8 @@ import { NullTelemetryService } from '../../../../../../platform/telemetry/commo
 import { IUserDataProfilesService, toUserDataProfile } from '../../../../../../platform/userDataProfile/common/userDataProfile.js';
 import { IAnyWorkspaceIdentifier, IWorkspaceContextService, WorkspaceFolder } from '../../../../../../platform/workspace/common/workspace.js';
 import { TestWorkspace, Workspace } from '../../../../../../platform/workspace/test/common/testWorkspace.js';
+import { IDialogService } from '../../../../../../platform/dialogs/common/dialogs.js';
+import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
 import { ILifecycleService } from '../../../../../services/lifecycle/common/lifecycle.js';
 import { IDidEnterWorkspaceEvent, IWorkspaceEditingService } from '../../../../../services/workspaces/common/workspaceEditing.js';
 import { InMemoryTestFileService, TestContextService, TestLifecycleService, TestStorageService } from '../../../../../test/common/workbenchTestServices.js';
@@ -80,6 +82,8 @@ suite('ChatSessionStore', () => {
 		instantiationService.stub(IEnvironmentService, { workspaceStorageHome: URI.file('/test/workspaceStorage') });
 		instantiationService.stub(ILifecycleService, testDisposables.add(new TestLifecycleService()));
 		instantiationService.stub(IUserDataProfilesService, { defaultProfile: toUserDataProfile('default', 'Default', URI.file('/test/userdata'), URI.file('/test/cache')) });
+		instantiationService.stub(IDialogService, { prompt: async () => undefined } as unknown as IDialogService);
+		instantiationService.stub(IOpenerService, { open: async () => true } as unknown as IOpenerService);
 		instantiationService.stub(IConfigurationService, new TestConfigurationService());
 		mockWorkspaceEditingService = testDisposables.add(new MockWorkspaceEditingService());
 		instantiationService.stub(IWorkspaceEditingService, mockWorkspaceEditingService as unknown as IWorkspaceEditingService);

@@ -381,7 +381,7 @@ export class ChatSessionStore extends Disposable {
 						this.logService.warn('ChatSessionStore: Falling back to a full snapshot after incremental chat session serialization failed', toErrorMessage(e));
 						session.dataSerializer = new ChatSessionOperationLog();
 						op = 'replace';
-						data = session.dataSerializer.createInitialFromSerialized(session.toJSON());
+						data = session.dataSerializer.createInitial(session);
 					}
 
 					if (data.byteLength > 0) {
