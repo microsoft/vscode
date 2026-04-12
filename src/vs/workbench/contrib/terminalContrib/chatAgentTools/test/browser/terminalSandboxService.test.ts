@@ -331,7 +331,7 @@ suite('TerminalSandboxService - network domains', () => {
 	});
 
 	test('should not override schema-defined network and filesystem config with runtime settings', async () => {
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains, ['example.com']);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['example.com']);
 		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxLinuxFileSystem, {
 			allowWrite: ['/configured/path'],
 			denyRead: [],
