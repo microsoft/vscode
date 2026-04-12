@@ -122,7 +122,6 @@ suite('Files - ExplorerView', () => {
 		assert.strictEqual(navigationController.current, s2);
 	});
 
-
 	test('explorer twistie additional css class for nested files', function () {
 		const d = new Date().getTime();
 		const folderWithNests = createStat.call(this, '/nest', 'nest', true, false, 8096, d);
@@ -133,7 +132,7 @@ suite('Files - ExplorerView', () => {
 
 		assert.strictEqual(
 			getExplorerTwistieAdditionalCssClass(folderWithNests, themeHidesArrows),
-			"force-twistie",
+			'force-twistie',
 		);
 		assert.strictEqual(
 			getExplorerTwistieAdditionalCssClass(folderWithNests, themeShowsArrows),
