@@ -7,7 +7,8 @@ import assert from 'assert';
 import { Emitter } from '../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite, toResource } from '../../../../../base/test/common/utils.js';
 import { ExplorerItem } from '../../common/explorerModel.js';
-import { getContext } from '../../browser/views/explorerView.js';
+import { getContext, getExplorerTwistieAdditionalCssClass } from '../../browser/views/explorerView.js';
+import { IFileIconTheme } from '../../../../../platform/theme/common/themeService.js';
 import { listInvalidItemForeground } from '../../../../../platform/theme/common/colorRegistry.js';
 import { CompressedNavigationController } from '../../browser/views/explorerViewer.js';
 import * as dom from '../../../../../base/browser/dom.js';
@@ -29,6 +30,25 @@ suite('Files - ExplorerView', () => {
 	function createStat(this: any, path: string, name: string, isFolder: boolean, hasChildren: boolean, size: number, mtime: number, isSymLink = false, isUnknown = false): ExplorerItem {
 		return new ExplorerItem(toResource.call(this, path), fileService, configService, NullFilesConfigurationService, undefined, isFolder, isSymLink, false, false, name, mtime, isUnknown);
 	}
+
+	test('explorer twistie additional css class for nested files', function () {
+		const d = new Date().getTime();
+		const folderWithNests = createStat.call(this, '/nest', 'nest', true, false, 8096, d);
+		folderWithNests.nestedChildren = [createStat.call(this, '/nest/a.ts', 'a.ts', false, false, 100, d)];
+		const folderNoNests = createStat.call(this, '/plain', 'plain', true, false, 8096, d);
+		const themeHidesArrows: IFileIconTheme = { hasFileIcons: true, hasFolderIcons: true, hidesExplorerArrows: true };
+		const themeShowsArrows: IFileIconTheme = { hasFileIcons: true, hasFolderIcons: true, hidesExplorerArrows: false };
+
+		assert.deepStrictEqual(
+			[
+				getExplorerTwistieAdditionalCssClass(folderWithNests, themeHidesArrows),
+				getExplorerTwistieAdditionalCssClass(folderWithNests, themeShowsArrows),
+				getExplorerTwistieAdditionalCssClass(folderNoNests, themeHidesArrows),
+				getExplorerTwistieAdditionalCssClass({}, themeHidesArrows),
+			],
+			['force-twistie', undefined, undefined, undefined]
+		);
+	});
 
 	test('getContext', async function () {
 		const d = new Date().getTime();
