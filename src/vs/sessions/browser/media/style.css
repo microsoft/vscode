@@ -43,6 +43,10 @@
 	box-sizing: border-box;
 }
 
+.agent-sessions-workbench .part.auxiliarybar > .content .pane-body {
+	background-color: var(--vscode-sessionsAuxiliaryBar-background);
+}
+
 .agent-sessions-workbench .part.panel {
 	margin: 0 10px 10px 10px;
 	background: var(--part-background);
@@ -60,11 +64,38 @@
 	background-color: var(--vscode-sessionsSidebar-background);
 }
 
+.agent-sessions-workbench .monaco-sash:before {
+	border-radius: calc(var(--vscode-sash-hover-size) / 2);
+}
+
+.agent-sessions-workbench .monaco-sash:not(.disabled) > .orthogonal-drag-handle {
+	border-radius: var(--vscode-sash-size);
+}
+
+.monaco-workbench.vs.agent-sessions-workbench .part.chatbar,
+.monaco-workbench.vs.agent-sessions-workbench .part.auxiliarybar,
+.monaco-workbench.vs.agent-sessions-workbench .part.panel {
+	border-color: var(--vscode-editorWidget-border, var(--vscode-widget-border, transparent));
+}
+
 /* ---- Chat Layout ---- */
 
 /* Remove max-width from the session container so the scrollbar extends full width */
 .agent-sessions-workbench .interactive-session {
 	max-width: none;
+}
+
+.monaco-workbench.vs.agent-sessions-workbench .part.chatbar .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows {
+	background: transparent !important;
+}
+
+.monaco-workbench.vs.agent-sessions-workbench .part.chatbar .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.request:hover,
+.monaco-workbench.vs.agent-sessions-workbench .part.chatbar .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.response:hover,
+.monaco-workbench.vs.agent-sessions-workbench .part.chatbar .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused.request,
+.monaco-workbench.vs.agent-sessions-workbench .part.chatbar .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.focused.response,
+.monaco-workbench.vs.agent-sessions-workbench .part.chatbar .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.selected.request,
+.monaco-workbench.vs.agent-sessions-workbench .part.chatbar .interactive-list > .monaco-list > .monaco-scrollable-element > .monaco-list-rows > .monaco-list-row.selected.response {
+	background: transparent !important;
 }
 
 /* Constrain content items to the same max-width, centered */
@@ -105,6 +136,11 @@
 
 .agent-sessions-workbench .interactive-session .chat-input-container {
 	border-radius: var(--vscode-cornerRadius-large);
+	border-color: var(--vscode-editorWidget-border, var(--vscode-widget-border)) !important;
+}
+
+.agent-sessions-workbench .interactive-session .chat-input-container.focused {
+	border-color: var(--vscode-focusBorder) !important;
 }
 .agent-sessions-workbench .interactive-session .interactive-input-part {
 	width: 100%;
@@ -116,10 +152,64 @@
 	box-sizing: border-box;
 }
 
+/* Hide shared chat-session option-group pickers in the sessions app active chat UI.
+ * The sessions workbench provides its own new-session configuration controls and
+ * should not surface the shared workbench chat session pickers here. */
+.agent-sessions-workbench .interactive-session .chat-input-toolbars .chat-sessionPicker-container {
+	display: none;
+}
+
+/* ---- Sessions Action Widget Pickers ---- */
+
+.agent-sessions-workbench .action-widget {
+	background-color: var(--vscode-sessionsPanel-background);
+}
+
+.agent-sessions-workbench .action-widget .action-widget-action-bar,
+.agent-sessions-workbench .action-widget .action-list-filter {
+	background-color: var(--vscode-sessionsPanel-background);
+}
+
+.agent-sessions-workbench .action-widget .monaco-scrollable-element > .monaco-list-rows {
+	background-color: var(--vscode-sessionsPanel-background) !important;
+}
+
+/* ---- Sessions Quick Picks ---- */
+
+.agent-sessions-workbench .quick-input-widget,
+.agent-sessions-workbench .quick-input-titlebar {
+	background-color: var(--vscode-sessionsPanel-background) !important;
+}
+
+.agent-sessions-workbench .quick-input-header,
+.agent-sessions-workbench .quick-input-html-widget,
+.agent-sessions-workbench .quick-input-list .monaco-scrollable-element > .monaco-list-rows,
+.agent-sessions-workbench .quick-input-tree .monaco-scrollable-element > .monaco-list-rows {
+	background-color: var(--vscode-sessionsPanel-background) !important;
+}
+
+/* ---- Sessions Context Menus ---- */
+
+.agent-sessions-workbench .context-view.monaco-menu-container,
+.agent-sessions-workbench .context-view.monaco-menu-container .monaco-menu,
+.agent-sessions-workbench .context-view.monaco-menu-container .monaco-scrollable-element {
+	background-color: var(--vscode-sessionsPanel-background) !important;
+}
+
+/* Keep code block backgrounds stable across themes; add separation in older light themes via border only */
+.agent-sessions-workbench .interactive-session .interactive-response .interactive-result-code-block {
+	border-color: var(--vscode-editorWidget-border, var(--vscode-widget-border));
+}
 /* ---- Modal Editor Block ---- */
 
 .agent-sessions-workbench .monaco-modal-editor-block {
 	background: rgba(0, 0, 0, 0.5);
+}
+
+.agent-sessions-workbench .monaco-modal-editor-block .modal-editor-sidebar .monaco-tl-twistie.force-no-twistie {
+	width: 0 !important;
+	padding-left: 0 !important;
+	padding-right: 0 !important;
 }
 
 

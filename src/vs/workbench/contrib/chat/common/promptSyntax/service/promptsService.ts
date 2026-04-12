@@ -19,6 +19,46 @@ import { IResolvedPromptSourceFolder } from '../config/promptFileLocations.js';
 import { ChatRequestHooks } from '../hookSchema.js';
 
 /**
+ * A single structured debug detail entry from the instructions context computer.
+ */
+export interface InstructionsCollectionDebugEntry {
+	readonly category: 'applying' | 'skipped' | 'referenced' | 'skill' | 'custom-agent' | 'hook';
+	readonly name: string;
+	readonly uri?: URI;
+	readonly reason?: string;
+}
+
+export type InstructionsCollectionEvent = {
+	applyingInstructionsCount: number;
+	referencedInstructionsCount: number;
+	agentInstructionsCount: number;
+	listedInstructionsCount: number;
+	totalInstructionsCount: number;
+	claudeRulesCount: number;
+	claudeMdCount: number;
+	claudeAgentsCount: number;
+};
+
+/**
+ * Debug-only information collected alongside {@link InstructionsCollectionEvent}.
+ * This data is used for debug logging and is not sent as telemetry.
+ */
+export type InstructionsCollectionDebugInfo = {
+	/** Per-file detail entries for debug logging. */
+	debugDetails: InstructionsCollectionDebugEntry[];
+	/** Total wall-clock time of the collect() call in milliseconds. */
+	durationInMillis: number;
+};
+
+export function newInstructionsCollectionEvent(): InstructionsCollectionEvent {
+	return { applyingInstructionsCount: 0, referencedInstructionsCount: 0, agentInstructionsCount: 0, listedInstructionsCount: 0, totalInstructionsCount: 0, claudeRulesCount: 0, claudeMdCount: 0, claudeAgentsCount: 0 };
+}
+
+export function newInstructionsCollectionDebugInfo(): InstructionsCollectionDebugInfo {
+	return { debugDetails: [], durationInMillis: 0 };
+}
+
+/**
  * Activation events for prompt file providers.
  */
 export const CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT = 'onCustomAgentProvider';
@@ -230,6 +270,12 @@ export interface ICustomAgent {
 	 * Where the agent was loaded from.
 	 */
 	readonly source: IAgentSource;
+
+	/**
+	 * Optional context key expression. When set, the agent is only available
+	 * when this expression evaluates to true against a scoped context.
+	 */
+	readonly when?: ContextKeyExpression;
 }
 
 export interface IAgentInstructions {
@@ -296,6 +342,12 @@ export interface IInstructionFile {
 	 * The source that produced this prompt path.
 	 */
 	readonly source?: PromptFileSource;
+
+	/**
+	 * Optional context key expression. When set, the instruction file is only available
+	 * when this expression evaluates to true against a scoped context.
+	 */
+	readonly when?: ContextKeyExpression;
 }
 
 /**
@@ -604,8 +656,13 @@ export interface IPromptsService extends IDisposable {
 	readonly onDidChangeSkills: Event<void>;
 
 	/**
+	 * Event that is triggered when the effective hook availability or configuration changes.
+	 */
+	readonly onDidChangeHooks: Event<void>;
+
+	/**
 	 * Gets all hooks collected from hooks.json files.
-	 * The result is cached and invalidated when hook files change.
+	 * The result is cached and invalidated when the effective hook availability or configuration changes.
 	 */
 	getHooks(token: CancellationToken): Promise<IConfiguredHooksInfo | undefined>;
 
@@ -618,5 +675,4 @@ export interface IPromptsService extends IDisposable {
 	 * Returns the cached discovery info for the given prompt type.
 	 */
 	getDiscoveryInfo(type: PromptsType, token: CancellationToken): Promise<IPromptDiscoveryInfo>;
-
 }

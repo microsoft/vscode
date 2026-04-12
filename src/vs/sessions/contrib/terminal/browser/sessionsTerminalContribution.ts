@@ -16,18 +16,17 @@ import { ITerminalInstance, ITerminalService } from '../../../../workbench/contr
 import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { Menus } from '../../../browser/menus.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
-import { ISession } from '../../sessions/common/sessionData.js';
+import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { CopilotCLISessionType, ISession } from '../../../services/sessions/common/session.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { logSessionsInteraction } from '../../../common/sessionsTelemetry.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { TERMINAL_VIEW_ID } from '../../../../workbench/contrib/terminal/common/terminal.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
-import { CopilotCLISessionType } from '../../sessions/browser/sessionTypes.js';
 
 const SessionsTerminalViewVisibleContext = new RawContextKey<boolean>('sessionsTerminalViewVisible', false);
 
@@ -314,8 +313,8 @@ class OpenSessionInTerminalAction extends Action2 {
 			menu: [{
 				id: Menus.TitleBarSessionMenu,
 				group: 'navigation',
-				order: 9,
-				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated())
+				order: 10,
+				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated()),
 			}]
 		});
 	}

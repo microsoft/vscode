@@ -16,6 +16,7 @@ export interface IElementAncestor {
 }
 
 export interface IElementData {
+	readonly url?: string;
 	readonly outerHTML: string;
 	readonly computedStyle: string;
 	readonly bounds: IRectangle;

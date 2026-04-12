@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../../../base/common/uri.js';
-import { IAgentMessageEvent, IAgentToolCompleteEvent, IAgentToolStartEvent } from '../../common/agentService.js';
+import { IAgentMessageEvent, IAgentSubagentStartedEvent, IAgentToolCompleteEvent, IAgentToolStartEvent } from '../../common/agentService.js';
 import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
 import { ToolResultContentType, type IToolResultContent } from '../../common/state/sessionState.js';
 import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool } from './copilotToolDisplay.js';
@@ -61,7 +61,17 @@ export interface ISessionEventMessage {
 }
 
 /** Minimal event shape for session history mapping. */
-export type ISessionEvent = ISessionEventToolStart | ISessionEventToolComplete | ISessionEventMessage | { type: string; data?: unknown };
+export type ISessionEvent = ISessionEventToolStart | ISessionEventToolComplete | ISessionEventMessage | ISessionEventSubagentStarted | { type: string; data?: unknown };
+
+export interface ISessionEventSubagentStarted {
+	type: 'subagent.started';
+	data: {
+		toolCallId: string;
+		agentName: string;
+		agentDisplayName: string;
+		agentDescription: string;
+	};
+}
 
 /**
  * Maps raw SDK session events into agent protocol events, restoring
@@ -74,8 +84,8 @@ export async function mapSessionEvents(
 	session: URI,
 	db: ISessionDatabase | undefined,
 	events: readonly ISessionEvent[],
-): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]> {
-	const result: (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[] = [];
+): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent | IAgentSubagentStartedEvent)[]> {
+	const result: (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent | IAgentSubagentStartedEvent)[] = [];
 	const toolInfoByCallId = new Map<string, { toolName: string; parameters: Record<string, unknown> | undefined }>();
 
 	// Collect all tool call IDs for edit tools so we can batch-query the database
@@ -186,10 +196,22 @@ export async function mapSessionEvents(
 			const edits = storedEdits?.get(d.toolCallId);
 			if (edits) {
 				for (const edit of edits) {
+					const beforeUri = edit.kind === 'rename' && edit.originalPath
+						? URI.file(edit.originalPath).toString()
+						: URI.file(edit.filePath).toString();
+					const afterUri = URI.file(edit.filePath).toString();
+					const hasBefore = edit.kind !== 'create';
+					const hasAfter = edit.kind !== 'delete';
 					content.push({
 						type: ToolResultContentType.FileEdit,
-						beforeURI: buildSessionDbUri(sessionUriStr, edit.toolCallId, edit.filePath, 'before'),
-						afterURI: buildSessionDbUri(sessionUriStr, edit.toolCallId, edit.filePath, 'after'),
+						before: hasBefore ? {
+							uri: beforeUri,
+							content: { uri: buildSessionDbUri(sessionUriStr, edit.toolCallId, edit.filePath, 'before') },
+						} : undefined,
+						after: hasAfter ? {
+							uri: afterUri,
+							content: { uri: buildSessionDbUri(sessionUriStr, edit.toolCallId, edit.filePath, 'after') },
+						} : undefined,
 						diff: (edit.addedLines !== undefined || edit.removedLines !== undefined)
 							? { added: edit.addedLines, removed: edit.removedLines }
 							: undefined,
@@ -210,6 +232,16 @@ export async function mapSessionEvents(
 				isUserRequested: d.isUserRequested,
 				toolTelemetry: d.toolTelemetry !== undefined ? tryStringify(d.toolTelemetry) : undefined,
 				parentToolCallId: d.parentToolCallId,
+			});
+		} else if (e.type === 'subagent.started') {
+			const d = (e as ISessionEventSubagentStarted).data;
+			result.push({
+				session,
+				type: 'subagent_started',
+				toolCallId: d.toolCallId,
+				agentName: d.agentName,
+				agentDisplayName: d.agentDisplayName,
+				agentDescription: d.agentDescription,
 			});
 		}
 	}

@@ -9,6 +9,8 @@ import { Schemas } from '../../../../base/common/network.js';
 import { isMacintosh } from '../../../../base/common/platform.js';
 import { PolicyCategory } from '../../../../base/common/policy.js';
 import { AgentHostEnabledSettingId, AgentHostIpcLoggingSettingId } from '../../../../platform/agentHost/common/agentService.js';
+import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
+import { AgentNetworkDomainSettingId } from '../../../../platform/networkFilter/common/settings.js';
 import { registerEditorFeature } from '../../../../editor/common/editorFeatures.js';
 import * as nls from '../../../../nls.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
@@ -22,7 +24,7 @@ import { McpAccessValue, McpAutoStartValue, mcpAccessConfig, mcpAutoStartConfig,
 import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../browser/editor.js';
-import { Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
+import { type ConfigurationKeyValuePairs, Extensions, IConfigurationMigrationRegistry } from '../../../common/configuration.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, WorkbenchPhase, registerWorkbenchContribution2 } from '../../../common/contributions.js';
 import { EditorExtensions, IEditorFactoryRegistry } from '../../../common/editor.js';
@@ -68,6 +70,7 @@ import { Extensions as JSONExtensions, IJSONContributionRegistry } from '../../.
 import { IPromptsService } from '../common/promptSyntax/service/promptsService.js';
 import { PromptsService } from '../common/promptSyntax/service/promptsServiceImpl.js';
 import { LanguageModelToolsExtensionPointHandler } from '../common/tools/languageModelToolsContribution.js';
+import './telemetry/chatModelCountTelemetry.js';
 import { BuiltinToolsContribution } from '../common/tools/builtinTools/tools.js';
 import { RenameToolContribution } from './tools/renameTool.js';
 import { UsagesToolContribution } from './tools/usagesTool.js';
@@ -131,6 +134,7 @@ import './chatManagement/chatManagement.contribution.js';
 import './aiCustomization/aiCustomizationWorkspaceService.js';
 import './aiCustomization/customizationHarnessService.js';
 import './aiCustomization/aiCustomizationManagement.contribution.js';
+import { AI_CUSTOMIZATION_WELCOME_PAGE_VARIANT_SETTING } from './aiCustomization/aiCustomizationManagement.js';
 
 import { ChatOutputRendererService, IChatOutputRendererService } from './chatOutputItemRenderer.js';
 import { ChatCompatibilityNotifier, ChatExtensionPointHandler } from './chatParticipant.contribution.js';
@@ -160,6 +164,8 @@ import { AgentPluginRecommendations } from './claudePluginRecommendations.js';
 import { AgentPluginEditor } from './agentPluginEditor/agentPluginEditor.js';
 import { AgentPluginEditorInput } from './agentPluginEditor/agentPluginEditorInput.js';
 import { AgentPluginRepositoryService } from './agentPluginRepositoryService.js';
+import { BrowserPluginGitCommandService } from './pluginGitCommandService.js';
+import { IPluginGitService } from '../common/plugins/pluginGitService.js';
 import { PluginInstallService } from './pluginInstallService.js';
 import './promptSyntax/promptCodingAgentActionContribution.js';
 import './promptSyntax/promptToolsCodeLensProvider.js';
@@ -198,6 +204,18 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.experimentalSessionsWindowOverride', "When true, enables sessions-window-specific behavior for extensions."),
 			default: false,
 			tags: ['experimental'],
+		},
+		[AI_CUSTOMIZATION_WELCOME_PAGE_VARIANT_SETTING]: {
+			type: 'string',
+			enum: ['classic', 'promptLaunchers'],
+			enumDescriptions: [
+				nls.localize('chat.customizations.welcomePageVariant.classic', "Uses the original welcome page layout from the baseline implementation."),
+				nls.localize('chat.customizations.welcomePageVariant.promptLaunchers', "Uses the experimental welcome page with grouped command prompt launchers."),
+			],
+			description: nls.localize('chat.customizations.welcomePageVariant', "Controls which welcome page implementation is shown in Agent Customizations."),
+			default: 'promptLaunchers',
+			tags: ['experimental'],
+			scope: ConfigurationScope.APPLICATION,
 		},
 		'chat.fontSize': {
 			type: 'number',
@@ -501,13 +519,6 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			tags: ['experimental']
 		},
-		[ChatConfiguration.ArtifactsMode]: {
-			default: 'rules',
-			description: nls.localize('chat.artifacts.mode', "Controls how artifacts are populated. 'rules' extracts artifacts deterministically from the conversation. 'tool' lets the model set artifacts via a tool call."),
-			type: 'string',
-			enum: ['rules', 'tool'],
-			tags: ['experimental']
-		},
 		[ChatConfiguration.ArtifactsRulesByMimeType]: {
 			default: {
 				'image/*': { groupName: 'Screenshots', onlyShowGroup: true }
@@ -535,6 +546,22 @@ configurationRegistry.registerConfiguration({
 				properties: {
 					groupName: { type: 'string', description: nls.localize('chat.artifacts.rules.byFilePath.groupName', "Display name for the artifact group.") },
 					onlyShowGroup: { type: 'boolean', description: nls.localize('chat.artifacts.rules.byFilePath.onlyShowGroup', "When true, show only the group header instead of individual items.") }
+				},
+				required: ['groupName']
+			},
+			tags: ['experimental']
+		},
+		[ChatConfiguration.ArtifactsRulesByMemoryFilePath]: {
+			default: {
+				'**/*plan*.md': { groupName: 'Plans' }
+			},
+			description: nls.localize('chat.artifacts.rules.byMemoryFilePath', "Rules for extracting artifacts from memory tool calls by memory file path pattern. Maps glob patterns to group configuration."),
+			type: 'object',
+			additionalProperties: {
+				type: 'object',
+				properties: {
+					groupName: { type: 'string', description: nls.localize('chat.artifacts.rules.byMemoryFilePath.groupName', "Display name for the artifact group.") },
+					onlyShowGroup: { type: 'boolean', description: nls.localize('chat.artifacts.rules.byMemoryFilePath.onlyShowGroup', "When true, show only the group header instead of individual items.") }
 				},
 				required: ['groupName']
 			},
@@ -722,6 +749,17 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.plugins.enabled', "Enable agent plugin integration in chat."),
 			default: true,
 			tags: ['preview'],
+			policy: {
+				name: 'ChatPluginsEnabled',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.116',
+				localization: {
+					description: {
+						key: 'chat.plugins.enabled',
+						value: nls.localize('chat.plugins.enabled', "Enable agent plugin integration in chat."),
+					}
+				},
+			},
 		},
 		[ChatConfiguration.PluginLocations]: {
 			type: 'object',
@@ -759,6 +797,83 @@ configurationRegistry.registerConfiguration({
 				}
 			}
 		},
+		[AgentNetworkDomainSettingId.NetworkFilter]: {
+			markdownDescription: nls.localize('chat.agent.networkFilter', "When enabled, network access by agent tools (fetch tool, integrated browser) is restricted according to {0} and {1}. When disabled, no network filtering is applied.", '`#chat.agent.allowedNetworkDomains#`', '`#chat.agent.deniedNetworkDomains#`'),
+			type: 'boolean',
+			default: false,
+			restricted: true,
+			policy: {
+				name: 'ChatAgentNetworkFilter',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.116',
+				localization: {
+					description: {
+						key: 'chat.agent.networkFilter',
+						value: nls.localize('chat.agent.networkFilter', "When enabled, network access by agent tools (fetch tool, integrated browser) is restricted according to {0} and {1}. When disabled, no network filtering is applied.", '`#chat.agent.allowedNetworkDomains#`', '`#chat.agent.deniedNetworkDomains#`'),
+					}
+				}
+			}
+		},
+		[AgentNetworkDomainSettingId.AllowedNetworkDomains]: {
+			markdownDescription: nls.localize('chat.agent.allowedNetworkDomains', "Allowed domains for network access by agent tools (fetch tool, integrated browser). Only takes effect when {0} is enabled. When {1} is enabled, these also apply to the terminal sandbox. Supports wildcards like {2}. When both allowed and denied lists are empty, all domains are blocked. Denied domains (see {3}) take precedence.", '`#chat.agent.networkFilter#`', '`#chat.agent.sandbox.enabled#`', '`*.example.com`', '`#chat.agent.deniedNetworkDomains#`'),
+			type: 'array',
+			items: { type: 'string' },
+			default: [],
+			restricted: true,
+			policy: {
+				name: 'ChatAgentAllowedNetworkDomains',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.116',
+				localization: {
+					description: {
+						key: 'chat.agent.allowedNetworkDomains',
+						value: nls.localize('chat.agent.allowedNetworkDomains', "Allowed domains for network access by agent tools (fetch tool, integrated browser). Only takes effect when {0} is enabled. When {1} is enabled, these also apply to the terminal sandbox. Supports wildcards like {2}. When both allowed and denied lists are empty, all domains are blocked. Denied domains (see {3}) take precedence.", '`#chat.agent.networkFilter#`', '`#chat.agent.sandbox.enabled#`', '`*.example.com`', '`#chat.agent.deniedNetworkDomains#`'),
+					}
+				}
+			}
+		},
+		[AgentNetworkDomainSettingId.DeniedNetworkDomains]: {
+			markdownDescription: nls.localize('chat.agent.deniedNetworkDomains', "Denied domains for network access by agent tools (fetch tool, integrated browser). Only takes effect when {0} is enabled. When {1} is enabled, these also apply to the terminal sandbox. Takes precedence over {2}. Supports wildcards like {3}.", '`#chat.agent.networkFilter#`', '`#chat.agent.sandbox.enabled#`', '`#chat.agent.allowedNetworkDomains#`', '`*.example.com`'),
+			type: 'array',
+			items: { type: 'string' },
+			default: [],
+			restricted: true,
+			policy: {
+				name: 'ChatAgentDeniedNetworkDomains',
+				category: PolicyCategory.InteractiveSession,
+				minimumVersion: '1.116',
+				localization: {
+					description: {
+						key: 'chat.agent.deniedNetworkDomains',
+						value: nls.localize('chat.agent.deniedNetworkDomains', "Denied domains for network access by agent tools (fetch tool, integrated browser). Only takes effect when {0} is enabled. When {1} is enabled, these also apply to the terminal sandbox. Takes precedence over {2}. Supports wildcards like {3}.", '`#chat.agent.networkFilter#`', '`#chat.agent.sandbox.enabled#`', '`#chat.agent.allowedNetworkDomains#`', '`*.example.com`'),
+					}
+				}
+			}
+		},
+		[AgentNetworkDomainSettingId.DeprecatedOldAllowedNetworkDomains]: {
+			type: 'array',
+			items: { type: 'string' },
+			deprecated: true,
+			markdownDeprecationMessage: nls.localize('agentSandbox.allowedNetworkDomains.deprecated', 'Use {0} instead', `\`#${AgentNetworkDomainSettingId.AllowedNetworkDomains}#\``),
+		},
+		[AgentNetworkDomainSettingId.DeprecatedOldDeniedNetworkDomains]: {
+			type: 'array',
+			items: { type: 'string' },
+			deprecated: true,
+			markdownDeprecationMessage: nls.localize('agentSandbox.deniedNetworkDomains.deprecated', 'Use {0} instead', `\`#${AgentNetworkDomainSettingId.DeniedNetworkDomains}#\``),
+		},
+		[AgentNetworkDomainSettingId.DeprecatedSandboxAllowedNetworkDomains]: {
+			type: 'array',
+			items: { type: 'string' },
+			deprecated: true,
+			markdownDeprecationMessage: nls.localize('agentSandbox.allowedNetworkDomains2.deprecated', 'Use {0} instead', `\`#${AgentNetworkDomainSettingId.AllowedNetworkDomains}#\``),
+		},
+		[AgentNetworkDomainSettingId.DeprecatedSandboxDeniedNetworkDomains]: {
+			type: 'array',
+			items: { type: 'string' },
+			deprecated: true,
+			markdownDeprecationMessage: nls.localize('agentSandbox.deniedNetworkDomains2.deprecated', 'Use {0} instead', `\`#${AgentNetworkDomainSettingId.DeniedNetworkDomains}#\``),
+		},
 		[ChatConfiguration.DefaultNewSessionMode]: {
 			type: 'string',
 			description: nls.localize('chat.newSession.defaultMode', "The default mode for new chat sessions. When empty, the chat view's default mode is used."),
@@ -777,6 +892,12 @@ configurationRegistry.registerConfiguration({
 			default: false,
 			tags: ['experimental', 'advanced'],
 			included: product.quality !== 'stable',
+		},
+		[ChatConfiguration.ToolConfirmationCarousel]: {
+			type: 'boolean',
+			description: nls.localize('chat.tools.confirmationCarousel', "When enabled, multiple tool confirmations are batched into a carousel above the input."),
+			default: product.quality !== 'stable',
+			tags: ['experimental'],
 		},
 		[ChatConfiguration.PlanAgentDefaultModel]: {
 			type: 'string',
@@ -834,15 +955,6 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.codeBlock.showProgressAnimation.description', "When applying edits, show a progress animation in the code block pill. If disabled, shows the progress percentage instead."),
 			default: true,
 			tags: ['experimental'],
-		},
-		['chat.statusWidget.anonymous']: {
-			type: 'boolean',
-			description: nls.localize('chat.statusWidget.anonymous.description', "Controls whether anonymous users see the status widget in new chat sessions when rate limited."),
-			default: false,
-			tags: ['experimental', 'advanced'],
-			experiment: {
-				mode: 'auto'
-			}
 		},
 		[mcpDiscoverySection]: {
 			type: 'object',
@@ -1382,23 +1494,12 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
-		[ChatConfiguration.ChatCustomizationMenuEnabled]: {
-			type: 'boolean',
-			tags: ['preview'],
-			description: nls.localize('chat.aiCustomizationMenu.enabled', "Controls whether the Chat Customizations editor is enabled. When enabled, the gear icon in the Chat view opens the Customizations editor directly and additional actions are moved to the overflow menu. When disabled, the gear icon shows the legacy configuration dropdown."),
-			default: true,
-		},
+
 		[ChatConfiguration.ChatCustomizationHarnessSelectorEnabled]: {
 			type: 'boolean',
 			tags: ['preview'],
-			description: nls.localize('chat.customizations.harnessSelector.enabled', "Controls whether the harness selector (Local, Copilot CLI, Claude) is shown in the Chat Customizations editor sidebar. When disabled, the editor always shows all customizations without filtering."),
+			description: nls.localize('chat.customizations.harnessSelector.enabled', "Controls whether the harness selector is shown in the Chat Customizations editor sidebar. When disabled, the editor always shows all customizations without filtering."),
 			default: true,
-		},
-		[ChatConfiguration.CustomizationsProviderApi]: {
-			type: 'boolean',
-			description: nls.localize('chat.customizations.providerApi.enabled', "When enabled, the Customizations management UI reads items from the session type's customizations provider instead of built-in discovery."),
-			default: false,
-			tags: ['experimental'],
 		},
 	}
 });
@@ -1485,6 +1586,50 @@ Registry.as<IConfigurationMigrationRegistry>(Extensions.ConfigurationMigration).
 			['chat.plugins.paths', { value: undefined }],
 			[ChatConfiguration.PluginLocations, { value }]
 		])
+	},
+	{
+		key: AgentNetworkDomainSettingId.DeprecatedSandboxAllowedNetworkDomains,
+		migrateFn: (value, accessor) => {
+			const pairs: ConfigurationKeyValuePairs = [];
+			pairs.push([AgentNetworkDomainSettingId.DeprecatedSandboxAllowedNetworkDomains, { value: undefined }]);
+			if (value !== undefined && accessor(AgentNetworkDomainSettingId.AllowedNetworkDomains) === undefined) {
+				pairs.push([AgentNetworkDomainSettingId.AllowedNetworkDomains, { value }]);
+			}
+			return pairs;
+		}
+	},
+	{
+		key: AgentNetworkDomainSettingId.DeprecatedSandboxDeniedNetworkDomains,
+		migrateFn: (value, accessor) => {
+			const pairs: ConfigurationKeyValuePairs = [];
+			pairs.push([AgentNetworkDomainSettingId.DeprecatedSandboxDeniedNetworkDomains, { value: undefined }]);
+			if (value !== undefined && accessor(AgentNetworkDomainSettingId.DeniedNetworkDomains) === undefined) {
+				pairs.push([AgentNetworkDomainSettingId.DeniedNetworkDomains, { value }]);
+			}
+			return pairs;
+		}
+	},
+	{
+		key: AgentNetworkDomainSettingId.DeprecatedOldAllowedNetworkDomains,
+		migrateFn: (value, accessor) => {
+			const pairs: ConfigurationKeyValuePairs = [];
+			pairs.push([AgentNetworkDomainSettingId.DeprecatedOldAllowedNetworkDomains, { value: undefined }]);
+			if (value !== undefined && accessor(AgentNetworkDomainSettingId.AllowedNetworkDomains) === undefined) {
+				pairs.push([AgentNetworkDomainSettingId.AllowedNetworkDomains, { value }]);
+			}
+			return pairs;
+		}
+	},
+	{
+		key: AgentNetworkDomainSettingId.DeprecatedOldDeniedNetworkDomains,
+		migrateFn: (value, accessor) => {
+			const pairs: ConfigurationKeyValuePairs = [];
+			pairs.push([AgentNetworkDomainSettingId.DeprecatedOldDeniedNetworkDomains, { value: undefined }]);
+			if (value !== undefined && accessor(AgentNetworkDomainSettingId.DeniedNetworkDomains) === undefined) {
+				pairs.push([AgentNetworkDomainSettingId.DeniedNetworkDomains, { value }]);
+			}
+			return pairs;
+		}
 	},
 ]);
 
@@ -2002,6 +2147,7 @@ registerSingleton(IAgentPluginService, AgentPluginService, InstantiationType.Del
 registerSingleton(IPluginMarketplaceService, PluginMarketplaceService, InstantiationType.Delayed);
 registerSingleton(IWorkspacePluginSettingsService, WorkspacePluginSettingsService, InstantiationType.Delayed);
 registerSingleton(IAgentPluginRepositoryService, AgentPluginRepositoryService, InstantiationType.Delayed);
+registerSingleton(IPluginGitService, BrowserPluginGitCommandService, InstantiationType.Delayed);
 registerSingleton(IPluginInstallService, PluginInstallService, InstantiationType.Delayed);
 registerSingleton(ILanguageModelToolsService, LanguageModelToolsService, InstantiationType.Delayed);
 registerSingleton(ILanguageModelToolsConfirmationService, LanguageModelToolsConfirmationService, InstantiationType.Delayed);
@@ -2010,6 +2156,7 @@ registerSingleton(IChatCodeBlockContextProviderService, ChatCodeBlockContextProv
 registerSingleton(ICodeMapperService, CodeMapperService, InstantiationType.Delayed);
 registerSingleton(IChatEditingService, ChatEditingService, InstantiationType.Delayed);
 registerSingleton(IChatMarkdownAnchorService, ChatMarkdownAnchorService, InstantiationType.Delayed);
+registerSingleton(IAgentNetworkFilterService, AgentNetworkFilterService, InstantiationType.Delayed);
 registerSingleton(ILanguageModelIgnoredFilesService, LanguageModelIgnoredFilesService, InstantiationType.Delayed);
 registerSingleton(IPromptsService, PromptsService, InstantiationType.Delayed);
 registerSingleton(IChatContextPickService, ChatContextPickService, InstantiationType.Delayed);

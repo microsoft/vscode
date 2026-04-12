@@ -9,6 +9,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { basename } from '../../../../base/common/resources.js';
 import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -27,9 +28,13 @@ import { IChatSendRequestOptions, IChatService } from '../../../../workbench/con
 import { IChatSessionFileChange, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
-import { ISessionChangeEvent, ISendRequestOptions, ISessionsBrowseAction, ISessionsProvider, ISessionType } from '../../sessions/browser/sessionsProvider.js';
-import { CopilotCLISessionType } from '../../sessions/browser/sessionTypes.js';
-import { ISession, IChat, IGitHubInfo, ISessionWorkspace, SessionStatus } from '../../sessions/common/sessionData.js';
+import { agentHostSessionWorkspaceKey, buildAgentHostSessionWorkspace } from '../../../common/agentHostSessionWorkspace.js';
+import { ISessionChangeEvent, ISendRequestOptions, ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
+import { ISession, IChat, IGitHubInfo, ISessionWorkspace, ISessionWorkspaceBrowseAction, SessionStatus, CopilotCLISessionType, ISessionType } from '../../../services/sessions/common/session.js';
+
+function toLocalProjectUri(uri: URI, connectionAuthority: string): URI {
+	return uri.scheme === Schemas.file ? toAgentHostUri(uri, connectionAuthority) : uri;
+}
 
 interface IChatData {
 	/** Globally unique session ID (`providerId:localId`). */
@@ -78,6 +83,8 @@ interface IChatData {
 export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly address: string;
 	readonly name: string;
+	/** Optional hook to establish a connection on demand (e.g. tunnel relay). */
+	readonly connectOnDemand?: () => Promise<void>;
 }
 
 /**
@@ -113,8 +120,7 @@ class RemoteSessionAdapter implements IChatData {
 		providerId: string,
 		resourceScheme: string,
 		logicalSessionType: string,
-		providerLabel: string,
-		connectionAuthority: string,
+		private readonly _providerLabel: string,
 	) {
 		const rawId = AgentSession.id(metadata.session);
 		this.agentProvider = AgentSession.provider(metadata.session) ?? 'copilot';
@@ -126,16 +132,31 @@ class RemoteSessionAdapter implements IChatData {
 		this.title = observableValue('title', metadata.summary ?? `Session ${rawId.substring(0, 8)}`);
 		this.updatedAt = observableValue('updatedAt', new Date(metadata.modifiedTime));
 		this.lastTurnEnd = observableValue('lastTurnEnd', metadata.modifiedTime ? new Date(metadata.modifiedTime) : undefined);
-		this.description = observableValue('description', new MarkdownString().appendText(providerLabel));
-		this.workspace = observableValue('workspace', metadata.workingDirectory
-			? RemoteAgentHostSessionsProvider.buildWorkspace(metadata.workingDirectory, providerLabel, connectionAuthority)
-			: undefined);
+		this.description = observableValue('description', new MarkdownString().appendText(this._providerLabel));
+		this.workspace = observableValue('workspace', RemoteAgentHostSessionsProvider.buildWorkspace(metadata.project, metadata.workingDirectory, this._providerLabel));
+
+		if (metadata.isRead === false) {
+			this.isRead.set(false, undefined);
+		}
+		if (metadata.isDone) {
+			this.isArchived.set(true, undefined);
+		}
 	}
 
 	update(metadata: IAgentSessionMetadata): void {
 		this.title.set(metadata.summary ?? this.title.get(), undefined);
 		this.updatedAt.set(new Date(metadata.modifiedTime), undefined);
 		this.lastTurnEnd.set(metadata.modifiedTime ? new Date(metadata.modifiedTime) : undefined, undefined);
+		if (metadata.isRead !== undefined) {
+			this.isRead.set(metadata.isRead, undefined);
+		}
+		if (metadata.isDone !== undefined) {
+			this.isArchived.set(metadata.isDone, undefined);
+		}
+		const workspace = RemoteAgentHostSessionsProvider.buildWorkspace(metadata.project, metadata.workingDirectory, this._providerLabel);
+		if (agentHostSessionWorkspaceKey(workspace) !== agentHostSessionWorkspaceKey(this.workspace.get())) {
+			this.workspace.set(workspace, undefined);
+		}
 	}
 }
 
@@ -177,7 +198,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 	private readonly _onDidReplaceSession = this._register(new Emitter<{ readonly from: ISession; readonly to: ISession }>());
 	readonly onDidReplaceSession: Event<{ readonly from: ISession; readonly to: ISession }> = this._onDidReplaceSession.event;
 
-	readonly browseActions: readonly ISessionsBrowseAction[];
+	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 
 	/** Cache of adapted sessions, keyed by raw session ID. */
 	private readonly _sessionCache = new Map<string, RemoteSessionAdapter>();
@@ -200,6 +221,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 	private readonly _connectionListeners = this._register(new DisposableStore());
 	private readonly _onDidDisconnect = this._register(new Emitter<void>());
 	private readonly _connectionAuthority: string;
+	private readonly _connectOnDemand: (() => Promise<void>) | undefined;
 
 	constructor(
 		config: IRemoteAgentHostSessionsProviderConfig,
@@ -213,6 +235,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		super();
 
 		this._connectionAuthority = agentHostAuthority(config.address);
+		this._connectOnDemand = config.connectOnDemand;
 		const displayName = config.name || config.address;
 
 		this.id = `agenthost-${this._connectionAuthority}`;
@@ -226,7 +249,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 			// label: localize('browseRemote', "Browse Folders ({0})...", displayName),
 			icon: Codicon.remote,
 			providerId: this.id,
-			execute: () => this._browseForFolder(),
+			run: () => this._browseForFolder(),
 		}];
 	}
 
@@ -274,6 +297,10 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 				this._refreshSessions(cts.token).finally(() => cts.dispose());
 			} else if (e.action.type === ActionType.SessionTitleChanged && isSessionAction(e.action)) {
 				this._handleTitleChanged(e.action.session, e.action.title);
+			} else if (e.action.type === ActionType.SessionIsReadChanged && isSessionAction(e.action)) {
+				this._handleIsReadChanged(e.action.session, e.action.isRead);
+			} else if (e.action.type === ActionType.SessionIsDoneChanged && isSessionAction(e.action)) {
+				this._handleIsDoneChanged(e.action.session, e.action.isDone);
 			}
 		}));
 
@@ -310,14 +337,8 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 	/**
 	 * Builds workspace metadata from a working directory path on the remote host.
 	 */
-	static buildWorkspace(workingDirectory: URI, providerLabel: string, _connectionAuthority: string): ISessionWorkspace {
-		const folderName = basename(workingDirectory) || workingDirectory.path;
-		return {
-			label: `${folderName} [${providerLabel}]`,
-			icon: Codicon.remote,
-			repositories: [{ uri: workingDirectory, workingDirectory: undefined, detail: providerLabel, baseBranchName: undefined, baseBranchProtected: undefined }],
-			requiresWorkspaceTrust: false,
-		};
+	static buildWorkspace(project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined, providerLabel: string): ISessionWorkspace | undefined {
+		return buildAgentHostSessionWorkspace(project, workingDirectory, { providerLabel, fallbackIcon: Codicon.remote, requiresWorkspaceTrust: false });
 	}
 
 	private _buildWorkspaceFromUri(uri: URI): ISessionWorkspace {
@@ -407,12 +428,30 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 
 	// -- Session Actions --
 
-	async archiveSession(_sessionId: string): Promise<void> {
-		// Agent host sessions don't support archiving
+	async archiveSession(sessionId: string): Promise<void> {
+		const rawId = this._rawIdFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		if (cached && rawId) {
+			cached.isArchived.set(true, undefined);
+			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._chatToSession(cached)] });
+			if (this._connection) {
+				const action = { type: ActionType.SessionIsDoneChanged as const, session: AgentSession.uri(cached.agentProvider, rawId).toString(), isDone: true };
+				this._connection.dispatch(action);
+			}
+		}
 	}
 
-	async unarchiveSession(_sessionId: string): Promise<void> {
-		// Agent host sessions don't support unarchiving
+	async unarchiveSession(sessionId: string): Promise<void> {
+		const rawId = this._rawIdFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		if (cached && rawId) {
+			cached.isArchived.set(false, undefined);
+			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._chatToSession(cached)] });
+			if (this._connection) {
+				const action = { type: ActionType.SessionIsDoneChanged as const, session: AgentSession.uri(cached.agentProvider, rawId).toString(), isDone: false };
+				this._connection.dispatch(action);
+			}
+		}
 	}
 
 	async deleteSession(sessionId: string): Promise<void> {
@@ -432,7 +471,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 			cached.title.set(_title, undefined);
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._chatToSession(cached)] });
 			const action = { type: ActionType.SessionTitleChanged as const, session: AgentSession.uri(cached.agentProvider, rawId).toString(), title: _title };
-			this._connection.dispatchAction(action, this._connection.clientId, this._connection.nextClientSeq());
+			this._connection.dispatch(action);
 		}
 	}
 
@@ -445,6 +484,10 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
 		if (cached) {
 			cached.isRead.set(read, undefined);
+			if (this._connection && rawId) {
+				const action = { type: ActionType.SessionIsReadChanged as const, session: AgentSession.uri(cached.agentProvider, rawId).toString(), isRead: read };
+				this._connection.dispatch(action);
+			}
 		}
 	}
 
@@ -573,7 +616,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 					existing.update(meta);
 					changed.push(this._chatToSession(existing));
 				} else {
-					const cached = new RemoteSessionAdapter(meta, this.id, this._sessionTypeForProvider(provider), this.sessionTypes[0].id, this.label, this._connectionAuthority);
+					const cached = new RemoteSessionAdapter(meta, this.id, this._sessionTypeForProvider(provider), this.sessionTypes[0].id, this.label);
 					this._sessionCache.set(rawId, cached);
 					added.push(this._chatToSession(cached));
 				}
@@ -631,7 +674,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		}
 	}
 
-	private _handleSessionAdded(summary: { resource: string; provider: string; title: string; createdAt: number; modifiedAt: number; workingDirectory?: string }): void {
+	private _handleSessionAdded(summary: { resource: string; provider: string; title: string; createdAt: number; modifiedAt: number; project?: { uri: string; displayName: string }; workingDirectory?: string; isRead?: boolean; isDone?: boolean }): void {
 		const sessionUri = URI.parse(summary.resource);
 		const rawId = AgentSession.id(sessionUri);
 		if (this._sessionCache.has(rawId)) {
@@ -647,9 +690,12 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 			startTime: summary.createdAt,
 			modifiedTime: summary.modifiedAt,
 			summary: summary.title,
+			...(summary.project ? { project: { uri: toLocalProjectUri(URI.parse(summary.project.uri), this._connectionAuthority), displayName: summary.project.displayName } } : {}),
 			workingDirectory: workingDir,
+			isRead: summary.isRead,
+			isDone: summary.isDone,
 		};
-		const cached = new RemoteSessionAdapter(meta, this.id, this._sessionTypeForProvider(provider), this.sessionTypes[0].id, this.label, this._connectionAuthority);
+		const cached = new RemoteSessionAdapter(meta, this.id, this._sessionTypeForProvider(provider), this.sessionTypes[0].id, this.label);
 		this._sessionCache.set(rawId, cached);
 		this._onDidChangeSessions.fire({ added: [this._chatToSession(cached)], removed: [], changed: [] });
 	}
@@ -672,6 +718,24 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 		}
 	}
 
+	private _handleIsReadChanged(session: string, isRead: boolean): void {
+		const rawId = AgentSession.id(session);
+		const cached = this._sessionCache.get(rawId);
+		if (cached) {
+			cached.isRead.set(isRead, undefined);
+			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._chatToSession(cached)] });
+		}
+	}
+
+	private _handleIsDoneChanged(session: string, isDone: boolean): void {
+		const rawId = AgentSession.id(session);
+		const cached = this._sessionCache.get(rawId);
+		if (cached) {
+			cached.isArchived.set(isDone, undefined);
+			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._chatToSession(cached)] });
+		}
+	}
+
 	private _rawIdFromChatId(chatId: string): string | undefined {
 		const prefix = `${this.id}:`;
 		const resourceStr = chatId.startsWith(prefix) ? chatId.substring(prefix.length) : chatId;
@@ -689,6 +753,11 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements ISess
 	// -- Private: Browse --
 
 	private async _browseForFolder(): Promise<ISessionWorkspace | undefined> {
+		// Establish connection on demand if a hook is provided (e.g. tunnel relay)
+		if (!this._connection && this._connectOnDemand) {
+			await this._connectOnDemand();
+		}
+
 		if (!this._connection) {
 			this._notificationService.error(localize('notConnected', "Unable to connect to remote agent host '{0}'.", this.label));
 			return undefined;

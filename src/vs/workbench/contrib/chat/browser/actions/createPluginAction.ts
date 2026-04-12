@@ -113,6 +113,7 @@ class CreatePluginAction extends Action2 {
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals('view', InstalledAgentPluginsViewId),
 					ChatContextKeys.Setup.hidden.negate(),
+					ChatContextKeys.Setup.disabledInWorkspace.negate(),
 				),
 				group: 'navigation',
 				order: 2,

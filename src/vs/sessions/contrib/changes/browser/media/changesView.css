@@ -248,13 +248,25 @@
 	padding-left: 0 !important;
 }
 
+/* Modal sidebar "Changes" header */
+.changes-file-list .changes-sidebar-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 6px;
+	padding: 2px 0;
+	min-height: 22px;
+	font-weight: 500;
+	font-size: 12px;
+}
+
 /* List rows */
 .changes-view-body .chat-editing-session-container:not(.has-file-icons) .monaco-list-row .monaco-icon-label {
 	margin-left: 6px;
 }
 
 .changes-view-body .chat-editing-session-container.show-file-icons .monaco-scrollable-element .monaco-list-rows .monaco-list-row {
-	border-radius: 2px;
+	border-radius: 4px;
 }
 
 /* Action bar in list rows */

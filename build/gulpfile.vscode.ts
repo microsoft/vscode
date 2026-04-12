@@ -31,7 +31,7 @@ import minimist from 'minimist';
 import { compileBuildWithoutManglingTask, compileBuildWithManglingTask } from './gulpfile.compile.ts';
 import { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileAllExtensionsBuildTask, compileExtensionMediaBuildTask, cleanExtensionsBuildTask } from './gulpfile.extensions.ts';
 import { copyCodiconsTask } from './lib/compilation.ts';
-import { getCopilotExcludeFilter, copyCopilotNativeDeps } from './lib/copilot.ts';
+import { getCopilotExcludeFilter, copyCopilotNativeDeps, prepareBuiltInCopilotExtensionShims } from './lib/copilot.ts';
 import type { EmbeddedProductInfo } from './lib/embeddedType.ts';
 import { useEsbuildTranspile } from './buildConfig.ts';
 import { promisify } from 'util';
@@ -100,6 +100,7 @@ const vscodeResourceIncludes = [
 
 	// Sessions
 	'out-build/vs/sessions/contrib/chat/browser/media/*.svg',
+	'out-build/vs/sessions/contrib/welcome/browser/media/*.svg',
 	'out-build/vs/sessions/prompts/*.prompt.md',
 	'out-build/vs/sessions/skills/**/SKILL.md',
 
@@ -397,10 +398,10 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			? (product as typeof product & { embedded?: EmbeddedProductInfo }).embedded
 			: undefined;
 
-		const packageSubJsonStream = isInsiderOrExploration
+		const packageSubJsonStream = embedded
 			? gulp.src(['package.json'], { base: '.' })
 				.pipe(jsonEditor((json: Record<string, unknown>) => {
-					json.name = `sessions-${quality || 'oss-dev'}`;
+					json.name = embedded.nameShort;
 					return json;
 				}))
 				.pipe(rename('package.sub.json'))
@@ -409,9 +410,15 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 		const productSubJsonStream = embedded
 			? gulp.src(['product.json'], { base: '.' })
 				.pipe(jsonEditor((json: Record<string, unknown>) => {
+					// Preserve the host's mutex name before overlaying embedded properties,
+					// so the embedded app can poll for the correct InnoSetup -ready mutex.
+					const hostMutexName = json['win32MutexName'];
 					Object.keys(embedded).forEach(key => {
 						json[key] = embedded[key as keyof EmbeddedProductInfo];
 					});
+					if (hostMutexName) {
+						json['win32SetupMutexName'] = hostMutexName;
+					}
 					return json;
 				}))
 				.pipe(rename('product.sub.json'))
@@ -533,6 +540,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			ffmpegChromium: false,
 			...(embedded ? {
 				darwinMiniAppName: embedded.nameShort,
+				darwinMiniAppDisplayName: embedded.nameLong,
 				darwinMiniAppBundleIdentifier: embedded.darwinBundleIdentifier,
 				darwinMiniAppIcon: 'resources/darwin/agents.icns',
 				darwinMiniAppAssetsCar: 'resources/darwin/agents.car',
@@ -692,8 +700,11 @@ function copyCopilotNativeDepsTask(platform: string, arch: string, destinationFo
 		const appBase = platform === 'darwin'
 			? path.join(outputDir, `${product.nameLong}.app`, 'Contents', 'Resources', 'app')
 			: path.join(outputDir, versionedResourcesFolder, 'resources', 'app');
+		const appNodeModulesDir = path.join(appBase, 'node_modules');
+		copyCopilotNativeDeps(platform, arch, appNodeModulesDir);
 
-		copyCopilotNativeDeps(platform, arch, path.join(appBase, 'node_modules'));
+		const builtInCopilotExtensionDir = path.join(appBase, 'extensions', 'copilot');
+		prepareBuiltInCopilotExtensionShims(platform, arch, builtInCopilotExtensionDir, appNodeModulesDir);
 	};
 }
 

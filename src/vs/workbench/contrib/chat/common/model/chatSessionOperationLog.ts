@@ -151,6 +151,9 @@ const requestSchema = Adapt.object<IChatRequestModel, ISerializableChatRequestDa
 	codeCitations: Adapt.v(m => m.response?.codeCitations, objectsEqual),
 	timeSpentWaiting: Adapt.v(m => m.response?.timestamp), // based on response timestamp
 	modeInfo: Adapt.v(m => m.modeInfo, objectsEqual),
+	isSystemInitiated: Adapt.v(m => m.isSystemInitiated),
+	systemInitiatedLabel: Adapt.v(m => m.systemInitiatedLabel),
+	terminalExecutionId: Adapt.v(m => m.terminalExecutionId),
 }, {
 	sealed: (o) => o.modelState?.value === ResponseModelState.Cancelled || o.modelState?.value === ResponseModelState.Failed || o.modelState?.value === ResponseModelState.Complete,
 });
