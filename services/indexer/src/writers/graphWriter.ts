@@ -184,12 +184,13 @@ export class GraphWriter {
 			}
 
 			// Create IMPLEMENTS edges
-			for (const ifaceName of cls.implements) {
+			if (cls.implements.length > 0) {
 				await this.db.write(
-					`MATCH (c:Class {name: $name, file: $filePath}),
-						(iface:Type {name: $ifaceName})
+					`MATCH (c:Class {name: $name, file: $filePath})
+					UNWIND $interfaces AS ifaceName
+					MATCH (iface:Type {name: ifaceName})
 					CREATE (c)-[:IMPLEMENTS]->(iface)`,
-					{ filePath, name: cls.name, ifaceName }
+					{ filePath, name: cls.name, interfaces: cls.implements }
 				);
 			}
 
