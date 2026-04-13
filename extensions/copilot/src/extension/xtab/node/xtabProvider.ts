@@ -56,6 +56,7 @@ import { DelaySession } from '../../inlineEdits/common/delay';
 import { getOrDeduceSelectionFromLastEdit } from '../../inlineEdits/common/nearbyCursorInlineEditProvider';
 import { UserInteractionMonitor } from '../../inlineEdits/common/userInteractionMonitor';
 import { IgnoreImportChangesAspect } from '../../inlineEdits/node/importFiltering';
+import { FetchStreamError } from '../common/fetchStreamError';
 import { determineIsInlineSuggestionPosition } from '../common/inlineSuggestion';
 import { LintErrors } from '../common/lintErrors';
 import { ClippedDocument, constructTaggedFile, getUserPrompt, N_LINES_ABOVE, N_LINES_AS_CONTEXT, N_LINES_BELOW, PromptPieces } from '../common/promptCrafting';
@@ -133,7 +134,6 @@ namespace FetchResult {
 	export class Lines {
 		constructor(
 			readonly linesStream: AsyncIterable<string>,
-			readonly getFetchFailure: () => NoNextEditReason | undefined,
 			readonly getResponseSoFar: () => string,
 			readonly fetchRequestStopWatch: StopWatch,
 		) { }
@@ -747,8 +747,6 @@ export class XtabProvider implements IStatelessNextEditProvider {
 
 		let responseSoFar = '';
 
-		let chatResponseFailure: ChatFetchError | undefined;
-
 		let ttft: number | undefined;
 
 		const firstTokenReceived = new DeferredPromise<void>();
@@ -802,22 +800,23 @@ export class XtabProvider implements IStatelessNextEditProvider {
 
 		fetchResultPromise
 			.then((response) => {
-				// this's a way to signal the edit-pushing code to know if the request failed and
-				// 	it shouldn't push edits constructed from an erroneous response
-				chatResponseFailure = response.type !== ChatFetchResponseType.Success ? response : undefined;
+				if (response.type !== ChatFetchResponseType.Success) {
+					fetchStreamSource.reject(new FetchStreamError(mapChatFetcherErrorToNoNextEditReason(response)));
+				} else {
+					fetchStreamSource.resolve();
+				}
 			})
 			.catch((err: unknown) => {
 				// in principle this shouldn't happen because ChatMLFetcher's fetchOne should not throw
 				logContext.setError(ErrorUtils.fromUnknown(err));
 				logContext.addLog(`ChatMLFetcher fetch call threw -- this's UNEXPECTED!`);
+				fetchStreamSource.reject(ErrorUtils.fromUnknown(err));
 			}).finally(() => {
 				logContext.setFetchEndTime();
 
 				if (!firstTokenReceived.isSettled) {
 					firstTokenReceived.complete();
 				}
-
-				fetchStreamSource.resolve();
 
 				logContext.setResponse(responseSoFar);
 			});
@@ -837,9 +836,6 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			return new FetchResult.FetchFailure(mapChatFetcherErrorToNoNextEditReason(fetchRes));
 		}
 
-		const getFetchFailure = (): NoNextEditReason | undefined =>
-			chatResponseFailure ? mapChatFetcherErrorToNoNextEditReason(chatResponseFailure) : undefined;
-
 		const llmLinesStream = AsyncIterUtilsExt.splitLines(AsyncIterUtils.map(fetchStreamSource.stream, (chunk) => chunk.delta.text));
 
 		// logging of times
@@ -856,7 +852,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			}
 		})();
 
-		return new FetchResult.Lines(linesStream, getFetchFailure, () => responseSoFar, fetchRequestStopWatch);
+		return new FetchResult.Lines(linesStream, () => responseSoFar, fetchRequestStopWatch);
 	}
 
 	private async *_streamEditsImpl(
@@ -892,7 +888,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			return fetchResult.reason;
 		}
 
-		const { linesStream, getFetchFailure, getResponseSoFar, fetchRequestStopWatch } = fetchResult;
+		const { linesStream, getResponseSoFar, fetchRequestStopWatch } = fetchResult;
 
 		// Phase 2: Dispatch to the appropriate response format handler
 		const isFromCursorJump = retryState instanceof RetryState.Retrying && retryState.reason === 'cursorJump';
@@ -913,7 +909,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				const parseMode = responseOpts.responseFormat === xtabPromptOptions.ResponseFormat.EditWindowWithEditIntentShort
 					? EditIntentParseMode.ShortName
 					: EditIntentParseMode.Tags;
-				parseResult = await handleEditWindowWithEditIntent(linesStream, tracer, parseMode, getFetchFailure);
+				parseResult = await handleEditWindowWithEditIntent(linesStream, tracer, parseMode);
 				break;
 			}
 			case xtabPromptOptions.ResponseFormat.CustomDiffPatch: {
@@ -930,7 +926,6 @@ export class XtabProvider implements IStatelessNextEditProvider {
 						activeDoc.workspaceRoot,
 						pseudoEditWindow,
 						tracer,
-						getFetchFailure,
 					),
 				);
 				break;
@@ -950,7 +945,6 @@ export class XtabProvider implements IStatelessNextEditProvider {
 					},
 					request.documentBeforeEdits,
 					tracer,
-					getFetchFailure,
 				);
 				break;
 			}
@@ -1039,13 +1033,6 @@ export class XtabProvider implements IStatelessNextEditProvider {
 					break;
 				}
 
-				{
-					const fetchFailure = getFetchFailure();
-					if (fetchFailure) {
-						return fetchFailure;
-					}
-				}
-
 				tracer.trace(`ResponseProcessor streamed edit #${i} with latency ${fetchRequestStopWatch.elapsed()} ms`);
 
 				const singleLineEdits: LineReplacement[] = [];
@@ -1104,18 +1091,13 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				return new NoNextEditReason.GotCancelled('cursorLineDiverged');
 			}
 
-			{
-				const fetchFailure = getFetchFailure();
-				if (fetchFailure) {
-					return fetchFailure;
-				}
-			}
-
 			return new NoNextEditReason.NoSuggestions(request.documentBeforeEdits, editWindow);
 
 		} catch (err) {
+			if (err instanceof FetchStreamError) {
+				return err.reason;
+			}
 			logContext.setError(err);
-			// Properly handle the error by pushing it as a result
 			return new NoNextEditReason.Unexpected(ErrorUtils.fromUnknown(err));
 		}
 	}
