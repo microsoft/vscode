@@ -17,6 +17,7 @@ export class BlockCommentCommand implements ICommand {
 	private readonly _selection: Selection;
 	private readonly _insertSpace: boolean;
 	private _usedEndToken: string | null;
+	private _isRemove: boolean = false;
 
 	constructor(
 		selection: Selection,
@@ -26,6 +27,97 @@ export class BlockCommentCommand implements ICommand {
 		this._selection = selection;
 		this._insertSpace = insertSpace;
 		this._usedEndToken = null;
+	}
+
+	public static findEnclosingBlockCommentRange(model: ITextModel, position: Position, languageConfigurationService: ILanguageConfigurationService): Range | null {
+		const lineNumber = position.lineNumber;
+		const column = position.column;
+
+		// Get language config
+		const languageId = model.getLanguageIdAtPosition(lineNumber, column);
+		const config = languageConfigurationService.getLanguageConfiguration(languageId).comments;
+		if (!config || !config.blockCommentStartToken || !config.blockCommentEndToken) {
+			return null;
+		}
+
+		const startToken = config.blockCommentStartToken;
+		const endToken = config.blockCommentEndToken;
+
+		// Find the opening token by walking backward
+		let startLine = lineNumber;
+		let startCol = column;
+		let foundStart = false;
+
+		// First, search backward on the current line
+		const currentLineContent = model.getLineContent(startLine);
+		let idx = Math.min(startCol - 1, currentLineContent.length);
+		while (idx >= 0) {
+			if (BlockCommentCommand._haystackHasNeedleAtOffset(currentLineContent, startToken, idx)) {
+				startCol = idx + 1; // 1-based
+				foundStart = true;
+				break;
+			}
+			idx--;
+		}
+
+		if (!foundStart) {
+			for (let ln = startLine - 1; ln >= 1; ln--) {
+				const lineContent = model.getLineContent(ln);
+				idx = lineContent.lastIndexOf(startToken);
+				if (idx !== -1) {
+					startLine = ln;
+					startCol = idx + 1; // 1-based
+					foundStart = true;
+					break;
+				}
+			}
+		}
+
+		if (!foundStart) {
+			return null;
+		}
+
+		let endLine = startLine;
+		let endCol = startCol + startToken.length;
+		let foundEnd = false;
+
+		let currentLine = startLine;
+		let currentCol = endCol;
+
+		while (currentLine <= model.getLineCount()) {
+			const lineContent = model.getLineContent(currentLine);
+			if (currentLine === startLine) {
+				idx = lineContent.indexOf(endToken, currentCol - 1);
+			} else {
+				idx = lineContent.indexOf(endToken);
+			}
+			if (idx !== -1) {
+				endLine = currentLine;
+				endCol = idx + endToken.length + 1; // 1-based, exclusive end after end token
+				foundEnd = true;
+				break;
+			}
+			currentLine++;
+			currentCol = 1;
+		}
+
+		if (!foundEnd) {
+			return null;
+		}
+
+		const commentRange = new Range(startLine, startCol, endLine, endCol);
+		if (!commentRange.containsPosition(position)) {
+			return null;
+		}
+
+		// Return both the content range and token positions
+		const contentRange = new Range(startLine, startCol + startToken.length, endLine, endCol - endToken.length);
+		const startTokenPos = new Position(startLine, startCol);
+		const endTokenPos = new Position(endLine, endCol - endToken.length + 1); // Start of end token
+
+		// Return the full range including tokens
+		const fullRange = new Range(startLine, startCol, endLine, endCol);
+		return fullRange;
 	}
 
 	public static _haystackHasNeedleAtOffset(haystack: string, needle: string, offset: number): boolean {
@@ -178,10 +270,34 @@ export class BlockCommentCommand implements ICommand {
 			return;
 		}
 
+		if (this._selection.isEmpty()) {
+			const result = BlockCommentCommand.findEnclosingBlockCommentRange(model, this._selection.getPosition(), this.languageConfigurationService);
+			if (result) {
+				// Remove start token
+				const startTokenRange = new Range(result.startLineNumber, result.startColumn, result.startLineNumber, result.startColumn + 2);
+				builder.addTrackedEditOperation(startTokenRange, '');
+
+				// Remove end token
+				const endTokenRange = new Range(result.endLineNumber, result.endColumn - 2, result.endLineNumber, result.endColumn);
+				builder.addTrackedEditOperation(endTokenRange, '');
+
+				this._isRemove = true;
+				return;
+			} else {
+				alert('No enclosing comment found, proceeding with normal logic');
+			}
+		}
+
 		this._createOperationsForBlockComment(this._selection, config.blockCommentStartToken, config.blockCommentEndToken, this._insertSpace, model, builder);
 	}
 
 	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
+		if (this._isRemove) {
+			const inverseEditOperations = helper.getInverseEditOperations();
+			const srcRange = inverseEditOperations[0].range;
+			return new Selection(srcRange.startLineNumber, srcRange.startColumn, srcRange.startLineNumber, srcRange.startColumn);
+		}
+
 		const inverseEditOperations = helper.getInverseEditOperations();
 		if (inverseEditOperations.length === 2) {
 			const startTokenEditOperation = inverseEditOperations[0];
