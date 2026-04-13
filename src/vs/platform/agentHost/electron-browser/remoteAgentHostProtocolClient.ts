@@ -16,7 +16,7 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
 import { FileSystemProviderErrorCode, IFileService, toFileSystemProviderErrorCode } from '../../files/common/files.js';
-import { AgentSession, IAgentConnection, IAgentCreateSessionConfig, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult } from '../common/agentService.js';
+import { AgentSession, IAgentConnection, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult } from '../common/agentService.js';
 import { AgentSubscriptionManager, type IAgentSubscription } from '../common/state/agentSubscription.js';
 import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../common/agentHostUri.js';
 import type { IClientNotificationMap, ICommandMap } from '../common/state/protocol/messages.js';
@@ -26,7 +26,7 @@ import { PROTOCOL_VERSION } from '../common/state/sessionCapabilities.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, type IJsonRpcResponse, type IProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { isClientTransport, type IProtocolTransport } from '../common/state/sessionTransport.js';
 import { AhpErrorCodes } from '../common/state/protocol/errors.js';
-import { ContentEncoding, type ICreateTerminalParams } from '../common/state/protocol/commands.js';
+import { ContentEncoding, type ICreateTerminalParams, type IResolveSessionConfigResult, type ISessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 
 /**
@@ -187,8 +187,27 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			provider,
 			model: config?.model,
 			workingDirectory: config?.workingDirectory ? fromAgentHostUri(config.workingDirectory).toString() : undefined,
+			config: config?.config,
 		});
 		return session;
+	}
+
+	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<IResolveSessionConfigResult> {
+		return this._sendRequest('resolveSessionConfig', {
+			provider: params.provider,
+			workingDirectory: params.workingDirectory ? fromAgentHostUri(params.workingDirectory).toString() : undefined,
+			config: params.config,
+		});
+	}
+
+	async sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<ISessionConfigCompletionsResult> {
+		return this._sendRequest('sessionConfigCompletions', {
+			provider: params.provider,
+			workingDirectory: params.workingDirectory ? fromAgentHostUri(params.workingDirectory).toString() : undefined,
+			config: params.config,
+			property: params.property,
+			query: params.query,
+		});
 	}
 
 	/**

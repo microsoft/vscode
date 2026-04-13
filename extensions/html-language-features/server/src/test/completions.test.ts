@@ -6,9 +6,9 @@ import 'mocha';
 import * as assert from 'assert';
 import * as path from 'path';
 import { URI } from 'vscode-uri';
-import { getLanguageModes, WorkspaceFolder, TextDocument, CompletionList, CompletionItemKind, ClientCapabilities, TextEdit } from '../modes/languageModes';
-import { getNodeFileFS } from '../node/nodeFs';
-import { getDocumentContext } from '../utils/documentContext';
+import { getLanguageModes, WorkspaceFolder, TextDocument, CompletionList, CompletionItemKind, ClientCapabilities, TextEdit } from '../modes/languageModes.js';
+import { getNodeFileFS } from '../node/nodeFs.js';
+import { getDocumentContext } from '../utils/documentContext.js';
 export interface ItemDescription {
 	label: string;
 	documentation?: string;
@@ -100,7 +100,7 @@ suite('HTML Path Completion', () => {
 		command: 'editor.action.triggerSuggest'
 	};
 
-	const fixtureRoot = path.resolve(__dirname, '../../src/test/pathCompletionFixtures');
+	const fixtureRoot = path.resolve(import.meta.dirname, '../../src/test/pathCompletionFixtures');
 	const fixtureWorkspace = { name: 'fixture', uri: URI.file(fixtureRoot).toString() };
 	const indexHtmlUri = URI.file(path.resolve(fixtureRoot, 'index.html')).toString();
 	const aboutHtmlUri = URI.file(path.resolve(fixtureRoot, 'about/about.html')).toString();

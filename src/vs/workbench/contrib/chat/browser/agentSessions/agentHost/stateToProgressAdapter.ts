@@ -79,11 +79,11 @@ export function getTerminalContentUri(content: IToolResultContent[] | undefined)
 /**
  * Converts completed turns from the protocol state into session history items.
  */
-export function turnsToHistory(turns: readonly ITurn[], participantId: string): IChatSessionHistoryItem[] {
+export function turnsToHistory(turns: readonly ITurn[], participantId: string, modelId?: string): IChatSessionHistoryItem[] {
 	const history: IChatSessionHistoryItem[] = [];
 	for (const turn of turns) {
 		// Request
-		history.push({ id: turn.id, type: 'request', prompt: turn.userMessage.text, participant: participantId });
+		history.push({ id: turn.id, type: 'request', prompt: turn.userMessage.text, participant: participantId, modelId });
 
 		// Response parts — iterate the unified responseParts array
 		const parts: IChatProgress[] = [];

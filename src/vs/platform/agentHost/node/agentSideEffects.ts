@@ -169,10 +169,20 @@ export class AgentSideEffects extends Disposable {
 		sessionKey: ProtocolURI,
 		agent: IAgent,
 	): boolean {
+		// Session-level auto-approve: when the user has set "Bypass Approvals"
+		// or "Autopilot", auto-approve all tool calls unconditionally.
+		const sessionState = this._stateManager.getSessionState(sessionKey);
+		const autoApproveLevel = sessionState?.config?.values?.autoApprove;
+		if (autoApproveLevel === 'autoApprove' || autoApproveLevel === 'autopilot') {
+			this._logService.trace(`[AgentSideEffects] Auto-approving tool call (session autoApprove=${autoApproveLevel})`);
+			this._toolCallAgents.delete(`${sessionKey}:${e.toolCallId}`);
+			agent.respondToPermissionRequest(e.toolCallId, true);
+			return true;
+		}
+
 		// Write auto-approval: only within the session's working directory,
 		// then apply the default glob patterns for protected files.
 		if (e.permissionKind === 'write' && e.permissionPath) {
-			const sessionState = this._stateManager.getSessionState(sessionKey);
 			const workDir = sessionState?.workingDirectory ?? sessionState?.summary.workingDirectory;
 			const workingDirectory = workDir ? URI.parse(workDir) : undefined;
 			if (workingDirectory && extUriBiasedIgnorePathCase.isEqualOrParent(normalizePath(URI.file(e.permissionPath)), workingDirectory)) {

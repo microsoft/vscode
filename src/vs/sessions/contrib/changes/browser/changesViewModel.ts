@@ -40,6 +40,25 @@ function toIChatSessionFileChange2(changes: GitDiffChange[], originalRef: string
 	} satisfies IChatSessionFileChange2));
 }
 
+function sortDateDesc(dateA: Date | undefined, dateB: Date | undefined): number {
+	const chatALastTurnEnd = dateA?.getTime();
+	const chatBLastTurnEnd = dateB?.getTime();
+
+	if (!chatALastTurnEnd && !chatBLastTurnEnd) {
+		return 0;
+	}
+
+	if (!chatALastTurnEnd) {
+		return 1;
+	}
+
+	if (!chatBLastTurnEnd) {
+		return -1;
+	}
+
+	return chatBLastTurnEnd - chatALastTurnEnd;
+}
+
 export interface ActiveSessionState {
 	readonly isolationMode: IsolationMode;
 	readonly hasGitRepository: boolean;
@@ -129,8 +148,27 @@ export class ChangesViewModel extends Disposable {
 
 		// Active session last checkpoint ref
 		this.activeSessionLastCheckpointRefObs = derived(reader => {
-			const metadata = this._activeSessionMetadataObs.read(reader);
-			return metadata?.lastCheckpointRef as string | undefined;
+			const activeSessionChats = this.sessionManagementService.activeSession.read(reader)?.chats.read(reader);
+			if (!activeSessionChats || activeSessionChats.length === 0) {
+				return undefined;
+			}
+
+			// Session has only one chat
+			if (activeSessionChats.length === 1) {
+				const metadata = this._activeSessionMetadataObs.read(reader);
+				return metadata?.lastCheckpointRef as string | undefined;
+			}
+
+			// Session has multiple chats - find the last chat that completed
+			const chatsSortedByLastTurnEnd = activeSessionChats.toSorted((chatA, chatB) => {
+				const chatALastTurnEnd = chatA.lastTurnEnd.read(reader);
+				const chatBLastTurnEnd = chatB.lastTurnEnd.read(reader);
+
+				return sortDateDesc(chatALastTurnEnd, chatBLastTurnEnd);
+			});
+
+			const model = this.agentSessionsService.getSession(chatsSortedByLastTurnEnd[0].resource);
+			return model?.metadata?.lastCheckpointRef as string | undefined;
 		});
 
 		// Active session state
@@ -429,7 +467,7 @@ export class ChangesViewModel extends Disposable {
 
 	private async _getRepositoryChanges(repositoryPath: string, firstCheckpointRef: string, lastCheckpointRef: string): Promise<IChatSessionFileChange2[] | undefined> {
 		const repository = await this.gitService.openRepository(URI.file(repositoryPath));
-		const changes = await repository?.diffBetweenWithStats(firstCheckpointRef, lastCheckpointRef) ?? [];
+		const changes = await repository?.diffBetweenWithStats2(`${firstCheckpointRef}..${lastCheckpointRef}`) ?? [];
 		return toIChatSessionFileChange2(changes, firstCheckpointRef, lastCheckpointRef);
 	}
 

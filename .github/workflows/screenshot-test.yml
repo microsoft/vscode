@@ -59,6 +59,28 @@ jobs:
       - name: Capture screenshots
         run: ./node_modules/.bin/component-explorer render --project ./test/componentFixtures/component-explorer.json
 
+      - name: Log fixture errors
+        if: always()
+        run: |
+          MANIFEST="test/componentFixtures/.screenshots/current/manifest.json"
+          if [ ! -f "$MANIFEST" ]; then
+            echo "::warning::No manifest found — render may have failed entirely"
+            exit 0
+          fi
+          ERRORS=$(node -e "
+            const m = require('./$MANIFEST');
+            const errs = m.fixtures.filter(f => f.hasError);
+            if (!errs.length) { console.log('No fixture errors.'); process.exit(0); }
+            console.log(errs.length + ' fixture(s) with errors:');
+            for (const f of errs) {
+              console.log('::error::' + f.fixtureId + ': ' + (f.error || 'unknown error'));
+              if (f.events?.length) {
+                for (const e of f.events) { console.log('  event: ' + JSON.stringify(e)); }
+              }
+            }
+          ")
+          echo "$ERRORS"
+
       - name: Check blocks-ci screenshots
         id: blocks-ci
         run: |

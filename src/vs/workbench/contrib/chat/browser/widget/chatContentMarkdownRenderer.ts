@@ -92,7 +92,7 @@ export class ChatContentMarkdownRenderer implements IMarkdownRenderer {
 
 				// dompurify uses DOMParser, which strips leading comments. Wrapping it all in 'body' prevents this.
 				// The \n\n prevents marked.js from parsing the body contents as just text in an 'html' token, instead of actual markdown.
-				value: `<body>\n\n${markdown.value}</body>`,
+				value: `<body>\n\n${markdown.value}\n\n</body>`,
 			}
 			: markdown;
 		const result = this.markdownRendererService.render(mdWithBody, options, outElement);

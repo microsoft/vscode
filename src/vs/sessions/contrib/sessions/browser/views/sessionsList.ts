@@ -41,6 +41,7 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsListModelService } from './sessionsListModelService.js';
 
 const $ = DOM.$;
 
@@ -165,7 +166,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 	readonly onDidChangeItemHeight: Event<ISession> = this._onDidChangeItemHeight.event;
 
 	constructor(
-		private readonly options: { grouping: () => SessionsGrouping; sorting: () => SessionsSorting; isPinned: (session: ISession) => boolean },
+		private readonly options: { grouping: () => SessionsGrouping; sorting: () => SessionsSorting; isPinned: (session: ISession) => boolean; isRead: (session: ISession) => boolean },
 		private readonly approvalModel: AgentSessionApprovalModel | undefined,
 		private readonly instantiationService: IInstantiationService,
 		private readonly contextKeyService: IContextKeyService,
@@ -218,7 +219,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		const isPinned = this.options.isPinned(element);
 		IsSessionPinnedContext.bindTo(template.contextKeyService).set(isPinned);
 		IsSessionArchivedContext.bindTo(template.contextKeyService).set(element.isArchived.get());
-		IsSessionReadContext.bindTo(template.contextKeyService).set(element.isRead.get());
+		IsSessionReadContext.bindTo(template.contextKeyService).set(this.options.isRead(element));
 
 		// Pinned & archived styling — reactive
 		template.elementDisposables.add(autorun(reader => {
@@ -228,11 +229,10 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 			template.container.classList.toggle('pinned', isPinned && !isArchived);
 		}));
 
-
 		// Icon — reactive based on status, read state, and PR
 		template.elementDisposables.add(autorun(reader => {
 			const sessionStatus = element.status.read(reader);
-			const isRead = element.isRead.read(reader);
+			const isRead = this.options.isRead(element);
 			const isArchived = element.isArchived.read(reader);
 			const gitHubInfo = element.gitHubInfo.read(reader);
 			DOM.clearNode(template.iconContainer);
@@ -655,7 +655,6 @@ export interface ISessionsList {
 export class SessionsList extends Disposable implements ISessionsList {
 
 	private static readonly SECTION_COLLAPSE_STATE_KEY = 'sessionsListControl.sectionCollapseState';
-	private static readonly PINNED_SESSIONS_KEY = 'sessionsListControl.pinnedSessions';
 	private static readonly EXCLUDED_TYPES_KEY = 'sessionsListControl.excludedSessionTypes';
 	private static readonly EXCLUDED_STATUSES_KEY = 'sessionsListControl.excludedStatuses';
 	private static readonly EXCLUDE_ARCHIVED_KEY = 'sessionsListControl.excludeArchived';
@@ -667,7 +666,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private readonly tree: WorkbenchObjectTree<SessionListItem, FuzzyScore>;
 	private sessions: ISession[] = [];
 	private visible = true;
-	private readonly _pinnedSessionIds: Set<string>;
 	private readonly excludedSessionTypes: Set<string>;
 	private readonly excludedStatuses: Set<SessionStatus>;
 	private _excludeArchived: boolean;
@@ -688,6 +686,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		container: HTMLElement,
 		private readonly options: ISessionsListControlOptions,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		@ISessionsListModelService private readonly _sessionsListModelService: ISessionsListModelService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -696,9 +695,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		@IKeybindingService private readonly keybindingService: IKeybindingService,
 	) {
 		super();
-
-		// Load pinned sessions from storage
-		this._pinnedSessionIds = this.loadPinnedSessions();
 
 		// Load excluded session types from storage
 		this.excludedSessionTypes = this.loadExcludedSessionTypes();
@@ -717,7 +713,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const markdownRendererService = instantiationService.invokeFunction(accessor => accessor.get(IMarkdownRendererService));
 		const hoverService = instantiationService.invokeFunction(accessor => accessor.get(IHoverService));
 		const sessionRenderer = new SessionItemRenderer(
-			{ grouping: this.options.grouping, sorting: this.options.sorting, isPinned: s => this.isSessionPinned(s) },
+			{ grouping: this.options.grouping, sorting: this.options.sorting, isPinned: s => this.isSessionPinned(s), isRead: s => this.isSessionRead(s) },
 			approvalModel,
 			instantiationService,
 			contextKeyService,
@@ -793,6 +789,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 				return;
 			}
 			if (!isSessionSection(element)) {
+				this.markRead(element);
 				this.options.onSessionOpen(element.resource, e.editorOptions.preserveFocus ?? false);
 			}
 		}));
@@ -824,10 +821,20 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		}));
 
+		this._register(this._sessionsListModelService.onDidChange(() => {
+			if (this.visible) {
+				this.update();
+			}
+		}));
+
 		// Re-update when the active session changes so that a filtered-out
-		// session becomes visible while active and hides again when unselected
+		// session becomes visible while active and hides again when unselected.
+		// Also mark the newly active session as read.
 		this._register(autorun(reader => {
-			this._sessionsManagementService.activeSession.read(reader);
+			const activeSession = this._sessionsManagementService.activeSession.read(reader);
+			if (activeSession) {
+				this._sessionsListModelService.markRead(activeSession);
+			}
 			if (this.visible) {
 				this.update();
 			}
@@ -856,7 +863,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			filtered = filtered.filter(s => !s.isArchived.get());
 		}
 		if (this._excludeRead) {
-			filtered = filtered.filter(s => !s.isRead.get());
+			filtered = filtered.filter(s => !this.isSessionRead(s));
 		}
 
 		// Always include the active session even if it was filtered out,
@@ -1015,7 +1022,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const contextOverlay: [string, boolean | string][] = [
 			[IsSessionPinnedContext.key, this.isSessionPinned(element)],
 			[IsSessionArchivedContext.key, element.isArchived.get()],
-			[IsSessionReadContext.key, element.isRead.get()],
+			[IsSessionReadContext.key, this.isSessionRead(element)],
 			['chatSessionType', element.sessionType],
 			[ChatSessionProviderIdContext.key, element.providerId],
 		];
@@ -1038,42 +1045,29 @@ export class SessionsList extends Disposable implements ISessionsList {
 	// -- Pinning --
 
 	pinSession(session: ISession): void {
-		this._pinnedSessionIds.add(session.sessionId);
-		this.savePinnedSessions();
-		this.update();
+		this._sessionsListModelService.pinSession(session);
 	}
 
 	unpinSession(session: ISession): void {
-		this._pinnedSessionIds.delete(session.sessionId);
-		this.savePinnedSessions();
-		this.update();
+		this._sessionsListModelService.unpinSession(session);
 	}
 
 	isSessionPinned(session: ISession): boolean {
-		return this._pinnedSessionIds.has(session.sessionId);
+		return this._sessionsListModelService.isSessionPinned(session);
 	}
 
-	private loadPinnedSessions(): Set<string> {
-		const raw = this.storageService.get(SessionsList.PINNED_SESSIONS_KEY, StorageScope.PROFILE);
-		if (raw) {
-			try {
-				const arr = JSON.parse(raw);
-				if (Array.isArray(arr)) {
-					return new Set(arr);
-				}
-			} catch {
-				// ignore corrupt data
-			}
-		}
-		return new Set();
+	// -- Read/Unread --
+
+	markRead(session: ISession): void {
+		this._sessionsListModelService.markRead(session);
 	}
 
-	private savePinnedSessions(): void {
-		if (this._pinnedSessionIds.size === 0) {
-			this.storageService.remove(SessionsList.PINNED_SESSIONS_KEY, StorageScope.PROFILE);
-		} else {
-			this.storageService.store(SessionsList.PINNED_SESSIONS_KEY, JSON.stringify([...this._pinnedSessionIds]), StorageScope.PROFILE, StorageTarget.USER);
-		}
+	markUnread(session: ISession): void {
+		this._sessionsListModelService.markUnread(session);
+	}
+
+	isSessionRead(session: ISession): boolean {
+		return this._sessionsListModelService.isSessionRead(session);
 	}
 
 	// -- Session type filtering --

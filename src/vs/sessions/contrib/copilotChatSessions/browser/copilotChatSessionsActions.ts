@@ -15,12 +15,10 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
-import { IModelPickerDelegate } from '../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem.js';
+import { ModelPickerActionItem, IModelPickerDelegate } from '../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem.js';
 import { IChatInputPickerOptions } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
-import { EnhancedModelPickerActionItem } from '../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem2.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IContextKeyService, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { Menus } from '../../../browser/menus.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
@@ -187,7 +185,6 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 		@ILanguageModelsService languageModelsService: ILanguageModelsService,
 		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
 		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
-		@IStorageService storageService: IStorageService,
 	) {
 		super();
 
@@ -219,15 +216,13 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 				const delegate: IModelPickerDelegate = {
 					currentModel,
 					setModel: (model: ILanguageModelChatMetadataAndIdentifier) => {
-						currentModel.set(model, undefined);
-						storageService.store('sessions.localModelPicker.selectedModelId', model.identifier, StorageScope.PROFILE, StorageTarget.MACHINE);
 						const session = sessionsManagementService.activeSession.get();
 						if (session) {
 							const provider = sessionsProvidersService.getProviders().find(p => p.id === session.providerId);
 							provider?.setModel(session.sessionId, model.identifier);
 						}
 					},
-					getModels: () => getAvailableModels(languageModelsService, sessionsManagementService),
+					getModels: () => getAvailableModels(languageModelsService, sessionsManagementService.activeSession.get()),
 					useGroupedModelPicker: () => true,
 					showManageModelsAction: () => false,
 					showUnavailableFeatured: () => false,
@@ -238,31 +233,26 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 					hoverPosition: { hoverPosition: HoverPosition.ABOVE },
 				};
 				const action = { id: 'sessions.modelPicker', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } };
-				const modelPicker = instantiationService.createInstance(EnhancedModelPickerActionItem, action, delegate, pickerOptions);
+				const modelPicker = instantiationService.createInstance(ModelPickerActionItem, action, delegate, pickerOptions);
 
-				// Initialize with remembered model or first available model
-				const rememberedModelId = storageService.get('sessions.localModelPicker.selectedModelId', StorageScope.PROFILE);
-				const initModel = () => {
-					const models = getAvailableModels(languageModelsService, sessionsManagementService);
+				const updatePickerModel = (session: ISession | undefined, sessionModelId: string | undefined) => {
+					const models = getAvailableModels(languageModelsService, session);
 					modelPicker.setEnabled(models.length > 0);
-					if (!currentModel.get() && models.length > 0) {
-						const remembered = rememberedModelId ? models.find(m => m.identifier === rememberedModelId) : undefined;
-						delegate.setModel(remembered ?? models[0]);
-					}
+					currentModel.set(sessionModelId ? models.find(model => model.identifier === sessionModelId) : undefined, undefined);
 				};
-				initModel();
+				const updatePickerModelFromActiveSession = () => {
+					const session = sessionsManagementService.activeSession.get();
+					updatePickerModel(session, session?.modelId.get());
+				};
+				updatePickerModelFromActiveSession();
 
 				const disposableStore = new DisposableStore();
-				disposableStore.add(languageModelsService.onDidChangeLanguageModels(() => initModel()));
+				disposableStore.add(languageModelsService.onDidChangeLanguageModels(() => updatePickerModelFromActiveSession()));
 
-				// When the active session changes, push the selected model to the new session
 				disposableStore.add(autorun(reader => {
 					const session = sessionsManagementService.activeSession.read(reader);
-					const model = currentModel.read(reader);
-					if (session && model) {
-						const provider = sessionsProvidersService.getProviders().find(p => p.id === session.providerId);
-						provider?.setModel(session.sessionId, model.identifier);
-					}
+					const sessionModelId = session?.modelId.read(reader);
+					updatePickerModel(session, sessionModelId);
 				}));
 
 				return new PickerActionViewItem(modelPicker, disposableStore);
@@ -287,9 +277,8 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 
 function getAvailableModels(
 	languageModelsService: ILanguageModelsService,
-	sessionsManagementService: ISessionsManagementService,
+	session: ISession | undefined,
 ): ILanguageModelChatMetadataAndIdentifier[] {
-	const session = sessionsManagementService.activeSession.get();
 	if (!session) {
 		return [];
 	}

@@ -9,8 +9,8 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import type { IAgentCreateSessionConfig, IAgentService, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult } from '../../common/agentService.js';
-import { IListSessionsResult, IResourceReadResult } from '../../common/state/protocol/commands.js';
+import type { IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult } from '../../common/agentService.js';
+import { IListSessionsResult, IResourceReadResult, IResolveSessionConfigResult, ISessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { ActionType, type ISessionAction } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/sessionCapabilities.js';
 import { isJsonRpcNotification, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, type IAhpNotification, type IInitializeResult, type IProtocolMessage, type IReconnectResult, type IResourceListResult, type IResourceWriteParams, type IResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
@@ -104,6 +104,9 @@ class MockAgentService implements IAgentService {
 		});
 		return session;
 	}
+
+	async resolveSessionConfig(_params: IAgentResolveSessionConfigParams): Promise<IResolveSessionConfigResult> { return { ready: true, schema: { type: 'object', properties: {} }, values: {} }; }
+	async sessionConfigCompletions(_params: IAgentSessionConfigCompletionsParams): Promise<ISessionConfigCompletionsResult> { return { items: [] }; }
 	async disposeSession(_session: URI): Promise<void> { }
 	async listSessions(): Promise<IAgentSessionMetadata[]> { return this.listedSessions; }
 	async subscribe(resource: URI): Promise<IStateSnapshot> {

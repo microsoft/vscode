@@ -11,7 +11,7 @@ import { ChatContext, ChatRequest, ChatRequestTurn, ChatRequestTurn2, ChatResult
 import { DeferredPromise, asPromise, assertNoRpc, closeAllEditors, delay, disposeAll } from '../utils';
 
 // TODO: this now became flaky with built-in copilot
-suite.skip('chat', () => {
+suite('chat', () => {
 
 	let disposables: Disposable[] = [];
 	setup(() => {

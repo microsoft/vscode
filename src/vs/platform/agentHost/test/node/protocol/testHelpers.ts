@@ -176,10 +176,14 @@ export interface IServerHandle {
 	port: number;
 }
 
-export async function startServer(): Promise<IServerHandle> {
+export async function startServer(options?: { readonly quiet?: boolean }): Promise<IServerHandle> {
 	return new Promise((resolve, reject) => {
 		const serverPath = fileURLToPath(new URL('../../../node/agentHostServerMain.js', import.meta.url));
-		const child = fork(serverPath, ['--enable-mock-agent', '--quiet', '--port', '0', '--without-connection-token'], {
+		const args = ['--enable-mock-agent', '--port', '0', '--without-connection-token'];
+		if (options?.quiet ?? true) {
+			args.push('--quiet');
+		}
+		const child = fork(serverPath, args, {
 			stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
 		});
 

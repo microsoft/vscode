@@ -16,7 +16,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { ResultKind } from '../../../../../platform/keybinding/common/keybindingResolver.js';
 import { TerminalCapability, type ICwdDetectionCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { TerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
-import { GeneralShellType, ITerminalChildProcess, ITerminalProfile, TitleEventSource, type IShellLaunchConfig, type ITerminalBackend, type ITerminalProcessOptions } from '../../../../../platform/terminal/common/terminal.js';
+import { GeneralShellType, ITerminalChildProcess, ITerminalProfile, PosixShellType, TitleEventSource, type IShellLaunchConfig, type ITerminalBackend, type ITerminalProcessOptions } from '../../../../../platform/terminal/common/terminal.js';
 import { IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IViewDescriptorService } from '../../../../common/views.js';
 import { ITerminalConfigurationService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
@@ -200,6 +200,25 @@ suite('Workbench - TerminalInstance', () => {
 
 			// Verify that the task name is preserved
 			strictEqual(taskTerminal.title, 'Test Task Name', 'Task terminal should preserve API-set title');
+		});
+
+		test('should preserve agent shell type detected from sequence until the parent shell returns', async () => {
+			const instance = await createTerminalInstance() as TerminalInstance;
+			const onTitleChange = (title: string) => (instance as unknown as Record<string, (value: string) => void>)['_onTitleChange'](title);
+			const handleShellTypeChange = (shellType: GeneralShellType | PosixShellType | undefined) => (instance as unknown as Record<string, (value: GeneralShellType | PosixShellType | undefined) => void>)['_handleShellTypeChange'](shellType);
+
+			strictEqual(instance.shellType, undefined);
+			onTitleChange('Claude Code');
+			strictEqual(instance.shellType, GeneralShellType.Claude);
+
+			handleShellTypeChange(GeneralShellType.Node);
+			strictEqual(instance.shellType, GeneralShellType.Claude);
+
+			handleShellTypeChange(undefined);
+			strictEqual(instance.shellType, GeneralShellType.Claude);
+
+			handleShellTypeChange(PosixShellType.Zsh);
+			strictEqual(instance.shellType, PosixShellType.Zsh);
 		});
 
 		test('custom key event handler should handle commands in DEFAULT_COMMANDS_TO_SKIP_SHELL in VS Code and not xterm when sendKeybindingsToShell is disabled', async () => {
@@ -479,6 +498,26 @@ suite('Workbench - TerminalInstance', () => {
 			terminalLabelComputer.refreshLabel(createInstance({ capabilities, sequence: 'my-sequence', processName: 'zsh', shellLaunchConfig: { titleTemplate: '${sequence}' } }));
 			strictEqual(terminalLabelComputer.title, 'my-sequence');
 			strictEqual(terminalLabelComputer.description, 'cwd');
+		});
+		test('should use ${sequence} for agent CLI shell types', () => {
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}', description: '${cwd}', allowAgentCliTitle: true } } } });
+			terminalLabelComputer.refreshLabel(createInstance({ capabilities, shellType: GeneralShellType.Copilot, sequence: 'Copilot Agent', processName: 'copilot' }));
+			strictEqual(terminalLabelComputer.title, 'Copilot Agent');
+		});
+		test('should use ${sequence} for Gemini agent CLI shell type', () => {
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}', description: '${cwd}', allowAgentCliTitle: true } } } });
+			terminalLabelComputer.refreshLabel(createInstance({ capabilities, shellType: GeneralShellType.Gemini, sequence: 'Gemini - my-project', processName: 'node' }));
+			strictEqual(terminalLabelComputer.title, 'Gemini - my-project');
+		});
+		test('should prefer shellLaunchConfig.titleTemplate over agent CLI shell type override', () => {
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}', description: '${cwd}', allowAgentCliTitle: true } } } });
+			terminalLabelComputer.refreshLabel(createInstance({ capabilities, shellType: GeneralShellType.Copilot, sequence: 'Copilot Agent', processName: 'copilot', shellLaunchConfig: { titleTemplate: '${process}' } }));
+			strictEqual(terminalLabelComputer.title, 'copilot');
+		});
+		test('should fall back to configured title when allowAgentCliTitle is disabled', () => {
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}', description: '${cwd}', allowAgentCliTitle: false } } } });
+			terminalLabelComputer.refreshLabel(createInstance({ capabilities, shellType: GeneralShellType.Copilot, sequence: 'Copilot Agent', processName: 'copilot' }));
+			strictEqual(terminalLabelComputer.title, 'copilot');
 		});
 		test('should provide cwdFolder for all cwds only when in multi-root', () => {
 			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' ~ ', title: '${process}${separator}${cwdFolder}', description: '${cwdFolder}' } } } });

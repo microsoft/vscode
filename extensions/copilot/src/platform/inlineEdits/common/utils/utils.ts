@@ -63,6 +63,11 @@ export namespace Icon {
 		themeIcon: ThemeIcon.fromId('check'),
 		svg: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" fill-rule="evenodd" d="m14.431 3.323l-8.47 10l-.79-.036l-3.35-4.77l.818-.574l2.978 4.24l8.051-9.506z" clip-rule="evenodd"/></svg>`,
 	};
+
+	export const thumbsdown: t = {
+		themeIcon: ThemeIcon.fromId('thumbsdown'),
+		svg: `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16"><path fill="currentColor" d="M3.5 1h-2A1.5 1.5 0 0 0 0 2.5v5A1.5 1.5 0 0 0 1.5 9h2A1.5 1.5 0 0 0 5 7.5v-5A1.5 1.5 0 0 0 3.5 1M6 7.5a2.5 2.5 0 0 1-1 2V12a3 3 0 0 0 3 3h2.764a2 2 0 0 0 1.789-1.106l2.106-4.212A2 2 0 0 0 16 8.5V8a2 2 0 0 0-2-2h-3.5a.5.5 0 0 1-.5-.5V3a2 2 0 0 0-2-2H7a1 1 0 0 0-1 1z"/></svg>`,
+	};
 }
 
 export function shortenOpportunityId(opportunityId: string): string {

@@ -578,7 +578,6 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 			disableModelSelection: true,
 			disableProviderOptions: true,
 			disableCompletionsSnooze: true,
-			disableContributions: true,
 		});
 
 		store.add(disposableWindowInterval(mainWindow, () => {

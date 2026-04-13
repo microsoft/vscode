@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import * as assert from 'assert';
-import { getDocumentContext } from '../utils/documentContext';
+import { getDocumentContext } from '../utils/documentContext.js';
 
 suite('HTML Document Context', () => {
 

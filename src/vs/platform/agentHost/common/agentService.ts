@@ -12,7 +12,7 @@ import type { ISyncedCustomization } from './agentPluginManager.js';
 import { IProtectedResourceMetadata } from './state/protocol/state.js';
 import type { IActionEnvelope, INotification, ISessionAction, ITerminalAction } from './state/sessionActions.js';
 import type { IAgentSubscription } from './state/agentSubscription.js';
-import type { ICreateTerminalParams } from './state/protocol/commands.js';
+import type { ICreateTerminalParams, IResolveSessionConfigResult, ISessionConfigCompletionsResult } from './state/protocol/commands.js';
 import type { IResourceCopyParams, IResourceCopyResult, IResourceDeleteParams, IResourceDeleteResult, IResourceListResult, IResourceMoveParams, IResourceMoveResult, IResourceReadResult, IResourceWriteParams, IResourceWriteResult, IStateSnapshot } from './state/sessionProtocol.js';
 import { AttachmentType, ComponentToState, SessionStatus, StateComponents, type ICustomizationRef, type IPendingMessage, type IRootState, type ISessionInputAnswer, type ISessionInputRequest, type IToolCallResult, type PolicyState, type StringOrMarkdown, SessionInputResponseKind } from './state/sessionState.js';
 
@@ -44,6 +44,7 @@ export interface IAgentSessionMetadata {
 	readonly project?: IAgentSessionProjectInfo;
 	readonly summary?: string;
 	readonly status?: SessionStatus;
+	readonly model?: string;
 	readonly workingDirectory?: URI;
 	readonly isRead?: boolean;
 	readonly isDone?: boolean;
@@ -99,8 +100,22 @@ export interface IAgentCreateSessionConfig {
 	readonly model?: string;
 	readonly session?: URI;
 	readonly workingDirectory?: URI;
+	readonly config?: Record<string, string>;
 	/** Fork from an existing session at a specific turn index. */
 	readonly fork?: { readonly session: URI; readonly turnIndex: number };
+}
+
+export const AgentHostSessionConfigBranchNameHintKey = 'branchNameHint';
+
+export interface IAgentResolveSessionConfigParams {
+	readonly provider?: AgentProvider;
+	readonly workingDirectory?: URI;
+	readonly config?: Record<string, string>;
+}
+
+export interface IAgentSessionConfigCompletionsParams extends IAgentResolveSessionConfigParams {
+	readonly property: string;
+	readonly query?: string;
 }
 
 /** Serializable attachment passed alongside a message to the agent host. */
@@ -335,6 +350,12 @@ export interface IAgent {
 	/** Create a new session. Returns server-owned session metadata. */
 	createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult>;
 
+	/** Resolve the dynamic configuration schema for creating a session. */
+	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<IResolveSessionConfigResult>;
+
+	/** Return dynamic completions for a session configuration property. */
+	sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<ISessionConfigCompletionsResult>;
+
 	/** Send a user message into an existing session. */
 	sendMessage(session: URI, prompt: string, attachments?: IAgentAttachment[], turnId?: string): Promise<void>;
 
@@ -452,6 +473,12 @@ export interface IAgentService {
 	/** Create a new session. Returns the session URI. */
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
 
+	/** Resolve the dynamic configuration schema for creating a session. */
+	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<IResolveSessionConfigResult>;
+
+	/** Return dynamic completions for a session configuration property. */
+	sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<ISessionConfigCompletionsResult>;
+
 	/** Dispose a session in the agent host, freeing SDK resources. */
 	disposeSession(session: URI): Promise<void>;
 
@@ -557,6 +584,8 @@ export interface IAgentConnection {
 	authenticate(params: IAuthenticateParams): Promise<IAuthenticateResult>;
 	listSessions(): Promise<IAgentSessionMetadata[]>;
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
+	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<IResolveSessionConfigResult>;
+	sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<ISessionConfigCompletionsResult>;
 	disposeSession(session: URI): Promise<void>;
 
 	// ---- Terminal lifecycle -------------------------------------------------

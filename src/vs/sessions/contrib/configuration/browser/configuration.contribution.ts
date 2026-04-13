@@ -31,6 +31,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'files.autoSave': 'afterDelay',
 
 		'git.autofetch': true,
+		'git.autorefresh': true,
 		'git.branchRandomName.enable': true,
 		'git.detectWorktrees': false,
 		'git.showProgress': false,

@@ -220,6 +220,15 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(sessions.length, 1);
 			assert.strictEqual(sessions[0].summary, 'Auto-generated Title');
 		});
+
+		test('createSession stores live session config', async () => {
+			service.registerProvider(copilotAgent);
+
+			const config = { isolation: 'worktree', branch: 'feature/config' };
+			const session = await service.createSession({ provider: 'copilot', config });
+
+			assert.deepStrictEqual(service.stateManager.getSessionState(session.toString())?.config?.values, config);
+		});
 	});
 
 	// ---- authenticate ---------------------------------------------------

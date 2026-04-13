@@ -90,6 +90,22 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(serialized.isComplete, true);
 		});
 
+		test('request history includes restored model id', () => {
+			const turn = createTurn({
+				userMessage: { text: 'Use restored model' },
+			});
+
+			const history = turnsToHistory([turn], 'participant-1', 'agent-host-copilot:gpt-5');
+
+			assert.deepStrictEqual(history[0], {
+				id: turn.id,
+				type: 'request',
+				prompt: 'Use restored model',
+				participant: 'participant-1',
+				modelId: 'agent-host-copilot:gpt-5',
+			});
+		});
+
 		test('terminal tool call in history has correct terminal data', () => {
 			const turn = createTurn({
 				responseParts: [{
