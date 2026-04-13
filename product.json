@@ -149,7 +149,7 @@
 		"mcpRegistryDataUrl": "https://api.github.com/copilot/mcp_registry"
 	},
 	"linkProtectionTrustedDomains": [
-		"https://oa-auth.paas.cmbchina.com"
+		"https://testhub-dev.paas.cmbchina.cn"
 	],
 	"trustedExtensionAuthAccess": {
 		"github": [
