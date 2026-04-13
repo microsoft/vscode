@@ -676,10 +676,6 @@ export class TestingGitService implements IGitService {
 		return;
 	}
 
-	async log() {
-		return [];
-	}
-
 	// TODO implement later if tests use this, only used by ignore service
 	getRepository(uri: URI, forceOpen?: boolean): Promise<RepoContext | undefined> {
 		return Promise.resolve(undefined);
@@ -772,10 +768,6 @@ export class TestingGitService implements IGitService {
 		return [];
 	}
 
-	async diffBetweenWithStats2(uri: URI, ref: string, path?: string): Promise<DiffChange[] | undefined> {
-		return [];
-	}
-
 	async diffBetweenPatch(uri: URI, ref1: string, ref2: string, path?: string): Promise<string | undefined> {
 		return undefined;
 	}
@@ -786,10 +778,6 @@ export class TestingGitService implements IGitService {
 
 	async diffIndexWithHEADShortStats(uri: URI): Promise<CommitShortStat | undefined> {
 		return undefined;
-	}
-
-	async fetch(uri: URI, remote?: string, ref?: string, depth?: number): Promise<void> {
-		return;
 	}
 
 	async getMergeBase(uri: URI, ref1: string, ref2: string): Promise<string | undefined> {
@@ -818,22 +806,6 @@ export class TestingGitService implements IGitService {
 
 	applyPatch(uri: URI, patch: string): Promise<void> {
 		return Promise.resolve();
-	}
-
-	async checkout(uri: URI, treeish: string): Promise<void> {
-		return;
-	}
-
-	async merge(uri: URI, ref: string): Promise<void> {
-		return;
-	}
-
-	async push(uri: URI): Promise<void> {
-		return;
-	}
-
-	async rebase(uri: URI, branch: string): Promise<void> {
-		return;
 	}
 
 	async commit(uri: URI, message: string | undefined, opts?: CommitOptions): Promise<void> {
