@@ -194,36 +194,41 @@ export class GraphWriter {
 			}
 
 			// Write methods
-			for (const method of cls.methods) {
+			if (cls.methods.length > 0) {
+				const methodsData = cls.methods.map(method => ({
+					name: method.name,
+					qualifiedName: method.qualifiedName,
+					startLine: method.startLine,
+					endLine: method.endLine,
+					async: method.async,
+					isStatic: method.isStatic,
+					isConstructor: method.isConstructor,
+					signature: method.signature,
+					contentHash: method.contentHash,
+				}));
+
 				await this.db.write(
 					`MATCH (c:Class {name: $className, file: $filePath})
+					UNWIND $methods AS method
 					CREATE (m:Function {
-						name: $name,
-						qualifiedName: $qualifiedName,
+						name: method.name,
+						qualifiedName: method.qualifiedName,
 						file: $filePath,
-						startLine: $startLine,
-						endLine: $endLine,
-						async: $async,
+						startLine: method.startLine,
+						endLine: method.endLine,
+						async: method.async,
 						exported: false,
 						isMethod: true,
-						isStatic: $isStatic,
-						isConstructor: $isConstructor,
-						signature: $signature,
-						contentHash: $contentHash
+						isStatic: method.isStatic,
+						isConstructor: method.isConstructor,
+						signature: method.signature,
+						contentHash: method.contentHash
 					})
 					CREATE (c)-[:HAS_METHOD]->(m)`,
 					{
 						filePath,
 						className: cls.name,
-						name: method.name,
-						qualifiedName: method.qualifiedName,
-						startLine: method.startLine,
-						endLine: method.endLine,
-						async: method.async,
-						isStatic: method.isStatic,
-						isConstructor: method.isConstructor,
-						signature: method.signature,
-						contentHash: method.contentHash,
+						methods: methodsData,
 					}
 				);
 			}
