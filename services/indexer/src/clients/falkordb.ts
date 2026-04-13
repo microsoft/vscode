@@ -127,17 +127,19 @@ export class FalkorDBClient {
 			'CREATE INDEX ON :Import(file)',
 		];
 
-		for (const idx of indices) {
-			try {
-				await this.query(idx);
-			} catch (err: unknown) {
-				// Index may already exist — that's fine
-				const message = err instanceof Error ? err.message : String(err);
-				if (!message.includes('already indexed')) {
-					console.warn(`[falkordb] Index creation warning: ${message}`);
+		await Promise.all(
+			indices.map(async (idx) => {
+				try {
+					await this.query(idx);
+				} catch (err: unknown) {
+					// Index may already exist — that's fine
+					const message = err instanceof Error ? err.message : String(err);
+					if (!message.includes('already indexed')) {
+						console.warn(`[falkordb] Index creation warning: ${message}`);
+					}
 				}
-			}
-		}
+			})
+		);
 
 		console.log('[falkordb] Indices ensured');
 	}
