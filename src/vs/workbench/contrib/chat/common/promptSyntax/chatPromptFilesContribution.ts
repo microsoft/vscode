@@ -178,7 +178,7 @@ CommandsRegistry.registerCommand('_listExtensionPromptFiles', async (accessor): 
 	// Combine all files and collect extension- and plugin-contributed ones.
 	// Plugin files are included so the copilot extension can trust them and
 	// serve them to the LLM without a confirmation dialog when connected to a
-	// remote (where they are emitted as vscode-local:// URIs).
+	// remote (where they are emitted as vscode-local:/... URIs).
 	const result: IExtensionPromptFileResult[] = [];
 	for (const file of [...agents, ...instructions, ...prompts, ...skills, ...hooks]) {
 		if (file.storage === PromptsStorage.extension) {

@@ -581,10 +581,10 @@ export class ComputeAutomaticInstructions {
 
 
 export function getFilePath(uri: URI, remoteOS: OperatingSystem | undefined, isRemote = false): string {
-	// When connected to a remote, local file:// URIs must be represented as
-	// vscode-local:// so the remote extension host can read them via the local
-	// file bridge. This works for WSL, SSH, and dev containers without any
-	// cache migration.
+	// When connected to a remote, local file:// URIs must be represented using
+	// the vscode-local scheme so the remote extension host can read them via the
+	// local file bridge. This works for WSL, SSH, and dev containers without
+	// any cache migration.
 	if (isRemote && uri.scheme === Schemas.file) {
 		return uri.with({ scheme: 'vscode-local' }).toString();
 	}

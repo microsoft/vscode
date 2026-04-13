@@ -2702,19 +2702,19 @@ suite('getFilePath', () => {
 		assert.strictEqual(result, uri.fsPath);
 	});
 
-	test('should return vscode-local:// URI string for file:// URIs when connected to a remote', () => {
+	test('should return vscode-local:/ URI string for file:// URIs when connected to a remote', () => {
 		const uri = URI.file('/C:/Users/user/AppData/Roaming/agent-plugins/my-skill/SKILL.md');
 		const result = getFilePath(uri, OperatingSystem.Linux, /* isRemote */ true);
 		assert.strictEqual(result, uri.with({ scheme: 'vscode-local' }).toString());
 	});
 
-	test('should return vscode-local:// URI string for file:// URIs when connected to a Windows remote', () => {
+	test('should return vscode-local:/ URI string for file:// URIs when connected to a Windows remote', () => {
 		const uri = URI.file('/C:/Users/user/AppData/Roaming/agent-plugins/my-skill/SKILL.md');
 		const result = getFilePath(uri, OperatingSystem.Windows, /* isRemote */ true);
 		assert.strictEqual(result, uri.with({ scheme: 'vscode-local' }).toString());
 	});
 
-	test('should not convert file:// URIs to vscode-local:// when not connected to a remote', () => {
+	test('should not convert file:// URIs to vscode-local:/ when not connected to a remote', () => {
 		const uri = URI.file('/home/user/.copilot/agent-plugins/my-skill/SKILL.md');
 		const result = getFilePath(uri, undefined, /* isRemote */ false);
 		assert.strictEqual(result, uri.fsPath);
