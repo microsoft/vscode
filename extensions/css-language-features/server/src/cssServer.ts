@@ -14,6 +14,7 @@ import { DiagnosticsSupport, registerDiagnosticsPullSupport, registerDiagnostics
 import { getDocumentContext } from './utils/documentContext';
 import { fetchDataProviders } from './customData';
 import { RequestService, getRequestService } from './requests';
+import { resolveNodeModuleLinks } from './utils/nodeModuleLinks';
 
 namespace CustomDataChangedNotification {
 	export const type: NotificationType<string[]> = new NotificationType('css/customDataChanged');
@@ -264,7 +265,8 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 				await dataProvidersReady;
 				const documentContext = getDocumentContext(document.uri, workspaceFolders);
 				const stylesheet = stylesheets.get(document);
-				return getLanguageService(document).findDocumentLinks2(document, stylesheet, documentContext);
+				const links = await getLanguageService(document).findDocumentLinks2(document, stylesheet, documentContext);
+				return resolveNodeModuleLinks(links, document, workspaceFolders, requestService);
 			}
 			return [];
 		}, [], `Error while computing document links for ${documentLinkParams.textDocument.uri}`, token);

@@ -11,6 +11,7 @@ import { WorkspaceFolder } from 'vscode-languageserver-protocol';
 import { getCSSLanguageService } from 'vscode-css-languageservice';
 import { getDocumentContext } from '../utils/documentContext';
 import { getNodeFSRequestService } from '../node/nodeFs';
+import { resolveNodeModuleLinks } from '../utils/nodeModuleLinks';
 
 export interface ItemDescription {
 	offset: number;
@@ -96,5 +97,65 @@ suite('Links', () => {
 		await assertLinks('html { background-image: url("~foo/hello.html|")',
 			[{ offset: 29, value: '"~foo/hello.html"', target: getTestResource('node_modules/foo/hello.html') }], testUri, folders
 		);
+	});
+
+	test('bare module import fallback to node_modules', async function () {
+
+		const testUri = getTestResource('about.css');
+		const folders: WorkspaceFolder[] = [{ name: 'x', uri: getTestResource('') }];
+		const requestService = getNodeFSRequestService();
+
+		const value = '@import "foo/hello.html|";';
+		const cleanValue = value.replace('|', '');
+
+		const document = TextDocument.create(testUri, 'css', 0, cleanValue);
+		const context = getDocumentContext(testUri, folders);
+		const stylesheet = cssLanguageService.parseStylesheet(document);
+		const links = await cssLanguageService.findDocumentLinks2(document, stylesheet, context);
+		const resolved = await resolveNodeModuleLinks(links, document, folders, requestService);
+
+		assert.strictEqual(resolved.length, 1);
+		assert.strictEqual(resolved[0].target, getTestResource('node_modules/foo/hello.html'));
+	});
+
+	test('bare module import keeps local file when it exists', async function () {
+
+		const testUri = getTestResource('about.css');
+		const folders: WorkspaceFolder[] = [{ name: 'x', uri: getTestResource('') }];
+		const requestService = getNodeFSRequestService();
+
+		// node_modules/foo/package.json exists as a local file relative to the fixture dir
+		const value = '@import "node_modules/foo/package.json|";';
+		const cleanValue = value.replace('|', '');
+
+		const document = TextDocument.create(testUri, 'css', 0, cleanValue);
+		const context = getDocumentContext(testUri, folders);
+		const stylesheet = cssLanguageService.parseStylesheet(document);
+		const links = await cssLanguageService.findDocumentLinks2(document, stylesheet, context);
+		const resolved = await resolveNodeModuleLinks(links, document, folders, requestService);
+
+		assert.strictEqual(resolved.length, 1);
+		// Should keep the original local resolution (not double node_modules)
+		assert.strictEqual(resolved[0].target, getTestResource('node_modules/foo/package.json'));
+	});
+
+	test('relative import is not affected by node_modules fallback', async function () {
+
+		const testUri = getTestResource('about.css');
+		const folders: WorkspaceFolder[] = [{ name: 'x', uri: getTestResource('') }];
+		const requestService = getNodeFSRequestService();
+
+		const value = '@import "./nonexistent.css|";';
+		const cleanValue = value.replace('|', '');
+
+		const document = TextDocument.create(testUri, 'css', 0, cleanValue);
+		const context = getDocumentContext(testUri, folders);
+		const stylesheet = cssLanguageService.parseStylesheet(document);
+		const links = await cssLanguageService.findDocumentLinks2(document, stylesheet, context);
+		const resolved = await resolveNodeModuleLinks(links, document, folders, requestService);
+
+		assert.strictEqual(resolved.length, 1);
+		// Should stay as relative resolution, NOT try node_modules
+		assert.strictEqual(resolved[0].target, getTestResource('nonexistent.css'));
 	});
 });
