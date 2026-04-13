@@ -13,7 +13,7 @@ import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { autorun } from '../../../../base/common/observable.js';
-import { ISessionType } from '../../../services/sessions/common/session.js';
+import { ISession, ISessionType } from '../../../services/sessions/common/session.js';
 
 export class SessionTypePicker extends Disposable {
 
@@ -31,12 +31,16 @@ export class SessionTypePicker extends Disposable {
 	) {
 		super();
 
-		this._register(autorun(reader => {
-			const session = this.sessionsManagementService.activeSession.read(reader);
+		const refresh = (session: ISession | undefined) => {
 			if (session) {
 				this._supportedSessionTypes = this.sessionsManagementService.getSessionTypes(session);
 				const provider = this.sessionsProvidersService.getProvider(session.providerId);
-				this._allProviderSessionTypes = provider ? [...provider.sessionTypes] : [];
+				const providerTypes = provider ? [...provider.sessionTypes] : [];
+				const providerTypeIds = new Set(providerTypes.map(t => t.id));
+				this._allProviderSessionTypes = [
+					...providerTypes,
+					...this._supportedSessionTypes.filter(t => !providerTypeIds.has(t.id)),
+				];
 				this._sessionType = session.sessionType;
 			} else {
 				this._supportedSessionTypes = [];
@@ -44,6 +48,16 @@ export class SessionTypePicker extends Disposable {
 				this._sessionType = undefined;
 			}
 			this._updateTriggerLabel();
+		};
+
+		this._register(autorun(reader => {
+			const session = this.sessionsManagementService.activeSession.read(reader);
+			refresh(session);
+		}));
+		// Re-read when a provider advertises/removes session types at runtime
+		// (e.g. a remote agent host discovers a new agent).
+		this._register(this.sessionsManagementService.onDidChangeSessionTypes(() => {
+			refresh(this.sessionsManagementService.activeSession.get());
 		}));
 	}
 

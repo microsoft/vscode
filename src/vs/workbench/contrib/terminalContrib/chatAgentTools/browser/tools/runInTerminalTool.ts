@@ -27,9 +27,9 @@ import { ICommandDetectionCapability, TerminalCapability } from '../../../../../
 import { ITerminalLogService, ITerminalProfile } from '../../../../../../platform/terminal/common/terminal.js';
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
-import { IChatService, ChatRequestQueueKind, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
+import { IChatService, ChatRequestQueueKind, ElicitationState, type IChatExternalToolInvocationUpdate, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
 import { constObservable, type IObservable } from '../../../../../../base/common/observable.js';
-import type { IChatRequestModeInfo } from '../../../../chat/common/model/chatModel.js';
+import { ChatModel, type IChatRequestModeInfo } from '../../../../chat/common/model/chatModel.js';
 import type { UserSelectedTools } from '../../../../chat/common/participants/chatAgents.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolConfirmationMessages, IStreamedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolInvocationStreamContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
@@ -74,12 +74,13 @@ import { IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { TerminalChatCommandId } from '../../../chat/browser/terminalChat.js';
 import { clamp } from '../../../../../../base/common/numbers.js';
 import { IOutputAnalyzer } from './outputAnalyzer.js';
-import { SandboxOutputAnalyzer } from './sandboxOutputAnalyzer.js';
+import { SandboxOutputAnalyzer, outputLooksSandboxBlocked } from './sandboxOutputAnalyzer.js';
 import { IAgentSessionsService } from '../../../../chat/browser/agentSessions/agentSessionsService.js';
 import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, type ITerminalSandboxResolvedNetworkDomains } from '../../common/terminalSandboxService.js';
 import { LanguageModelPartAudience } from '../../../../chat/common/languageModels.js';
 import { isSessionAutoApproveLevel, isTerminalAutoApproveAllowed, isToolEligibleForTerminalAutoApproval } from './terminalToolAutoApprove.js';
 import type { IJSONSchemaMap } from '../../../../../../base/common/jsonSchema.js';
+import { ChatElicitationRequestPart } from '../../../../chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
 
 // #region Tool data
 
@@ -87,6 +88,11 @@ const TERMINAL_SANDBOX_DOCUMENTATION_URL = 'https://aka.ms/vscode-sandboxing';
 const TOOL_REFERENCE_NAME = 'runInTerminal';
 const LEGACY_TOOL_REFERENCE_FULL_NAMES = ['runCommands/runInTerminal'];
 const INPUT_NEEDED_NOTIFICATION_THROTTLE_MS = 5000;
+
+type IRunInTerminalToolInvocationData = IChatTerminalToolInvocationData & {
+	/** Whether prepareToolInvocation showed/required the normal tool confirmation. */
+	requiresConfirmationForRetry?: boolean;
+};
 
 function createPowerShellModelDescription(shell: string, isSandboxEnabled: boolean, backgroundNotifications: boolean, networkDomains?: ITerminalSandboxResolvedNetworkDomains): string {
 	const isWinPwsh = isWindowsPowerShell(shell);
@@ -393,6 +399,26 @@ interface IResolvedExecutionOptions {
 	mode: 'sync' | 'async';
 }
 
+export interface IAutomaticUnsandboxRetryOptions {
+	readonly didSandboxWrapCommand: boolean;
+	readonly requestUnsandboxedExecution: boolean;
+	readonly isPersistentSession: boolean;
+	readonly isBackgroundExecution: boolean;
+	readonly didTimeout: boolean;
+	readonly exitCode: number | undefined;
+	readonly output: string;
+}
+
+export function shouldAutomaticallyRetryUnsandboxed(options: IAutomaticUnsandboxRetryOptions): boolean {
+	return options.didSandboxWrapCommand
+		&& options.requestUnsandboxedExecution !== true
+		&& !options.isPersistentSession
+		&& !options.isBackgroundExecution
+		&& !options.didTimeout
+		&& options.exitCode !== 0
+		&& outputLooksSandboxBlocked(options.output);
+}
+
 /**
  * Interface for accessing a running terminal execution.
  * Used by tools that need to await or interact with background terminal commands.
@@ -634,7 +660,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const explicitUnsandboxRequest = isTerminalSandboxEnabled && args.requestUnsandboxedExecution === true;
 		let requiresUnsandboxConfirmation = explicitUnsandboxRequest;
 		let requestUnsandboxedExecutionReason = explicitUnsandboxRequest ? args.requestUnsandboxedExecutionReason : undefined;
-		let blockedDomains: string[] | undefined;
 
 		const missingDependencies = sandboxPrereqs.failedCheck === TerminalSandboxPrerequisiteCheck.Dependencies && sandboxPrereqs.missingDependencies?.length
 			? sandboxPrereqs.missingDependencies
@@ -644,36 +669,20 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		// Generate a custom command ID to link the command between renderer and pty host
 		const terminalCommandId = `tool-${generateUuid()}`;
 
-		let rewrittenCommand: string | undefined = args.command;
-		let forDisplayCommand: string | undefined = undefined;
-		let isSandboxWrapped = false;
-		for (const rewriter of this._commandLineRewriters) {
-			const rewriteResult = await rewriter.rewrite({
-				commandLine: rewrittenCommand,
-				cwd,
-				shell,
-				os,
-				isBackground: executionOptions.persistentSession,
-				requestUnsandboxedExecution: requiresUnsandboxConfirmation,
-			});
-			if (rewriteResult) {
-				rewrittenCommand = rewriteResult.rewritten;
-				forDisplayCommand = rewriteResult.forDisplay ?? forDisplayCommand;
-				if (rewriteResult.isSandboxWrapped) {
-					isSandboxWrapped = true;
-				} else if (rewriteResult.isSandboxWrapped === false) {
-					isSandboxWrapped = false;
-				}
-				if (rewriteResult.requiresUnsandboxConfirmation) {
-					requiresUnsandboxConfirmation = true;
-				}
-				if (rewriteResult.blockedDomains?.length) {
-					blockedDomains = rewriteResult.blockedDomains;
-					requestUnsandboxedExecutionReason = this._getBlockedDomainReason(rewriteResult.blockedDomains, rewriteResult.deniedDomains);
-				}
-				this._logService.info(`RunInTerminalTool: Command rewritten by ${rewriter.constructor.name}: ${rewriteResult.reasoning}`);
-			}
-		}
+		const rewriteResult = await this._rewriteCommandLine(args.command, {
+			cwd,
+			shell,
+			os,
+			isBackground: executionOptions.persistentSession,
+			requestUnsandboxedExecution: requiresUnsandboxConfirmation,
+			requestUnsandboxedExecutionReason,
+		});
+		const rewrittenCommand: string | undefined = rewriteResult.rewrittenCommand;
+		const forDisplayCommand: string | undefined = rewriteResult.forDisplayCommand;
+		const isSandboxWrapped = rewriteResult.isSandboxWrapped;
+		requiresUnsandboxConfirmation = rewriteResult.requiresUnsandboxConfirmation;
+		requestUnsandboxedExecutionReason = rewriteResult.requestUnsandboxedExecutionReason;
+		const blockedDomains = rewriteResult.blockedDomains;
 
 		const toolSpecificData: IChatTerminalToolInvocationData = {
 			kind: 'terminal',
@@ -865,6 +874,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		// If forceConfirmationReason is set, always show confirmation regardless of auto-approval
 		const shouldShowConfirmation = (!isFinalAutoApproved && !isSessionAutoApproved) || context.forceConfirmationReason !== undefined;
+		(toolSpecificData as IRunInTerminalToolInvocationData).requiresConfirmationForRetry = shouldShowConfirmation;
 		const confirmationMessage = requiresUnsandboxConfirmation
 			? new MarkdownString(localize(
 				'runInTerminal.unsandboxed.confirmationMessage',
@@ -924,6 +934,153 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		return localize('runInTerminal.unsandboxed.domain.reason.multi', "This command accesses {0} and {1} more domains that are not permitted by the current chat.agent.sandbox configuration.", blockedDomains[0], blockedDomains.length - 1);
 	}
 
+	private async _rewriteCommandLine(commandLine: string, options: {
+		cwd: URI | undefined;
+		shell: string;
+		os: OperatingSystem;
+		isBackground: boolean;
+		requestUnsandboxedExecution: boolean;
+		requestUnsandboxedExecutionReason?: string;
+	}): Promise<{
+		rewrittenCommand: string;
+		forDisplayCommand: string | undefined;
+		isSandboxWrapped: boolean;
+		requiresUnsandboxConfirmation: boolean;
+		requestUnsandboxedExecutionReason: string | undefined;
+		blockedDomains: string[] | undefined;
+	}> {
+		let rewrittenCommand = commandLine;
+		let forDisplayCommand: string | undefined = undefined;
+		let isSandboxWrapped = false;
+		let requiresUnsandboxConfirmation = options.requestUnsandboxedExecution;
+		let requestUnsandboxedExecutionReason = options.requestUnsandboxedExecution ? options.requestUnsandboxedExecutionReason : undefined;
+		let blockedDomains: string[] | undefined;
+
+		for (const rewriter of this._commandLineRewriters) {
+			const rewriteResult = await rewriter.rewrite({
+				commandLine: rewrittenCommand,
+				cwd: options.cwd,
+				shell: options.shell,
+				os: options.os,
+				isBackground: options.isBackground,
+				requestUnsandboxedExecution: requiresUnsandboxConfirmation,
+			});
+			if (rewriteResult) {
+				rewrittenCommand = rewriteResult.rewritten;
+				forDisplayCommand = rewriteResult.forDisplay ?? forDisplayCommand;
+				if (rewriteResult.isSandboxWrapped) {
+					isSandboxWrapped = true;
+				} else if (rewriteResult.isSandboxWrapped === false) {
+					isSandboxWrapped = false;
+				}
+				if (rewriteResult.requiresUnsandboxConfirmation) {
+					requiresUnsandboxConfirmation = true;
+				}
+				if (rewriteResult.blockedDomains?.length) {
+					blockedDomains = rewriteResult.blockedDomains;
+					requestUnsandboxedExecutionReason = this._getBlockedDomainReason(rewriteResult.blockedDomains, rewriteResult.deniedDomains);
+				}
+				this._logService.info(`RunInTerminalTool: Command rewritten by ${rewriter.constructor.name}: ${rewriteResult.reasoning}`);
+			}
+		}
+
+		return {
+			rewrittenCommand,
+			forDisplayCommand,
+			isSandboxWrapped,
+			requiresUnsandboxConfirmation,
+			requestUnsandboxedExecutionReason,
+			blockedDomains,
+		};
+	}
+
+	private async _confirmAutomaticUnsandboxRetry(sessionResource: URI | undefined, command: string, shell: string, blockedDomains: string[] | undefined, requiresConfirmationForRetry: boolean | undefined, token: CancellationToken): Promise<boolean> {
+		if (requiresConfirmationForRetry === false) {
+			return true;
+		}
+
+		const chatModel = sessionResource && this._chatService.getSession(sessionResource);
+		if (!(chatModel instanceof ChatModel)) {
+			return false;
+		}
+
+		const request = chatModel.getRequests().at(-1);
+		if (!request) {
+			return false;
+		}
+
+		let shellType = basename(shell, '.exe');
+		if (shellType === 'powershell') {
+			shellType = 'pwsh';
+		}
+		const store = new DisposableStore();
+		return new Promise<boolean>(resolve => {
+			let resolved = false;
+			const resolveOnce = (value: boolean) => {
+				if (resolved) {
+					return;
+				}
+				resolved = true;
+				store.dispose();
+				resolve(value);
+			};
+
+			const part = new ChatElicitationRequestPart(
+				blockedDomains?.length
+					? localize('runInTerminal.unsandboxed.domain', "Run `{0}` command outside the [sandbox]({1}) to access {2}?", shellType, TERMINAL_SANDBOX_DOCUMENTATION_URL, this._formatBlockedDomainsForTitle(blockedDomains))
+					: localize('runInTerminal.unsandboxed', "Run `{0}` command outside the [sandbox]({1})?", shellType, TERMINAL_SANDBOX_DOCUMENTATION_URL),
+				new MarkdownString(localize(
+					'runInTerminal.unsandboxed.autoRetry.confirmationMessage',
+					"`{0}`",
+					buildCommandDisplayText(command)
+				)),
+				'',
+				localize('allow', 'Allow'),
+				localize('skip', 'Skip'),
+				async () => {
+					resolveOnce(true);
+					part.hide();
+					return ElicitationState.Accepted;
+				},
+				async () => {
+					resolveOnce(false);
+					part.hide();
+					return ElicitationState.Rejected;
+				},
+				undefined,
+				undefined,
+				() => resolveOnce(false),
+			);
+
+			chatModel.acceptResponseProgress(request, part);
+			store.add(token.onCancellationRequested(() => resolveOnce(false)));
+			store.add({ dispose: () => part.hide() });
+		});
+	}
+
+	private _acceptAutomaticUnsandboxRetryToolInvocationUpdate(sessionResource: URI | undefined, toolCallId: string, toolSpecificData: IChatTerminalToolInvocationData, isComplete: boolean, toolResultMessage?: string | IMarkdownString): void {
+		const chatModel = sessionResource && this._chatService.getSession(sessionResource);
+		if (!(chatModel instanceof ChatModel)) {
+			return;
+		}
+
+		const request = chatModel.getRequests().at(-1);
+		if (!request) {
+			return;
+		}
+
+		const displayCommand = buildCommandDisplayText(toolSpecificData.commandLine.forDisplay ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original);
+		const progress: IChatExternalToolInvocationUpdate = {
+			kind: 'externalToolInvocationUpdate',
+			toolCallId,
+			toolName: localize('runInTerminalTool.displayName', 'Run in Terminal'),
+			isComplete,
+			invocationMessage: new MarkdownString(localize('runInTerminal.unsandboxed.autoRetry.invocation', "Running `{0}` outside the sandbox", displayCommand)),
+			pastTenseMessage: toolResultMessage,
+			toolSpecificData,
+		};
+		chatModel.acceptResponseProgress(request, progress);
+	}
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
 		const toolSpecificData = invocation.toolSpecificData as IChatTerminalToolInvocationData | undefined;
 		if (!toolSpecificData) {
@@ -1044,12 +1201,17 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		);
 
 		const didSandboxWrapCommand = toolSpecificData.commandLine.isSandboxWrapped === true;
+		const isSandboxEnabled = await this._terminalSandboxService.isEnabled();
+		const commandLineForMetadata = isSandboxEnabled
+			? toolSpecificData.commandLine.forDisplay ?? toolSpecificData.commandLine.original
+			: undefined;
 
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
 
 		let error: string | undefined;
+		const automaticUnsandboxRetryReason = localize('runInTerminal.unsandboxed.autoRetry.reason', 'The sandboxed execution output indicated the sandbox blocked the command.');
 		const isNewSession = !executionOptions.persistentSession && !this._sessionTerminalAssociations.has(chatSessionResource);
 
 		const timingStart = Date.now();
@@ -1173,7 +1335,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}));
 
 			// Start execution (non-blocking - runs in background)
-			executionPromise = execution.start(command, executeCancellation.token, commandId);
+			executionPromise = execution.start(command, executeCancellation.token, commandId, commandLineForMetadata);
 
 			if (executionOptions.waitStrategy === 'idle') {
 				this._logService.debug(`RunInTerminalTool: Starting persistent execution with idle wait strategy \`${command}\``);
@@ -1463,6 +1625,67 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		if (altBufferResult) {
 			return altBufferResult;
+		}
+
+		const shouldAutoRetryUnsandboxed = shouldAutomaticallyRetryUnsandboxed({
+			didSandboxWrapCommand,
+			requestUnsandboxedExecution: args.requestUnsandboxedExecution === true,
+			isPersistentSession: executionOptions.persistentSession,
+			isBackgroundExecution,
+			didTimeout,
+			exitCode,
+			output: terminalResult,
+		});
+
+		if (shouldAutoRetryUnsandboxed) {
+			const [os, shell] = await Promise.all([
+				this._osBackend,
+				this._profileFetcher.getCopilotShell(),
+			]);
+			const retryReason = automaticUnsandboxRetryReason;
+			const retryRewriteResult = await this._rewriteCommandLine(args.command, {
+				cwd: toolSpecificData.cwd ? URI.revive(toolSpecificData.cwd) : undefined,
+				shell,
+				os,
+				isBackground: executionOptions.persistentSession,
+				requestUnsandboxedExecution: true,
+				requestUnsandboxedExecutionReason: retryReason,
+			});
+			const rewrittenRetryReason = retryRewriteResult.requestUnsandboxedExecutionReason ?? retryReason;
+			const retryConfirmationCommand = toolSpecificData.presentationOverrides?.commandLine ?? command;
+			const shouldRetry = await this._confirmAutomaticUnsandboxRetry(invocation.context.sessionResource, retryConfirmationCommand, shell, retryRewriteResult.blockedDomains, (toolSpecificData as IRunInTerminalToolInvocationData).requiresConfirmationForRetry, token);
+			if (shouldRetry) {
+				const retryToolSpecificData: IChatTerminalToolInvocationData = {
+					...toolSpecificData,
+					terminalCommandId: `tool-${generateUuid()}`,
+					commandLine: {
+						original: args.command,
+						toolEdited: retryRewriteResult.rewrittenCommand === args.command ? undefined : retryRewriteResult.rewrittenCommand,
+						forDisplay: retryRewriteResult.forDisplayCommand ?? normalizeTerminalCommandForDisplay(retryRewriteResult.rewrittenCommand ?? args.command),
+						isSandboxWrapped: retryRewriteResult.isSandboxWrapped,
+					},
+					requestUnsandboxedExecution: true,
+					requestUnsandboxedExecutionReason: rewrittenRetryReason,
+					terminalCommandUri: undefined,
+					terminalCommandOutput: undefined,
+					terminalTheme: undefined,
+					terminalCommandState: undefined,
+					didContinueInBackground: undefined,
+				};
+				const retryToolCallId = `automatic-unsandbox-retry-${generateUuid()}`;
+				this._acceptAutomaticUnsandboxRetryToolInvocationUpdate(invocation.context.sessionResource, retryToolCallId, retryToolSpecificData, false);
+
+				return await this.invoke({
+					...invocation,
+					parameters: {
+						...args,
+						command: args.command,
+						requestUnsandboxedExecution: true,
+						requestUnsandboxedExecutionReason: rewrittenRetryReason,
+					},
+					toolSpecificData: retryToolSpecificData,
+				}, _countTokens, _progress, token);
+			}
 		}
 
 		const resultText: string[] = [];
@@ -2138,9 +2361,9 @@ class ActiveTerminalExecution extends Disposable implements IActiveTerminalExecu
 	 * @param commandId Optional command ID for linking
 	 * @returns The execution result
 	 */
-	async start(commandLine: string, token: CancellationToken, commandId?: string): Promise<ITerminalExecuteStrategyResult> {
+	async start(commandLine: string, token: CancellationToken, commandId?: string, commandLineForMetadata?: string): Promise<ITerminalExecuteStrategyResult> {
 		try {
-			const result = await this.strategy.execute(commandLine, token, commandId);
+			const result = await this.strategy.execute(commandLine, token, commandId, commandLineForMetadata);
 			this._completionDeferred.complete(result);
 			return result;
 		} catch (e) {

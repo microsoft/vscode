@@ -67,14 +67,10 @@ export class ChatQueueMessageAction extends Action2 {
 			f1: false,
 			category: CHAT_CATEGORY,
 
-			precondition: ContextKeyExpr.and(
-				queuingActionsPresent,
-				ChatContextKeys.inputHasText,
-			),
+			precondition: ChatContextKeys.inputHasText,
 			keybinding: [{
 				when: ContextKeyExpr.and(
 					ChatContextKeys.inChatInput,
-					queuingActionsPresent,
 					effectiveDefaultIsSteer,
 				),
 				primary: KeyMod.Alt | KeyCode.Enter,
@@ -100,6 +96,12 @@ export class ChatQueueMessageAction extends Action2 {
 
 		const inputValue = widget.getInput();
 		if (!inputValue.trim()) {
+			return;
+		}
+
+		// If no request is in progress, send as a normal message instead of queuing
+		if (!widget.viewModel.model.requestInProgress.get()) {
+			widget.acceptInput();
 			return;
 		}
 
@@ -118,10 +120,7 @@ export class ChatSteerWithMessageAction extends Action2 {
 			icon: Codicon.arrowUp,
 			f1: false,
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(
-				queuingActionsPresent,
-				ChatContextKeys.inputHasText,
-			),
+			precondition: ChatContextKeys.inputHasText,
 			keybinding: [{
 				when: ContextKeyExpr.and(
 					ChatContextKeys.inChatInput,
@@ -133,7 +132,6 @@ export class ChatSteerWithMessageAction extends Action2 {
 			}, {
 				when: ContextKeyExpr.and(
 					ChatContextKeys.inChatInput,
-					queuingActionsPresent,
 					effectiveDefaultIsQueue,
 				),
 				primary: KeyMod.Alt | KeyCode.Enter,
@@ -151,6 +149,12 @@ export class ChatSteerWithMessageAction extends Action2 {
 
 		const inputValue = widget.getInput();
 		if (!inputValue.trim()) {
+			return;
+		}
+
+		// If no request is in progress, send as a normal message instead of steering
+		if (!widget.viewModel.model.requestInProgress.get()) {
+			widget.acceptInput();
 			return;
 		}
 

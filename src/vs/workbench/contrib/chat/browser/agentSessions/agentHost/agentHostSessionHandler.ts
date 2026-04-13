@@ -37,6 +37,7 @@ import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgent
 import { ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
 import { getAgentHostIcon } from '../agentSessions.js';
 import { AgentHostEditingSession } from './agentHostEditingSession.js';
+import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
 import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, getTerminalContentUri, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, type IToolCallFileEdit } from './stateToProgressAdapter.js';
 import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
@@ -237,9 +238,10 @@ export interface IAgentHostSessionHandlerConfig {
 	readonly extensionDisplayName?: string;
 	/**
 	 * Optional callback to resolve a working directory for a new session.
-	 * If not provided, falls back to the first workspace folder.
+	 * If not provided or unresolved, session resource resolvers are consulted before
+	 * falling back to the first workspace folder.
 	 */
-	readonly resolveWorkingDirectory?: (resourceKey: string) => URI | undefined;
+	readonly resolveWorkingDirectory?: (sessionResource: URI) => URI | undefined;
 	/**
 	 * Optional callback invoked when the server rejects an operation because
 	 * authentication is required. Should trigger interactive authentication
@@ -286,6 +288,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
 		@IAgentHostTerminalService private readonly _agentHostTerminalService: IAgentHostTerminalService,
+		@IAgentHostSessionWorkingDirectoryResolver private readonly _workingDirectoryResolver: IAgentHostSessionWorkingDirectoryResolver,
 	) {
 		super();
 		this._config = config;
@@ -1798,8 +1801,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	/** Creates a new backend session and subscribes to its state. */
 	private async _createAndSubscribe(sessionResource: URI, modelId?: string, fork?: { session: URI; turnIndex: number }): Promise<URI> {
 		const rawModelId = this._extractRawModelId(modelId);
-		const resourceKey = sessionResource.path.substring(1);
-		const workingDirectory = this._config.resolveWorkingDirectory?.(resourceKey)
+		const workingDirectory = this._config.resolveWorkingDirectory?.(sessionResource)
+			?? this._workingDirectoryResolver.resolve(sessionResource)
 			?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
 
 		this._logService.trace(`[AgentHost] Creating new session, model=${rawModelId ?? '(default)'}, provider=${this._config.provider}${fork ? `, fork from ${fork.session.toString()} at index ${fork.turnIndex}` : ''}`);

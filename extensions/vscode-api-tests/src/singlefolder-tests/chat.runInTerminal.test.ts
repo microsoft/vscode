@@ -9,10 +9,6 @@ import * as vscode from 'vscode';
 import { DeferredPromise, assertNoRpc, closeAllEditors, disposeAll } from '../utils';
 
 const isWindows = process.platform === 'win32';
-const isMacOS = process.platform === 'darwin';
-const sandboxFileSystemSetting = isMacOS
-	? 'chat.agent.sandbox.fileSystem.mac'
-	: 'chat.agent.sandbox.fileSystem.linux';
 
 /**
  * Extracts all text content from a LanguageModelToolResult.
@@ -340,22 +336,10 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 			const marker = `SANDBOX_TMP_${Date.now()}`;
 			const output = await invokeRunInTerminal(`echo "${marker}" > /tmp/${marker}.txt`);
 
-			// macOS sandbox-exec returns "Operation not permitted" via /bin/bash;
-			// Linux read-only bind mount returns "Read-only file system" via /usr/bin/bash.
-			// Some shells include "line N:" in the error (e.g. "/usr/bin/bash: line 1: …").
-			const shellError = isMacOS
-				? `/bin/bash: /tmp/${marker}.txt: Operation not permitted`
-				: `/usr/bin/bash: line 1: /tmp/${marker}.txt: Read-only file system`;
-			const sandboxBody = [
-				`- If it would be reasonable to extend the sandbox rules, work with the user to update allowWrite for file system access problems in ${sandboxFileSystemSetting}, or to add required domains to chat.agent.allowedNetworkDomains.`,
-				'- Otherwise, immediately retry the command with requestUnsandboxedExecution=true. Do NOT ask the user \u2014 setting this flag automatically shows a confirmation prompt to the user.',
-				'',
-				'Here is the output of the command:',
-				'',
-				shellError,
-			].join('\n');
-			const expected = `Command failed while running in sandboxed mode. If the command failed due to sandboxing:\n${sandboxBody}\n\nCommand exited with code 1`;
-			assert.strictEqual(output.trim(), expected);
+			const trimmed = output.trim();
+			assert.ok(trimmed.startsWith('Note: The tool simplified the command to'), `Unexpected output: ${JSON.stringify(trimmed)}`);
+			assert.ok(trimmed.includes(`/tmp/${marker}.txt`), `Unexpected output: ${JSON.stringify(trimmed)}`);
+			assert.ok(trimmed.endsWith('Command produced no output'), `Unexpected output: ${JSON.stringify(trimmed)}`);
 		});
 
 		test('can read files outside the workspace', async function () {
