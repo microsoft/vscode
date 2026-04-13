@@ -110,14 +110,8 @@ export class BlockCommentCommand implements ICommand {
 			return null;
 		}
 
-		// Return both the content range and token positions
-		const contentRange = new Range(startLine, startCol + startToken.length, endLine, endCol - endToken.length);
-		const startTokenPos = new Position(startLine, startCol);
-		const endTokenPos = new Position(endLine, endCol - endToken.length + 1); // Start of end token
-
 		// Return the full range including tokens
-		const fullRange = new Range(startLine, startCol, endLine, endCol);
-		return fullRange;
+		return commentRange;
 	}
 
 	public static _haystackHasNeedleAtOffset(haystack: string, needle: string, offset: number): boolean {
@@ -274,18 +268,17 @@ export class BlockCommentCommand implements ICommand {
 			const result = BlockCommentCommand.findEnclosingBlockCommentRange(model, this._selection.getPosition(), this.languageConfigurationService);
 			if (result) {
 				// Remove start token
-				const startTokenRange = new Range(result.startLineNumber, result.startColumn, result.startLineNumber, result.startColumn + 2);
+				const startTokenRange = new Range(result.startLineNumber, result.startColumn, result.startLineNumber, result.startColumn + config.blockCommentStartToken.length);
 				builder.addTrackedEditOperation(startTokenRange, '');
 
 				// Remove end token
-				const endTokenRange = new Range(result.endLineNumber, result.endColumn - 2, result.endLineNumber, result.endColumn);
+				const endTokenRange = new Range(result.endLineNumber, result.endColumn - config.blockCommentEndToken.length, result.endLineNumber, result.endColumn);
 				builder.addTrackedEditOperation(endTokenRange, '');
 
 				this._isRemove = true;
 				return;
-			} else {
-				alert('No enclosing comment found, proceeding with normal logic');
 			}
+			// Else, no enclosing comment found, proceeding with normal logic
 		}
 
 		this._createOperationsForBlockComment(this._selection, config.blockCommentStartToken, config.blockCommentEndToken, this._insertSpace, model, builder);
