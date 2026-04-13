@@ -2,7 +2,7 @@
 	"name": "copilot-chat",
 	"displayName": "GitHub Copilot Chat",
 	"description": "AI chat features powered by Copilot",
-	"version": "0.44.0",
+	"version": "0.45.0",
 	"build": "1",
 	"internalAIKey": "1058ec22-3c95-4951-8443-f26c1f325911",
 	"completionsCoreVersion": "1.378.1799",
@@ -23,7 +23,7 @@
 	"icon": "assets/copilot.png",
 	"pricing": "Trial",
 	"engines": {
-		"vscode": "^1.116.0",
+		"vscode": "^1.117.0",
 		"npm": ">=9.0.0",
 		"node": ">=22.14.0"
 	},
@@ -2761,13 +2761,6 @@
 				"category": "GitHub Copilot"
 			},
 			{
-				"command": "github.copilot.chat.updateCopilotCLIAgentSessionChanges.update",
-				"title": "%github.copilot.chat.updateCopilotCLIAgentSessionChanges.update%",
-				"enablement": "!chatSessionRequestInProgress",
-				"icon": "$(download)",
-				"category": "GitHub Copilot"
-			},
-			{
 				"command": "github.copilot.sessions.commit",
 				"title": "%github.copilot.command.sessions.commit%",
 				"enablement": "!chatSessionRequestInProgress",
@@ -5205,10 +5198,6 @@
 				},
 				{
 					"command": "github.copilot.chat.mergeCopilotCLIAgentSessionChanges.mergeAndSync",
-					"when": "false"
-				},
-				{
-					"command": "github.copilot.chat.updateCopilotCLIAgentSessionChanges.update",
 					"when": "false"
 				},
 				{

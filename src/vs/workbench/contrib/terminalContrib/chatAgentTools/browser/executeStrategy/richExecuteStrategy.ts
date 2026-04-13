@@ -41,7 +41,7 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 		super();
 	}
 
-	async execute(commandLine: string, token: CancellationToken, commandId?: string): Promise<ITerminalExecuteStrategyResult> {
+	async execute(commandLine: string, token: CancellationToken, commandId?: string, commandLineForMetadata?: string): Promise<ITerminalExecuteStrategyResult> {
 		const store = new DisposableStore();
 		try {
 			// Ensure xterm is available
@@ -86,7 +86,7 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 			this._log(`Executing command line \`${commandLine}\``);
 			markerRecreation.dispose();
 			const forceBracketedPasteMode = isMacintosh;
-			this._instance.runCommand(commandLine, true, commandId, forceBracketedPasteMode);
+			this._instance.runCommand(commandLine, true, commandId, forceBracketedPasteMode, commandLineForMetadata);
 
 			// Wait for the terminal to idle
 			this._log('Waiting for done event');

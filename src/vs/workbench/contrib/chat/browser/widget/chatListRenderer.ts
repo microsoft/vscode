@@ -983,14 +983,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private renderChatResponseBasic(element: IChatResponseViewModel, index: number, templateData: IChatListItemTemplate) {
 		templateData.rowContainer.classList.toggle('chat-response-loading', (isResponseVM(element) && !element.isComplete));
 
-		if (element.isComplete || element.isCanceled) {
-			const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
-			if (lastThinking?.domNode && lastThinking.getIsActive()) {
-				lastThinking.finalizeTitleIfDefault();
-				lastThinking.markAsInactive();
-			}
-			this.finalizeAllSubagentParts(templateData);
-		}
+		this.finalizeCompletedResponseParts(element, templateData);
 
 		const content: IChatRendererContent[] = [];
 		const isFiltered = !!element.errorDetails?.responseIsFiltered;
@@ -1015,6 +1008,20 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const diff = this.diff(templateData.renderedParts ?? [], content, element);
 		this.renderChatContentDiff(diff, content, element, index, templateData);
+		this.finalizeCompletedResponseParts(element, templateData);
+	}
+
+	private finalizeCompletedResponseParts(element: IChatResponseViewModel, templateData: IChatListItemTemplate): void {
+		if (!element.isComplete && !element.isCanceled) {
+			return;
+		}
+
+		const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
+		if (lastThinking?.domNode && lastThinking.getIsActive()) {
+			lastThinking.finalizeTitleIfDefault();
+			lastThinking.markAsInactive();
+		}
+		this.finalizeAllSubagentParts(templateData);
 	}
 
 	private shouldShowWorkingProgress(element: IChatResponseViewModel, partsToRender: IChatRendererContent[], moreContentAvailable: boolean, templateData: IChatListItemTemplate): IChatWorkingProgress | undefined {

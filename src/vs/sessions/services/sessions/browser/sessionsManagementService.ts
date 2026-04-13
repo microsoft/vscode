@@ -100,6 +100,9 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 			if (provider.onDidReplaceSession) {
 				disposables.add(provider.onDidReplaceSession(e => this.onDidReplaceSession(e.from, e.to)));
 			}
+			if (provider.onDidChangeSessionTypes) {
+				disposables.add(provider.onDidChangeSessionTypes(() => this._updateSessionTypes()));
+			}
 			this._providerListeners.set(provider.id, disposables);
 		}
 	}
@@ -201,9 +204,9 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 
 	private _updateSessionTypes(): void {
 		const newTypes = this._collectSessionTypes();
-		const oldIds = new Set(this._sessionTypes.map(t => t.id));
-		const newIds = new Set(newTypes.map(t => t.id));
-		if (oldIds.size !== newIds.size || [...oldIds].some(id => !newIds.has(id))) {
+		const changed = this._sessionTypes.length !== newTypes.length
+			|| this._sessionTypes.some((t, i) => t.id !== newTypes[i].id || t.label !== newTypes[i].label);
+		if (changed) {
 			this._sessionTypes = newTypes;
 			this._onDidChangeSessionTypes.fire();
 		}
@@ -237,7 +240,6 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		this.logService.info(`[SessionsManagement] openSession: ${sessionResource.toString()} provider=${sessionData.providerId}`);
 		this.isNewChatSessionContext.set(false);
 		this.setActiveSession(sessionData);
-		this.setRead(sessionData, true); // mark as read when opened
 
 		await this.chatWidgetService.openSession(sessionData.resource, ChatViewPaneTarget, { preserveFocus: options?.preserveFocus });
 	}
@@ -415,10 +417,6 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 
 	async renameChat(session: ISession, chatUri: URI, title: string): Promise<void> {
 		await this._getProvider(session)?.renameChat(session.sessionId, chatUri, title);
-	}
-
-	setRead(session: ISession, read: boolean): void {
-		this._getProvider(session)?.setRead(session.sessionId, read);
 	}
 }
 

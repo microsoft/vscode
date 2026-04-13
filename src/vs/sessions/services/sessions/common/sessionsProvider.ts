@@ -55,6 +55,12 @@ export interface ISessionsProvider {
 	readonly icon: ThemeIcon;
 	/** Session types this provider supports. */
 	readonly sessionTypes: readonly ISessionType[];
+	/**
+	 * Optional. Fires when {@link sessionTypes} changes (e.g. a remote agent
+	 * host advertises a new agent at runtime). Providers with a statically
+	 * declared session type list can omit this.
+	 */
+	readonly onDidChangeSessionTypes?: Event<void>;
 	/** Capabilities supported by this provider. */
 	readonly capabilities: ISessionsProviderCapabilities;
 
@@ -109,8 +115,6 @@ export interface ISessionsProvider {
 	deleteSession(sessionId: string): Promise<void>;
 	/** Delete a single chat from a session. */
 	deleteChat(sessionId: string, chatUri: URI): Promise<void>;
-	/** Mark a session as read or unread. */
-	setRead(sessionId: string, read: boolean): void;
 
 	// -- Send --
 	/** Send a request, creating a new chat in the session. */

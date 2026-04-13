@@ -1317,13 +1317,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		}
 	}
 
-	setRead(sessionId: string, read: boolean): void {
-		const agentSession = this._findAgentSession(sessionId);
-		if (agentSession) {
-			agentSession.setRead(read);
-		}
-	}
-
 	// -- Send --
 
 	async sendAndCreateChat(sessionId: string, options: ISendRequestOptions): Promise<ISession> {

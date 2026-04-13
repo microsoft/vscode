@@ -140,8 +140,6 @@ export interface ISessionsManagementService {
 	deleteChat(session: ISession, chatUri: URI): Promise<void>;
 	/** Rename a chat within a session. */
 	renameChat(session: ISession, chatUri: URI, title: string): Promise<void>;
-	/** Mark a session as read or unread. */
-	setRead(session: ISession, read: boolean): void;
 }
 
 export const ISessionsManagementService = createDecorator<ISessionsManagementService>('sessionsManagementService');

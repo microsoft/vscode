@@ -45,6 +45,10 @@ import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextke
 import { CopilotCLISessionType } from '../../../services/sessions/common/session.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { SessionsChatAccessibilityHelp } from './sessionsChatAccessibilityHelp.js';
+import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { IRemoteAgentHostService, IRemoteAgentHostSSHConnection, RemoteAgentHostEntryType } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { encodeHex, VSBuffer } from '../../../../base/common/buffer.js';
 
 export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 	static readonly ID = 'chat.openSessionWorktreeInVSCode';
@@ -71,6 +75,8 @@ export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 		const openerService = accessor.get(IOpenerService);
 		const productService = accessor.get(IProductService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const sessionsProvidersService = accessor.get(ISessionsProvidersService);
+		const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
 
 		const activeSession = sessionsManagementService.activeSession.get();
 		if (!activeSession) {
@@ -79,11 +85,18 @@ export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 
 		const workspace = activeSession.workspace.get();
 		const repo = workspace?.repositories[0];
-		const folderUri = activeSession.sessionType === CopilotCLISessionType.id ? repo?.workingDirectory ?? repo?.uri : undefined;
+		const rawFolderUri = activeSession.sessionType === CopilotCLISessionType.id ? repo?.workingDirectory ?? repo?.uri : undefined;
 
-		if (!folderUri) {
+		if (!rawFolderUri) {
 			return;
 		}
+
+		// Unwrap agent-host URIs to get the original file path on the remote
+		const folderUri = rawFolderUri.scheme === AGENT_HOST_SCHEME ? fromAgentHostUri(rawFolderUri) : rawFolderUri;
+
+		// Resolve VS Code remote authority from the session's provider
+		const remoteAuthority = resolveRemoteAuthority(
+			activeSession.providerId, sessionsProvidersService, remoteAgentHostService);
 
 		const scheme = productService.quality === 'stable'
 			? 'vscode'
@@ -97,15 +110,90 @@ export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 		params.set('windowId', '_blank');
 		params.set('session', activeSession.resource.toString());
 
-		await openerService.open(URI.from({
-			scheme,
-			authority: Schemas.file,
-			path: folderUri.path,
-			query: params.toString(),
-		}), { openExternal: true });
+		if (remoteAuthority) {
+			// Open as remote: vscode://vscode-remote/<remoteAuthority><path>
+			// The main process converts this to vscode-remote://<remoteAuthority><path>
+			await openerService.open(URI.from({
+				scheme,
+				authority: Schemas.vscodeRemote,
+				path: `/${remoteAuthority}${folderUri.path}`,
+				query: params.toString(),
+			}), { openExternal: true });
+		} else {
+			// Open as local file
+			await openerService.open(URI.from({
+				scheme,
+				authority: Schemas.file,
+				path: folderUri.path,
+				query: params.toString(),
+			}), { openExternal: true });
+		}
 	}
 }
 registerAction2(OpenSessionWorktreeInVSCodeAction);
+
+/**
+ * Resolves the VS Code remote authority for the given session provider,
+ * e.g. `ssh-remote+myhost` or `tunnel+myTunnel`.
+ *
+ * Returns `undefined` for local or WebSocket-only providers where no
+ * VS Code remote extension can handle the connection.
+ */
+export function resolveRemoteAuthority(
+	providerId: string,
+	sessionsProvidersService: ISessionsProvidersService,
+	remoteAgentHostService: IRemoteAgentHostService,
+): string | undefined {
+	const provider = sessionsProvidersService.getProvider(providerId);
+	if (!provider?.remoteAddress) {
+		return undefined;
+	}
+
+	const entry = remoteAgentHostService.getEntryByAddress(provider.remoteAddress);
+	if (!entry) {
+		return undefined;
+	}
+
+	switch (entry.connection.type) {
+		case RemoteAgentHostEntryType.SSH:
+			if (entry.connection.sshConfigHost) {
+				return `ssh-remote+${entry.connection.sshConfigHost}`;
+			}
+			return `ssh-remote+${sshAuthorityString(entry.connection)}`;
+		case RemoteAgentHostEntryType.Tunnel:
+			return `tunnel+${entry.connection.label ?? `${entry.connection.tunnelId}.${entry.connection.clusterId}`}`;
+		default:
+			return undefined;
+	}
+}
+
+/**
+ * Encodes an SSH connection into the authority string format expected by
+ * the Remote SSH extension.
+ *
+ * Simple hostnames (lowercase alphanumeric) are used verbatim.
+ * Complex hosts (with user, port, uppercase, or special characters)
+ * are encoded as a hex-encoded JSON object `{"hostName":...,"user":...,"port":...}`.
+ */
+export function sshAuthorityString(connection: IRemoteAgentHostSSHConnection): string {
+	const hostName = connection.hostName;
+	const needsEncoding = connection.user || connection.port
+		|| /[A-Z/\\+]/.test(hostName) || !/^[a-zA-Z0-9.:\-]+$/.test(hostName);
+	if (!needsEncoding) {
+		return hostName;
+	}
+
+	const obj: Record<string, string | number> = { hostName };
+	if (connection.user) {
+		obj.user = connection.user;
+	}
+	if (connection.port) {
+		obj.port = connection.port;
+	}
+
+	const json = JSON.stringify(obj);
+	return encodeHex(VSBuffer.fromString(json));
+}
 
 class NewChatInSessionsWindowAction extends Action2 {
 

@@ -59,7 +59,6 @@ function createMockProvider(id: string, opts?: {
 		unarchiveSession: async () => { },
 		deleteSession: async () => { },
 		deleteChat: async () => { },
-		setRead: () => { },
 		sendAndCreateChat: async () => { throw new Error('Not implemented'); },
 		capabilities: { multipleChatsPerSession: false },
 	};

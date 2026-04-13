@@ -227,8 +227,6 @@ function createProviderForSendTests(
 	return disposables.add(instantiationService.createInstance(CopilotChatSessionsProvider));
 }
 
-
-
 suite('CopilotChatSessionsProvider', () => {
 	const disposables = new DisposableStore();
 	let model: MockAgentSessionsModel;
@@ -354,20 +352,6 @@ suite('CopilotChatSessionsProvider', () => {
 		provider.unarchiveSession(session.sessionId);
 
 		assert.strictEqual(agentSession.isArchived(), false);
-	});
-
-	test('setRead marks session as read', () => {
-		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: '/session-1' });
-		const agentSession = createMockAgentSession(resource, { read: false });
-		model.addSession(agentSession);
-
-		const provider = createProvider(disposables, model);
-		provider.getSessions();
-
-		const session = provider.getSessions()[0];
-		provider.setRead(session.sessionId, true);
-
-		assert.strictEqual(agentSession.isRead(), true);
 	});
 
 	// ---- Single-chat mode (multi-chat disabled) -------
