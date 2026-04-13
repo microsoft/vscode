@@ -137,6 +137,47 @@ suite('TerminalLinkManager', () => {
 				testableLinkManager._showHover = originalShowHover;
 			}
 		});
+
+		test('should dismiss shown tooltip on scroll', async () => {
+			await configurationService.setUserConfiguration('workbench.hover.delay', 0);
+			const linkHandler = xterm.options.linkHandler;
+			if (!linkHandler?.hover) {
+				throw new Error('Expected linkHandler with hover callback');
+			}
+			let hoverDisposed = false;
+			// eslint-disable-next-line @typescript-eslint/naming-convention
+			type TestableLinkManager = { _showHover: () => { dispose: () => void } | undefined };
+			const testableLinkManager = linkManager as unknown as TestableLinkManager;
+			const originalShowHover = testableLinkManager._showHover;
+			const testableXterm = xterm as unknown as Record<string, unknown>;
+			const originalOnScroll = testableXterm['onScroll'] as ((listener: (e: number) => void) => { dispose: () => void }) | undefined;
+			let scrollListener: ((e: number) => void) | undefined;
+			testableLinkManager._showHover = () => ({
+				dispose: () => {
+					hoverDisposed = true;
+				}
+			});
+			testableXterm['onScroll'] = (listener: (e: number) => void) => {
+				scrollListener = listener;
+				return {
+					dispose: () => {
+						scrollListener = undefined;
+					}
+				};
+			};
+			const range: Parameters<typeof linkHandler.hover>[2] = { start: { x: 1, y: 1 }, end: { x: 10, y: 1 } };
+			const event = new MouseEvent('mousemove');
+			try {
+				linkHandler.hover(event, 'http://example.com', range);
+				await timeout(10);
+				strictEqual(hoverDisposed, false);
+				scrollListener?.(1);
+				strictEqual(hoverDisposed, true);
+			} finally {
+				testableXterm['onScroll'] = originalOnScroll;
+				testableLinkManager._showHover = originalShowHover;
+			}
+		});
 	});
 
 	suite('getLinks and open recent link', () => {

@@ -98,11 +98,14 @@ export class TerminalLinkManager extends DisposableStore {
 
 		let activeHoverDisposable: IDisposable | undefined;
 		let activeTooltipScheduler: RunOnceScheduler | undefined;
+		let activeHoverListeners: DisposableStore | undefined;
 		const clearActiveLinkHover = () => {
 			activeHoverDisposable?.dispose();
 			activeHoverDisposable = undefined;
 			activeTooltipScheduler?.dispose();
 			activeTooltipScheduler = undefined;
+			activeHoverListeners?.dispose();
+			activeHoverListeners = undefined;
 		};
 		this.add(toDisposable(() => {
 			this._clearLinkProviders();
@@ -165,11 +168,21 @@ export class TerminalLinkManager extends DisposableStore {
 						width: this._xterm.cols,
 						height: this._xterm.rows
 					};
+					const hoverViewportY = this._xterm.buffer.active.viewportY;
 					activeHoverDisposable = this._showHover({
-						viewportRange: convertBufferRangeToViewport(range, this._xterm.buffer.active.viewportY),
+						viewportRange: convertBufferRangeToViewport(range, hoverViewportY),
 						cellDimensions,
 						terminalDimensions
 					}, this._getLinkHoverString(text, text), undefined, (text) => this._xterm.options.linkHandler?.activate(e, text, range));
+					activeHoverListeners = new DisposableStore();
+					activeHoverListeners.add(this._xterm.onScroll(() => clearActiveLinkHover()));
+					activeHoverListeners.add(this._xterm.onRender(renderedRange => {
+						// Convert buffer range to viewport range
+						const viewportRangeY = range.start.y - hoverViewportY - 1;
+						if (viewportRangeY >= renderedRange.start && viewportRangeY <= renderedRange.end) {
+							clearActiveLinkHover();
+						}
+					}));
 					// Clear out scheduler until next hover event
 					activeTooltipScheduler?.dispose();
 					activeTooltipScheduler = undefined;
