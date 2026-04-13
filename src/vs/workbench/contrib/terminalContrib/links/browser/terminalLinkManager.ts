@@ -177,9 +177,10 @@ export class TerminalLinkManager extends DisposableStore {
 					activeHoverListeners = new DisposableStore();
 					activeHoverListeners.add(this._xterm.onScroll(() => clearActiveLinkHover()));
 					activeHoverListeners.add(this._xterm.onRender(renderedRange => {
-						// Convert buffer range to viewport range
-						const viewportRangeY = range.start.y - hoverViewportY - 1;
-						if (viewportRangeY >= renderedRange.start && viewportRangeY <= renderedRange.end) {
+						// Convert buffer range to viewport range and check if the
+						// rendered range intersects any row of the link
+						const viewportRange = convertBufferRangeToViewport(range, hoverViewportY);
+						if (viewportRange.start.y <= renderedRange.end && viewportRange.end.y >= renderedRange.start) {
 							clearActiveLinkHover();
 						}
 					}));

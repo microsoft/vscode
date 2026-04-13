@@ -26,7 +26,7 @@ import { TerminalLinkResolver } from '../../browser/terminalLinkResolver.js';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestXtermLogger } from '../../../../../../platform/terminal/test/common/terminalTestHelpers.js';
-import { timeout } from '../../../../../../base/common/async.js';
+import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
 
 const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	fontFamily: 'monospace',
@@ -111,7 +111,7 @@ suite('TerminalLinkManager', () => {
 	});
 
 	suite('OSC 8 hover', () => {
-		test('should cancel delayed tooltip when leave happens before hover delay', async () => {
+		test('should cancel delayed tooltip when leave happens before hover delay', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			await configurationService.setUserConfiguration('workbench.hover.delay', 10);
 			const linkHandler = xterm.options.linkHandler;
 			if (!linkHandler?.hover || !linkHandler.leave) {
@@ -131,14 +131,15 @@ suite('TerminalLinkManager', () => {
 			try {
 				linkHandler.hover(event, 'http://example.com', range);
 				linkHandler.leave(event, 'http://example.com', range);
-				await timeout(20);
+				// Advance past hover delay to verify it was cancelled
+				await Promise.resolve();
 				strictEqual(hoverShownCount, 0);
 			} finally {
 				testableLinkManager._showHover = originalShowHover;
 			}
-		});
+		}));
 
-		test('should dismiss shown tooltip on scroll', async () => {
+		test('should dismiss shown tooltip on scroll', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			await configurationService.setUserConfiguration('workbench.hover.delay', 0);
 			const linkHandler = xterm.options.linkHandler;
 			if (!linkHandler?.hover) {
@@ -169,7 +170,8 @@ suite('TerminalLinkManager', () => {
 			const event = new MouseEvent('mousemove');
 			try {
 				linkHandler.hover(event, 'http://example.com', range);
-				await timeout(10);
+				// Flush the 0ms RunOnceScheduler
+				await Promise.resolve();
 				strictEqual(hoverDisposed, false);
 				scrollListener?.(1);
 				strictEqual(hoverDisposed, true);
@@ -177,7 +179,50 @@ suite('TerminalLinkManager', () => {
 				testableXterm['onScroll'] = originalOnScroll;
 				testableLinkManager._showHover = originalShowHover;
 			}
-		});
+		}));
+
+		test('should dismiss shown tooltip on render', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			await configurationService.setUserConfiguration('workbench.hover.delay', 0);
+			const linkHandler = xterm.options.linkHandler;
+			if (!linkHandler?.hover) {
+				throw new Error('Expected linkHandler with hover callback');
+			}
+			let hoverDisposed = false;
+			// eslint-disable-next-line @typescript-eslint/naming-convention
+			type TestableLinkManager = { _showHover: () => { dispose: () => void } | undefined };
+			const testableLinkManager = linkManager as unknown as TestableLinkManager;
+			const originalShowHover = testableLinkManager._showHover;
+			const testableXterm = xterm as unknown as Record<string, unknown>;
+			const originalOnRender = testableXterm['onRender'] as ((listener: (e: { start: number; end: number }) => void) => { dispose: () => void }) | undefined;
+			let renderListener: ((e: { start: number; end: number }) => void) | undefined;
+			testableLinkManager._showHover = () => ({
+				dispose: () => {
+					hoverDisposed = true;
+				}
+			});
+			testableXterm['onRender'] = (listener: (e: { start: number; end: number }) => void) => {
+				renderListener = listener;
+				return {
+					dispose: () => {
+						renderListener = undefined;
+					}
+				};
+			};
+			const range: Parameters<typeof linkHandler.hover>[2] = { start: { x: 1, y: 1 }, end: { x: 10, y: 1 } };
+			const event = new MouseEvent('mousemove');
+			try {
+				linkHandler.hover(event, 'http://example.com', range);
+				// Flush the 0ms RunOnceScheduler
+				await Promise.resolve();
+				strictEqual(hoverDisposed, false);
+				// Simulate a render that includes the link's viewport row
+				renderListener?.({ start: 0, end: 5 });
+				strictEqual(hoverDisposed, true);
+			} finally {
+				testableXterm['onRender'] = originalOnRender;
+				testableLinkManager._showHover = originalShowHover;
+			}
+		}));
 	});
 
 	suite('getLinks and open recent link', () => {
