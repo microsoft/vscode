@@ -69,7 +69,6 @@ import '../workbench/services/userDataProfile/browser/userDataProfileStorageServ
 import '../workbench/services/configurationResolver/browser/configurationResolverService.js';
 import '../platform/extensionResourceLoader/browser/extensionResourceLoaderService.js';
 import '../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
-import '../workbench/services/browserElements/browser/webBrowserElementsService.js';
 import '../workbench/services/power/browser/powerService.js';
 import '../platform/sandbox/browser/sandboxHelperService.js';
 
