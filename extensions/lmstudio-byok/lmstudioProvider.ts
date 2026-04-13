@@ -195,8 +195,23 @@ export class LMStudioLMProvider implements vscode.LanguageModelChatProvider, vsc
 	private toOpenAIMessage(
 		message: vscode.LanguageModelChatRequestMessage
 	): { role: 'system' | 'user' | 'assistant' | 'tool'; content: string } {
+		let role: 'system' | 'user' | 'assistant' | 'tool';
+		switch (message.role) {
+			case vscode.LanguageModelChatMessageRole.System:
+				role = 'system';
+				break;
+			case vscode.LanguageModelChatMessageRole.User:
+				role = 'user';
+				break;
+			case vscode.LanguageModelChatMessageRole.Assistant:
+				role = 'assistant';
+				break;
+			default:
+				throw new Error(`Unsupported chat message role: ${message.role}`);
+		}
+
 		return {
-			role: message.role === vscode.LanguageModelChatMessageRole.Assistant ? 'assistant' : 'user',
+			role,
 			content: this.flattenMessageContent(message.content)
 		};
 	}
