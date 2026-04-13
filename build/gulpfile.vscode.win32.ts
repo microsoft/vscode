@@ -112,7 +112,8 @@ function buildWin32Setup(arch: string, target: string): task.CallbackTask {
 			Quality: quality
 		};
 
-		const embedded = quality
+		const isInsiderOrExploration = quality === 'insider' || quality === 'exploration';
+		const embedded = isInsiderOrExploration
 			? (product as typeof product & { embedded?: EmbeddedProductInfo }).embedded
 			: undefined;
 
@@ -127,6 +128,7 @@ function buildWin32Setup(arch: string, target: string): task.CallbackTask {
 			definitions['ProxyAppUserId'] = embedded.win32AppUserModelId;
 			definitions['ProxyNameLong'] = embedded.nameLong;
 			definitions['ProxyExeUrlProtocol'] = embedded.urlProtocol;
+			definitions['ProxyMutex'] = embedded.win32MutexName;
 		}
 
 		if (quality === 'stable' || quality === 'insider') {

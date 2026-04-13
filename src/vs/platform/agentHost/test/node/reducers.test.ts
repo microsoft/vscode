@@ -18,6 +18,7 @@ function makeSession(): ISessionState {
 			status: SessionStatus.Idle,
 			createdAt: Date.now(),
 			modifiedAt: Date.now(),
+			project: { uri: 'file:///test-project', displayName: 'Test Project' },
 		},
 		lifecycle: SessionLifecycle.Ready,
 		turns: [],

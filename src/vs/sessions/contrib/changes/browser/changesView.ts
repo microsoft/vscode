@@ -267,6 +267,7 @@ export class ChangesViewPane extends ViewPane {
 		@IEditorService private readonly editorService: IEditorService,
 		@ISessionsManagementService private readonly sessionManagementService: ISessionsManagementService,
 		@ILabelService private readonly labelService: ILabelService,
+		@ILogService private readonly logService: ILogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super({ ...options, titleMenuId: MenuId.ChatEditingSessionTitleToolbar }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
@@ -535,7 +536,7 @@ export class ChangesViewPane extends ViewPane {
 			// Hide the actions toolbar for untitled sessions.
 			const activeSessionStatus = activeSessionStatusObs.read(reader);
 			if (this.actionsContainer) {
-				dom.setVisibility(activeSessionStatus !== SessionStatus.Untitled, this.actionsContainer);
+				dom.setVisibility(activeSessionStatus !== undefined && activeSessionStatus !== SessionStatus.Untitled, this.actionsContainer);
 			}
 
 			const hasGitRepository = this.viewModel.activeSessionHasGitRepositoryObs.read(reader);
@@ -659,6 +660,8 @@ export class ChangesViewPane extends ViewPane {
 			if (!state) {
 				return;
 			}
+
+			this.logService.info(`[ChangesViewPane][_bindContextKeys] Context keys: ${JSON.stringify(state)}`);
 
 			this.scopedContextKeyService.bufferChangeEvents(() => {
 				this.isolationModeContextKey.set(state.isolationMode);

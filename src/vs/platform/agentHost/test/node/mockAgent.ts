@@ -8,12 +8,16 @@ import { Emitter } from '../../../../base/common/event.js';
 import type { IAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
 import { URI } from '../../../../base/common/uri.js';
 import { type ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { AgentSession, type AgentProvider, type IAgent, type IAgentAttachment, type IAgentCreateSessionConfig, type IAgentDescriptor, type IAgentMessageEvent, type IAgentModelInfo, type IAgentProgressEvent, type IAgentSessionMetadata, type IAgentToolCompleteEvent, type IAgentToolStartEvent } from '../../common/agentService.js';
+import { AgentSession, type AgentProvider, type IAgent, type IAgentAttachment, type IAgentCreateSessionConfig, type IAgentCreateSessionResult, type IAgentDescriptor, type IAgentMessageEvent, type IAgentModelInfo, type IAgentProgressEvent, type IAgentSessionMetadata, type IAgentSubagentStartedEvent, type IAgentToolCompleteEvent, type IAgentToolStartEvent } from '../../common/agentService.js';
 import { IProtectedResourceMetadata } from '../../common/state/protocol/state.js';
-import { CustomizationStatus, SessionInputResponseKind, ToolResultContentType, type ICustomizationRef, type IPendingMessage, type ISessionInputAnswer, type IToolCallResult } from '../../common/state/sessionState.js';
+import { CustomizationStatus, ToolResultContentType, type ICustomizationRef, type IPendingMessage, type IToolCallResult } from '../../common/state/sessionState.js';
 
 /** Well-known auto-generated title used by the 'with-title' prompt. */
 export const MOCK_AUTO_TITLE = 'Automatically generated title';
+
+function mockProject(provider: AgentProvider) {
+	return { uri: URI.from({ scheme: 'mock-project', path: `/${provider}` }), displayName: `Agent ${provider}` };
+}
 
 /**
  * General-purpose mock agent for unit tests. Tracks all method calls
@@ -41,7 +45,7 @@ export class MockAgent implements IAgent {
 	customizations: ICustomizationRef[] = [];
 
 	/** Configurable return value for getSessionMessages. */
-	sessionMessages: (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[] = [];
+	sessionMessages: (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent | IAgentSubagentStartedEvent)[] = [];
 
 	/** Optional overrides applied to session metadata from listSessions. */
 	sessionMetadataOverrides: Partial<Omit<IAgentSessionMetadata, 'session'>> = {};
@@ -64,14 +68,14 @@ export class MockAgent implements IAgent {
 	}
 
 	async listSessions(): Promise<IAgentSessionMetadata[]> {
-		return [...this._sessions.values()].map(s => ({ session: s, startTime: Date.now(), modifiedTime: Date.now(), ...this.sessionMetadataOverrides }));
+		return [...this._sessions.values()].map(s => ({ session: s, startTime: Date.now(), modifiedTime: Date.now(), project: mockProject(this.id), ...this.sessionMetadataOverrides }));
 	}
 
-	async createSession(_config?: IAgentCreateSessionConfig): Promise<URI> {
+	async createSession(_config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
 		const rawId = `${this.id}-session-${this._nextId++}`;
 		const session = AgentSession.uri(this.id, rawId);
 		this._sessions.set(rawId, session);
-		return session;
+		return { session, project: mockProject(this.id) };
 	}
 
 	async sendMessage(session: URI, prompt: string): Promise<void> {
@@ -82,7 +86,7 @@ export class MockAgent implements IAgent {
 		this.setPendingMessagesCalls.push({ session, steeringMessage, queuedMessages });
 	}
 
-	async getSessionMessages(_session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]> {
+	async getSessionMessages(_session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent | IAgentSubagentStartedEvent)[]> {
 		return this.sessionMessages;
 	}
 
@@ -99,8 +103,8 @@ export class MockAgent implements IAgent {
 		this.respondToPermissionCalls.push({ requestId, approved });
 	}
 
-	respondToUserInputRequest(_requestId: string, _response: SessionInputResponseKind, _answers?: Record<string, ISessionInputAnswer>): void {
-		// no-op in mock
+	respondToUserInputRequest(): void {
+		// no-op for tests
 	}
 
 	async changeModel(session: URI, model: string): Promise<void> {
@@ -196,14 +200,14 @@ export class ScriptedMockAgent implements IAgent {
 	}
 
 	async listSessions(): Promise<IAgentSessionMetadata[]> {
-		return [...this._sessions.values()].map(s => ({ session: s, startTime: Date.now(), modifiedTime: Date.now(), summary: s.toString() === PRE_EXISTING_SESSION_URI.toString() ? 'Pre-existing session' : undefined }));
+		return [...this._sessions.values()].map(s => ({ session: s, startTime: Date.now(), modifiedTime: Date.now(), project: mockProject(this.id), summary: s.toString() === PRE_EXISTING_SESSION_URI.toString() ? 'Pre-existing session' : undefined }));
 	}
 
-	async createSession(_config?: IAgentCreateSessionConfig): Promise<URI> {
+	async createSession(_config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
 		const rawId = `mock-session-${this._nextId++}`;
 		const session = AgentSession.uri('mock', rawId);
 		this._sessions.set(rawId, session);
-		return session;
+		return { session, project: mockProject(this.id) };
 	}
 
 	async sendMessage(session: URI, prompt: string, _attachments?: IAgentAttachment[]): Promise<void> {
@@ -441,8 +445,8 @@ export class ScriptedMockAgent implements IAgent {
 		}
 	}
 
-	respondToUserInputRequest(_requestId: string, _response: SessionInputResponseKind, _answers?: Record<string, ISessionInputAnswer>): void {
-		// no-op in mock
+	respondToUserInputRequest(): void {
+		// no-op for tests
 	}
 
 	async authenticate(_resource: string, _token: string): Promise<boolean> {

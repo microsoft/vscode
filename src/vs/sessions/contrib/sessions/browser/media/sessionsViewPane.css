@@ -85,9 +85,14 @@
 	}
 
 	.agent-sessions-header-label {
+		flex: 1;
+		min-width: 0;
 		font-size: 12px;
 		font-weight: 500;
 		color: var(--vscode-sideBar-foreground, var(--vscode-foreground));
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	.agent-sessions-header-actions {
@@ -95,6 +100,7 @@
 		align-items: center;
 		gap: 4px;
 		margin-left: auto;
+		flex-shrink: 0;
 	}
 
 	/* Inline search input — replaces label + actions when active */

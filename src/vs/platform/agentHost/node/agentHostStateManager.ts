@@ -67,6 +67,20 @@ export class AgentHostStateManager extends Disposable {
 		return this._serverSeq;
 	}
 
+	/**
+	 * Returns all session URIs whose keys start with the given prefix.
+	 * Used to discover subagent sessions for a given parent.
+	 */
+	getSessionUrisWithPrefix(prefix: string): string[] {
+		const result: string[] = [];
+		for (const key of this._sessionStates.keys()) {
+			if (key.startsWith(prefix)) {
+				result.push(key);
+			}
+		}
+		return result;
+	}
+
 	// ---- Snapshots ----------------------------------------------------------
 
 	/**
@@ -287,6 +301,7 @@ export class AgentHostStateManager extends Disposable {
 			if (current.title !== lastNotified.title) { changes.title = current.title; }
 			if (current.status !== lastNotified.status) { changes.status = current.status; }
 			if (current.modifiedAt !== lastNotified.modifiedAt) { changes.modifiedAt = current.modifiedAt; }
+			if (current.project !== lastNotified.project) { changes.project = current.project; }
 			if (current.model !== lastNotified.model) { changes.model = current.model; }
 			if (current.workingDirectory !== lastNotified.workingDirectory) { changes.workingDirectory = current.workingDirectory; }
 			if (current.isRead !== lastNotified.isRead) { changes.isRead = current.isRead; }

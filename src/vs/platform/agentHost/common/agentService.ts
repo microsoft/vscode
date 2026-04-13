@@ -41,12 +41,23 @@ export interface IAgentSessionMetadata {
 	readonly session: URI;
 	readonly startTime: number;
 	readonly modifiedTime: number;
+	readonly project?: IAgentSessionProjectInfo;
 	readonly summary?: string;
 	readonly status?: SessionStatus;
 	readonly workingDirectory?: URI;
 	readonly isRead?: boolean;
 	readonly isDone?: boolean;
 	readonly diffs?: readonly { readonly uri: string; readonly added?: number; readonly removed?: number }[];
+}
+
+export interface IAgentSessionProjectInfo {
+	readonly uri: URI;
+	readonly displayName: string;
+}
+
+export interface IAgentCreateSessionResult {
+	readonly session: URI;
+	readonly project?: IAgentSessionProjectInfo;
 }
 
 export type AgentProvider = string;
@@ -169,8 +180,8 @@ export interface IAgentToolStartEvent extends IAgentProgressEventBase {
 	readonly invocationMessage: string;
 	/** A representative input string for display in the UI (e.g., the shell command). */
 	readonly toolInput?: string;
-	/** Hint for the renderer about how to display this tool (e.g., 'terminal' for shell commands). */
-	readonly toolKind?: 'terminal';
+	/** Hint for the renderer about how to display this tool (e.g., 'terminal' for shell commands, 'subagent' for subagent-spawning tools). */
+	readonly toolKind?: 'terminal' | 'subagent';
 	/** Language identifier for syntax highlighting (e.g., 'shellscript', 'powershell'). Used with toolKind 'terminal'. */
 	readonly language?: string;
 	/** Serialized JSON of the tool arguments, if available. */
@@ -252,6 +263,15 @@ export interface IAgentUserInputRequestEvent extends IAgentProgressEventBase {
 	readonly request: ISessionInputRequest;
 }
 
+/** A subagent has been spawned by a tool call. */
+export interface IAgentSubagentStartedEvent extends IAgentProgressEventBase {
+	readonly type: 'subagent_started';
+	readonly toolCallId: string;
+	readonly agentName: string;
+	readonly agentDisplayName: string;
+	readonly agentDescription?: string;
+}
+
 export type IAgentProgressEvent =
 	| IAgentDeltaEvent
 	| IAgentMessageEvent
@@ -264,7 +284,8 @@ export type IAgentProgressEvent =
 	| IAgentUsageEvent
 	| IAgentReasoningEvent
 	| IAgentSteeringConsumedEvent
-	| IAgentUserInputRequestEvent;
+	| IAgentUserInputRequestEvent
+	| IAgentSubagentStartedEvent;
 
 // ---- Session URI helpers ----------------------------------------------------
 
@@ -311,8 +332,8 @@ export interface IAgent {
 	/** Fires when the provider streams progress for a session. */
 	readonly onDidSessionProgress: Event<IAgentProgressEvent>;
 
-	/** Create a new session. Returns the session URI. */
-	createSession(config?: IAgentCreateSessionConfig): Promise<URI>;
+	/** Create a new session. Returns server-owned session metadata. */
+	createSession(config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult>;
 
 	/** Send a user message into an existing session. */
 	sendMessage(session: URI, prompt: string, attachments?: IAgentAttachment[], turnId?: string): Promise<void>;
@@ -328,7 +349,7 @@ export interface IAgent {
 	setPendingMessages?(session: URI, steeringMessage: IPendingMessage | undefined, queuedMessages: readonly IPendingMessage[]): void;
 
 	/** Retrieve all session events/messages for reconstruction. */
-	getSessionMessages(session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]>;
+	getSessionMessages(session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent | IAgentSubagentStartedEvent)[]>;
 
 	/** Dispose a session, freeing resources. */
 	disposeSession(session: URI): Promise<void>;

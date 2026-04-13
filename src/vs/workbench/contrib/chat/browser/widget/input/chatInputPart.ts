@@ -2471,6 +2471,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.renderAttachedContext();
 
 		const inputResizeObserver = this._register(new dom.DisposableResizeObserver(() => {
+			this.updateToolConfirmationCarouselMaxHeight();
 			const newHeight = this.container.offsetHeight;
 			this.height.set(newHeight, undefined);
 		}));
@@ -2859,6 +2860,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const existing = this._currentToolConfirmationCarousel;
 		if (existing) {
 			existing.addToolInvocation(tool, subAgentInvocationId, agentName, scrollToSubagent, toolPart);
+			this.updateToolConfirmationCarouselMaxHeight();
 			return existing;
 		}
 
@@ -2872,6 +2874,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._chatToolConfirmationCarousels.set(key, part);
 		dom.append(this.chatToolConfirmationCarouselContainer, part.domNode);
 		dom.show(this.chatToolConfirmationCarouselContainer);
+		this.updateToolConfirmationCarouselMaxHeight();
 
 		const capturedKey = key;
 		Event.once(part.onDidEmpty)(() => {
@@ -2889,6 +2892,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const existing = this._currentToolConfirmationCarousel;
 		if (existing) {
 			existing.addToolInvocation(tool, subAgentInvocationId, agentName, scrollToSubagent, toolPart);
+			this.updateToolConfirmationCarouselMaxHeight();
 		} else {
 			this.renderToolConfirmationCarousel(tool, factory, subAgentInvocationId, agentName, scrollToSubagent, toolPart);
 		}
@@ -2928,6 +2932,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (carousel && carousel.pendingCount > 0) {
 			dom.append(this.chatToolConfirmationCarouselContainer, carousel.domNode);
 			dom.show(this.chatToolConfirmationCarouselContainer);
+			this.updateToolConfirmationCarouselMaxHeight();
 		} else {
 			dom.hide(this.chatToolConfirmationCarouselContainer);
 		}
@@ -3272,6 +3277,23 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 */
 	setMaxHeight(maxHeight: number | undefined): void {
 		this._maxHeight = maxHeight;
+		this.updateToolConfirmationCarouselMaxHeight();
+	}
+
+	private updateToolConfirmationCarouselMaxHeight(): void {
+		const carousel = this._currentToolConfirmationCarousel;
+		if (!carousel) {
+			return;
+		}
+
+		if (this._maxHeight === undefined) {
+			carousel.setMaxHeight(undefined);
+			return;
+		}
+
+		const carouselHeight = this.chatToolConfirmationCarouselContainer.offsetHeight;
+		const otherInputHeight = Math.max(0, this.container.offsetHeight - carouselHeight);
+		carousel.setMaxHeight(this._maxHeight - otherInputHeight);
 	}
 
 	/**
