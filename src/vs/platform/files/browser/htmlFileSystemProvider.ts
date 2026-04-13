@@ -429,7 +429,7 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
 		}
 
 		if (resource.scheme === Schemas.file && resource.path.startsWith('/nodepod')) {
-			nodepod.fs.watch(resource.path, (event: any) => {
+			nodepod.fs.watch(resource.path, { recursive: true }, (event: any) => {
 				debugger;
 				if (event.type === 'change') {
 					this._onDidChangeFileEmitter.fire([{ resource: resource, type: FileChangeType.UPDATED }]);
