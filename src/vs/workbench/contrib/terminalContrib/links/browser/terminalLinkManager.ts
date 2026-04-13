@@ -98,11 +98,16 @@ export class TerminalLinkManager extends DisposableStore {
 
 		let activeHoverDisposable: IDisposable | undefined;
 		let activeTooltipScheduler: RunOnceScheduler | undefined;
+		const clearActiveLinkHover = () => {
+			activeHoverDisposable?.dispose();
+			activeHoverDisposable = undefined;
+			activeTooltipScheduler?.dispose();
+			activeTooltipScheduler = undefined;
+		};
 		this.add(toDisposable(() => {
 			this._clearLinkProviders();
 			dispose(this._externalLinkProviders);
-			activeHoverDisposable?.dispose();
-			activeTooltipScheduler?.dispose();
+			clearActiveLinkHover();
 		}));
 		this._xterm.options.linkHandler = {
 			allowNonHttpProtocols: true,
@@ -146,9 +151,7 @@ export class TerminalLinkManager extends DisposableStore {
 				});
 			},
 			hover: (e, text, range) => {
-				activeHoverDisposable?.dispose();
-				activeHoverDisposable = undefined;
-				activeTooltipScheduler?.dispose();
+				clearActiveLinkHover();
 				activeTooltipScheduler = new RunOnceScheduler(() => {
 					interface XtermWithCore extends Terminal {
 						_core: IXtermCore;
@@ -172,6 +175,9 @@ export class TerminalLinkManager extends DisposableStore {
 					activeTooltipScheduler = undefined;
 				}, this._configurationService.getValue('workbench.hover.delay'));
 				activeTooltipScheduler.schedule();
+			},
+			leave: () => {
+				clearActiveLinkHover();
 			}
 		};
 	}

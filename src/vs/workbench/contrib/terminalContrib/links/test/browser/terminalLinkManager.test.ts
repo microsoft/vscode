@@ -26,6 +26,7 @@ import { TerminalLinkResolver } from '../../browser/terminalLinkResolver.js';
 import { importAMDNodeModule } from '../../../../../../amdX.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { TestXtermLogger } from '../../../../../../platform/terminal/test/common/terminalTestHelpers.js';
+import { timeout } from '../../../../../../base/common/async.js';
 
 const defaultTerminalConfig: Partial<ITerminalConfiguration> = {
 	fontFamily: 'monospace',
@@ -106,6 +107,35 @@ suite('TerminalLinkManager', () => {
 			linkManager.externalProvideLinksCb = async () => undefined;
 			linkManager.dispose();
 			linkManager.externalProvideLinksCb = async () => undefined;
+		});
+	});
+
+	suite('OSC 8 hover', () => {
+		test('should cancel delayed tooltip when leave happens before hover delay', async () => {
+			await configurationService.setUserConfiguration('workbench.hover.delay', 10);
+			const linkHandler = xterm.options.linkHandler;
+			if (!linkHandler?.hover || !linkHandler.leave) {
+				throw new Error('Expected linkHandler with hover/leave callbacks');
+			}
+			let hoverShownCount = 0;
+			// eslint-disable-next-line @typescript-eslint/naming-convention
+			type TestableLinkManager = { _showHover: () => undefined };
+			const testableLinkManager = linkManager as unknown as TestableLinkManager;
+			const originalShowHover = testableLinkManager._showHover;
+			testableLinkManager._showHover = () => {
+				hoverShownCount++;
+				return undefined;
+			};
+			const range: Parameters<typeof linkHandler.hover>[2] = { start: { x: 1, y: 1 }, end: { x: 10, y: 1 } };
+			const event = new MouseEvent('mousemove');
+			try {
+				linkHandler.hover(event, 'http://example.com', range);
+				linkHandler.leave(event, 'http://example.com', range);
+				await timeout(20);
+				strictEqual(hoverShownCount, 0);
+			} finally {
+				testableLinkManager._showHover = originalShowHover;
+			}
 		});
 	});
 
