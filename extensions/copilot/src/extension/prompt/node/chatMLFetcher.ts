@@ -1115,7 +1115,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		this._telemetryService.sendGHTelemetryEvent('request.sent', telemetryData.properties, telemetryData.measurements);
 
 		const requestStart = Date.now();
-		const handle = connection.sendRequest(request, { userInitiated: !!userInitiatedRequest, turnId, requestId: ourRequestId, countTokens, tokenCountMax: chatEndpointInfo.maxOutputTokens, summarizedAtRoundId }, cancellationToken);
+		const handle = connection.sendRequest(request, { userInitiated: !!userInitiatedRequest, turnId, requestId: ourRequestId, countTokens, tokenCountMax: chatEndpointInfo.maxOutputTokens, modelMaxPromptTokens: chatEndpointInfo.modelMaxPromptTokens, summarizedAtRoundId }, cancellationToken);
 
 		const extendedBaseTelemetryData = baseTelemetryData.extendedBy({ modelCallId });
 		const processor = this._instantiationService.createInstance(OpenAIResponsesProcessor, extendedBaseTelemetryData, this._telemetryService, modelRequestId.headerRequestId, modelRequestId.gitHubRequestId, getResponsesApiCompactionThresholdFromBody(request));
