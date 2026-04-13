@@ -17,6 +17,7 @@ import { ILogService, collectSingleLineErrorMessage } from '../../log/common/log
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { HeadersImpl, IHeaders, WebSocketConnection } from '../common/fetcherService';
 import { IEndpointBody } from '../common/networking';
+import { getResponsesApiCompactionThresholdFromBody } from '../../endpoint/node/responsesApi';
 import { ChatWebSocketRequestOutcome, ChatWebSocketTelemetrySender } from './chatWebSocketTelemetry';
 
 export const IChatWebSocketManager = createServiceIdentifier<IChatWebSocketManager>('IChatWebSocketManager');
@@ -83,6 +84,7 @@ export interface IChatWebSocketRequestOptions {
 	requestId: string;
 	countTokens: () => Promise<number>;
 	tokenCountMax: number;
+	modelMaxPromptTokens: number;
 	summarizedAtRoundId?: string;
 }
 
@@ -555,7 +557,9 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 		const statefulMarkerMatched = this._statefulMarker === body.previous_response_id;
 		const previousResponseIdUnset = body.previous_response_id === undefined;
 		const hasCompactionData = body.input?.some(item => item?.type === 'compaction') ?? false;
+		const summarizedAtRoundIdSet = options.summarizedAtRoundId !== undefined;
 		const summarizedAtRoundIdMatched = options.summarizedAtRoundId === this._summarizedAtRoundId;
+		const compactionThreshold = getResponsesApiCompactionThresholdFromBody(body);
 		const statefulMarkerPrefix = this._statefulMarker?.slice(0, 5).concat('...') ?? '<none>';
 		const previousResponsePrefix = body.previous_response_id?.slice(0, 5).concat('...') ?? '<none>';
 		if (statefulMarkerMatched) {
@@ -616,9 +620,12 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 				statefulMarkerMatched,
 				previousResponseIdUnset,
 				hasCompactionData,
+				summarizedAtRoundIdSet,
 				summarizedAtRoundIdMatched,
+				compactionThreshold,
 				promptTokenCount,
 				tokenCountMax: options.tokenCountMax,
+				modelMaxPromptTokens: options.modelMaxPromptTokens,
 				connectionDurationMs,
 				requestDurationMs,
 				totalSentMessageCount: this._totalSentMessageCount,
@@ -671,8 +678,11 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 			statefulMarkerMatched,
 			previousResponseIdUnset,
 			hasCompactionData,
+			summarizedAtRoundIdSet,
 			summarizedAtRoundIdMatched,
+			compactionThreshold,
 			tokenCountMax: options.tokenCountMax,
+			modelMaxPromptTokens: options.modelMaxPromptTokens,
 			connectionDurationMs,
 			totalSentMessageCount: this._totalSentMessageCount,
 			totalReceivedMessageCount: this._totalReceivedMessageCount,
