@@ -136,11 +136,11 @@ test('${escapeTestName(testName)}', () => {
 				// the system SHALL ${actionDesc}
 				//
 				// ${'TODO'}: Replace with actual state setup and continuous assertion.
-				// The property must hold as long as the state condition is true.
-				const state = setupState(input);
-				fc.pre(state.isActive);
-				const result = observeSystem(state);
-				expect(result.actionMaintained).toBe(true);
+				// The property tests that the invariant holds as long as the state persists.
+				const currentState = setupState(input);
+				fc.pre(currentState === 'active');
+				const result = performContinuousAction(input);
+				expect(result.actionPerformed).toBe(true);
 			}
 		)
 	);
