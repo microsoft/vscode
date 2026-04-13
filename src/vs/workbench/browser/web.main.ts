@@ -511,6 +511,9 @@ export class BrowserMain extends Disposable {
 			fileService.registerProvider(Schemas.file, new HTMLFileSystemProvider(indexedDB, handlesStore, logService));
 		}
 
+		// Register nodepod command handlers for extension communication
+		//this._register(registerNodepodCommandHandlers());
+
 		// In-memory
 		fileService.registerProvider(Schemas.tmp, new InMemoryFileSystemProvider());
 	}

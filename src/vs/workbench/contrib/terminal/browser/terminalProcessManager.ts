@@ -63,6 +63,23 @@ const enum ProcessType {
 	PsuedoTerminal
 }
 
+class EchoTerminalProcess {
+	private _onData = new Emitter<string>();
+	public onData = this._onData.event;
+
+	private _onExit = new Emitter<number>();
+	public onExit = this._onExit.event;
+
+	write(data: string): void {
+		// Echo back whatever user typed
+		this._onData.fire(data);
+	}
+
+	shutdown(): void {
+		this._onExit.fire(0);
+	}
+}
+
 /**
  * Holds all state related to the creation and management of terminal processes.
  *
@@ -249,6 +266,11 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 		this._dimensions.rows = rows;
 
 		let newProcess: ITerminalChildProcess | undefined;
+
+		if (shellLaunchConfig.executable === 'echo-terminal') {
+			this._process = new EchoTerminalProcess() as any;
+			return;
+		}
 
 		if (shellLaunchConfig.customPtyImplementation) {
 			this._processType = ProcessType.PsuedoTerminal;

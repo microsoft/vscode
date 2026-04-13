@@ -148,6 +148,16 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 	protected async _refreshAvailableProfilesNow(): Promise<void> {
 		// Profiles
 		const profiles = await this._detectProfiles(true);
+
+		profiles.push({
+			profileName: 'Echo Terminal',
+			path: 'echo-terminal',
+			isDefault: true,
+			isAutoDetected: true,
+			icon: undefined,
+			color: undefined
+		});
+
 		const profilesChanged = !arrays.equals(profiles, this._availableProfiles, profilesEqual);
 		// Contributed profiles
 		const contributedProfilesChanged = await this._updateContributedProfiles();

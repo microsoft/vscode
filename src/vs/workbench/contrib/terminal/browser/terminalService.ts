@@ -10,7 +10,9 @@ import { debounce, memoize } from '../../../../base/common/decorators.js';
 import { DynamicListEventMultiplexer, Emitter, Event, IDynamicListEventMultiplexer } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, dispose, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { isMacintosh, isWeb } from '../../../../base/common/platform.js';
+//import { isMacintosh, isWeb } from '../../../../base/common/platform.js';
+import { isMacintosh } from '../../../../base/common/platform.js';
+const isWeb = false;
 import { URI } from '../../../../base/common/uri.js';
 import { IKeyMods } from '../../../../platform/quickinput/common/quickInput.js';
 import * as nls from '../../../../nls.js';
@@ -82,7 +84,8 @@ export class TerminalService extends Disposable implements ITerminalService {
 	private _nativeDelegate?: ITerminalServiceNativeDelegate;
 	private _shutdownWindowCount?: number;
 
-	get isProcessSupportRegistered(): boolean { return !!this._processSupportContextKey.get(); }
+	//get isProcessSupportRegistered(): boolean { return !!this._processSupportContextKey.get(); }
+	get isProcessSupportRegistered(): boolean { return true; }
 
 	private _connectionState: TerminalConnectionState = TerminalConnectionState.Connecting;
 	get connectionState(): TerminalConnectionState { return this._connectionState; }
@@ -1070,6 +1073,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		} else {
 			instance = this._createTerminal(shellLaunchConfig, location, options);
 		}
+		// @ts-ignore
 		if (instance.shellType) {
 			this._extensionService.activateByEvent(`onTerminal:${instance.shellType}`);
 		}
@@ -1158,7 +1162,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		return instance;
 	}
 
-	private _createTerminal(shellLaunchConfig: IShellLaunchConfig, location: TerminalLocation, options?: ICreateTerminalOptions): ITerminalInstance {
+	private async _createTerminal(shellLaunchConfig: IShellLaunchConfig, location: TerminalLocation, options?: ICreateTerminalOptions): Promise<ITerminalInstance> {
 		let instance;
 		if (location === TerminalLocation.Editor) {
 			instance = this._terminalInstanceService.createInstance(shellLaunchConfig, TerminalLocation.Editor);
@@ -1171,6 +1175,17 @@ export class TerminalService extends Disposable implements ITerminalService {
 			const group = this._terminalGroupService.createGroup(shellLaunchConfig);
 			instance = group.terminalInstances[0];
 		}
+
+		const backend = this.getPrimaryBackend()
+		const xterm = await instance.xtermReadyPromise;
+
+
+		const nodepod = (window as any).nodepod;
+		// @ts-ignore
+		backend._terminal = nodepod.createTerminal({});
+		// @ts-ignore
+		backend._terminal._term = xterm.raw;
+
 		return instance;
 	}
 

@@ -75,6 +75,23 @@ export class TerminalMainContribution extends Disposable implements IWorkbenchCo
 
 		await lifecycleService.when(LifecyclePhase.Restored);
 
+		// Mount nodepod terminal
+		try {
+			const [{ Terminal }] = await Promise.all([
+				import('@xterm/xterm'),
+			]);
+
+			// const container = document.createElement('div');
+			// container.style.cssText = 'width:100%;height:300px;position:fixed;bottom:0;left:0;z-index:9999;';
+			// document.body.appendChild(container);
+			// const nodepodTerminal = (window as any).nodepod.createTerminal({ Terminal });
+			// nodepodTerminal.attach(container);
+			// (window as any).nodepodTerminal = nodepodTerminal;
+		} catch (e) {
+			console.error('[nodepod] Failed to initialize terminal:', e);
+		}
+
+
 		// Register terminal editors
 		this._register(editorResolverService.registerEditor(
 			`${Schemas.vscodeTerminal}:/**`,

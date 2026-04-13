@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event } from '../../../base/common/event.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { IProcessEnvironment, OperatingSystem } from '../../../base/common/platform.js';
 import { URI, UriComponents } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
@@ -380,7 +380,7 @@ export interface IPtyService {
 
 	// #region Pty service contribution RPC calls
 
-	installAutoReply(match: string, reply: string): Promise<void>;
+	installAutoReply(match: string, reply: string): Promise<void>
 	uninstallAllAutoReplies(): Promise<void>;
 
 	// #endregion
@@ -1211,10 +1211,249 @@ export interface ITerminalBackendRegistry {
 	getTerminalBackend(remoteAuthority?: string): ITerminalBackend | undefined;
 }
 
+
+
+
+let NEXT_ID = 1;
+
+import type { NodepodTerminal, Nodepod } from '@scelar/nodepod'
+
+
+
+export class FakeTerminalProcess {
+
+	private readonly _onDidChangeProperty = new Emitter<IProcessProperty>();
+	readonly onDidChangeProperty = this._onDidChangeProperty.event;
+
+	id = Math.floor(Math.random() * 100000);
+	shouldPersist = false;
+
+	private _onProcessData = new Emitter<string>();
+	readonly onProcessData = this._onProcessData.event;
+
+	private _onProcessReady = new Emitter<any>();
+	readonly onProcessReady = this._onProcessReady.event;
+
+	private _onProcessExit = new Emitter<number | undefined>();
+	readonly onProcessExit = this._onProcessExit.event;
+
+	private _nodepod: NodepodTerminal;
+
+	constructor(nodepod: Nodepod) {
+		this._nodepod = nodepod;
+
+
+
+		// 🔥 Redirect Nodepod output → VS Code terminal
+		const originalWrite = this._nodepod.write.bind(this._nodepod);
+		this._nodepod.write = (text: string) => {
+			this._onProcessData.fire(text);
+			originalWrite(text); // optional (keeps internal state)
+		};
+
+		const originalWriteln = this._nodepod.writeln.bind(this._nodepod);
+		this._nodepod.writeln = (text: string) => {
+			this._onProcessData.fire(text + '\r\n');
+			originalWriteln(text);
+		};
+
+		// // 🔌 Wire command execution
+		// this._nodepod._wireExecution({
+		// 	onCommand: async (cmd: string) => {
+		// 		if (cmd === 'dir') {
+		// 			this._nodepod.writeln('file1.txt');
+		// 			this._nodepod.writeln('file2.txt');
+		// 			return;
+		// 		}
+
+		// 		if (cmd.startsWith('cd ')) {
+		// 			const dir = cmd.slice(3);
+		// 			this._nodepod.setCwd(dir);
+		// 			return;
+		// 		}
+
+		// 		this._nodepod.writeln(`Executed: ${cmd}`);
+		// 	},
+		// 	getSendStdin: () => null,
+		// 	getIsStdinRaw: () => false,
+		// 	getActiveAbort: () => null,
+		// 	setActiveAbort: () => { }
+		// });
+	}
+
+	async start(): Promise<undefined> {
+		this._onProcessReady.fire({
+			pid: this.id,
+			cwd: this._nodepod.getCwd()
+		});
+
+		this._nodepod.writeln('Nodepod Terminal Ready');
+		this._nodepod.showPrompt();
+
+		return undefined;
+	}
+
+	input(data: string): void {
+		this._nodepod.input(data);
+	}
+
+	shutdown(): void {
+		this._onProcessExit.fire(0);
+	}
+
+	resize(): void { }
+	clearBuffer(): void { }
+	acknowledgeDataEvent(): void { }
+	sendSignal(): void { }
+	async processBinary(): Promise<void> { }
+	async setUnicodeVersion(): Promise<void> { }
+
+	async getInitialCwd() {
+		return this._nodepod.getCwd();
+	}
+
+	async getCwd() {
+		return this._nodepod.getCwd();
+	}
+
+
+	async refreshProperty<T extends ProcessPropertyType>(
+		property: T
+	): Promise<any> {
+
+		if (property === ProcessPropertyType.Cwd) {
+			return this._nodepod?.getCwd?.() ?? 'C:\\temp';
+		}
+
+		return undefined;
+	}
+	async updateProperty() { }
+}
+
+
+
+export class FakeTerminalBackend implements ITerminalBackend {
+
+
+	installAutoReply(match: string, reply: string): Promise<void> {
+		return Promise.resolve();
+	}
+
+	uninstallAllAutoReplies(): Promise<void> {
+		return Promise.resolve();
+	}
+
+	readonly remoteAuthority = '';
+
+	// --- responsiveness ---
+	readonly isResponsive = true;
+
+	private _onPtyHostUnresponsive = new Emitter<void>();
+	readonly onPtyHostUnresponsive = this._onPtyHostUnresponsive.event;
+
+	private _onPtyHostResponsive = new Emitter<void>();
+	readonly onPtyHostResponsive = this._onPtyHostResponsive.event;
+
+	private _onPtyHostRestart = new Emitter<void>();
+	readonly onPtyHostRestart = this._onPtyHostRestart.event;
+
+	private _onDidRequestDetach = new Emitter<any>();
+	readonly onDidRequestDetach = this._onDidRequestDetach.event;
+
+	// --- readiness ---
+	private _readyResolver!: () => void;
+	readonly whenReady: Promise<void> = new Promise(res => {
+		this._readyResolver = res;
+	});
+
+	setReady(): void {
+		this._readyResolver();
+	}
+
+	// --- process tracking ---
+	private _processes = new Map<number, FakeTerminalProcess>();
+
+
+	private _terminal: NodepodTerminal | undefined;
+	async createProcess(): Promise<FakeTerminalProcess> {
+		const proc = new FakeTerminalProcess(this._terminal);
+		this._processes.set(proc.id, proc);
+
+		setTimeout(() => proc.start(), 0);
+
+		return proc;
+	}
+
+	async attachToProcess(id: number) {
+		return this._processes.get(id);
+	}
+
+	async attachToRevivedProcess(): Promise<undefined> {
+		return undefined;
+	}
+
+	async listProcesses(): Promise<any[]> {
+		return [];
+	}
+
+	async getLatency(): Promise<any[]> {
+		return [];
+	}
+
+	async getDefaultSystemShell(): Promise<string> {
+		return 'C:\\Windows\\System32\\cmd.exe';
+	}
+
+	async getProfiles(): Promise<any[]> {
+		return [
+			{
+				profileName: 'Fake CMD',
+				path: 'cmd.exe',
+				isDefault: true
+			}
+		];
+	}
+
+	async getEnvironment(): Promise<any> {
+		return {};
+	}
+
+	async getShellEnvironment(): Promise<any> {
+		return {};
+	}
+
+	async getWslPath(original: string): Promise<string> {
+		return original;
+	}
+
+	async setTerminalLayoutInfo(): Promise<void> { }
+	async updateTitle(): Promise<void> { }
+	async updateIcon(): Promise<void> { }
+	async setNextCommandId(): Promise<void> { }
+	async getTerminalLayoutInfo(): Promise<any> { return undefined; }
+	async getPerformanceMarks(): Promise<any[]> { return []; }
+	async reduceConnectionGraceTime(): Promise<void> { }
+
+	async requestDetachInstance(): Promise<any> {
+		return undefined;
+	}
+
+	async acceptDetachInstanceReply(): Promise<void> { }
+
+	async persistTerminalState(): Promise<void> { }
+
+	restartPtyHost(): void {
+		this._onPtyHostRestart.fire();
+	}
+}
 class TerminalBackendRegistry implements ITerminalBackendRegistry {
 	private readonly _backends = new Map<string, ITerminalBackend>();
 
 	get backends(): ReadonlyMap<string, ITerminalBackend> { return this._backends; }
+
+	constructor() {
+		this._backends.set('', new FakeTerminalBackend());
+	}
 
 	registerTerminalBackend(backend: ITerminalBackend): void {
 		const key = this._sanitizeRemoteAuthority(backend.remoteAuthority);
@@ -1223,6 +1462,8 @@ class TerminalBackendRegistry implements ITerminalBackendRegistry {
 		}
 		this._backends.set(key, backend);
 	}
+
+
 
 	getTerminalBackend(remoteAuthority: string | undefined): ITerminalBackend | undefined {
 		return this._backends.get(this._sanitizeRemoteAuthority(remoteAuthority));
