@@ -5,10 +5,20 @@
 		"outDir": "./out",
 		"typeRoots": [
 			"./node_modules/@types",
-			"../node_modules/@types"
+	"extends": "../tsconfig.base.json",
+	"compilerOptions": {
+		"module": "commonjs",
+		"rootDir": ".",
+		"outDir": "./out",
+		"resolveJsonModule": true,
+		"declaration": true,
+		"types": [
+			"node",
+			"vscode"
 		]
 	},
 	"include": [
+		"../../src/vscode-dts/vscode.d.ts",
 		"extension.ts",
 		"lmstudioProvider.ts"
 	],
