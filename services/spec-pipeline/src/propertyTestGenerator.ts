@@ -64,10 +64,9 @@ test('${escapeTestName(testName)}', () => {
 				// The arbitrary should model the trigger's input space.
 				// The property should assert the action's postcondition.
 				const triggerOccurred = simulateTrigger(input);
-				if (triggerOccurred) {
-					const result = executeAction(input);
-					expect(result.actionPerformed).toBe(true);
-				}
+				fc.pre(triggerOccurred);
+				const result = executeAction(input);
+				expect(result.actionPerformed).toBe(true);
 			}
 		)
 	);
@@ -139,10 +138,9 @@ test('${escapeTestName(testName)}', () => {
 				// ${'TODO'}: Replace with actual state setup and continuous assertion.
 				// The property must hold as long as the state condition is true.
 				const state = setupState(input);
-				if (state.isActive) {
-					const result = observeSystem(state);
-					expect(result.actionMaintained).toBe(true);
-				}
+				fc.pre(state.isActive);
+				const result = observeSystem(state);
+				expect(result.actionMaintained).toBe(true);
 			}
 		)
 	);
@@ -179,10 +177,9 @@ test('${escapeTestName(testName)}', () => {
 				// ${'TODO'}: Replace with actual condition simulation and recovery assertion.
 				// The property tests the system's response to unwanted situations.
 				const conditionMet = checkCondition(input);
-				if (conditionMet) {
-					const result = observeRecovery(input);
-					expect(result.handledCorrectly).toBe(true);
-				}
+				fc.pre(conditionMet);
+				const result = observeRecovery(input);
+				expect(result.handledCorrectly).toBe(true);
 			}
 		)
 	);
@@ -219,10 +216,9 @@ test('${escapeTestName(testName)}', () => {
 				//
 				// ${'TODO'}: Replace with actual feature toggle and conditional assertion.
 				// The property only needs to hold when the feature is enabled.
-				if (featureEnabled) {
-					const result = invokeWithFeature(input);
-					expect(result.satisfiesRequirement).toBe(true);
-				}
+				fc.pre(featureEnabled);
+				const result = invokeWithFeature(input);
+				expect(result.satisfiesRequirement).toBe(true);
 			}
 		)
 	);
