@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import { exec } from 'child_process';
+import { exec, execFile } from 'child_process';
 import { timeout } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
@@ -597,9 +597,15 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 					return;
 				}
 				this._logService.trace('node-pty.IPty#pid');
-				exec('lsof -OPln -p ' + this._ptyProcess.pid + ' | grep cwd', { env: { ...process.env, LANG: 'en_US.UTF-8' } }, (error, stdout, stderr) => {
+				execFile('lsof', ['-OPln', '-p', String(this._ptyProcess.pid)], { env: { ...process.env, LANG: 'en_US.UTF-8' } }, (error, stdout, stderr) => {
 					if (!error && stdout !== '') {
-						resolve(stdout.substring(stdout.indexOf('/'), stdout.length - 1));
+						const cwdLine = stdout.split('\n').find(line => line.includes(' cwd '));
+						if (cwdLine) {
+							resolve(cwdLine.substring(cwdLine.indexOf('/')).trim());
+						} else {
+							this._logService.error('lsof did not find a cwd', error, stdout, stderr);
+							resolve(this._initialCwd);
+						}
 					} else {
 						this._logService.error('lsof did not run successfully, it may not be on the $PATH?', error, stdout, stderr);
 						resolve(this._initialCwd);

@@ -1,0 +1,5 @@
+🎯 **What:** The vulnerability fixed is a command injection in the terminal service when retrieving the cwd process path via `lsof`. `this._ptyProcess.pid` was being concatenated directly into a shell string executed by `child_process.exec`.
+
+⚠️ **Risk:** The potential impact if left unfixed is shell command injection. If a malicious or compromised process somehow had a PID string containing shell metacharacters (which is generally unlikely for normal systems, but possible if the PID is mocked or manipulated before this call), arbitrary commands could be executed with the privileges of the Node process running VS Code's extension host or terminal service.
+
+🛡️ **Solution:** The fix replaces `child_process.exec` with `child_process.execFile` to safely invoke `lsof` without shell interpolation. The `| grep cwd` pipe operation was removed as `execFile` cannot execute shell pipes. To maintain functionality, the `lsof` standard output is now programmatically split by lines, filtered for `' cwd '`, and the directory path is safely substringed exactly as the previous code did, removing any chance of shell injection.
