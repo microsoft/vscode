@@ -58,7 +58,7 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 		super();
 	}
 
-	async execute(commandLine: string, token: CancellationToken, commandId?: string): Promise<ITerminalExecuteStrategyResult> {
+	async execute(commandLine: string, token: CancellationToken, commandId?: string, _commandLineForMetadata?: string): Promise<ITerminalExecuteStrategyResult> {
 		const store = new DisposableStore();
 
 		try {

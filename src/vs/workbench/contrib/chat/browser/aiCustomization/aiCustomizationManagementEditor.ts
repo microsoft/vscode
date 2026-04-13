@@ -88,6 +88,7 @@ import { ICustomizationHarnessService, CustomizationHarness, matchesWorkspaceSub
 import { ChatConfiguration } from '../../common/constants.js';
 import { AICustomizationWelcomePage } from './aiCustomizationWelcomePage.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { IChatWidgetService } from '../chat.js';
 
 const $ = DOM.$;
 
@@ -349,6 +350,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		@INotificationService private readonly notificationService: INotificationService,
 		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 		@IViewsService private readonly viewsService: IViewsService,
+		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 	) {
 		super(AICustomizationManagementEditor.ID, group, telemetryService, themeService, storageService);
 
@@ -814,15 +816,23 @@ export class AICustomizationManagementEditor extends EditorPane {
 				},
 				prefillChat: (query, options) => {
 					if (this.workspaceService.isSessionsWindow) {
-						const sessionsViewId = 'workbench.view.sessions.chat';
-						this.viewsService.openView(sessionsViewId, true).then(view => {
-							const chatView = view as unknown as { prefillInput?(text: string): void; sendQuery?(text: string): void } | undefined;
-							if (options?.isPartialQuery && chatView?.prefillInput) {
-								chatView.prefillInput(query);
-							} else if (chatView?.sendQuery) {
-								chatView.sendQuery(query);
-							}
-						});
+						const widget = this.chatWidgetService.lastFocusedWidget;
+						if (widget) {
+							this.chatWidgetService.reveal(widget).then(() => {
+								widget.setInput(query);
+								widget.focusInput();
+							});
+						} else {
+							const sessionsViewId = 'workbench.view.sessions.chat';
+							this.viewsService.openView(sessionsViewId, true).then(view => {
+								const chatView = view as unknown as { prefillInput?(text: string): void; sendQuery?(text: string): void } | undefined;
+								if (options?.isPartialQuery && chatView?.prefillInput) {
+									chatView.prefillInput(query);
+								} else if (chatView?.sendQuery) {
+									chatView.sendQuery(query);
+								}
+							});
+						}
 					} else {
 						this.commandService.executeCommand('workbench.action.chat.open', { query, isPartialQuery: options?.isPartialQuery ?? false });
 					}

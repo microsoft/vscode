@@ -238,7 +238,7 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 
 	public async toChatSessionItem(session: ICopilotCLISessionItem): Promise<vscode.ChatSessionItem> {
 		const resource = this.sdkToUntitledUriMapping.get(session.id) ?? SessionIdForCLI.getResource(this.untitledSessionIdMapping.get(session.id) ?? session.id);
-		const worktreeProperties = await this.worktreeManager.getWorktreeProperties(session.id);
+		let worktreeProperties = await this.worktreeManager.getWorktreeProperties(session.id);
 		const workingDirectory = worktreeProperties?.worktreePath ? vscode.Uri.file(worktreeProperties.worktreePath)
 			: session.workingDirectory;
 
@@ -291,6 +291,11 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 		// Metadata
 		let metadata: { readonly [key: string]: unknown };
 
+		// We need to get an updated version of worktree properties here because when the
+		// changes are being computed, the worktree properties are also updated with the
+		// repository state which we are passing along through the metadata
+		worktreeProperties = await this.worktreeManager.getWorktreeProperties(session.id);
+
 		if (worktreeProperties) {
 			// Worktree
 			metadata = {
@@ -303,6 +308,9 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 					? worktreeProperties.baseBranchProtected === true
 					: undefined,
 				branchName: worktreeProperties?.branchName,
+				upstreamBranchName: worktreeProperties.version === 2
+					? worktreeProperties.upstreamBranchName
+					: undefined,
 				isolationMode: IsolationMode.Worktree,
 				repositoryPath: worktreeProperties?.repositoryPath,
 				worktreePath: worktreeProperties?.worktreePath,
@@ -320,6 +328,18 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 					: undefined,
 				lastCheckpointRef: worktreeProperties.version === 2
 					? worktreeProperties.lastCheckpointRef
+					: undefined,
+				hasGitHubRemote: worktreeProperties.version === 2
+					? worktreeProperties.hasGitHubRemote
+					: undefined,
+				incomingChanges: worktreeProperties.version === 2
+					? worktreeProperties.incomingChanges
+					: undefined,
+				outgoingChanges: worktreeProperties.version === 2
+					? worktreeProperties.outgoingChanges
+					: undefined,
+				uncommittedChanges: worktreeProperties.version === 2
+					? worktreeProperties.uncommittedChanges
 					: undefined
 			} satisfies { readonly [key: string]: unknown };
 		} else {
@@ -345,7 +365,12 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 				repositoryPath: repositoryProperties?.repositoryPath,
 				branchName: repositoryProperties?.branchName,
 				baseBranchName: repositoryProperties?.baseBranchName,
+				upstreamBranchName: repositoryProperties?.upstreamBranchName,
 				workingDirectoryPath: workingDirectory?.fsPath,
+				hasGitHubRemote: repositoryProperties?.hasGitHubRemote,
+				incomingChanges: repositoryProperties?.incomingChanges,
+				outgoingChanges: repositoryProperties?.outgoingChanges,
+				uncommittedChanges: repositoryProperties?.uncommittedChanges,
 				firstCheckpointRef,
 				lastCheckpointRef
 			} satisfies { readonly [key: string]: unknown };
@@ -2330,27 +2355,6 @@ export function registerCLIChatCommands(
 		await mergeChanges(sessionItemOrResource, true);
 	}));
 
-	disposableStore.add(vscode.commands.registerCommand('github.copilot.chat.updateCopilotCLIAgentSessionChanges.update', async (sessionItemOrResource?: vscode.ChatSessionItem | vscode.Uri) => {
-		const resource = sessionItemOrResource instanceof vscode.Uri
-			? sessionItemOrResource
-			: sessionItemOrResource?.resource;
-
-		if (!resource) {
-			return;
-		}
-
-		try {
-			// Rebase worktree branch on top of base branch
-			const sessionId = SessionIdForCLI.parse(resource);
-			await copilotCLIWorktreeManagerService.updateWorktreeBranch(sessionId);
-
-			// Pick up new git state
-			copilotcliSessionItemProvider.notifySessionsChange();
-		} catch (error) {
-			vscode.window.showErrorMessage(l10n.t('Failed to update worktree branch. Please resolve any conflicts and try again.'), { modal: true });
-		}
-	}));
-
 	disposableStore.add(vscode.commands.registerCommand('github.copilot.sessions.refreshChanges', async (resource?: vscode.Uri) => {
 		if (!resource) {
 			return;
@@ -2398,10 +2402,10 @@ export function registerCLIChatCommands(
 			return;
 		}
 
-		const repositoryProperties = repository.headBranchName
+		const repositoryProperties = repository.state.HEAD?.name
 			? {
 				repositoryPath: repository.rootUri.fsPath,
-				branchName: repository.headBranchName
+				branchName: repository.state.HEAD.name
 			} satisfies RepositoryProperties
 			: undefined;
 

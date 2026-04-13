@@ -27,9 +27,9 @@ import { ICommandDetectionCapability, TerminalCapability } from '../../../../../
 import { ITerminalLogService, ITerminalProfile } from '../../../../../../platform/terminal/common/terminal.js';
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
-import { IChatService, ChatRequestQueueKind, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
+import { IChatService, ChatRequestQueueKind, ElicitationState, type IChatExternalToolInvocationUpdate, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
 import { constObservable, type IObservable } from '../../../../../../base/common/observable.js';
-import type { IChatRequestModeInfo } from '../../../../chat/common/model/chatModel.js';
+import { ChatModel, type IChatRequestModeInfo } from '../../../../chat/common/model/chatModel.js';
 import type { UserSelectedTools } from '../../../../chat/common/participants/chatAgents.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolConfirmationMessages, IStreamedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolInvocationStreamContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
@@ -56,6 +56,7 @@ import { CommandLineFileWriteAnalyzer } from './commandLineAnalyzer/commandLineF
 import { CommandLineSandboxAnalyzer } from './commandLineAnalyzer/commandLineSandboxAnalyzer.js';
 import { OutputMonitor } from './monitoring/outputMonitor.js';
 import { IPollingResult, OutputMonitorState } from './monitoring/types.js';
+import { ChatQuestionCarouselData } from '../../../../chat/common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { chatSessionResourceToId, LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import { TerminalToolId } from './toolIds.js';
 import { URI } from '../../../../../../base/common/uri.js';
@@ -73,12 +74,13 @@ import { IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { TerminalChatCommandId } from '../../../chat/browser/terminalChat.js';
 import { clamp } from '../../../../../../base/common/numbers.js';
 import { IOutputAnalyzer } from './outputAnalyzer.js';
-import { SandboxOutputAnalyzer } from './sandboxOutputAnalyzer.js';
+import { SandboxOutputAnalyzer, outputLooksSandboxBlocked } from './sandboxOutputAnalyzer.js';
 import { IAgentSessionsService } from '../../../../chat/browser/agentSessions/agentSessionsService.js';
 import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, type ITerminalSandboxResolvedNetworkDomains } from '../../common/terminalSandboxService.js';
 import { LanguageModelPartAudience } from '../../../../chat/common/languageModels.js';
 import { isSessionAutoApproveLevel, isTerminalAutoApproveAllowed, isToolEligibleForTerminalAutoApproval } from './terminalToolAutoApprove.js';
 import type { IJSONSchemaMap } from '../../../../../../base/common/jsonSchema.js';
+import { ChatElicitationRequestPart } from '../../../../chat/common/model/chatProgressTypes/chatElicitationRequestPart.js';
 
 // #region Tool data
 
@@ -86,6 +88,11 @@ const TERMINAL_SANDBOX_DOCUMENTATION_URL = 'https://aka.ms/vscode-sandboxing';
 const TOOL_REFERENCE_NAME = 'runInTerminal';
 const LEGACY_TOOL_REFERENCE_FULL_NAMES = ['runCommands/runInTerminal'];
 const INPUT_NEEDED_NOTIFICATION_THROTTLE_MS = 5000;
+
+type IRunInTerminalToolInvocationData = IChatTerminalToolInvocationData & {
+	/** Whether prepareToolInvocation showed/required the normal tool confirmation. */
+	requiresConfirmationForRetry?: boolean;
+};
 
 function createPowerShellModelDescription(shell: string, isSandboxEnabled: boolean, backgroundNotifications: boolean, networkDomains?: ITerminalSandboxResolvedNetworkDomains): string {
 	const isWinPwsh = isWindowsPowerShell(shell);
@@ -392,6 +399,26 @@ interface IResolvedExecutionOptions {
 	mode: 'sync' | 'async';
 }
 
+export interface IAutomaticUnsandboxRetryOptions {
+	readonly didSandboxWrapCommand: boolean;
+	readonly requestUnsandboxedExecution: boolean;
+	readonly isPersistentSession: boolean;
+	readonly isBackgroundExecution: boolean;
+	readonly didTimeout: boolean;
+	readonly exitCode: number | undefined;
+	readonly output: string;
+}
+
+export function shouldAutomaticallyRetryUnsandboxed(options: IAutomaticUnsandboxRetryOptions): boolean {
+	return options.didSandboxWrapCommand
+		&& options.requestUnsandboxedExecution !== true
+		&& !options.isPersistentSession
+		&& !options.isBackgroundExecution
+		&& !options.didTimeout
+		&& options.exitCode !== 0
+		&& outputLooksSandboxBlocked(options.output);
+}
+
 /**
  * Interface for accessing a running terminal execution.
  * Used by tools that need to await or interact with background terminal commands.
@@ -633,7 +660,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const explicitUnsandboxRequest = isTerminalSandboxEnabled && args.requestUnsandboxedExecution === true;
 		let requiresUnsandboxConfirmation = explicitUnsandboxRequest;
 		let requestUnsandboxedExecutionReason = explicitUnsandboxRequest ? args.requestUnsandboxedExecutionReason : undefined;
-		let blockedDomains: string[] | undefined;
 
 		const missingDependencies = sandboxPrereqs.failedCheck === TerminalSandboxPrerequisiteCheck.Dependencies && sandboxPrereqs.missingDependencies?.length
 			? sandboxPrereqs.missingDependencies
@@ -643,36 +669,20 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		// Generate a custom command ID to link the command between renderer and pty host
 		const terminalCommandId = `tool-${generateUuid()}`;
 
-		let rewrittenCommand: string | undefined = args.command;
-		let forDisplayCommand: string | undefined = undefined;
-		let isSandboxWrapped = false;
-		for (const rewriter of this._commandLineRewriters) {
-			const rewriteResult = await rewriter.rewrite({
-				commandLine: rewrittenCommand,
-				cwd,
-				shell,
-				os,
-				isBackground: executionOptions.persistentSession,
-				requestUnsandboxedExecution: requiresUnsandboxConfirmation,
-			});
-			if (rewriteResult) {
-				rewrittenCommand = rewriteResult.rewritten;
-				forDisplayCommand = rewriteResult.forDisplay ?? forDisplayCommand;
-				if (rewriteResult.isSandboxWrapped) {
-					isSandboxWrapped = true;
-				} else if (rewriteResult.isSandboxWrapped === false) {
-					isSandboxWrapped = false;
-				}
-				if (rewriteResult.requiresUnsandboxConfirmation) {
-					requiresUnsandboxConfirmation = true;
-				}
-				if (rewriteResult.blockedDomains?.length) {
-					blockedDomains = rewriteResult.blockedDomains;
-					requestUnsandboxedExecutionReason = this._getBlockedDomainReason(rewriteResult.blockedDomains, rewriteResult.deniedDomains);
-				}
-				this._logService.info(`RunInTerminalTool: Command rewritten by ${rewriter.constructor.name}: ${rewriteResult.reasoning}`);
-			}
-		}
+		const rewriteResult = await this._rewriteCommandLine(args.command, {
+			cwd,
+			shell,
+			os,
+			isBackground: executionOptions.persistentSession,
+			requestUnsandboxedExecution: requiresUnsandboxConfirmation,
+			requestUnsandboxedExecutionReason,
+		});
+		const rewrittenCommand: string | undefined = rewriteResult.rewrittenCommand;
+		const forDisplayCommand: string | undefined = rewriteResult.forDisplayCommand;
+		const isSandboxWrapped = rewriteResult.isSandboxWrapped;
+		requiresUnsandboxConfirmation = rewriteResult.requiresUnsandboxConfirmation;
+		requestUnsandboxedExecutionReason = rewriteResult.requestUnsandboxedExecutionReason;
+		const blockedDomains = rewriteResult.blockedDomains;
 
 		const toolSpecificData: IChatTerminalToolInvocationData = {
 			kind: 'terminal',
@@ -864,6 +874,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		// If forceConfirmationReason is set, always show confirmation regardless of auto-approval
 		const shouldShowConfirmation = (!isFinalAutoApproved && !isSessionAutoApproved) || context.forceConfirmationReason !== undefined;
+		(toolSpecificData as IRunInTerminalToolInvocationData).requiresConfirmationForRetry = shouldShowConfirmation;
 		const confirmationMessage = requiresUnsandboxConfirmation
 			? new MarkdownString(localize(
 				'runInTerminal.unsandboxed.confirmationMessage',
@@ -907,15 +918,15 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	private _getBlockedDomainReason(blockedDomains: string[], deniedDomains: string[] = []): string {
 		if (deniedDomains.length === blockedDomains.length && deniedDomains.length > 0) {
 			if (blockedDomains.length === 1) {
-				return localize('runInTerminal.unsandboxed.domain.reason.denied.single', "This command accesses {0}, which is blocked by chat.agent.sandbox.deniedNetworkDomains.", blockedDomains[0]);
+				return localize('runInTerminal.unsandboxed.domain.reason.denied.single', "This command accesses {0}, which is blocked by chat.agent.deniedNetworkDomains.", blockedDomains[0]);
 			}
-			return localize('runInTerminal.unsandboxed.domain.reason.denied.multi', "This command accesses {0} and {1} more domains that are blocked by chat.agent.sandbox.deniedNetworkDomains.", blockedDomains[0], blockedDomains.length - 1);
+			return localize('runInTerminal.unsandboxed.domain.reason.denied.multi', "This command accesses {0} and {1} more domains that are blocked by chat.agent.deniedNetworkDomains.", blockedDomains[0], blockedDomains.length - 1);
 		}
 		if (deniedDomains.length > 0) {
 			if (blockedDomains.length === 1) {
-				return localize('runInTerminal.unsandboxed.domain.reason.mixed.single', "This command accesses {0}, which is blocked by chat.agent.sandbox.deniedNetworkDomains or not added to chat.agent.sandbox.allowedNetworkDomains.", blockedDomains[0]);
+				return localize('runInTerminal.unsandboxed.domain.reason.mixed.single', "This command accesses {0}, which is blocked by chat.agent.deniedNetworkDomains or not added to chat.agent.allowedNetworkDomains.", blockedDomains[0]);
 			}
-			return localize('runInTerminal.unsandboxed.domain.reason.mixed.multi', "This command accesses {0} and {1} more domains that are blocked by chat.agent.sandbox.deniedNetworkDomains or not added to chat.agent.sandbox.allowedNetworkDomains.", blockedDomains[0], blockedDomains.length - 1);
+			return localize('runInTerminal.unsandboxed.domain.reason.mixed.multi', "This command accesses {0} and {1} more domains that are blocked by chat.agent.deniedNetworkDomains or not added to chat.agent.allowedNetworkDomains.", blockedDomains[0], blockedDomains.length - 1);
 		}
 		if (blockedDomains.length === 1) {
 			return localize('runInTerminal.unsandboxed.domain.reason.single', "This command accesses {0}, which is not permitted by the current chat.agent.sandbox configuration.", blockedDomains[0]);
@@ -923,6 +934,153 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		return localize('runInTerminal.unsandboxed.domain.reason.multi', "This command accesses {0} and {1} more domains that are not permitted by the current chat.agent.sandbox configuration.", blockedDomains[0], blockedDomains.length - 1);
 	}
 
+	private async _rewriteCommandLine(commandLine: string, options: {
+		cwd: URI | undefined;
+		shell: string;
+		os: OperatingSystem;
+		isBackground: boolean;
+		requestUnsandboxedExecution: boolean;
+		requestUnsandboxedExecutionReason?: string;
+	}): Promise<{
+		rewrittenCommand: string;
+		forDisplayCommand: string | undefined;
+		isSandboxWrapped: boolean;
+		requiresUnsandboxConfirmation: boolean;
+		requestUnsandboxedExecutionReason: string | undefined;
+		blockedDomains: string[] | undefined;
+	}> {
+		let rewrittenCommand = commandLine;
+		let forDisplayCommand: string | undefined = undefined;
+		let isSandboxWrapped = false;
+		let requiresUnsandboxConfirmation = options.requestUnsandboxedExecution;
+		let requestUnsandboxedExecutionReason = options.requestUnsandboxedExecution ? options.requestUnsandboxedExecutionReason : undefined;
+		let blockedDomains: string[] | undefined;
+
+		for (const rewriter of this._commandLineRewriters) {
+			const rewriteResult = await rewriter.rewrite({
+				commandLine: rewrittenCommand,
+				cwd: options.cwd,
+				shell: options.shell,
+				os: options.os,
+				isBackground: options.isBackground,
+				requestUnsandboxedExecution: requiresUnsandboxConfirmation,
+			});
+			if (rewriteResult) {
+				rewrittenCommand = rewriteResult.rewritten;
+				forDisplayCommand = rewriteResult.forDisplay ?? forDisplayCommand;
+				if (rewriteResult.isSandboxWrapped) {
+					isSandboxWrapped = true;
+				} else if (rewriteResult.isSandboxWrapped === false) {
+					isSandboxWrapped = false;
+				}
+				if (rewriteResult.requiresUnsandboxConfirmation) {
+					requiresUnsandboxConfirmation = true;
+				}
+				if (rewriteResult.blockedDomains?.length) {
+					blockedDomains = rewriteResult.blockedDomains;
+					requestUnsandboxedExecutionReason = this._getBlockedDomainReason(rewriteResult.blockedDomains, rewriteResult.deniedDomains);
+				}
+				this._logService.info(`RunInTerminalTool: Command rewritten by ${rewriter.constructor.name}: ${rewriteResult.reasoning}`);
+			}
+		}
+
+		return {
+			rewrittenCommand,
+			forDisplayCommand,
+			isSandboxWrapped,
+			requiresUnsandboxConfirmation,
+			requestUnsandboxedExecutionReason,
+			blockedDomains,
+		};
+	}
+
+	private async _confirmAutomaticUnsandboxRetry(sessionResource: URI | undefined, command: string, shell: string, blockedDomains: string[] | undefined, requiresConfirmationForRetry: boolean | undefined, token: CancellationToken): Promise<boolean> {
+		if (requiresConfirmationForRetry === false) {
+			return true;
+		}
+
+		const chatModel = sessionResource && this._chatService.getSession(sessionResource);
+		if (!(chatModel instanceof ChatModel)) {
+			return false;
+		}
+
+		const request = chatModel.getRequests().at(-1);
+		if (!request) {
+			return false;
+		}
+
+		let shellType = basename(shell, '.exe');
+		if (shellType === 'powershell') {
+			shellType = 'pwsh';
+		}
+		const store = new DisposableStore();
+		return new Promise<boolean>(resolve => {
+			let resolved = false;
+			const resolveOnce = (value: boolean) => {
+				if (resolved) {
+					return;
+				}
+				resolved = true;
+				store.dispose();
+				resolve(value);
+			};
+
+			const part = new ChatElicitationRequestPart(
+				blockedDomains?.length
+					? localize('runInTerminal.unsandboxed.domain', "Run `{0}` command outside the [sandbox]({1}) to access {2}?", shellType, TERMINAL_SANDBOX_DOCUMENTATION_URL, this._formatBlockedDomainsForTitle(blockedDomains))
+					: localize('runInTerminal.unsandboxed', "Run `{0}` command outside the [sandbox]({1})?", shellType, TERMINAL_SANDBOX_DOCUMENTATION_URL),
+				new MarkdownString(localize(
+					'runInTerminal.unsandboxed.autoRetry.confirmationMessage',
+					"`{0}`",
+					buildCommandDisplayText(command)
+				)),
+				'',
+				localize('allow', 'Allow'),
+				localize('skip', 'Skip'),
+				async () => {
+					resolveOnce(true);
+					part.hide();
+					return ElicitationState.Accepted;
+				},
+				async () => {
+					resolveOnce(false);
+					part.hide();
+					return ElicitationState.Rejected;
+				},
+				undefined,
+				undefined,
+				() => resolveOnce(false),
+			);
+
+			chatModel.acceptResponseProgress(request, part);
+			store.add(token.onCancellationRequested(() => resolveOnce(false)));
+			store.add({ dispose: () => part.hide() });
+		});
+	}
+
+	private _acceptAutomaticUnsandboxRetryToolInvocationUpdate(sessionResource: URI | undefined, toolCallId: string, toolSpecificData: IChatTerminalToolInvocationData, isComplete: boolean, toolResultMessage?: string | IMarkdownString): void {
+		const chatModel = sessionResource && this._chatService.getSession(sessionResource);
+		if (!(chatModel instanceof ChatModel)) {
+			return;
+		}
+
+		const request = chatModel.getRequests().at(-1);
+		if (!request) {
+			return;
+		}
+
+		const displayCommand = buildCommandDisplayText(toolSpecificData.commandLine.forDisplay ?? toolSpecificData.commandLine.toolEdited ?? toolSpecificData.commandLine.original);
+		const progress: IChatExternalToolInvocationUpdate = {
+			kind: 'externalToolInvocationUpdate',
+			toolCallId,
+			toolName: localize('runInTerminalTool.displayName', 'Run in Terminal'),
+			isComplete,
+			invocationMessage: new MarkdownString(localize('runInTerminal.unsandboxed.autoRetry.invocation', "Running `{0}` outside the sandbox", displayCommand)),
+			pastTenseMessage: toolResultMessage,
+			toolSpecificData,
+		};
+		chatModel.acceptResponseProgress(request, progress);
+	}
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
 		const toolSpecificData = invocation.toolSpecificData as IChatTerminalToolInvocationData | undefined;
 		if (!toolSpecificData) {
@@ -1043,12 +1201,17 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		);
 
 		const didSandboxWrapCommand = toolSpecificData.commandLine.isSandboxWrapped === true;
+		const isSandboxEnabled = await this._terminalSandboxService.isEnabled();
+		const commandLineForMetadata = isSandboxEnabled
+			? toolSpecificData.commandLine.forDisplay ?? toolSpecificData.commandLine.original
+			: undefined;
 
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
 		}
 
 		let error: string | undefined;
+		const automaticUnsandboxRetryReason = localize('runInTerminal.unsandboxed.autoRetry.reason', 'The sandboxed execution output indicated the sandbox blocked the command.');
 		const isNewSession = !executionOptions.persistentSession && !this._sessionTerminalAssociations.has(chatSessionResource);
 
 		const timingStart = Date.now();
@@ -1172,7 +1335,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}));
 
 			// Start execution (non-blocking - runs in background)
-			executionPromise = execution.start(command, executeCancellation.token, commandId);
+			executionPromise = execution.start(command, executeCancellation.token, commandId, commandLineForMetadata);
 
 			if (executionOptions.waitStrategy === 'idle') {
 				this._logService.debug(`RunInTerminalTool: Starting persistent execution with idle wait strategy \`${command}\``);
@@ -1232,7 +1395,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					if (isAutoApproved) {
 						resultText += `\nEvaluate the terminal output to determine if the command is waiting for input (e.g. a password prompt, confirmation, or interactive question). A normal shell prompt does NOT count as waiting for input. If it IS waiting for input, determine the best answer for the current prompt from context and immediately call ${TerminalToolId.SendToTerminal} with id "${termId}" to send ONLY that one answer. Then call ${TerminalToolId.GetTerminalOutput} to read the next prompt. Repeat one prompt at a time until the command finishes. Do NOT send multiple answers at once. Do NOT ask the user or respond with a text message.`;
 					} else {
-						resultText += `\nEvaluate the terminal output to determine if the command is waiting for input (e.g. a password prompt, confirmation, or interactive question). A normal shell prompt does NOT count as waiting for input. If it IS waiting for input, you MUST call the vscode_askQuestions tool to ask the user what values to provide. Do NOT respond with a text message asking the user — use the tool. Then send ONLY the answer for the current prompt using ${TerminalToolId.SendToTerminal} with id "${termId}", call ${TerminalToolId.GetTerminalOutput} to read the next prompt, and repeat one prompt at a time.`;
+						resultText += `\nEvaluate the terminal output to determine if the command is waiting for input (e.g. a password prompt, confirmation, or interactive question). A normal shell prompt does NOT count as waiting for input. If it IS waiting for input, you MUST call the vscode_askQuestions tool to ask the user what values to provide. If you are certain about the exact sequence of upcoming prompts for this command (e.g. well-known interactive commands like npm init), include all of them in a single askQuestions call. Otherwise, ask only about the currently visible prompt. Do NOT respond with a text message asking the user — use the tool. Then send each answer one at a time using ${TerminalToolId.SendToTerminal} with id "${termId}", calling ${TerminalToolId.GetTerminalOutput} between each to read the next prompt before sending the next answer.`;
 					}
 				} else if (pollingResult) {
 					resultText += `\n The command is still running, with output:\n`;
@@ -1413,8 +1576,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					}
 				});
 				// Register a listener to notify the agent when commands complete in this
-				// background terminal, and continue the output monitor for prompt-for-input detection
-				if (shouldSendBackgroundNotifications) {
+				// background terminal, and continue the output monitor for prompt-for-input detection.
+				// Always register when the terminal moved to background due to input-needed or timeout
+				// (the agent promised "you will be notified when the command completes"), regardless
+				// of the background notifications setting.
+				const movedToBackground = !executionOptions.persistentSession;
+				if (shouldSendBackgroundNotifications || movedToBackground) {
 					this._registerCompletionNotification(toolTerminal.instance, termId, chatSessionResource, command, outputMonitor);
 				} else {
 					outputMonitor?.dispose();
@@ -1460,6 +1627,67 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			return altBufferResult;
 		}
 
+		const shouldAutoRetryUnsandboxed = shouldAutomaticallyRetryUnsandboxed({
+			didSandboxWrapCommand,
+			requestUnsandboxedExecution: args.requestUnsandboxedExecution === true,
+			isPersistentSession: executionOptions.persistentSession,
+			isBackgroundExecution,
+			didTimeout,
+			exitCode,
+			output: terminalResult,
+		});
+
+		if (shouldAutoRetryUnsandboxed) {
+			const [os, shell] = await Promise.all([
+				this._osBackend,
+				this._profileFetcher.getCopilotShell(),
+			]);
+			const retryReason = automaticUnsandboxRetryReason;
+			const retryRewriteResult = await this._rewriteCommandLine(args.command, {
+				cwd: toolSpecificData.cwd ? URI.revive(toolSpecificData.cwd) : undefined,
+				shell,
+				os,
+				isBackground: executionOptions.persistentSession,
+				requestUnsandboxedExecution: true,
+				requestUnsandboxedExecutionReason: retryReason,
+			});
+			const rewrittenRetryReason = retryRewriteResult.requestUnsandboxedExecutionReason ?? retryReason;
+			const retryConfirmationCommand = toolSpecificData.presentationOverrides?.commandLine ?? command;
+			const shouldRetry = await this._confirmAutomaticUnsandboxRetry(invocation.context.sessionResource, retryConfirmationCommand, shell, retryRewriteResult.blockedDomains, (toolSpecificData as IRunInTerminalToolInvocationData).requiresConfirmationForRetry, token);
+			if (shouldRetry) {
+				const retryToolSpecificData: IChatTerminalToolInvocationData = {
+					...toolSpecificData,
+					terminalCommandId: `tool-${generateUuid()}`,
+					commandLine: {
+						original: args.command,
+						toolEdited: retryRewriteResult.rewrittenCommand === args.command ? undefined : retryRewriteResult.rewrittenCommand,
+						forDisplay: retryRewriteResult.forDisplayCommand ?? normalizeTerminalCommandForDisplay(retryRewriteResult.rewrittenCommand ?? args.command),
+						isSandboxWrapped: retryRewriteResult.isSandboxWrapped,
+					},
+					requestUnsandboxedExecution: true,
+					requestUnsandboxedExecutionReason: rewrittenRetryReason,
+					terminalCommandUri: undefined,
+					terminalCommandOutput: undefined,
+					terminalTheme: undefined,
+					terminalCommandState: undefined,
+					didContinueInBackground: undefined,
+				};
+				const retryToolCallId = `automatic-unsandbox-retry-${generateUuid()}`;
+				this._acceptAutomaticUnsandboxRetryToolInvocationUpdate(invocation.context.sessionResource, retryToolCallId, retryToolSpecificData, false);
+
+				return await this.invoke({
+					...invocation,
+					parameters: {
+						...args,
+						command: args.command,
+						requestUnsandboxedExecution: true,
+						requestUnsandboxedExecutionReason: rewrittenRetryReason,
+					},
+					toolSpecificData: retryToolSpecificData,
+				}, _countTokens, _progress, token);
+			}
+		}
+
 		const resultText: string[] = [];
 		if (!didSandboxWrapCommand) {
 			if (didUserEditCommand) {
@@ -1476,7 +1704,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			if (isAutoApproved) {
 				resultText.push(`Note: The command is running in terminal ID ${termId} and may be waiting for input. Evaluate the terminal output to determine if the command is actually waiting for input (e.g. a password prompt, confirmation, or interactive question). A normal shell prompt does NOT count as waiting for input. If it IS waiting for input, determine the best answer for the current prompt from context and immediately call ${TerminalToolId.SendToTerminal} with id "${termId}" to send ONLY that one answer. Then call ${TerminalToolId.GetTerminalOutput} to read the next prompt. Repeat one prompt at a time until the command finishes. Do NOT send multiple answers at once. Do NOT ask the user or respond with a text message.\n\n`);
 			} else {
-				resultText.push(`Note: The command is running in terminal ID ${termId} and may be waiting for input. Evaluate the terminal output to determine if the command is actually waiting for input (e.g. a password prompt, confirmation, or interactive question). A normal shell prompt does NOT count as waiting for input. If it IS waiting for input, you MUST call the vscode_askQuestions tool to ask the user what values to provide. Do NOT respond with a text message asking the user — use the tool. Then send ONLY the answer for the current prompt using ${TerminalToolId.SendToTerminal} with id "${termId}", call ${TerminalToolId.GetTerminalOutput} to read the next prompt, and repeat one prompt at a time.\n\n`);
+				resultText.push(`Note: The command is running in terminal ID ${termId} and may be waiting for input. Evaluate the terminal output to determine if the command is actually waiting for input (e.g. a password prompt, confirmation, or interactive question). A normal shell prompt does NOT count as waiting for input. If it IS waiting for input, you MUST call the vscode_askQuestions tool to ask the user what values to provide. If you are certain about the exact sequence of upcoming prompts for this command (e.g. well-known interactive commands like npm init), include all of them in a single askQuestions call. Otherwise, ask only about the currently visible prompt. Do NOT respond with a text message asking the user — use the tool. Then send each answer one at a time using ${TerminalToolId.SendToTerminal} with id "${termId}", calling ${TerminalToolId.GetTerminalOutput} between each to read the next prompt before sending the next answer.\n\n`);
 			}
 		} else if (didTimeout && timeoutValue !== undefined && timeoutValue > 0) {
 			const notificationHint = shouldSendBackgroundNotifications
@@ -1485,7 +1713,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			const isAutoApprovedTimeout = isSessionAutoApproveLevel(chatSessionResource, this._configurationService, this._chatWidgetService, this._chatService);
 			const inputAction = isAutoApprovedTimeout
 				? `If it IS waiting for input, determine the best answer for the current prompt from context and immediately call ${TerminalToolId.SendToTerminal} with id "${termId}" to send ONLY that one answer. Then call ${TerminalToolId.GetTerminalOutput} to read the next prompt. Repeat one prompt at a time until the command finishes. Do NOT send multiple answers at once. Do NOT ask the user or respond with a text message.`
-				: `If it IS waiting for input, you MUST call the vscode_askQuestions tool to ask the user what values to provide. Do NOT respond with a text message asking the user — use the tool. Then send ONLY the answer for the current prompt using ${TerminalToolId.SendToTerminal} with id "${termId}", call ${TerminalToolId.GetTerminalOutput} to read the next prompt, and repeat one prompt at a time.`;
+				: `If it IS waiting for input, you MUST call the vscode_askQuestions tool to ask the user what values to provide. If you are certain about the exact sequence of upcoming prompts for this command (e.g. well-known interactive commands like npm init), include all of them in a single askQuestions call. Otherwise, ask only about the currently visible prompt. Do NOT respond with a text message asking the user — use the tool. Then send each answer one at a time using ${TerminalToolId.SendToTerminal} with id "${termId}", calling ${TerminalToolId.GetTerminalOutput} between each to read the next prompt before sending the next answer.`;
 			resultText.push(`Note: Command timed out after ${timeoutValue}ms. The command may still be running in terminal ID ${termId}.${notificationHint} Use ${TerminalToolId.GetTerminalOutput} to check output before then, ${TerminalToolId.SendToTerminal} to send further input, or ${TerminalToolId.KillTerminal} to stop it. Do NOT use sleep or manual polling to wait. Evaluate the terminal output to determine if the command is waiting for input (e.g. a password prompt, confirmation, or interactive question). A normal shell prompt does NOT count as waiting for input. ${inputAction}\n\n`);
 		}
 		const outputAnalyzerMessage = await this._getOutputAnalyzerMessage(exitCode, terminalResult, command, didSandboxWrapCommand);
@@ -1896,6 +2124,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		// The monitor wakes only on new terminal data (not on a fixed interval), so
 		// resource cost is proportional to actual terminal activity.
 		const store = new DisposableStore();
+
+		// Track whether the user has started replying to terminal prompts directly.
+		// Once set, all future input-needed notifications are suppressed so the agent
+		// stops asking questions and lets the user finish interacting with the terminal.
+		let userIsReplyingDirectly = false;
+
 		if (outputMonitor) {
 			let lastInputNeededOutput = '';
 			let lastInputNeededNotificationTime = 0;
@@ -1912,6 +2146,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			// When the output monitor detects the terminal is waiting for input,
 			// send a steering message so the agent handles it via send_to_terminal.
 			store.add(outputMonitor.onDidDetectInputNeeded(() => {
+				if (userIsReplyingDirectly) {
+					this._logService.debug(`RunInTerminalTool: Suppressing input-needed notification for terminal ${termId} because user is replying directly`);
+					return;
+				}
+
 				const execution = RunInTerminalTool._activeExecutions.get(termId);
 				if (!execution) {
 					return;
@@ -1928,21 +2167,34 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				const isAutoApproved = isSessionAutoApproveLevel(chatSessionResource, this._configurationService, this._chatWidgetService, this._chatService);
 				const inputAction = isAutoApproved
 					? `Determine the best answer for the current prompt from context and immediately call ${TerminalToolId.SendToTerminal} with id "${termId}" to send ONLY that one answer. Then call ${TerminalToolId.GetTerminalOutput} to read the next prompt. Repeat one prompt at a time until the command finishes. Do NOT send multiple answers at once. Do NOT ask the user or respond with a text message.`
-					: `You MUST call the vscode_askQuestions tool to ask the user what values to provide. Do NOT respond with a text message asking the user — use the tool. Then send ONLY the answer for the current prompt using ${TerminalToolId.SendToTerminal} with id "${termId}", call ${TerminalToolId.GetTerminalOutput} to read the next prompt, and repeat one prompt at a time.`;
+					: `You MUST call the vscode_askQuestions tool to ask the user what values to provide for all anticipated prompts at once (include upcoming prompts you can predict from the command, not just the currently visible one). Do NOT respond with a text message asking the user — use the tool. Then send each answer one at a time using ${TerminalToolId.SendToTerminal} with id "${termId}", calling ${TerminalToolId.GetTerminalOutput} between each to read the next prompt before sending the next answer.`;
 				const message = `[Terminal ${termId} notification: command is waiting for input. ${inputAction}]\nTerminal output:\n${currentOutput}`;
 
 				this._logService.debug(`RunInTerminalTool: Input needed in background terminal ${termId}, notifying chat session`);
 
 				this._chatService.sendRequest(chatSessionResource, message, {
+					...sendOptions,
 					queue: ChatRequestQueueKind.Steering,
 					isSystemInitiated: true,
 					systemInitiatedLabel: localize('backgroundTaskNeedsInput', "Background task `{0}` needs input", commandName),
-					...sendOptions,
+					terminalExecutionId: termId,
 				}).catch(e => {
 					this._logService.warn(`RunInTerminalTool: Failed to send input-needed notification for terminal ${termId}`, e);
 				});
 			}));
 		}
+
+		// When the user types directly in the terminal, dismiss any pending
+		// question carousel for this terminal so the tool invocation is
+		// unblocked and the carousel doesn't linger. Also suppress future
+		// input-needed notifications since the user is handling prompts.
+		store.add(terminalInstance.onDidInputData(() => {
+			if (userIsReplyingDirectly) {
+				return;
+			}
+			userIsReplyingDirectly = true;
+			this._dismissPendingCarouselsForTerminal(chatSessionResource, termId);
+		}));
 
 		store.add(sessionRef);
 
@@ -1967,10 +2219,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			this._logService.debug(`RunInTerminalTool: Command completed in background terminal ${termId}, notifying chat session`);
 
 			this._chatService.sendRequest(chatSessionResource, message, {
+				...sendOptions,
 				queue: ChatRequestQueueKind.Steering,
 				isSystemInitiated: true,
 				systemInitiatedLabel: localize('backgroundTaskCompleted', "Background task `{0}` completed", commandName),
-				...sendOptions,
+				terminalExecutionId: termId,
 			}).catch(e => {
 				this._logService.warn(`RunInTerminalTool: Failed to send completion notification for terminal ${termId}`, e);
 			});
@@ -1996,6 +2249,39 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		}));
 
 		this._backgroundNotifications.set(termId, store);
+	}
+
+	/**
+	 * Find and dismiss any pending (not yet answered) question carousels that
+	 * are associated with the given terminal. This is called when the user
+	 * types directly into the terminal, bypassing the carousel UI.
+	 */
+	private _dismissPendingCarouselsForTerminal(chatSessionResource: URI, termId: string): void {
+		const model = this._chatService.getSession(chatSessionResource);
+		if (!model) {
+			return;
+		}
+
+		// Walk in reverse — there should be at most one pending carousel per terminal.
+		const requests = model.getRequests();
+		for (let i = requests.length - 1; i >= 0; i--) {
+			const response = requests[i].response;
+			if (!response) {
+				continue;
+			}
+			const parts = response.response.value;
+			for (let j = parts.length - 1; j >= 0; j--) {
+				const part = parts[j];
+				if (part instanceof ChatQuestionCarouselData && part.terminalId === termId && !part.isUsed) {
+					this._logService.debug(`RunInTerminalTool: Dismissing pending carousel for terminal ${termId} because user typed directly in terminal`);
+					part.data = {};
+					part.isUsed = true;
+					part.dismissedByTerminalInput = true;
+					part.completion.complete({ answers: undefined });
+					return;
+				}
+			}
+		}
 	}
 	// #endregion
 }
@@ -2075,9 +2361,9 @@ class ActiveTerminalExecution extends Disposable implements IActiveTerminalExecu
 	 * @param commandId Optional command ID for linking
 	 * @returns The execution result
 	 */
-	async start(commandLine: string, token: CancellationToken, commandId?: string): Promise<ITerminalExecuteStrategyResult> {
+	async start(commandLine: string, token: CancellationToken, commandId?: string, commandLineForMetadata?: string): Promise<ITerminalExecuteStrategyResult> {
 		try {
-			const result = await this.strategy.execute(commandLine, token, commandId);
+			const result = await this.strategy.execute(commandLine, token, commandId, commandLineForMetadata);
 			this._completionDeferred.complete(result);
 			return result;
 		} catch (e) {

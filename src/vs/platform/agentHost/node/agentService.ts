@@ -201,10 +201,11 @@ export class AgentService extends Disposable implements IAgentService {
 		// Safe to run in parallel with createSession since no events flow until
 		// sendMessage() is called.
 		this._logService.trace(`[AgentService] createSession: initializing auto-approver and creating session...`);
-		const [, session] = await Promise.all([
+		const [, created] = await Promise.all([
 			this._sideEffects.initialize(),
 			provider.createSession(config),
 		]);
+		const session = created.session;
 		this._logService.trace(`[AgentService] createSession: initialization complete`);
 
 		this._logService.trace(`[AgentService] createSession: provider=${provider.id} model=${config?.model ?? '(default)'}`);
@@ -228,6 +229,7 @@ export class AgentService extends Disposable implements IAgentService {
 				status: SessionStatus.Idle,
 				createdAt: Date.now(),
 				modifiedAt: Date.now(),
+				...(created.project ? { project: { uri: created.project.uri.toString(), displayName: created.project.displayName } } : {}),
 				workingDirectory: config.workingDirectory?.toString(),
 			};
 			const state = this._stateManager.createSession(summary);
@@ -241,6 +243,7 @@ export class AgentService extends Disposable implements IAgentService {
 				status: SessionStatus.Idle,
 				createdAt: Date.now(),
 				modifiedAt: Date.now(),
+				...(created.project ? { project: { uri: created.project.uri.toString(), displayName: created.project.displayName } } : {}),
 				workingDirectory: config?.workingDirectory?.toString(),
 			};
 			this._stateManager.createSession(summary);
@@ -419,6 +422,7 @@ export class AgentService extends Disposable implements IAgentService {
 			status: SessionStatus.Idle,
 			createdAt: meta.startTime,
 			modifiedAt: meta.modifiedTime,
+			...(meta.project ? { project: { uri: meta.project.uri.toString(), displayName: meta.project.displayName } } : {}),
 			workingDirectory: meta.workingDirectory?.toString(),
 			isRead,
 			isDone,
@@ -878,6 +882,7 @@ export class AgentService extends Disposable implements IAgentService {
 				status: SessionStatus.Idle,
 				createdAt: Date.now(),
 				modifiedAt: Date.now(),
+				...(parentState?.summary.project ? { project: parentState.summary.project } : {}),
 			},
 			childTurns,
 		);

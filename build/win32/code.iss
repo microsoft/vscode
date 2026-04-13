@@ -74,6 +74,10 @@ Type: filesandordirs; Name: "{app}\{#VersionedResourcesFolder}\resources\app\nod
 Type: filesandordirs; Name: "{app}\{#VersionedResourcesFolder}\resources\app\node_modules.asar.unpacked"; Check: IsNotBackgroundUpdate
 Type: files; Name: "{app}\{#VersionedResourcesFolder}\resources\app\node_modules.asar"; Check: IsNotBackgroundUpdate
 Type: files; Name: "{app}\{#VersionedResourcesFolder}\resources\app\Credits_45.0.2454.85.html"; Check: IsNotBackgroundUpdate
+#ifdef ProxyExeBasename
+; Clean up legacy Start Menu shortcut that used ProxyExeBasename instead of ProxyNameLong
+Type: files; Name: "{group}\{#ProxyExeBasename}.lnk"
+#endif
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\_"
@@ -117,7 +121,7 @@ Name: "{group}\{#NameLong}"; Filename: "{app}\{#ExeBasename}.exe"; AppUserModelI
 Name: "{autodesktop}\{#NameLong}"; Filename: "{app}\{#ExeBasename}.exe"; Tasks: desktopicon; AppUserModelID: "{#AppUserId}"; Check: ShouldUpdateShortcut(ExpandConstant('{autodesktop}\{#NameLong}.lnk'))
 Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\{#NameLong}"; Filename: "{app}\{#ExeBasename}.exe"; Tasks: quicklaunchicon; AppUserModelID: "{#AppUserId}"; Check: ShouldUpdateShortcut(ExpandConstant('{userappdata}\Microsoft\Internet Explorer\Quick Launch\{#NameLong}.lnk'))
 #ifdef ProxyExeBasename
-Name: "{group}\{#ProxyExeBasename}"; Filename: "{app}\{#ProxyExeBasename}.exe"; AppUserModelID: "{#ProxyAppUserId}"; Check: ShouldUpdateShortcut(ExpandConstant('{group}\{#ProxyExeBasename}.lnk'))
+Name: "{group}\{#ProxyNameLong}"; Filename: "{app}\{#ProxyExeBasename}.exe"; AppUserModelID: "{#ProxyAppUserId}"; Check: ShouldUpdateShortcut(ExpandConstant('{group}\{#ProxyNameLong}.lnk'))
 Name: "{autodesktop}\{#ProxyNameLong}"; Filename: "{app}\{#ProxyExeBasename}.exe"; Tasks: desktopicon; AppUserModelID: "{#ProxyAppUserId}"; Check: ShouldUpdateShortcut(ExpandConstant('{autodesktop}\{#ProxyNameLong}.lnk'))
 Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\{#ProxyNameLong}"; Filename: "{app}\{#ProxyExeBasename}.exe"; Tasks: quicklaunchicon; AppUserModelID: "{#ProxyAppUserId}"; Check: ShouldUpdateShortcut(ExpandConstant('{userappdata}\Microsoft\Internet Explorer\Quick Launch\{#ProxyNameLong}.lnk'))
 #endif

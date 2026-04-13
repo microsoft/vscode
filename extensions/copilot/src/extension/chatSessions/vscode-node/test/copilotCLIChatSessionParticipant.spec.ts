@@ -328,7 +328,7 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 			}
 		});
 		sdk = {
-			getPackage: vi.fn(async () => ({ internal: { LocalSessionManager: MockCliSdkSessionManager, NoopTelemetryService: class { } } })),
+			getPackage: vi.fn(async () => ({ internal: { LocalSessionManager: MockCliSdkSessionManager, NoopTelemetryService: class { } }, createLocalFeatureFlagService: () => ({}), noopTelemetryBinder: {} })),
 			getAuthInfo: vi.fn(async () => ({ type: 'token' as const, token: 'valid-token', host: 'https://github.com' })),
 		} as unknown as ICopilotCLISDK;
 		const services = disposables.add(createExtensionUnitTestingServices());
@@ -480,7 +480,7 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 		// Set up untitled session folder
 		folderRepositoryManager.setNewSessionFolder('untitled:temp-new', Uri.file(`${sep}repo`));
 		// Configure git to return repository for the folder
-		git.setRepo({ rootUri: Uri.file(`${sep}repo`), kind: 'repository' } as unknown as RepoContext);
+		git.setRepo({ rootUri: Uri.file(`${sep}repo`), remotes: [], kind: 'repository' } as unknown as RepoContext);
 		// Configure worktree service to return worktree properties when createWorktree is called
 		(worktree.createWorktree as unknown as ReturnType<typeof vi.fn>).mockResolvedValue(worktreeProperties);
 
@@ -1003,8 +1003,8 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 	});
 
 	it('prompts for uncommitted changes action for untitled session with uncommitted changes', async () => {
-		git.activeRepository = { get: () => ({ rootUri: Uri.file(`${sep}repo`), changes: { indexChanges: [{ path: 'file.ts' }], workingTree: [] } }) } as unknown as IGitService['activeRepository'];
-		git.setRepo({ rootUri: Uri.file(`${sep}repo`), changes: { indexChanges: [{ path: 'file.ts' }], workingTree: [] } } as unknown as RepoContext);
+		git.activeRepository = { get: () => ({ rootUri: Uri.file(`${sep}repo`), remotes: [], changes: { indexChanges: [{ path: 'file.ts' }], mergeChanges: [], workingTree: [], untrackedChanges: [] } }) } as unknown as IGitService['activeRepository'];
+		git.setRepo({ rootUri: Uri.file(`${sep}repo`), remotes: [], changes: { indexChanges: [{ path: 'file.ts' }], mergeChanges: [], workingTree: [], untrackedChanges: [] } } as unknown as RepoContext);
 		// Set up untitled session folder so getFolderRepository returns repository info
 		folderRepositoryManager.setNewSessionFolder('untitled:temp-new', Uri.file(`${sep}repo`));
 		// User selects Copy Changes
@@ -1030,8 +1030,8 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 	});
 
 	it('uses request prompt directly when user accepts uncommitted changes confirmation', async () => {
-		git.activeRepository = { get: () => ({ rootUri: Uri.file(`${sep}repo`), changes: { indexChanges: [{ path: 'file.ts' }], workingTree: [] } }) } as unknown as IGitService['activeRepository'];
-		git.setRepo({ rootUri: Uri.file(`${sep}repo`), changes: { indexChanges: [{ path: 'file.ts' }], workingTree: [] } } as unknown as RepoContext);
+		git.activeRepository = { get: () => ({ rootUri: Uri.file(`${sep}repo`), remotes: [], changes: { indexChanges: [{ path: 'file.ts' }], mergeChanges: [], workingTree: [], untrackedChanges: [] } }) } as unknown as IGitService['activeRepository'];
+		git.setRepo({ rootUri: Uri.file(`${sep}repo`), remotes: [], changes: { indexChanges: [{ path: 'file.ts' }], mergeChanges: [], workingTree: [], untrackedChanges: [] } } as unknown as RepoContext);
 		folderRepositoryManager.setNewSessionFolder('untitled:temp-new', Uri.file(`${sep}repo`));
 		tools.nextConfirmationButton = 'Copy Changes';
 
@@ -1052,8 +1052,8 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 	});
 
 	it('uses request prompt for session label when swapping untitled session', async () => {
-		git.activeRepository = { get: () => ({ rootUri: Uri.file(`${sep}repo`), changes: { indexChanges: [{ path: 'file.ts' }], workingTree: [] } }) } as unknown as IGitService['activeRepository'];
-		git.setRepo({ rootUri: Uri.file(`${sep}repo`), changes: { indexChanges: [{ path: 'file.ts' }], workingTree: [] } } as unknown as RepoContext);
+		git.activeRepository = { get: () => ({ rootUri: Uri.file(`${sep}repo`), remotes: [], changes: { indexChanges: [{ path: 'file.ts' }], mergeChanges: [], workingTree: [], untrackedChanges: [] } }) } as unknown as IGitService['activeRepository'];
+		git.setRepo({ rootUri: Uri.file(`${sep}repo`), remotes: [], changes: { indexChanges: [{ path: 'file.ts' }], mergeChanges: [], workingTree: [], untrackedChanges: [] } } as unknown as RepoContext);
 		folderRepositoryManager.setNewSessionFolder('untitled:temp-new', Uri.file(`${sep}repo`));
 		tools.nextConfirmationButton = 'Move Changes';
 
@@ -1071,8 +1071,8 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 	});
 
 	it('passes empty references array to resolvePrompt after confirmation', async () => {
-		git.activeRepository = { get: () => ({ rootUri: Uri.file(`${sep}repo`), changes: { indexChanges: [{ path: 'file.ts' }], workingTree: [] } }) } as unknown as IGitService['activeRepository'];
-		git.setRepo({ rootUri: Uri.file(`${sep}repo`), changes: { indexChanges: [{ path: 'file.ts' }], workingTree: [] } } as unknown as RepoContext);
+		git.activeRepository = { get: () => ({ rootUri: Uri.file(`${sep}repo`), remotes: [], changes: { indexChanges: [{ path: 'file.ts' }], mergeChanges: [], workingTree: [], untrackedChanges: [] } }) } as unknown as IGitService['activeRepository'];
+		git.setRepo({ rootUri: Uri.file(`${sep}repo`), remotes: [], changes: { indexChanges: [{ path: 'file.ts' }], mergeChanges: [], workingTree: [], untrackedChanges: [] } } as unknown as RepoContext);
 		folderRepositoryManager.setNewSessionFolder('untitled:temp-new', Uri.file(`${sep}repo`));
 		tools.nextConfirmationButton = 'Copy Changes';
 
@@ -1090,8 +1090,8 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 	});
 
 	it('returns empty when user cancels untitled session confirmation', async () => {
-		git.activeRepository = { get: () => ({ rootUri: Uri.file(`${sep}repo`), changes: { indexChanges: [{ path: 'file.ts' }], workingTree: [] } }) } as unknown as IGitService['activeRepository'];
-		git.setRepo({ rootUri: Uri.file(`${sep}repo`), changes: { indexChanges: [{ path: 'file.ts' }], workingTree: [] } } as unknown as RepoContext);
+		git.activeRepository = { get: () => ({ rootUri: Uri.file(`${sep}repo`), remotes: [], changes: { indexChanges: [{ path: 'file.ts' }], mergeChanges: [], workingTree: [], untrackedChanges: [] } }) } as unknown as IGitService['activeRepository'];
+		git.setRepo({ rootUri: Uri.file(`${sep}repo`), remotes: [], changes: { indexChanges: [{ path: 'file.ts' }], mergeChanges: [], workingTree: [], untrackedChanges: [] } } as unknown as RepoContext);
 		folderRepositoryManager.setNewSessionFolder('untitled:temp-new', Uri.file(`${sep}repo`));
 		// User clicks Cancel
 		tools.nextConfirmationButton = 'Cancel';
@@ -1173,8 +1173,8 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 	});
 
 	it('reuses untitled session after confirmation without creating new session', async () => {
-		git.activeRepository = { get: () => ({ changes: { indexChanges: [{ path: 'file.ts' }], workingTree: [] } }) } as unknown as IGitService['activeRepository'];
-		git.setRepo({ rootUri: Uri.file(`${sep}workspace`), changes: { indexChanges: [{ path: 'file.ts' }], workingTree: [] } } as unknown as RepoContext);
+		git.activeRepository = { get: () => ({ remotes: [], changes: { indexChanges: [{ path: 'file.ts' }], mergeChanges: [], workingTree: [], untrackedChanges: [] } }) } as unknown as IGitService['activeRepository'];
+		git.setRepo({ rootUri: Uri.file(`${sep}workspace`), remotes: [], changes: { indexChanges: [{ path: 'file.ts' }], mergeChanges: [], workingTree: [], untrackedChanges: [] } } as unknown as RepoContext);
 		// Set up untitled session folder so getFolderRepository returns repository info (for uncommitted changes check)
 		folderRepositoryManager.setNewSessionFolder('untitled:temp-new', Uri.file(`${sep}workspace`));
 		// User selects Copy Changes via the tools confirmation

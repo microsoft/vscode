@@ -323,6 +323,16 @@ export interface ISessionOptionGroupBuilder {
 	buildExistingSessionInputStateGroups(resource: vscode.Uri, token: vscode.CancellationToken): Promise<vscode.ChatSessionProviderOptionGroup[]>;
 	getBranchOptionItemsForRepository(repoUri: Uri, headBranchName: string | undefined): Promise<vscode.ChatSessionProviderOptionItem[]>;
 	getRepositoryOptionItems(): vscode.ChatSessionProviderOptionItem[];
+	/**
+	 * Lock all dropdown groups (make them readonly).
+	 * Used when a new session is being created.
+	 */
+	lockInputStateGroups(state: vscode.ChatSessionInputState): void;
+	/**
+	 * Update the branch dropdown to display a specific branch name (locked).
+	 * Used after a worktree is created to show the new branch.
+	 */
+	updateBranchInInputState(state: vscode.ChatSessionInputState, branchName: string): void;
 }
 export const ISessionOptionGroupBuilder = createServiceIdentifier<ISessionOptionGroupBuilder>('ISessionOptionGroupBuilder');
 
@@ -708,5 +718,36 @@ export class SessionOptionGroupBuilder implements ISessionOptionGroupBuilder {
 		}
 
 		return repoItems.sort((a, b) => a.name.localeCompare(b.name));
+	}
+
+	lockInputStateGroups(state: vscode.ChatSessionInputState): void {
+		state.groups = state.groups.map(group => ({
+			...group,
+			items: group.items.map(item => ({ ...item, locked: true })),
+			selected: group.selected ? { ...group.selected, locked: true } : undefined,
+		}));
+	}
+
+	updateBranchInInputState(state: vscode.ChatSessionInputState, branchName: string): void {
+		const existingIdx = state.groups.findIndex(g => g.id === BRANCH_OPTION_ID);
+		if (existingIdx === -1) {
+			return;
+		}
+		const branchSelected: vscode.ChatSessionProviderOptionItem = {
+			id: branchName,
+			name: branchName,
+			icon: new vscode.ThemeIcon('git-branch'),
+			locked: true,
+		};
+		const branchGroup: vscode.ChatSessionProviderOptionGroup = {
+			id: BRANCH_OPTION_ID,
+			name: l10n.t('Branch'),
+			description: l10n.t('Pick Branch'),
+			items: [branchSelected],
+			selected: branchSelected,
+		};
+		const updatedGroups = [...state.groups];
+		updatedGroups[existingIdx] = branchGroup;
+		state.groups = updatedGroups;
 	}
 }

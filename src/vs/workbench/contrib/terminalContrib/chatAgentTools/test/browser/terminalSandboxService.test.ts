@@ -9,7 +9,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { TestLifecycleService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { TestProductService } from '../../../../../test/common/workbenchTestServices.js';
 import { TerminalSandboxPrerequisiteCheck, TerminalSandboxService } from '../../common/terminalSandboxService.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -17,6 +17,7 @@ import { IProductService } from '../../../../../../platform/product/common/produ
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { TerminalChatAgentToolsSandboxEnabledValue, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
+import { AgentNetworkDomainSettingId } from '../../../../../../platform/networkFilter/common/settings.js';
 import { Event, Emitter } from '../../../../../../base/common/event.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
@@ -175,8 +176,8 @@ suite('TerminalSandboxService - network domains', () => {
 
 		// Setup default configuration
 		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxEnabled, TerminalChatAgentToolsSandboxEnabledValue.On);
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains, []);
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkDeniedDomains, []);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, []);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, []);
 
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IFileService, fileService);
@@ -229,8 +230,8 @@ suite('TerminalSandboxService - network domains', () => {
 	});
 
 	test('should preserve configured network domains', async () => {
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains, ['example.com', '*.github.com']);
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkDeniedDomains, ['blocked.example.com']);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['example.com', '*.github.com']);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['blocked.example.com']);
 
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		deepStrictEqual(sandboxService.getResolvedNetworkDomains(), {
@@ -249,6 +250,126 @@ suite('TerminalSandboxService - network domains', () => {
 			allowedDomains: ['example.com', '*.github.com'],
 			deniedDomains: ['blocked.example.com']
 		});
+	});
+
+	test('should write configured runtime values to sandbox config root', async () => {
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxAdvancedRuntime, {
+			allowUnixSockets: true,
+			networkProxy: {
+				enabled: true,
+				mode: 'strict'
+			}
+		});
+
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const configPath = await sandboxService.getSandboxConfigPath();
+
+		ok(configPath, 'Config path should be defined');
+		const configContent = createdFiles.get(configPath);
+		ok(configContent, 'Config file should be created');
+
+		const config = JSON.parse(configContent);
+		strictEqual(config.allowUnixSockets, true);
+		deepStrictEqual(config.networkProxy, {
+			enabled: true,
+			mode: 'strict'
+		});
+	});
+
+	test('should omit runtime root-level entries when runtime setting is empty', async () => {
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxAdvancedRuntime, {});
+
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const configPath = await sandboxService.getSandboxConfigPath();
+
+		ok(configPath, 'Config path should be defined');
+		const configContent = createdFiles.get(configPath);
+		ok(configContent, 'Config file should be created');
+
+		const config = JSON.parse(configContent);
+		strictEqual(Object.prototype.hasOwnProperty.call(config, 'allowUnixSockets'), false, 'Runtime keys should be omitted when the runtime setting is empty');
+		strictEqual(Object.prototype.hasOwnProperty.call(config, 'networkProxy'), false, 'Nested runtime keys should be omitted when the runtime setting is empty');
+	});
+
+	test('should rewrite sandbox config when runtime setting changes', async () => {
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxAdvancedRuntime, {
+			allowUnixSockets: true,
+		});
+
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const configPath = await sandboxService.getSandboxConfigPath();
+
+		ok(configPath, 'Config path should be defined');
+		const initialConfigContent = createdFiles.get(configPath);
+		ok(initialConfigContent, 'Config file should be created for the initial runtime values');
+		strictEqual(JSON.parse(initialConfigContent).allowUnixSockets, true);
+
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxAdvancedRuntime, {
+			allowUnixSockets: false,
+			networkProxy: {
+				enabled: true
+			}
+		});
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: (key: string) => key === TerminalChatAgentToolsSettingId.AgentSandboxAdvancedRuntime,
+			affectedKeys: new Set([TerminalChatAgentToolsSettingId.AgentSandboxAdvancedRuntime]),
+			source: ConfigurationTarget.USER,
+			change: null!,
+		});
+
+		const refreshedConfigPath = await sandboxService.getSandboxConfigPath();
+		strictEqual(refreshedConfigPath, configPath, 'Config path should stay stable when the config is refreshed');
+
+		const refreshedConfigContent = createdFiles.get(configPath);
+		ok(refreshedConfigContent, 'Config file should be rewritten after runtime setting changes');
+
+		const refreshedConfig = JSON.parse(refreshedConfigContent);
+		strictEqual(refreshedConfig.allowUnixSockets, false);
+		deepStrictEqual(refreshedConfig.networkProxy, {
+			enabled: true
+		});
+	});
+
+	test('should not override schema-defined network and filesystem config with runtime settings', async () => {
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['example.com']);
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxLinuxFileSystem, {
+			allowWrite: ['/configured/path'],
+			denyRead: [],
+			denyWrite: []
+		});
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxAdvancedRuntime, {
+			network: {
+				allowedDomains: ['should-not-win.example'],
+				allowUnixSockets: true,
+			},
+			filesystem: {
+				allowWrite: ['/should-not-win'],
+				unixSockets: {
+					enabled: true,
+				}
+			},
+			allowUnixSockets: true,
+		});
+
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const configPath = await sandboxService.getSandboxConfigPath();
+
+		ok(configPath, 'Config path should be defined');
+		const configContent = createdFiles.get(configPath);
+		ok(configContent, 'Config file should be created');
+
+		const config = JSON.parse(configContent);
+		deepStrictEqual(config.network, {
+			allowedDomains: ['example.com'],
+			deniedDomains: [],
+			allowUnixSockets: true,
+		});
+		ok(config.filesystem.allowWrite.includes('/configured/path'), 'Configured filesystem values should be preserved');
+		ok(!config.filesystem.allowWrite.includes('/should-not-win'), 'Runtime filesystem values should not override schema-defined filesystem config');
+		deepStrictEqual(config.filesystem.unixSockets, {
+			enabled: true,
+		}, 'Additional nested runtime filesystem properties should be merged in');
+		strictEqual(config.allowUnixSockets, true, 'Non-conflicting runtime properties should still be added');
 	});
 
 	test('should refresh allowWrite paths when workspace folders change', async () => {
@@ -359,7 +480,7 @@ suite('TerminalSandboxService - network domains', () => {
 	});
 
 	test('should allow exact allowlisted domains', async () => {
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains, ['example.com']);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['example.com']);
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 
@@ -370,7 +491,7 @@ suite('TerminalSandboxService - network domains', () => {
 	});
 
 	test('should allow wildcard domains', async () => {
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains, ['*.github.com']);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['*.github.com']);
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 
@@ -381,8 +502,8 @@ suite('TerminalSandboxService - network domains', () => {
 	});
 
 	test('should give denied domains precedence over allowlisted domains', async () => {
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains, ['*.github.com']);
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkDeniedDomains, ['api.github.com']);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['*.github.com']);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['api.github.com']);
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 
@@ -394,7 +515,7 @@ suite('TerminalSandboxService - network domains', () => {
 	});
 
 	test('should match uppercase hostnames when checking allowlisted domains', async () => {
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains, ['*.github.com']);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['*.github.com']);
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 

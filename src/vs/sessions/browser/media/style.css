@@ -138,13 +138,17 @@
 	border-radius: var(--vscode-cornerRadius-large);
 	border-color: var(--vscode-editorWidget-border, var(--vscode-widget-border)) !important;
 }
+
+.agent-sessions-workbench .interactive-session .chat-input-container.focused {
+	border-color: var(--vscode-focusBorder) !important;
+}
 .agent-sessions-workbench .interactive-session .interactive-input-part {
 	width: 100%;
 	max-width: 950px;
 	margin: 0 auto !important;
 	display: inherit !important;
 	/* Align with panel (terminal) card margin */
-	padding: 4px 10px 10px 10px !important;
+	padding: 4px 10px !important;
 	box-sizing: border-box;
 }
 

@@ -98,6 +98,9 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 					type: RemoteAgentHostEntryType.SSH,
 					address: result.address,
 					sshConfigHost: result.sshConfigHost,
+					hostName: result.config.host,
+					user: result.config.username || undefined,
+					port: result.config.port,
 				},
 			}, protocolClient);
 		} catch (err) {
@@ -150,6 +153,9 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 				type: RemoteAgentHostEntryType.SSH,
 				address: result.address,
 				sshConfigHost: result.sshConfigHost,
+				hostName: result.config.host,
+				user: result.config.username || undefined,
+				port: result.config.port,
 			},
 		}, protocolClient);
 

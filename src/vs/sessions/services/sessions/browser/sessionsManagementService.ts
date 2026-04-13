@@ -12,7 +12,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { ActiveSessionProviderIdContext, ActiveSessionTypeContext, IsActiveSessionBackgroundProviderContext, IsNewChatSessionContext } from '../../../common/contextkeys.js';
+import { ActiveSessionProviderIdContext, ActiveSessionTypeContext, IsActiveSessionArchivedContext, IsActiveSessionBackgroundProviderContext, IsNewChatSessionContext } from '../../../common/contextkeys.js';
 import { ActiveSessionSupportsMultiChatContext, IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
 import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../common/sessionsProvider.js';
@@ -43,6 +43,7 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 	private readonly _activeSessionProviderId: IContextKey<string>;
 	private readonly _activeSessionType: IContextKey<string>;
 	private readonly _isBackgroundProvider: IContextKey<boolean>;
+	private readonly _isActiveSessionArchived: IContextKey<boolean>;
 	private readonly _supportsMultiChat: IContextKey<boolean>;
 	private _activeChatObservable: ISettableObservable<IChat> | undefined;
 	private _activeSessionDisposables = this._register(new DisposableStore());
@@ -64,6 +65,7 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		this._activeSessionProviderId = ActiveSessionProviderIdContext.bindTo(contextKeyService);
 		this._activeSessionType = ActiveSessionTypeContext.bindTo(contextKeyService);
 		this._isBackgroundProvider = IsActiveSessionBackgroundProviderContext.bindTo(contextKeyService);
+		this._isActiveSessionArchived = IsActiveSessionArchivedContext.bindTo(contextKeyService);
 		this._supportsMultiChat = ActiveSessionSupportsMultiChatContext.bindTo(contextKeyService);
 
 		// Load last selected session
@@ -97,6 +99,9 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 			disposables.add(provider.onDidChangeSessions(e => this.onDidChangeSessionsFromSessionsProviders(e)));
 			if (provider.onDidReplaceSession) {
 				disposables.add(provider.onDidReplaceSession(e => this.onDidReplaceSession(e.from, e.to)));
+			}
+			if (provider.onDidChangeSessionTypes) {
+				disposables.add(provider.onDidChangeSessionTypes(() => this._updateSessionTypes()));
 			}
 			this._providerListeners.set(provider.id, disposables);
 		}
@@ -199,9 +204,9 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 
 	private _updateSessionTypes(): void {
 		const newTypes = this._collectSessionTypes();
-		const oldIds = new Set(this._sessionTypes.map(t => t.id));
-		const newIds = new Set(newTypes.map(t => t.id));
-		if (oldIds.size !== newIds.size || [...oldIds].some(id => !newIds.has(id))) {
+		const changed = this._sessionTypes.length !== newTypes.length
+			|| this._sessionTypes.some((t, i) => t.id !== newTypes[i].id || t.label !== newTypes[i].label);
+		if (changed) {
 			this._sessionTypes = newTypes;
 			this._onDidChangeSessionTypes.fire();
 		}
@@ -327,6 +332,7 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		this._activeSessionProviderId.set(session?.providerId ?? '');
 		this._activeSessionType.set(session?.sessionType ?? '');
 		this._isBackgroundProvider.set(session?.sessionType === COPILOT_CLI_SESSION_TYPE);
+		this._isActiveSessionArchived.set(session?.isArchived.get() ?? false);
 		const provider = session ? this.sessionsProvidersService.getProviders().find(p => p.id === session.providerId) : undefined;
 		this._supportsMultiChat.set(provider?.capabilities.multipleChatsPerSession ?? false);
 
@@ -353,14 +359,16 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 
 			this._activeSession.set(activeSession, undefined);
 
-			// Listen for the active session becoming archived
-			if (!session.isArchived.get()) {
-				this._activeSessionDisposables.add(autorun(reader => {
-					if (session.isArchived.read(reader)) {
-						this.openNewSessionView();
-					}
-				}));
-			}
+			// Track archived state changes for the active session
+			let wasArchived = session.isArchived.get();
+			this._activeSessionDisposables.add(autorun(reader => {
+				const isArchived = session.isArchived.read(reader);
+				this._isActiveSessionArchived.set(isArchived);
+				if (isArchived && !wasArchived) {
+					this.openNewSessionView();
+				}
+				wasArchived = isArchived;
+			}));
 		} else {
 			this._activeChatObservable = undefined;
 			this._activeSession.set(undefined, undefined);

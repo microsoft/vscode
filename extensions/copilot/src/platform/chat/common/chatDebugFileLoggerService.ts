@@ -139,6 +139,12 @@ export interface IChatDebugFileLoggerService {
 	 * Uses a streaming parser to avoid loading the entire file into memory.
 	 */
 	streamEntries(sessionId: string, onEntry: (entry: IDebugLogEntry) => void): Promise<void>;
+
+	/**
+	 * List session IDs that have debug log directories on disk.
+	 * Returns both active and historical sessions found in the debug-logs/ directory.
+	 */
+	listSessionIds(): Promise<string[]>;
 }
 
 /**
@@ -191,4 +197,5 @@ export class NullChatDebugFileLoggerService implements IChatDebugFileLoggerServi
 	async readEntries(): Promise<IDebugLogEntry[]> { return []; }
 	async readTailEntries(): Promise<IDebugLogEntry[]> { return []; }
 	async streamEntries(): Promise<void> { }
+	async listSessionIds(): Promise<string[]> { return []; }
 }

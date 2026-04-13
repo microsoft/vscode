@@ -37,7 +37,6 @@ import { ChatEditingAcceptRejectActionViewItem } from '../../chat/browser/chatEd
 import { CTX_INLINE_CHAT_INPUT_HAS_TEXT, CTX_INLINE_CHAT_INPUT_WIDGET_FOCUSED } from '../common/inlineChat.js';
 import { StickyScrollController } from '../../../../editor/contrib/stickyScroll/browser/stickyScrollController.js';
 import { IKeybindingService } from '../../../../platform/keybinding/common/keybinding.js';
-import { ILogService } from '../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { getSimpleEditorOptions } from '../../codeEditor/browser/simpleEditorOptions.js';
 import { PlaceholderTextContribution } from '../../../../editor/contrib/placeholderText/browser/placeholderTextContribution.js';
@@ -446,20 +445,17 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 	readonly #editorObs: ObservableCodeEditor;
 	readonly #instaService: IInstantiationService;
 	readonly #keybindingService: IKeybindingService;
-	readonly #logService: ILogService;
 
 	constructor(
 		editorObs: ObservableCodeEditor,
 		@IInstantiationService instaService: IInstantiationService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@ILogService logService: ILogService,
 	) {
 		super();
 
 		this.#editorObs = editorObs;
 		this.#instaService = instaService;
 		this.#keybindingService = keybindingService;
-		this.#logService = logService;
 
 		this.#domNode.classList.add('inline-chat-session-overlay-widget');
 
@@ -606,15 +602,6 @@ export class InlineChatSessionOverlayWidget extends Disposable {
 				markdownStore.clear();
 				this.#markdownMessage.replaceChildren();
 				this.#markdownScrollable.getDomNode().classList.add('hidden');
-			}
-		}));
-
-		// Log when pending confirmation changes
-		this.#showStore.add(autorun(r => {
-			const response = session.chatModel.lastRequestObs.read(r)?.response;
-			const pending = response?.isPendingConfirmation.read(r);
-			if (pending) {
-				this.#logService.info(`[InlineChat] UNEXPECTED approval needed: ${pending.detail ?? 'unknown'}`);
 			}
 		}));
 

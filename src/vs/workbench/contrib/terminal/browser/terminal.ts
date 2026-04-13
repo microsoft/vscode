@@ -1156,7 +1156,7 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	 */
 	sendPath(originalPath: string | URI, shouldExecute: boolean): Promise<void>;
 
-	runCommand(command: string, shouldExecute?: boolean, commandId?: string, bracketedPasteMode?: boolean): Promise<void>;
+	runCommand(command: string, shouldExecute?: boolean, commandId?: string, bracketedPasteMode?: boolean, commandLineForMetadata?: string): Promise<void>;
 
 	/**
 	 * Takes a path and returns the properly escaped path to send to a given shell. On Windows, this

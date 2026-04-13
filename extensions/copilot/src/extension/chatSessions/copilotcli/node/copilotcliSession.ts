@@ -12,7 +12,7 @@ import { ILogService } from '../../../../platform/log/common/logService';
 import { GenAiMetrics } from '../../../../platform/otel/common/genAiMetrics';
 import { CopilotChatAttr, GenAiAttr, GenAiOperationName, IOTelService, ISpanHandle, SpanKind, SpanStatusCode, truncateForOTel } from '../../../../platform/otel/common/index';
 import { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
-import { IRequestLogger, LoggedRequestKind } from '../../../../platform/requestLogger/node/requestLogger';
+import { IRequestLogger, LoggedRequestKind } from '../../../../platform/requestLogger/common/requestLogger';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { raceCancellation } from '../../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';

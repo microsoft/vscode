@@ -355,6 +355,7 @@ export class AgentSideEffects extends Disposable {
 		}
 
 		this._logService.info(`[AgentSideEffects] Creating subagent session: ${subagentSessionUri} (parent=${parentSession}, toolCallId=${toolCallId})`);
+		const parentState = this._stateManager.getSessionState(parentSession);
 
 		// Create the subagent session silently (restoreSession skips notification)
 		this._stateManager.restoreSession(
@@ -365,6 +366,7 @@ export class AgentSideEffects extends Disposable {
 				status: SessionStatus.Idle,
 				createdAt: Date.now(),
 				modifiedAt: Date.now(),
+				...(parentState?.summary.project ? { project: parentState.summary.project } : {}),
 			},
 			[],
 		);

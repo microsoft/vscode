@@ -112,7 +112,8 @@ function buildWin32Setup(arch: string, target: string): task.CallbackTask {
 			Quality: quality
 		};
 
-		const embedded = quality
+		const isInsiderOrExploration = quality === 'insider' || quality === 'exploration';
+		const embedded = isInsiderOrExploration
 			? (product as typeof product & { embedded?: EmbeddedProductInfo }).embedded
 			: undefined;
 

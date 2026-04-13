@@ -42,7 +42,7 @@ import { IChatWidgetLocationOptions } from '../../chat/browser/widget/chatWidget
 import { IChatEditingService, ModifiedFileEntryState } from '../../chat/common/editing/chatEditingService.js';
 import { ChatModel } from '../../chat/common/model/chatModel.js';
 import { ChatMode } from '../../chat/common/chatModes.js';
-import { IChatLocationData, IChatService } from '../../chat/common/chatService/chatService.js';
+import { IChatLocationData, IChatService, IChatToolInvocation, ToolConfirmKind } from '../../chat/common/chatService/chatService.js';
 import { IChatRequestVariableEntry, IDiagnosticVariableEntryFilterData } from '../../chat/common/attachments/chatVariableEntries.js';
 import { isResponseVM } from '../../chat/common/model/chatViewModel.js';
 import { ChatAgentLocation, ChatModeKind } from '../../chat/common/constants.js';
@@ -54,7 +54,7 @@ import { INotebookService } from '../../notebook/common/notebookService.js';
 import { CTX_INLINE_CHAT_FILE_BELONGS_TO_CHAT, CTX_INLINE_CHAT_PENDING_CONFIRMATION, CTX_INLINE_CHAT_TERMINATED, CTX_INLINE_CHAT_VISIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
 import { InlineChatAffordance } from './inlineChatAffordance.js';
 import { InlineChatInputWidget, InlineChatSessionOverlayWidget } from './inlineChatOverlayWidget.js';
-import { continueInPanelChat, IInlineChatSession2, IInlineChatSessionService } from './inlineChatSessionService.js';
+import { continueInPanelChat, IInlineChatSession2, IInlineChatSessionService, rephraseInlineChat } from './inlineChatSessionService.js';
 import { EditorBasedInlineChatWidget } from './inlineChatWidget.js';
 import { InlineChatZoneWidget } from './inlineChatZoneWidget.js';
 
@@ -411,6 +411,27 @@ export class InlineChatController implements IEditorContribution {
 			}
 		}));
 
+		// Auto-approve tool confirmations for inline chat. The user implicitly
+		// consents to editing the current file by invoking inline chat on it,
+		// even if the file qualifies as a sensitive file.
+		this.#store.add(autorun(r => {
+			const session = this.#currentSession.read(r);
+			if (!session) {
+				return;
+			}
+			const lastRequest = session.chatModel.lastRequestObs.read(r);
+			const response = lastRequest?.response;
+			const pending = response?.isPendingConfirmation.read(r);
+			if (pending) {
+				this.#logService.info(`[InlineChat] auto-approving: ${pending.detail ?? 'unknown'}`);
+				for (const part of response!.response.value) {
+					if (part.kind === 'toolInvocation') {
+						IChatToolInvocation.confirmWith(part as IChatToolInvocation, { type: ToolConfirmKind.ConfirmationNotNeeded, reason: 'inlineChat' });
+					}
+				}
+			}
+		}));
+
 		this.#store.add(autorun(r => {
 			const session = visibleSessionObs.read(r);
 			if (session) {
@@ -454,6 +475,7 @@ export class InlineChatController implements IEditorContribution {
 			const session = visibleSessionObs.read(r);
 			const response = lastResponseObs.read(r);
 			const terminationState = session?.terminationState.read(r);
+			const renderMode = this.#renderMode.read(r);
 
 			this.#zone.rawValue?.widget.updateInfo('');
 
@@ -463,8 +485,15 @@ export class InlineChatController implements IEditorContribution {
 					// ERROR case
 					this.#zone.rawValue?.widget.updateInfo(`$(error) ${response.result.errorDetails.message}`);
 					alert(response.result.errorDetails.message);
+				} else if (terminationState && renderMode === 'zone') {
+					// Zone mode: show termination card with message and action buttons
+					this.#zone.rawValue?.showTerminationCard(terminationState, this.#instaService);
 				} else if (terminationState) {
 					this.#zone.rawValue?.widget.updateInfo(`$(info) ${renderAsPlaintext(terminationState)}`);
+				}
+
+				if (!terminationState || renderMode !== 'zone') {
+					this.#zone.rawValue?.hideTerminationCard();
 				}
 
 				// no response or not in progress
@@ -755,6 +784,17 @@ export class InlineChatController implements IEditorContribution {
 	async rephraseSession(): Promise<void> {
 		const session = this.#currentSession.get();
 		if (!session) {
+			return;
+		}
+
+		if (this.#renderMode.get() === 'zone') {
+			// Zone mode: clear termination state and restore input text in the chat widget.
+			// The autorun watching terminationState will flip the card back automatically.
+			const requestText = this.#instaService.invokeFunction(rephraseInlineChat, session);
+			if (requestText) {
+				this.#zone.rawValue?.widget.chatWidget.setInput(requestText);
+			}
+			this.#zone.rawValue?.widget.focus();
 			return;
 		}
 
