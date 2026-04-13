@@ -595,6 +595,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		@ICopilotCLIChatSessionInitializer private readonly sessionInitializer: ICopilotCLIChatSessionInitializer,
 		@ISessionRequestLifecycle private readonly sessionRequestLifecycle: ISessionRequestLifecycle,
 		@IPullRequestDetectionService private readonly prDetectionService: IPullRequestDetectionService,
+		@ISessionOptionGroupBuilder private readonly _optionGroupBuilder: ISessionOptionGroupBuilder,
 	) {
 		super();
 
@@ -737,6 +738,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			const sessionId = SessionIdForCLI.parse(resource);
 			const isNewSession = this.sessionService.isNewSessionId(sessionId);
 			const invalidSessionMessage = _invalidCopilotCLISessionIdsWithErrorMessage.get(sessionId);
+
 			if (invalidSessionMessage) {
 				const { issueUrl } = getSessionLoadFailureIssueInfo(invalidSessionMessage);
 				const warningMessage = new vscode.MarkdownString();
@@ -757,12 +759,27 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			};
 			const branchNamePromise = (isNewSession && request.prompt && this.branchNameGenerator) ? this.branchNameGenerator.generateBranchName(fakeContext, token) : Promise.resolve(undefined);
 
+			if (isNewSession) {
+				this._optionGroupBuilder.lockInputStateGroups(chatSessionContext.inputState);
+			}
+
 			const selectedOptions = getSelectedSessionOptions(chatSessionContext.inputState);
 			const sessionResult = await this.getOrCreateSession(request, chatSessionContext.chatSessionItem.resource, { ...selectedOptions, newBranch: branchNamePromise, stream }, disposables, token);
 			({ session } = sessionResult);
+
+
+			if (isNewSession && !sessionResult.trusted) {
+				await this._optionGroupBuilder.rebuildInputState(chatSessionContext.inputState);
+			}
+
 			const { model, agent } = sessionResult;
 			if (!session || token.isCancellationRequested) {
 				return {};
+			}
+
+			if (isNewSession && session.object.workspace.worktreeProperties) {
+				const branchName = session.object.workspace.worktreeProperties.branchName;
+				this._optionGroupBuilder.updateBranchInInputState(chatSessionContext.inputState, branchName);
 			}
 
 			sdkSessionId = session.object.sessionId;

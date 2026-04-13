@@ -61,7 +61,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	getDescriptor(): IAgentDescriptor {
 		return {
 			provider: 'copilot',
-			displayName: 'Agent Host - Copilot',
+			displayName: 'Copilot',
 			description: 'Copilot SDK agent running in a dedicated process',
 		};
 	}
@@ -467,6 +467,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const parsedPlugins = await this._plugins.getAppliedPlugins();
 
 		const sessionUri = AgentSession.uri(this.id, sessionId);
+		const sessionMetadata = await client.getSessionMetadata(sessionId).catch(err => {
+			this._logService.warn(`[Copilot:${sessionId}] getSessionMetadata failed`, err);
+			return undefined;
+		});
+		const workingDirectory = typeof sessionMetadata?.context?.cwd === 'string' ? URI.file(sessionMetadata.context.cwd) : undefined;
 		const shellManager = this._instantiationService.createInstance(ShellManager, sessionUri);
 		const sessionConfig = this._buildSessionConfig(parsedPlugins, shellManager);
 
@@ -475,6 +480,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			try {
 				const raw = await client.resumeSession(sessionId, {
 					...config,
+					workingDirectory: workingDirectory?.fsPath,
 				});
 				return new CopilotSessionWrapper(raw);
 			} catch (err) {
@@ -499,7 +505,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 		};
 
-		const agentSession = this._createAgentSession(factory, undefined, sessionId, shellManager);
+		const agentSession = this._createAgentSession(factory, workingDirectory, sessionId, shellManager);
 		this._plugins.setAppliedPlugins(agentSession, parsedPlugins);
 		await agentSession.initializeSession();
 

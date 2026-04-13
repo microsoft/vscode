@@ -55,6 +55,12 @@ export interface ISessionsProvider {
 	readonly icon: ThemeIcon;
 	/** Session types this provider supports. */
 	readonly sessionTypes: readonly ISessionType[];
+	/**
+	 * Optional. Fires when {@link sessionTypes} changes (e.g. a remote agent
+	 * host advertises a new agent at runtime). Providers with a statically
+	 * declared session type list can omit this.
+	 */
+	readonly onDidChangeSessionTypes?: Event<void>;
 	/** Capabilities supported by this provider. */
 	readonly capabilities: ISessionsProviderCapabilities;
 
