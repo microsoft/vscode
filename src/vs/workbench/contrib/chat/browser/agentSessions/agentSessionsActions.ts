@@ -671,7 +671,7 @@ export class DeleteAgentSessionAction extends BaseAgentSessionAction {
 	constructor() {
 		super({
 			id: AGENT_SESSION_DELETE_ACTION_ID,
-			title: localize2('delete', "Delete..."),
+			title: localize2('delete', "Delete"),
 			menu: {
 				id: MenuId.AgentSessionsContext,
 				group: '1_edit',

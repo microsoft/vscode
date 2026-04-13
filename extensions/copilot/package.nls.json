@@ -428,7 +428,7 @@
 	"github.copilot.config.nextEditSuggestions.eagerness.medium.label": "Medium",
 	"github.copilot.config.nextEditSuggestions.eagerness.high": "Show more suggestions with minimal delay.",
 	"github.copilot.config.nextEditSuggestions.eagerness.high.label": "High",
-	"github.copilot.command.deleteAgentSession": "Delete...",
+	"github.copilot.command.deleteAgentSession": "Delete",
 	"github.copilot.command.cli.sessions.resumeInTerminal": "Resume in Terminal",
 	"github.copilot.command.cli.sessions.rename": "Rename...",
 	"github.copilot.command.cli.sessions.setTitle": "Set Title",
