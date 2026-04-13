@@ -217,6 +217,9 @@ export interface ITerminalConfiguration {
 		fallbackLigatures: string[];
 	};
 	hideOnLastClosed: boolean;
+	editor?: {
+		inheritBackground: boolean;
+	};
 }
 
 export interface ITerminalFont {
