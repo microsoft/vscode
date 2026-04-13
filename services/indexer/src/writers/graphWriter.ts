@@ -116,21 +116,23 @@ export class GraphWriter {
 			}
 
 			// Create ACCEPTS edges for parameters with known types
-			for (const param of fn.parameters) {
-				if (param.type) {
-					await this.db.write(
-						`MATCH (fn:Function {qualifiedName: $qualifiedName, file: $filePath}),
-							(t:Type {name: $paramType})
-						CREATE (fn)-[:ACCEPTS {paramName: $paramName, position: $position}]->(t)`,
-						{
-							filePath,
-							qualifiedName: fn.qualifiedName,
-							paramType: param.type,
-							paramName: param.name,
-							position: param.position,
-						}
-					);
-				}
+			const paramsWithTypes = fn.parameters.filter(p => p.type);
+			if (paramsWithTypes.length > 0) {
+				await this.db.write(
+					`UNWIND $params AS param
+					MATCH (fn:Function {qualifiedName: $qualifiedName, file: $filePath}),
+						(t:Type {name: param.paramType})
+					CREATE (fn)-[:ACCEPTS {paramName: param.paramName, position: param.position}]->(t)`,
+					{
+						filePath,
+						qualifiedName: fn.qualifiedName,
+						params: paramsWithTypes.map(p => ({
+							paramType: p.type,
+							paramName: p.name,
+							position: p.position,
+						}))
+					}
+				);
 			}
 		}
 
