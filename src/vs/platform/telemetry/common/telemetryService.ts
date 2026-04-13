@@ -17,7 +17,7 @@ import { IProductService } from '../../product/common/productService.js';
 import { Registry } from '../../registry/common/platform.js';
 import { ClassifiedEvent, IGDPRProperty, OmitMetadata, StrictPropertyCheck } from './gdprTypings.js';
 import { ITelemetryData, ITelemetryService, TelemetryConfiguration, TelemetryLevel, TELEMETRY_CRASH_REPORTER_SETTING_ID, TELEMETRY_OLD_SETTING_ID, TELEMETRY_SECTION_ID, TELEMETRY_SETTING_ID, ICommonProperties } from './telemetry.js';
-import { cleanData, getTelemetryLevel, ITelemetryAppender } from './telemetryUtils.js';
+import { cleanData, getTelemetryLevel, ITelemetryAppender, TelemetryTrustedValue } from './telemetryUtils.js';
 
 export interface ITelemetryServiceConfig {
 	appenders: ITelemetryAppender[];
@@ -60,7 +60,7 @@ export class TelemetryService implements ITelemetryService {
 
 	private _appenders: ITelemetryAppender[];
 	private _commonProperties: ICommonProperties;
-	private _experimentProperties: { [name: string]: string } = {};
+	private _experimentProperties: { [name: string]: string | TelemetryTrustedValue<string> } = {};
 	private _piiPaths: string[];
 	private _telemetryLevel: TelemetryLevel;
 	private _sendErrorTelemetry: boolean;
@@ -127,7 +127,7 @@ export class TelemetryService implements ITelemetryService {
 	}
 
 	setExperimentProperty(name: string, value: string): void {
-		this._experimentProperties[name] = value;
+		this._experimentProperties[name] = new TelemetryTrustedValue(value);
 
 		// On first call, flush all pending events that were buffered waiting for experiment properties
 		if (!this._isExperimentPropertySet) {

@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { hasKey } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
 
 // =============================================================================
@@ -107,6 +108,11 @@ const SHELL_TOOL_NAMES: ReadonlySet<string> = new Set([
 	CopilotToolName.PowerShell,
 ]);
 
+/** Set of tool names that spawn subagent sessions. */
+const SUBAGENT_TOOL_NAMES: ReadonlySet<string> = new Set([
+	'task',
+]);
+
 /**
  * Tools that should not be shown to the user. These are internal tools
  * used by the CLI for its own purposes (e.g., reporting intent to the model).
@@ -120,6 +126,13 @@ const HIDDEN_TOOL_NAMES: ReadonlySet<string> = new Set([
  */
 export function isHiddenTool(toolName: string): boolean {
 	return HIDDEN_TOOL_NAMES.has(toolName);
+}
+
+/**
+ * Returns true if the tool executes shell commands.
+ */
+export function isShellTool(toolName: string): boolean {
+	return SHELL_TOOL_NAMES.has(toolName);
 }
 
 // =============================================================================
@@ -271,7 +284,15 @@ export function getToolInputString(toolName: string, parameters: Record<string, 
 
 	if (SHELL_TOOL_NAMES.has(toolName)) {
 		const args = parameters as ICopilotShellToolArgs | undefined;
-		return args?.command ?? rawArguments;
+		// Custom tool overrides may wrap the args: { kind: 'custom-tool', args: { command: '...' } }
+		const command = args?.command ?? (args as Record<string, unknown> | undefined)?.args;
+		if (typeof command === 'string') {
+			return command;
+		}
+		if (typeof command === 'object' && command !== null && hasKey(command, { command: true })) {
+			return (command as ICopilotShellToolArgs).command;
+		}
+		return rawArguments;
 	}
 
 	switch (toolName) {
@@ -297,9 +318,12 @@ export function getToolInputString(toolName: string, parameters: Record<string, 
  * supported, which tells the renderer to display the tool as a terminal command
  * block.
  */
-export function getToolKind(toolName: string): 'terminal' | undefined {
+export function getToolKind(toolName: string): 'terminal' | 'subagent' | undefined {
 	if (SHELL_TOOL_NAMES.has(toolName)) {
 		return 'terminal';
+	}
+	if (SUBAGENT_TOOL_NAMES.has(toolName)) {
+		return 'subagent';
 	}
 	return undefined;
 }

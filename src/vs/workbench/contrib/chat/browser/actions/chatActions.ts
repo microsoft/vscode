@@ -205,7 +205,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.Setup.hidden.negate(),
-				ChatContextKeys.Setup.disabled.negate()
+				ChatContextKeys.Setup.disabledInWorkspace.negate(),
 			)
 		});
 	}
@@ -1193,7 +1193,7 @@ export function registerChatActions() {
 			}
 
 			const free = chatEntitlementService.entitlement === ChatEntitlement.Free;
-			const upgradeToPro = free ? localize('upgradeToPro', "Upgrade to GitHub Copilot Pro (your first 30 days are free) for:\n- Unlimited inline suggestions\n- Unlimited chat messages\n- Access to premium models") : undefined;
+			const upgradeToPro = free ? localize('upgradeToPro', "Upgrade to GitHub Copilot Pro for:\n- Unlimited inline suggestions\n- Unlimited chat messages\n- Access to premium models") : undefined;
 
 			await dialogService.prompt({
 				type: 'none',
@@ -1440,7 +1440,7 @@ export function registerChatActions() {
 				},
 				{
 					id: MenuId.ViewTitle,
-					when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId), ContextKeyExpr.has(`config.${ChatConfiguration.ChatCustomizationMenuEnabled}`)),
+					when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
 					order: 15,
 					group: '3_configure'
 				}]
@@ -1453,7 +1453,7 @@ export function registerChatActions() {
 		}
 	});
 
-	// When customizations menu is enabled, show a direct gear action to open the Customizations editor
+	// Show a direct gear action to open the Customizations editor
 	MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 		command: {
 			id: AICustomizationManagementCommands.OpenEditor,
@@ -1465,18 +1465,7 @@ export function registerChatActions() {
 		when: ContextKeyExpr.and(
 			ChatContextKeys.enabled,
 			ContextKeyExpr.equals('view', ChatViewId),
-			ContextKeyExpr.has(`config.${ChatConfiguration.ChatCustomizationMenuEnabled}`)
 		),
-		order: 6
-	});
-
-	// When customizations menu is disabled, show the legacy gear submenu
-	MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
-		submenu: CHAT_CONFIG_MENU_ID,
-		title: localize2('config.label', "Configure Chat"),
-		group: 'navigation',
-		when: ContextKeyExpr.and(ContextKeyExpr.equals('view', ChatViewId), ContextKeyExpr.has(`config.${ChatConfiguration.ChatCustomizationMenuEnabled}`).negate()),
-		icon: Codicon.gear,
 		order: 6
 	});
 }
@@ -1739,7 +1728,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 	title: localize('generateCode', "Generate Code"),
 	when: ContextKeyExpr.and(
 		ChatContextKeys.Setup.hidden.negate(),
-		ChatContextKeys.Setup.disabled.negate()
+		ChatContextKeys.Setup.disabledInWorkspace.negate(),
 	)
 });
 

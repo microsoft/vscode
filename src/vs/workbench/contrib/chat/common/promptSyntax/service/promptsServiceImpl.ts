@@ -34,7 +34,7 @@ import { AGENT_MD_FILENAME, CLAUDE_CONFIG_FOLDER, CLAUDE_LOCAL_MD_FILENAME, CLAU
 import { PROMPT_LANGUAGE_ID, PromptFileSource, PromptsType, Target, getPromptsTypeForLanguageId } from '../promptTypes.js';
 import { IWorkspaceInstructionFile, PromptFilesLocator } from '../utils/promptFilesLocator.js';
 import { evaluateApplyToPattern, PromptFileParser, ParsedPromptFile, PromptHeaderAttributes } from '../promptFileParser.js';
-import { IAgentInstructions, type IAgentSource, IChatPromptSlashCommand, IConfiguredHooksInfo, ICustomAgent, IExtensionPromptPath, ILocalPromptPath, IPluginPromptPath, IPromptPath, IPromptsService, IAgentSkill, IInstructionDiscoveryInfo, IInstructionDiscoveryResult, IInstructionFile, IUserPromptPath, PromptsStorage, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileContext, IPromptFileResource, PROMPT_FILE_PROVIDER_ACTIVATION_EVENT, SKILL_PROVIDER_ACTIVATION_EVENT, IPromptDiscoveryInfo, IPromptFileDiscoveryResult, IPromptSourceFolderResult, ICustomAgentVisibility, IAgentInstructionFile, AgentInstructionFileType, Logger, ISlashCommandDiscoveryInfo, ISlashCommandDiscoveryResult, IAgentDiscoveryInfo, IAgentDiscoveryResult, IHookDiscoveryInfo, IResolvedChatPromptSlashCommand } from './promptsService.js';
+import { IAgentInstructions, type IAgentSource, IChatPromptSlashCommand, IConfiguredHooksInfo, ICustomAgent, IExtensionPromptPath, isExtensionPromptPath, ILocalPromptPath, IPluginPromptPath, IPromptPath, IPromptsService, IAgentSkill, IInstructionDiscoveryInfo, IInstructionDiscoveryResult, IInstructionFile, IUserPromptPath, PromptsStorage, CUSTOM_AGENT_PROVIDER_ACTIVATION_EVENT, INSTRUCTIONS_PROVIDER_ACTIVATION_EVENT, IPromptFileContext, IPromptFileResource, PROMPT_FILE_PROVIDER_ACTIVATION_EVENT, SKILL_PROVIDER_ACTIVATION_EVENT, IPromptDiscoveryInfo, IPromptFileDiscoveryResult, IPromptSourceFolderResult, ICustomAgentVisibility, IAgentInstructionFile, AgentInstructionFileType, Logger, ISlashCommandDiscoveryInfo, ISlashCommandDiscoveryResult, IAgentDiscoveryInfo, IAgentDiscoveryResult, IHookDiscoveryInfo, IResolvedChatPromptSlashCommand } from './promptsService.js';
 import { Delayer } from '../../../../../../base/common/async.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { ChatRequestHooks, parseSubagentHooksFromYaml } from '../hookSchema.js';
@@ -510,19 +510,22 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private async getExtensionPromptFiles(type: PromptsType, token: CancellationToken): Promise<IExtensionPromptPath[]> {
 		await this.extensionService.whenInstalledExtensionsRegistered();
 		const settledResults = await Promise.allSettled(this.contributedFiles[type].values());
+		// Note: `when` clauses are intentionally NOT evaluated here (global context).
+		// They are propagated into the model types (IAgentSkill, IChatPromptSlashCommand,
+		// ICustomAgent, IInstructionFile) and evaluated later at session-scoped time:
+		//  - slash commands: per-widget in chatInputCompletions.ts via `c.when`
+		//  - skills: in ComputeAutomaticInstructions using its scoped IContextKeyService
+		//  - instructions: in ComputeAutomaticInstructions using its scoped IContextKeyService
+		//  - agents: in modePickerActionItem.ts and ComputeAutomaticInstructions
 		const contributedFiles = settledResults
 			.filter((result): result is PromiseFulfilledResult<IExtensionPromptPath> => result.status === 'fulfilled')
 			.map(result => result.value)
 			.filter(file => {
-				if (!file.when) {
-					return true;
-				}
-				const expr = ContextKeyExpr.deserialize(file.when);
-				if (!expr) {
+				if (file.when && !ContextKeyExpr.deserialize(file.when)) {
 					this.logger.warn(`[getExtensionPromptFiles] Ignoring contributed prompt file with invalid when clause: ${file.when}`);
 					return false;
 				}
-				return this.contextKeyService.contextMatchesRules(expr);
+				return true;
 			});
 
 		const activationEvent = this.getProviderActivationEvent(type);
@@ -684,6 +687,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private asChatPromptSlashCommand(argumentHint: string | undefined, userInvocable: boolean | undefined, promptPath: IPromptPath): IChatPromptSlashCommand {
 		let name = promptPath.name ?? getCleanPromptName(promptPath.uri);
 		name = name.replace(/[^\p{L}\d_\-\.:]+/gu, '-'); // replace spaces with dashes
+		const when = isExtensionPromptPath(promptPath) && promptPath.when
+			? ContextKeyExpr.deserialize(promptPath.when) ?? undefined
+			: undefined;
 		return {
 			uri: promptPath.uri,
 			name: name,
@@ -695,7 +701,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			description: promptPath.description,
 			argumentHint: argumentHint,
 			userInvocable: userInvocable ?? true,
-			when: undefined,
+			when,
 		};
 	}
 
@@ -795,8 +801,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 				const target = getTarget(PromptsType.agent, ast.header ?? uri);
 
 				const source: IAgentSource = IAgentSource.fromPromptPath(promptPath);
+				const when = isExtensionPromptPath(promptPath) && promptPath.when
+					? ContextKeyExpr.deserialize(promptPath.when) ?? undefined
+					: undefined;
 				if (!ast.header) {
-					const agent: ICustomAgent = { uri, name, agentInstructions, source, target, visibility: { userInvocable: true, agentInvocable: true } };
+					const agent: ICustomAgent = { uri, name, agentInstructions, source, target, visibility: { userInvocable: true, agentInvocable: true }, ...(when !== undefined ? { when } : undefined) };
 					return { status: 'loaded', promptPath: this.withPromptPathMetadata(promptPath, name, description), agent };
 				}
 				const visibility = {
@@ -823,7 +832,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 					hooks = parseSubagentHooksFromYaml(hooksRaw, workspaceRootUri, userHome, target);
 				}
 
-				const agent: ICustomAgent = { uri, name, description, model, tools, handOffs, argumentHint, target, visibility, agents, hooks, agentInstructions, source };
+				const agent: ICustomAgent = { uri, name, description, model, tools, handOffs, argumentHint, target, visibility, agents, hooks, agentInstructions, source, ...(when !== undefined ? { when } : undefined) };
 				return { status: 'loaded', promptPath: this.withPromptPathMetadata(promptPath, name, description), agent };
 			} catch (e) {
 				const error = e instanceof Error ? e : new Error(String(e));
@@ -1130,6 +1139,10 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return this.cachedSkills.onDidChangePromise;
 	}
 
+	public get onDidChangeHooks(): Event<void> {
+		return this.cachedHooks.onDidChangePromise;
+	}
+
 	public async findAgentSkills(token: CancellationToken): Promise<IAgentSkill[] | undefined> {
 		const useAgentSkills = this.configurationService.getValue(PromptsConfig.USE_AGENT_SKILLS);
 		if (!useAgentSkills) {
@@ -1149,6 +1162,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 		for (const file of discoveryInfo.files) {
 			if (file.status === 'loaded' && file.promptPath.name) {
 				const sanitizedDescription = this.truncateAgentSkillDescription(file.promptPath.description, file.promptPath.uri);
+				const when = isExtensionPromptPath(file.promptPath) && file.promptPath.when
+					? ContextKeyExpr.deserialize(file.promptPath.when) ?? undefined
+					: undefined;
 				result.push({
 					uri: file.promptPath.uri,
 					storage: file.promptPath.storage,
@@ -1156,7 +1172,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 					description: sanitizedDescription,
 					disableModelInvocation: file.disableModelInvocation ?? false,
 					userInvocable: file.userInvocable ?? true,
-					when: undefined,
+					when,
 					pluginUri: file.promptPath.pluginUri,
 					extension: file.promptPath.extension,
 				});
@@ -1300,6 +1316,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const result: IInstructionFile[] = [];
 		for (const file of discoveryInfo.files) {
 			if (file.status === 'loaded' && file.promptPath.name) {
+				const when = isExtensionPromptPath(file.promptPath) && file.promptPath.when
+					? ContextKeyExpr.deserialize(file.promptPath.when) ?? undefined
+					: undefined;
 				result.push({
 					uri: file.promptPath.uri,
 					storage: file.promptPath.storage,
@@ -1309,6 +1328,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 					name: file.promptPath.name,
 					description: file.promptPath.description,
 					pattern: file.pattern,
+					when,
 				});
 			}
 		}
@@ -1354,6 +1374,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		const fileResults = await Promise.all(hookFiles.map(async (hookFile): Promise<{
 			file?: IPromptFileDiscoveryResult;
 			hooks?: Map<HookType, IParsedHookCommand[]>;
+			sourceUri?: URI;
 			hasDisabledClaudeHooks?: boolean;
 		}> => {
 			const name = basename(hookFile.uri);
@@ -1434,6 +1455,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				return {
 					file: { status: 'loaded', promptPath: this.withPromptPathMetadata(hookFile, name, hookFile.description) },
 					hooks,
+					sourceUri: hookFile.uri,
 				};
 			} catch (error) {
 				const msg = error instanceof Error ? error.message : String(error);
@@ -1454,21 +1476,23 @@ export class PromptsService extends Disposable implements IPromptsService {
 		let hasDisabledClaudeHooks = false;
 		const collectedHooks = new Map<HookType, IParsedHookCommand[]>();
 
-		for (const { file, hooks, hasDisabledClaudeHooks: disabled } of fileResults) {
+		for (const { file, hooks, sourceUri, hasDisabledClaudeHooks: disabled } of fileResults) {
 			if (file) {
 				files.push(file);
 			}
 			if (disabled) {
 				hasDisabledClaudeHooks = true;
 			}
-			if (hooks) {
+			if (hooks && sourceUri) {
 				for (const [hookType, commands] of hooks) {
 					let bucket = collectedHooks.get(hookType);
 					if (!bucket) {
 						bucket = [];
 						collectedHooks.set(hookType, bucket);
 					}
-					bucket.push(...commands);
+					for (const command of commands) {
+						bucket.push({ ...command, sourceUri });
+					}
 				}
 			}
 		}
@@ -1485,7 +1509,9 @@ export class PromptsService extends Disposable implements IPromptsService {
 					bucket = [];
 					collectedHooks.set(hook.type, bucket);
 				}
-				bucket.push(...hook.hooks);
+				for (const command of hook.hooks) {
+					bucket.push({ ...command, sourceUri: hook.uri });
+				}
 			}
 		}
 

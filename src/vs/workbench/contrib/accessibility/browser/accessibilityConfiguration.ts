@@ -67,7 +67,8 @@ export const enum AccessibilityVerbositySettingId {
 	Debug = 'accessibility.verbosity.debug',
 	Walkthrough = 'accessibility.verbosity.walkthrough',
 	SourceControl = 'accessibility.verbosity.sourceControl',
-	Find = 'accessibility.verbosity.find'
+	Find = 'accessibility.verbosity.find',
+	SessionsChat = 'accessibility.verbosity.sessionsChat'
 }
 
 const baseVerbosityProperty: IConfigurationPropertySchema = {
@@ -153,7 +154,7 @@ const configuration: IConfigurationNode = {
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.KeybindingsEditor]: {
-			description: localize('verbosity.keybindingsEditor.description', 'Provide information about how to change a keybinding in the keybindings editor when a row is focused.'),
+			description: localize('verbosity.keybindingsEditor.description', 'Provide information about how to change a keybinding in the keybindings editor when a row is focused and how to navigate to the results table.'),
 			...baseVerbosityProperty
 		},
 		[AccessibilityVerbositySettingId.Notebook]: {
@@ -203,6 +204,10 @@ const configuration: IConfigurationNode = {
 		},
 		[AccessibilityVerbositySettingId.Find]: {
 			description: localize('verbosity.find', 'Provide information about how to access the find accessibility help menu when the find input is focused.'),
+			...baseVerbosityProperty
+		},
+		[AccessibilityVerbositySettingId.SessionsChat]: {
+			description: localize('verbosity.sessionsChat', 'Provide information about how to access the Agents app accessibility help menu when the chat input is focused.'),
 			...baseVerbosityProperty
 		},
 		'accessibility.signalOptions.volume': {

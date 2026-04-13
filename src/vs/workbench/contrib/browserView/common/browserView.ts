@@ -6,6 +6,7 @@
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CDPEvent, CDPRequest, CDPResponse } from '../../../../platform/browserView/common/cdp/types.js';
@@ -40,6 +41,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { isLocalhostAuthority } from '../../../../platform/url/common/trustedDomains.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
 import { IBrowserZoomService } from './browserZoomService.js';
 
 /** Extracts the host from a URL string for zoom tracking purposes. */
@@ -191,6 +193,7 @@ export interface IBrowserViewModel extends IDisposable {
 	readonly onWillDispose: Event<void>;
 
 	initialize(create: boolean): Promise<void>;
+	setInitialURL(url: string, title?: string, favicon?: string): void;
 
 	layout(bounds: IBrowserViewBounds): Promise<void>;
 	setVisible(visible: boolean): Promise<void>;
@@ -255,6 +258,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		@IDialogService private readonly dialogService: IDialogService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IBrowserZoomService private readonly zoomService: IBrowserZoomService,
+		@IAgentNetworkFilterService private readonly agentNetworkFilterService: IAgentNetworkFilterService,
 	) {
 		super();
 	}
@@ -433,6 +437,19 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		}));
 	}
 
+	setInitialURL(url: string, title?: string, favicon?: string): void {
+		if (this._url !== url) {
+			this._url = url;
+			this._title = title || '';
+			this._favicon = favicon;
+			this._loading = true;
+			this._error = undefined;
+			this._certificateError = undefined;
+
+			void this.loadURL(url); // Non-blocking
+		}
+	}
+
 	async layout(bounds: IBrowserViewBounds): Promise<void> {
 		return this.browserViewService.layout(this.id, bounds);
 	}
@@ -562,6 +579,20 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	async setSharedWithAgent(shared: boolean): Promise<void> {
 		if (shared) {
+			// Block sharing when the current page URL is denied by network policy.
+			if (this._url) {
+				try {
+					const uri = URI.parse(this._url);
+					if (!this.agentNetworkFilterService.isUriAllowed(uri)) {
+						await this.dialogService.info(
+							localize('browserView.shareBlocked.title', "Cannot Share with Agent"),
+							this.agentNetworkFilterService.formatError(uri),
+						);
+						return;
+					}
+				} catch { }
+			}
+
 			const storedChoice = this.storageService.getBoolean(BrowserViewModel.SHARE_DONT_ASK_KEY, StorageScope.PROFILE);
 
 			if (!storedChoice) {

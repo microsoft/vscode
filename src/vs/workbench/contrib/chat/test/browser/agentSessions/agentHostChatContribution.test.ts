@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { DisposableStore, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { DisposableStore, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
@@ -16,15 +16,16 @@ import { timeout } from '../../../../../../base/common/async.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
-import type { IActionEnvelope, INotification, ISessionAction, IToolCallConfirmedAction, ITurnStartedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import { isSessionAction, type IActionEnvelope, type INotification, type ISessionAction, type ITerminalAction, type IToolCallConfirmedAction, type ITurnStartedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import type { ICustomizationRef } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, createSessionState, createActiveTurn, ROOT_STATE_URI, PolicyState, ResponsePartKind, type ISessionState, type ISessionSummary } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, createSessionState, createActiveTurn, ROOT_STATE_URI, PolicyState, ResponsePartKind, StateComponents, type ISessionState, type ISessionSummary, IRootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { sessionReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
 import { IChatAgentData, IChatAgentImplementation, IChatAgentRequest, IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatAgentLocation } from '../../../common/constants.js';
-import { IChatService, IChatMarkdownContent, IChatProgress, IChatTerminalToolInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { IChatService, IChatMarkdownContent, IChatProgress, IChatTerminalToolInvocationData, IChatToolInputInvocationData, IChatToolInvocation, IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { IChatEditingService } from '../../../common/editing/chatEditingService.js';
 import { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
@@ -43,6 +44,10 @@ import { IAgentHostFileSystemService } from '../../../../../services/agentHost/c
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IStorageService, InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
+import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
+import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
+import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
 
 // ---- Mock agent host service ------------------------------------------------
 
@@ -56,6 +61,9 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	override readonly onAgentHostExit = Event.None;
 	override readonly onAgentHostStart = Event.None;
 
+	// Track live subscriptions so fireAction can route to them
+	private readonly _liveSubscriptions = new Map<string, { state: ISessionState; emitter: Emitter<ISessionState> }>();
+
 	private _nextId = 1;
 	private readonly _sessions = new Map<string, IAgentSessionMetadata>();
 	public createSessionCalls: IAgentCreateSessionConfig[] = [];
@@ -65,12 +73,6 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	override async listSessions(): Promise<IAgentSessionMetadata[]> {
 		return [...this._sessions.values()];
 	}
-
-	override async listAgents() {
-		return this.agents;
-	}
-
-	override async refreshModels(): Promise<void> { }
 
 	override async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
 		if (config) {
@@ -83,12 +85,12 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	}
 
 	override async disposeSession(session: URI): Promise<void> { this.disposedSessions.push(session); }
-	override async shutdown(): Promise<void> { }
+	async shutdown(): Promise<void> { }
 	override async restartAgentHost(): Promise<void> { }
 
 	// Protocol methods
 	public override readonly clientId = 'test-window-1';
-	public dispatchedActions: { action: ISessionAction; clientId: string; clientSeq: number }[] = [];
+	public dispatchedActions: { action: ISessionAction | ITerminalAction; clientId: string; clientSeq: number }[] = [];
 
 	/** Returns dispatched actions filtered to turn-related types only
 	 *  (excludes lifecycle actions like activeClientChanged). */
@@ -96,7 +98,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		return this.dispatchedActions.filter(d => d.action.type === 'session/turnStarted');
 	}
 	public sessionStates = new Map<string, ISessionState>();
-	override async subscribe(resource: URI): Promise<IStateSnapshot> {
+	async subscribe(resource: URI): Promise<IStateSnapshot> {
 		const resourceStr = resource.toString();
 		const existingState = this.sessionStates.get(resourceStr);
 		if (existingState) {
@@ -127,18 +129,110 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			fromSeq: 0,
 		};
 	}
-	override unsubscribe(_resource: URI): void { }
-	override dispatchAction(action: ISessionAction, clientId: string, clientSeq: number): void {
+	unsubscribe(_resource: URI): void { }
+	dispatchAction(action: ISessionAction | ITerminalAction, clientId: string, clientSeq: number): void {
 		this.dispatchedActions.push({ action, clientId, clientSeq });
 	}
 	private _nextSeq = 1;
-	override nextClientSeq(): number {
+	nextClientSeq(): number {
 		return this._nextSeq++;
+	}
+
+	override readonly rootState: IAgentSubscription<IRootState> = {
+		value: undefined,
+		verifiedValue: undefined,
+		onDidChange: Event.None,
+		onWillApplyAction: Event.None,
+		onDidApplyAction: Event.None,
+	};
+	override getSubscription<T>(_kind: StateComponents, resource: URI): IReference<IAgentSubscription<T>> {
+		const resourceStr = resource.toString();
+		const emitter = new Emitter<T>();
+		const onWillApply = new Emitter<IActionEnvelope>();
+		const onDidApply = new Emitter<IActionEnvelope>();
+
+		// Hydrate synchronously with a default state
+		const existingState = this.sessionStates.get(resourceStr);
+		let initialState: ISessionState;
+		if (existingState) {
+			initialState = existingState;
+		} else {
+			const summary: ISessionSummary = {
+				resource: resourceStr,
+				provider: 'copilot',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: Date.now(),
+				modifiedAt: Date.now(),
+			};
+			initialState = { ...createSessionState(summary), lifecycle: SessionLifecycle.Ready };
+		}
+
+		// Register in live subscriptions so fireAction can route to it
+		const entry = { state: initialState, emitter: emitter as unknown as Emitter<ISessionState> };
+		this._liveSubscriptions.set(resourceStr, entry);
+
+		const self = this;
+		const sub: IAgentSubscription<T> = {
+			get value() { return self._liveSubscriptions.get(resourceStr)?.state as unknown as T; },
+			get verifiedValue() { return self._liveSubscriptions.get(resourceStr)?.state as unknown as T; },
+			onDidChange: emitter.event,
+			onWillApplyAction: onWillApply.event,
+			onDidApplyAction: onDidApply.event,
+		};
+		return {
+			object: sub,
+			dispose: () => {
+				this._liveSubscriptions.delete(resourceStr);
+				emitter.dispose();
+				onWillApply.dispose();
+				onDidApply.dispose();
+			},
+		};
+	}
+	override getSubscriptionUnmanaged<T>(_kind: StateComponents, resource: URI): IAgentSubscription<T> | undefined {
+		const entry = this._liveSubscriptions.get(resource.toString());
+		if (!entry) {
+			return undefined;
+		}
+		const self = this;
+		return {
+			get value() { return self._liveSubscriptions.get(resource.toString())?.state as unknown as T; },
+			get verifiedValue() { return self._liveSubscriptions.get(resource.toString())?.state as unknown as T; },
+			onDidChange: entry.emitter.event as unknown as Event<T>,
+			onWillApplyAction: Event.None,
+			onDidApplyAction: Event.None,
+		} satisfies IAgentSubscription<T>;
+	}
+	override dispatch(action: ISessionAction | ITerminalAction): void {
+		this.dispatchedActions.push({ action, clientId: this.clientId, clientSeq: this._nextSeq++ });
+		// Apply state-management actions optimistically so state-dependent
+		// logic (e.g. customization re-dispatch) sees the correct activeClient.
+		// Turn lifecycle actions (turnStarted, toolCallConfirmed, etc.) are applied
+		// later via fireAction when the server echoes them back.
+		if (isSessionAction(action) && action.type === 'session/activeClientChanged') {
+			const entry = this._liveSubscriptions.get(action.session);
+			if (entry) {
+				const noop = () => { };
+				entry.state = sessionReducer(entry.state, action as Parameters<typeof sessionReducer>[1], noop);
+				entry.emitter.fire(entry.state);
+			}
+		}
 	}
 
 	// Test helpers
 	fireAction(envelope: IActionEnvelope): void {
 		this._onDidAction.fire(envelope);
+		// Route action to matching live subscriptions
+		if (isSessionAction(envelope.action)) {
+			const sessionUri = envelope.action.session;
+			const entry = this._liveSubscriptions.get(sessionUri);
+			if (entry) {
+				const noop = () => { };
+				entry.state = sessionReducer(entry.state, envelope.action as Parameters<typeof sessionReducer>[1], noop);
+				entry.emitter.fire(entry.state);
+			}
+		}
 	}
 
 	addSession(meta: IAgentSessionMetadata): void {
@@ -166,7 +260,7 @@ class MockChatAgentService extends mock<IChatAgentService>() {
 
 // ---- Helpers ----------------------------------------------------------------
 
-function createTestServices(disposables: DisposableStore) {
+function createTestServices(disposables: DisposableStore, workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined }) {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	const agentHostService = new MockAgentHostService();
@@ -213,6 +307,17 @@ function createTestServices(disposables: DisposableStore) {
 	instantiationService.stub(IAgentPluginService, {
 		plugins: observableValue('plugins', []),
 	});
+	instantiationService.stub(ITerminalChatService, {
+		onDidContinueInBackground: Event.None,
+		registerTerminalInstanceWithToolSession: () => { },
+	});
+	instantiationService.stub(IAgentHostTerminalService, {
+		reviveTerminal: async () => undefined!,
+	});
+	instantiationService.stub(IAgentHostSessionWorkingDirectoryResolver, {
+		registerResolver: () => toDisposable(() => { }),
+		resolve: sessionResource => workingDirectoryResolver?.resolve(sessionResource),
+	});
 
 	return { instantiationService, agentHostService, chatAgentService };
 }
@@ -220,7 +325,7 @@ function createTestServices(disposables: DisposableStore) {
 function createContribution(disposables: DisposableStore) {
 	const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
 
-	const listController = disposables.add(instantiationService.createInstance(AgentHostSessionListController, 'agent-host-copilot', 'copilot', agentHostService, undefined));
+	const listController = disposables.add(instantiationService.createInstance(AgentHostSessionListController, 'agent-host-copilot', 'copilot', agentHostService, undefined, 'local'));
 	const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
 		provider: 'copilot' as const,
 		agentId: 'agent-host-copilot',
@@ -810,12 +915,12 @@ suite('AgentHostChatContribution', () => {
 			await turnPromise;
 		}));
 
-		test('shell permission shows terminal-style confirmation data', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		test('shell permission shows input-style confirmation data with toolInput', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { sessionHandler, agentHostService } = createContribution(disposables);
 
 			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
 
-			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-perm-shell', toolName: 'shell', displayName: 'Shell', _meta: { toolKind: 'terminal' } } as ISessionAction);
+			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-perm-shell', toolName: 'shell', displayName: 'Shell' } as ISessionAction);
 			fire({
 				type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-perm-shell',
 				invocationMessage: 'echo hello', toolInput: 'echo hello',
@@ -824,9 +929,9 @@ suite('AgentHostChatContribution', () => {
 			await timeout(10);
 			const toolInvocations = collected.flat().filter(p => p.kind === 'toolInvocation');
 			const permInvocation = toolInvocations[toolInvocations.length - 1] as IChatToolInvocation;
-			assert.strictEqual(permInvocation.toolSpecificData?.kind, 'terminal');
-			const termData = permInvocation.toolSpecificData as IChatTerminalToolInvocationData;
-			assert.strictEqual(termData.commandLine.original, 'echo hello');
+			assert.strictEqual(permInvocation.toolSpecificData?.kind, 'input');
+			const inputData = permInvocation.toolSpecificData as IChatToolInputInvocationData;
+			assert.deepStrictEqual(inputData.rawInput, { input: 'echo hello' });
 
 			IChatToolInvocation.confirmWith(permInvocation, { type: ToolConfirmKind.UserAction });
 			await timeout(10);
@@ -919,7 +1024,7 @@ suite('AgentHostChatContribution', () => {
 			fire({ type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-shell', invocationMessage: 'Running `echo hello`', toolInput: 'echo hello', confirmed: 'not-needed' } as ISessionAction);
 			fire({
 				type: 'session/toolCallComplete', session, turnId, toolCallId: 'tc-shell',
-				result: { success: true, pastTenseMessage: 'Ran `echo hello`', content: [{ type: 'text', text: 'hello\n' }] },
+				result: { success: true, pastTenseMessage: 'Ran `echo hello`', content: [{ type: 'terminal', resource: 'agenthost-terminal:///tc-shell-term' }, { type: 'text', text: 'hello\n' }] },
 			} as ISessionAction);
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 
@@ -957,7 +1062,7 @@ suite('AgentHostChatContribution', () => {
 			fire({ type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-fail', invocationMessage: 'Running `bad_cmd`', toolInput: 'bad_cmd', confirmed: 'not-needed' } as ISessionAction);
 			fire({
 				type: 'session/toolCallComplete', session, turnId, toolCallId: 'tc-fail',
-				result: { success: false, pastTenseMessage: '"Bash" failed', content: [{ type: 'text', text: 'command not found: bad_cmd' }], error: { message: 'command not found: bad_cmd' } },
+				result: { success: false, pastTenseMessage: '"Bash" failed', content: [{ type: 'terminal', resource: 'agenthost-terminal:///tc-fail-term' }, { type: 'text', text: 'command not found: bad_cmd' }], error: { message: 'command not found: bad_cmd' } },
 			} as ISessionAction);
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 
@@ -1075,7 +1180,7 @@ suite('AgentHostChatContribution', () => {
 						kind: 'toolCall' as const, toolCall: {
 							status: 'completed' as const, toolCallId: 'tc-1', toolName: 'bash', displayName: 'Bash',
 							invocationMessage: 'Running `ls`', toolInput: 'ls', _meta: { toolKind: 'terminal', language: 'shellscript' },
-							confirmed: 'not-needed' as const, success: true, pastTenseMessage: 'Ran `ls`', content: [{ type: 'text' as const, text: 'file1\nfile2' }],
+							confirmed: 'not-needed' as const, success: true, pastTenseMessage: 'Ran `ls`', content: [{ type: 'terminal' as const, resource: 'agenthost-terminal:///tc-1-term' }, { type: 'text' as const, text: 'file1\nfile2' }],
 						}
 					}],
 					usage: undefined,
@@ -1505,6 +1610,30 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(agentHostService.createSessionCalls[0].workingDirectory?.toString(), URI.file('/custom/working/dir').toString());
 		}));
 
+		test('handler uses registered working directory resolver', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const resolvedWorkingDirectory = URI.file('/resolved/working/dir');
+			const { instantiationService, agentHostService } = createTestServices(disposables, {
+				resolve: () => resolvedWorkingDirectory,
+			});
+
+			const handler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'workdir-resolver-test',
+				sessionType: 'workdir-resolver-test',
+				fullName: 'Test',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+			}));
+
+			const { turnPromise, session, turnId, fire } = await startTurn(handler, agentHostService, disposables);
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.createSessionCalls.length, 1);
+			assert.strictEqual(agentHostService.createSessionCalls[0].workingDirectory?.toString(), resolvedWorkingDirectory.toString());
+		}));
+
 		test('handler passes vscode-agent-host URI as-is to createSession', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const { instantiationService, agentHostService } = createTestServices(disposables);
 
@@ -1541,7 +1670,7 @@ suite('AgentHostChatContribution', () => {
 			const { instantiationService, agentHostService } = createTestServices(disposables);
 
 			const controller = disposables.add(instantiationService.createInstance(
-				AgentHostSessionListController, 'remote-test', 'copilot', agentHostService, 'My Remote Host'));
+				AgentHostSessionListController, 'remote-test', 'copilot', agentHostService, 'My Remote Host', 'local'));
 
 			agentHostService.addSession({ session: AgentSession.uri('copilot', 'sess-1'), startTime: 1000, modifiedTime: 2000, summary: 'Test session' });
 			await controller.refresh(CancellationToken.None);
@@ -1554,7 +1683,7 @@ suite('AgentHostChatContribution', () => {
 			const { instantiationService, agentHostService } = createTestServices(disposables);
 
 			const controller = disposables.add(instantiationService.createInstance(
-				AgentHostSessionListController, 'agent-host-copilot', 'copilot', agentHostService, undefined));
+				AgentHostSessionListController, 'agent-host-copilot', 'copilot', agentHostService, undefined, 'local'));
 
 			agentHostService.addSession({ session: AgentSession.uri('copilot', 'sess-2'), startTime: 1000, modifiedTime: 2000, summary: 'Test' });
 			await controller.refresh(CancellationToken.None);

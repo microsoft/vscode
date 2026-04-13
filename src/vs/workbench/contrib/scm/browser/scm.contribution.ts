@@ -702,7 +702,7 @@ registerAction2(class extends Action2 {
 				id: MenuId.EditorContent,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.Setup.hidden.negate(),
-					ChatContextKeys.Setup.disabled.negate(),
+					ChatContextKeys.Setup.disabledInWorkspace.negate(),
 					ChatContextKeys.Setup.completed.negate(),
 					ContextKeyExpr.in(ResourceContextKey.Resource.key, 'git.mergeChanges'),
 					ContextKeyExpr.equals('git.activeResourceHasMergeConflicts', true)
