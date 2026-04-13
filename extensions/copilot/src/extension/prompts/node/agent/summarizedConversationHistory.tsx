@@ -700,6 +700,7 @@ class ConversationHistorySummarizer {
 			} : undefined;
 
 			stripCacheBreakpoints(summarizationPrompt);
+			replaceImageContentWithPlaceholders(summarizationPrompt);
 
 			let messages = ToolCallingLoop.stripInternalToolCallIds(summarizationPrompt);
 
@@ -908,6 +909,17 @@ function stripCacheBreakpoints(messages: ChatMessage[]): void {
 	messages.forEach(message => {
 		message.content = message.content.filter(part => {
 			return part.type !== Raw.ChatCompletionContentPartKind.CacheBreakpoint;
+		});
+	});
+}
+
+function replaceImageContentWithPlaceholders(messages: ChatMessage[]): void {
+	messages.forEach(message => {
+		message.content = message.content.map(part => {
+			if (part.type === Raw.ChatCompletionContentPartKind.Image) {
+				return { type: Raw.ChatCompletionContentPartKind.Text, text: '[Image was attached]' };
+			}
+			return part;
 		});
 	});
 }
