@@ -60,12 +60,9 @@ test('${escapeTestName(testName)}', () => {
 				// WHEN ${triggerDesc}
 				// the system SHALL ${actionDesc}
 				//
-				// ${'TODO'}: Replace with actual trigger simulation and assertion.
-				// The arbitrary should model the trigger's input space.
-				// The property should assert the action's postcondition.
-				const triggerOccurred = simulateTrigger(input);
-				fc.pre(triggerOccurred);
-				const result = executeAction(input);
+				// INSTRUCTION: Replace with actual trigger simulation and assertion.
+				// The property tests that whenever the trigger occurs, the expected action follows.
+				const result = simulateEvent(input);
 				expect(result.actionPerformed).toBe(true);
 			}
 		)
