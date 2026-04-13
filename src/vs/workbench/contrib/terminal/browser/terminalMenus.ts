@@ -664,12 +664,36 @@ export function setupTerminalMenus(): void {
 				id: MenuId.TerminalTabContext,
 				item: {
 					command: {
+						id: TerminalCommandId.MoveTabUp,
+						title: localize('moveTabUp', 'Move Terminal Tab Up')
+					},
+					when: ContextKeyExpr.greater(TerminalContextKeys.groupCount.key, 1),
+					group: TerminalContextMenuGroup.Kill,
+					order: 2
+				}
+			},
+			{
+				id: MenuId.TerminalTabContext,
+				item: {
+					command: {
+						id: TerminalCommandId.MoveTabDown,
+						title: localize('moveTabDown', 'Move Terminal Tab Down')
+					},
+					when: ContextKeyExpr.greater(TerminalContextKeys.groupCount.key, 1),
+					group: TerminalContextMenuGroup.Kill,
+					order: 3
+				}
+			},
+			{
+				id: MenuId.TerminalTabContext,
+				item: {
+					command: {
 						id: TerminalCommandId.KillGroupsBelow,
 						title: localize('killGroupsBelow', 'Kill Terminals Below')
 					},
 					when: ContextKeyExpr.greater(TerminalContextKeys.groupCount.key, 1),
 					group: TerminalContextMenuGroup.Kill,
-					order: 1
+					order: 4
 				}
 			}
 		]

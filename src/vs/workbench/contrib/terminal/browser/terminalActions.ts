@@ -565,8 +565,10 @@ export function registerTerminalActions() {
 		id: TerminalCommandId.MoveTabUp,
 		title: localize2('workbench.action.terminal.moveTabUp', 'Move Terminal Tab Up'),
 		precondition: ContextKeyExpr.greater(TerminalContextKeys.groupCount.key, 1),
-		run: (c) => {
-			const group = c.groupService.activeGroup;
+		run: (c, accessor, _args, allInstanceArgs) => {
+			const instances = getSelectedViewInstances2(accessor, allInstanceArgs);
+			const instance = instances?.[0] ?? c.groupService.activeInstance;
+			const group = instance ? c.groupService.getGroupForInstance(instance) : c.groupService.activeGroup;
 			if (group) {
 				c.groupService.moveGroupUp(group);
 			}
@@ -577,8 +579,10 @@ export function registerTerminalActions() {
 		id: TerminalCommandId.MoveTabDown,
 		title: localize2('workbench.action.terminal.moveTabDown', 'Move Terminal Tab Down'),
 		precondition: ContextKeyExpr.greater(TerminalContextKeys.groupCount.key, 1),
-		run: (c) => {
-			const group = c.groupService.activeGroup;
+		run: (c, accessor, _args, allInstanceArgs) => {
+			const instances = getSelectedViewInstances2(accessor, allInstanceArgs);
+			const instance = instances?.[0] ?? c.groupService.activeInstance;
+			const group = instance ? c.groupService.getGroupForInstance(instance) : c.groupService.activeGroup;
 			if (group) {
 				c.groupService.moveGroupDown(group);
 			}
@@ -590,14 +594,16 @@ export function registerTerminalActions() {
 		title: localize2('workbench.action.terminal.killGroupsBelow', 'Kill Terminals Below'),
 		f1: true,
 		precondition: ContextKeyExpr.greater(TerminalContextKeys.groupCount.key, 1),
-		run: async (c) => {
-			const group = c.groupService.activeGroup;
+		run: async (c, accessor, _args, allInstanceArgs) => {
+			const instances = getSelectedViewInstances2(accessor, allInstanceArgs);
+			const instance = instances?.[0] ?? c.groupService.activeInstance;
+			const group = instance ? c.groupService.getGroupForInstance(instance) : c.groupService.activeGroup;
 			if (group) {
 				const groupsBelow = c.groupService.getGroupsBelow(group);
 				const disposePromises: Promise<void>[] = [];
 				for (const g of groupsBelow) {
-					for (const instance of g.terminalInstances) {
-						disposePromises.push(c.service.safeDisposeTerminal(instance));
+					for (const inst of g.terminalInstances.slice()) {
+						disposePromises.push(c.service.safeDisposeTerminal(inst));
 					}
 				}
 				await Promise.all(disposePromises);
