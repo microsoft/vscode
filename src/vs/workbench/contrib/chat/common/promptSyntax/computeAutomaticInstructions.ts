@@ -345,7 +345,8 @@ export class ComputeAutomaticInstructions {
 
 		const remoteEnv = await this._remoteAgentService.getEnvironment();
 		const remoteOS = remoteEnv?.os;
-		const filePath = (uri: URI) => getFilePath(uri, remoteOS);
+		const isRemote = this._remoteAgentService.getConnection() !== null;
+		const filePath = (uri: URI) => getFilePath(uri, remoteOS, isRemote);
 
 		const entries: string[] = [];
 		if (readTool) {
@@ -579,7 +580,14 @@ export class ComputeAutomaticInstructions {
 }
 
 
-export function getFilePath(uri: URI, remoteOS: OperatingSystem | undefined): string {
+export function getFilePath(uri: URI, remoteOS: OperatingSystem | undefined, isRemote = false): string {
+	// When connected to a remote, local file:// URIs must be represented as
+	// vscode-local:// so the remote extension host can read them via the local
+	// file bridge. This works for WSL, SSH, and dev containers without any
+	// cache migration.
+	if (isRemote && uri.scheme === Schemas.file) {
+		return uri.with({ scheme: 'vscode-local' }).toString();
+	}
 	if (uri.scheme === Schemas.file || uri.scheme === Schemas.vscodeRemote) {
 		const fsPath = uri.fsPath;
 		// uri.fsPath uses the local OS's path separators, but the path
