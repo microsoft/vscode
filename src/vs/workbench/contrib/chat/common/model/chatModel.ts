@@ -2819,24 +2819,10 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	override dispose() {
-		this._requests.forEach(r => {
-			r.response?.dispose();
-			// Break back-reference from request to this model
-			// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
-			(r as any)._session = undefined;
-		});
+		this._requests.forEach(r => r.response?.dispose());
 		this._onDidDispose.fire();
 
 		super.dispose();
-
-		// Null out heavy fields to break retention chains. Even after disposal,
-		// stale references (closures, cached templates, etc.) may prevent GC
-		// from collecting this object. Clearing these fields ensures the
-		// conversation data, serialization snapshot, and editing session are
-		// freed regardless.
-		this._requests.length = 0;
-		this.dataSerializer = undefined;
-		this._editingSession = undefined;
 	}
 }
 
