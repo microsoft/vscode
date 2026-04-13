@@ -59,6 +59,7 @@ export class GraphWriter {
 	}
 
 	private async writeFunctions(filePath: string, functions: ExtractedFunction[]): Promise<void> {
+		const exportedFunctions: string[] = [];
 		for (const fn of functions) {
 			if (fn.isMethod) {
 				// Methods are written as part of their class
@@ -101,11 +102,7 @@ export class GraphWriter {
 
 			// Create EXPORTS edge if exported
 			if (fn.exported) {
-				await this.db.write(
-					`MATCH (f:File {path: $filePath}), (fn:Function {qualifiedName: $qualifiedName, file: $filePath})
-					CREATE (f)-[:EXPORTS]->(fn)`,
-					{ filePath, qualifiedName: fn.qualifiedName }
-				);
+				exportedFunctions.push(fn.qualifiedName);
 			}
 
 			// Create RETURNS edge if return type matches a known type
@@ -135,6 +132,16 @@ export class GraphWriter {
 					);
 				}
 			}
+		}
+
+		if (exportedFunctions.length > 0) {
+			await this.db.write(
+				`MATCH (f:File {path: $filePath})
+				UNWIND $exportedNames AS qName
+				MATCH (fn:Function {qualifiedName: qName, file: $filePath})
+				CREATE (f)-[:EXPORTS]->(fn)`,
+				{ filePath, exportedNames: exportedFunctions }
+			);
 		}
 	}
 
