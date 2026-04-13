@@ -171,14 +171,7 @@ export class GraphWriter {
 				}
 			);
 
-			// Create EXPORTS edge if exported
-			if (cls.exported) {
-				await this.db.write(
-					`MATCH (f:File {path: $filePath}), (c:Class {name: $name, file: $filePath})
-					CREATE (f)-[:EXPORTS]->(c)`,
-					{ filePath, name: cls.name }
-				);
-			}
+
 
 			// Create EXTENDS edge
 			if (cls.extends) {
@@ -239,6 +232,18 @@ export class GraphWriter {
 					}
 				);
 			}
+		}
+
+		// Batch create EXPORTS edges for classes
+		const exportedClassNames = classes.filter(c => c.exported).map(c => c.name);
+		if (exportedClassNames.length > 0) {
+			await this.db.write(
+				`MATCH (f:File {path: $filePath})
+				UNWIND $classNames AS className
+				MATCH (c:Class {name: className, file: $filePath})
+				CREATE (f)-[:EXPORTS]->(c)`,
+				{ filePath, classNames: exportedClassNames }
+			);
 		}
 	}
 
