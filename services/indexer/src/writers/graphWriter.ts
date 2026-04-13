@@ -266,73 +266,73 @@ export class GraphWriter {
 	}
 
 	private async writeImports(filePath: string, imports: ExtractedImport[]): Promise<void> {
-		for (const imp of imports) {
-			// Create import node
-			await this.db.write(
-				`CREATE (:Import {
-					source: $source,
-					specifiers: $specifiers,
-					file: $file,
-					line: $line,
-					isDefault: $isDefault,
-					isNamespace: $isNamespace
-				})`,
-				{
-					source: imp.source,
-					specifiers: imp.specifiers.join(', '),
-					file: filePath,
-					line: imp.line,
-					isDefault: imp.isDefault,
-					isNamespace: imp.isNamespace,
-				}
-			);
-
-			// Try to create IMPORTS edge between files
-			// Resolve the import source to a file path (best effort)
-			const rawSource = imp.source;
-			// Normalize the source by stripping leading "./" or "/" segments.
-			const normalizedSource = rawSource.replace(/^(?:\.\/|\/)+/, '');
-			// Generate a small set of plausible file suffixes to match against.
-			const sourceCandidates = [
-				normalizedSource,
-				`${normalizedSource}.ts`,
-				`${normalizedSource}.tsx`,
-				`${normalizedSource}.js`,
-				`${normalizedSource}.jsx`,
-				`${normalizedSource}/index.ts`,
-				`${normalizedSource}/index.tsx`,
-				`${normalizedSource}/index.js`,
-				`${normalizedSource}/index.jsx`,
-			];
-
-			await this.db.write(
-				`MATCH (src:File {path: $srcPath}), (tgt:File)
-				WHERE tgt.path ENDS WITH $source1
-					OR tgt.path ENDS WITH $source2
-					OR tgt.path ENDS WITH $source3
-					OR tgt.path ENDS WITH $source4
-					OR tgt.path ENDS WITH $source5
-					OR tgt.path ENDS WITH $source6
-					OR tgt.path ENDS WITH $source7
-					OR tgt.path ENDS WITH $source8
-					OR tgt.path ENDS WITH $source9
-				CREATE (src)-[:IMPORTS {specifiers: $specifiers, line: $line}]->(tgt)`,
-				{
-					srcPath: filePath,
-					source1: sourceCandidates[0],
-					source2: sourceCandidates[1],
-					source3: sourceCandidates[2],
-					source4: sourceCandidates[3],
-					source5: sourceCandidates[4],
-					source6: sourceCandidates[5],
-					source7: sourceCandidates[6],
-					source8: sourceCandidates[7],
-					source9: sourceCandidates[8],
-					specifiers: imp.specifiers.join(', '),
-					line: imp.line,
-				}
-			);
+		if (imports.length === 0) {
+			return;
 		}
+
+		// Prepare data for UNWIND nodes
+		const importNodes = imports.map((imp) => ({
+			source: imp.source,
+			specifiers: imp.specifiers.join(', '),
+			file: filePath,
+			line: imp.line,
+			isDefault: imp.isDefault,
+			isNamespace: imp.isNamespace,
+		}));
+
+		// Create import nodes in a batch
+		await this.db.write(
+			`UNWIND $imports AS imp
+			CREATE (:Import {
+				source: imp.source,
+				specifiers: imp.specifiers,
+				file: imp.file,
+				line: imp.line,
+				isDefault: imp.isDefault,
+				isNamespace: imp.isNamespace
+			})`,
+			{ imports: importNodes }
+		);
+
+		// Prepare data for UNWIND edges
+		const importEdges = imports.map((imp) => {
+			const rawSource = imp.source;
+			const normalizedSource = rawSource.replace(/^(?:\.\/|\/)+/, '');
+			return {
+				specifiers: imp.specifiers.join(', '),
+				line: imp.line,
+				source1: normalizedSource,
+				source2: `${normalizedSource}.ts`,
+				source3: `${normalizedSource}.tsx`,
+				source4: `${normalizedSource}.js`,
+				source5: `${normalizedSource}.jsx`,
+				source6: `${normalizedSource}/index.ts`,
+				source7: `${normalizedSource}/index.tsx`,
+				source8: `${normalizedSource}/index.js`,
+				source9: `${normalizedSource}/index.jsx`,
+			};
+		});
+
+		// Create IMPORTS edges in a batch
+		await this.db.write(
+			`MATCH (src:File {path: $srcPath})
+			UNWIND $edges AS edge
+			MATCH (tgt:File)
+			WHERE tgt.path ENDS WITH edge.source1
+				OR tgt.path ENDS WITH edge.source2
+				OR tgt.path ENDS WITH edge.source3
+				OR tgt.path ENDS WITH edge.source4
+				OR tgt.path ENDS WITH edge.source5
+				OR tgt.path ENDS WITH edge.source6
+				OR tgt.path ENDS WITH edge.source7
+				OR tgt.path ENDS WITH edge.source8
+				OR tgt.path ENDS WITH edge.source9
+			CREATE (src)-[:IMPORTS {specifiers: edge.specifiers, line: edge.line}]->(tgt)`,
+			{
+				srcPath: filePath,
+				edges: importEdges
+			}
+		);
 	}
 
 	private async writeCallSites(callSites: CallSite[]): Promise<void> {
