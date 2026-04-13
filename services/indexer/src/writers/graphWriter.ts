@@ -236,38 +236,38 @@ export class GraphWriter {
 	}
 
 	private async writeTypes(filePath: string, types: ExtractedType[]): Promise<void> {
-		for (const t of types) {
-			await this.db.write(
-				`MATCH (f:File {path: $filePath})
-				CREATE (tp:Type {
-					name: $name,
-					kind: $kind,
-					file: $filePath,
-					startLine: $startLine,
-					endLine: $endLine,
-					exported: $exported,
-					contentHash: $contentHash
-				})
-				CREATE (f)-[:CONTAINS]->(tp)`,
-				{
-					filePath,
+		if (types.length === 0) {
+			return;
+		}
+
+		await this.db.write(
+			`MATCH (f:File {path: $filePath})
+			UNWIND $types AS t
+			CREATE (tp:Type {
+				name: t.name,
+				kind: t.kind,
+				file: $filePath,
+				startLine: t.startLine,
+				endLine: t.endLine,
+				exported: t.exported,
+				contentHash: t.contentHash
+			})
+			CREATE (f)-[:CONTAINS]->(tp)
+			WITH f, tp, t
+			WHERE t.exported = true
+			CREATE (f)-[:EXPORTS]->(tp)`,
+			{
+				filePath,
+				types: types.map(t => ({
 					name: t.name,
 					kind: t.typeKind,
 					startLine: t.startLine,
 					endLine: t.endLine,
 					exported: t.exported,
 					contentHash: t.contentHash,
-				}
-			);
-
-			if (t.exported) {
-				await this.db.write(
-					`MATCH (f:File {path: $filePath}), (tp:Type {name: $name, file: $filePath})
-					CREATE (f)-[:EXPORTS]->(tp)`,
-					{ filePath, name: t.name }
-				);
+				}))
 			}
-		}
+		);
 	}
 
 	private async writeImports(filePath: string, imports: ExtractedImport[]): Promise<void> {
