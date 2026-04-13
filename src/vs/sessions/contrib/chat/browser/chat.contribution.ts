@@ -12,16 +12,19 @@ import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { logSessionsInteraction } from '../../../common/sessionsTelemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IViewContainersRegistry, IViewsRegistry, ViewContainerLocation, Extensions as ViewExtensions, WindowVisibility } from '../../../../workbench/common/views.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
-import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { IsActiveSessionBackgroundProviderContext, ISessionsManagementService, IsNewChatSessionContext } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IsActiveSessionBackgroundProviderContext, IsNewChatSessionContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { Menus } from '../../../browser/menus.js';
 import { BranchChatSessionAction } from './branchChatSessionAction.js';
 import { RunScriptContribution } from './runScriptAction.js';
 import './nullInlineChatSessionService.js';
+import './nullChatTipService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { AgenticPromptsService } from './promptsService.js';
@@ -39,7 +42,13 @@ import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js'
 import { ChatViewPane } from '../../../../workbench/contrib/chat/browser/widgetHosts/viewPane/chatViewPane.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { CopilotCLISessionType } from '../../../services/sessions/common/session.js';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { SessionsChatAccessibilityHelp } from './sessionsChatAccessibilityHelp.js';
+import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { IRemoteAgentHostService, IRemoteAgentHostSSHConnection, RemoteAgentHostEntryType } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { encodeHex, VSBuffer } from '../../../../base/common/buffer.js';
 
 export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 	static readonly ID = 'chat.openSessionWorktreeInVSCode';
@@ -51,49 +60,140 @@ export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 			icon: Codicon.vscodeInsiders,
 			precondition: IsActiveSessionBackgroundProviderContext,
 			menu: [{
-				id: Menus.TitleBarRightLayout,
+				id: Menus.TitleBarSessionMenu,
 				group: 'navigation',
-				order: 0,
-				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsActiveSessionBackgroundProviderContext),
+				order: 9,
+				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated()),
 			}]
 		});
 	}
 
 	override async run(accessor: ServicesAccessor): Promise<void> {
+		const telemetryService = accessor.get(ITelemetryService);
+		logSessionsInteraction(telemetryService, 'openInVSCode');
+
 		const openerService = accessor.get(IOpenerService);
 		const productService = accessor.get(IProductService);
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const sessionsProvidersService = accessor.get(ISessionsProvidersService);
+		const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
 
 		const activeSession = sessionsManagementService.activeSession.get();
 		if (!activeSession) {
 			return;
 		}
 
-		const folderUri = activeSession.providerType === AgentSessionProviders.Background ? activeSession?.worktree ?? activeSession?.repository : undefined;
+		const workspace = activeSession.workspace.get();
+		const repo = workspace?.repositories[0];
+		const rawFolderUri = activeSession.sessionType === CopilotCLISessionType.id ? repo?.workingDirectory ?? repo?.uri : undefined;
 
-		if (!folderUri) {
+		if (!rawFolderUri) {
 			return;
 		}
+
+		// Unwrap agent-host URIs to get the original file path on the remote
+		const folderUri = rawFolderUri.scheme === AGENT_HOST_SCHEME ? fromAgentHostUri(rawFolderUri) : rawFolderUri;
+
+		// Resolve VS Code remote authority from the session's provider
+		const remoteAuthority = resolveRemoteAuthority(
+			activeSession.providerId, sessionsProvidersService, remoteAgentHostService);
 
 		const scheme = productService.quality === 'stable'
 			? 'vscode'
 			: productService.quality === 'exploration'
 				? 'vscode-exploration'
-				: 'vscode-insiders';
+				: productService.quality === 'insider'
+					? 'vscode-insiders'
+					: productService.urlProtocol;
 
 		const params = new URLSearchParams();
 		params.set('windowId', '_blank');
 		params.set('session', activeSession.resource.toString());
 
-		await openerService.open(URI.from({
-			scheme,
-			authority: Schemas.file,
-			path: folderUri.path,
-			query: params.toString(),
-		}), { openExternal: true });
+		if (remoteAuthority) {
+			// Open as remote: vscode://vscode-remote/<remoteAuthority><path>
+			// The main process converts this to vscode-remote://<remoteAuthority><path>
+			await openerService.open(URI.from({
+				scheme,
+				authority: Schemas.vscodeRemote,
+				path: `/${remoteAuthority}${folderUri.path}`,
+				query: params.toString(),
+			}), { openExternal: true });
+		} else {
+			// Open as local file
+			await openerService.open(URI.from({
+				scheme,
+				authority: Schemas.file,
+				path: folderUri.path,
+				query: params.toString(),
+			}), { openExternal: true });
+		}
 	}
 }
 registerAction2(OpenSessionWorktreeInVSCodeAction);
+
+/**
+ * Resolves the VS Code remote authority for the given session provider,
+ * e.g. `ssh-remote+myhost` or `tunnel+myTunnel`.
+ *
+ * Returns `undefined` for local or WebSocket-only providers where no
+ * VS Code remote extension can handle the connection.
+ */
+export function resolveRemoteAuthority(
+	providerId: string,
+	sessionsProvidersService: ISessionsProvidersService,
+	remoteAgentHostService: IRemoteAgentHostService,
+): string | undefined {
+	const provider = sessionsProvidersService.getProvider(providerId);
+	if (!provider?.remoteAddress) {
+		return undefined;
+	}
+
+	const entry = remoteAgentHostService.getEntryByAddress(provider.remoteAddress);
+	if (!entry) {
+		return undefined;
+	}
+
+	switch (entry.connection.type) {
+		case RemoteAgentHostEntryType.SSH:
+			if (entry.connection.sshConfigHost) {
+				return `ssh-remote+${entry.connection.sshConfigHost}`;
+			}
+			return `ssh-remote+${sshAuthorityString(entry.connection)}`;
+		case RemoteAgentHostEntryType.Tunnel:
+			return `tunnel+${entry.connection.label ?? `${entry.connection.tunnelId}.${entry.connection.clusterId}`}`;
+		default:
+			return undefined;
+	}
+}
+
+/**
+ * Encodes an SSH connection into the authority string format expected by
+ * the Remote SSH extension.
+ *
+ * Simple hostnames (lowercase alphanumeric) are used verbatim.
+ * Complex hosts (with user, port, uppercase, or special characters)
+ * are encoded as a hex-encoded JSON object `{"hostName":...,"user":...,"port":...}`.
+ */
+export function sshAuthorityString(connection: IRemoteAgentHostSSHConnection): string {
+	const hostName = connection.hostName;
+	const needsEncoding = connection.user || connection.port
+		|| /[A-Z/\\+]/.test(hostName) || !/^[a-zA-Z0-9.:\-]+$/.test(hostName);
+	if (!needsEncoding) {
+		return hostName;
+	}
+
+	const obj: Record<string, string | number> = { hostName };
+	if (connection.user) {
+		obj.user = connection.user;
+	}
+	if (connection.port) {
+		obj.port = connection.port;
+	}
+
+	const json = JSON.stringify(obj);
+	return encodeHex(VSBuffer.fromString(json));
+}
 
 class NewChatInSessionsWindowAction extends Action2 {
 
@@ -198,3 +298,6 @@ registerSingleton(IPromptsService, AgenticPromptsService, InstantiationType.Dela
 registerSingleton(ISessionsConfigurationService, SessionsConfigurationService, InstantiationType.Delayed);
 registerSingleton(IAICustomizationWorkspaceService, SessionsAICustomizationWorkspaceService, InstantiationType.Delayed);
 registerSingleton(ICustomizationHarnessService, SessionsCustomizationHarnessService, InstantiationType.Delayed);
+
+// register accessibility help
+AccessibleViewRegistry.register(new SessionsChatAccessibilityHelp());

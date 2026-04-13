@@ -15,4 +15,5 @@ export type EmbeddedProductInfo = {
 	win32RegValueName: string;
 	win32NameVersion: string;
 	win32VersionedUpdate: boolean;
+	win32SiblingExeBasename?: string;
 };

@@ -13,10 +13,9 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
-import { ChatAgentVoteDirection, ChatAgentVoteDownReason, ChatRequestQueueKind, IChatCodeCitation, IChatContentReference, IChatDisabledClaudeHooksPart, IChatFollowup, IChatMcpServersStarting, IChatProgressMessage, IChatQuestionCarousel, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from '../chatService/chatService.js';
+import { ChatAgentVoteDirection, ChatRequestQueueKind, IChatCodeCitation, IChatContentReference, IChatDisabledClaudeHooksPart, IChatFollowup, IChatMcpServersStarting, IChatProgressMessage, IChatQuestionCarousel, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from '../chatService/chatService.js';
 import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentResult } from '../participants/chatAgents.js';
 import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
-import { CodeBlockModelCollection } from '../widget/codeBlockModelCollection.js';
 import { IChatModel, IChatProgressRenderableResponseContent, IChatRequestDisablement, IChatRequestModel, IChatResponseModel, IChatTextEditGroup, IResponse } from './chatModel.js';
 import { ChatStreamStatsTracker, IChatStreamStats } from './chatStreamStats.js';
 import { countWords } from './chatWordCounter.js';
@@ -94,10 +93,13 @@ export interface IChatRequestViewModel {
 	readonly slashCommand: IChatAgentCommand | undefined;
 	readonly agentOrSlashCommandDetected: boolean;
 	readonly shouldBeBlocked: IObservable<boolean>;
+	readonly attachedContext?: readonly IChatRequestVariableEntry[];
 	readonly modelId?: string;
 	readonly timestamp: number;
 	/** The kind of pending request, or undefined if not pending */
 	readonly pendingKind?: ChatRequestQueueKind;
+	readonly isSystemInitiated?: boolean;
+	readonly systemInitiatedLabel?: string;
 }
 
 export interface IChatResponseMarkdownRenderData {
@@ -157,6 +159,7 @@ export interface IChatReferences {
  */
 export interface IChatWorkingProgress {
 	kind: 'working';
+	content?: IMarkdownString;
 }
 
 
@@ -207,7 +210,6 @@ export interface IChatResponseViewModel {
 	readonly isCanceled: boolean;
 	readonly isStale: boolean;
 	readonly vote: ChatAgentVoteDirection | undefined;
-	readonly voteDownReason: ChatAgentVoteDownReason | undefined;
 	readonly replyFollowups?: IChatFollowup[];
 	readonly errorDetails?: IChatResponseErrorDetails;
 	readonly result?: IChatAgentResult;
@@ -217,7 +219,6 @@ export interface IChatResponseViewModel {
 	renderData?: IChatResponseRenderData;
 	currentRenderedHeight: number | undefined;
 	setVote(vote: ChatAgentVoteDirection): void;
-	setVoteDownReason(reason: ChatAgentVoteDownReason | undefined): void;
 	usedReferencesExpanded?: boolean;
 	vulnerabilitiesListExpanded: boolean;
 	setEditApplied(edit: IChatTextEditGroup, editCount: number): void;
@@ -276,7 +277,6 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 
 	constructor(
 		private readonly _model: IChatModel,
-		public readonly codeBlockModelCollection: CodeBlockModelCollection,
 		private readonly _options: IChatViewModelOptions | undefined,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 	) {
@@ -337,7 +337,12 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	}
 
 	getItems(): (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] {
-		let items: (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] = this._items.filter((item) => !item.shouldBeRemovedOnSend || item.shouldBeRemovedOnSend.afterUndoStop);
+		let items: (IChatRequestViewModel | IChatResponseViewModel | IChatPendingDividerViewModel)[] = this._items.filter((item) => {
+			if (item.shouldBeRemovedOnSend && !item.shouldBeRemovedOnSend.afterUndoStop) {
+				return false;
+			}
+			return true;
+		});
 		if (this._options?.maxVisibleItems !== undefined && items.length > this._options.maxVisibleItems) {
 			items = items.slice(-this._options.maxVisibleItems);
 		}
@@ -387,6 +392,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	override dispose() {
 		super.dispose();
 		dispose(this._items.filter((item): item is ChatResponseViewModel => item instanceof ChatResponseViewModel));
+		this._items.length = 0;
 	}
 }
 
@@ -464,6 +470,10 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 
 	currentRenderedHeight: number | undefined;
 
+	get attachedContext() {
+		return this._model.attachedContext;
+	}
+
 	get modelId() {
 		return this._model.modelId;
 	}
@@ -474,6 +484,14 @@ export class ChatRequestViewModel implements IChatRequestViewModel {
 
 	get pendingKind() {
 		return this._pendingKind;
+	}
+
+	get isSystemInitiated() {
+		return this._model.isSystemInitiated;
+	}
+
+	get systemInitiatedLabel() {
+		return this._model.systemInitiatedLabel;
 	}
 
 	constructor(
@@ -587,10 +605,6 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 		return this._model.vote;
 	}
 
-	get voteDownReason() {
-		return this._model.voteDownReason;
-	}
-
 	get requestId() {
 		return this._model.requestId;
 	}
@@ -664,11 +678,6 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 	setVote(vote: ChatAgentVoteDirection): void {
 		this._modelChangeCount++;
 		this._model.setVote(vote);
-	}
-
-	setVoteDownReason(reason: ChatAgentVoteDownReason | undefined): void {
-		this._modelChangeCount++;
-		this._model.setVoteDownReason(reason);
 	}
 
 	setEditApplied(edit: IChatTextEditGroup, editCount: number) {

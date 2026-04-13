@@ -82,11 +82,13 @@ The Agent Sessions titlebar includes a command center with a custom title bar wi
 
 The widget:
 - Extends `BaseActionViewItem` and renders a clickable label showing the active session title
-- Shows kind icon (provider type icon), session title, repository folder name, and changes summary (+insertions -deletions)
+- Shows kind icon (provider type icon), session title, repository folder name, and the active git branch/worktree name in parentheses when available, plus the changes summary (+insertions -deletions)
+- Truncates the repository/worktree metadata with ellipsis before truncating the primary AI-generated session title when command center space is constrained
 - On click, opens the `AgentSessionsPicker` quick pick to switch between sessions
 - Gets the active session label from `IActiveSessionService.getActiveSession()` and the live model title from `IChatService`, falling back to "New Session" if no active session is found
 - Re-renders automatically when the active session changes via `autorun` on `IActiveSessionService.activeSession`, and when session data changes via `IAgentSessionsService.model.onDidChangeSessions`
 - Is registered via `SessionsTitleBarContribution` (an `IWorkbenchContribution` in `contrib/sessions/browser/sessionsTitleBarWidget.ts`) that calls `IActionViewItemService.register()` to intercept the submenu rendering
+- Uses `padding-left: 0` while the sidebar is visible, and restores `padding-left: 16px` when the sidebar is hidden via the `nosidebar` workbench class
 
 ### 3.3 Left Toolbar
 
@@ -172,6 +174,8 @@ This structure places the sidebar at the root level spanning the full window hei
 | Panel | 300px height |
 | Titlebar | Determined by `minimumHeight` (~30px) |
 
+The sessions sidebar can be resized down to a minimum width of 170px.
+
 ### 4.3 Editor Modal
 
 The main editor part is created but hidden (`display:none`). It exists for future use but is not currently visible. All editors are forced to open in the `ModalEditorPart` overlay via the standard `createModalEditorPart()` mechanism.
@@ -198,7 +202,7 @@ When the setting is `'all'`:
 The setting `workbench.editor.useModal` is an enum with three values:
 - `'off'`: Editors never open in a modal overlay
 - `'some'`: Certain editors (e.g. Settings, Keyboard Shortcuts) may open in a modal overlay when requested via `MODAL_GROUP`
-- `'all'`: All editors open in a modal overlay (used by sessions window)
+- `'all'`: All editors open in a modal overlay (used by agent sessions window)
 
 
 ---
@@ -417,14 +421,17 @@ Each agent session part uses separate storage keys to avoid conflicts with regul
 
 ### 9.5 Part Borders and Card Appearance
 
-Parts manage their own border and background styling via the `updateStyles()` method. The auxiliary bar and panel use a **card appearance** with CSS variables for background and border:
+Parts manage their own border and background styling via the `updateStyles()` method. In the default light theme, the sessions workbench surface uses the off-white workbench/sidebar background while the card-like chat, auxiliary bar, and panel surfaces use the brighter editor background. Light themes also override the chat, auxiliary bar, and panel card border color in CSS to use `editorWidget.border`, giving those cards a darker outline. Dark and high-contrast mappings continue to use the existing part border tokens. These surfaces use a **card appearance** with CSS variables for background and border:
 
 | Part | Styling | Notes |
 |------|---------|-------|
 | Sidebar | Right border via `SIDE_BAR_BORDER` / `contrastBorder` | Flush appearance, no card styling |
-| Chat Bar | Background only, no borders | `borderWidth` returns `0` |
-| Auxiliary Bar | Card appearance via CSS variables `--part-background` / `--part-border-color` | Uses `SIDE_BAR_BACKGROUND` / `SIDE_BAR_BORDER`; transparent background on container; margins create card offset |
-| Panel | Card appearance via CSS variables `--part-background` / `--part-border-color` | Uses `PANEL_BACKGROUND` / `PANEL_BORDER`; transparent background on container; margins create card offset |
+| Chat Bar | Card appearance via CSS variables `--part-background` / `--part-border-color`, with a light-theme-only CSS border-color override | Uses `sessionsChatBarBackground`; light themes map the card to `editorBackground` and darken the outline with `editorWidget.border`, while dark and high-contrast themes keep the existing part border token behavior; margins create card offset |
+| Auxiliary Bar | Card appearance via CSS variables `--part-background` / `--part-border-color`, with a light-theme-only CSS border-color override | Uses `sessionsAuxiliaryBarBackground` / `PANEL_BORDER`; default light themes map this card to `editorBackground` and darken the outline with `editorWidget.border`, while dark and high-contrast themes keep the existing sidebar-style surface; margins create card offset |
+| Panel | Card appearance via CSS variables `--part-background` / `--part-border-color`, with a light-theme-only CSS border-color override | Uses `sessionsPanelBackground` / `PANEL_BORDER`; default light themes map this card to `editorBackground` and darken the outline with `editorWidget.border`, while dark and high-contrast themes keep the existing sidebar-style surface; margins create card offset |
+
+The sessions workbench also scopes its resize sash styling in `browser/media/style.css`, rounding the sash hover indicator and orthogonal drag handles so the layout chrome matches the card surfaces.
+Both sessions chat input surfaces keep the unfocused `editorWidget.border` outline in light themes, but switch to `focusBorder` while focused so the new-chat view and the active chat input match the core workbench chat widget focus treatment.
 
 ---
 
@@ -441,6 +448,8 @@ The `AuxiliaryBarPart` provides a custom `DropdownWithPrimaryActionViewItem` for
 The `SidebarPart` includes a footer section (35px height) positioned below the pane composite content. The sidebar uses a custom `layout()` override that reduces the content height by `FOOTER_HEIGHT` and renders a `MenuWorkbenchToolBar` driven by `Menus.SidebarFooter`. The footer hosts the account widget (see Section 3.6).
 
 On macOS native with custom titlebar, the sidebar title area includes a traffic light spacer (70px) to push content past the system window controls. The spacer is hidden in fullscreen mode and is not created when using native titlebar (since the OS renders traffic lights in its own title bar).
+
+The sessions appear animation applies only to the sidebar body (`.part.sidebar > .content`). The sidebar container, title area, and footer do not participate in the reveal animation, so the header region stays visually fixed while the body slides/fades in. Normal hover and pressed feedback for header/footer controls is preserved.
 
 ---
 
@@ -471,8 +480,10 @@ The Changes view is registered in `contrib/changesView/browser/changesView.contr
 The Sessions view is registered in `contrib/sessions/browser/sessions.contribution.ts`:
 
 - **Container**: Sessions container in `ViewContainerLocation.Sidebar` (default)
-- **View**: `SessionsViewId` with `AgenticSessionsViewPane`
+- **View**: `SessionsViewId` with `SessionsView` (`contrib/sessions/browser/views/sessionsView.ts`)
 - **Window visibility**: `WindowVisibility.Sessions`
+- **Primary action**: The sidebar content starts with a left-aligned secondary "New Session" button rendered as `$(plus) Session`, with an inline shortcut hint that reflects the active `workbench.action.sessions.newChat` keybinding when one is available
+- **Header layout**: The sessions list header label remains visible as the sidebar narrows and truncates with ellipsis instead of being hidden outright; the inline find widget still replaces both the label and actions while open
 
 ---
 
@@ -640,6 +651,20 @@ interface IPartVisibilityState {
 
 | Date | Change |
 |------|--------|
+| 2026-04-10 | Updated the sessions titlebar widget so repository/worktree metadata truncates with ellipsis before the primary AI-generated session title when the command center gets narrow. |
+| 2026-04-10 | Updated workspace/repository section headers in the Sessions sidebar to keep their uppercase titles visible via ellipsis truncation so the section toolbar actions remain reachable when names are long. |
+| 2026-04-10 | Updated the Sessions view header so the sidebar "Sessions" label stays visible and truncates with ellipsis when space is tight instead of being hidden; documented the find-widget exception in the Sessions view spec. |
+| 2026-04-10 | Updated both sessions chat input surfaces so the standalone new-chat input and the active chat widget input switch their border to `focusBorder` while focused, matching the core workbench chat widget focus treatment. |
+| 2026-04-08 | Darkened the light-theme-only chat, auxiliary bar, and panel card borders with a sessions-specific CSS `border-color` override that uses `editorWidget.border`; dark and high-contrast themes continue using the existing part border tokens. |
+| 2026-04-08 | Rounded the sessions workbench sash hover indicators and orthogonal drag handles via `browser/media/style.css` so resize handles use rounded corners instead of square edges. |
+| 2026-04-04 | Inverted the default light-theme surface mapping so the sessions window background uses the off-white workbench/sidebar surface while the chat, changes, and panel cards use the brighter editor background; dark and high-contrast mappings remain unchanged. |
+| 2026-04-03 | Updated `SessionsTitleBarWidget` to format active session titles as `{Title} · {repo name} ({git branch/worktree name})` when repository detail metadata is available, falling back to the worktree folder name when needed. |
+| 2026-04-03 | Reduced the sessions left sidebar minimum resizable width from 270px to 170px so it can shrink significantly more while keeping the default 300px width unchanged |
+| 2026-03-30 | Adjusted `.agent-sessions-titlebar-container` padding so it sits flush when the sidebar is visible and restores 16px left padding when the sidebar is hidden |
+| 2026-03-26 | Updated the sessions sidebar appear animation so only the body content (`.part.sidebar > .content`) slides/fades in during reveal while the sidebar title/header and footer remain fixed |
+| 2026-03-24 | Polished the sessions task configuration quick input modal to use stronger modal-style header chrome, increased horizontal padding in the quick input/form content, and added an explicit close action in the modal header |
+| 2026-03-25 | Updated Sessions view documentation to reflect the refactored `SessionsView` implementation in `contrib/sessions/browser/views/sessionsView.ts` and documented the left-aligned "+ Session" sidebar action with its inline keybinding hint |
+| 2026-03-24 | Updated the sessions new-chat empty state: removed the watermark, vertically centered the empty-state controls block, restyled the workspace picker as an inline `New session in {dropdown}` title row aligned to the chat input, and tuned empty-state dropdown icon/chevron and local-mode spacing for the final visual polish. |
 | 2026-03-02 | Fixed macOS sidebar traffic light spacer to only render with custom titlebar; added `!hasNativeTitlebar()` guard to `SidebarPart.createTitleArea()` so the 70px spacer is not created when using native titlebar (traffic lights are in the OS title bar, not overlapping the sidebar) |
 | 2026-02-20 | Replaced custom `EditorModal` with standard `ModalEditorPart` via `MODAL_GROUP`; main editor part created but hidden; changed `workbench.editor.useModal` from boolean to enum (`off`/`some`/`all`); sessions config uses `all`; removed `editorModal.ts` and editor modal CSS |
 | 2026-02-17 | Added `-webkit-app-region: drag` to sidebar title area so it can be used to drag the window; interactive children (actions, composite bar, labels) marked `no-drag`; CSS rules scoped to `.agent-sessions-workbench` in `parts/media/sidebarPart.css` |

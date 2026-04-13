@@ -6,9 +6,16 @@
 //#region --- editor/workbench core
 
 import '../editor/editor.all.js';
+import { getColorRegistry } from '../platform/theme/common/colorUtils.js';
+import { PANEL_BACKGROUND } from '../workbench/common/theme.js';
+import { TERMINAL_BACKGROUND_COLOR } from '../workbench/contrib/terminal/common/terminalColorRegistry.js';
 
 import '../workbench/api/browser/extensionHost.contribution.js';
 import '../workbench/browser/workbench.contribution.js';
+import { sessionsPanelBackground } from './common/theme.js';
+
+getColorRegistry().updateDefaultColor(PANEL_BACKGROUND, sessionsPanelBackground);
+getColorRegistry().updateDefaultColor(TERMINAL_BACKGROUND_COLOR, sessionsPanelBackground);
 
 //#endregion
 
@@ -441,5 +448,37 @@ import '../workbench/contrib/editTelemetry/browser/editTelemetry.contribution.js
 
 // Opener
 import '../workbench/contrib/opener/browser/opener.contribution.js';
+
+//#endregion
+
+//#region --- sessions contributions
+
+import './browser/paneCompositePartService.js';
+import './browser/layoutActions.js';
+
+import './contrib/accountMenu/browser/account.contribution.js';
+import './contrib/aiCustomizationTreeView/browser/aiCustomizationTreeView.contribution.js';
+import './contrib/chat/browser/chat.contribution.js';
+import './contrib/chat/browser/customizationsDebugLog.contribution.js';
+import './contrib/copilotChatSessions/browser/copilotChatSessions.contribution.js';
+import './contrib/sessions/browser/sessions.contribution.js';
+import './contrib/sessions/browser/customizationsToolbar.contribution.js';
+import './contrib/changes/browser/changesView.contribution.js';
+import './contrib/layout/browser/layout.contribution.js';
+import './contrib/codeReview/browser/codeReview.contributions.js';
+import './contrib/files/browser/files.contribution.js';
+import './contrib/github/browser/github.contribution.js';
+import './contrib/applyCommitsToParentRepo/browser/applyChangesToParentRepo.js';
+import './contrib/fileTreeView/browser/fileTreeView.contribution.js'; // view registration disabled; filesystem provider still needed
+import './contrib/configuration/browser/configuration.contribution.js';
+
+import './contrib/terminal/browser/sessionsTerminalContribution.js';
+import './contrib/logs/browser/logs.contribution.js';
+import './contrib/chatDebug/browser/chatDebug.contribution.js';
+import './contrib/workspace/browser/workspace.contribution.js';
+import './contrib/welcome/browser/welcome.contribution.js';
+import './contrib/policyBlocked/browser/policyBlocked.contribution.js';
+
+import './services/sessions/browser/sessionsManagementService.js';
 
 //#endregion

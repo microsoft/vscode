@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Event } from '../../base/common/event.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { ProxyChannel } from '../../base/parts/ipc/common/ipc.js';
 import { IAgentHostConnection, IAgentHostStarter } from '../../platform/agentHost/common/agent.js';
@@ -16,12 +17,24 @@ export const IServerAgentHostManager = createDecorator<IServerAgentHostManager>(
 
 /**
  * Server-specific agent host manager. Eagerly starts the agent host process,
- * handles crash recovery, and tracks active agent sessions via
- * {@link IServerLifetimeService} to keep the server alive while work is
- * in progress.
+ * handles crash recovery, and tracks both active agent sessions and connected
+ * WebSocket clients via {@link IServerLifetimeService} to keep the server
+ * alive while either signal is active.
+ *
+ * The lifetime token is held when active sessions > 0 OR connected clients > 0.
+ * It is released only when both are zero.
  */
 export interface IServerAgentHostManager {
 	readonly _serviceBrand: undefined;
+}
+
+/**
+ * Proxy interface for the connection tracker IPC channel exposed by the agent
+ * host process. This is NOT part of the agent host protocol -- it is a
+ * server-only process-management concern.
+ */
+interface IConnectionTrackerService {
+	readonly onDidChangeConnectionCount: Event<number>;
 }
 
 enum Constants {
@@ -33,8 +46,11 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 
 	private _restartCount = 0;
 
-	/** Lifetime token for when agent sessions are active. */
+	/** Lifetime token held while sessions are active or clients are connected. */
 	private readonly _lifetimeToken = this._register(new MutableDisposable());
+
+	private _hasActiveSessions = false;
+	private _connectionCount = 0;
 
 	constructor(
 		private readonly _starter: IAgentHostStarter,
@@ -53,14 +69,17 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 		this._logService.info('ServerAgentHostManager: agent host started');
 
 		// Connect logger channel so agent host logs appear in the output channel
-		this._register(new RemoteLoggerChannelClient(this._loggerService, connection.client.getChannel(AgentHostIpcChannels.Logger)));
+		connection.store.add(new RemoteLoggerChannelClient(this._loggerService, connection.client.getChannel(AgentHostIpcChannels.Logger)));
 
 		this._trackActiveSessions(connection);
+		this._trackClientConnections(connection);
 
 		// Handle unexpected exit
-		this._register(connection.onDidProcessExit(e => {
+		connection.store.add(connection.onDidProcessExit(e => {
 			if (!this._store.isDisposed) {
-				// Sessions are gone when the process exits
+				// Both signals are gone when the process exits
+				this._hasActiveSessions = false;
+				this._connectionCount = 0;
 				this._lifetimeToken.clear();
 
 				if (this._restartCount <= Constants.MaxRestarts) {
@@ -79,14 +98,27 @@ export class ServerAgentHostManager extends Disposable implements IServerAgentHo
 
 	private _trackActiveSessions(connection: IAgentHostConnection): void {
 		const agentService = ProxyChannel.toService<IAgentService>(connection.client.getChannel(AgentHostIpcChannels.AgentHost));
-		this._register(agentService.onDidAction(envelope => {
+		connection.store.add(agentService.onDidAction(envelope => {
 			if (envelope.action.type === 'root/activeSessionsChanged') {
-				if (envelope.action.activeSessions > 0) {
-					this._lifetimeToken.value ??= this._serverLifetimeService.active('AgentSession');
-				} else {
-					this._lifetimeToken.clear();
-				}
+				this._hasActiveSessions = envelope.action.activeSessions > 0;
+				this._updateLifetimeToken();
 			}
 		}));
+	}
+
+	private _trackClientConnections(connection: IAgentHostConnection): void {
+		const connectionTracker = ProxyChannel.toService<IConnectionTrackerService>(connection.client.getChannel(AgentHostIpcChannels.ConnectionTracker));
+		connection.store.add(connectionTracker.onDidChangeConnectionCount(count => {
+			this._connectionCount = count;
+			this._updateLifetimeToken();
+		}));
+	}
+
+	private _updateLifetimeToken(): void {
+		if (this._hasActiveSessions || this._connectionCount > 0) {
+			this._lifetimeToken.value ??= this._serverLifetimeService.active('AgentHost');
+		} else {
+			this._lifetimeToken.clear();
+		}
 	}
 }

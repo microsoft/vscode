@@ -285,10 +285,9 @@ class McpGalleryItemRenderer implements IListRenderer<IMcpServerItemEntry, IMcpG
 		const header = DOM.append(headerContainer, $('.header'));
 		const name = DOM.append(header, $('span.name'));
 		const description = DOM.append(details, $('.description.ellipsis'));
-		const footer = DOM.append(details, $('.footer'));
-		const publisherContainer = DOM.append(footer, $('.publisher-container'));
-		const publisher = DOM.append(publisherContainer, $('span.publisher-name'));
-		const actionContainer = DOM.append(footer, $('.mcp-gallery-action'));
+		const publisherContainer = DOM.append(details, $('.publisher-container'));
+		const publisher = DOM.append(publisherContainer, $('span.publisher-name.mcp-gallery-publisher'));
+		const actionContainer = DOM.append(container, $('.mcp-gallery-action'));
 		const installButton = new Button(actionContainer, { ...defaultButtonStyles, supportIcons: true });
 		installButton.element.classList.add('mcp-gallery-install-button');
 
@@ -382,6 +381,8 @@ export class McpListWidget extends Disposable {
 	private galleryServers: IWorkbenchMcpServer[] = [];
 	private searchQuery: string = '';
 	private browseMode: boolean = false;
+	private lastHeight: number = 0;
+	private lastWidth: number = 0;
 	private readonly collapsedGroups = new Set<string>();
 	private galleryCts: CancellationTokenSource | undefined;
 	private readonly delayedFilter = new Delayer<void>(200);
@@ -586,6 +587,12 @@ export class McpListWidget extends Disposable {
 		}
 	}
 
+	public showBrowseMarketplace(): void {
+		if (!this.browseMode) {
+			this.toggleBrowseMode(true);
+		}
+	}
+
 	private toggleBrowseMode(browse: boolean): void {
 		this.browseMode = browse;
 		this.searchInput.value = '';
@@ -607,6 +614,11 @@ export class McpListWidget extends Disposable {
 			this.galleryCts?.dispose(true);
 			this.galleryServers = [];
 			this.filterServers();
+		}
+
+		// Re-layout to account for the back link height change
+		if (this.lastHeight > 0) {
+			this.layout(this.lastHeight, this.lastWidth);
 		}
 	}
 
@@ -882,28 +894,26 @@ export class McpListWidget extends Disposable {
 	 * Layouts the widget.
 	 */
 	layout(height: number, width: number): void {
-		const sectionFooterHeight = this.sectionHeader.offsetHeight || 0;
-		const searchBarHeight = this.searchAndButtonContainer.offsetHeight || 52;
-		const backLinkHeight = this.browseMode ? (this.backLink.offsetHeight || 28) : 0;
-		const listHeight = height - sectionFooterHeight - searchBarHeight - backLinkHeight;
+		this.lastHeight = height;
+		this.lastWidth = width;
 
-		this.listContainer.style.height = `${Math.max(0, listHeight)}px`;
-		this.list.layout(Math.max(0, listHeight), width);
+		this.element.style.height = `${height}px`;
 
-		// Re-layout once after footer renders if we used a zero fallback
-		if (sectionFooterHeight === 0) {
-			DOM.getWindow(this.listContainer).requestAnimationFrame(() => {
-				if (this._store.isDisposed) {
-					return;
-				}
-				const actualFooterHeight = this.sectionHeader.offsetHeight;
-				if (actualFooterHeight > 0) {
-					const correctedHeight = height - actualFooterHeight - searchBarHeight - backLinkHeight;
-					this.listContainer.style.height = `${Math.max(0, correctedHeight)}px`;
-					this.list.layout(Math.max(0, correctedHeight), width);
-				}
-			});
+		// Measure sibling elements to calculate the list height.
+		// When offsetHeight returns 0 the container just became visible
+		// after display:none and the browser hasn't reflowed yet — defer
+		// layout to the next frame so measurements are accurate.
+		const searchBarHeight = this.searchAndButtonContainer.offsetHeight;
+		if (searchBarHeight === 0) {
+			DOM.getWindow(this.element).requestAnimationFrame(() => this.layout(this.lastHeight, this.lastWidth));
+			return;
 		}
+		const footerHeight = this.sectionHeader.offsetHeight;
+		const backLinkHeight = this.browseMode ? this.backLink.offsetHeight : 0;
+		const listHeight = Math.max(0, height - searchBarHeight - footerHeight - backLinkHeight);
+
+		this.listContainer.style.height = `${listHeight}px`;
+		this.list.layout(listHeight, width);
 	}
 
 	/**
@@ -911,6 +921,15 @@ export class McpListWidget extends Disposable {
 	 */
 	focusSearch(): void {
 		this.searchInput.focus();
+	}
+
+	/**
+	 * Scrolls the list so the last item is visible.
+	 */
+	revealLastItem(): void {
+		if (this.list.length > 0) {
+			this.list.reveal(this.list.length - 1);
+		}
 	}
 
 	/**

@@ -30,14 +30,29 @@ export async function initialize(injectPath: string): Promise<void> {
 			const path = join(injectPackageJSONPath, `../node_modules/${name}/package.json`);
 			const pkgJson = JSON.parse(String(await promises.readFile(path)));
 
-			// Determine the entry point: prefer exports["."].import for ESM, then main
+			// Determine the entry point: prefer exports["."].import for ESM, then main.
+			// Handle conditional export targets where exports["."].import/default
+			// can be a string or an object with a string `default` field.
+			// (Added for copilot-sdk)
 			let main: string | undefined;
 			if (pkgJson.exports?.['.']) {
 				const dotExport = pkgJson.exports['.'];
 				if (typeof dotExport === 'string') {
 					main = dotExport;
 				} else if (typeof dotExport === 'object' && dotExport !== null) {
-					main = dotExport.import ?? dotExport.default;
+					const resolveCondition = (v: unknown): string | undefined => {
+						if (typeof v === 'string') {
+							return v;
+						}
+						if (typeof v === 'object' && v !== null) {
+							const d = (v as { default?: unknown }).default;
+							if (typeof d === 'string') {
+								return d;
+							}
+						}
+						return undefined;
+					};
+					main = resolveCondition(dotExport.import) ?? resolveCondition(dotExport.default);
 				}
 			}
 			if (typeof main !== 'string') {

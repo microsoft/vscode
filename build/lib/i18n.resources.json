@@ -295,6 +295,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/contrib/welcomeOnboarding",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/contrib/welcomePage",
 			"project": "vscode-workbench"
 		},
@@ -649,6 +653,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/copilotChatSessions",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/codeReview",
 			"project": "vscode-sessions"
 		},
@@ -660,12 +668,20 @@
 			"name": "vs/sessions/contrib/files",
 			"project": "vscode-sessions"
 		},
+                {
+                        "name": "vs/sessions/contrib/policyBlocked",
+                        "project": "vscode-sessions"
+                },
 		{
 			"name": "vs/sessions/contrib/git",
 			"project": "vscode-sessions"
 		},
 		{
 			"name": "vs/sessions/contrib/logs",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/localAgentHost",
 			"project": "vscode-sessions"
 		},
 		{

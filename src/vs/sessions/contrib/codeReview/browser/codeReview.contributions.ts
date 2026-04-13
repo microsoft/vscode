@@ -5,7 +5,7 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
@@ -15,14 +15,13 @@ import { ServicesAccessor } from '../../../../platform/instantiation/common/inst
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { getSessionEditorComments } from '../../agentFeedback/browser/sessionEditorComments.js';
 import { CodeReviewService, CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, MAX_CODE_REVIEWS_PER_SESSION_VERSION, PRReviewStateKind } from './codeReviewService.js';
+import { CopilotCloudSessionType } from '../../../services/sessions/common/session.js';
 
 registerSingleton(ICodeReviewService, CodeReviewService, InstantiationType.Delayed);
 
@@ -42,7 +41,9 @@ function registerSessionCodeReviewAction(tooltip: string, icon: ThemeIcon): Disp
 				tooltip,
 				category: CHAT_CATEGORY,
 				icon,
-				precondition: canRunSessionCodeReviewContextKey,
+				precondition: ContextKeyExpr.and(
+					ChatContextKeys.hasAgentSessionChanges,
+					canRunSessionCodeReviewContextKey),
 				menu: [
 					{
 						id: MenuId.ChatEditingSessionChangesToolbar,
@@ -50,8 +51,7 @@ function registerSessionCodeReviewAction(tooltip: string, icon: ThemeIcon): Disp
 						order: 7,
 						when: ContextKeyExpr.and(
 							IsSessionsWindowContext,
-							ChatContextKeys.hasAgentSessionChanges,
-							ChatContextKeys.agentSessionType.notEqualsTo(AgentSessionProviders.Cloud),
+							ChatContextKeys.agentSessionType.notEqualsTo(CopilotCloudSessionType.id),
 						),
 					},
 				],
@@ -60,23 +60,24 @@ function registerSessionCodeReviewAction(tooltip: string, icon: ThemeIcon): Disp
 
 		override async run(accessor: ServicesAccessor, sessionResource?: URI): Promise<void> {
 			const sessionManagementService = accessor.get(ISessionsManagementService);
-			const agentSessionsService = accessor.get(IAgentSessionsService);
 			const codeReviewService = accessor.get(ICodeReviewService);
 			const agentFeedbackService = accessor.get(IAgentFeedbackService);
 
 			const resource = URI.isUri(sessionResource)
 				? sessionResource
-				: sessionManagementService.getActiveSession()?.resource;
+				: sessionManagementService.activeSession.get()?.resource;
 			if (!resource) {
 				return;
 			}
 
-			const session = agentSessionsService.getSession(resource);
-			if (!(session?.changes instanceof Array) || session.changes.length === 0) {
+			// Get changes from ISession
+			const sessionData = sessionManagementService.getSession(resource);
+			const changes = sessionData?.changes.get();
+			if (!changes || changes.length === 0) {
 				return;
 			}
 
-			const files = getCodeReviewFilesFromSessionChanges(session.changes);
+			const files = getCodeReviewFilesFromSessionChanges(changes);
 			const version = getCodeReviewVersion(files);
 
 			// If there are existing comments (code review or PR review), navigate to the first one
@@ -120,18 +121,15 @@ class CodeReviewToolbarContribution extends Disposable implements IWorkbenchCont
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
 		@ISessionsManagementService private readonly _sessionManagementService: ISessionsManagementService,
 		@ICodeReviewService private readonly _codeReviewService: ICodeReviewService,
 	) {
 		super();
 
 		const canRunCodeReviewContext = canRunSessionCodeReviewContextKey.bindTo(contextKeyService);
-		const sessionsChangedSignal = observableSignalFromEvent(this, this._agentSessionsService.model.onDidChangeSessions);
 
 		this._register(autorun(reader => {
 			const activeSession = this._sessionManagementService.activeSession.read(reader);
-			sessionsChangedSignal.read(reader);
 			this._actionRegistration.clear();
 
 			const sessionResource = activeSession?.resource;
@@ -141,14 +139,14 @@ class CodeReviewToolbarContribution extends Disposable implements IWorkbenchCont
 				return;
 			}
 
-			const session = this._agentSessionsService.getSession(sessionResource);
-			if (!(session?.changes instanceof Array) || session.changes.length === 0) {
+			const changes = activeSession.changes.read(reader);
+			if (changes.length === 0) {
 				canRunCodeReviewContext.set(false);
 				this._actionRegistration.value = registerSessionCodeReviewAction(localize('sessions.runCodeReview.noChanges', "No changes available for code review."), Codicon.codeReview);
 				return;
 			}
 
-			const files = getCodeReviewFilesFromSessionChanges(session.changes);
+			const files = getCodeReviewFilesFromSessionChanges(changes);
 			const version = getCodeReviewVersion(files);
 			const reviewState = this._codeReviewService.getReviewState(sessionResource).read(reader);
 			const prReviewState = this._codeReviewService.getPRReviewState(sessionResource).read(reader);

@@ -26,6 +26,54 @@
 	flex-direction: column;
 }
 
+.ai-customization-management-editor .sidebar-header-row {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 2px 0 6px;
+	margin-bottom: 6px;
+	border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border, transparent);
+}
+
+.ai-customization-management-editor .sidebar-home-button {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	gap: 10px;
+	padding: 5px 8px;
+	border: none;
+	border-radius: 4px;
+	background: var(--vscode-dropdown-background);
+	color: var(--vscode-dropdown-foreground);
+	cursor: pointer;
+	font-size: 12px;
+	font-weight: 600;
+	line-height: 18px;
+	font-family: inherit;
+}
+
+.ai-customization-management-editor .sidebar-home-button:hover {
+	background-color: var(--vscode-list-hoverBackground);
+}
+
+.ai-customization-management-editor .sidebar-home-button:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.ai-customization-management-editor .sidebar-home-icon {
+	flex-shrink: 0;
+	font-size: 14px;
+	opacity: 0.85;
+}
+
+.ai-customization-management-editor .sidebar-home-label {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
 .ai-customization-management-editor .sidebar-sections-list {
 	flex: 1;
 	overflow: hidden;
@@ -159,7 +207,7 @@
 
 .ai-customization-management-editor .content-inner {
 	height: 100%;
-	padding: 8px 12px;
+	padding: 10px;
 	box-sizing: border-box;
 }
 
@@ -168,12 +216,13 @@
 	display: flex;
 	flex-direction: column;
 	height: 100%;
+	overflow: hidden;
 }
 
 /* Harness dropdown in sidebar */
 .ai-customization-management-editor .sidebar-harness-dropdown {
-	flex-shrink: 0;
-	padding: 6px 4px 4px;
+	flex: 1;
+	min-width: 0;
 }
 
 .ai-customization-management-editor .harness-dropdown-button {
@@ -227,7 +276,7 @@
 	align-items: center;
 	gap: 8px;
 	flex-shrink: 0;
-	padding: 6px 0;
+	padding: 6px 2px;
 }
 
 .ai-customization-list-widget .list-search-container,
@@ -464,6 +513,25 @@
 	line-height: 16px;
 }
 
+/* Status icon for remote customization items (loading/loaded/degraded/error) */
+.ai-customization-list-item .item-status-icon {
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 14px;
+}
+
+/* Sync checkbox for local items in remote agent harness view */
+.ai-customization-list-item .item-sync-checkbox {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	margin-right: 4px;
+}
+
 /* MCP bridged badge — shown inline next to the server name */
 .mcp-server-item .mcp-server-name-row {
 	display: flex;
@@ -551,7 +619,6 @@
 .ai-customization-list-widget .section-footer .section-footer-description {
 	font-size: 13px;
 	color: var(--vscode-descriptionForeground);
-	line-height: 1.5;
 	margin: 0 0 8px 0;
 }
 
@@ -719,6 +786,7 @@
 	display: flex;
 	flex-direction: column;
 	height: 100%;
+	overflow: hidden;
 }
 
 .mcp-list-widget .section-footer {
@@ -887,6 +955,12 @@
 	display: flex;
 	gap: 4px;
 	flex-shrink: 0;
+	/* Reserve space so focused button outlines do not clip against the widget's overflow:hidden */
+	padding: 1px;
+}
+
+.mcp-list-widget .list-button-group .monaco-button:focus-visible {
+	outline-offset: -1px;
 }
 
 /* Back to installed link */
@@ -894,19 +968,23 @@
 	display: flex;
 	align-items: center;
 	gap: 4px;
-	padding: 4px 0;
+	padding: 4px 6px;
 	cursor: pointer;
 	font-size: 12px;
-	color: var(--vscode-textLink-foreground);
+	color: var(--vscode-descriptionForeground);
 	flex-shrink: 0;
+	border-radius: 4px;
+	margin: 4px 0;
 }
 
 .mcp-list-widget .mcp-back-link:hover {
-	color: var(--vscode-textLink-activeForeground);
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
 }
 
-.mcp-list-widget .mcp-back-link:hover span:last-child {
-	text-decoration: underline;
+.mcp-list-widget .mcp-back-link:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }
 
 /* Gallery item specifics */
@@ -930,21 +1008,31 @@
 }
 
 .mcp-gallery-item.extension-list-item {
-	padding: 6px 8px 6px 16px;
+	padding: 6px 16px;
 }
 
-.mcp-gallery-item.extension-list-item > .details > .footer {
-	display: flex;
-	align-items: center;
+.mcp-gallery-item.extension-list-item > .details {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
 }
 
-.mcp-gallery-item.extension-list-item .mcp-gallery-action {
-	margin-left: auto;
+.mcp-gallery-item.extension-list-item > .details > .description {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	line-height: 16px;
 }
 
 .mcp-gallery-item .mcp-gallery-install-button {
 	font-size: 11px;
 	padding: 2px 10px;
+}
+
+.mcp-gallery-item .mcp-gallery-install-button:focus-visible {
+	outline-offset: -1px;
 }
 
 /* Embedded Editor View */
@@ -958,8 +1046,7 @@
 	display: flex;
 	align-items: center;
 	gap: 12px;
-	padding: 8px 4px 12px 4px;
-	border-bottom: 1px solid var(--vscode-widget-border);
+	padding: 4px 0;
 	flex-shrink: 0;
 }
 
@@ -1056,3 +1143,5 @@
 .ai-customization-management-editor .embedded-editor-container .monaco-editor {
 	border-radius: 4px;
 }
+
+/* Welcome page styles live in the welcome page variant stylesheets. */

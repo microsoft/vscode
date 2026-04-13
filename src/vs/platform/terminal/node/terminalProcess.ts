@@ -31,7 +31,7 @@ const enum ShutdownConstants {
 	 * on Windows under conpty, killing a process while data is being output will cause the [conhost
 	 * flush to hang the pty host][2] because [conhost should be hosted on another thread][3].
 	 *
-	 * [1]: https://github.com/Tyriar/node-pty/issues/72
+	 * [1]: https://github.com/microsoft/node-pty/issues/72
 	 * [2]: https://github.com/microsoft/vscode/issues/71966
 	 * [3]: https://github.com/microsoft/node-pty/pull/415
 	 */
@@ -368,7 +368,7 @@ export class TerminalProcess extends Disposable implements ITerminalChildProcess
 	}
 
 	// Allow any trailing data events to be sent before the exit event is sent.
-	// See https://github.com/Tyriar/node-pty/issues/72
+	// See https://github.com/microsoft/node-pty/issues/72
 	private _queueProcessExit() {
 		if (this._logService.getLevel() === LogLevel.Trace) {
 			this._logService.trace('TerminalProcess#_queueProcessExit', new Error().stack?.replace(/^Error/, ''));

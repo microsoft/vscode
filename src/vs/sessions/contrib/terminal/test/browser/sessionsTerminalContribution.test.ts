@@ -14,16 +14,17 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { NullLogService, ILogService } from '../../../../../platform/log/common/log.js';
 import { ITerminalInstance, ITerminalService } from '../../../../../workbench/contrib/terminal/browser/terminal.js';
 import { ITerminalCapabilityStore, ICommandDetectionCapability, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
-import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
-import { IAgentSession, IAgentSessionsModel } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
+import { toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSessionProviders } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { IActiveSessionItem, ISessionsManagementService } from '../../../sessions/browser/sessionsManagementService.js';
+import { IChat, ISession } from '../../../../services/sessions/common/session.js';
+import { Codicon } from '../../../../../base/common/codicons.js';
 import { SessionsTerminalContribution } from '../../browser/sessionsTerminalContribution.js';
 import { TestPathService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IPathService } from '../../../../../workbench/services/path/common/pathService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
+import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 
 const HOME_DIR = URI.file('/home/user');
 
@@ -46,29 +47,101 @@ function makeAgentSession(opts: {
 	worktree?: URI;
 	providerType?: string;
 	isArchived?: boolean;
-	worktreePath?: string;
-}): IActiveSessionItem & IAgentSession {
-	return {
+}): IActiveSession {
+	const repo = opts.repository || opts.worktree ? {
+		uri: opts.repository ?? opts.worktree!,
+		workingDirectory: opts.worktree,
+		detail: undefined,
+		baseBranchName: undefined,
+		baseBranchProtected: undefined,
+	} : undefined;
+	const chat: IChat = {
 		resource: URI.parse('file:///session'),
-		repository: opts.repository,
-		worktree: opts.worktree,
-		providerType: opts.providerType ?? AgentSessionProviders.Local,
-		setArchived: () => { },
-		setPinned: () => { },
-		setRead: () => { },
-		isArchived: () => opts.isArchived ?? false,
-		isPinned: () => false,
-		isRead: () => true,
-		metadata: opts.worktreePath ? { worktreePath: opts.worktreePath } : undefined,
-	} as unknown as IActiveSessionItem & IAgentSession;
+		createdAt: new Date(),
+		title: observableValue('test.title', 'Test Session'),
+		updatedAt: observableValue('test.updatedAt', new Date()),
+		status: observableValue('test.status', 0),
+		changes: observableValue('test.changes', []),
+		modelId: observableValue('test.modelId', undefined),
+		mode: observableValue('test.mode', undefined),
+		isArchived: observableValue('test.isArchived', opts.isArchived ?? false),
+		isRead: observableValue('test.isRead', true),
+		lastTurnEnd: observableValue('test.lastTurnEnd', undefined),
+		description: observableValue('test.description', undefined),
+	};
+	const session: IActiveSession = {
+		sessionId: 'test:session',
+		resource: chat.resource,
+		providerId: 'test',
+		sessionType: opts.providerType ?? AgentSessionProviders.Local,
+		icon: Codicon.copilot,
+		createdAt: chat.createdAt,
+		workspace: observableValue('test.workspace', repo ? { label: 'test', icon: Codicon.repo, repositories: [repo], requiresWorkspaceTrust: false, } : undefined),
+		title: chat.title,
+		updatedAt: chat.updatedAt,
+		status: chat.status,
+		changes: chat.changes,
+		modelId: chat.modelId,
+		mode: chat.mode,
+		loading: observableValue('test.loading', false),
+		isArchived: chat.isArchived,
+		isRead: chat.isRead,
+		lastTurnEnd: chat.lastTurnEnd,
+		description: chat.description,
+		gitHubInfo: observableValue('test.gitHubInfo', undefined),
+		chats: observableValue('test.chats', [chat]),
+		activeChat: observableValue('test.activeChat', chat),
+		mainChat: chat,
+	};
+	return session;
 }
 
-function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerType?: string }): IActiveSessionItem {
-	return {
-		repository: opts.repository,
-		worktree: opts.worktree,
-		providerType: opts.providerType ?? AgentSessionProviders.Local,
-	} as IActiveSessionItem;
+function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerType?: string }): ISession {
+	const repo = opts.repository || opts.worktree ? {
+		uri: opts.repository ?? opts.worktree!,
+		workingDirectory: opts.worktree,
+		detail: undefined,
+		baseBranchName: undefined,
+		baseBranchProtected: undefined,
+	} : undefined;
+	const chat: IChat = {
+		resource: URI.parse('file:///session'),
+		createdAt: new Date(),
+		title: observableValue('test.title', 'Test Session'),
+		updatedAt: observableValue('test.updatedAt', new Date()),
+		status: observableValue('test.status', 0),
+		changes: observableValue('test.changes', []),
+		modelId: observableValue('test.modelId', undefined),
+		mode: observableValue('test.mode', undefined),
+		isArchived: observableValue('test.isArchived', false),
+		isRead: observableValue('test.isRead', true),
+		lastTurnEnd: observableValue('test.lastTurnEnd', undefined),
+		description: observableValue('test.description', undefined),
+	};
+	const session: ISession = {
+		sessionId: 'test:non-agent',
+		resource: chat.resource,
+		providerId: 'test',
+		sessionType: opts.providerType ?? AgentSessionProviders.Local,
+		icon: Codicon.copilot,
+		createdAt: chat.createdAt,
+		workspace: observableValue('test.workspace', repo ? { label: 'test', icon: Codicon.repo, repositories: [repo], requiresWorkspaceTrust: false, } : undefined),
+		title: chat.title,
+		updatedAt: chat.updatedAt,
+		status: chat.status,
+		changes: chat.changes,
+		modelId: chat.modelId,
+		mode: chat.mode,
+		loading: observableValue('test.loading', false),
+		isArchived: chat.isArchived,
+		isRead: chat.isRead,
+		lastTurnEnd: chat.lastTurnEnd,
+		description: chat.description,
+		gitHubInfo: observableValue('test.gitHubInfo', undefined),
+		chats: observableValue('test.chats', [chat]),
+		mainChat: chat,
+	};
+	return session;
 }
 
 function makeTerminalInstance(id: number, cwd: string): TestTerminalInstance {
@@ -107,8 +180,8 @@ function addCommandToInstance(instance: ITerminalInstance, timestamp: number): v
 suite('SessionsTerminalContribution', () => {
 	const store = new DisposableStore();
 	let contribution: SessionsTerminalContribution;
-	let activeSessionObs: ReturnType<typeof observableValue<IActiveSessionItem | undefined>>;
-	let onDidChangeSessionArchivedState: Emitter<IAgentSession>;
+	let activeSessionObs: ReturnType<typeof observableValue<IActiveSession | undefined>>;
+	let onDidChangeSessions: Emitter<ISessionsChangeEvent>;
 	let onDidCreateInstance: Emitter<ITerminalInstance>;
 
 	let createdTerminals: { cwd: URI }[];
@@ -138,14 +211,15 @@ suite('SessionsTerminalContribution', () => {
 
 		const instantiationService = store.add(new TestInstantiationService());
 
-		activeSessionObs = observableValue('activeSession', undefined);
-		onDidChangeSessionArchivedState = store.add(new Emitter<IAgentSession>());
+		activeSessionObs = observableValue<IActiveSession | undefined>('activeSession', undefined);
+		onDidChangeSessions = store.add(new Emitter<ISessionsChangeEvent>());
 		onDidCreateInstance = store.add(new Emitter<ITerminalInstance>());
 
 		instantiationService.stub(ILogService, logService);
 
 		instantiationService.stub(ISessionsManagementService, new class extends mock<ISessionsManagementService>() {
 			override activeSession = activeSessionObs;
+			override readonly onDidChangeSessions = onDidChangeSessions.event;
 		});
 
 		instantiationService.stub(ITerminalService, new class extends mock<ITerminalService>() {
@@ -192,12 +266,6 @@ suite('SessionsTerminalContribution', () => {
 				backgroundedInstances.delete(instance.instanceId);
 				showBackgroundCalls.push(instance.instanceId);
 			}
-		});
-
-		instantiationService.stub(IAgentSessionsService, new class extends mock<IAgentSessionsService>() {
-			override model = {
-				onDidChangeSessionArchivedState: onDidChangeSessionArchivedState.event,
-			} as unknown as IAgentSessionsModel;
 		});
 
 		instantiationService.stub(IPathService, new TestPathService(HOME_DIR));
@@ -262,7 +330,7 @@ suite('SessionsTerminalContribution', () => {
 
 	test('uses home directory for a non-agent session', async () => {
 		const session = makeNonAgentSession({ repository: URI.file('/repo') });
-		activeSessionObs.set(session, undefined);
+		activeSessionObs.set(session as IActiveSession, undefined);
 		await tick();
 
 		assert.strictEqual(createdTerminals.length, 1);
@@ -372,7 +440,7 @@ suite('SessionsTerminalContribution', () => {
 		assert.ok(logService.traces.some(message => message.includes(`Cannot activate created terminal for ${cwd.fsPath}; terminal 1 is no longer available`)));
 	});
 
-	// --- onDidChangeSessionArchivedState ---
+	// --- onDidChangeSessions (archived) ---
 
 	test('closes terminals when session is archived', async () => {
 		const worktreeUri = URI.file('/worktree');
@@ -382,9 +450,9 @@ suite('SessionsTerminalContribution', () => {
 
 		const session = makeAgentSession({
 			isArchived: true,
-			worktreePath: worktreeUri.fsPath,
+			worktree: worktreeUri,
 		});
-		onDidChangeSessionArchivedState.fire(session);
+		onDidChangeSessions.fire({ added: [], removed: [], changed: [session] });
 		await tick();
 
 		assert.strictEqual(disposedInstances.length, 1);
@@ -396,23 +464,36 @@ suite('SessionsTerminalContribution', () => {
 
 		const session = makeAgentSession({
 			isArchived: false,
-			worktreePath: worktreeUri.fsPath,
+			worktree: worktreeUri,
 		});
-		onDidChangeSessionArchivedState.fire(session);
+		onDidChangeSessions.fire({ added: [], removed: [], changed: [session] });
 		await tick();
 
 		assert.strictEqual(disposedInstances.length, 0);
 	});
 
-	test('does not close terminals when archived session has no worktreePath', async () => {
+	test('does not close terminals when archived session has no worktree', async () => {
 		const worktreeUri = URI.file('/worktree');
 		await contribution.ensureTerminal(worktreeUri, false);
 
 		const session = makeAgentSession({ isArchived: true });
-		onDidChangeSessionArchivedState.fire(session);
+		onDidChangeSessions.fire({ added: [], removed: [], changed: [session] });
 		await tick();
 
 		assert.strictEqual(disposedInstances.length, 0);
+	});
+
+	test('closes terminals when session is removed', async () => {
+		const worktreeUri = URI.file('/worktree');
+		await contribution.ensureTerminal(worktreeUri, false);
+
+		assert.strictEqual(createdTerminals.length, 1);
+
+		const session = makeAgentSession({ worktree: worktreeUri });
+		onDidChangeSessions.fire({ added: [], removed: [session], changed: [] });
+		await tick();
+
+		assert.strictEqual(disposedInstances.length, 1);
 	});
 
 	// --- switching back to previously used path reuses terminal ---
@@ -615,6 +696,18 @@ suite('SessionsTerminalContribution', () => {
 
 		// No setActiveInstance calls from visibility update since no commands were run
 		assert.strictEqual(activeInstanceSet.length, activeCountBefore, 'should not call setActiveInstance when no command history exists');
+	});
+
+	// --- Remote agent host sessions ---
+
+	test('falls back to home directory for a background session with a remote agent host repository', async () => {
+		const remoteRepoUri = toAgentHostUri(URI.file('/Users/user/repo'), 'my-server');
+		const session = makeAgentSession({ repository: remoteRepoUri, providerType: AgentSessionProviders.Background });
+		activeSessionObs.set(session, undefined);
+		await tick();
+
+		assert.strictEqual(createdTerminals.length, 1, 'should create a terminal at the home directory');
+		assert.strictEqual(createdTerminals[0].cwd.fsPath, HOME_DIR.fsPath);
 	});
 });
 

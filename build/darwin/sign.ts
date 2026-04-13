@@ -11,10 +11,6 @@ import { spawn } from '@malept/cross-spawn-promise';
 const root = path.dirname(path.dirname(import.meta.dirname));
 const baseDir = path.dirname(import.meta.dirname);
 const product = JSON.parse(fs.readFileSync(path.join(root, 'product.json'), 'utf8'));
-const helperAppBaseName = product.nameShort;
-const gpuHelperAppName = helperAppBaseName + ' Helper (GPU).app';
-const rendererHelperAppName = helperAppBaseName + ' Helper (Renderer).app';
-const pluginHelperAppName = helperAppBaseName + ' Helper (Plugin).app';
 
 function getElectronVersion(): string {
 	const npmrc = fs.readFileSync(path.join(root, '.npmrc'), 'utf8');
@@ -23,11 +19,11 @@ function getElectronVersion(): string {
 }
 
 function getEntitlementsForFile(filePath: string): string {
-	if (filePath.includes(gpuHelperAppName)) {
+	if (filePath.includes(' Helper (GPU).app')) {
 		return path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-gpu-entitlements.plist');
-	} else if (filePath.includes(rendererHelperAppName)) {
+	} else if (filePath.includes(' Helper (Renderer).app')) {
 		return path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-renderer-entitlements.plist');
-	} else if (filePath.includes(pluginHelperAppName)) {
+	} else if (filePath.includes(' Helper (Plugin).app')) {
 		return path.join(baseDir, 'azure-pipelines', 'darwin', 'helper-plugin-entitlements.plist');
 	}
 	return path.join(baseDir, 'azure-pipelines', 'darwin', 'app-entitlements.plist');
@@ -78,6 +74,9 @@ async function main(buildDir?: string): Promise<void> {
 	const appRoot = path.join(buildDir, `VSCode-darwin-${arch}`);
 	const appName = product.nameLong + '.app';
 	const infoPlistPath = path.resolve(appRoot, appName, 'Contents', 'Info.plist');
+	const embeddedInfoPlistPath = product.embedded
+		? path.resolve(appRoot, appName, 'Contents', 'Applications', `${product.embedded.nameLong}.app`, 'Contents', 'Info.plist')
+		: undefined;
 
 	const appOpts: SignOptions = {
 		app: path.join(appRoot, appName),
@@ -124,6 +123,51 @@ async function main(buildDir?: string): Promise<void> {
 			'An application in Visual Studio Code wants to use Audio Capture.',
 			`${infoPlistPath}`
 		]);
+		await spawn('plutil', [
+			'-insert',
+			'NSLocalNetworkUsageDescription',
+			'-string',
+			'The app uses your local network for DNS resolution and to connect to locally running services.',
+			`${infoPlistPath}`
+		]);
+
+		if (embeddedInfoPlistPath && fs.existsSync(embeddedInfoPlistPath)) {
+			await spawn('plutil', [
+				'-insert',
+				'NSAppleEventsUsageDescription',
+				'-string',
+				`An application in ${product.embedded.nameLong} wants to use AppleScript.`,
+				`${embeddedInfoPlistPath}`
+			]);
+			await spawn('plutil', [
+				'-replace',
+				'NSMicrophoneUsageDescription',
+				'-string',
+				`An application in ${product.embedded.nameLong} wants to use the Microphone.`,
+				`${embeddedInfoPlistPath}`
+			]);
+			await spawn('plutil', [
+				'-replace',
+				'NSCameraUsageDescription',
+				'-string',
+				`An application in ${product.embedded.nameLong} wants to use the Camera.`,
+				`${embeddedInfoPlistPath}`
+			]);
+			await spawn('plutil', [
+				'-replace',
+				'NSAudioCaptureUsageDescription',
+				'-string',
+				`An application in ${product.embedded.nameLong} wants to use Audio Capture.`,
+				`${embeddedInfoPlistPath}`
+			]);
+			await spawn('plutil', [
+				'-insert',
+				'NSLocalNetworkUsageDescription',
+				'-string',
+				`The app uses your local network for DNS resolution and to connect to locally running services.`,
+				`${embeddedInfoPlistPath}`
+			]);
+		}
 	}
 
 	await retrySignOnKeychainError(() => sign(appOpts));

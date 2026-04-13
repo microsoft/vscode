@@ -56,7 +56,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	primary: 0,
 	handler: accessor => {
 		const quickInputService = accessor.get(IQuickInputService);
-		return quickInputService.accept({ ctrlCmd: true, alt: false });
+		return quickInputService.accept({ ctrlCmd: true, alt: false, shift: false });
 	}
 });
 

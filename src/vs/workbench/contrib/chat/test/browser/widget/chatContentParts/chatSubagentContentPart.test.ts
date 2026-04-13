@@ -19,7 +19,6 @@ import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatConte
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IRenderedMarkdown, MarkdownRenderOptions } from '../../../../../../../base/browser/markdownRenderer.js';
 import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
-import { CodeBlockModelCollection } from '../../../../common/widget/codeBlockModelCollection.js';
 import { EditorPool, DiffEditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
@@ -42,7 +41,6 @@ suite('ChatSubagentContentPart', () => {
 	let mockHoverService: IHoverService;
 	let mockListPool: CollapsibleListPool;
 	let mockEditorPool: EditorPool;
-	let mockCodeBlockModelCollection: CodeBlockModelCollection;
 	let announcedToolProgressKeys: Set<string>;
 
 	function createMockRenderContext(isComplete: boolean = false): IChatContentPartRenderContext {
@@ -64,7 +62,6 @@ suite('ChatSubagentContentPart', () => {
 			codeBlockStartIndex: 0,
 			treeStartIndex: 0,
 			diffEditorPool: {} as DiffEditorPool,
-			codeBlockModelCollection: mockCodeBlockModelCollection,
 			currentWidth: observableValue('currentWidth', 500),
 			onDidChangeVisibility: Event.None
 		};
@@ -144,13 +141,14 @@ suite('ChatSubagentContentPart', () => {
 				prompt: 'Test prompt'
 			},
 			originMessage: undefined,
-			invocationMessage: options.invocationMessage ?? 'Running subagent...',
+			invocationMessage: options.invocationMessage ?? 'Running subagent',
 			pastTenseMessage: undefined,
 			source: ToolDataSource.Internal,
 			toolId: options.toolId ?? RunSubagentTool.Id,
 			toolCallId: toolCallId,
 			subAgentInvocationId: options.subAgentInvocationId,
 			state: observableValue('state', stateValue),
+			toolSpecificDataKind: observableValue('test', (options.toolSpecificData ?? { kind: 'subagent' }).kind),
 			isAttachedToThinking: false,
 			kind: 'toolInvocation',
 			toJSON: () => createMockSerializedToolInvocation({
@@ -180,7 +178,7 @@ suite('ChatSubagentContentPart', () => {
 				result: 'Test result text'
 			},
 			originMessage: undefined,
-			invocationMessage: 'Running subagent...',
+			invocationMessage: 'Running subagent',
 			pastTenseMessage: undefined,
 			resultDetails: undefined,
 			isConfirmed: { type: ToolConfirmKind.ConfirmationNotNeeded },
@@ -235,7 +233,6 @@ suite('ChatSubagentContentPart', () => {
 		// Mock list pool and editor pool
 		mockListPool = {} as CollapsibleListPool;
 		mockEditorPool = {} as EditorPool;
-		mockCodeBlockModelCollection = {} as CodeBlockModelCollection;
 		announcedToolProgressKeys = new Set();
 	});
 
@@ -257,7 +254,6 @@ suite('ChatSubagentContentPart', () => {
 			mockListPool,
 			mockEditorPool,
 			() => 500,
-			mockCodeBlockModelCollection,
 			announcedToolProgressKeys
 		));
 
@@ -414,6 +410,55 @@ suite('ChatSubagentContentPart', () => {
 
 			// Should collapse when inactive
 			assert.ok(part.domNode.classList.contains('chat-used-context-collapsed'), 'Should be collapsed after markAsInactive');
+		});
+
+		test('markAsInactive should change default description to past tense', () => {
+			const toolInvocation = createMockToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					// no description — should use the default "Running subagent"
+				}
+			});
+			const context = createMockRenderContext(false);
+
+			const part = createPart(toolInvocation, context);
+
+			// Before marking inactive, title should show "Running subagent"
+			const button = getCollapseButton(part);
+			assert.ok(button, 'Should have collapse button');
+			const labelBefore = getCollapseButtonLabel(button);
+			const textBefore = labelBefore?.textContent ?? button.textContent ?? '';
+			assert.ok(textBefore.includes('Running subagent'), 'Title should show "Running subagent" before completion');
+
+			part.markAsInactive();
+
+			// After marking inactive, title should show "Ran subagent"
+			const labelAfter = getCollapseButtonLabel(button);
+			const textAfter = labelAfter?.textContent ?? button.textContent ?? '';
+			assert.ok(textAfter.includes('Ran subagent'), 'Title should show "Ran subagent" after completion');
+			assert.ok(!textAfter.includes('Running subagent'), 'Title should no longer show "Running subagent"');
+		});
+
+		test('markAsInactive should keep custom description unchanged', () => {
+			const toolInvocation = createMockToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Searching the codebase',
+					agentName: 'Explorer',
+				}
+			});
+			const context = createMockRenderContext(false);
+
+			const part = createPart(toolInvocation, context);
+
+			part.markAsInactive();
+
+			// After marking inactive, title should still show the custom description
+			const button = getCollapseButton(part);
+			assert.ok(button, 'Should have collapse button');
+			const label = getCollapseButtonLabel(button);
+			const text = label?.textContent ?? button.textContent ?? '';
+			assert.ok(text.includes('Searching the codebase'), 'Title should keep custom description after completion');
 		});
 
 		test('finalizeTitle should update button icon to check', () => {

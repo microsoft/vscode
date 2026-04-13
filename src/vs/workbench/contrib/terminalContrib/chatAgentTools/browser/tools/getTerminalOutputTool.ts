@@ -7,7 +7,9 @@ import type { CancellationToken } from '../../../../../../base/common/cancellati
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
+import { ITerminalService } from '../../../../terminal/browser/terminal.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
+import { getOutput } from '../outputHelpers.js';
 import { RunInTerminalTool } from './runInTerminalTool.js';
 import { TerminalToolId } from './toolIds.js';
 
@@ -16,7 +18,7 @@ export const GetTerminalOutputToolData: IToolData = {
 	toolReferenceName: 'getTerminalOutput',
 	legacyToolReferenceFullNames: ['runCommands/getTerminalOutput'],
 	displayName: localize('getTerminalOutputTool.displayName', 'Get Terminal Output'),
-	modelDescription: `Get the output of a terminal command previously started with ${TerminalToolId.RunInTerminal}`,
+	modelDescription: `Get output from a terminal session. This can target either a persistent terminal started with ${TerminalToolId.RunInTerminal} in async mode (using 'id') or any foreground terminal visible in the terminal panel (using 'terminalId'). For the 'id' parameter, this must be the exact opaque UUID returned by ${TerminalToolId.RunInTerminal}; terminal names, labels, and integers are not valid for 'id'.`,
 	icon: Codicon.terminal,
 	source: ToolDataSource.Internal,
 	inputSchema: {
@@ -24,33 +26,85 @@ export const GetTerminalOutputToolData: IToolData = {
 		properties: {
 			id: {
 				type: 'string',
-				description: 'The ID of the terminal to check.'
+				description: `The ID of a persistent terminal session to check (returned by ${TerminalToolId.RunInTerminal} in async mode). This must be the exact opaque ID returned by that tool; terminal names, labels, or integers are invalid. Provide either 'id' or 'terminalId', not both.`,
+				pattern: '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$'
+			},
+			terminalId: {
+				type: 'number',
+				description: 'The numeric instanceId of a terminal. Use this to get output from terminals not started by the agent (e.g., user-created terminals or foreground terminals). Provide either \'id\' or \'terminalId\', not both.'
 			},
 		},
-		required: [
-			'id',
-		]
 	}
 };
 
 export interface IGetTerminalOutputInputParams {
-	id: string;
+	id?: string;
+	terminalId?: number;
 }
 
 export class GetTerminalOutputTool extends Disposable implements IToolImpl {
+
+	constructor(
+		@ITerminalService private readonly _terminalService: ITerminalService,
+	) {
+		super();
+	}
+
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
 		return {
-			invocationMessage: localize('bg.progressive', "Checking background terminal output"),
-			pastTenseMessage: localize('bg.past', "Checked background terminal output"),
+			invocationMessage: localize('getTerminalOutput.progressive', "Checking terminal output"),
+			pastTenseMessage: localize('getTerminalOutput.past', "Checked terminal output"),
 		};
 	}
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
 		const args = invocation.parameters as IGetTerminalOutputInputParams;
+
+		if (!args.id && args.terminalId === undefined) {
+			return {
+				content: [{
+					kind: 'text',
+					value: 'Error: Either \'id\' (persistent terminal UUID) or \'terminalId\' (foreground terminal instanceId) must be provided.'
+				}]
+			};
+		}
+
+		// Foreground terminal path — only when no persistent id is provided
+		if (args.terminalId !== undefined && !args.id) {
+			const instance = this._terminalService.getInstanceFromId(args.terminalId);
+			if (!instance) {
+				return {
+					content: [{
+						kind: 'text',
+						value: `Error: No terminal found with instanceId ${args.terminalId}. The terminal may have been closed.`
+					}]
+				};
+			}
+
+			const output = getOutput(instance);
+			return {
+				content: [{
+					kind: 'text',
+					value: `Output of terminal ${args.terminalId}:\n${output}`
+				}]
+			};
+		}
+
+		// Persistent (background) terminal path
+		const execution = RunInTerminalTool.getExecution(args.id!);
+		if (!execution) {
+			return {
+				content: [{
+					kind: 'text',
+					value: `Error: No active terminal execution found with ID ${args.id}. The ID must be the exact value returned by ${TerminalToolId.RunInTerminal} in async mode.`
+				}]
+			};
+		}
+
 		return {
 			content: [{
 				kind: 'text',
-				value: `Output of terminal ${args.id}:\n${RunInTerminalTool.getBackgroundOutput(args.id)}`
+				value: `Output of terminal ${args.id}:\n${execution.getOutput()}`
 			}]
 		};
 	}

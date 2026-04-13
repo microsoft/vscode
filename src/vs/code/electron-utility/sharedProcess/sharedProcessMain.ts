@@ -87,6 +87,10 @@ import { InspectProfilingService as V8InspectProfilingService } from '../../../p
 import { IV8InspectProfilingService } from '../../../platform/profiling/common/profiling.js';
 import { IExtensionsScannerService } from '../../../platform/extensionManagement/common/extensionsScannerService.js';
 import { ExtensionsScannerService } from '../../../platform/extensionManagement/node/extensionsScannerService.js';
+import { ISSHRemoteAgentHostMainService, SSH_REMOTE_AGENT_HOST_CHANNEL } from '../../../platform/agentHost/common/sshRemoteAgentHost.js';
+import { SSHRemoteAgentHostMainService } from '../../../platform/agentHost/node/sshRemoteAgentHostService.js';
+import { ITunnelAgentHostMainService, TUNNEL_AGENT_HOST_CHANNEL } from '../../../platform/agentHost/common/tunnelAgentHost.js';
+import { TunnelAgentHostMainService } from '../../../platform/agentHost/node/tunnelAgentHostService.js';
 import { IUserDataProfilesService } from '../../../platform/userDataProfile/common/userDataProfile.js';
 import { IExtensionsProfileScannerService } from '../../../platform/extensionManagement/common/extensionsProfileScannerService.js';
 import { PolicyChannelClient } from '../../../platform/policy/common/policyIpc.js';
@@ -135,6 +139,9 @@ import { McpGalleryManifestIPCService } from '../../../platform/mcp/common/mcpGa
 import { IMeteredConnectionService } from '../../../platform/meteredConnection/common/meteredConnection.js';
 import { MeteredConnectionChannelClient, METERED_CONNECTION_CHANNEL } from '../../../platform/meteredConnection/common/meteredConnectionIpc.js';
 import { PlaywrightChannel } from '../../../platform/browserView/node/playwrightChannel.js';
+import { AgentNetworkFilterService } from '../../../platform/networkFilter/common/networkFilterService.js';
+import { ILocalGitService } from '../../../platform/git/common/localGitService.js';
+import { LocalGitService } from '../../../platform/git/node/localGitService.js';
 
 class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 
@@ -402,6 +409,15 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		// Web Content Extractor
 		services.set(ISharedWebContentExtractorService, new SyncDescriptor(SharedWebContentExtractorService));
 
+		// Local Git
+		services.set(ILocalGitService, new SyncDescriptor(LocalGitService, undefined, false /* proxied to other processes */));
+
+		// SSH Remote Agent Host
+		services.set(ISSHRemoteAgentHostMainService, new SyncDescriptor(SSHRemoteAgentHostMainService, undefined, true));
+
+		// Tunnel Agent Host
+		services.set(ITunnelAgentHostMainService, new SyncDescriptor(TunnelAgentHostMainService, undefined, true));
+
 		return new InstantiationService(services);
 	}
 
@@ -470,8 +486,21 @@ class SharedProcessMain extends Disposable implements IClientConnectionFilter {
 		this.server.registerChannel('sharedWebContentExtractor', webContentExtractorChannel);
 
 		// Playwright
-		const playwrightChannel = this._register(new PlaywrightChannel(this.server, accessor.get(IMainProcessService), accessor.get(ILogService)));
+		const agentNetworkFilterService = this._register(new AgentNetworkFilterService(accessor.get(IConfigurationService)));
+		const playwrightChannel = this._register(new PlaywrightChannel(this.server, accessor.get(IMainProcessService), accessor.get(ILogService), agentNetworkFilterService));
 		this.server.registerChannel('playwright', playwrightChannel);
+
+		// Local Git
+		const localGitChannel = ProxyChannel.fromService(accessor.get(ILocalGitService), this._store);
+		this.server.registerChannel('localGit', localGitChannel);
+
+		// SSH Remote Agent Host
+		const sshRemoteAgentHostChannel = ProxyChannel.fromService(accessor.get(ISSHRemoteAgentHostMainService), this._store);
+		this.server.registerChannel(SSH_REMOTE_AGENT_HOST_CHANNEL, sshRemoteAgentHostChannel);
+
+		// Tunnel Agent Host
+		const tunnelAgentHostChannel = ProxyChannel.fromService(accessor.get(ITunnelAgentHostMainService), this._store);
+		this.server.registerChannel(TUNNEL_AGENT_HOST_CHANNEL, tunnelAgentHostChannel);
 	}
 
 	private registerErrorHandler(logService: ILogService): void {

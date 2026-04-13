@@ -88,6 +88,7 @@ export default tseslint.config(
 			'local/code-must-use-super-dispose': 'warn',
 			'local/code-declare-service-brand': 'warn',
 			'local/code-no-reader-after-await': 'warn',
+			'local/code-no-accessor-after-await': 'warn',
 			'local/code-no-observable-get-in-reactive-context': 'warn',
 			'local/code-no-localized-model-description': 'warn',
 			'local/code-policy-localization-key-match': 'warn',
@@ -335,6 +336,7 @@ export default tseslint.config(
 			'src/vs/workbench/services/remote/common/tunnelModel.ts',
 			'src/vs/workbench/services/search/common/textSearchManager.ts',
 			'src/vs/workbench/test/browser/workbenchTestServices.ts',
+			'src/vs/platform/agentHost/common/state/protocol/reducers.ts',
 			'test/automation/src/playwrightDriver.ts',
 			'.eslint-plugin-local/**/*',
 		],
@@ -1497,6 +1499,8 @@ export default tseslint.config(
 					'when': 'hasNode',
 					'allow': [
 						'@github/copilot-sdk',
+						'@microsoft/dev-tunnels-contracts',
+						'@microsoft/dev-tunnels-management',
 						'@parcel/watcher',
 						'@vscode/sqlite3',
 						'@vscode/vscode-languagedetection',
@@ -1614,6 +1618,16 @@ export default tseslint.config(
 					]
 				},
 				{
+					'target': 'src/vs/platform/agentHost/node/diffWorkerMain.ts',
+					'layer': 'node',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/editor/common/diff/**', // diffing logic used by the agent host
+					]
+				},
+				{
 					'target': 'src/vs/platform/*/~',
 					'restrictions': [
 						'vs/base/~',
@@ -1622,7 +1636,8 @@ export default tseslint.config(
 						'tas-client', // node module allowed even in /common/
 						'@microsoft/1ds-core-js', // node module allowed even in /common/
 						'@microsoft/1ds-post-js', // node module allowed even in /common/
-						'@xterm/headless' // node module allowed even in /common/
+						'@xterm/headless', // node module allowed even in /common/
+						'@vscode/tree-sitter-wasm' // used by agentHost for command auto-approval
 					]
 				},
 				{
@@ -1989,11 +2004,14 @@ export default tseslint.config(
 						'vs/editor/~',
 						'vs/editor/contrib/*/~',
 						'vs/editor/editor.all.js',
+						'vs/sessions/~',
+						'vs/sessions/services/*/~',
+						'vs/sessions/contrib/*/~',
 						'vs/workbench/~',
 						'vs/workbench/api/~',
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/*/~',
-						'vs/workbench/contrib/terminal/terminal.all.js'
+						'vs/workbench/contrib/terminal/terminal.all.js',
 					]
 				},
 				{
@@ -2095,7 +2113,6 @@ export default tseslint.config(
 						'vs/editor/contrib/*/~',
 						'vs/workbench/~',
 						'vs/workbench/browser/**',
-						'vs/workbench/contrib/**',
 						'vs/workbench/services/*/~',
 						'vs/sessions/~',
 						'vs/sessions/services/*/~'
@@ -2114,7 +2131,8 @@ export default tseslint.config(
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/*/~',
 						'vs/sessions/~',
-						'vs/sessions/contrib/*/~'
+						'vs/sessions/contrib/*/~',
+						'vs/sessions/services/*/~',
 					]
 				},
 				{
@@ -2129,6 +2147,7 @@ export default tseslint.config(
 						'vs/workbench/services/*/~',
 						'vs/sessions/~',
 						'vs/sessions/services/*/~',
+						'vs/workbench/contrib/*/~',
 						{
 							'when': 'test',
 							'pattern': 'vs/workbench/contrib/*/~'
@@ -2217,6 +2236,14 @@ export default tseslint.config(
 						'@parcel/*',
 						'@playwright/*',
 						'@modelcontextprotocol/sdk/**/*',
+						'*' // node modules
+					]
+				},
+				{
+					'target': 'test/componentFixtures/playwright/**',
+					'restrictions': [
+						'test/componentFixtures/playwright/**',
+						'@playwright/*',
 						'*' // node modules
 					]
 				}

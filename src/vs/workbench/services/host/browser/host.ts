@@ -142,6 +142,13 @@ export interface IHostService {
 	close(): Promise<void>;
 
 	/**
+	 * Quit the entire application. Unlike {@link close}, this will
+	 * terminate the process even on macOS where closing the last
+	 * window normally keeps the app running.
+	 */
+	shutdown(): Promise<void>;
+
+	/**
 	 * Execute an asynchronous `expectedShutdownTask`. While this task is
 	 * in progress, attempts to quit the application will not be vetoed with a dialog.
 	 */

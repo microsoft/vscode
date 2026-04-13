@@ -4,7 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
+import { IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
+import { IDisposable } from '../../../../base/common/lifecycle.js';
+import { Event } from '../../../../base/common/event.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -12,8 +14,9 @@ import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { AICustomizationManagementSection, IStorageSourceFilter } from './aiCustomizationWorkspaceService.js';
 import { PromptsType } from './promptSyntax/promptTypes.js';
-import { PromptsStorage } from './promptSyntax/service/promptsService.js';
 import { AGENT_MD_FILENAME } from './promptSyntax/config/promptFileLocations.js';
+import { PromptsStorage } from './promptSyntax/service/promptsService.js';
+import { CancellationToken } from '../../../../base/common/cancellation.js';
 
 export const ICustomizationHarnessService = createDecorator<ICustomizationHarnessService>('customizationHarnessService');
 
@@ -59,14 +62,13 @@ export interface ISectionOverride {
 export enum CustomizationHarness {
 	VSCode = 'vscode',
 	CLI = 'cli',
-	Claude = 'claude',
 }
 
 /**
  * Describes a single harness option for the UI toggle.
  */
 export interface IHarnessDescriptor {
-	readonly id: CustomizationHarness;
+	readonly id: string;
 	readonly label: string;
 	readonly icon: ThemeIcon;
 	/**
@@ -118,6 +120,87 @@ export interface IHarnessDescriptor {
 	 * items of the given type when this harness is active.
 	 */
 	getStorageSourceFilter(type: PromptsType): IStorageSourceFilter;
+	/**
+	 * When set, this harness is backed by an extension-contributed provider
+	 * that can supply customization items directly (bypassing promptsService
+	 * discovery and filtering).
+	 */
+	readonly itemProvider?: IExternalCustomizationItemProvider;
+	/**
+	 * When set, this harness supports syncing local customizations to a
+	 * remote target. The UI shows local items with sync checkboxes when
+	 * this harness is active.
+	 */
+	readonly syncProvider?: ICustomizationSyncProvider;
+}
+
+/**
+ * Represents a customization item provided by an external extension.
+ */
+export interface IExternalCustomizationItem {
+	readonly uri: URI;
+	readonly type: string;
+	readonly name: string;
+	readonly description?: string;
+	/** Server-reported loading status for this customization. */
+	readonly status?: 'loading' | 'loaded' | 'degraded' | 'error';
+	/** Human-readable status detail (e.g. error message or warning). */
+	readonly statusMessage?: string;
+	/** Whether this customization is currently enabled. */
+	readonly enabled?: boolean;
+	/** When set, items with the same groupKey are displayed under a shared collapsible header. */
+	readonly groupKey?: string;
+	/** When set, shows a small inline badge next to the item name (e.g. an applyTo glob pattern). */
+	readonly badge?: string;
+	/** Tooltip shown when hovering the badge. */
+	readonly badgeTooltip?: string;
+}
+
+/**
+ * Provider interface for extension-contributed harnesses that supply
+ * customization items directly from their SDK.
+ */
+export interface IExternalCustomizationItemProvider {
+	/**
+	 * Event that fires when the provider's customizations change.
+	 */
+	readonly onDidChange: Event<void>;
+	/**
+	 * Provide the customization items this harness supports.
+	 */
+	provideChatSessionCustomizations(token: CancellationToken): Promise<IExternalCustomizationItem[] | undefined>;
+}
+
+/**
+ * Provider interface for harnesses that support syncing local customizations
+ * to a remote target (e.g. a remote agent host).
+ *
+ * The UI shows local customization items with sync checkboxes when the
+ * active harness has a sync provider. Selected items are persisted and
+ * automatically included in the active client's customization set.
+ */
+export interface ICustomizationSyncProvider {
+	/**
+	 * Fires when the set of selected sync items changes.
+	 */
+	readonly onDidChange: Event<void>;
+	/**
+	 * Returns the URIs of local customizations currently selected for syncing.
+	 */
+	getSelectedUris(): readonly URI[];
+	/**
+	 * Updates the set of local customization URIs selected for syncing.
+	 */
+	setSelectedUris(uris: readonly URI[]): void;
+	/**
+	 * Returns whether the given URI is currently selected for syncing.
+	 */
+	isSelected(uri: URI): boolean;
+	/**
+	 * Toggles the sync selection state for a single URI.
+	 * @param type Optional prompt type for file-level sync tracking.
+	 */
+	toggleUri(uri: URI, type?: PromptsType): void;
 }
 
 /**
@@ -134,7 +217,7 @@ export interface ICustomizationHarnessService {
 	/**
 	 * The currently active harness.
 	 */
-	readonly activeHarness: IObservable<CustomizationHarness>;
+	readonly activeHarness: IObservable<string>;
 
 	/**
 	 * All harnesses available in this window.
@@ -146,7 +229,7 @@ export interface ICustomizationHarnessService {
 	 * Changes the active harness. The new id must be present in
 	 * `availableHarnesses`.
 	 */
-	setActiveHarness(id: CustomizationHarness): void;
+	setActiveHarness(id: string): void;
 
 	/**
 	 * Convenience: returns the storage source filter for the active harness
@@ -158,15 +241,22 @@ export interface ICustomizationHarnessService {
 	 * Returns the descriptor of the currently active harness.
 	 */
 	getActiveDescriptor(): IHarnessDescriptor;
+
+	/**
+	 * Registers an external harness contributed by an extension.
+	 * The harness appears in the UI toggle alongside static harnesses.
+	 * Returns a disposable that removes the harness when disposed.
+	 */
+	registerExternalHarness(descriptor: IHarnessDescriptor): IDisposable;
 }
 
 // #region Shared filter constants
 
 /**
- * Hooks are always restricted to local + plugin sources regardless of harness.
+ * Hooks filter — local, user, and plugin sources.
  */
 const HOOKS_FILTER: IStorageSourceFilter = {
-	sources: [PromptsStorage.local, PromptsStorage.plugin],
+	sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.plugin],
 };
 
 // #endregion
@@ -182,13 +272,6 @@ export function getCliUserRoots(userHome: URI): readonly URI[] {
 		joinPath(userHome, '.claude'),
 		joinPath(userHome, '.agents'),
 	];
-}
-
-/**
- * Returns the user-home directories accessible to the Claude harness.
- */
-export function getClaudeUserRoots(userHome: URI): readonly URI[] {
-	return [joinPath(userHome, '.claude')];
 }
 
 // #endregion
@@ -228,7 +311,7 @@ export function createVSCodeHarnessDescriptor(extras: readonly string[]): IHarne
 /**
  * Creates a harness descriptor that restricts user-file roots for most
  * types (agents, skills, instructions) while leaving hooks and prompts
- * unrestricted. Used for CLI and Claude harnesses.
+ * unrestricted. Used for restricted harnesses like CLI.
  */
 interface IRestrictedHarnessOptions {
 	readonly hiddenSections?: readonly string[];
@@ -240,7 +323,7 @@ interface IRestrictedHarnessOptions {
 }
 
 function createRestrictedHarnessDescriptor(
-	id: CustomizationHarness,
+	id: string,
 	label: string,
 	icon: ThemeIcon,
 	restrictedUserRoots: readonly URI[],
@@ -279,7 +362,7 @@ export function createCliHarnessDescriptor(cliUserRoots: readonly URI[], extras:
 	return createRestrictedHarnessDescriptor(
 		CustomizationHarness.CLI,
 		localize('harness.cli', "Copilot CLI"),
-		ThemeIcon.fromId(Codicon.worktree.id),
+		ThemeIcon.fromId(Codicon.copilot.id),
 		cliUserRoots,
 		extras,
 		{
@@ -291,41 +374,6 @@ export function createCliHarnessDescriptor(cliUserRoots: readonly URI[], extras:
 					rootFileShortcuts: [AGENT_MD_FILENAME],
 				}],
 			]),
-		},
-	);
-}
-
-/**
- * Creates a "Claude" harness descriptor.
- * Claude does not support prompt files (.prompt.md), AGENTS.md, or extension-contributed plugins.
- * It supports agents (.claude/agents/), instructions (CLAUDE.md, .claude/rules/),
- * skills (.claude/skills/), and hooks (.claude/settings.json).
- */
-export function createClaudeHarnessDescriptor(claudeRoots: readonly URI[], extras: readonly string[]): IHarnessDescriptor {
-	return createRestrictedHarnessDescriptor(
-		CustomizationHarness.Claude,
-		localize('harness.claude', "Claude"),
-		ThemeIcon.fromId(Codicon.claude.id),
-		claudeRoots,
-		extras,
-		{
-			hiddenSections: [AICustomizationManagementSection.Prompts, AICustomizationManagementSection.Plugins],
-			workspaceSubpaths: ['.claude'],
-			hideGenerateButton: true,
-			requiredAgentId: 'claude-code',
-			sectionOverrides: new Map([
-				[AICustomizationManagementSection.Hooks, {
-					label: localize('claudeHooks', "Configure Claude Hooks"),
-					commandId: 'copilot.claude.hooks',
-				}],
-				[AICustomizationManagementSection.Instructions, {
-					label: localize('addClaudeMd', "Add CLAUDE.md"),
-					rootFile: 'CLAUDE.md',
-					typeLabel: localize('rule', "Rule"),
-					fileExtension: '.md',
-				}],
-			]),
-			instructionFileFilter: ['CLAUDE.md', 'CLAUDE.local.md', '.claude/rules/', 'copilot-instructions.md'],
 		},
 	);
 }
@@ -372,39 +420,78 @@ export function matchesInstructionFileFilter(filePath: string, filters: readonly
 export class CustomizationHarnessServiceBase implements ICustomizationHarnessService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _activeHarness: ISettableObservable<CustomizationHarness>;
-	readonly activeHarness: IObservable<CustomizationHarness>;
+	private readonly _activeHarness: ISettableObservable<string>;
+	readonly activeHarness: IObservable<string>;
+
+	private readonly _staticHarnesses: readonly IHarnessDescriptor[];
+	private readonly _externalHarnesses: IHarnessDescriptor[] = [];
+	private readonly _availableHarnesses: ISettableObservable<readonly IHarnessDescriptor[]>;
 	readonly availableHarnesses: IObservable<readonly IHarnessDescriptor[]>;
 
-	private readonly _allHarnesses: readonly IHarnessDescriptor[];
-
 	constructor(
-		harnesses: readonly IHarnessDescriptor[],
-		defaultHarness: CustomizationHarness,
-		availableHarnesses?: IObservable<readonly IHarnessDescriptor[]>,
+		staticHarnesses: readonly IHarnessDescriptor[],
+		defaultHarness: string,
 	) {
-		this._allHarnesses = harnesses;
-		this._activeHarness = observableValue<CustomizationHarness>(this, defaultHarness);
+		this._staticHarnesses = staticHarnesses;
+		this._activeHarness = observableValue<string>(this, defaultHarness);
 		this.activeHarness = this._activeHarness;
-		this.availableHarnesses = availableHarnesses ?? constObservable(harnesses);
+		this._availableHarnesses = observableValue<readonly IHarnessDescriptor[]>(this, [...this._staticHarnesses]);
+		this.availableHarnesses = this._availableHarnesses;
 	}
 
-	setActiveHarness(id: CustomizationHarness): void {
-		const available = this.availableHarnesses.get();
-		if (available.some(h => h.id === id)) {
+	private _getAllHarnesses(): readonly IHarnessDescriptor[] {
+		// External harnesses shadow static ones with the same id so that
+		// extension-contributed harnesses can upgrade a built-in entry.
+		const externalIds = new Set(this._externalHarnesses.map(h => h.id));
+		return [
+			...this._staticHarnesses.filter(h => !externalIds.has(h.id)),
+			...this._externalHarnesses,
+		];
+	}
+
+	private _refreshAvailableHarnesses(): void {
+		this._availableHarnesses.set(this._getAllHarnesses(), undefined);
+	}
+
+	registerExternalHarness(descriptor: IHarnessDescriptor): IDisposable {
+		this._externalHarnesses.push(descriptor);
+		this._refreshAvailableHarnesses();
+		return {
+			dispose: () => {
+				const idx = this._externalHarnesses.indexOf(descriptor);
+				if (idx >= 0) {
+					this._externalHarnesses.splice(idx, 1);
+					this._refreshAvailableHarnesses();
+					// If the removed harness was active, only fall back when no
+					// remaining harness (e.g. the restored static one) shares the id.
+					if (this._activeHarness.get() === descriptor.id) {
+						const all = this._getAllHarnesses();
+						if (!all.some(h => h.id === descriptor.id) && all.length > 0) {
+							this._activeHarness.set(all[0].id, undefined);
+						}
+					}
+				}
+			}
+		};
+	}
+
+	setActiveHarness(id: string): void {
+		if (this._getAllHarnesses().some(h => h.id === id)) {
 			this._activeHarness.set(id, undefined);
 		}
 	}
 
 	getStorageSourceFilter(type: PromptsType): IStorageSourceFilter {
-		const descriptor = this.getActiveDescriptor();
-		return descriptor.getStorageSourceFilter(type);
+		const activeId = this._activeHarness.get();
+		const all = this._getAllHarnesses();
+		const descriptor = all.find(h => h.id === activeId);
+		return descriptor?.getStorageSourceFilter(type) ?? all[0].getStorageSourceFilter(type);
 	}
 
 	getActiveDescriptor(): IHarnessDescriptor {
 		const activeId = this._activeHarness.get();
-		const available = this.availableHarnesses.get();
-		return available.find(h => h.id === activeId) ?? available[0] ?? this._allHarnesses[0];
+		const all = this._getAllHarnesses();
+		return all.find(h => h.id === activeId) ?? all[0];
 	}
 }
 

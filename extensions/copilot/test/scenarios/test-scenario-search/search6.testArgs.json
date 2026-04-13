@@ -1,0 +1,12 @@
+{
+	"question": "private fields in typescript files",
+	"isRegex": true,
+	"exampleIncludeGlobs": ["*.ts"],
+	"queryShouldFind": [
+		["example.ts", [
+			"private empCode",
+			"private empName"
+		]]
+	]
+
+}

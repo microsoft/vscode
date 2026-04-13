@@ -14,8 +14,8 @@ import { IConfigurationService } from '../../../../platform/configuration/common
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkspaceContextService, IWorkspaceFolder } from '../../../../platform/workspace/common/workspace.js';
-import { HOOKS_SOURCE_FOLDER, SKILL_FILENAME, getCleanPromptName } from '../../../../workbench/contrib/chat/common/promptSyntax/config/promptFileLocations.js';
-import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
+import { HOOKS_SOURCE_FOLDER, IPromptSourceFolder, SKILL_FILENAME } from '../../../../workbench/contrib/chat/common/promptSyntax/config/promptFileLocations.js';
+import { PromptFileSource, PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { IAgentSkill, IPromptPath, PromptsStorage } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { BUILTIN_STORAGE, IBuiltinPromptPath } from '../../chat/common/builtinPromptsStorage.js';
 import { IWorkbenchEnvironmentService } from '../../../../workbench/services/environment/common/environmentService.js';
@@ -25,15 +25,11 @@ import { IUserDataProfileService } from '../../../../workbench/services/userData
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
 
-/** URI root for built-in prompts bundled with the Sessions app. */
-export const BUILTIN_PROMPTS_URI = FileAccess.asFileUri('vs/sessions/prompts');
-
-/** URI root for built-in skills bundled with the Sessions app. */
+/** URI root for built-in skills bundled with the Agents app. */
 export const BUILTIN_SKILLS_URI = FileAccess.asFileUri('vs/sessions/skills');
 
 export class AgenticPromptsService extends PromptsService {
 	private _copilotRoot: URI | undefined;
-	private _builtinPromptsCache: Map<PromptsType, Promise<readonly IBuiltinPromptPath[]>> | undefined;
 	private _builtinSkillsCache: Promise<readonly IAgentSkill[]> | undefined;
 
 	protected override createPromptFilesLocator(): PromptFilesLocator {
@@ -42,46 +38,9 @@ export class AgenticPromptsService extends PromptsService {
 
 	private getCopilotRoot(): URI {
 		if (!this._copilotRoot) {
-			const pathService = this.instantiationService.invokeFunction(accessor => accessor.get(IPathService));
-			this._copilotRoot = joinPath(pathService.userHome({ preferLocal: true }), '.copilot');
+			this._copilotRoot = joinPath(this.pathService.userHome({ preferLocal: true }), '.copilot');
 		}
 		return this._copilotRoot;
-	}
-
-	/**
-	 * Returns built-in prompt files bundled with the Sessions app.
-	 */
-	private async getBuiltinPromptFiles(type: PromptsType): Promise<readonly IBuiltinPromptPath[]> {
-		if (type !== PromptsType.prompt) {
-			return [];
-		}
-
-		if (!this._builtinPromptsCache) {
-			this._builtinPromptsCache = new Map();
-		}
-
-		let cached = this._builtinPromptsCache.get(type);
-		if (!cached) {
-			cached = this.discoverBuiltinPrompts(type);
-			this._builtinPromptsCache.set(type, cached);
-		}
-		return cached;
-	}
-
-	private async discoverBuiltinPrompts(type: PromptsType): Promise<readonly IBuiltinPromptPath[]> {
-		const fileService = this.instantiationService.invokeFunction(accessor => accessor.get(IFileService));
-		const promptsDir = FileAccess.asFileUri('vs/sessions/prompts');
-		try {
-			const stat = await fileService.resolve(promptsDir);
-			if (!stat.children) {
-				return [];
-			}
-			return stat.children
-				.filter(child => !child.isDirectory && child.name.endsWith('.prompt.md'))
-				.map(child => ({ uri: child.resource, storage: BUILTIN_STORAGE, type }));
-		} catch {
-			return [];
-		}
 	}
 
 	//#region Built-in Skills
@@ -102,9 +61,8 @@ export class AgenticPromptsService extends PromptsService {
 	 * Each subdirectory containing a SKILL.md is treated as a skill.
 	 */
 	private async discoverBuiltinSkills(): Promise<readonly IAgentSkill[]> {
-		const fileService = this.instantiationService.invokeFunction(accessor => accessor.get(IFileService));
 		try {
-			const stat = await fileService.resolve(BUILTIN_SKILLS_URI);
+			const stat = await this.fileService.resolve(BUILTIN_SKILLS_URI);
 			if (!stat.children) {
 				return [];
 			}
@@ -164,8 +122,8 @@ export class AgenticPromptsService extends PromptsService {
 	 * Override to include built-in skills, appending them with lowest priority.
 	 * Skills from any other source (workspace, user, extension, internal) take precedence.
 	 */
-	public override async findAgentSkills(token: CancellationToken, sessionResource?: URI): Promise<IAgentSkill[] | undefined> {
-		const baseResult = await super.findAgentSkills(token, sessionResource);
+	public override async findAgentSkills(token: CancellationToken): Promise<IAgentSkill[] | undefined> {
+		const baseResult = await super.findAgentSkills(token);
 		if (baseResult === undefined) {
 			return undefined;
 		}
@@ -189,18 +147,17 @@ export class AgenticPromptsService extends PromptsService {
 	//#endregion
 
 	/**
-	 * Override to include built-in prompts and built-in skills, filtering out
-	 * those overridden by user or workspace items with the same name.
+	 * Override to include built-in skills, filtering out those overridden by
+	 * user or workspace items with the same name.
 	 */
 	public override async listPromptFiles(type: PromptsType, token: CancellationToken): Promise<readonly IPromptPath[]> {
 		const baseResults = await super.listPromptFiles(type, token);
 
-		let builtinItems: readonly IBuiltinPromptPath[];
-		if (type === PromptsType.skill) {
-			builtinItems = await this.getBuiltinSkillPaths();
-		} else {
-			builtinItems = await this.getBuiltinPromptFiles(type);
+		if (type !== PromptsType.skill) {
+			return baseResults;
 		}
+
+		const builtinItems = await this.getBuiltinSkillPaths();
 		if (builtinItems.length === 0) {
 			return baseResults;
 		}
@@ -209,12 +166,12 @@ export class AgenticPromptsService extends PromptsService {
 		const overriddenNames = new Set<string>();
 		for (const p of baseResults) {
 			if (p.storage === PromptsStorage.local || p.storage === PromptsStorage.user) {
-				overriddenNames.add(type === PromptsType.skill ? basename(dirname(p.uri)) : getCleanPromptName(p.uri));
+				overriddenNames.add(basename(dirname(p.uri)));
 			}
 		}
 
 		const nonOverridden = builtinItems.filter(
-			p => !overriddenNames.has(type === PromptsType.skill ? basename(dirname(p.uri)) : getCleanPromptName(p.uri))
+			p => !overriddenNames.has(basename(dirname(p.uri)))
 		);
 		// Built-in items use BUILTIN_STORAGE ('builtin') which is not in the
 		// core IPromptPath union but is handled by the sessions UI layer.
@@ -226,7 +183,8 @@ export class AgenticPromptsService extends PromptsService {
 			if (type === PromptsType.skill) {
 				return this.getBuiltinSkillPaths() as Promise<readonly IPromptPath[]>;
 			}
-			return this.getBuiltinPromptFiles(type) as Promise<readonly IPromptPath[]>;
+			// Built-in storage is only valid for skills; for other types, there are no items.
+			return [];
 		}
 		return super.listPromptFilesForStorage(type, storage, token);
 	}
@@ -295,6 +253,18 @@ class AgenticPromptFilesLocator extends PromptFilesLocator {
 		return Event.fromObservableLight(this.customizationWorkspaceService.activeProjectRoot);
 	}
 
+	/**
+	 * Filter out Claude-specific source folders in the sessions app.
+	 * Claude customization directories are not supported in the sessions window.
+	 */
+	protected override getPromptSourceFolders(type: PromptsType): IPromptSourceFolder[] {
+		return super.getPromptSourceFolders(type).filter(f => !isClaudeFolder(f));
+	}
+
+	protected override getDefaultSourceFolders(type: PromptsType): readonly IPromptSourceFolder[] {
+		return super.getDefaultSourceFolders(type).filter(f => !isClaudeFolder(f));
+	}
+
 	public override async getHookSourceFolders(): Promise<readonly URI[]> {
 		const configured = await super.getHookSourceFolders();
 		if (configured.length > 0) {
@@ -341,5 +311,20 @@ function getCliUserSubfolder(type: PromptsType): string | undefined {
 function sanitizeSkillText(text: string, maxLength: number): string {
 	const sanitized = text.replace(/<[^>]+>/g, '');
 	return sanitized.length > maxLength ? sanitized.substring(0, maxLength) : sanitized;
+}
+
+/**
+ * Returns whether the given source folder targets a Claude-specific location.
+ * Checks both the typed source enum and the path string to also catch
+ * user-configured entries that use ConfigWorkspace/ConfigPersonal sources.
+ */
+function isClaudeFolder(folder: IPromptSourceFolder): boolean {
+	if (folder.source === PromptFileSource.ClaudePersonal
+		|| folder.source === PromptFileSource.ClaudeWorkspace
+		|| folder.source === PromptFileSource.ClaudeWorkspaceLocal) {
+		return true;
+	}
+	// User-configured paths get Config* source types, so also check the path
+	return folder.path.startsWith('.claude/') || folder.path.includes('/.claude/');
 }
 

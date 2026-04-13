@@ -89,6 +89,7 @@ import '../workbench/services/extensions/electron-browser/nativeExtensionService
 import '../platform/userDataProfile/electron-browser/userDataProfileStorageService.js';
 import '../workbench/services/auxiliaryWindow/electron-browser/auxiliaryWindowService.js';
 import '../platform/extensionManagement/electron-browser/extensionsProfileScannerService.js';
+import '../platform/sandbox/electron-browser/sandboxHelperService.js';
 import '../platform/webContentExtractor/electron-browser/webContentExtractorService.js';
 import '../workbench/services/browserView/electron-browser/playwrightWorkbenchService.js';
 import '../workbench/services/process/electron-browser/processService.js';
@@ -196,33 +197,17 @@ import '../workbench/contrib/policyExport/electron-browser/policyExport.contribu
 
 //#region --- sessions contributions
 
-import './browser/paneCompositePartService.js';
-import './browser/layoutActions.js';
-
-import './contrib/accountMenu/browser/account.contribution.js';
-import './contrib/aiCustomizationTreeView/browser/aiCustomizationTreeView.contribution.js';
-import './contrib/chat/browser/chat.contribution.js';
-import './contrib/chat/browser/customizationsDebugLog.contribution.js';
-import './contrib/sessions/browser/sessions.contribution.js';
-import './contrib/sessions/browser/customizationsToolbar.contribution.js';
-import './contrib/changes/browser/changesView.contribution.js';
-import './contrib/codeReview/browser/codeReview.contributions.js';
-import './contrib/files/browser/files.contribution.js';
-import './contrib/github/browser/github.contribution.js';
-import './contrib/applyCommitsToParentRepo/browser/applyChangesToParentRepo.js';
-import './contrib/fileTreeView/browser/fileTreeView.contribution.js'; // view registration disabled; filesystem provider still needed
-import './contrib/configuration/browser/configuration.contribution.js';
-
-import './contrib/terminal/browser/sessionsTerminalContribution.js';
-import './contrib/logs/browser/logs.contribution.js';
-import './contrib/chatDebug/browser/chatDebug.contribution.js';
-import './contrib/workspace/browser/workspace.contribution.js';
-import './contrib/welcome/browser/welcome.contribution.js';
-
 // Remote Agent Host
 import '../platform/agentHost/electron-browser/agentHostService.js';
 import '../platform/agentHost/electron-browser/remoteAgentHostService.js';
+import '../platform/agentHost/electron-browser/sshRemoteAgentHostService.js';
+import './contrib/remoteAgentHost/electron-browser/tunnelAgentHostService.js';
 import './contrib/remoteAgentHost/browser/remoteAgentHost.contribution.js';
+import './contrib/remoteAgentHost/browser/remoteAgentHostActions.js';
+import './contrib/remoteAgentHost/browser/tunnelAgentHost.contribution.js';
+
+// Local Agent Host
+import './contrib/localAgentHost/browser/localAgentHost.contribution.js';
 
 //#endregion
 

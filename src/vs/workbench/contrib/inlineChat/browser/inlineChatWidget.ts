@@ -17,14 +17,15 @@ import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { Selection } from '../../../../editor/common/core/selection.js';
 import { ICodeEditorViewState } from '../../../../editor/common/editorCommon.js';
 import { ITextModel } from '../../../../editor/common/model.js';
+import { IModelService } from '../../../../editor/common/services/model.js';
 import { ITextModelService } from '../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../nls.js';
 import { IAccessibleViewService } from '../../../../platform/accessibility/browser/accessibleView.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IWorkbenchButtonBarOptions, MenuWorkbenchButtonBar } from '../../../../platform/actions/browser/buttonbar.js';
-import { createActionViewItem, IMenuEntryActionViewItemOptions } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
+import { createActionViewItem } from '../../../../platform/actions/browser/menuEntryActionViewItem.js';
 import { MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
-import { MenuId, MenuItemAction } from '../../../../platform/actions/common/actions.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
@@ -39,9 +40,7 @@ import { EDITOR_DRAG_AND_DROP_BACKGROUND } from '../../../common/theme.js';
 import { IChatEntitlementService } from '../../../services/chat/common/chatEntitlementService.js';
 import { AccessibilityVerbositySettingId } from '../../accessibility/browser/accessibilityConfiguration.js';
 import { AccessibilityCommandId } from '../../accessibility/common/accessibilityCommands.js';
-import { MarkUnhelpfulActionId } from '../../chat/browser/actions/chatTitleActions.js';
 import { IChatWidgetViewOptions } from '../../chat/browser/chat.js';
-import { ChatVoteDownButton } from '../../chat/browser/widget/chatListRenderer.js';
 import { ChatWidget, IChatWidgetLocationOptions } from '../../chat/browser/widget/chatWidget.js';
 import { chatRequestBackground } from '../../chat/common/widget/chatColors.js';
 import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
@@ -49,7 +48,6 @@ import { IChatModel } from '../../chat/common/model/chatModel.js';
 import { ChatMode } from '../../chat/common/chatModes.js';
 import { ChatAgentVoteDirection, IChatService } from '../../chat/common/chatService/chatService.js';
 import { isResponseVM } from '../../chat/common/model/chatViewModel.js';
-import * as marked from '../../../../base/common/marked/marked.js';
 import { CTX_INLINE_CHAT_FOCUSED, CTX_INLINE_CHAT_RESPONSE_FOCUSED, inlineChatBackground, inlineChatForeground } from '../common/inlineChat.js';
 import './media/inlineChat.css';
 
@@ -95,37 +93,58 @@ export class InlineChatWidget {
 
 	protected readonly _store = new DisposableStore();
 
-	private readonly _ctxInputEditorFocused: IContextKey<boolean>;
-	private readonly _ctxResponseFocused: IContextKey<boolean>;
+	readonly #ctxInputEditorFocused: IContextKey<boolean>;
+	readonly #ctxResponseFocused: IContextKey<boolean>;
 
-	private readonly _chatWidget: ChatWidget;
+	readonly #chatWidget: ChatWidget;
 
 	protected readonly _onDidChangeHeight = this._store.add(new Emitter<void>());
-	readonly onDidChangeHeight: Event<void> = Event.filter(this._onDidChangeHeight.event, _ => !this._isLayouting);
+	readonly onDidChangeHeight: Event<void> = Event.filter(this._onDidChangeHeight.event, _ => !this.#isLayouting);
 
-	private readonly _requestInProgress = observableValue(this, false);
-	readonly requestInProgress: IObservable<boolean> = this._requestInProgress;
+	readonly #requestInProgress = observableValue(this, false);
+	readonly requestInProgress: IObservable<boolean> = this.#requestInProgress;
 
-	private _isLayouting: boolean = false;
+	#isLayouting: boolean = false;
 
 	readonly scopedContextKeyService: IContextKeyService;
 
+	readonly #options: IInlineChatWidgetConstructionOptions;
+	readonly #keybindingService: IKeybindingService;
+	readonly #accessibilityService: IAccessibilityService;
+	readonly #configurationService: IConfigurationService;
+	readonly #accessibleViewService: IAccessibleViewService;
+	readonly #modelService: IModelService;
+	readonly #chatService: IChatService;
+	readonly #chatEntitlementService: IChatEntitlementService;
+	readonly #markdownRendererService: IMarkdownRendererService;
+
 	constructor(
 		location: IChatWidgetLocationOptions,
-		private readonly _options: IInlineChatWidgetConstructionOptions,
+		options: IInlineChatWidgetConstructionOptions,
 		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
-		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IAccessibleViewService private readonly _accessibleViewService: IAccessibleViewService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IAccessibilityService accessibilityService: IAccessibilityService,
+		@IConfigurationService configurationService: IConfigurationService,
+		@IAccessibleViewService accessibleViewService: IAccessibleViewService,
 		@ITextModelService protected readonly _textModelResolverService: ITextModelService,
-		@IChatService private readonly _chatService: IChatService,
-		@IHoverService private readonly _hoverService: IHoverService,
-		@IChatEntitlementService private readonly _chatEntitlementService: IChatEntitlementService,
-		@IMarkdownRendererService private readonly _markdownRendererService: IMarkdownRendererService,
+		@IModelService modelService: IModelService,
+		@IChatService chatService: IChatService,
+		@IHoverService hoverService: IHoverService,
+		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
+		@IMarkdownRendererService markdownRendererService: IMarkdownRendererService,
 	) {
-		this.scopedContextKeyService = this._store.add(_contextKeyService.createScoped(this._elements.chatWidget));
+		this.#options = options;
+		this.#keybindingService = keybindingService;
+		this.#accessibilityService = accessibilityService;
+		this.#configurationService = configurationService;
+		this.#accessibleViewService = accessibleViewService;
+		this.#modelService = modelService;
+		this.#chatService = chatService;
+		this.#chatEntitlementService = chatEntitlementService;
+		this.#markdownRendererService = markdownRendererService;
+
+		this.scopedContextKeyService = this._store.add(contextKeyService.createScoped(this._elements.chatWidget));
 		const scopedInstaService = _instantiationService.createChild(
 			new ServiceCollection([
 				IContextKeyService,
@@ -134,7 +153,7 @@ export class InlineChatWidget {
 			this._store
 		);
 
-		this._chatWidget = scopedInstaService.createInstance(
+		this.#chatWidget = scopedInstaService.createInstance(
 			ChatWidget,
 			location,
 			{ isInlineChat: true },
@@ -154,14 +173,14 @@ export class InlineChatWidget {
 					if (emptyResponse) {
 						return false;
 					}
-					if (item.response.value.every(item => item.kind === 'textEditGroup' && _options.chatWidgetViewOptions?.rendererOptions?.renderTextEditsAsSummary?.(item.uri))) {
+					if (item.response.value.every(item => item.kind === 'textEditGroup' && options.chatWidgetViewOptions?.rendererOptions?.renderTextEditsAsSummary?.(item.uri))) {
 						return false;
 					}
 					return true;
 				},
 				dndContainer: this._elements.root,
 				defaultMode: ChatMode.Ask,
-				..._options.chatWidgetViewOptions
+				...options.chatWidgetViewOptions
 			},
 			{
 				listForeground: inlineChatForeground,
@@ -171,11 +190,11 @@ export class InlineChatWidget {
 				resultEditorBackground: editorBackground
 			}
 		);
-		this._elements.root.classList.toggle('in-zone-widget', !!_options.inZoneWidget);
-		this._chatWidget.render(this._elements.chatWidget);
+		this._elements.root.classList.toggle('in-zone-widget', !!options.inZoneWidget);
+		this.#chatWidget.render(this._elements.chatWidget);
 		this._elements.chatWidget.style.setProperty(asCssVariableName(chatRequestBackground), asCssVariable(inlineChatBackground));
-		this._chatWidget.setVisible(true);
-		this._store.add(this._chatWidget);
+		this.#chatWidget.setVisible(true);
+		this._store.add(this.#chatWidget);
 
 		const ctxResponse = ChatContextKeys.isResponse.bindTo(this.scopedContextKeyService);
 		const ctxResponseVote = ChatContextKeys.responseVote.bindTo(this.scopedContextKeyService);
@@ -184,10 +203,10 @@ export class InlineChatWidget {
 		const ctxResponseErrorFiltered = ChatContextKeys.responseIsFiltered.bindTo(this.scopedContextKeyService);
 
 		const viewModelStore = this._store.add(new DisposableStore());
-		this._store.add(this._chatWidget.onDidChangeViewModel(() => {
+		this._store.add(this.#chatWidget.onDidChangeViewModel(() => {
 			viewModelStore.clear();
 
-			const viewModel = this._chatWidget.viewModel;
+			const viewModel = this.#chatWidget.viewModel;
 			if (!viewModel) {
 				return;
 			}
@@ -203,7 +222,7 @@ export class InlineChatWidget {
 
 			viewModelStore.add(viewModel.onDidChange(() => {
 
-				this._requestInProgress.set(viewModel.model.requestInProgress.get(), undefined);
+				this.#requestInProgress.set(viewModel.model.requestInProgress.get(), undefined);
 
 				const last = viewModel.getItems().at(-1);
 				toolbar2.context = last;
@@ -224,22 +243,22 @@ export class InlineChatWidget {
 		}));
 
 		// context keys
-		this._ctxResponseFocused = CTX_INLINE_CHAT_RESPONSE_FOCUSED.bindTo(this._contextKeyService);
+		this.#ctxResponseFocused = CTX_INLINE_CHAT_RESPONSE_FOCUSED.bindTo(contextKeyService);
 		const tracker = this._store.add(trackFocus(this.domNode));
-		this._store.add(tracker.onDidBlur(() => this._ctxResponseFocused.set(false)));
-		this._store.add(tracker.onDidFocus(() => this._ctxResponseFocused.set(true)));
+		this._store.add(tracker.onDidBlur(() => this.#ctxResponseFocused.set(false)));
+		this._store.add(tracker.onDidFocus(() => this.#ctxResponseFocused.set(true)));
 
-		this._ctxInputEditorFocused = CTX_INLINE_CHAT_FOCUSED.bindTo(_contextKeyService);
-		this._store.add(this._chatWidget.inputEditor.onDidFocusEditorWidget(() => this._ctxInputEditorFocused.set(true)));
-		this._store.add(this._chatWidget.inputEditor.onDidBlurEditorWidget(() => this._ctxInputEditorFocused.set(false)));
+		this.#ctxInputEditorFocused = CTX_INLINE_CHAT_FOCUSED.bindTo(contextKeyService);
+		this._store.add(this.#chatWidget.inputEditor.onDidFocusEditorWidget(() => this.#ctxInputEditorFocused.set(true)));
+		this._store.add(this.#chatWidget.inputEditor.onDidBlurEditorWidget(() => this.#ctxInputEditorFocused.set(false)));
 
-		const statusMenuId = _options.statusMenuId instanceof MenuId ? _options.statusMenuId : _options.statusMenuId.menu;
+		const statusMenuId = options.statusMenuId instanceof MenuId ? options.statusMenuId : options.statusMenuId.menu;
 
 		// BUTTON bar
-		const statusMenuOptions = _options.statusMenuId instanceof MenuId ? undefined : _options.statusMenuId.options;
+		const statusMenuOptions = options.statusMenuId instanceof MenuId ? undefined : options.statusMenuId.options;
 		const statusButtonBar = scopedInstaService.createInstance(MenuWorkbenchButtonBar, this._elements.toolbar1, statusMenuId, {
 			toolbarOptions: { primaryGroup: '0_main' },
-			telemetrySource: _options.chatWidgetViewOptions?.menus?.telemetrySource,
+			telemetrySource: options.chatWidgetViewOptions?.menus?.telemetrySource,
 			menuOptions: { renderShortTitle: true },
 			...statusMenuOptions,
 		});
@@ -247,13 +266,10 @@ export class InlineChatWidget {
 		this._store.add(statusButtonBar);
 
 		// secondary toolbar
-		const toolbar2 = scopedInstaService.createInstance(MenuWorkbenchToolBar, this._elements.toolbar2, _options.secondaryMenuId ?? MenuId.for(''), {
-			telemetrySource: _options.chatWidgetViewOptions?.menus?.telemetrySource,
+		const toolbar2 = scopedInstaService.createInstance(MenuWorkbenchToolBar, this._elements.toolbar2, options.secondaryMenuId ?? MenuId.for(''), {
+			telemetrySource: options.chatWidgetViewOptions?.menus?.telemetrySource,
 			menuOptions: { renderShortTitle: true, shouldForwardArgs: true },
 			actionViewItemProvider: (action: IAction, options: IActionViewItemOptions) => {
-				if (action instanceof MenuItemAction && action.item.id === MarkUnhelpfulActionId) {
-					return scopedInstaService.createInstance(ChatVoteDownButton, action, options as IMenuEntryActionViewItemOptions);
-				}
 				return createActionViewItem(scopedInstaService, action, options);
 			}
 		});
@@ -261,60 +277,60 @@ export class InlineChatWidget {
 		this._store.add(toolbar2);
 
 
-		this._store.add(this._configurationService.onDidChangeConfiguration(e => {
+		this._store.add(this.#configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(AccessibilityVerbositySettingId.InlineChat)) {
-				this._updateAriaLabel();
+				this.#updateAriaLabel();
 			}
 		}));
 
 		this._elements.root.tabIndex = 0;
 		this._elements.statusLabel.tabIndex = 0;
-		this._updateAriaLabel();
-		this._setupDisclaimer();
+		this.#updateAriaLabel();
+		this.#setupDisclaimer();
 
-		this._store.add(this._hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this._elements.statusLabel, () => {
+		this._store.add(hoverService.setupManagedHover(getDefaultHoverDelegate('element'), this._elements.statusLabel, () => {
 			return this._elements.statusLabel.dataset['title'];
 		}));
 
-		this._store.add(this._chatService.onDidPerformUserAction(e => {
-			if (isEqual(e.sessionResource, this._chatWidget.viewModel?.model.sessionResource) && e.action.kind === 'vote') {
+		this._store.add(this.#chatService.onDidPerformUserAction(e => {
+			if (isEqual(e.sessionResource, this.#chatWidget.viewModel?.model.sessionResource) && e.action.kind === 'vote') {
 				this.updateStatus(localize('feedbackThanks', "Thank you for your feedback!"), { resetAfter: 1250 });
 			}
 		}));
 	}
 
-	private _updateAriaLabel(): void {
+	#updateAriaLabel(): void {
 
-		this._elements.root.ariaLabel = this._accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.InlineChat);
+		this._elements.root.ariaLabel = this.#accessibleViewService.getOpenAriaHint(AccessibilityVerbositySettingId.InlineChat);
 
-		if (this._accessibilityService.isScreenReaderOptimized()) {
+		if (this.#accessibilityService.isScreenReaderOptimized()) {
 			let label = defaultAriaLabel;
-			if (this._configurationService.getValue<boolean>(AccessibilityVerbositySettingId.InlineChat)) {
-				const kbLabel = this._keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getLabel();
+			if (this.#configurationService.getValue<boolean>(AccessibilityVerbositySettingId.InlineChat)) {
+				const kbLabel = this.#keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibilityHelp)?.getLabel();
 				label = kbLabel
 					? localize('inlineChat.accessibilityHelp', "Inline Chat Input, Use {0} for Inline Chat Accessibility Help.", kbLabel)
 					: localize('inlineChat.accessibilityHelpNoKb', "Inline Chat Input, Run the Inline Chat Accessibility Help command for more information.");
 			}
-			this._chatWidget.inputEditor.updateOptions({ ariaLabel: label });
+			this.#chatWidget.inputEditor.updateOptions({ ariaLabel: label });
 		}
 	}
 
-	private _setupDisclaimer(): void {
+	#setupDisclaimer(): void {
 		const disposables = this._store.add(new DisposableStore());
 
 		this._store.add(autorun(reader => {
 			disposables.clear();
 			reset(this._elements.disclaimerLabel);
 
-			const sentiment = this._chatEntitlementService.sentimentObs.read(reader);
-			const anonymous = this._chatEntitlementService.anonymousObs.read(reader);
-			const requestInProgress = this._chatService.requestInProgressObs.read(reader);
+			const sentiment = this.#chatEntitlementService.sentimentObs.read(reader);
+			const anonymous = this.#chatEntitlementService.anonymousObs.read(reader);
+			const requestInProgress = this.#chatService.requestInProgressObs.read(reader);
 
-			const showDisclaimer = !sentiment.installed && anonymous && !requestInProgress;
+			const showDisclaimer = !sentiment.completed && anonymous && !requestInProgress;
 			this._elements.disclaimerLabel.classList.toggle('hidden', !showDisclaimer);
 
 			if (showDisclaimer) {
-				const renderedMarkdown = disposables.add(this._markdownRendererService.render(new MarkdownString(localize({ key: 'termsDisclaimer', comment: ['{Locked="]({2})"}', '{Locked="]({3})"}'] }, "By continuing with {0} Copilot, you agree to {1}'s [Terms]({2}) and [Privacy Statement]({3})", product.defaultChatAgent?.provider?.default?.name ?? '', product.defaultChatAgent?.provider?.default?.name ?? '', product.defaultChatAgent?.termsStatementUrl ?? '', product.defaultChatAgent?.privacyStatementUrl ?? ''), { isTrusted: true })));
+				const renderedMarkdown = disposables.add(this.#markdownRendererService.render(new MarkdownString(localize({ key: 'termsDisclaimer', comment: ['{Locked="]({2})"}', '{Locked="]({3})"}'] }, "By continuing with {0} Copilot, you agree to {1}'s [Terms]({2}) and [Privacy Statement]({3})", product.defaultChatAgent?.provider?.default?.name ?? '', product.defaultChatAgent?.provider?.default?.name ?? '', product.defaultChatAgent?.termsStatementUrl ?? '', product.defaultChatAgent?.privacyStatementUrl ?? ''), { isTrusted: true })));
 				this._elements.disclaimerLabel.appendChild(renderedMarkdown.element);
 			}
 
@@ -331,20 +347,20 @@ export class InlineChatWidget {
 	}
 
 	get chatWidget(): ChatWidget {
-		return this._chatWidget;
+		return this.#chatWidget;
 	}
 
 	saveState() {
-		this._chatWidget.saveState();
+		this.#chatWidget.saveState();
 	}
 
 	layout(widgetDim: Dimension) {
 		const contentHeight = this.contentHeight;
-		this._isLayouting = true;
+		this.#isLayouting = true;
 		try {
 			this._doLayout(widgetDim);
 		} finally {
-			this._isLayouting = false;
+			this.#isLayouting = false;
 
 			if (this.contentHeight !== contentHeight) {
 				this._onDidChangeHeight.fire();
@@ -361,7 +377,7 @@ export class InlineChatWidget {
 		this._elements.root.style.height = `${dimension.height - extraHeight}px`;
 		this._elements.root.style.width = `${dimension.width}px`;
 
-		this._chatWidget.layout(
+		this.#chatWidget.layout(
 			dimension.height - statusHeight - extraHeight,
 			dimension.width
 		);
@@ -372,7 +388,7 @@ export class InlineChatWidget {
 	 */
 	get contentHeight(): number {
 		const data = {
-			chatWidgetContentHeight: this._chatWidget.contentHeight,
+			chatWidgetContentHeight: this.#chatWidget.contentHeight,
 			statusHeight: getTotalHeight(this._elements.status),
 			extraHeight: this._getExtraHeight()
 		};
@@ -385,7 +401,7 @@ export class InlineChatWidget {
 		// at least "maxWidgetHeight" high and at most the content height.
 
 		let maxWidgetOutputHeight = 100;
-		for (const item of this._chatWidget.viewModel?.getItems() ?? []) {
+		for (const item of this.#chatWidget.viewModel?.getItems() ?? []) {
 			if (isResponseVM(item) && item.response.value.some(r => r.kind === 'textEditGroup' && !r.state?.applied)) {
 				maxWidgetOutputHeight = 270;
 				break;
@@ -393,29 +409,29 @@ export class InlineChatWidget {
 		}
 
 		let value = this.contentHeight;
-		value -= this._chatWidget.contentHeight;
-		value += Math.min(this._chatWidget.input.height.get() + maxWidgetOutputHeight, this._chatWidget.contentHeight);
+		value -= this.#chatWidget.contentHeight;
+		value += Math.min(this.#chatWidget.input.height.get() + maxWidgetOutputHeight, this.#chatWidget.contentHeight);
 		return value;
 	}
 
 	protected _getExtraHeight(): number {
-		return this._options.inZoneWidget ? 1 : (2 /*border*/ + 4 /*shadow*/);
+		return this.#options.inZoneWidget ? 1 : (2 /*border*/ + 4 /*shadow*/);
 	}
 
 	get value(): string {
-		return this._chatWidget.getInput();
+		return this.#chatWidget.getInput();
 	}
 
 	set value(value: string) {
-		this._chatWidget.setInput(value);
+		this.#chatWidget.setInput(value);
 	}
 
 	selectAll() {
-		this._chatWidget.inputEditor.setSelection(new Selection(1, 1, Number.MAX_SAFE_INTEGER, 1));
+		this.#chatWidget.inputEditor.setSelection(new Selection(1, 1, Number.MAX_SAFE_INTEGER, 1));
 	}
 
 	set placeholder(value: string) {
-		this._chatWidget.setInputPlaceholder(value);
+		this.#chatWidget.setInputPlaceholder(value);
 	}
 
 	toggleStatus(show: boolean) {
@@ -436,7 +452,7 @@ export class InlineChatWidget {
 	}
 
 	async getCodeBlockInfo(codeBlockIndex: number): Promise<ITextModel | undefined> {
-		const { viewModel } = this._chatWidget;
+		const { viewModel } = this.#chatWidget;
 		if (!viewModel) {
 			return undefined;
 		}
@@ -446,55 +462,54 @@ export class InlineChatWidget {
 			return;
 		}
 
-		// Try to get the existing code block from the collection
-		const existingEntry = viewModel.codeBlockModelCollection.get(viewModel.sessionResource, item, codeBlockIndex);
-		if (existingEntry) {
-			return existingEntry.model;
+		// Look for the code block in the rendered response
+		const codeBlocks = this.#chatWidget.getCodeBlockInfosForResponse(item);
+		const info = codeBlocks[codeBlockIndex];
+		if (info?.uri) {
+			return this.#modelService.getModel(info.uri) ?? undefined;
 		}
 
-		// If not found, the rendering may not have completed yet.
-		// Parse the markdown and create the code block model synchronously.
+		// Fallback: if the code block hasn't been rendered yet (e.g. due to
+		// timing between response completion and list rendering), parse the
+		// markdown directly and create a transient model.
 		const markdown = item.response.getMarkdown();
 		let currentCodeBlockIndex = 0;
-		let foundCodeBlock: { text: string; lang: string } | undefined;
+		let foundText: string | undefined;
 
-		marked.walkTokens(marked.lexer(markdown), token => {
-			if (token.type === 'code') {
+		for (const line of markdown.split('\n')) {
+			if (line.startsWith('```') && foundText === undefined) {
+				foundText = '';
+			} else if (line.startsWith('```') && foundText !== undefined) {
 				if (currentCodeBlockIndex === codeBlockIndex) {
-					foundCodeBlock = { text: token.text, lang: token.lang || '' };
+					break;
 				}
 				currentCodeBlockIndex++;
+				foundText = undefined;
+			} else if (foundText !== undefined) {
+				foundText += (foundText ? '\n' : '') + line;
 			}
-		});
-
-		if (!foundCodeBlock) {
-			return undefined;
 		}
 
-		// Create the code block model synchronously
-		const entry = viewModel.codeBlockModelCollection.updateSync(
-			viewModel.sessionResource,
-			item,
-			codeBlockIndex,
-			{ text: foundCodeBlock.text, languageId: foundCodeBlock.lang, isComplete: true }
-		);
+		if (foundText !== undefined && currentCodeBlockIndex === codeBlockIndex) {
+			return this.#modelService.createModel(foundText, null, undefined, true);
+		}
 
-		return entry.model;
+		return undefined;
 	}
 
 	get responseContent(): string | undefined {
-		const requests = this._chatWidget.viewModel?.model.getRequests();
+		const requests = this.#chatWidget.viewModel?.model.getRequests();
 		return requests?.at(-1)?.response?.response.toString();
 	}
 
 
 	getChatModel(): IChatModel | undefined {
-		return this._chatWidget.viewModel?.model;
+		return this.#chatWidget.viewModel?.model;
 	}
 
 	setChatModel(chatModel: IChatModel) {
 		chatModel.inputModel.setState({ inputText: '', selections: [] });
-		this._chatWidget.setModel(chatModel);
+		this.#chatWidget.setModel(chatModel);
 	}
 
 	updateInfo(message: string): void {
@@ -533,8 +548,8 @@ export class InlineChatWidget {
 	}
 
 	reset() {
-		this._chatWidget.attachmentModel.clear(true);
-		this._chatWidget.saveState();
+		this.#chatWidget.attachmentModel.clear(true);
+		this.#chatWidget.saveState();
 
 		reset(this._elements.statusLabel);
 		this._elements.statusLabel.classList.toggle('hidden', true);
@@ -547,7 +562,7 @@ export class InlineChatWidget {
 	}
 
 	focus() {
-		this._chatWidget.focusInput();
+		this.#chatWidget.focusInput();
 	}
 
 	hasFocus() {
@@ -571,6 +586,7 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IAccessibleViewService accessibleViewService: IAccessibleViewService,
 		@ITextModelService textModelResolverService: ITextModelService,
+		@IModelService modelService: IModelService,
 		@IChatService chatService: IChatService,
 		@IHoverService hoverService: IHoverService,
 		@ILayoutService layoutService: ILayoutService,
@@ -584,7 +600,7 @@ export class EditorBasedInlineChatWidget extends InlineChatWidget {
 				...options.chatWidgetViewOptions,
 				editorOverflowWidgetsDomNode: overflowWidgetsNode
 			}
-		}, instantiationService, contextKeyService, keybindingService, accessibilityService, configurationService, accessibleViewService, textModelResolverService, chatService, hoverService, chatEntitlementService, markdownRendererService);
+		}, instantiationService, contextKeyService, keybindingService, accessibilityService, configurationService, accessibleViewService, textModelResolverService, modelService, chatService, hoverService, chatEntitlementService, markdownRendererService);
 
 		this._store.add(toDisposable(() => {
 			overflowWidgetsNode.remove();

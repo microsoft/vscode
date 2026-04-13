@@ -26,6 +26,7 @@ export class MockChatModel extends Disposable implements IChatModel {
 	creationDate = Date.now();
 	requests: IChatRequestModel[] = [];
 	readonly requestInProgress = observableValue('requestInProgress', false);
+	readonly hasActiveRequest = observableValue('hasActiveRequest', false);
 	readonly requestNeedsInput = observableValue<IChatRequestNeedsInputInfo | undefined>('requestNeedsInput', undefined);
 	readonly inputPlaceholder = undefined;
 	readonly editingSession = undefined;

@@ -305,20 +305,16 @@ class ChatResponseAccessibleProvider extends Disposable implements IAccessibleVi
 					let text: string;
 					if (URI.isUri(ref)) {
 						const name = part.name || basename(ref);
-						const isFileUri = ref.scheme === 'file';
-						const path = isFileUri ? (ref.fsPath || ref.path) : ref.toString(true);
+						const path = ref.scheme === 'file' ? ref.path : ref.toString(true);
 						text = name !== path ? `${name} (${path})` : path;
 					} else if (isLocation(ref)) {
 						const name = part.name || basename(ref.uri);
-						const isFileUri = ref.uri.scheme === 'file';
-						const basePath = isFileUri ? (ref.uri.fsPath || ref.uri.path) : ref.uri.toString(true);
-						const location = `${basePath}:${ref.range.startLineNumber}`;
-						text = `${name} (${location})`;
+						const path = ref.uri.scheme === 'file' ? ref.uri.path : ref.uri.toString(true);
+						text = `${name} (${path}:${ref.range.startLineNumber})`;
 					} else {
 						// IWorkspaceSymbol
-						const isFileUri = ref.location.uri.scheme === 'file';
-						const basePath = isFileUri ? (ref.location.uri.fsPath || ref.location.uri.path) : ref.location.uri.toString(true);
-						text = `${ref.name} (${basePath}:${ref.location.range.startLineNumber})`;
+						const path = ref.location.uri.scheme === 'file' ? (ref.location.uri.fsPath || ref.location.uri.path) : ref.location.uri.toString(true);
+						text = `${ref.name} (${path}:${ref.location.range.startLineNumber})`;
 					}
 					contentParts.push(text);
 					break;

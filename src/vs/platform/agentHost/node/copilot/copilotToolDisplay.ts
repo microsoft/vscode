@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { hasKey } from '../../../../base/common/types.js';
 import { localize } from '../../../../nls.js';
 
 // =============================================================================
@@ -55,7 +56,7 @@ interface ICopilotShellToolArgs {
 
 /** Parameters for file tools (`view`, `edit`, `write`). */
 interface ICopilotFileToolArgs {
-	file_path: string;
+	path: string;
 }
 
 /** Parameters for the `grep` tool. */
@@ -71,10 +72,45 @@ interface ICopilotGlobToolArgs {
 	path?: string;
 }
 
+/** Set of tool names that perform file edits. */
+const EDIT_TOOL_NAMES: ReadonlySet<string> = new Set([
+	CopilotToolName.Edit,
+	CopilotToolName.Write,
+	CopilotToolName.Patch,
+]);
+
+/**
+ * Returns true if the tool modifies files on disk.
+ */
+export function isEditTool(toolName: string): boolean {
+	return EDIT_TOOL_NAMES.has(toolName);
+}
+
+/**
+ * Extracts the target file path from an edit tool's parameters, if available.
+ */
+export function getEditFilePath(parameters: unknown): string | undefined {
+	if (typeof parameters === 'string') {
+		try {
+			parameters = JSON.parse(parameters);
+		} catch {
+			return undefined;
+		}
+	}
+
+	const args = parameters as ICopilotFileToolArgs | undefined;
+	return args?.path;
+}
+
 /** Set of tool names that execute shell commands (bash or powershell). */
 const SHELL_TOOL_NAMES: ReadonlySet<string> = new Set([
 	CopilotToolName.Bash,
 	CopilotToolName.PowerShell,
+]);
+
+/** Set of tool names that spawn subagent sessions. */
+const SUBAGENT_TOOL_NAMES: ReadonlySet<string> = new Set([
+	'task',
 ]);
 
 /**
@@ -90,6 +126,13 @@ const HIDDEN_TOOL_NAMES: ReadonlySet<string> = new Set([
  */
 export function isHiddenTool(toolName: string): boolean {
 	return HIDDEN_TOOL_NAMES.has(toolName);
+}
+
+/**
+ * Returns true if the tool executes shell commands.
+ */
+export function isShellTool(toolName: string): boolean {
+	return SHELL_TOOL_NAMES.has(toolName);
 }
 
 // =============================================================================
@@ -141,22 +184,22 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 	switch (toolName) {
 		case CopilotToolName.View: {
 			const args = parameters as ICopilotFileToolArgs | undefined;
-			if (args?.file_path) {
-				return localize('toolInvoke.viewFile', "Reading {0}", args.file_path);
+			if (args?.path) {
+				return localize('toolInvoke.viewFile', "Reading {0}", args.path);
 			}
 			return localize('toolInvoke.view', "Reading file");
 		}
 		case CopilotToolName.Edit: {
 			const args = parameters as ICopilotFileToolArgs | undefined;
-			if (args?.file_path) {
-				return localize('toolInvoke.editFile', "Editing {0}", args.file_path);
+			if (args?.path) {
+				return localize('toolInvoke.editFile', "Editing {0}", args.path);
 			}
 			return localize('toolInvoke.edit', "Editing file");
 		}
 		case CopilotToolName.Write: {
 			const args = parameters as ICopilotFileToolArgs | undefined;
-			if (args?.file_path) {
-				return localize('toolInvoke.writeFile', "Writing to {0}", args.file_path);
+			if (args?.path) {
+				return localize('toolInvoke.writeFile', "Writing to {0}", args.path);
 			}
 			return localize('toolInvoke.write', "Writing file");
 		}
@@ -196,22 +239,22 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 	switch (toolName) {
 		case CopilotToolName.View: {
 			const args = parameters as ICopilotFileToolArgs | undefined;
-			if (args?.file_path) {
-				return localize('toolComplete.viewFile', "Read {0}", args.file_path);
+			if (args?.path) {
+				return localize('toolComplete.viewFile', "Read {0}", args.path);
 			}
 			return localize('toolComplete.view', "Read file");
 		}
 		case CopilotToolName.Edit: {
 			const args = parameters as ICopilotFileToolArgs | undefined;
-			if (args?.file_path) {
-				return localize('toolComplete.editFile', "Edited {0}", args.file_path);
+			if (args?.path) {
+				return localize('toolComplete.editFile', "Edited {0}", args.path);
 			}
 			return localize('toolComplete.edit', "Edited file");
 		}
 		case CopilotToolName.Write: {
 			const args = parameters as ICopilotFileToolArgs | undefined;
-			if (args?.file_path) {
-				return localize('toolComplete.writeFile', "Wrote to {0}", args.file_path);
+			if (args?.path) {
+				return localize('toolComplete.writeFile', "Wrote to {0}", args.path);
 			}
 			return localize('toolComplete.write', "Wrote file");
 		}
@@ -241,7 +284,15 @@ export function getToolInputString(toolName: string, parameters: Record<string, 
 
 	if (SHELL_TOOL_NAMES.has(toolName)) {
 		const args = parameters as ICopilotShellToolArgs | undefined;
-		return args?.command ?? rawArguments;
+		// Custom tool overrides may wrap the args: { kind: 'custom-tool', args: { command: '...' } }
+		const command = args?.command ?? (args as Record<string, unknown> | undefined)?.args;
+		if (typeof command === 'string') {
+			return command;
+		}
+		if (typeof command === 'object' && command !== null && hasKey(command, { command: true })) {
+			return (command as ICopilotShellToolArgs).command;
+		}
+		return rawArguments;
 	}
 
 	switch (toolName) {
@@ -267,9 +318,12 @@ export function getToolInputString(toolName: string, parameters: Record<string, 
  * supported, which tells the renderer to display the tool as a terminal command
  * block.
  */
-export function getToolKind(toolName: string): 'terminal' | undefined {
+export function getToolKind(toolName: string): 'terminal' | 'subagent' | undefined {
 	if (SHELL_TOOL_NAMES.has(toolName)) {
 		return 'terminal';
+	}
+	if (SUBAGENT_TOOL_NAMES.has(toolName)) {
+		return 'subagent';
 	}
 	return undefined;
 }

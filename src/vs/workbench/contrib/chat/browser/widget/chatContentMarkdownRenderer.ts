@@ -14,7 +14,7 @@ import { IConfigurationService } from '../../../../../platform/configuration/com
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import product from '../../../../../platform/product/common/product.js';
-import { CHAT_INTERNAL_SCHEME } from '../../common/promptSyntax/internalCustomizations/internalPromptFileSystem.js';
+import { Schemas } from '../../../../../base/common/network.js';
 
 const _remoteImageDisallowed = () => false;
 
@@ -81,7 +81,7 @@ export class ChatContentMarkdownRenderer implements IMarkdownRenderer {
 					override: allowedChatMarkdownHtmlTags,
 				},
 				...options?.sanitizerConfig,
-				allowedLinkSchemes: { augment: [product.urlProtocol, CHAT_INTERNAL_SCHEME, 'copilot-skill'] },
+				allowedLinkSchemes: { augment: [product.urlProtocol, 'copilot-skill', Schemas.vscodeBrowser] },
 				remoteImageIsAllowed: _remoteImageDisallowed,
 			}
 		};
@@ -92,7 +92,7 @@ export class ChatContentMarkdownRenderer implements IMarkdownRenderer {
 
 				// dompurify uses DOMParser, which strips leading comments. Wrapping it all in 'body' prevents this.
 				// The \n\n prevents marked.js from parsing the body contents as just text in an 'html' token, instead of actual markdown.
-				value: `<body>\n\n${markdown.value}</body>`,
+				value: `<body>\n\n${markdown.value}\n\n</body>`,
 			}
 			: markdown;
 		const result = this.markdownRendererService.render(mdWithBody, options, outElement);

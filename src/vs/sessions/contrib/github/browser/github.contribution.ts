@@ -8,7 +8,7 @@ import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { GitHubService, IGitHubService } from './githubService.js';
 
 /**
@@ -38,11 +38,11 @@ class GitHubActiveSessionRefreshContribution extends Disposable implements IWork
 				return;
 			}
 			this._lastSessionResource = session.resource;
-			const context = this._sessionsManagementService.getGitHubContextForSession(session.resource);
-			if (!context || context.prNumber === undefined) {
+			const gitHubInfo = session.gitHubInfo.read(reader);
+			if (!gitHubInfo?.pullRequest) {
 				return;
 			}
-			const prModel = this._gitHubService.getPullRequest(context.owner, context.repo, context.prNumber);
+			const prModel = this._gitHubService.getPullRequest(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number);
 			prModel.refresh();
 		}));
 	}

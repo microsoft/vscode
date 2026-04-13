@@ -33,6 +33,25 @@ export interface IUpdateAllPluginsResult {
 	readonly failedNames: readonly string[];
 }
 
+export interface IInstallPluginFromSourceOptions {
+	/**
+	 * When set, targets a specific plugin by name within the marketplace
+	 * instead of installing all or prompting the user. The matched plugin
+	 * is installed and returned in the result.
+	 */
+	readonly plugin?: string;
+}
+
+export interface IInstallPluginFromSourceResult {
+	readonly success: boolean;
+	readonly message?: string;
+	/**
+	 * When {@link IInstallPluginFromSourceOptions.plugin} is set and the
+	 * plugin was found, this contains the discovered marketplace plugin.
+	 */
+	readonly matchedPlugin?: IMarketplacePlugin;
+}
+
 export interface IPluginInstallService {
 	readonly _serviceBrand: undefined;
 
@@ -47,8 +66,11 @@ export interface IPluginInstallService {
 	 * GitHub shorthand (`owner/repo`) or a full git clone URL. Clones the
 	 * repository, reads marketplace metadata to discover plugins, and
 	 * registers the selected plugin.
+	 *
+	 * When {@link IInstallPluginFromSourceOptions.plugin} is set, targets
+	 * a specific plugin, installs it, and returns it.
 	 */
-	installPluginFromSource(source: string): Promise<void>;
+	installPluginFromSource(source: string, options?: IInstallPluginFromSourceOptions): Promise<void>;
 
 	/**
 	 * Synchronously validates the format of a plugin source string.
@@ -60,8 +82,12 @@ export interface IPluginInstallService {
 	 * Installs a plugin from an already-validated source string.
 	 * Handles trust, cloning, scanning, and registration. Returns a result
 	 * with an optional error message (e.g. no plugins found).
+	 *
+	 * When {@link IInstallPluginFromSourceOptions.plugin} is set, targets
+	 * a specific plugin, installs it, and returns it in
+	 * {@link IInstallPluginFromSourceResult.matchedPlugin}.
 	 */
-	installPluginFromValidatedSource(source: string): Promise<{ success: boolean; message?: string }>;
+	installPluginFromValidatedSource(source: string, options?: IInstallPluginFromSourceOptions): Promise<IInstallPluginFromSourceResult>;
 
 	/**
 	 * Pulls the latest changes for an already-cloned marketplace repository.

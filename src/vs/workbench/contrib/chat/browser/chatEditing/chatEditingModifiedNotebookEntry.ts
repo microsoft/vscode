@@ -957,6 +957,15 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		this.initializeModelsFromDiff();
 	}
 
+	async resetEditTrackerToInitialContent() {
+		if (this.initialContent) {
+			restoreSnapshot(this.originalModel, this.initialContent);
+		}
+
+		this.updateCellDiffInfo([], undefined);
+		this.initializeModelsFromDiff();
+	}
+
 	override async resetToInitialContent(): Promise<void> {
 		this.updateCellDiffInfo([], undefined);
 		this.restoreSnapshotInModifiedModel(this.initialContent);

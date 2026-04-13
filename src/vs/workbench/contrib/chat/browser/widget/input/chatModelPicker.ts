@@ -168,6 +168,7 @@ function createModelAction(
 
 function shouldShowManageModelsAction(chatEntitlementService: IChatEntitlementService): boolean {
 	return chatEntitlementService.entitlement === ChatEntitlement.Free ||
+		chatEntitlementService.entitlement === ChatEntitlement.EDU ||
 		chatEntitlementService.entitlement === ChatEntitlement.Pro ||
 		chatEntitlementService.entitlement === ChatEntitlement.ProPlus ||
 		chatEntitlementService.entitlement === ChatEntitlement.Business ||
@@ -447,9 +448,15 @@ export function buildModelPickerItems(
 export function getModelPickerAccessibilityProvider() {
 	return {
 		isChecked(element: IActionListItem<IActionWidgetDropdownAction>) {
+			if (element.isSectionToggle) {
+				return undefined;
+			}
 			return element.kind === ActionListItemKind.Action ? !!element?.item?.checked : undefined;
 		},
 		getRole: (element: IActionListItem<IActionWidgetDropdownAction>) => {
+			if (element.isSectionToggle) {
+				return 'menuitem';
+			}
 			switch (element.kind) {
 				case ActionListItemKind.Action: return 'menuitemradio';
 				case ActionListItemKind.Separator: return 'separator';
@@ -484,7 +491,7 @@ function createUnavailableModelItem(
 	let hoverContent: MarkdownString;
 	if (reason === 'upgrade') {
 		hoverContent = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
-		hoverContent.appendMarkdown(localize('chat.modelPicker.upgradeHover', "[Upgrade to GitHub Copilot Pro](command:workbench.action.chat.upgradePlan \" \") with a free 30-day trial to use the best models."));
+		hoverContent.appendMarkdown(localize('chat.modelPicker.upgradeHover', "[Upgrade to GitHub Copilot Pro](command:workbench.action.chat.upgradePlan \" \") to use the best models."));
 	} else if (reason === 'update') {
 		hoverContent = getUpdateHoverContent(updateStateType);
 	} else {
@@ -583,6 +590,13 @@ export class ModelPickerWidget extends Disposable {
 		this._renderLabel();
 	}
 
+	setEnabled(enabled: boolean): void {
+		if (this._domNode) {
+			this._domNode.classList.toggle('disabled', !enabled);
+			this._domNode.setAttribute('aria-disabled', String(!enabled));
+		}
+	}
+
 	setBadge(badge: ModelPickerBadge | undefined): void {
 		this._badge = badge;
 		this._updateBadge();
@@ -626,7 +640,7 @@ export class ModelPickerWidget extends Disposable {
 
 	show(anchor?: HTMLElement): void {
 		const anchorElement = anchor ?? this._domNode;
-		if (!anchorElement) {
+		if (!anchorElement || this._domNode?.classList.contains('disabled')) {
 			return;
 		}
 
@@ -784,7 +798,7 @@ function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, la
 	markdown.appendMarkdown(`**${model.metadata.name}**`);
 	markdown.appendText(`\n`);
 
-	if (model.metadata.statusIcon && model.metadata.tooltip) {
+	if (model.metadata.tooltip) {
 		if (model.metadata.statusIcon) {
 			markdown.appendMarkdown(`$(${model.metadata.statusIcon.id})&nbsp;`);
 		}

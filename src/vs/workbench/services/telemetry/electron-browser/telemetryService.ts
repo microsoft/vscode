@@ -101,6 +101,10 @@ export class TelemetryService extends Disposable implements ITelemetryService {
 		return this.impl.setExperimentProperty(name, value);
 	}
 
+	setCommonProperty(name: string, value: string): void {
+		this.impl.setCommonProperty(name, value);
+	}
+
 	get telemetryLevel(): TelemetryLevel {
 		return this.impl.telemetryLevel;
 	}

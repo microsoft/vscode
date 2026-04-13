@@ -535,9 +535,8 @@ suite('ChatResponseAccessibleView', () => {
 			assert.ok(provider);
 			store.add(provider);
 			const content = provider.provideContent();
-			const expectedPath = inlineReferenceUri.fsPath || inlineReferenceUri.path;
 			assert.ok(content.includes('index.ts'));
-			assert.ok(content.includes(expectedPath));
+			assert.ok(content.includes(inlineReferenceUri.path));
 			assert.ok(content.includes('See file'));
 			assert.ok(content.includes('for details'));
 		});
@@ -594,17 +593,18 @@ suite('ChatResponseAccessibleView', () => {
 			store.add(provider);
 			const content = provider.provideContent();
 			assert.ok(content.includes('main.ts'));
-			assert.ok(content.includes('/src/app/main.ts:42'));
+			assert.ok(content.includes(`${fileLocation.uri.path}:42`));
 		});
 
 		test('uses basename as name for URI inline references without explicit name', () => {
 			const instantiationService = store.add(new TestInstantiationService());
 			const storageService = store.add(new TestStorageService());
 
+			const inlineReferenceUri = URI.file('/workspace/src/utils.ts');
 			const responseItem = {
 				response: {
 					value: [
-						{ kind: 'inlineReference', inlineReference: URI.file('/workspace/src/utils.ts') }
+						{ kind: 'inlineReference', inlineReference: inlineReferenceUri }
 					]
 				},
 				model: { onDidChange: Event.None },
@@ -643,7 +643,7 @@ suite('ChatResponseAccessibleView', () => {
 			store.add(provider);
 			const content = provider.provideContent();
 			assert.ok(content.includes('utils.ts'));
-			assert.ok(content.includes('/workspace/src/utils.ts'));
+			assert.ok(content.includes(inlineReferenceUri.path));
 		});
 	});
 });

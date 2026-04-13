@@ -15,6 +15,7 @@ import { EditTool, EditToolData } from './editFileTool.js';
 import { createManageTodoListToolData, ManageTodoListTool } from './manageTodoListTool.js';
 import { RunSubagentTool } from './runSubagentTool.js';
 import { SetArtifactsTool, SetArtifactsToolData } from './setArtifactsTool.js';
+import { SetArtifactRulesTool, SetArtifactRulesToolData } from './setArtifactRulesTool.js';
 import { TaskCompleteTool, TaskCompleteToolData } from './taskCompleteTool.js';
 
 export class BuiltinToolsContribution extends Disposable implements IWorkbenchContribution {
@@ -51,14 +52,20 @@ export class BuiltinToolsContribution extends Disposable implements IWorkbenchCo
 		this._register(toolsService.registerTool(TaskCompleteToolData, taskCompleteTool));
 
 		const setArtifactsTool = instantiationService.createInstance(SetArtifactsTool);
+		const setArtifactRulesTool = instantiationService.createInstance(SetArtifactRulesTool);
 		const setArtifactsRegistration = this._register(new MutableDisposable());
+		const setArtifactRulesRegistration = this._register(new MutableDisposable());
 		const updateArtifactsRegistration = () => {
 			if (configurationService.getValue<boolean>(ChatConfiguration.ArtifactsEnabled)) {
 				if (!setArtifactsRegistration.value) {
 					setArtifactsRegistration.value = toolsService.registerTool(SetArtifactsToolData, setArtifactsTool);
 				}
+				if (!setArtifactRulesRegistration.value) {
+					setArtifactRulesRegistration.value = toolsService.registerTool(SetArtifactRulesToolData, setArtifactRulesTool);
+				}
 			} else {
 				setArtifactsRegistration.clear();
+				setArtifactRulesRegistration.clear();
 			}
 		};
 		updateArtifactsRegistration();

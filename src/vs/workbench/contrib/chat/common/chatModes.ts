@@ -11,7 +11,7 @@ import { isUriComponents, URI } from '../../../../base/common/uri.js';
 import { IOffsetRange } from '../../../../editor/common/core/ranges/offsetRange.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { IContextKey, IContextKeyService, ContextKeyExpression } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -20,8 +20,8 @@ import { IChatAgentService } from './participants/chatAgents.js';
 import { ChatContextKeys } from './actions/chatContextKeys.js';
 import { ChatConfiguration, ChatModeKind } from './constants.js';
 import { IHandOff } from './promptSyntax/promptFileParser.js';
-import { ExtensionAgentSourceType, IAgentSource, ICustomAgent, ICustomAgentVisibility, IPromptsService, isCustomAgentVisibility, PromptsStorage } from './promptSyntax/service/promptsService.js';
-import { Target } from './promptSyntax/promptTypes.js';
+import { IAgentSource, ICustomAgent, ICustomAgentVisibility, IPromptsService, isCustomAgentVisibility, PromptsStorage } from './promptSyntax/service/promptsService.js';
+import { PromptFileSource, Target } from './promptSyntax/promptTypes.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { hash } from '../../../../base/common/hash.js';
@@ -279,6 +279,7 @@ export interface IChatMode {
 	readonly target: IObservable<Target>;
 	readonly visibility?: IObservable<ICustomAgentVisibility | undefined>;
 	readonly agents?: IObservable<readonly string[] | undefined>;
+	readonly when?: ContextKeyExpression;
 }
 
 export interface IVariableReference {
@@ -327,6 +328,7 @@ export class CustomChatMode implements IChatMode {
 	private readonly _visibilityObservable: ISettableObservable<ICustomAgentVisibility | undefined>;
 	private readonly _agentsObservable: ISettableObservable<readonly string[] | undefined>;
 	private _source: IAgentSource;
+	private _when: ContextKeyExpression | undefined;
 
 	public readonly id: string;
 
@@ -390,6 +392,10 @@ export class CustomChatMode implements IChatMode {
 		return this._agentsObservable;
 	}
 
+	get when(): ContextKeyExpression | undefined {
+		return this._when;
+	}
+
 	public readonly kind = ChatModeKind.Agent;
 
 	constructor(
@@ -408,6 +414,7 @@ export class CustomChatMode implements IChatMode {
 		this._modeInstructions = observableValue('_modeInstructions', customChatMode.agentInstructions);
 		this._uriObservable = observableValue('uri', customChatMode.uri);
 		this._source = customChatMode.source;
+		this._when = customChatMode.when;
 	}
 
 	/**
@@ -427,6 +434,7 @@ export class CustomChatMode implements IChatMode {
 			this._modeInstructions.set(newData.agentInstructions, tx);
 			this._uriObservable.set(newData.uri, tx);
 			this._source = newData.source;
+			this._when = newData.when;
 		});
 	}
 
@@ -451,8 +459,8 @@ export class CustomChatMode implements IChatMode {
 }
 
 type IChatModeSourceData =
-	| { readonly storage: PromptsStorage.extension; readonly extensionId: string; type?: ExtensionAgentSourceType }
-	| { readonly storage: PromptsStorage.local | PromptsStorage.user | PromptsStorage.internal }
+	| { readonly storage: PromptsStorage.extension; readonly extensionId: string; type?: PromptFileSource.ExtensionContribution | PromptFileSource.ExtensionAPI }
+	| { readonly storage: PromptsStorage.local | PromptsStorage.user }
 	| { readonly storage: PromptsStorage.plugin; readonly pluginUri: URI };
 
 function isChatModeSourceData(value: unknown): value is IChatModeSourceData {
@@ -466,7 +474,7 @@ function isChatModeSourceData(value: unknown): value is IChatModeSourceData {
 	if (data.storage === PromptsStorage.plugin) {
 		return isUriComponents(data.pluginUri);
 	}
-	return data.storage === PromptsStorage.local || data.storage === PromptsStorage.user || data.storage === PromptsStorage.internal;
+	return data.storage === PromptsStorage.local || data.storage === PromptsStorage.user;
 }
 
 function serializeChatModeSource(source: IAgentSource | undefined): IChatModeSourceData | undefined {
@@ -487,13 +495,17 @@ function reviveChatModeSource(data: IChatModeSourceData | undefined): IAgentSour
 		return undefined;
 	}
 	if (data.storage === PromptsStorage.extension) {
-		return { storage: PromptsStorage.extension, extensionId: new ExtensionIdentifier(data.extensionId), type: data.type ?? ExtensionAgentSourceType.contribution };
+		// Migrate old ExtensionAgentSourceType values ('contribution'/'provider') to PromptFileSource values
+		let type: PromptFileSource.ExtensionContribution | PromptFileSource.ExtensionAPI;
+		if (data.type === 'provider' as string /* old type value */ || data.type === PromptFileSource.ExtensionAPI) {
+			type = PromptFileSource.ExtensionAPI;
+		} else {
+			type = PromptFileSource.ExtensionContribution;
+		}
+		return { storage: PromptsStorage.extension, extensionId: new ExtensionIdentifier(data.extensionId), type };
 	}
 	if (data.storage === PromptsStorage.plugin) {
 		return { storage: PromptsStorage.plugin, pluginUri: URI.revive(data.pluginUri) };
-	}
-	if (data.storage === PromptsStorage.internal) {
-		return { storage: PromptsStorage.internal };
 	}
 	return { storage: data.storage };
 }

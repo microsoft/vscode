@@ -12,19 +12,21 @@ import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution, getWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
-import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
 import { ITerminalInstance, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
 import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { Menus } from '../../../browser/menus.js';
-import { IActiveSessionItem, ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { CopilotCLISessionType, ISession } from '../../../services/sessions/common/session.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
+import { logSessionsInteraction } from '../../../common/sessionsTelemetry.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { TERMINAL_VIEW_ID } from '../../../../workbench/contrib/terminal/common/terminal.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
 
 const SessionsTerminalViewVisibleContext = new RawContextKey<boolean>('sessionsTerminalViewVisible', false);
 
@@ -33,11 +35,16 @@ const SessionsTerminalViewVisibleContext = new RawContextKey<boolean>('sessionsT
  * background sessions only. Returns `undefined` for non-background sessions
  * (Cloud, Local, etc.) which have no local worktree, or when no path is available.
  */
-function getSessionCwd(session: IActiveSessionItem | undefined): URI | undefined {
-	if (session?.providerType !== AgentSessionProviders.Background) {
+function getSessionCwd(session: ISession | undefined): URI | undefined {
+	if (session?.sessionType !== CopilotCLISessionType.id) {
 		return undefined;
 	}
-	return session.worktree ?? session.repository;
+	const repo = session.workspace.get()?.repositories[0];
+	const cwd = repo?.workingDirectory ?? repo?.uri;
+	if (cwd?.scheme === AGENT_HOST_SCHEME) {
+		return undefined;
+	}
+	return cwd;
 }
 
 /**
@@ -55,7 +62,6 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	constructor(
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
 		@ILogService private readonly _logService: ILogService,
 		@IPathService private readonly _pathService: IPathService,
 		@IViewsService viewsService: IViewsService,
@@ -97,12 +103,12 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 			}
 		}));
 
-		// When a session is archived, close all terminals for its worktree
-		this._register(this._agentSessionsService.model.onDidChangeSessionArchivedState(session => {
-			if (session.isArchived()) {
-				const worktreePath = session.metadata?.worktreePath as string | undefined;
-				if (worktreePath) {
-					this._closeTerminalsForPath(URI.file(worktreePath).fsPath);
+		// When a session is archived or removed, close all terminals for its worktree
+		this._register(this._sessionsManagementService.onDidChangeSessions(e => {
+			for (const session of [...e.removed, ...e.changed.filter(s => s.isArchived.get())]) {
+				const worktreeUri = session.workspace.get()?.repositories[0]?.workingDirectory;
+				if (worktreeUri) {
+					this._closeTerminalsForPath(worktreeUri.fsPath);
 				}
 			}
 		}));
@@ -139,7 +145,7 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		return existing;
 	}
 
-	private async _onActiveSessionChanged(session: IActiveSessionItem | undefined): Promise<void> {
+	private async _onActiveSessionChanged(session: ISession | undefined): Promise<void> {
 		if (!session) {
 			return;
 		}
@@ -307,13 +313,16 @@ class OpenSessionInTerminalAction extends Action2 {
 			menu: [{
 				id: Menus.TitleBarSessionMenu,
 				group: 'navigation',
-				order: 9,
-				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated())
+				order: 10,
+				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated()),
 			}]
 		});
 	}
 
 	override async run(_accessor: ServicesAccessor): Promise<void> {
+		const telemetryService = _accessor.get(ITelemetryService);
+		logSessionsInteraction(telemetryService, 'openTerminal');
+
 		const layoutService = _accessor.get(IWorkbenchLayoutService);
 		const viewsService = _accessor.get(IViewsService);
 
