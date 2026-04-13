@@ -49,7 +49,6 @@ import { PromptRenderer } from '../../prompts/node/base/promptRenderer';
 import { ICompletedToolCallRound, InlineChat2Prompt, LARGE_FILE_LINE_THRESHOLD } from '../../prompts/node/inline/inlineChat2Prompt';
 import { InlineChatEditCodePrompt } from '../../prompts/node/inline/inlineChatEditCodePrompt';
 import { ToolName } from '../../tools/common/toolNames';
-import { normalizeToolSchema } from '../../tools/common/toolSchemaNormalizer';
 import { CopilotToolMode } from '../../tools/common/toolsRegistry';
 import { isToolValidationError, isValidatedToolInput, IToolsService } from '../../tools/common/toolsService';
 import { InlineChatProgressMessages } from './progressMessages';
@@ -432,20 +431,16 @@ class InlineChatEditToolsStrategy implements IInlineChatEditStrategy {
 
 		const requestOptions: IMakeChatRequestOptions['requestOptions'] = {
 			tool_choice: 'auto',
-			tools: normalizeToolSchema(
-				endpoint.family,
-				inlineChatTools.map(tool => ({
-					type: 'function',
-					function: {
-						name: tool.name,
-						description: tool.description,
-						parameters: tool.inputSchema && Object.keys(tool.inputSchema).length ? tool.inputSchema : undefined
-					},
-				})),
-				(tool, rule) => {
-					this._logService.warn(`Tool ${tool} failed validation: ${rule}`);
+			// Inline chat only uses internal tools with known-good schemas,
+			// skip expensive normalizeToolSchema validation
+			tools: inlineChatTools.map(tool => ({
+				type: 'function' as const,
+				function: {
+					name: tool.name,
+					description: tool.description,
+					parameters: tool.inputSchema && Object.keys(tool.inputSchema).length ? tool.inputSchema : undefined
 				},
-			)
+			})),
 		};
 
 		const toolCalls: IToolCall[] = [];

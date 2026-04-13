@@ -5,7 +5,8 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { localize2 } from '../../../../nls.js';
+import { localize, localize2 } from '../../../../nls.js';
+import { alert } from '../../../../base/browser/ui/aria/aria.js';
 import { Action2, IAction2Options, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
@@ -22,6 +23,9 @@ import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IPaneCompositePartService } from '../../../../workbench/services/panecomposite/browser/panecomposite.js';
 import { ViewContainerLocation } from '../../../../workbench/common/views.js';
+import { ChangesViewPane } from './changesView.js';
+import { SESSIONS_FILES_CONTAINER_ID } from '../../files/browser/files.contribution.js';
+import { SESSIONS_FILES_VIEW_ID } from '../../files/browser/filesView.js';
 
 const openChangesViewActionOptions: IAction2Options = {
 	id: 'workbench.action.agentSessions.openChangesView',
@@ -56,12 +60,19 @@ registerAction2(class FocusChangesViewAction extends Action2 {
 			f1: true,
 			keybinding: {
 				weight: KeybindingWeight.WorkbenchContrib,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyH,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG,
 				when: IsSessionsWindowContext,
 			},
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
+		const sessionManagementService = accessor.get(ISessionsManagementService);
+		const activeSession = sessionManagementService.activeSession.get();
+		const changes = activeSession?.changes.get();
+		if (!changes || changes.length === 0) {
+			alert(localize('focusChangesView.noChanges', "There are no changes."));
+			return;
+		}
 		const paneCompositeService = accessor.get(IPaneCompositePartService);
 		const viewsService = accessor.get(IViewsService);
 		await paneCompositeService.openPaneComposite(CHANGES_VIEW_CONTAINER_ID, ViewContainerLocation.AuxiliaryBar, true);
@@ -74,7 +85,7 @@ registerAction2(class FocusChangesFileViewAction extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.agentSessions.focusChangesFileView',
-			title: localize2('focusChangesFileView', "Focus on File Explorer"),
+			title: localize2('focusChangesFileView', "Focus Files Explorer View"),
 			category: Categories.View,
 			precondition: IsSessionsWindowContext,
 			f1: true,
@@ -86,8 +97,13 @@ registerAction2(class FocusChangesFileViewAction extends Action2 {
 		});
 	}
 	async run(accessor: ServicesAccessor): Promise<void> {
+		const paneCompositeService = accessor.get(IPaneCompositePartService);
 		const viewsService = accessor.get(IViewsService);
-		await viewsService.openView('sessions.files.explorer', true);
+		await paneCompositeService.openPaneComposite(SESSIONS_FILES_CONTAINER_ID, ViewContainerLocation.AuxiliaryBar, true);
+		const view = await viewsService.openView(SESSIONS_FILES_VIEW_ID, true);
+		if (view) {
+			view.focus();
+		}
 	}
 });
 
@@ -114,6 +130,37 @@ class ChangesViewActionsContribution extends Disposable implements IWorkbenchCon
 }
 
 registerWorkbenchContribution2(ChangesViewActionsContribution.ID, ChangesViewActionsContribution, WorkbenchPhase.AfterRestored);
+
+export class ViewAllSessionChangesAction extends Action2 {
+	static readonly ID = 'chatEditing.viewAllSessionChanges';
+
+	constructor() {
+		super({
+			id: ViewAllSessionChangesAction.ID,
+			title: localize2('chatEditing.viewAllSessionChanges', 'View All Changes'),
+			icon: Codicon.diffMultiple,
+			f1: false,
+			precondition: ContextKeyExpr.and(
+				ContextKeyExpr.equals('sessions.hasGitRepository', true),
+				ChatContextKeys.hasAgentSessionChanges,
+			),
+			menu: [
+				{
+					id: MenuId.ChatEditingSessionChangesToolbar,
+					group: 'navigation',
+					order: 10,
+				}
+			],
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const viewsService = accessor.get(IViewsService);
+		const view = viewsService.getViewWithId<ChangesViewPane>(CHANGES_VIEW_ID);
+		await view?.openChanges();
+	}
+}
+registerAction2(ViewAllSessionChangesAction);
 
 class OpenPullRequestAction extends Action2 {
 	static readonly ID = 'workbench.action.agentSessions.openPullRequest';

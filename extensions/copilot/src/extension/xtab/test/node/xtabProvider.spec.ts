@@ -45,7 +45,6 @@ import {
 	computeAreaAroundEditWindowLinesRange,
 	determineLanguageContextOptions,
 	filterOutEditsWithSubstrings,
-	findMergeConflictMarkersRange,
 	getPredictionContents,
 	mapChatFetcherErrorToNoNextEditReason,
 	ModelConfig,
@@ -53,291 +52,6 @@ import {
 	pickSystemPrompt,
 	XtabProvider,
 } from '../../node/xtabProvider';
-
-suite('findMergeConflictMarkersRange', () => {
-
-	test('should find merge conflict markers within edit window', () => {
-		const lines = [
-			'function foo() {',
-			'<<<<<<< HEAD',
-			'  return 1;',
-			'=======',
-			'  return 2;',
-			'>>>>>>> branch',
-			'}',
-		];
-		const editWindowRange = new OffsetRange(0, 7);
-		const maxMergeConflictLines = 10;
-
-		const result = findMergeConflictMarkersRange(lines, editWindowRange, maxMergeConflictLines);
-
-		expect(result).toBeDefined();
-		expect(result?.start).toBe(1);
-		expect(result?.endExclusive).toBe(6);
-	});
-
-	test('should return undefined when no merge conflict markers present', () => {
-		const lines = [
-			'function foo() {',
-			'  return 1;',
-			'}',
-		];
-		const editWindowRange = new OffsetRange(0, 3);
-		const maxMergeConflictLines = 10;
-
-		const result = findMergeConflictMarkersRange(lines, editWindowRange, maxMergeConflictLines);
-
-		expect(result).toBeUndefined();
-	});
-
-	test('should return undefined when start marker exists but no end marker', () => {
-		const lines = [
-			'function foo() {',
-			'<<<<<<< HEAD',
-			'  return 1;',
-			'=======',
-			'  return 2;',
-			'}',
-		];
-		const editWindowRange = new OffsetRange(0, 6);
-		const maxMergeConflictLines = 10;
-
-		const result = findMergeConflictMarkersRange(lines, editWindowRange, maxMergeConflictLines);
-
-		expect(result).toBeUndefined();
-	});
-
-	test('should return undefined when conflict exceeds maxMergeConflictLines', () => {
-		const lines = [
-			'<<<<<<< HEAD',
-			'line 1',
-			'line 2',
-			'line 3',
-			'line 4',
-			'>>>>>>> branch',
-		];
-		const editWindowRange = new OffsetRange(0, 6);
-		const maxMergeConflictLines = 3; // Too small to reach end marker
-
-		const result = findMergeConflictMarkersRange(lines, editWindowRange, maxMergeConflictLines);
-
-		expect(result).toBeUndefined();
-	});
-
-	test('should find conflict when exactly at maxMergeConflictLines boundary', () => {
-		const lines = [
-			'<<<<<<< HEAD',
-			'line 1',
-			'line 2',
-			'>>>>>>> branch',
-		];
-		const editWindowRange = new OffsetRange(0, 4);
-		const maxMergeConflictLines = 4;
-
-		const result = findMergeConflictMarkersRange(lines, editWindowRange, maxMergeConflictLines);
-
-		expect(result).toBeDefined();
-		expect(result?.start).toBe(0);
-		expect(result?.endExclusive).toBe(4);
-	});
-
-	test('should only search within edit window range', () => {
-		const lines = [
-			'function foo() {',
-			'  return 1;',
-			'<<<<<<< HEAD',
-			'  return 2;',
-			'>>>>>>> branch',
-			'}',
-		];
-		const editWindowRange = new OffsetRange(0, 2); // Excludes the conflict
-		const maxMergeConflictLines = 10;
-
-		const result = findMergeConflictMarkersRange(lines, editWindowRange, maxMergeConflictLines);
-
-		expect(result).toBeUndefined();
-	});
-
-	test('should find first conflict when multiple conflicts exist', () => {
-		const lines = [
-			'<<<<<<< HEAD',
-			'first conflict',
-			'>>>>>>> branch',
-			'some code',
-			'<<<<<<< HEAD',
-			'second conflict',
-			'>>>>>>> branch',
-		];
-		const editWindowRange = new OffsetRange(0, 7);
-		const maxMergeConflictLines = 10;
-
-		const result = findMergeConflictMarkersRange(lines, editWindowRange, maxMergeConflictLines);
-
-		expect(result).toBeDefined();
-		expect(result?.start).toBe(0);
-		expect(result?.endExclusive).toBe(3);
-	});
-
-	test('should handle conflict at start of edit window', () => {
-		const lines = [
-			'<<<<<<< HEAD',
-			'content',
-			'>>>>>>> branch',
-		];
-		const editWindowRange = new OffsetRange(0, 3);
-		const maxMergeConflictLines = 10;
-
-		const result = findMergeConflictMarkersRange(lines, editWindowRange, maxMergeConflictLines);
-
-		expect(result).toBeDefined();
-		expect(result?.start).toBe(0);
-		expect(result?.endExclusive).toBe(3);
-	});
-
-	test('should handle conflict at end of edit window', () => {
-		const lines = [
-			'some code',
-			'<<<<<<< HEAD',
-			'content',
-			'>>>>>>> branch',
-		];
-		const editWindowRange = new OffsetRange(0, 4);
-		const maxMergeConflictLines = 10;
-
-		const result = findMergeConflictMarkersRange(lines, editWindowRange, maxMergeConflictLines);
-
-		expect(result).toBeDefined();
-		expect(result?.start).toBe(1);
-		expect(result?.endExclusive).toBe(4);
-	});
-
-	test('should handle empty lines array', () => {
-		const lines: string[] = [];
-		const editWindowRange = new OffsetRange(0, 0);
-		const maxMergeConflictLines = 10;
-
-		const result = findMergeConflictMarkersRange(lines, editWindowRange, maxMergeConflictLines);
-
-		expect(result).toBeUndefined();
-	});
-
-	test('should handle single line with start marker only', () => {
-		const lines = ['<<<<<<< HEAD'];
-		const editWindowRange = new OffsetRange(0, 1);
-		const maxMergeConflictLines = 10;
-
-		const result = findMergeConflictMarkersRange(lines, editWindowRange, maxMergeConflictLines);
-
-		expect(result).toBeUndefined();
-	});
-
-	test('should handle lines with merge markers that do not start at beginning', () => {
-		const lines = [
-			'function foo() {',
-			'  <<<<<<< HEAD',
-			'  return 1;',
-			'  >>>>>>> branch',
-			'}',
-		];
-		const editWindowRange = new OffsetRange(0, 5);
-		const maxMergeConflictLines = 10;
-
-		const result = findMergeConflictMarkersRange(lines, editWindowRange, maxMergeConflictLines);
-
-		expect(result).toBeUndefined(); // Should not match as markers don't start at line beginning
-	});
-
-	test('should handle conflict that extends beyond lines array', () => {
-		const lines = [
-			'<<<<<<< HEAD',
-			'content',
-		];
-		const editWindowRange = new OffsetRange(0, 2);
-		const maxMergeConflictLines = 10;
-
-		const result = findMergeConflictMarkersRange(lines, editWindowRange, maxMergeConflictLines);
-
-		expect(result).toBeUndefined();
-	});
-
-	test('should handle edit window extending beyond lines array', () => {
-		const lines = [
-			'<<<<<<< HEAD',
-			'content',
-			'>>>>>>> branch',
-		];
-		const editWindowRange = new OffsetRange(0, 100); // Beyond array length
-		const maxMergeConflictLines = 10;
-
-		const result = findMergeConflictMarkersRange(lines, editWindowRange, maxMergeConflictLines);
-
-		expect(result).toBeDefined();
-		expect(result?.start).toBe(0);
-		expect(result?.endExclusive).toBe(3);
-	});
-
-	test('should handle minimal conflict (start and end markers only)', () => {
-		const lines = [
-			'<<<<<<< HEAD',
-			'>>>>>>> branch',
-		];
-		const editWindowRange = new OffsetRange(0, 2);
-		const maxMergeConflictLines = 10;
-
-		const result = findMergeConflictMarkersRange(lines, editWindowRange, maxMergeConflictLines);
-
-		expect(result).toBeDefined();
-		expect(result?.start).toBe(0);
-		expect(result?.endExclusive).toBe(2);
-	});
-
-	test('should handle maxMergeConflictLines of 1', () => {
-		const lines = [
-			'<<<<<<< HEAD',
-			'>>>>>>> branch',
-		];
-		const editWindowRange = new OffsetRange(0, 2);
-		const maxMergeConflictLines = 1;
-
-		const result = findMergeConflictMarkersRange(lines, editWindowRange, maxMergeConflictLines);
-
-		expect(result).toBeUndefined(); // Cannot find end marker within limit
-	});
-
-	test('should handle maxMergeConflictLines of 2', () => {
-		const lines = [
-			'<<<<<<< HEAD',
-			'>>>>>>> branch',
-		];
-		const editWindowRange = new OffsetRange(0, 2);
-		const maxMergeConflictLines = 2;
-
-		const result = findMergeConflictMarkersRange(lines, editWindowRange, maxMergeConflictLines);
-
-		expect(result).toBeDefined();
-		expect(result?.start).toBe(0);
-		expect(result?.endExclusive).toBe(2);
-	});
-
-	test('should find conflict starting in middle of edit window', () => {
-		const lines = [
-			'line 1',
-			'line 2',
-			'<<<<<<< HEAD',
-			'conflict',
-			'>>>>>>> branch',
-			'line 5',
-		];
-		const editWindowRange = new OffsetRange(0, 6);
-		const maxMergeConflictLines = 10;
-
-		const result = findMergeConflictMarkersRange(lines, editWindowRange, maxMergeConflictLines);
-
-		expect(result).toBeDefined();
-		expect(result?.start).toBe(2);
-		expect(result?.endExclusive).toBe(5);
-	});
-});
 
 // ============================================================================
 // Test Helpers
@@ -1855,6 +1569,172 @@ describe('XtabProvider integration', () => {
 			// Cursor prediction must not have been issued — only the main LLM call was made
 			expect(streamingFetcher.callCount).toBe(1);
 		});
+
+		it('same-file cursor jump with edit: retry yields edits with isFromCursorJump', async () => {
+			const provider = createProvider();
+			await configService.setConfig(ConfigKey.InlineEditsNextCursorPredictionEnabled, true);
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsNextCursorPredictionModelName, 'test-model');
+
+			// Document with 30 lines; cursor near the top.
+			// Cursor is after the inserted '\n' at the end of line 4 → cursorLineOffset=5.
+			// Edit window: [max(0,5-2), min(30,5+5+1)) = [3, 11) → lines 3..10.
+			const lines = Array.from({ length: 30 }, (_, i) => `line ${i} content`);
+			const cursorOffset = lines.slice(0, 5).join('\n').length;
+			const request = createRequestWithEdit(lines, {
+				insertionOffset: cursorOffset,
+				// insertedText defaults to afterText[cursorOffset] = '\n', so documentAfterEdits matches lines
+			});
+
+			// 1st call (main LLM): stream back edit-window lines unchanged → no diff
+			const mainEditWindowLines = lines.slice(3, 11);
+			streamingFetcher.enqueueResponse({
+				type: ChatFetchResponseType.Success,
+				requestId: 'req-main',
+				serverRequestId: 'srv-main',
+				usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, prompt_tokens_details: { cached_tokens: 0 } },
+				value: mainEditWindowLines.join('\n'),
+				resolvedModel: 'test-model',
+			});
+
+			// 2nd call (cursor prediction): return line 20 (outside the edit window)
+			streamingFetcher.enqueueResponse({
+				type: ChatFetchResponseType.Success,
+				requestId: 'req-cursor',
+				serverRequestId: 'srv-cursor',
+				usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, prompt_tokens_details: { cached_tokens: 0 } },
+				value: '20',
+				resolvedModel: 'test-model',
+			});
+
+			// 3rd call (retry at predicted cursor line 20):
+			// Retry edit window: [max(0,20-2), min(30,20+5+1)) = [18, 26) → lines 18..25.
+			// Return modified edit-window lines.
+			const retryEditWindowLines = lines.slice(18, 26).map((l, i) => i === 2 ? 'MODIFIED line 20 content' : l);
+			streamingFetcher.setStreamingLines(retryEditWindowLines);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { edits, finalReason } = await collectEdits(gen);
+
+			// Edits should have been yielded from the retry
+			expect(edits.length).toBeGreaterThan(0);
+			// All yielded edits should be marked as from cursor jump
+			for (const edit of edits) {
+				expect(edit.v.isFromCursorJump).toBe(true);
+			}
+			// All yielded edits should have an originalWindow (the pre-jump edit window)
+			for (const edit of edits) {
+				expect(edit.v.originalWindow).toBeDefined();
+			}
+			expect(finalReason.v).toBeInstanceOf(NoNextEditReason.NoSuggestions);
+			// 3 total calls: main LLM + cursor prediction + retry
+			expect(streamingFetcher.callCount).toBe(3);
+		});
+
+		it('cursor jump retry does not double-retry when second call also yields no edits', async () => {
+			const provider = createProvider();
+			await configService.setConfig(ConfigKey.InlineEditsNextCursorPredictionEnabled, true);
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsNextCursorPredictionModelName, 'test-model');
+
+			const lines = Array.from({ length: 30 }, (_, i) => `line ${i} content`);
+			const cursorOffset = lines.slice(0, 5).join('\n').length;
+			const request = createRequestWithEdit(lines, {
+				insertionOffset: cursorOffset,
+			});
+
+			// 1st call (main LLM): edit-window lines unchanged → no edits → cursor jump
+			const mainEditWindowLines = lines.slice(3, 11);
+			streamingFetcher.enqueueResponse({
+				type: ChatFetchResponseType.Success,
+				requestId: 'req-main',
+				serverRequestId: 'srv-main',
+				usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, prompt_tokens_details: { cached_tokens: 0 } },
+				value: mainEditWindowLines.join('\n'),
+				resolvedModel: 'test-model',
+			});
+
+			// 2nd call (cursor prediction): return line 20
+			streamingFetcher.enqueueResponse({
+				type: ChatFetchResponseType.Success,
+				requestId: 'req-cursor',
+				serverRequestId: 'srv-cursor',
+				usage: { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0, prompt_tokens_details: { cached_tokens: 0 } },
+				value: '20',
+				resolvedModel: 'test-model',
+			});
+
+			// 3rd call (retry at predicted cursor line 20): edit-window lines unchanged → no edits.
+			// On the retry, retryState is Retrying so doGetNextEditsWithCursorJump returns
+			// NoSuggestions immediately (no further recursion).
+			const retryEditWindowLines = lines.slice(18, 26);
+			streamingFetcher.setStreamingLines(retryEditWindowLines);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { edits, finalReason } = await collectEdits(gen);
+
+			expect(edits.length).toBe(0);
+			expect(finalReason.v).toBeInstanceOf(NoNextEditReason.NoSuggestions);
+			// Exactly 3 calls: main + cursor prediction + retry (no further retry)
+			expect(streamingFetcher.callCount).toBe(3);
+		});
+
+		it('model fallback retry on NotFound then yields edits on second attempt', async () => {
+			const provider = createProvider();
+
+			const lines = ['function foo() {', '  return 1;', '}'];
+			const request = createRequestWithEdit(lines, { insertionOffset: 5 });
+
+			// 1st call → NotFound, triggers fallback to default model
+			streamingFetcher.enqueueResponse({
+				type: ChatFetchResponseType.NotFound,
+				reason: 'test',
+				requestId: 'req-1',
+				serverRequestId: undefined,
+			});
+
+			// 2nd call (retry with default model) → success with modification
+			const modifiedLines = ['function foo() {', '  return 42;', '}'];
+			streamingFetcher.setStreamingLines(modifiedLines);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { edits, finalReason } = await collectEdits(gen);
+
+			// Should have produced edits from the retry
+			expect(edits.length).toBeGreaterThan(0);
+			// Edits are NOT from cursor jump
+			for (const edit of edits) {
+				expect(edit.v.isFromCursorJump).toBe(false);
+			}
+			expect(finalReason.v).toBeInstanceOf(NoNextEditReason.NoSuggestions);
+			expect(streamingFetcher.callCount).toBe(2);
+		});
+
+		it('model fallback + identical content → NoSuggestions without looping', async () => {
+			const provider = createProvider();
+			await configService.setConfig(ConfigKey.InlineEditsNextCursorPredictionEnabled, false);
+
+			const lines = ['const a = 1;', 'const b = 2;', 'const c = 3;'];
+			const request = createRequestWithEdit(lines, { insertionOffset: 3 });
+
+			// 1st call → NotFound
+			streamingFetcher.enqueueResponse({
+				type: ChatFetchResponseType.NotFound,
+				reason: 'test',
+				requestId: 'req-1',
+				serverRequestId: undefined,
+			});
+
+			// 2nd call (default model) → identical edit-window content → no edits
+			// With cursor prediction disabled, should return NoSuggestions directly
+			streamingFetcher.setStreamingLines(lines);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { edits, finalReason } = await collectEdits(gen);
+
+			expect(edits.length).toBe(0);
+			expect(finalReason.v).toBeInstanceOf(NoNextEditReason.NoSuggestions);
+			// Exactly 2 calls: initial NotFound + retry with default model
+			expect(streamingFetcher.callCount).toBe(2);
+		});
 	});
 
 	// ========================================================================
@@ -2135,6 +2015,265 @@ describe('XtabProvider integration', () => {
 
 			const captured = streamingFetcher.capturedOptions[0];
 			expect(captured.requestOptions?.stream).toBe(true);
+		});
+	});
+
+	// ========================================================================
+	// Group 10: Cursor-Line Divergence — Early Cancellation
+	// ========================================================================
+
+	describe('cursor-line divergence cancellation', () => {
+
+		/**
+		 * Creates a request for divergence tests.
+		 *
+		 * In the real system, `request.documentBeforeEdits` = the current document at
+		 * request creation time (i.e. `documentAfterEdits`), and `intermediateUserEdit`
+		 * tracks changes after that. `createRequestWithEdit` sets
+		 * `request.documentBeforeEdits` to the doc *before* the trigger edit, so we
+		 * construct a request with the intended value here to match reality.
+		 */
+		function createDivergenceRequest(
+			docAtRequestTime: string[],
+			opts: { insertionOffset: number; insertedText: string },
+		): StatelessNextEditRequest {
+			const base = createRequestWithEdit(docAtRequestTime, opts);
+			return new StatelessNextEditRequest(
+				base.headerRequestId,
+				base.opportunityId,
+				new StringText(docAtRequestTime.join('\n')),
+				base.documents,
+				base.activeDocumentIdx,
+				base.xtabEditHistory,
+				new DeferredPromise<Result<unknown, NoNextEditReason>>(),
+				base.expandedEditWindowNLines,
+				base.isSpeculative,
+				base.logContext,
+				base.recordingBookmark,
+				base.recording,
+				base.providerRequestStartDateTime,
+			);
+		}
+
+		beforeEach(async () => {
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabEarlyCursorLineDivergenceCancellation, true);
+		});
+
+		it('cancels when user typed a character that diverges from model output', async () => {
+			const provider = createProvider();
+
+			//  Request created with document: `function fi`
+			//  User typed `x` after request → document becomes `function fix`
+			//  Model replies `function fibonacci(n: number): number`
+			//  → "x" not in model's new text → cancel
+			const request = createDivergenceRequest(
+				['function fi'],
+				{ insertionOffset: 10, insertedText: 'i' },
+			);
+			request.intermediateUserEdit = StringEdit.single(
+				new StringReplacement(OffsetRange.emptyAt(11), 'x')
+			);
+
+			streamingFetcher.setStreamingLines(['function fibonacci(n: number): number']);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { edits, finalReason } = await collectEdits(gen);
+
+			expect(edits.length).toBe(0);
+			expect(finalReason.v).toBeInstanceOf(NoNextEditReason.GotCancelled);
+			expect((finalReason.v as NoNextEditReason.GotCancelled).message).toBe('cursorLineDiverged');
+		});
+
+		it('does not cancel when user typed a character consistent with model output', async () => {
+			const provider = createProvider();
+
+			//  Request created with document: `function fi`
+			//  User typed `b` after request → document becomes `function fib`
+			//  Model replies `function fibonacci(n: number): number`
+			//  → "b" is in model's new text → no cancel
+			const request = createDivergenceRequest(
+				['function fi'],
+				{ insertionOffset: 10, insertedText: 'i' },
+			);
+			request.intermediateUserEdit = StringEdit.single(
+				new StringReplacement(OffsetRange.emptyAt(11), 'b')
+			);
+
+			// Model output is a superset of user's typing
+			streamingFetcher.setStreamingLines(['function fibonacci(n: number): number']);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { edits, finalReason } = await collectEdits(gen);
+
+			// Should produce an edit (the rest of the completion), not cancel
+			expect(edits.length).toBeGreaterThan(0);
+			expect(finalReason.v).toBeInstanceOf(NoNextEditReason.NoSuggestions);
+		});
+
+		it('does not cancel when user has not typed since request started', async () => {
+			const provider = createProvider();
+
+			const lines = ['function foo() {', '  return 1;', '}'];
+			const request = createRequestWithEdit(lines, {
+				insertionOffset: 3,
+				insertedText: 'c',
+			});
+
+			// intermediateUserEdit is empty → user hasn't typed since request started
+			// The default is StringEdit.empty, so no divergence check should trigger
+
+			// Model responds with a completely different line
+			streamingFetcher.setStreamingLines(['function bar() {', '  return 2;', '}']);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { edits, finalReason } = await collectEdits(gen);
+
+			// Should proceed normally with the edit, not cancel
+			expect(edits.length).toBeGreaterThan(0);
+			expect(finalReason.v).toBeInstanceOf(NoNextEditReason.NoSuggestions);
+		});
+
+		it('does not cancel when intermediateUserEdit is undefined (consistency check failed)', async () => {
+			const provider = createProvider();
+
+			const lines = ['const x = 1;', 'const y = 2;'];
+			const request = createRequestWithEdit(lines, {
+				insertionOffset: 3,
+				insertedText: 'a',
+			});
+
+			// undefined means consistency check failed earlier — we should not
+			// attempt the divergence check
+			request.intermediateUserEdit = undefined;
+
+			streamingFetcher.setStreamingLines(['completely different', 'content here']);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { edits, finalReason } = await collectEdits(gen);
+
+			// Should proceed normally, not cancel via divergence
+			expect(edits.length).toBeGreaterThan(0);
+			expect(finalReason.v).toBeInstanceOf(NoNextEditReason.NoSuggestions);
+		});
+
+		it('does not cancel the request token (only the internal fetch token)', async () => {
+			const provider = createProvider();
+
+			const request = createDivergenceRequest(
+				['hello world'],
+				{ insertionOffset: 5, insertedText: ' ' },
+			);
+
+			// User typed 'Z', diverging from model
+			request.intermediateUserEdit = StringEdit.single(
+				new StringReplacement(OffsetRange.emptyAt(11), 'Z')
+			);
+
+			streamingFetcher.setStreamingLines(['hello worlQ completely different']);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { finalReason } = await collectEdits(gen);
+
+			// The provider should NOT cancel the request's token — it doesn't own it.
+			// It creates its own internal CancellationTokenSource for the fetch.
+			expect(request.cancellationTokenSource.token.isCancellationRequested).toBe(false);
+			// But it should still report the divergence
+			expect(finalReason.v).toBeInstanceOf(NoNextEditReason.GotCancelled);
+			expect((finalReason.v as NoNextEditReason.GotCancelled).message).toBe('cursorLineDiverged');
+		});
+
+		it('does not false-cancel when user inserted a line above the cursor', async () => {
+			const provider = createProvider();
+
+			//  Request created with 3-line document:
+			//    line 0: "import foo"
+			//    line 1: "function fi"    ← cursor line (line index 1)
+			//    line 2: "}"
+			//
+			//  After the request, the user inserts a blank line after "import foo",
+			//  shifting the cursor line down. Without mapping the cursor line
+			//  through the edit, the code would read the wrong line ("") at
+			//  index 1 and false-cancel.
+			//
+			//  The user also typed "b" on the cursor line → "function fib"
+			//  Model responds with a compatible continuation.
+			const request = createDivergenceRequest(
+				['import foo', 'function fi', '}'],
+				{ insertionOffset: 21, insertedText: 'i' },
+			);
+
+			// intermediateUserEdit (in original doc coordinates):
+			//   offset 10 = '\n' after "import foo" → insert extra '\n' (new blank line)
+			//   offset 22 = '\n' after "function fi" → insert 'b' (user typing)
+			request.intermediateUserEdit = StringEdit.create([
+				new StringReplacement(OffsetRange.emptyAt(10), '\n'),
+				new StringReplacement(OffsetRange.emptyAt(22), 'b'),
+			]);
+
+			// Model output: compatible with user's typing ("b" → "bonacci…")
+			streamingFetcher.setStreamingLines(['import foo', 'function fibonacci(n): number', '}']);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { finalReason } = await collectEdits(gen);
+
+			// The key assertion: no false cancellation due to line-shift
+			if (finalReason.v instanceof NoNextEditReason.GotCancelled) {
+				expect(finalReason.v.message).not.toBe('cursorLineDiverged');
+			}
+		});
+
+		it('cancels on divergence when cursor is not on the first line of the edit window', async () => {
+			const provider = createProvider();
+
+			//  Doc at request time: "const a = 1;\nfunction fi\n}"
+			//  Offsets: "const a = 1;" = 0..11, \n = 12, "function fi" = 13..23, \n = 24, "}" = 25
+			//  Cursor on line 1 (0-based), insertionOffset 23 = last 'i' of "function fi"
+			//  Edit window: all 3 lines, cursorOriginalLinesOffset = 1
+			//
+			//  User typed "x" at offset 24 (end of "function fi") → "function fix"
+			//  Model responds with "function fibonacci(n): number"
+			//  → "x" doesn't match model → cancel
+			const request = createDivergenceRequest(
+				['const a = 1;', 'function fi', '}'],
+				{ insertionOffset: 23, insertedText: 'i' },
+			);
+
+			request.intermediateUserEdit = StringEdit.single(
+				new StringReplacement(OffsetRange.emptyAt(24), 'x')
+			);
+
+			streamingFetcher.setStreamingLines(['const a = 1;', 'function fibonacci(n): number', '}']);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { edits, finalReason } = await collectEdits(gen);
+
+			expect(edits.length).toBe(0);
+			expect(finalReason.v).toBeInstanceOf(NoNextEditReason.GotCancelled);
+			expect((finalReason.v as NoNextEditReason.GotCancelled).message).toBe('cursorLineDiverged');
+		});
+
+		it('does not cancel on compatible typing when cursor is not on the first line', async () => {
+			const provider = createProvider();
+
+			//  Same setup but user typed "b" → "function fib", compatible with model
+			const request = createDivergenceRequest(
+				['const a = 1;', 'function fi', '}'],
+				{ insertionOffset: 23, insertedText: 'i' },
+			);
+
+			request.intermediateUserEdit = StringEdit.single(
+				new StringReplacement(OffsetRange.emptyAt(24), 'b')
+			);
+
+			streamingFetcher.setStreamingLines(['const a = 1;', 'function fibonacci(n): number', '}']);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { finalReason } = await collectEdits(gen);
+
+			// Should not be cancelled due to cursor-line divergence
+			if (finalReason.v instanceof NoNextEditReason.GotCancelled) {
+				expect(finalReason.v.message).not.toBe('cursorLineDiverged');
+			}
 		});
 	});
 });

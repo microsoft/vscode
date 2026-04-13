@@ -51,6 +51,7 @@ function createFakeCAPIClientService(ws: FakeWebSocket): ICAPIClientService {
 			responseHeaders: new HeadersImpl({}),
 			responseStatusCode: 101,
 			responseStatusText: 'Switching Protocols',
+			networkError: undefined,
 		} satisfies WebSocketConnection as unknown as WebSocketConnection),
 	} as unknown as ICAPIClientService;
 }
@@ -77,7 +78,7 @@ describe('ChatWebSocketManager', () => {
 			{ getConfig: () => undefined } as unknown as IConfigurationService,
 		);
 		disposables.add(manager);
-		const connection = manager.getOrCreateConnection('conv-1', headers);
+		const connection = manager.getOrCreateConnection('conv-1', headers, 'req-conn');
 		const connectPromise = connection.connect();
 		// Defer open event to allow connect() to attach listeners first
 		await Promise.resolve();
@@ -93,7 +94,7 @@ describe('ChatWebSocketManager', () => {
 			const connection = await getConnection();
 
 			// Request a connection for a new turn — should return the same object
-			const connection2 = manager.getOrCreateConnection('conv-1', {});
+			const connection2 = manager.getOrCreateConnection('conv-1', {}, 'req-conn-2');
 			expect(connection2).toBe(connection);
 			expect(manager.hasActiveConnection('conv-1')).toBe(true);
 		});
@@ -103,7 +104,7 @@ describe('ChatWebSocketManager', () => {
 			connection.dispose();
 
 			// Same manager, new getOrCreateConnection call should replace the disposed one
-			const connection2 = manager.getOrCreateConnection('conv-1', {});
+			const connection2 = manager.getOrCreateConnection('conv-1', {}, 'req-conn-2');
 			expect(connection2).not.toBe(connection);
 		});
 
@@ -125,7 +126,7 @@ describe('ChatWebSocketManager', () => {
 			const cts = disposables.add(new CancellationTokenSource());
 			const handle = connection.sendRequest(
 				{ model: 'test-model', messages: [], stream: true },
-				{ userInitiated: true, turnId: 'turn-1' },
+				{ userInitiated: true, turnId: 'turn-1', requestId: 'req-1', countTokens: () => Promise.resolve(0), tokenCountMax: 4096 },
 				cts.token,
 			);
 
@@ -143,7 +144,7 @@ describe('ChatWebSocketManager', () => {
 			const cts = disposables.add(new CancellationTokenSource());
 			const handle = connection.sendRequest(
 				{ model: 'test-model', messages: [], stream: true },
-				{ userInitiated: false, turnId: 'turn-1' },
+				{ userInitiated: false, turnId: 'turn-1', requestId: 'req-1', countTokens: () => Promise.resolve(0), tokenCountMax: 4096 },
 				cts.token,
 			);
 
@@ -160,7 +161,7 @@ describe('ChatWebSocketManager', () => {
 			const cts = disposables.add(new CancellationTokenSource());
 			const handle = connection.sendRequest(
 				{ model: 'test-model', messages: [], stream: true },
-				{ userInitiated: true, turnId: 'turn-1' },
+				{ userInitiated: true, turnId: 'turn-1', requestId: 'req-1', countTokens: () => Promise.resolve(0), tokenCountMax: 4096 },
 				cts.token,
 			);
 
@@ -179,7 +180,7 @@ describe('ChatWebSocketManager', () => {
 			const cts = disposables.add(new CancellationTokenSource());
 			const handle = connection.sendRequest(
 				{ model: 'test-model', messages: [], stream: true },
-				{ userInitiated: true, turnId: 'turn-1' },
+				{ userInitiated: true, turnId: 'turn-1', requestId: 'req-1', countTokens: () => Promise.resolve(0), tokenCountMax: 4096 },
 				cts.token,
 			);
 
@@ -199,7 +200,7 @@ describe('ChatWebSocketManager', () => {
 			const cts = disposables.add(new CancellationTokenSource());
 			const handle = connection.sendRequest(
 				{ model: 'test-model', messages: [], stream: true },
-				{ userInitiated: true, turnId: 'turn-1' },
+				{ userInitiated: true, turnId: 'turn-1', requestId: 'req-1', countTokens: () => Promise.resolve(0), tokenCountMax: 4096 },
 				cts.token,
 			);
 
@@ -220,7 +221,7 @@ describe('ChatWebSocketManager', () => {
 			const cts = disposables.add(new CancellationTokenSource());
 			const handle = connection.sendRequest(
 				{ model: 'test-model', messages: [], stream: true },
-				{ userInitiated: true, turnId: 'turn-1' },
+				{ userInitiated: true, turnId: 'turn-1', requestId: 'req-1', countTokens: () => Promise.resolve(0), tokenCountMax: 4096 },
 				cts.token,
 			);
 
@@ -239,7 +240,7 @@ describe('ChatWebSocketManager', () => {
 			const cts = disposables.add(new CancellationTokenSource());
 			const handle = connection.sendRequest(
 				{ model: 'test-model', messages: [], stream: true },
-				{ userInitiated: true, turnId: 'turn-1' },
+				{ userInitiated: true, turnId: 'turn-1', requestId: 'req-1', countTokens: () => Promise.resolve(0), tokenCountMax: 4096 },
 				cts.token,
 			);
 
@@ -262,7 +263,7 @@ describe('ChatWebSocketManager', () => {
 			const cts = disposables.add(new CancellationTokenSource());
 			const handle = connection.sendRequest(
 				{ model: 'test-model', messages: [], stream: true },
-				{ userInitiated: true, turnId: 'turn-1' },
+				{ userInitiated: true, turnId: 'turn-1', requestId: 'req-1', countTokens: () => Promise.resolve(0), tokenCountMax: 4096 },
 				cts.token,
 			);
 
@@ -282,7 +283,7 @@ describe('ChatWebSocketManager', () => {
 			const cts = disposables.add(new CancellationTokenSource());
 			const handle = connection.sendRequest(
 				{ model: 'test-model', messages: [], stream: true },
-				{ userInitiated: true, turnId: 'turn-1' },
+				{ userInitiated: true, turnId: 'turn-1', requestId: 'req-1', countTokens: () => Promise.resolve(0), tokenCountMax: 4096 },
 				cts.token,
 			);
 
@@ -319,7 +320,7 @@ describe('ChatWebSocketManager', () => {
 			const cts = disposables.add(new CancellationTokenSource());
 			const handle = connection.sendRequest(
 				{ model: 'test-model', messages: [], stream: true },
-				{ userInitiated: true, turnId: 'turn-1' },
+				{ userInitiated: true, turnId: 'turn-1', requestId: 'req-1', countTokens: () => Promise.resolve(0), tokenCountMax: 4096 },
 				cts.token,
 			);
 
@@ -334,7 +335,7 @@ describe('ChatWebSocketManager', () => {
 			const cts = disposables.add(new CancellationTokenSource());
 			const handle = connection.sendRequest(
 				{ model: 'test-model', messages: [], stream: true },
-				{ userInitiated: true, turnId: 'turn-1' },
+				{ userInitiated: true, turnId: 'turn-1', requestId: 'req-1', countTokens: () => Promise.resolve(0), tokenCountMax: 4096 },
 				cts.token,
 			);
 
@@ -354,7 +355,7 @@ describe('ChatWebSocketManager', () => {
 			const cts1 = disposables.add(new CancellationTokenSource());
 			const handle1 = connection.sendRequest(
 				{ model: 'test-model', messages: [], stream: true },
-				{ userInitiated: true, turnId: 'turn-1' },
+				{ userInitiated: true, turnId: 'turn-1', requestId: 'req-1', countTokens: () => Promise.resolve(0), tokenCountMax: 4096 },
 				cts1.token,
 			);
 
@@ -364,7 +365,7 @@ describe('ChatWebSocketManager', () => {
 			const cts2 = disposables.add(new CancellationTokenSource());
 			const handle2 = connection.sendRequest(
 				{ model: 'test-model', messages: [], stream: true },
-				{ userInitiated: false, turnId: 'turn-2' },
+				{ userInitiated: false, turnId: 'turn-2', requestId: 'req-2', countTokens: () => Promise.resolve(0), tokenCountMax: 4096 },
 				cts2.token,
 			);
 
@@ -381,7 +382,7 @@ describe('ChatWebSocketManager', () => {
 			const cts1 = disposables.add(new CancellationTokenSource());
 			const handle1 = connection.sendRequest(
 				{ model: 'test-model', messages: [], stream: true },
-				{ userInitiated: true, turnId: 'turn-1' },
+				{ userInitiated: true, turnId: 'turn-1', requestId: 'req-1', countTokens: () => Promise.resolve(0), tokenCountMax: 4096 },
 				cts1.token,
 			);
 
@@ -393,7 +394,7 @@ describe('ChatWebSocketManager', () => {
 			const cts2 = disposables.add(new CancellationTokenSource());
 			const handle2 = connection.sendRequest(
 				{ model: 'test-model', messages: [], stream: true },
-				{ userInitiated: false, turnId: 'turn-2' },
+				{ userInitiated: false, turnId: 'turn-2', requestId: 'req-2', countTokens: () => Promise.resolve(0), tokenCountMax: 4096 },
 				cts2.token,
 			);
 

@@ -311,8 +311,9 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				checkProposedApiEnabled(item.extension, 'toolInvocationApproveCombination');
 			}
 
-			const approveCombinationLabel = result.confirmationMessages?.approveCombination
-				? typeConvert.MarkdownString.fromStrict(result.confirmationMessages.approveCombination)
+			const approveCombination = result.confirmationMessages?.approveCombination;
+			const approveCombinationLabel = approveCombination
+				? typeConvert.MarkdownString.fromStrict(approveCombination.message)
 				: undefined;
 			const approveCombinationKey = approveCombinationLabel
 				? await computeCombinationKey(toolId, context.parameters)
@@ -322,7 +323,7 @@ export class ExtHostLanguageModelTools implements ExtHostLanguageModelToolsShape
 				confirmationMessages: result.confirmationMessages ? {
 					title: typeof result.confirmationMessages.title === 'string' ? result.confirmationMessages.title : typeConvert.MarkdownString.from(result.confirmationMessages.title),
 					message: typeof result.confirmationMessages.message === 'string' ? result.confirmationMessages.message : typeConvert.MarkdownString.from(result.confirmationMessages.message),
-					approveCombination: approveCombinationLabel && approveCombinationKey ? { label: approveCombinationLabel, key: approveCombinationKey } : undefined,
+					approveCombination: approveCombinationLabel && approveCombinationKey ? { label: approveCombinationLabel, key: approveCombinationKey, arguments: approveCombination!.arguments } : undefined,
 				} : undefined,
 				invocationMessage: typeConvert.MarkdownString.fromStrict(result.invocationMessage),
 				pastTenseMessage: typeConvert.MarkdownString.fromStrict(result.pastTenseMessage),

@@ -1,5 +1,6 @@
 ---
 name: agent-customization
+user-invocable: false # don't show as slash command, we have sepcialized create-agent, create-instructions, create-hook prompts for that
 description: '**WORKFLOW SKILL** — Create, update, review, fix, or debug VS Code agent customization files (.instructions.md, .prompt.md, .agent.md, SKILL.md, copilot-instructions.md, AGENTS.md). USE FOR: saving coding preferences; troubleshooting why instructions/skills/agents are ignored or not invoked; configuring applyTo patterns; defining tool restrictions; creating custom agent modes or specialized workflows; packaging domain knowledge; fixing YAML frontmatter syntax. DO NOT USE FOR: general coding questions (use default agent); runtime debugging or error diagnosis; MCP server configuration (use MCP docs directly); VS Code extension development. INVOKES: file system tools (read/write customization files), ask-questions tool (interview user for requirements), subagents for codebase exploration. FOR SINGLE OPERATIONS: For quick YAML frontmatter fixes or creating a single file from a known pattern, edit the file directly — no skill needed.'
 ---
 
@@ -9,7 +10,7 @@ description: '**WORKFLOW SKILL** — Create, update, review, fix, or debug VS Co
 
 | Primitive | When to Use |
 |-----------|-------------|
-| Workspace Instructions | Always-on, applies everywhere in the project |
+| agent instructions | Always-on, applies everywhere in the project |
 | File Instructions | Explicit via `applyTo` patterns, or on-demand via `description` |
 | MCP | Integrates external systems, APIs, or data |
 | Hooks | Deterministic shell commands at agent lifecycle points (block tools, auto-format, inject context) |
@@ -23,7 +24,7 @@ Consult the reference docs for templates, domain examples, advanced frontmatter 
 
 | Type | File | Location | Reference |
 |------|------|----------|-----------|
-| Workspace Instructions | `copilot-instructions.md`, `AGENTS.md` | `.github/` or root | [Link](./references/workspace-instructions.md) |
+| agent instructions | `copilot-instructions.md`, `AGENTS.md` | `.github/` or root | [Link](./references/agent-instructions.md) |
 | File Instructions | `*.instructions.md` | `.github/instructions/` | [Link](./references/instructions.md) |
 | Prompts | `*.prompt.md` | `.github/prompts/` | [Link](./references/prompts.md) |
 | Hooks | `*.json` | `.github/hooks/` | [Link](./references/hooks.md) |

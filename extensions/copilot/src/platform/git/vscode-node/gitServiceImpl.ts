@@ -23,7 +23,7 @@ import { ILogService } from '../../log/common/logService';
 import { IGitExtensionService } from '../common/gitExtensionService';
 import { IGitService, RepoContext } from '../common/gitService';
 import { parseGitRemotes } from '../common/utils';
-import { API, APIState, Branch, Change, Commit, CommitOptions, CommitShortStat, DiffChange, LogOptions, Ref, RefQuery, Repository, RepositoryAccessDetails, RepositoryState } from '../vscode/git';
+import { API, APIState, Branch, Change, CommitOptions, CommitShortStat, DiffChange, Ref, RefQuery, Repository, RepositoryAccessDetails } from '../vscode/git';
 
 const execFileAsync = promisify(execFile);
 
@@ -114,10 +114,30 @@ export class GitServiceImpl extends Disposable implements IGitService {
 		return gitAPI.recentRepositories;
 	}
 
-	async initRepository(uri: URI): Promise<RepoContext | undefined> {
+	async initRepository(uri: URI): Promise<Repository | undefined> {
 		const gitAPI = this.gitExtensionService.getExtensionApi();
 		const repository = await gitAPI?.init(uri);
-		return repository ? GitServiceImpl.repoToRepoContext(repository) : undefined;
+		if (!repository) {
+			return undefined;
+		}
+
+		await this.waitForRepositoryState(repository);
+		return repository;
+	}
+
+	async openRepository(uri: URI): Promise<Repository | undefined> {
+		const repository = await this._getRepository(uri, true);
+		if (!repository) {
+			return undefined;
+		}
+
+		await this.waitForRepositoryState(repository);
+		return repository;
+	}
+
+	async getRepository2(uri: URI): Promise<Repository | undefined> {
+		const repository = await this._getRepository(uri, false);
+		return repository;
 	}
 
 	async getRepository(uri: URI, forceOpen = true): Promise<RepoContext | undefined> {
@@ -128,16 +148,6 @@ export class GitServiceImpl extends Disposable implements IGitService {
 
 		await this.waitForRepositoryState(repository);
 		return GitServiceImpl.repoToRepoContext(repository);
-	}
-
-	async getRepositoryState(uri: URI, forceOpen = true): Promise<RepositoryState | undefined> {
-		const repository = await this._getRepository(uri, forceOpen);
-		if (!repository) {
-			return undefined;
-		}
-
-		await this.waitForRepositoryState(repository);
-		return repository.state;
 	}
 
 	private async _getRepository(uri: URI, forceOpen = true): Promise<Repository | undefined> {
@@ -240,24 +250,6 @@ export class GitServiceImpl extends Disposable implements IGitService {
 		await repository?.restore(paths, options);
 	}
 
-	async log(uri: vscode.Uri, options?: LogOptions): Promise<Commit[] | undefined> {
-		const gitAPI = this.gitExtensionService.getExtensionApi();
-		if (!gitAPI) {
-			return undefined;
-		}
-		const repository = gitAPI.getRepository(uri);
-		if (!repository) {
-			return undefined;
-		}
-		return repository.log(options);
-	}
-
-	async diffBetween(uri: vscode.Uri, ref1: string, ref2: string): Promise<Change[] | undefined> {
-		const gitAPI = this.gitExtensionService.getExtensionApi();
-		const repository = gitAPI?.getRepository(uri);
-		return repository?.diffBetween(ref1, ref2);
-	}
-
 	async diffBetweenPatch(uri: vscode.Uri, ref1: string, ref2: string, path?: string): Promise<string | undefined> {
 		const gitAPI = this.gitExtensionService.getExtensionApi();
 		const repository = gitAPI?.getRepository(uri);
@@ -268,12 +260,6 @@ export class GitServiceImpl extends Disposable implements IGitService {
 		const gitAPI = this.gitExtensionService.getExtensionApi();
 		const repository = gitAPI?.getRepository(uri);
 		return await repository?.diffBetweenWithStats(ref1, ref2, path);
-	}
-
-	async diffBetweenWithStats2(uri: vscode.Uri, ref: string, path?: string): Promise<DiffChange[] | undefined> {
-		const gitAPI = this.gitExtensionService.getExtensionApi();
-		const repository = gitAPI?.getRepository(uri);
-		return await repository?.diffBetweenWithStats2(ref, path);
 	}
 
 	async diffWith(uri: vscode.Uri, ref: string): Promise<Change[] | undefined> {
@@ -289,12 +275,6 @@ export class GitServiceImpl extends Disposable implements IGitService {
 			return undefined;
 		}
 		return await repository?.diffIndexWithHEADShortStats(uri.fsPath);
-	}
-
-	async fetch(uri: vscode.Uri, remote?: string, ref?: string, depth?: number): Promise<void> {
-		const gitAPI = this.gitExtensionService.getExtensionApi();
-		const repository = gitAPI?.getRepository(uri);
-		return repository?.fetch(remote, ref, depth);
 	}
 
 	async getMergeBase(uri: URI, ref1: string, ref2: string): Promise<string | undefined> {
@@ -319,24 +299,6 @@ export class GitServiceImpl extends Disposable implements IGitService {
 		return await repository?.apply(patch, false);
 	}
 
-	async checkout(uri: URI, treeish: string): Promise<void> {
-		const gitAPI = this.gitExtensionService.getExtensionApi();
-		const repository = gitAPI?.getRepository(uri);
-		await repository?.checkout(treeish);
-	}
-
-	async merge(uri: URI, ref: string): Promise<void> {
-		const gitAPI = this.gitExtensionService.getExtensionApi();
-		const repository = gitAPI?.getRepository(uri);
-		await repository?.merge(ref);
-	}
-
-	async push(uri: URI): Promise<void> {
-		const gitAPI = this.gitExtensionService.getExtensionApi();
-		const repository = gitAPI?.getRepository(uri);
-		await repository?.push();
-	}
-
 	async rebase(uri: URI, branch: string): Promise<void> {
 		try {
 			const gitAPI = this.gitExtensionService.getExtensionApi();
@@ -347,7 +309,7 @@ export class GitServiceImpl extends Disposable implements IGitService {
 		}
 	}
 
-	async createWorktree(uri: URI, options?: { path?: string; commitish?: string; branch?: string }): Promise<string | undefined> {
+	async createWorktree(uri: URI, options?: { path?: string; commitish?: string; branch?: string; noTrack?: boolean }): Promise<string | undefined> {
 		const gitAPI = this.gitExtensionService.getExtensionApi();
 		const repository = gitAPI?.getRepository(uri);
 		return await repository?.createWorktree(options);
@@ -415,15 +377,8 @@ export class GitServiceImpl extends Disposable implements IGitService {
 		}
 	}
 
-	async exec(uri: URI, args: string[], env?: Record<string, string>): Promise<string> {
+	async exec(cwd: URI, args: string[], env?: Record<string, string>): Promise<string> {
 		const gitAPI = this.gitExtensionService.getExtensionApi();
-		const repository = await this.getRepository(uri);
-
-		if (!repository) {
-			this.logService.error(`[GitServiceImpl][exec] No repository found for URI: ${uri.toString()}`);
-			throw new Error(`No repository found for URI: ${uri.toString()}`);
-		}
-
 		const gitPath = gitAPI?.git.path ?? 'git';
 		const gitEnv = Object.assign({}, process.env, env, {
 			GIT_AUTHOR_NAME: 'VS Code',
@@ -439,7 +394,7 @@ export class GitServiceImpl extends Disposable implements IGitService {
 
 		try {
 			const result = await execFileAsync(gitPath, args, {
-				cwd: repository.rootUri.fsPath,
+				cwd: cwd.fsPath,
 				encoding: 'utf8',
 				env: gitEnv
 			});
@@ -552,8 +507,11 @@ export class GitServiceImpl extends Disposable implements IGitService {
 export class RepoContextImpl implements RepoContext {
 	public readonly rootUri = this._repo.rootUri;
 	public readonly kind = this._repo.kind;
+	public readonly isUsingVirtualFileSystem = this._repo.isUsingVirtualFileSystem;
 	public readonly headBranchName = this._repo.state.HEAD?.name;
 	public readonly headCommitHash = this._repo.state.HEAD?.commit;
+	public readonly headIncomingChanges = this._repo.state.HEAD?.behind;
+	public readonly headOutgoingChanges = this._repo.state.HEAD?.ahead;
 	public readonly upstreamBranchName = this._repo.state.HEAD?.upstream?.name;
 	public readonly upstreamRemote = this._repo.state.HEAD?.upstream?.remote;
 	public readonly isRebasing = this._repo.state.rebaseCommit !== null;

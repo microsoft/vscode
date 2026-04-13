@@ -127,6 +127,10 @@ variables:
     value: ${{ and(eq(parameters.VSCODE_PUBLISH, true), eq(variables.VSCODE_CIBUILD, false)) }}
   - name: VSCODE_SCHEDULEDBUILD
     value: ${{ eq(variables['Build.Reason'], 'Schedule') }}
+  - name: VSCODE_PUBLISH_COUNTER_PREFIX
+    value: $[format('{0:yyyyMMdd}-{1}-{2}-{3}', pipeline.startTime, variables['VSCODE_QUALITY'], variables['VSCODE_PUBLISH'], variables['Build.SourceBranch'])]
+  - name: VSCODE_PUBLISH_COUNTER
+    value: $[counter(variables['VSCODE_PUBLISH_COUNTER_PREFIX'], 1)]
   - name: VSCODE_STEP_ON_IT
     value: ${{ eq(parameters.VSCODE_STEP_ON_IT, true) }}
   - name: VSCODE_BUILD_MACOS_UNIVERSAL
@@ -172,7 +176,7 @@ extends:
   parameters:
     sdl:
       tsa:
-        enabled: false
+        enabled: true
         configFile: $(Build.SourcesDirectory)/build/azure-pipelines/config/tsaoptions.json
       binskim:
         analyzeTargetGlob: '+:file|$(Agent.BuildDirectory)/VSCode-*/**/*.exe;+:file|$(Agent.BuildDirectory)/VSCode-*/**/*.dll;+:file|$(Agent.BuildDirectory)/VSCode-*/**/*.node;-:file|$(Agent.BuildDirectory)/VSCode-*/**/resources/**/*.exe;-:file|$(Agent.BuildDirectory)/VSCode-*/**/resources/**/*.node;-:file|$(Build.SourcesDirectory)/.build/**/system-setup/VSCodeSetup*.exe;-:file|$(Build.SourcesDirectory)/.build/**/user-setup/VSCodeUserSetup*.exe'

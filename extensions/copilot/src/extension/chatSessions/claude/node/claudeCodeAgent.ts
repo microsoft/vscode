@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { HookCallbackMatcher, HookEvent, HookInput, HookJSONOutput, McpServerConfig, Options, PermissionMode, PreToolUseHookInput, Query, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
+import { McpServerConfig, Options, PermissionMode, Query, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import Anthropic from '@anthropic-ai/sdk';
 import * as l10n from '@vscode/l10n';
 import type * as vscode from 'vscode';
@@ -15,25 +15,23 @@ import { CopilotChatAttr, GenAiAttr, IOTelService, type ISpanHandle, SpanKind, S
 import { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { DeferredPromise } from '../../../../util/vs/base/common/async';
-import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { Disposable, DisposableMap } from '../../../../util/vs/base/common/lifecycle';
 import { isWindows } from '../../../../util/vs/base/common/platform';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { LanguageModelToolMCPSource } from '../../../../vscodeTypes';
 import { ExternalEditTracker } from '../../common/externalEditTracker';
-import { buildHooksFromRegistry } from '../common/claudeHookRegistry';
 import { buildMcpServersFromRegistry } from '../common/claudeMcpServerRegistry';
 import { dispatchMessage, KnownClaudeError } from '../common/claudeMessageDispatch';
 import { IClaudeRuntimeDataService } from '../common/claudeRuntimeDataService';
 import { ClaudeSessionUri } from '../common/claudeSessionUri';
 import { IClaudeToolPermissionService } from '../common/claudeToolPermissionService';
-import { claudeEditTools, getAffectedUrisForEditTool } from '../common/claudeTools';
 import { IClaudeCodeSdkService } from './claudeCodeSdkService';
 import { ClaudeLanguageModelServer, IClaudeLanguageModelServerConfig } from './claudeLanguageModelServer';
 import { resolvePromptToContentBlocks } from './claudePromptResolver';
-import { IClaudeSessionStateService } from './claudeSessionStateService';
 import { ClaudeSettingsChangeTracker } from './claudeSettingsChangeTracker';
+import { ParsedClaudeModelId } from '../common/claudeModelId';
+import { IClaudeSessionStateService } from '../common/claudeSessionStateService';
 
 // Manages Claude Code agent interactions and language model server lifecycle
 export class ClaudeAgentManager extends Disposable {
@@ -80,7 +78,7 @@ export class ClaudeAgentManager extends Disposable {
 			const langModelServer = await this.getLangModelServer();
 			const serverConfig = langModelServer.getConfig();
 
-			this.logService.trace(`[ClaudeAgentManager] Handling request for sessionId=${claudeSessionId}, modelId=${modelId}, permissionMode=${permissionMode}.`);
+			this.logService.trace(`[ClaudeAgentManager] Handling request for sessionId=${claudeSessionId}, modelId=${modelId.toEndpointModelId()}, permissionMode=${permissionMode}.`);
 			let session: ClaudeCodeSession;
 			if (this._sessions.has(claudeSessionId)) {
 				this.logService.trace(`[ClaudeAgentManager] Reusing Claude session ${claudeSessionId}.`);
@@ -161,7 +159,7 @@ export class ClaudeCodeSession extends Disposable {
 	private _abortController = new AbortController();
 	private _editTracker: ExternalEditTracker;
 	private _settingsChangeTracker: ClaudeSettingsChangeTracker;
-	private _currentModelId: string;
+	private _currentModelId: ParsedClaudeModelId;
 	private _currentPermissionMode: PermissionMode;
 	private _isResumed: boolean;
 	private _yieldInProgress = false;
@@ -173,14 +171,15 @@ export class ClaudeCodeSession extends Disposable {
 	/**
 	 * Sets the model on the active SDK session, or stores it for the next session start.
 	 */
-	private async _setModel(modelId: string): Promise<void> {
+	private async _setModel(modelId: ParsedClaudeModelId): Promise<void> {
 		if (modelId === this._currentModelId) {
 			return;
 		}
 		this._currentModelId = modelId;
 		if (this._queryGenerator) {
-			this.logService.trace(`[ClaudeCodeSession] Setting model to ${modelId} on active session`);
-			await this._queryGenerator.setModel(modelId);
+			const sdkId = modelId.toSdkModelId();
+			this.logService.trace(`[ClaudeCodeSession] Setting model to ${sdkId} on active session`);
+			await this._queryGenerator.setModel(sdkId);
 		}
 	}
 
@@ -202,7 +201,7 @@ export class ClaudeCodeSession extends Disposable {
 		private readonly serverConfig: IClaudeLanguageModelServerConfig,
 		private readonly langModelServer: ClaudeLanguageModelServer,
 		public readonly sessionId: string,
-		initialModelId: string,
+		initialModelId: ParsedClaudeModelId,
 		initialPermissionMode: PermissionMode,
 		isNewSession: boolean,
 		@ILogService private readonly logService: ILogService,
@@ -437,10 +436,9 @@ export class ClaudeCodeSession extends Disposable {
 				? { resume: this.sessionId }
 				: { sessionId: this.sessionId }),
 			// Pass the model selection to the SDK
-			model: this._currentModelId,
+			model: this._currentModelId.toSdkModelId(),
 			// Pass the permission mode to the SDK
 			permissionMode: this._currentPermissionMode,
-			hooks: this._buildHooks(token),
 			includeHookEvents: true,
 			mcpServers,
 			settings: {
@@ -495,57 +493,6 @@ export class ClaudeCodeSession extends Disposable {
 		});
 	}
 
-	/**
-	 * Builds the hooks configuration by combining registry-based hooks with edit tool hooks.
-	 */
-	private _buildHooks(token: CancellationToken): Partial<Record<HookEvent, HookCallbackMatcher[]>> {
-		const hooks = buildHooksFromRegistry(this.instantiationService);
-
-		// Add edit tool hooks to PreToolUse and PostToolUse
-		if (!hooks.PreToolUse) {
-			hooks.PreToolUse = [];
-		}
-		hooks.PreToolUse.push({
-			matcher: claudeEditTools.join('|'),
-			hooks: [(input, toolID) => this._onWillEditTool(input, toolID, token)]
-		});
-
-		if (!hooks.PostToolUse) {
-			hooks.PostToolUse = [];
-		}
-		hooks.PostToolUse.push({
-			matcher: claudeEditTools.join('|'),
-			hooks: [(input, toolID) => this._onDidEditTool(input, toolID)]
-		});
-
-		return hooks;
-	}
-
-	private async _onWillEditTool(input: HookInput, toolUseID: string | undefined, token: CancellationToken): Promise<HookJSONOutput> {
-		let uris: URI[] = [];
-		try {
-			uris = getAffectedUrisForEditTool(input as PreToolUseHookInput);
-		} catch (error) {
-			this.logService.error('Error getting affected URIs for edit tool', error);
-		}
-		if (!this._currentRequest) {
-			return {};
-		}
-
-		await this._editTracker.trackEdit(
-			toolUseID ?? '',
-			uris,
-			this._currentRequest.stream,
-			token
-		);
-		return {};
-	}
-
-	private async _onDidEditTool(_input: HookInput, toolUseID: string | undefined) {
-		await this._editTracker.completeEdit(toolUseID ?? '');
-		return {};
-	}
-
 	private async *_createPromptIterable(): AsyncIterable<SDKUserMessage> {
 		while (true) {
 			// Wait for a request to be available
@@ -560,7 +507,7 @@ export class ClaudeCodeSession extends Disposable {
 
 			// Increment user-initiated message count for this model
 			// This is used by the language model server to track which requests are user-initiated
-			this.langModelServer.incrementUserInitiatedMessageCount(this._currentModelId);
+			this.langModelServer.incrementUserInitiatedMessageCount(this._currentModelId.toEndpointModelId());
 
 			// Create a capturing token for this request to group tool calls under the request
 			// we use the last text block in the prompt as the label for the token, since that is most representative of the user's intent
@@ -653,6 +600,7 @@ export class ClaudeCodeSession extends Disposable {
 				const result = this.instantiationService.invokeFunction(dispatchMessage, message, this.sessionId, {
 					stream: this._currentRequest.stream,
 					toolInvocationToken: this._currentRequest.toolInvocationToken,
+					editTracker: this._editTracker,
 					token: this._currentRequest.token,
 				}, {
 					unprocessedToolCalls,

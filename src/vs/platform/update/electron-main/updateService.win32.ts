@@ -15,6 +15,7 @@ import { memoize } from '../../../base/common/decorators.js';
 import { hash } from '../../../base/common/hash.js';
 import * as path from '../../../base/common/path.js';
 import { basename } from '../../../base/common/path.js';
+import { INodeProcess } from '../../../base/common/platform.js';
 import { transform } from '../../../base/common/stream.js';
 import { URI } from '../../../base/common/uri.js';
 import { checksum } from '../../../base/node/crypto.js';
@@ -34,7 +35,6 @@ import { IApplicationStorageMainService } from '../../storage/electron-main/stor
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AvailableForDownload, DisablementReason, IUpdate, State, StateType, UpdateType } from '../common/update.js';
 import { AbstractUpdateService, createUpdateURL, getUpdateRequestHeaders, IUpdateURLOptions, UpdateErrorClassification } from './abstractUpdateService.js';
-import { INodeProcess } from '../../../base/common/platform.js';
 
 interface IAvailableUpdate {
 	packagePath: string;
@@ -101,14 +101,6 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 	}
 
 	protected override async initialize(): Promise<void> {
-		// In the embedded app, skip win32-specific setup (cache paths, telemetry)
-		// but still run the base initialization to detect available updates.
-		if ((process as INodeProcess).isEmbeddedApp) {
-			this.logService.info('update#ctor - embedded app: checking for updates without auto-download');
-			await super.initialize();
-			return;
-		}
-
 		if (this.productService.win32VersionedUpdate) {
 			const cachePath = await this.cachePath;
 			app.setPath('appUpdate', cachePath);
@@ -230,13 +222,6 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 
 				if (updateType === UpdateType.Archive) {
 					this.setState(State.AvailableForDownload(update));
-					return Promise.resolve(null);
-				}
-
-				// In the embedded app, signal that an update exists but can't be installed here.
-				if ((process as INodeProcess).isEmbeddedApp) {
-					this.logService.info('update#doCheckForUpdates - embedded app: update available, skipping download');
-					this.setState(State.AvailableForDownload(update, /* canInstall */ false));
 					return Promise.resolve(null);
 				}
 
@@ -397,7 +382,13 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 			this.setState(State.Idle(getUpdateType()));
 		});
 
-		const readyMutexName = `${this.productService.win32MutexName}-ready`;
+		// The InnoSetup installer creates the -ready mutex using the host app's
+		// mutex name ({#AppMutex}). When running as the embedded app, use
+		// win32SetupMutexName (the host's mutex) to find the correct signal.
+		const setupMutexName = (process as INodeProcess).isEmbeddedApp
+			? this.productService.win32SetupMutexName
+			: this.productService.win32MutexName;
+		const readyMutexName = `${setupMutexName}-ready`;
 		const mutex = await import('@vscode/windows-mutex');
 
 		this.updateCancellationTokenSource?.dispose(true);

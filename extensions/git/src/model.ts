@@ -691,16 +691,6 @@ export class Model implements IRepositoryResolver, IBranchProtectionProviderRegi
 			this.logger.info(`[Model][openRepository] Opened repository (real path): ${repository.rootRealPath ?? repository.root}`);
 			this.logger.info(`[Model][openRepository] Opened repository (kind): ${gitRepository.kind}`);
 
-			// For repositories that are opened in the sessions app, we want to wait for
-			// the initial `git status` to complete before updating the repository cache
-			// and firing events.
-			if (workspace.isAgentSessionsWorkspace) {
-				await repository.status();
-				this._repositoryCache.update(repository.remotes, [], repository.root);
-
-				return;
-			}
-
 			// Do not await this, we want SCM
 			// to know about the repo asap
 			repository.status().then(() => {

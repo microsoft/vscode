@@ -39,6 +39,7 @@ export namespace ChatEntitlementContextKeys {
 		hidden: new RawContextKey<boolean>('chatSetupHidden', false, true), 		// True when chat setup is explicitly hidden.
 		installed: new RawContextKey<boolean>('chatSetupInstalled', false, true),  	// True when the chat extension is installed and enabled.
 		disabled: new RawContextKey<boolean>('chatSetupDisabled', false, true),  	// True when the chat extension is disabled due to any other reason than workspace trust.
+		disabledInWorkspace: new RawContextKey<boolean>('chatSetupDisabledInWorkspace', false, true),	// True when chat is disabled at the workspace level via settings.
 		untrusted: new RawContextKey<boolean>('chatSetupUntrusted', false, true),  	// True when the chat extension is disabled due to workspace trust.
 		later: new RawContextKey<boolean>('chatSetupLater', false, true),  			// True when the user wants to finish setup later.
 		registered: new RawContextKey<boolean>('chatSetupRegistered', false, true), // True when the user has registered as Free or Pro user.
@@ -121,6 +122,15 @@ export interface IChatSentiment {
 	disabled?: boolean;
 
 	/**
+	 * Chat is disabled at the workspace level
+	 *
+	 * Note: in contrast to `hidden` (which hides all UI globally),
+	 * this only disables Chat in the current workspace while
+	 * keeping its UI visible so the user can re-enable it.
+	 */
+	disabledInWorkspace?: boolean;
+
+	/**
 	 * Chat is disabled due to missing workspace trust.
 	 *
 	 * Note: even though this disables Chat, we want to treat it
@@ -150,6 +160,7 @@ export interface IChatEntitlementService {
 	readonly entitlementObs: IObservable<ChatEntitlement>;
 
 	readonly previewFeaturesDisabled: boolean;
+	readonly clientByokEnabled: boolean;
 
 	readonly organisations: string[] | undefined;
 	readonly isInternal: boolean;
@@ -241,7 +252,7 @@ function isAnonymous(configurationService: IConfigurationService, entitlement: C
 		return false; // only consider signed out users
 	}
 
-	if (sentiment.hidden || sentiment.disabled) {
+	if (sentiment.hidden || sentiment.disabledInWorkspace) {
 		return false; // only consider enabled scenarios
 	}
 
@@ -397,6 +408,10 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 		return this.contextKeyService.getContextKeyValue<boolean>('github.copilot.previewFeaturesDisabled') === true;
 	}
 
+	get clientByokEnabled(): boolean {
+		return this.contextKeyService.getContextKeyValue<boolean>('github.copilot.clientByokEnabled') === true;
+	}
+
 	//#endregion
 
 	//#region --- Quotas
@@ -506,6 +521,7 @@ export class ChatEntitlementService extends Disposable implements IChatEntitleme
 			completed: this.contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.Setup.completed.key) === true,
 			installed: this.contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.Setup.installed.key) === true,
 			hidden: this.contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.Setup.hidden.key) === true,
+			disabledInWorkspace: this.contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.Setup.disabledInWorkspace.key) === true,
 			disabled: this.contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.Setup.disabled.key) === true,
 			untrusted: this.contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.Setup.untrusted.key) === true,
 			later: this.contextKeyService.getContextKeyValue<boolean>(ChatEntitlementContextKeys.Setup.later.key) === true,
@@ -1038,6 +1054,7 @@ export class ChatEntitlementContext extends Disposable {
 
 	private readonly completedContext: IContextKey<boolean>;
 	private readonly hiddenContext: IContextKey<boolean>;
+	private readonly disabledInWorkspaceContext: IContextKey<boolean>;
 	private readonly laterContext: IContextKey<boolean>;
 	private readonly installedContext: IContextKey<boolean>;
 	private readonly disabledContext: IContextKey<boolean>;
@@ -1078,6 +1095,7 @@ export class ChatEntitlementContext extends Disposable {
 
 		this.completedContext = ChatEntitlementContextKeys.Setup.completed.bindTo(contextKeyService);
 		this.hiddenContext = ChatEntitlementContextKeys.Setup.hidden.bindTo(contextKeyService);
+		this.disabledInWorkspaceContext = ChatEntitlementContextKeys.Setup.disabledInWorkspace.bindTo(contextKeyService);
 		this.laterContext = ChatEntitlementContextKeys.Setup.later.bindTo(contextKeyService);
 		this.installedContext = ChatEntitlementContextKeys.Setup.installed.bindTo(contextKeyService);
 		this.disabledContext = ChatEntitlementContextKeys.Setup.disabled.bindTo(contextKeyService);
@@ -1124,12 +1142,12 @@ export class ChatEntitlementContext extends Disposable {
 		return state;
 	}
 
-	update(context: { installed: boolean; disabled: boolean; untrusted: boolean }): Promise<void>;
+	update(context: { installed: boolean; disabled: boolean; untrusted: boolean; disabledInWorkspace: boolean }): Promise<void>;
 	update(context: { completed: true }): Promise<void>;
 	update(context: { hidden: false }): Promise<void>; // legacy UI state from before we had a setting to hide, keep around to still support users who used this
 	update(context: { later: boolean }): Promise<void>;
 	update(context: { entitlement: ChatEntitlement; organisations: string[] | undefined; sku: string | undefined; copilotTrackingId: string | undefined }): Promise<void>;
-	async update(context: { completed?: boolean; installed?: boolean; disabled?: boolean; untrusted?: boolean; hidden?: false; later?: boolean; entitlement?: ChatEntitlement; organisations?: string[]; sku?: string; copilotTrackingId?: string }): Promise<void> {
+	async update(context: { completed?: boolean; installed?: boolean; disabled?: boolean; untrusted?: boolean; disabledInWorkspace?: boolean; hidden?: false; later?: boolean; entitlement?: ChatEntitlement; organisations?: string[]; sku?: string; copilotTrackingId?: string }): Promise<void> {
 		this.logService.trace(`[chat entitlement context] update(): ${JSON.stringify(context)}`);
 
 		const oldState = JSON.stringify(this._state);
@@ -1138,6 +1156,7 @@ export class ChatEntitlementContext extends Disposable {
 			this._state.installed = context.installed;
 			this._state.disabled = context.disabled;
 			this._state.untrusted = context.untrusted;
+			this._state.disabledInWorkspace = context.disabledInWorkspace;
 
 			if (context.installed && !context.disabled) {
 				context.hidden = false; // treat this as a sign to make Chat visible again in case it is hidden
@@ -1210,6 +1229,7 @@ export class ChatEntitlementContext extends Disposable {
 
 		this.completedContext.set(!!state.completed);
 		this.hiddenContext.set(!!state.hidden);
+		this.disabledInWorkspaceContext.set(!!state.disabledInWorkspace);
 		this.laterContext.set(!!state.later);
 		this.installedContext.set(!!state.installed);
 		this.disabledContext.set(!!state.disabled);

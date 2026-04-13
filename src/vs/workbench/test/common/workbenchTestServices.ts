@@ -814,6 +814,7 @@ export class TestChatEntitlementService implements IChatEntitlementService {
 	markAnonymousRateLimited(): void { }
 
 	readonly previewFeaturesDisabled = false;
+	readonly clientByokEnabled = false;
 }
 
 export class TestLifecycleService extends Disposable implements ILifecycleService {

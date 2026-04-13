@@ -8,8 +8,8 @@ import './media/chatWelcomePart.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { KeyCode } from '../../../../base/common/keyCodes.js';
-import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
+import { Disposable, DisposableMap, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
@@ -39,6 +39,7 @@ import { localize } from '../../../../nls.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import type { ISession } from '../../../services/sessions/common/session.js';
 import { IViewDescriptorService } from '../../../../workbench/common/views.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IViewPaneOptions, ViewPane } from '../../../../workbench/browser/parts/views/viewPane.js';
@@ -81,6 +82,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 	private readonly _workspacePicker: WorkspacePicker;
 	private readonly _sessionTypePicker: SessionTypePicker;
+	private readonly _sessionConfigListeners = this._register(new DisposableMap<string>());
 
 	// IHistoryNavigationWidget
 	private readonly _onDidFocus = this._register(new Emitter<void>());
@@ -145,8 +147,12 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._register(this._workspacePicker.onDidChangeSelection(() => {
 			this._renderOptionGroupPickers();
 		}));
-		this._register(this._workspacePicker.onDidSelectWorkspace(async (workspace) => {
-			await this._onWorkspaceSelected(workspace);
+		this._register(this._workspacePicker.onDidSelectWorkspace(async workspace => {
+			await this._onWorkspaceSelected(workspace, this._sessionTypePicker.selectedType);
+			this._focusEditor();
+		}));
+		this._register(this._sessionTypePicker.onDidSelectSessionType(async sessionType => {
+			await this._onWorkspaceSelected(this._workspacePicker.selectedProject, sessionType);
 			this._focusEditor();
 		}));
 
@@ -157,6 +163,14 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			this._loadingSpinner?.classList.toggle('visible', isLoading);
 			this._updateSendButtonState();
 		}));
+		this._register(this.sessionsProvidersService.onDidChangeProviders(e => {
+			for (const provider of e.removed) {
+				this._sessionConfigListeners.deleteAndDispose(provider.id);
+			}
+			this._watchSessionConfigProviders();
+			this._updateSendButtonState();
+		}));
+		this._watchSessionConfigProviders();
 		this._register(this._contextAttachments.onDidChangeContext(() => {
 			this._updateDraftState();
 			this._focusEditor();
@@ -220,13 +234,13 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		// Create initial session — wait for providers if none registered yet
 		const restoredProject = this._workspacePicker.selectedProject;
 		if (restoredProject) {
-			if (this.sessionsProvidersService.getProviders().length > 0) {
-				this._createNewSession(restoredProject);
+			if (this.sessionsProvidersService.getProviders().length > 0 && this._sessionTypePicker.selectedType) {
+				this._createNewSession(restoredProject, this._sessionTypePicker.selectedType);
 			} else {
 				// Providers not yet registered (startup race) — wait for first registration
 				const sub = this.sessionsProvidersService.onDidChangeProviders(() => {
 					sub.dispose();
-					this._createNewSession(restoredProject);
+					this._createNewSession(restoredProject, this._sessionTypePicker.selectedType);
 				});
 				this._register(sub);
 			}
@@ -241,8 +255,8 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		}, { once: true }));
 	}
 
-	private _createNewSession(selection: IWorkspaceSelection): void {
-		this.sessionsManagementService.createNewSession(selection.providerId, selection.workspace);
+	private _createNewSession(selection: IWorkspaceSelection, sessionTypeId: string | undefined): void {
+		this.sessionsManagementService.createNewSession(selection.providerId, selection.workspace.repositories[0].uri, sessionTypeId);
 	}
 
 	private _updateInputLoadingState(): void {
@@ -356,6 +370,12 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 				e.preventDefault();
 				e.stopPropagation();
 				this._send();
+			}
+			// Cmd+/ / Ctrl+/ — open the context picker (same as the attach button)
+			if (e.equals(KeyMod.CtrlCmd | KeyCode.Slash)) {
+				e.preventDefault();
+				e.stopPropagation();
+				this._contextAttachments.showPicker(this._getContextFolderUri());
 			}
 		}));
 
@@ -544,7 +564,25 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		const session = this.sessionsManagementService.activeSession.get();
 		const hasActiveSession = !!session;
 		const isLoading = session?.loading.get() ?? false;
-		this._sendButton.enabled = !this._sending && hasText && hasActiveSession && !isLoading;
+		const isConfigReady = session ? this._isSessionConfigReady(session) : false;
+		this._sendButton.enabled = !this._sending && hasText && hasActiveSession && !isLoading && isConfigReady;
+	}
+
+	private _watchSessionConfigProviders(): void {
+		for (const provider of this.sessionsProvidersService.getProviders()) {
+			if (!provider.onDidChangeSessionConfig || this._sessionConfigListeners.has(provider.id)) {
+				continue;
+			}
+			this._sessionConfigListeners.set(provider.id, provider.onDidChangeSessionConfig(() => this._updateSendButtonState()));
+		}
+	}
+
+	private _isSessionConfigReady(session: ISession): boolean {
+		const provider = this.sessionsProvidersService.getProvider(session.providerId);
+		if (!provider?.getSessionConfig) {
+			return true;
+		}
+		return provider.getSessionConfig(session.sessionId)?.ready ?? true;
 	}
 
 	private async _send(): Promise<void> {
@@ -556,6 +594,11 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		// If no workspace is selected, open the picker
 		if (!this._hasRequiredRepoOrFolderSelection()) {
 			this._openRepoOrFolderPicker();
+			return;
+		}
+
+		const activeSession = this.sessionsManagementService.activeSession.get();
+		if (!activeSession || !this._isSessionConfigReady(activeSession)) {
 			return;
 		}
 
@@ -677,7 +720,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	 * Handles a workspace selection from the workspace picker.
 	 * Requests folder trust if needed and creates a new session.
 	 */
-	private async _onWorkspaceSelected(selection: IWorkspaceSelection | undefined): Promise<void> {
+	private async _onWorkspaceSelected(selection: IWorkspaceSelection | undefined, sessionTypeId: string | undefined): Promise<void> {
 		if (!selection) {
 			this.sessionsManagementService.unsetNewSession();
 			return;
@@ -690,7 +733,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			}
 		}
 
-		this._createNewSession(selection);
+		this._createNewSession(selection, sessionTypeId);
 	}
 
 	prefillInput(text: string): void {

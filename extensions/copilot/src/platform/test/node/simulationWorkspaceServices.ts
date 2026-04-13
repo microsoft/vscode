@@ -29,7 +29,7 @@ import { IFileSystemService } from '../../filesystem/common/fileSystemService';
 import { FileType, RelativePattern } from '../../filesystem/common/fileTypes';
 import { NodeFileSystemService } from '../../filesystem/node/fileSystemServiceImpl';
 import { IGitService, RepoContext } from '../../git/common/gitService';
-import { Branch, Change, CommitOptions, CommitShortStat, DiffChange, Ref, RefQuery, RepositoryAccessDetails, RepositoryState } from '../../git/vscode/git';
+import { Branch, Change, CommitOptions, CommitShortStat, DiffChange, Ref, RefQuery, Repository, RepositoryAccessDetails } from '../../git/vscode/git';
 import { AbstractLanguageDiagnosticsService } from '../../languages/common/languageDiagnosticsService';
 import { ILanguageFeaturesService } from '../../languages/common/languageFeaturesService';
 import { ILogService } from '../../log/common/logService';
@@ -676,16 +676,16 @@ export class TestingGitService implements IGitService {
 		return;
 	}
 
-	async log() {
-		return [];
-	}
-
 	// TODO implement later if tests use this, only used by ignore service
 	getRepository(uri: URI, forceOpen?: boolean): Promise<RepoContext | undefined> {
 		return Promise.resolve(undefined);
 	}
 
-	getRepositoryState(uri: URI, forceOpen?: boolean): Promise<RepositoryState | undefined> {
+	getRepository2(uri: URI): Promise<Repository | undefined> {
+		return Promise.resolve(undefined);
+	}
+
+	openRepository(uri: URI): Promise<Repository | undefined> {
 		return Promise.resolve(undefined);
 	}
 
@@ -697,7 +697,7 @@ export class TestingGitService implements IGitService {
 		return [];
 	}
 
-	async initRepository(_uri: URI): Promise<RepoContext | undefined> {
+	async initRepository(_uri: URI): Promise<Repository | undefined> {
 		return Promise.resolve(undefined);
 	}
 
@@ -731,8 +731,11 @@ export class TestingGitService implements IGitService {
 			return [{
 				rootUri: workspaceFolderPath,
 				kind: 'repository',
+				isUsingVirtualFileSystem: false,
 				headBranchName: undefined,
 				headCommitHash: undefined,
+				headIncomingChanges: 0,
+				headOutgoingChanges: 0,
 				upstreamBranchName: undefined,
 				upstreamRemote: undefined,
 				isRebasing: false,
@@ -766,10 +769,6 @@ export class TestingGitService implements IGitService {
 		return [];
 	}
 
-	async diffBetweenWithStats2(uri: URI, ref: string, path?: string): Promise<DiffChange[] | undefined> {
-		return [];
-	}
-
 	async diffBetweenPatch(uri: URI, ref1: string, ref2: string, path?: string): Promise<string | undefined> {
 		return undefined;
 	}
@@ -780,10 +779,6 @@ export class TestingGitService implements IGitService {
 
 	async diffIndexWithHEADShortStats(uri: URI): Promise<CommitShortStat | undefined> {
 		return undefined;
-	}
-
-	async fetch(uri: URI, remote?: string, ref?: string, depth?: number): Promise<void> {
-		return;
 	}
 
 	async getMergeBase(uri: URI, ref1: string, ref2: string): Promise<string | undefined> {
@@ -798,7 +793,7 @@ export class TestingGitService implements IGitService {
 		return;
 	}
 
-	async createWorktree(uri: URI, options?: { path?: string; commitish?: string; branch?: string }): Promise<string | undefined> {
+	async createWorktree(uri: URI, options?: { path?: string; commitish?: string; branch?: string; noTrack?: boolean }): Promise<string | undefined> {
 		return undefined;
 	}
 
@@ -812,22 +807,6 @@ export class TestingGitService implements IGitService {
 
 	applyPatch(uri: URI, patch: string): Promise<void> {
 		return Promise.resolve();
-	}
-
-	async checkout(uri: URI, treeish: string): Promise<void> {
-		return;
-	}
-
-	async merge(uri: URI, ref: string): Promise<void> {
-		return;
-	}
-
-	async push(uri: URI): Promise<void> {
-		return;
-	}
-
-	async rebase(uri: URI, branch: string): Promise<void> {
-		return;
 	}
 
 	async commit(uri: URI, message: string | undefined, opts?: CommitOptions): Promise<void> {
