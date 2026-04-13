@@ -149,7 +149,6 @@ export function setup(context: TestContext) {
 		const args = [
 			'--extensions-dir', context.createTempDir(),
 			'--user-data-dir', test.userDataDir,
-			'--skip-welcome',
 			'--folder-uri', `vscode-remote://wsl+${wslDistro}${wslWorkspaceDir}`,
 		];
 

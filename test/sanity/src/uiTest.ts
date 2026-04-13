@@ -53,6 +53,7 @@ export class UITest {
 	 */
 	public async run(page: Page) {
 		try {
+			await this.dismissWelcomeDialog(page);
 			await this.dismissWorkspaceTrustDialog(page);
 			await this.createTextFile(page);
 			await this.installExtension(page);
@@ -68,6 +69,17 @@ export class UITest {
 	public validate() {
 		this.verifyTextFileCreated();
 		this.verifyExtensionInstalled();
+	}
+
+	/**
+	 * Dismiss the welcome sign-in dialog.
+	 */
+	private async dismissWelcomeDialog(page: Page) {
+		this.context.log('Dismissing welcome dialog');
+		const skipButton = page.getByRole('button', { name: 'Skip' });
+		await skipButton.waitFor({ state: 'visible' });
+		await skipButton.click();
+		await skipButton.waitFor({ state: 'hidden' });
 	}
 
 	/**
