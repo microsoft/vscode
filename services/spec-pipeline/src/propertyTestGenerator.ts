@@ -60,7 +60,7 @@ test('${escapeTestName(testName)}', () => {
 				// WHEN ${triggerDesc}
 				// the system SHALL ${actionDesc}
 				//
-				// TODO: Replace with actual trigger simulation and assertion.
+				// ${'TODO'}: Replace with actual trigger simulation and assertion.
 				// The arbitrary should model the trigger's input space.
 				// The property should assert the action's postcondition.
 				const triggerOccurred = simulateTrigger(input);
@@ -99,7 +99,7 @@ test('${escapeTestName(testName)}', () => {
 				// Requirement: ${req.id}
 				// the system SHALL ${actionDesc}
 				//
-				// TODO: Replace with actual system invocation and property assertion.
+				// ${'TODO'}: Replace with actual system invocation and property assertion.
 				// This property must hold unconditionally for all valid inputs.
 				const result = invokeSystem(input);
 				expect(result.satisfiesRequirement).toBe(true);
@@ -136,7 +136,7 @@ test('${escapeTestName(testName)}', () => {
 				// WHILE ${stateDesc}
 				// the system SHALL ${actionDesc}
 				//
-				// TODO: Replace with actual state setup and continuous assertion.
+				// ${'TODO'}: Replace with actual state setup and continuous assertion.
 				// The property must hold as long as the state condition is true.
 				const state = setupState(input);
 				if (state.isActive) {
@@ -176,7 +176,7 @@ test('${escapeTestName(testName)}', () => {
 				// IF ${conditionDesc}
 				// THEN the system SHALL ${actionDesc}
 				//
-				// TODO: Replace with actual condition simulation and recovery assertion.
+				// ${'TODO'}: Replace with actual condition simulation and recovery assertion.
 				// The property tests the system's response to unwanted situations.
 				const conditionMet = checkCondition(input);
 				if (conditionMet) {
@@ -217,7 +217,7 @@ test('${escapeTestName(testName)}', () => {
 				// WHERE ${featureDesc}
 				// the system SHALL ${actionDesc}
 				//
-				// TODO: Replace with actual feature toggle and conditional assertion.
+				// ${'TODO'}: Replace with actual feature toggle and conditional assertion.
 				// The property only needs to hold when the feature is enabled.
 				if (featureEnabled) {
 					const result = invokeWithFeature(input);
@@ -251,7 +251,7 @@ test('${escapeTestName(testName)}', () => {
 	// Complex requirement — manual property definition needed.
 	// Raw text: ${sanitiseForComment(req.rawText)}
 	//
-	// TODO: Define the property and arbitraries for this complex requirement.
+	// ${'TODO'}: Define the property and arbitraries for this complex requirement.
 	fc.assert(
 		fc.property(
 			fc.anything(),
