@@ -134,7 +134,7 @@ export class LMStudioLMProvider implements vscode.LanguageModelChatProvider, vsc
 
 			const data = await response.json() as LMStudioChatCompletionResponse;
 			const content = data.choices?.[0]?.message?.content;
-			if (!content) {
+			if (content === undefined || content === null) {
 				throw new Error('LM Studio returned no response content');
 			}
 
