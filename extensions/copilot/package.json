@@ -6351,7 +6351,7 @@
 		"@anthropic-ai/claude-agent-sdk": "0.2.98",
 		"@anthropic-ai/sdk": "^0.82.0",
 		"@github/blackbird-external-ingest-utils": "^0.3.0",
-		"@github/copilot": "^1.0.21",
+		"@github/copilot": "^1.0.24",
 		"@google/genai": "^1.22.0",
 		"@humanwhocodes/gitignore-to-minimatch": "1.0.2",
 		"@microsoft/tiktokenizer": "^1.0.10",

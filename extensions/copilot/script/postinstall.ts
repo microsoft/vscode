@@ -87,8 +87,8 @@ async function copyCopilotCliDefinitionFiles() {
 }
 
 async function copyCopilotCliSkillsFiles() {
-	const sourceDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'builtin-skills', 'customizing-copilot-cloud-agents-environment');
-	const targetDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'sdk', 'builtin-skills', 'customizing-copilot-cloud-agents-environment');
+	const sourceDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'builtin-skills');
+	const targetDir = path.join(REPO_ROOT, 'node_modules', '@github', 'copilot', 'sdk', 'builtin-skills');
 
 	await copyCopilotCLIFolders(sourceDir, targetDir);
 }

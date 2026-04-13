@@ -9,6 +9,9 @@ name: Sessions E2E Tests
 #       - 'src/vs/sessions/**'
 #       - 'scripts/code-sessions-web.*'
 
+# just commenting "on" property causes emails to be sent to everyone
+on: workflow_dispatch
+
 permissions:
   contents: read
 

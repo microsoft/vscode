@@ -97,11 +97,7 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 	) {
 		super();
 
-		// Show onboarding overlay immediately (before waiting for lifecycle restore)
-		if (!this.environmentService.skipWelcome && this.configurationService.getValue<boolean>('workbench.welcomePage.experimentalOnboarding')) {
-			this.tryShowOnboarding();
-		}
-
+		this.tryShowOnboarding();
 		this.run().then(undefined, onUnexpectedError);
 		this._register(this.editorService.onDidCloseEditor((e) => {
 			if (e.editor instanceof GettingStartedInput) {
@@ -235,7 +231,19 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 	}
 
 	private tryShowOnboarding(): void {
-		if (this.storageService.get(ONBOARDING_STORAGE_KEY, StorageScope.PROFILE)) {
+		if (this.environmentService.skipWelcome) {
+			return; // skip welcome flag is set
+		}
+
+		if (!this.configurationService.getValue<boolean>('workbench.welcomePage.experimentalOnboarding')) {
+			return; // experimental onboarding is disabled
+		}
+
+		if (!this.storageService.isNew(StorageScope.APPLICATION)) {
+			return; // only show onboarding for new users who have never used the product before
+		}
+
+		if (this.storageService.getBoolean(ONBOARDING_STORAGE_KEY, StorageScope.APPLICATION)) {
 			return; // onboarding already completed
 		}
 
@@ -244,7 +252,7 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 
 		// Mark onboarding as completed when dismissed
 		this._register(this.onboardingService.onDidDismiss(() => {
-			this.storageService.store(ONBOARDING_STORAGE_KEY, true, StorageScope.PROFILE, StorageTarget.USER);
+			this.storageService.store(ONBOARDING_STORAGE_KEY, true, StorageScope.APPLICATION, StorageTarget.USER);
 		}));
 	}
 }

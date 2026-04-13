@@ -45,6 +45,12 @@ import { isImageDataPart } from '../common/languageModelChatMessageHelpers';
 import { LanguageModelAccessPrompt } from './languageModelAccessPrompt';
 
 /**
+ * Markers in the autoModelHint experiment variable that indicate the auto model
+ * is routing to an experimental or evaluation model.
+ */
+const experimentalAutoModelHintMarkers = ['minimax', 'mp3yn0h7', 'yaqq2gxh'];
+
+/**
  * Builds a configurationSchema for the model picker based on the endpoint's supported capabilities.
  * Models that support reasoning_effort get a "Thinking Effort" dropdown in the model picker UI.
  */
@@ -267,6 +273,13 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 				modelTooltip = endpoint.degradationReason;
 			} else if (endpoint instanceof AutoChatEndpoint) {
 				modelTooltip = vscode.l10n.t('Auto selects the best model for your request based on capacity and performance.');
+				const plan = this._authenticationService.copilotToken?.copilotPlan;
+				const isOrgManaged = plan === 'business' || plan === 'enterprise';
+				const autoModeHint = this._expService.getTreatmentVariable<string>('copilotchat.autoModelHint');
+				const showExperimentalHint = !isOrgManaged && !!autoModeHint && experimentalAutoModelHintMarkers.some(marker => autoModeHint.includes(marker));
+				if (showExperimentalHint) {
+					modelTooltip = `${modelTooltip} ${vscode.l10n.t('This model may be experimental or in evaluation.')}`;
+				}
 			} else {
 				modelTooltip = getModelCapabilitiesDescription(endpoint);
 			}

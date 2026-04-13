@@ -96,7 +96,7 @@ A sessions provider encapsulates a compute environment. It owns workspace discov
 
 | Property | Type | Description |
 |----------|------|-------------|
-| `id` | `string` | Unique provider instance ID (e.g., `'default-copilot'`, `'agenthost-hostA-copilot'`) |
+| `id` | `string` | Unique provider instance ID (e.g., `'default-copilot'`, `'agenthost-hostA'`) |
 | `label` | `string` | Display label |
 | `icon` | `ThemeIcon` | Provider icon |
 | `sessionTypes` | `readonly ISessionType[]` | Session types this provider supports |
@@ -325,18 +325,22 @@ src/vs/sessions/contrib/remoteAgentHost/browser/remoteAgentHost.contribution.ts
 ```
 
 - Monitors `IRemoteAgentHostService.onDidChangeConnections`
-- Creates one `RemoteAgentHostSessionsProvider` per agent per connection
-- Registers via `sessionsProvidersService.registerProvider(sessionsProvider)` into a per-agent `DisposableStore`
+- Creates one `RemoteAgentHostSessionsProvider` per connection
+- Registers via `sessionsProvidersService.registerProvider(sessionsProvider)`
 - Disposes providers when connections are removed
 
 #### Identity
 
 | Property | Format |
 |----------|--------|
-| `id` | `'agenthost-${sanitizedAuthority}-${agentProvider}'` |
-| `label` | Connection name or `'${agentProvider} (${address})'` |
+| `id` | `'agenthost-${sanitizedAuthority}'` |
+| `label` | Connection name or `address` |
 | `icon` | `Codicon.remote` |
-| `sessionTypes` | `[CopilotCLISessionType]` (reuses the platform type) |
+| `sessionTypes` | Dynamically populated from `rootState.agents`; one entry per agent, each id from `remoteAgentHostSessionTypeId(sanitizedAuthority, agent.provider)` (format: `'remote-${sanitizedAuthority}-${agent.provider}'`), label is the agent's `displayName` |
+
+The session type id is built by the pure helper in `common/remoteAgentHostSessionType.ts`. It is used as the `ISession.sessionType`, the resource URI scheme registered via `registerChatSessionContentProvider`, and the `targetChatSessionType` published by `AgentHostLanguageModelProvider` — keeping these unified so the model picker finds the host's own models.
+
+Agents are discovered dynamically from each host's `rootState`; there is no hard-coded allowlist of supported agent providers. A single `RemoteAgentHostSessionsProvider` per host fans out into one `ISessionType` per advertised agent, and fires `onDidChangeSessionTypes` when the host's agent list changes. Each incoming session's type is derived from its backend URI scheme, so sessions for any agent the host exposes route through the same provider.
 
 #### Browse Actions
 

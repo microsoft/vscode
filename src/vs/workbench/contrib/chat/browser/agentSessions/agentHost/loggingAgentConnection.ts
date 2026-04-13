@@ -38,6 +38,44 @@ function formatPayload(data: unknown): string {
 	}
 }
 
+class LoggingAgentSubscription<T> extends Disposable implements IAgentSubscription<T> {
+
+	private readonly _onDidChange = this._register(new Emitter<T>());
+	readonly onDidChange: Event<T> = this._onDidChange.event;
+
+	readonly onWillApplyAction: Event<IActionEnvelope>;
+	readonly onDidApplyAction: Event<IActionEnvelope>;
+
+	constructor(
+		private readonly _label: string,
+		private readonly _inner: IAgentSubscription<T>,
+		logCurrentValue: boolean,
+		private readonly _log: (arrow: string, method: string, data?: unknown) => void,
+	) {
+		super();
+
+		this.onWillApplyAction = _inner.onWillApplyAction;
+		this.onDidApplyAction = _inner.onDidApplyAction;
+
+		if (logCurrentValue && _inner.value !== undefined) {
+			this._log('**', `${this._label}.current`, _inner.value);
+		}
+
+		this._register(_inner.onDidChange(value => {
+			this._log('**', `${this._label}.onDidChange`, value);
+			this._onDidChange.fire(value);
+		}));
+	}
+
+	get value(): T | Error | undefined {
+		return this._inner.value;
+	}
+
+	get verifiedValue(): T | undefined {
+		return this._inner.verifiedValue;
+	}
+}
+
 /**
  * A logging wrapper around an {@link IAgentConnection} that writes all IPC
  * traffic to a dedicated output channel. Used by both local and remote agent
@@ -59,6 +97,7 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 
 	/** Ref-count per channel ID so the output channel survives reconnections. */
 	private static readonly _channelRefCounts = new Map<string, number>();
+	private static readonly _currentRootStateLogKeys = new Set<string>();
 
 	private _outputChannel: IOutputChannel | undefined;
 	private readonly _enabled: boolean;
@@ -66,6 +105,7 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 	readonly clientId: string;
 	readonly onDidAction: Event<IActionEnvelope>;
 	readonly onDidNotification: Event<INotification>;
+	private readonly _rootState: IAgentSubscription<IRootState>;
 
 	constructor(
 		private readonly _inner: IAgentConnection,
@@ -77,6 +117,8 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 		super();
 		this.clientId = _inner.clientId;
 		this._enabled = !!configurationService.getValue<boolean>(AgentHostIpcLoggingSettingId);
+		const currentRootStateLogKey = `${this.channelId}:rootState.current`;
+		let logCurrentRootState = false;
 
 		if (this._enabled) {
 			const registry = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels);
@@ -90,10 +132,15 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 				});
 			}
 			LoggingAgentConnection._channelRefCounts.set(this.channelId, refs + 1);
+			logCurrentRootState = !LoggingAgentConnection._currentRootStateLogKeys.has(currentRootStateLogKey);
+			if (logCurrentRootState) {
+				LoggingAgentConnection._currentRootStateLogKeys.add(currentRootStateLogKey);
+			}
 			this._register(toDisposable(() => {
 				const current = LoggingAgentConnection._channelRefCounts.get(this.channelId)! - 1;
 				if (current <= 0) {
 					LoggingAgentConnection._channelRefCounts.delete(this.channelId);
+					LoggingAgentConnection._currentRootStateLogKeys.delete(currentRootStateLogKey);
 					registry.removeChannel(this.channelId);
 				} else {
 					LoggingAgentConnection._channelRefCounts.set(this.channelId, current);
@@ -115,6 +162,8 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 			onDidNotificationEmitter.fire(e);
 		}));
 		this.onDidNotification = onDidNotificationEmitter.event;
+
+		this._rootState = this._register(new LoggingAgentSubscription('rootState', _inner.rootState, logCurrentRootState, (arrow, method, data) => this._log(arrow, method, data)));
 	}
 
 	// ---- IAgentConnection method proxies with logging -----------------------
@@ -144,7 +193,7 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 	}
 
 	get rootState(): IAgentSubscription<IRootState> {
-		return this._inner.rootState;
+		return this._rootState;
 	}
 
 	getSubscription<T extends StateComponents>(kind: T, resource: URI): IReference<IAgentSubscription<ComponentToState[T]>> {

@@ -1418,6 +1418,268 @@ describe('SessionOptionGroupBuilder', () => {
 				// Should be unlocked after git init
 				expect(newIsolationGroup!.selected?.locked).toBeUndefined();
 			});
+
+			it('rebuildInputState after lockInputStateGroups restores correct editable state', async () => {
+				// Scenario: user starts a session, dropdowns are locked, then trust
+				// fails and rebuildInputState is called to unlock them.
+				const repo = makeRepo('/workspace');
+				gitService.repositories = [repo];
+				gitService.getRepository.mockResolvedValue(repo);
+				gitService.getRefs.mockResolvedValue([makeRef('main'), makeRef('dev')]);
+				await configurationService.setConfig(ConfigKey.Advanced.CLIBranchSupport, true);
+				await configurationService.setConfig(ConfigKey.Advanced.CLIIsolationOption, true);
+
+				// Build initial groups (worktree isolation → branch editable)
+				const initialGroups = await builder.provideChatSessionProviderOptionGroups(undefined);
+				const state: vscode.ChatSessionInputState = {
+					onDidChange: Event.None,
+					groups: initialGroups,
+				};
+
+				// Simulate selecting worktree isolation
+				const isolationIdx = state.groups.findIndex(g => g.id === ISOLATION_OPTION_ID);
+				const worktreeItem = state.groups[isolationIdx].items.find(i => i.id === IsolationMode.Worktree)!;
+				const mutableGroups = [...state.groups];
+				mutableGroups[isolationIdx] = { ...state.groups[isolationIdx], selected: worktreeItem };
+				state.groups = mutableGroups;
+
+				// Lock all groups (simulating session start)
+				builder.lockInputStateGroups(state);
+
+				// Verify everything is locked
+				for (const group of state.groups) {
+					expect(group.selected?.locked).toBe(true);
+					for (const item of group.items) {
+						expect(item.locked).toBe(true);
+					}
+				}
+
+				// Rebuild (simulating trust failure unlock)
+				await builder.rebuildInputState(state);
+
+				// Branch should be editable (worktree isolation selected)
+				const branchGroup = state.groups.find(g => g.id === BRANCH_OPTION_ID);
+				expect(branchGroup).toBeDefined();
+				expect(branchGroup!.selected?.locked).toBeUndefined();
+
+				// Isolation items should be editable
+				const isolationGroup = state.groups.find(g => g.id === ISOLATION_OPTION_ID);
+				expect(isolationGroup).toBeDefined();
+				expect(isolationGroup!.selected?.locked).toBeUndefined();
+				for (const item of isolationGroup!.items) {
+					expect(item.locked).toBeUndefined();
+				}
+			});
+
+			it('rebuildInputState after lock re-applies branch lock when workspace isolation is selected', async () => {
+				const repo = makeRepo('/workspace');
+				gitService.repositories = [repo];
+				gitService.getRepository.mockResolvedValue(repo);
+				gitService.getRefs.mockResolvedValue([makeRef('main')]);
+				await configurationService.setConfig(ConfigKey.Advanced.CLIBranchSupport, true);
+				await configurationService.setConfig(ConfigKey.Advanced.CLIIsolationOption, true);
+
+				const initialGroups = await builder.provideChatSessionProviderOptionGroups(undefined);
+				const state: vscode.ChatSessionInputState = {
+					onDidChange: Event.None,
+					groups: initialGroups,
+				};
+
+				// Default isolation is workspace → branch should be locked
+				builder.lockInputStateGroups(state);
+				await builder.rebuildInputState(state);
+
+				const branchGroup = state.groups.find(g => g.id === BRANCH_OPTION_ID);
+				expect(branchGroup).toBeDefined();
+				// Branch must remain locked because workspace isolation is selected
+				expect(branchGroup!.selected?.locked).toBe(true);
+			});
+
+			it('rebuildInputState after lock re-applies isolation lock for non-git folder', async () => {
+				gitService.repositories = [];
+				gitService.getRepository.mockResolvedValue(undefined);
+				await configurationService.setConfig(ConfigKey.Advanced.CLIBranchSupport, true);
+				await configurationService.setConfig(ConfigKey.Advanced.CLIIsolationOption, true);
+
+				const initialGroups = await builder.provideChatSessionProviderOptionGroups(undefined);
+				const state: vscode.ChatSessionInputState = {
+					onDidChange: Event.None,
+					groups: initialGroups,
+				};
+
+				builder.lockInputStateGroups(state);
+				await builder.rebuildInputState(state);
+
+				// Isolation should be forced to workspace and locked for non-git folder
+				const isolationGroup = state.groups.find(g => g.id === ISOLATION_OPTION_ID);
+				expect(isolationGroup).toBeDefined();
+				expect(isolationGroup!.selected?.id).toBe(IsolationMode.Workspace);
+				expect(isolationGroup!.selected?.locked).toBe(true);
+
+				// Branch should not be shown for non-git folder
+				expect(state.groups.find(g => g.id === BRANCH_OPTION_ID)).toBeUndefined();
+			});
+		});
+
+		describe('lockInputStateGroups', () => {
+			it('locks all items and selections in every group', async () => {
+				const repo = makeRepo('/workspace');
+				gitService.repositories = [repo];
+				gitService.getRepository.mockResolvedValue(repo);
+				gitService.getRefs.mockResolvedValue([makeRef('main'), makeRef('dev')]);
+				await configurationService.setConfig(ConfigKey.Advanced.CLIBranchSupport, true);
+				await configurationService.setConfig(ConfigKey.Advanced.CLIIsolationOption, true);
+
+				const initialGroups = await builder.provideChatSessionProviderOptionGroups(undefined);
+				const state: vscode.ChatSessionInputState = {
+					onDidChange: Event.None,
+					groups: initialGroups,
+				};
+
+				// Verify some items are unlocked before locking
+				const isolationBefore = state.groups.find(g => g.id === ISOLATION_OPTION_ID);
+				expect(isolationBefore!.items.some(i => !i.locked)).toBe(true);
+
+				builder.lockInputStateGroups(state);
+
+				for (const group of state.groups) {
+					if (group.selected) {
+						expect(group.selected.locked).toBe(true);
+					}
+					for (const item of group.items) {
+						expect(item.locked).toBe(true);
+					}
+				}
+			});
+
+			it('preserves group ids and selected ids after locking', async () => {
+				const repo = makeRepo('/workspace');
+				gitService.repositories = [repo];
+				gitService.getRepository.mockResolvedValue(repo);
+				gitService.getRefs.mockResolvedValue([makeRef('main')]);
+				await configurationService.setConfig(ConfigKey.Advanced.CLIBranchSupport, true);
+				await configurationService.setConfig(ConfigKey.Advanced.CLIIsolationOption, true);
+
+				const initialGroups = await builder.provideChatSessionProviderOptionGroups(undefined);
+				const groupIds = initialGroups.map(g => g.id);
+				const selectedIds = initialGroups.map(g => g.selected?.id);
+				const state: vscode.ChatSessionInputState = {
+					onDidChange: Event.None,
+					groups: initialGroups,
+				};
+
+				builder.lockInputStateGroups(state);
+
+				expect(state.groups.map(g => g.id)).toEqual(groupIds);
+				expect(state.groups.map(g => g.selected?.id)).toEqual(selectedIds);
+			});
+
+			it('handles groups with no selected item', () => {
+				const state: vscode.ChatSessionInputState = {
+					onDidChange: Event.None,
+					groups: [
+						{ id: 'test', name: 'Test', items: [{ id: 'a', name: 'A' }] },
+					],
+				};
+
+				builder.lockInputStateGroups(state);
+
+				expect(state.groups[0].selected).toBeUndefined();
+				expect(state.groups[0].items[0].locked).toBe(true);
+			});
+
+			it('handles empty groups array', () => {
+				const state: vscode.ChatSessionInputState = {
+					onDidChange: Event.None,
+					groups: [],
+				};
+
+				builder.lockInputStateGroups(state);
+
+				expect(state.groups).toEqual([]);
+			});
+		});
+
+		describe('updateBranchInInputState', () => {
+			it('replaces existing branch group with new locked branch', async () => {
+				const repo = makeRepo('/workspace');
+				gitService.repositories = [repo];
+				gitService.getRepository.mockResolvedValue(repo);
+				gitService.getRefs.mockResolvedValue([makeRef('main'), makeRef('dev')]);
+				await configurationService.setConfig(ConfigKey.Advanced.CLIBranchSupport, true);
+				await configurationService.setConfig(ConfigKey.Advanced.CLIIsolationOption, true);
+
+				// Select worktree isolation so branch dropdown has multiple editable items
+				await context.globalState.update('github.copilot.cli.lastUsedIsolationOption', IsolationMode.Worktree);
+
+				const initialGroups = await builder.provideChatSessionProviderOptionGroups(undefined);
+				const state: vscode.ChatSessionInputState = {
+					onDidChange: Event.None,
+					groups: initialGroups,
+				};
+
+				// Verify branch group exists with multiple items (worktree → editable)
+				const branchBefore = state.groups.find(g => g.id === BRANCH_OPTION_ID);
+				expect(branchBefore).toBeDefined();
+				expect(branchBefore!.items.length).toBeGreaterThan(1);
+
+				builder.updateBranchInInputState(state, 'copilot/my-feature');
+
+				const branchAfter = state.groups.find(g => g.id === BRANCH_OPTION_ID);
+				expect(branchAfter).toBeDefined();
+				expect(branchAfter!.items).toHaveLength(1);
+				expect(branchAfter!.items[0].id).toBe('copilot/my-feature');
+				expect(branchAfter!.items[0].locked).toBe(true);
+				expect(branchAfter!.selected?.id).toBe('copilot/my-feature');
+				expect(branchAfter!.selected?.locked).toBe(true);
+			});
+
+			it('does not add branch group when none exists', () => {
+				const state: vscode.ChatSessionInputState = {
+					onDidChange: Event.None,
+					groups: [
+						{
+							id: ISOLATION_OPTION_ID,
+							name: 'Isolation',
+							items: [{ id: IsolationMode.Workspace, name: 'Workspace' }],
+							selected: { id: IsolationMode.Workspace, name: 'Workspace' },
+						},
+					],
+				};
+
+				builder.updateBranchInInputState(state, 'copilot/my-feature');
+
+				// Should not add a branch group
+				expect(state.groups.find(g => g.id === BRANCH_OPTION_ID)).toBeUndefined();
+				expect(state.groups).toHaveLength(1);
+			});
+
+			it('preserves other groups when updating branch', async () => {
+				const repo = makeRepo('/workspace');
+				gitService.repositories = [repo];
+				gitService.getRepository.mockResolvedValue(repo);
+				gitService.getRefs.mockResolvedValue([makeRef('main')]);
+				await configurationService.setConfig(ConfigKey.Advanced.CLIBranchSupport, true);
+				await configurationService.setConfig(ConfigKey.Advanced.CLIIsolationOption, true);
+
+				const initialGroups = await builder.provideChatSessionProviderOptionGroups(undefined);
+				const state: vscode.ChatSessionInputState = {
+					onDidChange: Event.None,
+					groups: initialGroups,
+				};
+
+				const isolationBefore = state.groups.find(g => g.id === ISOLATION_OPTION_ID);
+
+				builder.updateBranchInInputState(state, 'copilot/new-branch');
+
+				// Isolation group should be unchanged
+				const isolationAfter = state.groups.find(g => g.id === ISOLATION_OPTION_ID);
+				expect(isolationAfter).toEqual(isolationBefore);
+
+				// Branch group should be updated
+				const branchAfter = state.groups.find(g => g.id === BRANCH_OPTION_ID);
+				expect(branchAfter!.selected?.id).toBe('copilot/new-branch');
+			});
 		});
 	});
 });
