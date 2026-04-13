@@ -2,8 +2,13 @@
 // Writes LSIF/SCIP cross-reference data to FalkorDB, enriching the graph
 // created by the Tree-sitter indexer with precise cross-file relationships.
 
-import { FalkorDBClient } from '../clients/falkordb';
-import { LsifParseResult, SymbolDefinition, SymbolReference, TypeRelation } from '../parsers/lsifParser';
+import { FalkorDBClient } from "../clients/falkordb";
+import {
+	LsifParseResult,
+	SymbolDefinition,
+	SymbolReference,
+	TypeRelation,
+} from "../parsers/lsifParser";
 
 export class LsifGraphWriter {
 	private readonly db: FalkorDBClient;
@@ -32,26 +37,54 @@ export class LsifGraphWriter {
 			} catch (err) {
 				stats.errors++;
 				if (stats.errors <= 10) {
-					console.warn('[lsif-writer] Error writing reference:', err instanceof Error ? err.message : err);
+					console.warn(
+						"[lsif-writer] Error writing reference:",
+						err instanceof Error ? err.message : err,
+					);
 				}
 			}
 		}
 
 		// Write type relations (EXTENDS, IMPLEMENTS)
-		for (const rel of result.typeRelations) {
-			try {
-				await this.writeTypeRelation(rel);
-				stats.typeRelationsWritten++;
-			} catch (err) {
-				stats.errors++;
+		const extendsRels = result.typeRelations.filter(
+			(rel) => rel.relationType === "extends",
+		);
+		const implementsRels = result.typeRelations.filter(
+			(rel) => rel.relationType === "implements",
+		);
+
+		try {
+			if (extendsRels.length > 0) {
+				await this.db.write(
+					`UNWIND $relations AS rel
+					MATCH (child:Class {name: rel.childName}), (parent:Class {name: rel.parentName})
+					MERGE (child)-[:EXTENDS]->(parent)`,
+					{ relations: extendsRels },
+				);
+				stats.typeRelationsWritten += extendsRels.length;
 			}
+			if (implementsRels.length > 0) {
+				await this.db.write(
+					`UNWIND $relations AS rel
+					MATCH (child:Class {name: rel.childName}), (iface:Type {name: rel.parentName})
+					MERGE (child)-[:IMPLEMENTS]->(iface)`,
+					{ relations: implementsRels },
+				);
+				stats.typeRelationsWritten += implementsRels.length;
+			}
+		} catch (err) {
+			stats.errors += extendsRels.length + implementsRels.length;
+			console.warn(
+				"[lsif-writer] Error writing type relations:",
+				err instanceof Error ? err.message : err,
+			);
 		}
 
 		console.log(
 			`[lsif-writer] Written: ${stats.referencesWritten} references, ` +
-			`${stats.callsWritten} calls, ` +
-			`${stats.typeRelationsWritten} type relations, ` +
-			`${stats.errors} errors`
+				`${stats.callsWritten} calls, ` +
+				`${stats.typeRelationsWritten} type relations, ` +
+				`${stats.errors} errors`,
 		);
 
 		return stats;
@@ -79,11 +112,11 @@ export class LsifGraphWriter {
 				defFile: ref.definitionFile,
 				refColumn: ref.referenceColumn,
 				kind: ref.kind,
-			}
+			},
 		);
 
 		// If the reference is a call, also create a CALLS edge
-		if (ref.kind === 'call') {
+		if (ref.kind === "call") {
 			await this.db.write(
 				`MATCH (caller:Function)
 				WHERE caller.file = $refFile
@@ -98,26 +131,7 @@ export class LsifGraphWriter {
 					symbolName: ref.symbolName,
 					defFile: ref.definitionFile,
 					refColumn: ref.referenceColumn,
-				}
-			);
-		}
-	}
-
-	/**
-	 * Write EXTENDS or IMPLEMENTS edges from LSIF type hierarchy data.
-	 */
-	private async writeTypeRelation(rel: TypeRelation): Promise<void> {
-		if (rel.relationType === 'extends') {
-			await this.db.write(
-				`MATCH (child:Class {name: $childName}), (parent:Class {name: $parentName})
-				MERGE (child)-[:EXTENDS]->(parent)`,
-				{ childName: rel.childName, parentName: rel.parentName }
-			);
-		} else if (rel.relationType === 'implements') {
-			await this.db.write(
-				`MATCH (child:Class {name: $childName}), (iface:Type {name: $parentName})
-				MERGE (child)-[:IMPLEMENTS]->(iface)`,
-				{ childName: rel.childName, parentName: rel.parentName }
+				},
 			);
 		}
 	}
