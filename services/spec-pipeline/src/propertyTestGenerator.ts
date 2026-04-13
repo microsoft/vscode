@@ -242,22 +242,11 @@ function generateComplexTest(req: EarsRequirement): PropertyTest {
 	const actionDesc = sanitiseForComment(req.action);
 
 	const testCode = `
-test('${escapeTestName(testName)}', () => {
-	// Requirement: ${req.id}
-	// Complex requirement — manual property definition needed.
-	// Raw text: ${sanitiseForComment(req.rawText)}
-	//
-	// ${'TODO'}: Define the property and arbitraries for this complex requirement.
-	fc.assert(
-		fc.property(
-			fc.anything(),
-			(input) => {
-				const result = invokeSystem(input);
-				expect(result.satisfiesRequirement).toBe(true);
-			}
-		)
-	);
-});`.trim();
+// Requirement: ${req.id}
+// Complex requirement — manual property definition needed.
+// Raw text: ${sanitiseForComment(req.rawText)}
+// ${'TODO'}: Define the property and arbitraries for this complex requirement.
+test.todo('${escapeTestName(testName)}');`.trim();
 
 	return {
 		requirementId: req.id,

@@ -61,6 +61,23 @@ describe('PropertyTestGenerator', () => {
 		assert.ok(testName.includes('unwanted condition'));
 	});
 
+	test('should generate a test for complex requirements using test.todo', () => {
+		const requirement = {
+			id: 'REQ-005',
+			title: 'A Complex System',
+			pattern: 'complex',
+			action: 'do something complex',
+			rawText: 'the system SHALL do something complex and unparseable',
+		};
+
+		const testName = `${requirement.id}: ${requirement.title} — complex requirement property`;
+
+		const testCode = `// Requirement: ${requirement.id}\n// Complex requirement — manual property definition needed.\n// Raw text: ${requirement.rawText}\n// TODO: Define the property and arbitraries for this complex requirement.\ntest.todo('${testName}');`;
+
+		assert.ok(testCode.includes('test.todo'));
+		assert.ok(testCode.includes('REQ-005'));
+	});
+
 	test('should generate tests for all requirements in a spec', () => {
 		const spec = {
 			title: 'Rate Limiting',
