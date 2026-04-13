@@ -239,7 +239,7 @@ function getRateLimitMessage(fetchResult: ChatFetchError, copilotPlan: string | 
 			comment: [`{Locked=']({'}`]
 		});
 	}
-	if (fetchResult.capiError?.code?.startsWith('user_weekly_rate_limited')) {
+	if (fetchResult.capiError?.code?.startsWith('user_weekly_rate_limit')) {
 		if (fetchResult.retryAfter) {
 			const resetDate = new Date(Date.now() + fetchResult.retryAfter * 1000);
 			const resetDateString = resetDate.toLocaleString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' });
