@@ -11,7 +11,3 @@ export function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(provider);
 	context.subscriptions.push(vscode.lm.registerLanguageModelChatProvider('lmstudio', provider));
 }
-
-export function deactivate() {
-
-}
