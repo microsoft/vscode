@@ -1,0 +1,71 @@
+{
+  "name": "nodepod",
+  "displayName": "Nodepod",
+  "description": "Nodepod",
+  "publisher": "vscode",
+  "private": true,
+  "version": "1.0.0",
+  "engines": {
+    "vscode": "^1.110.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  	"activationEvents": [
+		"onFileSystem:nodepod",
+		"onSearch:nodepod",
+		"onTerminalProfile:nodepod.terminal"
+	],
+	"enabledApiProposals": [
+		"fileSearchProvider",
+		"textSearchProvider"
+	],
+	"contributes": {
+		"resourceLabelFormatters": [
+			{
+				"authority": "mount",
+				"scheme": "nodepod",
+				"formatting": {
+					"workspaceSuffix": "Test Files",
+					"label": "${path}"
+				}
+			}
+		],
+		"terminal": {
+			"profiles": [
+				{
+					"id": "nodepod.terminal",
+					"title": "Nodepod Terminal",
+					"icon": "$(terminal)"
+				}
+			]
+		}
+	},
+  "browser": "./dist/web/extension.js",
+  "scripts": {
+    "test": "vscode-test-web --browserType=chromium --extensionDevelopmentPath=. --extensionTestsPath=dist/web/test/suite/index.js",
+    "pretest": "npm run compile-web",
+    "vscode:prepublish": "npm run package-web",
+    "compile-web": "webpack",
+    "watch-web": "webpack --watch",
+    "package-web": "webpack --mode production --devtool hidden-source-map",
+    "lint": "eslint src",
+    "run-in-browser": "vscode-test-web --browserType=chromium --extensionDevelopmentPath=. ."
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.110.0",
+    "@types/mocha": "^10.0.10",
+    "@types/assert": "^1.5.11",
+    "eslint": "^9.39.3",
+    "typescript-eslint": "^8.56.1",
+    "mocha": "^11.7.5",
+    "typescript": "^5.9.3",
+    "@vscode/test-web": "^0.0.80",
+    "ts-loader": "^9.5.4",
+    "webpack": "^5.105.3",
+    "webpack-cli": "^6.0.1",
+    "@types/webpack-env": "^1.18.8",
+    "assert": "^2.1.0",
+    "process": "^0.11.10"
+  }
+}

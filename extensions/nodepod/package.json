@@ -1,0 +1,41 @@
+{
+  "name": "nodepod",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "10.0.0",
+  "publisher": "vscode",
+  "license": "MIT",
+  "engines": {
+      "vscode": "^1.90.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+      "onTerminalProfile:nodepod.terminal"
+  ],
+  "extensionKind": ["ui"],
+  "main": "./out/extension.js",
+  "browser": "./out/extension.js",
+  "scripts": {
+    "compile": "gulp compile-extension:nodepod"
+  },
+  "contributes": {
+    "commands": [
+      {
+        "command": "nodepod.openTerminal",
+        "title": "Open Nodepod Terminal",
+        "category": "Nodepod"
+      }
+    ],
+    "terminal": {
+        "profiles": [
+            {
+                "id": "nodepod.terminal",
+                "title": "Nodepod"
+            }
+        ]
+    }
+}
+
+}
