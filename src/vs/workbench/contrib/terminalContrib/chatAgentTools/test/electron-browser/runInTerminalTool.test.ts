@@ -405,6 +405,30 @@ suite('RunInTerminalTool', () => {
 			const terminalData = preparedInvocation.toolSpecificData as IChatTerminalToolInvocationData;
 			strictEqual(terminalData.commandLine.isSandboxWrapped, true);
 		});
+
+		test('should not show sandbox wrapper in chat when sandboxed async command is detached', async () => {
+			runInTerminalTool.setBackendOs(OperatingSystem.Linux);
+			setConfig(TerminalChatAgentToolsSettingId.DetachBackgroundProcesses, true);
+			sandboxEnabled = true;
+			sandboxPrereqResult = {
+				enabled: true,
+				sandboxConfigPath: '/tmp/vscode-sandbox-settings.json',
+				failedCheck: undefined,
+			};
+			terminalSandboxService.wrapCommand = (command: string) => ({
+				command: `sandbox-runtime ${command}`,
+				isSandboxWrapped: true,
+			});
+
+			const preparedInvocation = await executeToolTest({ command: 'echo hello', mode: 'async' });
+
+			ok(preparedInvocation, 'Expected prepared invocation to be defined');
+			strictEqual((preparedInvocation.invocationMessage as IMarkdownString).value, 'Running `echo hello` in sandbox');
+
+			const terminalData = preparedInvocation.toolSpecificData as IChatTerminalToolInvocationData;
+			strictEqual(terminalData.commandLine.forDisplay, 'echo hello');
+			strictEqual(terminalData.commandLine.toolEdited, 'nohup sandbox-runtime echo hello &');
+		});
 	});
 
 	suite('automatic sandbox retry', () => {

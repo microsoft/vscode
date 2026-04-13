@@ -15,9 +15,8 @@ import { IInstantiationService } from '../../../../platform/instantiation/common
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
-import { IModelPickerDelegate } from '../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem.js';
+import { ModelPickerActionItem, IModelPickerDelegate } from '../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem.js';
 import { IChatInputPickerOptions } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
-import { EnhancedModelPickerActionItem } from '../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem2.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IContextKeyService, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { Menus } from '../../../browser/menus.js';
@@ -234,7 +233,7 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 					hoverPosition: { hoverPosition: HoverPosition.ABOVE },
 				};
 				const action = { id: 'sessions.modelPicker', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } };
-				const modelPicker = instantiationService.createInstance(EnhancedModelPickerActionItem, action, delegate, pickerOptions);
+				const modelPicker = instantiationService.createInstance(ModelPickerActionItem, action, delegate, pickerOptions);
 
 				const updatePickerModel = (session: ISession | undefined, sessionModelId: string | undefined) => {
 					const models = getAvailableModels(languageModelsService, session);
