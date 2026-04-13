@@ -91,6 +91,7 @@ export class ToolConfirmationSubPart extends AbstractToolConfirmationSubPart {
 				? {
 					label: typeof approveCombination.label === 'string' ? approveCombination.label : approveCombination.label.value,
 					key: approveCombination.key,
+					arguments: approveCombination.arguments,
 				}
 				: undefined;
 

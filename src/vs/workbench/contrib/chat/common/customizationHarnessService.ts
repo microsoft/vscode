@@ -62,7 +62,6 @@ export interface ISectionOverride {
 export enum CustomizationHarness {
 	VSCode = 'vscode',
 	CLI = 'cli',
-	Claude = 'claude',
 }
 
 /**
@@ -275,13 +274,6 @@ export function getCliUserRoots(userHome: URI): readonly URI[] {
 	];
 }
 
-/**
- * Returns the user-home directories accessible to the Claude harness.
- */
-export function getClaudeUserRoots(userHome: URI): readonly URI[] {
-	return [joinPath(userHome, '.claude')];
-}
-
 // #endregion
 
 // #region Harness descriptor factories
@@ -319,7 +311,7 @@ export function createVSCodeHarnessDescriptor(extras: readonly string[]): IHarne
 /**
  * Creates a harness descriptor that restricts user-file roots for most
  * types (agents, skills, instructions) while leaving hooks and prompts
- * unrestricted. Used for CLI and Claude harnesses.
+ * unrestricted. Used for restricted harnesses like CLI.
  */
 interface IRestrictedHarnessOptions {
 	readonly hiddenSections?: readonly string[];
@@ -370,7 +362,7 @@ export function createCliHarnessDescriptor(cliUserRoots: readonly URI[], extras:
 	return createRestrictedHarnessDescriptor(
 		CustomizationHarness.CLI,
 		localize('harness.cli', "Copilot CLI"),
-		ThemeIcon.fromId(Codicon.worktree.id),
+		ThemeIcon.fromId(Codicon.copilot.id),
 		cliUserRoots,
 		extras,
 		{
@@ -382,41 +374,6 @@ export function createCliHarnessDescriptor(cliUserRoots: readonly URI[], extras:
 					rootFileShortcuts: [AGENT_MD_FILENAME],
 				}],
 			]),
-		},
-	);
-}
-
-/**
- * Creates a "Claude" harness descriptor.
- * Claude does not support prompt files (.prompt.md), AGENTS.md, or extension-contributed plugins.
- * It supports agents (.claude/agents/), instructions (CLAUDE.md, .claude/rules/),
- * skills (.claude/skills/), and hooks (.claude/settings.json).
- */
-export function createClaudeHarnessDescriptor(claudeRoots: readonly URI[], extras: readonly string[]): IHarnessDescriptor {
-	return createRestrictedHarnessDescriptor(
-		CustomizationHarness.Claude,
-		localize('harness.claude', "Claude"),
-		ThemeIcon.fromId(Codicon.claude.id),
-		claudeRoots,
-		extras,
-		{
-			hiddenSections: [AICustomizationManagementSection.Prompts, AICustomizationManagementSection.Plugins],
-			workspaceSubpaths: ['.claude'],
-			hideGenerateButton: true,
-			requiredAgentId: 'claude-code',
-			sectionOverrides: new Map([
-				[AICustomizationManagementSection.Hooks, {
-					label: localize('claudeHooks', "Configure Claude Hooks"),
-					commandId: 'copilot.claude.hooks',
-				}],
-				[AICustomizationManagementSection.Instructions, {
-					label: localize('addClaudeMd', "Add CLAUDE.md"),
-					rootFile: 'CLAUDE.md',
-					typeLabel: localize('rule', "Rule"),
-					fileExtension: '.md',
-				}],
-			]),
-			instructionFileFilter: ['CLAUDE.md', 'CLAUDE.local.md', '.claude/rules/', 'copilot-instructions.md'],
 		},
 	);
 }

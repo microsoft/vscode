@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
-import { SubmenuAction, toAction } from '../../../../base/common/actions.js';
+import { IAction, SubmenuAction, toAction } from '../../../../base/common/actions.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
@@ -14,8 +14,11 @@ import { Schemas } from '../../../../base/common/network.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
-import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { TUNNEL_ADDRESS_PREFIX } from '../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IPreferencesService } from '../../../../workbench/services/preferences/common/preferences.js';
 import { IOutputService } from '../../../../workbench/services/output/common/output.js';
 import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
@@ -24,10 +27,10 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { autorun } from '../../../../base/common/observable.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { ISessionWorkspace } from '../../sessions/common/sessionData.js';
-import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
-import { ISessionsBrowseAction, ISessionsProvider } from '../../sessions/browser/sessionsProvider.js';
+import { ISessionWorkspace, ISessionWorkspaceBrowseAction } from '../../../services/sessions/common/session.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
 import { COPILOT_PROVIDER_ID } from '../../copilotChatSessions/browser/copilotChatSessionsProvider.js';
 
 const LEGACY_STORAGE_KEY_RECENT_PROJECTS = 'sessions.recentlyPickedProjects';
@@ -62,6 +65,8 @@ interface IWorkspacePickerItem {
 	readonly checked?: boolean;
 	/** Remote provider reference for gear menu actions. */
 	readonly remoteProvider?: ISessionsProvider;
+	/** When true, clicking this item triggers the tunnel connection command. */
+	readonly tunnelAction?: boolean;
 }
 
 /**
@@ -72,8 +77,8 @@ interface IWorkspacePickerItem {
  */
 export class WorkspacePicker extends Disposable {
 
-	private readonly _onDidSelectWorkspace = this._register(new Emitter<IWorkspaceSelection>());
-	readonly onDidSelectWorkspace: Event<IWorkspaceSelection> = this._onDidSelectWorkspace.event;
+	private readonly _onDidSelectWorkspace = this._register(new Emitter<IWorkspaceSelection | undefined>());
+	readonly onDidSelectWorkspace: Event<IWorkspaceSelection | undefined> = this._onDidSelectWorkspace.event;
 	private readonly _onDidChangeSelection = this._register(new Emitter<void>());
 	readonly onDidChangeSelection: Event<void> = this._onDidChangeSelection.event;
 
@@ -98,6 +103,8 @@ export class WorkspacePicker extends Disposable {
 		@IClipboardService private readonly clipboardService: IClipboardService,
 		@IPreferencesService private readonly preferencesService: IPreferencesService,
 		@IOutputService private readonly outputService: IOutputService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 
@@ -182,13 +189,20 @@ export class WorkspacePicker extends Disposable {
 		const delegate: IActionListDelegate<IWorkspacePickerItem> = {
 			onSelect: (item) => {
 				this.actionWidgetService.hide();
-				if (item.selection && this._isProviderUnavailable(item.selection.providerId)) {
+				if (item.tunnelAction) {
+					this.commandService.executeCommand('workbench.action.sessions.connectViaTunnel');
+				} else if (item.selection && this._isProviderUnavailable(item.selection.providerId)) {
 					// Workspace belongs to an unavailable remote — ignore selection
 					return;
 				}
 				if (item.remoteProvider && item.browseActionIndex === undefined) {
-					// Disconnected remote host — show options menu after widget hides
-					this._showRemoteHostOptionsDelayed(item.remoteProvider);
+					if (item.remoteProvider.remoteAddress?.startsWith(TUNNEL_ADDRESS_PREFIX)) {
+						// Disconnected tunnel — trigger connection flow
+						this.commandService.executeCommand('workbench.action.sessions.connectViaTunnel');
+					} else {
+						// Disconnected SSH host — show options menu after widget hides
+						this._showRemoteHostOptionsDelayed(item.remoteProvider);
+					}
 				} else if (item.browseActionIndex !== undefined) {
 					this._executeBrowseAction(item.browseActionIndex);
 				} else if (item.selection) {
@@ -274,7 +288,7 @@ export class WorkspacePicker extends Disposable {
 		}
 
 		try {
-			const workspace = await action.execute();
+			const workspace = await action.run();
 			if (workspace) {
 				this._selectProject({ providerId: action.providerId, workspace });
 			}
@@ -283,7 +297,7 @@ export class WorkspacePicker extends Disposable {
 		}
 	}
 
-	private _getActiveProviders(): import('../../sessions/browser/sessionsProvider.js').ISessionsProvider[] {
+	private _getActiveProviders(): import('../../../services/sessions/common/sessionsProvider.js').ISessionsProvider[] {
 		const activeProviderId = this.sessionsManagementService.activeProviderId.get();
 		const allProviders = this.sessionsProvidersService.getProviders();
 		if (activeProviderId) {
@@ -298,7 +312,7 @@ export class WorkspacePicker extends Disposable {
 	/**
 	 * Collects browse actions from all registered providers.
 	 */
-	private _getAllBrowseActions(): ISessionsBrowseAction[] {
+	private _getAllBrowseActions(): ISessionWorkspaceBrowseAction[] {
 		return this.sessionsProvidersService.getProviders().flatMap(p => p.browseActions);
 	}
 
@@ -365,7 +379,7 @@ export class WorkspacePicker extends Disposable {
 		if (hasMultipleProviders && (allBrowseActions.length + remoteProviders.length) > 1) {
 			// Show a single "Select..." entry with provider-grouped submenu actions
 			// that also includes remote host entries
-			const providerMap = new Map<string, { provider: typeof allProviders[0]; actions: { action: ISessionsBrowseAction; index: number }[] }>();
+			const providerMap = new Map<string, { provider: typeof allProviders[0]; actions: { action: ISessionWorkspaceBrowseAction; index: number }[] }>();
 			allBrowseActions.forEach((action, i) => {
 				let entry = providerMap.get(action.providerId);
 				if (!entry) {
@@ -414,37 +428,57 @@ export class WorkspacePicker extends Disposable {
 			}
 		}
 
+		if (items.length > 0 && items[items.length - 1].kind !== ActionListItemKind.Separator && remoteProviders.length) {
+			items.push({ kind: ActionListItemKind.Separator, label: '' });
+		}
+
 		for (const provider of remoteProviders) {
 			const status = provider.connectionStatus!.get();
 			const isConnected = status === RemoteAgentHostConnectionStatus.Connected;
 			const providerBrowseIndex = allBrowseActions.findIndex(a => a.providerId === provider.id);
 
-			if (items.length > 0 && items[items.length - 1].kind !== ActionListItemKind.Separator) {
-				items.push({ kind: ActionListItemKind.Separator, label: '' });
+			const toolbarActions: IAction[] = [];
+
+			// Gear menu only for SSH hosts, not tunnel providers
+			if (!provider.remoteAddress?.startsWith(TUNNEL_ADDRESS_PREFIX)) {
+				toolbarActions.push(toAction({
+					id: `workspacePicker.remote.gear.${provider.id}`,
+					label: localize('workspacePicker.remoteOptions', "Options"),
+					class: ThemeIcon.asClassName(Codicon.gear),
+					run: () => {
+						this.actionWidgetService.hide();
+						this._showRemoteHostOptionsDelayed(provider);
+					},
+				}));
 			}
+
+			const isTunnel = provider.remoteAddress?.startsWith(TUNNEL_ADDRESS_PREFIX);
 
 			items.push({
 				kind: ActionListItemKind.Action,
 				label: provider.label,
 				description: this._getStatusDescription(status),
 				hover: { content: this._getStatusHover(status, provider.remoteAddress) },
-				group: { title: '', icon: Codicon.remote },
-				disabled: !isConnected,
+				group: { title: '', icon: isTunnel ? Codicon.cloud : Codicon.remote },
+				disabled: isTunnel ? false : !isConnected,
 				item: {
 					browseActionIndex: isConnected && providerBrowseIndex >= 0 ? providerBrowseIndex : undefined,
 					remoteProvider: provider,
 				},
-				toolbarActions: [
-					toAction({
-						id: `workspacePicker.remote.gear.${provider.id}`,
-						label: localize('workspacePicker.remoteOptions', "Options"),
-						class: ThemeIcon.asClassName(Codicon.gear),
-						run: () => {
-							this.actionWidgetService.hide();
-							this._showRemoteHostOptionsDelayed(provider);
-						},
-					}),
-				],
+				toolbarActions,
+			});
+		}
+
+		// "Tunnels..." entry — shown when remote agent hosts are enabled
+		if (this.configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
+			if (items.length > 0 && items[items.length - 1].kind !== ActionListItemKind.Separator) {
+				items.push({ kind: ActionListItemKind.Separator, label: '' });
+			}
+			items.push({
+				kind: ActionListItemKind.Action,
+				label: localize('workspacePicker.tunnels', "Tunnels..."),
+				group: { title: '', icon: Codicon.cloud },
+				item: { tunnelAction: true },
 			});
 		}
 
@@ -561,6 +595,10 @@ export class WorkspacePicker extends Disposable {
 		const label = workspace ? workspace.label : localize('pickWorkspace', "workspace");
 		const icon = workspace ? workspace.icon : Codicon.project;
 
+		this._triggerElement.setAttribute('aria-label', workspace
+			? localize('workspacePicker.selectedAriaLabel', "New session in {0}", label)
+			: localize('workspacePicker.pickAriaLabel', "Start by picking a workspace"));
+
 		dom.append(this._triggerElement, renderIcon(icon));
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = label;
@@ -659,7 +697,7 @@ export class WorkspacePicker extends Disposable {
 					continue;
 				}
 				const uri = URI.revive(stored.uri);
-				const workspace = this.sessionsProvidersService.resolveWorkspace(stored.providerId, uri);
+				const workspace = this.sessionsProvidersService.getProvider(stored.providerId)?.resolveWorkspace(uri);
 				if (workspace) {
 					return { providerId: stored.providerId, workspace };
 				}
@@ -689,7 +727,7 @@ export class WorkspacePicker extends Disposable {
 					continue;
 				}
 				const uri = URI.revive(stored.uri);
-				const workspace = this.sessionsProvidersService.resolveWorkspace(stored.providerId, uri);
+				const workspace = this.sessionsProvidersService.getProvider(stored.providerId)?.resolveWorkspace(uri);
 				if (workspace) {
 					return { providerId: stored.providerId, workspace };
 				}
@@ -759,7 +797,7 @@ export class WorkspacePicker extends Disposable {
 		return this._getStoredRecentWorkspaces()
 			.map(stored => {
 				const uri = URI.revive(stored.uri);
-				const workspace = this.sessionsProvidersService.resolveWorkspace(stored.providerId, uri);
+				const workspace = this.sessionsProvidersService.getProvider(stored.providerId)?.resolveWorkspace(uri);
 				if (!workspace) {
 					return undefined;
 				}
@@ -793,7 +831,7 @@ export class WorkspacePicker extends Disposable {
 			this.actionWidgetService.hide();
 			this._selectedWorkspace = undefined;
 			this._updateTriggerLabel();
-			this._onDidChangeSelection.fire();
+			this._onDidSelectWorkspace.fire(undefined);
 		}
 	}
 

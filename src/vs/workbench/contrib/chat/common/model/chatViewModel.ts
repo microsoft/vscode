@@ -159,6 +159,7 @@ export interface IChatReferences {
  */
 export interface IChatWorkingProgress {
 	kind: 'working';
+	content?: IMarkdownString;
 }
 
 
@@ -391,6 +392,7 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 	override dispose() {
 		super.dispose();
 		dispose(this._items.filter((item): item is ChatResponseViewModel => item instanceof ChatResponseViewModel));
+		this._items.length = 0;
 	}
 }
 

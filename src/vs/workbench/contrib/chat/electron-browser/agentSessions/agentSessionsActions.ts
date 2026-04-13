@@ -9,7 +9,6 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { INativeHostService } from '../../../../../platform/native/common/native.js';
 import { ChatEntitlementContextKeys } from '../../../../services/chat/common/chatEntitlementService.js';
 import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
-import { ProductQualityContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -24,13 +23,13 @@ export class OpenAgentsWindowAction extends Action2 {
 			id: 'workbench.action.openAgentsWindow',
 			title: localize2('openAgentsWindow', "Open Agents Application"),
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(ProductQualityContext.notEqualsTo('stable'), ChatEntitlementContextKeys.Setup.hidden.negate(), IsSessionsWindowContext.negate()),
+			precondition: ContextKeyExpr.and(ChatEntitlementContextKeys.Setup.hidden.negate(), ChatEntitlementContextKeys.Setup.disabledInWorkspace.negate(), IsSessionsWindowContext.negate()),
 			f1: true,
 			menu: [{
 				id: MenuId.ChatTitleBarMenu,
 				group: 'c_sessions',
 				order: 1,
-				when: ContextKeyExpr.and(ProductQualityContext.notEqualsTo('stable'), ChatEntitlementContextKeys.Setup.hidden.negate(), IsSessionsWindowContext.negate())
+				when: ContextKeyExpr.and(ChatEntitlementContextKeys.Setup.hidden.negate(), ChatEntitlementContextKeys.Setup.disabledInWorkspace.negate(), IsSessionsWindowContext.negate())
 			}]
 		});
 	}

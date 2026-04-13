@@ -27,14 +27,17 @@ const _capacity = 50;
 export class InlineChatHistoryService extends Disposable implements IInlineChatHistoryService {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _history: HistoryNavigator2<string>;
+	readonly #history: HistoryNavigator2<string>;
+	readonly #storageService: IStorageService;
 
 	constructor(
-		@IStorageService private readonly _storageService: IStorageService,
+		@IStorageService storageService: IStorageService,
 	) {
 		super();
 
-		const raw = this._storageService.get(_storageKey, StorageScope.PROFILE);
+		this.#storageService = storageService;
+
+		const raw = this.#storageService.get(_storageKey, StorageScope.PROFILE);
 		let entries: string[] = [''];
 		if (raw) {
 			try {
@@ -51,44 +54,44 @@ export class InlineChatHistoryService extends Disposable implements IInlineChatH
 			}
 		}
 
-		this._history = new HistoryNavigator2<string>(entries, _capacity);
+		this.#history = new HistoryNavigator2<string>(entries, _capacity);
 
-		this._store.add(this._storageService.onWillSaveState(() => {
-			this._saveToStorage();
+		this._store.add(this.#storageService.onWillSaveState(() => {
+			this.#saveToStorage();
 		}));
 	}
 
-	private _saveToStorage(): void {
-		const values = [...this._history].filter(v => v.length > 0);
+	#saveToStorage(): void {
+		const values = [...this.#history].filter(v => v.length > 0);
 		if (values.length === 0) {
-			this._storageService.remove(_storageKey, StorageScope.PROFILE);
+			this.#storageService.remove(_storageKey, StorageScope.PROFILE);
 		} else {
-			this._storageService.store(_storageKey, JSON.stringify(values), StorageScope.PROFILE, StorageTarget.USER);
+			this.#storageService.store(_storageKey, JSON.stringify(values), StorageScope.PROFILE, StorageTarget.USER);
 		}
 	}
 
 	addToHistory(value: string): void {
-		this._history.replaceLast(value);
-		this._history.add('');
+		this.#history.replaceLast(value);
+		this.#history.add('');
 	}
 
 	previousValue(): string | undefined {
-		return this._history.previous();
+		return this.#history.previous();
 	}
 
 	nextValue(): string | undefined {
-		return this._history.next();
+		return this.#history.next();
 	}
 
 	isAtEnd(): boolean {
-		return this._history.isAtEnd();
+		return this.#history.isAtEnd();
 	}
 
 	replaceLast(value: string): void {
-		this._history.replaceLast(value);
+		this.#history.replaceLast(value);
 	}
 
 	resetCursor(): void {
-		this._history.resetCursor();
+		this.#history.resetCursor();
 	}
 }

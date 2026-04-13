@@ -37,6 +37,7 @@ export const ACTION_INTRODUCED_IN: { readonly [K in IStateAction['type']]: numbe
 	[ActionType.SessionToolCallConfirmed]: 1,
 	[ActionType.SessionToolCallComplete]: 1,
 	[ActionType.SessionToolCallResultConfirmed]: 1,
+	[ActionType.SessionToolCallContentChanged]: 1,
 	[ActionType.SessionTurnComplete]: 1,
 	[ActionType.SessionTurnCancelled]: 1,
 	[ActionType.SessionError]: 1,
@@ -50,9 +51,24 @@ export const ACTION_INTRODUCED_IN: { readonly [K in IStateAction['type']]: numbe
 	[ActionType.SessionPendingMessageSet]: 1,
 	[ActionType.SessionPendingMessageRemoved]: 1,
 	[ActionType.SessionQueuedMessagesReordered]: 1,
+	[ActionType.SessionInputRequested]: 1,
+	[ActionType.SessionInputAnswerChanged]: 1,
+	[ActionType.SessionInputCompleted]: 1,
 	[ActionType.SessionCustomizationsChanged]: 1,
 	[ActionType.SessionCustomizationToggled]: 1,
 	[ActionType.SessionTruncated]: 1,
+	[ActionType.SessionIsReadChanged]: 1,
+	[ActionType.SessionIsDoneChanged]: 1,
+	[ActionType.SessionDiffsChanged]: 1,
+	[ActionType.RootTerminalsChanged]: 1,
+	[ActionType.TerminalData]: 1,
+	[ActionType.TerminalInput]: 1,
+	[ActionType.TerminalResized]: 1,
+	[ActionType.TerminalClaimed]: 1,
+	[ActionType.TerminalTitleChanged]: 1,
+	[ActionType.TerminalCwdChanged]: 1,
+	[ActionType.TerminalExited]: 1,
+	[ActionType.TerminalCleared]: 1,
 };
 
 /**
@@ -72,6 +88,7 @@ export function isActionKnownToVersion(action: IStateAction, clientVersion: numb
 export const NOTIFICATION_INTRODUCED_IN: { readonly [K in IProtocolNotification['type']]: number } = {
 	[NotificationType.SessionAdded]: 1,
 	[NotificationType.SessionRemoved]: 1,
+	[NotificationType.SessionSummaryChanged]: 1,
 	[NotificationType.AuthRequired]: 1,
 };
 

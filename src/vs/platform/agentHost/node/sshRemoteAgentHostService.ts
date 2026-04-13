@@ -4,13 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type WebSocket from 'ws';
-import { createRequire } from 'node:module';
 import { promises as fsp } from 'fs';
 import * as os from 'os';
 import * as cp from 'child_process';
 import { dirname, join, isAbsolute, basename } from '../../../base/common/path.js';
 import { Emitter, Event } from '../../../base/common/event.js';
-import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, toDisposable } from '../../../base/common/lifecycle.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
@@ -24,8 +23,18 @@ import {
 	type ISSHRelayMessage,
 	type ISSHResolvedConfig,
 } from '../common/sshRemoteAgentHost.js';
-
-const _require = createRequire(import.meta.url);
+import {
+	buildCLIDownloadUrl,
+	cleanupRemoteAgentHost,
+	findRunningAgentHost,
+	getRemoteCLIBin,
+	getRemoteCLIDir,
+	redactToken,
+	resolveRemotePlatform,
+	shellEscape,
+	writeAgentHostState,
+} from './sshRemoteAgentHostHelpers.js';
+import { parseSSHConfigHostEntries, parseSSHGOutput, stripSSHComment } from '../common/sshConfigParsing.js';
 
 /** Minimal subset of ssh2.ClientChannel used by this module (duplex stream). */
 interface SSHChannel extends NodeJS.ReadWriteStream {
@@ -42,6 +51,8 @@ interface SSHClient {
 	on(event: 'ready', listener: () => void): SSHClient;
 	on(event: 'error', listener: (err: Error) => void): SSHClient;
 	on(event: 'close', listener: () => void): SSHClient;
+	removeListener(event: 'close', listener: () => void): SSHClient;
+	removeListener(event: 'error', listener: (err: Error) => void): SSHClient;
 	connect(config: Record<string, unknown>): void;
 	exec(command: string, callback: (err: Error | undefined, stream: SSHChannel) => void): SSHClient;
 	forwardOut(srcIP: string, srcPort: number, dstIP: string, dstPort: number, callback: (err: Error | undefined, channel: SSHChannel) => void): SSHClient;
@@ -49,68 +60,6 @@ interface SSHClient {
 }
 
 const LOG_PREFIX = '[SSHRemoteAgentHost]';
-
-/**
- * Validate that a quality string is safe for bare interpolation in shell commands.
- * Quality comes from `productService.quality` (not user input) but we validate
- * as defense-in-depth since these values end up in unquoted shell paths (the `~`
- * prefix requires shell expansion, so we cannot single-quote the entire path).
- */
-function validateShellToken(value: string, label: string): string {
-	if (!/^[a-zA-Z0-9._-]+$/.test(value)) {
-		throw new Error(`Unsafe ${label} value for shell interpolation: ${JSON.stringify(value)}`);
-	}
-	return value;
-}
-
-/** Install location for the VS Code CLI on the remote machine. */
-function getRemoteCLIDir(quality: string): string {
-	const q = validateShellToken(quality, 'quality');
-	return q === 'stable' ? '~/.vscode-cli' : `~/.vscode-cli-${q}`;
-}
-function getRemoteCLIBin(quality: string): string {
-	const q = validateShellToken(quality, 'quality');
-	const binaryName = q === 'stable' ? 'code' : 'code-insiders';
-	return `${getRemoteCLIDir(q)}/${binaryName}`;
-}
-
-/** Escape a string for use as a single shell argument (single-quote wrapping). */
-function shellEscape(s: string): string {
-	// Wrap in single quotes; escape embedded single quotes as: '\''
-	const escaped = s.replace(/'/g, '\'\\\'\'');
-	return `'${escaped}'`;
-}
-
-function resolveRemotePlatform(unameS: string, unameM: string): { os: string; arch: string } | undefined {
-	const os = unameS.trim().toLowerCase();
-	const machine = unameM.trim().toLowerCase();
-
-	let platformOs: string;
-	if (os === 'linux') {
-		platformOs = 'linux';
-	} else if (os === 'darwin') {
-		platformOs = 'darwin';
-	} else {
-		return undefined;
-	}
-
-	let arch: string;
-	if (machine === 'x86_64' || machine === 'amd64') {
-		arch = 'x64';
-	} else if (machine === 'aarch64' || machine === 'arm64') {
-		arch = 'arm64';
-	} else if (machine === 'armv7l') {
-		arch = 'armhf';
-	} else {
-		return undefined;
-	}
-
-	return { os: platformOs, arch };
-}
-
-function buildCLIDownloadUrl(os: string, arch: string, quality: string): string {
-	return `https://update.code.visualstudio.com/latest/cli-${os}-${arch}/${quality}`;
-}
 
 function sshExec(client: SSHClient, command: string, opts?: { ignoreExitCode?: boolean }): Promise<{ stdout: string; stderr: string; code: number }> {
 	return new Promise<{ stdout: string; stderr: string; code: number }>((resolve, reject) => {
@@ -148,9 +97,9 @@ function sshExec(client: SSHClient, command: string, opts?: { ignoreExitCode?: b
 	});
 }
 
-/** Redact connection tokens from log output. */
-function redactToken(text: string): string {
-	return text.replace(/\?tkn=[^\s&]+/g, '?tkn=***');
+/** Create a bound exec function for the given SSH client. */
+function bindSshExec(client: SSHClient): (command: string, opts?: { ignoreExitCode?: boolean }) => Promise<{ stdout: string; stderr: string; code: number }> {
+	return (command, opts) => sshExec(client, command, opts);
 }
 
 function startRemoteAgentHost(
@@ -158,13 +107,14 @@ function startRemoteAgentHost(
 	logService: ILogService,
 	quality: string,
 	commandOverride?: string,
-): Promise<{ port: number; connectionToken: string | undefined; stream: SSHChannel }> {
+): Promise<{ port: number; connectionToken: string | undefined; pid: number | undefined; stream: SSHChannel }> {
 	return new Promise((resolve, reject) => {
 		const baseCmd = commandOverride ?? `${getRemoteCLIBin(quality)} agent-host --port 0 --accept-server-license-terms`;
 		// Wrap in a login shell so the agent host process inherits the
 		// user's PATH and environment from ~/.bash_profile / ~/.bashrc
 		// (ssh2 exec runs a non-interactive non-login shell by default).
-		const cmd = `bash -l -c ${shellEscape(baseCmd)}`;
+		// Echo the PID so we can record it for process reuse detection.
+		const cmd = `bash -l -c ${shellEscape(`echo VSCODE_PID=$$ && exec ${baseCmd}`)}`;
 		logService.info(`${LOG_PREFIX} Starting remote agent host: ${cmd}`);
 
 		client.exec(cmd, (err: Error | undefined, stream: SSHChannel) => {
@@ -175,6 +125,7 @@ function startRemoteAgentHost(
 
 			let resolved = false;
 			let outputBuf = '';
+			let pid: number | undefined;
 
 			const timeout = setTimeout(() => {
 				if (!resolved) {
@@ -183,7 +134,15 @@ function startRemoteAgentHost(
 				}
 			}, 60_000);
 
-			const checkForAddress = () => {
+			const checkForOutput = () => {
+				if (pid === undefined) {
+					const pidMatch = outputBuf.match(/VSCODE_PID=(\d+)/);
+					if (pidMatch) {
+						pid = parseInt(pidMatch[1], 10);
+						logService.info(`${LOG_PREFIX} Remote agent host PID: ${pid}`);
+					}
+				}
+
 				if (!resolved) {
 					const match = outputBuf.match(/ws:\/\/127\.0\.0\.1:(\d+)(?:\?tkn=([^\s&]+))?/);
 					if (match) {
@@ -192,7 +151,7 @@ function startRemoteAgentHost(
 						const port = parseInt(match[1], 10);
 						const connectionToken = match[2] || undefined;
 						logService.info(`${LOG_PREFIX} Remote agent host listening on port ${port}`);
-						resolve({ port, connectionToken, stream });
+						resolve({ port, connectionToken, pid, stream });
 					}
 				}
 			};
@@ -201,14 +160,22 @@ function startRemoteAgentHost(
 				const text = data.toString();
 				outputBuf += text;
 				logService.trace(`${LOG_PREFIX} remote stderr: ${redactToken(text.trimEnd())}`);
-				checkForAddress();
+				checkForOutput();
 			});
 
 			stream.on('data', (data: Buffer) => {
 				const text = data.toString();
 				outputBuf += text;
 				logService.trace(`${LOG_PREFIX} remote stdout: ${redactToken(text.trimEnd())}`);
-				checkForAddress();
+				checkForOutput();
+			});
+
+			stream.on('error', (streamErr: Error) => {
+				if (!resolved) {
+					resolved = true;
+					clearTimeout(timeout);
+					reject(streamErr);
+				}
 			});
 
 			stream.on('close', (code: number) => {
@@ -228,6 +195,7 @@ function startRemoteAgentHost(
  * Messages are relayed to the renderer via IPC events.
  */
 function createWebSocketRelay(
+	nativeRequire: NodeJS.Require,
 	client: SSHClient,
 	dstHost: string,
 	dstPort: number,
@@ -243,7 +211,7 @@ function createWebSocketRelay(
 				return;
 			}
 
-			const WS = _require('ws') as typeof WebSocket;
+			const WS = nativeRequire('ws') as typeof WebSocket;
 			let url = `ws://${dstHost}:${dstPort}`;
 			if (connectionToken) {
 				url += `?tkn=${encodeURIComponent(connectionToken)}`;
@@ -290,12 +258,21 @@ function sanitizeConfig(config: ISSHAgentHostConfig): ISSHAgentHostConfigSanitiz
 	return sanitized;
 }
 
+/**
+ * State for a single active SSH relay connection.
+ * Immutable and dispose-once — follows the same pattern as TunnelConnection.
+ * On reconnect, the old SSHConnection is disposed and a fresh one is created;
+ * the SSH client can be detached first so only the WebSocket relay is torn down.
+ */
 class SSHConnection extends Disposable {
-	private readonly _onDidClose = this._register(new Emitter<void>());
+	private readonly _onDidClose = new Emitter<void>();
 	readonly onDidClose = this._onDidClose.event;
 
 	readonly config: ISSHAgentHostConfigSanitized;
 	private _closed = false;
+	private _sshClientDetached = false;
+	private readonly _sshCloseListener = () => { this.dispose(); };
+	private readonly _sshErrorListener = () => { this.dispose(); };
 
 	constructor(
 		fullConfig: ISSHAgentHostConfig,
@@ -303,40 +280,51 @@ class SSHConnection extends Disposable {
 		readonly address: string,
 		readonly name: string,
 		readonly connectionToken: string | undefined,
-		sshClient: SSHClient,
+		readonly remotePort: number,
+		readonly sshClient: SSHClient,
 		private readonly _relay: { send: (data: string) => void; close: () => void },
-		remoteStream: SSHChannel,
+		private readonly _remoteStream: SSHChannel | undefined,
 	) {
 		super();
 
 		this.config = sanitizeConfig(fullConfig);
 
+		// Register cleanup first so it fires _onDidClose *before* the Emitter is disposed.
 		this._register(toDisposable(() => {
 			if (this._closed) {
 				return;
 			}
 			this._closed = true;
 			this._relay.close();
-			remoteStream.close();
-			sshClient.end();
+			if (!this._sshClientDetached) {
+				this._remoteStream?.close();
+				sshClient.end();
+			}
 			this._onDidClose.fire();
 		}));
 
-		sshClient.on('close', () => {
-			this.dispose();
-		});
+		this._register(this._onDidClose);
 
-		sshClient.on('error', () => {
-			this.dispose();
-		});
+		sshClient.on('close', this._sshCloseListener);
+		sshClient.on('error', this._sshErrorListener);
+	}
+
+	/**
+	 * Detach the SSH client from this connection so that `dispose()`
+	 * only closes the WebSocket relay without ending the SSH session.
+	 * Also removes event listeners from the SSH client so the old
+	 * connection object is not retained by the shared client.
+	 */
+	detachSshClient(): void {
+		this._sshClientDetached = true;
+		this.sshClient.removeListener('close', this._sshCloseListener);
+		this.sshClient.removeListener('error', this._sshErrorListener);
 	}
 
 	relaySend(data: string): void {
 		this._relay.send(data);
 	}
 }
-
-import { parseSSHConfigHostEntries, parseSSHGOutput, stripSSHComment } from '../common/sshConfigParsing.js';
 
 export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRemoteAgentHostMainService {
 	declare readonly _serviceBrand: undefined;
@@ -356,7 +344,9 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 	private readonly _onDidRelayClose = this._register(new Emitter<string>());
 	readonly onDidRelayClose: Event<string> = this._onDidRelayClose.event;
 
-	private readonly _connections = new Map<string, SSHConnection>();
+	private readonly _connections = this._register(new DisposableMap<string, SSHConnection>());
+
+	private _nativeRequire: NodeJS.Require | undefined;
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,
@@ -365,19 +355,93 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		super();
 	}
 
-	async connect(config: ISSHAgentHostConfig): Promise<ISSHConnectResult> {
+	/**
+	 * Lazily load a `require` function for native modules (`ssh2`, `ws`).
+	 * Uses a dynamic `import('node:module')` so the module is only resolved
+	 * when actually needed at runtime — not at file-load time. This matters
+	 * because tests override the methods that call this and never trigger
+	 * the import, avoiding issues with Electron's ESM loader which cannot
+	 * resolve `node:` specifiers.
+	 */
+	private async _getNativeRequire(): Promise<NodeJS.Require> {
+		if (!this._nativeRequire) {
+			const nodeModule = await import('node:module');
+			this._nativeRequire = nodeModule.createRequire(import.meta.url);
+		}
+		return this._nativeRequire;
+	}
+
+	async connect(config: ISSHAgentHostConfig, replaceRelay?: boolean): Promise<ISSHConnectResult> {
 		const connectionKey = config.sshConfigHost
 			? `ssh:${config.sshConfigHost}`
 			: `${config.username}@${config.host}:${config.port ?? 22}`;
 
 		const existing = this._connections.get(connectionKey);
 		if (existing) {
+			if (replaceRelay) {
+				// Tear down the old relay and create a fresh one, following
+				// the same dispose-and-recreate pattern as TunnelAgentHostMainService.
+				// The SSH client is detached so only the WebSocket relay is closed.
+				this._logService.info(`${LOG_PREFIX} Reconnecting relay for existing SSH tunnel ${connectionKey}`);
+				const { sshClient, remotePort, connectionToken } = existing;
+
+				// Remove from map and detach SSH client before disposing so
+				// the old relay's close handler (conn?.dispose()) is a no-op.
+				this._connections.deleteAndLeak(connectionKey);
+				existing.detachSshClient();
+				existing.dispose();
+
+				// Create fresh relay and connection. If relay creation fails,
+				// clean up the detached SSH client so it doesn't leak.
+				const connectionId = connectionKey;
+				try {
+					let conn: SSHConnection | undefined; // eslint-disable-line prefer-const
+					const relay = await this._createWebSocketRelay(
+						sshClient, '127.0.0.1', remotePort, connectionToken,
+						(data: string) => this._onDidRelayMessage.fire({ connectionId, data }),
+						() => { conn?.dispose(); },
+					);
+
+					conn = new SSHConnection(
+						config, connectionId, connectionKey, config.name,
+						connectionToken, remotePort, sshClient, relay, undefined,
+					);
+
+					Event.once(conn.onDidClose)(() => {
+						if (this._connections.get(connectionKey) === conn) {
+							this._connections.deleteAndDispose(connectionKey);
+							this._onDidRelayClose.fire(connectionId);
+							this._onDidCloseConnection.fire(connectionId);
+							this._onDidChangeConnections.fire();
+						}
+					});
+
+					this._connections.set(connectionKey, conn);
+
+					return {
+						connectionId: conn.connectionId,
+						address: conn.address,
+						name: conn.name,
+						connectionToken: conn.connectionToken,
+						config: conn.config,
+						sshConfigHost: config.sshConfigHost,
+					};
+				} catch (err) {
+					sshClient.end();
+					this._onDidRelayClose.fire(connectionId);
+					this._onDidCloseConnection.fire(connectionId);
+					this._onDidChangeConnections.fire();
+					throw err;
+				}
+			}
+
 			return {
 				connectionId: existing.connectionId,
 				address: existing.address,
 				name: existing.name,
 				connectionToken: existing.connectionToken,
 				config: existing.config,
+				sshConfigHost: config.sshConfigHost,
 			};
 		}
 
@@ -385,15 +449,13 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		let sshClient: SSHClient | undefined;
 
 		try {
-			const ssh2Module = _require('ssh2') as { Client: new () => unknown };
-
 			const reportProgress = (message: string) => {
 				this._onDidReportConnectProgress.fire({ connectionKey, message });
 			};
 
 			// 1. Establish SSH connection
 			reportProgress(localize('sshProgressConnecting', "Establishing SSH connection..."));
-			sshClient = await this._connectSSH(config, ssh2Module.Client);
+			sshClient = await this._connectSSH(config);
 
 			if (config.remoteAgentHostCommand) {
 				// Dev override: skip platform detection and CLI install,
@@ -414,36 +476,89 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				await this._ensureCLIInstalled(sshClient, platform, reportProgress);
 			}
 
-			// 4. Start agent-host and capture port/token
-			reportProgress(localize('sshProgressStartingAgent', "Starting remote agent host..."));
-			const { port: remotePort, connectionToken, stream: agentStream } = await startRemoteAgentHost(sshClient, this._logService, this._quality, config.remoteAgentHostCommand);
+			// 4. Check for an already-running agent host on the remote.
+			//    This prevents accumulating orphaned processes when the SSH
+			//    connection drops and we reconnect.
+			let remotePort: number | undefined;
+			let connectionToken: string | undefined;
+			let agentStream: SSHChannel | undefined;
 
-			// 5. Connect to remote agent host via WebSocket relay (no local TCP port)
+			reportProgress(localize('sshProgressCheckingAgent', "Checking for existing agent host..."));
+			const exec = bindSshExec(sshClient);
+			const existingAH = await findRunningAgentHost(exec, this._logService, this._quality);
+			if (existingAH) {
+				remotePort = existingAH.port;
+				connectionToken = existingAH.connectionToken;
+			}
+
+			if (remotePort === undefined) {
+				// 5. Start agent-host and capture port/token
+				reportProgress(localize('sshProgressStartingAgent', "Starting remote agent host..."));
+				const result = await this._startRemoteAgentHost(sshClient, this._quality, config.remoteAgentHostCommand);
+				remotePort = result.port;
+				connectionToken = result.connectionToken;
+				agentStream = result.stream;
+
+				// Record state for future reuse
+				await writeAgentHostState(exec, this._logService, this._quality, result.pid, remotePort, connectionToken);
+			}
+
+			// 6. Connect to remote agent host via WebSocket relay (no local TCP port)
 			reportProgress(localize('sshProgressForwarding', "Connecting to remote agent host..."));
 			const connectionId = connectionKey;
-			const relay = await createWebSocketRelay(
-				sshClient, '127.0.0.1', remotePort, connectionToken, this._logService,
-				(data: string) => this._onDidRelayMessage.fire({ connectionId, data }),
-				() => this._onDidRelayClose.fire(connectionId),
-			);
+			let conn: SSHConnection | undefined; // eslint-disable-line prefer-const
+			let relay: { send: (data: string) => void; close: () => void };
+			try {
+				relay = await this._createWebSocketRelay(
+					sshClient, '127.0.0.1', remotePort, connectionToken,
+					(data: string) => this._onDidRelayMessage.fire({ connectionId, data }),
+					() => { conn?.dispose(); },
+				);
+			} catch (relayErr) {
+				if (!existingAH) {
+					throw relayErr;
+				}
+				// The reused agent host is not connectable — kill it and start fresh
+				const relayErrorMessage = relayErr instanceof Error ? relayErr.message : String(relayErr);
+				this._logService.warn(`${LOG_PREFIX} Failed to connect to reused agent host on port ${remotePort}: ${relayErrorMessage}. Starting fresh`);
+				await cleanupRemoteAgentHost(exec, this._logService, this._quality);
 
-			// 6. Create connection object
+				reportProgress(localize('sshProgressStartingAgent', "Starting remote agent host..."));
+				const result = await this._startRemoteAgentHost(sshClient, this._quality, config.remoteAgentHostCommand);
+				remotePort = result.port;
+				connectionToken = result.connectionToken;
+				agentStream = result.stream;
+				await writeAgentHostState(exec, this._logService, this._quality, result.pid, remotePort, connectionToken);
+
+				reportProgress(localize('sshProgressForwarding', "Connecting to remote agent host..."));
+				relay = await this._createWebSocketRelay(
+					sshClient, '127.0.0.1', remotePort, connectionToken,
+					(data: string) => this._onDidRelayMessage.fire({ connectionId, data }),
+					() => { conn?.dispose(); },
+				);
+			}
+
+			// 7. Create connection object
 			const address = connectionKey;
-			const conn = new SSHConnection(
+			conn = new SSHConnection(
 				config,
 				connectionId,
 				address,
 				config.name,
 				connectionToken,
+				remotePort,
 				sshClient,
 				relay,
 				agentStream,
 			);
 
-			conn.onDidClose(() => {
-				this._connections.delete(connectionKey);
-				this._onDidCloseConnection.fire(connectionId);
-				this._onDidChangeConnections.fire();
+			Event.once(conn.onDidClose)(() => {
+				if (this._connections.get(connectionKey) === conn) {
+					this._connections.deleteAndDispose(connectionKey);
+					this._onDidRelayClose.fire(connectionId);
+					this._onDidCloseConnection.fire(connectionId);
+					this._onDidChangeConnections.fire();
+				}
 			});
 
 			this._connections.set(connectionKey, conn);
@@ -490,8 +605,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 		let authMethod: SSHAuthMethod = SSHAuthMethod.Agent;
 		let privateKeyPath: string | undefined;
-		const defaultKeys = ['~/.ssh/id_rsa', '~/.ssh/id_ecdsa', '~/.ssh/id_ed25519', '~/.ssh/id_dsa', '~/.ssh/id_xmss'];
-		if (resolved.identityFile.length > 0 && !defaultKeys.includes(resolved.identityFile[0])) {
+		if (resolved.identityFile.length > 0 && !SSHRemoteAgentHostMainService._defaultKeyPaths.includes(resolved.identityFile[0])) {
 			authMethod = SSHAuthMethod.KeyFile;
 			privateKeyPath = resolved.identityFile[0];
 		}
@@ -505,7 +619,7 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 			name,
 			sshConfigHost,
 			remoteAgentHostCommand,
-		});
+		}, /* replaceRelay */ true);
 	}
 
 	async listSSHConfigHosts(): Promise<string[]> {
@@ -603,10 +717,13 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		return parseSSHGOutput(stdout);
 	}
 
-	private async _connectSSH(
+	protected async _connectSSH(
 		config: ISSHAgentHostConfig,
-		SSHClientCtor: new () => unknown,
 	): Promise<SSHClient> {
+		const nativeRequire = await this._getNativeRequire();
+		const ssh2Module = nativeRequire('ssh2') as { Client: new () => unknown };
+		const SSHClientCtor = ssh2Module.Client;
+
 		const connectConfig: Record<string, unknown> = {
 			host: config.host,
 			port: config.port ?? 22,
@@ -620,6 +737,13 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 				const agentSock = process.env['SSH_AUTH_SOCK'];
 				this._logService.info(`${LOG_PREFIX} Using SSH agent: ${agentSock ?? '(not set)'}`);
 				connectConfig.agent = agentSock;
+				// Also provide a default key file as fallback so ssh2 can try
+				// publickey auth if the agent doesn't have the key loaded.
+				const fallbackKey = await this._findDefaultKeyFile();
+				if (fallbackKey) {
+					this._logService.info(`${LOG_PREFIX} Also using fallback key: ${fallbackKey.path}`);
+					connectConfig.privateKey = fallbackKey.contents;
+				}
 				break;
 			}
 			case SSHAuthMethod.KeyFile:
@@ -650,8 +774,47 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 		});
 	}
 
+	private static readonly _defaultKeyPaths = [
+		'~/.ssh/id_ed25519',
+		'~/.ssh/id_rsa',
+		'~/.ssh/id_ecdsa',
+		'~/.ssh/id_dsa',
+		'~/.ssh/id_xmss',
+	];
+
+	protected async _findDefaultKeyFile(): Promise<{ path: string; contents: Buffer } | undefined> {
+		for (const keyPath of SSHRemoteAgentHostMainService._defaultKeyPaths) {
+			const resolved = keyPath.replace(/^~/, os.homedir());
+			try {
+				const contents = await fsp.readFile(resolved);
+				return { path: keyPath, contents };
+			} catch (error) {
+				const errorCode = (error as NodeJS.ErrnoException).code;
+				if (errorCode === 'ENOENT' || errorCode === 'ENOTDIR') {
+					continue;
+				}
+				this._logService.warn(`${LOG_PREFIX} Failed to read default SSH key file ${resolved}`, error);
+			}
+		}
+		return undefined;
+	}
+
 	private get _quality(): string {
 		return this._productService.quality || 'insider';
+	}
+
+	protected _startRemoteAgentHost(
+		client: SSHClient, quality: string, commandOverride?: string,
+	): Promise<{ port: number; connectionToken: string | undefined; pid: number | undefined; stream: SSHChannel }> {
+		return startRemoteAgentHost(client, this._logService, quality, commandOverride);
+	}
+
+	protected async _createWebSocketRelay(
+		client: SSHClient, dstHost: string, dstPort: number, connectionToken: string | undefined,
+		onMessage: (data: string) => void, onClose: () => void,
+	): Promise<{ send: (data: string) => void; close: () => void }> {
+		const nativeRequire = await this._getNativeRequire();
+		return createWebSocketRelay(nativeRequire, client, dstHost, dstPort, connectionToken, this._logService, onMessage, onClose);
 	}
 
 	private async _ensureCLIInstalled(client: SSHClient, platform: { os: string; arch: string }, reportProgress: (message: string) => void): Promise<void> {
@@ -674,13 +837,5 @@ export class SSHRemoteAgentHostMainService extends Disposable implements ISSHRem
 
 		await sshExec(client, installCmd);
 		this._logService.info(`${LOG_PREFIX} VS Code CLI installed successfully`);
-	}
-
-	override dispose(): void {
-		for (const conn of this._connections.values()) {
-			conn.dispose();
-		}
-		this._connections.clear();
-		super.dispose();
 	}
 }

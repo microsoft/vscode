@@ -459,3 +459,5 @@ suite('Extension Gallery Service', () => {
 
 	});
 });
+
+

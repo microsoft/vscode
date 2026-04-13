@@ -12,7 +12,7 @@ import { TestInstantiationService } from '../../../instantiation/test/common/ins
 import { IConfigurationService, type IConfigurationChangeEvent } from '../../../configuration/common/configuration.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { RemoteAgentHostService } from '../../electron-browser/remoteAgentHostServiceImpl.js';
-import { parseRemoteAgentHostInput, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, type IRemoteAgentHostEntry } from '../../common/remoteAgentHostService.js';
+import { parseRemoteAgentHostInput, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, entryToRawEntry, type IRawRemoteAgentHostEntry, type IRemoteAgentHostEntry } from '../../common/remoteAgentHostService.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 
 // ---- Mock protocol client ---------------------------------------------------
@@ -47,7 +47,7 @@ class TestConfigurationService {
 	private readonly _onDidChangeConfiguration = new Emitter<Partial<IConfigurationChangeEvent>>();
 	readonly onDidChangeConfiguration = this._onDidChangeConfiguration.event;
 
-	private _entries: IRemoteAgentHostEntry[] = [];
+	private _entries: IRawRemoteAgentHostEntry[] = [];
 	private _enabled = true;
 
 	getValue(key?: string): unknown {
@@ -64,15 +64,18 @@ class TestConfigurationService {
 	}
 
 	async updateValue(_key: string, value: unknown): Promise<void> {
-		this.setEntries((value as IRemoteAgentHostEntry[] | undefined) ?? []);
+		this._entries = (value as IRawRemoteAgentHostEntry[] | undefined) ?? [];
+		this._onDidChangeConfiguration.fire({
+			affectsConfiguration: (key: string) => key === RemoteAgentHostsSettingId || key === RemoteAgentHostsEnabledSettingId,
+		});
 	}
 
-	get entries(): readonly IRemoteAgentHostEntry[] {
+	get entries(): readonly IRawRemoteAgentHostEntry[] {
 		return this._entries;
 	}
 
 	setEntries(entries: IRemoteAgentHostEntry[]): void {
-		this._entries = entries;
+		this._entries = entries.map(entryToRawEntry).filter((e): e is IRawRemoteAgentHostEntry => e !== undefined);
 		this._onDidChangeConfiguration.fire({
 			affectsConfiguration: (key: string) => key === RemoteAgentHostsSettingId || key === RemoteAgentHostsEnabledSettingId,
 		});
@@ -158,7 +161,7 @@ suite('RemoteAgentHostService', () => {
 	});
 
 	test('creates connection when setting is updated', async () => {
-		configService.setEntries([{ address: 'ws://host1:8080', name: 'Host 1' }]);
+		configService.setEntries([{ name: 'Host 1', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host1:8080' } }]);
 
 		// Resolve the connect promise
 		assert.strictEqual(createdClients.length, 1);
@@ -172,7 +175,7 @@ suite('RemoteAgentHostService', () => {
 	});
 
 	test('getConnection returns client after successful connect', async () => {
-		configService.setEntries([{ address: 'ws://host1:8080', name: 'Host 1' }]);
+		configService.setEntries([{ name: 'Host 1', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host1:8080' } }]);
 		createdClients[0].connectDeferred.complete();
 		await waitForConnected();
 
@@ -183,7 +186,7 @@ suite('RemoteAgentHostService', () => {
 
 	test('removes connection when setting entry is removed', async () => {
 		// Add a connection
-		configService.setEntries([{ address: 'ws://host1:8080', name: 'Host 1' }]);
+		configService.setEntries([{ name: 'Host 1', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host1:8080' } }]);
 		createdClients[0].connectDeferred.complete();
 		await waitForConnected();
 
@@ -197,7 +200,7 @@ suite('RemoteAgentHostService', () => {
 	});
 
 	test('fires onDidChangeConnections when connection closes', async () => {
-		configService.setEntries([{ address: 'ws://host1:8080', name: 'Host 1' }]);
+		configService.setEntries([{ name: 'Host 1', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host1:8080' } }]);
 		createdClients[0].connectDeferred.complete();
 		await waitForConnected();
 
@@ -214,7 +217,7 @@ suite('RemoteAgentHostService', () => {
 	});
 
 	test('removes connection on connect failure', async () => {
-		configService.setEntries([{ address: 'ws://bad:9999', name: 'Bad' }]);
+		configService.setEntries([{ name: 'Bad', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://bad:9999' } }]);
 		assert.strictEqual(createdClients.length, 1);
 
 		// Fail the connection and wait for the service to react
@@ -228,8 +231,8 @@ suite('RemoteAgentHostService', () => {
 
 	test('manages multiple connections independently', async () => {
 		configService.setEntries([
-			{ address: 'ws://host1:8080', name: 'Host 1' },
-			{ address: 'ws://host2:8080', name: 'Host 2' },
+			{ name: 'Host 1', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host1:8080' } },
+			{ name: 'Host 2', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host2:8080' } },
 		]);
 
 		assert.strictEqual(createdClients.length, 2);
@@ -247,14 +250,14 @@ suite('RemoteAgentHostService', () => {
 	});
 
 	test('does not re-create existing connections on setting update', async () => {
-		configService.setEntries([{ address: 'ws://host1:8080', name: 'Host 1' }]);
+		configService.setEntries([{ name: 'Host 1', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host1:8080' } }]);
 		createdClients[0].connectDeferred.complete();
 		await waitForConnected();
 
 		const firstClientId = createdClients[0].clientId;
 
 		// Update setting with same address (but different name)
-		configService.setEntries([{ address: 'ws://host1:8080', name: 'Renamed' }]);
+		configService.setEntries([{ name: 'Renamed', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host1:8080' } }]);
 
 		// Should NOT have created a second client
 		assert.strictEqual(createdClients.length, 1);
@@ -271,9 +274,9 @@ suite('RemoteAgentHostService', () => {
 
 	test('addRemoteAgentHost stores the entry and waits for connection', async () => {
 		const connectionPromise = service.addRemoteAgentHost({
-			address: 'ws://host1:8080',
 			name: 'Host 1',
 			connectionToken: 'secret-token',
+			connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host1:8080' },
 		});
 
 		assert.deepStrictEqual(configService.entries, [{
@@ -296,14 +299,14 @@ suite('RemoteAgentHostService', () => {
 	});
 
 	test('addRemoteAgentHost updates existing configured entries without reconnecting', async () => {
-		configService.setEntries([{ address: 'ws://host1:8080', name: 'Host 1' }]);
+		configService.setEntries([{ name: 'Host 1', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host1:8080' } }]);
 		createdClients[0].connectDeferred.complete();
 		await waitForConnected();
 
 		const connection = await service.addRemoteAgentHost({
-			address: 'ws://host1:8080',
 			name: 'Updated Host',
 			connectionToken: 'new-token',
+			connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host1:8080' },
 		});
 
 		assert.strictEqual(createdClients.length, 1);
@@ -324,24 +327,24 @@ suite('RemoteAgentHostService', () => {
 	test('addRemoteAgentHost appends when adding a second host', async () => {
 		// Add first host
 		const firstPromise = service.addRemoteAgentHost({
-			address: 'host1:8080',
 			name: 'Host 1',
+			connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'host1:8080' },
 		});
 		createdClients[0].connectDeferred.complete();
 		await firstPromise;
 
 		// Add second host
 		const secondPromise = service.addRemoteAgentHost({
-			address: 'host2:9090',
 			name: 'Host 2',
+			connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'host2:9090' },
 		});
 		createdClients[1].connectDeferred.complete();
 		await secondPromise;
 
 		assert.strictEqual(createdClients.length, 2);
 		assert.deepStrictEqual(configService.entries, [
-			{ address: 'host1:8080', name: 'Host 1' },
-			{ address: 'host2:9090', name: 'Host 2' },
+			{ address: 'host1:8080', name: 'Host 1', connectionToken: undefined },
+			{ address: 'host2:9090', name: 'Host 2', connectionToken: undefined },
 		]);
 		assert.strictEqual(service.connections.length, 2);
 	});
@@ -350,9 +353,9 @@ suite('RemoteAgentHostService', () => {
 		// Simulate a fast connect: the mock client resolves synchronously
 		// during the config change handler, before addRemoteAgentHost has a
 		// chance to create its DeferredPromise wait.
-		const originalSetEntries = configService.setEntries.bind(configService);
-		configService.setEntries = (entries: IRemoteAgentHostEntry[]) => {
-			originalSetEntries(entries);
+		const originalUpdateValue = configService.updateValue.bind(configService);
+		configService.updateValue = async (key: string, value: unknown) => {
+			await originalUpdateValue(key, value);
 			// Complete the connection synchronously inside the config change callback
 			if (createdClients.length > 0) {
 				createdClients[createdClients.length - 1].connectDeferred.complete();
@@ -360,8 +363,8 @@ suite('RemoteAgentHostService', () => {
 		};
 
 		const connection = await service.addRemoteAgentHost({
-			address: 'fast-host:1234',
 			name: 'Fast Host',
+			connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'fast-host:1234' },
 		});
 
 		assert.strictEqual(connection.address, 'fast-host:1234');
@@ -369,7 +372,7 @@ suite('RemoteAgentHostService', () => {
 	});
 
 	test('disabling the enabled setting disconnects all remotes', async () => {
-		configService.setEntries([{ address: 'host1:8080', name: 'Host 1' }]);
+		configService.setEntries([{ name: 'Host 1', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'host1:8080' } }]);
 		createdClients[0].connectDeferred.complete();
 		await waitForConnected();
 		assert.strictEqual(service.connections.filter(c => c.status === RemoteAgentHostConnectionStatus.Connected).length, 1);
@@ -383,13 +386,13 @@ suite('RemoteAgentHostService', () => {
 		configService.setEnabled(false);
 
 		await assert.rejects(
-			() => service.addRemoteAgentHost({ address: 'host1:8080', name: 'Host 1' }),
+			() => service.addRemoteAgentHost({ name: 'Host 1', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'host1:8080' } }),
 			/not enabled/,
 		);
 	});
 
 	test('re-enabling reconnects configured remotes', async () => {
-		configService.setEntries([{ address: 'host1:8080', name: 'Host 1' }]);
+		configService.setEntries([{ name: 'Host 1', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'host1:8080' } }]);
 		createdClients[0].connectDeferred.complete();
 		await waitForConnected();
 		assert.strictEqual(service.connections.filter(c => c.status === RemoteAgentHostConnectionStatus.Connected).length, 1);
@@ -406,8 +409,8 @@ suite('RemoteAgentHostService', () => {
 
 	test('removeRemoteAgentHost removes entry and disconnects', async () => {
 		configService.setEntries([
-			{ address: 'ws://host1:8080', name: 'Host 1' },
-			{ address: 'ws://host2:9090', name: 'Host 2' },
+			{ name: 'Host 1', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host1:8080' } },
+			{ name: 'Host 2', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'ws://host2:9090' } },
 		]);
 		createdClients[0].connectDeferred.complete();
 		createdClients[1].connectDeferred.complete();
@@ -417,7 +420,7 @@ suite('RemoteAgentHostService', () => {
 		await service.removeRemoteAgentHost('ws://host1:8080');
 
 		assert.deepStrictEqual(configService.entries, [
-			{ address: 'ws://host2:9090', name: 'Host 2' },
+			{ address: 'ws://host2:9090', name: 'Host 2', connectionToken: undefined },
 		]);
 		assert.strictEqual(service.connections.filter(c => c.status === RemoteAgentHostConnectionStatus.Connected).length, 1);
 		assert.strictEqual(service.getConnection('ws://host1:8080'), undefined);
@@ -425,7 +428,7 @@ suite('RemoteAgentHostService', () => {
 	});
 
 	test('removeRemoteAgentHost normalizes address before removing', async () => {
-		configService.setEntries([{ address: 'host1:8080', name: 'Host 1' }]);
+		configService.setEntries([{ name: 'Host 1', connection: { type: RemoteAgentHostEntryType.WebSocket, address: 'host1:8080' } }]);
 		createdClients[0].connectDeferred.complete();
 		await waitForConnected();
 

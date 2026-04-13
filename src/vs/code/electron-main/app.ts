@@ -6,6 +6,7 @@
 import { app, Details, GPUFeatureStatus, powerMonitor, protocol, session, Session, systemPreferences, WebFrameMain } from 'electron';
 import { addUNCHostToAllowlist, disableUNCAccessRestrictions } from '../../base/node/unc.js';
 import { validatedIpcMain } from '../../base/parts/ipc/electron-main/ipcMain.js';
+import { execFile } from 'child_process';
 import { hostname, release } from 'os';
 import { initWindowsVersionInfo } from '../../base/node/windowsVersion.js';
 import { VSBuffer } from '../../base/common/buffer.js';
@@ -83,6 +84,8 @@ import { ITelemetryServiceConfig, TelemetryService } from '../../platform/teleme
 import { getPiiPathsFromEnvironment, getTelemetryLevel, isInternalTelemetry, NullTelemetryService, supportsTelemetry } from '../../platform/telemetry/common/telemetryUtils.js';
 import { IUpdateService } from '../../platform/update/common/update.js';
 import { UpdateChannel } from '../../platform/update/common/updateIpc.js';
+import { AbstractUpdateService } from '../../platform/update/electron-main/abstractUpdateService.js';
+import { CrossAppUpdateCoordinator } from '../../platform/update/electron-main/crossAppUpdateIpc.js';
 import { DarwinUpdateService } from '../../platform/update/electron-main/updateService.darwin.js';
 import { LinuxUpdateService } from '../../platform/update/electron-main/updateService.linux.js';
 import { SnapUpdateService } from '../../platform/update/electron-main/updateService.snap.js';
@@ -139,6 +142,7 @@ import { McpGatewayService } from '../../platform/mcp/node/mcpGatewayService.js'
 import { McpGatewayChannel } from '../../platform/mcp/node/mcpGatewayChannel.js';
 import { IWebContentExtractorService } from '../../platform/webContentExtractor/common/webContentExtractor.js';
 import { NativeWebContentExtractorService } from '../../platform/webContentExtractor/electron-main/webContentExtractorService.js';
+import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../platform/networkFilter/common/networkFilterService.js';
 import ErrorTelemetry from '../../platform/telemetry/electron-main/errorTelemetry.js';
 
 /**
@@ -1104,6 +1108,7 @@ export class CodeApplication extends Disposable {
 		services.set(IMeteredConnectionService, meteredConnectionService);
 
 		// Web Contents Extractor
+		services.set(IAgentNetworkFilterService, new SyncDescriptor(AgentNetworkFilterService, undefined, true));
 		services.set(IWebContentExtractorService, new SyncDescriptor(NativeWebContentExtractorService, undefined, false /* proxied to other processes */));
 
 		// Webview Manager
@@ -1234,8 +1239,20 @@ export class CodeApplication extends Disposable {
 		mainProcessElectronServer.registerChannel('userDataProfiles', userDataProfilesService);
 		sharedProcessClient.then(client => client.registerChannel('userDataProfiles', userDataProfilesService));
 
-		// Update
-		const updateChannel = new UpdateChannel(accessor.get(IUpdateService));
+		// Update (with cross-app coordination on macOS/Windows where crossAppIPC is available)
+		const localUpdateService = accessor.get(IUpdateService);
+		let effectiveUpdateService: IUpdateService = localUpdateService;
+		const isInsiderOrExploration = this.productService.quality === 'insider' || this.productService.quality === 'exploration';
+		if (isWindows && isInsiderOrExploration) {
+			const updateCoordinator = this._register(new CrossAppUpdateCoordinator(
+				localUpdateService as AbstractUpdateService,
+				this.logService,
+				this.lifecycleMainService,
+			));
+			updateCoordinator.initialize();
+			effectiveUpdateService = updateCoordinator;
+		}
+		const updateChannel = new UpdateChannel(effectiveUpdateService);
 		mainProcessElectronServer.registerChannel('update', updateChannel);
 
 		// Metered Connection
@@ -1729,5 +1746,25 @@ export class CodeApplication extends Disposable {
 		// Validate Device ID is up to date (delay this as it has shown significant perf impact)
 		// Refs: https://github.com/microsoft/vscode/issues/234064
 		validateDevDeviceId(this.stateService, this.logService);
+
+		// macOS: eagerly register the embedded app with Launch Services
+		this.registerEmbeddedAppWithLaunchServices();
+	}
+
+	private registerEmbeddedAppWithLaunchServices(): void {
+		if (!isMacintosh || (process as INodeProcess).isEmbeddedApp || !this.productService.embedded?.nameShort || this.productService.quality === 'stable') {
+			return;
+		}
+
+		// appRoot points to Contents/Resources/app on macOS
+		const embeddedAppPath = join(this.environmentMainService.appRoot, '..', '..', 'Applications', `${this.productService.embedded.nameLong}.app`);
+		const lsregister = '/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister';
+		this.logService.trace('Registering embedded app with Launch Services:', embeddedAppPath);
+		const child = execFile(lsregister, ['-f', embeddedAppPath], { timeout: 30_000 }, (error) => {
+			if (error) {
+				this.logService.error('Failed to register embedded app with Launch Services:', error.message);
+			}
+		});
+		child.unref();
 	}
 }

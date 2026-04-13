@@ -1211,6 +1211,7 @@ suite('ChatThinkingContentPart', () => {
 					partialInput: observableValue('partialInput', undefined),
 					streamingMessage: observableValue('streamingMessage', undefined),
 				}),
+				toolSpecificDataKind: observableValue('test', undefined),
 				toJSON: () => ({} as IChatToolInvocationSerialized),
 			} as IChatToolInvocation;
 		}
@@ -1234,6 +1235,7 @@ suite('ChatThinkingContentPart', () => {
 					parameters: {},
 					confirmationMessages: undefined,
 				}),
+				toolSpecificDataKind: observableValue('test', undefined),
 				toJSON: () => ({} as IChatToolInvocationSerialized),
 			} as IChatToolInvocation;
 		}
@@ -1602,6 +1604,116 @@ suite('ChatThinkingContentPart', () => {
 
 			const diffContainer = part.domNode.querySelector('.chat-thinking-title-diff');
 			assert.strictEqual(diffContainer, null, 'Should not render diff container when no diffs exist');
+		});
+	});
+
+	suite('eagerDisposable lifecycle', () => {
+		setup(() => {
+			mockConfigurationService.setUserConfiguration('chat.agent.thinkingStyle', ThinkingDisplayMode.Collapsed);
+		});
+
+		test('eagerDisposable is disposed when thinking part is disposed even if factory was never called', () => {
+			const content = createThinkingPart('**Working**');
+			const context = createMockRenderContext(false);
+
+			const part = instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			);
+
+			mainWindow.document.body.appendChild(part.domNode);
+
+			let disposed = false;
+			const eagerDisposable = toDisposable(() => { disposed = true; });
+			const factory = () => ({
+				domNode: $('div.test-item'),
+				disposable: eagerDisposable,
+			});
+
+			// Append while collapsed — factory is NOT called
+			part.appendItem(factory, 'test-tool', undefined, undefined, undefined, eagerDisposable);
+
+			assert.strictEqual(disposed, false, 'Should not be disposed yet');
+
+			// Dispose the thinking part without ever expanding
+			part.domNode.remove();
+			part.dispose();
+
+			assert.strictEqual(disposed, true, 'eagerDisposable should be disposed with the thinking part');
+		});
+
+		test('eagerDisposable is disposed when thinking part is disposed after factory was called', () => {
+			const content = createThinkingPart('**Working**\nSome detailed analysis');
+			const context = createMockRenderContext(false);
+
+			const part = instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			);
+
+			mainWindow.document.body.appendChild(part.domNode);
+
+			let disposed = false;
+			const eagerDisposable = toDisposable(() => { disposed = true; });
+			const factory = () => ({
+				domNode: $('div.test-item'),
+				disposable: eagerDisposable,
+			});
+
+			// Append while collapsed
+			part.appendItem(factory, 'test-tool', undefined, undefined, undefined, eagerDisposable);
+
+			// Expand to trigger factory call
+			const button = part.domNode.querySelector('.monaco-button') as HTMLElement;
+			button?.click();
+
+			assert.strictEqual(disposed, false, 'Should not be disposed yet');
+
+			// Dispose
+			part.domNode.remove();
+			part.dispose();
+
+			assert.strictEqual(disposed, true, 'eagerDisposable should be disposed even after being materialized');
+		});
+
+		test('appendItem without eagerDisposable disposes factory result on thinking part disposal', () => {
+			const content = createThinkingPart('**Working**\nSome detailed analysis');
+			const context = createMockRenderContext(false);
+
+			const part = instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				false
+			);
+
+			mainWindow.document.body.appendChild(part.domNode);
+
+			// Expand first so factory is called immediately
+			const button = part.domNode.querySelector('.monaco-button') as HTMLElement;
+			button?.click();
+
+			let disposed = false;
+			const factory = () => ({
+				domNode: $('div.test-item'),
+				disposable: toDisposable(() => { disposed = true; }),
+			});
+
+			part.appendItem(factory, 'test-tool');
+
+			assert.strictEqual(disposed, false, 'Should not be disposed yet');
+
+			part.domNode.remove();
+			part.dispose();
+
+			assert.strictEqual(disposed, true, 'Factory disposable should be disposed with thinking part');
 		});
 	});
 });
