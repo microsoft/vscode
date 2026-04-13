@@ -1201,6 +1201,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		);
 
 		const didSandboxWrapCommand = toolSpecificData.commandLine.isSandboxWrapped === true;
+		const isSandboxEnabled = await this._terminalSandboxService.isEnabled();
+		const commandLineForMetadata = isSandboxEnabled
+			? toolSpecificData.commandLine.forDisplay ?? toolSpecificData.commandLine.original
+			: undefined;
 
 		if (token.isCancellationRequested) {
 			throw new CancellationError();
@@ -1331,7 +1335,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}));
 
 			// Start execution (non-blocking - runs in background)
-			executionPromise = execution.start(command, executeCancellation.token, commandId);
+			executionPromise = execution.start(command, executeCancellation.token, commandId, commandLineForMetadata);
 
 			if (executionOptions.waitStrategy === 'idle') {
 				this._logService.debug(`RunInTerminalTool: Starting persistent execution with idle wait strategy \`${command}\``);
@@ -2357,9 +2361,9 @@ class ActiveTerminalExecution extends Disposable implements IActiveTerminalExecu
 	 * @param commandId Optional command ID for linking
 	 * @returns The execution result
 	 */
-	async start(commandLine: string, token: CancellationToken, commandId?: string): Promise<ITerminalExecuteStrategyResult> {
+	async start(commandLine: string, token: CancellationToken, commandId?: string, commandLineForMetadata?: string): Promise<ITerminalExecuteStrategyResult> {
 		try {
-			const result = await this.strategy.execute(commandLine, token, commandId);
+			const result = await this.strategy.execute(commandLine, token, commandId, commandLineForMetadata);
 			this._completionDeferred.complete(result);
 			return result;
 		} catch (e) {
