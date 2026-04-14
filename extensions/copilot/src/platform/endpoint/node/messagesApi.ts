@@ -225,7 +225,6 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 		...messagesResult,
 		stream: true,
 		tools: finalTools.length > 0 ? finalTools : undefined,
-		top_p: options.postOptions.top_p,
 		max_tokens: options.postOptions.max_tokens,
 		thinking: thinkingConfig,
 		...(effort ? { output_config: { effort } } : {}),
