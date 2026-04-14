@@ -1769,6 +1769,13 @@ export class CodeApplication extends Disposable {
 			return;
 		}
 
+		const stateKey = 'launchServices.registeredEmbeddedApp';
+		const currentVersion = this.productService.version;
+		if (this.stateService.getItem<string>(stateKey) === currentVersion) {
+			this.logService.trace('Embedded app already registered with Launch Services for this version, skipping.');
+			return;
+		}
+
 		// appRoot points to Contents/Resources/app on macOS
 		const embeddedAppPath = join(this.environmentMainService.appRoot, '..', '..', 'Applications', `${this.productService.embedded.nameLong}.app`);
 		const lsregister = '/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister';
@@ -1776,6 +1783,8 @@ export class CodeApplication extends Disposable {
 		const child = execFile(lsregister, ['-f', embeddedAppPath], { timeout: 30_000 }, (error) => {
 			if (error) {
 				this.logService.error('Failed to register embedded app with Launch Services:', error.message);
+			} else {
+				this.stateService.setItem(stateKey, currentVersion);
 			}
 		});
 		child.unref();
