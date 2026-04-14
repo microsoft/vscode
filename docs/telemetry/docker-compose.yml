@@ -1,0 +1,116 @@
+services:
+  elasticsearch:
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/elasticsearch:8.17.3-linuxarm64
+    container_name: elasticsearch
+    environment:
+      - TZ=Asia/Shanghai
+      - ELASTIC_PASSWORD=Admin@123456
+      - discovery.type=single-node
+      - cluster.name=tscode-telemetry-cluster
+      - node.name=node-1
+      - xpack.ml.enabled=false
+      - xpack.security.enabled=true
+      - xpack.security.http.ssl.enabled=false
+      - xpack.security.transport.ssl.enabled=false
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - elk
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f -u elastic:Admin@123456 http://localhost:9200/_cluster/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  es-setup:
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/elasticsearch:8.17.3-linuxarm64
+    container_name: es-setup
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    networks:
+      - elk
+    environment:
+      - ELASTIC_PASSWORD=Admin@123456
+      - LOGSTASH_PASSWORD=Logstash@123456
+      - VIEWER_PASSWORD=Viewer@123456
+    entrypoint: ["bash", "-c"]
+    command:
+      - |
+        echo "=== 设置 kibana_system 密码 ===" &&
+        curl -s -X POST -u elastic:$$ELASTIC_PASSWORD -H "Content-Type: application/json" http://elasticsearch:9200/_security/user/kibana_system/_password -d '{"password":"Kibana@123456"}' &&
+        echo "=== 创建 logstash_writer 角色 ===" &&
+        curl -s -X PUT -u elastic:$$ELASTIC_PASSWORD -H "Content-Type: application/json" http://elasticsearch:9200/_security/role/logstash_writer -d '{"cluster":["monitor","manage_index_templates"],"indices":[{"names":["tscode-telemetry-*"],"privileges":["create_index","create","index","write","manage"]}]}' &&
+        echo "=== 创建 logstash_user 用户 ===" &&
+        curl -s -X PUT -u elastic:$$ELASTIC_PASSWORD -H "Content-Type: application/json" http://elasticsearch:9200/_security/user/logstash_user -d "{\"password\":\"$$LOGSTASH_PASSWORD\",\"roles\":[\"logstash_writer\"],\"full_name\":\"Logstash Writer\"}" &&
+        echo "=== 创建 telemetry_viewer 角色 ===" &&
+        curl -s -X PUT -u elastic:$$ELASTIC_PASSWORD -H "Content-Type: application/json" http://elasticsearch:9200/_security/role/telemetry_viewer -d '{"cluster":["monitor"],"indices":[{"names":["tscode-telemetry-*"],"privileges":["read","view_index_metadata"]}],"applications":[{"application":"kibana-.kibana","privileges":["read"],"resources":["*"]}]}' &&
+        echo "=== 创建 viewer 访客用户 ===" &&
+        curl -s -X PUT -u elastic:$$ELASTIC_PASSWORD -H "Content-Type: application/json" http://elasticsearch:9200/_security/user/viewer -d "{\"password\":\"$$VIEWER_PASSWORD\",\"roles\":[\"telemetry_viewer\"],\"full_name\":\"Telemetry Viewer\"}" &&
+        echo "=== 初始化完成 ==="
+    restart: "no"
+
+  logstash:
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/logstash:8.17.3-linuxarm64
+    container_name: logstash
+    user: root
+    environment:
+      - TZ=Asia/Shanghai
+      - ES_HOSTS=http://elasticsearch:9200
+      - ES_USER=logstash_user
+      - ES_PASSWORD=Logstash@123456
+    volumes:
+      - ./logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "8080:8080"
+      - "8081:8081"
+      - "9600:9600"
+    networks:
+      - elk
+    depends_on:
+      es-setup:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9600 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  kibana:
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/kibana:8.17.3-linuxarm64
+    container_name: kibana
+    environment:
+      - I18N_LOCALE=zh-CN
+      - SERVER_NAME=kibana
+      - SERVER_HOST=0.0.0.0
+      - TZ=Asia/Shanghai
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+      - ELASTICSEARCH_USERNAME=kibana_system
+      - ELASTICSEARCH_PASSWORD=Kibana@123456
+    volumes:
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "5601:5601"
+    networks:
+      - elk
+    depends_on:
+      es-setup:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:5601/api/status || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+volumes:
+  elasticsearch-data:
+    driver: local
+
+networks:
+  elk:
+    driver: bridge
