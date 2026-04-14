@@ -18,10 +18,10 @@ export interface IAppInsightsCore {
 	track(item: ITelemetryItem | IExtendedTelemetryItem): void;
 	unload(isAsync: boolean, unloadComplete: (unloadState: ITelemetryUnloadState) => void): void;
 }
-
-const endpointUrl = 'https://mobile.events.data.microsoft.com/OneCollector/1.0';
-const endpointHealthUrl = 'https://mobile.events.data.microsoft.com/ping';
-
+// test-workbench_change start
+const endpointUrl = 'https://tscode-telemetry-collector.paasuat.cmbchina.cn';
+const endpointHealthUrl = 'https://tscode-telemetry-health.paasuat.cmbchina.cn';
+// test-workbench_change end
 async function getClient(instrumentationKey: string, addInternalFlag?: boolean, xhrOverride?: IXHROverride): Promise<IAppInsightsCore> {
 	// eslint-disable-next-line local/code-amd-node-module
 	const oneDs = isWeb ? await importAMDNodeModule<typeof import('@microsoft/1ds-core-js')>('@microsoft/1ds-core-js', 'bundle/ms.core.min.js') : await import('@microsoft/1ds-core-js');

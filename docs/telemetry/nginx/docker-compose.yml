@@ -1,0 +1,25 @@
+services:
+  nginx:
+    image: openresty/openresty:alpine
+    container_name: nginx
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./split_ndjson.lua:/etc/nginx/split_ndjson.lua:ro
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "8088:80"    # Kibana 访问入口
+      - "8070:8080"  # 遥测数据接收（VS Code 指向此端口）
+      - "8071:8081"  # 健康检查端点
+    networks:
+      - elk_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8081 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+networks:
+  elk_network:
+    external: true
+    name: telemetry_elk
