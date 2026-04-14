@@ -30,6 +30,7 @@ import { IClaudeCodeSessionService } from '../../claude/node/sessionParser/claud
 import { IClaudeCodeSessionInfo } from '../../claude/node/sessionParser/claudeSessionSchema';
 import { IClaudeSlashCommandService } from '../../claude/vscode-node/claudeSlashCommandService';
 import { FolderRepositoryMRUEntry, IFolderRepositoryManager } from '../../common/folderRepositoryManager';
+import { IChatSessionWorktreeService } from '../../common/chatSessionWorktreeService';
 import { ClaudeChatSessionContentProvider, ClaudeChatSessionItemController } from '../claudeChatSessionContentProvider';
 
 // Expose the most recently created items map so tests can inspect controller items.
@@ -71,6 +72,7 @@ beforeAll(() => {
 				refreshHandler: () => Promise.resolve(),
 				dispose: () => { },
 				onDidArchiveChatSessionItem: () => ({ dispose: () => { } }),
+				onDidChangeChatSessionItemState: Event.None,
 			};
 		},
 	};
@@ -183,6 +185,23 @@ function createProviderWithServices(
 		_serviceBrand: undefined,
 		tryHandleCommand: vi.fn().mockResolvedValue({ handled: false }),
 		getRegisteredCommands: vi.fn().mockReturnValue([]),
+	});
+	serviceCollection.define(IChatSessionWorktreeService, {
+		_serviceBrand: undefined,
+		createWorktree: vi.fn().mockResolvedValue(undefined),
+		getWorktreeProperties: vi.fn().mockResolvedValue(undefined),
+		setWorktreeProperties: vi.fn().mockResolvedValue(undefined),
+		getWorktreePath: vi.fn().mockResolvedValue(undefined),
+		getWorktreeRepository: vi.fn().mockResolvedValue(undefined),
+		applyWorktreeChanges: vi.fn().mockResolvedValue(undefined),
+		handleRequestCompleted: vi.fn().mockResolvedValue(undefined),
+		handleRequestCompletedForWorktree: vi.fn().mockResolvedValue(undefined),
+		getAdditionalWorktreeProperties: vi.fn().mockResolvedValue([]),
+		setAdditionalWorktreeProperties: vi.fn().mockResolvedValue(undefined),
+		cleanupWorktreeOnArchive: vi.fn().mockResolvedValue({ cleaned: false }),
+		recreateWorktreeOnUnarchive: vi.fn().mockResolvedValue({ recreated: false }),
+		getSessionIdForWorktree: vi.fn().mockResolvedValue(undefined),
+		getWorktreeChanges: vi.fn().mockResolvedValue(undefined),
 	});
 	serviceCollection.define(IClaudeCodeSdkService, {
 		_serviceBrand: undefined,

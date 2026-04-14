@@ -27,7 +27,8 @@ import { IClaudeSessionStateService } from '../claude/common/claudeSessionStateS
 import { IClaudeCodeSessionService } from '../claude/node/sessionParser/claudeCodeSessionService';
 import { IClaudeCodeSessionInfo } from '../claude/node/sessionParser/claudeSessionSchema';
 import { IClaudeSlashCommandService } from '../claude/vscode-node/claudeSlashCommandService';
-import { FolderRepositoryMRUEntry, IFolderRepositoryManager } from '../common/folderRepositoryManager';
+import { IChatSessionWorktreeService } from '../common/chatSessionWorktreeService';
+import { FolderRepositoryMRUEntry, IFolderRepositoryManager, IsolationMode } from '../common/folderRepositoryManager';
 import { buildChatHistory } from './chatHistoryBuilder';
 
 const permissionModes: ReadonlySet<string> = new Set<PermissionMode>(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'dontAsk']);
@@ -44,6 +45,7 @@ import '../claude/vscode-node/mcpServers/index';
 
 const PERMISSION_MODE_OPTION_ID = 'permissionMode';
 const FOLDER_OPTION_ID = 'folder';
+const ISOLATION_MODE_OPTION_ID = 'isolation';
 const MAX_MRU_ENTRIES = 10;
 
 export class ClaudeChatSessionContentProvider extends Disposable implements vscode.ChatSessionContentProvider {
@@ -57,6 +59,14 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 	private _lastUsedPermissionMode: PermissionMode = 'acceptEdits';
 
 	private readonly _controller: ClaudeChatSessionItemController;
+
+	/**
+	 * Exposes the session item controller for lifecycle event subscription (e.g., archive/unarchive).
+	 */
+	get controller(): ClaudeChatSessionItemController {
+		return this._controller;
+	}
+
 	constructor(
 		private readonly claudeAgentManager: ClaudeAgentManager,
 		@IClaudeCodeSessionService private readonly sessionService: IClaudeCodeSessionService,
@@ -64,11 +74,12 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IClaudeSlashCommandService private readonly slashCommandService: IClaudeSlashCommandService,
 		@IFolderRepositoryManager private readonly folderRepositoryManager: IFolderRepositoryManager,
+		@IChatSessionWorktreeService private readonly worktreeService: IChatSessionWorktreeService,
 		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
 		@INativeEnvService private readonly envService: INativeEnvService,
 		@IGitService gitService: IGitService,
 		@IClaudeCodeSdkService sdkService: IClaudeCodeSdkService,
-		@ILogService logService: ILogService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 		this._controller = this._register(new ClaudeChatSessionItemController(sessionService, workspaceService, gitService, sdkService, logService));
@@ -110,11 +121,21 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 	/**
 	 * Resolves the cwd and additionalDirectories for a session.
 	 *
+	 * - If the session has a worktree, cwd is the worktree path
 	 * - Single-root workspace: cwd is the one folder, no additionalDirectories
 	 * - Multi-root workspace: cwd is the selected folder, additionalDirectories are the rest
 	 * - Empty workspace: cwd is the selected MRU folder, no additionalDirectories
 	 */
 	public async getFolderInfoForSession(sessionId: string): Promise<ClaudeFolderInfo> {
+		// Check if this session has a worktree — use it as cwd if so
+		const worktreeProperties = await this.worktreeService.getWorktreeProperties(sessionId);
+		if (worktreeProperties) {
+			return {
+				cwd: worktreeProperties.worktreePath,
+				additionalDirectories: [],
+			};
+		}
+
 		const workspaceFolders = this.workspaceService.getWorkspaceFolders();
 
 		if (workspaceFolders.length === 1) {
@@ -157,6 +178,51 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 			cwd: this.envService.userHome.fsPath,
 			additionalDirectories: [],
 		};
+	}
+
+	/**
+	 * Initializes a worktree for a new Claude session if isolation mode is 'worktree'.
+	 * This must be called during request handling (where stream and toolInvocationToken are available).
+	 *
+	 * @returns `true` if the request should continue, `false` if it should abort
+	 * (e.g., user cancelled the uncommitted-changes prompt or denied trust).
+	 */
+	private async _initializeWorktreeForNewSession(
+		sessionId: string,
+		stream: vscode.ChatResponseStream,
+		toolInvocationToken: vscode.ChatParticipantToolToken,
+		token: vscode.CancellationToken
+	): Promise<boolean> {
+		const isolationMode = this._controller.getMetadata(sessionId)?.isolationMode;
+		if (isolationMode !== IsolationMode.Worktree) {
+			return true;
+		}
+
+		const selectedFolder = this._controller.getMetadata(sessionId)?.cwd;
+		const workspaceFolders = this.workspaceService.getWorkspaceFolders();
+		const folder = selectedFolder ?? (workspaceFolders.length === 1 ? workspaceFolders[0] : undefined);
+
+		const folderInfo = await this.folderRepositoryManager.initializeFolderRepository(
+			sessionId,
+			{
+				stream,
+				toolInvocationToken,
+				isolation: IsolationMode.Worktree,
+				folder,
+			},
+			token
+		);
+
+		if (folderInfo.cancelled || folderInfo.trusted === false) {
+			return false;
+		}
+
+		if (folderInfo.worktreeProperties) {
+			await this.worktreeService.setWorktreeProperties(sessionId, folderInfo.worktreeProperties);
+			this.logService.info(`[Claude] Created worktree for session ${sessionId}: ${folderInfo.worktreeProperties.worktreePath}`);
+		}
+
+		return true;
 	}
 
 	// #region Folder Option Helpers
@@ -239,6 +305,14 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 			const existingSession = await this.sessionService.getSession(sessionUri, token);
 			const isNewSession = !existingSession;
 
+			// Initialize worktree for new sessions with worktree isolation
+			if (isNewSession) {
+				const shouldContinue = await this._initializeWorktreeForNewSession(effectiveSessionId, stream, request.toolInvocationToken, token);
+				if (token.isCancellationRequested || !shouldContinue) {
+					return {};
+				}
+			}
+
 			const modelId = parseClaudeModelId(request.model.id);
 			const permissionMode = this.getPermissionModeForSession(effectiveSessionId);
 			const folderInfo = await this.getFolderInfoForSession(effectiveSessionId);
@@ -257,6 +331,15 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 			this._controller.updateItemStatus(effectiveSessionId, vscode.ChatSessionStatus.InProgress, prompt);
 			const result = await this.claudeAgentManager.handleRequest(effectiveSessionId, request, context, stream, token, isNewSession, yieldRequested);
 			this._controller.updateItemStatus(effectiveSessionId, vscode.ChatSessionStatus.Completed, prompt);
+
+			// Auto-commit worktree changes after successful, non-cancelled turns
+			if (!token.isCancellationRequested) {
+				try {
+					await this.worktreeService.handleRequestCompleted(effectiveSessionId);
+				} catch (error) {
+					this.logService.error(error instanceof Error ? error : new Error(String(error)), `[Claude] Failed to handle worktree request completion for session ${effectiveSessionId}`);
+				}
+			}
 
 			// Clear usage handler after request completes
 			this.sessionStateService.setUsageHandlerForSession(effectiveSessionId, undefined);
@@ -285,6 +368,15 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 				name: l10n.t('Permission Mode'),
 				description: l10n.t('Pick Permission Mode'),
 				items: permissionModeItems,
+			},
+			{
+				id: ISOLATION_MODE_OPTION_ID,
+				name: l10n.t('Isolation'),
+				description: l10n.t('Pick Isolation Mode'),
+				items: [
+					{ id: IsolationMode.Worktree, name: l10n.t('Worktree') },
+					{ id: IsolationMode.Workspace, name: l10n.t('Workspace') },
+				],
 			}
 		];
 
@@ -311,6 +403,7 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 		const newSessionOptions: Record<string, string | vscode.ChatSessionProviderOptionItem> = {};
 
 		newSessionOptions[PERMISSION_MODE_OPTION_ID] = this._lastUsedPermissionMode;
+		newSessionOptions[ISOLATION_MODE_OPTION_ID] = IsolationMode.Worktree;
 
 		if (workspaceFolders.length !== 1) {
 			const defaultFolder = await this._getDefaultFolder();
@@ -337,6 +430,10 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 			} else if (update.optionId === FOLDER_OPTION_ID && typeof update.value === 'string') {
 				this._controller.setMetadata(sessionId, { cwd: URI.file(update.value) });
 				hadUpdate = true;
+			} else if (update.optionId === ISOLATION_MODE_OPTION_ID && typeof update.value === 'string') {
+				const isolationMode = update.value === IsolationMode.Worktree ? IsolationMode.Worktree : IsolationMode.Workspace;
+				this._controller.setMetadata(sessionId, { isolationMode });
+				hadUpdate = true;
 			}
 		}
 		if (hadUpdate) {
@@ -355,6 +452,24 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 
 		const options: Record<string, string | vscode.ChatSessionProviderOptionItem> = {};
 		options[PERMISSION_MODE_OPTION_ID] = permissionMode;
+
+		// For existing sessions with worktree, lock the isolation option
+		const worktreeProperties = await this.worktreeService.getWorktreeProperties(sessionId);
+		if (existingSession && worktreeProperties) {
+			options[ISOLATION_MODE_OPTION_ID] = {
+				id: IsolationMode.Worktree,
+				name: l10n.t('Worktree'),
+				locked: true,
+			};
+		} else if (existingSession) {
+			options[ISOLATION_MODE_OPTION_ID] = {
+				id: IsolationMode.Workspace,
+				name: l10n.t('Workspace'),
+				locked: true,
+			};
+		} else {
+			options[ISOLATION_MODE_OPTION_ID] = IsolationMode.Worktree;
+		}
 
 		// Include folder option if applicable (multi-root or empty workspace)
 		const workspaceFolders = this.workspaceService.getWorkspaceFolders();
@@ -404,6 +519,13 @@ export class ClaudeChatSessionItemController extends Disposable {
 	private readonly _inProgressItems = new Map<string, vscode.ChatSessionItem>();
 	private _showBadge: boolean;
 
+	/**
+	 * Fired when an item's archived state changes.
+	 */
+	get onDidChangeChatSessionItemState() {
+		return this._controller.onDidChangeChatSessionItemState;
+	}
+
 	constructor(
 		@IClaudeCodeSessionService private readonly _claudeCodeSessionService: IClaudeCodeSessionService,
 		@IWorkspaceService private readonly _workspaceService: IWorkspaceService,
@@ -434,9 +556,14 @@ export class ClaudeChatSessionItemController extends Disposable {
 				: folderOptionValue?.id
 					? URI.file(folderOptionValue.id)
 					: undefined;
+			const isolationOptionValue = context.sessionOptions?.find(o => o.optionId === ISOLATION_MODE_OPTION_ID)?.value;
+			const isolationMode = (typeof isolationOptionValue === 'string' ? isolationOptionValue : isolationOptionValue?.id) === IsolationMode.Worktree
+				? IsolationMode.Worktree
+				: IsolationMode.Workspace;
 			item.metadata = {
 				permissionMode,
 				cwd: folder,
+				isolationMode,
 			};
 			this._controller.items.add(item);
 			return item;
@@ -496,18 +623,19 @@ export class ClaudeChatSessionItemController extends Disposable {
 		}));
 	}
 
-	setMetadata(sessionId: string, metadata: Partial<{ permissionMode: PermissionMode; cwd?: URI }>): void {
+	setMetadata(sessionId: string, metadata: Partial<{ permissionMode: PermissionMode; cwd?: URI; isolationMode?: IsolationMode }>): void {
 		const item = this._controller.items.get(ClaudeSessionUri.forSessionId(sessionId));
 		if (item) {
 			item.metadata = {
 				...item.metadata,
 				permissionMode: metadata.permissionMode ?? item.metadata?.permissionMode,
 				cwd: metadata.cwd ?? item.metadata?.cwd,
+				isolationMode: metadata.isolationMode ?? item.metadata?.isolationMode,
 			};
 		}
 	}
 
-	getMetadata(sessionId: string): { permissionMode?: PermissionMode; cwd?: URI } | undefined {
+	getMetadata(sessionId: string): { permissionMode?: PermissionMode; cwd?: URI; isolationMode?: IsolationMode } | undefined {
 		const candidate = this._controller.items.get(ClaudeSessionUri.forSessionId(sessionId));
 		if (candidate) {
 			if (candidate.metadata?.permissionMode !== undefined && !isPermissionMode(candidate.metadata.permissionMode)) {
@@ -515,6 +643,7 @@ export class ClaudeChatSessionItemController extends Disposable {
 				candidate.metadata = {
 					permissionMode: 'acceptEdits',
 					cwd: candidate.metadata?.cwd,
+					isolationMode: candidate.metadata?.isolationMode,
 				};
 			}
 			if (candidate.metadata?.cwd && !(URI.isUri(candidate.metadata.cwd))) {
@@ -522,11 +651,13 @@ export class ClaudeChatSessionItemController extends Disposable {
 				candidate.metadata = {
 					permissionMode: candidate.metadata.permissionMode,
 					cwd: undefined,
+					isolationMode: candidate.metadata?.isolationMode,
 				};
 			}
 			return {
 				permissionMode: candidate.metadata?.permissionMode,
 				cwd: candidate.metadata?.cwd,
+				isolationMode: candidate.metadata?.isolationMode,
 			};
 		}
 	}

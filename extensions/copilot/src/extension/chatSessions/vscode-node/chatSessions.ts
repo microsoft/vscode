@@ -157,6 +157,28 @@ export class ChatSessionsContrib extends Disposable implements IExtensionContrib
 		const claudeCustomizationProvider = this._register(claudeAgentInstaService.createInstance(ClaudeCustomizationProvider));
 		this._register(vscode.chat.registerChatSessionCustomizationProvider(ClaudeSessionUri.scheme, ClaudeCustomizationProvider.metadata, claudeCustomizationProvider));
 
+		// Handle worktree cleanup/recreation when Claude session archive state changes
+		const claudeWorktreeService = claudeAgentInstaService.invokeFunction(accessor => accessor.get(IChatSessionWorktreeService));
+		const claudeController = chatSessionContentProvider.controller;
+		this._register(claudeController.onDidChangeChatSessionItemState(async (item) => {
+			const sessionId = ClaudeSessionUri.getSessionId(item.resource);
+			if (item.archived) {
+				try {
+					const result = await claudeWorktreeService.cleanupWorktreeOnArchive(sessionId);
+					logService.trace(`[Claude] Worktree cleanup for session ${sessionId}: ${result.cleaned ? 'cleaned' : result.reason}`);
+				} catch (error) {
+					logService.error(error as Error, `[Claude] Failed to cleanup worktree for archived session ${sessionId}`);
+				}
+			} else {
+				try {
+					const result = await claudeWorktreeService.recreateWorktreeOnUnarchive(sessionId);
+					logService.trace(`[Claude] Worktree recreation for session ${sessionId}: ${result.recreated ? 'recreated' : result.reason}`);
+				} catch (error) {
+					logService.error(error as Error, `[Claude] Failed to recreate worktree for unarchived session ${sessionId}`);
+				}
+			}
+		}));
+
 		// #endregion
 
 		// #endregion
