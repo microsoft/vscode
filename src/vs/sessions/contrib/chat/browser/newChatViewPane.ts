@@ -235,7 +235,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		// Create initial session — wait for providers if none registered yet
 		const restoredProject = this._workspacePicker.selectedProject;
 		if (restoredProject) {
-			if (this.sessionsProvidersService.getProviders().length > 0 && this._sessionTypePicker.selectedType) {
+			if (this.sessionsProvidersService.getProviders().length > 0) {
 				this._createNewSession(restoredProject, this._sessionTypePicker.selectedType);
 			} else {
 				// Providers not yet registered (startup race) — wait for first registration
