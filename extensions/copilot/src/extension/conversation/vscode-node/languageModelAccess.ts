@@ -627,6 +627,16 @@ export class CopilotLanguageModelWrapper extends Disposable {
 		// This links the wrapper's chat span back to the original invoke_agent trace.
 		const parentTraceContext = (_options as { modelOptions?: OTelModelOptions }).modelOptions?._otelTraceContext ?? undefined;
 
+		// DEBUG: Log the last two assistant messages as sent to the LLM
+		const assistantMessages = messages.filter(m => m.role === 'assistant');
+		const lastTwoAssistant = assistantMessages.slice(-2);
+		if (lastTwoAssistant.length > 0) {
+			console.log('[LLM-DEBUG] Last two assistant messages sent to LLM:');
+			for (const msg of lastTwoAssistant) {
+				console.log(JSON.stringify(msg, null, 2));
+			}
+		}
+
 		const makeRequest = () => endpoint.makeChatRequest2({
 			debugName: 'copilotLanguageModelWrapper',
 			messages,
