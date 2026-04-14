@@ -8,8 +8,7 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageRequest, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, BrowserNewPageLocation, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex } from '../common/browserView.js';
-import { IElementData } from '../../browserElements/common/browserElements.js';
+import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageRequest, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, BrowserNewPageLocation, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IElementData } from '../common/browserView.js';
 import { BrowserViewElementInspector } from './browserViewElementInspector.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { ICodeWindow } from '../../window/electron-main/window.js';
@@ -141,7 +140,10 @@ export class BrowserView extends Disposable implements ICDPTarget {
 
 					// Return the webContents so Electron can complete the window.open() call
 					return childView.webContents;
-				}
+				},
+
+				// We want the standard browser behavior as opposed to Electron's default of closing the new window when the parent is closed
+				outlivesOpener: true
 			};
 		});
 
@@ -236,7 +238,11 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		// Loading state events
 		webContents.on('did-start-loading', () => {
 			this._lastError = undefined;
-			fireLoadingEvent(true);
+
+			// Don't fire loading events for e.g. same-document navigations
+			if (webContents.isLoadingMainFrame()) {
+				fireLoadingEvent(true);
+			}
 		});
 		webContents.on('did-stop-loading', () => fireLoadingEvent(false));
 		webContents.on('did-fail-load', (e, errorCode, errorDescription, validatedURL, isMainFrame) => {

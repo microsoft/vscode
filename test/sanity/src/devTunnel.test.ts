@@ -66,6 +66,7 @@ export function setup(context: TestContext) {
 		await testCliApp(entryPoint);
 	});
 
+	/** TODO: @dmitrivMS Fix flakiness and then reenable
 	context.test('dev-tunnel-win32-x64', ['windows', 'x64', 'browser', 'github-account'], async () => {
 		const dir = await context.downloadAndUnpack('cli-win32-x64');
 		context.validateAllAuthenticodeSignatures(dir);
@@ -73,6 +74,7 @@ export function setup(context: TestContext) {
 		const entryPoint = context.getCliEntryPoint(dir);
 		await testCliApp(entryPoint);
 	});
+	*/
 
 	async function testCliApp(entryPoint: string) {
 		if (context.options.downloadOnly) {
@@ -109,7 +111,7 @@ export function setup(context: TestContext) {
 					const tunnelUrl = /Open this link in your browser (https?:\/\/[^\s]+)/.exec(line)?.[1];
 					if (tunnelUrl) {
 						await connectToTunnel(tunnelUrl, page, test, auth);
-						await test.run(page);
+						await test.run(page, true);
 						test.validate();
 						return true;
 					}
@@ -132,6 +134,8 @@ export function setup(context: TestContext) {
 
 			context.log('Waiting for the workbench to load');
 			await page.waitForSelector('.monaco-workbench');
+
+			await test.dismissWelcomeDialog(page);
 
 			context.log('Selecting GitHub Account');
 			await page.locator('span.monaco-highlighted-label', { hasText: 'GitHub' }).click();

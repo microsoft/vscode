@@ -5,7 +5,7 @@
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
-import { IElementData, IElementAncestor } from '../../browserElements/common/browserElements.js';
+import { IElementData, IElementAncestor } from '../common/browserView.js';
 import { ICDPConnection } from '../common/cdp/types.js';
 import type { BrowserView } from './browserView.js';
 
@@ -82,7 +82,7 @@ export class BrowserViewElementInspector extends Disposable {
 
 	private readonly _connectionPromise: Promise<ICDPConnection>;
 
-	constructor(browser: BrowserView) {
+	constructor(private readonly browser: BrowserView) {
 		super();
 
 		this._connectionPromise = browser.attach().then(
@@ -136,7 +136,10 @@ export class BrowserViewElementInspector extends Disposable {
 
 				try {
 					const nodeData = await extractNodeData(connection, { backendNodeId: params.backendNodeId });
-					resolve(nodeData);
+					resolve({
+						...nodeData,
+						url: this.browser.getURL()
+					});
 				} catch (err) {
 					reject(err);
 				}
@@ -179,7 +182,11 @@ export class BrowserViewElementInspector extends Disposable {
 			return undefined;
 		}
 
-		return extractNodeData(connection, { objectId: result.objectId });
+		const nodeData = await extractNodeData(connection, { objectId: result.objectId });
+		return {
+			...nodeData,
+			url: this.browser.getURL()
+		};
 	}
 
 	async getVisualViewportScale(): Promise<number> {

@@ -51,6 +51,8 @@ function createMockPromptsService(instructionFiles: IFixtureInstructionFile[], a
 		override readonly onDidChangeCustomAgents = Event.None;
 		override readonly onDidChangeSlashCommands = Event.None;
 		override readonly onDidChangeSkills = Event.None;
+		override readonly onDidChangeInstructions = Event.None;
+		override readonly onDidChangeHooks = Event.None;
 		override getDisabledPromptFiles(): ResourceSet { return new ResourceSet(); }
 		override async listPromptFiles(type: PromptsType) {
 			if (type === PromptsType.instructions) {
@@ -60,6 +62,15 @@ function createMockPromptsService(instructionFiles: IFixtureInstructionFile[], a
 		}
 		override async listAgentInstructions() { return agentInstructionFiles; }
 		override async getCustomAgents() { return []; }
+		override async getInstructionFiles() {
+			return instructionFiles.map(f => ({
+				uri: f.promptPath.uri,
+				name: f.name ?? '',
+				description: f.description,
+				storage: f.promptPath.storage,
+				pattern: f.applyTo,
+			}));
+		}
 		override async parseNew(uri: URI): Promise<ParsedPromptFile> {
 			const file = instructionFiles.find(f => isEqual(f.promptPath.uri, uri));
 			const headerLines = [];
@@ -90,6 +101,9 @@ function createMockWorkspaceService(): IAICustomizationWorkspaceService {
 	const activeProjectRoot = observableValue<URI | undefined>('mockActiveProjectRoot', URI.file('/workspace'));
 	return new class extends mock<IAICustomizationWorkspaceService>() {
 		override readonly isSessionsWindow = false;
+		override readonly welcomePageFeatures = {
+			showGettingStartedBanner: true,
+		};
 		override readonly activeProjectRoot = activeProjectRoot;
 		override readonly hasOverrideProjectRoot = observableValue('hasOverride', false);
 		override getActiveProjectRoot() { return URI.file('/workspace'); }
@@ -144,9 +158,9 @@ async function renderInstructionsTab(ctx: ComponentFixtureContext, instructionFi
 	const instantiationService = createEditorServices(ctx.disposableStore, {
 		colorTheme: ctx.theme,
 		additionalServices: (reg) => {
+			registerWorkbenchServices(reg);
 			reg.defineInstance(IContextMenuService, contextMenuService);
 			reg.defineInstance(IContextViewService, contextViewService);
-			registerWorkbenchServices(reg);
 			reg.define(IListService, ListService);
 			reg.defineInstance(IPromptsService, createMockPromptsService(instructionFiles, agentInstructionFiles));
 			reg.defineInstance(IAICustomizationWorkspaceService, createMockWorkspaceService());

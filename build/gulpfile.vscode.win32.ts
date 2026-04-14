@@ -128,6 +128,7 @@ function buildWin32Setup(arch: string, target: string): task.CallbackTask {
 			definitions['ProxyAppUserId'] = embedded.win32AppUserModelId;
 			definitions['ProxyNameLong'] = embedded.nameLong;
 			definitions['ProxyExeUrlProtocol'] = embedded.urlProtocol;
+			definitions['ProxyMutex'] = embedded.win32MutexName;
 		}
 
 		if (quality === 'stable' || quality === 'insider') {

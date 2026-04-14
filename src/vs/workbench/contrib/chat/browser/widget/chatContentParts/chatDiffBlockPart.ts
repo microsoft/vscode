@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken } from '../../../../../../base/common/cancellation.js';
+import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { hashAsync } from '../../../../../../base/common/hash.js';
-import { Disposable, IReference, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, IReference, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../../../base/common/network.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
@@ -122,15 +122,50 @@ export class MarkdownDiffBlockPart extends Disposable {
 
 		const languageSelection = this.languageService.createById(data.languageId);
 
-		// Create the models
-		this._register(this.modelService.createModel(data.beforeContent, languageSelection, originalUri, false));
-		this._register(this.modelService.createModel(data.afterContent, languageSelection, modifiedUri, false));
+		const originalModel = this.modelService.createModel(data.beforeContent, languageSelection, originalUri, false);
+		const modifiedModel = this.modelService.createModel(data.afterContent, languageSelection, modifiedUri, false);
+		const cts = new CancellationTokenSource();
+		let referencesSettled = false;
+		let disposeRequested = false;
+		let didDisposeModels = false;
+		const disposeModels = () => {
+			if (didDisposeModels) {
+				return;
+			}
+
+			didDisposeModels = true;
+			originalModel.dispose();
+			modifiedModel.dispose();
+		};
+		this._register(toDisposable(() => {
+			disposeRequested = true;
+			cts.dispose(true);
+			if (referencesSettled) {
+				disposeModels();
+			}
+		}));
 
 		const modelsPromise = Promise.all([
 			this.textModelService.createModelReference(originalUri),
 			this.textModelService.createModelReference(modifiedUri)
 		]).then(([originalRef, modifiedRef]) => {
-			return new SimpleDiffEditorModel(originalRef, modifiedRef);
+			referencesSettled = true;
+			const model = new SimpleDiffEditorModel(originalRef, modifiedRef);
+			if (disposeRequested) {
+				model.dispose();
+				disposeModels();
+				return undefined;
+			}
+
+			return model;
+		}, error => {
+			referencesSettled = true;
+			disposeModels();
+			if (disposeRequested) {
+				return undefined;
+			}
+
+			throw error;
 		});
 
 		const compareData: ICodeCompareBlockData = {
@@ -144,6 +179,10 @@ export class MarkdownDiffBlockPart extends Disposable {
 				done: true
 			},
 			diffData: modelsPromise.then(async model => {
+				if (!model) {
+					return undefined;
+				}
+
 				this.modelRef.value = model;
 				const diffData: ICodeCompareBlockDiffData = {
 					original: model.original,
@@ -154,7 +193,7 @@ export class MarkdownDiffBlockPart extends Disposable {
 			})
 		};
 
-		this.comparePart.object.render(compareData, currentWidth, CancellationToken.None);
+		this.comparePart.object.render(compareData, currentWidth, cts.token);
 		this.element = this.comparePart.object.element;
 	}
 

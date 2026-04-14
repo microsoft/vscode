@@ -9,15 +9,15 @@ import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService } from '../../../log/common/log.js';
-import type { IAgentCreateSessionConfig, IAgentDescriptor, IAgentService, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult, IResourceMetadata } from '../../common/agentService.js';
-import { IResourceReadResult } from '../../common/state/protocol/commands.js';
+import type { IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult } from '../../common/agentService.js';
+import { IListSessionsResult, IResourceReadResult, IResolveSessionConfigResult, ISessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { ActionType, type ISessionAction } from '../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../common/state/sessionCapabilities.js';
 import { isJsonRpcNotification, isJsonRpcResponse, JSON_RPC_INTERNAL_ERROR, ProtocolError, type IAhpNotification, type IInitializeResult, type IProtocolMessage, type IReconnectResult, type IResourceListResult, type IResourceWriteParams, type IResourceWriteResult, type IStateSnapshot } from '../../common/state/sessionProtocol.js';
 import { SessionStatus, type ISessionSummary } from '../../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../../common/state/sessionTransport.js';
 import { ProtocolServerHandler } from '../../node/protocolServerHandler.js';
-import { SessionStateManager } from '../../node/sessionStateManager.js';
+import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 import { AgentHostFileSystemProvider } from '../../common/agentHostFileSystemProvider.js';
 
 // ---- Mock helpers -----------------------------------------------------------
@@ -71,16 +71,17 @@ class MockAgentService implements IAgentService {
 	readonly handledActions: ISessionAction[] = [];
 	readonly browsedUris: URI[] = [];
 	readonly browseErrors = new Map<string, Error>();
+	readonly listedSessions: IAgentSessionMetadata[] = [];
 
 	private readonly _onDidAction = new Emitter<import('../../common/state/sessionActions.js').IActionEnvelope>();
 	readonly onDidAction = this._onDidAction.event;
 	private readonly _onDidNotification = new Emitter<import('../../common/state/sessionActions.js').INotification>();
 	readonly onDidNotification = this._onDidNotification.event;
 
-	private _stateManager!: SessionStateManager;
+	private _stateManager!: AgentHostStateManager;
 
 	/** Connect to the state manager so dispatchAction works correctly. */
-	setStateManager(sm: SessionStateManager): void {
+	setStateManager(sm: AgentHostStateManager): void {
 		this._stateManager = sm;
 	}
 
@@ -89,9 +90,25 @@ class MockAgentService implements IAgentService {
 		const origin = { clientId, clientSeq };
 		this._stateManager.dispatchClientAction(action, origin);
 	}
-	async createSession(_config?: IAgentCreateSessionConfig): Promise<URI> { return URI.parse('copilot:///new-session'); }
+	async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
+		const session = config?.session ?? URI.parse('copilot:///new-session');
+		this._stateManager.createSession({
+			resource: session.toString(),
+			provider: config?.provider ?? 'copilot',
+			title: 'New Session',
+			status: SessionStatus.Idle,
+			createdAt: Date.now(),
+			modifiedAt: Date.now(),
+			project: { uri: 'file:///created-project', displayName: 'Created Project' },
+			workingDirectory: config?.workingDirectory?.toString(),
+		});
+		return session;
+	}
+
+	async resolveSessionConfig(_params: IAgentResolveSessionConfigParams): Promise<IResolveSessionConfigResult> { return { ready: true, schema: { type: 'object', properties: {} }, values: {} }; }
+	async sessionConfigCompletions(_params: IAgentSessionConfigCompletionsParams): Promise<ISessionConfigCompletionsResult> { return { items: [] }; }
 	async disposeSession(_session: URI): Promise<void> { }
-	async listSessions(): Promise<IAgentSessionMetadata[]> { return []; }
+	async listSessions(): Promise<IAgentSessionMetadata[]> { return this.listedSessions; }
 	async subscribe(resource: URI): Promise<IStateSnapshot> {
 		const snapshot = this._stateManager.getSnapshot(resource.toString());
 		if (!snapshot) {
@@ -101,10 +118,7 @@ class MockAgentService implements IAgentService {
 	}
 	unsubscribe(_resource: URI): void { }
 	async shutdown(): Promise<void> { }
-	async getResourceMetadata(): Promise<IResourceMetadata> { return { resources: [] }; }
 	async authenticate(_params: IAuthenticateParams): Promise<IAuthenticateResult> { return { authenticated: true }; }
-	async refreshModels(): Promise<void> { }
-	async listAgents(): Promise<IAgentDescriptor[]> { return []; }
 	async resourceWrite(_params: IResourceWriteParams): Promise<IResourceWriteResult> { return {}; }
 	async resourceList(uri: URI): Promise<IResourceListResult> {
 		this.browsedUris.push(uri);
@@ -125,6 +139,8 @@ class MockAgentService implements IAgentService {
 	async resourceCopy(): Promise<{}> { return {}; }
 	async resourceDelete(): Promise<{}> { return {}; }
 	async resourceMove(): Promise<{}> { return {}; }
+	async createTerminal(): Promise<void> { }
+	async disposeTerminal(): Promise<void> { }
 
 	dispose(): void {
 		this._onDidAction.dispose();
@@ -159,7 +175,7 @@ function waitForResponse(transport: MockProtocolTransport, id: number): Promise<
 suite('ProtocolServerHandler', () => {
 
 	let disposables: DisposableStore;
-	let stateManager: SessionStateManager;
+	let stateManager: AgentHostStateManager;
 	let server: MockProtocolServer;
 	let agentService: MockAgentService;
 	let handler: ProtocolServerHandler;
@@ -174,6 +190,7 @@ suite('ProtocolServerHandler', () => {
 			status: SessionStatus.Idle,
 			createdAt: Date.now(),
 			modifiedAt: Date.now(),
+			project: { uri: 'file:///test-project', displayName: 'Test Project' },
 		};
 	}
 
@@ -190,7 +207,7 @@ suite('ProtocolServerHandler', () => {
 
 	setup(() => {
 		disposables = new DisposableStore();
-		stateManager = disposables.add(new SessionStateManager(new NullLogService()));
+		stateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
 		server = disposables.add(new MockProtocolServer());
 		agentService = new MockAgentService();
 		agentService.setStateManager(stateManager);
@@ -307,6 +324,67 @@ suite('ProtocolServerHandler', () => {
 
 		assert.strictEqual(findNotifications(transportA.sent, 'notification').length, 1);
 		assert.strictEqual(findNotifications(transportB.sent, 'notification').length, 1);
+	});
+
+	test('listSessions includes project metadata', async () => {
+		agentService.listedSessions.push({
+			session: URI.parse(sessionUri),
+			startTime: 1000,
+			modifiedTime: 2000,
+			project: { uri: URI.file('/workspace/project'), displayName: 'Project' },
+			summary: 'Session Summary',
+		});
+
+		const transport = connectClient('client-list');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 2);
+
+		transport.simulateMessage(request(2, 'listSessions'));
+		const resp = await responsePromise;
+
+		const result = (resp as unknown as { result: IListSessionsResult }).result;
+		assert.deepStrictEqual(result.items.map(item => item.project), [{ uri: URI.file('/workspace/project').toString(), displayName: 'Project' }]);
+	});
+
+	test('listSessions omits project metadata when absent', async () => {
+		agentService.listedSessions.push({
+			session: URI.parse(sessionUri),
+			startTime: 1000,
+			modifiedTime: 2000,
+			summary: 'Session Summary',
+		});
+
+		const transport = connectClient('client-list-no-project');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 2);
+
+		transport.simulateMessage(request(2, 'listSessions'));
+		const resp = await responsePromise;
+
+		const result = (resp as unknown as { result: IListSessionsResult }).result;
+		assert.deepStrictEqual(result.items.map(item => item.project), [undefined]);
+	});
+
+	test('createSession returns null and broadcasts project in sessionAdded summary', async () => {
+		const transport = connectClient('client-create');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 2);
+
+		const newSession = URI.parse('copilot:///created-session').toString();
+		transport.simulateMessage(request(2, 'createSession', { session: newSession }));
+		const resp = await responsePromise;
+
+		const added = findNotifications(transport.sent, 'notification').find(message => {
+			const params = message.params as { notification: { type: string } };
+			return params.notification.type === 'notify/sessionAdded';
+		});
+		assert.deepStrictEqual({
+			result: (resp as { result: null }).result,
+			project: (added!.params as { notification: { summary: ISessionSummary } }).notification.summary.project,
+		}, {
+			result: null,
+			project: { uri: 'file:///created-project', displayName: 'Created Project' },
+		});
 	});
 
 	test('reconnect replays missed actions', () => {
@@ -427,28 +505,16 @@ suite('ProtocolServerHandler', () => {
 
 	// ---- Extension methods: auth ----------------------------------------
 
-	test('getResourceMetadata returns resource metadata via extension request', async () => {
-		const transport = connectClient('client-metadata');
-		transport.sent.length = 0;
-
-		const responsePromise = waitForResponse(transport, 2);
-		transport.simulateMessage(request(2, 'getResourceMetadata'));
-		const resp = await responsePromise as { result?: { resources: unknown[] } };
-
-		assert.ok(resp?.result);
-		assert.ok(Array.isArray(resp.result!.resources));
-	});
-
-	test('authenticate returns result via extension request', async () => {
+	test('authenticate returns result via typed request', async () => {
 		const transport = connectClient('client-auth');
 		transport.sent.length = 0;
 
 		const responsePromise = waitForResponse(transport, 2);
 		transport.simulateMessage(request(2, 'authenticate', { resource: 'https://api.github.com', token: 'test-token' }));
-		const resp = await responsePromise as { result?: { authenticated: boolean } };
+		const resp = await responsePromise as { result?: Record<string, unknown>; error?: { code: number; message: string } };
 
-		assert.ok(resp?.result);
-		assert.strictEqual(resp.result!.authenticated, true);
+		assert.ok(!resp.error, `unexpected error: ${resp.error?.message}`);
+		assert.deepStrictEqual(resp.result, {});
 	});
 
 	test('extension request preserves ProtocolError code and data', async () => {

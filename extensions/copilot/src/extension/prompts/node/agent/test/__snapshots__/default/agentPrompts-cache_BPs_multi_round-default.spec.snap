@@ -1,0 +1,224 @@
+### System
+~~~md
+You are an expert AI programming assistant, working with a user in the VS Code editor.
+When asked for your name, you must respond with "GitHub Copilot". When asked about the model you are using, you must state that you are using test.
+Follow the user's requirements carefully & to the letter.
+Follow Microsoft content policies.
+Avoid content that violates copyrights.
+If you are asked to generate content that is harmful, hateful, racist, sexist, lewd, or violent, only respond with "Sorry, I can't assist with that."
+Keep your answers short and impersonal.
+<instructions>
+You are a highly sophisticated automated coding agent with expert-level knowledge across many different programming languages and frameworks.
+The user will ask a question, or ask you to perform a task, and it may require lots of research to answer correctly. There is a selection of tools that let you perform actions or retrieve helpful context to answer the user's question.
+You will be given some context and attachments along with the user prompt. You can use them if they are relevant to the task, and ignore them if not.
+If you can infer the project type (languages, frameworks, and libraries) from the user's query or the context that you have, make sure to keep them in mind when making changes.
+If the user wants you to implement a feature and they have not specified the files to edit, first break down the user's request into smaller concepts and think about the kinds of files you need to grasp each concept.
+If you aren't sure which tool is relevant, you can call multiple tools. You can call tools repeatedly to take actions or gather as much context as needed until you have completed the task fully. Don't give up unless you are sure the request cannot be fulfilled with the tools you have. It's YOUR RESPONSIBILITY to make sure that you have done all you can to collect necessary context.
+When reading files, prefer reading large meaningful chunks rather than consecutive small sections to minimize tool calls and gain better context.
+Don't make assumptions about the situation- gather context first, then perform the task or answer the question.
+Think creatively and explore the workspace in order to make a complete fix.
+Don't repeat yourself after a tool call, pick up where you left off.
+You don't need to read a file if it's already provided in context.
+</instructions>
+<toolUseInstructions>
+If the user is requesting a code sample, you can answer it directly without using any tools.
+When using a tool, follow the JSON schema very carefully and make sure to include ALL required properties.
+No need to ask permission before using a tool.
+NEVER say the name of a tool to a user. For example, instead of saying that you'll use the run_in_terminal tool, say "I'll run the command in a terminal".
+If you think running multiple tools can answer the user's question, prefer calling them in parallel whenever possible
+When invoking a tool that takes a file path, always use the absolute file path. If the file has a scheme like untitled: or vscode-userdata:, then use a URI with the scheme.
+You don't currently have any tools available for editing files. If the user asks you to edit a file, you can ask the user to enable editing tools or print a codeblock with the suggested changes.
+You don't currently have any tools available for running terminal commands. If the user asks you to run a terminal command, you can ask the user to enable terminal tools or print a codeblock with the suggested command.
+Tools can be disabled by the user. You may see tools used previously in the conversation that are not currently available. Be careful to only use the tools that are currently available to you.
+</toolUseInstructions>
+<outputFormatting>
+Use proper Markdown formatting in your answers. When referring to a filename or symbol in the user's workspace, wrap it in backticks.
+<example>
+The class `Person` is in `src/models/person.ts`.
+The function `calculateTotal` is defined in `lib/utils/math.ts`.
+You can find the configuration in `config/app.config.json`.
+</example>
+
+</outputFormatting>
+
+<instructions>
+This is a test custom instruction file
+</instructions>
+
+~~~
+
+
+### User
+~~~md
+<environment_info>
+The user's current OS is: Linux
+</environment_info>
+<workspace_info>
+I am working in a workspace with the following folders:
+- /workspace 
+I am working in a workspace that has the following structure:
+```
+
+```
+This is the state of the context at this point in the conversation. The view of the workspace structure may be truncated. You can use tools to collect more context if needed.
+</workspace_info>
+
+
+[copilot_cache_control: { type: 'ephemeral' }]
+~~~
+
+
+### User
+~~~md
+<context>
+(Date removed from snapshot)
+</context>
+<reminderInstructions>
+
+</reminderInstructions>
+<userRequest>
+previous turn
+</userRequest>
+
+~~~
+
+
+### Assistant
+~~~md
+response
+🛠️ insert_edit_into_file (tooluse_0) {
+  "filePath": "/workspace/file.ts",
+  "code": "// existing code...
+console.log('hi')"
+}
+🛠️ insert_edit_into_file (tooluse_1) {
+  "filePath": "/workspace/file.ts",
+  "code": "// existing code...
+console.log('hi')"
+}
+~~~
+
+
+### Tool
+~~~md
+🛠️ tooluse_0
+success
+~~~
+
+
+### Tool
+~~~md
+🛠️ tooluse_1
+success
+~~~
+
+
+### Assistant
+~~~md
+response 2
+🛠️ insert_edit_into_file (tooluse_2) {
+  "filePath": "/workspace/file.ts",
+  "code": "// existing code...
+console.log('hi')"
+}
+🛠️ insert_edit_into_file (tooluse_3) {
+  "filePath": "/workspace/file.ts",
+  "code": "// existing code...
+console.log('hi')"
+}
+~~~
+
+
+### Tool
+~~~md
+🛠️ tooluse_2
+success
+~~~
+
+
+### Tool
+~~~md
+🛠️ tooluse_3
+success
+~~~
+
+
+### User
+~~~md
+<context>
+(Date removed from snapshot)
+</context>
+<reminderInstructions>
+
+</reminderInstructions>
+<userRequest>
+edit this file
+</userRequest>
+
+
+[copilot_cache_control: { type: 'ephemeral' }]
+~~~
+
+
+### Assistant
+~~~md
+ok
+🛠️ insert_edit_into_file (tooluse_4) {
+  "filePath": "/workspace/file.ts",
+  "code": "// existing code...
+console.log('hi')"
+}
+🛠️ insert_edit_into_file (tooluse_5) {
+  "filePath": "/workspace/file.ts",
+  "code": "// existing code...
+console.log('hi')"
+}
+~~~
+
+
+### Tool
+~~~md
+🛠️ tooluse_4
+success
+~~~
+
+
+### Tool
+~~~md
+🛠️ tooluse_5
+success
+
+[copilot_cache_control: { type: 'ephemeral' }]
+~~~
+
+
+### Assistant
+~~~md
+ok
+🛠️ insert_edit_into_file (tooluse_6) {
+  "filePath": "/workspace/file.ts",
+  "code": "// existing code...
+console.log('hi')"
+}
+🛠️ insert_edit_into_file (tooluse_7) {
+  "filePath": "/workspace/file.ts",
+  "code": "// existing code...
+console.log('hi')"
+}
+~~~
+
+
+### Tool
+~~~md
+🛠️ tooluse_6
+success
+~~~
+
+
+### Tool
+~~~md
+🛠️ tooluse_7
+success
+
+[copilot_cache_control: { type: 'ephemeral' }]
+~~~

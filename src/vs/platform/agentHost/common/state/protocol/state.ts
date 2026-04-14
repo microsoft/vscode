@@ -152,6 +152,8 @@ export interface IRootState {
 	agents: IAgentInfo[];
 	/** Number of active (non-disposed) sessions on the server */
 	activeSessions?: number;
+	/** Known terminals on the server. Subscribe to individual terminal URIs for full state. */
+	terminals?: ITerminalInfo[];
 }
 
 /**
@@ -249,14 +251,19 @@ export const enum SessionLifecycle {
 }
 
 /**
- * Current session status.
+ * Bitset of summary-level session status flags.
+ *
+ * Use bitwise checks instead of equality for non-terminal activity. For example,
+ * `status & SessionStatus.InProgress` matches both ordinary in-progress turns
+ * and turns that are paused waiting for input.
  *
  * @category Session State
  */
 export const enum SessionStatus {
-	Idle = 'idle',
-	InProgress = 'in-progress',
-	Error = 'error',
+	Idle = 1,
+	Error = 1 << 1,
+	InProgress = 1 << 3,
+	InputNeeded = (1 << 3) | (1 << 4),
 }
 
 /**
@@ -285,6 +292,10 @@ export interface ISessionState {
 	steeringMessage?: IPendingMessage;
 	/** Messages to send automatically as new turns after the current turn finishes */
 	queuedMessages?: IPendingMessage[];
+	/** Requests for user input that are currently blocking or informing session progress */
+	inputRequests?: ISessionInputRequest[];
+	/** Session configuration schema and current values */
+	config?: ISessionConfigState;
 	/**
 	 * Server-provided customizations active in this session.
 	 *
@@ -314,6 +325,32 @@ export interface ISessionActiveClient {
 }
 
 /**
+ * A summary of changes to a single file within a session.
+ *
+ * @category Session State
+ */
+export interface ISessionFileDiff {
+	/** URI of the affected file */
+	uri: URI;
+	/** Number of items added (e.g., lines for text files, cells for notebooks) */
+	added?: number;
+	/** Number of items removed (e.g., lines for text files, cells for notebooks) */
+	removed?: number;
+}
+
+/**
+ * Server-owned project metadata for a session.
+ *
+ * @category Session State
+ */
+export interface IProjectInfo {
+	/** Project URI */
+	uri: URI;
+	/** Human-readable project name */
+	displayName: string;
+}
+
+/**
  * @category Session State
  */
 export interface ISessionSummary {
@@ -329,11 +366,312 @@ export interface ISessionSummary {
 	createdAt: number;
 	/** Last modification timestamp */
 	modifiedAt: number;
+	/** Server-owned project for this session */
+	project?: IProjectInfo;
 	/** Currently selected model */
 	model?: string;
 	/** The working directory URI for this session */
 	workingDirectory?: URI;
+	/** Whether the client has viewed this session since its last modification */
+	isRead?: boolean;
+	/** Whether the session has been marked as done by the client */
+	isDone?: boolean;
+	/** Files changed during this session with diff statistics */
+	diffs?: ISessionFileDiff[];
 }
+
+// ─── Session Config Types ────────────────────────────────────────────────────
+
+/**
+ * A JSON Schema-compatible string enum property descriptor with display extensions.
+ *
+ * Standard JSON Schema fields (`type`, `title`, `description`, `default`,
+ * `enum`) allow validators to process the schema. Display extensions
+ * (`enumLabels`, `enumDescriptions`) are parallel arrays that provide UI metadata for each `enum` value.
+ *
+ * @category Session Config Types
+ */
+export interface ISessionConfigPropertySchema {
+	/** JSON Schema: property type. Only string enum properties are currently supported. */
+	type: 'string';
+	/** JSON Schema: human-readable label for the property */
+	title: string;
+	/** JSON Schema: description / tooltip */
+	description?: string;
+	/** JSON Schema: default value */
+	default?: string;
+	/** JSON Schema: allowed values */
+	enum: string[];
+	/** Display extension: human-readable label per enum value (parallel array) */
+	enumLabels?: string[];
+	/** Display extension: description per enum value (parallel array) */
+	enumDescriptions?: string[];
+	/**
+	 * Display extension: when `true`, the full set of allowed values is too large
+	 * to enumerate statically. The client SHOULD use `sessionConfigCompletions`
+	 * to fetch matching values based on user input. Any values in `enum` are
+	 * seed/recent values for initial display.
+	 */
+	enumDynamic?: boolean;
+	/** JSON Schema: when `true`, the property is displayed but cannot be modified by the user */
+	readOnly?: boolean;
+	/** When `true`, the user may change this property after session creation */
+	sessionMutable?: boolean;
+}
+
+/**
+ * A JSON Schema object describing available session configuration metadata.
+ *
+ * @category Session Config Types
+ */
+export interface ISessionConfigSchema {
+	/** JSON Schema: always `'object'` */
+	type: 'object';
+	/** JSON Schema: property descriptors keyed by property id */
+	properties: Record<string, ISessionConfigPropertySchema>;
+	/** JSON Schema: list of required property ids */
+	required?: string[];
+}
+
+/**
+ * Live session configuration metadata.
+ *
+ * The schema describes the available configuration properties and the values
+ * contain the current value for each resolved property.
+ *
+ * @category Session Config Types
+ */
+export interface ISessionConfigState {
+	/** JSON Schema describing available configuration properties */
+	schema: ISessionConfigSchema;
+	/** Current configuration values */
+	values: Record<string, string>;
+}
+
+// ─── Session Input Types ────────────────────────────────────────────────────
+
+/**
+ * How a client completed an input request.
+ *
+ * @category Session Input Types
+ */
+export const enum SessionInputResponseKind {
+	Accept = 'accept',
+	Decline = 'decline',
+	Cancel = 'cancel',
+}
+
+/**
+ * Question/input control kind.
+ *
+ * @category Session Input Types
+ */
+export const enum SessionInputQuestionKind {
+	Text = 'text',
+	Number = 'number',
+	Integer = 'integer',
+	Boolean = 'boolean',
+	SingleSelect = 'single-select',
+	MultiSelect = 'multi-select',
+}
+
+/**
+ * A choice in a select-style question.
+ *
+ * @category Session Input Types
+ */
+export interface ISessionInputOption {
+	/** Stable option identifier; for MCP enum values this is the enum string */
+	id: string;
+	/** Display label */
+	label: string;
+	/** Optional secondary text */
+	description?: string;
+	/** Whether this option is the recommended/default choice */
+	recommended?: boolean;
+}
+
+interface ISessionInputQuestionBase {
+	/** Stable question identifier used as the key in `answers` */
+	id: string;
+	/** Short display title */
+	title?: string;
+	/** Prompt shown to the user */
+	message: string;
+	/** Whether the user must answer this question to accept the request */
+	required?: boolean;
+}
+
+/** Text question within a session input request. */
+export interface ISessionInputTextQuestion extends ISessionInputQuestionBase {
+	kind: SessionInputQuestionKind.Text;
+	/** Format hint for text questions, such as `email`, `uri`, `date`, or `date-time` */
+	format?: string;
+	/** Minimum string length */
+	min?: number;
+	/** Maximum string length */
+	max?: number;
+	/** Default text */
+	defaultValue?: string;
+}
+
+/** Numeric question within a session input request. */
+export interface ISessionInputNumberQuestion extends ISessionInputQuestionBase {
+	kind: SessionInputQuestionKind.Number | SessionInputQuestionKind.Integer;
+	/** Minimum value */
+	min?: number;
+	/** Maximum value */
+	max?: number;
+	/** Default numeric value */
+	defaultValue?: number;
+}
+
+/** Boolean question within a session input request. */
+export interface ISessionInputBooleanQuestion extends ISessionInputQuestionBase {
+	kind: SessionInputQuestionKind.Boolean;
+	/** Default boolean value */
+	defaultValue?: boolean;
+}
+
+/** Single-select question within a session input request. */
+export interface ISessionInputSingleSelectQuestion extends ISessionInputQuestionBase {
+	kind: SessionInputQuestionKind.SingleSelect;
+	/** Options the user may select from */
+	options: ISessionInputOption[];
+	/** Whether the user may enter text instead of selecting an option */
+	allowFreeformInput?: boolean;
+}
+
+/** Multi-select question within a session input request. */
+export interface ISessionInputMultiSelectQuestion extends ISessionInputQuestionBase {
+	kind: SessionInputQuestionKind.MultiSelect;
+	/** Options the user may select from */
+	options: ISessionInputOption[];
+	/** Whether the user may enter text in addition to selecting options */
+	allowFreeformInput?: boolean;
+	/** Minimum selected item count */
+	min?: number;
+	/** Maximum selected item count */
+	max?: number;
+}
+
+/**
+ * One question within a session input request.
+ *
+ * @category Session Input Types
+ */
+export type ISessionInputQuestion = ISessionInputTextQuestion
+	| ISessionInputNumberQuestion
+	| ISessionInputBooleanQuestion
+	| ISessionInputSingleSelectQuestion
+	| ISessionInputMultiSelectQuestion;
+
+/**
+ * A live request for user input.
+ *
+ * The server creates or replaces requests with `session/inputRequested`.
+ * Clients sync drafts with `session/inputAnswerChanged` and complete requests
+ * with `session/inputCompleted`.
+ *
+ * @category Session Input Types
+ */
+export interface ISessionInputRequest {
+	/** Stable request identifier */
+	id: string;
+	/** Display message for the request as a whole */
+	message: string;
+	/** URL the user should review or open, for URL-style elicitations */
+	url?: URI;
+	/** Ordered questions to ask the user */
+	questions?: ISessionInputQuestion[];
+	/** Current draft or submitted answers, keyed by question ID */
+	answers?: Record<string, ISessionInputAnswer>;
+}
+
+/**
+ * Answer value kind.
+ *
+ * @category Session Input Types
+ */
+export const enum SessionInputAnswerValueKind {
+	Text = 'text',
+	Number = 'number',
+	Boolean = 'boolean',
+	Selected = 'selected',
+	SelectedMany = 'selected-many',
+}
+
+/**
+ * Value captured for one answer.
+ *
+ * @category Session Input Types
+ */
+export interface ISessionInputTextAnswerValue {
+	kind: SessionInputAnswerValueKind.Text;
+	value: string;
+}
+
+export interface ISessionInputNumberAnswerValue {
+	kind: SessionInputAnswerValueKind.Number;
+	value: number;
+}
+
+export interface ISessionInputBooleanAnswerValue {
+	kind: SessionInputAnswerValueKind.Boolean;
+	value: boolean;
+}
+
+export interface ISessionInputSelectedAnswerValue {
+	kind: SessionInputAnswerValueKind.Selected;
+	value: string;
+	/** Free-form text entered instead of selecting an option */
+	freeformValues?: string[];
+}
+
+export interface ISessionInputSelectedManyAnswerValue {
+	kind: SessionInputAnswerValueKind.SelectedMany;
+	value: string[];
+	/** Free-form text entered in addition to selected options */
+	freeformValues?: string[];
+}
+
+export type ISessionInputAnswerValue = ISessionInputTextAnswerValue
+	| ISessionInputNumberAnswerValue
+	| ISessionInputBooleanAnswerValue
+	| ISessionInputSelectedAnswerValue
+	| ISessionInputSelectedManyAnswerValue;
+
+export interface ISessionInputAnswered {
+	/** Answer state */
+	state: SessionInputAnswerState.Draft | SessionInputAnswerState.Submitted;
+	/** Answer value */
+	value: ISessionInputAnswerValue;
+}
+
+export interface ISessionInputSkipped {
+	/** Answer state */
+	state: SessionInputAnswerState.Skipped;
+	/** Free-form reason or value captured while skipping, if any */
+	freeformValues?: string[];
+}
+
+/**
+ * Answer lifecycle state.
+ *
+ * @category Session Input Types
+ */
+export const enum SessionInputAnswerState {
+	Draft = 'draft',
+	Submitted = 'submitted',
+	Skipped = 'skipped',
+}
+
+/**
+ * Draft, submitted, or skipped answer for one question.
+ *
+ * @category Session Input Types
+ */
+export type ISessionInputAnswer = ISessionInputAnswered | ISessionInputSkipped;
 
 // ─── Turn Types ──────────────────────────────────────────────────────────────
 
@@ -659,6 +997,13 @@ export interface IToolCallRunningState extends IToolCallBase, IToolCallParameter
 	status: ToolCallStatus.Running;
 	/** How the tool was confirmed for execution */
 	confirmed: ToolCallConfirmationReason;
+	/**
+	 * Partial content produced while the tool is still executing.
+	 *
+	 * For example, a terminal content block lets clients subscribe to live
+	 * output before the tool completes.
+	 */
+	content?: IToolResultContent[];
 }
 
 /**
@@ -718,9 +1063,6 @@ export type IToolCallState =
 
 /**
  * Describes a tool available in a session, provided by either the server or the active client.
- *
- * This type mirrors the MCP `Tool` type from the Model Context Protocol specification
- * (2025-11-25 draft) and will continue to track it.
  *
  * @category Tool Definition Types
  */
@@ -795,6 +1137,8 @@ export const enum ToolResultContentType {
 	EmbeddedResource = 'embeddedResource',
 	Resource = 'resource',
 	FileEdit = 'fileEdit',
+	Terminal = 'terminal',
+	Subagent = 'subagent',
 }
 
 /**
@@ -870,11 +1214,49 @@ export interface IToolResultFileEditContent {
 }
 
 /**
+ * A reference to a terminal whose output is relevant to this tool result.
+ *
+ * Clients can subscribe to the terminal's URI to stream its output in real
+ * time, providing live feedback while a tool is executing.
+ *
+ * @category Tool Result Content
+ */
+export interface IToolResultTerminalContent {
+	type: ToolResultContentType.Terminal;
+	/** Terminal URI (subscribable for full terminal state) */
+	resource: URI;
+	/** Display title for the terminal content */
+	title: string;
+}
+
+/**
+ * A reference to a subagent session spawned by a tool.
+ *
+ * Clients can subscribe to the subagent's session URI to stream its
+ * progress in real time, including inner tool calls and responses.
+ *
+ * @category Tool Result Content
+ */
+export interface IToolResultSubagentContent {
+	type: ToolResultContentType.Subagent;
+	/** Subagent session URI (subscribable for full session state) */
+	resource: URI;
+	/** Display title for the subagent */
+	title: string;
+	/** Internal agent name */
+	agentName?: string;
+	/** Human-readable description of the subagent's task */
+	description?: string;
+}
+
+/**
  * Content block in a tool result.
  *
  * Mirrors the content blocks in MCP `CallToolResult.content`, plus
- * `IToolResultResourceContent` for lazy-loading large results and
- * `IToolResultFileEditContent` for file edit diffs (AHP extensions).
+ * `IToolResultResourceContent` for lazy-loading large results,
+ * `IToolResultFileEditContent` for file edit diffs,
+ * `IToolResultTerminalContent` for live terminal output, and
+ * `IToolResultSubagentContent` for subagent sessions (AHP extensions).
  *
  * @category Tool Result Content
  */
@@ -882,7 +1264,9 @@ export type IToolResultContent =
 	| IToolResultTextContent
 	| IToolResultEmbeddedResourceContent
 	| IToolResultResourceContent
-	| IToolResultFileEditContent;
+	| IToolResultFileEditContent
+	| IToolResultTerminalContent
+	| IToolResultSubagentContent;
 
 // ─── Customization Types ─────────────────────────────────────────────────────
 
@@ -950,6 +1334,95 @@ export interface ISessionCustomization {
 	statusMessage?: string;
 }
 
+// ─── Terminal Types ──────────────────────────────────────────────────────────
+
+/**
+ * Lightweight terminal metadata exposed on the root state.
+ *
+ * @category Terminal Types
+ */
+export interface ITerminalInfo {
+	/** Terminal URI (subscribable for full terminal state) */
+	resource: URI;
+	/** Human-readable terminal title */
+	title: string;
+	/** Who currently holds this terminal */
+	claim: ITerminalClaim;
+	/** Process exit code, if the terminal process has exited */
+	exitCode?: number;
+}
+
+/**
+ * Discriminant for terminal claim kinds.
+ *
+ * @category Terminal Types
+ */
+export const enum TerminalClaimKind {
+	Client = 'client',
+	Session = 'session',
+}
+
+/**
+ * A terminal claimed by a connected client.
+ *
+ * @category Terminal Types
+ */
+export interface ITerminalClientClaim {
+	/** Discriminant */
+	kind: TerminalClaimKind.Client;
+	/** The `clientId` of the claiming client */
+	clientId: string;
+}
+
+/**
+ * A terminal claimed by a session, optionally scoped to a specific turn or tool call.
+ *
+ * @category Terminal Types
+ */
+export interface ITerminalSessionClaim {
+	/** Discriminant */
+	kind: TerminalClaimKind.Session;
+	/** Session URI that claimed the terminal */
+	session: URI;
+	/** Optional turn identifier within the session */
+	turnId?: string;
+	/** Optional tool call identifier within the turn */
+	toolCallId?: string;
+}
+
+/**
+ * Describes who currently holds a terminal. A terminal may be claimed by
+ * either a connected client or a session (e.g. during a tool call).
+ *
+ * @category Terminal Types
+ */
+export type ITerminalClaim = ITerminalClientClaim | ITerminalSessionClaim;
+
+/**
+ * Full state for a single terminal, loaded when a client subscribes to the terminal's URI.
+ *
+ * @category Terminal Types
+ */
+export interface ITerminalState {
+	/** Human-readable terminal title */
+	title: string;
+	/** Current working directory of the terminal process */
+	cwd?: URI;
+	/** Terminal width in columns */
+	cols?: number;
+	/** Terminal height in rows */
+	rows?: number;
+	/**
+	 * Accumulated terminal output. May contain ANSI escape sequences.
+	 * The scrollback length is implementation-defined.
+	 */
+	content: string;
+	/** Process exit code, set when the terminal process exits */
+	exitCode?: number;
+	/** Who currently holds this terminal */
+	claim: ITerminalClaim;
+}
+
 // ─── Common Types ────────────────────────────────────────────────────────────
 
 /**
@@ -988,7 +1461,7 @@ export interface ISnapshot {
 	/** The subscribed resource URI (e.g. `agenthost:/root` or `copilot:/<uuid>`) */
 	resource: URI;
 	/** The current state of the resource */
-	state: IRootState | ISessionState;
+	state: IRootState | ISessionState | ITerminalState;
 	/** The `serverSeq` at which this snapshot was taken. Subsequent actions will have `serverSeq > fromSeq`. */
 	fromSeq: number;
 }

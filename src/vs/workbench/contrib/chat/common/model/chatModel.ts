@@ -72,6 +72,9 @@ export interface ISerializableSendOptions {
 	agentIdSilent?: string;
 	slashCommand?: string;
 	confirmation?: string;
+	isSystemInitiated?: boolean;
+	systemInitiatedLabel?: string;
+	terminalExecutionId?: string;
 }
 
 /**
@@ -128,6 +131,7 @@ export interface IChatRequestModel {
 	readonly userSelectedTools?: UserSelectedTools;
 	readonly isSystemInitiated?: boolean;
 	readonly systemInitiatedLabel?: string;
+	readonly terminalExecutionId?: string;
 }
 
 export interface ICodeBlockInfo {
@@ -277,6 +281,12 @@ export interface IChatResponseModel {
 	readonly isCanceled: boolean;
 	readonly isPendingConfirmation: IObservable<{ startedWaitingAt: number; detail?: string } | undefined>;
 	readonly isInProgress: IObservable<boolean>;
+	/**
+	 * True whenever this response has not reached a terminal state yet.
+	 * Unlike {@link isInProgress}, this remains true during tool confirmations,
+	 * elicitations, and any other intermediate state.
+	 */
+	readonly isIncomplete: IObservable<boolean>;
 	readonly shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
 	readonly shouldBeBlocked: IObservable<boolean>;
 	readonly isCompleteAddedRequest: boolean;
@@ -346,6 +356,7 @@ export interface IChatRequestModelParameters {
 	userSelectedTools?: UserSelectedTools;
 	isSystemInitiated?: boolean;
 	systemInitiatedLabel?: string;
+	terminalExecutionId?: string;
 }
 
 export class ChatRequestModel implements IChatRequestModel {
@@ -360,6 +371,7 @@ export class ChatRequestModel implements IChatRequestModel {
 	public readonly userSelectedTools?: UserSelectedTools;
 	public readonly isSystemInitiated?: boolean;
 	public readonly systemInitiatedLabel?: string;
+	public readonly terminalExecutionId?: string;
 
 	private readonly _shouldBeBlocked = observableValue<boolean>(this, false);
 	public get shouldBeBlocked(): IObservable<boolean> {
@@ -433,6 +445,7 @@ export class ChatRequestModel implements IChatRequestModel {
 		this.userSelectedTools = params.userSelectedTools;
 		this.isSystemInitiated = params.isSystemInitiated;
 		this.systemInitiatedLabel = params.systemInitiatedLabel;
+		this.terminalExecutionId = params.terminalExecutionId;
 	}
 
 	adoptTo(session: ChatModel) {
@@ -659,6 +672,12 @@ class AbstractResponse implements IResponse {
 	}
 
 	private getToolInvocationText(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized): { text: string; isBlock?: boolean } {
+		const getTerminalDisplayInput = (terminalData: ReturnType<typeof migrateLegacyTerminalToolSpecificData>) => terminalData.presentationOverrides?.commandLine
+			?? terminalData.commandLine.forDisplay
+			?? terminalData.commandLine.userEdited
+			?? terminalData.commandLine.toolEdited
+			?? terminalData.commandLine.original;
+
 		// Extract the message and input details
 		let message = '';
 		let input = '';
@@ -678,7 +697,7 @@ class AbstractResponse implements IResponse {
 			if (toolInvocation.toolSpecificData.kind === 'terminal') {
 				message = 'Ran terminal command';
 				const terminalData = migrateLegacyTerminalToolSpecificData(toolInvocation.toolSpecificData);
-				input = terminalData.presentationOverrides?.commandLine ?? terminalData.commandLine.forDisplay ?? terminalData.commandLine.userEdited ?? terminalData.commandLine.toolEdited ?? terminalData.commandLine.original;
+				input = getTerminalDisplayInput(terminalData);
 			}
 		}
 
@@ -693,7 +712,10 @@ class AbstractResponse implements IResponse {
 			const resultDetails = IChatToolInvocation.resultDetails(toolInvocation);
 			if (resultDetails && 'input' in resultDetails) {
 				const resultPrefix = toolInvocation.kind === 'toolInvocationSerialized' || IChatToolInvocation.isComplete(toolInvocation) ? 'Completed' : 'Errored';
-				text += `\n${resultPrefix} with input: ${resultDetails.input}`;
+				const resultInput = toolInvocation.toolSpecificData?.kind === 'terminal'
+					? getTerminalDisplayInput(migrateLegacyTerminalToolSpecificData(toolInvocation.toolSpecificData))
+					: resultDetails.input;
+				text += `\n${resultPrefix} with input: ${resultInput}`;
 			}
 		}
 
@@ -1168,6 +1190,14 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 
 	readonly isInProgress: IObservable<boolean>;
 
+	/**
+	 * True whenever this response has not reached a terminal state yet.
+	 * Unlike {@link isInProgress}, this remains true during tool confirmations,
+	 * elicitations, and any other intermediate state. It only becomes false when
+	 * the response completes, is cancelled, or fails.
+	 */
+	readonly isIncomplete: IObservable<boolean>;
+
 	private _responseView?: ResponseView;
 	public get response(): IResponse {
 		const undoStop = this._shouldBeRemovedOnSend?.afterUndoStop;
@@ -1253,6 +1283,10 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 			return !_pendingInfo.read(r)
 				&& !this.shouldBeRemovedOnSend
 				&& (this._modelState.read(r).value === ResponseModelState.Pending || this._modelState.read(r).value === ResponseModelState.NeedsInput);
+		});
+
+		this.isIncomplete = this._modelState.map(state => {
+			return state.value === ResponseModelState.Pending || state.value === ResponseModelState.NeedsInput;
 		});
 
 		this._register(this._response.onDidChangeValue(() => this._onDidChange.fire(defaultChatResponseModelChangeReason)));
@@ -1394,6 +1428,14 @@ export class ChatResponseModel extends Disposable implements IChatResponseModel 
 		this._shouldBeRemovedOnSend = undefined;
 	}
 
+	override dispose(): void {
+		super.dispose();
+		this._response.clear();
+		if (this._codeBlockInfos) {
+			this._codeBlockInfos.length = 0;
+		}
+	}
+
 	toJSON(): ISerializableChatResponseData {
 		const modelState = this._modelState.get();
 		const pendingConfirmation = this.isPendingConfirmation.get();
@@ -1449,6 +1491,8 @@ export interface IChatModel extends IDisposable {
 	readonly responderUsername: string;
 	/** True whenever a request is currently running */
 	readonly requestInProgress: IObservable<boolean>;
+	/** True whenever the last request has not reached a terminal state, regardless of intermediate states like tool calls or elicitations */
+	readonly hasActiveRequest: IObservable<boolean>;
 	/** Provides session information when a request needs user interaction to continue */
 	readonly requestNeedsInput: IObservable<IChatRequestNeedsInputInfo | undefined>;
 	readonly inputPlaceholder?: string;
@@ -1520,6 +1564,7 @@ export interface ISerializableChatRequestData extends ISerializableChatResponseD
 	modeInfo?: IChatRequestModeInfo;
 	isSystemInitiated?: boolean;
 	systemInitiatedLabel?: string;
+	terminalExecutionId?: string;
 }
 
 export interface ISerializableMarkdownInfo {
@@ -1645,10 +1690,7 @@ export interface ISerializableChatData2 extends ISerializableChatData1 {
 export interface ISerializableChatData3 extends Omit<ISerializableChatData2, 'version' | 'computedTitle'> {
 	version: 3;
 	customTitle: string | undefined;
-	/**
-	 * Whether the session had pending edits when it was stored.
-	 * todo@connor4312 This will be cleaned up with the globalization of edits.
-	 */
+	/** Whether the session had pending edits when it was stored. */
 	hasPendingEdits?: boolean;
 	/** Current draft input state (added later, fully backwards compatible) */
 	inputState?: ISerializableChatModelInputState;
@@ -2106,6 +2148,7 @@ export class ChatModel extends Disposable implements IChatModel {
 	}
 
 	readonly requestInProgress: IObservable<boolean>;
+	readonly hasActiveRequest: IObservable<boolean>;
 	readonly requestNeedsInput: IObservable<IChatRequestNeedsInputInfo | undefined>;
 
 	/** Input model for managing input state */
@@ -2282,6 +2325,10 @@ export class ChatModel extends Disposable implements IChatModel {
 			return request?.response?.isInProgress.read(r) ?? false;
 		});
 
+		this.hasActiveRequest = this.lastRequestObs.map((request, r) => {
+			return request?.response?.isIncomplete.read(r) ?? false;
+		});
+
 		this.requestNeedsInput = this.lastRequestObs.map((request, r) => {
 			const pendingInfo = request?.response?.isPendingConfirmation.read(r);
 			if (!pendingInfo) {
@@ -2387,6 +2434,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			modeInfo: raw.modeInfo,
 			isSystemInitiated: raw.isSystemInitiated,
 			systemInitiatedLabel: raw.systemInitiatedLabel,
+			terminalExecutionId: raw.terminalExecutionId,
 		});
 		request.shouldBeRemovedOnSend = raw.isHidden ? { requestId: raw.requestId } : raw.shouldBeRemovedOnSend;
 		// eslint-disable-next-line @typescript-eslint/no-explicit-any, local/code-no-any-casts
@@ -2555,7 +2603,24 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._onDidChange.fire({ kind: 'setHidden' });
 	}
 
-	addRequest(message: IParsedChatRequest, variableData: IChatRequestVariableData, attempt: number, modeInfo?: IChatRequestModeInfo, chatAgent?: IChatAgentData, slashCommand?: IChatAgentCommand, confirmation?: string, locationData?: IChatLocationData, attachments?: IChatRequestVariableEntry[], isCompleteAddedRequest?: boolean, modelId?: string, userSelectedTools?: UserSelectedTools, id?: string, isSystemInitiated?: boolean, systemInitiatedLabel?: string): ChatRequestModel {
+	addRequest(
+		message: IParsedChatRequest,
+		variableData: IChatRequestVariableData,
+		attempt: number,
+		modeInfo?: IChatRequestModeInfo,
+		chatAgent?: IChatAgentData,
+		slashCommand?: IChatAgentCommand,
+		confirmation?: string,
+		locationData?: IChatLocationData,
+		attachments?: IChatRequestVariableEntry[],
+		isCompleteAddedRequest?: boolean,
+		modelId?: string,
+		userSelectedTools?: UserSelectedTools,
+		id?: string,
+		isSystemInitiated?: boolean,
+		systemInitiatedLabel?: string,
+		terminalExecutionId?: string
+	): ChatRequestModel {
 		const editedFileEvents = [...this.currentEditedFileEvents.values()];
 		this.currentEditedFileEvents.clear();
 		const request = new ChatRequestModel({
@@ -2575,6 +2640,7 @@ export class ChatModel extends Disposable implements IChatModel {
 			userSelectedTools,
 			isSystemInitiated,
 			systemInitiatedLabel,
+			terminalExecutionId,
 		});
 		request.response = new ChatResponseModel({
 			responseContent: [],
@@ -2734,6 +2800,7 @@ export class ChatModel extends Disposable implements IChatModel {
 					modeInfo: r.modeInfo,
 					isSystemInitiated: r.isSystemInitiated || undefined,
 					systemInitiatedLabel: r.systemInitiatedLabel,
+					terminalExecutionId: r.terminalExecutionId,
 					...r.response?.toJSON(),
 				};
 			}),
@@ -2756,6 +2823,15 @@ export class ChatModel extends Disposable implements IChatModel {
 		this._onDidDispose.fire();
 
 		super.dispose();
+
+		// Null out heavy fields to break retention chains. Even after disposal,
+		// stale references (closures, cached templates, etc.) may prevent GC
+		// from collecting this object. Clearing these fields ensures the
+		// conversation data, serialization snapshot, and editing session are
+		// freed regardless.
+		this._requests.length = 0;
+		this.dataSerializer = undefined;
+		this._editingSession = undefined;
 	}
 }
 
@@ -2830,6 +2906,9 @@ export function serializeSendOptions(options: IChatSendRequestOptions): ISeriali
 		agentIdSilent: options.agentIdSilent,
 		slashCommand: options.slashCommand,
 		confirmation: options.confirmation,
+		isSystemInitiated: options.isSystemInitiated,
+		systemInitiatedLabel: options.systemInitiatedLabel,
+		terminalExecutionId: options.terminalExecutionId,
 	};
 }
 

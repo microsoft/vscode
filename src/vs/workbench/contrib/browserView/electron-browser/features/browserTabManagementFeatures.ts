@@ -30,6 +30,7 @@ import { workbenchConfigurationNodeBase } from '../../../../common/configuration
 import { IExternalOpener, IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { isLocalhostAuthority } from '../../../../../platform/url/common/trustedDomains.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
 import { ToggleTitleBarConfigAction } from '../../../../browser/parts/titlebar/titlebarActions.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
@@ -411,11 +412,52 @@ class CloseAllBrowserTabsInGroupAction extends Action2 {
 	}
 }
 
+class OpenBrowserFromViewMenuAction extends Action2 {
+	static readonly ID = 'workbench.action.browser.openFromViewMenu';
+
+	constructor() {
+		super({
+			id: OpenBrowserFromViewMenuAction.ID,
+			title: localize2('browser.openFromViewMenuAction', "Browser"),
+			f1: false,
+			keybinding: {
+				weight: KeybindingWeight.WorkbenchContrib,
+				primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Slash,
+			},
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		const commandService = accessor.get(ICommandService);
+
+		const hasOpenBrowserEditor = editorService.editors.some(editor => editor instanceof BrowserEditorInput);
+
+		if (hasOpenBrowserEditor) {
+			await commandService.executeCommand(BrowserViewCommandId.QuickOpen);
+			return;
+		}
+
+		await commandService.executeCommand(BrowserViewCommandId.Open);
+	}
+}
+
+// Register in View menu
+MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+	group: '4_auxbar',
+	command: {
+		id: OpenBrowserFromViewMenuAction.ID,
+		title: localize({ key: 'miOpenBrowser', comment: ['&& denotes a mnemonic'] }, "&&Browser")
+	},
+	order: 2
+});
+
 // Register as "Close All Browser Tabs" action in editor title menu to align with the regular "Close All" action
 MenuRegistry.appendMenuItem(MenuId.EditorTitleContext, { command: { id: BrowserViewCommandId.CloseAllInGroup, title: localize('browser.closeAllInGroupShort', "Close All Browser Tabs") }, group: '1_close', order: 55, when: BROWSER_EDITOR_ACTIVE });
 
 registerAction2(QuickOpenBrowserAction);
 registerAction2(OpenIntegratedBrowserAction);
+registerAction2(OpenBrowserFromViewMenuAction);
 registerAction2(NewTabAction);
 registerAction2(CloseAllBrowserTabsAction);
 registerAction2(CloseAllBrowserTabsInGroupAction);

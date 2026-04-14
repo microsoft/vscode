@@ -16,8 +16,7 @@ import { ITerminalInstance, ITerminalService } from '../../../../../workbench/co
 import { ITerminalCapabilityStore, ICommandDetectionCapability, TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { toAgentHostUri } from '../../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSessionProviders } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../sessions/browser/sessionsManagementService.js';
-import { IChat, ISession } from '../../../sessions/common/sessionData.js';
+import { IChat, ISession } from '../../../../services/sessions/common/session.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { SessionsTerminalContribution } from '../../browser/sessionsTerminalContribution.js';
 import { TestPathService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
@@ -25,6 +24,7 @@ import { IPathService } from '../../../../../workbench/services/path/common/path
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IViewsService } from '../../../../../workbench/services/views/common/viewsService.js';
+import { IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 
 const HOME_DIR = URI.file('/home/user');
 
@@ -89,6 +89,7 @@ function makeAgentSession(opts: {
 		lastTurnEnd: chat.lastTurnEnd,
 		description: chat.description,
 		gitHubInfo: observableValue('test.gitHubInfo', undefined),
+		ready: observableValue('test.ready', true),
 		chats: observableValue('test.chats', [chat]),
 		activeChat: observableValue('test.activeChat', chat),
 		mainChat: chat,
@@ -138,6 +139,7 @@ function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerT
 		lastTurnEnd: chat.lastTurnEnd,
 		description: chat.description,
 		gitHubInfo: observableValue('test.gitHubInfo', undefined),
+		ready: observableValue('test.ready', true),
 		chats: observableValue('test.chats', [chat]),
 		mainChat: chat,
 	};

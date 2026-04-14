@@ -29,6 +29,9 @@ configurationRegistry.registerConfiguration({
 			type: 'boolean',
 			default: true,
 			tags: ['experimental'],
+			experiment: {
+				mode: 'auto'
+			}
 		},
 		[AI_STATS_SETTING_ID]: {
 			markdownDescription: localize('editor.aiStats.enabled', "Controls whether to enable AI statistics in the editor. The gauge shows the average AI rate across 5-minute sessions, where each session's rate is calculated as AI-inserted characters divided by total inserted characters."),

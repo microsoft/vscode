@@ -6,10 +6,11 @@
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { raceTimeout } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
+import { CancellationError } from '../../../../base/common/errors.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun, constObservable, derived, IObservable, IReader, observableFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
-import { themeColorFromId, ThemeIcon } from '../../../../base/common/themables.js';
+import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -21,10 +22,10 @@ import { AgentSessionProviders, AgentSessionTarget } from '../../../../workbench
 import { IChatService, IChatSendRequestOptions } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatSessionStatus, IChatSessionFileChange, IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ISession, IChat, ISessionRepository, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo } from '../../sessions/common/sessionData.js';
+import { ISession, IChat, ISessionRepository, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, CopilotCLISessionType, CopilotCloudSessionType, ISessionType, ISessionWorkspaceBrowseAction } from '../../../services/sessions/common/session.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import { basename, isEqual } from '../../../../base/common/resources.js';
-import { ISendRequestOptions, ISessionsBrowseAction, ISessionChangeEvent, ISessionsProvider, ISessionType } from '../../sessions/browser/sessionsProvider.js';
+import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
 import { ISessionOptionGroup } from '../../chat/browser/newSession.js';
 import { IsolationMode } from './isolationPicker.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
@@ -37,10 +38,12 @@ import { IGitService, IGitRepository } from '../../../../workbench/contrib/git/c
 import { IContextKeyService, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { localize } from '../../../../nls.js';
-import { CopilotCLISessionType, CopilotCloudSessionType } from '../../sessions/browser/sessionTypes.js';
 import { SessionsGroupModel } from '../../sessions/browser/sessionsGroupModel.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
+import { IGitHubService } from '../../github/browser/githubService.js';
+import { computePullRequestIcon, GitHubPullRequestState } from '../../github/common/types.js';
 
 export interface ICopilotChatSession {
 	/** Globally unique session ID (`providerId:localId`). */
@@ -170,7 +173,8 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 	private readonly _changes: ReturnType<typeof observableValue<readonly IChatSessionFileChange[]>>;
 	readonly changes: IObservable<readonly IChatSessionFileChange[]>;
 
-	readonly isArchived: IObservable<boolean> = observableValue(this, false);
+	private readonly _isArchived = observableValue(this, false);
+	readonly isArchived: IObservable<boolean> = this._isArchived;
 	readonly isRead: IObservable<boolean> = observableValue(this, true);
 	readonly lastTurnEnd: IObservable<Date | undefined> = observableValue(this, undefined);
 	readonly gitHubInfo: IObservable<IGitHubInfo | undefined> = observableValue(this, undefined);
@@ -256,6 +260,9 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 				this._gitRepository = await this.gitService.openRepository(repoUri);
 				if (!this._gitRepository) {
 					this.setIsolationMode('workspace');
+				} else if (!this._gitRepository.state.get().HEAD?.commit) {
+					// Empty repositories have no HEAD commit and cannot run worktree isolation.
+					this.setIsolationMode('workspace');
 				}
 			} catch {
 				// No git repository available
@@ -269,7 +276,7 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 			// state changes. This is done only for the Folder sessions.
 			const currentBranchName = derived(reader => {
 				const state = this._gitRepository?.state.read(reader);
-				return state?.HEAD?.name;
+				return state?.HEAD?.commit ? state.HEAD.name : undefined;
 			});
 
 			this._register(autorun(reader => {
@@ -293,15 +300,18 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 			if (cts.token.isCancellationRequested) {
 				return;
 			}
+			const hasHeadCommit = !!repo.state.get().HEAD?.commit;
 			const branches = refs
 				.map(r => r.name)
 				.filter((name): name is string => !!name)
 				.filter(name => !name.includes(CopilotCLISession.COPILOT_WORKTREE_PATTERN));
 
-			const defaultBranch = branches.find(b => b === 'main')
-				?? branches.find(b => b === 'master')
-				?? branches.find(b => b === repo.state.get().HEAD?.name)
-				?? branches[0];
+			const defaultBranch = hasHeadCommit
+				? (branches.find(b => b === 'main')
+					?? branches.find(b => b === 'master')
+					?? branches.find(b => b === repo.state.get().HEAD?.name)
+					?? branches[0])
+				: undefined;
 
 			this._defaultBranch = defaultBranch;
 
@@ -331,7 +341,8 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 				// When switching to workspace mode, update the branch
 				// selection to reflect the current branch as that is
 				// what will be used for the folder session
-				const currentBranch = this._gitRepository?.state.get().HEAD?.name;
+				const head = this._gitRepository?.state.get().HEAD;
+				const currentBranch = head?.commit ? head.name : undefined;
 				this.setBranch(currentBranch ?? this._defaultBranch);
 			} else {
 				this.setBranch(this._defaultBranch);
@@ -368,6 +379,10 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 		this._status.set(status, undefined);
 	}
 
+	setArchived(archived: boolean): void {
+		this._isArchived.set(archived, undefined);
+	}
+
 	setMode(mode: IChatMode | undefined): void {
 		if (this._mode?.id !== mode?.id) {
 			this._mode = mode;
@@ -386,7 +401,7 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 	}
 
 	update(agentSession: IAgentSession): void {
-		const session = new AgentSessionAdapter(agentSession, this.providerId);
+		const session = new AgentSessionAdapter(agentSession, this.providerId, undefined);
 		this._workspaceData.set(session.workspace.get(), undefined);
 		this._title.set(session.title.get(), undefined);
 		this._status.set(session.status.get(), undefined);
@@ -447,7 +462,8 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 
 	readonly loading: IObservable<boolean> = observableValue(this, false);
 
-	readonly isArchived: IObservable<boolean> = observableValue(this, false);
+	private readonly _isArchived = observableValue(this, false);
+	readonly isArchived: IObservable<boolean> = this._isArchived;
 	readonly isRead: IObservable<boolean> = observableValue(this, true);
 	readonly description: IObservable<IMarkdownString | undefined> = constObservable(undefined);
 	readonly lastTurnEnd: IObservable<Date | undefined> = constObservable(undefined);
@@ -543,6 +559,10 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 
 	setStatus(status: SessionStatus): void {
 		this._status.set(status, undefined);
+	}
+
+	setArchived(archived: boolean): void {
+		this._isArchived.set(archived, undefined);
 	}
 
 	setMode(_mode: IChatMode | undefined): void {
@@ -702,7 +722,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 	private readonly _lastTurnEnd: ReturnType<typeof observableValue<Date | undefined>>;
 	readonly lastTurnEnd: IObservable<Date | undefined>;
 
-	private readonly _gitHubInfo: ReturnType<typeof observableValue<IGitHubInfo | undefined>>;
+	private readonly _baseGitHubInfo: ReturnType<typeof observableValue<IGitHubInfo | undefined>>;
 	readonly gitHubInfo: IObservable<IGitHubInfo | undefined>;
 
 	readonly permissionLevel: IObservable<ChatPermissionLevel> = constObservable(ChatPermissionLevel.Default);
@@ -714,6 +734,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 	constructor(
 		session: IAgentSession,
 		providerId: string,
+		private readonly _gitHubService: IGitHubService | undefined,
 	) {
 		this.id = `${providerId}:${session.resource.toString()}`;
 		this.resource = session.resource;
@@ -749,8 +770,21 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		this.description = this._description;
 		this._lastTurnEnd = observableValue(this, session.timing.lastRequestEnded ? new Date(session.timing.lastRequestEnded) : undefined);
 		this.lastTurnEnd = this._lastTurnEnd;
-		this._gitHubInfo = observableValue(this, this._extractGitHubInfo(session));
-		this.gitHubInfo = this._gitHubInfo;
+		this._baseGitHubInfo = observableValue(this, this._extractGitHubInfo(session));
+		this.gitHubInfo = this._gitHubService
+			? derived(this, reader => {
+				const base = this._baseGitHubInfo.read(reader);
+				if (!base?.pullRequest || !this._gitHubService) {
+					return base;
+				}
+				const prModel = this._gitHubService.getPullRequest(base.owner, base.repo, base.pullRequest.number);
+				const livePR = prModel.pullRequest.read(reader);
+				if (!livePR) {
+					return base;
+				}
+				return { ...base, pullRequest: { ...base.pullRequest, icon: computePullRequestIcon(livePR.isDraft ? 'draft' : livePR.state) } };
+			})
+			: this._baseGitHubInfo;
 	}
 
 	setPermissionLevel(level: ChatPermissionLevel): void {
@@ -783,7 +817,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 			this._isRead.set(session.isRead(), tx);
 			this._description.set(this._extractDescription(session), tx);
 			this._lastTurnEnd.set(session.timing.lastRequestEnded ? new Date(session.timing.lastRequestEnded) : undefined, tx);
-			this._gitHubInfo.set(this._extractGitHubInfo(session), tx);
+			this._baseGitHubInfo.set(this._extractGitHubInfo(session), tx);
 		});
 	}
 
@@ -883,17 +917,8 @@ class AgentSessionAdapter implements ICopilotChatSession {
 	private _extractPullRequestStateIcon(session: IAgentSession): ThemeIcon | undefined {
 		const metadata = session.metadata;
 		const state = metadata?.pullRequestState;
-		if (state) {
-			switch (state) {
-				case 'merged':
-					return { ...Codicon.gitPullRequestDone, color: themeColorFromId('charts.purple') };
-				case 'closed':
-					return { ...Codicon.gitPullRequestClosed, color: themeColorFromId('charts.red') };
-				case 'draft':
-					return { ...Codicon.gitPullRequestDraft, color: themeColorFromId('descriptionForeground') };
-				default:
-					return { ...Codicon.gitPullRequest, color: themeColorFromId('charts.green') };
-			}
+		if (typeof state === 'string') {
+			return computePullRequestIcon(state as GitHubPullRequestState | 'draft');
 		}
 		return undefined;
 	}
@@ -949,7 +974,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		const [repoUri, worktreeUri, branchName, baseBranchName, baseBranchProtected] = this._extractRepositoryFromMetadata(session);
 
 		const repository: ISessionRepository = {
-			uri: repoUri ?? URI.parse('unknown://'),
+			uri: repoUri ?? URI.parse('unknown:'),
 			workingDirectory: worktreeUri,
 			detail: branchName,
 			baseBranchName,
@@ -1021,12 +1046,14 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	readonly label = localize('copilotChatSessionsProvider', "Copilot Chat");
 	readonly icon = Codicon.copilot;
 	readonly sessionTypes: readonly ISessionType[] = [CopilotCLISessionType, CopilotCloudSessionType];
+	readonly onDidChangeSessionTypes = Event.None;
 
 	get capabilities() {
 		return {
 			multipleChatsPerSession: this._isMultiChatEnabled(),
 		};
 	}
+	readonly onDidChangeCapabilities = Event.None;
 
 	private readonly _onDidChangeSessions = this._register(new Emitter<ISessionChangeEvent>());
 	readonly onDidChangeSessions: Event<ISessionChangeEvent> = this._onDidChangeSessions.event;
@@ -1043,7 +1070,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	/** Group model tracking which chats belong to which session. */
 	private readonly _groupModel: SessionsGroupModel;
 
-	readonly browseActions: readonly ISessionsBrowseAction[];
+	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 
 	constructor(
 		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
@@ -1057,6 +1084,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 		@IStorageService storageService: IStorageService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ILogService private readonly logService: ILogService,
+		@IGitHubService private readonly gitHubService: IGitHubService,
 	) {
 		super();
 
@@ -1067,13 +1096,13 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				label: localize('folders', "Folders"),
 				icon: Codicon.folderOpened,
 				providerId: this.id,
-				execute: () => this._browseForFolder(),
+				run: () => this._browseForFolder(),
 			},
 			{
 				label: localize('repositories', "Repositories"),
 				icon: Codicon.repo,
 				providerId: this.id,
-				execute: () => this._browseForRepo(),
+				run: () => this._browseForRepo(),
 			},
 		];
 
@@ -1085,18 +1114,11 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 	// -- Sessions --
 
-	getSessionTypes(sessionId: string): ISessionType[] {
-		const session = this._currentNewSession?.id === sessionId ? this._currentNewSession : this._findChatSession(sessionId);
-		if (!session) {
-			return [];
-		}
-		if (session instanceof CopilotCLISession) {
-			return [CopilotCLISessionType];
-		}
-		if (session instanceof RemoteNewSession) {
+	getSessionTypes(workspaceUri: URI): ISessionType[] {
+		if (workspaceUri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
 			return [CopilotCloudSessionType];
 		}
-		return [];
+		return [CopilotCLISessionType];
 	}
 
 	getSessions(): ISession[] {
@@ -1133,32 +1155,31 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		return this._findChatSession(sessionId);
 	}
 
-	createNewSession(workspace: ISessionWorkspace): ISession {
-		const workspaceUri = workspace.repositories[0]?.uri;
-		if (!workspaceUri) {
-			throw new Error('Workspace has no repository URI');
-		}
-
+	createNewSession(workspaceUri: URI, sessionTypeId: string): ISession {
 		if (this._currentNewSession) {
 			this._currentNewSession.dispose();
 			this._currentNewSession = undefined;
 		}
 
+		const workspace = this.resolveWorkspace(workspaceUri);
+
 		if (workspaceUri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
+			if (sessionTypeId !== CopilotCloudSessionType.id) {
+				throw new Error('Only Copilot Cloud sessions can be created for GitHub repositories');
+			}
 			const resource = URI.from({ scheme: AgentSessionProviders.Cloud, path: `/untitled-${generateUuid()}` });
 			const session = this.instantiationService.createInstance(RemoteNewSession, resource, workspace, AgentSessionProviders.Cloud, this.id);
 			this._currentNewSession = session;
 			return this._chatToSession(session);
 		}
 
+		if (sessionTypeId !== CopilotCLISessionType.id) {
+			throw new Error('Only Copilot CLI sessions can be created for non-GitHub repositories');
+		}
 		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: `/untitled-${generateUuid()}` });
 		const session = this.instantiationService.createInstance(CopilotCLISession, resource, workspace, this.id);
 		this._currentNewSession = session;
 		return this._chatToSession(session);
-	}
-
-	setSessionType(sessionId: string, type: ISessionType): ISession {
-		throw new Error('Session type cannot be changed');
 	}
 
 	setModel(sessionId: string, modelId: string): void {
@@ -1176,14 +1197,28 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			return;
 		}
 
-		// Temp session that hasn't been committed — remove it directly
-		this._cleanupTempSession(sessionId);
+		// Temp session that hasn't been committed — archive it in-place
+		// so the user can still review whatever content was produced.
+		const chatSession = this._findChatSession(sessionId);
+		if (chatSession && (chatSession instanceof CopilotCLISession || chatSession instanceof RemoteNewSession)) {
+			chatSession.setArchived(true);
+			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._chatToSession(chatSession)] });
+			return;
+		}
 	}
 
 	async unarchiveSession(sessionId: string): Promise<void> {
 		const agentSession = this._findAgentSession(sessionId);
 		if (agentSession) {
 			agentSession.setArchived(false);
+			return;
+		}
+
+		// Temp session that hasn't been committed — unarchive it in-place
+		const chatSession = this._findChatSession(sessionId);
+		if (chatSession && (chatSession instanceof CopilotCLISession || chatSession instanceof RemoteNewSession)) {
+			chatSession.setArchived(false);
+			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._chatToSession(chatSession)] });
 		}
 	}
 
@@ -1276,13 +1311,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		}
 	}
 
-	setRead(sessionId: string, read: boolean): void {
-		const agentSession = this._findAgentSession(sessionId);
-		if (agentSession) {
-			agentSession.setRead(read);
-		}
-	}
-
 	// -- Send --
 
 	async sendAndCreateChat(sessionId: string, options: ISendRequestOptions): Promise<ISession> {
@@ -1372,6 +1400,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		}
 
 		// Send request
+		this.logService.debug(`[CopilotChatSessionsProvider] Sending first chat for session ${session.id} with options:`, {
+			userSelectedModelId: sendOptions.userSelectedModelId,
+		});
 		const result = await this.chatService.sendRequest(session.resource, query, sendOptions);
 		if (result.kind === 'rejected') {
 			throw new Error(`[DefaultCopilotProvider] sendRequest rejected: ${result.reason}`);
@@ -1417,10 +1448,20 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 			return committedSession;
 		} catch (error) {
-			// Clean up temp session on error
+			this._currentNewSession = undefined;
+
+			if (error instanceof CancellationError) {
+				// Session was stopped before the agent created a worktree.
+				// Keep the temp session in the list so the user can review
+				// whatever content the agent produced before cancellation.
+				session.setStatus(SessionStatus.Completed);
+				this._onDidChangeSessions.fire({ added: [], removed: [], changed: [newSession] });
+				return newSession;
+			}
+
+			// Unexpected error — clean up the temp session entirely
 			this._sessionCache.delete(key);
 			this._sessionGroupCache.delete(session.id);
-			this._currentNewSession = undefined;
 			this._onDidChangeSessions.fire({ added: [], removed: [this._chatToSession(session)], changed: [] });
 			session.dispose();
 			throw error;
@@ -1516,11 +1557,22 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 			return updatedSession;
 		} catch (error) {
-			// Clean up on error — fire changed on the parent session group
+			this._currentNewSession = undefined;
+
+			if (error instanceof CancellationError) {
+				// Cancelled before commit — keep the chat in the group so the
+				// user can review the content the agent produced.
+				newChatSession.setStatus(SessionStatus.Completed);
+				this._sessionGroupCache.delete(sessionId);
+				const updatedSession = this._chatToSession(newChatSession);
+				this._onDidChangeSessions.fire({ added: [], removed: [], changed: [updatedSession] });
+				return updatedSession;
+			}
+
+			// Unexpected error — clean up on error, fire changed on the parent session group
 			this._sessionCache.delete(key);
 			this._groupModel.removeChat(newChatSession.id);
 			this._sessionGroupCache.delete(sessionId);
-			this._currentNewSession = undefined;
 			newChatSession.dispose();
 			// Find the parent session's primary chat to fire a valid changed event
 			const parentChatIds = this._groupModel.getChatIds(sessionId);
@@ -1578,13 +1630,13 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	 * {@link IChatSessionsService.onDidCommitSession} event.
 	 *
 	 * When {@link responseCompletePromise} is provided, the wait is bounded by
-	 * response completion. If the response finishes before the commit event:
-	 * - If the response was **cancelled**, the session was stopped before the
-	 *   agent created the backing resource → throw immediately.
-	 * - If the response completed **normally**, the commit event is legitimately
-	 *   in-flight (the extension fired it mid-turn but the async IPC chain in
-	 *   {@link MainThreadChatSessions.$onDidCommitChatSessionItem} hasn't finished
-	 *   yet) → keep waiting with the safety timeout.
+	 * response completion. If the response finishes before the commit event,
+	 * the commit may still be in-flight (e.g. the user cancelled after the
+	 * worktree was initiated but before the commit IPC finished, or the
+	 * extension fired the commit mid-turn but it hasn't been delivered yet).
+	 * In both cases we wait with the safety timeout. Only if the timeout
+	 * expires *and* the response was cancelled do we throw a
+	 * {@link CancellationError} — signalling that the commit will never come.
 	 */
 	private async _waitForCommittedSession(
 		untitledResource: URI,
@@ -1613,23 +1665,34 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				}
 
 				// Response finished before the commit event arrived.
-				// Check whether it was cancelled — if so, the commit will never come.
-				const response = await responseCreatedPromise;
-				if (response?.isCanceled) {
-					throw new Error('Session was cancelled before being committed');
-				}
-
-				// Response completed normally — the commit is in-flight (the extension
-				// fired it before the response finished, but the async IPC chain hasn't
-				// delivered it yet). It should arrive in milliseconds; use a short
-				// safety timeout to avoid blocking forever on an IPC failure.
+				// The commit may still be in-flight — the agent could have
+				// initiated the worktree before the user cancelled, and the
+				// async IPC chain hasn't delivered the event yet. Fall through
+				// to the safety timeout to give it a chance to arrive.
 			}
 
-			const result = await raceTimeout(commitPromise, 5_000);
-			if (!result) {
-				throw new Error('Timed out waiting for session commit');
+			// Race commit against a safety timeout. If a response-created
+			// promise is available, also race it so we can detect
+			// cancellation immediately instead of waiting for the timeout.
+			const candidates: Promise<{ kind: 'commit'; uri: URI } | { kind: 'timeout' } | { kind: 'cancelled' }>[] = [
+				raceTimeout(commitPromise, 5_000).then(uri => uri ? { kind: 'commit' as const, uri } : { kind: 'timeout' as const }),
+			];
+			if (responseCreatedPromise) {
+				candidates.push(responseCreatedPromise.then(r => r?.isCanceled ? { kind: 'cancelled' as const } : new Promise<never>(() => { /* never resolves */ })));
 			}
-			return result;
+			const outcome = await Promise.race(candidates);
+			if (outcome.kind === 'commit') {
+				return outcome.uri;
+			}
+			if (outcome.kind === 'cancelled') {
+				throw new CancellationError();
+			}
+			// Timed out — last-resort check for cancellation
+			const response = responseCreatedPromise ? await responseCreatedPromise : undefined;
+			if (response?.isCanceled) {
+				throw new CancellationError();
+			}
+			throw new Error('Timed out waiting for session commit');
 		} finally {
 			disposables.dispose();
 		}
@@ -1779,7 +1842,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 				existing.update(session);
 				changedData.push(existing);
 			} else {
-				const adapter = new AgentSessionAdapter(session, this.id);
+				const adapter = new AgentSessionAdapter(session, this.id, this.gitHubService);
 				this._sessionCache.set(key, adapter);
 				addedData.push(adapter);
 			}
@@ -1971,6 +2034,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			description: primaryChat.description,
 			lastTurnEnd: chatsObs.map((chats, reader) => this._latestDate(chats, c => c.lastTurnEnd.read(reader))),
 			gitHubInfo: primaryChat.gitHubInfo,
+			ready: constObservable(true),
 			chats: chatsObs,
 			mainChat,
 		};
@@ -2000,6 +2064,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			description: chat.description,
 			lastTurnEnd: chat.lastTurnEnd,
 			gitHubInfo: chat.gitHubInfo,
+			ready: constObservable(true),
 			chats: constObservable([mainChat]),
 			mainChat,
 		};

@@ -55,10 +55,9 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			description: localize('affordance', "Controls whether an inline chat affordance is shown when text is selected."),
 			default: 'off',
 			type: 'string',
-			enum: ['off', 'gutter', 'editor'],
+			enum: ['off', 'editor'],
 			enumDescriptions: [
 				localize('affordance.off', "No affordance is shown."),
-				localize('affordance.gutter', "Show an affordance in the gutter."),
 				localize('affordance.editor', "Show an affordance in the editor at the cursor position."),
 			],
 			experiment: {

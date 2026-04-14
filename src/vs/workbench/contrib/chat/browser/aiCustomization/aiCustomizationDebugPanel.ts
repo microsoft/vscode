@@ -9,7 +9,7 @@ import { IPromptsService, PromptsStorage, IPromptPath } from '../../common/promp
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IAICustomizationWorkspaceService, applyStorageSourceFilter, IStorageSourceFilter } from '../../common/aiCustomizationWorkspaceService.js';
 import { AICustomizationManagementSection } from './aiCustomizationManagement.js';
-import { IExternalCustomizationItemProvider, IHarnessDescriptor } from '../../common/customizationHarnessService.js';
+import { ICustomizationItemProvider, IHarnessDescriptor } from '../../common/customizationHarnessService.js';
 
 /**
  * Maps section ID to prompt type. Duplicated from aiCustomizationListWidget
@@ -100,7 +100,7 @@ export async function generateCustomizationDebugReport(
 	return lines.join('\n');
 }
 
-async function appendExternalProviderData(lines: string[], provider: IExternalCustomizationItemProvider, promptType: PromptsType): Promise<void> {
+async function appendExternalProviderData(lines: string[], provider: ICustomizationItemProvider, promptType: PromptsType): Promise<void> {
 	lines.push('--- External Provider Data ---');
 
 	const allItems = await provider.provideChatSessionCustomizations(CancellationToken.None);

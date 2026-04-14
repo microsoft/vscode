@@ -1,0 +1,65 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-composite-bar {
+	display: flex;
+	align-items: center;
+	background-color: var(--chat-bar-background);
+	padding: 0 4px;
+	height: 35px;
+	flex-shrink: 0;
+	overflow: hidden;
+}
+
+.chat-composite-bar-tabs {
+	display: flex;
+	align-items: center;
+	height: 100%;
+	gap: 0;
+	overflow-x: auto;
+	overflow-y: hidden;
+}
+
+.chat-composite-bar-tabs::-webkit-scrollbar {
+	display: none;
+}
+
+/* Base tab: capitalize text + pill padding — mirrors auxiliarybar action-label */
+.chat-composite-bar-tab {
+	display: flex;
+	align-items: center;
+	position: relative;
+	padding: 0 8px;
+	cursor: pointer;
+	white-space: nowrap;
+	color: var(--chat-tab-inactive-foreground);
+	text-transform: capitalize;
+	font-weight: 500;
+	font-size: 12px;
+	line-height: 22px;
+	height: 26px;
+	border-radius: 4px;
+	user-select: none;
+}
+
+.chat-composite-bar-tab:hover {
+	color: var(--chat-tab-active-foreground);
+}
+
+/* Active state: background container instead of underline — mirrors auxiliarybar checked */
+.chat-composite-bar-tab.active {
+	color: var(--chat-tab-active-foreground);
+	background-color: var(--vscode-activityBarTop-activeBackground, color-mix(in srgb, var(--vscode-sideBarTitle-foreground) 5%, transparent));
+}
+
+/* Hide the underline indicator — mirrors auxiliarybar active-item-indicator hiding */
+.chat-composite-bar-tab-indicator {
+	display: none;
+}
+
+.chat-composite-bar-tab:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}

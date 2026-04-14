@@ -1,0 +1,95 @@
+trigger:
+  batch: true
+  branches:
+    include:
+      - main
+  tags:
+    include:
+      - v*
+
+pr: [main]
+
+resources:
+  repositories:
+    - repository: templates
+      type: github
+      name: microsoft/vscode-engineering
+      ref: main
+      endpoint: Monaco
+
+parameters:
+  - name: nextVersion
+    displayName: '🚀 Release Version (eg: none, major, minor, patch, prerelease, or X.X.X)'
+    type: string
+    default: 'none'
+
+name: "$(Date:yyyyMMdd).$(Rev:r)${{ replace(format(' (🚀 {0})', parameters.nextVersion), ' (🚀 none)', '') }}"
+
+extends:
+  template: azure-pipelines/npm-package/pipeline.yml@templates
+  parameters:
+    npmPackages:
+      - name: vscode-copilot-chat
+        buildSteps:
+          - task: NodeTool@0
+            inputs:
+              versionSpec: 22.x
+            displayName: 🛠 Install Node.js (22.x)
+
+          - bash: npm ci && npm run extract-chat-lib && rm -rf node_modules
+            displayName: 📂 Extract chat-lib
+
+          - script: npm ci
+            displayName: 📦 Install chat-lib dependencies
+            workingDirectory: chat-lib
+
+          - script: npm run build
+            displayName: 🔨 Build chat-lib
+            workingDirectory: chat-lib
+        testPlatforms:
+          - name: Linux
+            nodeVersions: [22.x]
+          - name: MacOS
+            nodeVersions: [22.x]
+          - name: Windows
+            nodeVersions: [22.x]
+        workingDirectory: chat-lib
+        testSteps:
+          - bash: npm ci && npm run extract-chat-lib && rm -rf node_modules
+            displayName: 📂 Extract chat-lib
+
+          - script: npm ci
+            displayName: 📦 Install chat-lib dependencies
+            workingDirectory: chat-lib
+
+          - script: npm run build
+            displayName: 🔨 Build chat-lib
+            workingDirectory: chat-lib
+
+          - script: npm test
+            displayName: 🧪 Run chat-lib tests
+            workingDirectory: chat-lib
+        # Tag-triggered: date-stamped patch (e.g., v0.40.2026031601) → publish to next
+        ${{ if and(startsWith(variables['Build.SourceBranch'], 'refs/tags/v'), gt(length(variables['Build.SourceBranchName']), 13)) }}:
+          publishPackage: true
+          publishRequiresApproval: false
+          nextVersion: ${{ replace(variables['Build.SourceBranchName'], 'v', '') }}
+          tag: next
+        # Tag-triggered: short patch (e.g., v0.39.1) → publish to latest
+        ${{ elseif startsWith(variables['Build.SourceBranch'], 'refs/tags/v') }}:
+          publishPackage: true
+          publishRequiresApproval: false
+          nextVersion: ${{ replace(variables['Build.SourceBranchName'], 'v', '') }}
+        ${{ elseif eq(parameters.nextVersion, 'none') }}:
+          publishPackage: false
+        # Manual prerelease → publish to next
+        ${{ elseif eq(parameters.nextVersion, 'prerelease') }}:
+          publishPackage: true
+          publishRequiresApproval: false
+          nextVersion: prerelease
+          tag: next
+        ${{ else }}:
+          publishPackage: true
+          nextVersion: ${{ parameters.nextVersion }}
+        ghCreateRelease: false
+        ghReleaseAddChangeLog: false

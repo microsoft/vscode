@@ -46,6 +46,7 @@ export const enum TerminalSettingId {
 	TabsShowActions = 'terminal.integrated.tabs.showActions',
 	TabsLocation = 'terminal.integrated.tabs.location',
 	TabsFocusMode = 'terminal.integrated.tabs.focusMode',
+	TabsAllowAgentCliTitle = 'terminal.integrated.tabs.allowAgentCliTitle',
 	MacOptionIsMeta = 'terminal.integrated.macOptionIsMeta',
 	MacOptionClickForcesSelection = 'terminal.integrated.macOptionClickForcesSelection',
 	AltClickMovesCursor = 'terminal.integrated.altClickMovesCursor',
@@ -150,6 +151,10 @@ export const enum WindowsShellType {
 }
 
 export const enum GeneralShellType {
+	Claude = 'claude',
+	Codex = 'codex',
+	Copilot = 'copilot',
+	Gemini = 'gemini',
 	PowerShell = 'pwsh',
 	Python = 'python',
 	Julia = 'julia',
