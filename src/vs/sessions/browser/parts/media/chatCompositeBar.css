@@ -3,19 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/* ===== Session composite bar in the chat bar ===== */
-
-.session-composite-bar {
+.chat-composite-bar {
 	display: flex;
 	align-items: center;
-	background-color: var(--session-bar-background);
+	background-color: var(--chat-bar-background);
 	padding: 0 4px;
 	height: 35px;
 	flex-shrink: 0;
 	overflow: hidden;
 }
 
-.session-composite-bar-tabs {
+.chat-composite-bar-tabs {
 	display: flex;
 	align-items: center;
 	height: 100%;
@@ -24,19 +22,19 @@
 	overflow-y: hidden;
 }
 
-.session-composite-bar-tabs::-webkit-scrollbar {
+.chat-composite-bar-tabs::-webkit-scrollbar {
 	display: none;
 }
 
 /* Base tab: capitalize text + pill padding — mirrors auxiliarybar action-label */
-.session-composite-bar-tab {
+.chat-composite-bar-tab {
 	display: flex;
 	align-items: center;
 	position: relative;
 	padding: 0 8px;
 	cursor: pointer;
 	white-space: nowrap;
-	color: var(--session-tab-inactive-foreground);
+	color: var(--chat-tab-inactive-foreground);
 	text-transform: capitalize;
 	font-weight: 500;
 	font-size: 12px;
@@ -46,22 +44,22 @@
 	user-select: none;
 }
 
-.session-composite-bar-tab:hover {
-	color: var(--session-tab-active-foreground);
+.chat-composite-bar-tab:hover {
+	color: var(--chat-tab-active-foreground);
 }
 
 /* Active state: background container instead of underline — mirrors auxiliarybar checked */
-.session-composite-bar-tab.active {
-	color: var(--session-tab-active-foreground);
+.chat-composite-bar-tab.active {
+	color: var(--chat-tab-active-foreground);
 	background-color: var(--vscode-activityBarTop-activeBackground, color-mix(in srgb, var(--vscode-sideBarTitle-foreground) 5%, transparent));
 }
 
 /* Hide the underline indicator — mirrors auxiliarybar active-item-indicator hiding */
-.session-composite-bar-tab-indicator {
+.chat-composite-bar-tab-indicator {
 	display: none;
 }
 
-.session-composite-bar-tab:focus-visible {
+.chat-composite-bar-tab:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: -1px;
 }

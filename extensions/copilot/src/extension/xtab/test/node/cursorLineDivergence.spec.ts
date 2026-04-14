@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest';
 import { StringEdit, StringReplacement } from '../../../../util/vs/editor/common/core/edits/stringEdit';
 import { OffsetRange } from '../../../../util/vs/editor/common/core/ranges/offsetRange';
 import { PositionOffsetTransformer } from '../../../../util/vs/editor/common/core/text/positionToOffset';
-import { getCurrentCursorLine, isModelCursorLineCompatible } from '../../node/cursorLineDivergence';
+import { getCurrentLine, isModelLineCompatible } from '../../node/cursorLineDivergence';
 
 // ============================================================================
 // isModelCursorLineCompatible — unit tests
@@ -32,7 +32,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  original:  `function fi`
 			//  user typed `b`            → current: `function fib`
 			//  model:     `function fibonacci(n: number): number`
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'function fi',
 				'function fib',
 				'function fibonacci(n: number): number',
@@ -43,7 +43,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  original:  `const x`
 			//  user typed ` = 4`     → current: `const x = 4`
 			//  model:     `const x = 42;`
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'const x',
 				'const x = 4',
 				'const x = 42;',
@@ -54,7 +54,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  original:  `return`
 			//  user typed ` 0;`   → current: `return 0;`
 			//  model:     `return 0;`
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'return',
 				'return 0;',
 				'return 0;',
@@ -68,7 +68,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  original:  `function fi`
 			//  user typed `x`             → current: `function fix`
 			//  model:     `function fibonacci(n: number): number`
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'function fi',
 				'function fix',
 				'function fibonacci(n: number): number',
@@ -79,7 +79,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  original:  `const `
 			//  user typed `bar`       → current: `const bar`
 			//  model:     `const foo = 1;`
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'const ',
 				'const bar',
 				'const foo = 1;',
@@ -92,7 +92,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  model:     `abcz`
 			//  modelNewText = "cz", userTypedText = "z"
 			//  → "cz" does not start with "z" → cancel
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'ab',
 				'abz',
 				'abcz',
@@ -106,7 +106,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  original:  `foo()` (cursor between the parens)
 			//  user typed `x`          → current: `foo(x)`
 			//  model:     `foo(x, y)`
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'foo()',
 				'foo(x)',
 				'foo(x, y)',
@@ -117,7 +117,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  original:  `foo()`
 			//  user typed `x`          → current: `foo(x)`
 			//  model:     `bar(a, b)`
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'foo()',
 				'foo(x)',
 				'bar(a, b)',
@@ -134,7 +134,7 @@ describe('isModelCursorLineCompatible', () => {
 			//
 			// The model's edit range is empty (no diff), so the user's edit
 			// range cannot be "within" it → incompatible.
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'const x = 1;',
 				'const x = 12;',
 				'const x = 1;',
@@ -148,7 +148,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  original:  ``
 			//  user typed `f`    → current: `f`
 			//  model:     `function foo() {`
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'',
 				'f',
 				'function foo() {',
@@ -160,7 +160,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  user typed `z`    → current: `z`
 			//  model:     `let x = 1;`
 			//  → "z" is not found in "let x = 1;" → incompatible
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'',
 				'z',
 				'let x = 1;',
@@ -171,7 +171,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  original:  `foobar`
 			//  user deleted `bar`  → current: `foo`
 			//  model:     `foobaz`
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'foobar',
 				'foo',
 				'foobaz',
@@ -182,7 +182,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  original:  `hello world`
 			//  user replaced `world` → current: `hello earth`
 			//  model:     `hello earth!`  (same replacement + extra)
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'hello world',
 				'hello earth',
 				'hello earth!',
@@ -190,7 +190,7 @@ describe('isModelCursorLineCompatible', () => {
 		});
 
 		it('all three lines identical — trivially compatible', () => {
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'no change',
 				'no change',
 				'no change',
@@ -212,7 +212,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  model:     `foo(x, y)`
 			//  → userTypedText="()" is an auto-close pair
 			//  → subsequence check: "(" at 0, ")" at 5 in "(x, y)" → compatible
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'foo',
 				'foo()',
 				'foo(x, y)',
@@ -223,7 +223,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  original:  `if (x) `
 			//  → current: `if (x) {}`
 			//  model:     `if (x) { return 1; }`
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'if (x) ',
 				'if (x) {}',
 				'if (x) { return 1; }',
@@ -231,7 +231,7 @@ describe('isModelCursorLineCompatible', () => {
 		});
 
 		it('user typed [ which auto-closed to []', () => {
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'arr',
 				'arr[]',
 				'arr[0]',
@@ -239,7 +239,7 @@ describe('isModelCursorLineCompatible', () => {
 		});
 
 		it('user typed " which auto-closed to "" — model fills string', () => {
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'const s = ',
 				'const s = ""',
 				'const s = "hello"',
@@ -248,7 +248,7 @@ describe('isModelCursorLineCompatible', () => {
 
 		it('auto-close pair but model has no closing char — incompatible', () => {
 			//  user typed `(` auto-closed to `()`, model has `(x, y` with no `)`
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'foo',
 				'foo()',
 				'foo(x, y',
@@ -269,7 +269,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  This is a false positive: the model's rename of `x`→`y` is independent
 			//  of the user's `;`, but we cancel because our range-containment check is
 			//  overly strict. The full rebase system handles disjoint edits correctly.
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'const x = foo()',
 				'const x = foo();',
 				'const y = foo()',
@@ -284,7 +284,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  user typed `a` → current: `let a`
 			//  model:     `let apple = 1;`
 			//  → modelNewText = "apple = 1;", starts with "a" → compatible
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'let ',
 				'let a',
 				'let apple = 1;',
@@ -297,7 +297,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  model:     `let banana = 1;`
 			//  → modelNewText = "banana = 1;", does not start with "a"
 			//  → Even though "a" appears inside "banana", it's coincidental → cancel
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'let ',
 				'let a',
 				'let banana = 1;',
@@ -308,7 +308,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  original:  `x`
 			//  user typed `y` → current: `xy`
 			//  model:     `x01234567890y`  ("y" appears far in, not at start)
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'x',
 				'xy',
 				'x01234567890y',
@@ -320,7 +320,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  user typed `ABCDEF` → current: `prefixABCDEF`
 			//  model:     `prefix_ABCDEF_suffix`
 			//  → modelNewText = "_ABCDEF_suffix", does not start with "ABCDEF" → cancel
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'prefix',
 				'prefixABCDEF',
 				'prefix_ABCDEF_suffix',
@@ -332,7 +332,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  user typed `ABCDEF` → current: `prefixABCDEF`
 			//  model:     `prefixABCDEF_and_more`
 			//  → modelNewText = "ABCDEF_and_more", starts with "ABCDEF" → compatible
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'prefix',
 				'prefixABCDEF',
 				'prefixABCDEF_and_more',
@@ -349,7 +349,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  → User's edit starts at offset 3, model's edit starts at offset 5.
 			//    user's prefixLen (3) < model's prefixLen (5) → range check fails → cancels.
 			//  Correct: user deleted text, model wants different text in same area.
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'foobar',
 				'foo',
 				'foobaz',
@@ -360,7 +360,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  original:  `console.log(x);`
 			//  user deleted `console.log(` → current: `x);`
 			//  model:     `x);`   (same result)
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'console.log(x);',
 				'x);',
 				'x);',
@@ -375,7 +375,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  user typed `  ` (2 chars) → current: `  return 1;`
 			//  model:     `    return value;`
 			//  → "  " found at position 0 in model new text → compatible
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'return 1;',
 				'  return 1;',
 				'    return value;',
@@ -387,7 +387,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  user typed `  ` → current: `  return 1;`
 			//  model:     `  return 42;`
 			//  → "  " found at position 0 → compatible
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'return 1;',
 				'  return 1;',
 				'  return 42;',
@@ -403,7 +403,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  model:     `aaac`
 			//  → prefixLen=3, modelPrefixLen=3, userTypedText="b", modelNewText="c"
 			//  → "c".startsWith("b") → false → cancel
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'aaa',
 				'aaab',
 				'aaac',
@@ -417,7 +417,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  → prefixLen=3, suffixLen=0, userTypedText="a", originalReplacedText=""
 			//  → modelPrefixLen=3, modelNewText="ab"
 			//  → "ab".startsWith("a") → true → compatible
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'aaa',
 				'aaaa',
 				'aaaab',
@@ -431,7 +431,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  original:  `foo`
 			//  user typed `b` → current: `foob`
 			//  model:     `` (empty)
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'foo',
 				'foob',
 				'',
@@ -443,7 +443,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  user typed `!` → current: `const x = 1;!`
 			//  model:     `const x;`  (removed ` = 1`)
 			//  → user edit at col 13, model edit at col 7–12 → ranges don't overlap → cancel
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'const x = 1;',
 				'const x = 1;!',
 				'const x;',
@@ -463,7 +463,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  user typed `F` → current: `let F`
 			//  model:     `let function() {}`
 			//  → "function() {}".startsWith("F") → false → cancel
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'let ',
 				'let F',
 				'let function() {}',
@@ -474,7 +474,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  original:  `let `
 			//  user typed `f` → current: `let f`
 			//  model:     `let function() {}`
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'let ',
 				'let f',
 				'let function() {}',
@@ -491,7 +491,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  user typed `🎉` → current: `const x = 🎉`
 			//  model:     `const x = 42;`
 			//  → "42;".startsWith("🎉") → false → cancel
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'const x = ',
 				'const x = 🎉',
 				'const x = 42;',
@@ -502,7 +502,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  original:  `const x = `
 			//  user typed `🎉` → current: `const x = 🎉`
 			//  model:     `const x = 🎉🎊`
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'const x = ',
 				'const x = 🎉',
 				'const x = 🎉🎊',
@@ -510,7 +510,7 @@ describe('isModelCursorLineCompatible', () => {
 		});
 
 		it('user typed CJK character, model produced different CJK — cancel', () => {
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'const s = "',
 				'const s = "你',
 				'const s = "世界"',
@@ -526,7 +526,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  original:  `abcdef`
 			//  user replaced `cd` with `x` → current: `abxef`
 			//  model:     `abxyzef`  (replaced `cd` with `xyz`, starts with `x`)
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'abcdef',
 				'abxef',
 				'abxyzef',
@@ -538,7 +538,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  user replaced `cd` with `x` → current: `abxef`
 			//  model:     `abYZef`  (replaced `cd` with `YZ`)
 			//  → "YZ".startsWith("x") → false → cancel
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'abcdef',
 				'abxef',
 				'abYZef',
@@ -551,7 +551,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  model:     `abXYef`  (replaced `cd` with `XY`)
 			//  → isUserEditCompatibleWithModelEdit: replaced.length > 0, currentCursorLine !== modelCursorLine,
 			//    same start/end/replaced, but userEdit.inserted.length === 0 → false → cancel
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'abcdef',
 				'abef',
 				'abXYef',
@@ -563,7 +563,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  user replaced `hello` (0..5) with `hi` → current: `hi world`
 			//  model:     `hello earth`   (replaced `world` at 6..11)
 			//  → user edit range [0,5) is not within model edit range [6,11) → cancel
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'hello world',
 				'hi world',
 				'hello earth',
@@ -581,7 +581,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  model:     `div<Component>`
 			//  → userTypedText="<>", AUTO_CLOSE_PAIRS.has("<>") → true
 			//  → isSubsequenceOf("<>", "<Component>") → true → compatible
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'div',
 				'div<>',
 				'div<Component>',
@@ -590,7 +590,7 @@ describe('isModelCursorLineCompatible', () => {
 
 		it('user typed < auto-closed to <>, model has no > — cancel', () => {
 			//  model:     `div<Component`  (no closing >)
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'div',
 				'div<>',
 				'div<Component',
@@ -608,7 +608,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  model:     `foo(a, b)`
 			//  → userTypedText = "(x)", not in AUTO_CLOSE_PAIRS
 			//  → "(a, b)".startsWith("(x)") → false → cancel
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'foo',
 				'foo(x)',
 				'foo(a, b)',
@@ -623,7 +623,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  → "(x, y)".startsWith("(x)") → false (position 2: ')' vs ',')
 			//  → "(x)" not in AUTO_CLOSE_PAIRS → no subsequence fallback
 			//  → cancel. User closed parens but model wants different content.
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'foo',
 				'foo(x)',
 				'foo(x, y)',
@@ -641,7 +641,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  model:     `let ab`  (model predicted fewer chars)
 			//  → userTypedText="abc", modelNewText="ab"
 			//  → "ab".startsWith("abc") → false → cancel
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'let ',
 				'let abc',
 				'let ab',
@@ -657,7 +657,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  original:  `foo`
 			//  user typed `bar` → current: `foobar`
 			//  model:     `foobar`
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'foo',
 				'foobar',
 				'foobar',
@@ -668,7 +668,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  original:  `aXa`
 			//  user replaced `X` with `Y` → current: `aYa`
 			//  model:     `aYa`  (same)
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'aXa',
 				'aYa',
 				'aYa',
@@ -683,7 +683,7 @@ describe('isModelCursorLineCompatible', () => {
 		it('user backspaced and retyped same char — no change, trivially compatible', () => {
 			//  The net result is original === current → userEdit has no diff.
 			//  Detected by: replaced.length === 0 && inserted.length === 0 → true
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'hello',
 				'hello',
 				'completely different',
@@ -701,7 +701,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  model:     `xabcd`
 			//  → userTypedText="bc", modelNewText="abcd"
 			//  → "abcd".startsWith("bc") → false → cancel
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'x',
 				'xbc',
 				'xabcd',
@@ -714,7 +714,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  model:     `xabcd`
 			//  → userTypedText="cd", modelNewText="abcd"
 			//  → "abcd".startsWith("cd") → false → cancel
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'x',
 				'xcd',
 				'xabcd',
@@ -732,7 +732,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  model:     `const y = 1;`  (changed x→y at col 6-7)
 			//  → user edit at offset 13 (append), model edit at offset 6-7
 			//  → user offset outside model range → cancel
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'const x = 1;',
 				'const x = 1; ',
 				'const y = 1;',
@@ -749,7 +749,7 @@ describe('isModelCursorLineCompatible', () => {
 			//  user deleted `bar` → current: `foo`
 			//  model:     `foo`
 			//  → currentCursorLine === modelCursorLine → true
-			expect(isModelCursorLineCompatible(
+			expect(isModelLineCompatible(
 				'foobar',
 				'foo',
 				'foo',
@@ -792,13 +792,13 @@ describe('getCurrentCursorLine', () => {
 			const doc = 'aaa\nbbb\nccc';
 			const edit = insertAt(4, 'X');
 
-			expect(getCurrentCursorLine(t(doc), 1, edit)).toBe('Xbbb');
+			expect(getCurrentLine(t(doc), 1, edit)).toBe('Xbbb');
 		});
 
 		it('returns the unmodified cursor line when the edit is empty', () => {
 			const doc = 'aaa\nbbb\nccc';
 
-			expect(getCurrentCursorLine(t(doc), 1, StringEdit.empty)).toBe('bbb');
+			expect(getCurrentLine(t(doc), 1, StringEdit.empty)).toBe('bbb');
 		});
 	});
 
@@ -812,7 +812,7 @@ describe('getCurrentCursorLine', () => {
 			const doc = 'aaa\nbbb\nccc';
 			const edit = insertAt(3, '\nNEW');
 
-			expect(getCurrentCursorLine(t(doc), 2, edit)).toBe('ccc');
+			expect(getCurrentLine(t(doc), 2, edit)).toBe('ccc');
 		});
 
 		it('handles multiple lines inserted above the cursor', () => {
@@ -823,7 +823,7 @@ describe('getCurrentCursorLine', () => {
 			const doc = 'L0\nL1\nL2';
 			const edit = insertAt(2, '\nA\nB');
 
-			expect(getCurrentCursorLine(t(doc), 2, edit)).toBe('L2');
+			expect(getCurrentLine(t(doc), 2, edit)).toBe('L2');
 		});
 	});
 
@@ -836,7 +836,7 @@ describe('getCurrentCursorLine', () => {
 			const doc = 'aaa\nbbb\nccc\nddd';
 			const edit = deleteAt(4, 4); // delete "bbb\n"
 
-			expect(getCurrentCursorLine(t(doc), 3, edit)).toBe('ddd');
+			expect(getCurrentLine(t(doc), 3, edit)).toBe('ddd');
 		});
 	});
 
@@ -848,7 +848,7 @@ describe('getCurrentCursorLine', () => {
 			const doc = 'aaa\nbbb\nccc';
 			const edit = StringEdit.single(new StringReplacement(new OffsetRange(8, 11), 'CCC'));
 
-			expect(getCurrentCursorLine(t(doc), 0, edit)).toBe('aaa');
+			expect(getCurrentLine(t(doc), 0, edit)).toBe('aaa');
 		});
 	});
 
@@ -858,20 +858,20 @@ describe('getCurrentCursorLine', () => {
 			const doc = 'hello\nworld';
 			const edit = insertAt(0, 'XY');
 
-			expect(getCurrentCursorLine(t(doc), 0, edit)).toBe('XYhello');
+			expect(getCurrentLine(t(doc), 0, edit)).toBe('XYhello');
 		});
 
 		it('cursor on the last line', () => {
 			const doc = 'aaa\nbbb';
 			const edit = insertAt(3, '\nNEW');
 
-			expect(getCurrentCursorLine(t(doc), 1, edit)).toBe('bbb');
+			expect(getCurrentLine(t(doc), 1, edit)).toBe('bbb');
 		});
 
 		it('returns undefined for out-of-bounds line index', () => {
 			const doc = 'aaa\nbbb';
 
-			expect(getCurrentCursorLine(t(doc), 5, StringEdit.empty)).toBeUndefined();
+			expect(getCurrentLine(t(doc), 5, StringEdit.empty)).toBeUndefined();
 		});
 
 		it('returns undefined when cursor line start is inside a replacement', () => {
@@ -880,14 +880,14 @@ describe('getCurrentCursorLine', () => {
 			const doc = 'aaa\nbbb\nccc';
 			const edit = StringEdit.single(new StringReplacement(new OffsetRange(2, 6), 'Z'));
 
-			expect(getCurrentCursorLine(t(doc), 1, edit)).toBeUndefined();
+			expect(getCurrentLine(t(doc), 1, edit)).toBeUndefined();
 		});
 
 		it('single-line document, cursor on line 0', () => {
 			const doc = 'hello';
 			const edit = insertAt(5, ' world');
 
-			expect(getCurrentCursorLine(t(doc), 0, edit)).toBe('hello world');
+			expect(getCurrentLine(t(doc), 0, edit)).toBe('hello world');
 		});
 	});
 
@@ -907,7 +907,7 @@ describe('getCurrentCursorLine', () => {
 				new StringReplacement(OffsetRange.emptyAt(4), 'X'),
 			]);
 
-			expect(getCurrentCursorLine(t(doc), 1, edit)).toBe('Xbbb');
+			expect(getCurrentLine(t(doc), 1, edit)).toBe('Xbbb');
 		});
 
 		it('handles line deleted above AND cursor line modified', () => {
@@ -921,7 +921,7 @@ describe('getCurrentCursorLine', () => {
 				new StringReplacement(OffsetRange.emptyAt(12), 'Z'),
 			]);
 
-			expect(getCurrentCursorLine(t(doc), 3, edit)).toBe('Zddd');
+			expect(getCurrentLine(t(doc), 3, edit)).toBe('Zddd');
 		});
 	});
 
@@ -941,7 +941,7 @@ describe('getCurrentCursorLine', () => {
 				new StringReplacement(new OffsetRange(4, 7), 'X\nY\nZ')
 			);
 
-			expect(getCurrentCursorLine(t(doc), 1, edit)).toBe('X');
+			expect(getCurrentLine(t(doc), 1, edit)).toBe('X');
 		});
 	});
 
@@ -953,7 +953,7 @@ describe('getCurrentCursorLine', () => {
 			const doc = '';
 			const edit = insertAt(0, 'hello');
 
-			expect(getCurrentCursorLine(t(doc), 0, edit)).toBe('hello');
+			expect(getCurrentLine(t(doc), 0, edit)).toBe('hello');
 		});
 	});
 
@@ -968,7 +968,7 @@ describe('getCurrentCursorLine', () => {
 			const doc = 'aaa\nbbb';
 			const edit = insertAt(7, 'XYZ');
 
-			expect(getCurrentCursorLine(t(doc), 1, edit)).toBe('bbbXYZ');
+			expect(getCurrentLine(t(doc), 1, edit)).toBe('bbbXYZ');
 		});
 
 		it('cursor on last line, new line appended after it', () => {
@@ -979,7 +979,7 @@ describe('getCurrentCursorLine', () => {
 			const doc = 'aaa\nbbb';
 			const edit = insertAt(7, '\nccc');
 
-			expect(getCurrentCursorLine(t(doc), 1, edit)).toBe('bbb');
+			expect(getCurrentLine(t(doc), 1, edit)).toBe('bbb');
 		});
 	});
 });
