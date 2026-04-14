@@ -208,9 +208,52 @@ export class LocalFileSearchWorkerClient extends Disposable implements ISearchRe
 						const directoryUri = URI.file(directory);
 						const exists = await nodepodFS.exists(URI.joinPath(directoryUri, filename).path);
 						if (exists) {
-							(proxy as any).$nodepodDirectoryGetFileHandleResponse(promiseId,
-								await nodepodFS.readFile(URI.joinPath(directoryUri, filename).path));
+							const file = await nodepodFS.readFile(URI.joinPath(directoryUri, filename).path);
+							proxy.$nodepodDirectoryGetFileHandleResponse(promiseId,
+								file);
 						}
+						else {
+							proxy.$nodepodDirectoryGetFileHandleResponse(promiseId,
+								null);
+						}
+					},
+					$nodepodDirectoryGetEntriesRequest: async (directory: string, promiseId: number) => {
+						debugger;
+						const nodepodFS = (window as any).nodepod.fs as NodepodFS;
+						const proxy = this._getOrCreateWorker().proxy;
+						const directoryUri = URI.file(directory);
+						const entries = [] as [string, any][];
+						var dirFiles = await nodepodFS.readdir(directoryUri.path);
+						for (const item of dirFiles) {
+							const itemStat = await nodepodFS.stat(URI.joinPath(directoryUri, item).path);
+							if (itemStat.isDirectory) {
+								entries.push([item, {
+									kind: 'directory',
+									name: URI.joinPath(directoryUri, item).path,
+									isDirectory: true,
+									isFile: false,
+									isNodepod: true,
+								}]);
+							}
+							else {
+								entries.push([item, {
+									kind: 'file',
+									name: URI.joinPath(directoryUri, item).path,
+									isDirectory: false,
+									isFile: true,
+									isNodepod: true,
+								}]);
+							}
+						}
+						proxy.$nodepodDirectoryGetEntriesResponse(promiseId,
+							entries as any);
+					},
+					$nodepodDirectoryGetFileContentsRequest: async (filename: string, promiseId: number) => {
+						const nodepodFS = (window as any).nodepod.fs as NodepodFS;
+						const proxy = this._getOrCreateWorker().proxy;
+						const file = await nodepodFS.readFile(filename);
+						proxy.$nodepodDirectoryGetFileContentsResponse(promiseId,
+							file);
 					}
 				} as any)
 			} catch (err) {

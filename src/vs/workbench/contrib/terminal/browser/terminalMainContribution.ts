@@ -77,9 +77,9 @@ export class TerminalMainContribution extends Disposable implements IWorkbenchCo
 
 		// Mount nodepod terminal
 		try {
-			const [{ Terminal }] = await Promise.all([
-				import('@xterm/xterm'),
-			]);
+			// const [{ Terminal }] = await Promise.all([
+			// 	import('@xterm/xterm'),
+			// ]);
 
 			// const container = document.createElement('div');
 			// container.style.cssText = 'width:100%;height:300px;position:fixed;bottom:0;left:0;z-index:9999;';

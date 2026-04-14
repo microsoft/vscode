@@ -152,6 +152,7 @@ export class WebWorker extends Disposable implements IWebWorker {
 		};
 		this.worker.then((w) => {
 			w.onmessage = (ev) => {
+				debugger;
 				this._onMessage.fire(ev.data);
 			};
 			w.onmessageerror = (ev) => {

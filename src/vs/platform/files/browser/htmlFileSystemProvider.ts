@@ -32,6 +32,8 @@ const nodepod = await Nodepod.boot({
 	},
 }) as Nodepod;
 
+
+
 (window as any).nodepod = nodepod;
 class NodepodFileSystemFileHandle {
 
@@ -105,6 +107,18 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
 		private logService: ILogService
 	) {
 		super();
+
+		nodepod.fs.volume.onGlobalChange((path: string, event: 'add' | 'delete' | 'change') => {
+			if (event === 'add') {
+				this._onDidChangeFileEmitter.fire([{ resource: URI.from({ scheme: Schemas.file, path: path }), type: FileChangeType.ADDED }]);
+			}
+			else if (event === 'delete') {
+				this._onDidChangeFileEmitter.fire([{ resource: URI.from({ scheme: Schemas.file, path: path }), type: FileChangeType.DELETED }]);
+			}
+			else if (event === 'change') {
+				this._onDidChangeFileEmitter.fire([{ resource: URI.from({ scheme: Schemas.file, path: path }), type: FileChangeType.UPDATED }]);
+			}
+		});
 	}
 
 	//#region File Metadata Resolving
@@ -429,12 +443,14 @@ export class HTMLFileSystemProvider extends Disposable implements IFileSystemPro
 		}
 
 		if (resource.scheme === Schemas.file && resource.path.startsWith('/nodepod')) {
-			nodepod.fs.watch(resource.path, { recursive: true }, (event: any) => {
-				debugger;
-				if (event.type === 'change') {
-					this._onDidChangeFileEmitter.fire([{ resource: resource, type: FileChangeType.UPDATED }]);
-				}
-			});
+
+
+			// nodepod.fs.watch(resource.path, { recursive: true }, (event: any) => {
+			// 	debugger;
+			// 	if (event.type === 'change') {
+			// 		this._onDidChangeFileEmitter.fire([{ resource: resource, type: FileChangeType.UPDATED }]);
+			// 	}
+			// });
 		}
 		else {
 

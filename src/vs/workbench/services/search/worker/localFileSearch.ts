@@ -16,6 +16,7 @@ import { createRegExp } from '../../../../base/common/strings.js';
 import { Promises } from '../../../../base/common/async.js';
 import { ExtUri } from '../../../../base/common/resources.js';
 import { revive } from '../../../../base/common/marshalling.js';
+import '../../../../workbench/services/search/browser/searchService.js';
 
 const PERF = false;
 
@@ -66,12 +67,35 @@ export class LocalFileSearchWorker implements ILocalFileSearchWorker, IWebWorker
 		this.cancellationTokens.get(queryId)?.cancel();
 	}
 
-	private readonly nodepodPromises: Map<number, Promise<any>> = new Map();
+	private nodepodPromiseId = 0;
+	private readonly nodepodPromises: Map<number, any> = new Map();
 
 	$nodepodDirectoryGetFileHandleResponse(promiseId: number, handle: any): void {
-		const promise = this.nodepodPromises.get(promiseId);
-		if (promise) {
-			(promise as any).resolve(handle);
+		debugger;
+		const resolve = this.nodepodPromises.get(promiseId);
+		if (resolve) {
+			//resolve the promise with the handle
+			resolve(handle);
+			this.nodepodPromises.delete(promiseId);
+		}
+	}
+
+	$nodepodDirectoryGetEntriesResponse(promiseId: number, entries: [string, any][]): void {
+		debugger;
+		const resolve = this.nodepodPromises.get(promiseId);
+		if (resolve) {
+			//resolve the promise with the entries
+			resolve(entries);
+			this.nodepodPromises.delete(promiseId);
+		}
+	}
+
+	$nodepodDirectoryGetFileContentsResponse(promiseId: number, contents: any): void {
+		debugger;
+		const resolve = this.nodepodPromises.get(promiseId);
+		if (resolve) {
+			//resolve the promise with the contents
+			resolve(contents);
 			this.nodepodPromises.delete(promiseId);
 		}
 	}
@@ -211,16 +235,37 @@ export class LocalFileSearchWorker implements ILocalFileSearchWorker, IWebWorker
 			return true;
 		};
 
+
+
 		const processFile = (file: FileSystemFileHandle, prior: string): FileNode => {
 
-			const resolved: FileNode = {
-				type: 'file',
-				name: file.name,
-				path: prior,
-				resolve: () => file.getFile().then(r => r.arrayBuffer())
-			} as const;
+			if ((file as any).isNodepod) {
 
-			return resolved;
+				let resolveFunc = null;
+				const fileContentsPromise = new Promise((resolve, reject) => {
+					resolveFunc = resolve;
+				});
+				this.nodepodPromises.set(this.nodepodPromiseId, resolveFunc);
+				this.host.$nodepodDirectoryGetFileContentsRequest(file.name, this.nodepodPromiseId++);
+
+				return {
+					type: 'file',
+					name: file.name,
+					path: prior,
+					resolve: () => fileContentsPromise as Promise<ArrayBuffer>
+				} as const;
+			}
+			else {
+				return {
+					type: 'file',
+					name: file.name,
+					path: prior,
+					resolve: () => file.getFile().then(r => r.arrayBuffer())
+				} as const;
+			}
+
+
+
 		};
 
 		const isFileSystemDirectoryHandle = (handle: IWorkerFileSystemHandle): handle is FileSystemDirectoryHandle => {
@@ -237,17 +282,23 @@ export class LocalFileSearchWorker implements ILocalFileSearchWorker, IWebWorker
 
 
 				if ((directory as any).isNodepod) {
-					let id = Date.now();
-					const gitIgnorePromise = new Promise((resolve, reject) => {
-						(this.host as any).$nodepodDirectoryGetFileHandleRequest(directory.name, '.gitignore', id);
-					});
-					this.nodepodPromises.set(id, gitIgnorePromise);
 
-					id = Date.now();
-					const ignorePromise = new Promise((resolve, reject) => {
-						(this.host as any).$nodepodDirectoryGetFileHandleRequest(directory.name, '.ignore', id);
+					let resolveFunc = null;
+					const gitIgnorePromise = new Promise((resolve, reject) => {
+						resolveFunc = resolve;
+
 					});
-					this.nodepodPromises.set(id, ignorePromise);
+					this.nodepodPromises.set(this.nodepodPromiseId, resolveFunc);
+					this.host.$nodepodDirectoryGetFileHandleRequest(directory.name, '.gitignore', this.nodepodPromiseId++);
+
+
+					resolveFunc = null;
+					const ignorePromise = new Promise((resolve, reject) => {
+						resolveFunc = resolve;
+
+					});
+					this.nodepodPromises.set(this.nodepodPromiseId, resolveFunc);
+					this.host.$nodepodDirectoryGetFileHandleRequest(directory.name, '.ignore', this.nodepodPromiseId++);
 
 					const ignoreFiles = await Promise.all([gitIgnorePromise, ignorePromise]);
 
@@ -257,6 +308,8 @@ export class LocalFileSearchWorker implements ILocalFileSearchWorker, IWebWorker
 						const ignoreContents = new TextDecoder('utf8').decode(file as any);
 						ignoreFile = new IgnoreFile(ignoreContents, prior, ignoreFile, ignoreGlobCase);
 					}));
+
+					//await Promise.resolve([]);
 
 
 				}
@@ -275,6 +328,21 @@ export class LocalFileSearchWorker implements ILocalFileSearchWorker, IWebWorker
 				}
 			}
 
+			let directoryEntries: any = null;
+			if ((directory as any).isNodepod) {
+
+				let resolveFunc = null;
+				const directoryEntriesPromise = new Promise((resolve, reject) => {
+					resolveFunc = resolve;
+				});
+				this.nodepodPromises.set(this.nodepodPromiseId, resolveFunc);
+				this.host.$nodepodDirectoryGetEntriesRequest(directory.name, this.nodepodPromiseId++);
+				directoryEntries = await directoryEntriesPromise as [string, IWorkerFileSystemHandle][];
+			}
+			else {
+				directoryEntries = await directory.entries();
+			}
+
 			const entries = Promises.withAsyncBody<(FileNode | DirNode)[]>(async c => {
 				const files: FileNode[] = [];
 				const dirs: Promise<DirNode>[] = [];
@@ -282,7 +350,7 @@ export class LocalFileSearchWorker implements ILocalFileSearchWorker, IWebWorker
 				const entries: [string, IWorkerFileSystemHandle][] = [];
 				const sibilings = new Set<string>();
 
-				for await (const entry of directory.entries()) {
+				for await (const entry of directoryEntries) {
 					entries.push(entry);
 					sibilings.add(entry[0]);
 				}

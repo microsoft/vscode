@@ -49,7 +49,7 @@ import { TerminalTelemetryContribution } from './terminalTelemetry.js';
 import { TerminalViewPane } from './terminalView.js';
 
 // Nodepod imports
-import { Nodepod } from '@scelar/nodepod';
+// import { Nodepod } from '@scelar/nodepod';
 
 // Register services
 registerSingleton(ITerminalLogService, TerminalLogService, InstantiationType.Delayed);
@@ -144,36 +144,36 @@ setupTerminalMenus();
 registerColors();
 
 // Create Nodepod terminal
-let nodepodInstance: any;
-let nodepodTerminal: any;
+// let nodepodInstance: any;
+// let nodepodTerminal: any;
 
-async function createNodepodTerminal(): Promise<void> {
-	// Boot nodepod instance
-	nodepodInstance = await Nodepod.boot({
-		files: {
-			'/nodepod/nodepod.code-workspace': '{ "folders": [ { "path": "/nodepod/" } ] }',
-			'/nodepod/test.txt': 'Hello, world!',
-			'/nodepod/tmp/test.txt': 'Hello, world!',
-			'/nodepod/home/test.txt': 'Hello, world!',
-		},
-	});
+// async function createNodepodTerminal(): Promise<void> {
+// // Boot nodepod instance
+// nodepodInstance = await Nodepod.boot({
+// 	files: {
+// 		'/nodepod/nodepod.code-workspace': '{ "folders": [ { "path": "/nodepod/" } ] }',
+// 		'/nodepod/test.txt': 'Hello, world!',
+// 		'/nodepod/tmp/test.txt': 'Hello, world!',
+// 		'/nodepod/home/test.txt': 'Hello, world!',
+// 	},
+// });
 
-	// Expose nodepod on window for debugging
-	(window as any).nodepod = nodepodInstance;
+// // Expose nodepod on window for debugging
+// (window as any).nodepod = nodepodInstance;
 
-	// Dynamically import xterm and fit addon
-	const [{ Terminal }] = await Promise.all([
-		import('@xterm/xterm'),
-	]);
+// // Dynamically import xterm and fit addon
+// const [{ Terminal }] = await Promise.all([
+// 	import('@xterm/xterm'),
+// ]);
 
-	// Create nodepod terminal with xterm
-	nodepodTerminal = nodepodInstance.createTerminal({
-		Terminal
-	});
+// // Create nodepod terminal with xterm
+// nodepodTerminal = nodepodInstance.createTerminal({
+// 	Terminal
+// });
 
-	// Store terminal reference
-	(window as any).nodepodTerminal = nodepodTerminal;
-}
+// // Store terminal reference
+// (window as any).nodepodTerminal = nodepodTerminal;
+// }
 
 // Start creating the nodepod terminal
-createNodepodTerminal().catch(console.error);
+//createNodepodTerminal().catch(console.error);

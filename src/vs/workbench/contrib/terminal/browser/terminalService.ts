@@ -37,7 +37,7 @@ import { TerminalEditorInput } from './terminalEditorInput.js';
 import { getColorStyleContent, getUriClasses } from './terminalIcon.js';
 import { TerminalProfileQuickpick } from './terminalProfileQuickpick.js';
 import { getInstanceFromResource, getTerminalUri, parseTerminalUri } from './terminalUri.js';
-import { IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalProcessExtHostProxy, ITerminalProfileService } from '../common/terminal.js';
+import { IRemoteTerminalAttachTarget, IStartExtensionTerminalRequest, ITerminalProcessExtHostProxy, ITerminalProfileService, TERMINAL_VIEW_ID } from '../common/terminal.js';
 import { TerminalContextKeys } from '../common/terminalContextKey.js';
 import { columnToEditorGroup } from '../../../services/editor/common/editorGroupColumn.js';
 import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
@@ -59,7 +59,7 @@ import { isAuxiliaryWindow, mainWindow } from '../../../../base/browser/window.j
 import { GroupIdentifier } from '../../../common/editor.js';
 import { getActiveWindow } from '../../../../base/browser/dom.js';
 import { hasKey, isString } from '../../../../base/common/types.js';
-
+import { IViewsService } from '../../../../../vs/workbench/services/views/common/viewsService.js';
 interface IBackgroundTerminal {
 	instance: ITerminalInstance;
 	terminalLocationOptions?: ITerminalLocationOptions;
@@ -1075,6 +1075,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		}
 		// @ts-ignore
 		if (instance.shellType) {
+			// @ts-ignore
 			this._extensionService.activateByEvent(`onTerminal:${instance.shellType}`);
 		}
 
@@ -1183,8 +1184,20 @@ export class TerminalService extends Disposable implements ITerminalService {
 		const nodepod = (window as any).nodepod;
 		// @ts-ignore
 		backend._terminal = nodepod.createTerminal({});
+
 		// @ts-ignore
 		backend._terminal._term = xterm.raw;
+		// @ts-ignore
+		backend._terminal.setCwd("/nodepod");
+
+		const viewsService = this._instantiationService.invokeFunction(
+			accessor => accessor.get(IViewsService)
+		);
+
+		const isTerminalVisible = viewsService.isViewVisible(TERMINAL_VIEW_ID);
+		if (!isTerminalVisible) {
+			this._commandService.executeCommand('workbench.action.terminal.toggleTerminal');
+		}
 
 		return instance;
 	}

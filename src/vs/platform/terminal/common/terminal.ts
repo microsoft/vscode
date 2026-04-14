@@ -1213,9 +1213,6 @@ export interface ITerminalBackendRegistry {
 
 
 
-
-let NEXT_ID = 1;
-
 import type { NodepodTerminal, Nodepod } from '@scelar/nodepod'
 
 
@@ -1245,17 +1242,17 @@ export class FakeTerminalProcess {
 
 
 		// 🔥 Redirect Nodepod output → VS Code terminal
-		const originalWrite = this._nodepod.write.bind(this._nodepod);
-		this._nodepod.write = (text: string) => {
-			this._onProcessData.fire(text);
-			originalWrite(text); // optional (keeps internal state)
-		};
+		// const originalWrite = this._nodepod.write.bind(this._nodepod);
+		// this._nodepod.write = (text: string) => {
+		// 	this._onProcessData.fire(text);
+		// 	originalWrite(text); // optional (keeps internal state)
+		// };
 
-		const originalWriteln = this._nodepod.writeln.bind(this._nodepod);
-		this._nodepod.writeln = (text: string) => {
-			this._onProcessData.fire(text + '\r\n');
-			originalWriteln(text);
-		};
+		// const originalWriteln = this._nodepod.writeln.bind(this._nodepod);
+		// this._nodepod.writeln = (text: string) => {
+		// 	this._onProcessData.fire(text + '\r\n');
+		// 	originalWriteln(text);
+		// };
 
 		// // 🔌 Wire command execution
 		// this._nodepod._wireExecution({

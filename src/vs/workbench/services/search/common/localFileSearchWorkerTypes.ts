@@ -43,6 +43,9 @@ export interface ILocalFileSearchWorker {
 	_requestHandlerBrand: void;
 
 	$cancelQuery(queryId: number): void;
+	$nodepodDirectoryGetFileHandleResponse(promiseId: number, handle: any): void;
+	$nodepodDirectoryGetEntriesResponse(promiseId: number, entries: [string, any][]): void;
+	$nodepodDirectoryGetFileContentsResponse(promiseId: number, contents: any): void;
 
 	$listDirectory(handle: IWorkerFileSystemDirectoryHandle, queryProps: IFileQueryProps<UriComponents>, folderQuery: IFolderQuery, ignorePathCasing: boolean, queryId: number): Promise<IWorkerFileSearchComplete>;
 	$searchDirectory(handle: IWorkerFileSystemDirectoryHandle, queryProps: ITextQueryProps<UriComponents>, folderQuery: IFolderQuery, ignorePathCasing: boolean, queryId: number): Promise<IWorkerTextSearchComplete>;
@@ -58,4 +61,7 @@ export abstract class LocalFileSearchWorkerHost {
 	}
 
 	abstract $sendTextSearchMatch(match: IFileMatch<UriComponents>, queryId: number): void;
+	abstract $nodepodDirectoryGetFileHandleRequest(directory: string, filename: string, promiseId: number): Promise<void>;
+	abstract $nodepodDirectoryGetEntriesRequest(directory: string, promiseId: number): Promise<void>;
+	abstract $nodepodDirectoryGetFileContentsRequest(filename: string, promiseId: number): Promise<void>;
 }

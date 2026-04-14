@@ -437,11 +437,11 @@ export class TerminalProcessManager extends Disposable implements ITerminalProce
 			}
 		}, ProcessConstants.ErrorLaunchThresholdDuration);
 
-		const result = await newProcess.start();
-		if (result) {
-			// Error
-			return result;
-		}
+		//const result = await newProcess.start();
+		//if (result) {
+		// Error
+		//	return result;
+		//}
 
 		// Report the latency to the pty host when idle
 		runWhenWindowIdle(getActiveWindow(), () => {
