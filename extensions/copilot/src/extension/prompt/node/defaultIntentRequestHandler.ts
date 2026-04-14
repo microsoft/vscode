@@ -699,9 +699,9 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 		const assistantMessages = opts.messages.filter(m => m.role === 'assistant');
 		const lastTwoAssistant = assistantMessages.slice(-2);
 		if (lastTwoAssistant.length > 0) {
-			console.log('[LLM-DEBUG] Last two assistant messages sent to LLM:');
+			this._logService.info('[LLM-DEBUG] Last two assistant messages sent to LLM:');
 			for (const msg of lastTwoAssistant) {
-				console.log(JSON.stringify(msg, null, 2));
+				this._logService.info('[LLM-DEBUG] ' + JSON.stringify(msg, null, 2));
 			}
 		}
 
