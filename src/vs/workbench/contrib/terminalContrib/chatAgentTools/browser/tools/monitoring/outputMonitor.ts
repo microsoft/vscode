@@ -208,8 +208,12 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	 */
 	continueMonitoringAsync(token: CancellationToken): void {
 		this._asyncMode = true;
-		// Cancel and dispose any in-progress monitoring run to avoid two concurrent loops
-		this._currentMonitoringCts?.dispose();
+		// Cancel and dispose any in-progress monitoring run to avoid two concurrent loops.
+		// Cancel before dispose so that onCancellationRequested handlers fire and pending
+		// promises (e.g. _waitForNewData) resolve properly.
+		const currentMonitoringCts = this._currentMonitoringCts;
+		currentMonitoringCts?.cancel();
+		currentMonitoringCts?.dispose();
 		this._currentMonitoringCts = new CancellationTokenSource(token);
 		this._state = OutputMonitorState.PollingForIdle;
 		this._startMonitoring(this._command, this._invocationContext, this._currentMonitoringCts.token);

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/sessionCompositeBar.css';
+import './media/chatCompositeBar.css';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { $, addDisposableListener, EventType, getWindow, reset } from '../../../base/browser/dom.js';
@@ -15,11 +15,11 @@ import { IContextMenuService } from '../../../platform/contextview/browser/conte
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { localize } from '../../../nls.js';
 import { IQuickInputService } from '../../../platform/quickinput/common/quickInput.js';
-import { sessionsChatBarBackground } from '../../common/theme.js';
+import { chatBarBackground } from '../../common/theme.js';
 import { IChat } from '../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
 
-interface ISessionTab {
+interface IChatTab {
 	readonly chat: IChat;
 	readonly element: HTMLElement;
 }
@@ -30,11 +30,11 @@ interface ISessionTab {
  *
  * The bar auto-hides when there is only one chat in the active session and shows when there are multiple.
  */
-export class SessionCompositeBar extends Disposable {
+export class ChatCompositeBar extends Disposable {
 
 	private readonly _container: HTMLElement;
 	private readonly _tabsContainer: HTMLElement;
-	private readonly _tabs: ISessionTab[] = [];
+	private readonly _tabs: IChatTab[] = [];
 	private readonly _tabDisposables = this._register(new DisposableStore());
 
 	private readonly _onDidChangeVisibility = this._register(new Emitter<boolean>());
@@ -58,8 +58,8 @@ export class SessionCompositeBar extends Disposable {
 	) {
 		super();
 
-		this._container = $('.session-composite-bar');
-		this._tabsContainer = $('.session-composite-bar-tabs');
+		this._container = $('.chat-composite-bar');
+		this._tabsContainer = $('.chat-composite-bar-tabs');
 		this._container.appendChild(this._tabsContainer);
 
 		// Track active session changes
@@ -95,18 +95,18 @@ export class SessionCompositeBar extends Disposable {
 	}
 
 	private _createTab(chat: IChat, isMainChat: boolean): void {
-		const tab = $('.session-composite-bar-tab');
+		const tab = $('.chat-composite-bar-tab');
 		tab.tabIndex = 0;
 		tab.setAttribute('role', 'tab');
 
-		const labelEl = $('.session-composite-bar-tab-label');
+		const labelEl = $('.chat-composite-bar-tab-label');
 		this._tabDisposables.add(autorun(reader => {
 			const title = chat.title.read(reader);
 			labelEl.textContent = title;
 		}));
 		tab.appendChild(labelEl);
 
-		const indicator = $('.session-composite-bar-tab-indicator');
+		const indicator = $('.chat-composite-bar-tab-indicator');
 		tab.appendChild(indicator);
 
 		this._tabsContainer.appendChild(tab);
@@ -186,14 +186,14 @@ export class SessionCompositeBar extends Disposable {
 	private _updateStyles(): void {
 		const theme = this._themeService.getColorTheme();
 
-		const bg = theme.getColor(sessionsChatBarBackground);
+		const bg = theme.getColor(chatBarBackground);
 		const activeFg = theme.getColor(PANEL_ACTIVE_TITLE_FOREGROUND);
 		const inactiveFg = theme.getColor(PANEL_INACTIVE_TITLE_FOREGROUND);
 		const activeBorder = theme.getColor(PANEL_ACTIVE_TITLE_BORDER);
 
-		this._container.style.setProperty('--session-bar-background', bg?.toString() ?? '');
-		this._container.style.setProperty('--session-tab-active-foreground', activeFg?.toString() ?? '');
-		this._container.style.setProperty('--session-tab-inactive-foreground', inactiveFg?.toString() ?? '');
-		this._container.style.setProperty('--session-tab-active-border', activeBorder?.toString() ?? '');
+		this._container.style.setProperty('--chat-bar-background', bg?.toString() ?? '');
+		this._container.style.setProperty('--chat-tab-active-foreground', activeFg?.toString() ?? '');
+		this._container.style.setProperty('--chat-tab-inactive-foreground', inactiveFg?.toString() ?? '');
+		this._container.style.setProperty('--chat-tab-active-border', activeBorder?.toString() ?? '');
 	}
 }

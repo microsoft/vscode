@@ -287,13 +287,14 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		registerLanguageModelProvider: () => toDisposable(() => { }),
 	});
 	instantiationService.stub(IConfigurationService, {
-		getValue: (...args: unknown[]) => {
-			if (args[0] === 'chat.agentHost.clientTools') {
-				return [];
-			}
-			return true;
-		},
 		onDidChangeConfiguration: Event.None,
+		getValue: (...args: any[]) => typeof args[0] === 'string' && args[0] === 'chat.agentHost.clientTools' ? [] : true,
+	});
+	instantiationService.stub(ILanguageModelToolsService, {
+		observeTools: () => observableValue('tools', []),
+		onDidChangeTools: Event.None,
+		getTools: () => [],
+		_serviceBrand: undefined,
 	});
 	instantiationService.stub(IOutputService, { getChannel: () => undefined });
 	instantiationService.stub(IWorkspaceContextService, { getWorkspace: () => ({ id: '', folders: [] }), getWorkspaceFolder: () => null });
@@ -327,14 +328,6 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		registerResolver: () => toDisposable(() => { }),
 		resolve: sessionResource => workingDirectoryResolver?.resolve(sessionResource),
 	});
-	instantiationService.stub(ILanguageModelToolsService, {
-		observeTools: () => observableValue('tools', []),
-		onDidChangeTools: Event.None,
-		getToolByName: () => undefined,
-		invokeTool: async () => ({ content: [] }),
-		onDidPrepareToolCallBecomeUnresponsive: Event.None,
-		onDidInvokeTool: Event.None,
-	});
 
 	return { instantiationService, agentHostService, chatAgentService };
 }
@@ -357,11 +350,11 @@ function createContribution(disposables: DisposableStore) {
 	return { contribution, listController, sessionHandler, agentHostService, chatAgentService };
 }
 
-function makeRequest(overrides: Partial<{ message: string; sessionResource: URI; variables: IChatAgentRequest['variables']; userSelectedModelId: string; agentHostSessionConfig: Record<string, string> }> = {}): IChatAgentRequest {
+function makeRequest(overrides: Partial<{ message: string; sessionResource: URI; variables: IChatAgentRequest['variables']; userSelectedModelId: string; agentHostSessionConfig: Record<string, string>; agentId: string }> = {}): IChatAgentRequest {
 	return upcastPartial<IChatAgentRequest>({
 		sessionResource: overrides.sessionResource ?? URI.from({ scheme: 'untitled', path: '/chat-1' }),
 		requestId: 'req-1',
-		agentId: 'agent-host-copilot',
+		agentId: overrides.agentId ?? 'agent-host-copilot',
 		message: overrides.message ?? 'Hello',
 		variables: overrides.variables ?? { variables: [] },
 		location: ChatAgentLocation.Chat,
@@ -380,12 +373,13 @@ function textOf(value: string | IMarkdownString | undefined): string | undefined
 
 /**
  * Start a turn through the state-driven flow. Creates a chat session,
- * starts the requestHandler (non-blocking), and waits for the first action
+ * invokes the agent (non-blocking), and waits for the first action
  * to be dispatched. Returns helpers to fire server action envelopes.
  */
 async function startTurn(
 	sessionHandler: AgentHostSessionHandler,
 	agentHostService: MockAgentHostService,
+	chatAgentService: MockChatAgentService,
 	ds: DisposableStore,
 	overrides?: Partial<{
 		message: string;
@@ -394,9 +388,11 @@ async function startTurn(
 		userSelectedModelId: string;
 		agentHostSessionConfig: Record<string, string>;
 		cancellationToken: CancellationToken;
+		agentId: string;
 	}>,
 ) {
-	const sessionResource = overrides?.sessionResource ?? URI.from({ scheme: 'agent-host-copilot', path: '/untitled-turntest' });
+	const agentId = overrides?.agentId ?? 'agent-host-copilot';
+	const sessionResource = overrides?.sessionResource ?? URI.from({ scheme: agentId, path: '/untitled-turntest' });
 	const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
 	ds.add(toDisposable(() => chatSession.dispose()));
 
@@ -407,13 +403,17 @@ async function startTurn(
 	const collected: IChatProgress[][] = [];
 	const seq = { v: 1 };
 
-	const turnPromise = chatSession.requestHandler!(
+	const registered = chatAgentService.registeredAgents.get(agentId);
+	assert.ok(registered, `${agentId} agent should be registered`);
+
+	const turnPromise = registered.impl.invoke(
 		makeRequest({
 			message: overrides?.message ?? 'Hello',
 			sessionResource,
 			variables: overrides?.variables,
 			userSelectedModelId: overrides?.userSelectedModelId,
 			agentHostSessionConfig: overrides?.agentHostSessionConfig,
+			agentId,
 		}),
 		(parts) => collected.push(parts),
 		[],
@@ -473,6 +473,7 @@ async function startDynamicAgentTurn(
 			variables: overrides?.variables,
 			userSelectedModelId: overrides?.userSelectedModelId,
 			agentHostSessionConfig: overrides?.agentHostSessionConfig,
+			agentId,
 		}),
 		parts => collected.push(parts),
 		[],
@@ -565,9 +566,9 @@ suite('AgentHostChatContribution', () => {
 	suite('session ID resolution', () => {
 
 		test('creates new SDK session for untitled resource', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables, { message: 'Hello' });
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, { message: 'Hello' });
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 			await turnPromise;
 
@@ -578,7 +579,7 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		test('reuses SDK session for same resource on second message', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
 			const resource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-reuse' });
 			const chatSession = await sessionHandler.provideChatSessionContent(resource, CancellationToken.None);
@@ -587,8 +588,10 @@ suite('AgentHostChatContribution', () => {
 			// Clear lifecycle actions so only turn dispatches are counted
 			agentHostService.dispatchedActions.length = 0;
 
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+
 			// First turn
-			const turn1Promise = chatSession.requestHandler!(
+			const turn1Promise = registered.impl.invoke(
 				makeRequest({ message: 'First', sessionResource: resource }),
 				() => { }, [], CancellationToken.None,
 			);
@@ -601,7 +604,7 @@ suite('AgentHostChatContribution', () => {
 			await turn1Promise;
 
 			// Second turn
-			const turn2Promise = chatSession.requestHandler!(
+			const turn2Promise = registered.impl.invoke(
 				makeRequest({ message: 'Second', sessionResource: resource }),
 				() => { }, [], CancellationToken.None,
 			);
@@ -620,9 +623,9 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		test('uses sessionId from agent-host scheme resource', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables, {
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
 				message: 'Hi',
 				sessionResource: URI.from({ scheme: 'agent-host-copilot', path: '/existing-session-42' }),
 			});
@@ -633,9 +636,9 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		test('agent-host scheme with untitled path creates new session via mapping', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables, {
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
 				message: 'Hi',
 				sessionResource: URI.from({ scheme: 'agent-host-copilot', path: '/untitled-abc123' }),
 			});
@@ -646,9 +649,9 @@ suite('AgentHostChatContribution', () => {
 			assert.ok(AgentSession.id(URI.parse(session)).startsWith('sdk-session-'));
 		}));
 		test('passes raw model id extracted from language model identifier', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables, {
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
 				message: 'Hi',
 				userSelectedModelId: 'agent-host-copilot:claude-sonnet-4-20250514',
 			});
@@ -660,9 +663,9 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		test('passes model id as-is when no vendor prefix', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables, {
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
 				message: 'Hi',
 				userSelectedModelId: 'gpt-4o',
 			});
@@ -690,9 +693,9 @@ suite('AgentHostChatContribution', () => {
 	suite('progress routing', () => {
 
 		test('delta events become markdownContent progress', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
 			fire({ type: 'session/responsePart', session, turnId, part: { kind: 'markdown', id: 'md-1', content: 'hello ' } } as ISessionAction);
 			fire({ type: 'session/delta', session, turnId, partId: 'md-1', content: 'world' } as ISessionAction);
@@ -707,9 +710,9 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		test('tool_start events become toolInvocation progress', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
 			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-1', toolName: 'read_file', displayName: 'Read File' } as ISessionAction);
 			fire({ type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-1', invocationMessage: 'Reading file', confirmed: 'not-needed' } as ISessionAction);
@@ -722,9 +725,9 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		test('tool_complete event transitions toolInvocation to completed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
 			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-2', toolName: 'bash', displayName: 'Bash' } as ISessionAction);
 			fire({ type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-2', invocationMessage: 'Running Bash command', confirmed: 'not-needed' } as ISessionAction);
@@ -744,9 +747,9 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		test('tool_complete with failure sets error state', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
 			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-3', toolName: 'bash', displayName: 'Bash' } as ISessionAction);
 			fire({ type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-3', invocationMessage: 'Running Bash command', confirmed: 'not-needed' } as ISessionAction);
@@ -765,9 +768,9 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		test('malformed toolArguments does not throw', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
 			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-bad', toolName: 'bash', displayName: 'Bash' } as ISessionAction);
 			fire({ type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-bad', invocationMessage: 'Running Bash command', confirmed: 'not-needed' } as ISessionAction);
@@ -780,9 +783,9 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		test('outstanding tool invocations are completed on idle', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
 			// tool_start without tool_complete
 			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-orphan', toolName: 'bash', displayName: 'Bash' } as ISessionAction);
@@ -798,9 +801,9 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		test('events from other sessions are ignored', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
 			// Delta from a different session — will be ignored (session not subscribed)
 			agentHostService.fireAction({
@@ -823,12 +826,12 @@ suite('AgentHostChatContribution', () => {
 	suite('cancellation', () => {
 
 		test('cancellation resolves the agent invoke', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
 			const cts = new CancellationTokenSource();
 			disposables.add(cts);
 
-			const { turnPromise } = await startTurn(sessionHandler, agentHostService, disposables, {
+			const { turnPromise } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
 				cancellationToken: cts.token,
 			});
 
@@ -839,12 +842,12 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		test('cancellation force-completes outstanding tool invocations', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
 			const cts = new CancellationTokenSource();
 			disposables.add(cts);
 
-			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables, {
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
 				cancellationToken: cts.token,
 			});
 
@@ -863,12 +866,12 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		test('cancellation calls abortSession on the agent host service', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
 			const cts = new CancellationTokenSource();
 			disposables.add(cts);
 
-			const { turnPromise } = await startTurn(sessionHandler, agentHostService, disposables, {
+			const { turnPromise } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
 				cancellationToken: cts.token,
 			});
 
@@ -885,9 +888,9 @@ suite('AgentHostChatContribution', () => {
 	suite('error events', () => {
 
 		test('error event renders error message and finishes the request', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const { turnPromise, collected, session, turnId } = await startTurn(sessionHandler, agentHostService, disposables);
+			const { turnPromise, collected, session, turnId } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
 			agentHostService.fireAction({
 				action: {
@@ -914,9 +917,9 @@ suite('AgentHostChatContribution', () => {
 	suite('permission requests', () => {
 
 		test('permission_request event shows confirmation and responds when confirmed', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
 			// Simulate a tool call requiring confirmation via toolCallStart + toolCallReady
 			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-perm-1', toolName: 'shell', displayName: 'Shell' } as ISessionAction);
@@ -956,9 +959,9 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		test('permission_request denied when user skips', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
 			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-perm-2', toolName: 'write', displayName: 'Write File' } as ISessionAction);
 			fire({
@@ -990,9 +993,9 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		test('shell permission shows input-style confirmation data with toolInput', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
 			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-perm-shell', toolName: 'shell', displayName: 'Shell' } as ISessionAction);
 			fire({
@@ -1014,9 +1017,9 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		test('read permission shows input-style confirmation data', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
 			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-perm-read', toolName: 'read_file', displayName: 'Read File' } as ISessionAction);
 			fire({
@@ -1090,9 +1093,9 @@ suite('AgentHostChatContribution', () => {
 	suite('tool invocation rendering', () => {
 
 		test('bash tool renders as terminal command block with output', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
 			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-shell', toolName: 'bash', displayName: 'Bash', _meta: { toolKind: 'terminal', language: 'shellscript' } } as ISessionAction);
 			fire({ type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-shell', invocationMessage: 'Running `echo hello`', toolInput: 'echo hello', confirmed: 'not-needed' } as ISessionAction);
@@ -1128,9 +1131,9 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		test('bash tool failure sets exit code 1 and error output', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
 			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-fail', toolName: 'bash', displayName: 'Bash', _meta: { toolKind: 'terminal', language: 'shellscript' } } as ISessionAction);
 			fire({ type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-fail', invocationMessage: 'Running `bad_cmd`', toolInput: 'bad_cmd', confirmed: 'not-needed' } as ISessionAction);
@@ -1156,9 +1159,9 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		test('generic tool has invocation message and no toolSpecificData', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
 			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-gen', toolName: 'custom_tool', displayName: 'custom_tool' } as ISessionAction);
 			fire({ type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-gen', invocationMessage: 'Using "custom_tool"', confirmed: 'not-needed' } as ISessionAction);
@@ -1183,9 +1186,9 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		test('bash tool without arguments has no terminal data', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
 			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-noargs', toolName: 'bash', displayName: 'Bash', toolKind: 'terminal' } as ISessionAction);
 			fire({ type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-noargs', invocationMessage: 'Running Bash command', confirmed: 'not-needed' } as ISessionAction);
@@ -1210,9 +1213,9 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		test('view tool shows file path in messages', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
 			fire({ type: 'session/toolCallStart', session, turnId, toolCallId: 'tc-view', toolName: 'view', displayName: 'View File' } as ISessionAction);
 			fire({ type: 'session/toolCallReady', session, turnId, toolCallId: 'tc-view', invocationMessage: 'Reading /tmp/test.txt', confirmed: 'not-needed' } as ISessionAction);
@@ -1368,9 +1371,9 @@ suite('AgentHostChatContribution', () => {
 	suite('server error handling', () => {
 
 		test('server-side error resolves the agent invoke without throwing', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const { turnPromise, session, turnId } = await startTurn(sessionHandler, agentHostService, disposables);
+			const { turnPromise, session, turnId } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 
 			// Simulate a server-side error (e.g. sendMessage failure on the server)
 			agentHostService.fireAction({
@@ -1461,9 +1464,9 @@ suite('AgentHostChatContribution', () => {
 	suite('attachment context', () => {
 
 		test('file variable with file:// URI becomes file attachment', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables, {
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
 				message: 'check this file',
 				variables: {
 					variables: [
@@ -1482,9 +1485,9 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		test('directory variable with file:// URI becomes directory attachment', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables, {
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
 				message: 'check this dir',
 				variables: {
 					variables: [
@@ -1503,9 +1506,9 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		test('implicit selection variable becomes selection attachment', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables, {
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
 				message: 'explain this',
 				variables: {
 					variables: [
@@ -1524,9 +1527,9 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		test('non-file URIs are skipped', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables, {
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
 				message: 'check this',
 				variables: {
 					variables: [
@@ -1544,9 +1547,9 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		test('tool variables are skipped', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables, {
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
 				message: 'use tools',
 				variables: {
 					variables: [
@@ -1563,9 +1566,9 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		test('mixed variables extracts only supported types', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables, {
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
 				message: 'mixed',
 				variables: {
 					variables: [
@@ -1588,9 +1591,9 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		test('no variables results in no attachments argument', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
-			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables, {
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables, {
 				message: 'Hello',
 			});
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
@@ -1663,7 +1666,7 @@ suite('AgentHostChatContribution', () => {
 		});
 
 		test('handler uses resolveWorkingDirectory callback', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { instantiationService, agentHostService } = createTestServices(disposables);
+			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
 
 			const handler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
 				provider: 'copilot' as const,
@@ -1676,7 +1679,7 @@ suite('AgentHostChatContribution', () => {
 				resolveWorkingDirectory: () => URI.file('/custom/working/dir'),
 			}));
 
-			const { turnPromise, session, turnId, fire } = await startTurn(handler, agentHostService, disposables);
+			const { turnPromise, session, turnId, fire } = await startTurn(handler, agentHostService, chatAgentService, disposables, { agentId: 'workdir-test' });
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 			await turnPromise;
 
@@ -1720,7 +1723,7 @@ suite('AgentHostChatContribution', () => {
 
 		test('handler uses registered working directory resolver', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const resolvedWorkingDirectory = URI.file('/resolved/working/dir');
-			const { instantiationService, agentHostService } = createTestServices(disposables, {
+			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables, {
 				resolve: () => resolvedWorkingDirectory,
 			});
 
@@ -1734,7 +1737,7 @@ suite('AgentHostChatContribution', () => {
 				connectionAuthority: 'local',
 			}));
 
-			const { turnPromise, session, turnId, fire } = await startTurn(handler, agentHostService, disposables);
+			const { turnPromise, session, turnId, fire } = await startTurn(handler, agentHostService, chatAgentService, disposables, { agentId: 'workdir-resolver-test' });
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 			await turnPromise;
 
@@ -1743,7 +1746,7 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		test('handler passes vscode-agent-host URI as-is to createSession', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { instantiationService, agentHostService } = createTestServices(disposables);
+			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
 
 			// The workspace repository URI in the Sessions app is a
 			// vscode-agent-host:// URI. It must be passed through unchanged
@@ -1766,7 +1769,7 @@ suite('AgentHostChatContribution', () => {
 				resolveWorkingDirectory: () => agentHostUri,
 			}));
 
-			const { turnPromise, session, turnId, fire } = await startTurn(handler, agentHostService, disposables);
+			const { turnPromise, session, turnId, fire } = await startTurn(handler, agentHostService, chatAgentService, disposables, { agentId: 'workdir-agenthost-test' });
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 			await turnPromise;
 
@@ -1818,8 +1821,9 @@ suite('AgentHostChatContribution', () => {
 			assert.ok(chatAgentService.registeredAgents.has('connection-test'));
 
 			// Verify it can run a turn through the IAgentConnection path
-			const { turnPromise, session, turnId, fire } = await startTurn(handler, agentHostService, disposables, {
+			const { turnPromise, session, turnId, fire } = await startTurn(handler, agentHostService, chatAgentService, disposables, {
 				message: 'Test message',
+				agentId: 'connection-test',
 			});
 
 			fire({ type: 'session/delta', session, turnId, content: 'Response' } as ISessionAction);
@@ -2117,7 +2121,7 @@ suite('AgentHostChatContribution', () => {
 	suite('server-initiated turns', () => {
 
 		test('detects server-initiated turn and fires onDidStartServerRequest', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
 			// Create and subscribe a session
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-server-turn' });
@@ -2127,8 +2131,10 @@ suite('AgentHostChatContribution', () => {
 			// Clear lifecycle actions so only turn dispatches are counted
 			agentHostService.dispatchedActions.length = 0;
 
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+
 			// First, do a normal turn so the backend session is created
-			const turn1Promise = chatSession.requestHandler!(
+			const turn1Promise = registered.impl.invoke(
 				makeRequest({ message: 'Hello', sessionResource }),
 				() => { }, [], CancellationToken.None,
 			);
@@ -2168,7 +2174,7 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		test('server-initiated turn streams progress through progressObs', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-server-progress' });
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
@@ -2177,8 +2183,10 @@ suite('AgentHostChatContribution', () => {
 			// Clear lifecycle actions so only turn dispatches are counted
 			agentHostService.dispatchedActions.length = 0;
 
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+
 			// Normal turn to create backend session
-			const turn1Promise = chatSession.requestHandler!(
+			const turn1Promise = registered.impl.invoke(
 				makeRequest({ message: 'Init', sessionResource }),
 				() => { }, [], CancellationToken.None,
 			);
@@ -2240,7 +2248,7 @@ suite('AgentHostChatContribution', () => {
 		});
 
 		test('client-dispatched turns are not treated as server-initiated', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-no-dupe' });
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
@@ -2252,8 +2260,10 @@ suite('AgentHostChatContribution', () => {
 			// Clear lifecycle actions so only turn dispatches are counted
 			agentHostService.dispatchedActions.length = 0;
 
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+
 			// Normal client turn — should NOT fire onDidStartServerRequest
-			const turnPromise = chatSession.requestHandler!(
+			const turnPromise = registered.impl.invoke(
 				makeRequest({ message: 'Client turn', sessionResource }),
 				() => { }, [], CancellationToken.None,
 			);
@@ -2268,7 +2278,7 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		test('server-initiated turn does not duplicate tool calls on repeated state changes', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-server-tool-dedup' });
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
@@ -2277,8 +2287,10 @@ suite('AgentHostChatContribution', () => {
 			// Clear lifecycle actions so only turn dispatches are counted
 			agentHostService.dispatchedActions.length = 0;
 
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+
 			// First, do a normal turn so the backend session is created
-			const turn1Promise = chatSession.requestHandler!(
+			const turn1Promise = registered.impl.invoke(
 				makeRequest({ message: 'Init', sessionResource }),
 				() => { }, [], CancellationToken.None,
 			);
@@ -2334,7 +2346,7 @@ suite('AgentHostChatContribution', () => {
 		}));
 
 		test('server-initiated turn picks up markdown arriving with turnStarted', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
-			const { sessionHandler, agentHostService } = createContribution(disposables);
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
 
 			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-server-md-initial' });
 			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
@@ -2343,8 +2355,10 @@ suite('AgentHostChatContribution', () => {
 			// Clear lifecycle actions so only turn dispatches are counted
 			agentHostService.dispatchedActions.length = 0;
 
+			const registered = chatAgentService.registeredAgents.get('agent-host-copilot')!;
+
 			// First, do a normal turn so the backend session is created
-			const turn1Promise = chatSession.requestHandler!(
+			const turn1Promise = registered.impl.invoke(
 				makeRequest({ message: 'Init', sessionResource }),
 				() => { }, [], CancellationToken.None,
 			);
@@ -2394,7 +2408,7 @@ suite('AgentHostChatContribution', () => {
 	suite('customizations', () => {
 
 		test('dispatches activeClientChanged when a new session is created', async () => {
-			const { instantiationService, agentHostService } = createTestServices(disposables);
+			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
 
 			const customizations = observableValue<ICustomizationRef[]>('customizations', [
 				{ uri: 'file:///plugin-a', displayName: 'Plugin A' },
@@ -2411,7 +2425,7 @@ suite('AgentHostChatContribution', () => {
 				customizations,
 			}));
 
-			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 			await turnPromise;
 
@@ -2425,7 +2439,7 @@ suite('AgentHostChatContribution', () => {
 		});
 
 		test('re-dispatches activeClientChanged when customizations observable changes', async () => {
-			const { instantiationService, agentHostService } = createTestServices(disposables);
+			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
 
 			const customizations = observableValue<ICustomizationRef[]>('customizations', []);
 
@@ -2441,7 +2455,7 @@ suite('AgentHostChatContribution', () => {
 			}));
 
 			// Create a session first
-			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, disposables);
+			const { turnPromise, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 			await turnPromise;
 

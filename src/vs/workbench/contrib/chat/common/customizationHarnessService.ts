@@ -125,7 +125,7 @@ export interface IHarnessDescriptor {
 	 * that can supply customization items directly (bypassing promptsService
 	 * discovery and filtering).
 	 */
-	readonly itemProvider?: IExternalCustomizationItemProvider;
+	readonly itemProvider?: ICustomizationItemProvider;
 	/**
 	 * When set, this harness supports syncing local customizations to a
 	 * remote target. The UI shows local items with sync checkboxes when
@@ -137,11 +137,13 @@ export interface IHarnessDescriptor {
 /**
  * Represents a customization item provided by an external extension.
  */
-export interface IExternalCustomizationItem {
+export interface ICustomizationItem {
 	readonly uri: URI;
 	readonly type: string;
 	readonly name: string;
 	readonly description?: string;
+	/** Storage origin (local, user, extension, plugin). Set by providers that know the source. */
+	readonly storage?: PromptsStorage;
 	/** Server-reported loading status for this customization. */
 	readonly status?: 'loading' | 'loaded' | 'degraded' | 'error';
 	/** Human-readable status detail (e.g. error message or warning). */
@@ -160,7 +162,7 @@ export interface IExternalCustomizationItem {
  * Provider interface for extension-contributed harnesses that supply
  * customization items directly from their SDK.
  */
-export interface IExternalCustomizationItemProvider {
+export interface ICustomizationItemProvider {
 	/**
 	 * Event that fires when the provider's customizations change.
 	 */
@@ -168,7 +170,7 @@ export interface IExternalCustomizationItemProvider {
 	/**
 	 * Provide the customization items this harness supports.
 	 */
-	provideChatSessionCustomizations(token: CancellationToken): Promise<IExternalCustomizationItem[] | undefined>;
+	provideChatSessionCustomizations(token: CancellationToken): Promise<ICustomizationItem[] | undefined>;
 }
 
 /**

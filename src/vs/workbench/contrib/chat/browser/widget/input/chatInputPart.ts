@@ -901,6 +901,20 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		if (chatSessionIsEmpty) {
 			this._setEmptyModelState();
+
+			// The default mode setting may be registered asynchronously by TAS,
+			// and custom modes (like Plan) load asynchronously from prompt files.
+			// Re-apply when either becomes available.
+			this._modelSyncDisposables.add(this.configurationService.onDidChangeConfiguration(e => {
+				if (this._chatSessionIsEmpty && e.affectsConfiguration(ChatConfiguration.DefaultNewSessionMode)) {
+					this._setEmptyModelState();
+				}
+			}));
+			this._modelSyncDisposables.add(this.chatModeService.onDidChangeChatModes(() => {
+				if (this._chatSessionIsEmpty) {
+					this._setEmptyModelState();
+				}
+			}));
 		}
 
 		// Observe changes from model and sync to view
@@ -927,8 +941,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (typeof rawDefaultMode === 'string') {
 			const defaultMode = rawDefaultMode.trim();
 			if (defaultMode) {
-				// Custom modes are loaded asynchronously, so they may not be available yet
-				// at session initialization time. Built-in modes (ask, edit, agent) are always available.
 				const defaultModeLower = defaultMode.toLowerCase();
 				const resolved = this.chatModeService.findModeById(defaultMode)
 					?? this.chatModeService.findModeByName(defaultMode)
@@ -937,8 +949,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					this.logService.trace(`[ChatInputPart] Applying default mode from setting: ${defaultMode} -> ${resolved.id}`);
 					this.setChatMode(resolved.id, false);
 					this.checkModelSupported();
-				} else {
-					this.logService.trace(`[ChatInputPart] Default mode '${defaultMode}' not found in available modes`);
 				}
 			}
 		}

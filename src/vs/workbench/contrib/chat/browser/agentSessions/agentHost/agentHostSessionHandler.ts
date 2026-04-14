@@ -147,14 +147,12 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	private readonly _onDidStartServerRequest = this._register(new Emitter<{ prompt: string }>());
 	readonly onDidStartServerRequest = this._onDidStartServerRequest.event;
 
-	readonly requestHandler: IChatSession['requestHandler'];
 	interruptActiveResponseCallback: IChatSession['interruptActiveResponseCallback'];
 	readonly forkSession: IChatSession['forkSession'];
 
 	constructor(
 		readonly sessionResource: URI,
 		readonly history: readonly IChatSessionHistoryItem[],
-		private readonly _sendRequest: (request: IChatAgentRequest, progress: (parts: IChatProgress[]) => void, token: CancellationToken) => Promise<void>,
 		private readonly _forkSession: ((request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken) => Promise<IChatSessionItem>),
 		initialProgress: IChatProgress[] | undefined,
 		onDispose: () => void,
@@ -170,13 +168,6 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 
 		this._register(toDisposable(() => this._onWillDispose.fire()));
 		this._register(toDisposable(onDispose));
-
-		this.requestHandler = async (request, progress, _history, cancellationToken) => {
-			this._logService.info('[AgentHost] requestHandler called');
-			this.isCompleteObs.set(false, undefined);
-			await this._sendRequest(request, progress, cancellationToken);
-			this.isCompleteObs.set(true, undefined);
-		};
 
 		// Provide interrupt callback when reconnecting to an active turn or
 		// when this is a brand-new session (no history yet).
@@ -475,20 +466,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			AgentHostChatSession,
 			sessionResource,
 			history,
-			async (request: IChatAgentRequest, progress: (parts: IChatProgress[]) => void, token: CancellationToken) => {
-				// todo@connor4312, I think IChatSession.requestHandler is actually
-				// dead code and I don't believe this is ever called.
-				const backendSession = resolvedSession ?? await this._createAndSubscribe(sessionResource, request.userSelectedModelId, undefined, request.agentHostSessionConfig);
-				if (!resolvedSession) {
-					resolvedSession = backendSession;
-					this._sessionToBackend.set(sessionResource, backendSession);
-				}
-				// For existing sessions, set up pending message sync on the first turn
-				// (after the ChatModel becomes available in the ChatService).
-				this._ensurePendingMessageSubscription(sessionResource, backendSession);
-				return this._handleTurn(backendSession, request, progress, token);
-			},
-			(request, token) => {
+			(request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken) => {
 				resolvedSession ??= this._sessionToBackend.get(sessionResource);
 				if (!resolvedSession) {
 					throw new BugIndicatingError('Cannot fork session before the initial request');

@@ -11,6 +11,7 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { isNative } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
@@ -65,8 +66,8 @@ interface IWorkspacePickerItem {
 	readonly checked?: boolean;
 	/** Remote provider reference for gear menu actions. */
 	readonly remoteProvider?: IAgentHostSessionsProvider;
-	/** When true, clicking this item triggers the tunnel connection command. */
-	readonly tunnelAction?: boolean;
+	/** Command to execute when this item is selected. */
+	readonly commandId?: string;
 }
 
 /**
@@ -189,8 +190,8 @@ export class WorkspacePicker extends Disposable {
 		const delegate: IActionListDelegate<IWorkspacePickerItem> = {
 			onSelect: (item) => {
 				this.actionWidgetService.hide();
-				if (item.tunnelAction) {
-					this.commandService.executeCommand('workbench.action.sessions.connectViaTunnel');
+				if (item.commandId) {
+					this.commandService.executeCommand(item.commandId);
 				} else if (item.selection && this._isProviderUnavailable(item.selection.providerId)) {
 					// Workspace belongs to an unavailable remote — ignore selection
 					return;
@@ -469,7 +470,7 @@ export class WorkspacePicker extends Disposable {
 			});
 		}
 
-		// "Tunnels..." entry — shown when remote agent hosts are enabled
+		// "Tunnels..." and "SSH..." entries — shown when remote agent hosts are enabled
 		if (this.configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
 			if (items.length > 0 && items[items.length - 1].kind !== ActionListItemKind.Separator) {
 				items.push({ kind: ActionListItemKind.Separator, label: '' });
@@ -478,8 +479,16 @@ export class WorkspacePicker extends Disposable {
 				kind: ActionListItemKind.Action,
 				label: localize('workspacePicker.tunnels', "Tunnels..."),
 				group: { title: '', icon: Codicon.cloud },
-				item: { tunnelAction: true },
+				item: { commandId: 'workbench.action.sessions.connectViaTunnel' },
 			});
+			if (isNative) {
+				items.push({
+					kind: ActionListItemKind.Action,
+					label: localize('workspacePicker.ssh', "SSH..."),
+					group: { title: '', icon: Codicon.remote },
+					item: { commandId: 'workbench.action.sessions.connectViaSSH' },
+				});
+			}
 		}
 
 		return items;

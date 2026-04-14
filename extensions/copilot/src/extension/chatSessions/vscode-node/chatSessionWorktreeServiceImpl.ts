@@ -319,7 +319,7 @@ export class ChatSessionWorktreeService extends Disposable implements IChatSessi
 		}
 	}
 
-	async getWorktreeChanges(sessionId: string): Promise<readonly vscode.ChatSessionChangedFile2[] | undefined> {
+	async getWorktreeChanges(sessionId: string): Promise<readonly vscode.ChatSessionChangedFile[] | undefined> {
 		const worktreeProperties = await this.getWorktreeProperties(sessionId);
 		if (!worktreeProperties || typeof worktreeProperties === 'string') {
 			return undefined;
@@ -800,7 +800,7 @@ export class ChatSessionWorktreeService extends Disposable implements IChatSessi
 		return { changes, ...repositoryState };
 	}
 
-	private _toChatSessionChangedFile2(sessionId: string, change: ChatSessionWorktreeFile, worktreeProperties: ChatSessionWorktreeProperties): vscode.ChatSessionChangedFile2 {
+	private _toChatSessionChangedFile2(sessionId: string, change: ChatSessionWorktreeFile, worktreeProperties: ChatSessionWorktreeProperties): vscode.ChatSessionChangedFile {
 		let originalFileRef: string, modifiedFileRef: string | undefined;
 		if (worktreeProperties.version === 2) {
 			// Commit | Working tree
@@ -816,7 +816,7 @@ export class ChatSessionWorktreeService extends Disposable implements IChatSessi
 			modifiedFileRef = worktreeProperties.branchName;
 		}
 
-		return new vscode.ChatSessionChangedFile2(
+		return new vscode.ChatSessionChangedFile(
 			vscode.Uri.file(change.filePath),
 			change.originalFilePath
 				? toGitUri(vscode.Uri.file(change.originalFilePath), originalFileRef)

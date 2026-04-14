@@ -169,7 +169,6 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 				}
 			}
 		));
-		const inputStateForNewSession = new ResourceMap<WeakRef<vscode.ChatSessionInputState>>();
 		controller.newChatSessionItemHandler = async (context) => {
 			const sessionId = this.sessionService.createNewSessionId();
 			const resource = SessionIdForCLI.getResource(sessionId);
@@ -185,8 +184,6 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 
 			controller.items.add(session);
 			this.newSessions.set(resource, session);
-			const groups = await this._optionGroupBuilder.provideChatSessionProviderOptionGroups(context.inputState);
-			inputStateForNewSession.set(resource, new WeakRef(controller.createChatSessionInputState(groups)));
 			return session;
 		};
 		if (this.configurationService.getConfig(ConfigKey.Advanced.CLIForkSessionsEnabled)) {
@@ -249,12 +246,7 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 				const groups = await this._optionGroupBuilder.buildExistingSessionInputStateGroups(sessionResource, token);
 				return controller.createChatSessionInputState(groups);
 			} else {
-				// Possible we've already handled the newChatSessionItemHandler for this same uri
-				// In which case the proper inputState would have been sent.
-				// There's a bug in core where after newChatSessionItemHandler is called, we get
-				// another call for getChatSessionInputState, but this time the previous input state is incorrect.
-				const previousInputState = sessionResource ? inputStateForNewSession.get(sessionResource)?.deref() : undefined;
-				const groups = await this._optionGroupBuilder.provideChatSessionProviderOptionGroups(previousInputState);
+				const groups = await this._optionGroupBuilder.provideChatSessionProviderOptionGroups(context.previousInputState);
 				const state = controller.createChatSessionInputState(groups);
 				// Only wire dynamic updates for new sessions (existing sessions are fully locked).
 				// Note: don't use the getChatSessionInputState token here — it's a one-shot token
@@ -371,13 +363,13 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 		sessionId: string,
 		worktreeProperties: Awaited<ReturnType<IChatSessionWorktreeService['getWorktreeProperties']>>,
 		workingDirectory: vscode.Uri | undefined,
-	): Promise<vscode.ChatSessionChangedFile2[]> {
-		const changes: vscode.ChatSessionChangedFile2[] = [];
+	): Promise<vscode.ChatSessionChangedFile[]> {
+		const changes: vscode.ChatSessionChangedFile[] = [];
 		if (worktreeProperties?.repositoryPath && await vscode.workspace.isResourceTrusted(vscode.Uri.file(worktreeProperties.repositoryPath))) {
 			changes.push(...(await this.copilotCLIWorktreeManagerService.getWorktreeChanges(sessionId) ?? []));
 		} else if (workingDirectory && await vscode.workspace.isResourceTrusted(workingDirectory)) {
 			const workspaceChanges = await this._workspaceFolderService.getWorkspaceChanges(sessionId) ?? [];
-			changes.push(...workspaceChanges.map(change => new vscode.ChatSessionChangedFile2(
+			changes.push(...workspaceChanges.map(change => new vscode.ChatSessionChangedFile(
 				vscode.Uri.file(change.filePath),
 				change.originalFilePath
 					? toGitUri(vscode.Uri.file(change.originalFilePath), 'HEAD')
