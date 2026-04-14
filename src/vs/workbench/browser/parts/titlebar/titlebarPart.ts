@@ -530,11 +530,10 @@ export class BrowserTitlebarPart extends Part implements ITitlebarPart {
 				// Linux/Windows: controls are explicitly disabled
 			} else {
 				this.windowControlsContainer = append(primaryWindowControlsLocation === 'left' ? this.leftContent : this.rightContent, $('div.window-controls-container'));
-				if (isWeb) {
-					// Web: its possible to have control overlays on both sides, for example on macOS
-					// with window controls on the left and PWA controls on the right.
-					append(primaryWindowControlsLocation === 'left' ? this.rightContent : this.leftContent, $('div.window-controls-container'));
-				}
+				// Its possible to have control overlays on both sides, for example on macOS
+				// with window controls on the left and PWA controls on the right or Linux with
+				// custom window controls settings.
+				append(primaryWindowControlsLocation === 'left' ? this.rightContent : this.leftContent, $('div.window-controls-container'));
 
 				if (isWCOEnabled()) {
 					this.windowControlsContainer.classList.add('wco-enabled');
