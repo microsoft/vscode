@@ -990,6 +990,59 @@ export class TestContext {
 	}
 
 	/**
+	 * Validates that the Agents app binary exists alongside the desktop entry point.
+	 * On Linux there is no separate binary; the desktop binary is used with `--agents`.
+	 * @param desktopEntryPoint The path to the VS Code desktop entry point executable.
+	 */
+	public validateAgentsEntryPoint(desktopEntryPoint: string): void {
+		let filePath: string = '';
+
+		switch (os.platform()) {
+			case 'darwin': {
+				// Desktop entry point: <dir>/<App>.app/Contents/MacOS/<Binary>
+				// Agents app: <dir>/<App>.app/Contents/Applications/<Agents>.app/Contents/MacOS/Electron
+				const contentsDir = path.dirname(path.dirname(desktopEntryPoint));
+				let appName: string;
+				switch (this.options.quality) {
+					case 'stable':
+						appName = 'Agents.app';
+						break;
+					case 'insider':
+						appName = 'Agents - Insiders.app';
+						break;
+					case 'exploration':
+						appName = 'Agents - Exploration.app';
+						break;
+				}
+				filePath = path.join(contentsDir, 'Applications', appName, 'Contents/MacOS/Electron');
+				break;
+			}
+			case 'win32': {
+				// Desktop entry point: <dir>/Code - Insiders.exe
+				// Agents app: <dir>/Agents - Insiders.exe (sibling)
+				let exeName: string;
+				switch (this.options.quality) {
+					case 'stable':
+						exeName = 'Agents.exe';
+						break;
+					case 'insider':
+						exeName = 'Agents - Insiders.exe';
+						break;
+					case 'exploration':
+						exeName = 'Agents - Exploration.exe';
+						break;
+				}
+				filePath = path.join(path.dirname(desktopEntryPoint), exeName);
+				break;
+			}
+		}
+
+		if (!filePath || !fs.existsSync(filePath)) {
+			this.error(`Agents entry point does not exist: ${filePath}`);
+		}
+	}
+
+	/**
 	 * Returns the entry point executable for the VS Code CLI in the specified directory.
 	 * @param dir The directory containing unpacked CLI files.
 	 * @returns The path to the CLI entry point executable.
