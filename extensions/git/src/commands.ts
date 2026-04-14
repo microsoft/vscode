@@ -5644,11 +5644,18 @@ export class CommandCenter {
 						options.modal = false;
 						break;
 					default: {
-						const hintLines = (err.stderr || err.stdout || err.message || String(err))
+						const rawText = (err.stderr || err.stdout || err.message || String(err));
+						const hintLines = rawText
 							.replace(/^error: /mi, '')
+							.replace(/^warning: /mi, '')
 							.replace(/^> husky.*$/mi, '')
 							.split(/[\r\n]/)
 							.filter((line: string) => !!line);
+
+						if (/^warning:/im.test(rawText)) {
+							type = 'warning';
+							options.modal = false;
+						}
 
 						message = hintLines.length > 0
 							? l10n.t('Git: {0}', err.stdout ? hintLines[hintLines.length - 1] : hintLines[0])
