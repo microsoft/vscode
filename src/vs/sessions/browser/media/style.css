@@ -58,7 +58,7 @@
 			to bottom right,
 			var(--vscode-sessionsSidebar-background) 0%,
 			color-mix(in srgb, var(--vscode-button-background) 10%, var(--vscode-sessionsSidebar-background)) 56%,
-			color-mix(in srgb, var(--vscode-button-background) 14%, var(--vscode-sideBar-background)) 82%,
+			color-mix(in srgb, var(--vscode-button-background) 14%, var(--vscode-sessionsSidebar-background)) 82%,
 			color-mix(in srgb, var(--vscode-button-background) 18%, var(--vscode-sessionsSidebar-background)) 100%
 		);
 	}
