@@ -11,6 +11,8 @@ on:
 permissions:
   contents: read
   statuses: write
+  pull-requests: write
+  id-token: write
 
 concurrency:
   group: screenshots-${{ github.event.pull_request.number || github.sha }}
@@ -20,11 +22,10 @@ jobs:
   screenshots:
     name: Checking Component Screenshots
     runs-on: ubuntu-latest
+    continue-on-error: true # TODO(hediet): Remove once screenshot pipeline is stable
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-        with:
-          lfs: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -46,6 +47,9 @@ jobs:
         run: npm ci
         working-directory: build/rspack
 
+      - name: Copy codicons
+        run: cp node_modules/@vscode/codicons/dist/codicon.ttf src/vs/base/browser/ui/codicons/codicon/codicon.ttf
+
       - name: Transpile source
         run: npm run transpile-client
 
@@ -55,22 +59,157 @@ jobs:
       - name: Capture screenshots
         run: ./node_modules/.bin/component-explorer render --project ./test/componentFixtures/component-explorer.json
 
+      - name: Log fixture errors
+        if: always()
+        run: |
+          MANIFEST="test/componentFixtures/.screenshots/current/manifest.json"
+          if [ ! -f "$MANIFEST" ]; then
+            echo "::warning::No manifest found — render may have failed entirely"
+            exit 0
+          fi
+          ERRORS=$(node -e "
+            const m = require('./$MANIFEST');
+            const errs = m.fixtures.filter(f => f.hasError);
+            if (!errs.length) { console.log('No fixture errors.'); process.exit(0); }
+            console.log(errs.length + ' fixture(s) with errors:');
+            for (const f of errs) {
+              console.log('::error::' + f.fixtureId + ': ' + (f.error || 'unknown error'));
+              if (f.events?.length) {
+                for (const e of f.events) { console.log('  event: ' + JSON.stringify(e)); }
+              }
+            }
+          ")
+          echo "$ERRORS"
+
+      - name: Check blocks-ci screenshots
+        id: blocks-ci
+        run: |
+          node build/lib/screenshotBlocksCi.ts \
+            test/componentFixtures/.screenshots/current/manifest.json \
+            test/componentFixtures/blocks-ci-screenshots.md \
+            https://hediet-screenshots.azurewebsites.net \
+            > /tmp/blocks-ci-updated.md 2>/tmp/blocks-ci-stderr.txt \
+            && echo "match=true" >> "$GITHUB_OUTPUT" \
+            || {
+              echo "match=false" >> "$GITHUB_OUTPUT"
+              cat /tmp/blocks-ci-stderr.txt >&2
+              CONTENT=$(cat /tmp/blocks-ci-updated.md)
+              echo "content<<BLOCKS_CI_EOF" >> "$GITHUB_OUTPUT"
+              echo "$CONTENT" >> "$GITHUB_OUTPUT"
+              echo "BLOCKS_CI_EOF" >> "$GITHUB_OUTPUT"
+            }
+
       - name: Upload screenshots
         uses: actions/upload-artifact@v7
         with:
           name: screenshots
           path: test/componentFixtures/.screenshots/current/
 
-      - name: Trigger ingestion
+      - name: Skip notice (fork PR)
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+        run: echo "::notice::Skipping screenshot upload and diff — OIDC is not available for fork PRs"
+
+      - name: Get OIDC token
+        id: oidc
+        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
         run: |
-          curl -sS -X POST "https://hediet-screenshots.azurewebsites.net/ingest" \
-            -H "Content-Type: application/json" \
-            -d '{
-              "owner": "${{ github.repository_owner }}",
-              "repo": "${{ github.event.repository.name }}",
-              "runId": ${{ github.run_id }},
-              "artifactName": "screenshots"
-            }'
+          TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https://hediet-screenshots.azurewebsites.net" \
+            | jq -r .value)
+          echo "::add-mask::$TOKEN"
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+
+      - name: Upload screenshots to service
+        if: steps.oidc.outputs.token
+        run: |
+          cd test/componentFixtures/.screenshots/current
+          zip -qr "$GITHUB_WORKSPACE/screenshots.zip" .
+          curl -sS -f -X POST "https://hediet-screenshots.azurewebsites.net/upload" \
+            -H "Content-Type: application/zip" \
+            -H "Authorization: Bearer $SCREENSHOT_SERVICE_TOKEN" \
+            --data-binary @"$GITHUB_WORKSPACE/screenshots.zip"
+        env:
+          SCREENSHOT_SERVICE_TOKEN: ${{ steps.oidc.outputs.token }}
+
+      - name: Diff screenshots against merge base
+        id: diff
+        if: github.event_name == 'pull_request' && steps.oidc.outputs.token
+        run: |
+          BODY=$(node build/lib/screenshotDiffReport.ts \
+            https://hediet-screenshots.azurewebsites.net \
+            ${{ github.repository_owner }} \
+            ${{ github.event.repository.name }} \
+            ${{ github.event.pull_request.base.sha }} \
+            ${{ github.sha }})
+          if [ -n "$BODY" ]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            echo "body<<SCREENSHOT_EOF" >> "$GITHUB_OUTPUT"
+            echo "$BODY" >> "$GITHUB_OUTPUT"
+            echo "SCREENSHOT_EOF" >> "$GITHUB_OUTPUT"
+          else
+            echo "No screenshot changes to report."
+          fi
+          if [ -f .tmp/screenshotDiffReport.json ]; then
+            echo "::group::Compare response JSON"
+            cat .tmp/screenshotDiffReport.json
+            echo "::endgroup::"
+          fi
+        continue-on-error: true
+        env:
+          SCREENSHOT_SERVICE_TOKEN: ${{ steps.oidc.outputs.token }}
+
+      - name: Post PR comment
+        if: github.event_name == 'pull_request' && (steps.diff.outputs.has_changes == 'true' || steps.blocks-ci.outputs.match == 'false')
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const marker = '<!-- screenshot-diff-report -->';
+            let body = process.env.COMMENT_BODY || '';
+            const blocksCiContent = process.env.BLOCKS_CI_CONTENT;
+
+            if (blocksCiContent) {
+              if (body) { body += '\n\n---\n\n'; }
+              body += '### blocks-ci screenshots changed\n\n';
+              body += 'Replace the contents of `test/componentFixtures/blocks-ci-screenshots.md` with:\n\n';
+              body += '<details>\n<summary>Updated blocks-ci-screenshots.md</summary>\n\n';
+              body += '```md\n' + blocksCiContent + '\n```\n\n';
+              body += '</details>';
+            }
+
+            body = marker + '\n' + body;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              per_page: 100,
+            });
+            const existing = comments.find(c => c.body?.startsWith(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+        env:
+          COMMENT_BODY: ${{ steps.diff.outputs.body }}
+          BLOCKS_CI_CONTENT: ${{ steps.blocks-ci.outputs.content }}
+
+      - name: Fail if blocks-ci hashes changed
+        if: steps.blocks-ci.outputs.match == 'false'
+        run: |
+          echo "::error::blocks-ci screenshot hashes do not match committed file. See PR comment for updated content."
+          exit 1
 
       # - name: Compare screenshots
       #   id: compare

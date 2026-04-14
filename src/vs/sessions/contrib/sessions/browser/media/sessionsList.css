@@ -8,16 +8,10 @@
 	height: 100%;
 	min-height: 0;
 
-	.pane-body & .monaco-scrollable-element {
-		padding: 0 10px;
-	}
-
-	.pane-body & .monaco-tree-sticky-container {
-		padding: 0 10px;
-	}
-
-	.monaco-list-row {
+	.monaco-list-row:has(.session-item) {
 		border-radius: 6px;
+		margin: 0 10px;
+		width: calc(100% - 20px);
 	}
 
 	.monaco-list-row .force-no-twistie {
@@ -74,7 +68,7 @@
 		.session-title-toolbar {
 			display: block;
 
-			.action-item:not(:last-child) {
+			.action-item:not(:first-child) {
 				display: none;
 			}
 		}
@@ -150,6 +144,7 @@
 		font-size: 12px;
 		line-height: 15px;
 		max-height: 15px;
+		overflow: hidden;
 		color: var(--vscode-descriptionForeground);
 
 		.session-details-icon {
@@ -281,7 +276,7 @@
 	display: flex;
 	justify-content: center;
 	align-items: center;
-	padding: 0 6px;
+	padding: 0 10px;
 	font-size: 11px;
 	color: var(--vscode-descriptionForeground);
 	min-height: 26px;
@@ -316,21 +311,27 @@
 	font-weight: 500;
 	color: var(--vscode-descriptionForeground);
 	text-transform: uppercase;
-	/* align with session item padding */
-	padding: 0 6px;
+	/* align with session item margin */
+	padding: 0 10px;
 
 	.session-section-label {
-		flex: 0 1 auto;
+		flex: 1 1 auto;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	.session-section-count {
+		flex-shrink: 0;
 		opacity: 0.7;
-		margin-left: auto;
+		margin-left: 4px;
 		margin-right: 4px;
 	}
 
 	.session-section-toolbar {
-		margin-left: auto;
+		flex-shrink: 0;
+		margin-left: 4px;
 		display: none;
 	}
 }

@@ -28,7 +28,7 @@ import { LocalChatSessionUri } from '../../contrib/chat/common/model/chatUri.js'
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostChatAgentsShape2, IChatAgentCompletionItem, IChatAgentHistoryEntryDto, IChatAgentInvokeResult, IChatAgentProgressShape, IChatSessionCustomizationItemDto, IChatSessionCustomizationProviderMetadataDto, IChatProgressDto, IChatSessionContextDto, ICustomAgentDto, IExtensionChatAgentMetadata, IHookDto, IInstructionDto, IMainContext, IPluginDto, ISkillDto, MainContext, MainThreadChatAgentsShape2 } from './extHost.protocol.js';
+import { ExtHostChatAgentsShape2, IChatAgentCompletionItem, IChatAgentHistoryEntryDto, IChatAgentInvokeResult, IChatAgentProgressShape, IChatSessionCustomizationItemDto, IChatSessionCustomizationProviderMetadataDto, IChatProgressDto, IChatSessionContextDto, ICustomAgentDto, IExtensionChatAgentMetadata, IHookDto, IInstructionDto, IMainContext, IPluginDto, ISkillDto, ISlashCommandDto, MainContext, MainThreadChatAgentsShape2 } from './extHost.protocol.js';
 import { CommandsConverter, ExtHostCommands } from './extHostCommands.js';
 import { ExtHostDiagnostics } from './extHostDiagnostics.js';
 import { ExtHostDocuments } from './extHostDocuments.js';
@@ -38,6 +38,7 @@ import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
 import { IPromptFileContext, IPromptFileResource } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../contrib/chat/common/promptSyntax/promptTypes.js';
+import { ExtHostChatSessions } from './extHostChatSessions.js';
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors.js';
 
 export class ChatAgentResponseStream {
@@ -498,16 +499,19 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 	readonly onDidChangeInstructions = this._onDidChangeInstructions.event;
 	private readonly _onDidChangeSkills = this._register(new Emitter<void>());
 	readonly onDidChangeSkills = this._onDidChangeSkills.event;
+	private readonly _onDidChangeSlashCommands = this._register(new Emitter<void>());
+	readonly onDidChangeSlashCommands = this._onDidChangeSlashCommands.event;
 	private readonly _onDidChangeHooks = this._register(new Emitter<void>());
 	readonly onDidChangeHooks = this._onDidChangeHooks.event;
 	private readonly _onDidChangePlugins = this._register(new Emitter<void>());
 	readonly onDidChangePlugins = this._onDidChangePlugins.event;
 
-	private _customAgents: vscode.ChatResource[] = [];
-	private _instructions: vscode.ChatResource[] = [];
-	private _skills: vscode.ChatResource[] = [];
-	private _hooks: vscode.ChatResource[] = [];
-	private _plugins: vscode.ChatResource[] = [];
+	private _customAgents: vscode.ChatCustomAgent[] = [];
+	private _instructions: vscode.ChatInstruction[] = [];
+	private _skills: vscode.ChatSkill[] = [];
+	private _slashCommands: vscode.ChatSlashCommand[] = [];
+	private _hooks: vscode.ChatHook[] = [];
+	private _plugins: vscode.ChatPlugin[] = [];
 
 	private _activeChatPanelSessionResource: URI | undefined;
 
@@ -518,48 +522,142 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return this._activeChatPanelSessionResource;
 	}
 
-	get customAgents(): readonly vscode.ChatResource[] {
+	get customAgents(): readonly vscode.ChatCustomAgent[] {
 		return this._customAgents;
 	}
 
-	get instructions(): readonly vscode.ChatResource[] {
+	get instructions(): readonly vscode.ChatInstruction[] {
 		return this._instructions;
 	}
 
-	get skills(): readonly vscode.ChatResource[] {
+	get skills(): readonly vscode.ChatSkill[] {
 		return this._skills;
 	}
 
-	get hooks(): readonly vscode.ChatResource[] {
+	get slashCommands(): readonly vscode.ChatSlashCommand[] {
+		return this._slashCommands;
+	}
+
+	private toCustomAgent(dto: ICustomAgentDto): vscode.ChatCustomAgent {
+		return Object.freeze<vscode.ChatCustomAgent>({
+			uri: URI.revive(dto.uri),
+			name: dto.name,
+			description: dto.description,
+			source: dto.source,
+			extensionId: dto.extensionId,
+			pluginUri: dto.pluginUri ? URI.revive(dto.pluginUri) : undefined,
+			argumentHint: dto.argumentHint,
+			tools: dto.tools,
+			model: dto.model,
+			userInvocable: dto.userInvocable,
+			disableModelInvocation: dto.disableModelInvocation,
+		});
+	}
+
+	private toInstruction(dto: IInstructionDto): vscode.ChatInstruction {
+		return Object.freeze<vscode.ChatInstruction>({
+			uri: URI.revive(dto.uri),
+			name: dto.name,
+			description: dto.description,
+			source: dto.source,
+			extensionId: dto.extensionId,
+			pluginUri: dto.pluginUri ? URI.revive(dto.pluginUri) : undefined,
+			pattern: dto.pattern,
+		});
+	}
+
+	private toSkill(dto: ISkillDto): vscode.ChatSkill {
+		return Object.freeze<vscode.ChatSkill>({
+			uri: URI.revive(dto.uri),
+			name: dto.name,
+			description: dto.description,
+			source: dto.source,
+			extensionId: dto.extensionId,
+			pluginUri: dto.pluginUri ? URI.revive(dto.pluginUri) : undefined,
+			userInvocable: dto.userInvocable,
+		});
+	}
+
+	private toSlashCommand(dto: ISlashCommandDto): vscode.ChatSlashCommand {
+		return Object.freeze<vscode.ChatSlashCommand>({
+			uri: URI.revive(dto.uri),
+			name: dto.name,
+			description: dto.description,
+			source: dto.source,
+			extensionId: dto.extensionId,
+			pluginUri: dto.pluginUri ? URI.revive(dto.pluginUri) : undefined,
+			argumentHint: dto.argumentHint,
+			userInvocable: dto.userInvocable,
+		});
+	}
+
+	private toHook(dto: IHookDto): vscode.ChatHook {
+		return Object.freeze({ uri: URI.revive(dto.uri) });
+	}
+
+	private toPlugin(dto: IPluginDto): vscode.ChatPlugin {
+		return Object.freeze({ uri: URI.revive(dto.uri) });
+	}
+
+	get hooks(): readonly vscode.ChatHook[] {
 		return this._hooks;
 	}
 
-	get plugins(): readonly vscode.ChatResource[] {
+	get plugins(): readonly vscode.ChatPlugin[] {
 		return this._plugins;
 	}
 
+	provideCustomAgents(token: vscode.CancellationToken): Thenable<readonly vscode.ChatCustomAgent[]> {
+		return this._proxy.$provideCustomAgents(token).then(agents => this._customAgents = agents.map(agent => this.toCustomAgent(agent)));
+	}
+
+	provideInstructions(token: vscode.CancellationToken): Thenable<readonly vscode.ChatInstruction[]> {
+		return this._proxy.$provideInstructions(token).then(instructions => this._instructions = instructions.map(instruction => this.toInstruction(instruction)));
+	}
+
+	provideSkills(token: vscode.CancellationToken): Thenable<readonly vscode.ChatSkill[]> {
+		return this._proxy.$provideSkills(token).then(skills => this._skills = skills.map(skill => this.toSkill(skill)));
+	}
+
+	provideSlashCommands(token: vscode.CancellationToken): Thenable<readonly vscode.ChatSlashCommand[]> {
+		return this._proxy.$provideSlashCommands(token).then(slashCommands => this._slashCommands = slashCommands.map(slashCommand => this.toSlashCommand(slashCommand)));
+	}
+
+	provideHooks(token: vscode.CancellationToken): Thenable<readonly vscode.ChatHook[]> {
+		return this._proxy.$provideHooks(token).then(hooks => this._hooks = hooks.map(hook => this.toHook(hook)));
+	}
+
+	providePlugins(token: vscode.CancellationToken): Thenable<readonly vscode.ChatPlugin[]> {
+		return this._proxy.$providePlugins(token).then(plugins => this._plugins = plugins.map(plugin => this.toPlugin(plugin)));
+	}
+
 	$acceptCustomAgents(agents: ICustomAgentDto[]): void {
-		this._customAgents = agents.map(a => Object.freeze({ uri: URI.revive(a.uri) }));
+		this._customAgents = agents.map(agent => this.toCustomAgent(agent));
 		this._onDidChangeCustomAgents.fire();
 	}
 
 	$acceptInstructions(instructions: IInstructionDto[]): void {
-		this._instructions = instructions.map(i => Object.freeze({ uri: URI.revive(i.uri) }));
+		this._instructions = instructions.map(instruction => this.toInstruction(instruction));
 		this._onDidChangeInstructions.fire();
 	}
 
 	$acceptSkills(skills: ISkillDto[]): void {
-		this._skills = skills.map(s => Object.freeze({ uri: URI.revive(s.uri) }));
+		this._skills = skills.map(skill => this.toSkill(skill));
 		this._onDidChangeSkills.fire();
 	}
 
+	$acceptSlashCommands(slashCommands: ISlashCommandDto[]): void {
+		this._slashCommands = slashCommands.map(slashCommand => this.toSlashCommand(slashCommand));
+		this._onDidChangeSlashCommands.fire();
+	}
+
 	$acceptHooks(hooks: IHookDto[]): void {
-		this._hooks = hooks.map(h => Object.freeze({ uri: URI.revive(h.uri) }));
+		this._hooks = hooks.map(hook => this.toHook(hook));
 		this._onDidChangeHooks.fire();
 	}
 
 	$acceptPlugins(plugins: IPluginDto[]): void {
-		this._plugins = plugins.map(p => Object.freeze({ uri: URI.revive(p.uri) }));
+		this._plugins = plugins.map(plugin => this.toPlugin(plugin));
 		this._onDidChangePlugins.fire();
 	}
 
@@ -571,7 +669,8 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		private readonly _editorsAndDocuments: ExtHostDocumentsAndEditors,
 		private readonly _languageModels: ExtHostLanguageModels,
 		private readonly _diagnostics: ExtHostDiagnostics,
-		private readonly _tools: ExtHostLanguageModelTools
+		private readonly _tools: ExtHostLanguageModelTools,
+		private readonly _chatSessions: ExtHostChatSessions,
 	) {
 		super();
 		this._proxy = mainContext.getProxy(MainContext.MainThreadChatAgents2);
@@ -878,13 +977,20 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			// If this request originates from a contributed chat session editor, attempt to resolve the ChatSession API object
 			let chatSessionContext: vscode.ChatSessionContext | undefined;
 			if (context.chatSessionContext) {
+				const sessionResource = URI.revive(context.chatSessionContext.chatSessionResource);
+				const inputState = await this._chatSessions.getInputStateForSession(
+					sessionResource,
+					context.chatSessionContext.initialSessionOptions,
+					token,
+				);
 				chatSessionContext = {
 					chatSessionItem: {
-						resource: URI.revive(context.chatSessionContext.chatSessionResource),
+						resource: sessionResource,
 						label: context.chatSessionContext.isUntitled ? 'Untitled Session' : 'Session',
 					},
 					isUntitled: context.chatSessionContext.isUntitled,
 					initialSessionOptions: context.chatSessionContext.initialSessionOptions,
+					inputState,
 				};
 			}
 

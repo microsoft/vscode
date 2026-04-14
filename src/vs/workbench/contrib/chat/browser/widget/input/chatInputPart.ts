@@ -105,13 +105,14 @@ import { DefaultChatAttachmentWidget, ElementChatAttachmentWidget, FileAttachmen
 import { ChatImplicitContexts } from '../../attachments/chatImplicitContext.js';
 import { ImplicitContextAttachmentWidget } from '../../attachments/implicitContextAttachment.js';
 import { IChatWidget, IChatWidgetViewModelChangeEvent, ISessionTypePickerDelegate, isIChatResourceViewContext, isIChatViewViewContext, IWorkspacePickerDelegate } from '../../chat.js';
-import { ChatEditingShowChangesAction, ViewAllSessionChangesAction, ViewPreviousEditsAction } from '../../chatEditing/chatEditingActions.js';
+import { ChatEditingShowChangesAction, ViewPreviousEditsAction } from '../../chatEditing/chatEditingActions.js';
 import { resizeImage } from '../../chatImageUtils.js';
 import { ChatSessionPickerActionItem, IChatSessionPickerDelegate } from '../../chatSessions/chatSessionPickerActionItem.js';
 import { IChatContextService } from '../../contextContrib/chatContextService.js';
 import { IDisposableReference } from '../chatContentParts/chatCollections.js';
 import { ChatQuestionCarouselPart, IChatQuestionCarouselOptions } from '../chatContentParts/chatQuestionCarouselPart.js';
-import { ChatToolConfirmationCarouselPart, ToolInvocationPartFactory } from '../chatContentParts/toolInvocationParts/chatToolConfirmationCarouselPart.js';
+import { ChatToolConfirmationCarouselPart, ToolInvocationPartFactory, ScrollToSubagentCallback } from '../chatContentParts/toolInvocationParts/chatToolConfirmationCarouselPart.js';
+import { ChatToolInvocationPart } from '../chatContentParts/toolInvocationParts/chatToolInvocationPart.js';
 import { IChatContentPartRenderContext } from '../chatContentParts/chatContentParts.js';
 import { CollapsibleListPool, IChatCollapsibleListItem } from '../chatContentParts/chatReferencesContentPart.js';
 import { ChatTodoListWidget } from '../chatContentParts/chatTodoListWidget.js';
@@ -122,14 +123,13 @@ import { ChatInputPartWidgetController } from './chatInputPartWidgets.js';
 import { IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ChatSelectedTools } from './chatSelectedTools.js';
 import { DelegationSessionPickerActionItem } from './delegationSessionPickerActionItem.js';
-import { IModelPickerDelegate } from './modelPickerActionItem.js';
+import { ModelPickerActionItem, IModelPickerDelegate } from './modelPickerActionItem.js';
 import { IModePickerDelegate, ModePickerActionItem } from './modePickerActionItem.js';
 import { IPermissionPickerDelegate, PermissionPickerActionItem } from './permissionPickerActionItem.js';
 import { SessionTypePickerActionItem } from './sessionTargetPickerActionItem.js';
 import { WorkspacePickerActionItem } from './workspacePickerActionItem.js';
 import { ChatContextUsageWidget } from '../../widgetHosts/viewPane/chatContextUsageWidget.js';
 import { Target } from '../../../common/promptSyntax/promptTypes.js';
-import { EnhancedModelPickerActionItem } from './modelPickerActionItem2.js';
 import { findLast } from '../../../../../../base/common/arraysFind.js';
 import { ConfigureToolsAction } from '../../actions/chatToolActions.js';
 
@@ -384,7 +384,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatSessionSupportsDelegationKey: IContextKey<boolean>;
 	private chatSessionHasCustomAgentTarget: IContextKey<boolean>;
 	private chatSessionHasTargetedModels: IContextKey<boolean>;
-	private modelWidget: EnhancedModelPickerActionItem | undefined;
+	private modelWidget: ModelPickerActionItem | undefined;
 	private modeWidget: ModePickerActionItem | undefined;
 	private permissionWidget: PermissionPickerActionItem | undefined;
 	private sessionTargetWidget: SessionTypePickerActionItem | undefined;
@@ -591,6 +591,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this.agentSessionTypeKey.set(newSessionType);
 				this.chatSessionSupportsDelegationKey.set(this.chatSessionsService.supportsDelegationForSessionType(newSessionType));
 				this.updateWidgetLockStateFromSessionType(newSessionType);
+				this.checkModeInSessionPool(newSessionType);
 				this.refreshChatSessionPickers();
 			}));
 		}
@@ -1150,6 +1151,38 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const lm = this._currentLanguageModel.get();
 		if (lm && !this.isModelValidForCurrentSession(lm)) {
 			this.setCurrentLanguageModelToDefault();
+		}
+	}
+
+	/**
+	 * Reset the current mode when it is not valid for the current session type.
+	 */
+	private checkModeInSessionPool(sessionType?: string): void {
+		if (!sessionType) {
+			const sessionResource = this._widget?.viewModel?.model.sessionResource;
+			if (!sessionResource) {
+				return;
+			}
+			sessionType = getChatSessionType(sessionResource);
+		}
+
+		const customAgentTarget = this.chatSessionsService.getCustomAgentTargetForSessionType(sessionType);
+		if (!customAgentTarget || customAgentTarget === Target.Undefined) {
+			return;
+		}
+
+		const currentMode = this._currentModeObservable.get();
+		if (currentMode.id === ChatMode.Agent.id) {
+			return;
+		}
+		if (currentMode.isBuiltin) {
+			this.setChatMode(ChatModeKind.Agent, false);
+			return;
+		}
+
+		const modeTarget = currentMode.target.get();
+		if (modeTarget !== customAgentTarget && modeTarget !== Target.Undefined) {
+			this.setChatMode(ChatModeKind.Agent, false);
 		}
 	}
 
@@ -1910,7 +1943,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this.clearQuestionCarousel();
 			}
 
-			// Swap the tool confirmation carousel to match the new session
+			// Swap the visible tool confirmation carousel for the new session
 			this._syncToolConfirmationCarouselForSession();
 
 			// Track the current session type and re-initialize model selection
@@ -1921,6 +1954,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this._currentSessionType = newSessionType;
 				this.initSelectedModel();
 				this.checkModelInSessionPool();
+				this.checkModeInSessionPool();
 			}
 
 			// For contributed sessions with history, pre-select the model
@@ -1932,8 +1966,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (this.options.renderStyle === 'compact') {
 			elements = dom.h('.interactive-input-part', [
 				dom.h('.interactive-input-and-edit-session', [
-					dom.h('.chat-tool-confirmation-carousel-container@chatToolConfirmationCarouselContainer'),
 					dom.h('.chat-question-carousel-widget-container@chatQuestionCarouselContainer'),
+					dom.h('.chat-tool-confirmation-carousel-container@chatToolConfirmationCarouselContainer'),
 					dom.h('.chat-input-widgets-container@chatInputWidgetsContainer'),
 					dom.h('.chat-todo-list-widget-container@chatInputTodoListWidgetContainer'),
 					dom.h('.chat-artifacts-widget-container@chatArtifactsWidgetContainer'),
@@ -1956,8 +1990,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			]);
 		} else {
 			elements = dom.h('.interactive-input-part', [
-				dom.h('.chat-tool-confirmation-carousel-container@chatToolConfirmationCarouselContainer'),
 				dom.h('.chat-question-carousel-widget-container@chatQuestionCarouselContainer'),
+				dom.h('.chat-tool-confirmation-carousel-container@chatToolConfirmationCarouselContainer'),
 				dom.h('.interactive-input-followups@followupsContainer'),
 				dom.h('.chat-input-widgets-container@chatInputWidgetsContainer'),
 				dom.h('.chat-todo-list-widget-container@chatInputTodoListWidgetContainer'),
@@ -2007,6 +2041,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatGettingStartedTipContainer.style.display = 'none';
 		this.chatQuestionCarouselContainer = elements.chatQuestionCarouselContainer;
 		this.chatToolConfirmationCarouselContainer = elements.chatToolConfirmationCarouselContainer;
+		dom.hide(this.chatToolConfirmationCarouselContainer);
 		this.chatInputWidgetsContainer = elements.chatInputWidgetsContainer;
 		this.contextUsageWidgetContainer = elements.contextUsageWidgetContainer;
 
@@ -2220,7 +2255,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							return !sessionType || sessionType === localChatSessionType;
 						},
 					};
-					return this.modelWidget = this.instantiationService.createInstance(EnhancedModelPickerActionItem, action, itemDelegate, pickerOptions);
+					return this.modelWidget = this.instantiationService.createInstance(ModelPickerActionItem, action, itemDelegate, pickerOptions);
 				} else if (action.id === OpenModePickerAction.ID && action instanceof MenuItemAction) {
 					const delegate: IModePickerDelegate = {
 						currentMode: this._currentModeObservable,
@@ -2435,6 +2470,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.renderAttachedContext();
 
 		const inputResizeObserver = this._register(new dom.DisposableResizeObserver(() => {
+			this.updateToolConfirmationCarouselMaxHeight();
 			const newHeight = this.container.offsetHeight;
 			this.height.set(newHeight, undefined);
 		}));
@@ -2705,11 +2741,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			dom.clearNode(this.chatArtifactsWidgetContainer);
 			dom.append(this.chatArtifactsWidgetContainer, widget.domNode);
 		}
-		this._chatArtifactsWidget.value.render(chatSessionResource);
+		this._chatArtifactsWidget.value.setSessionResource(chatSessionResource);
 	}
 
 	clearArtifactsWidget(): void {
-		this._chatArtifactsWidget.value?.hide();
+		this._chatArtifactsWidget.value?.setSessionResource(undefined);
 	}
 
 	renderQuestionCarousel(carousel: IChatQuestionCarousel, context: IChatContentPartRenderContext, options: IChatQuestionCarouselOptions): ChatQuestionCarouselPart {
@@ -2819,10 +2855,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return key ? this._chatToolConfirmationCarousels.get(key) : undefined;
 	}
 
-	renderToolConfirmationCarousel(tool: IChatToolInvocation, factory: ToolInvocationPartFactory): ChatToolConfirmationCarouselPart {
+	renderToolConfirmationCarousel(tool: IChatToolInvocation, factory: ToolInvocationPartFactory, subAgentInvocationId?: string, agentName?: string, scrollToSubagent?: ScrollToSubagentCallback, toolPart?: ChatToolInvocationPart): ChatToolConfirmationCarouselPart {
 		const existing = this._currentToolConfirmationCarousel;
 		if (existing) {
-			existing.addToolInvocation(tool);
+			existing.addToolInvocation(tool, subAgentInvocationId, agentName, scrollToSubagent, toolPart);
+			this.updateToolConfirmationCarouselMaxHeight();
 			return existing;
 		}
 
@@ -2831,10 +2868,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			throw new Error('Cannot render tool confirmation carousel without an active session');
 		}
 
-		const part = new ChatToolConfirmationCarouselPart(factory, [tool], this.toolService);
+		const part = new ChatToolConfirmationCarouselPart(factory, [], scrollToSubagent, subAgentInvocationId, agentName);
+		part.addToolInvocation(tool, subAgentInvocationId, agentName, scrollToSubagent, toolPart);
 		this._chatToolConfirmationCarousels.set(key, part);
 		dom.append(this.chatToolConfirmationCarouselContainer, part.domNode);
 		dom.show(this.chatToolConfirmationCarouselContainer);
+		this.updateToolConfirmationCarouselMaxHeight();
 
 		const capturedKey = key;
 		Event.once(part.onDidEmpty)(() => {
@@ -2848,13 +2887,21 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		return part;
 	}
 
-	addToolToConfirmationCarousel(tool: IChatToolInvocation, factory: ToolInvocationPartFactory): void {
+	addToolToConfirmationCarousel(tool: IChatToolInvocation, factory: ToolInvocationPartFactory, subAgentInvocationId?: string, agentName?: string, scrollToSubagent?: ScrollToSubagentCallback, toolPart?: ChatToolInvocationPart): void {
 		const existing = this._currentToolConfirmationCarousel;
 		if (existing) {
-			existing.addToolInvocation(tool);
+			existing.addToolInvocation(tool, subAgentInvocationId, agentName, scrollToSubagent, toolPart);
+			this.updateToolConfirmationCarouselMaxHeight();
 		} else {
-			this.renderToolConfirmationCarousel(tool, factory);
+			this.renderToolConfirmationCarousel(tool, factory, subAgentInvocationId, agentName, scrollToSubagent, toolPart);
 		}
+	}
+
+	/**
+	 * Navigates the carousel to the first pending tool from the given subagent.
+	 */
+	activateCarouselForSubagent(subAgentInvocationId: string): void {
+		this._currentToolConfirmationCarousel?.activateFirstToolForSubagent(subAgentInvocationId);
 	}
 
 	hasToolInConfirmationCarousel(toolCallId: string): boolean {
@@ -2877,7 +2924,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 	/**
 	 * Swaps the visible tool confirmation carousel when switching sessions.
-	 * Detaches the old carousel DOM and attaches the new session's carousel if one exists.
 	 */
 	private _syncToolConfirmationCarouselForSession(): void {
 		dom.clearNode(this.chatToolConfirmationCarouselContainer);
@@ -2885,6 +2931,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (carousel && carousel.pendingCount > 0) {
 			dom.append(this.chatToolConfirmationCarouselContainer, carousel.domNode);
 			dom.show(this.chatToolConfirmationCarouselContainer);
+			this.updateToolConfirmationCarouselMaxHeight();
 		} else {
 			dom.hide(this.chatToolConfirmationCarouselContainer);
 		}
@@ -3089,7 +3136,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				}) : undefined,
 				disableWhileRunning: isSessionMenu,
 				buttonConfigProvider: (action) => {
-					if (action.id === ChatEditingShowChangesAction.ID || action.id === ViewPreviousEditsAction.Id || action.id === ViewAllSessionChangesAction.ID) {
+					if (action.id === ChatEditingShowChangesAction.ID || action.id === ViewPreviousEditsAction.Id) {
 						return { showIcon: true, showLabel: false, isSecondary: true };
 					}
 					return undefined;
@@ -3229,6 +3276,23 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 */
 	setMaxHeight(maxHeight: number | undefined): void {
 		this._maxHeight = maxHeight;
+		this.updateToolConfirmationCarouselMaxHeight();
+	}
+
+	private updateToolConfirmationCarouselMaxHeight(): void {
+		const carousel = this._currentToolConfirmationCarousel;
+		if (!carousel) {
+			return;
+		}
+
+		if (this._maxHeight === undefined) {
+			carousel.setMaxHeight(undefined);
+			return;
+		}
+
+		const carouselHeight = this.chatToolConfirmationCarouselContainer.offsetHeight;
+		const otherInputHeight = Math.max(0, this.container.offsetHeight - carouselHeight);
+		carousel.setMaxHeight(this._maxHeight - otherInputHeight);
 	}
 
 	/**

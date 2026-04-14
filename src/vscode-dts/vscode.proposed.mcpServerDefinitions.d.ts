@@ -77,9 +77,12 @@ declare module 'vscode' {
 		 * when the last gateway is disposed. The gateway dynamically tracks server
 		 * additions and removals via {@link McpGateway.onDidChangeServers}.
 		 *
+		 * @param chatSessionResource Optional chat session resource URI to associate with this
+		 * gateway. When provided, MCP tool calls made through this gateway will be associated
+		 * with the chat session, enabling inline elicitation UI in the chat response.
 		 * @returns A promise that resolves to an {@link McpGateway} if successful,
 		 * or `undefined` if no Node process is available (e.g., in serverless web environments).
 		 */
-		export function startMcpGateway(): Thenable<McpGateway | undefined>;
+		export function startMcpGateway(chatSessionResource?: Uri): Thenable<McpGateway | undefined>;
 	}
 }

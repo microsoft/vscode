@@ -9,6 +9,7 @@ import './media/accountTitleBarWidget.css';
 import '../../../../workbench/contrib/chat/browser/chatStatus/media/chatStatus.css';
 import Severity from '../../../../base/common/severity.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Event } from '../../../../base/common/event.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuRegistry, registerAction2, IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -28,12 +29,13 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { IUpdateService, State, StateType } from '../../../../platform/update/common/update.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
+import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../base/common/uri.js';
+import { isWindows } from '../../../../base/common/platform.js';
 import { UpdateHoverWidget } from './updateHoverWidget.js';
-import { ChatEntitlementService, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ChatStatusDashboard } from '../../../../workbench/contrib/chat/browser/chatStatus/chatStatusDashboard.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
@@ -43,6 +45,11 @@ import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextke
 import { IAuthenticationAccessService } from '../../../../workbench/services/authentication/browser/authenticationAccessService.js';
 import { IAuthenticationUsageService } from '../../../../workbench/services/authentication/browser/authenticationUsageService.js';
 import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
+import { resetSessionsWelcome } from '../../welcome/browser/welcome.contribution.js';
+import { IStorageService } from '../../../../platform/storage/common/storage.js';
+import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { IWorkbenchEnvironmentService } from '../../../../workbench/services/environment/common/environmentService.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 
 // --- Account Menu Items --- //
 const AccountMenu = new MenuId('SessionsAccountMenu');
@@ -116,25 +123,27 @@ async function runSessionsUpdateAction(
 	dialogService: IDialogService,
 	hostService: IHostService,
 ): Promise<void> {
-	if (state.type === StateType.AvailableForDownload && state.canInstall === false) {
-		const { confirmed } = await dialogService.confirm({
-			message: localize('sessionsUpdateFromVSCode.title', "Update from VS Code"),
-			detail: localize('sessionsUpdateFromVSCode.detail', "This will close the Agents app and open VS Code so you can install the update.\n\nLaunch Agents again after the update is complete."),
-			primaryButton: localize('sessionsUpdateFromVSCode.open', "Close and Open VS Code"),
-		});
+	if (state.type === StateType.AvailableForDownload) {
+		const isInsiderOrExploration = productService.quality === 'insider' || productService.quality === 'exploration';
+		const hasCrossAppCoordinator = isWindows && isInsiderOrExploration;
+		if (!hasCrossAppCoordinator) {
+			const { confirmed } = await dialogService.confirm({
+				message: localize('sessionsUpdateFromVSCode.title', "Update from VS Code"),
+				detail: localize('sessionsUpdateFromVSCode.detail', "This will close the Agents app and open VS Code so you can install the update.\n\nLaunch Agents again after the update is complete."),
+				primaryButton: localize('sessionsUpdateFromVSCode.open', "Close and Open VS Code"),
+			});
 
-		if (confirmed) {
-			await openerService.open(URI.from({
-				scheme: productService.urlProtocol,
-				query: 'windowId=_blank',
-			}), { openExternal: true });
-			await hostService.close();
+			if (confirmed) {
+				await openerService.open(URI.from({
+					scheme: productService.urlProtocol,
+					query: 'windowId=_blank',
+				}), { openExternal: true });
+				await hostService.shutdown();
+			}
+
+			return;
 		}
 
-		return;
-	}
-
-	if (state.type === StateType.AvailableForDownload) {
 		await updateService.downloadUpdate(true);
 		return;
 	}
@@ -147,6 +156,22 @@ async function runSessionsUpdateAction(
 	if (state.type === StateType.Downloaded) {
 		await updateService.applyUpdate();
 	}
+}
+
+export async function showSessionsWelcomeAfterSignOut(
+	chatEntitlementService: Pick<IChatEntitlementService, 'entitlement' | 'onDidChangeEntitlement'>,
+	resetWelcome: () => void,
+): Promise<void> {
+	const waitForUnknownEntitlement = Event.toPromise(Event.filter(chatEntitlementService.onDidChangeEntitlement, () => chatEntitlementService.entitlement === ChatEntitlement.Unknown));
+	try {
+		if (chatEntitlementService.entitlement !== ChatEntitlement.Unknown) {
+			await waitForUnknownEntitlement;
+		}
+	} finally {
+		waitForUnknownEntitlement.cancel();
+	}
+
+	resetWelcome();
 }
 
 // Sign In (shown when signed out)
@@ -189,6 +214,13 @@ registerAction2(class extends Action2 {
 		const authenticationService = accessor.get(IAuthenticationService);
 		const authenticationUsageService = accessor.get(IAuthenticationUsageService);
 		const authenticationAccessService = accessor.get(IAuthenticationAccessService);
+		const chatEntitlementService = accessor.get(IChatEntitlementService);
+		const storageService = accessor.get(IStorageService);
+		const instantiationService = accessor.get(IInstantiationService);
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+		const contextKeyService = accessor.get(IContextKeyService);
+		const environmentService = accessor.get(IWorkbenchEnvironmentService);
+		const logService = accessor.get(ILogService);
 		const defaultAccount = await defaultAccountService.getDefaultAccount();
 		if (!defaultAccount) {
 			return;
@@ -212,6 +244,7 @@ registerAction2(class extends Action2 {
 		await Promise.all(sessions.map(session => authenticationService.removeSession(providerId, session.id)));
 		authenticationUsageService.removeAccountUsage(providerId, accountLabel);
 		authenticationAccessService.removeAllowedExtensions(providerId, accountLabel);
+		await showSessionsWelcomeAfterSignOut(chatEntitlementService, () => resetSessionsWelcome(storageService, instantiationService, layoutService, chatEntitlementService, contextKeyService, environmentService, logService));
 	}
 });
 
@@ -545,7 +578,6 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 			disableModelSelection: true,
 			disableProviderOptions: true,
 			disableCompletionsSnooze: true,
-			disableContributions: true,
 		});
 
 		store.add(disposableWindowInterval(mainWindow, () => {

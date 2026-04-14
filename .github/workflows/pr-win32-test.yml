@@ -25,6 +25,8 @@ jobs:
     steps:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@v6
+        with:
+          lfs: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -178,6 +180,10 @@ jobs:
             compile-extension:vscode-colorize-perf-tests `
             compile-extension:vscode-test-resolver `
           }
+
+      - name: Compile Copilot extension
+        shell: pwsh
+        run: npm --prefix extensions/copilot run compile
 
       - name: Diagnostics before integration test runs
         shell: pwsh

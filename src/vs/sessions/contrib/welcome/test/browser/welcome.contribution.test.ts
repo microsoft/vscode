@@ -17,13 +17,14 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IExtensionService } from '../../../../../workbench/services/extensions/common/extensions.js';
 import { ChatEntitlement, IChatEntitlementService, IChatSentiment } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ChatSetupStrategy } from '../../../../../workbench/contrib/chat/browser/chatSetup/chatSetup.js';
+import { IWorkbenchEnvironmentService } from '../../../../../workbench/services/environment/common/environmentService.js';
+import { IWorkbenchLayoutService } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { workbenchInstantiationService } from '../../../../../workbench/test/browser/workbenchTestServices.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
-import { SessionsWelcomeContribution } from '../../browser/welcome.contribution.js';
+import { WELCOME_COMPLETE_KEY } from '../../../../common/welcome.js';
+import { resetSessionsWelcome, SessionsWelcomeContribution } from '../../browser/welcome.contribution.js';
 import { SessionsWalkthroughOverlay, WalkthroughOutcome } from '../../browser/sessionsWalkthrough.js';
-
-const WELCOME_COMPLETE_KEY = 'workbench.agentsession.welcomeComplete';
 
 class MockChatEntitlementService implements Partial<IChatEntitlementService> {
 
@@ -45,6 +46,7 @@ class MockChatEntitlementService implements Partial<IChatEntitlementService> {
 	readonly copilotTrackingId = undefined;
 	readonly quotas = {};
 	readonly previewFeaturesDisabled = false;
+	readonly clientByokEnabled = false;
 
 	get entitlement(): ChatEntitlement { return this.entitlementObs.get(); }
 	get sentiment(): IChatSentiment { return this.sentimentObs.get(); }
@@ -150,6 +152,52 @@ suite('SessionsWelcomeContribution', () => {
 		assert.strictEqual(isOverlayVisible(), false, 'should remain hidden after recovery');
 	});
 
+	test('returning user: sign out clears welcome completion and shows overlay on Unknown entitlement', async () => {
+		markReturningUser();
+		mockEntitlementService.entitlementObs.set(ChatEntitlement.Pro, undefined);
+		mockEntitlementService.sentimentObs.set({ completed: true, installed: true } as IChatSentiment, undefined);
+
+		const contribution = disposables.add(instantiationService.createInstance(SessionsWelcomeContribution));
+		assert.ok(contribution);
+		assert.strictEqual(isOverlayVisible(), false, 'should not show initially');
+
+		const storageService = instantiationService.get(IStorageService);
+		storageService.remove(WELCOME_COMPLETE_KEY, StorageScope.APPLICATION);
+
+		transaction(tx => {
+			mockEntitlementService.entitlementObs.set(ChatEntitlement.Unknown, tx);
+		});
+
+		assert.strictEqual(isOverlayVisible(), true, 'should show overlay after explicit sign out');
+
+		transaction(tx => {
+			mockEntitlementService.entitlementObs.set(ChatEntitlement.Free, tx);
+		});
+		await flushMicrotasks();
+
+		assert.strictEqual(isOverlayVisible(), false, 'should hide overlay after signing back in');
+		assert.strictEqual(storageService.getBoolean(WELCOME_COMPLETE_KEY, StorageScope.APPLICATION, false), true);
+	});
+
+	test('reset welcome respects skip-sessions-welcome while still clearing completion state', async () => {
+		markReturningUser();
+
+		const storageService = instantiationService.get(IStorageService);
+		const layoutService = instantiationService.get(IWorkbenchLayoutService);
+		const contextKeyService = instantiationService.get(IContextKeyService);
+		const logService = instantiationService.get(ILogService);
+		const environmentService = instantiationService.get(IWorkbenchEnvironmentService);
+		instantiationService.stub(IWorkbenchEnvironmentService, {
+			...environmentService,
+			args: { ...(environmentService as IWorkbenchEnvironmentService & { args?: Record<string, unknown> }).args, 'skip-sessions-welcome': true },
+		} as IWorkbenchEnvironmentService);
+
+		resetSessionsWelcome(storageService, instantiationService, layoutService, mockEntitlementService, contextKeyService, instantiationService.get(IWorkbenchEnvironmentService), logService);
+
+		assert.strictEqual(storageService.getBoolean(WELCOME_COMPLETE_KEY, StorageScope.APPLICATION, false), false, 'should clear completion state');
+		assert.strictEqual(isOverlayVisible(), false, 'should not show overlay when skip flag is set');
+	});
+
 	test('returning user: transient Unresolved entitlement does NOT show overlay', () => {
 		markReturningUser();
 		mockEntitlementService.entitlementObs.set(ChatEntitlement.Pro, undefined);
@@ -164,23 +212,6 @@ suite('SessionsWelcomeContribution', () => {
 		});
 
 		assert.strictEqual(isOverlayVisible(), false, 'should NOT show overlay for Unresolved');
-	});
-
-	test('returning user: extension uninstalled DOES show overlay', () => {
-		markReturningUser();
-		mockEntitlementService.entitlementObs.set(ChatEntitlement.Free, undefined);
-		mockEntitlementService.sentimentObs.set({ completed: true, installed: true } as IChatSentiment, undefined);
-
-		const contribution = disposables.add(instantiationService.createInstance(SessionsWelcomeContribution));
-		assert.ok(contribution);
-		assert.strictEqual(isOverlayVisible(), false, 'should not show initially');
-
-		// Simulate extension being uninstalled
-		transaction(tx => {
-			mockEntitlementService.sentimentObs.set({ completed: true, installed: false } as IChatSentiment, tx);
-		});
-
-		assert.strictEqual(isOverlayVisible(), true, 'should show overlay when extension is uninstalled');
 	});
 
 	test('returning user: extension disabled DOES show overlay', () => {

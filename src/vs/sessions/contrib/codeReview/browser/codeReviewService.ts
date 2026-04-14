@@ -16,7 +16,7 @@ import { hash } from '../../../../base/common/hash.js';
 import { hasKey } from '../../../../base/common/types.js';
 import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
 // --- Types -------------------------------------------------------------------
 
@@ -703,7 +703,7 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 		}));
 
 		// Start polling and initial fetch
-		prModel.refreshThreads().catch(err => {
+		prModel.refresh().catch(err => {
 			this._logService.error('[CodeReviewService] Failed to fetch PR review threads:', err);
 			data.state.set({ kind: PRReviewStateKind.Error, reason: String(err) }, undefined);
 		});

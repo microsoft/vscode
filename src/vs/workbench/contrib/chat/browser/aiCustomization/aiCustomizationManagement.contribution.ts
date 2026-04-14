@@ -32,7 +32,6 @@ import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
-import { ChatConfiguration } from '../../common/constants.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
@@ -64,7 +63,7 @@ type CustomizationEditorDeleteItemClassification = {
 	promptType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of customization being deleted.' };
 	storage: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The storage location of the deleted item.' };
 	owner: 'joshspicer';
-	comment: 'Tracks item deletion in the Chat Customizations editor.';
+	comment: 'Tracks item deletion in the Agent Customizations editor.';
 };
 
 //#endregion
@@ -75,7 +74,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	EditorPaneDescriptor.create(
 		AICustomizationManagementEditor,
 		AI_CUSTOMIZATION_MANAGEMENT_EDITOR_ID,
-		localize('aiCustomizationManagementEditor', "Chat Customizations Editor")
+		localize('aiCustomizationManagementEditor', "Agent Customizations Editor")
 	),
 	[
 		// Note: Using the class directly since we use a singleton pattern
@@ -285,6 +284,7 @@ registerAction2(class extends Action2 {
 		const dialogService = accessor.get(IDialogService);
 		const telemetryService = accessor.get(ITelemetryService);
 		const workspaceService = accessor.get(IAICustomizationWorkspaceService);
+		const editorService = accessor.get(IEditorService);
 
 		const uri = extractURI(context);
 		const storage = extractStorage(context);
@@ -385,6 +385,13 @@ registerAction2(class extends Action2 {
 				if (projectRoot) {
 					await workspaceService.deleteFiles(projectRoot, [deleteTarget]);
 				}
+			}
+
+			// Refresh the list to remove the deleted item immediately
+			// (provider's onDidChange may not fire if it doesn't watch the filesystem)
+			const activeEditor = editorService.activeEditorPane;
+			if (activeEditor instanceof AICustomizationManagementEditor) {
+				activeEditor.refreshList();
 			}
 		}
 	}
@@ -676,10 +683,10 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 			constructor() {
 				super({
 					id: AICustomizationManagementCommands.OpenEditor,
-					title: localize2('openAICustomizations', "Open Customizations (Preview)"),
-					shortTitle: localize2('aiCustomizations', "Customizations (Preview)"),
+					title: localize2('openAICustomizations', "Open Customizations"),
+					shortTitle: localize2('aiCustomizations', "Customizations"),
 					category: CHAT_CATEGORY,
-					precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.has(`config.${ChatConfiguration.ChatCustomizationMenuEnabled}`)),
+					precondition: ChatContextKeys.enabled,
 					f1: true,
 				});
 			}
@@ -694,6 +701,28 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 			}
 		}));
 
+		// Open Marketplace (hidden command for deep-linking into browse mode)
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: AICustomizationManagementCommands.OpenMarketplace,
+					title: localize2('openMarketplace', "Open Marketplace"),
+					category: CHAT_CATEGORY,
+					precondition: ChatContextKeys.enabled,
+				});
+			}
+
+			async run(accessor: ServicesAccessor, section?: AICustomizationManagementSection): Promise<void> {
+				const editorService = accessor.get(IEditorService);
+				const input = AICustomizationManagementEditorInput.getOrCreate();
+				const pane = await editorService.openEditor(input, { pinned: true });
+				if (pane instanceof AICustomizationManagementEditor) {
+					const targetSection = section ?? AICustomizationManagementSection.McpServers;
+					pane.selectSectionById(targetSection, { showMarketplace: true });
+				}
+			}
+		}));
+
 		// Generate Debug Report
 		this._register(registerAction2(class extends Action2 {
 			constructor() {
@@ -701,7 +730,7 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 					id: AICustomizationManagementCommands.GenerateDebugReport,
 					title: localize2('generateDebugReport', "Generate Customization Debug Report"),
 					category: Categories.Developer,
-					precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.has(`config.${ChatConfiguration.ChatCustomizationMenuEnabled}`)),
+					precondition: ChatContextKeys.enabled,
 					f1: true,
 				});
 			}

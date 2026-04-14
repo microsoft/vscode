@@ -1618,6 +1618,16 @@ export default tseslint.config(
 					]
 				},
 				{
+					'target': 'src/vs/platform/agentHost/node/diffWorkerMain.ts',
+					'layer': 'node',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/editor/common/diff/**', // diffing logic used by the agent host
+					]
+				},
+				{
 					'target': 'src/vs/platform/*/~',
 					'restrictions': [
 						'vs/base/~',
@@ -2121,7 +2131,8 @@ export default tseslint.config(
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/*/~',
 						'vs/sessions/~',
-						'vs/sessions/contrib/*/~'
+						'vs/sessions/contrib/*/~',
+						'vs/sessions/services/*/~',
 					]
 				},
 				{
@@ -2136,6 +2147,7 @@ export default tseslint.config(
 						'vs/workbench/services/*/~',
 						'vs/sessions/~',
 						'vs/sessions/services/*/~',
+						'vs/workbench/contrib/*/~',
 						{
 							'when': 'test',
 							'pattern': 'vs/workbench/contrib/*/~'

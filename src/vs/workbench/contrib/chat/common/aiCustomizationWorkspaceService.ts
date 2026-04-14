@@ -58,6 +58,15 @@ export interface IStorageSourceFilter {
 }
 
 /**
+ * Controls which features are shown on the welcome page of the
+ * AI Customization Management Editor.
+ */
+export interface IWelcomePageFeatures {
+	/** Show the "Configure Your AI" getting-started banner. */
+	readonly showGettingStartedBanner: boolean;
+}
+
+/**
  * Applies a storage source filter to an array of items that have uri and storage.
  * Removes items whose storage is not in the filter's source list,
  * and for user-storage items, removes those not under an allowed root.
@@ -106,6 +115,11 @@ export interface IAICustomizationWorkspaceService {
 	 * Whether this is a sessions window (vs core VS Code).
 	 */
 	readonly isSessionsWindow: boolean;
+
+	/**
+	 * Controls which features are displayed on the welcome page.
+	 */
+	readonly welcomePageFeatures: IWelcomePageFeatures;
 
 	/**
 	 * Commits files in the active project.
