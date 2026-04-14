@@ -695,16 +695,6 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 		const rawEffort = this.options.request.modelConfiguration?.reasoningEffort;
 		const reasoningEffort = typeof rawEffort === 'string' ? rawEffort : undefined;
 		const isSubagent = !!this.options.request.subAgentInvocationId;
-		// DEBUG: Log the last two assistant messages as sent to the LLM
-		const assistantMessages = opts.messages.filter(m => m.role === 'assistant');
-		const lastTwoAssistant = assistantMessages.slice(-2);
-		if (lastTwoAssistant.length > 0) {
-			this._logService.info('[LLM-DEBUG] Last two assistant messages sent to LLM:');
-			for (const msg of lastTwoAssistant) {
-				this._logService.info('[LLM-DEBUG] ' + JSON.stringify(msg, null, 2));
-			}
-		}
-
 		return this.options.invocation.endpoint.makeChatRequest2({
 			...opts,
 			modelCapabilities: {

@@ -217,6 +217,20 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				const countTokens = () => tokenCountPromise ??= chatEndpoint.acquireTokenizer().countMessagesTokens(messages);
 				const copilotToken = await this._authenticationService.getCopilotToken();
 				usernameToScrub = copilotToken.username;
+
+				// DEBUG: Log the last two assistant messages as sent to the LLM
+				const apiMessages = (requestBody.messages ?? requestBody.input) as ReadonlyArray<{ role?: string }>;
+				if (apiMessages) {
+					const assistantMsgs = apiMessages.filter(m => m.role === 'assistant');
+					const lastTwo = assistantMsgs.slice(-2);
+					if (lastTwo.length > 0) {
+						this._logService.info('[LLM-DEBUG] Last two assistant messages sent to LLM:');
+						for (const msg of lastTwo) {
+							this._logService.info('[LLM-DEBUG] ' + JSON.stringify(msg, null, 2));
+						}
+					}
+				}
+
 				const fetchResult = await this._fetchAndStreamChat(
 					chatEndpoint,
 					requestBody,
