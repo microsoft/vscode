@@ -28,10 +28,9 @@ import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextke
 import { ChatSessionProviderIdContext, IsNewChatSessionContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { SessionStatus } from '../../../services/sessions/common/session.js';
+import { ISessionsListModelService } from './views/sessionsListModelService.js';
 import { SHOW_SESSIONS_PICKER_COMMAND_ID } from './sessionsActions.js';
 import { IsSessionArchivedContext, IsSessionPinnedContext, IsSessionReadContext, SessionItemContextMenuId } from './views/sessionsList.js';
-import { SessionsView, SessionsViewId } from './views/sessionsView.js';
-import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { basename } from '../../../../base/common/resources.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
@@ -65,12 +64,12 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		options: IBaseActionViewItemOptions | undefined,
 		@IHoverService private readonly hoverService: IHoverService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsListModelService private readonly sessionsListModelService: ISessionsListModelService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IViewsService private readonly viewsService: IViewsService,
 	) {
 		super(undefined, action, options);
 
@@ -173,13 +172,18 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 
 			// Folder shown next to the title
 			if (repoLabel) {
+				const detailsEl = $('span.agent-sessions-titlebar-details');
+
 				const separator1 = $('span.agent-sessions-titlebar-separator');
 				separator1.textContent = '\u00B7';
-				centerGroup.appendChild(separator1);
+				separator1.setAttribute('aria-hidden', 'true');
+				detailsEl.appendChild(separator1);
 
 				const repoEl = $('span.agent-sessions-titlebar-repo');
 				repoEl.textContent = repoDetailLabel ? `${repoLabel} (${repoDetailLabel})` : repoLabel;
-				centerGroup.appendChild(repoEl);
+				detailsEl.appendChild(repoEl);
+
+				centerGroup.appendChild(detailsEl);
 			}
 
 			sessionPill.appendChild(centerGroup);
@@ -297,11 +301,13 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			return;
 		}
 
-		const isPinned = this.viewsService.getViewWithId<SessionsView>(SessionsViewId)?.sessionsControl?.isSessionPinned(sessionData) ?? false;
+		const isPinned = this.sessionsListModelService.isSessionPinned(sessionData);
+		const isArchived = sessionData.isArchived.get();
+		const isRead = this.sessionsListModelService.isSessionRead(sessionData);
 		const contextOverlay: [string, boolean | string][] = [
 			[IsSessionPinnedContext.key, isPinned],
-			[IsSessionArchivedContext.key, sessionData.isArchived.get()],
-			[IsSessionReadContext.key, sessionData.isRead.get()],
+			[IsSessionArchivedContext.key, isArchived],
+			[IsSessionReadContext.key, isRead],
 			['chatSessionType', sessionData.sessionType],
 			[ChatSessionProviderIdContext.key, sessionData.providerId],
 		];
@@ -334,6 +340,7 @@ class SidebarToggleActionViewItem extends ActionViewItem {
 		action: IAction,
 		options: IBaseActionViewItemOptions | undefined,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsListModelService private readonly sessionsListModelService: ISessionsListModelService,
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 	) {
 		super(context, action, { ...options, icon: true, label: false });
@@ -349,11 +356,9 @@ class SidebarToggleActionViewItem extends ActionViewItem {
 		this._countBadge.setAttribute('aria-hidden', 'true');
 		this._updateBadge();
 
-		// Single autorun that tracks all badge-relevant state:
-		// - session list changes (add/remove) via observableSignalFromEvent
-		// - individual session observable state (status, isRead, isArchived)
-		// - sidebar visibility changes
+		// Track session list changes, status changes, and sidebar visibility
 		const sessionsChanged = observableSignalFromEvent(this, this.sessionsManagementService.onDidChangeSessions);
+		const listModelChanged = observableSignalFromEvent(this, this.sessionsListModelService.onDidChange);
 		const sidebarVisibilityChanged = observableSignalFromEvent(this, handler => this.layoutService.onDidChangePartVisibility(e => {
 			if (e.partId === Parts.SIDEBAR_PART) {
 				handler(e);
@@ -361,11 +366,11 @@ class SidebarToggleActionViewItem extends ActionViewItem {
 		}));
 		this._register(autorun(reader => {
 			sessionsChanged.read(reader);
+			listModelChanged.read(reader);
 			sidebarVisibilityChanged.read(reader);
 			for (const session of this.sessionsManagementService.getSessions()) {
 				session.isArchived.read(reader);
 				session.status.read(reader);
-				session.isRead.read(reader);
 			}
 			this.updateClass();
 			this._updateBadge();
@@ -407,7 +412,7 @@ class SidebarToggleActionViewItem extends ActionViewItem {
 	private _countUnreadSessions(): number {
 		let unread = 0;
 		for (const session of this.sessionsManagementService.getSessions()) {
-			if (!session.isArchived.get() && session.status.get() === SessionStatus.Completed && !session.isRead.get()) {
+			if (!session.isArchived.get() && session.status.get() === SessionStatus.Completed && !this.sessionsListModelService.isSessionRead(session)) {
 				unread++;
 			}
 		}

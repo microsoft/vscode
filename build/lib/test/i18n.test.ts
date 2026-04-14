@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { suite, test } from 'node:test';
 import * as i18n from '../i18n.ts';
 
 suite('XLF Parser Tests', () => {

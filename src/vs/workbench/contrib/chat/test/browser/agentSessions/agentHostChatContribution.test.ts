@@ -15,7 +15,7 @@ import { runWithFakedTimers } from '../../../../../../base/test/common/timeTrave
 import { timeout } from '../../../../../../base/common/async.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
-import { IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
+import { AgentHostSessionConfigBranchNameHintKey, IAgentCreateSessionConfig, IAgentHostService, IAgentSessionMetadata, AgentSession } from '../../../../../../platform/agentHost/common/agentService.js';
 import { isSessionAction, type IActionEnvelope, type INotification, type ISessionAction, type ITerminalAction, type IToolCallConfirmedAction, type ITurnStartedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import type { ICustomizationRef } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
@@ -34,7 +34,7 @@ import { IProductService } from '../../../../../../platform/product/common/produ
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IOutputService } from '../../../../../services/output/common/output.js';
 import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
-import { AgentHostContribution, AgentHostSessionListController, AgentHostSessionHandler } from '../../../browser/agentSessions/agentHost/agentHostChatContribution.js';
+import { AgentHostContribution, AgentHostSessionListController, AgentHostSessionHandler, getAgentHostBranchNameHint } from '../../../browser/agentSessions/agentHost/agentHostChatContribution.js';
 import { AgentHostLanguageModelProvider } from '../../../browser/agentSessions/agentHost/agentHostLanguageModelProvider.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { TestFileService } from '../../../../../test/common/workbenchTestServices.js';
@@ -45,6 +45,10 @@ import { ICustomizationHarnessService } from '../../../common/customizationHarne
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IStorageService, InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
+import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
+import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
+import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 
 // ---- Mock agent host service ------------------------------------------------
 
@@ -187,6 +191,20 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 			},
 		};
 	}
+	override getSubscriptionUnmanaged<T>(_kind: StateComponents, resource: URI): IAgentSubscription<T> | undefined {
+		const entry = this._liveSubscriptions.get(resource.toString());
+		if (!entry) {
+			return undefined;
+		}
+		const self = this;
+		return {
+			get value() { return self._liveSubscriptions.get(resource.toString())?.state as unknown as T; },
+			get verifiedValue() { return self._liveSubscriptions.get(resource.toString())?.state as unknown as T; },
+			onDidChange: entry.emitter.event as unknown as Event<T>,
+			onWillApplyAction: Event.None,
+			onDidApplyAction: Event.None,
+		} satisfies IAgentSubscription<T>;
+	}
 	override dispatch(action: ISessionAction | ITerminalAction): void {
 		this.dispatchedActions.push({ action, clientId: this.clientId, clientSeq: this._nextSeq++ });
 		// Apply state-management actions optimistically so state-dependent
@@ -243,7 +261,7 @@ class MockChatAgentService extends mock<IChatAgentService>() {
 
 // ---- Helpers ----------------------------------------------------------------
 
-function createTestServices(disposables: DisposableStore) {
+function createTestServices(disposables: DisposableStore, workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined }) {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	const agentHostService = new MockAgentHostService();
@@ -268,7 +286,15 @@ function createTestServices(disposables: DisposableStore) {
 		deltaLanguageModelChatProviderDescriptors: () => { },
 		registerLanguageModelProvider: () => toDisposable(() => { }),
 	});
-	instantiationService.stub(IConfigurationService, { getValue: () => true });
+	instantiationService.stub(IConfigurationService, {
+		getValue: (...args: unknown[]) => {
+			if (args[0] === 'chat.agentHost.clientTools') {
+				return [];
+			}
+			return true;
+		},
+		onDidChangeConfiguration: Event.None,
+	});
 	instantiationService.stub(IOutputService, { getChannel: () => undefined });
 	instantiationService.stub(IWorkspaceContextService, { getWorkspace: () => ({ id: '', folders: [] }), getWorkspaceFolder: () => null });
 	instantiationService.stub(IChatEditingService, {
@@ -289,6 +315,25 @@ function createTestServices(disposables: DisposableStore) {
 	});
 	instantiationService.stub(IAgentPluginService, {
 		plugins: observableValue('plugins', []),
+	});
+	instantiationService.stub(ITerminalChatService, {
+		onDidContinueInBackground: Event.None,
+		registerTerminalInstanceWithToolSession: () => { },
+	});
+	instantiationService.stub(IAgentHostTerminalService, {
+		reviveTerminal: async () => undefined!,
+	});
+	instantiationService.stub(IAgentHostSessionWorkingDirectoryResolver, {
+		registerResolver: () => toDisposable(() => { }),
+		resolve: sessionResource => workingDirectoryResolver?.resolve(sessionResource),
+	});
+	instantiationService.stub(ILanguageModelToolsService, {
+		observeTools: () => observableValue('tools', []),
+		onDidChangeTools: Event.None,
+		getToolByName: () => undefined,
+		invokeTool: async () => ({ content: [] }),
+		onDidPrepareToolCallBecomeUnresponsive: Event.None,
+		onDidInvokeTool: Event.None,
 	});
 
 	return { instantiationService, agentHostService, chatAgentService };
@@ -312,7 +357,7 @@ function createContribution(disposables: DisposableStore) {
 	return { contribution, listController, sessionHandler, agentHostService, chatAgentService };
 }
 
-function makeRequest(overrides: Partial<{ message: string; sessionResource: URI; variables: IChatAgentRequest['variables']; userSelectedModelId: string }> = {}): IChatAgentRequest {
+function makeRequest(overrides: Partial<{ message: string; sessionResource: URI; variables: IChatAgentRequest['variables']; userSelectedModelId: string; agentHostSessionConfig: Record<string, string> }> = {}): IChatAgentRequest {
 	return upcastPartial<IChatAgentRequest>({
 		sessionResource: overrides.sessionResource ?? URI.from({ scheme: 'untitled', path: '/chat-1' }),
 		requestId: 'req-1',
@@ -321,6 +366,7 @@ function makeRequest(overrides: Partial<{ message: string; sessionResource: URI;
 		variables: overrides.variables ?? { variables: [] },
 		location: ChatAgentLocation.Chat,
 		userSelectedModelId: overrides.userSelectedModelId,
+		agentHostSessionConfig: overrides.agentHostSessionConfig,
 	});
 }
 
@@ -346,6 +392,7 @@ async function startTurn(
 		sessionResource: URI;
 		variables: IChatAgentRequest['variables'];
 		userSelectedModelId: string;
+		agentHostSessionConfig: Record<string, string>;
 		cancellationToken: CancellationToken;
 	}>,
 ) {
@@ -366,6 +413,7 @@ async function startTurn(
 			sessionResource,
 			variables: overrides?.variables,
 			userSelectedModelId: overrides?.userSelectedModelId,
+			agentHostSessionConfig: overrides?.agentHostSessionConfig,
 		}),
 		(parts) => collected.push(parts),
 		[],
@@ -396,6 +444,60 @@ async function startTurn(
 	}
 
 	return { turnPromise, collected, chatSession, session, turnId, fire };
+}
+
+async function startDynamicAgentTurn(
+	chatAgentService: MockChatAgentService,
+	agentHostService: MockAgentHostService,
+	agentId: string,
+	overrides?: Partial<{
+		message: string;
+		sessionResource: URI;
+		variables: IChatAgentRequest['variables'];
+		userSelectedModelId: string;
+		agentHostSessionConfig: Record<string, string>;
+		cancellationToken: CancellationToken;
+	}>,
+) {
+	const registered = chatAgentService.registeredAgents.get(agentId);
+	assert.ok(registered);
+	const sessionResource = overrides?.sessionResource ?? URI.from({ scheme: agentId, path: '/untitled-turntest' });
+	const collected: IChatProgress[][] = [];
+	const seq = { v: 1 };
+
+	agentHostService.dispatchedActions.length = 0;
+	const turnPromise = registered.impl.invoke(
+		makeRequest({
+			message: overrides?.message ?? 'Hello',
+			sessionResource,
+			variables: overrides?.variables,
+			userSelectedModelId: overrides?.userSelectedModelId,
+			agentHostSessionConfig: overrides?.agentHostSessionConfig,
+		}),
+		parts => collected.push(parts),
+		[],
+		overrides?.cancellationToken ?? CancellationToken.None,
+	);
+
+	await timeout(10);
+
+	const turnDispatches = agentHostService.dispatchedActions.filter(d => d.action.type === 'session/turnStarted');
+	const lastDispatch = turnDispatches[turnDispatches.length - 1] ?? agentHostService.dispatchedActions[agentHostService.dispatchedActions.length - 1];
+	const session = (lastDispatch?.action as ITurnStartedAction)?.session;
+	const turnId = (lastDispatch?.action as ITurnStartedAction)?.turnId;
+	const fire = (action: ISessionAction) => {
+		agentHostService.fireAction({ action, serverSeq: seq.v++, origin: undefined });
+	};
+
+	if (lastDispatch) {
+		agentHostService.fireAction({
+			action: lastDispatch.action,
+			serverSeq: seq.v++,
+			origin: { clientId: agentHostService.clientId, clientSeq: lastDispatch.clientSeq },
+		});
+	}
+
+	return { turnPromise, collected, session, turnId, fire };
 }
 
 suite('AgentHostChatContribution', () => {
@@ -1580,6 +1682,64 @@ suite('AgentHostChatContribution', () => {
 
 			assert.strictEqual(agentHostService.createSessionCalls.length, 1);
 			assert.strictEqual(agentHostService.createSessionCalls[0].workingDirectory?.toString(), URI.file('/custom/working/dir').toString());
+		}));
+
+		test('handler forwards request session config to createSession', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
+
+			disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'config-test',
+				sessionType: 'config-test',
+				fullName: 'Test',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+			}));
+
+			const config = { isolation: 'worktree', branch: 'feature/config' };
+			const { turnPromise, session, turnId, fire } = await startDynamicAgentTurn(chatAgentService, agentHostService, 'config-test', { message: 'Add Agent Host session configuration flow', agentHostSessionConfig: config });
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.createSessionCalls.length, 1);
+			assert.deepStrictEqual(agentHostService.createSessionCalls[0].config, { ...config, [AgentHostSessionConfigBranchNameHintKey]: 'add-agent-host-session-configuration-flow' });
+		}));
+
+		test('handler derives deterministic branch name hints from first request text', () => {
+			assert.deepStrictEqual([
+				getAgentHostBranchNameHint('Add Agent Host session configuration flow'),
+				getAgentHostBranchNameHint('  Fix: worktree picker + branch config!  '),
+				getAgentHostBranchNameHint('---'),
+			], [
+				'add-agent-host-session-configuration-flow',
+				'fix-worktree-picker-branch-config',
+				undefined,
+			]);
+		});
+
+		test('handler uses registered working directory resolver', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const resolvedWorkingDirectory = URI.file('/resolved/working/dir');
+			const { instantiationService, agentHostService } = createTestServices(disposables, {
+				resolve: () => resolvedWorkingDirectory,
+			});
+
+			const handler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
+				provider: 'copilot' as const,
+				agentId: 'workdir-resolver-test',
+				sessionType: 'workdir-resolver-test',
+				fullName: 'Test',
+				description: 'test',
+				connection: agentHostService,
+				connectionAuthority: 'local',
+			}));
+
+			const { turnPromise, session, turnId, fire } = await startTurn(handler, agentHostService, disposables);
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
+			await turnPromise;
+
+			assert.strictEqual(agentHostService.createSessionCalls.length, 1);
+			assert.strictEqual(agentHostService.createSessionCalls[0].workingDirectory?.toString(), resolvedWorkingDirectory.toString());
 		}));
 
 		test('handler passes vscode-agent-host URI as-is to createSession', () => runWithFakedTimers({ useFakeTimers: true }, async () => {

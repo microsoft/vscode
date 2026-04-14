@@ -74,6 +74,10 @@ Type: filesandordirs; Name: "{app}\{#VersionedResourcesFolder}\resources\app\nod
 Type: filesandordirs; Name: "{app}\{#VersionedResourcesFolder}\resources\app\node_modules.asar.unpacked"; Check: IsNotBackgroundUpdate
 Type: files; Name: "{app}\{#VersionedResourcesFolder}\resources\app\node_modules.asar"; Check: IsNotBackgroundUpdate
 Type: files; Name: "{app}\{#VersionedResourcesFolder}\resources\app\Credits_45.0.2454.85.html"; Check: IsNotBackgroundUpdate
+#ifdef ProxyExeBasename
+; Clean up legacy Start Menu shortcut that used ProxyExeBasename instead of ProxyNameLong
+Type: files; Name: "{group}\{#ProxyExeBasename}.lnk"
+#endif
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\_"
@@ -117,7 +121,7 @@ Name: "{group}\{#NameLong}"; Filename: "{app}\{#ExeBasename}.exe"; AppUserModelI
 Name: "{autodesktop}\{#NameLong}"; Filename: "{app}\{#ExeBasename}.exe"; Tasks: desktopicon; AppUserModelID: "{#AppUserId}"; Check: ShouldUpdateShortcut(ExpandConstant('{autodesktop}\{#NameLong}.lnk'))
 Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\{#NameLong}"; Filename: "{app}\{#ExeBasename}.exe"; Tasks: quicklaunchicon; AppUserModelID: "{#AppUserId}"; Check: ShouldUpdateShortcut(ExpandConstant('{userappdata}\Microsoft\Internet Explorer\Quick Launch\{#NameLong}.lnk'))
 #ifdef ProxyExeBasename
-Name: "{group}\{#ProxyExeBasename}"; Filename: "{app}\{#ProxyExeBasename}.exe"; AppUserModelID: "{#ProxyAppUserId}"; Check: ShouldUpdateShortcut(ExpandConstant('{group}\{#ProxyExeBasename}.lnk'))
+Name: "{group}\{#ProxyNameLong}"; Filename: "{app}\{#ProxyExeBasename}.exe"; AppUserModelID: "{#ProxyAppUserId}"; Check: ShouldUpdateShortcut(ExpandConstant('{group}\{#ProxyNameLong}.lnk'))
 Name: "{autodesktop}\{#ProxyNameLong}"; Filename: "{app}\{#ProxyExeBasename}.exe"; Tasks: desktopicon; AppUserModelID: "{#ProxyAppUserId}"; Check: ShouldUpdateShortcut(ExpandConstant('{autodesktop}\{#ProxyNameLong}.lnk'))
 Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\{#ProxyNameLong}"; Filename: "{app}\{#ProxyExeBasename}.exe"; Tasks: quicklaunchicon; AppUserModelID: "{#ProxyAppUserId}"; Check: ShouldUpdateShortcut(ExpandConstant('{userappdata}\Microsoft\Internet Explorer\Quick Launch\{#ProxyNameLong}.lnk'))
 #endif
@@ -125,6 +129,9 @@ Name: "{userappdata}\Microsoft\Internet Explorer\Quick Launch\{#ProxyNameLong}";
 [Run]
 Filename: "{app}\{#ExeBasename}.exe"; Description: "{cm:LaunchProgram,{#NameLong}}"; Tasks: runcode; Flags: nowait postinstall; Check: ShouldRunAfterUpdate
 Filename: "{app}\{#ExeBasename}.exe"; Description: "{cm:LaunchProgram,{#NameLong}}"; Flags: nowait postinstall; Check: WizardNotSilent
+#ifdef ProxyExeBasename
+Filename: "{app}\{#ProxyExeBasename}.exe"; Description: "{cm:LaunchProgram,{#ProxyNameLong}}"; Tasks: runcode; Flags: nowait postinstall; Check: ShouldRunProxyAfterUpdate
+#endif
 
 [Registry]
 #if "user" == InstallTarget
@@ -1414,6 +1421,10 @@ end;
 
 var
 	ShouldRestartTunnelService: Boolean;
+#ifdef ProxyMutex
+	ProxyWasRunning: Boolean;
+	AppWasRunning: Boolean;
+#endif
 
 function StopTunnelOtherProcesses(): Boolean;
 var
@@ -1509,10 +1520,26 @@ end;
 function ShouldRunAfterUpdate(): Boolean;
 begin
   if IsBackgroundUpdate() then
+#ifdef ProxyMutex
+    Result := (not LockFileExists()) and AppWasRunning
+#else
     Result := not LockFileExists()
+#endif
   else
     Result := True;
 end;
+
+#ifdef ProxyMutex
+function ShouldRunProxyAfterUpdate(): Boolean;
+begin
+  // Relaunch the proxy app after a background update if it was
+  // running when the update started (detected via its mutex).
+  if IsBackgroundUpdate() then
+    Result := (not LockFileExists()) and ProxyWasRunning
+  else
+    Result := False;
+end;
+#endif
 
 function IsWindows11OrLater(): Boolean;
 begin
@@ -1603,7 +1630,11 @@ begin
   if IsBackgroundUpdate() then
     Result := ''
   else
+#ifdef ProxyMutex
+    Result := '{#AppMutex},{#ProxyMutex}';
+#else
     Result := '{#AppMutex}';
+#endif
 end;
 
 function GetSetupMutex(Value: string): string;
@@ -1612,7 +1643,11 @@ begin
   // During background updates, also create a -updating mutex that VS Code checks
   // to avoid launching while an update is in progress.
   if IsBackgroundUpdate() then
+#ifdef ProxyMutex
+    Result := '{#AppMutex}setup,{#AppMutex}-updating,{#ProxyMutex}-updating'
+#else
     Result := '{#AppMutex}setup,{#AppMutex}-updating'
+#endif
   else
     Result := '{#AppMutex}setup';
 end;
@@ -1788,12 +1823,24 @@ begin
 
     if IsBackgroundUpdate() then
     begin
+#ifdef ProxyMutex
+      // Snapshot whether each app is running before we wait for them to exit
+      ProxyWasRunning := CheckForMutexes('{#ProxyMutex}');
+      AppWasRunning := CheckForMutexes('{#AppMutex}');
+      Log('App was running: ' + BoolToStr(AppWasRunning));
+      Log('Proxy app was running: ' + BoolToStr(ProxyWasRunning));
+#endif
+
       SaveStringToFile(ExpandConstant('{app}\updating_version'), '{#Commit}', False);
       CreateMutex('{#AppMutex}-ready');
       DeleteFile(GetUpdateProgressFilePath());
 
       Log('Checking whether application is still running...');
+#ifdef ProxyMutex
+      while (CheckForMutexes('{#AppMutex},{#ProxyMutex}')) do
+#else
       while (CheckForMutexes('{#AppMutex}')) do
+#endif
       begin
         if CancelFileExists() then
         begin

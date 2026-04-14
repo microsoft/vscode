@@ -88,6 +88,7 @@ export function convertPrivateFields(code: string, filename: string): ConvertPri
 
 	// Global counter for unique name generation
 	let nameCounter = 0;
+	let fieldCount = 0;
 	let classCount = 0;
 
 	// Collect all edits
@@ -114,7 +115,7 @@ export function convertPrivateFields(code: string, filename: string): ConvertPri
 		lastEnd = edit.end;
 	}
 	parts.push(code.substring(lastEnd));
-	return { code: parts.join(''), classCount, fieldCount: nameCounter, editCount: edits.length, elapsed: Date.now() - t1, edits };
+	return { code: parts.join(''), classCount, fieldCount: fieldCount, editCount: edits.length, elapsed: Date.now() - t1, edits };
 
 	// --- AST walking ---
 
@@ -127,13 +128,34 @@ export function convertPrivateFields(code: string, filename: string): ConvertPri
 	}
 
 	function visitClass(node: ts.ClassDeclaration | ts.ClassExpression): void {
-		// 1) Collect all private field/method/accessor declarations in THIS class
+		// 1) Collect public member names so generated names don't collide
+		const publicNames = new Set<string>();
+		for (const member of node.members) {
+			if (!member.name) {
+				continue;
+			}
+			if (ts.isIdentifier(member.name) || ts.isStringLiteral(member.name)) {
+				publicNames.add(member.name.text);
+				continue;
+			}
+			if (ts.isComputedPropertyName(member.name) && ts.isStringLiteral(member.name.expression)) {
+				publicNames.add(member.name.expression.text);
+			}
+		}
+
+		// 2) Collect all private field/method/accessor declarations in THIS class,
+		//    skipping generated names that collide with existing public members.
 		const scope: ClassScope = new Map();
 		for (const member of node.members) {
 			if (member.name && ts.isPrivateIdentifier(member.name)) {
 				const name = member.name.text;
 				if (!scope.has(name)) {
-					scope.set(name, generateShortName(nameCounter++));
+					let shortName: string;
+					do {
+						shortName = generateShortName(nameCounter++);
+					} while (publicNames.has(shortName));
+					scope.set(name, shortName);
+					fieldCount++;
 				}
 			}
 		}
@@ -141,12 +163,27 @@ export function convertPrivateFields(code: string, filename: string): ConvertPri
 		if (scope.size > 0) {
 			classCount++;
 		}
-		classStack.push(scope);
 
-		// 2) Walk the class body, replacing PrivateIdentifier nodes
-		ts.forEachChild(node, function walkInClass(child: ts.Node): void {
+		// 3) Walk heritage clauses BEFORE pushing this class's scope.
+		//    The `extends` expression is evaluated in the enclosing lexical scope,
+		//    so any private-field references there belong to an outer class.
+		const walkInClass = createWalkInClass(node);
+		for (const clause of node.heritageClauses ?? []) {
+			ts.forEachChild(clause, walkInClass);
+		}
+
+		// 4) Now push the scope and walk the class members
+		classStack.push(scope);
+		for (const member of node.members) {
+			ts.forEachChild(member, walkInClass);
+		}
+		classStack.pop();
+	}
+
+	function createWalkInClass(classNode: ts.ClassDeclaration | ts.ClassExpression) {
+		return function walkInClass(child: ts.Node): void {
 			// Nested class: process independently with its own scope
-			if ((ts.isClassDeclaration(child) || ts.isClassExpression(child)) && child !== node) {
+			if ((ts.isClassDeclaration(child) || ts.isClassExpression(child)) && child !== classNode) {
 				visitClass(child);
 				return;
 			}
@@ -172,19 +209,22 @@ export function convertPrivateFields(code: string, filename: string): ConvertPri
 			if (ts.isPrivateIdentifier(child)) {
 				const resolved = resolvePrivateName(child.text);
 				if (resolved !== undefined) {
+					const start = child.getStart(sourceFile);
 					edits.push({
-						start: child.getStart(sourceFile),
+						start,
 						end: child.getEnd(),
-						newText: resolved
+						// In minified code, `async#run()` has no space before `#`.
+						// The `#` naturally starts a new token, but `$` does not —
+						// `async$a` would fuse into one identifier. Insert a space
+						// when the preceding character is an identifier character.
+						newText: (start > 0 && isIdentifierChar(code.charCodeAt(start - 1))) ? ' ' + resolved : resolved
 					});
 				}
 				return;
 			}
 
 			ts.forEachChild(child, walkInClass);
-		});
-
-		classStack.pop();
+		};
 	}
 
 	function resolvePrivateName(name: string): string | undefined {
@@ -197,6 +237,11 @@ export function convertPrivateFields(code: string, filename: string): ConvertPri
 		}
 		return undefined;
 	}
+}
+
+function isIdentifierChar(ch: number): boolean {
+	// a-z, A-Z, 0-9, _, $
+	return (ch >= 97 && ch <= 122) || (ch >= 65 && ch <= 90) || (ch >= 48 && ch <= 57) || ch === 95 || ch === 36;
 }
 
 /**

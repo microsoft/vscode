@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { ISubscribeResult } from '../../../common/state/protocol/commands.js';
-import type { IResponsePartAction, ISessionAddedNotification, ITitleChangedAction } from '../../../common/state/sessionActions.js';
+import type { IModelChangedAction, IResponsePartAction, ISessionAddedNotification, ITitleChangedAction } from '../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../common/state/sessionCapabilities.js';
 import type { IListSessionsResult, INotificationBroadcastParams } from '../../../common/state/sessionProtocol.js';
 import { PendingMessageKind, ResponsePartKind, type ISessionState } from '../../../common/state/sessionState.js';
@@ -116,6 +116,51 @@ suite('Protocol WebSocket — Session Features', function () {
 		}
 		assert.ok(session, 'session should appear in listSessions');
 		assert.strictEqual(session.title, 'Persisted Title');
+	});
+
+	// ---- Session model --------------------------------------------------------
+
+	test('session model flows through create, subscribe, listSessions, and modelChanged', async function () {
+		this.timeout(10_000);
+
+		await client.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-model-summary' });
+
+		const sessionUri = nextSessionUri();
+		await client.call('createSession', { session: sessionUri, provider: 'mock', model: 'mock-model' });
+
+		const addedNotif = await client.waitForNotification(n =>
+			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded'
+		);
+		const addedSession = (addedNotif.params as INotificationBroadcastParams).notification as ISessionAddedNotification;
+		assert.strictEqual(addedSession.summary.model, 'mock-model');
+		const createdSessionUri = addedSession.summary.resource;
+
+		const initialSnapshot = await client.call<ISubscribeResult>('subscribe', { resource: createdSessionUri });
+		const initialState = initialSnapshot.snapshot.state as ISessionState;
+		assert.strictEqual(initialState.summary.model, 'mock-model');
+
+		const initialList = await client.call<IListSessionsResult>('listSessions');
+		assert.strictEqual(initialList.items.find(s => s.resource === createdSessionUri)?.model, 'mock-model');
+
+		client.notify('dispatchAction', {
+			clientSeq: 1,
+			action: {
+				type: 'session/modelChanged',
+				session: createdSessionUri,
+				model: 'mock-model-2',
+			},
+		});
+
+		const modelNotif = await client.waitForNotification(n => isActionNotification(n, 'session/modelChanged'));
+		const modelAction = getActionEnvelope(modelNotif).action as IModelChangedAction;
+		assert.strictEqual(modelAction.model, 'mock-model-2');
+
+		const updatedSnapshot = await client.call<ISubscribeResult>('subscribe', { resource: createdSessionUri });
+		const updatedState = updatedSnapshot.snapshot.state as ISessionState;
+		assert.strictEqual(updatedState.summary.model, 'mock-model-2');
+
+		const updatedList = await client.call<IListSessionsResult>('listSessions');
+		assert.strictEqual(updatedList.items.find(s => s.resource === createdSessionUri)?.model, 'mock-model-2');
 	});
 
 	// ---- Reasoning events ------------------------------------------------------

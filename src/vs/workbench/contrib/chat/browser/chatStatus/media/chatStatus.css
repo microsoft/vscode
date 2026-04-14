@@ -15,6 +15,59 @@
 	margin-bottom: 8px;
 }
 
+/* Tab Bar */
+
+.chat-status-bar-entry-tooltip .tab-bar {
+	display: flex;
+	gap: 0;
+	margin-bottom: 8px;
+	border-bottom: 1px solid var(--vscode-editorWidget-border);
+}
+
+.chat-status-bar-entry-tooltip .tab-bar .tab {
+	padding: 4px 12px;
+	border: none;
+	background: none;
+	cursor: pointer;
+	font-size: inherit;
+	font-family: inherit;
+	color: var(--vscode-descriptionForeground);
+	border-bottom: 2px solid transparent;
+	margin-bottom: -1px;
+}
+
+.chat-status-bar-entry-tooltip .tab-bar .tab:hover {
+	color: var(--vscode-foreground);
+}
+
+.chat-status-bar-entry-tooltip .tab-bar .tab.active {
+	color: var(--vscode-foreground);
+	border-bottom-color: var(--vscode-focusBorder);
+	font-weight: 600;
+}
+
+.chat-status-bar-entry-tooltip .tab-bar .tab:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+/* Tab Content — grid overlay keeps height stable across tab switches */
+
+.chat-status-bar-entry-tooltip .tab-content-container {
+	display: grid;
+}
+
+.chat-status-bar-entry-tooltip .tab-content-container > .tab-content {
+	grid-area: 1 / 1;
+	visibility: hidden;
+	pointer-events: none;
+}
+
+.chat-status-bar-entry-tooltip .tab-content-container > .tab-content.active {
+	visibility: visible;
+	pointer-events: auto;
+}
+
 .chat-status-bar-entry-tooltip div.header {
 	display: flex;
 	align-items: center;
@@ -214,26 +267,4 @@
 
 .chat-status-bar-entry-tooltip .snooze-completions .snooze-action-bar {
 	margin-left: auto;
-}
-
-/* Contributions */
-
-.chat-status-bar-entry-tooltip .contribution .body {
-	display: flex;
-	flex-direction: row;
-	align-items: center;
-	gap: 5px;
-
-	.description,
-	.detail-item {
-		display: flex;
-		align-items: center;
-		gap: 3px;
-	}
-
-	.detail-item,
-	.detail-item a {
-		margin-left: auto;
-		color: var(--vscode-descriptionForeground);
-	}
 }

@@ -74,6 +74,22 @@ export class TestSessionDatabase implements ISessionDatabase {
 
 	dispose(): void { }
 
+	async setTurnEventId(_turnId: string, _eventId: string): Promise<void> { }
+
+	async getTurnEventId(_turnId: string): Promise<string | undefined> { return undefined; }
+
+	async getNextTurnEventId(_turnId: string): Promise<string | undefined> { return undefined; }
+
+	async getFirstTurnEventId(): Promise<string | undefined> { return undefined; }
+
+	async truncateFromTurn(_turnId: string): Promise<void> { }
+
+	async deleteTurnsAfter(_turnId: string): Promise<void> { }
+
+	async deleteAllTurns(): Promise<void> { }
+
+	async remapTurnIds(_mapping: ReadonlyMap<string, string>): Promise<void> { }
+
 	private _toEditRecords(edits: (IFileEditRecord & IFileEditContent)[]): IFileEditRecord[] {
 		return edits.map(({ beforeContent: _, afterContent: _2, ...metadata }) => metadata);
 	}

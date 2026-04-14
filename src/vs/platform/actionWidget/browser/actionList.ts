@@ -40,6 +40,7 @@ export const previewSelectedActionCommand = 'previewSelectedCodeAction';
 export interface IActionListDelegate<T> {
 	onHide(didCancel?: boolean): void;
 	onSelect(action: T, preview?: boolean): void;
+	onFilter?(filter: string, cancellationToken: CancellationToken): Promise<readonly IActionListItem<T>[]>;
 	onHover?(action: T, cancellationToken: CancellationToken): Promise<{ canPreview: boolean } | void>;
 	onFocus?(action: T | undefined): void;
 }
@@ -488,6 +489,7 @@ export class ActionListWidget<T> extends Disposable {
 	private _hasLaidOut = false;
 	private readonly _filterInput: HTMLInputElement | undefined;
 	private readonly _filterContainer: HTMLElement | undefined;
+	private readonly _filterCts = this._register(new MutableDisposable<CancellationTokenSource>());
 
 	private readonly _onDidRequestLayout = this._register(new Emitter<void>());
 
@@ -622,7 +624,7 @@ export class ActionListWidget<T> extends Disposable {
 
 			this._register(dom.addDisposableListener(this._filterInput, 'input', () => {
 				this._filterText = this._filterInput!.value;
-				this._applyFilter();
+				this._applyOrUpdateFilter();
 			}));
 		}
 
@@ -659,7 +661,7 @@ export class ActionListWidget<T> extends Disposable {
 					this._filterInput.focus();
 					this._filterInput.value = e.key;
 					this._filterText = e.key;
-					this._applyFilter();
+					this._applyOrUpdateFilter();
 					e.preventDefault();
 					e.stopPropagation();
 				}
@@ -677,9 +679,28 @@ export class ActionListWidget<T> extends Disposable {
 		this._applyFilter();
 	}
 
-	private _applyFilter(): void {
-		const filterLower = this._filterText.toLowerCase();
-		const isFiltering = filterLower.length > 0;
+	private _applyOrUpdateFilter(): void {
+		if (!this._delegate.onFilter) {
+			this._applyFilter();
+			return;
+		}
+
+		const filterText = this._filterText;
+		this._filterCts.value?.cancel();
+		const cts = new CancellationTokenSource();
+		this._filterCts.value = cts;
+		this._delegate.onFilter(filterText, cts.token).then(items => {
+			if (cts.token.isCancellationRequested) {
+				return;
+			}
+			this._allMenuItems = [...items];
+			this._applyFilter(true);
+		}).catch(() => { /* best-effort */ });
+	}
+
+	private _applyFilter(skipTextFilter = false): void {
+		const filterLower = skipTextFilter ? '' : this._filterText.toLowerCase();
+		const isFiltering = !skipTextFilter && filterLower.length > 0;
 		const visible: IActionListItem<T>[] = [];
 
 		// Remember the focused item before splice
@@ -841,6 +862,8 @@ export class ActionListWidget<T> extends Disposable {
 	hide(didCancel?: boolean): void {
 		this._delegate.onHide(didCancel);
 		this.cts.cancel();
+		this._filterCts.value?.cancel();
+		this._filterCts.clear();
 		this._hover.clear();
 		this._hideSubmenu();
 	}
@@ -849,7 +872,7 @@ export class ActionListWidget<T> extends Disposable {
 		if (this._filterInput && this._filterText) {
 			this._filterInput.value = '';
 			this._filterText = '';
-			this._applyFilter();
+			this._applyOrUpdateFilter();
 			return true;
 		}
 		return false;

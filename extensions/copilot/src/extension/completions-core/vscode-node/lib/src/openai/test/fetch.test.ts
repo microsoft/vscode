@@ -5,17 +5,20 @@
 
 import * as assert from 'assert';
 import * as Sinon from 'sinon';
+import { Completions, ICompletionsFetchService } from '../../../../../../../platform/nesFetch/common/completionsFetchService';
+import { ResponseStream } from '../../../../../../../platform/nesFetch/common/responseStream';
+import { HeadersImpl } from '../../../../../../../platform/networking/common/fetcherService';
 import { TestingServiceCollection } from '../../../../../../../platform/test/node/services';
+import { Result } from '../../../../../../../util/common/result';
+import { CancellationToken } from '../../../../../../../util/vs/base/common/cancellation';
 import { generateUuid } from '../../../../../../../util/vs/base/common/uuid';
 import { SyncDescriptor } from '../../../../../../../util/vs/platform/instantiation/common/descriptors';
 import { IInstantiationService, ServicesAccessor } from '../../../../../../../util/vs/platform/instantiation/common/instantiation';
 import { CancellationTokenSource } from '../../../../types/src';
 import { ICompletionsCopilotTokenManager } from '../../auth/copilotTokenManager';
-import { FetchOptions, ICompletionsFetcherService, Response } from '../../networking';
 import { ICompletionsStatusReporter, StatusChangedEvent, StatusReporter } from '../../progress';
 import { TelemetryWithExp } from '../../telemetry';
 import { createLibTestingContext } from '../../test/context';
-import { createFakeResponse, createFakeStreamResponse, StaticFetcher } from '../../test/fetcher';
 import { withInMemoryTelemetry } from '../../test/telemetry';
 import {
 	CMDQuotaExceeded,
@@ -24,16 +27,19 @@ import {
 	ICompletionsOpenAIFetcherService,
 	LiveOpenAIFetcher, sanitizeRequestOptionTelemetry
 } from '../fetch';
-import { ErrorReturningFetcher, SyntheticCompletions } from '../fetch.fake';
+import { SyntheticCompletions } from '../fetch.fake';
 
 suite('"Fetch" unit tests', function () {
 	let accessor: ServicesAccessor;
 	let serviceCollection: TestingServiceCollection;
 	let resetSpy: Sinon.SinonSpy<Parameters<ICompletionsCopilotTokenManager['resetToken']>>;
+	let mockFetchService: MockCompletionsFetchService;
 
 	setup(function () {
 		serviceCollection = createLibTestingContext();
-		serviceCollection.define(ICompletionsOpenAIFetcherService, new SyncDescriptor(ErrorReturningFetcher));
+		mockFetchService = new MockCompletionsFetchService();
+		serviceCollection.define(ICompletionsFetchService, mockFetchService);
+		serviceCollection.define(ICompletionsOpenAIFetcherService, new SyncDescriptor(LiveOpenAIFetcher));
 		accessor = serviceCollection.createTestingAccessor();
 		resetSpy = Sinon.spy(accessor.get(ICompletionsCopilotTokenManager), 'resetToken');
 	});
@@ -75,7 +81,7 @@ suite('"Fetch" unit tests', function () {
 	});
 
 	test('If in the split context experiment, send the context field as part of the request', async function () {
-		const networkFetcher = new OptionsRecorderFetcher(() => createFakeStreamResponse('data: [DONE]\n'));
+		const recordingFetchService = new MockCompletionsFetchService();
 		const params: CompletionParams = {
 			prompt: {
 				context: ['# Language: Python'],
@@ -94,7 +100,7 @@ suite('"Fetch" unit tests', function () {
 		};
 
 		const serviceCollectionClone = serviceCollection.clone();
-		serviceCollectionClone.define(ICompletionsFetcherService, networkFetcher);
+		serviceCollectionClone.define(ICompletionsFetchService, recordingFetchService);
 		const accessor = serviceCollectionClone.createTestingAccessor();
 
 		const telemetryWithExp = TelemetryWithExp.createEmptyConfigForTesting();
@@ -103,11 +109,9 @@ suite('"Fetch" unit tests', function () {
 		const openAIFetcher = accessor.get(IInstantiationService).createInstance(LiveOpenAIFetcher);
 		await openAIFetcher.fetchAndStreamCompletions(params, telemetryWithExp, () => undefined);
 
-		const options = networkFetcher.options;
-		const json = options?.json as Record<string, unknown> | undefined;
-		assert.strictEqual(json?.prompt, params.prompt.prefix);
-		const extra = json?.extra as Record<string, unknown> | undefined;
-		assert.strictEqual(extra?.context, params.prompt.context);
+		const lastParams = recordingFetchService.lastParams;
+		assert.strictEqual(lastParams?.prompt, params.prompt.prefix);
+		assert.deepStrictEqual(lastParams?.extra?.context, params.prompt.context);
 	});
 
 	test('properly handles 466 (client outdated) responses from proxy', async function () {
@@ -156,8 +160,10 @@ suite('"Fetch" unit tests', function () {
 	});
 
 	test('HTTP `Too many requests` enforces rate limiting locally', async function () {
+		const mockFetch = new MockCompletionsFetchService();
 		const serviceCollection = createLibTestingContext();
-		serviceCollection.define(ICompletionsOpenAIFetcherService, new SyncDescriptor(ErrorReturningFetcher));
+		serviceCollection.define(ICompletionsFetchService, mockFetch);
+		serviceCollection.define(ICompletionsOpenAIFetcherService, new SyncDescriptor(LiveOpenAIFetcher));
 		const accessor = serviceCollection.createTestingAccessor();
 		const result = await assertResponseWithContext(accessor, 429);
 		const fetcherService = accessor.get(ICompletionsOpenAIFetcherService);
@@ -205,7 +211,7 @@ suite('"Fetch" unit tests', function () {
 	});
 
 	test('additional headers are included in the request', async function () {
-		const networkFetcher = new StaticFetcher(() => createFakeStreamResponse('data: [DONE]\n'));
+		const recordingFetchService = new MockCompletionsFetchService();
 		const params: CompletionParams = {
 			prompt: {
 				prefix: '',
@@ -222,7 +228,7 @@ suite('"Fetch" unit tests', function () {
 			extra: {},
 		};
 		const serviceCollectionClone = serviceCollection.clone();
-		serviceCollectionClone.define(ICompletionsFetcherService, networkFetcher);
+		serviceCollectionClone.define(ICompletionsFetchService, recordingFetchService);
 		const accessor = serviceCollectionClone.createTestingAccessor();
 
 		const openAIFetcher = accessor.get(IInstantiationService).createInstance(LiveOpenAIFetcher);
@@ -232,7 +238,7 @@ suite('"Fetch" unit tests', function () {
 			() => undefined
 		);
 
-		assert.strictEqual(networkFetcher.headerBuffer!['Host'], 'bla');
+		assert.strictEqual(recordingFetchService.lastHeaders?.['Host'], 'bla');
 	});
 
 });
@@ -242,7 +248,7 @@ suite('Telemetry sent on fetch', function () {
 
 	setup(function () {
 		const serviceCollection = createLibTestingContext();
-		serviceCollection.define(ICompletionsFetcherService, new OptionsRecorderFetcher(() => createFakeStreamResponse('data: [DONE]\n')));
+		serviceCollection.define(ICompletionsFetchService, new MockCompletionsFetchService());
 		accessor = serviceCollection.createTestingAccessor();
 	});
 
@@ -353,6 +359,9 @@ async function assertResponseWithStatus(
 ) {
 	const serviceCollection = createLibTestingContext();
 	serviceCollection.define(ICompletionsStatusReporter, statusReporter);
+	const mockFetch = new MockCompletionsFetchService();
+	serviceCollection.define(ICompletionsFetchService, mockFetch);
+	serviceCollection.define(ICompletionsOpenAIFetcherService, new SyncDescriptor(LiveOpenAIFetcher));
 	const accessor = serviceCollection.createTestingAccessor();
 	const copilotTokenManager = accessor.get(ICompletionsCopilotTokenManager);
 	await copilotTokenManager.primeToken(); // Trigger initial status
@@ -360,15 +369,31 @@ async function assertResponseWithStatus(
 }
 
 async function assertResponseWithContext(accessor: ServicesAccessor, statusCode: number, headers?: Record<string, string>) {
-	const response = createFakeResponse(statusCode, 'response-text', headers);
-	const fetcher = (() => {
+	const fakeHeaders = new HeadersImpl({
+		'x-github-request-id': '1',
+		...headers,
+	});
+	const mockFetch = (() => {
 		try {
-			return accessor.get(ICompletionsOpenAIFetcherService) as ErrorReturningFetcher;
+			return accessor.get(ICompletionsFetchService) as MockCompletionsFetchService;
 		} catch {
-			return accessor.get(IInstantiationService).createInstance(ErrorReturningFetcher);
+			const mock = new MockCompletionsFetchService();
+			return mock;
 		}
 	})();
-	fetcher.setResponse(response);
+	mockFetch.nextResult = Result.error(new Completions.UnsuccessfulResponse(
+		statusCode,
+		'status text',
+		fakeHeaders,
+		() => Promise.resolve('response-text')
+	));
+	const fetcher = (() => {
+		try {
+			return accessor.get(ICompletionsOpenAIFetcherService);
+		} catch {
+			return accessor.get(IInstantiationService).createInstance(LiveOpenAIFetcher);
+		}
+	})();
 	const completionParams: CompletionParams = fakeCompletionParams();
 	const result = await fetcher.fetchAndStreamCompletions(
 		completionParams,
@@ -397,12 +422,31 @@ function fakeCompletionParams(): CompletionParams {
 	};
 }
 
-class OptionsRecorderFetcher extends StaticFetcher {
-	options: FetchOptions | undefined;
+class MockCompletionsFetchService implements ICompletionsFetchService {
+	declare _serviceBrand: undefined;
 
-	override fetch(url: string, options: FetchOptions): Promise<Response> {
-		this.options = options;
+	nextResult: Result<ResponseStream, Completions.CompletionsFetchFailure> | undefined;
+	lastParams: Completions.ModelParams | undefined;
+	lastHeaders: Record<string, string> | undefined;
 
-		return super.fetch(url, options);
+	async fetch(
+		_url: string,
+		_secretKey: string,
+		params: Completions.ModelParams,
+		_requestId: string,
+		_ct: CancellationToken,
+		headerOverrides?: Record<string, string>
+	): Promise<Result<ResponseStream, Completions.CompletionsFetchFailure>> {
+		this.lastParams = params;
+		this.lastHeaders = headerOverrides;
+		if (this.nextResult) {
+			const result = this.nextResult;
+			this.nextResult = undefined;
+			return result;
+		}
+		// Default: return a cancelled result
+		return Result.error(new Completions.RequestCancelled());
 	}
+
+	async disconnectAll() { }
 }

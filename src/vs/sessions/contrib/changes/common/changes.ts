@@ -39,6 +39,7 @@ export const ActiveSessionContextKeys = {
 	HasOutgoingChanges: new RawContextKey<boolean>('sessions.hasOutgoingChanges', false),
 	HasUncommittedChanges: new RawContextKey<boolean>('sessions.hasUncommittedChanges', true),
 	IsMergeBaseBranchProtected: new RawContextKey<boolean>('sessions.isMergeBaseBranchProtected', false),
+	HasGitHubRemote: new RawContextKey<boolean>('sessions.hasGitHubRemote', false),
 	HasPullRequest: new RawContextKey<boolean>('sessions.hasPullRequest', false),
 	HasOpenPullRequest: new RawContextKey<boolean>('sessions.hasOpenPullRequest', false),
 };

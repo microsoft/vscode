@@ -174,7 +174,7 @@ jobs:
           node-version-file: extensions/copilot/.nvmrc
 
       - name: Restore build cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         id: build-cache
         with:
           key: copilot-build_cache-${{ hashFiles('extensions/copilot/build/.cachesalt', 'extensions/copilot/package-lock.json') }}
@@ -258,7 +258,7 @@ jobs:
           sudo apt-get install -y xvfb libgtk-3-0 libgbm1
 
       - name: Restore build cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         id: build-cache
         with:
           key: copilot-build_cache-${{ hashFiles('extensions/copilot/build/.cachesalt', 'extensions/copilot/package-lock.json') }}
@@ -284,10 +284,6 @@ jobs:
           mkdir -p .build/build_cache
           tar -czf .build/build_cache/cache.tgz --files-from .build/build_cache_list.txt
 
-      - name: Ensure proposed API types are up to date
-        working-directory: extensions/copilot
-        run: npm run vscode-dts:check
-
       - name: TypeScript type checking
         working-directory: extensions/copilot
         run: npm run typecheck
@@ -308,10 +304,6 @@ jobs:
         working-directory: extensions/copilot
         run: npm run simulate-ci
 
-      - name: Run extension tests using VS Code
-        working-directory: extensions/copilot
-        run: xvfb-run -a npm run test:extension
-
       - name: Run Completions Core prompt tests
         working-directory: extensions/copilot
         run: npm run test:prompt
@@ -330,7 +322,7 @@ jobs:
 
       - name: Upload simulation output
         if: always()
-        uses: actions/upload-artifact@v5
+        uses: actions/upload-artifact@v7
         with:
           name: copilot-simulation-output-linux-${{ github.run_attempt }}
           path: extensions/copilot/.simulation-archive/simulation.tgz
@@ -366,7 +358,7 @@ jobs:
         run: pip install setuptools
 
       - name: Restore build cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         id: build-cache
         with:
           key: copilot-windows-build_cache-${{ hashFiles('extensions/copilot/build/.cachesalt', 'extensions/copilot/package-lock.json') }}
@@ -411,10 +403,6 @@ jobs:
         working-directory: extensions/copilot
         run: npm run simulate-ci
 
-      - name: Run extension tests using VS Code
-        working-directory: extensions/copilot
-        run: npm run test:extension
-
       - name: Run Completions Core prompt tests
         working-directory: extensions/copilot
         run: npm run test:prompt
@@ -422,3 +410,5 @@ jobs:
       - name: Run Completions Core lib tests using VS Code
         working-directory: extensions/copilot
         run: npm run test:completions-core
+
+

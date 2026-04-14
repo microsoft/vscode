@@ -5,7 +5,7 @@ parameters:
 jobs:
   - job: Alpine_${{ parameters.VSCODE_ARCH }}
     displayName: Alpine (${{ upper(parameters.VSCODE_ARCH) }})
-    timeoutInMinutes: 30
+    timeoutInMinutes: 60
     pool:
       name: 1es-ubuntu-22.04-x64
       os: linux

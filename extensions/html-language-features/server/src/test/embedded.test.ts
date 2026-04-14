@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 import 'mocha';
 import * as assert from 'assert';
-import * as embeddedSupport from '../modes/embeddedSupport';
+import * as embeddedSupport from '../modes/embeddedSupport.js';
 import { getLanguageService } from 'vscode-html-languageservice';
-import { TextDocument } from '../modes/languageModes';
+import { TextDocument } from '../modes/languageModes.js';
 
 suite('HTML Embedded Support', () => {
 

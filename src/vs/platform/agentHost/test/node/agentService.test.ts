@@ -4,21 +4,48 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { readFileSync } from 'fs';
+import { fileURLToPath } from 'url';
 import { VSBuffer } from '../../../../base/common/buffer.js';
-import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { hasKey } from '../../../../base/common/types.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { AgentSession } from '../../common/agentService.js';
+import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, IActionEnvelope } from '../../common/state/sessionActions.js';
-import { ResponsePartKind, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, type IMarkdownResponsePart, type IToolCallCompletedState, type IToolCallResponsePart } from '../../common/state/sessionState.js';
-import { createNullSessionDataService, createSessionDataService } from '../common/sessionTestHelpers.js';
+import { ResponsePartKind, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type IMarkdownResponsePart, type IToolCallCompletedState, type IToolCallResponsePart } from '../../common/state/sessionState.js';
 import { AgentService } from '../../node/agentService.js';
 import { MockAgent } from './mockAgent.js';
+import { mapSessionEvents, type ISessionEvent } from '../../node/copilot/mapSessionEvents.js';
+
+/**
+ * Loads a JSONL fixture of raw Copilot SDK events, runs them through
+ * {@link mapSessionEvents}, and returns the result suitable for setting
+ * on {@link MockAgent.sessionMessages}. This tests the full pipeline:
+ * SDK events → mapSessionEvents → _buildTurnsFromMessages → ITurn[].
+ *
+ * Fixture files live in `test-cases/` and are sanitized copies of real
+ * `events.jsonl` files from `~/.copilot/session-state/`.
+ */
+async function loadFixtureMessages(fixtureName: string, session: URI) {
+	// Resolve the fixture from the source tree (test-cases/ is not compiled to out/)
+	const thisFile = fileURLToPath(import.meta.url);
+	// Navigate from out/vs/... to src/vs/... by replacing the out/ prefix.
+	// Use a regex that handles both / and \ separators for Windows compat.
+	const srcFile = thisFile.replace(/[/\\]out[/\\]/, (m) => m.replace('out', 'src'));
+	const lastSep = Math.max(srcFile.lastIndexOf('/'), srcFile.lastIndexOf('\\'));
+	const fixtureDir = srcFile.substring(0, lastSep);
+	const sep = srcFile.includes('\\') ? '\\' : '/';
+	const raw = readFileSync(`${fixtureDir}${sep}test-cases${sep}${fixtureName}`, 'utf-8');
+	const events: ISessionEvent[] = raw.trim().split('\n').map(line => JSON.parse(line));
+	return mapSessionEvents(session, undefined, events);
+}
 
 suite('AgentService (node dispatcher)', () => {
 
@@ -28,6 +55,15 @@ suite('AgentService (node dispatcher)', () => {
 	let fileService: FileService;
 
 	setup(async () => {
+		const nullSessionDataService: ISessionDataService = {
+			_serviceBrand: undefined,
+			getSessionDataDir: () => URI.parse('inmemory:/session-data'),
+			getSessionDataDirById: () => URI.parse('inmemory:/session-data'),
+			openDatabase: () => { throw new Error('not implemented'); },
+			tryOpenDatabase: async () => undefined,
+			deleteSessionData: async () => { },
+			cleanupOrphanedData: async () => { },
+		};
 		fileService = disposables.add(new FileService(new NullLogService()));
 		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
 
@@ -35,7 +71,7 @@ suite('AgentService (node dispatcher)', () => {
 		await fileService.createFolder(URI.from({ scheme: Schemas.inMemory, path: '/testDir' }));
 		await fileService.writeFile(URI.from({ scheme: Schemas.inMemory, path: '/testDir/file.txt' }), VSBuffer.fromString('hello'));
 
-		service = disposables.add(new AgentService(new NullLogService(), fileService, createNullSessionDataService()));
+		service = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService));
 		copilotAgent = new MockAgent('copilot');
 		disposables.add(toDisposable(() => copilotAgent.dispose()));
 	});
@@ -143,7 +179,21 @@ suite('AgentService (node dispatcher)', () => {
 			const sessionId = 'test-session-abc';
 			const sessionUri = AgentSession.uri('copilot', sessionId);
 
-			const sessionDataService = createSessionDataService(db);
+			const sessionDataService: ISessionDataService = {
+				_serviceBrand: undefined,
+				getSessionDataDir: () => URI.parse('inmemory:/session-data'),
+				getSessionDataDirById: () => URI.parse('inmemory:/session-data'),
+				openDatabase: (): IReference<ISessionDatabase> => ({
+					object: db,
+					dispose: () => { },
+				}),
+				tryOpenDatabase: async (): Promise<IReference<ISessionDatabase> | undefined> => ({
+					object: db,
+					dispose: () => { },
+				}),
+				deleteSessionData: async () => { },
+				cleanupOrphanedData: async () => { },
+			};
 
 			// Create a mock that returns a session with that ID
 			const agent = new MockAgent('copilot');
@@ -169,6 +219,15 @@ suite('AgentService (node dispatcher)', () => {
 			const sessions = await service.listSessions();
 			assert.strictEqual(sessions.length, 1);
 			assert.strictEqual(sessions[0].summary, 'Auto-generated Title');
+		});
+
+		test('createSession stores live session config', async () => {
+			service.registerProvider(copilotAgent);
+
+			const config = { isolation: 'worktree', branch: 'feature/config' };
+			const session = await service.createSession({ provider: 'copilot', config });
+
+			assert.deepStrictEqual(service.stateManager.getSessionState(session.toString())?.config?.values, config);
 		});
 	});
 
@@ -216,7 +275,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('restores a session with message history', async () => {
 			service.registerProvider(copilotAgent);
-			const session = await copilotAgent.createSession();
+			const { session } = await copilotAgent.createSession();
 			const sessions = await copilotAgent.listSessions();
 			const sessionResource = sessions[0].session;
 
@@ -240,7 +299,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('restores a session with tool calls', async () => {
 			service.registerProvider(copilotAgent);
-			const session = await copilotAgent.createSession();
+			const { session } = await copilotAgent.createSession();
 			const sessions = await copilotAgent.listSessions();
 			const sessionResource = sessions[0].session;
 
@@ -267,7 +326,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('flushes interrupted turns', async () => {
 			service.registerProvider(copilotAgent);
-			const session = await copilotAgent.createSession();
+			const { session } = await copilotAgent.createSession();
 			const sessions = await copilotAgent.listSessions();
 			const sessionResource = sessions[0].session;
 
@@ -292,6 +351,118 @@ suite('AgentService (node dispatcher)', () => {
 				() => service.restoreSession(AgentSession.uri('copilot', 'nonexistent')),
 				/Session not found on backend/,
 			);
+		});
+
+		test('restores a session with subagent tool calls', async () => {
+			service.registerProvider(copilotAgent);
+			const { session } = await copilotAgent.createSession();
+			const sessions = await copilotAgent.listSessions();
+			const sessionResource = sessions[0].session;
+
+			copilotAgent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Review this code', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: '', toolRequests: [{ toolCallId: 'tc-sub', name: 'task' }] },
+				{ type: 'tool_start', session, toolCallId: 'tc-sub', toolName: 'task', displayName: 'Task', invocationMessage: 'Delegating...', toolKind: 'subagent' as const, toolArguments: JSON.stringify({ description: 'Find related files', agentName: 'explore' }) },
+				{ type: 'subagent_started', session, toolCallId: 'tc-sub', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores the codebase' },
+				// Inner tool calls from the subagent (have parentToolCallId)
+				{ type: 'tool_start', session, toolCallId: 'tc-inner-1', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running ls...', parentToolCallId: 'tc-sub' },
+				{ type: 'tool_complete', session, toolCallId: 'tc-inner-1', result: { success: true, pastTenseMessage: 'Ran ls', content: [{ type: ToolResultContentType.Text, text: 'file1.ts' }] }, parentToolCallId: 'tc-sub' },
+				{ type: 'tool_start', session, toolCallId: 'tc-inner-2', toolName: 'view', displayName: 'View File', invocationMessage: 'Reading file1.ts', parentToolCallId: 'tc-sub' },
+				{ type: 'tool_complete', session, toolCallId: 'tc-inner-2', result: { success: true, pastTenseMessage: 'Read file1.ts' }, parentToolCallId: 'tc-sub' },
+				// Parent tool completes
+				{ type: 'tool_complete', session, toolCallId: 'tc-sub', result: { success: true, pastTenseMessage: 'Delegated task', content: [{ type: ToolResultContentType.Text, text: 'Found 3 issues' }] } },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-3', content: 'The review found 3 issues.', toolRequests: [] },
+			];
+
+			await service.restoreSession(sessionResource);
+
+			const state = service.stateManager.getSessionState(sessionResource.toString());
+			assert.ok(state);
+
+			// Should produce exactly one turn
+			assert.strictEqual(state!.turns.length, 1, `Expected 1 turn but got ${state!.turns.length}`);
+
+			const turn = state!.turns[0];
+			assert.strictEqual(turn.userMessage.text, 'Review this code');
+
+			// The parent turn should only have the parent tool call — inner
+			// tool calls are excluded from the parent and belong to the
+			// child subagent session instead.
+			const toolCallParts = turn.responseParts.filter((p): p is IToolCallResponsePart => p.kind === ResponsePartKind.ToolCall);
+			assert.strictEqual(toolCallParts.length, 1, `Expected 1 tool call (parent only) but got ${toolCallParts.length}`);
+
+			// Parent subagent tool call
+			const parentTc = toolCallParts[0].toolCall as IToolCallCompletedState;
+			assert.strictEqual(parentTc.toolCallId, 'tc-sub');
+			assert.strictEqual(parentTc.status, ToolCallStatus.Completed);
+			assert.strictEqual(parentTc._meta?.toolKind, 'subagent');
+			assert.strictEqual(parentTc._meta?.subagentDescription, 'Find related files');
+			assert.strictEqual(parentTc._meta?.subagentAgentName, 'explore');
+
+			// Parent tool should have subagent content entry
+			const content = parentTc.content ?? [];
+			const subagentEntry = content.find(c => hasKey(c, { type: true }) && c.type === ToolResultContentType.Subagent);
+			assert.ok(subagentEntry, 'Completed tool call should have subagent content entry');
+
+			// Subscribing to the child session should restore it with inner tool calls
+			const childSessionUri = buildSubagentSessionUri(sessionResource.toString(), 'tc-sub');
+			const snapshot = await service.subscribe(URI.parse(childSessionUri));
+			const childState = service.stateManager.getSessionState(childSessionUri);
+			assert.ok(snapshot?.state, 'Child session snapshot should exist');
+			assert.ok(childState, 'Child session state should exist');
+			assert.strictEqual(childState!.turns.length, 1, 'Child session should have 1 turn');
+			const childToolParts = childState!.turns[0].responseParts.filter((p): p is IToolCallResponsePart => p.kind === ResponsePartKind.ToolCall);
+			assert.strictEqual(childToolParts.length, 2, `Child session should have 2 inner tool calls but got ${childToolParts.length}`);
+			assert.ok(childToolParts.some(p => p.toolCall.toolCallId === 'tc-inner-1'), 'Should have tc-inner-1');
+			assert.ok(childToolParts.some(p => p.toolCall.toolCallId === 'tc-inner-2'), 'Should have tc-inner-2');
+
+			// The turn should also have the final markdown
+			const mdParts = turn.responseParts.filter((p): p is IMarkdownResponsePart => p.kind === ResponsePartKind.Markdown);
+			assert.ok(mdParts.some(p => p.content.includes('3 issues')), 'Should have the final markdown response');
+		});
+
+		test('inner assistant messages from subagent do not create extra turns (fixture)', async () => {
+			service.registerProvider(copilotAgent);
+			const { session } = await copilotAgent.createSession();
+			const sessions = await copilotAgent.listSessions();
+			const sessionResource = sessions[0].session;
+
+			// Load real SDK events from fixture (sanitized from ~/.copilot/session-state/)
+			copilotAgent.sessionMessages = await loadFixtureMessages('subagent-session.jsonl', session);
+
+			await service.restoreSession(sessionResource);
+
+			const state = service.stateManager.getSessionState(sessionResource.toString());
+			assert.ok(state);
+			assert.strictEqual(state!.turns.length, 1, `Expected 1 turn but got ${state!.turns.length}: ${state!.turns.map(t => `"${t.userMessage.text.substring(0, 40)}"`).join(', ')}`);
+			assert.strictEqual(state!.turns[0].userMessage.text, 'Run a sync subagent to do some searches, just testing subagent rendering');
+			assert.strictEqual(state!.turns[0].state, TurnState.Complete);
+
+			// Should have the parent subagent tool call with subagent content
+			const toolCallParts = state!.turns[0].responseParts.filter((p): p is IToolCallResponsePart => p.kind === ResponsePartKind.ToolCall);
+			const parentTc = toolCallParts.find(p => p.toolCall.toolName === 'task');
+			assert.ok(parentTc, 'Should have a task tool call');
+			assert.strictEqual(parentTc!.toolCall._meta?.toolKind, 'subagent');
+
+			// Inner tool calls should NOT be in the parent turn — they belong
+			// to the child subagent session.
+			const parentToolCallId = parentTc!.toolCall.toolCallId;
+			const nonParentTools = toolCallParts.filter(p => p.toolCall.toolCallId !== parentToolCallId);
+			assert.strictEqual(nonParentTools.length, 0, `Parent turn should only contain the task tool call, but found ${nonParentTools.length} extra tool calls`);
+
+			// Subscribe to the child subagent session and verify inner tools
+			const childSessionUri = buildSubagentSessionUri(sessionResource.toString(), parentToolCallId);
+			const snapshot = await service.subscribe(URI.parse(childSessionUri));
+			assert.ok(snapshot?.state, 'Child session snapshot should exist');
+			const childState = service.stateManager.getSessionState(childSessionUri);
+			assert.ok(childState, 'Child session state should exist');
+			assert.strictEqual(childState!.turns.length, 1, 'Child session should have 1 turn');
+			const childToolParts = childState!.turns[0].responseParts.filter((p): p is IToolCallResponsePart => p.kind === ResponsePartKind.ToolCall);
+			assert.ok(childToolParts.length > 0, `Child session should have inner tool calls but got ${childToolParts.length}`);
+
+			// Should have the final markdown
+			const mdParts = state!.turns[0].responseParts.filter((p): p is IMarkdownResponsePart => p.kind === ResponsePartKind.Markdown);
+			assert.ok(mdParts.length > 0, 'Should have markdown content');
 		});
 	});
 

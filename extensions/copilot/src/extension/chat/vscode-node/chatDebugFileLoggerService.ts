@@ -1305,6 +1305,31 @@ export class ChatDebugFileLoggerService extends Disposable implements IChatDebug
 		}
 	}
 
+	async listSessionIds(): Promise<string[]> {
+		const dir = this._getDebugLogsDir();
+		if (!dir) {
+			return [];
+		}
+		try {
+			const entries = await this._fileSystemService.readDirectory(dir);
+			const dirs = entries.filter(([, type]) => type === 2 /* FileType.Directory */);
+
+			// Stat each directory in parallel to sort by most recently modified.
+			const withMtime = await Promise.all(dirs.map(async ([name]) => {
+				try {
+					const stat = await this._fileSystemService.stat(URI.joinPath(dir, name));
+					return { name, mtime: stat.mtime };
+				} catch {
+					return { name, mtime: 0 };
+				}
+			}));
+			withMtime.sort((a, b) => b.mtime - a.mtime);
+			return withMtime.map(e => e.name);
+		} catch {
+			return [];
+		}
+	}
+
 	private async _cleanupOldLogs(): Promise<void> {
 		const dir = this._getDebugLogsDir();
 		if (!dir) {
