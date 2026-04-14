@@ -787,12 +787,13 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			analyzersIsAutoApproveAllowed
 		);
 
-		const isFinalAutoApproved = (
+		const isAutoApprovedByRules = (
 			// Is the setting enabled and the user has opted-in
 			isAutoApproveAllowed &&
 			// Would be auto-approved based on rules
 			wouldBeAutoApproved
-		) || commandLineAnalyzerResults.some(e => e.forceAutoApproval);
+		);
+		const isFinalAutoApproved = isAutoApprovedByRules || commandLineAnalyzerResults.some(e => e.forceAutoApproval);
 
 		// Pass auto approve info if the command:
 		// - Was auto approved
@@ -872,7 +873,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		// If forceConfirmationReason is set, always show confirmation regardless of auto-approval
 		const shouldShowConfirmation = (!isFinalAutoApproved && !isSessionAutoApproved) || context.forceConfirmationReason !== undefined;
-		(toolSpecificData as IRunInTerminalToolInvocationData).requiresConfirmationForRetry = shouldShowConfirmation;
+		(toolSpecificData as IRunInTerminalToolInvocationData).requiresConfirmationForRetry = (!isAutoApprovedByRules && !isSessionAutoApproved) || context.forceConfirmationReason !== undefined;
 		const confirmationMessage = requiresUnsandboxConfirmation
 			? new MarkdownString(localize(
 				'runInTerminal.unsandboxed.confirmationMessage',
@@ -1024,9 +1025,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			};
 
 			const part = new ChatElicitationRequestPart(
-				blockedDomains?.length
-					? localize('runInTerminal.unsandboxed.domain', "Run `{0}` command outside the [sandbox]({1}) to access {2}?", shellType, TERMINAL_SANDBOX_DOCUMENTATION_URL, this._formatBlockedDomainsForTitle(blockedDomains))
-					: localize('runInTerminal.unsandboxed', "Run `{0}` command outside the [sandbox]({1})?", shellType, TERMINAL_SANDBOX_DOCUMENTATION_URL),
+				this._getAutomaticUnsandboxRetryTitle(shellType, blockedDomains),
 				new MarkdownString(localize(
 					'runInTerminal.unsandboxed.autoRetry.confirmationMessage',
 					"`{0}`",
@@ -1054,6 +1053,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			store.add(token.onCancellationRequested(() => resolveOnce(false)));
 			store.add({ dispose: () => part.hide() });
 		});
+	}
+
+	private _getAutomaticUnsandboxRetryTitle(shellType: string, blockedDomains: string[] | undefined): MarkdownString {
+		return blockedDomains?.length
+			? new MarkdownString(localize('runInTerminal.unsandboxed.autoRetry.domain', "Run `{0}` command outside the sandbox to access {1}?", shellType, this._formatBlockedDomainsForTitle(blockedDomains)))
+			: new MarkdownString(localize('runInTerminal.unsandboxed.autoRetry', "Run `{0}` command outside the sandbox?", shellType));
 	}
 
 	private _acceptAutomaticUnsandboxRetryToolInvocationUpdate(sessionResource: URI | undefined, toolCallId: string, toolSpecificData: IChatTerminalToolInvocationData, isComplete: boolean, toolResultMessage?: string | IMarkdownString): void {

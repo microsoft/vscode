@@ -1293,7 +1293,10 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 						},
 						isUntitled: false,
 						initialSessionOptions: undefined,
-						inputState: undefined as unknown as vscode.ChatSessionInputState
+						inputState: {
+							groups: [],
+							onDidChange: Event.None
+						}
 					};
 					context = {
 						chatSessionContext,

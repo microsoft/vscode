@@ -158,6 +158,7 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 			await this.writeToGlobalStorage(data);
 		}
 		try {
+			await this.fileSystemService.delete(this.getMetadataFileUri(sessionId));
 			await this.fileSystemService.delete(this.getRequestMappingFileUri(sessionId));
 		} catch {
 			// File may not exist, ignore.

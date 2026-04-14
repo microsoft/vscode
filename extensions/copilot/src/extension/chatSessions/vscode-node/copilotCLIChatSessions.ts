@@ -52,33 +52,6 @@ import { IPullRequestDetectionService } from './pullRequestDetectionService';
 import { getSelectedSessionOptions, ISessionOptionGroupBuilder, OPEN_REPOSITORY_COMMAND_ID, toRepositoryOptionItem, toWorkspaceFolderOptionItem } from './sessionOptionGroupBuilder';
 import { ISessionRequestLifecycle } from './sessionRequestLifecycle';
 
-/**
- * ODO:
- * 3. Verify all command handlers do the exact same thing
- * 6. Is chatSessionContext?.initialSessionOptions still valid with new API
- * 7. Validated selected MRU item
- * 8. We shouldn't have to pass model information into CLISession class, and then update sdk with the model info. Instead when we call get/create session, we should be able to pass the model info there and update the SDK session accordingly.
- * This makes it unnecessary to pass model information.
- * 2. Behavioral Change: trusted flag no longer unlocks dropdowns on trust failure
-In the old code, when sessionResult.trusted === false, there was a call to this.unlockRepoOptionForSession(context, token) to reset dropdown selections. The new code at copilotCLIChatSessions.ts:634 simply returns {} without any dropdown reset. However, lockRepoOptionForSession and unlockRepoOptionForSession were already dead code (commented out), so this is actually correct — removing a no-op.
- *
- * Cases to cover:
- * 1. Hook up the dropdowns for empty workspace folders as well
- * 2. In mult-root workspace we need to display workspace/worktree dropdown along with the repo dropdown
- * 3. Temporarily lock/unlock dropdowns while creating session
- * 4. Lock dropdowns when opening an existing session
- * 5. Browse folders command in empty workspaces
- * 6. Branch dropdown should only be displayed when we select a folder/repo thats a git repo.
- *
- * Test:
- * 1. All of the above
- * 2. Forking sessions
- * 3. Steering messages
- * 4. Queued messages
- * 5. Selecting a new folder in browse folders command should end up with that folder in the dropdown.
- * 6. Delegate from CLI to Cloud
- * 7. Delegate from Local to CLI
- */
 
 export interface ICopilotCLIChatSessionItemProvider extends IDisposable {
 	refreshSession(refreshOptions: { reason: 'update'; sessionId: string } | { reason: 'update'; sessionIds: string[] } | { reason: 'delete'; sessionId: string }): Promise<void>;
@@ -196,6 +169,7 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 				}
 			}
 		));
+		const inputStateForNewSession = new ResourceMap<WeakRef<vscode.ChatSessionInputState>>();
 		controller.newChatSessionItemHandler = async (context) => {
 			const sessionId = this.sessionService.createNewSessionId();
 			const resource = SessionIdForCLI.getResource(sessionId);
@@ -211,6 +185,8 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 
 			controller.items.add(session);
 			this.newSessions.set(resource, session);
+			const groups = await this._optionGroupBuilder.provideChatSessionProviderOptionGroups(context.inputState);
+			inputStateForNewSession.set(resource, new WeakRef(controller.createChatSessionInputState(groups)));
 			return session;
 		};
 		if (this.configurationService.getConfig(ConfigKey.Advanced.CLIForkSessionsEnabled)) {
@@ -273,7 +249,12 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 				const groups = await this._optionGroupBuilder.buildExistingSessionInputStateGroups(sessionResource, token);
 				return controller.createChatSessionInputState(groups);
 			} else {
-				const groups = await this._optionGroupBuilder.provideChatSessionProviderOptionGroups(context.previousInputState);
+				// Possible we've already handled the newChatSessionItemHandler for this same uri
+				// In which case the proper inputState would have been sent.
+				// There's a bug in core where after newChatSessionItemHandler is called, we get
+				// another call for getChatSessionInputState, but this time the previous input state is incorrect.
+				const previousInputState = sessionResource ? inputStateForNewSession.get(sessionResource)?.deref() : undefined;
+				const groups = await this._optionGroupBuilder.provideChatSessionProviderOptionGroups(previousInputState);
 				const state = controller.createChatSessionInputState(groups);
 				// Only wire dynamic updates for new sessions (existing sessions are fully locked).
 				// Note: don't use the getChatSessionInputState token here — it's a one-shot token
@@ -309,7 +290,6 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 	}
 
 	public async updateInputStateAfterFolderSelection(inputState: vscode.ChatSessionInputState, folderUri: vscode.Uri): Promise<void> {
-		this._optionGroupBuilder.setNewFolderForInputState(inputState, folderUri);
 		await this._optionGroupBuilder.rebuildInputState(inputState, folderUri);
 	}
 
@@ -720,6 +700,15 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		return { input, attachments };
 	}
 
+	private generateNewBranchName(request: vscode.ChatRequest, token: vscode.CancellationToken): Promise<string | undefined> {
+		const requestTurn = new ChatRequestTurn2(request.prompt ?? '', request.command, [], '', [], [], undefined, undefined, undefined);
+		const fakeContext: vscode.ChatContext = {
+			history: [requestTurn],
+			yieldRequested: false,
+		};
+		const branchNamePromise = (request.prompt && this.branchNameGenerator) ? this.branchNameGenerator.generateBranchName(fakeContext, token) : Promise.resolve(undefined);
+		return branchNamePromise;
+	}
 	private async handleRequestImpl(request: vscode.ChatRequest, context: vscode.ChatContext, stream: vscode.ChatResponseStream, token: vscode.CancellationToken): Promise<vscode.ChatResult | void> {
 		const { chatSessionContext } = context;
 		const disposables = new DisposableStore();
@@ -752,12 +741,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 				return {};
 			}
 
-			const requestTurn = new ChatRequestTurn2(request.prompt ?? '', request.command, [], '', [], [], undefined, undefined, undefined);
-			const fakeContext: vscode.ChatContext = {
-				history: [requestTurn],
-				yieldRequested: false,
-			};
-			const branchNamePromise = (isNewSession && request.prompt && this.branchNameGenerator) ? this.branchNameGenerator.generateBranchName(fakeContext, token) : Promise.resolve(undefined);
+			const branchNamePromise = isNewSession ? this.generateNewBranchName(request, token) : Promise.resolve(undefined);
 
 			if (isNewSession) {
 				this._optionGroupBuilder.lockInputStateGroups(chatSessionContext.inputState);
@@ -869,8 +853,8 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			userPrompt = userPrompt || request.prompt;
 			return summary ? `${userPrompt}\n${summary}` : userPrompt;
 		})();
-
-		const { workspaceInfo, cancelled } = await this.sessionInitializer.initializeWorkingDirectory(undefined, { stream }, request.toolInvocationToken, token);
+		const branchNamePromise = this.generateNewBranchName(request, token);
+		const { workspaceInfo, cancelled } = await this.sessionInitializer.initializeWorkingDirectory(undefined, { stream, isolation: IsolationMode.Worktree, newBranch: branchNamePromise }, request.toolInvocationToken, token);
 
 		if (cancelled || token.isCancellationRequested) {
 			stream.markdown(l10n.t('Copilot CLI delegation cancelled.'));
@@ -966,8 +950,8 @@ export function registerCLIChatCommands(
 			);
 
 			if (result === deleteLabel) {
-				await copilotCLISessionService.deleteSession(id);
 				await copilotCliWorkspaceSession.deleteTrackedWorkspaceFolder(id);
+				await copilotCLISessionService.deleteSession(id);
 
 				if (worktreePath) {
 					try {
@@ -1256,7 +1240,7 @@ export function registerCLIChatCommands(
 	}));
 
 	const applyChanges = async (sessionItemOrResource?: vscode.ChatSessionItem | vscode.Uri) => {
-		const resource = sessionItemOrResource instanceof vscode.Uri
+		const resource = isUri(sessionItemOrResource)
 			? sessionItemOrResource
 			: sessionItemOrResource?.resource;
 

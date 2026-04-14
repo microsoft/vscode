@@ -188,6 +188,10 @@
 	background-color: var(--vscode-sessionsPanel-background) !important;
 }
 
+.agent-sessions-workbench .quick-input-header {
+	border-radius: var(--vscode-cornerRadius-xLarge);
+}
+
 /* ---- Sessions Context Menus ---- */
 
 .agent-sessions-workbench .context-view.monaco-menu-container,

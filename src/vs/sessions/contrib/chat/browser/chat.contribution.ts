@@ -48,6 +48,7 @@ import { SessionsChatAccessibilityHelp } from './sessionsChatAccessibilityHelp.j
 import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IRemoteAgentHostService, IRemoteAgentHostSSHConnection, RemoteAgentHostEntryType } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { encodeHex, VSBuffer } from '../../../../base/common/buffer.js';
 
 export class OpenSessionWorktreeInVSCodeAction extends Action2 {
@@ -145,7 +146,7 @@ export function resolveRemoteAuthority(
 	remoteAgentHostService: IRemoteAgentHostService,
 ): string | undefined {
 	const provider = sessionsProvidersService.getProvider(providerId);
-	if (!provider?.remoteAddress) {
+	if (!provider || !isAgentHostProvider(provider) || !provider.remoteAddress) {
 		return undefined;
 	}
 

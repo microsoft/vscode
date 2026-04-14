@@ -18,6 +18,7 @@ class TestAgentHostGitService implements IAgentHostGitService {
 
 	async isInsideWorkTree(): Promise<boolean> { return this.insideWorkTree; }
 	async getCurrentBranch(): Promise<string | undefined> { return undefined; }
+	async getDefaultBranch(): Promise<string | undefined> { return undefined; }
 	async getBranches(): Promise<string[]> { return []; }
 	async getRepositoryRoot(): Promise<URI | undefined> { return this.repositoryRoot; }
 	async getWorktreeRoots(): Promise<URI[]> { return this.worktreeRoots; }

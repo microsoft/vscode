@@ -45,6 +45,7 @@ import { emptyWorkspaceInfo, getWorkingDirectory, IWorkspaceInfo } from '../../c
 import { buildChatHistoryFromEvents, RequestIdDetails, stripReminders } from '../common/copilotCLITools';
 import { ICustomSessionTitleService } from '../common/customSessionTitleService';
 import { IChatDelegationSummaryService } from '../common/delegationSummaryService';
+import { SessionIdForCLI } from '../common/utils';
 import { getCopilotCLISessionDir, getCopilotCLISessionEventsFile, getCopilotCLIWorkspaceFile } from './cliHelpers';
 import { getAgentFileNameFromFilePath, ICopilotCLIAgents, ICopilotCLISDK } from './copilotCli';
 import { CopilotCliBridgeSpanProcessor } from './copilotCliBridgeSpanProcessor';
@@ -78,6 +79,9 @@ export type ICreateSessionOptions = ISessionOptions & { sessionId?: string };
 export interface ICopilotCLISessionService {
 	readonly _serviceBrand: undefined;
 
+	/**
+	 * @deprecated Kept only for non-controller API
+	 */
 	onDidChangeSessions: Event<void>;
 	onDidDeleteSession: Event<string>;
 	onDidChangeSession: Event<ICopilotCLISessionItem>;
@@ -536,7 +540,8 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	}
 
 	public async createSession(options: ICreateSessionOptions, token: CancellationToken): Promise<RefCountedSession> {
-		const { mcpConfig: mcpServers, disposable: mcpGateway } = await this.mcpHandler.loadMcpConfig();
+		const resource = options.sessionId ? SessionIdForCLI.getResource(options.sessionId) : URI.from({ scheme: 'copilot-cli', path: `mcp-gateway-${generateUuid()}` });
+		const { mcpConfig: mcpServers, disposable: mcpGateway } = await this.mcpHandler.loadMcpConfig(resource);
 		try {
 			const sessionOptions = await this.createSessionsOptions({ ...options, mcpServers });
 			const sessionManager = await raceCancellationError(this.getSessionManager(), token);
@@ -726,7 +731,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 
 			const [sessionManager, { mcpConfig: mcpServers, disposable: mcpGateway }] = await Promise.all([
 				raceCancellationError(this.getSessionManager(), token),
-				this.mcpHandler.loadMcpConfig(),
+				this.mcpHandler.loadMcpConfig(SessionIdForCLI.getResource(options.sessionId)),
 			]);
 			try {
 				const sessionOptions = await this.createSessionsOptions({ ...options, mcpServers });

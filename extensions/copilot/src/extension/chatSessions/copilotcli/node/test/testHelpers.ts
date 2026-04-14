@@ -103,7 +103,7 @@ export class NullICopilotCLIImageSupport implements ICopilotCLIImageSupport {
 
 export class NullCopilotCLIMCPHandler implements ICopilotCLIMCPHandler {
 	_serviceBrand: undefined;
-	async loadMcpConfig(): Promise<{ mcpConfig: Record<string, NonNullable<SessionOptions['mcpServers']>[string]> | undefined; disposable: IDisposable }> {
+	async loadMcpConfig(_resource: URI): Promise<{ mcpConfig: Record<string, NonNullable<SessionOptions['mcpServers']>[string]> | undefined; disposable: IDisposable }> {
 		return { mcpConfig: undefined, disposable: Disposable.None };
 	}
 }

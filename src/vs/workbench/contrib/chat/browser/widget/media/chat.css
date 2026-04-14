@@ -3026,6 +3026,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	.request-hover.hidden,
 	.request-hover.checkpoints-enabled.has-no-actions,
 	.checkpoint-container.hidden,
+	.checkpoint-container.has-no-actions,
 	.checkpoint-restore-container.hidden {
 		display: none;
 	}

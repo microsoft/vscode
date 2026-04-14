@@ -3,7 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as assert from 'assert';
+import { suite, test } from 'node:test';
+import assert from 'node:assert/strict';
 import { WorkspaceEdit, TextDocument, getLanguageModes, ClientCapabilities } from '../modes/languageModes.js';
 import { getNodeFileFS } from '../node/nodeFs.js';
 
@@ -21,22 +22,26 @@ async function testRename(value: string, newName: string, expectedDocContent: st
 	const javascriptMode = languageModes.getMode('javascript');
 	const position = document.positionAt(offset);
 
-	if (javascriptMode) {
-		const workspaceEdit: WorkspaceEdit | null = await javascriptMode.doRename!(document, position, newName);
+	try {
+		if (javascriptMode) {
+			const workspaceEdit: WorkspaceEdit | null = await javascriptMode.doRename!(document, position, newName);
 
-		if (!workspaceEdit || !workspaceEdit.changes) {
-			assert.fail('No workspace edits');
+			if (!workspaceEdit || !workspaceEdit.changes) {
+				assert.fail('No workspace edits');
+			}
+
+			const edits = workspaceEdit.changes[document.uri.toString()];
+			if (!edits) {
+				assert.fail(`No edits for file at ${document.uri.toString()}`);
+			}
+
+			const newDocContent = TextDocument.applyEdits(document, edits);
+			assert.strictEqual(newDocContent, expectedDocContent, `Expected: ${expectedDocContent}\nActual: ${newDocContent}`);
+		} else {
+			assert.fail('should have javascriptMode but no');
 		}
-
-		const edits = workspaceEdit.changes[document.uri.toString()];
-		if (!edits) {
-			assert.fail(`No edits for file at ${document.uri.toString()}`);
-		}
-
-		const newDocContent = TextDocument.applyEdits(document, edits);
-		assert.strictEqual(newDocContent, expectedDocContent, `Expected: ${expectedDocContent}\nActual: ${newDocContent}`);
-	} else {
-		assert.fail('should have javascriptMode but no');
+	} finally {
+		languageModes.dispose();
 	}
 }
 
@@ -53,12 +58,16 @@ async function testNoRename(value: string, newName: string): Promise<void> {
 	const javascriptMode = languageModes.getMode('javascript');
 	const position = document.positionAt(offset);
 
-	if (javascriptMode) {
-		const workspaceEdit: WorkspaceEdit | null = await javascriptMode.doRename!(document, position, newName);
+	try {
+		if (javascriptMode) {
+			const workspaceEdit: WorkspaceEdit | null = await javascriptMode.doRename!(document, position, newName);
 
-		assert.ok(workspaceEdit?.changes === undefined, 'Should not rename but rename happened');
-	} else {
-		assert.fail('should have javascriptMode but no');
+			assert.ok(workspaceEdit?.changes === undefined, 'Should not rename but rename happened');
+		} else {
+			assert.fail('should have javascriptMode but no');
+		}
+	} finally {
+		languageModes.dispose();
 	}
 }
 

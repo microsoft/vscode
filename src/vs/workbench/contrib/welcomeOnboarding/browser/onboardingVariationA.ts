@@ -224,6 +224,9 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 			if (this._isLastStep()) {
 				this._logAction('complete');
 				this._dismiss('complete');
+			} else if (this.currentStepIndex === 0) {
+				this._logAction('continueWithoutSignIn');
+				this._nextStep();
 			} else {
 				this._logAction('next');
 				this._nextStep();
@@ -400,11 +403,25 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 			this.backButton.style.display = this.currentStepIndex === 0 ? 'none' : '';
 		}
 		if (this.nextButton) {
-			this.nextButton.textContent = this._isLastStep()
-				? localize('onboarding.getStarted', "Get Started")
-				: localize('onboarding.next', "Continue");
+			if (this.currentStepIndex === 0) {
+				// Sign-in step: secondary "Continue without Signing In"
+				this.nextButton.className = 'onboarding-a-btn onboarding-a-btn-secondary';
+				this.nextButton.textContent = localize('onboarding.continueWithoutSignIn', "Continue without Signing In");
+			} else if (this._isLastStep()) {
+				this.nextButton.className = 'onboarding-a-btn onboarding-a-btn-primary';
+				this.nextButton.textContent = localize('onboarding.getStarted', "Get Started");
+			} else {
+				this.nextButton.className = 'onboarding-a-btn onboarding-a-btn-primary';
+				this.nextButton.textContent = localize('onboarding.next', "Continue");
+			}
 		}
 		if (this.skipButton && this.footerLeft) {
+			if (this.currentStepIndex === 0) {
+				// Sign-in step: ghost Skip button
+				this.skipButton.className = 'onboarding-a-btn onboarding-a-btn-ghost';
+			} else {
+				this.skipButton.className = 'onboarding-a-btn onboarding-a-btn-ghost';
+			}
 			if (this._isLastStep()) {
 				this.skipButton.style.display = 'none';
 				// Show sign-in nudge in footer
@@ -679,8 +696,10 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		for (const theme of themes) {
 			this._createThemeCard(themeGrid, theme, themeCards);
 		}
-		const selectedThemeIndex = themes.findIndex(t => t.id === this.selectedThemeId);
-		this._setupRadioGroupNavigation(themeCards, Math.max(0, selectedThemeIndex));
+		// Make all theme cards individually tabbable
+		for (const card of themeCards) {
+			card.setAttribute('tabindex', '0');
+		}
 
 		// Keyboard Mapping section — only shown when another editor is detected
 		const keymapOptions = this._detectedEditorIds

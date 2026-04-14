@@ -548,6 +548,11 @@ describe('processResponseFromChatEndpoint telemetry', () => {
 
 		const olderCompaction = createCompactionResponse('cmp_old', 'enc_old');
 		const newerCompaction = createCompactionResponse('cmp_new', 'enc_new');
+		const compactionAddedEvent = {
+			type: 'response.output_item.added',
+			output_index: 0,
+			item: olderCompaction,
+		};
 		const compactionEvent = {
 			type: 'response.output_item.done',
 			output_index: 0,
@@ -577,7 +582,7 @@ describe('processResponseFromChatEndpoint telemetry', () => {
 			}
 		};
 
-		const response = createFakeStreamResponse(`data: ${JSON.stringify(compactionEvent)}\n\ndata: ${JSON.stringify(completedEvent)}\n\n`);
+		const response = createFakeStreamResponse(`data: ${JSON.stringify(compactionAddedEvent)}\n\ndata: ${JSON.stringify(compactionEvent)}\n\ndata: ${JSON.stringify(completedEvent)}\n\n`);
 		const telemetryData = TelemetryData.createAndMarkAsIssued({ modelCallId: 'model-call-latest-compaction' }, {});
 
 		const stream = await processResponseFromChatEndpoint(
@@ -678,6 +683,85 @@ describe('processResponseFromChatEndpoint telemetry', () => {
 
 		const event = telemetryService.getEvents().telemetryServiceEvents.find(e => e.eventName === 'responsesApi.compactionOutcome');
 		expect(event).toBeUndefined();
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('captures compaction returned before output_item.done for the next request', async () => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const logService = accessor.get(ILogService);
+		const telemetryService = new SpyingTelemetryService();
+		const streamedCompactions: OpenAIContextManagementResponse[] = [];
+
+		const earlyCompaction = createCompactionResponse('cmp_early', 'enc_early');
+		const compactionAddedEvent = {
+			type: 'response.output_item.added',
+			output_index: 0,
+			item: earlyCompaction,
+		};
+		const completedEvent = {
+			type: 'response.completed',
+			response: {
+				id: 'resp_early_compaction',
+				model: 'gpt-5-mini',
+				created_at: 123,
+				usage: {
+					input_tokens: 1200,
+					output_tokens: 9,
+					total_tokens: 1209,
+					input_tokens_details: { cached_tokens: 0 },
+					output_tokens_details: { reasoning_tokens: 0 },
+				},
+				output: [
+					{
+						type: 'message',
+						content: [{ type: 'output_text', text: 'reply' }],
+					},
+				],
+			}
+		};
+
+		const response = createFakeStreamResponse(`data: ${JSON.stringify(compactionAddedEvent)}\n\ndata: ${JSON.stringify(completedEvent)}\n\n`);
+		const telemetryData = TelemetryData.createAndMarkAsIssued({ modelCallId: 'model-call-early-compaction' }, {});
+
+		const stream = await processResponseFromChatEndpoint(
+			instantiationService,
+			telemetryService,
+			logService,
+			response,
+			1,
+			async (_text, _unused, delta) => {
+				if (delta.contextManagement && isOpenAIContextManagementResponse(delta.contextManagement)) {
+					streamedCompactions.push(delta.contextManagement);
+				}
+				return undefined;
+			},
+			telemetryData,
+			1000
+		);
+
+		for await (const _ of stream) {
+			// consume stream
+		}
+
+		expect(streamedCompactions.map(item => item.id)).toEqual(['cmp_early']);
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions([
+			createCompactionAssistantMessage(streamedCompactions[streamedCompactions.length - 1]),
+			{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'continue' }],
+			},
+		], false), testEndpoint.model, testEndpoint));
+
+		expect(body.input).toContainEqual({
+			type: openAIContextManagementCompactionType,
+			id: 'cmp_early',
+			encrypted_content: 'enc_early',
+		});
 
 		accessor.dispose();
 		services.dispose();

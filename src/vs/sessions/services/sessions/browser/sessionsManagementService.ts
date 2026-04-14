@@ -313,9 +313,6 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		if (previousSession?.sessionId === session?.sessionId) {
 			return;
 		}
-		if (previousSession?.status.get() === SessionStatus.Untitled) {
-			this._getProvider(previousSession)?.clearSessionConfig?.(previousSession.sessionId);
-		}
 
 		// Update context keys from session data
 		this._activeSessionProviderId.set(session?.providerId ?? '');

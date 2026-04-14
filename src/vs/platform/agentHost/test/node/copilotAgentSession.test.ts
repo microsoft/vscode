@@ -87,12 +87,14 @@ async function createAgentSession(disposables: DisposableStore, options?: { work
 
 	const session = disposables.add(instantiationService.createInstance(
 		CopilotAgentSession,
-		sessionUri,
-		'test-session-1',
-		options?.workingDirectory,
-		progressEmitter,
-		factory,
-		undefined, // shellManager
+		{
+			sessionUri,
+			rawSessionId: 'test-session-1',
+			workingDirectory: options?.workingDirectory,
+			onDidSessionProgress: progressEmitter,
+			wrapperFactory: factory,
+			shellManager: undefined,
+		},
 	));
 
 	await session.initializeSession();

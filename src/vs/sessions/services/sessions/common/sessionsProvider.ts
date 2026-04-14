@@ -4,11 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
-import { IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
-import { RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { IResolveSessionConfigResult, ISessionConfigValueItem } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction } from './session.js';
 
@@ -169,27 +166,4 @@ export interface ISessionsProvider {
 	 * @param options Options for the request, including the query and any attached context entries.
 	 */
 	sendAndCreateChat(sessionId: string, options: ISendRequestOptions): Promise<ISession>;
-
-	// -- Remote Connection (optional, used by remote agent host providers) --
-	/** Connection status observable, present on remote providers. */
-	readonly connectionStatus?: IObservable<RemoteAgentHostConnectionStatus>;
-	/** Remote address string, present on remote providers. */
-	readonly remoteAddress?: string;
-	/** Output channel ID for remote provider logs. */
-	outputChannelId?: string;
-
-	// -- Dynamic Session Config --
-
-	/** Optional. Fires when dynamic configuration for a new session changes. */
-	readonly onDidChangeSessionConfig?: Event<string>;
-	/** Optional. Returns the last resolved dynamic configuration for a new session. */
-	getSessionConfig?(sessionId: string): IResolveSessionConfigResult | undefined;
-	/** Optional. Sets one dynamic configuration property and re-resolves the schema. */
-	setSessionConfigValue?(sessionId: string, property: string, value: string): Promise<void>;
-	/** Optional. Returns dynamic completions for a configuration property. */
-	getSessionConfigCompletions?(sessionId: string, property: string, query?: string): Promise<readonly ISessionConfigValueItem[]>;
-	/** Optional. Returns the resolved config that should be sent to createSession. */
-	getCreateSessionConfig?(sessionId: string): Record<string, string> | undefined;
-	/** Optional. Clears dynamic configuration state for an abandoned new session. */
-	clearSessionConfig?(sessionId: string): void;
 }

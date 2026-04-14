@@ -40,8 +40,10 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 			await terminalConfig.update('windowsUseConptyDll', true, vscode.ConfigurationTarget.Global);
 		}
 
-		// Register a dummy default model required for participant requests
-		disposables.push(vscode.lm.registerLanguageModelChatProvider('copilot', {
+		// Register a dummy default model required for participant requests.
+		// The test extension contributes both `test-lm-vendor` and `copilot`; focused
+		// chat runs may select either vendor before the participant request is routed.
+		const testLanguageModelProvider: vscode.LanguageModelChatProvider = {
 			async provideLanguageModelChatInformation(_options, _token) {
 				return [{
 					id: 'test-lm',
@@ -61,7 +63,11 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 			async provideTokenCount(_model, _text, _token) {
 				return 1;
 			},
-		}));
+		};
+		disposables.push(
+			vscode.lm.registerLanguageModelChatProvider('test-lm-vendor', testLanguageModelProvider),
+			vscode.lm.registerLanguageModelChatProvider('copilot', testLanguageModelProvider),
+		);
 
 		// Enable global auto-approve + skip the confirmation dialog via test-mode context key
 		const chatToolsConfig = vscode.workspace.getConfiguration('chat.tools.global');
@@ -99,6 +105,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 		timeout?: number;
 		requestUnsandboxedExecution?: boolean;
 		requestUnsandboxedExecutionReason?: string;
+		autoAcceptConfirmation?: boolean;
 	}
 
 	let participantRegistered = false;
@@ -158,11 +165,30 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 		pendingCommand = command;
 		pendingOptions = opts;
 
-		await vscode.commands.executeCommand('workbench.action.chat.newChat');
-		vscode.commands.executeCommand('workbench.action.chat.open', { query: '@participant test' });
+		let acceptConfirmationInterval: ReturnType<typeof setInterval> | undefined;
+		const acceptPendingConfirmation = async () => {
+			try {
+				await vscode.commands.executeCommand('workbench.action.chat.acceptTool');
+				await vscode.commands.executeCommand('workbench.action.chat.acceptElicitation');
+			} catch {
+				// The commands are no-ops when no confirmation is visible.
+			}
+		};
 
-		const result = await resultPromise.p;
-		return extractTextContent(result);
+		try {
+			await vscode.commands.executeCommand('workbench.action.chat.newChat');
+			if (opts.autoAcceptConfirmation) {
+				acceptConfirmationInterval = setInterval(() => void acceptPendingConfirmation(), 200);
+			}
+			await vscode.commands.executeCommand('workbench.action.chat.open', { query: '@participant test' });
+
+			const result = await resultPromise.p;
+			return extractTextContent(result);
+		} finally {
+			if (acceptConfirmationInterval) {
+				clearInterval(acceptConfirmationInterval);
+			}
+		}
 	}
 
 	test('tool should be registered with expected schema', async function () {
@@ -334,12 +360,14 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 			this.timeout(60000);
 
 			const marker = `SANDBOX_TMP_${Date.now()}`;
-			const output = await invokeRunInTerminal(`echo "${marker}" > /tmp/${marker}.txt`);
+			const output = await invokeRunInTerminal(`echo "${marker}" > /tmp/${marker}.txt && cat /tmp/${marker}.txt && rm /tmp/${marker}.txt`, {
+				autoAcceptConfirmation: true,
+			});
 
 			const trimmed = output.trim();
 			assert.ok(trimmed.startsWith('Note: The tool simplified the command to'), `Unexpected output: ${JSON.stringify(trimmed)}`);
 			assert.ok(trimmed.includes(`/tmp/${marker}.txt`), `Unexpected output: ${JSON.stringify(trimmed)}`);
-			assert.ok(trimmed.endsWith('Command produced no output'), `Unexpected output: ${JSON.stringify(trimmed)}`);
+			assert.ok(trimmed.endsWith(marker), `Unexpected output: ${JSON.stringify(trimmed)}`);
 		});
 
 		test('can read files outside the workspace', async function () {

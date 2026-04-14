@@ -48,6 +48,7 @@ import { IAgentSubscription } from '../../../../../../platform/agentHost/common/
 import { ITerminalChatService } from '../../../../terminal/browser/terminal.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from '../../../browser/agentSessions/agentHost/agentHostSessionWorkingDirectoryResolver.js';
+import { ILanguageModelToolsService } from '../../../common/tools/languageModelToolsService.js';
 
 // ---- Mock agent host service ------------------------------------------------
 
@@ -285,7 +286,15 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		deltaLanguageModelChatProviderDescriptors: () => { },
 		registerLanguageModelProvider: () => toDisposable(() => { }),
 	});
-	instantiationService.stub(IConfigurationService, { getValue: () => true });
+	instantiationService.stub(IConfigurationService, {
+		getValue: (...args: unknown[]) => {
+			if (args[0] === 'chat.agentHost.clientTools') {
+				return [];
+			}
+			return true;
+		},
+		onDidChangeConfiguration: Event.None,
+	});
 	instantiationService.stub(IOutputService, { getChannel: () => undefined });
 	instantiationService.stub(IWorkspaceContextService, { getWorkspace: () => ({ id: '', folders: [] }), getWorkspaceFolder: () => null });
 	instantiationService.stub(IChatEditingService, {
@@ -317,6 +326,14 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	instantiationService.stub(IAgentHostSessionWorkingDirectoryResolver, {
 		registerResolver: () => toDisposable(() => { }),
 		resolve: sessionResource => workingDirectoryResolver?.resolve(sessionResource),
+	});
+	instantiationService.stub(ILanguageModelToolsService, {
+		observeTools: () => observableValue('tools', []),
+		onDidChangeTools: Event.None,
+		getToolByName: () => undefined,
+		invokeTool: async () => ({ content: [] }),
+		onDidPrepareToolCallBecomeUnresponsive: Event.None,
+		onDidInvokeTool: Event.None,
 	});
 
 	return { instantiationService, agentHostService, chatAgentService };

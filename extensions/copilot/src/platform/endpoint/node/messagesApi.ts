@@ -14,7 +14,7 @@ import { ChatLocation } from '../../chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { ILogService } from '../../log/common/logService';
 import { AnthropicMessagesTool, ContextManagementResponse, CUSTOM_TOOL_SEARCH_NAME, getContextManagementFromConfig, isAnthropicContextEditingEnabled, isAnthropicCustomToolSearchEnabled, isAnthropicToolSearchEnabled, ServerToolUse, TOOL_SEARCH_TOOL_NAME, TOOL_SEARCH_TOOL_TYPE, ToolSearchToolResult } from '../../networking/common/anthropic';
-import { FinishedCallback, IIPCodeCitation, IResponseDelta } from '../../networking/common/fetch';
+import { FinishedCallback, getRequestId, IIPCodeCitation, IResponseDelta } from '../../networking/common/fetch';
 import { IChatEndpoint, ICreateEndpointBodyOptions, IEndpointBody } from '../../networking/common/networking';
 import { ChatCompletion, FinishedCompletionReason, rawMessageToCAPI } from '../../networking/common/openai';
 import { IToolDeferralService } from '../../networking/common/toolDeferralService';
@@ -142,12 +142,12 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 	// is configured for the model, and the model supports thinking. reasoningEffort (if present)
 	// is used only to configure the effort level when thinking is enabled, not to gate it.
 	const reasoningEffort = options.modelCapabilities?.reasoningEffort;
-	let thinkingConfig: { type: 'enabled' | 'adaptive'; budget_tokens?: number } | undefined;
+	let thinkingConfig: { type: 'enabled' | 'adaptive'; budget_tokens?: number; display?: 'summarized' } | undefined;
 	if (options.modelCapabilities?.enableThinking) {
 		const configuredBudget = configurationService.getConfig(ConfigKey.AnthropicThinkingBudget);
 		const thinkingExplicitlyDisabled = configuredBudget === 0;
 		if (endpoint.supportsAdaptiveThinking && !thinkingExplicitlyDisabled) {
-			thinkingConfig = { type: 'adaptive' };
+			thinkingConfig = { type: 'adaptive', display: 'summarized' };
 		} else if (!thinkingExplicitlyDisabled && endpoint.maxThinkingBudget && endpoint.minThinkingBudget) {
 			const maxTokens = options.postOptions.max_tokens ?? 1024;
 			const minBudget = endpoint.minThinkingBudget ?? 1024;
@@ -225,7 +225,6 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 		...messagesResult,
 		stream: true,
 		tools: finalTools.length > 0 ? finalTools : undefined,
-		top_p: options.postOptions.top_p,
 		max_tokens: options.postOptions.max_tokens,
 		thinking: thinkingConfig,
 		...(effort ? { output_config: { effort } } : {}),
@@ -551,7 +550,8 @@ export async function processResponseFromMessagesEndpoint(
 	return new AsyncIterableObject<ChatCompletion>(async feed => {
 		const requestId = response.headers.get('X-Request-ID') ?? generateUuid();
 		const ghRequestId = response.headers.get('x-github-request-id') ?? '';
-		const processor = instantiationService.createInstance(AnthropicMessagesProcessor, telemetryData, requestId, ghRequestId);
+		const { serverExperiments } = getRequestId(response.headers);
+		const processor = instantiationService.createInstance(AnthropicMessagesProcessor, telemetryData, requestId, ghRequestId, serverExperiments);
 		const parser = new SSEParser((ev) => {
 			try {
 				logService.trace(`[messagesAPI]SSE: ${ev.data}`);
@@ -622,6 +622,7 @@ export class AnthropicMessagesProcessor {
 		private readonly telemetryData: TelemetryData,
 		private readonly requestId: string,
 		private readonly ghRequestId: string,
+		private readonly serverExperiments: string,
 		@ILogService private readonly logService: ILogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) { }
@@ -1051,7 +1052,7 @@ export class AnthropicMessagesProcessor {
 						completionId: this.messageId,
 						created: Date.now(),
 						deploymentId: '',
-						serverExperiments: ''
+						serverExperiments: this.serverExperiments,
 					},
 					usage: {
 						prompt_tokens: computedPromptTokens,

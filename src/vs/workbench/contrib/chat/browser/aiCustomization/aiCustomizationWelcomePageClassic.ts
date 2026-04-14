@@ -110,7 +110,7 @@ export class ClassicAICustomizationWelcomePage extends Disposable implements IAI
 			this._register(DOM.addDisposableListener(gettingStarted, 'click', () => {
 				this.callbacks.closeEditor();
 				if (this.workspaceService.isSessionsWindow) {
-					this.callbacks.prefillChat('Generate agent customizations. ', { isPartialQuery: true });
+					this.callbacks.prefillChat('Generate agent customizations. ', { isPartialQuery: true, newChat: true });
 				} else {
 					this.commandService.executeCommand('workbench.action.chat.open', { query: '/init ', isPartialQuery: true });
 				}
@@ -169,7 +169,7 @@ export class ClassicAICustomizationWelcomePage extends Disposable implements IAI
 					this.callbacks.closeEditor();
 					if (this.workspaceService.isSessionsWindow) {
 						const typeLabel = category.label.toLowerCase().replace(/s$/, '');
-						this.callbacks.prefillChat(`Create me a custom ${typeLabel} that `, { isPartialQuery: true });
+						this.callbacks.prefillChat(`Create me a custom ${typeLabel} that `, { isPartialQuery: true, newChat: true });
 					} else {
 						this.workspaceService.generateCustomization(category.promptType!);
 					}

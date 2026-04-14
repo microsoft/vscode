@@ -26,7 +26,8 @@ import { IChatSessionFileChange, IChatSessionsService } from '../../../../workbe
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { agentHostSessionWorkspaceKey, buildAgentHostSessionWorkspace } from '../../../common/agentHostSessionWorkspace.js';
-import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
+import { ISendRequestOptions, ISessionChangeEvent } from '../../../services/sessions/common/sessionsProvider.js';
+import { IAgentHostSessionsProvider } from '../../../common/agentHostSessionsProvider.js';
 import { IChat, ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SessionStatus, type IGitHubInfo, ISessionType } from '../../../services/sessions/common/session.js';
 
 const LOCAL_PROVIDER_ID = 'local-agent-host';
@@ -90,6 +91,7 @@ class LocalSessionAdapter implements ISession {
 	readonly description: ISettableObservable<IMarkdownString | undefined>;
 	readonly lastTurnEnd: ISettableObservable<Date | undefined>;
 	readonly gitHubInfo = observableValue<IGitHubInfo | undefined>('gitHubInfo', undefined);
+	readonly ready = observableValue('ready', true);
 
 	readonly mainChat: IChat;
 	readonly chats: IObservable<readonly IChat[]>;
@@ -206,7 +208,7 @@ class LocalSessionAdapter implements ISession {
  * - **sessionId** - `local-agent-host:agent-host-{provider}:///{rawId}` — the
  *   provider-scoped ID used by {@link ISessionsProvider}.
  */
-export class LocalAgentHostSessionsProvider extends Disposable implements ISessionsProvider {
+export class LocalAgentHostSessionsProvider extends Disposable implements IAgentHostSessionsProvider {
 
 	readonly id = LOCAL_PROVIDER_ID;
 	readonly label: string;
@@ -242,6 +244,7 @@ export class LocalAgentHostSessionsProvider extends Disposable implements ISessi
 	private _currentNewSession: ISession | undefined;
 	private _currentNewSessionStatus: ISettableObservable<SessionStatus> | undefined;
 	private _currentNewSessionModelId: ISettableObservable<string | undefined> | undefined;
+	private _currentNewSessionReady: ISettableObservable<boolean> | undefined;
 	private readonly _newSessionWorkspaces = new Map<string, URI>();
 	private readonly _newSessionConfigs = new Map<string, IResolveSessionConfigResult>();
 	private readonly _newSessionAgentProviders = new Map<string, string>();
@@ -402,6 +405,7 @@ export class LocalAgentHostSessionsProvider extends Disposable implements ISessi
 		this._currentNewSession = undefined;
 		this._selectedModelId = undefined;
 		this._currentNewSessionModelId = undefined;
+		this._currentNewSessionReady = undefined;
 
 		const sessionType = this.sessionTypes.find(t => t.id === sessionTypeId);
 		if (!sessionType) {
@@ -429,6 +433,7 @@ export class LocalAgentHostSessionsProvider extends Disposable implements ISessi
 		const isRead = observableValue(this, true);
 		const description = observableValue<IMarkdownString | undefined>(this, undefined);
 		const lastTurnEnd = observableValue<Date | undefined>(this, undefined);
+		const ready = observableValue(this, false);
 		const createdAt = new Date();
 
 		const mainChat: IChat = {
@@ -456,16 +461,19 @@ export class LocalAgentHostSessionsProvider extends Disposable implements ISessi
 			description,
 			lastTurnEnd,
 			gitHubInfo: observableValue(this, undefined),
+			ready,
 			mainChat,
 			chats: constObservable([mainChat]),
 		};
 		this._currentNewSession = session;
 		this._currentNewSessionStatus = status;
 		this._currentNewSessionModelId = modelId;
+		this._currentNewSessionReady = ready;
 		const agentProvider = this._agentProviderFromSessionType(sessionType.id);
 		this._newSessionWorkspaces.set(session.sessionId, workspaceUri);
 		this._newSessionAgentProviders.set(session.sessionId, agentProvider);
 		this._newSessionConfigs.set(session.sessionId, { ready: false, schema: { type: 'object', properties: {} }, values: {} });
+		this._updateSessionReady(session.sessionId);
 		this._onDidChangeSessionConfig.fire(session.sessionId);
 		this._resolveSessionConfig(session.sessionId, agentProvider, workspaceUri, undefined);
 		return session;
@@ -481,6 +489,7 @@ export class LocalAgentHostSessionsProvider extends Disposable implements ISessi
 		if (workingDirectory) {
 			const current = this._newSessionConfigs.get(sessionId)?.values ?? {};
 			this._newSessionConfigs.set(sessionId, { ready: false, schema: { type: 'object', properties: {} }, values: { ...current, [property]: value } });
+			this._updateSessionReady(sessionId);
 			this._onDidChangeSessionConfig.fire(sessionId);
 			await this._resolveSessionConfig(sessionId, this._getAgentProviderForSession(sessionId), workingDirectory, { ...current, [property]: value });
 			return;
@@ -501,6 +510,7 @@ export class LocalAgentHostSessionsProvider extends Disposable implements ISessi
 			...runningConfig,
 			values: { ...runningConfig.values, [property]: value },
 		});
+		this._updateSessionReady(sessionId);
 		this._onDidChangeSessionConfig.fire(sessionId);
 
 		// Dispatch to the agent host
@@ -666,6 +676,7 @@ export class LocalAgentHostSessionsProvider extends Disposable implements ISessi
 		this._selectedModelId = undefined;
 		this._currentNewSessionStatus = undefined;
 		this._currentNewSessionModelId = undefined;
+		this._currentNewSessionReady = undefined;
 
 		try {
 			const committedSession = await this._waitForNewSession(existingKeys);
@@ -673,6 +684,7 @@ export class LocalAgentHostSessionsProvider extends Disposable implements ISessi
 				this._preserveSessionMutableConfig(chatId, committedSession.sessionId);
 				this._currentNewSession = undefined;
 				this._currentNewSessionModelId = undefined;
+				this._currentNewSessionReady = undefined;
 				this._clearNewSessionConfig(chatId);
 				this._onDidReplaceSession.fire({ from: newSession, to: committedSession });
 				return committedSession;
@@ -685,6 +697,7 @@ export class LocalAgentHostSessionsProvider extends Disposable implements ISessi
 
 		this._currentNewSession = undefined;
 		this._currentNewSessionModelId = undefined;
+		this._currentNewSessionReady = undefined;
 		this._clearNewSessionConfig(chatId);
 		return newSession;
 	}
@@ -708,6 +721,7 @@ export class LocalAgentHostSessionsProvider extends Disposable implements ISessi
 			}
 			this._newSessionConfigs.delete(sessionId);
 		}
+		this._updateSessionReady(sessionId);
 		this._onDidChangeSessionConfig.fire(sessionId);
 	}
 
@@ -935,7 +949,21 @@ export class LocalAgentHostSessionsProvider extends Disposable implements ISessi
 				values: config,
 			});
 		}
+		this._updateSessionReady(sessionId);
 		this._onDidChangeSessionConfig.fire(sessionId);
+	}
+
+	private _updateSessionReady(sessionId: string): void {
+		const configReady = this.getSessionConfig(sessionId)?.ready ?? true;
+		// New (untitled) session
+		if (this._currentNewSession?.sessionId === sessionId) {
+			this._currentNewSessionReady?.set(configReady, undefined);
+			return;
+		}
+		// Running session
+		const rawId = this._rawIdFromChatId(sessionId);
+		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
+		cached?.ready.set(configReady, undefined);
 	}
 
 	private _rawIdFromChatId(chatId: string): string | undefined {

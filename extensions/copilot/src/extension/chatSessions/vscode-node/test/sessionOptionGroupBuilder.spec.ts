@@ -788,16 +788,18 @@ describe('SessionOptionGroupBuilder', () => {
 				expect(repoGroup!.selected).toBeUndefined();
 			});
 
-			it('falls back to first item when previous selection is no longer in welcome view MRU', async () => {
+			it('preserves previous selection even when no longer in welcome view MRU', async () => {
 				workspaceService = new NullWorkspaceService([]);
 				builder = new SessionOptionGroupBuilder(
 					gitService, configurationService, context, workspaceService,
 					folderMruService, agentSessionsWorkspace, worktreeService, folderRepositoryManager,
 				);
 				const currentUri = URI.file('/current-repo');
+				const removedUri = URI.file('/removed-repo');
 				folderMruService.getRecentlyUsedFolders.mockResolvedValue([
 					{ folder: currentUri, repository: currentUri, lastAccessed: Date.now() },
 				]);
+				gitService.getRepository.mockResolvedValue(undefined);
 
 				const previousState: vscode.ChatSessionInputState = {
 					onDidChange: Event.None,
@@ -806,13 +808,15 @@ describe('SessionOptionGroupBuilder', () => {
 						name: 'Folder',
 						description: '',
 						items: [],
-						selected: { id: URI.file('/removed-repo').fsPath, name: 'removed-repo' },
+						selected: { id: removedUri.fsPath, name: 'removed-repo' },
 					}],
 				};
 
 				const groups = await builder.provideChatSessionProviderOptionGroups(previousState);
 				const repoGroup = groups.find(g => g.id === REPOSITORY_OPTION_ID);
-				expect(repoGroup!.selected?.id).toBe(currentUri.fsPath);
+				// Previous selection is re-resolved and added to the top
+				expect(repoGroup!.selected?.id).toBe(removedUri.fsPath);
+				expect(repoGroup!.items[0].id).toBe(removedUri.fsPath);
 			});
 
 			it('adds new folder (git repo) to top of items in welcome view', async () => {
@@ -829,13 +833,7 @@ describe('SessionOptionGroupBuilder', () => {
 				const newRepo = makeRepo(newFolderUri.fsPath);
 				gitService.getRepository.mockResolvedValue(newRepo);
 
-				const previousState: vscode.ChatSessionInputState = {
-					onDidChange: Event.None,
-					groups: [],
-				};
-				builder.setNewFolderForInputState(previousState, newFolderUri as any);
-
-				const groups = await builder.provideChatSessionProviderOptionGroups(previousState);
+				const groups = await builder.provideChatSessionProviderOptionGroups(undefined, newFolderUri as any);
 				const repoGroup = groups.find(g => g.id === REPOSITORY_OPTION_ID);
 				expect(repoGroup).toBeDefined();
 				expect(repoGroup!.items[0].id).toBe(newFolderUri.fsPath);
@@ -854,13 +852,7 @@ describe('SessionOptionGroupBuilder', () => {
 				const newFolderUri = URI.file('/new-plain-folder');
 				gitService.getRepository.mockResolvedValue(undefined);
 
-				const previousState: vscode.ChatSessionInputState = {
-					onDidChange: Event.None,
-					groups: [],
-				};
-				builder.setNewFolderForInputState(previousState, newFolderUri as any);
-
-				const groups = await builder.provideChatSessionProviderOptionGroups(previousState);
+				const groups = await builder.provideChatSessionProviderOptionGroups(undefined, newFolderUri as any);
 				const repoGroup = groups.find(g => g.id === REPOSITORY_OPTION_ID);
 				expect(repoGroup).toBeDefined();
 				expect(repoGroup!.items[0].id).toBe(newFolderUri.fsPath);
@@ -879,13 +871,7 @@ describe('SessionOptionGroupBuilder', () => {
 				const newRepo = makeRepo(sharedUri.fsPath);
 				gitService.getRepository.mockResolvedValue(newRepo);
 
-				const previousState: vscode.ChatSessionInputState = {
-					onDidChange: Event.None,
-					groups: [],
-				};
-				builder.setNewFolderForInputState(previousState, sharedUri as any);
-
-				const groups = await builder.provideChatSessionProviderOptionGroups(previousState);
+				const groups = await builder.provideChatSessionProviderOptionGroups(undefined, sharedUri as any);
 				const repoGroup = groups.find(g => g.id === REPOSITORY_OPTION_ID);
 				expect(repoGroup).toBeDefined();
 				// Should not have duplicates
@@ -911,13 +897,7 @@ describe('SessionOptionGroupBuilder', () => {
 				]);
 				gitService.getRepository.mockResolvedValue(makeRepo(repoUri.fsPath));
 
-				const previousState: vscode.ChatSessionInputState = {
-					onDidChange: Event.None,
-					groups: [],
-				};
-				builder.setNewFolderForInputState(previousState, repoUri as any);
-
-				const groups = await builder.provideChatSessionProviderOptionGroups(previousState);
+				const groups = await builder.provideChatSessionProviderOptionGroups(undefined, repoUri as any);
 				const repoGroup = groups.find(g => g.id === REPOSITORY_OPTION_ID)!;
 				// Selected item must reference an object that is in the items list
 				expect(repoGroup.items.some(i => i.id === repoGroup.selected?.id)).toBe(true);
@@ -936,6 +916,40 @@ describe('SessionOptionGroupBuilder', () => {
 				const groups = await builder.provideChatSessionProviderOptionGroups(undefined);
 				const repoGroup = groups.find(g => g.id === REPOSITORY_OPTION_ID);
 				expect(repoGroup!.items).toHaveLength(0);
+			});
+
+			it('re-resolves previously selected folder as git repo when not in MRU', async () => {
+				// When the previous selection is not in the MRU list, the builder should
+				// look it up via getTrustedRepository and add it with the correct icon.
+				workspaceService = new NullWorkspaceService([]);
+				builder = new SessionOptionGroupBuilder(
+					gitService, configurationService, context, workspaceService,
+					folderMruService, agentSessionsWorkspace, worktreeService, folderRepositoryManager,
+				);
+				const mruUri = URI.file('/current-repo');
+				const prevUri = URI.file('/prev-repo');
+				folderMruService.getRecentlyUsedFolders.mockResolvedValue([
+					{ folder: mruUri, repository: mruUri, lastAccessed: Date.now() },
+				]);
+				const prevRepo = makeRepo(prevUri.fsPath);
+				gitService.getRepository.mockResolvedValue(prevRepo);
+
+				const previousState: vscode.ChatSessionInputState = {
+					onDidChange: Event.None,
+					groups: [{
+						id: REPOSITORY_OPTION_ID,
+						name: 'Folder',
+						description: '',
+						items: [],
+						selected: { id: prevUri.fsPath, name: 'prev-repo' },
+					}],
+				};
+
+				const groups = await builder.provideChatSessionProviderOptionGroups(previousState);
+				const repoGroup = groups.find(g => g.id === REPOSITORY_OPTION_ID);
+				expect(repoGroup!.selected?.id).toBe(prevUri.fsPath);
+				// The previously selected item should be at the top
+				expect(repoGroup!.items[0].id).toBe(prevUri.fsPath);
 			});
 		});
 
@@ -1518,6 +1532,40 @@ describe('SessionOptionGroupBuilder', () => {
 
 				// Branch should not be shown for non-git folder
 				expect(state.groups.find(g => g.id === BRANCH_OPTION_ID)).toBeUndefined();
+			});
+
+			it('stores selectedFolderUri so it persists in subsequent rebuilds (welcome view)', async () => {
+				// In the welcome view, rebuildInputState with a selectedFolderUri should
+				// remember it so the next rebuild keeps the folder in the list.
+				workspaceService = new NullWorkspaceService([]);
+				builder = new SessionOptionGroupBuilder(
+					gitService, configurationService, context, workspaceService,
+					folderMruService, agentSessionsWorkspace, worktreeService, folderRepositoryManager,
+				);
+				await configurationService.setConfig(ConfigKey.Advanced.CLIBranchSupport, false);
+				await configurationService.setConfig(ConfigKey.Advanced.CLIIsolationOption, false);
+
+				const browsedUri = URI.file('/browsed-folder');
+				folderMruService.getRecentlyUsedFolders.mockResolvedValue([]);
+				gitService.getRepository.mockResolvedValue(undefined);
+
+				// Initial build — empty
+				const initialGroups = await builder.provideChatSessionProviderOptionGroups(undefined);
+				const state: vscode.ChatSessionInputState = {
+					onDidChange: Event.None,
+					groups: initialGroups,
+				};
+
+				// Simulate "Browse folders…" — rebuild with the browsed folder
+				await builder.rebuildInputState(state, browsedUri as any);
+				const repoGroup1 = state.groups.find(g => g.id === REPOSITORY_OPTION_ID);
+				expect(repoGroup1!.items.some(i => i.id === browsedUri.fsPath)).toBe(true);
+
+				// Second rebuild without selectedFolderUri — the browsed folder should persist
+				folderMruService.getRecentlyUsedFolders.mockResolvedValue([]);
+				await builder.rebuildInputState(state);
+				const repoGroup2 = state.groups.find(g => g.id === REPOSITORY_OPTION_ID);
+				expect(repoGroup2!.items.some(i => i.id === browsedUri.fsPath)).toBe(true);
 			});
 		});
 

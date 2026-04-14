@@ -4522,15 +4522,23 @@
 					},
 					"github.copilot.chat.cli.planExitMode.enabled": {
 						"type": "boolean",
-						"default": false,
+						"default": true,
 						"markdownDescription": "%github.copilot.config.cli.planExitMode.enabled%",
+						"tags": [
+							"advanced"
+						]
+					},
+					"github.copilot.chat.cli.planCommand.enabled": {
+						"type": "boolean",
+						"default": true,
+						"markdownDescription": "%github.copilot.config.cli.planCommand.enabled%",
 						"tags": [
 							"advanced"
 						]
 					},
 					"github.copilot.chat.cli.aiGenerateBranchNames.enabled": {
 						"type": "boolean",
-						"default": false,
+						"default": true,
 						"markdownDescription": "%github.copilot.config.cli.aiGenerateBranchNames.enabled%",
 						"tags": [
 							"advanced"
@@ -4538,7 +4546,7 @@
 					},
 					"github.copilot.chat.cli.forkSessions.enabled": {
 						"type": "boolean",
-						"default": false,
+						"default": true,
 						"markdownDescription": "%github.copilot.config.cli.forkSessions.enabled%",
 						"tags": [
 							"advanced"
@@ -6091,7 +6099,7 @@
 					{
 						"name": "plan",
 						"description": "%github.copilot.command.cli.plan.description%",
-						"when": "false"
+						"when": "config.github.copilot.chat.cli.planCommand.enabled"
 					},
 					{
 						"name": "fleet",
@@ -6268,7 +6276,6 @@
 		"@types/source-map-support": "^0.5.10",
 		"@types/tar": "^6.1.13",
 		"@types/vinyl": "^2.0.12",
-		"@types/vscode": "^1.109.0",
 		"@types/vscode-webview": "^1.57.4",
 		"@types/yargs": "^17.0.24",
 		"@typescript-eslint/eslint-plugin": "^8.35.0",

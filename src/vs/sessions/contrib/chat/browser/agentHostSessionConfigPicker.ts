@@ -33,6 +33,7 @@ import { ActiveSessionProviderIdContext } from '../../../common/contextkeys.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import type { ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
+import { type IAgentHostSessionsProvider, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 
 const IsActiveSessionRemoteAgentHost = ContextKeyExpr.regex(ActiveSessionProviderIdContext.key, /^agenthost-/);
 const IsActiveSessionLocalAgentHost = ContextKeyExpr.equals(ActiveSessionProviderIdContext.key, 'local-agent-host');
@@ -248,7 +249,7 @@ class AgentHostSessionConfigPicker extends Disposable {
 
 	private _watchProviders(providers: readonly ISessionsProvider[]): void {
 		for (const provider of providers) {
-			if (!provider.onDidChangeSessionConfig || this._providerListeners.has(provider.id)) {
+			if (!isAgentHostProvider(provider) || this._providerListeners.has(provider.id)) {
 				continue;
 			}
 			this._providerListeners.set(provider.id, provider.onDidChangeSessionConfig(() => this._renderConfigPickers()));
@@ -270,7 +271,7 @@ class AgentHostSessionConfigPicker extends Disposable {
 
 		const session = this._sessionsManagementService.activeSession.get();
 		const provider = session ? this._getProvider(session.providerId) : undefined;
-		const resolvedConfig = session && provider?.getSessionConfig?.(session.sessionId);
+		const resolvedConfig = session && provider?.getSessionConfig(session.sessionId);
 		if (!session || !provider || !resolvedConfig) {
 			return;
 		}
@@ -304,7 +305,7 @@ class AgentHostSessionConfigPicker extends Disposable {
 		applyAutoApproveTriggerStyles(trigger, property, value);
 	}
 
-	private async _showPicker(provider: ISessionsProvider, sessionId: string, property: string, schema: ISessionConfigPropertySchema, trigger: HTMLElement): Promise<void> {
+	private async _showPicker(provider: IAgentHostSessionsProvider, sessionId: string, property: string, schema: ISessionConfigPropertySchema, trigger: HTMLElement): Promise<void> {
 		if (schema.readOnly || this._actionWidgetService.isVisible) {
 			return;
 		}
@@ -315,7 +316,7 @@ class AgentHostSessionConfigPicker extends Disposable {
 		}
 
 		const isAutoApproveProperty = property === AUTO_APPROVE_PROPERTY;
-		const currentValue = provider.getSessionConfig?.(sessionId)?.values[property];
+		const currentValue = provider.getSessionConfig(sessionId)?.values[property];
 		const actionItems = toActionItems(property, items, currentValue, policyRestricted);
 
 		const delegate: IActionListDelegate<IConfigPickerItem> = {
@@ -329,10 +330,10 @@ class AgentHostSessionConfigPicker extends Disposable {
 					}
 				}
 
-				provider.setSessionConfigValue?.(sessionId, property, item.value).catch(() => { /* best-effort */ });
+				provider.setSessionConfigValue(sessionId, property, item.value).catch(() => { /* best-effort */ });
 			},
-			onFilter: schema.enumDynamic && provider.getSessionConfigCompletions
-				? query => this._filterDelayer.trigger(async () => toActionItems(property, await this._getItems(provider, sessionId, property, schema, query), provider.getSessionConfig?.(sessionId)?.values[property]))
+			onFilter: schema.enumDynamic
+				? query => this._filterDelayer.trigger(async () => toActionItems(property, await this._getItems(provider, sessionId, property, schema, query), provider.getSessionConfig(sessionId)?.values[property]))
 				: undefined,
 			onHide: () => trigger.focus(),
 		};
@@ -353,8 +354,8 @@ class AgentHostSessionConfigPicker extends Disposable {
 		);
 	}
 
-	private async _getItems(provider: ISessionsProvider, sessionId: string, property: string, schema: ISessionConfigPropertySchema, query?: string): Promise<readonly IConfigPickerItem[]> {
-		const dynamicItems = schema.enumDynamic && provider.getSessionConfigCompletions
+	private async _getItems(provider: IAgentHostSessionsProvider, sessionId: string, property: string, schema: ISessionConfigPropertySchema, query?: string): Promise<readonly IConfigPickerItem[]> {
+		const dynamicItems = schema.enumDynamic
 			? await provider.getSessionConfigCompletions(sessionId, property, query)
 			: undefined;
 		if (dynamicItems?.length) {
@@ -384,8 +385,9 @@ class AgentHostSessionConfigPicker extends Disposable {
 		return schema.title;
 	}
 
-	private _getProvider(providerId: string): ISessionsProvider | undefined {
-		return this._sessionsProvidersService.getProvider(providerId);
+	private _getProvider(providerId: string): IAgentHostSessionsProvider | undefined {
+		const provider = this._sessionsProvidersService.getProvider(providerId);
+		return provider && isAgentHostProvider(provider) ? provider : undefined;
 	}
 }
 
@@ -494,7 +496,7 @@ class AgentHostNewSessionApprovePicker extends Disposable {
 
 	private _watchProviders(providers: readonly ISessionsProvider[]): void {
 		for (const provider of providers) {
-			if (!provider.onDidChangeSessionConfig || this._providerListeners.has(provider.id)) {
+			if (!isAgentHostProvider(provider) || this._providerListeners.has(provider.id)) {
 				continue;
 			}
 			this._providerListeners.set(provider.id, provider.onDidChangeSessionConfig(() => this._render()));
@@ -515,8 +517,9 @@ class AgentHostNewSessionApprovePicker extends Disposable {
 		dom.clearNode(this._container);
 
 		const session = this._sessionsManagementService.activeSession.get();
-		const provider = session ? this._sessionsProvidersService.getProvider(session.providerId) : undefined;
-		const config = session && provider?.getSessionConfig?.(session.sessionId);
+		const rawProvider = session ? this._sessionsProvidersService.getProvider(session.providerId) : undefined;
+		const provider = rawProvider && isAgentHostProvider(rawProvider) ? rawProvider : undefined;
+		const config = session && provider?.getSessionConfig(session.sessionId);
 		if (!session || !provider || !config) {
 			return;
 		}
@@ -546,7 +549,7 @@ class AgentHostNewSessionApprovePicker extends Disposable {
 		applyAutoApproveTriggerStyles(trigger, AUTO_APPROVE_PROPERTY, value);
 	}
 
-	private async _showPicker(provider: ISessionsProvider, sessionId: string, schema: ISessionConfigPropertySchema, trigger: HTMLElement): Promise<void> {
+	private async _showPicker(provider: IAgentHostSessionsProvider, sessionId: string, schema: ISessionConfigPropertySchema, trigger: HTMLElement): Promise<void> {
 		if (this._actionWidgetService.isVisible) {
 			return;
 		}
@@ -563,7 +566,7 @@ class AgentHostNewSessionApprovePicker extends Disposable {
 			return;
 		}
 
-		const currentValue = provider.getSessionConfig?.(sessionId)?.values[AUTO_APPROVE_PROPERTY];
+		const currentValue = provider.getSessionConfig(sessionId)?.values[AUTO_APPROVE_PROPERTY];
 		const actionItems = toActionItems(AUTO_APPROVE_PROPERTY, items, currentValue, policyRestricted);
 
 		const delegate: IActionListDelegate<IConfigPickerItem> = {
@@ -577,7 +580,7 @@ class AgentHostNewSessionApprovePicker extends Disposable {
 					}
 				}
 
-				provider.setSessionConfigValue?.(sessionId, AUTO_APPROVE_PROPERTY, item.value).catch(() => { /* best-effort */ });
+				provider.setSessionConfigValue(sessionId, AUTO_APPROVE_PROPERTY, item.value).catch(() => { /* best-effort */ });
 			},
 			onHide: () => trigger.focus(),
 		};
@@ -666,7 +669,7 @@ class AgentHostRunningSessionConfigPicker extends Disposable {
 
 	private _watchProviders(providers: readonly ISessionsProvider[]): void {
 		for (const provider of providers) {
-			if (!provider.onDidChangeSessionConfig || this._providerListeners.has(provider.id)) {
+			if (!isAgentHostProvider(provider) || this._providerListeners.has(provider.id)) {
 				continue;
 			}
 			this._providerListeners.set(provider.id, provider.onDidChangeSessionConfig(() => this._render()));
@@ -687,8 +690,9 @@ class AgentHostRunningSessionConfigPicker extends Disposable {
 		dom.clearNode(this._container);
 
 		const session = this._sessionsManagementService.activeSession.get();
-		const provider = session ? this._sessionsProvidersService.getProvider(session.providerId) : undefined;
-		const config = session && provider?.getSessionConfig?.(session.sessionId);
+		const rawProvider = session ? this._sessionsProvidersService.getProvider(session.providerId) : undefined;
+		const provider = rawProvider && isAgentHostProvider(rawProvider) ? rawProvider : undefined;
+		const config = session && provider?.getSessionConfig(session.sessionId);
 		if (!session || !provider || !config) {
 			return;
 		}
@@ -719,7 +723,7 @@ class AgentHostRunningSessionConfigPicker extends Disposable {
 		applyAutoApproveTriggerStyles(trigger, property, value);
 	}
 
-	private async _showPicker(provider: ISessionsProvider, sessionId: string, property: string, schema: ISessionConfigPropertySchema, trigger: HTMLElement): Promise<void> {
+	private async _showPicker(provider: IAgentHostSessionsProvider, sessionId: string, property: string, schema: ISessionConfigPropertySchema, trigger: HTMLElement): Promise<void> {
 		if (this._actionWidgetService.isVisible) {
 			return;
 		}
@@ -737,7 +741,7 @@ class AgentHostRunningSessionConfigPicker extends Disposable {
 			return;
 		}
 
-		const currentValue = provider.getSessionConfig?.(sessionId)?.values[property];
+		const currentValue = provider.getSessionConfig(sessionId)?.values[property];
 		const actionItems = toActionItems(property, items, currentValue, policyRestricted);
 
 		const delegate: IActionListDelegate<IConfigPickerItem> = {
@@ -751,7 +755,7 @@ class AgentHostRunningSessionConfigPicker extends Disposable {
 					}
 				}
 
-				provider.setSessionConfigValue?.(sessionId, property, item.value).catch(() => { /* best-effort */ });
+				provider.setSessionConfigValue(sessionId, property, item.value).catch(() => { /* best-effort */ });
 			},
 			onHide: () => trigger.focus(),
 		};

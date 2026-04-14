@@ -67,6 +67,7 @@ export enum ChatConfiguration {
 	ArtifactsRulesByMemoryFilePath = 'chat.artifacts.rules.byMemoryFilePath',
 	ToolConfirmationCarousel = 'chat.tools.confirmationCarousel.enabled',
 	DefaultNewSessionMode = 'chat.newSession.defaultMode',
+	AgentHostClientTools = 'chat.agentHost.clientTools',
 }
 
 /**

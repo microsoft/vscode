@@ -12,7 +12,7 @@ import { IVSCodeExtensionContext } from '../../../platform/extContext/common/ext
 import { IGitCommitMessageService } from '../../../platform/git/common/gitCommitMessageService';
 import { getGitHubRepoInfoFromContext, IGitService, RepoContext } from '../../../platform/git/common/gitService';
 import { toGitUri } from '../../../platform/git/common/utils';
-import { buildTempIndexEnv, parseGitChangesRaw } from '../../../platform/git/vscode-node/utils';
+import { buildTempIndexEnv, getUncommittedFilePaths, parseGitChangesRaw } from '../../../platform/git/vscode-node/utils';
 import { DiffChange } from '../../../platform/git/vscode/git';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
@@ -729,6 +729,8 @@ export class ChatSessionWorktreeService extends Disposable implements IChatSessi
 			// Tracked + untracked changes
 			const tmpDirName = `vscode-sessions-${sessionId}-${generateUuid()}`;
 			const diffIndexFile = path.join(this.extensionContext.globalStorageUri.fsPath, tmpDirName, 'diff.index');
+			const pathspecFile = path.join(this.extensionContext.globalStorageUri.fsPath, tmpDirName, `pathspec.txt`);
+
 			const env = buildTempIndexEnv(worktreeRepository, diffIndexFile);
 
 			try {
@@ -739,7 +741,9 @@ export class ChatSessionWorktreeService extends Disposable implements IChatSessi
 				await this.gitService.exec(worktreePath, ['read-tree', 'HEAD'], env);
 
 				// Stage entire working directory into temp index
-				await this.gitService.exec(worktreePath, ['add', '-A', '--', '.'], env);
+				const uncommittedFilePaths = getUncommittedFilePaths(worktreeRepository);
+				await fs.writeFile(pathspecFile, uncommittedFilePaths.join('\n'), 'utf8');
+				await this.gitService.exec(worktreePath, ['add', '-A', `--pathspec-from-file=${pathspecFile}`], env);
 
 				// Diff the temp index with the base branch
 				const result = await this.gitService.exec(worktreePath, ['diff', '--cached', '--raw', '--numstat', '--diff-filter=ADMR', ...noRenamesArg, '-z', '--merge-base', worktreeProperties.baseBranchName, '--'], env);

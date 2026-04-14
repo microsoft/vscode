@@ -2275,6 +2275,169 @@ describe('XtabProvider integration', () => {
 				expect(finalReason.v.message).not.toBe('cursorLineDiverged');
 			}
 		});
+
+		it('does not cancel when feature is disabled, even with divergent typing', async () => {
+			// Explicitly disable the feature
+			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsXtabEarlyCursorLineDivergenceCancellation, false);
+
+			const provider = createProvider();
+
+			const request = createDivergenceRequest(
+				['function fi'],
+				{ insertionOffset: 10, insertedText: 'i' },
+			);
+			// User typed 'x' — divergent from model's 'bonacci...'
+			request.intermediateUserEdit = StringEdit.single(
+				new StringReplacement(OffsetRange.emptyAt(11), 'x')
+			);
+
+			streamingFetcher.setStreamingLines(['function fibonacci(n: number): number']);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { edits, finalReason } = await collectEdits(gen);
+
+			// With the feature disabled, the divergent typing should NOT cause cancellation
+			expect(edits.length).toBeGreaterThan(0);
+			if (finalReason.v instanceof NoNextEditReason.GotCancelled) {
+				expect(finalReason.v.message).not.toBe('cursorLineDiverged');
+			}
+		});
+
+		it('does not cancel when model output is shorter than edit window (cursor line never reached)', async () => {
+			const provider = createProvider();
+
+			//  Doc: "line0\nline1\nline2"  (3 lines)
+			//  Cursor on line 2 (0-indexed), insertionOffset at end of line2
+			//  Model only returns 2 lines (line0 and line1) — it never reaches the
+			//  cursor line, so divergence check should not fire.
+			const request = createDivergenceRequest(
+				['line0', 'line1', 'line2'],
+				{ insertionOffset: 16, insertedText: '2' },
+			);
+			// User typed divergently on cursor line
+			request.intermediateUserEdit = StringEdit.single(
+				new StringReplacement(OffsetRange.emptyAt(17), 'Z')
+			);
+
+			// Model only returns first 2 lines (fewer than the 3-line edit window)
+			streamingFetcher.setStreamingLines(['line0', 'COMPLETELY DIFFERENT']);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { finalReason } = await collectEdits(gen);
+
+			// Should NOT cancel due to cursorLineDiverged — cursor line was never streamed
+			if (finalReason.v instanceof NoNextEditReason.GotCancelled) {
+				expect(finalReason.v.message).not.toBe('cursorLineDiverged');
+			}
+		});
+
+		it('does not cancel when getCurrentCursorLine returns undefined (ambiguous mapping)', async () => {
+			const provider = createProvider();
+
+			//  Doc: "aaa\nbbb"  (cursor on line 1 = "bbb")
+			//  insertionOffset 4 = start of "bbb"
+			const request = createDivergenceRequest(
+				['aaa', 'bbb'],
+				{ insertionOffset: 4, insertedText: 'b' },
+			);
+
+			// The intermediateUserEdit replaces a range that spans across
+			// the cursor line boundary, making getCurrentCursorLine return undefined.
+			// Offsets in "aaa\nbbb": 'a'=0,1,2, '\n'=3, 'b'=4,5,6
+			// Replace offsets 2..6 (spans line boundary) with "Z"
+			request.intermediateUserEdit = StringEdit.single(
+				new StringReplacement(new OffsetRange(2, 6), 'Z')
+			);
+
+			// Model produces different content
+			streamingFetcher.setStreamingLines(['aaa', 'COMPLETELY DIFFERENT']);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { finalReason } = await collectEdits(gen);
+
+			// Should NOT cancel via cursorLineDiverged — getCurrentCursorLine returned
+			// undefined so the divergence check is skipped.
+			if (finalReason.v instanceof NoNextEditReason.GotCancelled) {
+				expect(finalReason.v.message).not.toBe('cursorLineDiverged');
+			}
+		});
+
+		it('does not cancel when user edit results in same content as original (net-zero)', async () => {
+			const provider = createProvider();
+
+			//  Doc: "hello world"  (single line, cursor on line 0)
+			const request = createDivergenceRequest(
+				['hello world'],
+				{ insertionOffset: 5, insertedText: ' ' },
+			);
+
+			// intermediateUserEdit is empty → user's net change is zero
+			// (e.g. user typed and then backspaced)
+			request.intermediateUserEdit = StringEdit.empty;
+
+			// Model produces completely different content
+			streamingFetcher.setStreamingLines(['COMPLETELY DIFFERENT']);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { edits, finalReason } = await collectEdits(gen);
+
+			// Empty intermediateUserEdit → isEmpty() returns true → divergence check skipped
+			expect(edits.length).toBeGreaterThan(0);
+			if (finalReason.v instanceof NoNextEditReason.GotCancelled) {
+				expect(finalReason.v.message).not.toBe('cursorLineDiverged');
+			}
+		});
+
+		it('yields edits for lines before cursor, then cancels at divergent cursor line', async () => {
+			const provider = createProvider();
+
+			//  Doc: "const a = 1;\nfunction fi\n}"
+			//  Cursor on line 1 (0-indexed), cursorOriginalLinesOffset = 1
+			//  Lines before cursor (line 0) should be yielded normally.
+			//  Cursor line should trigger divergence cancellation.
+			const request = createDivergenceRequest(
+				['const a = 1;', 'function fi', '}'],
+				{ insertionOffset: 23, insertedText: 'i' },
+			);
+			// User typed 'x' on the cursor line — divergent
+			request.intermediateUserEdit = StringEdit.single(
+				new StringReplacement(OffsetRange.emptyAt(24), 'x')
+			);
+
+			// Model changes line 0 (so we get an edit yielded) and has divergent cursor line
+			streamingFetcher.setStreamingLines(['const b = 2;', 'function fibonacci(n): number', '}']);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { finalReason } = await collectEdits(gen);
+			expect(finalReason.v).toBeInstanceOf(NoNextEditReason.GotCancelled);
+			expect((finalReason.v as NoNextEditReason.GotCancelled).message).toBe('cursorLineDiverged');
+		});
+
+		it('compatible with auto-close pair typing end-to-end', async () => {
+			const provider = createProvider();
+
+			//  Doc: "foo"  (single line, cursor at end)
+			//  User typed `(` which auto-closed to `()` → "foo()"
+			//  Model: "foo(x, y)" — fills the parens
+			const request = createDivergenceRequest(
+				['foo'],
+				{ insertionOffset: 2, insertedText: 'o' },
+			);
+			// User typed "()" (auto-close pair)
+			request.intermediateUserEdit = StringEdit.single(
+				new StringReplacement(OffsetRange.emptyAt(3), '()')
+			);
+
+			streamingFetcher.setStreamingLines(['foo(x, y)']);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { finalReason } = await collectEdits(gen);
+
+			// Should NOT cancel — "()" is an auto-close pair and is a subsequence of "(x, y)"
+			if (finalReason.v instanceof NoNextEditReason.GotCancelled) {
+				expect(finalReason.v.message).not.toBe('cursorLineDiverged');
+			}
+		});
 	});
 });
 suite('filterOutEditsWithSubstrings', () => {

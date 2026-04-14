@@ -281,6 +281,10 @@ suite('RunInTerminalTool', () => {
 		return (tool as unknown as Record<string, (sessionResource: URI | undefined, command: string, shell: string, blockedDomains: string[] | undefined, requiresConfirmationForRetry: boolean | undefined, token: CancellationToken) => Promise<boolean>>)['_confirmAutomaticUnsandboxRetry'](sessionResource, command, shell, blockedDomains, requiresConfirmationForRetry, CancellationToken.None);
 	}
 
+	function getAutomaticUnsandboxRetryTitle(tool: RunInTerminalTool, shellType: string, blockedDomains: string[] | undefined): IMarkdownString {
+		return (tool as unknown as Record<string, (shellType: string, blockedDomains: string[] | undefined) => IMarkdownString>)['_getAutomaticUnsandboxRetryTitle'](shellType, blockedDomains);
+	}
+
 	suite('sandbox invocation messaging', () => {
 		test('should instruct models to use $TMPDIR instead of /tmp when sandboxed', async () => {
 			sandboxEnabled = true;
@@ -518,6 +522,39 @@ suite('RunInTerminalTool', () => {
 			const preparedInvocation = await executeToolTest({ command: 'rm dangerous-file.txt' });
 			assertConfirmationRequired(preparedInvocation);
 			const terminalData = preparedInvocation!.toolSpecificData as ITestRunInTerminalToolInvocationData;
+			strictEqual(terminalData.requiresConfirmationForRetry, true);
+
+			const shouldRetry = await confirmAutomaticUnsandboxRetry(runInTerminalTool, undefined, 'rm dangerous-file.txt', 'bash', undefined, terminalData.requiresConfirmationForRetry);
+
+			strictEqual(shouldRetry, false);
+		});
+
+		test('should use retry confirmation title without sandbox link', () => {
+			const title = getAutomaticUnsandboxRetryTitle(runInTerminalTool, 'bash', undefined);
+
+			strictEqual(title.value, 'Run `bash` command outside the sandbox?');
+		});
+
+		test('should use retry confirmation title without sandbox link for blocked domains', () => {
+			const title = getAutomaticUnsandboxRetryTitle(runInTerminalTool, 'bash', ['example.com']);
+
+			strictEqual(title.value, 'Run `bash` command outside the sandbox to access `example.com`?');
+		});
+
+		test('should show retry elicitation when sandbox force-approved command would otherwise require confirmation', async () => {
+			setAutoApprove({});
+			sandboxEnabled = true;
+			sandboxPrereqResult = {
+				enabled: true,
+				sandboxConfigPath: '/tmp/vscode-sandbox-settings.json',
+				failedCheck: undefined,
+			};
+
+			const preparedInvocation = await executeToolTest({ command: 'rm dangerous-file.txt' });
+
+			assertAutoApproved(preparedInvocation);
+			const terminalData = preparedInvocation!.toolSpecificData as ITestRunInTerminalToolInvocationData;
+			strictEqual(terminalData.commandLine.isSandboxWrapped, true);
 			strictEqual(terminalData.requiresConfirmationForRetry, true);
 
 			const shouldRetry = await confirmAutomaticUnsandboxRetry(runInTerminalTool, undefined, 'rm dangerous-file.txt', 'bash', undefined, terminalData.requiresConfirmationForRetry);

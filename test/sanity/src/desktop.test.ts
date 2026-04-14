@@ -245,7 +245,6 @@ export function setup(context: TestContext) {
 			'--extensions-dir', test.extensionsDir,
 			'--user-data-dir', test.userDataDir,
 		];
-		args.push('--skip-welcome');
 		args.push(test.workspaceDir);
 
 		context.log(`Starting VS Code ${entryPoint} with args ${args.join(' ')}`);
