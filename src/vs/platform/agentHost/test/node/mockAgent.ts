@@ -146,6 +146,10 @@ export class MockAgent implements IAgent {
 		this.setCustomizationEnabledCalls.push({ uri, enabled });
 	}
 
+	setClientTools(): void { }
+
+	onClientToolCallComplete(): void { }
+
 	async shutdown(): Promise<void> { }
 
 	fireProgress(event: IAgentProgressEvent): void {
@@ -460,6 +464,10 @@ export class ScriptedMockAgent implements IAgent {
 
 	}
 
+	setClientTools(): void { }
+
+	onClientToolCallComplete(): void { }
+
 	async getSessionMessages(session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]> {
 		if (session.toString() === PRE_EXISTING_SESSION_URI.toString()) {
 			return this._preExistingMessages;
@@ -483,14 +491,8 @@ export class ScriptedMockAgent implements IAgent {
 		// Mock agent doesn't track model state
 	}
 
-	async truncateSession(_session: URI, _turnIndex?: number): Promise<void> {
+	async truncateSession(_session: URI, _turnId?: string): Promise<void> {
 		// Mock agent accepts truncation without side effects
-	}
-
-	async forkSession(_sourceSession: URI, newSessionId: string, _turnIndex: number): Promise<void> {
-		// Create the forked session so it can be resumed
-		const session = AgentSession.uri('mock', newSessionId);
-		this._sessions.set(newSessionId, session);
 	}
 
 	respondToPermissionRequest(toolCallId: string, approved: boolean): void {

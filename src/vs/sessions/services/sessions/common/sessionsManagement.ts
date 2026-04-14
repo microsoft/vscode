@@ -9,7 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
-import { IChat, ISession, ISessionType, ISessionWorkspace } from './session.js';
+import { IChat, ISession, ISessionType } from './session.js';
 import { ISendRequestOptions } from './sessionsProvider.js';
 
 export const ActiveSessionSupportsMultiChatContext = new RawContextKey<boolean>('activeSessionSupportsMultiChat', false, localize('activeSessionSupportsMultiChat', "Whether the active session's provider supports multiple chats per session"));
@@ -50,11 +50,6 @@ export interface ISessionsManagementService {
 	 * Get a session by its resource URI.
 	 */
 	getSession(resource: URI): ISession | undefined;
-
-	/**
-	 * Get all session types from all registered providers.
-	 */
-	getSessionTypes(session: ISession): ISessionType[];
 
 	/**
 	 * Get all session types from all registered providers.
@@ -111,7 +106,7 @@ export interface ISessionsManagementService {
 	 * Create a new session for the given workspace.
 	 * Delegates to the provider identified by providerId.
 	 */
-	createNewSession(providerId: string, workspace: ISessionWorkspace): ISession;
+	createNewSession(providerId: string, workspaceUri: URI, sessionTypeId?: string): ISession;
 
 	/**
 	 * Unset the new session
@@ -122,11 +117,6 @@ export interface ISessionsManagementService {
 	 * Send a request, creating a new chat in the session.
 	 */
 	sendAndCreateChat(session: ISession, options: ISendRequestOptions): Promise<void>;
-
-	/**
-	 * Update the session type for a new session.
-	 */
-	setSessionType(session: ISession, type: ISessionType): Promise<void>;
 
 	// -- Session Actions --
 

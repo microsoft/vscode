@@ -615,3 +615,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		},
 	},
 });
+
+// Side-effect registrations for the remote agent host feature
+import './remoteAgentHostActions.js';
+import './remoteAgentHostModelPicker.js';

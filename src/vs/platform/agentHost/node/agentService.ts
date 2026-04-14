@@ -180,7 +180,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const withStatus = result.map(s => {
 			const liveState = this._stateManager.getSessionState(s.session.toString());
 			if (liveState) {
-				return { ...s, status: liveState.summary.status };
+				return { ...s, status: liveState.summary.status, model: liveState.summary.model ?? s.model };
 			}
 			return s;
 		});
@@ -194,6 +194,23 @@ export class AgentService extends Disposable implements IAgentService {
 		const provider = providerId ? this._providers.get(providerId) : undefined;
 		if (!provider) {
 			throw new Error(`No agent provider registered for: ${providerId ?? '(none)'}`);
+		}
+
+		// When forking, build the old→new turn ID mapping before creating the
+		// session so the agent can use it to remap per-turn data.
+		if (config?.fork) {
+			const sourceState = this._stateManager.getSessionState(config.fork.session.toString());
+			if (sourceState) {
+				const sourceTurns = sourceState.turns.slice(0, config.fork.turnIndex + 1);
+				const turnIdMapping = new Map<string, string>();
+				for (const t of sourceTurns) {
+					turnIdMapping.set(t.id, generateUuid());
+				}
+				config = {
+					...config,
+					fork: { ...config.fork, turnIdMapping },
+				};
+			}
 		}
 
 		// Ensure the command auto-approver is ready before any session events
@@ -219,9 +236,9 @@ export class AgentService extends Disposable implements IAgentService {
 		if (config?.fork) {
 			const sourceState = this._stateManager.getSessionState(config.fork.session.toString());
 			let sourceTurns: ITurn[] = [];
-			if (sourceState) {
+			if (sourceState && config.fork.turnIdMapping) {
 				sourceTurns = sourceState.turns.slice(0, config.fork.turnIndex + 1)
-					.map(t => ({ ...t, id: generateUuid() }));
+					.map(t => ({ ...t, id: config!.fork!.turnIdMapping!.get(t.id) ?? generateUuid() }));
 			}
 
 			const summary: ISessionSummary = {
@@ -232,6 +249,7 @@ export class AgentService extends Disposable implements IAgentService {
 				createdAt: Date.now(),
 				modifiedAt: Date.now(),
 				...(created.project ? { project: { uri: created.project.uri.toString(), displayName: created.project.displayName } } : {}),
+				model: config?.model,
 				workingDirectory: config.workingDirectory?.toString(),
 			};
 			const state = this._stateManager.createSession(summary);
@@ -247,6 +265,7 @@ export class AgentService extends Disposable implements IAgentService {
 				createdAt: Date.now(),
 				modifiedAt: Date.now(),
 				...(created.project ? { project: { uri: created.project.uri.toString(), displayName: created.project.displayName } } : {}),
+				model: config?.model,
 				workingDirectory: config?.workingDirectory?.toString(),
 			};
 			const state = this._stateManager.createSession(summary);
@@ -462,6 +481,7 @@ export class AgentService extends Disposable implements IAgentService {
 			createdAt: meta.startTime,
 			modifiedAt: meta.modifiedTime,
 			...(meta.project ? { project: { uri: meta.project.uri.toString(), displayName: meta.project.displayName } } : {}),
+			model: meta.model,
 			workingDirectory: meta.workingDirectory?.toString(),
 			isRead,
 			isDone,

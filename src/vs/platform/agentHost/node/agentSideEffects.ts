@@ -169,10 +169,20 @@ export class AgentSideEffects extends Disposable {
 		sessionKey: ProtocolURI,
 		agent: IAgent,
 	): boolean {
+		// Session-level auto-approve: when the user has set "Bypass Approvals"
+		// or "Autopilot", auto-approve all tool calls unconditionally.
+		const sessionState = this._stateManager.getSessionState(sessionKey);
+		const autoApproveLevel = sessionState?.config?.values?.autoApprove;
+		if (autoApproveLevel === 'autoApprove' || autoApproveLevel === 'autopilot') {
+			this._logService.trace(`[AgentSideEffects] Auto-approving tool call (session autoApprove=${autoApproveLevel})`);
+			this._toolCallAgents.delete(`${sessionKey}:${e.toolCallId}`);
+			agent.respondToPermissionRequest(e.toolCallId, true);
+			return true;
+		}
+
 		// Write auto-approval: only within the session's working directory,
 		// then apply the default glob patterns for protected files.
 		if (e.permissionKind === 'write' && e.permissionPath) {
-			const sessionState = this._stateManager.getSessionState(sessionKey);
 			const workDir = sessionState?.workingDirectory ?? sessionState?.summary.workingDirectory;
 			const workingDirectory = workDir ? URI.parse(workDir) : undefined;
 			if (workingDirectory && extUriBiasedIgnorePathCase.isEqualOrParent(normalizePath(URI.file(e.permissionPath)), workingDirectory)) {
@@ -616,17 +626,7 @@ export class AgentSideEffects extends Disposable {
 			}
 			case ActionType.SessionTruncated: {
 				const agent = this._options.getAgent(action.session);
-				let turnIndex: number | undefined;
-				if (action.turnId !== undefined) {
-					const state = this._stateManager.getSessionState(action.session);
-					if (state) {
-						const idx = state.turns.findIndex(t => t.id === action.turnId);
-						if (idx >= 0) {
-							turnIndex = idx;
-						}
-					}
-				}
-				agent?.truncateSession?.(URI.parse(action.session), turnIndex).catch(err => {
+				agent?.truncateSession?.(URI.parse(action.session), action.turnId).catch(err => {
 					this._logService.error('[AgentSideEffects] truncateSession failed', err);
 				});
 				// Turns were removed — recompute diffs from scratch (no changedTurnId)
@@ -635,8 +635,15 @@ export class AgentSideEffects extends Disposable {
 			}
 			case ActionType.SessionActiveClientChanged: {
 				const agent = this._options.getAgent(action.session);
+				if (!agent) {
+					break;
+				}
+				// Always forward client tools, even if empty, to clear previous client's tools
+				const clientId = action.activeClient?.clientId ?? '';
+				agent.setClientTools(URI.parse(action.session), clientId, action.activeClient?.tools ?? []);
+
 				const refs = action.activeClient?.customizations;
-				if (!agent?.setClientCustomizations || !refs?.length) {
+				if (!refs?.length) {
 					break;
 				}
 				// Publish initial "loading" status for all customizations
@@ -675,6 +682,17 @@ export class AgentSideEffects extends Disposable {
 				});
 				break;
 			}
+			case ActionType.SessionActiveClientToolsChanged: {
+				const agent = this._options.getAgent(action.session);
+				if (agent) {
+					const sessionState = this._stateManager.getSessionState(action.session);
+					const toolClientId = sessionState?.activeClient?.clientId;
+					if (toolClientId) {
+						agent.setClientTools(URI.parse(action.session), toolClientId, action.tools);
+					}
+				}
+				break;
+			}
 			case ActionType.SessionCustomizationToggled: {
 				const agent = this._options.getAgent(action.session);
 				agent?.setCustomizationEnabled?.(action.uri, action.enabled);
@@ -686,6 +704,11 @@ export class AgentSideEffects extends Disposable {
 			}
 			case ActionType.SessionIsDoneChanged: {
 				this._persistSessionFlag(action.session, 'isDone', action.isDone ? 'true' : '');
+				break;
+			}
+			case ActionType.SessionToolCallComplete: {
+				const agent = this._options.getAgent(action.session);
+				agent?.onClientToolCallComplete(URI.parse(action.session), action.toolCallId, action.result);
 				break;
 			}
 		}

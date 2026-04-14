@@ -522,7 +522,7 @@ function createUnavailableModelItem(
 	};
 }
 
-export type ModelPickerBadge = 'info' | 'warning';
+type ModelPickerBadge = 'info' | 'warning';
 
 /**
  * A model selection dropdown widget.

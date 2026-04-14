@@ -7,10 +7,10 @@ import * as path from 'path';
 import * as fs from 'fs';
 
 import * as assert from 'assert';
-import { getLanguageModes, TextDocument, Range, FormattingOptions, ClientCapabilities } from '../modes/languageModes';
+import { getLanguageModes, TextDocument, Range, FormattingOptions, ClientCapabilities } from '../modes/languageModes.js';
 
-import { format } from '../modes/formatting';
-import { getNodeFileFS } from '../node/nodeFs';
+import { format } from '../modes/formatting.js';
+import { getNodeFileFS } from '../node/nodeFs.js';
 
 suite('HTML Embedded Formatting', () => {
 
@@ -45,8 +45,8 @@ suite('HTML Embedded Formatting', () => {
 	}
 
 	async function assertFormatWithFixture(fixtureName: string, expectedPath: string, options?: any, formatOptions?: FormattingOptions): Promise<void> {
-		const input = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'test', 'fixtures', 'inputs', fixtureName)).toString().replace(/\r\n/mg, '\n');
-		const expected = fs.readFileSync(path.join(__dirname, '..', '..', 'src', 'test', 'fixtures', 'expected', expectedPath)).toString().replace(/\r\n/mg, '\n');
+		const input = fs.readFileSync(path.join(import.meta.dirname, '..', '..', 'src', 'test', 'fixtures', 'inputs', fixtureName)).toString().replace(/\r\n/mg, '\n');
+		const expected = fs.readFileSync(path.join(import.meta.dirname, '..', '..', 'src', 'test', 'fixtures', 'expected', expectedPath)).toString().replace(/\r\n/mg, '\n');
 		await assertFormat(input, expected, options, formatOptions, expectedPath);
 	}
 

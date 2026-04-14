@@ -16,7 +16,7 @@ import { ActiveSessionProviderIdContext, ActiveSessionTypeContext, IsActiveSessi
 import { ActiveSessionSupportsMultiChatContext, IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
 import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../common/sessionsProvider.js';
-import { COPILOT_CLI_SESSION_TYPE, IChat, ISession, ISessionWorkspace, SessionStatus, ISessionType } from '../common/session.js';
+import { COPILOT_CLI_SESSION_TYPE, IChat, ISession, SessionStatus, ISessionType } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 
 const LAST_SELECTED_SESSION_KEY = 'agentSessions.lastSelectedSession';
@@ -176,14 +176,6 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		);
 	}
 
-	getSessionTypes(session: ISession): ISessionType[] {
-		const provider = this.sessionsProvidersService.getProviders().find(p => p.id === session.providerId);
-		if (!provider) {
-			return [];
-		}
-		return provider.getSessionTypes(session.sessionId);
-	}
-
 	getAllSessionTypes(): ISessionType[] {
 		return [...this._sessionTypes];
 	}
@@ -248,7 +240,7 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		this.setActiveSession(undefined);
 	}
 
-	createNewSession(providerId: string, workspace: ISessionWorkspace): ISession {
+	createNewSession(providerId: string, repositoryUri: URI, sessionTypeId?: string): ISession {
 		if (!this.isNewChatSessionContext.get()) {
 			this.isNewChatSessionContext.set(true);
 		}
@@ -258,23 +250,17 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 			throw new Error(`Sessions provider '${providerId}' not found`);
 		}
 
-		const session = provider.createNewSession(workspace);
+		if (!sessionTypeId) {
+			const defaultType = provider.getSessionTypes(repositoryUri)[0];
+			if (!defaultType) {
+				throw new Error(`No session types available for provider '${providerId}'`);
+			}
+			sessionTypeId = defaultType.id;
+		}
+
+		const session = provider.createNewSession(repositoryUri, sessionTypeId);
 		this.setActiveSession(session);
 		return session;
-	}
-
-	async setSessionType(session: ISession, type: ISessionType): Promise<void> {
-		const provider = this.sessionsProvidersService.getProviders().find(p => p.id === session.providerId);
-		if (!provider) {
-			throw new Error(`Sessions provider '${session.providerId}' not found`);
-		}
-
-		const updatedSession = provider.setSessionType(session.sessionId, type);
-
-		const activeSession = this._activeSession.get();
-		if (activeSession && activeSession.sessionId === updatedSession.sessionId) {
-			this.setActiveSession(updatedSession);
-		}
 	}
 
 	async sendAndCreateChat(session: ISession, options: ISendRequestOptions): Promise<void> {
@@ -326,9 +312,6 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		const previousSession = this._activeSession.get();
 		if (previousSession?.sessionId === session?.sessionId) {
 			return;
-		}
-		if (previousSession?.status.get() === SessionStatus.Untitled) {
-			this._getProvider(previousSession)?.clearSessionConfig?.(previousSession.sessionId);
 		}
 
 		// Update context keys from session data

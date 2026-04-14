@@ -395,8 +395,14 @@ export interface ISessionToolCallResultConfirmedAction extends IToolCallActionBa
  * use this to display live feedback (e.g. a terminal reference) before the
  * tool completes.
  *
+ * For client-provided tools (where `toolClientId` is set on the tool call state),
+ * the owning client dispatches this action to stream intermediate content while
+ * executing. The server SHOULD reject this action if the dispatching client does
+ * not match `toolClientId`.
+ *
  * @category Session Actions
  * @version 1
+ * @clientDispatchable
  */
 export interface ISessionToolCallContentChangedAction extends IToolCallActionBase {
 	type: ActionType.SessionToolCallContentChanged;

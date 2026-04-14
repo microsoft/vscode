@@ -198,7 +198,7 @@ export type ChatResponse = FetchResponse<string>;
 
 export type ChatResponses = FetchResponse<string[]>;
 
-function getRateLimitMessage(fetchResult: ChatFetchError): string {
+function getRateLimitMessage(fetchResult: ChatFetchError, copilotPlan: string | undefined): string {
 	if (fetchResult.type !== ChatFetchResponseType.RateLimited) {
 		throw new Error('Expected RateLimited error');
 	}
@@ -225,8 +225,41 @@ function getRateLimitMessage(fetchResult: ChatFetchError): string {
 		});
 	}
 	if (fetchResult.capiError?.code?.startsWith('user_global_rate_limited')) {
+		if (copilotPlan === 'free' || copilotPlan === 'individual' || copilotPlan === 'individual_pro') {
+			return l10n.t({
+				message: 'You\'ve hit your global rate limit. Please upgrade your plan or wait {0} for your limit to reset. [Learn More]({1})',
+				args: [retryAfterString, 'https://aka.ms/github-copilot-rate-limit-error'],
+				comment: [`{Locked=']({'}`]
+			});
+		}
+
 		return l10n.t({
-			message: 'You\'ve hit your global rate limit. Please upgrade your plan or wait {0} for your limit to reset. [Learn More]({1})',
+			message: 'You\'ve hit your global rate limit. Please wait {0} for your limit to reset. [Learn More]({1})',
+			args: [retryAfterString, 'https://aka.ms/github-copilot-rate-limit-error'],
+			comment: [`{Locked=']({'}`]
+		});
+	}
+	if (fetchResult.capiError?.code?.startsWith('user_weekly_rate_limited')) {
+		if (fetchResult.retryAfter) {
+			const resetDate = new Date(Date.now() + fetchResult.retryAfter * 1000);
+			const resetDateString = resetDate.toLocaleString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+			if (copilotPlan === 'free' || copilotPlan === 'individual' || copilotPlan === 'individual_pro') {
+				return l10n.t({
+					message: 'You\'ve reached your weekly rate limit. Please upgrade your plan or wait for your limit to reset on {0}. [Learn More]({1})',
+					args: [resetDateString, 'https://aka.ms/github-copilot-rate-limit-error'],
+					comment: [`{Locked=']({'}`]
+				});
+			}
+
+			return l10n.t({
+				message: 'You\'ve reached your weekly rate limit. Please wait for your limit to reset on {0}. [Learn More]({1})',
+				args: [resetDateString, 'https://aka.ms/github-copilot-rate-limit-error'],
+				comment: [`{Locked=']({'}`]
+			});
+		}
+
+		return l10n.t({
+			message: 'You\'ve reached your weekly rate limit. Please wait {0} for your limit to reset. [Learn More]({1})',
 			args: [retryAfterString, 'https://aka.ms/github-copilot-rate-limit-error'],
 			comment: [`{Locked=']({'}`]
 		});
@@ -332,7 +365,7 @@ function getErrorDetailsFromChatFetchErrorInner(fetchResult: ChatFetchError, cop
 			break;
 		case ChatFetchResponseType.RateLimited:
 			details = {
-				message: getRateLimitMessage(fetchResult),
+				message: getRateLimitMessage(fetchResult, copilotPlan),
 				level: ChatErrorLevel.Info,
 				isRateLimited: true
 			};

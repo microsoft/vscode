@@ -30,7 +30,7 @@ import { IChatResponseModel } from '../../../../../workbench/contrib/chat/common
 import { IChatAgentData } from '../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
 import { ISessionChangeEvent } from '../../../../services/sessions/common/sessionsProvider.js';
-import { ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { CopilotCLISessionType, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { CopilotChatSessionsProvider, COPILOT_PROVIDER_ID } from '../../browser/copilotChatSessionsProvider.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 
@@ -311,18 +311,6 @@ suite('CopilotChatSessionsProvider', () => {
 	// Note: createNewSession tests are limited because CopilotCLISession
 	// requires IGitService and creates disposables that are hard to clean
 	// up in isolation. Full integration tests should cover session creation.
-
-	test('createNewSession throws when workspace has no repository', () => {
-		const provider = createProvider(disposables, model);
-		const workspace: ISessionWorkspace = {
-			label: 'empty',
-			icon: Codicon.folder,
-			repositories: [],
-			requiresWorkspaceTrust: true,
-		};
-
-		assert.throws(() => provider.createNewSession(workspace), /Workspace has no repository URI/);
-	});
 
 	// ---- Session actions -------
 
@@ -628,18 +616,7 @@ suite('CopilotChatSessionsProvider', () => {
 	// ---- Uncommitted temp session cleanup ------------------------------------
 
 	suite('uncommitted temp session cleanup', () => {
-		const workspace: ISessionWorkspace = {
-			label: 'repo',
-			icon: Codicon.folder,
-			repositories: [{
-				uri: URI.file('/test/repo'),
-				workingDirectory: undefined,
-				detail: undefined,
-				baseBranchName: undefined,
-				baseBranchProtected: undefined,
-			}],
-			requiresWorkspaceTrust: false,
-		};
+		const workspace = URI.file('/test/repo');
 
 		/**
 		 * Returns a provider wired up so that sendRequest keeps the request
@@ -688,7 +665,7 @@ suite('CopilotChatSessionsProvider', () => {
 		test('deleteSession removes a temp session that is awaiting commit', async () => {
 			const { provider, cancelRequest } = makeInFlightProvider();
 
-			const newSession = provider.createNewSession(workspace);
+			const newSession = provider.createNewSession(workspace, CopilotCLISessionType.id);
 			const sessionId = newSession.sessionId;
 
 			const added = waitForSessionAdded(provider);
@@ -708,7 +685,7 @@ suite('CopilotChatSessionsProvider', () => {
 		test('archiveSession archives a temp session that is awaiting commit', async () => {
 			const { provider, cancelRequest } = makeInFlightProvider();
 
-			const newSession = provider.createNewSession(workspace);
+			const newSession = provider.createNewSession(workspace, CopilotCLISessionType.id);
 			const sessionId = newSession.sessionId;
 
 			const added = waitForSessionAdded(provider);
@@ -732,7 +709,7 @@ suite('CopilotChatSessionsProvider', () => {
 		test('archiveSession archives a stopped session that was never committed', async () => {
 			const { provider, cancelRequest } = makeInFlightProvider();
 
-			const newSession = provider.createNewSession(workspace);
+			const newSession = provider.createNewSession(workspace, CopilotCLISessionType.id);
 			const sessionId = newSession.sessionId;
 
 			const added = waitForSessionAdded(provider);
@@ -798,7 +775,7 @@ suite('CopilotChatSessionsProvider', () => {
 		test('stopping a committed session keeps it in the list', async () => {
 			const { provider, commitSession, cancelRequest } = makeCommittableProvider();
 
-			const newSession = provider.createNewSession(workspace);
+			const newSession = provider.createNewSession(workspace, CopilotCLISessionType.id);
 			const sessionId = newSession.sessionId;
 
 			const added = waitForSessionAdded(provider);
@@ -835,7 +812,7 @@ suite('CopilotChatSessionsProvider', () => {
 			const changes: ISessionChangeEvent[] = [];
 			disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
 
-			const newSession = provider.createNewSession(workspace);
+			const newSession = provider.createNewSession(workspace, CopilotCLISessionType.id);
 			const sessionId = newSession.sessionId;
 
 			const added = waitForSessionAdded(provider);

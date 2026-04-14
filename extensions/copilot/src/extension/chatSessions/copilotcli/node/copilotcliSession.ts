@@ -13,6 +13,7 @@ import { GenAiMetrics } from '../../../../platform/otel/common/genAiMetrics';
 import { CopilotChatAttr, GenAiAttr, GenAiOperationName, IOTelService, ISpanHandle, SpanKind, SpanStatusCode, truncateForOTel } from '../../../../platform/otel/common/index';
 import { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
 import { IRequestLogger, LoggedRequestKind } from '../../../../platform/requestLogger/common/requestLogger';
+import { PromptTokenCategory, PromptTokenLabel } from '../../../../platform/tokenizer/node/promptTokenDetails';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { raceCancellation } from '../../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
@@ -403,6 +404,22 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 
 		const chunkMessageIds = new Set<string>();
 		const assistantMessageChunks: string[] = [];
+		let lastUsageInfo: UsageInfoData | undefined;
+		const reportUsage = (promptTokens: number, completionTokens: number) => {
+			if (token.isCancellationRequested || !this._stream) {
+				return;
+			}
+			this._stream.usage({
+				promptTokens,
+				completionTokens,
+				promptTokenDetails: buildPromptTokenDetails(lastUsageInfo),
+			});
+		};
+		const updateUsageInfo = (async () => {
+			const metrics = await this._sdkSession.usage.getMetrics();
+			const promptTokens = lastUsageInfo?.currentTokens || metrics.lastCallInputTokens;
+			reportUsage(promptTokens, metrics.lastCallOutputTokens);
+		})();
 		try {
 			const shouldHandleExitPlanModeRequests = this.configurationService.getConfig(ConfigKey.Advanced.CLIPlanExitModeEnabled);
 			disposables.add(toDisposable(this._sdkSession.on('*', (event) => {
@@ -520,14 +537,8 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				})));
 			}
 			disposables.add(toDisposable(this._sdkSession.on('user_input.requested', async (event) => {
-				// auto approve user input
-				if (this._permissionLevel === 'autopilot') {
-					this.logService.trace('[CopilotCLISession] Auto-responding to user input in autopilot');
-					this._sdkSession.respondToUserInput(event.data.requestId, { answer: 'The user is not available to respond and will review your work later. Work autonomously and make good decisions.', wasFreeform: true });
-					return;
-				}
 				if (!(this._toolInvocationToken as unknown)) {
-					this.logService.warn('[AskQuestionsTool] No stream available, cannot show question carousel');
+					this.logService.warn('[AskQuestionsTool] No tool invocation token available, cannot show question carousel');
 					this._sdkSession.respondToUserInput(event.data.requestId, { answer: '', wasFreeform: false });
 					return;
 				}
@@ -558,11 +569,18 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('assistant.usage', (event) => {
 				if (this._stream && typeof event.data.outputTokens === 'number' && typeof event.data.inputTokens === 'number') {
-					this._stream.usage({
-						completionTokens: event.data.outputTokens,
-						promptTokens: event.data.inputTokens,
-					});
+					reportUsage(event.data.inputTokens, event.data.outputTokens);
 				}
+			})));
+			disposables.add(toDisposable(this._sdkSession.on('session.usage_info', (event) => {
+				lastUsageInfo = {
+					currentTokens: event.data.currentTokens,
+					systemTokens: event.data.systemTokens,
+					conversationTokens: event.data.conversationTokens,
+					toolDefinitionsTokens: event.data.toolDefinitionsTokens,
+					tokenLimit: event.data.tokenLimit,
+				};
+				reportUsage(lastUsageInfo.currentTokens, 0);
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('assistant.message_delta', (event) => {
 				// Support for streaming delta messages.
@@ -723,7 +741,6 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				await this.sendRequestInternal(input, attachments, false, logStartTime);
 			}
 			this.logService.trace(`[CopilotCLISession] Invoking session (completed) ${this.sessionId}`);
-
 			const resolvedToolIdEditMap: Record<string, string> = {};
 			await Promise.all(Array.from(toolIdEditMap.entries()).map(async ([toolId, editFilePromise]) => {
 				const editId = await editFilePromise.catch(() => undefined);
@@ -741,6 +758,9 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					this.logService.error(`[CopilotCLISession] Failed to update chat session metadata store for request ${request.id}`, error);
 				});
 			}
+			await updateUsageInfo.catch(error => {
+				this.logService.error(`[CopilotCLISession] Failed to update usage info after request ${request.id}`, error);
+			});
 			this._status = ChatSessionStatus.Completed;
 			this._statusChange.fire(this._status);
 
@@ -1268,5 +1288,43 @@ function isHttpUrl(value: string): boolean {
 	} catch {
 		return false;
 	}
+}
+
+interface UsageInfoData {
+	readonly currentTokens: number;
+	readonly systemTokens?: number;
+	readonly conversationTokens?: number;
+	readonly toolDefinitionsTokens?: number;
+	readonly tokenLimit?: number;
+}
+
+function buildPromptTokenDetails(usageInfo: UsageInfoData | undefined): { category: string; label: string; percentageOfPrompt: number }[] | undefined {
+	if (!usageInfo || usageInfo.currentTokens <= 0) {
+		return undefined;
+	}
+	const details: { category: string; label: string; percentageOfPrompt: number }[] = [];
+	const total = usageInfo.currentTokens;
+	if (usageInfo.systemTokens && usageInfo.systemTokens > 0) {
+		details.push({
+			category: PromptTokenCategory.System,
+			label: PromptTokenLabel.SystemInstructions,
+			percentageOfPrompt: Math.round((usageInfo.systemTokens / total) * 100),
+		});
+	}
+	if (usageInfo.toolDefinitionsTokens && usageInfo.toolDefinitionsTokens > 0) {
+		details.push({
+			category: PromptTokenCategory.System,
+			label: PromptTokenLabel.Tools,
+			percentageOfPrompt: Math.round((usageInfo.toolDefinitionsTokens / total) * 100),
+		});
+	}
+	if (usageInfo.conversationTokens && usageInfo.conversationTokens > 0) {
+		details.push({
+			category: PromptTokenCategory.UserContext,
+			label: PromptTokenLabel.Messages,
+			percentageOfPrompt: Math.round((usageInfo.conversationTokens / total) * 100),
+		});
+	}
+	return details.length > 0 ? details : undefined;
 }
 

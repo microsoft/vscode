@@ -5,9 +5,9 @@
 
 import 'mocha';
 import * as assert from 'assert';
-import { getLanguageModes, ClientCapabilities, TextDocument, SelectionRange } from '../modes/languageModes';
-import { getSelectionRanges } from '../modes/selectionRanges';
-import { getNodeFileFS } from '../node/nodeFs';
+import { getLanguageModes, ClientCapabilities, TextDocument, SelectionRange } from '../modes/languageModes.js';
+import { getSelectionRanges } from '../modes/selectionRanges.js';
+import { getNodeFileFS } from '../node/nodeFs.js';
 
 async function assertRanges(content: string, expected: (number | string)[][]): Promise<void> {
 	let message = `${content} gives selection range:\n`;

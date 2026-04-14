@@ -57,7 +57,6 @@ import '../workbench/services/mcp/electron-browser/mcpGalleryManifestService.js'
 import '../workbench/services/mcp/electron-browser/mcpWorkbenchManagementService.js';
 import '../workbench/services/encryption/electron-browser/encryptionService.js';
 import '../workbench/services/imageResize/electron-browser/imageResizeService.js';
-import '../workbench/services/browserElements/electron-browser/browserElementsService.js';
 import '../workbench/services/secrets/electron-browser/secretStorageService.js';
 import '../workbench/services/localization/electron-browser/languagePackService.js';
 import '../workbench/services/telemetry/electron-browser/telemetryService.js';
@@ -203,7 +202,6 @@ import '../platform/agentHost/electron-browser/remoteAgentHostService.js';
 import '../platform/agentHost/electron-browser/sshRemoteAgentHostService.js';
 import './contrib/remoteAgentHost/electron-browser/tunnelAgentHostService.js';
 import './contrib/remoteAgentHost/browser/remoteAgentHost.contribution.js';
-import './contrib/remoteAgentHost/browser/remoteAgentHostActions.js';
 import './contrib/remoteAgentHost/browser/tunnelAgentHost.contribution.js';
 
 // Local Agent Host

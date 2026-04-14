@@ -30,7 +30,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { ISessionWorkspace, ISessionWorkspaceBrowseAction } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
+import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { COPILOT_PROVIDER_ID } from '../../copilotChatSessions/browser/copilotChatSessionsProvider.js';
 
 const LEGACY_STORAGE_KEY_RECENT_PROJECTS = 'sessions.recentlyPickedProjects';
@@ -64,7 +64,7 @@ interface IWorkspacePickerItem {
 	readonly browseActionIndex?: number;
 	readonly checked?: boolean;
 	/** Remote provider reference for gear menu actions. */
-	readonly remoteProvider?: ISessionsProvider;
+	readonly remoteProvider?: IAgentHostSessionsProvider;
 	/** When true, clicking this item triggers the tunnel connection command. */
 	readonly tunnelAction?: boolean;
 }
@@ -371,7 +371,7 @@ export class WorkspacePicker extends Disposable {
 		// Browse actions from all providers
 		const allBrowseActions = this._getAllBrowseActions();
 		// Remote providers with connection status
-		const remoteProviders = allProviders.filter(p => p.connectionStatus !== undefined);
+		const remoteProviders = allProviders.filter(isAgentHostProvider).filter(p => p.connectionStatus !== undefined);
 
 		if (items.length > 0 && (allBrowseActions.length > 0 || remoteProviders.length > 0)) {
 			items.push({ kind: ActionListItemKind.Separator, label: '' });
@@ -529,12 +529,12 @@ export class WorkspacePicker extends Disposable {
 	 * This ensures the action widget has fully hidden before the quickpick opens,
 	 * preventing focus conflicts that cause the quickpick to flash and disappear.
 	 */
-	private _showRemoteHostOptionsDelayed(provider: ISessionsProvider): void {
+	private _showRemoteHostOptionsDelayed(provider: IAgentHostSessionsProvider): void {
 		const timeout = setTimeout(() => this._showRemoteHostOptions(provider), 1);
 		this._renderDisposables.add({ dispose: () => clearTimeout(timeout) });
 	}
 
-	private async _showRemoteHostOptions(provider: ISessionsProvider): Promise<void> {
+	private async _showRemoteHostOptions(provider: IAgentHostSessionsProvider): Promise<void> {
 		const address = provider.remoteAddress;
 		if (!address) {
 			return;
@@ -611,8 +611,8 @@ export class WorkspacePicker extends Disposable {
 	 * Returns false for providers without connection status (e.g. local providers).
 	 */
 	private _isProviderUnavailable(providerId: string): boolean {
-		const provider = this.sessionsProvidersService.getProviders().find(p => p.id === providerId);
-		if (!provider?.connectionStatus) {
+		const provider = this.sessionsProvidersService.getProvider(providerId);
+		if (!provider || !isAgentHostProvider(provider) || !provider.connectionStatus) {
 			return false;
 		}
 		return provider.connectionStatus.get() !== RemoteAgentHostConnectionStatus.Connected;
@@ -624,7 +624,7 @@ export class WorkspacePicker extends Disposable {
 	 * provider. When a remote reconnects, try to restore a stored workspace.
 	 */
 	private _watchConnectionStatus(): void {
-		const remoteProviders = this.sessionsProvidersService.getProviders().filter(p => p.connectionStatus !== undefined);
+		const remoteProviders = this.sessionsProvidersService.getProviders().filter(isAgentHostProvider).filter(p => p.connectionStatus !== undefined);
 		if (remoteProviders.length === 0) {
 			this._connectionStatusListener.clear();
 			return;

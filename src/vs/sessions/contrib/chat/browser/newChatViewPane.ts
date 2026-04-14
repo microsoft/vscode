@@ -39,6 +39,7 @@ import { localize } from '../../../../nls.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import type { ISession } from '../../../services/sessions/common/session.js';
 import { IViewDescriptorService } from '../../../../workbench/common/views.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
@@ -147,8 +148,12 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._register(this._workspacePicker.onDidChangeSelection(() => {
 			this._renderOptionGroupPickers();
 		}));
-		this._register(this._workspacePicker.onDidSelectWorkspace(async (workspace) => {
-			await this._onWorkspaceSelected(workspace);
+		this._register(this._workspacePicker.onDidSelectWorkspace(async workspace => {
+			await this._onWorkspaceSelected(workspace, this._sessionTypePicker.selectedType);
+			this._focusEditor();
+		}));
+		this._register(this._sessionTypePicker.onDidSelectSessionType(async sessionType => {
+			await this._onWorkspaceSelected(this._workspacePicker.selectedProject, sessionType);
 			this._focusEditor();
 		}));
 
@@ -230,13 +235,13 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		// Create initial session — wait for providers if none registered yet
 		const restoredProject = this._workspacePicker.selectedProject;
 		if (restoredProject) {
-			if (this.sessionsProvidersService.getProviders().length > 0) {
-				this._createNewSession(restoredProject);
+			if (this.sessionsProvidersService.getProviders().length > 0 && this._sessionTypePicker.selectedType) {
+				this._createNewSession(restoredProject, this._sessionTypePicker.selectedType);
 			} else {
 				// Providers not yet registered (startup race) — wait for first registration
 				const sub = this.sessionsProvidersService.onDidChangeProviders(() => {
 					sub.dispose();
-					this._createNewSession(restoredProject);
+					this._createNewSession(restoredProject, this._sessionTypePicker.selectedType);
 				});
 				this._register(sub);
 			}
@@ -251,8 +256,8 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		}, { once: true }));
 	}
 
-	private _createNewSession(selection: IWorkspaceSelection): void {
-		this.sessionsManagementService.createNewSession(selection.providerId, selection.workspace);
+	private _createNewSession(selection: IWorkspaceSelection, sessionTypeId: string | undefined): void {
+		this.sessionsManagementService.createNewSession(selection.providerId, selection.workspace.repositories[0].uri, sessionTypeId);
 	}
 
 	private _updateInputLoadingState(): void {
@@ -566,7 +571,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 	private _watchSessionConfigProviders(): void {
 		for (const provider of this.sessionsProvidersService.getProviders()) {
-			if (!provider.onDidChangeSessionConfig || this._sessionConfigListeners.has(provider.id)) {
+			if (!isAgentHostProvider(provider) || this._sessionConfigListeners.has(provider.id)) {
 				continue;
 			}
 			this._sessionConfigListeners.set(provider.id, provider.onDidChangeSessionConfig(() => this._updateSendButtonState()));
@@ -575,7 +580,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 
 	private _isSessionConfigReady(session: ISession): boolean {
 		const provider = this.sessionsProvidersService.getProvider(session.providerId);
-		if (!provider?.getSessionConfig) {
+		if (!provider || !isAgentHostProvider(provider)) {
 			return true;
 		}
 		return provider.getSessionConfig(session.sessionId)?.ready ?? true;
@@ -716,7 +721,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	 * Handles a workspace selection from the workspace picker.
 	 * Requests folder trust if needed and creates a new session.
 	 */
-	private async _onWorkspaceSelected(selection: IWorkspaceSelection | undefined): Promise<void> {
+	private async _onWorkspaceSelected(selection: IWorkspaceSelection | undefined, sessionTypeId: string | undefined): Promise<void> {
 		if (!selection) {
 			this.sessionsManagementService.unsetNewSession();
 			return;
@@ -729,7 +734,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			}
 		}
 
-		this._createNewSession(selection);
+		this._createNewSession(selection, sessionTypeId);
 	}
 
 	prefillInput(text: string): void {

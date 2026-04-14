@@ -12,3 +12,19 @@
 .sessions-chat-agent-host-config:empty {
 	display: none;
 }
+
+.sessions-chat-agent-host-config .action-label.warning {
+	color: var(--vscode-problemsWarningIcon-foreground);
+}
+
+.sessions-chat-agent-host-config .action-label.warning .codicon {
+	color: var(--vscode-problemsWarningIcon-foreground) !important;
+}
+
+.sessions-chat-agent-host-config .action-label.info {
+	color: var(--vscode-problemsInfoIcon-foreground);
+}
+
+.sessions-chat-agent-host-config .action-label.info .codicon {
+	color: var(--vscode-problemsInfoIcon-foreground) !important;
+}

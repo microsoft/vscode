@@ -253,7 +253,7 @@ export class ConversationFeature implements IExtensionContribution {
 					vscode.window.activeTerminal?.sendText(message, false);
 				}
 			}),
-			vscode.commands.registerCommand('github.copilot.git.generateCommitMessage', async (rootUri: vscode.Uri | undefined, _: vscode.SourceControlInputBoxValueProviderContext[], cancellationToken: vscode.CancellationToken | undefined) => {
+			vscode.commands.registerCommand('github.copilot.git.generateCommitMessage', async (rootUri: vscode.Uri | undefined, _: unknown, cancellationToken: vscode.CancellationToken | undefined) => {
 				const repository = await this.gitCommitMessageService.getRepository(rootUri);
 				if (!repository) {
 					return;

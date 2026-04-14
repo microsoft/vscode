@@ -24,7 +24,6 @@ import { EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, IGalleryExtension, IExtensi
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import product from '../../../../platform/product/common/product.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
@@ -136,7 +135,6 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		@IFileService private readonly fileService: IFileService,
 		@IPathService private readonly pathService: IPathService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super();
 
@@ -226,6 +224,9 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 			if (this._isLastStep()) {
 				this._logAction('complete');
 				this._dismiss('complete');
+			} else if (this.currentStepIndex === 0) {
+				this._logAction('continueWithoutSignIn');
+				this._nextStep();
 			} else {
 				this._logAction('next');
 				this._nextStep();
@@ -241,9 +242,11 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		this.disposables.add(addDisposableListener(this.overlay, EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 
+			// Prevent all keyboard shortcuts from reaching the keybinding service
+			e.stopPropagation();
+
 			if (event.keyCode === KeyCode.Escape) {
 				e.preventDefault();
-				e.stopPropagation();
 				this._dismiss('skip');
 				return;
 			}
@@ -400,11 +403,25 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 			this.backButton.style.display = this.currentStepIndex === 0 ? 'none' : '';
 		}
 		if (this.nextButton) {
-			this.nextButton.textContent = this._isLastStep()
-				? localize('onboarding.getStarted', "Get Started")
-				: localize('onboarding.next', "Continue");
+			if (this.currentStepIndex === 0) {
+				// Sign-in step: secondary "Continue without Signing In"
+				this.nextButton.className = 'onboarding-a-btn onboarding-a-btn-secondary';
+				this.nextButton.textContent = localize('onboarding.continueWithoutSignIn', "Continue without Signing In");
+			} else if (this._isLastStep()) {
+				this.nextButton.className = 'onboarding-a-btn onboarding-a-btn-primary';
+				this.nextButton.textContent = localize('onboarding.getStarted', "Get Started");
+			} else {
+				this.nextButton.className = 'onboarding-a-btn onboarding-a-btn-primary';
+				this.nextButton.textContent = localize('onboarding.next', "Continue");
+			}
 		}
 		if (this.skipButton && this.footerLeft) {
+			if (this.currentStepIndex === 0) {
+				// Sign-in step: ghost Skip button
+				this.skipButton.className = 'onboarding-a-btn onboarding-a-btn-ghost';
+			} else {
+				this.skipButton.className = 'onboarding-a-btn onboarding-a-btn-ghost';
+			}
 			if (this._isLastStep()) {
 				this.skipButton.style.display = 'none';
 				// Show sign-in nudge in footer
@@ -491,30 +508,8 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 
 		const disclaimerCol = append(footer, $('.onboarding-a-signin-disclaimer-col'));
 
-		// VS Code telemetry disclaimer
-		const telemetryDisclaimer = append(disclaimerCol, $('.onboarding-a-signin-disclaimer'));
-		const telemetryTitle = append(telemetryDisclaimer, $('strong'));
-		telemetryTitle.textContent = localize('onboarding.signIn.disclaimer.telemetryTitle', "VS Code: ");
-		telemetryDisclaimer.append(localize('onboarding.signIn.telemetry', "{0} collects usage data. Read our ", product.nameShort));
-		if (product.privacyStatementUrl) {
-			this._createInlineLink(telemetryDisclaimer, localize('onboarding.signIn.telemetry.privacy', "privacy statement"), product.privacyStatementUrl);
-		} else {
-			telemetryDisclaimer.append(localize('onboarding.signIn.telemetry.privacyPlain', "privacy statement"));
-		}
-		telemetryDisclaimer.append(localize('onboarding.signIn.telemetry.optOut', " and learn how to "));
-		const optOutLink = this._registerStepFocusable(append(telemetryDisclaimer, $<HTMLAnchorElement>('a.onboarding-a-inline-link')));
-		optOutLink.textContent = localize('onboarding.signIn.telemetry.optOutLink', "opt out");
-		optOutLink.href = '#';
-		this.stepDisposables.add(addDisposableListener(optOutLink, EventType.CLICK, (e) => {
-			e.preventDefault();
-			this.commandService.executeCommand('settings.filterByTelemetry');
-		}));
-		telemetryDisclaimer.append('.');
-
 		// GitHub Copilot disclaimer
 		const copilotDisclaimer = append(disclaimerCol, $('.onboarding-a-signin-disclaimer'));
-		const copilotTitle = append(copilotDisclaimer, $('strong'));
-		copilotTitle.textContent = localize('onboarding.signIn.disclaimer.copilotTitle', "GitHub Copilot: ");
 		copilotDisclaimer.append(localize('onboarding.signIn.disclaimer.prefix', "By signing in, you agree to {0}'s ", defaultChat.provider.default.name));
 		this._createInlineLink(copilotDisclaimer, localize('onboarding.signIn.disclaimer.terms', "Terms"), defaultChat.termsStatementUrl);
 		copilotDisclaimer.append(localize('onboarding.signIn.disclaimer.middle', " and "));
@@ -701,8 +696,10 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		for (const theme of themes) {
 			this._createThemeCard(themeGrid, theme, themeCards);
 		}
-		const selectedThemeIndex = themes.findIndex(t => t.id === this.selectedThemeId);
-		this._setupRadioGroupNavigation(themeCards, Math.max(0, selectedThemeIndex));
+		// Make all theme cards individually tabbable
+		for (const card of themeCards) {
+			card.setAttribute('tabindex', '0');
+		}
 
 		// Keyboard Mapping section — only shown when another editor is detected
 		const keymapOptions = this._detectedEditorIds
@@ -1124,12 +1121,12 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		const features = append(wrapper, $('.onboarding-a-sessions-features'));
 
 		this._createFeatureCard(features, Codicon.deviceDesktop,
-			localize('onboarding.sessions.local', "Local Sessions"),
+			localize('onboarding.sessions.local', "Local"),
 			localize('onboarding.sessions.local.desc', "Run agents interactively in the editor with full access to your workspace, tools, and terminal. Best for hands-on work where you want to review changes as they happen."));
 
 		this._createFeatureCard(features, Codicon.cloud,
-			localize('onboarding.sessions.cloud', "Cloud Sessions"),
-			localize('onboarding.sessions.cloud.desc', "Delegate tasks to a cloud agent that creates a branch, implements changes, and opens a pull request — even after you close VS Code."));
+			localize('onboarding.sessions.cloud', "Cloud"),
+			localize('onboarding.sessions.cloud.desc', "Delegate tasks to a cloud agent that creates a branch, implements changes, and opens a pull request. The agent continues working even if you close VS Code."));
 
 		this._createFeatureCard(features, Codicon.worktree,
 			localize('onboarding.sessions.worktree', "Copilot CLI"),
@@ -1147,7 +1144,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 
 		// Tutorial link at bottom of content, above footer
 		const docsRow = append(wrapper, $('.onboarding-a-sessions-docs'));
-		this._createDocLink(docsRow, localize('onboarding.sessions.videoTutorials', "Watch video tutorials"), 'https://aka.ms/vscode-getting-started-video', 'videoTutorials');
+		this._createDocLink(docsRow, localize('onboarding.sessions.agentsTutorial', "Agents tutorial"), 'https://code.visualstudio.com/docs/copilot/agents/agents-tutorial', 'agentsTutorial');
 	}
 
 	private _createFeatureCard(parent: HTMLElement, icon: ThemeIcon, title: string, description?: string): HTMLElement {

@@ -18,6 +18,7 @@ import { AICustomizationWelcomePage } from '../../../../contrib/chat/browser/aiC
 import { ClassicAICustomizationWelcomePage } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationWelcomePageClassic.js';
 import { PromptLaunchersAICustomizationWelcomePage } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationWelcomePagePromptLaunchers.js';
 import { ComponentFixtureContext, defineComponentFixture, defineThemedFixtureGroup } from '../fixtureUtils.js';
+import { NullHoverService } from '../../../../../platform/hover/test/browser/nullHoverService.js';
 
 import '../../../../../platform/theme/common/colors/inputColors.js';
 import '../../../../../platform/theme/common/colors/listColors.js';
@@ -115,6 +116,7 @@ function renderPromptLaunchersWelcomePage(ctx: ComponentFixtureContext): void {
 		},
 		createMockCommandService(),
 		workspaceService,
+		NullHoverService,
 	));
 	page.rebuildCards(visibleSections);
 }
@@ -137,6 +139,7 @@ function renderSelectedWelcomePage(ctx: ComponentFixtureContext, variant: AICust
 		createMockCommandService(),
 		workspaceService,
 		configService,
+		NullHoverService,
 	));
 	page.rebuildCards(visibleSections);
 }

@@ -13,6 +13,7 @@ export interface IAgentHostGitService {
 	readonly _serviceBrand: undefined;
 	isInsideWorkTree(workingDirectory: URI): Promise<boolean>;
 	getCurrentBranch(workingDirectory: URI): Promise<string | undefined>;
+	getDefaultBranch(workingDirectory: URI): Promise<string | undefined>;
 	getBranches(workingDirectory: URI, options?: { readonly query?: string; readonly limit?: number }): Promise<string[]>;
 	getRepositoryRoot(workingDirectory: URI): Promise<URI | undefined>;
 	getWorktreeRoots(workingDirectory: URI): Promise<URI[]>;
@@ -51,6 +52,23 @@ export class AgentHostGitService implements IAgentHostGitService {
 		return (await this._runGit(workingDirectory, ['branch', '--show-current']))?.trim()
 			|| (await this._runGit(workingDirectory, ['rev-parse', '--short', 'HEAD']))?.trim()
 			|| undefined;
+	}
+
+	async getDefaultBranch(workingDirectory: URI): Promise<string | undefined> {
+		// Try to read the default branch from the remote HEAD reference
+		const remoteRef = (await this._runGit(workingDirectory, ['symbolic-ref', 'refs/remotes/origin/HEAD']))?.trim();
+		if (remoteRef) {
+			if (!remoteRef.startsWith('refs/remotes/origin/')) {
+				return remoteRef;
+			}
+
+			const branch = remoteRef.substring('refs/remotes/origin/'.length);
+			// Check whether a local branch exists; if not, use the remote-tracking ref
+			// so that 'git worktree add ... <startPoint>' resolves correctly.
+			const hasLocalBranch = (await this._runGit(workingDirectory, ['show-ref', '--verify', '--quiet', `refs/heads/${branch}`])) !== undefined;
+			return hasLocalBranch ? branch : `origin/${branch}`;
+		}
+		return undefined;
 	}
 
 	async getBranches(workingDirectory: URI, options?: { readonly query?: string; readonly limit?: number }): Promise<string[]> {
