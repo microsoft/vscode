@@ -158,6 +158,8 @@ export function setup(context: TestContext) {
 			const window = await context.getPage(app.firstWindow());
 
 			try {
+				await test.dismissWelcomeDialog(window);
+
 				context.log('Installing WSL extension');
 				await window.getByRole('button', { name: 'Install and Reload' }).click();
 
@@ -168,7 +170,7 @@ export function setup(context: TestContext) {
 				throw error;
 			}
 
-			await test.run(window);
+			await test.run(window, true);
 		} finally {
 			context.log('Closing the application');
 			await app.close();

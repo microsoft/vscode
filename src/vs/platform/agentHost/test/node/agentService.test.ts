@@ -220,6 +220,15 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(sessions.length, 1);
 			assert.strictEqual(sessions[0].summary, 'Auto-generated Title');
 		});
+
+		test('createSession stores live session config', async () => {
+			service.registerProvider(copilotAgent);
+
+			const config = { isolation: 'worktree', branch: 'feature/config' };
+			const session = await service.createSession({ provider: 'copilot', config });
+
+			assert.deepStrictEqual(service.stateManager.getSessionState(session.toString())?.config?.values, config);
+		});
 	});
 
 	// ---- authenticate ---------------------------------------------------
@@ -266,7 +275,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('restores a session with message history', async () => {
 			service.registerProvider(copilotAgent);
-			const session = await copilotAgent.createSession();
+			const { session } = await copilotAgent.createSession();
 			const sessions = await copilotAgent.listSessions();
 			const sessionResource = sessions[0].session;
 
@@ -290,7 +299,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('restores a session with tool calls', async () => {
 			service.registerProvider(copilotAgent);
-			const session = await copilotAgent.createSession();
+			const { session } = await copilotAgent.createSession();
 			const sessions = await copilotAgent.listSessions();
 			const sessionResource = sessions[0].session;
 
@@ -317,7 +326,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('flushes interrupted turns', async () => {
 			service.registerProvider(copilotAgent);
-			const session = await copilotAgent.createSession();
+			const { session } = await copilotAgent.createSession();
 			const sessions = await copilotAgent.listSessions();
 			const sessionResource = sessions[0].session;
 
@@ -346,7 +355,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('restores a session with subagent tool calls', async () => {
 			service.registerProvider(copilotAgent);
-			const session = await copilotAgent.createSession();
+			const { session } = await copilotAgent.createSession();
 			const sessions = await copilotAgent.listSessions();
 			const sessionResource = sessions[0].session;
 
@@ -414,7 +423,7 @@ suite('AgentService (node dispatcher)', () => {
 
 		test('inner assistant messages from subagent do not create extra turns (fixture)', async () => {
 			service.registerProvider(copilotAgent);
-			const session = await copilotAgent.createSession();
+			const { session } = await copilotAgent.createSession();
 			const sessions = await copilotAgent.listSessions();
 			const sessionResource = sessions[0].session;
 

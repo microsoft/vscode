@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-const path = require('path');
-const Mocha = require('mocha');
-const glob = require('glob');
+import * as path from 'node:path';
+import glob from 'glob';
+import Mocha from 'mocha';
 
 const suite = 'Integration CSS Extension Tests';
+const testRoot = import.meta.dirname;
 
 const options = {
 	ui: 'tdd',
@@ -26,7 +27,7 @@ if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || process.env.GITHUB_WORKSPACE) 
 		mochaJunitReporterReporterOptions: {
 			testsuitesTitle: `${suite} ${process.platform}`,
 			mochaFile: path.join(
-				process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || process.env.GITHUB_WORKSPACE || __dirname,
+				process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || process.env.GITHUB_WORKSPACE || testRoot,
 				`test-results/${process.platform}-${process.arch}-${suite.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`)
 		}
 	};
@@ -34,7 +35,7 @@ if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY || process.env.GITHUB_WORKSPACE) 
 
 const mocha = new Mocha(options);
 
-glob.sync(__dirname + '/../out/test/**/*.test.js')
+glob.sync(path.posix.join(testRoot, '../out/test/**/*.test.js'))
 	.forEach(file => mocha.addFile(file));
 
 mocha.run(failures => process.exit(failures ? -1 : 0));

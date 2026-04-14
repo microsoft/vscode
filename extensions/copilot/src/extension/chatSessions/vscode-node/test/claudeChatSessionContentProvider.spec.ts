@@ -25,7 +25,7 @@ import { ClaudeSessionUri } from '../../claude/common/claudeSessionUri';
 import type { ClaudeAgentManager } from '../../claude/node/claudeCodeAgent';
 import { IClaudeCodeSdkService } from '../../claude/node/claudeCodeSdkService';
 import { parseClaudeModelId } from '../../claude/node/claudeModelId';
-import { IClaudeSessionStateService } from '../../claude/node/claudeSessionStateService';
+import { IClaudeSessionStateService } from '../../claude/common/claudeSessionStateService';
 import { IClaudeCodeSessionService } from '../../claude/node/sessionParser/claudeCodeSessionService';
 import { IClaudeCodeSessionInfo } from '../../claude/node/sessionParser/claudeSessionSchema';
 import { IClaudeSlashCommandService } from '../../claude/vscode-node/claudeSlashCommandService';

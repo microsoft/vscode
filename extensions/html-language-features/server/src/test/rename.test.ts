@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { WorkspaceEdit, TextDocument, getLanguageModes, ClientCapabilities } from '../modes/languageModes';
-import { getNodeFileFS } from '../node/nodeFs';
+import { WorkspaceEdit, TextDocument, getLanguageModes, ClientCapabilities } from '../modes/languageModes.js';
+import { getNodeFileFS } from '../node/nodeFs.js';
 
 
 async function testRename(value: string, newName: string, expectedDocContent: string): Promise<void> {

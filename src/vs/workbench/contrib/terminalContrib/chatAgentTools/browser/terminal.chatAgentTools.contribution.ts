@@ -20,6 +20,7 @@ import { TerminalContextMenuGroup } from '../../../terminal/browser/terminalMenu
 import { TerminalContextKeys } from '../../../terminal/common/terminalContextKey.js';
 import { TerminalChatAgentToolsCommandId } from '../common/terminal.chatAgentTools.js';
 import { TerminalChatAgentToolsSettingId } from '../common/terminalChatAgentToolsConfiguration.js';
+import { AgentNetworkDomainSettingId } from '../../../../../platform/networkFilter/common/settings.js';
 import { GetTerminalLastCommandTool, GetTerminalLastCommandToolData } from './tools/getTerminalLastCommandTool.js';
 import { KillTerminalTool, KillTerminalToolData } from './tools/killTerminalTool.js';
 import { GetTerminalOutputTool, GetTerminalOutputToolData } from './tools/getTerminalOutputTool.js';
@@ -141,10 +142,12 @@ export class ChatAgentToolsContribution extends Disposable implements IWorkbench
 			if (
 				e.affectsConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxEnabled) ||
 				e.affectsConfiguration(TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxEnabled) ||
-				e.affectsConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains) ||
-				e.affectsConfiguration(TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxNetworkAllowedDomains) ||
-				e.affectsConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkDeniedDomains) ||
-				e.affectsConfiguration(TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxNetworkDeniedDomains) ||
+				e.affectsConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains) ||
+				e.affectsConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains) ||
+				e.affectsConfiguration(AgentNetworkDomainSettingId.DeprecatedOldAllowedNetworkDomains) ||
+				e.affectsConfiguration(AgentNetworkDomainSettingId.DeprecatedOldDeniedNetworkDomains) ||
+				e.affectsConfiguration(AgentNetworkDomainSettingId.DeprecatedSandboxAllowedNetworkDomains) ||
+				e.affectsConfiguration(AgentNetworkDomainSettingId.DeprecatedSandboxDeniedNetworkDomains) ||
 				e.affectsConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxLinuxFileSystem) ||
 				e.affectsConfiguration(TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxLinuxFileSystem) ||
 				e.affectsConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxMacFileSystem) ||

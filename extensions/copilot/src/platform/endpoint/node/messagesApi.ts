@@ -14,7 +14,7 @@ import { ChatLocation } from '../../chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { ILogService } from '../../log/common/logService';
 import { AnthropicMessagesTool, ContextManagementResponse, CUSTOM_TOOL_SEARCH_NAME, getContextManagementFromConfig, isAnthropicContextEditingEnabled, isAnthropicCustomToolSearchEnabled, isAnthropicToolSearchEnabled, ServerToolUse, TOOL_SEARCH_TOOL_NAME, TOOL_SEARCH_TOOL_TYPE, ToolSearchToolResult } from '../../networking/common/anthropic';
-import { FinishedCallback, IIPCodeCitation, IResponseDelta } from '../../networking/common/fetch';
+import { FinishedCallback, getRequestId, IIPCodeCitation, IResponseDelta } from '../../networking/common/fetch';
 import { IChatEndpoint, ICreateEndpointBodyOptions, IEndpointBody } from '../../networking/common/networking';
 import { ChatCompletion, FinishedCompletionReason, rawMessageToCAPI } from '../../networking/common/openai';
 import { IToolDeferralService } from '../../networking/common/toolDeferralService';
@@ -551,7 +551,8 @@ export async function processResponseFromMessagesEndpoint(
 	return new AsyncIterableObject<ChatCompletion>(async feed => {
 		const requestId = response.headers.get('X-Request-ID') ?? generateUuid();
 		const ghRequestId = response.headers.get('x-github-request-id') ?? '';
-		const processor = instantiationService.createInstance(AnthropicMessagesProcessor, telemetryData, requestId, ghRequestId);
+		const { serverExperiments } = getRequestId(response.headers);
+		const processor = instantiationService.createInstance(AnthropicMessagesProcessor, telemetryData, requestId, ghRequestId, serverExperiments);
 		const parser = new SSEParser((ev) => {
 			try {
 				logService.trace(`[messagesAPI]SSE: ${ev.data}`);
@@ -622,6 +623,7 @@ export class AnthropicMessagesProcessor {
 		private readonly telemetryData: TelemetryData,
 		private readonly requestId: string,
 		private readonly ghRequestId: string,
+		private readonly serverExperiments: string,
 		@ILogService private readonly logService: ILogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) { }
@@ -1051,7 +1053,7 @@ export class AnthropicMessagesProcessor {
 						completionId: this.messageId,
 						created: Date.now(),
 						deploymentId: '',
-						serverExperiments: ''
+						serverExperiments: this.serverExperiments,
 					},
 					usage: {
 						prompt_tokens: computedPromptTokens,

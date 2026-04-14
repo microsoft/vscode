@@ -11,12 +11,12 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { FileSystemProviderErrorCode, IFileService, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentMessageEvent, IAgentService, IAgentSessionMetadata, IAgentSubagentStartedEvent, IAgentToolCompleteEvent, IAgentToolStartEvent, IAuthenticateParams, IAuthenticateResult } from '../common/agentService.js';
+import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentMessageEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSubagentStartedEvent, IAgentToolCompleteEvent, IAgentToolStartEvent, IAuthenticateParams, IAuthenticateResult } from '../common/agentService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { ActionType, IActionEnvelope, INotification, ISessionAction, ITerminalAction, isSessionAction } from '../common/state/sessionActions.js';
-import type { ICreateTerminalParams } from '../common/state/protocol/commands.js';
+import type { ICreateTerminalParams, IResolveSessionConfigResult, ISessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, type IDirectoryEntry, type IResourceCopyParams, type IResourceCopyResult, type IResourceDeleteParams, type IResourceDeleteResult, type IResourceListResult, type IResourceMoveParams, type IResourceMoveResult, type IResourceReadResult, type IResourceWriteParams, type IResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
-import { ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, parseSubagentSessionUri, type IResponsePart, type ISessionFileDiff, type ISessionSummary, type IToolCallCompletedState, type IToolResultSubagentContent, type ITurn } from '../common/state/sessionState.js';
+import { ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, parseSubagentSessionUri, type IResponsePart, type ISessionConfigState, type ISessionFileDiff, type ISessionSummary, type IToolCallCompletedState, type IToolResultSubagentContent, type ITurn } from '../common/state/sessionState.js';
 import { AgentSideEffects } from './agentSideEffects.js';
 import { AgentHostTerminalManager, type IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { ISessionDbUriFields, parseSessionDbUri } from './copilot/fileEditTracker.js';
@@ -180,7 +180,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const withStatus = result.map(s => {
 			const liveState = this._stateManager.getSessionState(s.session.toString());
 			if (liveState) {
-				return { ...s, status: liveState.summary.status };
+				return { ...s, status: liveState.summary.status, model: liveState.summary.model ?? s.model };
 			}
 			return s;
 		});
@@ -201,15 +201,18 @@ export class AgentService extends Disposable implements IAgentService {
 		// Safe to run in parallel with createSession since no events flow until
 		// sendMessage() is called.
 		this._logService.trace(`[AgentService] createSession: initializing auto-approver and creating session...`);
-		const [, session] = await Promise.all([
+		const [, created] = await Promise.all([
 			this._sideEffects.initialize(),
 			provider.createSession(config),
 		]);
+		const session = created.session;
 		this._logService.trace(`[AgentService] createSession: initialization complete`);
 
 		this._logService.trace(`[AgentService] createSession: provider=${provider.id} model=${config?.model ?? '(default)'}`);
 		this._sessionToProvider.set(session.toString(), provider.id);
 		this._logService.trace(`[AgentService] createSession returned: ${session.toString()}`);
+
+		const sessionConfig = await this._resolveCreatedSessionConfig(provider, config);
 
 		// When forking, populate the new session's protocol state with
 		// the source session's turns so the client sees the forked history.
@@ -228,9 +231,12 @@ export class AgentService extends Disposable implements IAgentService {
 				status: SessionStatus.Idle,
 				createdAt: Date.now(),
 				modifiedAt: Date.now(),
+				...(created.project ? { project: { uri: created.project.uri.toString(), displayName: created.project.displayName } } : {}),
+				model: config?.model,
 				workingDirectory: config.workingDirectory?.toString(),
 			};
 			const state = this._stateManager.createSession(summary);
+			state.config = sessionConfig;
 			state.turns = sourceTurns;
 		} else {
 			// Create empty state for new sessions
@@ -241,13 +247,51 @@ export class AgentService extends Disposable implements IAgentService {
 				status: SessionStatus.Idle,
 				createdAt: Date.now(),
 				modifiedAt: Date.now(),
+				...(created.project ? { project: { uri: created.project.uri.toString(), displayName: created.project.displayName } } : {}),
+				model: config?.model,
 				workingDirectory: config?.workingDirectory?.toString(),
 			};
-			this._stateManager.createSession(summary);
+			const state = this._stateManager.createSession(summary);
+			state.config = sessionConfig;
 		}
 		this._stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: session.toString() });
 
 		return session;
+	}
+
+	private async _resolveCreatedSessionConfig(provider: IAgent, config: IAgentCreateSessionConfig | undefined): Promise<ISessionConfigState | undefined> {
+		if (!config?.config && !config?.workingDirectory) {
+			return undefined;
+		}
+		try {
+			const resolved = await provider.resolveSessionConfig({
+				provider: provider.id,
+				workingDirectory: config.workingDirectory,
+				config: config.config,
+			});
+			return { schema: resolved.schema, values: resolved.values };
+		} catch (error) {
+			this._logService.error(`[AgentService] Failed to resolve created session config for provider ${provider.id}`, error);
+			return config.config ? { schema: { type: 'object', properties: {} }, values: config.config } : undefined;
+		}
+	}
+
+	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<IResolveSessionConfigResult> {
+		const providerId = params.provider ?? this._defaultProvider;
+		const provider = providerId ? this._providers.get(providerId) : undefined;
+		if (!provider) {
+			throw new Error(`No agent provider registered for: ${providerId ?? '(none)'}`);
+		}
+		return provider.resolveSessionConfig(params);
+	}
+
+	async sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<ISessionConfigCompletionsResult> {
+		const providerId = params.provider ?? this._defaultProvider;
+		const provider = providerId ? this._providers.get(providerId) : undefined;
+		if (!provider) {
+			throw new Error(`No agent provider registered for: ${providerId ?? '(none)'}`);
+		}
+		return provider.sessionConfigCompletions(params);
 	}
 
 	async disposeSession(session: URI): Promise<void> {
@@ -419,6 +463,8 @@ export class AgentService extends Disposable implements IAgentService {
 			status: SessionStatus.Idle,
 			createdAt: meta.startTime,
 			modifiedAt: meta.modifiedTime,
+			...(meta.project ? { project: { uri: meta.project.uri.toString(), displayName: meta.project.displayName } } : {}),
+			model: meta.model,
 			workingDirectory: meta.workingDirectory?.toString(),
 			isRead,
 			isDone,
@@ -878,6 +924,7 @@ export class AgentService extends Disposable implements IAgentService {
 				status: SessionStatus.Idle,
 				createdAt: Date.now(),
 				modifiedAt: Date.now(),
+				...(parentState?.summary.project ? { project: parentState.summary.project } : {}),
 			},
 			childTurns,
 		);

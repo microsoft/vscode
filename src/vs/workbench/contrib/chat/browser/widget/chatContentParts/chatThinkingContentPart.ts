@@ -309,6 +309,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.currentTitle = extractedTitle;
 		if (extractedTitle !== this.defaultTitle) {
 			this.lastExtractedTitle = extractedTitle;
+			this.extractedTitles.push(extractedTitle);
 		}
 		this.currentThinkingValue = initialText;
 
@@ -937,6 +938,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 		if (this.content.generatedTitle) {
 			this.currentTitle = this.content.generatedTitle;
+			this.setGeneratedTitleOnAllParts(this.content.generatedTitle);
 			this.setFinalizedTitle(this.content.generatedTitle);
 			return;
 		}

@@ -31,16 +31,18 @@
 	display: flex;
 	align-items: center;
 	gap: 4px;
-	padding: 6px 4px 4px;
+	padding: 2px 0 6px;
+	margin-bottom: 6px;
+	border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border, transparent);
 }
 
 .ai-customization-management-editor .sidebar-home-button {
 	flex-shrink: 0;
 	display: flex;
 	align-items: center;
-	gap: 8px;
+	gap: 10px;
 	padding: 5px 8px;
-	border: 1px solid var(--vscode-dropdown-border, transparent);
+	border: none;
 	border-radius: 4px;
 	background: var(--vscode-dropdown-background);
 	color: var(--vscode-dropdown-foreground);
@@ -52,7 +54,7 @@
 }
 
 .ai-customization-management-editor .sidebar-home-button:hover {
-	border-color: var(--vscode-focusBorder);
+	background-color: var(--vscode-list-hoverBackground);
 }
 
 .ai-customization-management-editor .sidebar-home-button:focus-visible {

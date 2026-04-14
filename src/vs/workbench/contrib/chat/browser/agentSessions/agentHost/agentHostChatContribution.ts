@@ -34,7 +34,7 @@ import { AgentHostSessionListController } from './agentHostSessionListController
 import { LoggingAgentConnection } from './loggingAgentConnection.js';
 import { SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
 
-export { AgentHostSessionHandler } from './agentHostSessionHandler.js';
+export { AgentHostSessionHandler, getAgentHostBranchNameHint } from './agentHostSessionHandler.js';
 export { AgentHostSessionListController } from './agentHostSessionListController.js';
 
 /**
@@ -181,15 +181,17 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		}));
 		store.add(this._chatSessionsService.registerChatSessionContentProvider(sessionType, sessionHandler));
 
-		// Language model provider
+		// Language model provider.
+		// Order matters: `updateModels` must be called after
+		// `registerLanguageModelProvider` so the initial `onDidChange` is observed.
 		const vendorDescriptor = { vendor, displayName: agent.displayName, configuration: undefined, managementCommand: undefined, when: undefined };
 		this._languageModelsService.deltaLanguageModelChatProviderDescriptors([vendorDescriptor], []);
 		store.add(toDisposable(() => this._languageModelsService.deltaLanguageModelChatProviderDescriptors([], [vendorDescriptor])));
 		const modelProvider = store.add(new AgentHostLanguageModelProvider(sessionType, vendor));
-		modelProvider.updateModels(agent.models);
 		this._modelProviders.set(agent.provider, modelProvider);
 		store.add(toDisposable(() => this._modelProviders.delete(agent.provider)));
 		store.add(this._languageModelsService.registerLanguageModelProvider(vendor, modelProvider));
+		modelProvider.updateModels(agent.models);
 
 		// Re-authenticate when credentials change
 		store.add(this._defaultAccountService.onDidChangeDefaultAccount(() => {

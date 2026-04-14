@@ -5,10 +5,10 @@
 
 import 'mocha';
 import * as assert from 'assert';
-import { getFoldingRanges } from '../modes/htmlFolding';
-import { TextDocument, getLanguageModes } from '../modes/languageModes';
+import { getFoldingRanges } from '../modes/htmlFolding.js';
+import { TextDocument, getLanguageModes } from '../modes/languageModes.js';
 import { ClientCapabilities } from 'vscode-css-languageservice';
-import { getNodeFileFS } from '../node/nodeFs';
+import { getNodeFileFS } from '../node/nodeFs.js';
 
 interface ExpectedIndentRange {
 	startLine: number;

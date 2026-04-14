@@ -58,7 +58,8 @@ import { IClaudeToolPermissionService } from '../../chatSessions/claude/common/c
 import { ClaudeCodeModels, IClaudeCodeModels } from '../../chatSessions/claude/node/claudeCodeModels';
 import { IClaudeCodeSdkService } from '../../chatSessions/claude/node/claudeCodeSdkService';
 import { ClaudeRuntimeDataService } from '../../chatSessions/claude/node/claudeRuntimeDataService';
-import { ClaudeSessionStateService, IClaudeSessionStateService } from '../../chatSessions/claude/node/claudeSessionStateService';
+import { IClaudeSessionStateService } from '../../chatSessions/claude/common/claudeSessionStateService';
+import { ClaudeSessionStateService } from '../../chatSessions/claude/node/claudeSessionStateService';
 import { MockClaudeCodeSdkService } from '../../chatSessions/claude/node/test/mockClaudeCodeSdkService';
 import { MockClaudeToolPermissionService } from '../../chatSessions/claude/node/test/mockClaudeToolPermissionService';
 import { CommandServiceImpl, ICommandService } from '../../commands/node/commandService';

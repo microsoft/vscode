@@ -541,6 +541,22 @@ export function sessionReducer(state: ISessionState, action: ISessionAction, log
 				summary: { ...state.summary, diffs: action.diffs },
 			};
 
+		case ActionType.SessionConfigChanged:
+			if (!state.config) {
+				return state;
+			}
+			return {
+				...state,
+				config: {
+					...state.config,
+					values: { ...state.config.values, ...action.config },
+				},
+				summary: {
+					...state.summary,
+					modifiedAt: Date.now(),
+				},
+			};
+
 		case ActionType.SessionServerToolsChanged:
 			return { ...state, serverTools: action.tools };
 

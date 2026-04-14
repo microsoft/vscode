@@ -5,9 +5,9 @@
 
 import 'mocha';
 import * as assert from 'assert';
-import { TextDocument, getLanguageModes, ClientCapabilities, Range, Position } from '../modes/languageModes';
-import { newSemanticTokenProvider } from '../modes/semanticTokens';
-import { getNodeFileFS } from '../node/nodeFs';
+import { TextDocument, getLanguageModes, ClientCapabilities, Range, Position } from '../modes/languageModes.js';
+import { newSemanticTokenProvider } from '../modes/semanticTokens.js';
+import { getNodeFileFS } from '../node/nodeFs.js';
 
 interface ExpectedToken {
 	startLine: number;

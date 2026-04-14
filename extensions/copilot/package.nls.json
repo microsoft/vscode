@@ -455,7 +455,6 @@
 	"github.copilot.chat.applyCopilotCLIAgentSessionChanges.apply": "Apply",
 	"github.copilot.chat.mergeCopilotCLIAgentSessionChanges.merge": "Merge Changes",
 	"github.copilot.chat.mergeCopilotCLIAgentSessionChanges.mergeAndSync": "Merge Changes & Sync",
-	"github.copilot.chat.updateCopilotCLIAgentSessionChanges.update": "Update Branch",
 	"github.copilot.chat.createPullRequestCopilotCLIAgentSession.createPR": "Create Pull Request",
 	"github.copilot.chat.createPullRequestCopilotCLIAgentSession.updatePR": "Sync Pull Request",
 	"github.copilot.chat.createDraftPullRequestCopilotCLIAgentSession.createDraftPR": "Create Draft Pull Request",

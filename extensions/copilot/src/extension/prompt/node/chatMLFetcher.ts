@@ -30,7 +30,8 @@ import { sendCommunicationErrorTelemetry } from '../../../platform/networking/no
 import { ChatFailKind, ChatRequestCanceled, ChatRequestFailed, ChatResults, FetchResponseKind } from '../../../platform/openai/node/fetch';
 import { CopilotChatAttr, emitInferenceDetailsEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, StdAttr, toInputMessages, truncateForOTel } from '../../../platform/otel/common/index';
 import { IOTelService, ISpanHandle, SpanKind, SpanStatusCode } from '../../../platform/otel/common/otelService';
-import { getCurrentCapturingToken, IRequestLogger } from '../../../platform/requestLogger/node/requestLogger';
+import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
+import { getCurrentCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService, TelemetryProperties } from '../../../platform/telemetry/common/telemetry';
 import { TelemetryData } from '../../../platform/telemetry/common/telemetryData';
@@ -1104,6 +1105,9 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		// Request id changes over the lifetime of the connection.
 		modelRequestId.headerRequestId = ourRequestId;
 		telemetryData.extendWithRequestId(modelRequestId);
+		if (modelRequestId.serverExperiments) {
+			this._telemetryService.setSharedProperty('capi.assignmentcontext', modelRequestId.serverExperiments);
+		}
 
 		for (const [key, value] of Object.entries(request)) {
 			if (key === 'messages' || key === 'input') {
@@ -1114,10 +1118,10 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 		this._telemetryService.sendGHTelemetryEvent('request.sent', telemetryData.properties, telemetryData.measurements);
 
 		const requestStart = Date.now();
-		const handle = connection.sendRequest(request, { userInitiated: !!userInitiatedRequest, turnId, requestId: ourRequestId, countTokens, tokenCountMax: chatEndpointInfo.maxOutputTokens, summarizedAtRoundId }, cancellationToken);
+		const handle = connection.sendRequest(request, { userInitiated: !!userInitiatedRequest, turnId, requestId: ourRequestId, countTokens, tokenCountMax: chatEndpointInfo.maxOutputTokens, modelMaxPromptTokens: chatEndpointInfo.modelMaxPromptTokens, summarizedAtRoundId }, cancellationToken);
 
 		const extendedBaseTelemetryData = baseTelemetryData.extendedBy({ modelCallId });
-		const processor = this._instantiationService.createInstance(OpenAIResponsesProcessor, extendedBaseTelemetryData, this._telemetryService, modelRequestId.headerRequestId, modelRequestId.gitHubRequestId, getResponsesApiCompactionThresholdFromBody(request));
+		const processor = this._instantiationService.createInstance(OpenAIResponsesProcessor, extendedBaseTelemetryData, this._telemetryService, modelRequestId.headerRequestId, modelRequestId.gitHubRequestId, modelRequestId.serverExperiments, getResponsesApiCompactionThresholdFromBody(request));
 
 		// Set up streaming first so event listeners are registered before we
 		// await the first event — AsyncIterableObject runs its executor eagerly.
@@ -1414,6 +1418,9 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 			// Preserve ourRequestId as headerRequestId if the server didn't echo x-request-id
 			modelRequestId.headerRequestId = modelRequestId.headerRequestId || ourRequestId;
 			telemetryData.extendWithRequestId(modelRequestId);
+			if (modelRequestId.serverExperiments) {
+				this._telemetryService.setSharedProperty('capi.assignmentcontext', modelRequestId.serverExperiments);
+			}
 
 			// TODO: Add response length (requires parsing)
 			const totalTimeMs = Date.now() - requestStart;

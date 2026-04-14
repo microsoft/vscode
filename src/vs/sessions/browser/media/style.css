@@ -148,7 +148,7 @@
 	margin: 0 auto !important;
 	display: inherit !important;
 	/* Align with panel (terminal) card margin */
-	padding: 4px 10px 10px 10px !important;
+	padding: 4px 10px !important;
 	box-sizing: border-box;
 }
 

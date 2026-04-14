@@ -8,7 +8,7 @@ import { Codicon } from '../../../util/vs/base/common/codicons';
 import { IAuthenticationService } from '../../authentication/common/authentication';
 import { ILogService } from '../../log/common/logService';
 import { Response } from '../../networking/common/fetcherService';
-import { IRequestLogger, LoggedRequestKind } from '../../requestLogger/node/requestLogger';
+import { IRequestLogger, LoggedRequestKind } from '../../requestLogger/common/requestLogger';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { ICAPIClientService } from '../common/capiClient';
 

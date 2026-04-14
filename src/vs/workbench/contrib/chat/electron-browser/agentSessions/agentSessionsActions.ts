@@ -16,6 +16,7 @@ import { URI } from '../../../../../base/common/uri.js';
 import { isMacintosh, isWindows } from '../../../../../base/common/platform.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
 import { Schemas } from '../../../../../base/common/network.js';
+import { ProductQualityContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 
 export class OpenAgentsWindowAction extends Action2 {
 	constructor() {
@@ -23,18 +24,18 @@ export class OpenAgentsWindowAction extends Action2 {
 			id: 'workbench.action.openAgentsWindow',
 			title: localize2('openAgentsWindow', "Open Agents Application"),
 			category: CHAT_CATEGORY,
-			precondition: ContextKeyExpr.and(ChatEntitlementContextKeys.Setup.hidden.negate(), ChatEntitlementContextKeys.Setup.disabledInWorkspace.negate(), IsSessionsWindowContext.negate()),
+			precondition: ContextKeyExpr.and(ProductQualityContext.notEqualsTo('stable'), ChatEntitlementContextKeys.Setup.hidden.negate(), ChatEntitlementContextKeys.Setup.disabledInWorkspace.negate(), IsSessionsWindowContext.negate()),
 			f1: true,
 			menu: [{
 				id: MenuId.ChatTitleBarMenu,
 				group: 'c_sessions',
 				order: 1,
-				when: ContextKeyExpr.and(ChatEntitlementContextKeys.Setup.hidden.negate(), ChatEntitlementContextKeys.Setup.disabledInWorkspace.negate(), IsSessionsWindowContext.negate())
+				when: ContextKeyExpr.and(ProductQualityContext.notEqualsTo('stable'), ChatEntitlementContextKeys.Setup.hidden.negate(), ChatEntitlementContextKeys.Setup.disabledInWorkspace.negate(), IsSessionsWindowContext.negate())
 			}]
 		});
 	}
 
-	async run(accessor: ServicesAccessor) {
+	async run(accessor: ServicesAccessor, options?: { forceNewWindow?: boolean }) {
 		const openerService = accessor.get(IOpenerService);
 		const productService = accessor.get(IProductService);
 		const environmentService = accessor.get(IWorkbenchEnvironmentService);
@@ -43,7 +44,7 @@ export class OpenAgentsWindowAction extends Action2 {
 			await openerService.open(URI.from({ scheme: productService.embedded.urlProtocol, authority: Schemas.file }), { openExternal: true });
 		} else {
 			const nativeHostService = accessor.get(INativeHostService);
-			await nativeHostService.openAgentsWindow();
+			await nativeHostService.openAgentsWindow({ forceNewWindow: options?.forceNewWindow });
 		}
 	}
 }

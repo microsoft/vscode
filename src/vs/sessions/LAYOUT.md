@@ -83,6 +83,7 @@ The Agent Sessions titlebar includes a command center with a custom title bar wi
 The widget:
 - Extends `BaseActionViewItem` and renders a clickable label showing the active session title
 - Shows kind icon (provider type icon), session title, repository folder name, and the active git branch/worktree name in parentheses when available, plus the changes summary (+insertions -deletions)
+- Truncates the repository/worktree metadata with ellipsis before truncating the primary AI-generated session title when command center space is constrained
 - On click, opens the `AgentSessionsPicker` quick pick to switch between sessions
 - Gets the active session label from `IActiveSessionService.getActiveSession()` and the live model title from `IChatService`, falling back to "New Session" if no active session is found
 - Re-renders automatically when the active session changes via `autorun` on `IActiveSessionService.activeSession`, and when session data changes via `IAgentSessionsService.model.onDidChangeSessions`
@@ -650,6 +651,7 @@ interface IPartVisibilityState {
 
 | Date | Change |
 |------|--------|
+| 2026-04-10 | Updated the sessions titlebar widget so repository/worktree metadata truncates with ellipsis before the primary AI-generated session title when the command center gets narrow. |
 | 2026-04-10 | Updated workspace/repository section headers in the Sessions sidebar to keep their uppercase titles visible via ellipsis truncation so the section toolbar actions remain reachable when names are long. |
 | 2026-04-10 | Updated the Sessions view header so the sidebar "Sessions" label stays visible and truncates with ellipsis when space is tight instead of being hidden; documented the find-widget exception in the Sessions view spec. |
 | 2026-04-10 | Updated both sessions chat input surfaces so the standalone new-chat input and the active chat widget input switch their border to `focusBorder` while focused, matching the core workbench chat widget focus treatment. |

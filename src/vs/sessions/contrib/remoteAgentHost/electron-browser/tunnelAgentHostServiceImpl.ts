@@ -112,6 +112,7 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 					type: RemoteAgentHostEntryType.Tunnel,
 					tunnelId: tunnel.tunnelId,
 					clusterId: tunnel.clusterId,
+					label: tunnel.name,
 					authProvider: auth.provider,
 				},
 			}, protocolClient);

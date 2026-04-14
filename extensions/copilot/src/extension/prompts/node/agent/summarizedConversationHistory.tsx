@@ -668,7 +668,7 @@ class ConversationHistorySummarizer {
 		let summarizationPrompt: ChatMessage[];
 		const associatedRequestId = this.props.promptContext.conversation?.getLatestTurn().id;
 		try {
-			summarizationPrompt = (await renderPromptElement(this.instantiationService, endpoint, ConversationHistorySummarizationPrompt, { ...propsInfo.props, simpleMode: mode === SummaryMode.Simple }, undefined, this.token)).messages;
+			summarizationPrompt = (await renderPromptElement(this.instantiationService, endpoint, ConversationHistorySummarizationPrompt, { ...propsInfo.props, enableCacheBreakpoints: false, simpleMode: mode === SummaryMode.Simple }, undefined, this.token)).messages;
 			this.logInfo(`summarization prompt rendered in ${stopwatch.elapsed()}ms.`, mode);
 		} catch (e) {
 			const budgetExceeded = e instanceof BudgetExceededError;

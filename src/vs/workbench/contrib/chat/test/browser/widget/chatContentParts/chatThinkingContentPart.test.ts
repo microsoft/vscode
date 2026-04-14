@@ -1051,6 +1051,87 @@ suite('ChatThinkingContentPart', () => {
 			const iconElement = part.domNode.querySelector('.codicon-check');
 			assert.ok(iconElement, 'Should have check icon after finalization');
 		});
+
+		test('finalizeTitleIfDefault should retain initial thinking title', () => {
+			const content = createThinkingPart('**Reviewed renderer state**\nChecked completed response rendering');
+			const context = createMockRenderContext(true);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				true
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			part.finalizeTitleIfDefault();
+
+			const button = part.domNode.querySelector('.monaco-button') as HTMLElement;
+			assert.deepStrictEqual({
+				generatedTitle: content.generatedTitle,
+				label: button.textContent,
+				ariaLabel: button.ariaLabel,
+			}, {
+				generatedTitle: 'Reviewed renderer state',
+				label: 'Reviewed renderer state',
+				ariaLabel: 'Reviewed renderer state',
+			});
+		});
+
+		test('finalizeTitleIfDefault should retain restored terminal title', () => {
+			const content = createThinkingPart('');
+			const context = createMockRenderContext(true);
+
+			const part = store.add(instantiationService.createInstance(
+				ChatThinkingContentPart,
+				content,
+				context,
+				mockMarkdownRenderer,
+				true
+			));
+
+			mainWindow.document.body.appendChild(part.domNode);
+			disposables.add(toDisposable(() => part.domNode.remove()));
+
+			const terminalTool: IChatToolInvocationSerialized = {
+				kind: 'toolInvocationSerialized',
+				toolId: 'run_in_terminal',
+				toolCallId: 'terminal-call-1',
+				invocationMessage: 'Running npm test',
+				originMessage: undefined,
+				pastTenseMessage: undefined,
+				presentation: undefined,
+				isConfirmed: { type: 0 },
+				isComplete: true,
+				source: ToolDataSource.Internal,
+				generatedTitle: 'Ran npm test',
+				isAttachedToThinking: false,
+				toolSpecificData: {
+					kind: 'terminal',
+					commandLine: { original: 'npm test' },
+					language: 'shellscript',
+				}
+			};
+
+			part.appendItem(() => ({ domNode: $('div.test-terminal-tool') }), terminalTool.toolId, terminalTool);
+			part.finalizeTitleIfDefault();
+
+			const button = part.domNode.querySelector('.monaco-button') as HTMLElement;
+			assert.deepStrictEqual({
+				contentGeneratedTitle: content.generatedTitle,
+				toolGeneratedTitle: terminalTool.generatedTitle,
+				label: button.textContent,
+				ariaLabel: button.ariaLabel,
+			}, {
+				contentGeneratedTitle: 'Ran npm test',
+				toolGeneratedTitle: 'Ran npm test',
+				label: 'Ran npm test',
+				ariaLabel: 'Ran npm test',
+			});
+		});
 	});
 
 	suite('hasSameContent', () => {

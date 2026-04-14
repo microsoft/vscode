@@ -8,10 +8,10 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IReference } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IAgentConnection, IAgentCreateSessionConfig, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult } from '../../../../../platform/agentHost/common/agentService.js';
+import { IAgentConnection, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult } from '../../../../../platform/agentHost/common/agentService.js';
 import { ActionType, IStateAction } from '../../../../../platform/agentHost/common/state/protocol/actions.js';
 import { IRootState, TerminalClaimKind, type ITerminalState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
-import type { ICreateTerminalParams } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
+import type { ICreateTerminalParams, IResolveSessionConfigResult, ISessionConfigCompletionsResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import type { IActionEnvelope, ISessionAction, ITerminalAction, INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IResourceCopyParams, IResourceCopyResult, IResourceDeleteParams, IResourceDeleteResult, IResourceListResult, IResourceMoveParams, IResourceMoveResult, IResourceReadResult, IResourceWriteParams, IResourceWriteResult } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 
@@ -70,6 +70,8 @@ class MockAgentConnection implements IAgentConnection {
 	async authenticate(_params: IAuthenticateParams): Promise<IAuthenticateResult> { return { authenticated: true }; }
 	async listSessions(): Promise<IAgentSessionMetadata[]> { return []; }
 	async createSession(_config?: IAgentCreateSessionConfig): Promise<URI> { return URI.parse('copilot:///test'); }
+	async resolveSessionConfig(_params: IAgentResolveSessionConfigParams): Promise<IResolveSessionConfigResult> { return { ready: true, schema: { type: 'object', properties: {} }, values: {} }; }
+	async sessionConfigCompletions(_params: IAgentSessionConfigCompletionsParams): Promise<ISessionConfigCompletionsResult> { return { items: [] }; }
 	async disposeSession(_session: URI): Promise<void> { }
 	async shutdown(): Promise<void> { }
 	async resourceList(_uri: URI): Promise<IResourceListResult> { return { entries: [] }; }

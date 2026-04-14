@@ -3,13 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export interface ParsedClaudeModelId {
-	readonly name: string;
-	readonly version: string;
-	readonly modifiers: string;
-	toSdkModelId(): string;
-	toEndpointModelId(): string;
-}
+import type { ParsedClaudeModelId } from '../common/claudeModelId';
 
 /**
  * Known model suffixes that are meaningful variants and should be preserved

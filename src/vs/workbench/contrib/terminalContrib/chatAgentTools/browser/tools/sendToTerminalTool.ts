@@ -153,12 +153,14 @@ export class SendToTerminalTool extends Disposable implements IToolImpl {
 		const chatSessionResource = context.chatSessionResource;
 		const isSessionAutoApproved = chatSessionResource && isSessionAutoApproveLevel(chatSessionResource, this._configurationService, this._chatWidgetService, this._chatService);
 
-		// send_to_terminal always requires confirmation in default approvals mode.
-		// Unlike run_in_terminal, the text sent here may be arbitrary input to a
-		// waiting prompt (e.g. a name, password, or confirmation) rather than a
-		// shell command, so the command-line auto-approve analyzer cannot reliably
-		// determine safety.
-		const shouldShowConfirmation = !isSessionAutoApproved || context.forceConfirmationReason !== undefined;
+		// send_to_terminal normally requires confirmation in default approvals mode
+		// because the text may be arbitrary input (passwords, confirmations, etc.)
+		// that the command-line auto-approve analyzer cannot assess. However, when
+		// the text being sent was just collected via askQuestions for the same
+		// terminal, the user already explicitly provided the answer so a second
+		// confirmation is redundant.
+		const isAnsweringQuestion = questionText !== undefined;
+		const shouldShowConfirmation = (!isSessionAutoApproved && !isAnsweringQuestion) || context.forceConfirmationReason !== undefined;
 		const confirmationMessages = shouldShowConfirmation ? {
 			title: localize('send.confirm.title', "Send to Terminal"),
 			message: confirmationMessage,
@@ -212,13 +214,15 @@ export class SendToTerminalTool extends Disposable implements IToolImpl {
 
 	/**
 	 * Searches the current session's responses for the most recent question
-	 * carousel associated with the target terminal, then matches the command
-	 * text being sent against the carousel's submitted answers to return the
-	 * specific question that this send_to_terminal call is answering.
+	 * carousel associated with the target terminal, then uses positional
+	 * matching to return the specific question that this send_to_terminal
+	 * call is answering.
 	 *
 	 * When a carousel contains multiple questions, the model calls
-	 * send_to_terminal once per answer. This method correlates each call to
-	 * the right question by matching the sent text against answer values.
+	 * send_to_terminal once per answer in order. This method counts prior
+	 * send_to_terminal invocations since the carousel to determine the
+	 * current question index, then verifies the command matches the answer
+	 * at that position.
 	 */
 	private _getQuestionContextForTerminal(chatSessionResource: URI | undefined, args: ISendToTerminalInputParams): string | undefined {
 		if (!chatSessionResource) {
@@ -245,40 +249,58 @@ export class SendToTerminalTool extends Disposable implements IToolImpl {
 				continue;
 			}
 			const parts = response.response.value;
+
+			// First, find the carousel for this terminal (searching backwards)
+			let carouselIndex = -1;
+			let carousel: IChatQuestionCarousel | undefined;
 			for (let j = parts.length - 1; j >= 0; j--) {
 				const part = parts[j];
 				if (part.kind === 'questionCarousel') {
-					const carousel = part as IChatQuestionCarousel;
-					if (!carousel.terminalId || carousel.questions.length === 0) {
+					const candidate = part as IChatQuestionCarousel;
+					if (!candidate.terminalId || candidate.questions.length === 0) {
 						continue;
 					}
-					// Match by execution UUID or by resolving the carousel's UUID to an instance ID
-					const matchesById = !!args.id && carousel.terminalId === args.id;
+					const matchesById = !!args.id && candidate.terminalId === args.id;
 					const matchesByInstanceId = args.terminalId !== undefined &&
-						RunInTerminalTool.getExecution(carousel.terminalId)?.instance.instanceId === args.terminalId;
-					if (!matchesById && !matchesByInstanceId) {
-						continue;
+						RunInTerminalTool.getExecution(candidate.terminalId)?.instance.instanceId === args.terminalId;
+					if (matchesById || matchesByInstanceId) {
+						carouselIndex = j;
+						carousel = candidate;
+						break;
 					}
-
-					// If there's only one question, return it directly
-					if (carousel.questions.length === 1) {
-						return this._getQuestionText(carousel.questions[0]);
-					}
-
-					// Multiple questions: match the command text against submitted answers
-					if (carousel.data) {
-						for (const question of carousel.questions) {
-							const answer = carousel.data[question.id];
-							if (this._answerMatchesCommand(answer, commandText)) {
-								return this._getQuestionText(question);
-							}
-						}
-					}
-
-					// Fallback: return the first question's text
-					return this._getQuestionText(carousel.questions[0]);
 				}
 			}
+
+			if (!carousel || carouselIndex === -1) {
+				continue;
+			}
+
+			// Count send_to_terminal tool invocations after the carousel to
+			// determine which question this call corresponds to (positional).
+			let sendCount = 0;
+			for (let j = carouselIndex + 1; j < parts.length; j++) {
+				if (parts[j].kind === 'toolInvocation' && (parts[j] as { toolId?: string }).toolId === TerminalToolId.SendToTerminal) {
+					sendCount++;
+				}
+			}
+
+			const questionIndex = sendCount;
+			if (questionIndex >= carousel.questions.length) {
+				return undefined;
+			}
+
+			const question = carousel.questions[questionIndex];
+
+			// Verify the command matches the answer at this position so that
+			// unrelated send_to_terminal calls don't skip confirmation.
+			if (carousel.data) {
+				const answer = carousel.data[question.id];
+				if (this._answerMatchesCommand(answer, commandText)) {
+					return this._getQuestionText(question);
+				}
+			}
+
+			return undefined;
 		}
 		return undefined;
 	}

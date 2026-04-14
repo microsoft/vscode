@@ -7,7 +7,7 @@ import { promises as fs } from 'fs';
 
 import { Uri } from 'vscode';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
-import { IGitService } from '../../../platform/git/common/gitService';
+import { IGitService, RepoContext } from '../../../platform/git/common/gitService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import * as path from '../../../util/vs/base/common/path';
@@ -17,6 +17,7 @@ import { IChatSessionMetadataStore } from '../common/chatSessionMetadataStore';
 import { IChatSessionWorkspaceFolderService } from '../common/chatSessionWorkspaceFolderService';
 import { IChatSessionWorktreeCheckpointService } from '../common/chatSessionWorktreeCheckpointService';
 import { IChatSessionWorktreeService } from '../common/chatSessionWorktreeService';
+import { buildTempIndexEnv } from '../../../platform/git/vscode-node/utils';
 
 const CHECKPOINT_REF_PREFIX = 'refs/sessions/';
 
@@ -54,7 +55,7 @@ export class ChatSessionWorktreeCheckpointService extends Disposable implements 
 		}
 
 		// Initialize checkpoint state and capture baseline checkpoint
-		const checkpointRef = await this._createCheckpoint(sessionId, repository.rootUri, 0);
+		const checkpointRef = await this._createCheckpoint(sessionId, repository, 0);
 		if (!checkpointRef) {
 			return;
 		}
@@ -96,7 +97,7 @@ export class ChatSessionWorktreeCheckpointService extends Disposable implements 
 
 		// Create checkpoint
 		const currentTurn = parseInt(parentCheckpointRef.split('/').pop() ?? '0') + 1;
-		const checkpointRef = await this._createCheckpoint(sessionId, repository.rootUri, currentTurn, parentCheckpointRef);
+		const checkpointRef = await this._createCheckpoint(sessionId, repository, currentTurn, parentCheckpointRef);
 		if (!checkpointRef) {
 			return;
 		}
@@ -169,7 +170,7 @@ export class ChatSessionWorktreeCheckpointService extends Disposable implements 
 				this.logService.warn(`[ChatSessionWorktreeCheckpointService][handleAdditionalWorktreesRequest] No repository found for additional worktree ${props.worktreePath}`);
 				continue;
 			}
-			await this._createCheckpoint(sessionId, repository.rootUri, 0);
+			await this._createCheckpoint(sessionId, repository, 0);
 		}
 	}
 
@@ -193,7 +194,7 @@ export class ChatSessionWorktreeCheckpointService extends Disposable implements 
 
 			const parentCheckpointRef = await this._getLatestCheckpointRef(sessionId);
 			const currentTurn = parentCheckpointRef ? parseInt(parentCheckpointRef.split('/').pop() ?? '0') + 1 : 0;
-			const checkpointRef = await this._createCheckpoint(sessionId, repository.rootUri, currentTurn, parentCheckpointRef);
+			const checkpointRef = await this._createCheckpoint(sessionId, repository, currentTurn, parentCheckpointRef);
 			if (checkpointRef) {
 				additionalCheckpointRefs[props.repositoryPath] = checkpointRef;
 			}
@@ -204,9 +205,11 @@ export class ChatSessionWorktreeCheckpointService extends Disposable implements 
 		}
 	}
 
-	private async _createCheckpoint(sessionId: string, repositoryUri: Uri, turnNumber: number, parentCheckpointRef?: string): Promise<string | undefined> {
+	private async _createCheckpoint(sessionId: string, repository: RepoContext, turnNumber: number, parentCheckpointRef?: string): Promise<string | undefined> {
+		const repositoryUri = repository.rootUri;
 		const tmpDirName = `vscode-sessions-${sessionId}-${generateUuid()}`;
 		const checkpointIndexFile = path.join(this.extensionContext.globalStorageUri.fsPath, tmpDirName, `checkpoint.index`);
+		const env = buildTempIndexEnv(repository, checkpointIndexFile);
 
 		try {
 			// Create temp index file directory
@@ -218,13 +221,13 @@ export class ChatSessionWorktreeCheckpointService extends Disposable implements 
 				: undefined;
 
 			// Populate temp index from previous checkpoint tree (or HEAD for the baseline)
-			await this.gitService.exec(repositoryUri, ['read-tree', parentCommitOid ?? 'HEAD'], { GIT_INDEX_FILE: checkpointIndexFile });
+			await this.gitService.exec(repositoryUri, ['read-tree', parentCommitOid ?? 'HEAD'], env);
 
 			// Stage entire working directory into temp index
-			await this.gitService.exec(repositoryUri, ['add', '--', '.'], { GIT_INDEX_FILE: checkpointIndexFile });
+			await this.gitService.exec(repositoryUri, ['add', '-A', '--', '.'], env);
 
 			// Write the temp index as a tree object
-			const treeOid = await this.gitService.exec(repositoryUri, ['write-tree'], { GIT_INDEX_FILE: checkpointIndexFile });
+			const treeOid = await this.gitService.exec(repositoryUri, ['write-tree'], env);
 
 			// Create a commit pointing to the tree, chained to the previous checkpoint
 			const commitTreeArgs = ['commit-tree', treeOid, ...(parentCommitOid ? ['-p', parentCommitOid] : []), '-m', `Session ${sessionId} - checkpoint turn ${turnNumber}`];

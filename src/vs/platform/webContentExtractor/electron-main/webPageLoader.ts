@@ -11,6 +11,7 @@ import { Disposable, toDisposable } from '../../../base/common/lifecycle.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
+import { IAgentNetworkFilterService } from '../../networkFilter/common/networkFilterService.js';
 import { IWebContentExtractorOptions, WebContentExtractResult } from '../common/webContentExtractor.js';
 import { AXNode, convertAXTreeToMarkdown } from './cdpAccessibilityDomain.js';
 
@@ -58,6 +59,7 @@ export class WebPageLoader extends Disposable {
 		private readonly _uri: URI,
 		private readonly _options: IWebContentExtractorOptions | undefined,
 		private readonly _isTrustedDomain: (uri: URI) => boolean,
+		private readonly _agentNetworkFilterService: IAgentNetworkFilterService,
 	) {
 		super();
 
@@ -279,9 +281,17 @@ export class WebPageLoader extends Disposable {
 		}
 
 		this.trace(`Received 'will-navigate' or 'will-redirect' event, url: ${url}`);
-		if (!this._options?.followRedirects) {
-			const toURI = URI.parse(url);
 
+		// Check domain filter policy first — this applies regardless of followRedirects
+		const toURI = URI.parse(url);
+		if (!this._agentNetworkFilterService.isUriAllowed(toURI)) {
+			this.trace(`Blocking navigation to ${url} (blocked by domain filter policy)`);
+			event.preventDefault();
+			this._onResult({ status: 'error', error: this._agentNetworkFilterService.formatError(toURI) });
+			return;
+		}
+
+		if (!this._options?.followRedirects) {
 			// Allow redirect if authority is the same when ignoring www prefix
 			if (this.normalizeAuthority(toURI.authority) === this.normalizeAuthority(this._uri.authority)) {
 				return;
