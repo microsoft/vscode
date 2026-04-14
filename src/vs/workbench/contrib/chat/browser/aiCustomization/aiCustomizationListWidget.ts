@@ -21,7 +21,9 @@ import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { WorkbenchList } from '../../../../../platform/list/browser/listService.js';
 import { IListVirtualDelegate, IListRenderer, IListContextMenuEvent } from '../../../../../base/browser/ui/list/list.js';
-import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { IPromptFileDiscoveryResult, IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
+import { IMarkerService, MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
+import { MARKERS_OWNER_ID } from '../../common/promptSyntax/languageProviders/promptValidator.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { agentIcon, instructionsIcon, promptIcon, skillIcon, hookIcon, userIcon, workspaceIcon, extensionIcon, pluginIcon, builtinIcon } from './aiCustomizationIcons.js';
 import { AI_CUSTOMIZATION_ITEM_STORAGE_KEY, AI_CUSTOMIZATION_ITEM_TYPE_KEY, AI_CUSTOMIZATION_ITEM_URI_KEY, AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY, AICustomizationManagementItemMenuId, AICustomizationManagementCreateMenuId, AICustomizationManagementSection, BUILTIN_STORAGE, AI_CUSTOMIZATION_ITEM_DISABLED_KEY } from './aiCustomizationManagement.js';
@@ -83,6 +85,52 @@ type CustomizationEditorSearchClassification = {
 const ITEM_HEIGHT = 44;
 const GROUP_HEADER_HEIGHT = 36;
 const GROUP_HEADER_HEIGHT_WITH_SEPARATOR = 40;
+
+/**
+ * Maps a discovery skip reason to a list item status and human-readable message.
+ */
+function skipReasonToStatus(result: IPromptFileDiscoveryResult): { status: 'degraded' | 'error'; statusMessage: string } {
+	const reason = result.skipReason;
+	switch (reason) {
+		case 'parse-error':
+			return {
+				status: 'error',
+				statusMessage: result.errorMessage
+					? localize('skipReason.parseError.detail', "Parse error: {0}", result.errorMessage)
+					: localize('skipReason.parseError', "This file could not be parsed."),
+			};
+		case 'missing-name':
+			return {
+				status: 'error',
+				statusMessage: localize('skipReason.missingName', "Missing required 'name' attribute in frontmatter."),
+			};
+		case 'missing-description':
+			return {
+				status: 'error',
+				statusMessage: localize('skipReason.missingDescription', "Missing required 'description' attribute in frontmatter."),
+			};
+		case 'name-mismatch':
+			return {
+				status: 'error',
+				statusMessage: localize('skipReason.nameMismatch', "The 'name' attribute does not match the folder name."),
+			};
+		case 'duplicate-name':
+			return {
+				status: 'degraded',
+				statusMessage: localize('skipReason.duplicateName', "Another file with the same name takes precedence."),
+			};
+		case 'workspace-untrusted':
+			return {
+				status: 'degraded',
+				statusMessage: localize('skipReason.workspaceUntrusted', "Disabled because the workspace is not trusted."),
+			};
+		default:
+			return {
+				status: 'degraded',
+				statusMessage: localize('skipReason.skipped', "This file was skipped during discovery ({0}).", reason ?? 'unknown'),
+			};
+	}
+}
 
 /**
  * Represents an AI customization item in the list.
@@ -623,6 +671,7 @@ export class AICustomizationListWidget extends Disposable {
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IProductService private readonly productService: IProductService,
+		@IMarkerService private readonly markerService: IMarkerService,
 	) {
 		super();
 		this.element = $('.ai-customization-list-widget');
@@ -668,6 +717,17 @@ export class AICustomizationListWidget extends Disposable {
 				syncChangeDisposable.value = activeDescriptor.syncProvider.onDidChange(() => this.refresh());
 			} else {
 				syncChangeDisposable.clear();
+			}
+		}));
+
+		// Refresh when prompt-file markers change so validation indicators stay current
+		this._register(this.markerService.onMarkerChanged(changedUris => {
+			if (this.allItems.length === 0) {
+				return;
+			}
+			const itemUris = new ResourceSet(this.allItems.map(i => i.uri));
+			if (changedUris.some(uri => itemUris.has(uri))) {
+				this.refresh();
 			}
 		}));
 
@@ -1245,17 +1305,78 @@ export class AICustomizationListWidget extends Disposable {
 
 	/**
 	 * Fetches and filters items for a given section.
-	 * Delegates to the provider path or core path based on the active harness.
+	 * Delegates to the provider path or core path based on the active harness,
+	 * then overlays marker-based validation status.
 	 */
 	private async fetchItemsForSection(section: AICustomizationManagementSection): Promise<IAICustomizationListItem[]> {
 		const promptType = sectionToPromptType(section);
 		const activeDescriptor = this.harnessService.getActiveDescriptor();
 
+		let items: IAICustomizationListItem[];
 		if (activeDescriptor.itemProvider && promptType) {
-			return this.fetchProviderItemsForSection(activeDescriptor, promptType);
+			items = await this.fetchProviderItemsForSection(activeDescriptor, promptType);
+		} else {
+			items = await this.fetchCoreItemsForSection(promptType);
 		}
 
-		return this.fetchCoreItemsForSection(promptType);
+		return this.overlayMarkerStatus(items);
+	}
+
+	/**
+	 * Overlays validation marker status onto items. For each item, queries
+	 * the marker service for prompt-diagnostics markers on the item's URI.
+	 * If markers exist, the item's status is upgraded to the worst severity
+	 * between its existing discovery status and the marker severity.
+	 */
+	private overlayMarkerStatus(items: IAICustomizationListItem[]): IAICustomizationListItem[] {
+		// Collect unique URIs to query markers for
+		const uris = new ResourceSet(items.map(i => i.uri));
+		const markersByUri = new ResourceMap<{ severity: MarkerSeverity; message: string }>();
+		for (const uri of uris) {
+			const markers = this.markerService.read({ resource: uri, owner: MARKERS_OWNER_ID });
+			if (markers.length > 0) {
+				// Find worst severity
+				let worstSeverity = MarkerSeverity.Hint;
+				let worstMessage = '';
+				for (const m of markers) {
+					if (m.severity > worstSeverity) {
+						worstSeverity = m.severity;
+						worstMessage = m.message;
+					}
+				}
+				const summary = markers.length === 1
+					? worstMessage
+					: localize('markerCount', "{0} problems found in this file", markers.length);
+				markersByUri.set(uri, { severity: worstSeverity, message: summary });
+			}
+		}
+
+		if (markersByUri.size === 0) {
+			return items;
+		}
+
+		return items.map(item => {
+			const markerInfo = markersByUri.get(item.uri);
+			if (!markerInfo) {
+				return item;
+			}
+			const markerStatus: 'degraded' | 'error' = markerInfo.severity >= MarkerSeverity.Error ? 'error' : 'degraded';
+			// If item already has a status, use the worst of the two
+			if (item.status) {
+				const existingRank = item.status === 'error' ? 2 : item.status === 'degraded' ? 1 : 0;
+				const markerRank = markerStatus === 'error' ? 2 : 1;
+				if (markerRank <= existingRank) {
+					return item; // existing status is already as severe or worse
+				}
+			}
+			return {
+				...item,
+				status: markerStatus,
+				statusMessage: item.statusMessage
+					? `${item.statusMessage}\n${markerInfo.message}`
+					: markerInfo.message,
+			};
+		});
 	}
 
 	/**
@@ -1292,8 +1413,10 @@ export class AICustomizationListWidget extends Disposable {
 					extensionInfoByUri.set(file.uri, { id: file.extension.identifier, displayName: file.extension.displayName });
 				}
 			}
+			const loadedAgentUris = new ResourceSet();
 			for (const agent of agents) {
 				const filename = basename(agent.uri);
+				loadedAgentUris.add(agent.uri);
 				items.push({
 					id: agent.uri.toString(),
 					uri: agent.uri,
@@ -1309,6 +1432,27 @@ export class AICustomizationListWidget extends Disposable {
 				if (agent.source.storage === PromptsStorage.extension && !extensionInfoByUri.has(agent.uri)) {
 					extensionInfoByUri.set(agent.uri, { id: agent.source.extensionId });
 				}
+			}
+			// Include skipped (errored) agent files from discovery so the user can see what's broken
+			const discoveryInfo = await this.promptsService.getDiscoveryInfo(PromptsType.agent, CancellationToken.None);
+			for (const file of discoveryInfo.files) {
+				if (file.status !== 'skipped' || file.skipReason === 'disabled' || loadedAgentUris.has(file.promptPath.uri)) {
+					continue;
+				}
+				const { status, statusMessage } = skipReasonToStatus(file);
+				const filename = basename(file.promptPath.uri);
+				items.push({
+					id: file.promptPath.uri.toString(),
+					uri: file.promptPath.uri,
+					name: file.promptPath.name || this.getFriendlyName(filename),
+					filename,
+					description: file.promptPath.description,
+					storage: file.promptPath.storage,
+					promptType,
+					disabled: true,
+					status,
+					statusMessage,
+				});
 			}
 		} else if (promptType === PromptsType.skill) {
 			// Use findAgentSkills for enabled skills (has parsed name/description from frontmatter)
@@ -1350,6 +1494,7 @@ export class AICustomizationListWidget extends Disposable {
 						const disabledName = file.name || basename(dirname(file.uri)) || filename;
 						const disabledFolderName = basename(dirname(file.uri));
 						const uiTooltip = uiIntegrations.get(disabledFolderName);
+						seenUris.add(file.uri);
 						items.push({
 							id: file.uri.toString(),
 							uri: file.uri,
@@ -1364,6 +1509,27 @@ export class AICustomizationListWidget extends Disposable {
 						});
 					}
 				}
+			}
+			// Include skipped (errored) skill files from discovery
+			const skillDiscovery = await this.promptsService.getDiscoveryInfo(PromptsType.skill, CancellationToken.None);
+			for (const file of skillDiscovery.files) {
+				if (file.status !== 'skipped' || file.skipReason === 'disabled' || seenUris.has(file.promptPath.uri)) {
+					continue;
+				}
+				const { status, statusMessage } = skipReasonToStatus(file);
+				const filename = basename(file.promptPath.uri);
+				items.push({
+					id: file.promptPath.uri.toString(),
+					uri: file.promptPath.uri,
+					name: file.promptPath.name || basename(dirname(file.promptPath.uri)) || filename,
+					filename,
+					description: file.promptPath.description,
+					storage: file.promptPath.storage,
+					promptType,
+					disabled: true,
+					status,
+					statusMessage,
+				});
 			}
 		} else if (promptType === PromptsType.prompt) {
 			// Use getPromptSlashCommands which has parsed name/description from frontmatter
@@ -1389,12 +1555,41 @@ export class AICustomizationListWidget extends Disposable {
 					extensionInfoByUri.set(command.uri, { id: command.extension.identifier, displayName: command.extension.displayName });
 				}
 			}
+			// Include skipped (errored) prompt files from discovery
+			const promptDiscovery = await this.promptsService.getDiscoveryInfo(PromptsType.prompt, CancellationToken.None);
+			const loadedPromptUris = new ResourceSet(commands.filter(c => c.type !== PromptsType.skill).map(c => c.uri));
+			for (const file of promptDiscovery.files) {
+				if (file.status !== 'skipped' || file.skipReason === 'disabled' || loadedPromptUris.has(file.promptPath.uri)) {
+					continue;
+				}
+				const { status, statusMessage } = skipReasonToStatus(file);
+				const filename = basename(file.promptPath.uri);
+				items.push({
+					id: file.promptPath.uri.toString(),
+					uri: file.promptPath.uri,
+					name: file.promptPath.name || this.getFriendlyName(filename),
+					filename,
+					description: file.promptPath.description,
+					storage: file.promptPath.storage,
+					promptType,
+					disabled: true,
+					status,
+					statusMessage,
+				});
+			}
 		} else if (promptType === PromptsType.hook) {
 			// Try to parse individual hooks from each file; fall back to showing the file itself
 			const hookFiles = await this.promptsService.listPromptFiles(PromptsType.hook, CancellationToken.None);
 			const activeRoot = this.workspaceService.getActiveProjectRoot();
 			const userHomeUri = await this.pathService.userHome();
 			const userHome = userHomeUri.scheme === Schemas.file ? userHomeUri.fsPath : userHomeUri.path;
+
+			// Build a lookup from discovery info for per-file status (parse errors, disabled hooks, etc.)
+			const hookDiscovery = await this.promptsService.getDiscoveryInfo(PromptsType.hook, CancellationToken.None);
+			const discoveryByUri = new ResourceMap<IPromptFileDiscoveryResult>();
+			for (const file of hookDiscovery.files) {
+				discoveryByUri.set(file.promptPath.uri, file);
+			}
 
 			for (const hookFile of hookFiles) {
 				// Plugins parse their own hooks and emit them individually because they can
@@ -1442,11 +1637,15 @@ export class AICustomizationListWidget extends Disposable {
 						}
 					}
 				} catch {
-					// Parse failed — fall through to show raw file
+					// Parse failed — fall through to show raw file with error status
 				}
 
 				if (!parsedHooks) {
 					const filename = basename(hookFile.uri);
+					const discoveryResult = discoveryByUri.get(hookFile.uri);
+					const fileStatus = discoveryResult?.status === 'skipped' && discoveryResult.skipReason !== 'disabled'
+						? skipReasonToStatus(discoveryResult)
+						: undefined;
 					items.push({
 						id: hookFile.uri.toString(),
 						uri: hookFile.uri,
@@ -1455,6 +1654,8 @@ export class AICustomizationListWidget extends Disposable {
 						storage: hookFile.storage,
 						promptType,
 						disabled: disabledUris.has(hookFile.uri),
+						status: fileStatus?.status,
+						statusMessage: fileStatus?.statusMessage,
 					});
 				}
 			}
@@ -1575,6 +1776,30 @@ export class AICustomizationListWidget extends Disposable {
 						disabled: disabledUris.has(uri),
 					});
 				}
+			}
+
+			// Include skipped (errored) instruction files from discovery
+			const instrDiscovery = await this.promptsService.getDiscoveryInfo(PromptsType.instructions, CancellationToken.None);
+			const loadedInstrUris = new ResourceSet([...instructionFiles.map(f => f.uri), ...agentInstructionFiles.map(f => f.uri)]);
+			for (const file of instrDiscovery.files) {
+				if (file.status !== 'skipped' || file.skipReason === 'disabled' || loadedInstrUris.has(file.promptPath.uri)) {
+					continue;
+				}
+				const { status, statusMessage } = skipReasonToStatus(file);
+				const filename = basename(file.promptPath.uri);
+				items.push({
+					id: file.promptPath.uri.toString(),
+					uri: file.promptPath.uri,
+					name: file.promptPath.name || this.getFriendlyName(filename),
+					filename,
+					description: file.promptPath.description,
+					storage: file.promptPath.storage,
+					promptType,
+					typeIcon: storageToIcon(file.promptPath.storage),
+					disabled: true,
+					status,
+					statusMessage,
+				});
 			}
 		}
 
