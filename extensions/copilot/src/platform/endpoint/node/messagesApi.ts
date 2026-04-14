@@ -142,12 +142,12 @@ export function createMessagesRequestBody(accessor: ServicesAccessor, options: I
 	// is configured for the model, and the model supports thinking. reasoningEffort (if present)
 	// is used only to configure the effort level when thinking is enabled, not to gate it.
 	const reasoningEffort = options.modelCapabilities?.reasoningEffort;
-	let thinkingConfig: { type: 'enabled' | 'adaptive'; budget_tokens?: number } | undefined;
+	let thinkingConfig: { type: 'enabled' | 'adaptive'; budget_tokens?: number; display?: 'summarized' } | undefined;
 	if (options.modelCapabilities?.enableThinking) {
 		const configuredBudget = configurationService.getConfig(ConfigKey.AnthropicThinkingBudget);
 		const thinkingExplicitlyDisabled = configuredBudget === 0;
 		if (endpoint.supportsAdaptiveThinking && !thinkingExplicitlyDisabled) {
-			thinkingConfig = { type: 'adaptive' };
+			thinkingConfig = { type: 'adaptive', display: 'summarized' };
 		} else if (!thinkingExplicitlyDisabled && endpoint.maxThinkingBudget && endpoint.minThinkingBudget) {
 			const maxTokens = options.postOptions.max_tokens ?? 1024;
 			const minBudget = endpoint.minThinkingBudget ?? 1024;
