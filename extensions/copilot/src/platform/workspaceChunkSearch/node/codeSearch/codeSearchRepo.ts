@@ -359,6 +359,13 @@ abstract class BaseRemoteCodeSearchRepo extends Disposable implements CodeSearch
 	}
 }
 export class GithubCodeSearchRepo extends BaseRemoteCodeSearchRepo {
+
+	/** Minimum time between index state refreshes when already Ready  */
+	private readonly _indexStateRefreshInterval = 30 * 60 * 1000;
+
+	private _lastIndexStateRefreshTime = 0;
+	private _hadOutOfSyncResult = false;
+
 	constructor(
 		repoInfo: RepoInfo,
 		private readonly _githubRepoId: GithubRepoId,
@@ -370,12 +377,16 @@ export class GithubCodeSearchRepo extends BaseRemoteCodeSearchRepo {
 		super(repoInfo, remoteInfo, logService, telemetryService);
 	}
 
-	public searchRepo(authOptions: { silent: boolean }, embeddingType: EmbeddingType, resolvedQuery: string, maxResultCountHint: number, options: WorkspaceChunkSearchOptions, telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<CodeSearchResult> {
-		return this._githubCodeSearchService.searchRepo(authOptions, embeddingType, {
+	public override async searchRepo(authOptions: { silent: boolean }, embeddingType: EmbeddingType, resolvedQuery: string, maxResultCountHint: number, options: WorkspaceChunkSearchOptions, telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<CodeSearchResult> {
+		const result = await this._githubCodeSearchService.searchRepo(authOptions, embeddingType, {
 			githubRepoId: this._githubRepoId,
 			localRepoRoot: this.repoInfo.rootUri,
 			indexedCommit: undefined, // TODO
 		}, resolvedQuery, maxResultCountHint, options, telemetryInfo, token);
+		if (result.outOfSync) {
+			this._hadOutOfSyncResult = true;
+		}
+		return result;
 	}
 
 	protected async doFetchRemoteIndexState(telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<Result<RemoteCodeSearchIndexState, RemoteCodeSearchError>> {
@@ -414,9 +425,13 @@ export class GithubCodeSearchRepo extends BaseRemoteCodeSearchRepo {
 
 		await measureExecTime(() => raceTimeout((async () => {
 			if (this.status === CodeSearchRepoStatus.Ready) {
-				// Try to update the indexed commit to ensure we're up to date
-				const newState = await raceCancellationError(this.fetchRemoteIndexState(telemetryInfo, token), token);
-				this.updateState(newState);
+				const timeSinceLastRefresh = Date.now() - this._lastIndexStateRefreshTime;
+				if (timeSinceLastRefresh >= this._indexStateRefreshInterval || this._hadOutOfSyncResult) {
+					this._hadOutOfSyncResult = false;
+					const newState = await raceCancellationError(this.fetchRemoteIndexState(telemetryInfo, token), token);
+					this._lastIndexStateRefreshTime = Date.now();
+					this.updateState(newState);
+				}
 				return;
 			}
 
