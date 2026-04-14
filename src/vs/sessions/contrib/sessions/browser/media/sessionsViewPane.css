@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.agent-sessions-workbench.experimental-shell-gradient-background .agent-sessions-viewpane {
-	background: transparent !important;
+.agent-sessions-viewpane {
 
 	.agent-sessions-container {
 		display: flex;
@@ -214,6 +213,10 @@
 		flex: 1;
 		overflow: hidden;
 	}
+}
+
+.agent-sessions-workbench.experimental-shell-gradient-background .agent-sessions-viewpane {
+	background: transparent !important;
 }
 
 .agent-sessions-workbench.experimental-shell-gradient-background .part.sidebar > .content .pane-body,
