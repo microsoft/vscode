@@ -53,9 +53,14 @@ export class KeybindingsExportContribution extends Disposable implements IWorkbe
 		const outputPath = this.nativeEnvironmentService.exportDefaultKeybindings;
 		if (outputPath !== undefined) {
 			const defaultPath = join(this.nativeEnvironmentService.appRoot, 'doc');
-			void this.extensionService.whenInstalledExtensionsRegistered().then(() => {
-				return this.exportDefaultKeybindingsAndQuit(outputPath || defaultPath);
-			});
+			void this.extensionService.whenInstalledExtensionsRegistered()
+				.then(() => {
+					return this.exportDefaultKeybindingsAndQuit(outputPath || defaultPath);
+				})
+				.catch(async error => {
+					this.logService.error(`[${KeybindingsExportContribution.ID}] Failed to register installed extensions before exporting default keybindings`, error);
+					await this.nativeHostService.closeWindow();
+				});
 		}
 	}
 
