@@ -138,7 +138,7 @@ interface IChatData {
 	/** GitHub information associated with this session, if any. */
 	readonly gitHubInfo: IObservable<IGitHubInfo | undefined>;
 	/** Whether the session is ready to accept messages. */
-	readonly ready: IObservable<boolean>;
+	readonly ready: ISettableObservable<boolean>;
 }
 
 export interface IRemoteAgentHostSessionsProviderConfig {
@@ -1176,7 +1176,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements IAgen
 		const configReady = this.getSessionConfig(sessionId)?.ready ?? true;
 		// New (untitled) session
 		if (this._currentNewSession?.id === sessionId) {
-			(this._currentNewSession.ready as ISettableObservable<boolean>).set(configReady, undefined);
+			this._currentNewSession.ready.set(configReady, undefined);
 			return;
 		}
 		// Running session
