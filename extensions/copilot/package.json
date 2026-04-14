@@ -4538,7 +4538,7 @@
 					},
 					"github.copilot.chat.cli.forkSessions.enabled": {
 						"type": "boolean",
-						"default": false,
+						"default": true,
 						"markdownDescription": "%github.copilot.config.cli.forkSessions.enabled%",
 						"tags": [
 							"advanced"
