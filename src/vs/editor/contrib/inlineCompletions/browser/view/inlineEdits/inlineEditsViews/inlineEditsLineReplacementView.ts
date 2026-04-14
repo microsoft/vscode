@@ -76,7 +76,8 @@ export class InlineEditsLineReplacementView extends Disposable implements IInlin
 			const maxPrefixTrim = prefixTrim.prefixTrim;
 			const modifiedBubbles = rangesToBubbleRanges(edit.replacements.map(r => r.modifiedRange)).map(r => new Range(r.startLineNumber, r.startColumn - maxPrefixTrim, r.endLineNumber, r.endColumn - maxPrefixTrim));
 
-			const textModel = this._editor.model.get()!;
+			const textModel = this._editor.model.get();
+			if (!textModel) { return undefined; }
 			const startLineNumber = edit.modifiedRange.startLineNumber;
 			for (let i = 0; i < edit.modifiedRange.length; i++) {
 				const line = document.createElement('div');
