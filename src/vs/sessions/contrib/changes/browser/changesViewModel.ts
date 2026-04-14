@@ -89,6 +89,7 @@ export class ChangesViewModel extends Disposable {
 	private _activeSessionMetadataObs!: IObservable<{ readonly [key: string]: unknown } | undefined>;
 	private _activeSessionAllChangesPromiseObs!: IObservableWithChange<IObservable<IChatSessionFileChange2[] | undefined>>;
 	private _activeSessionLastTurnChangesPromiseObs!: IObservableWithChange<IObservable<IChatSessionFileChange2[] | undefined>>;
+	private _activeSessionUncommittedChangesPromiseObs!: IObservableWithChange<IObservable<IChatSessionFileChange2[] | undefined>>;
 
 	readonly versionModeObs: ISettableObservable<ChangesVersionMode>;
 	setVersionMode(mode: ChangesVersionMode): void {
@@ -243,6 +244,17 @@ export class ChangesViewModel extends Disposable {
 			return worktreePath ?? repositoryPath;
 		});
 
+		// Uncommitted changes
+		this._activeSessionUncommittedChangesPromiseObs = derived(reader => {
+			const repositoryPath = activeSessionRepositoryPathObs.read(reader);
+			if (!repositoryPath) {
+				return constObservable([]);
+			}
+
+			const diffPromise = this._getRepositoryChanges(repositoryPath, 'HEAD', undefined);
+			return new ObservablePromise(diffPromise).resolvedValue;
+		});
+
 		// All changes
 		this._activeSessionAllChangesPromiseObs = derived(reader => {
 			const sessionType = this.activeSessionTypeObs.read(reader);
@@ -315,6 +327,8 @@ export class ChangesViewModel extends Disposable {
 			const versionMode = this.versionModeObs.read(reader);
 			if (versionMode === ChangesVersionMode.BranchChanges) {
 				return activeSessionChangesObs.read(reader);
+			} else if (versionMode === ChangesVersionMode.UncommittedChanges) {
+				return this._activeSessionUncommittedChangesPromiseObs.read(reader).read(reader) ?? [];
 			} else if (versionMode === ChangesVersionMode.AllChanges) {
 				return this._activeSessionAllChangesPromiseObs.read(reader).read(reader) ?? [];
 			} else if (versionMode === ChangesVersionMode.LastTurn) {
@@ -331,6 +345,12 @@ export class ChangesViewModel extends Disposable {
 			const versionMode = this.versionModeObs.read(reader);
 			if (versionMode === ChangesVersionMode.BranchChanges) {
 				return false;
+			}
+
+			// Uncommitted changes
+			if (versionMode === ChangesVersionMode.UncommittedChanges) {
+				const uncommittedChangesResult = this._activeSessionUncommittedChangesPromiseObs.read(reader).read(reader);
+				return uncommittedChangesResult === undefined;
 			}
 
 			// All changes
@@ -465,9 +485,13 @@ export class ChangesViewModel extends Disposable {
 		});
 	}
 
-	private async _getRepositoryChanges(repositoryPath: string, firstCheckpointRef: string, lastCheckpointRef: string): Promise<IChatSessionFileChange2[] | undefined> {
+	private async _getRepositoryChanges(repositoryPath: string, firstCheckpointRef: string, lastCheckpointRef: string | undefined): Promise<IChatSessionFileChange2[] | undefined> {
 		const repository = await this.gitService.openRepository(URI.file(repositoryPath));
-		const changes = await repository?.diffBetweenWithStats2(`${firstCheckpointRef}..${lastCheckpointRef}`) ?? [];
+		const ref = lastCheckpointRef
+			? `${firstCheckpointRef}..${lastCheckpointRef}`
+			: firstCheckpointRef;
+
+		const changes = await repository?.diffBetweenWithStats2(ref) ?? [];
 		return toIChatSessionFileChange2(changes, firstCheckpointRef, lastCheckpointRef);
 	}
 
