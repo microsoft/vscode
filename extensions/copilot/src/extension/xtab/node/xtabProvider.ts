@@ -994,36 +994,21 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			// cursor-line change must be contained within the model's cursor-line change range
 			// and match via the helper's `startsWith` / auto-close subsequence rules.
 			const earlyCursorLineDivergenceCancellation = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabEarlyCursorLineDivergenceCancellation, this.expService);
+
 			let cursorLineDiverged = false;
-			const divergenceCheckedStream: AsyncIterable<string> = earlyCursorLineDivergenceCancellation
-				? (async function* () {
-					let lineIdx = 0;
-					for await (const line of cleanedLinesStream) {
-						if (lineIdx === cursorOriginalLinesOffset) {
-							const intermediateEdit = request.intermediateUserEdit;
-							if (intermediateEdit && !intermediateEdit.isEmpty()) {
-								const cursorDocLineIdx = editWindowLineRange.start + cursorOriginalLinesOffset;
-								const currentCursorLine = getCurrentCursorLine(request.documentBeforeEdits.getTransformer(), cursorDocLineIdx, intermediateEdit);
-								if (currentCursorLine !== undefined) {
-									const originalCursorLine = editWindowLines[cursorOriginalLinesOffset];
-									if (currentCursorLine !== originalCursorLine // user changed the cursor line
-										&& !isModelCursorLineCompatible(originalCursorLine, currentCursorLine, line) // model's cursor line isn't compatible with user's typing
-									) {
-										cursorLineDiverged = true;
-										tracer.trace(`Cursor line DIVERGED: model="${line}" current="${currentCursorLine}"`);
-										// Cancel our local fetch token so the HTTP request is
-										// aborted immediately. We own this token, so this is safe.
-										fetchCts.cancel();
-										return;
-									}
-								}
-							}
-						}
-						yield line;
-						lineIdx++;
-					}
-				})()
-				: cleanedLinesStream;
+
+			const divergenceCheckedStream: AsyncIterable<string> = !earlyCursorLineDivergenceCancellation
+				? cleanedLinesStream
+				: linesWithIntermediateEditDivergenceCheck(
+					cleanedLinesStream,
+					cursorOriginalLinesOffset,
+					request,
+					editWindowLineRange,
+					editWindowLines,
+					fetchCts,
+					tracing,
+					(value: boolean) => { cursorLineDiverged = value; },
+				);
 
 			let i = 0;
 			let hasBeenDelayed = false;
@@ -1673,5 +1658,42 @@ export function getPredictionContents(doc: StatelessNextEditDocument, editWindow
 		return `${workspaceRelativeDocPath}:`;
 	} else {
 		assertNever(responseFormat);
+	}
+}
+
+async function* linesWithIntermediateEditDivergenceCheck(
+	cleanedLinesStream: AsyncIterable<string>,
+	cursorOriginalLinesOffset: number,
+	request: StatelessNextEditRequest,
+	editWindowLineRange: OffsetRange,
+	editWindowLines: readonly string[],
+	fetchCts: CancellationTokenSource,
+	{ tracer }: RequestTracingContext,
+	setCursorLineDiverged: (value: boolean) => void,
+) {
+	let lineIdx = 0;
+	for await (const line of cleanedLinesStream) {
+		if (lineIdx === cursorOriginalLinesOffset) {
+			const intermediateEdit = request.intermediateUserEdit;
+			if (intermediateEdit && !intermediateEdit.isEmpty()) {
+				const cursorDocLineIdx = editWindowLineRange.start + cursorOriginalLinesOffset;
+				const currentCursorLine = getCurrentCursorLine(request.documentBeforeEdits.getTransformer(), cursorDocLineIdx, intermediateEdit);
+				if (currentCursorLine !== undefined) {
+					const originalCursorLine = editWindowLines[cursorOriginalLinesOffset];
+					if (currentCursorLine !== originalCursorLine // user changed the cursor line
+						&& !isModelCursorLineCompatible(originalCursorLine, currentCursorLine, line) // model's cursor line isn't compatible with user's typing
+					) {
+						setCursorLineDiverged(true);
+						tracer.trace(`Cursor line DIVERGED: model="${line}" current="${currentCursorLine}"`);
+						// Cancel our local fetch token so the HTTP request is
+						// aborted immediately. We own this token, so this is safe.
+						fetchCts.cancel();
+						return;
+					}
+				}
+			}
+		}
+		yield line;
+		lineIdx++;
 	}
 }
