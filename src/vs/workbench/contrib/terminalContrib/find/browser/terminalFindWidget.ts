@@ -96,6 +96,8 @@ export class TerminalFindWidget extends SimpleFindWidget {
 		}));
 		this._register(themeService.onDidColorThemeChange(() => {
 			if (this.isVisible()) {
+				// Does the match cursor need to jump to the previous instance when the theme changes?
+				// The normal findWidget doesn't behave this way.
 				this.find(true, true);
 			}
 		}));

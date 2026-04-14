@@ -285,7 +285,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 			}
 		}));
 		this._nthMatchInputFocused = CONTEXT_NTH_MATCH_INPUT_FOCUSED.bindTo(contextKeyService);
-		this._nthMatchInputFocusTracker = this._register(dom.trackFocus(this._nthMatchInput.inputBox.inputElement));
+		this._nthMatchInputFocusTracker = this._register(dom.trackFocus(this._nthMatchInput.domNode));
 		this._register(this._nthMatchInputFocusTracker.onDidFocus(() => {
 			this._nthMatchInputFocused.set(true);
 		}));
@@ -538,8 +538,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IVerticalSashL
 		const max = this._state.matchesCount || MATCHES_LIMIT;
 
 		const input = new NthMatchInput(this._domNode, this._contextViewProvider, {
-			// placeholder: `Enter a number between ${min} and ${max}`,
-			placeholder: 'Jump to the target result.',
+			placeholder: 'Jump to the result at the given position.',
 			width: 20,
 			label: NLS_NTH_MATCH_INPUT_LABEL,
 			type: 'text',
