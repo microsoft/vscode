@@ -260,7 +260,7 @@ extends:
               name: ubuntu_22_04_amd64
               displayName: Ubuntu 22.04 amd64
               poolName: 1es-ubuntu-22.04-x64
-              container: ubuntu
+              container: ubuntu-22
               arch: amd64
 
           - template: build/azure-pipelines/common/sanity-tests.yml@self
@@ -268,7 +268,7 @@ extends:
               name: ubuntu_22_04_arm32
               displayName: Ubuntu 22.04 arm32
               poolName: 1es-azure-linux-3-arm64
-              container: ubuntu
+              container: ubuntu-22
               arch: arm
 
           - template: build/azure-pipelines/common/sanity-tests.yml@self
@@ -276,5 +276,30 @@ extends:
               name: ubuntu_22_04_arm64
               displayName: Ubuntu 22.04 arm64
               poolName: 1es-azure-linux-3-arm64
-              container: ubuntu
+              container: ubuntu-22
+              arch: arm64
+
+          # Ubuntu 24.04
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
+            parameters:
+              name: ubuntu_24_04_amd64
+              displayName: Ubuntu 24.04 amd64
+              poolName: 1es-ubuntu-22.04-x64
+              container: ubuntu-24
+              arch: amd64
+
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
+            parameters:
+              name: ubuntu_24_04_arm32
+              displayName: Ubuntu 24.04 arm32
+              poolName: 1es-azure-linux-3-arm64
+              container: ubuntu-24
+              arch: arm
+
+          - template: build/azure-pipelines/common/sanity-tests.yml@self
+            parameters:
+              name: ubuntu_24_04_arm64
+              displayName: Ubuntu 24.04 arm64
+              poolName: 1es-azure-linux-3-arm64
+              container: ubuntu-24
               arch: arm64
