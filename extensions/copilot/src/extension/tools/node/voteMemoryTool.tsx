@@ -25,7 +25,7 @@ export class VoteMemoryTool implements ICopilotModelSpecificTool<VoteMemoryInput
 		const { fact, direction, reason } = options.input;
 
 		try {
-			// Vote on both scopes; the service will route to the right endpoint
+			// Vote on the repository-scoped memory entry.
 			const success = await this.agentMemoryService.voteOnMemory({ fact, direction, reason }, 'repository');
 
 			if (success) {
@@ -71,6 +71,7 @@ export function buildVoteMemoryToolDefinition(
 				},
 				reason: {
 					type: 'string',
+					// eslint-disable-next-line local/no-unexternalized-strings
 					description: 'A clear and detailed explanation of the reason for your vote. Must be at least 2-3 sentences long.',
 				},
 			},

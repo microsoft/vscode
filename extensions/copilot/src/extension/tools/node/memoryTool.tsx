@@ -397,7 +397,8 @@ export class MemoryTool implements ICopilotTool<MemoryToolParams> {
 			}
 		} catch (error) {
 			this.logService.error('[MemoryTool] Error creating user memory:', error);
-			return { text: `Error: Cannot create user memory: ${error.message}`, outcome: 'error' };
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			return { text: `Error: Cannot create user memory: ${errorMessage}`, outcome: 'error' };
 		}
 	}
 

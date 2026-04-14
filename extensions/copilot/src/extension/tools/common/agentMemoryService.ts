@@ -186,7 +186,7 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 	private makeLogger() {
 		return {
 			info: (msg: string) => this.logService.info(`[AgentMemoryService] ${msg}`),
-			error: (msg: string) => this.logService.warn(`[AgentMemoryService] ${msg}`),
+			error: (msg: string) => this.logService.error(`[AgentMemoryService] ${msg}`),
 		};
 	}
 
