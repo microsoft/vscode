@@ -16,8 +16,11 @@ import { URI } from '../../../../util/vs/base/common/uri';
 import { SyncDescriptor } from '../../../../util/vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { MarkdownString } from '../../../../vscodeTypes';
+import type { MemoryPromptResponse, MemoryResponse, StoreMemoryRequest, VoteMemoryRequest } from '@github/copilot-agentic-tools/memory';
+import { IAgentMemoryService } from '../../common/agentMemoryService';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
-import { IAgentMemoryService, RepoMemoryEntry } from '../../common/agentMemoryService';
+
+type RepoMemoryEntry = MemoryResponse;
 import { MemoryTool } from '../memoryTool';
 
 /**
@@ -45,6 +48,7 @@ class MockCapturingTelemetryService extends NullTelemetryService {
 class MockAgentMemoryService implements IAgentMemoryService {
 	declare readonly _serviceBrand: undefined;
 	storedMemories: RepoMemoryEntry[] = [];
+	storedUserMemories: StoreMemoryRequest[] = [];
 
 	async checkMemoryEnabled(): Promise<boolean> {
 		return true;
@@ -54,13 +58,27 @@ class MockAgentMemoryService implements IAgentMemoryService {
 		return this.storedMemories;
 	}
 
-	async storeRepoMemory(memory: RepoMemoryEntry): Promise<boolean> {
-		this.storedMemories.push(memory);
+	async storeRepoMemory(memory: StoreMemoryRequest): Promise<boolean> {
+		this.storedMemories.push({ ...memory, citations: memory.citations ?? [] });
 		return true;
+	}
+
+	async storeUserMemory(memory: StoreMemoryRequest): Promise<boolean> {
+		this.storedUserMemories.push(memory);
+		return true;
+	}
+
+	async voteOnMemory(_vote: VoteMemoryRequest, _scope: 'repository' | 'user'): Promise<boolean> {
+		return true;
+	}
+
+	async getMemoryPrompt(_repoNwo?: string): Promise<MemoryPromptResponse | undefined> {
+		return undefined;
 	}
 
 	clearMemories(): void {
 		this.storedMemories = [];
+		this.storedUserMemories = [];
 	}
 }
 
@@ -78,8 +96,20 @@ class DisabledMockAgentMemoryService implements IAgentMemoryService {
 		return undefined;
 	}
 
-	async storeRepoMemory(_memory: RepoMemoryEntry): Promise<boolean> {
+	async storeRepoMemory(_memory: StoreMemoryRequest): Promise<boolean> {
 		return false;
+	}
+
+	async storeUserMemory(_memory: StoreMemoryRequest): Promise<boolean> {
+		return false;
+	}
+
+	async voteOnMemory(_vote: VoteMemoryRequest, _scope: 'repository' | 'user'): Promise<boolean> {
+		return false;
+	}
+
+	async getMemoryPrompt(_repoNwo?: string): Promise<MemoryPromptResponse | undefined> {
+		return undefined;
 	}
 }
 
