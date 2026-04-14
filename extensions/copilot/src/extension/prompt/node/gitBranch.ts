@@ -9,7 +9,7 @@ import { ChatFetchResponseType, ChatLocation } from '../../../platform/chat/comm
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { ILogService } from '../../../platform/log/common/logService';
 import { CapturingToken } from '../../../platform/requestLogger/common/capturingToken';
-import { IRequestLogger } from '../../../platform/requestLogger/node/requestLogger';
+import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
 import { URI } from '../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatRequestTurn } from '../../../vscodeTypes';
@@ -42,7 +42,10 @@ export class GitBranchNameGenerator {
 		const parentChatSessionId = sessionResource ? sessionResourceToId(URI.from(sessionResource)) : undefined;
 
 		const endpoint = await this.endpointProvider.getChatEndpoint('copilot-fast');
-		const { messages } = await renderPromptElement(this.instantiationService, endpoint, GitBranchPrompt, { userRequest: firstRequest.prompt });
+		const normalizedCommand = firstRequest.command?.trim().replace(/^\/+/, '') ?? '';
+		const command = normalizedCommand ? `/${normalizedCommand} ` : '';
+		const userRequest = `${command}${firstRequest.prompt}`;
+		const { messages } = await renderPromptElement(this.instantiationService, endpoint, GitBranchPrompt, { userRequest });
 
 		const capturingToken = new CapturingToken(
 			'git-branch',

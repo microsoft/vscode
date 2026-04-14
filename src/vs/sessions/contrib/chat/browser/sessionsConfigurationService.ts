@@ -36,7 +36,7 @@ export interface ITaskEntry {
 	readonly type?: string;
 	readonly command?: string;
 	readonly args?: CommandString[];
-	readonly inSessions?: boolean;
+	readonly inAgents?: boolean;
 	readonly runOptions?: ITaskRunOptions;
 	readonly windows?: { command?: string; args?: CommandString[] };
 	readonly osx?: { command?: string; args?: CommandString[] };
@@ -66,26 +66,26 @@ export interface ISessionsConfigurationService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Observable list of tasks with `inSessions: true`, automatically
+	 * Observable list of tasks with `inAgents: true`, automatically
 	 * updated when the tasks.json file changes. Each entry includes the
 	 * storage target the task was loaded from.
 	 */
 	getSessionTasks(session: ISession): IObservable<readonly ISessionTaskWithTarget[]>;
 
 	/**
-	 * Returns tasks that do NOT have `inSessions: true` — used as
+	 * Returns tasks that do NOT have `inAgents: true` — used as
 	 * suggestions in the "Add Run Action" picker.
 	 */
 	getNonSessionTasks(session: ISession): Promise<readonly INonSessionTaskEntry[]>;
 
 	/**
-	 * Sets `inSessions: true` on an existing task (identified by label),
+	 * Sets `inAgents: true` on an existing task (identified by label),
 	 * updating it in place in its tasks.json.
 	 */
 	addTaskToSessions(task: ITaskEntry, session: ISession, target: TaskStorageTarget, options?: ITaskRunOptions): Promise<void>;
 
 	/**
-	 * Creates a new shell task with `inSessions: true` and writes it to
+	 * Creates a new shell task with `inAgents: true` and writes it to
 	 * the appropriate tasks.json (user or workspace).
 	 */
 	createAndAddTask(label: string | undefined, command: string, session: ISession, target: TaskStorageTarget, options?: ITaskRunOptions): Promise<ITaskEntry | undefined>;
@@ -166,7 +166,7 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		if (workspaceUri) {
 			const workspaceJson = await this._readTasksJson(workspaceUri);
 			for (const task of workspaceJson.tasks ?? []) {
-				if (!task.inSessions && this._isSupportedTask(task)) {
+				if (!task.inAgents && this._isSupportedTask(task)) {
 					result.push({ task, target: 'workspace' });
 				}
 			}
@@ -176,7 +176,7 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		if (userUri) {
 			const userJson = await this._readTasksJson(userUri);
 			for (const task of userJson.tasks ?? []) {
-				if (!task.inSessions && this._isSupportedTask(task)) {
+				if (!task.inAgents && this._isSupportedTask(task)) {
 					result.push({ task, target: 'user' });
 				}
 			}
@@ -199,7 +199,7 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		}
 
 		const edits: { path: (string | number)[]; value: unknown }[] = [
-			{ path: ['tasks', index, 'inSessions'], value: true },
+			{ path: ['tasks', index, 'inAgents'], value: true },
 		];
 
 		if (options) {
@@ -225,7 +225,7 @@ export class SessionsConfigurationService extends Disposable implements ISession
 			label: resolvedLabel,
 			type: 'shell',
 			command,
-			inSessions: true,
+			inAgents: true,
 			...(options?.runOn && options.runOn !== 'default' ? { runOptions: { runOn: options.runOn } } : {}),
 		};
 
@@ -252,8 +252,9 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		}
 
 		if (currentTasksJsonUri.toString() === newTasksJsonUri.toString()) {
+			const updatedTasks = currentTasks.map((task, i) => i === currentIndex ? updatedTask : task);
 			await this._jsonEditingService.write(currentTasksJsonUri, [
-				{ path: ['tasks', currentIndex], value: updatedTask },
+				{ path: ['tasks'], value: updatedTasks },
 			], true);
 		} else {
 			const newTasksJson = await this._readTasksJson(newTasksJsonUri);
@@ -408,14 +409,14 @@ export class SessionsConfigurationService extends Disposable implements ISession
 		const tasksUri = joinPath(folder, '.vscode', 'tasks.json');
 		const tasksJson = await this._readTasksJson(tasksUri);
 		const sessionTasks: ISessionTaskWithTarget[] = (tasksJson.tasks ?? [])
-			.filter(t => t.inSessions && this._isSupportedTask(t))
+			.filter(t => t.inAgents && this._isSupportedTask(t))
 			.map(t => ({ task: t, target: 'workspace' as TaskStorageTarget }));
 
 		// Also include user-level session tasks
 		const userUri = joinPath(dirname(this._preferencesService.userSettingsResource), 'tasks.json');
 		const userJson = await this._readTasksJson(userUri);
 		const userSessionTasks: ISessionTaskWithTarget[] = (userJson.tasks ?? [])
-			.filter(t => t.inSessions && this._isSupportedTask(t))
+			.filter(t => t.inAgents && this._isSupportedTask(t))
 			.map(t => ({ task: t, target: 'user' as TaskStorageTarget }));
 
 		transaction(tx => this._sessionTasks.set([...sessionTasks, ...userSessionTasks], tx));

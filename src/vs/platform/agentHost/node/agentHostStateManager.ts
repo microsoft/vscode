@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { RunOnceScheduler } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { ILogService } from '../../log/common/log.js';
@@ -27,6 +28,12 @@ export class AgentHostStateManager extends Disposable {
 
 	/** Tracks which session URI each active turn belongs to, keyed by turnId. */
 	private readonly _activeTurnToSession = new Map<string, string>();
+
+	/** Last summary sent to clients (via sessionAdded or sessionSummaryChanged). */
+	private readonly _lastNotifiedSummaries = new Map<string, ISessionSummary>();
+	/** Sessions whose summary changed since the last flush. */
+	private readonly _dirtySummaries = new Set<string>();
+	private readonly _summaryNotifyScheduler = this._register(new RunOnceScheduler(() => this._flushSummaryNotifications(), 100));
 
 	private readonly _onDidEmitEnvelope = this._register(new Emitter<IActionEnvelope>());
 	readonly onDidEmitEnvelope: Event<IActionEnvelope> = this._onDidEmitEnvelope.event;
@@ -58,6 +65,20 @@ export class AgentHostStateManager extends Disposable {
 
 	get serverSeq(): number {
 		return this._serverSeq;
+	}
+
+	/**
+	 * Returns all session URIs whose keys start with the given prefix.
+	 * Used to discover subagent sessions for a given parent.
+	 */
+	getSessionUrisWithPrefix(prefix: string): string[] {
+		const result: string[] = [];
+		for (const key of this._sessionStates.keys()) {
+			if (key.startsWith(prefix)) {
+				result.push(key);
+			}
+		}
+		return result;
 	}
 
 	// ---- Snapshots ----------------------------------------------------------
@@ -106,6 +127,7 @@ export class AgentHostStateManager extends Disposable {
 
 		this._logService.trace(`[AgentHostStateManager] Created session: ${key}`);
 
+		this._lastNotifiedSummaries.set(key, summary);
 		this._onDidEmitNotification.fire({
 			type: NotificationType.SessionAdded,
 			summary,
@@ -136,6 +158,7 @@ export class AgentHostStateManager extends Disposable {
 			turns,
 		};
 		this._sessionStates.set(key, state);
+		this._lastNotifiedSummaries.set(key, summary);
 
 		this._logService.trace(`[AgentHostStateManager] Restored session: ${key} (${turns.length} turns)`);
 
@@ -159,6 +182,8 @@ export class AgentHostStateManager extends Disposable {
 		}
 
 		this._sessionStates.delete(session);
+		this._lastNotifiedSummaries.delete(session);
+		this._dirtySummaries.delete(session);
 		this._logService.trace(`[AgentHostStateManager] Removed session: ${session}`);
 	}
 
@@ -225,6 +250,12 @@ export class AgentHostStateManager extends Disposable {
 				const newState = sessionReducer(state, sessionAction, this._log);
 				this._sessionStates.set(key, newState);
 
+				// Detect summary changes for notification
+				if (state.summary !== newState.summary) {
+					this._dirtySummaries.add(key);
+					this._summaryNotifyScheduler.schedule();
+				}
+
 				// Track active turn for turn lifecycle
 				if (sessionAction.type === ActionType.SessionTurnStarted) {
 					this._activeTurnToSession.set(sessionAction.turnId, key);
@@ -255,5 +286,38 @@ export class AgentHostStateManager extends Disposable {
 		this._onDidEmitEnvelope.fire(envelope);
 
 		return resultingState;
+	}
+
+	private _flushSummaryNotifications(): void {
+		for (const session of this._dirtySummaries) {
+			const state = this._sessionStates.get(session);
+			const lastNotified = this._lastNotifiedSummaries.get(session);
+			if (!state || !lastNotified || state.summary === lastNotified) {
+				continue;
+			}
+
+			const current = state.summary;
+			const changes: Partial<ISessionSummary> = {};
+			if (current.title !== lastNotified.title) { changes.title = current.title; }
+			if (current.status !== lastNotified.status) { changes.status = current.status; }
+			if (current.modifiedAt !== lastNotified.modifiedAt) { changes.modifiedAt = current.modifiedAt; }
+			if (current.project !== lastNotified.project) { changes.project = current.project; }
+			if (current.model !== lastNotified.model) { changes.model = current.model; }
+			if (current.workingDirectory !== lastNotified.workingDirectory) { changes.workingDirectory = current.workingDirectory; }
+			if (current.isRead !== lastNotified.isRead) { changes.isRead = current.isRead; }
+			if (current.isDone !== lastNotified.isDone) { changes.isDone = current.isDone; }
+			if (current.diffs !== lastNotified.diffs) { changes.diffs = current.diffs; }
+
+			this._lastNotifiedSummaries.set(session, current);
+
+			if (Object.keys(changes).length > 0) {
+				this._onDidEmitNotification.fire({
+					type: NotificationType.SessionSummaryChanged,
+					session,
+					changes,
+				});
+			}
+		}
+		this._dirtySummaries.clear();
 	}
 }

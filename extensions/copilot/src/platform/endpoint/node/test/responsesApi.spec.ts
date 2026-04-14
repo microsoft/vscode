@@ -12,6 +12,7 @@ import { ILogService } from '../../../log/common/logService';
 import { isOpenAIContextManagementResponse } from '../../../networking/common/fetch';
 import { IChatEndpoint, ICreateEndpointBodyOptions } from '../../../networking/common/networking';
 import { openAIContextManagementCompactionType, OpenAIContextManagementResponse } from '../../../networking/common/openai';
+import { IChatWebSocketManager, NullChatWebSocketManager } from '../../../networking/node/chatWebSocketManager';
 import { TelemetryData } from '../../../telemetry/common/telemetryData';
 import { SpyingTelemetryService } from '../../../telemetry/node/spyingTelemetryService';
 import { createFakeStreamResponse } from '../../../test/node/fetcher';
@@ -307,6 +308,9 @@ describe('createResponsesRequestBody', () => {
 
 	it('still slices websocket requests by stateful marker index when compaction is disabled', () => {
 		const services = createPlatformServices();
+		const wsManager = new NullChatWebSocketManager();
+		wsManager.getStatefulMarker = () => 'resp-prev';
+		services.set(IChatWebSocketManager, wsManager);
 		const accessor = services.createTestingAccessor();
 		const instantiationService = accessor.get(IInstantiationService);
 		const endpointWithoutCompaction = { ...testEndpoint, family: 'gpt-5' as const };
@@ -322,7 +326,7 @@ describe('createResponsesRequestBody', () => {
 			},
 		];
 
-		const webSocketBody = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, true), endpointWithoutCompaction.model, endpointWithoutCompaction));
+		const webSocketBody = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, { ...createRequestOptions(messages, true), conversationId: 'conv-1' }, endpointWithoutCompaction.model, endpointWithoutCompaction));
 
 		expect(webSocketBody.previous_response_id).toBe('resp-prev');
 		expect(webSocketBody.input).toHaveLength(1);
@@ -337,6 +341,9 @@ describe('createResponsesRequestBody', () => {
 
 	it('includes the newest compaction item in websocket requests when it predates the stateful marker', () => {
 		const services = createPlatformServices();
+		const wsManager = new NullChatWebSocketManager();
+		wsManager.getStatefulMarker = () => 'resp-prev';
+		services.set(IChatWebSocketManager, wsManager);
 		const accessor = services.createTestingAccessor();
 		const instantiationService = accessor.get(IInstantiationService);
 		const latestCompaction = createCompactionResponse('cmp_ws', 'enc_ws');
@@ -353,7 +360,7 @@ describe('createResponsesRequestBody', () => {
 			},
 		];
 
-		const webSocketBody = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, true), testEndpoint.model, testEndpoint));
+		const webSocketBody = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, { ...createRequestOptions(messages, true), conversationId: 'conv-1' }, testEndpoint.model, testEndpoint));
 
 		expect(webSocketBody.previous_response_id).toBe('resp-prev');
 		expect(webSocketBody.input).toContainEqual({
@@ -364,6 +371,42 @@ describe('createResponsesRequestBody', () => {
 		expect(webSocketBody.input).toContainEqual({
 			role: 'user',
 			content: [{ type: 'input_text', text: 'after marker' }],
+		});
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('sends all messages when the websocket stateful marker is not in the current messages', () => {
+		const services = createPlatformServices();
+		const wsManager = new NullChatWebSocketManager();
+		wsManager.getStatefulMarker = () => 'resp-stale';
+		services.set(IChatWebSocketManager, wsManager);
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const messages: Raw.ChatMessage[] = [
+			{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'first message' }],
+			},
+			createStatefulMarkerMessage(testEndpoint.model, 'resp-different'),
+			{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'second message' }],
+			},
+		];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, { ...createRequestOptions(messages, true), conversationId: 'conv-1' }, testEndpoint.model, testEndpoint));
+
+		expect(body.previous_response_id).toBeUndefined();
+		expect(body.input).toHaveLength(2);
+		expect(body.input?.[0]).toMatchObject({
+			role: 'user',
+			content: [{ type: 'input_text', text: 'first message' }],
+		});
+		expect(body.input?.[1]).toMatchObject({
+			role: 'user',
+			content: [{ type: 'input_text', text: 'second message' }],
 		});
 
 		accessor.dispose();
@@ -505,6 +548,11 @@ describe('processResponseFromChatEndpoint telemetry', () => {
 
 		const olderCompaction = createCompactionResponse('cmp_old', 'enc_old');
 		const newerCompaction = createCompactionResponse('cmp_new', 'enc_new');
+		const compactionAddedEvent = {
+			type: 'response.output_item.added',
+			output_index: 0,
+			item: olderCompaction,
+		};
 		const compactionEvent = {
 			type: 'response.output_item.done',
 			output_index: 0,
@@ -534,7 +582,7 @@ describe('processResponseFromChatEndpoint telemetry', () => {
 			}
 		};
 
-		const response = createFakeStreamResponse(`data: ${JSON.stringify(compactionEvent)}\n\ndata: ${JSON.stringify(completedEvent)}\n\n`);
+		const response = createFakeStreamResponse(`data: ${JSON.stringify(compactionAddedEvent)}\n\ndata: ${JSON.stringify(compactionEvent)}\n\ndata: ${JSON.stringify(completedEvent)}\n\n`);
 		const telemetryData = TelemetryData.createAndMarkAsIssued({ modelCallId: 'model-call-latest-compaction' }, {});
 
 		const stream = await processResponseFromChatEndpoint(
@@ -635,6 +683,85 @@ describe('processResponseFromChatEndpoint telemetry', () => {
 
 		const event = telemetryService.getEvents().telemetryServiceEvents.find(e => e.eventName === 'responsesApi.compactionOutcome');
 		expect(event).toBeUndefined();
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('captures compaction returned before output_item.done for the next request', async () => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const logService = accessor.get(ILogService);
+		const telemetryService = new SpyingTelemetryService();
+		const streamedCompactions: OpenAIContextManagementResponse[] = [];
+
+		const earlyCompaction = createCompactionResponse('cmp_early', 'enc_early');
+		const compactionAddedEvent = {
+			type: 'response.output_item.added',
+			output_index: 0,
+			item: earlyCompaction,
+		};
+		const completedEvent = {
+			type: 'response.completed',
+			response: {
+				id: 'resp_early_compaction',
+				model: 'gpt-5-mini',
+				created_at: 123,
+				usage: {
+					input_tokens: 1200,
+					output_tokens: 9,
+					total_tokens: 1209,
+					input_tokens_details: { cached_tokens: 0 },
+					output_tokens_details: { reasoning_tokens: 0 },
+				},
+				output: [
+					{
+						type: 'message',
+						content: [{ type: 'output_text', text: 'reply' }],
+					},
+				],
+			}
+		};
+
+		const response = createFakeStreamResponse(`data: ${JSON.stringify(compactionAddedEvent)}\n\ndata: ${JSON.stringify(completedEvent)}\n\n`);
+		const telemetryData = TelemetryData.createAndMarkAsIssued({ modelCallId: 'model-call-early-compaction' }, {});
+
+		const stream = await processResponseFromChatEndpoint(
+			instantiationService,
+			telemetryService,
+			logService,
+			response,
+			1,
+			async (_text, _unused, delta) => {
+				if (delta.contextManagement && isOpenAIContextManagementResponse(delta.contextManagement)) {
+					streamedCompactions.push(delta.contextManagement);
+				}
+				return undefined;
+			},
+			telemetryData,
+			1000
+		);
+
+		for await (const _ of stream) {
+			// consume stream
+		}
+
+		expect(streamedCompactions.map(item => item.id)).toEqual(['cmp_early']);
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions([
+			createCompactionAssistantMessage(streamedCompactions[streamedCompactions.length - 1]),
+			{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'continue' }],
+			},
+		], false), testEndpoint.model, testEndpoint));
+
+		expect(body.input).toContainEqual({
+			type: openAIContextManagementCompactionType,
+			id: 'cmp_early',
+			encrypted_content: 'enc_early',
+		});
 
 		accessor.dispose();
 		services.dispose();
@@ -765,6 +892,149 @@ describe('processResponseFromChatEndpoint telemetry', () => {
 			promptTokens: 1500,
 			totalTokens: 1509,
 		});
+
+		accessor.dispose();
+		services.dispose();
+	});
+});
+
+describe('summarizedAtRoundId and stateful marker interaction', () => {
+	it('skips stateful marker when summarizedAtRoundId differs from connection', () => {
+		const services = createPlatformServices();
+		const wsManager: IChatWebSocketManager = {
+			_serviceBrand: undefined,
+			getOrCreateConnection: () => { throw new Error('not implemented'); },
+			hasActiveConnection: () => false,
+			getStatefulMarker: () => 'resp-prev',
+			getSummarizedAtRoundId: () => 'round-old',
+			closeConnection: () => { },
+			closeAll: () => { },
+		};
+		services.set(IChatWebSocketManager, wsManager);
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const messages: Raw.ChatMessage[] = [
+			{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'summarized history' }] },
+			createStatefulMarkerMessage(testEndpoint.model, 'resp-prev'),
+			{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'after marker' }] },
+		];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(
+			servicesAccessor,
+			{ ...createRequestOptions(messages, true), conversationId: 'conv-1', summarizedAtRoundId: 'round-new' },
+			testEndpoint.model, testEndpoint,
+		));
+
+		expect(body.previous_response_id).toBeUndefined();
+		expect(body.input).toHaveLength(2);
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('uses stateful marker when summarizedAtRoundId matches connection', () => {
+		const services = createPlatformServices();
+		const wsManager = new NullChatWebSocketManager();
+		wsManager.getStatefulMarker = () => 'resp-prev';
+		wsManager.getSummarizedAtRoundId = () => 'round-5';
+		services.set(IChatWebSocketManager, wsManager);
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const messages: Raw.ChatMessage[] = [
+			{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'summarized history' }] },
+			createStatefulMarkerMessage(testEndpoint.model, 'resp-prev'),
+			{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'after marker' }] },
+		];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(
+			servicesAccessor,
+			{ ...createRequestOptions(messages, true), conversationId: 'conv-1', summarizedAtRoundId: 'round-5' },
+			testEndpoint.model, testEndpoint,
+		));
+
+		expect(body.previous_response_id).toBe('resp-prev');
+		expect(body.input).toHaveLength(1);
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('uses stateful marker when both sides have no summary', () => {
+		const services = createPlatformServices();
+		const wsManager = new NullChatWebSocketManager();
+		wsManager.getStatefulMarker = () => 'resp-prev';
+		wsManager.getSummarizedAtRoundId = () => undefined;
+		services.set(IChatWebSocketManager, wsManager);
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const messages: Raw.ChatMessage[] = [
+			{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'first message' }] },
+			createStatefulMarkerMessage(testEndpoint.model, 'resp-prev'),
+			{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'second message' }] },
+		];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(
+			servicesAccessor,
+			{ ...createRequestOptions(messages, true), conversationId: 'conv-1' },
+			testEndpoint.model, testEndpoint,
+		));
+
+		expect(body.previous_response_id).toBe('resp-prev');
+		expect(body.input).toHaveLength(1);
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('skips stateful marker when conversation is rolled back past summary', () => {
+		const services = createPlatformServices();
+		const wsManager = new NullChatWebSocketManager();
+		wsManager.getStatefulMarker = () => 'resp-prev';
+		wsManager.getSummarizedAtRoundId = () => 'round-5';
+		services.set(IChatWebSocketManager, wsManager);
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const messages: Raw.ChatMessage[] = [
+			{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'first message' }] },
+			createStatefulMarkerMessage(testEndpoint.model, 'resp-prev'),
+			{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'second message' }] },
+		];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(
+			servicesAccessor,
+			{ ...createRequestOptions(messages, true), conversationId: 'conv-1', summarizedAtRoundId: undefined },
+			testEndpoint.model, testEndpoint,
+		));
+
+		expect(body.previous_response_id).toBeUndefined();
+		expect(body.input).toHaveLength(2);
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('skips stateful marker on first request after new summarization', () => {
+		const services = createPlatformServices();
+		const wsManager = new NullChatWebSocketManager();
+		wsManager.getStatefulMarker = () => 'resp-prev';
+		wsManager.getSummarizedAtRoundId = () => undefined;
+		services.set(IChatWebSocketManager, wsManager);
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const messages: Raw.ChatMessage[] = [
+			{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'summarized history' }] },
+			createStatefulMarkerMessage(testEndpoint.model, 'resp-prev'),
+			{ role: Raw.ChatRole.User, content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'after marker' }] },
+		];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(
+			servicesAccessor,
+			{ ...createRequestOptions(messages, true), conversationId: 'conv-1', summarizedAtRoundId: 'round-new' },
+			testEndpoint.model, testEndpoint,
+		));
+
+		expect(body.previous_response_id).toBeUndefined();
+		expect(body.input).toHaveLength(2);
 
 		accessor.dispose();
 		services.dispose();

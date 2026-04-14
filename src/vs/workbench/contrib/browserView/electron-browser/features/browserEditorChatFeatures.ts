@@ -27,8 +27,7 @@ import { IChatWidgetService } from '../../../chat/browser/chat.js';
 import { IChatRequestVariableEntry } from '../../../chat/common/attachments/chatVariableEntries.js';
 import { ChatContextKeys } from '../../../chat/common/actions/chatContextKeys.js';
 import { ChatConfiguration } from '../../../chat/common/constants.js';
-import { IElementData, createElementContextValue } from '../../../../../platform/browserElements/common/browserElements.js';
-import { BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
+import { IElementData, IElementAncestor, BrowserViewCommandId } from '../../../../../platform/browserView/common/browserView.js';
 import { IBrowserViewModel } from '../../../browserView/common/browserView.js';
 import { BrowserEditorInput } from '../../common/browserEditorInput.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
@@ -44,6 +43,115 @@ import { BrowserActionCategory } from '../browserViewActions.js';
 
 // Register tools
 import '../tools/browserTools.contribution.js';
+
+/**
+ * Format an array of element ancestors into a CSS-selector-like path string.
+ */
+function formatElementPath(ancestors: readonly IElementAncestor[] | undefined): string | undefined {
+	if (!ancestors || ancestors.length === 0) {
+		return undefined;
+	}
+
+	return ancestors
+		.map(ancestor => {
+			const classes = ancestor.classNames?.length ? `.${ancestor.classNames.join('.')}` : '';
+			const id = ancestor.id ? `#${ancestor.id}` : '';
+			return `${ancestor.tagName}${id}${classes}`;
+		})
+		.join(' > ');
+}
+
+function createBoxShorthand(entries: Map<string, string>, propertyName: 'margin' | 'padding'): string | undefined {
+	const topKey = `${propertyName}-top`;
+	const rightKey = `${propertyName}-right`;
+	const bottomKey = `${propertyName}-bottom`;
+	const leftKey = `${propertyName}-left`;
+
+	const top = entries.get(topKey);
+	const right = entries.get(rightKey);
+	const bottom = entries.get(bottomKey);
+	const left = entries.get(leftKey);
+
+	if (top === undefined || right === undefined || bottom === undefined || left === undefined) {
+		return undefined;
+	}
+
+	entries.delete(topKey);
+	entries.delete(rightKey);
+	entries.delete(bottomKey);
+	entries.delete(leftKey);
+
+	return `${top} ${right} ${bottom} ${left}`;
+}
+
+function formatElementMap(entries: Readonly<Record<string, string>> | undefined): string | undefined {
+	if (!entries || Object.keys(entries).length === 0) {
+		return undefined;
+	}
+
+	const normalizedEntries = new Map(Object.entries(entries));
+	const lines: string[] = [];
+
+	const marginShorthand = createBoxShorthand(normalizedEntries, 'margin');
+	if (marginShorthand) {
+		lines.push(`- margin: ${marginShorthand}`);
+	}
+
+	const paddingShorthand = createBoxShorthand(normalizedEntries, 'padding');
+	if (paddingShorthand) {
+		lines.push(`- padding: ${paddingShorthand}`);
+	}
+
+	for (const [name, value] of Array.from(normalizedEntries.entries()).sort(([a], [b]) => a.localeCompare(b))) {
+		lines.push(`- ${name}: ${value}`);
+	}
+
+	return lines.join('\n');
+}
+
+function createElementContextValue(elementData: IElementData, displayName: string, attachCss: boolean): string {
+	const sections: string[] = [];
+	sections.push('Attached Element Context from Integrated Browser');
+	sections.push(`Element: ${displayName}`);
+
+	if (elementData.url) {
+		sections.push(`URL: ${elementData.url}`);
+	}
+
+	const htmlPath = formatElementPath(elementData.ancestors);
+	if (htmlPath) {
+		sections.push(`HTML Path:\n${htmlPath}`);
+	}
+
+	const attributeTable = formatElementMap(elementData.attributes);
+	if (attributeTable) {
+		sections.push(`Attributes:\n${attributeTable}`);
+	}
+
+	const innerText = elementData.innerText?.trim();
+	if (innerText) {
+		sections.push(`Inner Text:\n\`\`\`text\n${innerText}\n\`\`\``);
+	}
+
+	if (elementData.dimensions) {
+		const { top, left, width, height } = elementData.dimensions;
+		sections.push(
+			`Dimensions:\n- top: ${Math.round(top)}px\n- left: ${Math.round(left)}px\n- width: ${Math.round(width)}px\n- height: ${Math.round(height)}px`
+		);
+	}
+
+	sections.push(`Outer HTML:\n\`\`\`html\n${elementData.outerHTML}\n\`\`\``);
+
+	if (attachCss) {
+		const computedStyleTable = formatElementMap(elementData.computedStyles);
+		if (computedStyleTable) {
+			sections.push(`Computed Styles:\n${computedStyleTable}`);
+		}
+		sections.push(`Full Computed CSS:\n\`\`\`css\n${elementData.computedStyle}\n\`\`\``);
+	}
+
+	return sections.join('\n\n');
+}
 
 // Context key expression to check if browser editor is active
 const BROWSER_EDITOR_ACTIVE = ContextKeyExpr.equals('activeEditor', BrowserEditorInput.EDITOR_ID);
@@ -428,20 +536,19 @@ class AddElementToChatAction extends Action2 {
 	static readonly ID = BrowserViewCommandId.AddElementToChat;
 
 	constructor() {
-		const enabled = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('config.chat.sendElementsToChat.enabled', true));
 		super({
 			id: AddElementToChatAction.ID,
 			title: localize2('browser.addElementToChatAction', 'Add Element to Chat'),
 			category: BrowserCategory,
 			icon: Codicon.inspect,
 			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), enabled),
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), ChatContextKeys.enabled),
 			toggled: CONTEXT_BROWSER_ELEMENT_SELECTION_ACTIVE,
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
 				group: 'actions',
 				order: 1,
-				when: enabled
+				when: ChatContextKeys.enabled
 			},
 			keybinding: [{
 				weight: KeybindingWeight.WorkbenchContrib + 50, // Priority over terminal
@@ -465,19 +572,18 @@ class AddConsoleLogsToChatAction extends Action2 {
 	static readonly ID = BrowserViewCommandId.AddConsoleLogsToChat;
 
 	constructor() {
-		const enabled = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('config.chat.sendElementsToChat.enabled', true));
 		super({
 			id: AddConsoleLogsToChatAction.ID,
 			title: localize2('browser.addConsoleLogsToChatAction', 'Add Console Logs to Chat'),
 			category: BrowserActionCategory,
 			icon: Codicon.output,
 			f1: true,
-			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), enabled),
+			precondition: ContextKeyExpr.and(BROWSER_EDITOR_ACTIVE, CONTEXT_BROWSER_HAS_URL, CONTEXT_BROWSER_HAS_ERROR.negate(), ChatContextKeys.enabled),
 			menu: {
 				id: MenuId.BrowserActionsToolbar,
 				group: 'actions',
 				order: 2,
-				when: enabled
+				when: ChatContextKeys.enabled
 			}
 		});
 	}

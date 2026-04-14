@@ -737,7 +737,7 @@ describe('createMessagesRequestBody reasoning effort', () => {
 
 		const body = instantiationService.invokeFunction(createMessagesRequestBody, options, endpoint.model, endpoint);
 
-		expect(body.thinking).toEqual({ type: 'adaptive' });
+		expect(body.thinking).toEqual({ type: 'adaptive', display: 'summarized' });
 		expect(body.output_config).toEqual({ effort: 'high' });
 	});
 
@@ -752,7 +752,7 @@ describe('createMessagesRequestBody reasoning effort', () => {
 
 		const body = instantiationService.invokeFunction(createMessagesRequestBody, options, endpoint.model, endpoint);
 
-		expect(body.thinking).toEqual({ type: 'adaptive' });
+		expect(body.thinking).toEqual({ type: 'adaptive', display: 'summarized' });
 		expect(body.output_config).toBeUndefined();
 	});
 
@@ -767,7 +767,7 @@ describe('createMessagesRequestBody reasoning effort', () => {
 
 		const body = instantiationService.invokeFunction(createMessagesRequestBody, options, endpoint.model, endpoint);
 
-		expect(body.thinking).toEqual({ type: 'adaptive' });
+		expect(body.thinking).toEqual({ type: 'adaptive', display: 'summarized' });
 		expect(body.output_config).toBeUndefined();
 	});
 
@@ -797,7 +797,7 @@ describe('createMessagesRequestBody reasoning effort', () => {
 
 		const body = instantiationService.invokeFunction(createMessagesRequestBody, options, endpoint.model, endpoint);
 
-		expect(body.thinking).toEqual({ type: 'adaptive' });
+		expect(body.thinking).toEqual({ type: 'adaptive', display: 'summarized' });
 		expect(body.output_config).toBeUndefined();
 	});
 

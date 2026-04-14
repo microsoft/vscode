@@ -57,6 +57,13 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	private readonly _entries = new Map<string, IConnectionEntry>();
 	private readonly _names = new Map<string, string>();
 	private readonly _tokens = new Map<string, string | undefined>();
+	/**
+	 * Stores the original {@link IRemoteAgentHostEntry} for connections
+	 * registered via {@link addSSHConnection}. This is needed because
+	 * tunnel entries are not persisted to settings and therefore don't
+	 * appear in {@link configuredEntries}.
+	 */
+	private readonly _registeredEntries = new Map<string, IRemoteAgentHostEntry>();
 	private readonly _pendingConnectionWaits = new Map<string, DeferredPromise<IRemoteAgentHostConnectionInfo>>();
 	/** Pending reconnect timeouts, keyed by normalized address. */
 	private readonly _reconnectTimeouts = new Map<string, ReturnType<typeof setTimeout>>();
@@ -108,6 +115,20 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		const normalized = normalizeRemoteAgentHostAddress(address);
 		const entry = this._entries.get(normalized);
 		return entry?.connected ? entry.client : undefined;
+	}
+
+	getEntryByAddress(address: string): IRemoteAgentHostEntry | undefined {
+		const normalized = normalizeRemoteAgentHostAddress(address);
+		// Check dynamically registered entries first (e.g. tunnel connections
+		// that are not persisted to settings).
+		const registered = this._registeredEntries.get(normalized);
+		if (registered) {
+			return registered;
+		}
+		// Fall back to configured entries from settings.
+		return this.configuredEntries.find(
+			e => normalizeRemoteAgentHostAddress(getEntryAddress(e)) === normalized
+		);
 	}
 
 	reconnect(address: string): void {
@@ -204,6 +225,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		const connEntry: IConnectionEntry = { store, client: protocolClient, connected: true, status: RemoteAgentHostConnectionStatus.Connected };
 		this._entries.set(address, connEntry);
 		this._names.set(address, entry.name);
+		this._registeredEntries.set(address, entry);
 		if (entry.connectionToken) {
 			this._tokens.set(address, entry.connectionToken);
 		}
@@ -245,6 +267,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		// (the config change listener will reconcile, but this is instant).
 		this._names.delete(normalized);
 		this._tokens.delete(normalized);
+		this._registeredEntries.delete(normalized);
 		this._cancelReconnect(normalized);
 		this._reconnectAttempts.delete(normalized);
 		this._removeConnection(normalized);

@@ -5,7 +5,7 @@
 
 import { Raw } from '@vscode/prompt-tsx';
 import type { OpenAI } from 'openai';
-import { Response, withStreamIdleTimeout } from '../../../platform/networking/common/fetcherService';
+import { Response } from '../../../platform/networking/common/fetcherService';
 import { coalesce } from '../../../util/vs/base/common/arrays';
 import { AsyncIterableObject } from '../../../util/vs/base/common/async';
 import { binaryIndexOf } from '../../../util/vs/base/common/buffer';
@@ -16,7 +16,7 @@ import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { IInstantiationService, ServicesAccessor } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { ILogService } from '../../log/common/logService';
-import { FinishedCallback, IResponseDelta, OpenAiResponsesFunctionTool } from '../../networking/common/fetch';
+import { FinishedCallback, getRequestId, IResponseDelta, OpenAiResponsesFunctionTool } from '../../networking/common/fetch';
 import { IChatEndpoint, ICreateEndpointBodyOptions, IEndpointBody } from '../../networking/common/networking';
 import { ChatCompletion, FinishedCompletionReason, modelsWithoutResponsesContextManagement, openAIContextManagementCompactionType, OpenAIContextManagementResponse, rawMessageToCAPI, TokenLogProb } from '../../networking/common/openai';
 import { sendEngineMessagesTelemetry, sendResponsesApiCompactionTelemetry } from '../../networking/node/chatStream';
@@ -26,8 +26,9 @@ import { TelemetryData } from '../../telemetry/common/telemetryData';
 import { getVerbosityForModelSync } from '../common/chatModelCapabilities';
 import { rawPartAsCompactionData } from '../common/compactionDataContainer';
 import { rawPartAsPhaseData } from '../common/phaseDataContainer';
-import { getStatefulMarkerAndIndex } from '../common/statefulMarkerContainer';
+import { getIndexOfStatefulMarker, getStatefulMarkerAndIndex } from '../common/statefulMarkerContainer';
 import { rawPartAsThinkingData } from '../common/thinkingDataContainer';
+import { IChatWebSocketManager } from '../../networking/node/chatWebSocketManager';
 
 export function getResponsesApiCompactionThreshold(configService: IConfigurationService, expService: IExperimentationService, endpoint: IChatEndpoint): number | undefined {
 	const contextManagementEnabled = configService.getExperimentBasedConfig(ConfigKey.ResponsesApiContextManagementEnabled, expService) && !modelsWithoutResponsesContextManagement.has(endpoint.family);
@@ -47,9 +48,15 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 	const compactThreshold = getResponsesApiCompactionThreshold(configService, expService, endpoint);
 	// compaction supported for all the models but works well for codex models and any future models after 5.3
 
+	const webSocketStatefulMarker = resolveWebSocketStatefulMarker(accessor, options);
+	// When WebSocket is in use, always defer to the WebSocket marker (which may be
+	// undefined if the connection is new or the summary state changed). Never fall
+	// back to the HTTP marker lookup in that case.
+	const ignoreStatefulMarker = !!options.ignoreStatefulMarker || !!options.useWebSocket;
+
 	const body: IEndpointBody = {
 		model,
-		...rawMessagesToResponseAPI(model, options.messages, !!options.ignoreStatefulMarker),
+		...rawMessagesToResponseAPI(model, options.messages, ignoreStatefulMarker, webSocketStatefulMarker),
 		stream: true,
 		tools: options.requestOptions?.tools?.map((tool): OpenAI.Responses.FunctionTool & OpenAiResponsesFunctionTool => ({
 			...tool.function,
@@ -131,22 +138,69 @@ interface LatestCompactionOutput {
 	readonly outputIndex: number;
 }
 
-function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMessage[], ignoreStatefulMarker: boolean): { input: OpenAI.Responses.ResponseInputItem[]; previous_response_id?: string } {
+type CompactionResponseOutputItem = OpenAI.Responses.ResponseOutputItem & OpenAIContextManagementResponse;
+
+interface CompactionItemInChunk {
+	readonly item: OpenAIContextManagementResponse;
+	readonly outputIndex: number | undefined;
+}
+
+interface ResponseStreamEventWithOutputItem {
+	readonly item: unknown;
+	readonly output_index: number;
+}
+
+interface ResponseStreamEventWithResponseOutput {
+	readonly response: {
+		readonly output: OpenAI.Responses.ResponseOutputItem[];
+	};
+}
+
+function resolveWebSocketStatefulMarker(accessor: ServicesAccessor, options: ICreateEndpointBodyOptions): string | undefined {
+	if (options.ignoreStatefulMarker || !options.useWebSocket || !options.conversationId) {
+		return undefined;
+	}
+	const wsManager = accessor.get(IChatWebSocketManager);
+	// If client-side summarization state changed since the stateful marker
+	// was stored (new summary, or rollback removing a summary), the server's
+	// state no longer matches. Skip the marker so the full history is sent.
+	const connSummarizedAt = wsManager.getSummarizedAtRoundId(options.conversationId);
+	if (options.summarizedAtRoundId !== connSummarizedAt) {
+		return undefined;
+	}
+	return wsManager.getStatefulMarker(options.conversationId);
+}
+
+function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMessage[], ignoreStatefulMarker: boolean, webSocketStatefulMarker: string | undefined): { input: OpenAI.Responses.ResponseInputItem[]; previous_response_id?: string } {
 	const latestCompactionMessageIndex = getLatestCompactionMessageIndex(messages);
 	const latestCompactionMessage = latestCompactionMessageIndex !== undefined ? createCompactionRoundTripMessage(messages[latestCompactionMessageIndex]) : undefined;
-	const statefulMarkerAndIndex = !ignoreStatefulMarker && getStatefulMarkerAndIndex(modelId, messages);
 
 	let previousResponseId: string | undefined;
-	if (statefulMarkerAndIndex) {
-		previousResponseId = statefulMarkerAndIndex.statefulMarker;
+	let markerIndex: number | undefined;
 
+	if (webSocketStatefulMarker) {
+		// WebSocket path: use the connection's current stateful marker if present in messages
+		markerIndex = getIndexOfStatefulMarker(webSocketStatefulMarker, messages);
+		if (markerIndex !== undefined) {
+			previousResponseId = webSocketStatefulMarker;
+		}
+	} else if (!ignoreStatefulMarker) {
+		// HTTP path: look up the latest marker for this model from messages
+		const statefulMarkerAndIndex = getStatefulMarkerAndIndex(modelId, messages);
+		if (statefulMarkerAndIndex) {
+			previousResponseId = statefulMarkerAndIndex.statefulMarker;
+			markerIndex = statefulMarkerAndIndex.index;
+		}
+	}
+
+	if (markerIndex !== undefined) {
 		// Requests that resume from previous_response_id send only post-marker history,
 		// but they still need the latest compaction item even when that item predates
 		// the marker. This keeps both websocket and non-websocket traffic aligned.
-		messages = messages.slice(statefulMarkerAndIndex.index + 1);
+		messages = messages.slice(markerIndex + 1);
 		if (latestCompactionMessageIndex !== undefined) {
-			if (latestCompactionMessageIndex > statefulMarkerAndIndex.index) {
-				messages = messages.slice(latestCompactionMessageIndex - (statefulMarkerAndIndex.index + 1));
+			if (latestCompactionMessageIndex > markerIndex) {
+				messages = messages.slice(latestCompactionMessageIndex - (markerIndex + 1));
 			} else if (latestCompactionMessage) {
 				messages = [latestCompactionMessage, ...messages];
 			}
@@ -483,8 +537,24 @@ function responseFunctionOutputToRawContents(output: string | OpenAI.Responses.R
 	return coalesce(output.map(responseContentToRawContent));
 }
 
-function isCompactionOutputItem(item: OpenAI.Responses.ResponseOutputItem): boolean {
-	return item.type.toString() === openAIContextManagementCompactionType;
+function isCompactionItem(value: unknown): value is OpenAIContextManagementResponse {
+	return typeof value === 'object' && value !== null && 'type' in value && String(value.type) === openAIContextManagementCompactionType;
+}
+
+function hasOutputItem(chunk: OpenAI.Responses.ResponseStreamEvent): chunk is OpenAI.Responses.ResponseStreamEvent & ResponseStreamEventWithOutputItem {
+	return 'item' in chunk && 'output_index' in chunk && typeof chunk.output_index === 'number';
+}
+
+function hasResponseOutput(chunk: OpenAI.Responses.ResponseStreamEvent): chunk is OpenAI.Responses.ResponseStreamEvent & ResponseStreamEventWithResponseOutput {
+	return 'response' in chunk && Array.isArray(chunk.response.output);
+}
+
+function getOutputItemIndex(chunk: ResponseStreamEventWithOutputItem): number {
+	return chunk.output_index;
+}
+
+function isCompactionOutputItem(item: OpenAI.Responses.ResponseOutputItem): item is CompactionResponseOutputItem {
+	return isCompactionItem(item);
 }
 
 function getLatestCompactionOutput(output: OpenAI.Responses.ResponseOutputItem[], preferredOutputIndex: number | undefined): LatestCompactionOutput | undefined {
@@ -492,7 +562,7 @@ function getLatestCompactionOutput(output: OpenAI.Responses.ResponseOutputItem[]
 	for (let idx = output.length - 1; idx >= 0; idx--) {
 		const item = output[idx];
 		if (isCompactionOutputItem(item)) {
-			latestCompactionOutput = { item: item as unknown as OpenAIContextManagementResponse, outputIndex: idx };
+			latestCompactionOutput = { item, outputIndex: idx };
 			break;
 		}
 	}
@@ -500,7 +570,7 @@ function getLatestCompactionOutput(output: OpenAI.Responses.ResponseOutputItem[]
 	if (preferredOutputIndex !== undefined) {
 		const preferredItem = output[preferredOutputIndex];
 		if (preferredItem && isCompactionOutputItem(preferredItem) && (!latestCompactionOutput || preferredOutputIndex >= latestCompactionOutput.outputIndex)) {
-			return { item: preferredItem as unknown as OpenAIContextManagementResponse, outputIndex: preferredOutputIndex };
+			return { item: preferredItem, outputIndex: preferredOutputIndex };
 		}
 	}
 
@@ -520,7 +590,8 @@ export async function processResponseFromChatEndpoint(instantiationService: IIns
 	return new AsyncIterableObject<ChatCompletion>(async feed => {
 		const requestId = response.headers.get('X-Request-ID') ?? generateUuid();
 		const ghRequestId = response.headers.get('x-github-request-id') ?? '';
-		const processor = instantiationService.createInstance(OpenAIResponsesProcessor, telemetryData, telemetryService, requestId, ghRequestId, compactionThreshold);
+		const { serverExperiments } = getRequestId(response.headers);
+		const processor = instantiationService.createInstance(OpenAIResponsesProcessor, telemetryData, telemetryService, requestId, ghRequestId, serverExperiments, compactionThreshold);
 		const parser = new SSEParser((ev) => {
 			try {
 				logService.trace(`SSE: ${ev.data}`);
@@ -534,7 +605,7 @@ export async function processResponseFromChatEndpoint(instantiationService: IIns
 			}
 		});
 
-		for await (const chunk of withStreamIdleTimeout(response.body)) {
+		for await (const chunk of response.body) {
 			parser.feed(chunk);
 		}
 	}, async () => {
@@ -573,15 +644,66 @@ export class OpenAIResponsesProcessor {
 		private readonly telemetryService: ITelemetryService,
 		private readonly requestId: string,
 		private readonly ghRequestId: string,
+		private readonly serverExperiments: string,
 		private readonly compactionThreshold: number | undefined,
 		@ILogService private readonly logService: ILogService,
 	) { }
+
+	private getCompactionItemsInChunk(chunk: OpenAI.Responses.ResponseStreamEvent): CompactionItemInChunk[] {
+		const compactionItems: CompactionItemInChunk[] = [];
+
+		if (hasOutputItem(chunk) && isCompactionItem(chunk.item)) {
+			const outputIndex = getOutputItemIndex(chunk);
+			compactionItems.push({ item: chunk.item, outputIndex });
+		}
+
+		if (hasResponseOutput(chunk)) {
+			for (let idx = 0; idx < chunk.response.output.length; idx++) {
+				const item = chunk.response.output[idx];
+				if (isCompactionItem(item)) {
+					compactionItems.push({ item, outputIndex: idx });
+				}
+			}
+		}
+
+		return compactionItems;
+	}
+
+	private captureCompactionItem(item: OpenAIContextManagementResponse, outputIndex: number | undefined, onProgress: (delta: IResponseDelta) => undefined): void {
+		if (outputIndex !== undefined && this.latestCompactionOutputIndex !== undefined && outputIndex < this.latestCompactionOutputIndex) {
+			return;
+		}
+
+		const previousCompactionItem = this.latestCompactionItem;
+		this.sawCompactionMessage = true;
+		this.latestCompactionOutputIndex = outputIndex ?? this.latestCompactionOutputIndex;
+		this.latestCompactionItem = item;
+
+		if (previousCompactionItem?.id === item.id && previousCompactionItem.encrypted_content === item.encrypted_content) {
+			return;
+		}
+
+		onProgress({
+			text: '',
+			contextManagement: {
+				type: openAIContextManagementCompactionType,
+				id: item.id,
+				encrypted_content: item.encrypted_content,
+			}
+		});
+	}
 
 	public push(chunk: OpenAI.Responses.ResponseStreamEvent, _onProgress: FinishedCallback): ChatCompletion | undefined {
 		const onProgress = (delta: IResponseDelta): undefined => {
 			this.textAccumulator += delta.text;
 			_onProgress(this.textAccumulator, 0, delta);
 		};
+		const compactionItems = this.getCompactionItemsInChunk(chunk);
+		if (chunk.type !== 'response.completed') {
+			for (const { item, outputIndex } of compactionItems) {
+				this.captureCompactionItem(item, outputIndex, onProgress);
+			}
+		}
 
 		switch (chunk.type) {
 			case 'error':
@@ -624,23 +746,6 @@ export class OpenAIResponsesProcessor {
 				return;
 			}
 			case 'response.output_item.done':
-				if (chunk.item.type.toString() === openAIContextManagementCompactionType) {
-					const compactionItem = chunk.item as unknown as OpenAIContextManagementResponse;
-					if (this.latestCompactionOutputIndex !== undefined && chunk.output_index < this.latestCompactionOutputIndex) {
-						return;
-					}
-					this.latestCompactionOutputIndex = chunk.output_index;
-					this.latestCompactionItem = compactionItem;
-					this.sawCompactionMessage = true;
-					return onProgress({
-						text: '',
-						contextManagement: {
-							type: openAIContextManagementCompactionType,
-							id: compactionItem.id,
-							encrypted_content: compactionItem.encrypted_content,
-						}
-					});
-				}
 				if (chunk.item.type === 'function_call') {
 					this.toolCallInfo.delete(chunk.output_index);
 					onProgress({
@@ -746,7 +851,7 @@ export class OpenAIResponsesProcessor {
 					model: chunk.response.model,
 					tokens: [],
 					telemetryData: this.telemetryData,
-					requestId: { headerRequestId: this.requestId, gitHubRequestId: this.ghRequestId, completionId: chunk.response.id, created: chunk.response.created_at, deploymentId: '', serverExperiments: '' },
+					requestId: { headerRequestId: this.requestId, gitHubRequestId: this.ghRequestId, completionId: chunk.response.id, created: chunk.response.created_at, deploymentId: '', serverExperiments: this.serverExperiments },
 					usage: {
 						prompt_tokens: chunk.response.usage?.input_tokens ?? 0,
 						completion_tokens: chunk.response.usage?.output_tokens ?? 0,

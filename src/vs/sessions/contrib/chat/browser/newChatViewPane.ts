@@ -8,7 +8,7 @@ import './media/chatWelcomePart.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter } from '../../../../base/common/event.js';
-import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { Disposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -145,8 +145,12 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._register(this._workspacePicker.onDidChangeSelection(() => {
 			this._renderOptionGroupPickers();
 		}));
-		this._register(this._workspacePicker.onDidSelectWorkspace(async (workspace) => {
-			await this._onWorkspaceSelected(workspace);
+		this._register(this._workspacePicker.onDidSelectWorkspace(async workspace => {
+			await this._onWorkspaceSelected(workspace, this._sessionTypePicker.selectedType);
+			this._focusEditor();
+		}));
+		this._register(this._sessionTypePicker.onDidSelectSessionType(async sessionType => {
+			await this._onWorkspaceSelected(this._workspacePicker.selectedProject, sessionType);
 			this._focusEditor();
 		}));
 
@@ -154,6 +158,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		this._register(autorun(reader => {
 			const session = this.sessionsManagementService.activeSession.read(reader);
 			const isLoading = session?.loading.read(reader) ?? false;
+			session?.ready.read(reader);
 			this._loadingSpinner?.classList.toggle('visible', isLoading);
 			this._updateSendButtonState();
 		}));
@@ -221,12 +226,12 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		const restoredProject = this._workspacePicker.selectedProject;
 		if (restoredProject) {
 			if (this.sessionsProvidersService.getProviders().length > 0) {
-				this._createNewSession(restoredProject);
+				this._createNewSession(restoredProject, this._sessionTypePicker.selectedType);
 			} else {
 				// Providers not yet registered (startup race) — wait for first registration
 				const sub = this.sessionsProvidersService.onDidChangeProviders(() => {
 					sub.dispose();
-					this._createNewSession(restoredProject);
+					this._createNewSession(restoredProject, this._sessionTypePicker.selectedType);
 				});
 				this._register(sub);
 			}
@@ -241,8 +246,8 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		}, { once: true }));
 	}
 
-	private _createNewSession(selection: IWorkspaceSelection): void {
-		this.sessionsManagementService.createNewSession(selection.providerId, selection.workspace);
+	private _createNewSession(selection: IWorkspaceSelection, sessionTypeId: string | undefined): void {
+		this.sessionsManagementService.createNewSession(selection.providerId, selection.workspace.repositories[0].uri, sessionTypeId);
 	}
 
 	private _updateInputLoadingState(): void {
@@ -356,6 +361,12 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 				e.preventDefault();
 				e.stopPropagation();
 				this._send();
+			}
+			// Cmd+/ / Ctrl+/ — open the context picker (same as the attach button)
+			if (e.equals(KeyMod.CtrlCmd | KeyCode.Slash)) {
+				e.preventDefault();
+				e.stopPropagation();
+				this._contextAttachments.showPicker(this._getContextFolderUri());
 			}
 		}));
 
@@ -544,7 +555,8 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		const session = this.sessionsManagementService.activeSession.get();
 		const hasActiveSession = !!session;
 		const isLoading = session?.loading.get() ?? false;
-		this._sendButton.enabled = !this._sending && hasText && hasActiveSession && !isLoading;
+		const isReady = session?.ready.get() ?? false;
+		this._sendButton.enabled = !this._sending && hasText && hasActiveSession && !isLoading && isReady;
 	}
 
 	private async _send(): Promise<void> {
@@ -556,6 +568,11 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 		// If no workspace is selected, open the picker
 		if (!this._hasRequiredRepoOrFolderSelection()) {
 			this._openRepoOrFolderPicker();
+			return;
+		}
+
+		const activeSession = this.sessionsManagementService.activeSession.get();
+		if (!activeSession || !activeSession.ready.get()) {
 			return;
 		}
 
@@ -677,7 +694,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 	 * Handles a workspace selection from the workspace picker.
 	 * Requests folder trust if needed and creates a new session.
 	 */
-	private async _onWorkspaceSelected(selection: IWorkspaceSelection | undefined): Promise<void> {
+	private async _onWorkspaceSelected(selection: IWorkspaceSelection | undefined, sessionTypeId: string | undefined): Promise<void> {
 		if (!selection) {
 			this.sessionsManagementService.unsetNewSession();
 			return;
@@ -690,7 +707,7 @@ class NewChatWidget extends Disposable implements IHistoryNavigationWidget {
 			}
 		}
 
-		this._createNewSession(selection);
+		this._createNewSession(selection, sessionTypeId);
 	}
 
 	prefillInput(text: string): void {

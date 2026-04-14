@@ -123,14 +123,13 @@ import { ChatInputPartWidgetController } from './chatInputPartWidgets.js';
 import { IChatInputPickerOptions } from './chatInputPickerActionItem.js';
 import { ChatSelectedTools } from './chatSelectedTools.js';
 import { DelegationSessionPickerActionItem } from './delegationSessionPickerActionItem.js';
-import { IModelPickerDelegate } from './modelPickerActionItem.js';
+import { ModelPickerActionItem, IModelPickerDelegate } from './modelPickerActionItem.js';
 import { IModePickerDelegate, ModePickerActionItem } from './modePickerActionItem.js';
 import { IPermissionPickerDelegate, PermissionPickerActionItem } from './permissionPickerActionItem.js';
 import { SessionTypePickerActionItem } from './sessionTargetPickerActionItem.js';
 import { WorkspacePickerActionItem } from './workspacePickerActionItem.js';
 import { ChatContextUsageWidget } from '../../widgetHosts/viewPane/chatContextUsageWidget.js';
 import { Target } from '../../../common/promptSyntax/promptTypes.js';
-import { EnhancedModelPickerActionItem } from './modelPickerActionItem2.js';
 import { findLast } from '../../../../../../base/common/arraysFind.js';
 import { ConfigureToolsAction } from '../../actions/chatToolActions.js';
 
@@ -385,7 +384,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	private chatSessionSupportsDelegationKey: IContextKey<boolean>;
 	private chatSessionHasCustomAgentTarget: IContextKey<boolean>;
 	private chatSessionHasTargetedModels: IContextKey<boolean>;
-	private modelWidget: EnhancedModelPickerActionItem | undefined;
+	private modelWidget: ModelPickerActionItem | undefined;
 	private modeWidget: ModePickerActionItem | undefined;
 	private permissionWidget: PermissionPickerActionItem | undefined;
 	private sessionTargetWidget: SessionTypePickerActionItem | undefined;
@@ -2256,7 +2255,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 							return !sessionType || sessionType === localChatSessionType;
 						},
 					};
-					return this.modelWidget = this.instantiationService.createInstance(EnhancedModelPickerActionItem, action, itemDelegate, pickerOptions);
+					return this.modelWidget = this.instantiationService.createInstance(ModelPickerActionItem, action, itemDelegate, pickerOptions);
 				} else if (action.id === OpenModePickerAction.ID && action instanceof MenuItemAction) {
 					const delegate: IModePickerDelegate = {
 						currentMode: this._currentModeObservable,
@@ -2471,6 +2470,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.renderAttachedContext();
 
 		const inputResizeObserver = this._register(new dom.DisposableResizeObserver(() => {
+			this.updateToolConfirmationCarouselMaxHeight();
 			const newHeight = this.container.offsetHeight;
 			this.height.set(newHeight, undefined);
 		}));
@@ -2741,11 +2741,11 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			dom.clearNode(this.chatArtifactsWidgetContainer);
 			dom.append(this.chatArtifactsWidgetContainer, widget.domNode);
 		}
-		this._chatArtifactsWidget.value.render(chatSessionResource);
+		this._chatArtifactsWidget.value.setSessionResource(chatSessionResource);
 	}
 
 	clearArtifactsWidget(): void {
-		this._chatArtifactsWidget.value?.hide();
+		this._chatArtifactsWidget.value?.setSessionResource(undefined);
 	}
 
 	renderQuestionCarousel(carousel: IChatQuestionCarousel, context: IChatContentPartRenderContext, options: IChatQuestionCarouselOptions): ChatQuestionCarouselPart {
@@ -2859,6 +2859,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const existing = this._currentToolConfirmationCarousel;
 		if (existing) {
 			existing.addToolInvocation(tool, subAgentInvocationId, agentName, scrollToSubagent, toolPart);
+			this.updateToolConfirmationCarouselMaxHeight();
 			return existing;
 		}
 
@@ -2872,6 +2873,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this._chatToolConfirmationCarousels.set(key, part);
 		dom.append(this.chatToolConfirmationCarouselContainer, part.domNode);
 		dom.show(this.chatToolConfirmationCarouselContainer);
+		this.updateToolConfirmationCarouselMaxHeight();
 
 		const capturedKey = key;
 		Event.once(part.onDidEmpty)(() => {
@@ -2889,6 +2891,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		const existing = this._currentToolConfirmationCarousel;
 		if (existing) {
 			existing.addToolInvocation(tool, subAgentInvocationId, agentName, scrollToSubagent, toolPart);
+			this.updateToolConfirmationCarouselMaxHeight();
 		} else {
 			this.renderToolConfirmationCarousel(tool, factory, subAgentInvocationId, agentName, scrollToSubagent, toolPart);
 		}
@@ -2928,6 +2931,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (carousel && carousel.pendingCount > 0) {
 			dom.append(this.chatToolConfirmationCarouselContainer, carousel.domNode);
 			dom.show(this.chatToolConfirmationCarouselContainer);
+			this.updateToolConfirmationCarouselMaxHeight();
 		} else {
 			dom.hide(this.chatToolConfirmationCarouselContainer);
 		}
@@ -3272,6 +3276,23 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	 */
 	setMaxHeight(maxHeight: number | undefined): void {
 		this._maxHeight = maxHeight;
+		this.updateToolConfirmationCarouselMaxHeight();
+	}
+
+	private updateToolConfirmationCarouselMaxHeight(): void {
+		const carousel = this._currentToolConfirmationCarousel;
+		if (!carousel) {
+			return;
+		}
+
+		if (this._maxHeight === undefined) {
+			carousel.setMaxHeight(undefined);
+			return;
+		}
+
+		const carouselHeight = this.chatToolConfirmationCarouselContainer.offsetHeight;
+		const otherInputHeight = Math.max(0, this.container.offsetHeight - carouselHeight);
+		carousel.setMaxHeight(this._maxHeight - otherInputHeight);
 	}
 
 	/**

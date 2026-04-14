@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.116.0",
-  "distro": "a265239e421aed1dad7d0db84c68f905ebe9096e",
+  "version": "1.117.0",
+  "distro": "55ed6ee8e0b2c21bfd4ddc57b6ff1dff5fcc9b2d",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -88,8 +88,8 @@
   },
   "dependencies": {
     "@anthropic-ai/sandbox-runtime": "0.0.42",
-    "@github/copilot": "^1.0.11",
-    "@github/copilot-sdk": "^0.2.0",
+    "@github/copilot": "^1.0.24",
+    "@github/copilot-sdk": "^0.2.2",
     "@microsoft/1ds-core-js": "^3.2.13",
     "@microsoft/1ds-post-js": "^3.2.13",
     "@microsoft/dev-tunnels-connections": "^1.3.41",
@@ -174,7 +174,7 @@
     "@typescript/native-preview": "^7.0.0-dev.20260408",
     "@vscode/component-explorer": "^0.2.1-8",
     "@vscode/component-explorer-cli": "^0.2.1-7",
-    "@vscode/gulp-electron": "1.41.0",
+    "@vscode/gulp-electron": "1.41.2",
     "@vscode/l10n-dev": "0.0.35",
     "@vscode/telemetry-extractor": "^1.20.2",
     "@vscode/test-cli": "^0.0.6",
@@ -190,7 +190,7 @@
     "cookie": "^0.7.2",
     "debounce": "^1.0.0",
     "deemon": "^1.13.6",
-    "electron": "39.8.5",
+    "electron": "39.8.7",
     "eslint": "^9.36.0",
     "eslint-formatter-compact": "^8.40.0",
     "eslint-plugin-header": "3.1.1",

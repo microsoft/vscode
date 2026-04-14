@@ -66,7 +66,7 @@ export const ICopilotCLIModels = createServiceIdentifier<ICopilotCLIModels>('ICo
 
 export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 	declare _serviceBrand: undefined;
-	private readonly _availableModels: Lazy<Promise<CopilotCLIModelInfo[]>>;
+	private _availableModels?: Promise<CopilotCLIModelInfo[]>;
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	constructor(
 		@ICopilotCLISDK private readonly copilotCLISDK: ICopilotCLISDK,
@@ -76,15 +76,16 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
-		this._availableModels = new Lazy<Promise<CopilotCLIModelInfo[]>>(() => this._getAvailableModels());
+		this._availableModels = this._getAvailableModels();
 		// Eagerly fetch available models so that they're ready when needed.
-		this._availableModels.value
+		this._availableModels
 			.then(() => this._onDidChange.fire())
 			.catch((error) => {
 				this.logService.error('[CopilotCLIModels] Failed to fetch available models', error);
 			});
 		this._register(this._authenticationService.onDidAuthenticationChange(() => {
 			// Auth changed which means models could've changed. Fire the event
+			this._availableModels = undefined;
 			this._onDidChange.fire();
 		}));
 	}
@@ -115,7 +116,10 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 		}
 
 		// No need to query sdk multiple times, cache the result, this cannot change during a vscode session.
-		return this._availableModels.value;
+		if (!this._availableModels) {
+			this._availableModels = this._getAvailableModels();
+		}
+		return this._availableModels;
 	}
 
 	private async _getAvailableModels(): Promise<CopilotCLIModelInfo[]> {
@@ -132,7 +136,7 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 				supportsVision: model.capabilities.supports.vision,
 				supportsReasoningEffort: model.capabilities.supports.reasoningEffort,
 				defaultReasoningEffort: model.defaultReasoningEffort,
-				supportedReasoningEfforts: model.supportedReasoningEfforts
+				supportedReasoningEfforts: model.supportedReasoningEfforts,
 			} satisfies CopilotCLIModelInfo));
 		} catch (ex) {
 			this.logService.error(`[CopilotCLISession] Failed to fetch models`, ex);
@@ -155,8 +159,6 @@ export class CopilotCLIModels extends Disposable implements ICopilotCLIModels {
 			}
 		};
 		this._register(lm.registerLanguageModelChatProvider('copilotcli', provider));
-
-		void this._availableModels.value.then(() => this._onDidChange.fire());
 	}
 
 	private async _provideLanguageModelChatInfo(): Promise<vscode.LanguageModelChatInformation[]> {
