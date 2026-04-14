@@ -79,14 +79,14 @@ export class ConfirmTerminalCommandTool extends RunInTerminalTool {
 	override async invoke(invocation: IToolInvocation, countTokens: CountTokensCallback, progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
 		// Check if the user edited the command during confirmation
 		const toolSpecificData = invocation.toolSpecificData as IChatTerminalToolInvocationData | undefined;
-		const userEdited = toolSpecificData?.commandLine.userEdited;
-		const original = toolSpecificData?.commandLine.original;
+		const userEdited = toolSpecificData?.commandLine?.userEdited;
+		const original = toolSpecificData?.commandLine?.original;
 
 		if (userEdited !== undefined && userEdited !== original) {
 			return {
 				content: [{
 					kind: 'text',
-					value: `The user approved the command but edited it to: ${userEdited}\nYou MUST use this edited command exactly as written when executing it.`
+					value: `The user approved the command but edited it.\nYou MUST use this edited command exactly as written when executing it.\n<editedCommand>\n${userEdited}\n</editedCommand>`
 				}]
 			};
 		}

@@ -2217,7 +2217,7 @@ suite('RunInTerminalTool', () => {
 
 	suite('ConfirmTerminalCommandTool', () => {
 		async function invokeConfirmTool(tool: RunInTerminalTool, original: string, userEdited?: string) {
-			const invocation: IToolInvocation = {
+			const invocation = {
 				callId: 'test-call-id',
 				toolId: 'confirmTerminalCommand',
 				parameters: {},
@@ -2291,6 +2291,7 @@ suite('RunInTerminalTool', () => {
 			const result = await invokeConfirmTool(confirmTool, 'echo hello', 'echo stop');
 			strictEqual(result.content[0].kind, 'text');
 			const textValue = (result.content[0] as { kind: 'text'; value: string }).value;
+			ok(textValue.includes('<editedCommand>'), 'Result should contain editedCommand tags');
 			ok(textValue.includes('echo stop'), 'Result should contain the edited command');
 			ok(textValue.includes('edited'), 'Result should indicate the command was edited');
 		});
