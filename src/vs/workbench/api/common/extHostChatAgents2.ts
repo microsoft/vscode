@@ -1119,6 +1119,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 	$releaseSession(sessionResourceDto: UriComponents): void {
 		const sessionResource = URI.revive(sessionResourceDto);
 		this._sessionDisposables.deleteAndDispose(sessionResource);
+		this._chatSessions.clearInputStateCache(sessionResource);
 		const sessionId = LocalChatSessionUri.parseLocalSessionId(sessionResource);
 		if (sessionId) {
 			this._onDidDisposeChatSession.fire(sessionId);

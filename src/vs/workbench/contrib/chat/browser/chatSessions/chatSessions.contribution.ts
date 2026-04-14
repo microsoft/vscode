@@ -1079,6 +1079,9 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		this._sessions.set(sessionResource, sessionData);
 
 		// Make sure any listeners are aware of the new session and its options
+		// But why? This feels wrong, we create a new object and immediately we trigger onDidChange, but nothing has changed.
+		// From an API adopttion perspective, this doesn't feel right, i.e. I'd expect onDidChange to get triggered only when somethign changes.
+		// If we do need a way to nodify extension about initial options or the like, then perhaps a new event/callback is in order.
 		if (session.options) {
 			this._onDidChangeSessionOptions.fire({ sessionResource, updates: session.options });
 		}
