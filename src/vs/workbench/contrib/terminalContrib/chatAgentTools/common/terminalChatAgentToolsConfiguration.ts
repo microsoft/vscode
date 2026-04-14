@@ -546,7 +546,17 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 				description: {
 					key: 'agentSandbox.enabledSetting',
 					value: localize('agentSandbox.enabledSetting', "Controls whether agent mode uses sandboxing to restrict what tools can do. When enabled, tools like the terminal are run in a sandboxed environment to limit access to the system."),
-				}
+				},
+				enumDescriptions: [
+					{
+						key: 'agentSandbox.enabledSetting.offDescription',
+						value: localize('agentSandbox.enabledSetting.offDescription', 'Disable sandboxing for agent mode tools.'),
+					},
+					{
+						key: 'agentSandbox.enabledSetting.onDescription',
+						value: localize('agentSandbox.enabledSetting.onDescription', 'Enable sandboxing for agent mode tools.'),
+					},
+				]
 			}
 		}
 	},
