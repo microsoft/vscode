@@ -236,7 +236,7 @@ export async function searchFilesAndFolders(
 	configurationService: IConfigurationService,
 	searchService: ISearchService
 ): Promise<{ folders: URI[]; files: URI[] }> {
-	const segmentMatchPattern = fuzzyMatch ? fuzzyMatchingGlobPattern(pattern) : continousMatchingGlobPattern(pattern);
+	const segmentMatchPattern = fuzzyMatch ? fuzzyMatchingGlobPattern(pattern) : continuousMatchingGlobPattern(pattern);
 
 	const searchExcludePattern = getExcludes(configurationService.getValue<ISearchConfiguration>({ resource: workspace })) || {};
 	const searchOptions: IFileQuery = {
@@ -278,7 +278,7 @@ function fuzzyMatchingGlobPattern(pattern: string): string {
 	return '*' + pattern.split('').join('*') + '*';
 }
 
-function continousMatchingGlobPattern(pattern: string): string {
+function continuousMatchingGlobPattern(pattern: string): string {
 	if (!pattern) {
 		return '*';
 	}

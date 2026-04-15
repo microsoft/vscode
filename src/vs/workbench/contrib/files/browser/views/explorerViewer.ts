@@ -591,7 +591,7 @@ export class ExplorerFindProvider implements IAsyncFindProvider<ExplorerItem> {
 	}
 
 	private async searchInWorkspace(patternLowercase: string, root: ExplorerItem, rootIndex: number, isFuzzyMatch: boolean, token: CancellationToken): Promise<{ explorerRoot: ExplorerItem; files: URI[]; directories: URI[]; hitMaxResults: boolean }> {
-		const segmentMatchPattern = isFuzzyMatch ? fuzzyMatchingGlobPattern(patternLowercase) : continousMatchingGlobPattern(patternLowercase);
+		const segmentMatchPattern = isFuzzyMatch ? fuzzyMatchingGlobPattern(patternLowercase) : continuousMatchingGlobPattern(patternLowercase);
 
 		const searchExcludePattern = getExcludes(this.configurationService.getValue<ISearchConfiguration>({ resource: root.resource })) || {};
 		const searchOptions: IFileQuery = {
@@ -692,7 +692,7 @@ function fuzzyMatchingGlobPattern(pattern: string): string {
 	return '*' + pattern.split('').join('*') + '*';
 }
 
-function continousMatchingGlobPattern(pattern: string): string {
+function continuousMatchingGlobPattern(pattern: string): string {
 	if (!pattern) {
 		return '*';
 	}
@@ -1686,7 +1686,7 @@ export class FileDragAndDrop implements ITreeDragAndDrop<ExplorerItem> {
 
 			if (items.some((source) => {
 				if (source.isRoot) {
-					return false; // Root folders are handled seperately
+					return false; // Root folders are handled separately
 				}
 
 				if (this.uriIdentityService.extUri.isEqual(source.resource, target.resource)) {
