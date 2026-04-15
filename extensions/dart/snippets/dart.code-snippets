@@ -1,0 +1,257 @@
+{
+	"Dart main function": {
+		"prefix": "main",
+		"body": [
+			"void main() {",
+			"\t$0",
+			"}"
+		],
+		"description": "Dart main entry point"
+	},
+	"Dart main with args": {
+		"prefix": "mainargs",
+		"body": [
+			"void main(List<String> args) {",
+			"\t$0",
+			"}"
+		],
+		"description": "Dart main with command-line arguments"
+	},
+	"Dart class": {
+		"prefix": "class",
+		"body": [
+			"class ${1:ClassName} {",
+			"\t$0",
+			"}"
+		],
+		"description": "Dart class declaration"
+	},
+	"Dart class with constructor": {
+		"prefix": "classc",
+		"body": [
+			"class ${1:ClassName} {",
+			"\t${2:String} ${3:field};",
+			"",
+			"\t${1:ClassName}(this.${3:field});",
+			"$0",
+			"}"
+		],
+		"description": "Dart class with constructor"
+	},
+	"Dart abstract class": {
+		"prefix": "abstract",
+		"body": [
+			"abstract class ${1:ClassName} {",
+			"\t$0",
+			"}"
+		],
+		"description": "Dart abstract class"
+	},
+	"Dart mixin": {
+		"prefix": "mixin",
+		"body": [
+			"mixin ${1:MixinName} {",
+			"\t$0",
+			"}"
+		],
+		"description": "Dart mixin declaration"
+	},
+	"Dart extension": {
+		"prefix": "extension",
+		"body": [
+			"extension ${1:ExtensionName} on ${2:Type} {",
+			"\t$0",
+			"}"
+		],
+		"description": "Dart extension method"
+	},
+	"Dart function": {
+		"prefix": "fun",
+		"body": [
+			"${1:void} ${2:functionName}(${3}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "Dart function declaration"
+	},
+	"Dart async function": {
+		"prefix": "funasync",
+		"body": [
+			"Future<${1:void}> ${2:functionName}(${3}) async {",
+			"\t$0",
+			"}"
+		],
+		"description": "Dart async function"
+	},
+	"Dart getter": {
+		"prefix": "get",
+		"body": [
+			"${1:String} get ${2:name} => ${3:_name};"
+		],
+		"description": "Dart getter"
+	},
+	"Dart setter": {
+		"prefix": "set",
+		"body": [
+			"set ${1:name}(${2:String} value) {",
+			"\t${3:_name} = value;",
+			"}"
+		],
+		"description": "Dart setter"
+	},
+	"Dart print": {
+		"prefix": "print",
+		"body": [
+			"print(${1:'${2:message}'});"
+		],
+		"description": "Dart print statement"
+	},
+	"Dart if": {
+		"prefix": "if",
+		"body": [
+			"if (${1:condition}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "Dart if statement"
+	},
+	"Dart if-else": {
+		"prefix": "ifelse",
+		"body": [
+			"if (${1:condition}) {",
+			"\t${2}",
+			"} else {",
+			"\t$0",
+			"}"
+		],
+		"description": "Dart if-else statement"
+	},
+	"Dart for loop": {
+		"prefix": "for",
+		"body": [
+			"for (int ${1:i} = 0; ${1:i} < ${2:count}; ${1:i}++) {",
+			"\t$0",
+			"}"
+		],
+		"description": "Dart for loop"
+	},
+	"Dart for-in loop": {
+		"prefix": "forin",
+		"body": [
+			"for (final ${1:item} in ${2:items}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "Dart for-in loop"
+	},
+	"Dart while loop": {
+		"prefix": "while",
+		"body": [
+			"while (${1:condition}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "Dart while loop"
+	},
+	"Dart switch": {
+		"prefix": "switch",
+		"body": [
+			"switch (${1:expression}) {",
+			"\tcase ${2:value}:",
+			"\t\t$0",
+			"\t\tbreak;",
+			"\tdefault:",
+			"\t\tbreak;",
+			"}"
+		],
+		"description": "Dart switch statement"
+	},
+	"Dart try-catch": {
+		"prefix": "try",
+		"body": [
+			"try {",
+			"\t${1}",
+			"} catch (${2:e}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "Dart try-catch block"
+	},
+	"Dart try-catch-finally": {
+		"prefix": "tryf",
+		"body": [
+			"try {",
+			"\t${1}",
+			"} catch (${2:e}) {",
+			"\t${3}",
+			"} finally {",
+			"\t$0",
+			"}"
+		],
+		"description": "Dart try-catch-finally block"
+	},
+	"Dart List": {
+		"prefix": "list",
+		"body": [
+			"List<${1:String}> ${2:items} = [${3}];"
+		],
+		"description": "Dart List variable"
+	},
+	"Dart Map": {
+		"prefix": "map",
+		"body": [
+			"Map<${1:String}, ${2:dynamic}> ${3:data} = {",
+			"\t'${4:key}': ${5:value},",
+			"};"
+		],
+		"description": "Dart Map variable"
+	},
+	"Dart Set": {
+		"prefix": "set",
+		"body": [
+			"Set<${1:String}> ${2:items} = {${3}};"
+		],
+		"description": "Dart Set variable"
+	},
+	"Dart arrow function": {
+		"prefix": "arrow",
+		"body": [
+			"${1:String} ${2:name}(${3}) => ${4:expression};"
+		],
+		"description": "Dart arrow function"
+	},
+	"Dart null check": {
+		"prefix": "nullcheck",
+		"body": [
+			"if (${1:variable} != null) {",
+			"\t$0",
+			"}"
+		],
+		"description": "Dart null check"
+	},
+	"Dart late variable": {
+		"prefix": "late",
+		"body": [
+			"late ${1:String} ${2:variable};"
+		],
+		"description": "Dart late variable declaration"
+	},
+	"Dart constructor named": {
+		"prefix": "named",
+		"body": [
+			"${1:ClassName}.${2:named}({${3}});"
+		],
+		"description": "Dart named constructor"
+	},
+	"Dart enum": {
+		"prefix": "enum",
+		"body": [
+			"enum ${1:EnumName} {",
+			"\t${2:value1},",
+			"\t${3:value2},",
+			"\t$0",
+			"}"
+		],
+		"description": "Dart enum declaration"
+	}
+}
