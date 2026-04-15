@@ -3,14 +3,37 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { Emitter } from '../../../base/common/event.js';
 import * as platform from '../../../base/common/platform.js';
 import { ILogService } from '../../log/common/log.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ActionType } from '../common/state/protocol/actions.js';
 import type { ICreateTerminalParams } from '../common/state/protocol/commands.js';
 import { ITerminalClaim, ITerminalInfo, ITerminalState, TerminalClaimKind } from '../common/state/protocol/state.js';
 import { isTerminalAction } from '../common/state/sessionActions.js';
 import type { AgentHostStateManager } from './agentHostStateManager.js';
+
+export const IAgentHostTerminalManager = createDecorator<IAgentHostTerminalManager>('agentHostTerminalManager');
+
+/**
+ * Service interface for terminal management in the agent host.
+ */
+export interface IAgentHostTerminalManager {
+	readonly _serviceBrand: undefined;
+	createTerminal(params: ICreateTerminalParams, options?: { shell?: string }): Promise<void>;
+	writeInput(uri: string, data: string): void;
+	onData(uri: string, cb: (data: string) => void): IDisposable;
+	onExit(uri: string, cb: (exitCode: number) => void): IDisposable;
+	onClaimChanged(uri: string, cb: (claim: ITerminalClaim) => void): IDisposable;
+	getContent(uri: string): string | undefined;
+	getClaim(uri: string): ITerminalClaim | undefined;
+	hasTerminal(uri: string): boolean;
+	getExitCode(uri: string): number | undefined;
+	disposeTerminal(uri: string): void;
+	getTerminalInfos(): ITerminalInfo[];
+	getTerminalState(uri: string): ITerminalState | undefined;
+}
 
 // node-pty is loaded dynamically to avoid bundling issues in non-node environments
 let nodePtyModule: typeof import('node-pty') | undefined;
@@ -26,6 +49,9 @@ interface IManagedTerminal {
 	readonly uri: string;
 	readonly store: DisposableStore;
 	readonly pty: import('node-pty').IPty;
+	readonly onDataEmitter: Emitter<string>;
+	readonly onExitEmitter: Emitter<number>;
+	readonly onClaimChangedEmitter: Emitter<ITerminalClaim>;
 	title: string;
 	cwd: string;
 	cols: number;
@@ -43,7 +69,8 @@ interface IManagedTerminal {
  * actions (input, resize, claim changes) and dispatches server-originated
  * PTY output back through the state manager.
  */
-export class AgentHostTerminalManager extends Disposable {
+export class AgentHostTerminalManager extends Disposable implements IAgentHostTerminalManager {
+	declare readonly _serviceBrand: undefined;
 
 	private readonly _terminals = new Map<string, IManagedTerminal>();
 
@@ -110,7 +137,7 @@ export class AgentHostTerminalManager extends Disposable {
 	 * Create a new terminal backed by node-pty.
 	 * Spawns the user's default shell.
 	 */
-	async createTerminal(params: ICreateTerminalParams): Promise<void> {
+	async createTerminal(params: ICreateTerminalParams, options?: { shell?: string }): Promise<void> {
 		const uri = params.terminal;
 		if (this._terminals.has(uri)) {
 			throw new Error(`Terminal already exists: ${uri}`);
@@ -122,7 +149,7 @@ export class AgentHostTerminalManager extends Disposable {
 		const cols = params.cols ?? 80;
 		const rows = params.rows ?? 24;
 
-		const shell = this._getDefaultShell();
+		const shell = options?.shell ?? this._getDefaultShell();
 		const name = platform.isWindows ? 'cmd' : 'xterm-256color';
 
 		this._logService.info(`[TerminalManager] Creating terminal ${uri}: shell=${shell}, cwd=${cwd}, cols=${cols}, rows=${rows}`);
@@ -138,10 +165,17 @@ export class AgentHostTerminalManager extends Disposable {
 		const store = new DisposableStore();
 		const claim: ITerminalClaim = params.claim ?? { kind: TerminalClaimKind.Client, clientId: '' };
 
+		const onDataEmitter = store.add(new Emitter<string>());
+		const onExitEmitter = store.add(new Emitter<number>());
+		const onClaimChangedEmitter = store.add(new Emitter<ITerminalClaim>());
+
 		const managed: IManagedTerminal = {
 			uri,
 			store,
 			pty: ptyProcess,
+			onDataEmitter,
+			onExitEmitter,
+			onClaimChangedEmitter,
 			title: params.name ?? shell,
 			cwd,
 			cols,
@@ -162,6 +196,7 @@ export class AgentHostTerminalManager extends Disposable {
 			if (managed.content.length > 100_000) {
 				managed.content = managed.content.slice(-80_000);
 			}
+			managed.onDataEmitter.fire(data);
 			this._stateManager.dispatchServerAction({
 				type: ActionType.TerminalData,
 				terminal: uri,
@@ -172,6 +207,7 @@ export class AgentHostTerminalManager extends Disposable {
 
 		const exitListener = ptyProcess.onExit(e => {
 			managed.exitCode = e.exitCode;
+			managed.onExitEmitter.fire(e.exitCode);
 			this._stateManager.dispatchServerAction({
 				type: ActionType.TerminalExited,
 				terminal: uri,
@@ -201,12 +237,64 @@ export class AgentHostTerminalManager extends Disposable {
 		this._broadcastTerminalList();
 	}
 
-	/** Send input data to a terminal's PTY process. */
+	/** Send input data to a terminal's PTY process (from client-dispatched actions). */
 	private _writeInput(uri: string, data: string): void {
+		this.writeInput(uri, data);
+	}
+
+	/** Send input data to a terminal's PTY process. */
+	writeInput(uri: string, data: string): void {
 		const terminal = this._terminals.get(uri);
 		if (terminal && terminal.exitCode === undefined) {
 			terminal.pty.write(data);
 		}
+	}
+
+	/** Register a callback for PTY data events on a terminal. */
+	onData(uri: string, cb: (data: string) => void): IDisposable {
+		const terminal = this._terminals.get(uri);
+		if (!terminal) {
+			return toDisposable(() => { });
+		}
+		return terminal.onDataEmitter.event(cb);
+	}
+
+	/** Register a callback for PTY exit events on a terminal. */
+	onExit(uri: string, cb: (exitCode: number) => void): IDisposable {
+		const terminal = this._terminals.get(uri);
+		if (!terminal) {
+			return toDisposable(() => { });
+		}
+		return terminal.onExitEmitter.event(cb);
+	}
+
+	/** Register a callback for terminal claim changes. */
+	onClaimChanged(uri: string, cb: (claim: ITerminalClaim) => void): IDisposable {
+		const terminal = this._terminals.get(uri);
+		if (!terminal) {
+			return toDisposable(() => { });
+		}
+		return terminal.onClaimChangedEmitter.event(cb);
+	}
+
+	/** Get accumulated scrollback content for a terminal. */
+	getContent(uri: string): string | undefined {
+		return this._terminals.get(uri)?.content;
+	}
+
+	/** Get the current claim for a terminal. */
+	getClaim(uri: string): ITerminalClaim | undefined {
+		return this._terminals.get(uri)?.claim;
+	}
+
+	/** Check whether a terminal exists. */
+	hasTerminal(uri: string): boolean {
+		return this._terminals.has(uri);
+	}
+
+	/** Get the exit code for a terminal, or undefined if still running. */
+	getExitCode(uri: string): number | undefined {
+		return this._terminals.get(uri)?.exitCode;
 	}
 
 	/** Resize a terminal. */
@@ -224,6 +312,7 @@ export class AgentHostTerminalManager extends Disposable {
 		const terminal = this._terminals.get(uri);
 		if (terminal) {
 			terminal.claim = claim;
+			terminal.onClaimChangedEmitter.fire(claim);
 			this._broadcastTerminalList();
 		}
 	}

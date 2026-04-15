@@ -10,11 +10,14 @@ import { Event } from '../../../util/vs/base/common/event';
 import { IObservable } from '../../../util/vs/base/common/observableInternal';
 import { equalsIgnoreCase } from '../../../util/vs/base/common/strings';
 import { URI } from '../../../util/vs/base/common/uri';
-import { Branch, Change, Commit, CommitOptions, CommitShortStat, DiffChange, LogOptions, Ref, RefQuery, RepositoryAccessDetails, RepositoryKind, RepositoryState, Worktree } from '../vscode/git';
+import { Branch, Change, CommitOptions, CommitShortStat, DiffChange, Ref, RefQuery, Repository, RepositoryAccessDetails, RepositoryKind, Worktree } from '../vscode/git';
 
 export interface RepoContext {
 	readonly rootUri: URI;
 	readonly kind: RepositoryKind;
+	readonly isUsingVirtualFileSystem: boolean;
+	readonly headIncomingChanges: number | undefined;
+	readonly headOutgoingChanges: number | undefined;
 	readonly headBranchName: string | undefined;
 	readonly headCommitHash: string | undefined;
 	readonly upstreamBranchName: string | undefined;
@@ -51,21 +54,18 @@ export interface IGitService extends IDisposable {
 	readonly repositories: Array<RepoContext>;
 	readonly isInitialized: boolean;
 
-	initRepository(uri: URI): Promise<RepoContext | undefined>;
+	initRepository(uri: URI): Promise<Repository | undefined>;
 	getRecentRepositories(): Iterable<RepositoryAccessDetails>;
 	getRepository(uri: URI, forceOpen?: boolean): Promise<RepoContext | undefined>;
-	getRepositoryState(uri: URI, forceOpen?: boolean): Promise<RepositoryState | undefined>;
+	getRepository2(uri: URI): Promise<Repository | undefined>;
+	openRepository(uri: URI): Promise<Repository | undefined>;
 	getRepositoryFetchUrls(uri: URI): Promise<Pick<RepoContext, 'rootUri' | 'remoteFetchUrls'> | undefined>;
 	initialize(): Promise<void>;
 	add(uri: URI, paths: string[]): Promise<void>;
-	log(uri: URI, options?: LogOptions): Promise<Commit[] | undefined>;
-	diffBetween(uri: URI, ref1: string, ref2: string): Promise<Change[] | undefined>;
 	diffBetweenPatch(uri: URI, ref1: string, ref2: string, path?: string): Promise<string | undefined>;
 	diffBetweenWithStats(uri: URI, ref1: string, ref2: string, path?: string): Promise<DiffChange[] | undefined>;
-	diffBetweenWithStats2(uri: URI, ref: string, path?: string): Promise<DiffChange[] | undefined>;
 	diffWith(uri: URI, ref: string): Promise<Change[] | undefined>;
 	diffIndexWithHEADShortStats(uri: URI): Promise<CommitShortStat | undefined>;
-	fetch(uri: URI, remote?: string, ref?: string, depth?: number): Promise<void>;
 	getMergeBase(uri: URI, ref1: string, ref2: string): Promise<string | undefined>;
 	restore(uri: URI, paths: string[], options?: { staged?: boolean; ref?: string }): Promise<void>;
 
@@ -76,11 +76,6 @@ export interface IGitService extends IDisposable {
 
 	applyPatch(uri: URI, patch: string): Promise<void>;
 	commit(uri: URI, message: string | undefined, opts?: CommitOptions): Promise<void>;
-
-	checkout(uri: URI, treeish: string): Promise<void>;
-	merge(uri: URI, ref: string): Promise<void>;
-	push(uri: URI): Promise<void>;
-	rebase(uri: URI, branch: string): Promise<void>;
 
 	getBranch(uri: URI, name: string): Promise<Branch | undefined>;
 	getBranchBase(uri: URI, name: string): Promise<Branch | undefined>;

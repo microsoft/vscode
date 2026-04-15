@@ -148,6 +148,7 @@ suite('ChatSubagentContentPart', () => {
 			toolCallId: toolCallId,
 			subAgentInvocationId: options.subAgentInvocationId,
 			state: observableValue('state', stateValue),
+			toolSpecificDataKind: observableValue('test', (options.toolSpecificData ?? { kind: 'subagent' }).kind),
 			isAttachedToThinking: false,
 			kind: 'toolInvocation',
 			toJSON: () => createMockSerializedToolInvocation({

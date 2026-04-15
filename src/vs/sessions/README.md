@@ -296,6 +296,12 @@ RemoteAgentHostSessionsProvider
     └── Creates session on the remote agent host
 ```
 
+Agent-host session metadata may include a server-owned project. When present,
+providers map that project to the session workspace's source repository URI and
+label, while keeping the working directory as the repository working directory.
+This lets the sessions view group agent-host sessions by project/source repo
+instead of by the isolated worktree or checkout folder.
+
 ### Data Flow
 
 #### Creating a New Session

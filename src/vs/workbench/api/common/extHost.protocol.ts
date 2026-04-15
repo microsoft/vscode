@@ -1542,6 +1542,7 @@ export interface ExtHostChatDebugShape {
 	$resolveChatDebugLogEvent(handle: number, eventId: string, token: CancellationToken): Promise<IChatDebugResolvedEventContentDto | undefined>;
 	$exportChatDebugLog(handle: number, sessionResource: UriComponents, coreEvents: IChatDebugEventDto[], sessionTitle: string | undefined, token: CancellationToken): Promise<VSBuffer | undefined>;
 	$importChatDebugLog(handle: number, data: VSBuffer, token: CancellationToken): Promise<{ uri: UriComponents; sessionTitle?: string } | undefined>;
+	$getAvailableDebugSessionResources(handle: number, token: CancellationToken): Promise<{ uri: UriComponents; title?: string }[]>;
 	$onCoreDebugEvent(event: IChatDebugEventDto): void;
 }
 
@@ -1674,12 +1675,12 @@ export interface ExtHostChatAgentsShape2 {
 	$setRequestTools(requestId: string, tools: UserSelectedTools): void;
 	$setYieldRequested(requestId: string, value: boolean): void;
 	$acceptActiveChatSession(sessionResource: UriComponents | undefined): void;
-	$acceptCustomAgents(agents: ICustomAgentDto[]): void;
-	$acceptInstructions(instructions: IInstructionDto[]): void;
-	$acceptSkills(skills: ISkillDto[]): void;
-	$acceptSlashCommands(slashCommands: ISlashCommandDto[]): void;
-	$acceptHooks(hooks: IHookDto[]): void;
-	$acceptPlugins(plugins: IPluginDto[]): void;
+	$onDidChangeCustomAgents(): void;
+	$onDidChangeInstructions(): void;
+	$onDidChangeSkills(): void;
+	$onDidChangeSlashCommands(): void;
+	$onDidChangeHooks(): void;
+	$onDidChangePlugins(): void;
 }
 
 export type IChatResourceSourceDto = 'local' | 'user' | 'extension' | 'plugin';

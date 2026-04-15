@@ -18,7 +18,6 @@ import { CUSTOM_TOOL_SEARCH_NAME } from '../../../../platform/networking/common/
 import { IChatEndpoint } from '../../../../platform/networking/common/networking';
 import { APIUsage } from '../../../../platform/networking/common/openai';
 import { IPromptPathRepresentationService } from '../../../../platform/prompts/common/promptPathRepresentationService';
-import { IExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
 import { ThinkingData } from '../../../../platform/thinking/common/thinking';
 import { computePromptTokenDetails } from '../../../../platform/tokenizer/node/promptTokenDetails';
@@ -398,8 +397,6 @@ export interface SummarizedAgentHistoryProps extends BasePromptElementProps, Age
 	readonly location: ChatLocation;
 	readonly promptContext: IBuildPromptContext;
 	readonly triggerSummarize?: boolean;
-	/** When true, appends a summarization instruction in the agent loop instead of a separate LLM call. */
-	readonly inlineSummarization?: boolean;
 	readonly tools?: ReadonlyArray<LanguageModelToolInformation> | undefined;
 	readonly enableCacheBreakpoints?: boolean;
 	readonly workingNotebook?: NotebookDocument;
@@ -420,8 +417,6 @@ export class SummarizedConversationHistory extends PromptElement<SummarizedAgent
 		props: SummarizedAgentHistoryProps,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@ISessionTranscriptService private readonly sessionTranscriptService: ISessionTranscriptService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IExperimentationService private readonly experimentationService: IExperimentationService,
 	) {
 		super(props);
 	}
@@ -429,12 +424,10 @@ export class SummarizedConversationHistory extends PromptElement<SummarizedAgent
 	override async render(state: void, sizing: PromptSizing, progress: Progress<ChatResponsePart> | undefined, token: CancellationToken | undefined) {
 		const promptContext = { ...this.props.promptContext };
 		let historyMetadata: SummarizedConversationHistoryMetadata | undefined;
-		const transcriptLookupEnabled = this.configurationService.getExperimentBasedConfig(ConfigKey.ConversationTranscriptLookup, this.experimentationService);
-
 		// Resolve transcript path and flush to disk so the model can read the up-to-date file
 		let transcriptPath: string | undefined;
 		const sessionId = this.props.promptContext.conversation?.sessionId;
-		if (transcriptLookupEnabled && sessionId) {
+		if (sessionId) {
 			// Lazily start the transcript session now (before summarization) so it
 			// captures the full pre-compaction conversation. startSession is
 			// idempotent — if hooks already started it, this is a no-op.
@@ -479,18 +472,12 @@ export class SummarizedConversationHistory extends PromptElement<SummarizedAgent
 			}
 		}
 
-		// Inline summarization: append instruction as a user message in the agent loop
-		// instead of making a separate LLM call. The model outputs only a summary.
-		const inlineSummarizationRequested = this.props.inlineSummarization && !this.props.triggerSummarize;
-
 		return <>
 			{historyMetadata && <meta value={historyMetadata} />}
-			{inlineSummarizationRequested && <meta value={new InlineSummarizationRequestedMetadata()} />}
 			<ConversationHistory
 				{...this.props}
 				promptContext={promptContext}
 				enableCacheBreakpoints={this.props.enableCacheBreakpoints} />
-			{inlineSummarizationRequested && <InlineSummarizationUserMessage priority={1000} endpoint={this.props.endpoint} />}
 		</>;
 	}
 
@@ -681,13 +668,13 @@ class ConversationHistorySummarizer {
 		let summarizationPrompt: ChatMessage[];
 		const associatedRequestId = this.props.promptContext.conversation?.getLatestTurn().id;
 		try {
-			summarizationPrompt = (await renderPromptElement(this.instantiationService, endpoint, ConversationHistorySummarizationPrompt, { ...propsInfo.props, simpleMode: mode === SummaryMode.Simple }, undefined, this.token)).messages;
+			summarizationPrompt = (await renderPromptElement(this.instantiationService, endpoint, ConversationHistorySummarizationPrompt, { ...propsInfo.props, enableCacheBreakpoints: false, simpleMode: mode === SummaryMode.Simple }, undefined, this.token)).messages;
 			this.logInfo(`summarization prompt rendered in ${stopwatch.elapsed()}ms.`, mode);
 		} catch (e) {
 			const budgetExceeded = e instanceof BudgetExceededError;
 			const outcome = budgetExceeded ? 'budget_exceeded' : 'renderError';
 			this.logInfo(`Error rendering summarization prompt in mode: ${mode}. ${e.stack}`, mode);
-			this.sendSummarizationTelemetry(outcome, '', this.props.endpoint.model, mode, stopwatch.elapsed(), undefined);
+			this.sendSummarizationTelemetry(outcome, '', this.props.endpoint.model, mode, stopwatch.elapsed(), undefined, e instanceof Error ? e.message : String(e));
 			throw e;
 		}
 
@@ -704,7 +691,7 @@ class ConversationHistorySummarizer {
 					}, type: 'function'
 				})),
 				(tool, rule) => {
-					this.logService.warn(`Tool ${tool} failed validation: ${rule}`);
+					this.logService.warn(`[ConversationHistorySummarizer] Tool ${tool} failed validation: ${rule}`);
 				},
 			) : undefined;
 			const toolOpts = normalizedTools?.length ? {
@@ -713,6 +700,7 @@ class ConversationHistorySummarizer {
 			} : undefined;
 
 			stripCacheBreakpoints(summarizationPrompt);
+			replaceImageContentWithPlaceholders(summarizationPrompt);
 
 			let messages = ToolCallingLoop.stripInternalToolCallIds(summarizationPrompt);
 
@@ -766,7 +754,7 @@ class ConversationHistorySummarizer {
 			}, this.token ?? CancellationToken.None);
 		} catch (e) {
 			this.logInfo(`Error from summarization request. ${e.message}`, mode);
-			this.sendSummarizationTelemetry('requestThrow', '', this.props.endpoint.model, mode, stopwatch.elapsed(), undefined);
+			this.sendSummarizationTelemetry('requestThrow', '', this.props.endpoint.model, mode, stopwatch.elapsed(), undefined, e instanceof Error ? e.message : String(e));
 			throw e;
 		}
 
@@ -806,7 +794,7 @@ class ConversationHistorySummarizer {
 				? Math.min(this.sizing.tokenBudget, this.props.maxSummaryTokens)
 				: this.sizing.tokenBudget;
 		if (summarySize > effectiveBudget) {
-			this.sendSummarizationTelemetry('too_large', response.requestId, this.props.endpoint.model, mode, elapsedTime, response.usage);
+			this.sendSummarizationTelemetry('too_large', response.requestId, this.props.endpoint.model, mode, elapsedTime, response.usage, `${summarySize} tokens exceeds budget ${effectiveBudget}`);
 			this.logInfo(`Summary too large: ${summarySize} tokens (effective budget ${effectiveBudget})`, mode);
 			throw new Error('Summary too large');
 		}
@@ -921,6 +909,17 @@ function stripCacheBreakpoints(messages: ChatMessage[]): void {
 	messages.forEach(message => {
 		message.content = message.content.filter(part => {
 			return part.type !== Raw.ChatCompletionContentPartKind.CacheBreakpoint;
+		});
+	});
+}
+
+function replaceImageContentWithPlaceholders(messages: ChatMessage[]): void {
+	messages.forEach(message => {
+		message.content = message.content.map(part => {
+			if (part.type === Raw.ChatCompletionContentPartKind.Image) {
+				return { type: Raw.ChatCompletionContentPartKind.Text, text: '[Image was attached]' };
+			}
+			return part;
 		});
 	});
 }
@@ -1072,14 +1071,7 @@ class SummaryMessageElement extends PromptElement<SummaryMessageProps> {
 	}
 }
 
-/**
- * Metadata flag indicating that inline summarization was requested in this render.
- * The caller (agentIntent) checks for this to know the model response should
- * contain only a summary.
- */
-export class InlineSummarizationRequestedMetadata extends PromptMetadata { }
-
-interface InlineSummarizationUserMessageProps extends BasePromptElementProps {
+export interface InlineSummarizationUserMessageProps extends BasePromptElementProps {
 	readonly endpoint: IChatEndpoint;
 }
 
@@ -1089,7 +1081,7 @@ interface InlineSummarizationUserMessageProps extends BasePromptElementProps {
  * no tool calls. The summary is extracted from the response and stored on the round
  * for the next iteration.
  */
-class InlineSummarizationUserMessage extends PromptElement<InlineSummarizationUserMessageProps> {
+export class InlineSummarizationUserMessage extends PromptElement<InlineSummarizationUserMessageProps> {
 	override async render(state: void, sizing: PromptSizing) {
 		const isOpus = this.props.endpoint.model.startsWith('claude-opus');
 		return <UserMessage priority={1000}>

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 1
+// version: 2
 
 declare module 'vscode' {
 	// #region Resource Classes
@@ -328,12 +328,6 @@ declare module 'vscode' {
 		 */
 		export const onDidChangeCustomAgents: Event<void>;
 
-		/**
-		 * The list of currently available custom agents. These are `.agent.md` files
-		 * from all sources (workspace, user, and extension-provided).
-		 * @deprecated Use {@link getCustomAgents provideCustomAgents} instead, which queries the current list of custom agents on demand. This property may become out of sync with the actual available custom agents.
-		 */
-		export const customAgents: readonly ChatCustomAgent[];
 
 		/**
 		 * Provide the list of currently available custom agents. These are `.agent.md` files
@@ -347,12 +341,6 @@ declare module 'vscode' {
 		 */
 		export const onDidChangeInstructions: Event<void>;
 
-		/**
-		 * The list of currently available instructions. These are `.instructions.md` files
-		 * from all sources (workspace, user, and extension-provided).
-		 * @deprecated Use {@link getInstructions getInstructions} instead, which queries the current list of instructions on demand. This property may become out of sync with the actual available instructions.
-		 */
-		export const instructions: readonly ChatInstruction[];
 
 		/**
 		 * Provide the list of currently available instructions. These are `.instructions.md` files
@@ -366,12 +354,6 @@ declare module 'vscode' {
 		 */
 		export const onDidChangeSkills: Event<void>;
 
-		/**
-		 * The list of currently available skills. These are `SKILL.md` files
-		 * from all sources (workspace, user, and extension-provided).
-		 * @deprecated Use {@link getSkills getSkills} instead, which queries the current list of skills on demand. This property may become out of sync with the actual available skills.
-		 */
-		export const skills: readonly ChatSkill[];
 
 		/**
 		 * Provide the list of currently available skills. These are `SKILL.md` files
@@ -385,12 +367,6 @@ declare module 'vscode' {
 		 */
 		export const onDidChangeSlashCommands: Event<void>;
 
-		/**
-		 * The list of currently available slash commands. These are `.prompt.md` files and
-		 * user-invocable `SKILL.md` files from all sources (workspace, user, and extension-provided).
-		 * @deprecated Use {@link getSlashCommands getSlashCommands} instead, which queries the current list of slash commands on demand. This property may become out of sync with the actual available slash commands.
-		 */
-		export const slashCommands: readonly ChatSlashCommand[];
 
 		/**
 		 * Provide the list of currently available slash commands. These are `.prompt.md` files and
@@ -404,13 +380,6 @@ declare module 'vscode' {
 		 */
 		export const onDidChangeHooks: Event<void>;
 
-		/**
-		 * The list of currently available hook configuration files.
-		 * These are JSON files that define lifecycle hooks from all sources
-		 * (workspace, user, and extension-provided).
-		 * @deprecated Use {@link getHooks getHooks} instead, which queries the current list of hook configuration files on demand. This property may become out of sync with the actual available hook configuration files.
-		 */
-		export const hooks: readonly ChatResource[];
 
 		/**
 		 * Provide the list of currently available hook configuration files. These are JSON files that define lifecycle hooks from all sources (workspace, user, and extension-provided).
@@ -423,11 +392,6 @@ declare module 'vscode' {
 		 */
 		export const onDidChangePlugins: Event<void>;
 
-		/**
-		 * The list of currently installed agent plugins.
-		 * @deprecated Use {@link getPlugins getPlugins} instead, which queries the current list of installed agent plugins on demand. This property may become out of sync with the actual installed agent plugins.
-		 */
-		export const plugins: readonly ChatResource[];
 
 		/**
 		 * Provide the list of currently installed agent plugins.

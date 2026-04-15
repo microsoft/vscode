@@ -131,7 +131,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 				enabled: !isDisabledViaPolicy,
 				checked: !isDisabledViaPolicy && currentMode.id === mode.id,
 				tooltip: '',
-				hover: { content: tooltip, position: this.pickerOptions.hoverPosition },
+				hover: { content: tooltip },
 				toolbarActions,
 				run: async () => {
 					if (isDisabledViaPolicy) {
@@ -154,7 +154,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 			return {
 				...makeAction(mode, currentMode),
 				tooltip: '',
-				hover: { content: mode.description.get() ?? chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip, position: this.pickerOptions.hoverPosition },
+				hover: { content: mode.description.get() ?? chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip },
 				icon: mode.icon.get() ?? (isModeConsideredBuiltIn(mode, this._productService) ? builtinDefaultIcon(mode) : undefined),
 				category: agentModeDisabledViaPolicy ? policyDisabledCategory : customCategory
 			};

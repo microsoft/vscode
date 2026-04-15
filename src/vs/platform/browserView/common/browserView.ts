@@ -6,7 +6,6 @@
 import { Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { UriComponents } from '../../../base/common/uri.js';
-import { IElementData } from '../../browserElements/common/browserElements.js';
 import { localize } from '../../../nls.js';
 
 const commandPrefix = 'workbench.action.browser';
@@ -46,6 +45,24 @@ export enum BrowserViewCommandId {
 	HideFind = `${commandPrefix}.hideFind`,
 	FindNext = `${commandPrefix}.findNext`,
 	FindPrevious = `${commandPrefix}.findPrevious`,
+}
+
+export interface IElementAncestor {
+	readonly tagName: string;
+	readonly id?: string;
+	readonly classNames?: string[];
+}
+
+export interface IElementData {
+	readonly url?: string;
+	readonly outerHTML: string;
+	readonly computedStyle: string;
+	readonly bounds: { readonly x: number; readonly y: number; readonly width: number; readonly height: number };
+	readonly ancestors?: IElementAncestor[];
+	readonly attributes?: Record<string, string>;
+	readonly computedStyles?: Record<string, string>;
+	readonly dimensions?: { readonly top: number; readonly left: number; readonly width: number; readonly height: number };
+	readonly innerText?: string;
 }
 
 export interface IBrowserViewBounds {

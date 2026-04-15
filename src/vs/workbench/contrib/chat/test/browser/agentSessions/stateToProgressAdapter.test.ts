@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { autorun } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, type IActiveTurn, type ICompletedToolCall, type IToolCallRunningState, type ITurn, type IToolCallResponsePart, ToolCallCancellationReason } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatToolInvocationSerialized, type IChatMarkdownContent } from '../../../common/chatService/chatService.js';
 import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
-import { turnsToHistory, activeTurnToProgress, toolCallStateToInvocation, finalizeToolInvocation } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { turnsToHistory, activeTurnToProgress, toolCallStateToInvocation, finalizeToolInvocation, updateRunningToolSpecificData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
 // ---- Helper factories -------------------------------------------------------
 
@@ -89,6 +90,22 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(serialized.isComplete, true);
 		});
 
+		test('request history includes restored model id', () => {
+			const turn = createTurn({
+				userMessage: { text: 'Use restored model' },
+			});
+
+			const history = turnsToHistory([turn], 'participant-1', 'agent-host-copilot:gpt-5');
+
+			assert.deepStrictEqual(history[0], {
+				id: turn.id,
+				type: 'request',
+				prompt: 'Use restored model',
+				participant: 'participant-1',
+				modelId: 'agent-host-copilot:gpt-5',
+			});
+		});
+
 		test('terminal tool call in history has correct terminal data', () => {
 			const turn = createTurn({
 				responseParts: [{
@@ -115,6 +132,65 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.commandLine.original, 'echo hello');
 			assert.strictEqual(termData.terminalCommandOutput.text, 'hello');
 			assert.strictEqual(termData.terminalCommandState.exitCode, 0);
+		});
+
+		test('subagent tool call in history has correct subagent data', () => {
+			const turn = createTurn({
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall({
+						_meta: { toolKind: 'subagent', subagentDescription: 'Find related files' },
+						content: [
+							{ type: ToolResultContentType.Text, text: 'Agent result' },
+							{ type: ToolResultContentType.Subagent, resource: 'copilot://session/subagent/tc-1', title: 'Explore', agentName: 'explore', description: 'Explores the codebase' },
+						],
+						success: true,
+					})
+				} as IToolCallResponsePart],
+			});
+
+			const history = turnsToHistory([turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+
+			assert.ok(serialized.toolSpecificData);
+			assert.strictEqual(serialized.toolSpecificData.kind, 'subagent');
+			if (serialized.toolSpecificData.kind === 'subagent') {
+				assert.strictEqual(serialized.toolSpecificData.agentName, 'explore');
+				// description is the TASK description from _meta, not the agent description
+				assert.strictEqual(serialized.toolSpecificData.description, 'Find related files');
+				assert.strictEqual(serialized.toolSpecificData.result, 'Agent result');
+			}
+		});
+
+		test('subagent tool without content falls back to toolKind meta', () => {
+			// This happens when the in-memory state lost subagent content
+			// (e.g. tool_complete overwrote it before the merge fix)
+			const turn = createTurn({
+				responseParts: [{
+					kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall({
+						toolName: 'task',
+						displayName: 'Task',
+						_meta: { toolKind: 'subagent' },
+						content: [{ type: ToolResultContentType.Text, text: 'Result text' }],
+						success: true,
+					})
+				} as IToolCallResponsePart],
+			});
+
+			const history = turnsToHistory([turn], 'p');
+			const response = history[1];
+			assert.strictEqual(response.type, 'response');
+			if (response.type !== 'response') { return; }
+			const serialized = response.parts[0] as IChatToolInvocationSerialized;
+
+			assert.ok(serialized.toolSpecificData);
+			assert.strictEqual(serialized.toolSpecificData.kind, 'subagent');
+			if (serialized.toolSpecificData.kind === 'subagent') {
+				assert.strictEqual(serialized.toolSpecificData.description, 'Task');
+				assert.strictEqual(serialized.toolSpecificData.result, 'Result text');
+			}
 		});
 
 		test('turn with responseText produces markdown content in history', () => {
@@ -211,6 +287,27 @@ suite('stateToProgressAdapter', () => {
 
 			const invocation = toolCallStateToInvocation(tc);
 			assert.strictEqual(invocation.toolCallId, 'tc-1');
+		});
+
+		test('sets subagent toolSpecificData from _meta for subagent toolKind', () => {
+			const tc = createToolCallState({
+				_meta: { toolKind: 'subagent', subagentDescription: 'Review code', subagentAgentName: 'code-reviewer' },
+			});
+
+			const invocation = toolCallStateToInvocation(tc);
+			assert.ok(invocation.toolSpecificData);
+			assert.strictEqual(invocation.toolSpecificData.kind, 'subagent');
+			if (invocation.toolSpecificData.kind === 'subagent') {
+				assert.strictEqual(invocation.toolSpecificData.description, 'Review code');
+				assert.strictEqual(invocation.toolSpecificData.agentName, 'code-reviewer');
+			}
+		});
+
+		test('passes subAgentInvocationId to ChatToolInvocation', () => {
+			const tc = createToolCallState({});
+
+			const invocation = toolCallStateToInvocation(tc, 'parent-tc-42');
+			assert.strictEqual(invocation.subAgentInvocationId, 'parent-tc-42');
 		});
 	});
 
@@ -631,5 +728,64 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(termData.terminalCommandState?.exitCode, 0);
 		});
 
+	});
+
+	suite('updateRunningToolSpecificData', () => {
+
+		test('sets subagent toolSpecificData from content and notifies state observers', () => {
+			const tc = createToolCallState({
+				_meta: { toolKind: 'subagent', subagentDescription: 'Find related files' },
+			});
+			const invocation = toolCallStateToInvocation(tc);
+			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
+
+			// Simulate subagent content arriving via SessionToolCallContentChanged
+			const runningTc: IToolCallRunningState = {
+				...tc,
+				status: ToolCallStatus.Running,
+				_meta: { toolKind: 'subagent', subagentDescription: 'Find related files' },
+				content: [{
+					type: ToolResultContentType.Subagent,
+					resource: 'copilot://session/subagent/tc-1',
+					title: 'Explore',
+					agentName: 'explore',
+					description: 'Explores the codebase',
+				}],
+			};
+
+			let stateChanged = false;
+			const disposable = autorun(r => {
+				invocation.state.read(r);
+				stateChanged = true;
+			});
+			stateChanged = false; // reset after initial read
+			const before = invocation.toolSpecificData;
+
+			updateRunningToolSpecificData(invocation, runningTc);
+
+			assert.strictEqual(stateChanged, true, 'state observers should be notified');
+			assert.notStrictEqual(invocation.toolSpecificData, before, 'toolSpecificData should be replaced');
+			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
+			if (invocation.toolSpecificData?.kind === 'subagent') {
+				assert.strictEqual(invocation.toolSpecificData.agentName, 'explore');
+				// description is the TASK description from _meta, not the agent description
+				assert.strictEqual(invocation.toolSpecificData.description, 'Find related files');
+			}
+			disposable.dispose();
+		});
+
+		test('does not notify when no subagent content is present', () => {
+			const tc = createToolCallState({});
+			const invocation = toolCallStateToInvocation(tc);
+			const originalData = invocation.toolSpecificData;
+
+			const runningTc: IToolCallRunningState = {
+				...tc,
+				status: ToolCallStatus.Running,
+			};
+
+			updateRunningToolSpecificData(invocation, runningTc);
+			assert.strictEqual(invocation.toolSpecificData, originalData, 'toolSpecificData should not change');
+		});
 	});
 });

@@ -4,13 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { localize } from '../../../../../nls.js';
 import { registerIcon } from '../../../../../platform/theme/common/iconRegistry.js';
+import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 
 /**
  * Icon for the AI Customization view container (sidebar).
  */
-export const aiCustomizationViewIcon = registerIcon('ai-customization-view-icon', Codicon.sparkle, localize('aiCustomizationViewIcon', "Icon for the Chat Customization view."));
+export const aiCustomizationViewIcon = registerIcon('ai-customization-view-icon', Codicon.sparkle, localize('aiCustomizationViewIcon', "Icon for the Agent Customization view."));
 
 /**
  * Icon for custom agents.
@@ -76,3 +78,16 @@ export const builtinIcon = registerIcon('ai-customization-builtin', Codicon.star
  * Icon for MCP servers.
  */
 export const mcpServerIcon = registerIcon('ai-customization-mcp-server', Codicon.server, localize('aiCustomizationMcpServerIcon', "Icon for MCP servers."));
+
+/**
+ * Returns the icon for a given storage type.
+ */
+export function storageToIcon(storage: PromptsStorage): ThemeIcon {
+	switch (storage) {
+		case PromptsStorage.local: return workspaceIcon;
+		case PromptsStorage.user: return userIcon;
+		case PromptsStorage.extension: return extensionIcon;
+		case PromptsStorage.plugin: return pluginIcon;
+		default: return instructionsIcon;
+	}
+}
