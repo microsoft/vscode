@@ -1,0 +1,209 @@
+{
+	"Perl script header": {
+		"prefix": "header",
+		"body": [
+			"#!/usr/bin/env perl",
+			"use strict;",
+			"use warnings;",
+			"",
+			"$0"
+		],
+		"description": "Perl script header with strict and warnings"
+	},
+	"Perl strict and warnings": {
+		"prefix": "use",
+		"body": [
+			"use strict;",
+			"use warnings;"
+		],
+		"description": "Perl use strict and warnings"
+	},
+	"Perl subroutine": {
+		"prefix": "sub",
+		"body": [
+			"sub ${1:name} {",
+			"\tmy (${2:@args}) = @_;",
+			"\t$0",
+			"}"
+		],
+		"description": "Perl subroutine"
+	},
+	"Perl if": {
+		"prefix": "if",
+		"body": [
+			"if (${1:condition}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "Perl if statement"
+	},
+	"Perl if-else": {
+		"prefix": "ifelse",
+		"body": [
+			"if (${1:condition}) {",
+			"\t${2}",
+			"} else {",
+			"\t$0",
+			"}"
+		],
+		"description": "Perl if-else statement"
+	},
+	"Perl if-elsif-else": {
+		"prefix": "ifelseif",
+		"body": [
+			"if (${1:condition}) {",
+			"\t${2}",
+			"} elsif (${3:condition2}) {",
+			"\t${4}",
+			"} else {",
+			"\t$0",
+			"}"
+		],
+		"description": "Perl if-elsif-else statement"
+	},
+	"Perl foreach": {
+		"prefix": "foreach",
+		"body": [
+			"foreach my \\$${1:item} (@{${2:list}}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "Perl foreach loop"
+	},
+	"Perl for C-style": {
+		"prefix": "for",
+		"body": [
+			"for (my \\$${1:i} = 0; \\$${1:i} < ${2:count}; \\$${1:i}++) {",
+			"\t$0",
+			"}"
+		],
+		"description": "Perl C-style for loop"
+	},
+	"Perl while": {
+		"prefix": "while",
+		"body": [
+			"while (${1:condition}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "Perl while loop"
+	},
+	"Perl print": {
+		"prefix": "print",
+		"body": [
+			"print \"${1:message}\\n\";"
+		],
+		"description": "Perl print statement"
+	},
+	"Perl say": {
+		"prefix": "say",
+		"body": [
+			"say \"${1:message}\";"
+		],
+		"description": "Perl say (print with newline, requires 5.10+)"
+	},
+	"Perl scalar variable": {
+		"prefix": "var",
+		"body": [
+			"my \\$${1:name} = ${2:value};"
+		],
+		"description": "Perl scalar variable declaration"
+	},
+	"Perl array": {
+		"prefix": "array",
+		"body": [
+			"my @${1:name} = (${2});"
+		],
+		"description": "Perl array declaration"
+	},
+	"Perl hash": {
+		"prefix": "hash",
+		"body": [
+			"my %${1:name} = (",
+			"\t'${2:key}' => ${3:value},",
+			");"
+		],
+		"description": "Perl hash declaration"
+	},
+	"Perl eval block": {
+		"prefix": "eval",
+		"body": [
+			"eval {",
+			"\t$0",
+			"};",
+			"if (\\$@) {",
+			"\t# handle error: \\$@",
+			"}"
+		],
+		"description": "Perl eval error handling"
+	},
+	"Perl package": {
+		"prefix": "package",
+		"body": [
+			"package ${1:Name};",
+			"",
+			"use strict;",
+			"use warnings;",
+			"",
+			"$0",
+			"",
+			"1;"
+		],
+		"description": "Perl package declaration"
+	},
+	"Perl OOP class": {
+		"prefix": "class",
+		"body": [
+			"package ${1:ClassName};",
+			"",
+			"use strict;",
+			"use warnings;",
+			"use parent '${2:BaseClass}';",
+			"",
+			"sub new {",
+			"\tmy (\\$class, %args) = @_;",
+			"\tmy \\$self = \\$class->SUPER::new(%args);",
+			"\t$0",
+			"\treturn \\$self;",
+			"}",
+			"",
+			"1;"
+		],
+		"description": "Perl OOP class with new constructor"
+	},
+	"Perl regex match": {
+		"prefix": "match",
+		"body": [
+			"if (\\$${1:str} =~ /${2:pattern}/) {",
+			"\t$0",
+			"}"
+		],
+		"description": "Perl regex match"
+	},
+	"Perl regex substitute": {
+		"prefix": "subst",
+		"body": [
+			"\\$${1:str} =~ s/${2:pattern}/${3:replacement}/g;"
+		],
+		"description": "Perl regex substitution"
+	},
+	"Perl open file": {
+		"prefix": "open",
+		"body": [
+			"open(my \\$${1:fh}, '${2:<}', '${3:filename}') or die \"Cannot open: \\$!\";"
+		],
+		"description": "Perl open file handle"
+	},
+	"Perl read file lines": {
+		"prefix": "readfile",
+		"body": [
+			"open(my \\$${1:fh}, '<', '${2:filename}') or die \"Cannot open: \\$!\";",
+			"while (my \\$line = <\\$${1:fh}>) {",
+			"\tchomp \\$line;",
+			"\t$0",
+			"}",
+			"close(\\$${1:fh});"
+		],
+		"description": "Perl read file line by line"
+	}
+}
