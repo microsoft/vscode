@@ -343,7 +343,7 @@ export class AutoClosingOpenCharTypeOperation {
 	}
 
 	private static _isBeforeClosingBrace(config: CursorConfiguration, lineAfter: string) {
-		// If the start of lineAfter can be interpretted as both a starting or ending brace, default to returning false
+		// If the start of lineAfter can be interpreted as both a starting or ending brace, default to returning false
 		const nextChar = lineAfter.charAt(0);
 		const potentialStartingBraces = config.autoClosingPairs.autoClosingPairsOpenByStart.get(nextChar) || [];
 		const potentialClosingBraces = config.autoClosingPairs.autoClosingPairsCloseByStart.get(nextChar) || [];
