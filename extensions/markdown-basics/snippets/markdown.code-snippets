@@ -101,5 +101,48 @@
 			"$$"
 		],
 		"description": "Insert fenced math"
+	},
+	"Insert table": {
+		"prefix": "table",
+		"body": [
+			"| ${1:Column 1} | ${2:Column 2} | ${3:Column 3} |",
+			"| --- | --- | --- |",
+			"| ${4:Cell} | ${5:Cell} | ${6:Cell} |",
+			"$0"
+		],
+		"description": "Insert a Markdown table"
+	},
+	"Insert task list": {
+		"prefix": "task",
+		"body": "- [ ] ${1:${TM_SELECTED_TEXT:task}}$0",
+		"description": "Insert a task list item"
+	},
+	"Insert task list block": {
+		"prefix": "tasklist",
+		"body": [
+			"- [x] ${1:Completed task}",
+			"- [ ] ${2:Pending task}",
+			"- [ ] ${3:Pending task}",
+			"$0"
+		],
+		"description": "Insert a task list block"
+	},
+	"Insert details block": {
+		"prefix": "details",
+		"body": [
+			"<details>",
+			"<summary>${1:Summary}</summary>",
+			"",
+			"${TM_SELECTED_TEXT:${2:Details}}",
+			"",
+			"</details>",
+			"$0"
+		],
+		"description": "Insert a collapsible details/summary block"
+	},
+	"Insert footnote": {
+		"prefix": "footnote",
+		"body": "${1:${TM_SELECTED_TEXT}}[^${2:1}]\n\n[^${2:1}]: ${3:Footnote text}$0",
+		"description": "Insert a footnote reference and definition"
 	}
 }
