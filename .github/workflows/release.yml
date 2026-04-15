@@ -91,7 +91,7 @@ jobs:
           $ErrorActionPreference = "Stop"
           for ($i = 1; $i -le 5; $i++) {
             try {
-              exec { npm ci }
+              npm ci
               break
             }
             catch {
@@ -107,6 +107,8 @@ jobs:
           npm_config_arch: x64
           npm_config_foreground_scripts: "true"
           VSCODE_ARCH: x64
+          npm_config_build_from_source: "false"
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
 
       - name: Create node_modules archive
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
@@ -205,7 +207,7 @@ jobs:
           $ErrorActionPreference = "Stop"
           for ($i = 1; $i -le 5; $i++) {
             try {
-              exec { npm ci }
+              npm ci
               break
             }
             catch {
@@ -221,6 +223,8 @@ jobs:
           npm_config_arch: arm64
           npm_config_foreground_scripts: "true"
           VSCODE_ARCH: arm64
+          npm_config_build_from_source: "false"
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
 
       - name: Create node_modules archive
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
@@ -325,6 +329,7 @@ jobs:
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          npm_config_build_from_source: "false"
 
       - name: Create node_modules archive
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
@@ -432,6 +437,7 @@ jobs:
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          npm_config_build_from_source: "false"
 
       - name: Create node_modules archive
         if: steps.node-modules-cache.outputs.cache-hit != 'true'
