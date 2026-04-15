@@ -32,6 +32,7 @@ export interface IIconLabelValueOptions {
 	suffix?: string;
 	hideIcon?: boolean;
 	extraClasses?: readonly string[];
+	bgColorClassName?: string;
 	bold?: boolean;
 	italic?: boolean;
 	strikethrough?: boolean;
@@ -106,6 +107,7 @@ export class IconLabel extends Disposable {
 
 	private readonly hoverDelegate: IHoverDelegate;
 	private readonly customHovers: Map<HTMLElement, IDisposable> = new Map();
+	private currentBgColorClassName: string | undefined;
 
 	constructor(container: HTMLElement, options?: IIconLabelCreationOptions) {
 		super();
@@ -189,6 +191,11 @@ export class IconLabel extends Disposable {
 		}
 
 		this.domNode.classNames = labelClasses;
+		this.clearBgColorClassName();
+		if (options?.bgColorClassName) {
+			this.currentBgColorClassName = options.bgColorClassName;
+			this.getDecorationContainer()?.classList.add(this.currentBgColorClassName ?? '');
+		}
 		this.domNode.element.setAttribute('aria-label', ariaLabel);
 		this.labelContainer.classList.value = '';
 		this.labelContainer.classList.add(...containerClasses);
@@ -242,11 +249,35 @@ export class IconLabel extends Disposable {
 	}
 
 	public override dispose() {
+		this.clearBgColorClassName();
 		super.dispose();
 		for (const disposable of this.customHovers.values()) {
 			disposable.dispose();
 		}
 		this.customHovers.clear();
+	}
+
+	private clearBgColorClassName(): void {
+		if (!this.currentBgColorClassName) {
+			return;
+		}
+		this.getDecorationContainer()?.classList.remove(this.currentBgColorClassName);
+		this.currentBgColorClassName = undefined;
+	}
+
+	private getDecorationContainer(): HTMLElement | undefined {
+		const listRow = this.domNode.element.closest('.monaco-list-row');
+		if (!listRow) {
+			return undefined;
+		}
+
+		for (const child of listRow.children) {
+			if (dom.isHTMLElement(child) && child.classList.contains('monaco-tl-decoration-container')) {
+				return child;
+			}
+		}
+
+		return undefined;
 	}
 
 	private getOrCreateSuffixNode() {

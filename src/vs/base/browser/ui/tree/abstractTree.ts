@@ -424,6 +424,7 @@ export class TreeRenderer<T, TFilterData, TRef, TTemplateData> implements IListR
 	}
 
 	renderTemplate(container: HTMLElement): ITreeListTemplateData<TTemplateData> {
+		append(container, $('.monaco-tl-decoration-container'));
 		const el = append(container, $('.monaco-tl-row'));
 		const indent = append(el, $('.monaco-tl-indent'));
 		const twistie = append(el, $('.monaco-tl-twistie'));

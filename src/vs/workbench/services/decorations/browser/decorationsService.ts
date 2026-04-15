@@ -31,11 +31,11 @@ class DecorationRule {
 		if (Array.isArray(data)) {
 			return data.map(DecorationRule.keyOf).join(',');
 		} else {
-			const { color, letter } = data;
+			const { color, backgroundColor, letter } = data;
 			if (ThemeIcon.isThemeIcon(letter)) {
-				return `${color}+${letter.id}`;
+				return `${color}+${backgroundColor}+${letter.id}`;
 			} else {
-				return `${color}/${letter}`;
+				return `${color}/${backgroundColor}/${letter}`;
 			}
 		}
 	}
@@ -44,6 +44,7 @@ class DecorationRule {
 
 	readonly data: IDecorationData | IDecorationData[];
 	readonly itemColorClassName: string;
+	readonly itemBgColorClassName: string;
 	readonly itemBadgeClassName: string;
 	readonly iconBadgeClassName: string;
 	readonly bubbleBadgeClassName: string;
@@ -54,6 +55,7 @@ class DecorationRule {
 		this.data = data;
 		const suffix = hash(key).toString(36);
 		this.itemColorClassName = `${DecorationRule._classNamesPrefix}-itemColor-${suffix}`;
+		this.itemBgColorClassName = `${DecorationRule._classNamesPrefix}-itemBgColor-${suffix}`;
 		this.itemBadgeClassName = `${DecorationRule._classNamesPrefix}-itemBadge-${suffix}`;
 		this.bubbleBadgeClassName = `${DecorationRule._classNamesPrefix}-bubbleBadge-${suffix}`;
 		this.iconBadgeClassName = `${DecorationRule._classNamesPrefix}-iconBadge-${suffix}`;
@@ -76,9 +78,9 @@ class DecorationRule {
 	}
 
 	private _appendForOne(data: IDecorationData, element: HTMLStyleElement): void {
-		const { color, letter } = data;
+		const { color, backgroundColor, letter } = data;
 		// label
-		createCSSRule(`.${this.itemColorClassName}`, `color: ${getColor(color)};`, element);
+		this._appendColorCSSRule(element, color, backgroundColor);
 		if (ThemeIcon.isThemeIcon(letter)) {
 			this._createIconCSSRule(letter, color, element);
 		} else if (letter) {
@@ -89,7 +91,8 @@ class DecorationRule {
 	private _appendForMany(data: IDecorationData[], element: HTMLStyleElement): void {
 		// label
 		const { color } = data.find(d => !!d.color) ?? data[0];
-		createCSSRule(`.${this.itemColorClassName}`, `color: ${getColor(color)};`, element);
+		const { backgroundColor } = data.find(d => !!d.backgroundColor) ?? data[0];
+		this._appendColorCSSRule(element, color, backgroundColor);
 
 		// badge or icon
 		const letters: string[] = [];
@@ -118,6 +121,15 @@ class DecorationRule {
 				`content: "\uea71"; color: ${getColor(color)}; font-family: codicon; font-size: 14px; margin-right: 14px; opacity: 0.4;`,
 				element
 			);
+		}
+	}
+
+	private _appendColorCSSRule(element: HTMLStyleElement, color: string | undefined, backgroundColor: string | undefined): void {
+		createCSSRule(`.${this.itemColorClassName}`, `color: ${getColor(color)};`, element);
+
+		if (backgroundColor) {
+			const backgroundColorRule = backgroundColor ? `background-color: ${getColor(backgroundColor)};` : '';
+			createCSSRule(`.${this.itemBgColorClassName}`, `${backgroundColorRule}`, element);
 		}
 	}
 
@@ -151,6 +163,7 @@ class DecorationRule {
 
 	removeCSSRules(element: HTMLStyleElement): void {
 		removeCSSRulesContainingSelector(this.itemColorClassName, element);
+		removeCSSRulesContainingSelector(this.itemBgColorClassName, element);
 		removeCSSRulesContainingSelector(this.itemBadgeClassName, element);
 		removeCSSRulesContainingSelector(this.bubbleBadgeClassName, element);
 		removeCSSRulesContainingSelector(this.iconBadgeClassName, element);
@@ -188,6 +201,7 @@ class DecorationStyles {
 		rule.acquire();
 
 		const labelClassName = rule.itemColorClassName;
+		const bgColorClassName = data.some(d => !!d.backgroundColor) ? rule.itemBgColorClassName : undefined;
 		let badgeClassName = rule.itemBadgeClassName;
 		const iconClassName = rule.iconBadgeClassName;
 		let tooltip = distinct(data.filter(d => !isFalsyOrWhitespace(d.tooltip)).map(d => d.tooltip)).join(' • ');
@@ -201,6 +215,7 @@ class DecorationStyles {
 
 		return {
 			labelClassName,
+			bgColorClassName,
 			badgeClassName,
 			iconClassName,
 			strikethrough,

@@ -8263,6 +8263,11 @@ declare module 'vscode' {
 		color?: ThemeColor;
 
 		/**
+		 * The background color of this decoration.
+		 */
+		backgroundColor?: ThemeColor;
+
+		/**
 		 * A flag expressing that this decoration should be
 		 * propagated to its parents.
 		 */
@@ -8274,8 +8279,9 @@ declare module 'vscode' {
 		 * @param badge A letter that represents the decoration.
 		 * @param tooltip The tooltip of the decoration.
 		 * @param color The color of the decoration.
+		 * @param backgroundColor The background color of the decoration.
 		 */
-		constructor(badge?: string, tooltip?: string, color?: ThemeColor);
+		constructor(badge?: string, tooltip?: string, color?: ThemeColor, backgroundColor?: ThemeColor);
 	}
 
 	/**
