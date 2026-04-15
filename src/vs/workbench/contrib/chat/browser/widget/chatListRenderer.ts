@@ -2195,6 +2195,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private renderToolInvocation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart | undefined {
+		// Skip rendering completed tool invocations that have no meaningful content - ie, autopilot "task complete"
+		if (IChatToolInvocation.isComplete(toolInvocation)) {
+			const msg = toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage;
+			const text = typeof msg === 'string' ? msg : msg?.value;
+			if (!text || text.trim().length === 0) {
+				return this.renderNoContent((other) =>
+					(other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized') && other.toolCallId === toolInvocation.toolCallId);
+			}
+		}
+
 		if (this.configService.getValue<CollapsedToolsDisplayMode>('chat.agent.thinking.collapsedTools') === CollapsedToolsDisplayMode.Off) {
 			this.finalizeCurrentThinkingPart(context, templateData);
 		}
