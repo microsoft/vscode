@@ -1,0 +1,126 @@
+{
+	"Makefile Basic Rule": {
+		"prefix": "rule",
+		"body": [
+			"${1:target}: ${2:deps}",
+			"\t${3:command}"
+		],
+		"description": "Makefile rule"
+	},
+	"Makefile Phony Target": {
+		"prefix": "phony",
+		"body": [
+			".PHONY: ${1:all clean}",
+			"",
+			"${1:all}: ${2:deps}",
+			"\t$0"
+		],
+		"description": "Makefile .PHONY target"
+	},
+	"Makefile Variable": {
+		"prefix": "var",
+		"body": [
+			"${1:VAR} := ${2:value}"
+		],
+		"description": "Makefile variable assignment"
+	},
+	"Makefile Conditional Variable": {
+		"prefix": "cvar",
+		"body": [
+			"${1:VAR} ?= ${2:default}"
+		],
+		"description": "Makefile conditional variable (set if not already defined)"
+	},
+	"Makefile Default Goal": {
+		"prefix": "default",
+		"body": [
+			".DEFAULT_GOAL := ${1:all}"
+		],
+		"description": "Makefile default goal"
+	},
+	"Makefile Pattern Rule": {
+		"prefix": "pattern",
+		"body": [
+			"%.${1:o}: %.${2:c}",
+			"\t\\$(${3:CC}) \\$(${4:CFLAGS}) -c -o \\$@ \\$<"
+		],
+		"description": "Makefile pattern rule"
+	},
+	"Makefile All Clean": {
+		"prefix": "allclean",
+		"body": [
+			"CC := ${1:gcc}",
+			"CFLAGS := ${2:-Wall -O2}",
+			"SRC := ${3:\\$(wildcard *.c)}",
+			"OBJ := ${4:\\$(SRC:.c=.o)}",
+			"TARGET := ${5:app}",
+			"",
+			".PHONY: all clean",
+			"",
+			"all: \\$(TARGET)",
+			"",
+			"\\$(TARGET): \\$(OBJ)",
+			"\t\\$(CC) \\$(CFLAGS) -o \\$@ \\$^",
+			"",
+			"%.o: %.c",
+			"\t\\$(CC) \\$(CFLAGS) -c -o \\$@ \\$<",
+			"",
+			"clean:",
+			"\trm -f \\$(OBJ) \\$(TARGET)"
+		],
+		"description": "Makefile C project template with all and clean"
+	},
+	"Makefile Wildcard": {
+		"prefix": "wild",
+		"body": [
+			"\\$(wildcard ${1:*.c})"
+		],
+		"description": "Makefile wildcard function"
+	},
+	"Makefile Subst": {
+		"prefix": "subst",
+		"body": [
+			"\\$(patsubst ${1:%.c}, ${2:%.o}, \\$(${3:SOURCES}))"
+		],
+		"description": "Makefile patsubst for file extension substitution"
+	},
+	"Makefile Echo": {
+		"prefix": "echo",
+		"body": [
+			"\t@echo \"${1:message}\""
+		],
+		"description": "Makefile silent echo"
+	},
+	"Makefile Mkdir": {
+		"prefix": "mkdir",
+		"body": [
+			"\t@mkdir -p ${1:build}"
+		],
+		"description": "Makefile mkdir with -p"
+	},
+	"Makefile Include": {
+		"prefix": "include",
+		"body": [
+			"-include ${1:config.mk}"
+		],
+		"description": "Makefile include (with - to ignore errors)"
+	},
+	"Makefile ifeq": {
+		"prefix": "ifeq",
+		"body": [
+			"ifeq (\\$(${1:OS}), ${2:Windows_NT})",
+			"\t${3:PLATFORM := windows}",
+			"else",
+			"\t${4:PLATFORM := linux}",
+			"endif"
+		],
+		"description": "Makefile ifeq conditional"
+	},
+	"Makefile Auto Variables": {
+		"prefix": "auto",
+		"body": [
+			"# \\$@ = target, \\$< = first dep, \\$^ = all deps, \\$* = stem"
+		],
+		"description": "Makefile automatic variable reference comment"
+	}
+}

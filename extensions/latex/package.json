@@ -11,7 +11,9 @@
   "scripts": {
     "update-grammar": "node ./build/update-grammars.js"
   },
-  "categories": ["Programming Languages"],
+  "categories": [
+    "Programming Languages"
+  ],
   "contributes": {
     "languages": [
       {
@@ -110,6 +112,16 @@
         "language": "cpp_embedded_latex",
         "scopeName": "source.cpp.embedded.latex",
         "path": "./syntaxes/cpp-grammar-bailout.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "latex",
+        "path": "./snippets/latex.code-snippets"
+      },
+      {
+        "language": "tex",
+        "path": "./snippets/latex.code-snippets"
       }
     ]
   },

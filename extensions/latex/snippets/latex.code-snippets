@@ -1,0 +1,224 @@
+{
+	"LaTeX Article Document": {
+		"prefix": "article",
+		"body": [
+			"\\\\documentclass[${1:12pt,a4paper}]{article}",
+			"",
+			"\\\\usepackage[utf8]{inputenc}",
+			"\\\\usepackage[T1]{fontenc}",
+			"\\\\usepackage{amsmath, amssymb}",
+			"\\\\usepackage{graphicx}",
+			"\\\\usepackage{hyperref}",
+			"",
+			"\\\\title{${2:Title}}",
+			"\\\\author{${3:Author}}",
+			"\\\\date{${4:\\\\today}}",
+			"",
+			"\\\\begin{document}",
+			"\\\\maketitle",
+			"",
+			"$0",
+			"",
+			"\\\\end{document}"
+		],
+		"description": "LaTeX article document template"
+	},
+	"LaTeX Beamer Presentation": {
+		"prefix": "beamer",
+		"body": [
+			"\\\\documentclass{beamer}",
+			"\\\\usetheme{${1:Madrid}}",
+			"",
+			"\\\\title{${2:Title}}",
+			"\\\\author{${3:Author}}",
+			"\\\\date{${4:\\\\today}}",
+			"",
+			"\\\\begin{document}",
+			"\\\\begin{frame}",
+			"\\\\titlepage",
+			"\\\\end{frame}",
+			"",
+			"\\\\begin{frame}{${5:Frame Title}}",
+			"\t$0",
+			"\\\\end{frame}",
+			"",
+			"\\\\end{document}"
+		],
+		"description": "LaTeX Beamer presentation template"
+	},
+	"LaTeX Section": {
+		"prefix": "sec",
+		"body": [
+			"\\\\section{${1:Section Title}}",
+			"$0"
+		],
+		"description": "LaTeX section"
+	},
+	"LaTeX Subsection": {
+		"prefix": "sub",
+		"body": [
+			"\\\\subsection{${1:Subsection Title}}",
+			"$0"
+		],
+		"description": "LaTeX subsection"
+	},
+	"LaTeX Equation": {
+		"prefix": "eq",
+		"body": [
+			"\\\\begin{equation}",
+			"\t${1:f(x) = ax^2 + bx + c}",
+			"\\\\label{eq:${2:label}}",
+			"\\\\end{equation}"
+		],
+		"description": "LaTeX numbered equation"
+	},
+	"LaTeX Align": {
+		"prefix": "align",
+		"body": [
+			"\\\\begin{align}",
+			"\t${1:a} &= ${2:b} \\\\\\\\",
+			"\t${3:c} &= ${4:d}",
+			"\\\\end{align}"
+		],
+		"description": "LaTeX align environment"
+	},
+	"LaTeX Inline Math": {
+		"prefix": "math",
+		"body": [
+			"\\$${1:expression}\\$"
+		],
+		"description": "LaTeX inline math"
+	},
+	"LaTeX Display Math": {
+		"prefix": "dmath",
+		"body": [
+			"\\\\[",
+			"\t${1:expression}",
+			"\\\\]"
+		],
+		"description": "LaTeX display math"
+	},
+	"LaTeX Figure": {
+		"prefix": "fig",
+		"body": [
+			"\\\\begin{figure}[${1|h,t,b,H|}]",
+			"\t\\\\centering",
+			"\t\\\\includegraphics[width=${2:0.8}\\\\textwidth]{${3:image}}",
+			"\t\\\\caption{${4:Caption}}",
+			"\t\\\\label{fig:${5:label}}",
+			"\\\\end{figure}"
+		],
+		"description": "LaTeX figure with caption"
+	},
+	"LaTeX Table": {
+		"prefix": "table",
+		"body": [
+			"\\\\begin{table}[${1|h,t,b|}]",
+			"\t\\\\centering",
+			"\t\\\\begin{tabular}{${2:lll}}",
+			"\t\t\\\\hline",
+			"\t\t${3:Col1} & ${4:Col2} & ${5:Col3} \\\\\\\\",
+			"\t\t\\\\hline",
+			"\t\t${6:data1} & ${7:data2} & ${8:data3} \\\\\\\\",
+			"\t\t\\\\hline",
+			"\t\\\\end{tabular}",
+			"\t\\\\caption{${9:Caption}}",
+			"\t\\\\label{tab:${10:label}}",
+			"\\\\end{table}"
+		],
+		"description": "LaTeX table environment"
+	},
+	"LaTeX Itemize": {
+		"prefix": "items",
+		"body": [
+			"\\\\begin{itemize}",
+			"\t\\\\item ${1:First item}",
+			"\t\\\\item ${2:Second item}",
+			"\\\\end{itemize}"
+		],
+		"description": "LaTeX itemize list"
+	},
+	"LaTeX Enumerate": {
+		"prefix": "enum",
+		"body": [
+			"\\\\begin{enumerate}",
+			"\t\\\\item ${1:First item}",
+			"\t\\\\item ${2:Second item}",
+			"\\\\end{enumerate}"
+		],
+		"description": "LaTeX enumerate list"
+	},
+	"LaTeX Environment": {
+		"prefix": "env",
+		"body": [
+			"\\\\begin{${1:environment}}",
+			"\t$0",
+			"\\\\end{${1:environment}}"
+		],
+		"description": "LaTeX generic environment"
+	},
+	"LaTeX Bold": {
+		"prefix": "bf",
+		"body": [
+			"\\\\textbf{${1:text}}"
+		],
+		"description": "LaTeX bold text"
+	},
+	"LaTeX Italic": {
+		"prefix": "it",
+		"body": [
+			"\\\\textit{${1:text}}"
+		],
+		"description": "LaTeX italic text"
+	},
+	"LaTeX Reference": {
+		"prefix": "ref",
+		"body": [
+			"\\\\ref{${1:label}}"
+		],
+		"description": "LaTeX cross-reference"
+	},
+	"LaTeX Citation": {
+		"prefix": "cite",
+		"body": [
+			"\\\\cite{${1:key}}"
+		],
+		"description": "LaTeX citation"
+	},
+	"LaTeX Footnote": {
+		"prefix": "fn",
+		"body": [
+			"\\\\footnote{${1:text}}"
+		],
+		"description": "LaTeX footnote"
+	},
+	"LaTeX URL": {
+		"prefix": "url",
+		"body": [
+			"\\\\url{${1:https://example.com}}"
+		],
+		"description": "LaTeX URL"
+	},
+	"LaTeX Package": {
+		"prefix": "pkg",
+		"body": [
+			"\\\\usepackage[${1:options}]{${2:package}}"
+		],
+		"description": "LaTeX usepackage"
+	},
+	"LaTeX New Command": {
+		"prefix": "newcmd",
+		"body": [
+			"\\\\newcommand{\\\\${1:name}}[${2:0}]{${3:definition}}"
+		],
+		"description": "LaTeX newcommand"
+	},
+	"LaTeX Bibliography": {
+		"prefix": "bib",
+		"body": [
+			"\\\\bibliographystyle{${1|plain,alpha,abbrv,ieeetr,apalike|}}",
+			"\\\\bibliography{${2:references}}"
+		],
+		"description": "LaTeX bibliography"
+	}
+}
