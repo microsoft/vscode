@@ -117,6 +117,7 @@ export interface IAutomodeService {
 export class AutomodeService extends Disposable implements IAutomodeService {
 	readonly _serviceBrand: undefined;
 	private readonly _autoModelCache: Map<string, AutoModelCacheEntry> = new Map();
+	private readonly _pendingResolutions: Map<string, Promise<IChatEndpoint>> = new Map();
 	private _reserveTokens: DisposableMap<ChatLocation, AutoModeTokenBank> = new DisposableMap();
 	private readonly _routerDecisionFetcher: RouterDecisionFetcher;
 
@@ -137,6 +138,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 				entry.tokenBank.dispose();
 			}
 			this._autoModelCache.clear();
+			this._pendingResolutions.clear();
 			const keys = Array.from(this._reserveTokens.keys());
 			this._reserveTokens.clearAndDisposeAll();
 			for (const location of keys) {
@@ -152,6 +154,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 			entry.tokenBank.dispose();
 		}
 		this._autoModelCache.clear();
+		this._pendingResolutions.clear();
 		this._reserveTokens.dispose();
 		super.dispose();
 	}
@@ -175,6 +178,38 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		}
 
 		const conversationId = chatRequest?.sessionResource?.toString() ?? chatRequest?.sessionId ?? 'unknown';
+
+		// Coalesce concurrent calls for the same conversation so we don't fire
+		// duplicate router requests or telemetry. Concurrent callers within a
+		// single turn always share the same prompt, so reusing the result is safe.
+		return this._singleFlight(conversationId, () => this._resolveAutoModeEndpointCore(chatRequest, conversationId, knownEndpoints));
+	}
+
+	/**
+	 * Single-flight coalescer: if a resolution for `key` is already in progress,
+	 * return that pending promise instead of starting a new one.
+	 *
+	 * This function MUST remain synchronous (not `async`). The atomicity of the
+	 * `get -> check -> set` sequence relies on no `await` running between them, and
+	 * keeping the function non-`async` makes that invariant structural rather than
+	 * a comment a future edit might miss.
+	 */
+	private _singleFlight(key: string, fn: () => Promise<IChatEndpoint>): Promise<IChatEndpoint> {
+		const existing = this._pendingResolutions.get(key);
+		if (existing) {
+			return existing;
+		}
+		const promise = fn().finally(() => {
+			// Reference-equality guard: only clear if this entry is still ours.
+			if (this._pendingResolutions.get(key) === promise) {
+				this._pendingResolutions.delete(key);
+			}
+		});
+		this._pendingResolutions.set(key, promise);
+		return promise;
+	}
+
+	private async _resolveAutoModeEndpointCore(chatRequest: ChatRequest | undefined, conversationId: string, knownEndpoints: IChatEndpoint[]): Promise<IChatEndpoint> {
 		const entry = this._autoModelCache.get(conversationId);
 		const tokenBank = this._acquireTokenBank(entry, chatRequest?.location, conversationId);
 		const token = await tokenBank.getToken();
