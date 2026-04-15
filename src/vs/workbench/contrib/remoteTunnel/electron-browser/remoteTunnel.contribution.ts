@@ -195,7 +195,7 @@ export class RemoteTunnelWorkbenchContribution extends Disposable implements IWo
 							key: 'recommend.remoteExtension',
 							comment: ['{0} will be a tunnel name, {1} will the link address to the web UI, {6} an extension name. [label](command:commandId) is a markdown link. Only translate the label, do not modify the format']
 						},
-						"Tunnel '{0}' is avaiable for remote access. The {1} extension can be used to connect to it.",
+						"Tunnel '{0}' is available for remote access. The {1} extension can be used to connect to it.",
 						usedOnHost, remoteExtension.friendlyName
 					),
 				actions: {
