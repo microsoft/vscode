@@ -41,6 +41,12 @@
         "path": "./syntaxes/sassdoc.tmLanguage.json"
       }
     ],
+    "snippets": [
+      {
+        "language": "scss",
+        "path": "./snippets/scss.code-snippets"
+      }
+    ],
     "problemMatchers": [
       {
         "name": "node-sass",

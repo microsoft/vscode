@@ -1,0 +1,187 @@
+{
+	"SCSS variable": {
+		"prefix": "var",
+		"body": [
+			"\\$${1:variable}: ${2:value};"
+		],
+		"description": "SCSS variable declaration"
+	},
+	"SCSS mixin": {
+		"prefix": "mixin",
+		"body": [
+			"@mixin ${1:name}(${2:$args}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "SCSS mixin definition"
+	},
+	"SCSS include mixin": {
+		"prefix": "include",
+		"body": [
+			"@include ${1:mixin-name}(${2:args});"
+		],
+		"description": "SCSS include mixin"
+	},
+	"SCSS function": {
+		"prefix": "function",
+		"body": [
+			"@function ${1:name}(${2:\\$args}) {",
+			"\t@return ${3:value};",
+			"}"
+		],
+		"description": "SCSS function definition"
+	},
+	"SCSS extend": {
+		"prefix": "extend",
+		"body": [
+			"@extend ${1:%placeholder};"
+		],
+		"description": "SCSS extend"
+	},
+	"SCSS placeholder": {
+		"prefix": "placeholder",
+		"body": [
+			"%${1:name} {",
+			"\t$0",
+			"}"
+		],
+		"description": "SCSS placeholder selector"
+	},
+	"SCSS if": {
+		"prefix": "if",
+		"body": [
+			"@if ${1:condition} {",
+			"\t$0",
+			"}"
+		],
+		"description": "SCSS @if directive"
+	},
+	"SCSS if-else": {
+		"prefix": "ifelse",
+		"body": [
+			"@if ${1:condition} {",
+			"\t${2}",
+			"} @else {",
+			"\t$0",
+			"}"
+		],
+		"description": "SCSS @if-else directive"
+	},
+	"SCSS for loop": {
+		"prefix": "for",
+		"body": [
+			"@for \\$${1:i} from ${2:1} through ${3:10} {",
+			"\t$0",
+			"}"
+		],
+		"description": "SCSS @for loop"
+	},
+	"SCSS each loop": {
+		"prefix": "each",
+		"body": [
+			"@each \\$${1:item} in ${2:list} {",
+			"\t$0",
+			"}"
+		],
+		"description": "SCSS @each loop"
+	},
+	"SCSS while loop": {
+		"prefix": "while",
+		"body": [
+			"@while ${1:condition} {",
+			"\t$0",
+			"}"
+		],
+		"description": "SCSS @while loop"
+	},
+	"SCSS import": {
+		"prefix": "import",
+		"body": [
+			"@use '${1:module}';"
+		],
+		"description": "SCSS @use import"
+	},
+	"SCSS media query": {
+		"prefix": "media",
+		"body": [
+			"@media (${1|min-width,max-width|}: ${2:768px}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "SCSS media query"
+	},
+	"SCSS nested selector": {
+		"prefix": "nest",
+		"body": [
+			"${1:.parent} {",
+			"\t${2:property}: ${3:value};",
+			"",
+			"\t&:${4:hover} {",
+			"\t\t$0",
+			"\t}",
+			"}"
+		],
+		"description": "SCSS nested selector with parent reference"
+	},
+	"SCSS map": {
+		"prefix": "map",
+		"body": [
+			"\\$${1:name}: (",
+			"\t'${2:key}': ${3:value},",
+			"\t$0",
+			");"
+		],
+		"description": "SCSS map variable"
+	},
+	"SCSS map-get": {
+		"prefix": "mapget",
+		"body": [
+			"map.get(\\$${1:map}, '${2:key}')"
+		],
+		"description": "SCSS map-get value"
+	},
+	"SCSS keyframes": {
+		"prefix": "keyframes",
+		"body": [
+			"@keyframes ${1:name} {",
+			"\t0% {",
+			"\t\t$0",
+			"\t}",
+			"\t100% {",
+			"\t}",
+			"}"
+		],
+		"description": "SCSS @keyframes animation"
+	},
+	"SCSS flex container": {
+		"prefix": "flex",
+		"body": [
+			"display: flex;",
+			"align-items: ${1:center};",
+			"justify-content: ${2:space-between};",
+			"gap: ${3:1rem};"
+		],
+		"description": "SCSS flexbox container"
+	},
+	"SCSS grid": {
+		"prefix": "grid",
+		"body": [
+			"display: grid;",
+			"grid-template-columns: ${1:repeat(3, 1fr)};",
+			"gap: ${2:1rem};"
+		],
+		"description": "SCSS grid layout"
+	},
+	"SCSS breakpoint mixin": {
+		"prefix": "bp",
+		"body": [
+			"@mixin breakpoint(\\$size) {",
+			"\t@if \\$size == 'sm' { @media (min-width: 576px) { @content; } }",
+			"\t@else if \\$size == 'md' { @media (min-width: 768px) { @content; } }",
+			"\t@else if \\$size == 'lg' { @media (min-width: 992px) { @content; } }",
+			"\t@else if \\$size == 'xl' { @media (min-width: 1200px) { @content; } }",
+			"}"
+		],
+		"description": "SCSS responsive breakpoint mixin"
+	}
+}
