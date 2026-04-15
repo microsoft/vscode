@@ -389,7 +389,7 @@ class MainThreadChatSessionItemController extends Disposable implements IChatSes
 		this._proxy = proxy;
 		this._handle = handle;
 
-		// Update the chat session item based on on the actual model state
+		// Update the chat session item based on the actual model state
 		// TODO: This should be based on the chat session content provider instead of the chat models directly
 		// or bed moved into the chat session service so that all controllers get the same behavior.
 		const addModelListeners = async (model: IChatModel) => {

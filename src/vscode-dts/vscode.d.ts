@@ -14405,7 +14405,7 @@ declare module 'vscode' {
 		 * files change on disk, e.g triggered by another application, or when using the
 		 * {@linkcode FileSystem workspace.fs}-api.
 		 *
-		 * *Note 2:* When this event is fired, edits to files that are are being created cannot be applied.
+		 * *Note 2:* When this event is fired, edits to files that are being created cannot be applied.
 		 */
 		export const onWillCreateFiles: Event<FileWillCreateEvent>;
 
