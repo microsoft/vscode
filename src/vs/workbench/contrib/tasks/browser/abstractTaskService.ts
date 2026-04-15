@@ -3326,7 +3326,7 @@ export abstract class AbstractTaskService extends Disposable implements ITaskSer
 						}
 					}
 
-					// At this this point there are multiple tasks.
+					// At this point there are multiple tasks.
 					chooseAndRunTask(tasks);
 				});
 			};

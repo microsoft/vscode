@@ -784,7 +784,7 @@ class ProfileSynchronizer extends Disposable {
 						throw userDataSyncError;
 					}
 
-					// Log and and continue
+					// Log and continue
 					this.logService.error(e);
 					this.logService.error(`${synchroniser.resource}: ${toErrorMessage(e)}`);
 					syncErrors.push([synchroniser.resource, userDataSyncError]);
