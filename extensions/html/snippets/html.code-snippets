@@ -14,5 +14,197 @@
 			"</html>"
 		],
 		"description": "HTML Document"
+	},
+	"HTML5 Document": {
+		"prefix": "html5",
+		"isFileTemplate": true,
+		"body": [
+			"<!DOCTYPE html>",
+			"<html lang=\"${1:en}\">",
+			"<head>",
+			"\t<meta charset=\"UTF-8\" />",
+			"\t<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />",
+			"\t<meta name=\"description\" content=\"${2:description}\" />",
+			"\t<title>${3:title}</title>",
+			"\t<link rel=\"stylesheet\" href=\"${4:styles.css}\" />",
+			"</head>",
+			"<body>",
+			"\t$0",
+			"\t<script src=\"${5:script.js}\"></script>",
+			"</body>",
+			"</html>"
+		],
+		"description": "Full HTML5 Document with common meta tags"
+	},
+	"Link Stylesheet": {
+		"prefix": "link",
+		"body": [
+			"<link rel=\"stylesheet\" href=\"${1:styles.css}\" />"
+		],
+		"description": "Link to an external stylesheet"
+	},
+	"Script Tag": {
+		"prefix": "script",
+		"body": [
+			"<script src=\"${1:script.js}\"></script>"
+		],
+		"description": "Script tag with src attribute"
+	},
+	"Meta Viewport": {
+		"prefix": "meta:vp",
+		"body": [
+			"<meta name=\"viewport\" content=\"width=device-width, initial-scale=1.0\" />"
+		],
+		"description": "Responsive viewport meta tag"
+	},
+	"Figure with Caption": {
+		"prefix": "figure",
+		"body": [
+			"<figure>",
+			"\t<img src=\"${1:image.png}\" alt=\"${2:description}\" />",
+			"\t<figcaption>${3:caption}</figcaption>",
+			"</figure>"
+		],
+		"description": "Figure element with image and caption"
+	},
+	"Form": {
+		"prefix": "form",
+		"body": [
+			"<form action=\"${1:#}\" method=\"${2:post}\">",
+			"\t$0",
+			"\t<button type=\"submit\">${3:Submit}</button>",
+			"</form>"
+		],
+		"description": "HTML form element"
+	},
+	"Input with Label": {
+		"prefix": "input",
+		"body": [
+			"<label for=\"${1:id}\">${2:label}</label>",
+			"<input type=\"${3:text}\" id=\"${1:id}\" name=\"${1:id}\" placeholder=\"${4:placeholder}\" />"
+		],
+		"description": "Input element with associated label"
+	},
+	"Select Dropdown": {
+		"prefix": "select",
+		"body": [
+			"<select id=\"${1:id}\" name=\"${1:id}\">",
+			"\t<option value=\"${2:value1}\">${3:Option 1}</option>",
+			"\t<option value=\"${4:value2}\">${5:Option 2}</option>",
+			"\t$0",
+			"</select>"
+		],
+		"description": "Select dropdown element"
+	},
+	"Textarea": {
+		"prefix": "textarea",
+		"body": [
+			"<textarea id=\"${1:id}\" name=\"${1:id}\" rows=\"${2:4}\" cols=\"${3:50}\">",
+			"\t$0",
+			"</textarea>"
+		],
+		"description": "Textarea input element"
+	},
+	"Navigation": {
+		"prefix": "nav",
+		"body": [
+			"<nav>",
+			"\t<ul>",
+			"\t\t<li><a href=\"${1:#}\">${2:Home}</a></li>",
+			"\t\t<li><a href=\"${3:#}\">${4:About}</a></li>",
+			"\t\t$0",
+			"\t</ul>",
+			"</nav>"
+		],
+		"description": "Navigation element with unordered list"
+	},
+	"Article": {
+		"prefix": "article",
+		"body": [
+			"<article>",
+			"\t<header>",
+			"\t\t<h2>${1:title}</h2>",
+			"\t</header>",
+			"\t<p>$0</p>",
+			"</article>"
+		],
+		"description": "Article element with header"
+	},
+	"Section": {
+		"prefix": "section",
+		"body": [
+			"<section id=\"${1:id}\">",
+			"\t<h2>${2:title}</h2>",
+			"\t$0",
+			"</section>"
+		],
+		"description": "Section element with id and heading"
+	},
+	"Table": {
+		"prefix": "table",
+		"body": [
+			"<table>",
+			"\t<thead>",
+			"\t\t<tr>",
+			"\t\t\t<th>${1:Header 1}</th>",
+			"\t\t\t<th>${2:Header 2}</th>",
+			"\t\t\t<th>$0</th>",
+			"\t\t</tr>",
+			"\t</thead>",
+			"\t<tbody>",
+			"\t\t<tr>",
+			"\t\t\t<td>${3:Cell 1}</td>",
+			"\t\t\t<td>${4:Cell 2}</td>",
+			"\t\t\t<td></td>",
+			"\t\t</tr>",
+			"\t</tbody>",
+			"</table>"
+		],
+		"description": "Table with header and body rows"
+	},
+	"Unordered List": {
+		"prefix": "ul",
+		"body": [
+			"<ul>",
+			"\t<li>${1:item}</li>",
+			"\t<li>${2:item}</li>",
+			"\t<li>$0</li>",
+			"</ul>"
+		],
+		"description": "Unordered list"
+	},
+	"Ordered List": {
+		"prefix": "ol",
+		"body": [
+			"<ol>",
+			"\t<li>${1:item}</li>",
+			"\t<li>${2:item}</li>",
+			"\t<li>$0</li>",
+			"</ol>"
+		],
+		"description": "Ordered list"
+	},
+	"Image": {
+		"prefix": "img",
+		"body": [
+			"<img src=\"${1:image.png}\" alt=\"${2:description}\" />"
+		],
+		"description": "Image element with src and alt"
+	},
+	"Anchor": {
+		"prefix": "a",
+		"body": [
+			"<a href=\"${1:url}\">${2:link text}</a>"
+		],
+		"description": "Anchor element with href"
+	},
+	"Div with Class": {
+		"prefix": "div",
+		"body": [
+			"<div class=\"${1:class}\">",
+			"\t$0",
+			"</div>"
+		],
+		"description": "Div element with class attribute"
 	}
 }
