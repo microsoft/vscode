@@ -506,12 +506,12 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 	private readonly _onDidChangePlugins = this._register(new Emitter<void>());
 	readonly onDidChangePlugins = this._onDidChangePlugins.event;
 
-	private _customAgents: vscode.ChatCustomAgent[] = [];
-	private _instructions: vscode.ChatInstruction[] = [];
-	private _skills: vscode.ChatSkill[] = [];
-	private _slashCommands: vscode.ChatSlashCommand[] = [];
-	private _hooks: vscode.ChatHook[] = [];
-	private _plugins: vscode.ChatPlugin[] = [];
+	private readonly _customAgents = new CachedPromise(() => this._proxy.$provideCustomAgents(CancellationToken.None).then(agents => agents.map(agent => this.toCustomAgent(agent))));
+	private readonly _instructions = new CachedPromise(() => this._proxy.$provideInstructions(CancellationToken.None).then(instructions => instructions.map(instruction => this.toInstruction(instruction))));
+	private readonly _skills = new CachedPromise(() => this._proxy.$provideSkills(CancellationToken.None).then(skills => skills.map(skill => this.toSkill(skill))));
+	private readonly _slashCommands = new CachedPromise(() => this._proxy.$provideSlashCommands(CancellationToken.None).then(slashCommands => slashCommands.map(slashCommand => this.toSlashCommand(slashCommand))));
+	private readonly _hooks = new CachedPromise(() => this._proxy.$provideHooks(CancellationToken.None).then(hooks => hooks.map(hook => this.toHook(hook))));
+	private readonly _plugins = new CachedPromise(() => this._proxy.$providePlugins(CancellationToken.None).then(plugins => plugins.map(plugin => this.toPlugin(plugin))));
 
 	private _activeChatPanelSessionResource: URI | undefined;
 
@@ -522,21 +522,6 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return this._activeChatPanelSessionResource;
 	}
 
-	get customAgents(): readonly vscode.ChatCustomAgent[] {
-		return this._customAgents;
-	}
-
-	get instructions(): readonly vscode.ChatInstruction[] {
-		return this._instructions;
-	}
-
-	get skills(): readonly vscode.ChatSkill[] {
-		return this._skills;
-	}
-
-	get slashCommands(): readonly vscode.ChatSlashCommand[] {
-		return this._slashCommands;
-	}
 
 	private toCustomAgent(dto: ICustomAgentDto): vscode.ChatCustomAgent {
 		return Object.freeze<vscode.ChatCustomAgent>({
@@ -599,65 +584,57 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return Object.freeze({ uri: URI.revive(dto.uri) });
 	}
 
-	get hooks(): readonly vscode.ChatHook[] {
-		return this._hooks;
-	}
-
-	get plugins(): readonly vscode.ChatPlugin[] {
-		return this._plugins;
-	}
-
 	provideCustomAgents(token: vscode.CancellationToken): Thenable<readonly vscode.ChatCustomAgent[]> {
-		return this._proxy.$provideCustomAgents(token).then(agents => this._customAgents = agents.map(agent => this.toCustomAgent(agent)));
+		return this._customAgents.get(token);
 	}
 
 	provideInstructions(token: vscode.CancellationToken): Thenable<readonly vscode.ChatInstruction[]> {
-		return this._proxy.$provideInstructions(token).then(instructions => this._instructions = instructions.map(instruction => this.toInstruction(instruction)));
+		return this._instructions.get(token);
 	}
 
 	provideSkills(token: vscode.CancellationToken): Thenable<readonly vscode.ChatSkill[]> {
-		return this._proxy.$provideSkills(token).then(skills => this._skills = skills.map(skill => this.toSkill(skill)));
+		return this._skills.get(token);
 	}
 
 	provideSlashCommands(token: vscode.CancellationToken): Thenable<readonly vscode.ChatSlashCommand[]> {
-		return this._proxy.$provideSlashCommands(token).then(slashCommands => this._slashCommands = slashCommands.map(slashCommand => this.toSlashCommand(slashCommand)));
+		return this._slashCommands.get(token);
 	}
 
 	provideHooks(token: vscode.CancellationToken): Thenable<readonly vscode.ChatHook[]> {
-		return this._proxy.$provideHooks(token).then(hooks => this._hooks = hooks.map(hook => this.toHook(hook)));
+		return this._hooks.get(token);
 	}
 
 	providePlugins(token: vscode.CancellationToken): Thenable<readonly vscode.ChatPlugin[]> {
-		return this._proxy.$providePlugins(token).then(plugins => this._plugins = plugins.map(plugin => this.toPlugin(plugin)));
+		return this._plugins.get(token);
 	}
 
-	$acceptCustomAgents(agents: ICustomAgentDto[]): void {
-		this._customAgents = agents.map(agent => this.toCustomAgent(agent));
+	$onDidChangeCustomAgents(): void {
+		this._customAgents.clear();
 		this._onDidChangeCustomAgents.fire();
 	}
 
-	$acceptInstructions(instructions: IInstructionDto[]): void {
-		this._instructions = instructions.map(instruction => this.toInstruction(instruction));
+	$onDidChangeInstructions(): void {
+		this._instructions.clear();
 		this._onDidChangeInstructions.fire();
 	}
 
-	$acceptSkills(skills: ISkillDto[]): void {
-		this._skills = skills.map(skill => this.toSkill(skill));
+	$onDidChangeSkills(): void {
+		this._skills.clear();
 		this._onDidChangeSkills.fire();
 	}
 
-	$acceptSlashCommands(slashCommands: ISlashCommandDto[]): void {
-		this._slashCommands = slashCommands.map(slashCommand => this.toSlashCommand(slashCommand));
+	$onDidChangeSlashCommands(): void {
+		this._slashCommands.clear();
 		this._onDidChangeSlashCommands.fire();
 	}
 
-	$acceptHooks(hooks: IHookDto[]): void {
-		this._hooks = hooks.map(hook => this.toHook(hook));
+	$onDidChangeHooks(): void {
+		this._hooks.clear();
 		this._onDidChangeHooks.fire();
 	}
 
-	$acceptPlugins(plugins: IPluginDto[]): void {
-		this._plugins = plugins.map(plugin => this.toPlugin(plugin));
+	$onDidChangePlugins(): void {
+		this._plugins.clear();
 		this._onDidChangePlugins.fire();
 	}
 
@@ -1508,6 +1485,35 @@ function raceCancellationWithTimeout<T>(cancelWait: number, promise: Promise<T>,
 		});
 		promise.then(resolve, reject).finally(() => ref.dispose());
 	});
+}
+
+/**
+ * Lazily computes and caches a promise result until explicitly cleared.
+ * Failed computations are not retained so later callers can retry.
+ */
+class CachedPromise<T> {
+
+	private cachedPromise: Promise<readonly T[]> | undefined;
+
+	constructor(private readonly computeFn: () => Promise<readonly T[]>) { }
+
+	get(token: CancellationToken): Promise<readonly T[]> {
+		if (!this.cachedPromise) {
+			const promise = this.computeFn().catch(err => {
+				if (this.cachedPromise === promise) {
+					this.cachedPromise = undefined;
+				}
+				throw err;
+			});
+			this.cachedPromise = promise;
+		}
+
+		return raceCancellation(this.cachedPromise, token, []);
+	}
+
+	clear(): void {
+		this.cachedPromise = undefined;
+	}
 }
 
 function isBuiltinParticipant(agentId: string): boolean {

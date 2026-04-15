@@ -33,6 +33,22 @@ export interface ISearchSubagentParams {
 	description: string;
 	/** Detailed instructions regarding the search subagent's objective */
 	details: string;
+	/**
+	 * Optional thoroughness level that controls how many tool-call turns the subagent is allowed.
+	 * - 'normal' → base limit × 1    (quick & balanced; sufficient for most cases)
+	 * - 'deep'   → base limit × 2    (broader exploration; only use when normal is not enough)
+	 * Only active when config.github.copilot.chat.searchSubagent.thoroughnessEnabled is true.
+	 */
+	thoroughness?: 'normal' | 'deep';
+}
+
+const THOROUGHNESS_MULTIPLIERS: Record<NonNullable<ISearchSubagentParams['thoroughness']>, number> = {
+	normal: 1,
+	deep: 2,
+};
+
+function computeToolCallLimitForThoroughness(baseLimit: number, thoroughness: NonNullable<ISearchSubagentParams['thoroughness']>): number {
+	return Math.max(1, Math.round(baseLimit * THOROUGHNESS_MULTIPLIERS[thoroughness]));
 }
 
 class SearchSubagentTool implements ICopilotTool<ISearchSubagentParams> {
@@ -47,6 +63,30 @@ class SearchSubagentTool implements ICopilotTool<ISearchSubagentParams> {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExperimentationService private readonly experimentationService: IExperimentationService
 	) { }
+
+	alternativeDefinition(tool: vscode.LanguageModelToolInformation): vscode.LanguageModelToolInformation {
+		const thoroughnessEnabled = this.configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentThoroughnessEnabled, this.experimentationService);
+		if (!thoroughnessEnabled) {
+			return tool;
+		}
+
+		return {
+			...tool,
+			description: tool.description
+				+ '\n- thoroughness (optional): Search thoroughness — \'normal\' (balanced and quick, sufficient for most cases) or \'deep\' (more turns, broader exploration; only use when normal is clearly not enough).',
+			inputSchema: {
+				...tool.inputSchema as Record<string, unknown>,
+				properties: {
+					...(tool.inputSchema as { properties: Record<string, unknown> }).properties,
+					thoroughness: {
+						type: 'string',
+						enum: ['normal', 'deep'],
+						description: 'Controls the search thoroughness and turn limit. \'normal\' is balanced and quick, sufficient for most searches. Only use \'deep\' when the task clearly requires broader exploration across many files.',
+					},
+				},
+			},
+		};
+	}
 	async invoke(options: vscode.LanguageModelToolInvocationOptions<ISearchSubagentParams>, token: vscode.CancellationToken) {
 		// Get the current working directory from workspace folders
 		const workspaceFolders = this.workspaceService.getWorkspaceFolders();
@@ -70,15 +110,21 @@ class SearchSubagentTool implements ICopilotTool<ISearchSubagentParams> {
 		const subAgentInvocationId = generateUuid();
 
 		const toolCallLimit = this.configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentToolCallLimit, this.experimentationService);
+		const thoroughnessEnabled = this.configurationService.getExperimentBasedConfig(ConfigKey.Advanced.SearchSubagentThoroughnessEnabled, this.experimentationService);
+
+		const effectiveToolCallLimit = thoroughnessEnabled && options.input.thoroughness
+			? computeToolCallLimitForThoroughness(toolCallLimit, options.input.thoroughness)
+			: toolCallLimit;
 
 		const loop = this.instantiationService.createInstance(SearchSubagentToolCallingLoop, {
-			toolCallLimit,
+			toolCallLimit: effectiveToolCallLimit,
 			conversation: new Conversation(parentSessionId, [new Turn(generateUuid(), { type: 'user', message: searchInstruction })]),
 			request: request,
 			location: request.location,
 			promptText: options.input.query,
 			subAgentInvocationId: subAgentInvocationId,
 			parentToolCallId: options.chatStreamToolCallId,
+			thoroughness: thoroughnessEnabled ? options.input.thoroughness : undefined,
 		});
 
 		const stream = this._inputContext?.stream && ChatResponseStreamImpl.filter(

@@ -602,6 +602,155 @@ suite('AgentSideEffects', () => {
 		});
 	});
 
+	// ---- Session-level auto-approve (config) ----------------------------
+
+	suite('session config auto-approve', () => {
+
+		function setupSessionWithConfig(autoApproveLevel: string): void {
+			setupSession(URI.file('/workspace').toString());
+			// Set config on the session state directly (as agentService.ts does)
+			const state = stateManager.getSessionState(sessionUri.toString());
+			if (state) {
+				state.config = {
+					schema: {
+						type: 'object',
+						properties: {
+							autoApprove: {
+								type: 'string',
+								title: 'Approvals',
+								enum: ['default', 'autoApprove', 'autopilot'],
+								default: 'default',
+								sessionMutable: true,
+							},
+						},
+					},
+					values: { autoApprove: autoApproveLevel },
+				};
+			}
+		}
+
+		test('auto-approves all writes when autoApprove is set to bypass', () => {
+			setupSessionWithConfig('autoApprove');
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_start',
+				toolCallId: 'tc-bypass-1',
+				toolName: 'write',
+				displayName: 'Write',
+				invocationMessage: 'Write .env',
+			});
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_ready',
+				toolCallId: 'tc-bypass-1',
+				invocationMessage: 'Write .env',
+				permissionKind: 'write',
+				permissionPath: '/workspace/.env',
+			});
+
+			// .env would normally be blocked, but session-level auto-approve overrides
+			assert.deepStrictEqual(agent.respondToPermissionCalls, [
+				{ requestId: 'tc-bypass-1', approved: true },
+			]);
+		});
+
+		test('auto-approves shell commands when autoApprove is set to autopilot', () => {
+			setupSessionWithConfig('autopilot');
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_start',
+				toolCallId: 'tc-ap-shell-1',
+				toolName: 'shell',
+				displayName: 'Shell',
+				invocationMessage: 'Run rm -rf /',
+			});
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_ready',
+				toolCallId: 'tc-ap-shell-1',
+				invocationMessage: 'Run rm -rf /',
+				permissionKind: 'shell',
+				toolInput: 'rm -rf /',
+			});
+
+			// Dangerous command would normally be blocked, but session-level auto-approve overrides
+			assert.deepStrictEqual(agent.respondToPermissionCalls, [
+				{ requestId: 'tc-ap-shell-1', approved: true },
+			]);
+		});
+
+		test('does NOT auto-approve when autoApprove is default', () => {
+			setupSessionWithConfig('default');
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_start',
+				toolCallId: 'tc-default-1',
+				toolName: 'write',
+				displayName: 'Write',
+				invocationMessage: 'Write .env',
+			});
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_ready',
+				toolCallId: 'tc-default-1',
+				invocationMessage: 'Write .env',
+				permissionKind: 'write',
+				permissionPath: '/workspace/.env',
+			});
+
+			// .env should still be blocked with default config
+			assert.strictEqual(agent.respondToPermissionCalls.length, 0);
+		});
+
+		test('respects mid-session config change via SessionConfigChanged', () => {
+			setupSessionWithConfig('default');
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			// Change to bypass mid-session
+			stateManager.dispatchServerAction({
+				type: ActionType.SessionConfigChanged,
+				session: sessionUri.toString(),
+				config: { autoApprove: 'autoApprove' },
+			});
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_start',
+				toolCallId: 'tc-mid-1',
+				toolName: 'write',
+				displayName: 'Write',
+				invocationMessage: 'Write .env',
+			});
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_ready',
+				toolCallId: 'tc-mid-1',
+				invocationMessage: 'Write .env',
+				permissionKind: 'write',
+				permissionPath: '/workspace/.env',
+			});
+
+			// Should now be auto-approved after config change
+			assert.deepStrictEqual(agent.respondToPermissionCalls, [
+				{ requestId: 'tc-mid-1', approved: true },
+			]);
+		});
+	});
+
 	// ---- Edit auto-approve ----------------------------------------------
 
 	suite('edit auto-approve', () => {

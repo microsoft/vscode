@@ -115,6 +115,7 @@ export interface NativeParsedArgs {
 	'install-source'?: string;
 	'add-mcp'?: string[];
 	'disable-updates'?: boolean;
+	'share-secrets-with-agents-app'?: boolean;
 	'transient'?: boolean;
 	'use-inmemory-secretstorage'?: boolean;
 	'password-store'?: string;

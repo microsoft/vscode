@@ -120,6 +120,9 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 
 		const allowedExecutionTools = new Set([
 			ToolName.CoreRunInTerminal,
+			ToolName.CoreGetTerminalOutput,
+			ToolName.CoreSendToTerminal,
+			ToolName.CoreKillTerminal,
 		]);
 
 		return allTools.filter(tool => allowedExecutionTools.has(tool.name as ToolName));

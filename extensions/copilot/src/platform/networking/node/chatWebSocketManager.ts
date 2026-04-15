@@ -17,6 +17,7 @@ import { ILogService, collectSingleLineErrorMessage } from '../../log/common/log
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { HeadersImpl, IHeaders, WebSocketConnection } from '../common/fetcherService';
 import { IEndpointBody } from '../common/networking';
+import { getResponsesApiCompactionThresholdFromBody } from '../../endpoint/node/responsesApi';
 import { ChatWebSocketRequestOutcome, ChatWebSocketTelemetrySender } from './chatWebSocketTelemetry';
 
 export const IChatWebSocketManager = createServiceIdentifier<IChatWebSocketManager>('IChatWebSocketManager');
@@ -81,8 +82,10 @@ export interface IChatWebSocketRequestOptions {
 	userInitiated: boolean;
 	turnId: string;
 	requestId: string;
+	model: string;
 	countTokens: () => Promise<number>;
 	tokenCountMax: number;
+	modelMaxPromptTokens: number;
 	summarizedAtRoundId?: string;
 }
 
@@ -555,7 +558,9 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 		const statefulMarkerMatched = this._statefulMarker === body.previous_response_id;
 		const previousResponseIdUnset = body.previous_response_id === undefined;
 		const hasCompactionData = body.input?.some(item => item?.type === 'compaction') ?? false;
+		const summarizedAtRoundIdSet = options.summarizedAtRoundId !== undefined;
 		const summarizedAtRoundIdMatched = options.summarizedAtRoundId === this._summarizedAtRoundId;
+		const compactionThreshold = getResponsesApiCompactionThresholdFromBody(body);
 		const statefulMarkerPrefix = this._statefulMarker?.slice(0, 5).concat('...') ?? '<none>';
 		const previousResponsePrefix = body.previous_response_id?.slice(0, 5).concat('...') ?? '<none>';
 		if (statefulMarkerMatched) {
@@ -592,7 +597,7 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 		const promptTokenCountPromise = options.countTokens();
 		let promptTokenCount = -1;
 		promptTokenCountPromise.then(count => { promptTokenCount = count; }, () => { promptTokenCount = -2; });
-		const request = new ChatWebSocketActiveRequest(requestId, body.model, options.summarizedAtRoundId, this._configurationService, this._logService);
+		const request = new ChatWebSocketActiveRequest(requestId, options.model, options.summarizedAtRoundId, this._configurationService, this._logService);
 		request.onDidSettle(({ outcome, closeCode, closeReason, serverErrorMessage, serverErrorCode }) => {
 			if (this._activeRequest === request) {
 				this._activeRequest = undefined;
@@ -611,14 +616,17 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 				hadActiveRequest,
 				requestId,
 				gitHubRequestId: this.gitHubRequestId,
-				modelId: body.model,
+				modelId: options.model,
 				requestOutcome: outcome,
 				statefulMarkerMatched,
 				previousResponseIdUnset,
 				hasCompactionData,
+				summarizedAtRoundIdSet,
 				summarizedAtRoundIdMatched,
+				compactionThreshold,
 				promptTokenCount,
 				tokenCountMax: options.tokenCountMax,
+				modelMaxPromptTokens: options.modelMaxPromptTokens,
 				connectionDurationMs,
 				requestDurationMs,
 				totalSentMessageCount: this._totalSentMessageCount,
@@ -667,12 +675,15 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 			hadActiveRequest,
 			requestId,
 			gitHubRequestId: this.gitHubRequestId,
-			modelId: body.model,
+			modelId: options.model,
 			statefulMarkerMatched,
 			previousResponseIdUnset,
 			hasCompactionData,
+			summarizedAtRoundIdSet,
 			summarizedAtRoundIdMatched,
+			compactionThreshold,
 			tokenCountMax: options.tokenCountMax,
+			modelMaxPromptTokens: options.modelMaxPromptTokens,
 			connectionDurationMs,
 			totalSentMessageCount: this._totalSentMessageCount,
 			totalReceivedMessageCount: this._totalReceivedMessageCount,

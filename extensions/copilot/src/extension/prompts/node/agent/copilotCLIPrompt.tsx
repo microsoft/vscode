@@ -74,7 +74,7 @@ class CopilotCLIAgentUserMessage extends PromptElement<AgentUserMessageProps> {
 		// Also today we have a generic prompt that reads `Implement this.` and we have attachments.
 		// Thats not sufficient to direct the model to use prompt instructions.
 		// In regular chat we have `Follow instructions in #<file>` & thats very effective as the prompt is very sepcfici about what to do. `Implement this.` is not.
-		const instructions = promptVariable ?
+		const instructions = promptVariable && promptVariable.reference.name !== 'prompt:plan.prompt.md' ?
 			`Follow instructions in #${promptVariable.reference.name}` :
 			'IMPORTANT: this context may or may not be relevant to your tasks. You should not respond to this context unless it is highly relevant to your task';
 		return (

@@ -47,6 +47,7 @@ import { AGENT_CLIENT_SCHEME } from '../common/agentClientUri.js';
 import { resolveServerUrls } from './serverUrls.js';
 import { AgentPluginManager } from './agentPluginManager.js';
 import { IAgentPluginManager } from '../common/agentPluginManager.js';
+import { AgentHostGitService, IAgentHostGitService } from './agentHostGitService.js';
 
 /** Log to stderr so messages appear in the terminal alongside the process. */
 function log(msg: string): void {
@@ -174,6 +175,7 @@ async function main(): Promise<void> {
 		diServices.set(IDiffComputeService, disposables.add(new NodeWorkerDiffComputeService(logService)));
 		diServices.set(IAgentHostTerminalManager, agentService.terminalManager);
 		const instantiationService = new InstantiationService(diServices);
+		diServices.set(IAgentHostGitService, instantiationService.createInstance(AgentHostGitService));
 		const copilotAgent = disposables.add(instantiationService.createInstance(CopilotAgent));
 		agentService.registerProvider(copilotAgent);
 		log('CopilotAgent registered');

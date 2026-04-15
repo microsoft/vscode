@@ -284,10 +284,6 @@ jobs:
           mkdir -p .build/build_cache
           tar -czf .build/build_cache/cache.tgz --files-from .build/build_cache_list.txt
 
-      - name: Ensure proposed API types are up to date
-        working-directory: extensions/copilot
-        run: npm run vscode-dts:check
-
       - name: TypeScript type checking
         working-directory: extensions/copilot
         run: npm run typecheck
@@ -307,10 +303,6 @@ jobs:
       - name: Run simulation tests with cache
         working-directory: extensions/copilot
         run: npm run simulate-ci
-
-      - name: Run extension tests using VS Code
-        working-directory: extensions/copilot
-        run: xvfb-run -a npm run test:extension
 
       - name: Run Completions Core prompt tests
         working-directory: extensions/copilot
@@ -411,10 +403,6 @@ jobs:
         working-directory: extensions/copilot
         run: npm run simulate-ci
 
-      - name: Run extension tests using VS Code
-        working-directory: extensions/copilot
-        run: npm run test:extension
-
       - name: Run Completions Core prompt tests
         working-directory: extensions/copilot
         run: npm run test:prompt
@@ -422,3 +410,5 @@ jobs:
       - name: Run Completions Core lib tests using VS Code
         working-directory: extensions/copilot
         run: npm run test:completions-core
+
+

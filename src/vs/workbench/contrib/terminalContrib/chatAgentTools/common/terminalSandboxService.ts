@@ -172,7 +172,8 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxLinuxFileSystem) ||
 				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxLinuxFileSystem) ||
 				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxMacFileSystem) ||
-				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxMacFileSystem)
+				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxMacFileSystem) ||
+				e?.affectsConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxAdvancedRuntime)
 			) {
 				this.setNeedsForceUpdateConfigFile();
 			}
@@ -568,6 +569,7 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 			const macFileSystemSetting = this._os === OperatingSystem.Macintosh
 				? this._getSettingValue<{ denyRead?: string[]; allowWrite?: string[]; denyWrite?: string[] }>(TerminalChatAgentToolsSettingId.AgentSandboxMacFileSystem, TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxMacFileSystem) ?? {}
 				: {};
+			const runtimeSetting = this._getSettingValue<Record<string, unknown>>(TerminalChatAgentToolsSettingId.AgentSandboxAdvancedRuntime) ?? {};
 			const configFileUri = URI.joinPath(this._tempDir, `vscode-sandbox-settings-${this._sandboxSettingsId}.json`);
 			const linuxAllowWrite = this._updateAllowWritePathsWithWorkspaceFolders(linuxFileSystemSetting.allowWrite);
 			const macAllowWrite = this._updateAllowWritePathsWithWorkspaceFolders(macFileSystemSetting.allowWrite);
@@ -581,13 +583,32 @@ export class TerminalSandboxService extends Disposable implements ITerminalSandb
 					denyRead: this._os === OperatingSystem.Macintosh ? macFileSystemSetting.denyRead : linuxFileSystemSetting.denyRead,
 					allowWrite: this._os === OperatingSystem.Macintosh ? macAllowWrite : linuxAllowWrite,
 					denyWrite: this._os === OperatingSystem.Macintosh ? macFileSystemSetting.denyWrite : linuxFileSystemSetting.denyWrite,
-				}
+				},
 			};
+			this._mergeAdditionalSandboxConfigProperties(sandboxSettings as Record<string, unknown>, runtimeSetting);
 			this._sandboxConfigPath = configFileUri.path;
 			await this._fileService.createFile(configFileUri, VSBuffer.fromString(JSON.stringify(sandboxSettings, null, '\t')), { overwrite: true });
 			return this._sandboxConfigPath;
 		}
 		return undefined;
+	}
+
+	private _mergeAdditionalSandboxConfigProperties(target: Record<string, unknown>, additional: Record<string, unknown>): void {
+		for (const [key, value] of Object.entries(additional)) {
+			if (!Object.prototype.hasOwnProperty.call(target, key)) {
+				target[key] = value;
+				continue;
+			}
+
+			const existingValue = target[key];
+			if (this._isObjectForSandboxConfigMerge(existingValue) && this._isObjectForSandboxConfigMerge(value)) {
+				this._mergeAdditionalSandboxConfigProperties(existingValue, value);
+			}
+		}
+	}
+
+	private _isObjectForSandboxConfigMerge(value: unknown): value is Record<string, unknown> {
+		return typeof value === 'object' && value !== null && !Array.isArray(value);
 	}
 
 	// Joins path segments according to the current OS.

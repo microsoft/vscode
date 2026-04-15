@@ -11,6 +11,7 @@ import { AICustomizationManagementSection, AI_CUSTOMIZATION_WELCOME_PAGE_VARIANT
 import { IAICustomizationWorkspaceService, IWelcomePageFeatures } from '../../common/aiCustomizationWorkspaceService.js';
 import { ClassicAICustomizationWelcomePage } from './aiCustomizationWelcomePageClassic.js';
 import { PromptLaunchersAICustomizationWelcomePage } from './aiCustomizationWelcomePagePromptLaunchers.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 
 const $ = DOM.$;
 
@@ -21,14 +22,19 @@ export interface IWelcomePageCallbacks {
 	/**
 	 * Prefill the chat input with a query. In the sessions window this
 	 * uses the sessions chat widget; in core VS Code it opens the chat view.
+	 *
+	 * @param options.newChat When true, always opens a new chat instead of
+	 * reusing the active one.
 	 */
-	prefillChat(query: string, options?: { isPartialQuery?: boolean }): void;
+	prefillChat(query: string, options?: { isPartialQuery?: boolean; newChat?: boolean }): void;
 }
 
 export interface IAICustomizationWelcomePageImplementation extends IDisposable {
 	readonly container: HTMLElement;
 	rebuildCards(visibleSectionIds: ReadonlySet<AICustomizationManagementSection>): void;
 	focus(): void;
+	/** Called when the welcome page becomes visible after navigation — clears any transient state. */
+	reset?(): void;
 }
 
 /**
@@ -48,6 +54,7 @@ export class AICustomizationWelcomePage extends Disposable {
 		private readonly commandService: ICommandService,
 		private readonly workspaceService: IAICustomizationWorkspaceService,
 		private readonly configurationService: IConfigurationService,
+		private readonly hoverService: IHoverService,
 	) {
 		super();
 
@@ -72,6 +79,10 @@ export class AICustomizationWelcomePage extends Disposable {
 		this.implementation.value?.focus();
 	}
 
+	reset(): void {
+		this.implementation.value?.reset?.();
+	}
+
 	private renderImplementation(): void {
 		DOM.clearNode(this.container);
 		this.implementation.value = this.createImplementation();
@@ -81,7 +92,7 @@ export class AICustomizationWelcomePage extends Disposable {
 	private createImplementation(): IAICustomizationWelcomePageImplementation {
 		switch (this.getVariant()) {
 			case 'promptLaunchers':
-				return new PromptLaunchersAICustomizationWelcomePage(this.container, this.welcomePageFeatures, this.callbacks, this.commandService, this.workspaceService);
+				return new PromptLaunchersAICustomizationWelcomePage(this.container, this.welcomePageFeatures, this.callbacks, this.commandService, this.workspaceService, this.hoverService);
 			case 'classic':
 			default:
 				return new ClassicAICustomizationWelcomePage(this.container, this.welcomePageFeatures, this.callbacks, this.commandService, this.workspaceService);

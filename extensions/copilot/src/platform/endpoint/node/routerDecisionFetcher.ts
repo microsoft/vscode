@@ -139,7 +139,7 @@ export class RouterDecisionFetcher {
 				routingMethod: result.routing_method ?? '',
 				fallback: String(result.fallback ?? false),
 				fallbackReason: result.fallback_reason ?? '',
-				candidateModel: result.candidate_models[0] ?? '',
+				candidateModel: result.candidate_models?.[0] ?? '',
 			},
 			{
 				confidence: result.confidence,

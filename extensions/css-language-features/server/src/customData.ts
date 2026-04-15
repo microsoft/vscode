@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ICSSDataProvider, newCSSDataProvider } from 'vscode-css-languageservice';
-import { RequestService } from './requests';
+import { RequestService } from './requests.js';
 
 export function fetchDataProviders(dataPaths: string[], requestService: RequestService): Promise<ICSSDataProvider[]> {
 	const providers = dataPaths.map(async p => {

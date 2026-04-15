@@ -68,8 +68,9 @@ export class LayoutController extends Disposable {
 		this._register(autorun(reader => {
 			const isUntitled = activeSessionIsUntitledObs.read(reader);
 			const activeSessionHasWorkspace = activeSessionHasWorkspaceObs.read(reader);
+			const activeSessionHasChanges = activeSessionHasChangesObs.read(reader);
 
-			this._syncAuxiliaryBarVisibility(activeSessionHasWorkspace, isUntitled);
+			this._syncAuxiliaryBarVisibility(activeSessionHasWorkspace, isUntitled, activeSessionHasChanges);
 		}));
 
 		// Switch between sessions — sync panel visibility
@@ -125,14 +126,14 @@ export class LayoutController extends Disposable {
 		}));
 	}
 
-	private _syncAuxiliaryBarVisibility(hasWorkspace: boolean, isUntitled: boolean): void {
+	private _syncAuxiliaryBarVisibility(hasWorkspace: boolean, isUntitled: boolean, hasChanges: boolean): void {
 		if (!hasWorkspace) {
 			// Hide the auxiliary bar
 			this._viewsService.closeViewContainer(SESSIONS_FILES_CONTAINER_ID);
 		} else if (isUntitled) {
 			// Show the auxiliary bar (files view)
 			this._viewsService.openViewContainer(SESSIONS_FILES_CONTAINER_ID, false);
-		} else {
+		} else if (hasChanges) {
 			// Show the auxiliary bar (changes view)
 			this._viewsService.openView(CHANGES_VIEW_ID, false);
 		}

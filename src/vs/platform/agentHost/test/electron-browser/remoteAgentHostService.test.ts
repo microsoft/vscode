@@ -11,7 +11,7 @@ import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
 import { IConfigurationService, type IConfigurationChangeEvent } from '../../../configuration/common/configuration.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
-import { RemoteAgentHostService } from '../../electron-browser/remoteAgentHostServiceImpl.js';
+import { RemoteAgentHostService } from '../../browser/remoteAgentHostServiceImpl.js';
 import { parseRemoteAgentHostInput, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, entryToRawEntry, type IRawRemoteAgentHostEntry, type IRemoteAgentHostEntry } from '../../common/remoteAgentHostService.js';
 import { DeferredPromise } from '../../../../base/common/async.js';
 

@@ -7,6 +7,16 @@ description: "Analyze V8 heap snapshots to investigate memory leaks and retentio
 
 Investigate memory leaks from V8 heap snapshots (`.heapsnapshot` files). This skill starts when snapshots already exist: either the user provided them, DevTools exported them, or another workflow produced them. Use the helpers here to compare snapshots, group object deltas, and trace retainer paths.
 
+## IGNORE Prior Investigations
+
+**Start every investigation fresh.** Do NOT read, consult, or be influenced by prior investigations found in:
+
+- `/memories/` (user, session, or repo memory)
+- `.github/skills/heap-snapshot-analysis/scratchpad/` (previous dated subfolders and their `findings.md` files)
+- Any other notes from earlier sessions
+
+Previous findings can bias the analysis toward suspects that are no longer relevant, or cause the agent to skip steps and jump to conclusions. Let the current snapshots speak for themselves. Only reference prior work if the user explicitly asks you to.
+
 ## When to Use
 
 - User provides `.heapsnapshot` files (before/after a workflow)

@@ -162,7 +162,7 @@ export class CopilotCLIChatSessionInitializer implements ICopilotCLIChatSessionI
 			}
 		} else {
 			// No chat session context (e.g., delegation) - initialize with active repository
-			folderInfo = await this.folderRepositoryManager.initializeFolderRepository(undefined, { stream, toolInvocationToken, isolation: options?.isolation, folder }, token);
+			folderInfo = await this.folderRepositoryManager.initializeFolderRepository(undefined, { stream, toolInvocationToken, isolation: options?.isolation, folder, newBranch: options?.newBranch }, token);
 		}
 
 		if (folderInfo.trusted === false || folderInfo.cancelled) {

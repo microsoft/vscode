@@ -983,14 +983,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private renderChatResponseBasic(element: IChatResponseViewModel, index: number, templateData: IChatListItemTemplate) {
 		templateData.rowContainer.classList.toggle('chat-response-loading', (isResponseVM(element) && !element.isComplete));
 
-		if (element.isComplete || element.isCanceled) {
-			const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
-			if (lastThinking?.domNode && lastThinking.getIsActive()) {
-				lastThinking.finalizeTitleIfDefault();
-				lastThinking.markAsInactive();
-			}
-			this.finalizeAllSubagentParts(templateData);
-		}
+		this.finalizeCompletedResponseParts(element, templateData);
 
 		const content: IChatRendererContent[] = [];
 		const isFiltered = !!element.errorDetails?.responseIsFiltered;
@@ -1015,6 +1008,20 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		const diff = this.diff(templateData.renderedParts ?? [], content, element);
 		this.renderChatContentDiff(diff, content, element, index, templateData);
+		this.finalizeCompletedResponseParts(element, templateData);
+	}
+
+	private finalizeCompletedResponseParts(element: IChatResponseViewModel, templateData: IChatListItemTemplate): void {
+		if (!element.isComplete && !element.isCanceled) {
+			return;
+		}
+
+		const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
+		if (lastThinking?.domNode && lastThinking.getIsActive()) {
+			lastThinking.finalizeTitleIfDefault();
+			lastThinking.markAsInactive();
+		}
+		this.finalizeAllSubagentParts(templateData);
 	}
 
 	private shouldShowWorkingProgress(element: IChatResponseViewModel, partsToRender: IChatRendererContent[], moreContentAvailable: boolean, templateData: IChatListItemTemplate): IChatWorkingProgress | undefined {
@@ -1477,12 +1484,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			// combine tool invocations into thinking part if needed. render the tool, but do not replace the working spinner with the new part's dom node since it is already inside the thinking part.
 			const lastThinking = this.getLastThinkingPart(renderedParts);
 			if (lastThinking && (partToRender.kind === 'toolInvocation' || partToRender.kind === 'toolInvocationSerialized' || partToRender.kind === 'markdownContent' || partToRender.kind === 'textEditGroup' || partToRender.kind === 'hook') && this.shouldPinPart(partToRender, element)) {
+				if (alreadyRenderedPart instanceof ChatMarkdownContentPart) {
+					lastThinking.removeEditPillByPartId(alreadyRenderedPart.codeblocksPartId);
+				}
+
 				const newPart = this.renderChatContentPart(partToRender, templateData, context);
 				if (newPart) {
 					renderedParts[contentIndex] = newPart;
-					if (alreadyRenderedPart instanceof ChatWorkingProgressContentPart && alreadyRenderedPart?.domNode) {
-						alreadyRenderedPart.domNode.remove();
-					}
+					alreadyRenderedPart?.domNode?.remove();
 				}
 				return;
 			}
@@ -2188,6 +2197,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private renderToolInvocation(toolInvocation: IChatToolInvocation | IChatToolInvocationSerialized, context: IChatContentPartRenderContext, templateData: IChatListItemTemplate): IChatContentPart | undefined {
+		// Skip rendering completed tool invocations that have no meaningful content - ie, autopilot "task complete"
+		if (IChatToolInvocation.isComplete(toolInvocation)) {
+			const msg = toolInvocation.pastTenseMessage ?? toolInvocation.invocationMessage;
+			const text = typeof msg === 'string' ? msg : msg?.value;
+			if (!text || text.trim().length === 0) {
+				return this.renderNoContent((other) =>
+					(other.kind === 'toolInvocation' || other.kind === 'toolInvocationSerialized') && other.toolCallId === toolInvocation.toolCallId);
+			}
+		}
+
 		if (this.configService.getValue<CollapsedToolsDisplayMode>('chat.agent.thinking.collapsedTools') === CollapsedToolsDisplayMode.Off) {
 			this.finalizeCurrentThinkingPart(context, templateData);
 		}

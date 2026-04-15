@@ -21,12 +21,16 @@ export interface RequestId {
 }
 
 export function getRequestId(headers: IHeaders, json?: any): RequestId {
+	const serverExperiments = headers.get('X-Copilot-Experiment') || '';
+	const capiExpAssignmentContext = headers.get('x-copilot-api-exp-assignment-context') || '';
 	return {
 		headerRequestId: headers.get('x-request-id') || '',
 		gitHubRequestId: headers.get('x-github-request-id') || '',
 		completionId: json && json.id ? json.id : '',
 		created: json && json.created ? json.created : 0,
-		serverExperiments: headers.get('X-Copilot-Experiment') || '',
+		serverExperiments: serverExperiments && capiExpAssignmentContext
+			? `${serverExperiments};${capiExpAssignmentContext}`
+			: serverExperiments || capiExpAssignmentContext,
 		deploymentId: headers.get('azureml-model-deployment') || '',
 	};
 }

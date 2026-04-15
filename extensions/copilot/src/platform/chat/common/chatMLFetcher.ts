@@ -109,6 +109,11 @@ export class FetchStreamSource {
 
 		this._stream.resolve();
 	}
+
+	reject(error: Error): void {
+		this._paused = undefined;
+		this._stream.reject(error);
+	}
 }
 
 export class FetchStreamRecorder {

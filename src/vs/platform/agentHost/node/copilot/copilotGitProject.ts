@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as cp from 'child_process';
 import { Schemas } from '../../../../base/common/network.js';
 import { basename } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import type { IAgentSessionProjectInfo } from '../../common/agentService.js';
+import type { IAgentHostGitService } from '../agentHostGitService.js';
 
 export interface ICopilotSessionContext {
 	readonly cwd?: string;
@@ -15,49 +15,20 @@ export interface ICopilotSessionContext {
 	readonly repository?: string;
 }
 
-function execGit(cwd: string, args: string[]): Promise<string> {
-	return new Promise((resolve, reject) => {
-		cp.execFile('git', args, { cwd, encoding: 'utf8' }, (error, stdout) => {
-			if (error) {
-				reject(error);
-				return;
-			}
-			resolve(stdout.trim());
-		});
-	});
-}
-
-export async function resolveGitProject(workingDirectory: URI | undefined): Promise<IAgentSessionProjectInfo | undefined> {
+export async function resolveGitProject(workingDirectory: URI | undefined, gitService: IAgentHostGitService): Promise<IAgentSessionProjectInfo | undefined> {
 	if (!workingDirectory || workingDirectory.scheme !== Schemas.file) {
 		return undefined;
 	}
 
-	const cwd = workingDirectory.fsPath;
-	try {
-		if ((await execGit(cwd, ['rev-parse', '--is-inside-work-tree'])) !== 'true') {
-			return undefined;
-		}
-	} catch {
+	if (!await gitService.isInsideWorkTree(workingDirectory)) {
 		return undefined;
 	}
 
-	let projectPath: string | undefined;
-	try {
-		const worktreeList = await execGit(cwd, ['worktree', 'list', '--porcelain']);
-		projectPath = worktreeList.split(/\r?\n/).find(line => line.startsWith('worktree '))?.substring('worktree '.length);
-	} catch {
-		// Fall back to the current worktree root below.
+	const uri = (await gitService.getWorktreeRoots(workingDirectory))[0]
+		?? await gitService.getRepositoryRoot(workingDirectory);
+	if (!uri) {
+		return undefined;
 	}
-
-	if (!projectPath) {
-		try {
-			projectPath = await execGit(cwd, ['rev-parse', '--show-toplevel']);
-		} catch {
-			return undefined;
-		}
-	}
-
-	const uri = URI.file(projectPath);
 	return { uri, displayName: basename(uri.fsPath) || uri.toString() };
 }
 
@@ -68,13 +39,13 @@ export function projectFromRepository(repository: string): IAgentSessionProjectI
 	return { uri, displayName };
 }
 
-export async function projectFromCopilotContext(context: ICopilotSessionContext | undefined): Promise<IAgentSessionProjectInfo | undefined> {
+export async function projectFromCopilotContext(context: ICopilotSessionContext | undefined, gitService: IAgentHostGitService): Promise<IAgentSessionProjectInfo | undefined> {
 	const workingDirectory = typeof context?.cwd === 'string'
 		? URI.file(context.cwd)
 		: typeof context?.gitRoot === 'string'
 			? URI.file(context.gitRoot)
 			: undefined;
-	const gitProject = await resolveGitProject(workingDirectory);
+	const gitProject = await resolveGitProject(workingDirectory, gitService);
 	if (gitProject) {
 		return gitProject;
 	}
