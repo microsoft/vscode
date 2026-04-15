@@ -1,0 +1,175 @@
+{
+	"CSS Rule": {
+		"prefix": "rule",
+		"body": [
+			"${1:selector} {",
+			"\t${2:property}: ${3:value};",
+			"}"
+		],
+		"description": "CSS rule block"
+	},
+	"CSS Flexbox Container": {
+		"prefix": "flex",
+		"body": [
+			"display: flex;",
+			"flex-direction: ${1|row,column,row-reverse,column-reverse|};",
+			"justify-content: ${2|flex-start,flex-end,center,space-between,space-around,space-evenly|};",
+			"align-items: ${3|stretch,flex-start,flex-end,center,baseline|};"
+		],
+		"description": "CSS flexbox container properties"
+	},
+	"CSS Grid Container": {
+		"prefix": "grid",
+		"body": [
+			"display: grid;",
+			"grid-template-columns: ${1:repeat(3, 1fr)};",
+			"grid-template-rows: ${2:auto};",
+			"gap: ${3:1rem};"
+		],
+		"description": "CSS grid container properties"
+	},
+	"CSS Media Query": {
+		"prefix": "mq",
+		"body": [
+			"@media (${1|max-width,min-width|}: ${2:768px}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "CSS media query"
+	},
+	"CSS Custom Property": {
+		"prefix": "var",
+		"body": [
+			"--${1:name}: ${2:value};"
+		],
+		"description": "CSS custom property (variable) declaration"
+	},
+	"CSS Variable Usage": {
+		"prefix": "use",
+		"body": [
+			"var(--${1:name})"
+		],
+		"description": "CSS var() usage"
+	},
+	"CSS :root Variables": {
+		"prefix": "root",
+		"body": [
+			":root {",
+			"\t--${1:color-primary}: ${2:#007acc};",
+			"\t--${3:font-size-base}: ${4:16px};",
+			"}"
+		],
+		"description": "CSS :root custom properties block"
+	},
+	"CSS Transition": {
+		"prefix": "trans",
+		"body": [
+			"transition: ${1:all} ${2:0.3s} ${3|ease,ease-in,ease-out,ease-in-out,linear|};"
+		],
+		"description": "CSS transition shorthand"
+	},
+	"CSS Animation": {
+		"prefix": "anim",
+		"body": [
+			"animation: ${1:name} ${2:1s} ${3|ease,ease-in,ease-out,linear|} ${4:infinite};"
+		],
+		"description": "CSS animation shorthand"
+	},
+	"CSS Keyframes": {
+		"prefix": "keyframes",
+		"body": [
+			"@keyframes ${1:name} {",
+			"\tfrom {",
+			"\t\t${2:property}: ${3:from-value};",
+			"\t}",
+			"\tto {",
+			"\t\t${4:property}: ${5:to-value};",
+			"\t}",
+			"}"
+		],
+		"description": "CSS @keyframes animation"
+	},
+	"CSS Box Shadow": {
+		"prefix": "shadow",
+		"body": [
+			"box-shadow: ${1:0} ${2:2px} ${3:4px} ${4:rgba(0, 0, 0, 0.2)};"
+		],
+		"description": "CSS box-shadow"
+	},
+	"CSS Border Radius": {
+		"prefix": "radius",
+		"body": [
+			"border-radius: ${1:4px};"
+		],
+		"description": "CSS border-radius"
+	},
+	"CSS Position Absolute Center": {
+		"prefix": "center",
+		"body": [
+			"position: absolute;",
+			"top: 50%;",
+			"left: 50%;",
+			"transform: translate(-50%, -50%);"
+		],
+		"description": "CSS absolute center an element"
+	},
+	"CSS Truncate Text": {
+		"prefix": "truncate",
+		"body": [
+			"overflow: hidden;",
+			"text-overflow: ellipsis;",
+			"white-space: nowrap;"
+		],
+		"description": "CSS text truncation with ellipsis"
+	},
+	"CSS Aspect Ratio": {
+		"prefix": "aspect",
+		"body": [
+			"aspect-ratio: ${1:16} / ${2:9};"
+		],
+		"description": "CSS aspect-ratio"
+	},
+	"CSS Pseudo Class": {
+		"prefix": "pseudo",
+		"body": [
+			"${1:selector}:${2|hover,focus,active,visited,first-child,last-child,nth-child(n),not(selector)|} {",
+			"\t$0",
+			"}"
+		],
+		"description": "CSS pseudo-class selector"
+	},
+	"CSS Pseudo Element": {
+		"prefix": "psel",
+		"body": [
+			"${1:selector}::${2|before,after,first-line,first-letter,placeholder,selection|} {",
+			"\tcontent: '${3}';",
+			"\t$0",
+			"}"
+		],
+		"description": "CSS pseudo-element"
+	},
+	"CSS Import": {
+		"prefix": "import",
+		"body": [
+			"@import url('${1:path/to/file.css}');"
+		],
+		"description": "CSS @import"
+	},
+	"CSS Container Query": {
+		"prefix": "cq",
+		"body": [
+			"@container ${1:name} (${2|min-width,max-width|}: ${3:600px}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "CSS container query"
+	},
+	"CSS Scroll Behavior": {
+		"prefix": "scroll",
+		"body": [
+			"scroll-behavior: ${1|smooth,auto|};",
+			"overflow: ${2|auto,scroll,hidden|};"
+		],
+		"description": "CSS scroll properties"
+	}
+}

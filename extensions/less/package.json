@@ -11,7 +11,9 @@
   "scripts": {
     "update-grammar": "node ./build/update-grammar.js"
   },
-  "categories": ["Programming Languages"],
+  "categories": [
+    "Programming Languages"
+  ],
   "contributes": {
     "languages": [
       {
@@ -51,6 +53,12 @@
           "line": 3,
           "column": 4
         }
+      }
+    ],
+    "snippets": [
+      {
+        "language": "less",
+        "path": "./snippets/less.code-snippets"
       }
     ]
   },

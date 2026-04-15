@@ -1,0 +1,111 @@
+{
+	"Less Variable": {
+		"prefix": "var",
+		"body": [
+			"@${1:name}: ${2:value};"
+		],
+		"description": "Less variable declaration"
+	},
+	"Less Mixin": {
+		"prefix": "mixin",
+		"body": [
+			".${1:mixin-name}(${2:@param: value}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "Less mixin declaration"
+	},
+	"Less Mixin Call": {
+		"prefix": "call",
+		"body": [
+			".${1:mixin-name}(${2:arg});"
+		],
+		"description": "Less mixin call"
+	},
+	"Less Nesting": {
+		"prefix": "nest",
+		"body": [
+			"${1:parent} {",
+			"\t${2:property}: ${3:value};",
+			"",
+			"\t&:${4|hover,focus,active|} {",
+			"\t\t$0",
+			"\t}",
+			"}"
+		],
+		"description": "Less nested rule with parent reference"
+	},
+	"Less Extend": {
+		"prefix": "extend",
+		"body": [
+			"&:extend(.${1:class});"
+		],
+		"description": "Less extend"
+	},
+	"Less Import": {
+		"prefix": "import",
+		"body": [
+			"@import '${1:path/to/file}';"
+		],
+		"description": "Less import"
+	},
+	"Less Color Function": {
+		"prefix": "colorfn",
+		"body": [
+			"${1|lighten,darken,saturate,desaturate,mix|}(@${2:color}, ${3:10%})"
+		],
+		"description": "Less color manipulation function"
+	},
+	"Less Media Query": {
+		"prefix": "mq",
+		"body": [
+			"@${1:breakpoint}: ~\"(${2|max-width,min-width|}: ${3:768px})\";",
+			"",
+			"@media @${1:breakpoint} {",
+			"\t$0",
+			"}"
+		],
+		"description": "Less media query with variable"
+	},
+	"Less Loop": {
+		"prefix": "loop",
+		"body": [
+			".loop(${1:@n}) when (@${1:n} > 0) {",
+			"\t.loop(@${1:n} - 1);",
+			"\t.item-@{${1:n}} { $0 }",
+			"}",
+			".loop(${2:5});"
+		],
+		"description": "Less recursive mixin loop"
+	},
+	"Less Guard": {
+		"prefix": "when",
+		"body": [
+			".${1:mixin}(@${2:param}) when (${3:@${2:param} > 0}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "Less mixin guard (conditional)"
+	},
+	"Less Flexbox": {
+		"prefix": "flex",
+		"body": [
+			"display: flex;",
+			"flex-direction: ${1|row,column|};",
+			"justify-content: ${2|flex-start,center,space-between|};",
+			"align-items: ${3|stretch,center,flex-start|};"
+		],
+		"description": "Less flexbox container"
+	},
+	"Less Namespace": {
+		"prefix": "ns",
+		"body": [
+			"#${1:namespace} {",
+			"\t.${2:mixin}() {",
+			"\t\t$0",
+			"\t}",
+			"}"
+		],
+		"description": "Less namespace"
+	}
+}

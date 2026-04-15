@@ -1,0 +1,163 @@
+{
+	"SCSS Variable": {
+		"prefix": "var",
+		"body": [
+			"\\$${1:name}: ${2:value};"
+		],
+		"description": "SCSS variable declaration"
+	},
+	"SCSS Mixin": {
+		"prefix": "mixin",
+		"body": [
+			"@mixin ${1:name}(${2:\\$params}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "SCSS mixin declaration"
+	},
+	"SCSS Include": {
+		"prefix": "include",
+		"body": [
+			"@include ${1:mixin-name}(${2:args});"
+		],
+		"description": "SCSS @include mixin"
+	},
+	"SCSS Extend": {
+		"prefix": "extend",
+		"body": [
+			"@extend ${1:%placeholder};"
+		],
+		"description": "SCSS @extend"
+	},
+	"SCSS Placeholder": {
+		"prefix": "placeholder",
+		"body": [
+			"%${1:name} {",
+			"\t$0",
+			"}"
+		],
+		"description": "SCSS placeholder selector"
+	},
+	"SCSS Nesting": {
+		"prefix": "nest",
+		"body": [
+			"${1:parent} {",
+			"\t${2:property}: ${3:value};",
+			"",
+			"\t&:${4|hover,focus,active|} {",
+			"\t\t$0",
+			"\t}",
+			"",
+			"\t&__${5:element} {",
+			"\t\t${6}",
+			"\t}",
+			"}"
+		],
+		"description": "SCSS BEM-style nesting"
+	},
+	"SCSS Import": {
+		"prefix": "import",
+		"body": [
+			"@use '${1:path/to/module}';",
+			""
+		],
+		"description": "SCSS @use (modern import)"
+	},
+	"SCSS Forward": {
+		"prefix": "forward",
+		"body": [
+			"@forward '${1:path/to/module}'${2: with (\\$${3:var}: ${4:value})};"
+		],
+		"description": "SCSS @forward"
+	},
+	"SCSS Function": {
+		"prefix": "fn",
+		"body": [
+			"@function ${1:name}(${2:\\$params}) {",
+			"\t@return ${3:value};",
+			"}"
+		],
+		"description": "SCSS function"
+	},
+	"SCSS Each Loop": {
+		"prefix": "each",
+		"body": [
+			"@each \\$${1:item} in ${2:list} {",
+			"\t$0",
+			"}"
+		],
+		"description": "SCSS @each loop"
+	},
+	"SCSS For Loop": {
+		"prefix": "for",
+		"body": [
+			"@for \\$${1:i} from ${2:1} through ${3:10} {",
+			"\t$0",
+			"}"
+		],
+		"description": "SCSS @for loop"
+	},
+	"SCSS While Loop": {
+		"prefix": "while",
+		"body": [
+			"@while ${1:\\$condition} {",
+			"\t$0",
+			"}"
+		],
+		"description": "SCSS @while loop"
+	},
+	"SCSS If-Else": {
+		"prefix": "if",
+		"body": [
+			"@if ${1:condition} {",
+			"\t$0",
+			"} @else {",
+			"\t${2}",
+			"}"
+		],
+		"description": "SCSS @if-@else"
+	},
+	"SCSS Map": {
+		"prefix": "map",
+		"body": [
+			"\\$${1:map}: (",
+			"\t'${2:key}': ${3:value},",
+			");"
+		],
+		"description": "SCSS map variable"
+	},
+	"SCSS Map Get": {
+		"prefix": "mapget",
+		"body": [
+			"map.get(\\$${1:map}, '${2:key}')"
+		],
+		"description": "SCSS map.get()"
+	},
+	"SCSS Responsive Mixin": {
+		"prefix": "respond",
+		"body": [
+			"@mixin respond-to(\\$breakpoint) {",
+			"\t@if \\$breakpoint == '${1:sm}' {",
+			"\t\t@media (max-width: ${2:576px}) { @content; }",
+			"\t} @else if \\$breakpoint == '${3:md}' {",
+			"\t\t@media (max-width: ${4:768px}) { @content; }",
+			"\t} @else if \\$breakpoint == '${5:lg}' {",
+			"\t\t@media (max-width: ${6:992px}) { @content; }",
+			"\t}",
+			"}"
+		],
+		"description": "SCSS responsive mixin with breakpoints"
+	},
+	"SCSS Flexbox Mixin": {
+		"prefix": "flex",
+		"body": [
+			"@mixin flex(\\$direction: row, \\$justify: flex-start, \\$align: stretch) {",
+			"\tdisplay: flex;",
+			"\tflex-direction: \\$direction;",
+			"\tjustify-content: \\$justify;",
+			"\talign-items: \\$align;",
+			"}"
+		],
+		"description": "SCSS flexbox mixin"
+	}
+}

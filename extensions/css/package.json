@@ -11,7 +11,9 @@
   "scripts": {
     "update-grammar": "node ../node_modules/vscode-grammar-updater/bin microsoft/vscode-css grammars/css.cson ./syntaxes/css.tmLanguage.json"
   },
-  "categories": ["Programming Languages"],
+  "categories": [
+    "Programming Languages"
+  ],
   "contributes": {
     "languages": [
       {
@@ -37,6 +39,12 @@
         "tokenTypes": {
           "meta.function.url string.quoted": "other"
         }
+      }
+    ],
+    "snippets": [
+      {
+        "language": "css",
+        "path": "./snippets/css.code-snippets"
       }
     ]
   },
