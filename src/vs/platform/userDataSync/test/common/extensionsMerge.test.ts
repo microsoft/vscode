@@ -1350,7 +1350,7 @@ suite('ExtensionsMerge', () => {
 		assert.deepStrictEqual(actual.remote?.all, [anExpectedSyncExtension({ identifier: { id: 'a', uuid: 'a' } })]);
 	});
 
-	test('sync merging when applicaiton scope is changed locally', () => {
+	test('sync merging when application scope is changed locally', () => {
 		const localExtensions = [
 			aLocalSyncExtension({ identifier: { id: 'a', uuid: 'a' }, isApplicationScoped: true }),
 		];
@@ -1367,7 +1367,7 @@ suite('ExtensionsMerge', () => {
 		assert.deepStrictEqual(actual.remote?.all, localExtensions);
 	});
 
-	test('sync merging when applicaiton scope is changed remotely', () => {
+	test('sync merging when application scope is changed remotely', () => {
 		const localExtensions = [
 			aLocalSyncExtension({ identifier: { id: 'a', uuid: 'a' }, isApplicationScoped: false }),
 		];
