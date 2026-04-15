@@ -196,6 +196,17 @@ describe('isModelCursorLineCompatible', () => {
 				'no change',
 			)).toBe(true);
 		});
+
+		it('user typed t continuing class name, model adds braces', () => {
+			//  original:  `class Poin`
+			//  user typed `t`           → current: `class Point`
+			//  model:     `class Point {`
+			expect(isModelLineCompatible(
+				'class Poin',
+				'class Point',
+				'class Point {',
+			)).toBe(true);
+		});
 	});
 
 	// ── Adversarial scenarios ──────────────────────────────────────────────

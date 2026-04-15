@@ -134,12 +134,12 @@ The panel title bar includes actions for controlling the panel:
 
 ### 3.6 Account Widget
 
-The account widget has been moved from the titlebar to the **sidebar footer**. It is rendered as a custom `AccountWidget` action view item:
+The account widget is rendered in the **right side of the titlebar** as a custom `TitleBarAccountWidget` action view item:
 
 - Registered in `contrib/accountMenu/browser/account.contribution.ts`
-- Uses the `Menus.SidebarFooter` menu
-- Shows account button with sign-in/sign-out and an update button when an update is available
-- Account menu shows signed-in user label from `IDefaultAccountService` (or Sign In), Sign Out, Settings, and Check for Updates
+- Uses the `Menus.TitleBarRightLayout` menu
+- Shows the signed-in GitHub profile image when available, and falls back to the existing account codicon when it is not
+- Opens a combined account and Copilot status hover panel with sign-in/sign-out, settings, and update actions
 
 ---
 
@@ -373,7 +373,7 @@ The Agent Sessions workbench uses specialized part implementations that extend t
 
 | Feature | Standard Parts | Agent Session Parts |
 |---------|----------------|---------------------|
-| Activity Bar integration | Full support | No activity bar; account widget in sidebar footer |
+| Activity Bar integration | Full support | No activity bar; account widget in the titlebar |
 | Composite bar position | Configurable (top/bottom/title/hidden) | Fixed: Title |
 | Composite bar visibility | Configurable | Sidebar: hidden (`shouldShowCompositeBar()` returns `false`); ChatBar: hidden; Auxiliary Bar & Panel: visible |
 | Auto-hide support | Configurable | Disabled |
@@ -536,7 +536,7 @@ src/vs/sessions/
 │   ├── sessions.html
 │   └── sessions-dev.html
 ├── contrib/                                # Feature contributions
-│   ├── accountMenu/browser/                # Account menu widget for sidebar footer
+│   ├── accountMenu/browser/                # Account menu and titlebar account widget
 │   │   ├── account.contribution.ts
 │   │   └── media/
 │   ├── aiCustomizationManagement/browser/  # AI customization management editor
@@ -654,6 +654,7 @@ interface IPartVisibilityState {
 
 | Date | Change |
 |------|--------|
+| 2026-04-14 | Documented the sessions account control as a titlebar widget again and noted that it now prefers the signed-in GitHub profile image, falling back to the existing account codicon when the image is unavailable. |
 | 2026-04-14 | Updated the sessions-only default configuration so notification toasts default to the top-right corner via `workbench.notifications.position: 'top-right'`, without changing the regular workbench default. |
 | 2026-04-10 | Updated the sessions titlebar widget so repository/worktree metadata truncates with ellipsis before the primary AI-generated session title when the command center gets narrow. |
 | 2026-04-10 | Updated workspace/repository section headers in the Sessions sidebar to keep their uppercase titles visible via ellipsis truncation so the section toolbar actions remain reachable when names are long. |

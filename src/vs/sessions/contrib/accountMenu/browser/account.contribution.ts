@@ -8,7 +8,7 @@ import './media/accountWidget.css';
 import './media/accountTitleBarWidget.css';
 import '../../../../workbench/contrib/chat/browser/chatStatus/media/chatStatus.css';
 import Severity from '../../../../base/common/severity.js';
-import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Event } from '../../../../base/common/event.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuRegistry, registerAction2, IMenuService, MenuId } from '../../../../platform/actions/common/actions.js';
@@ -39,7 +39,7 @@ import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from
 import { ChatStatusDashboard } from '../../../../workbench/contrib/chat/browser/chatStatus/chatStatusDashboard.js';
 import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { getAccountTitleBarBadgeKey, getAccountTitleBarState } from './accountTitleBarState.js';
+import { getAccountProfileImageUrl, getAccountTitleBarBadgeKey, getAccountTitleBarState } from './accountTitleBarState.js';
 import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IAuthenticationAccessService } from '../../../../workbench/services/authentication/browser/authenticationAccessService.js';
@@ -264,19 +264,25 @@ registerUpdateMenuItems(AccountMenu, '3_updates');
 class TitleBarAccountWidget extends BaseActionViewItem {
 
 	private container: HTMLElement | undefined;
+	private avatarElement: HTMLImageElement | undefined;
 	private iconElement: HTMLElement | undefined;
 	private labelElement: HTMLElement | undefined;
 	private badgeElement: HTMLElement | undefined;
 	private accountName: string | undefined;
+	private accountProviderId: string | undefined;
 	private accountProviderLabel: string | undefined;
 	private isAccountLoading = true;
 	private accountRequestCounter = 0;
+	private avatarRequestCounter = 0;
+	private currentAvatarUrl: string | undefined;
+	private loadedAvatarUrl: string | undefined;
 	private lastState: ReturnType<typeof getAccountTitleBarState>;
 	private isMenuVisible = false;
 	private lastBadgeKey: string | undefined;
 	private dismissedBadgeKey: string | undefined;
 	private readonly copilotDashboardStore = this._register(new MutableDisposable<DisposableStore>());
 	private readonly clickPanelDisposable = this._register(new MutableDisposable<DisposableStore>());
+	private readonly avatarLoadDisposable = this._register(new MutableDisposable());
 
 	constructor(
 		action: IAction,
@@ -317,6 +323,9 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		container.setAttribute('role', 'button');
 		container.tabIndex = 0;
 
+		this.avatarElement = append(container, $('img.sessions-account-titlebar-widget-avatar', { alt: localize('accountAvatarAltFallback', "Account profile image"), draggable: 'false' })) as HTMLImageElement;
+		this.avatarElement.decoding = 'async';
+		this.avatarElement.referrerPolicy = 'no-referrer';
 		this.iconElement = append(container, $('.sessions-account-titlebar-widget-icon'));
 		this.labelElement = append(container, $('span.sessions-account-titlebar-widget-label'));
 		this.badgeElement = append(container, $('span.sessions-account-titlebar-widget-badge'));
@@ -343,13 +352,15 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		}
 
 		this.accountName = account?.accountName;
+		this.accountProviderId = account?.authenticationProvider.id;
 		this.accountProviderLabel = account?.authenticationProvider.name;
 		this.isAccountLoading = false;
+		this.refreshAvatar();
 		this.renderState();
 	}
 
 	private renderState(): void {
-		if (!this.container || !this.iconElement || !this.labelElement || !this.badgeElement) {
+		if (!this.container || !this.avatarElement || !this.iconElement || !this.labelElement || !this.badgeElement) {
 			return;
 		}
 
@@ -375,15 +386,84 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		}
 
 		const shouldShowDotBadge = !!badgeKey && badgeKey !== this.dismissedBadgeKey;
+		const loadedAvatarUrl = !this.isAccountLoading ? this.loadedAvatarUrl : undefined;
+		const hasLoadedAvatar = !!loadedAvatarUrl;
 		const titleBarIcon = state.dotBadge ? Codicon.account : state.icon;
 
+		this.avatarElement.classList.toggle('visible', hasLoadedAvatar);
+		this.avatarElement.alt = this.getAvatarAltText(hasLoadedAvatar);
+		if (hasLoadedAvatar) {
+			if (this.avatarElement.src !== loadedAvatarUrl) {
+				this.avatarElement.src = loadedAvatarUrl;
+			}
+		} else {
+			this.avatarElement.removeAttribute('src');
+		}
+
 		this.iconElement.className = `sessions-account-titlebar-widget-icon ${ThemeIcon.asClassName(titleBarIcon)}`;
+		this.iconElement.classList.toggle('hidden', hasLoadedAvatar);
 		this.labelElement.textContent = '';
 		this.badgeElement.textContent = '';
 		this.badgeElement.classList.toggle('dot-badge', shouldShowDotBadge);
 		this.badgeElement.classList.toggle('dot-badge-warning', shouldShowDotBadge && state.dotBadge === 'warning');
 		this.badgeElement.classList.toggle('dot-badge-error', shouldShowDotBadge && state.dotBadge === 'error');
 		this.badgeElement.style.display = shouldShowDotBadge ? '' : 'none';
+	}
+
+	private getAvatarAltText(hasLoadedAvatar: boolean): string {
+		if (hasLoadedAvatar && this.accountProviderId === 'github' && this.accountName) {
+			return localize('accountAvatarAlt', "GitHub profile image for {0}", this.accountName);
+		}
+
+		return localize('accountAvatarAltFallback', "Account profile image");
+	}
+
+	private refreshAvatar(): void {
+		const avatarUrl = getAccountProfileImageUrl(this.accountProviderId, this.accountName);
+		if (avatarUrl === this.currentAvatarUrl) {
+			return;
+		}
+
+		this.currentAvatarUrl = avatarUrl;
+		this.loadedAvatarUrl = undefined;
+		this.avatarLoadDisposable.clear();
+		const requestId = ++this.avatarRequestCounter;
+
+		if (!avatarUrl) {
+			this.renderState();
+			return;
+		}
+
+		const image = new Image();
+		image.referrerPolicy = 'no-referrer';
+		const clearHandlers = () => {
+			image.onload = null;
+			image.onerror = null;
+		};
+		image.onload = () => {
+			if (requestId !== this.avatarRequestCounter) {
+				return;
+			}
+
+			this.loadedAvatarUrl = avatarUrl;
+			this.renderState();
+			clearHandlers();
+		};
+		image.onerror = () => {
+			if (requestId !== this.avatarRequestCounter) {
+				return;
+			}
+
+			this.loadedAvatarUrl = undefined;
+			this.renderState();
+			clearHandlers();
+		};
+		this.avatarLoadDisposable.value = toDisposable(() => {
+			clearHandlers();
+			image.src = '';
+		});
+		image.src = avatarUrl;
+		this.renderState();
 	}
 
 	private getHoverTarget(): { targetElements: HTMLElement[]; x: number } {
