@@ -386,25 +386,23 @@ jobs:
 
       - name: Create macOS x64 archive
         run: |
-          cd ..
-          ditto -c -k --sequesterRsrc --keepParent VSCode-darwin-x64 VSCode-darwin-x64.zip
+          ditto -c -k --sequesterRsrc --keepParent ../VSCode-darwin-x64 .build/VSCode-darwin-x64.zip
 
       - name: Create macOS arm64 archive
         run: |
-          cd ..
-          ditto -c -k --sequesterRsrc --keepParent VSCode-darwin-arm64 VSCode-darwin-arm64.zip
+          ditto -c -k --sequesterRsrc --keepParent ../VSCode-darwin-arm64 .build/VSCode-darwin-arm64.zip
 
       - name: Upload x64 Artifact
         uses: actions/upload-artifact@v4
         with:
           name: vscode-darwin-x64
-          path: ../VSCode-darwin-x64.zip
+          path: .build/VSCode-darwin-x64.zip
 
       - name: Upload arm64 Artifact
         uses: actions/upload-artifact@v4
         with:
           name: vscode-darwin-arm64
-          path: ../VSCode-darwin-arm64.zip
+          path: .build/VSCode-darwin-arm64.zip
 
 
   build-linux:
@@ -503,22 +501,20 @@ jobs:
 
       - name: Create Linux x64 archive
         run: |
-          cd ..
-          tar -czf VSCode-linux-x64.tar.gz VSCode-linux-x64
+          tar -czf .build/VSCode-linux-x64.tar.gz -C .. VSCode-linux-x64
 
       - name: Create Linux arm64 archive
         run: |
-          cd ..
-          tar -czf VSCode-linux-arm64.tar.gz VSCode-linux-arm64
+          tar -czf .build/VSCode-linux-arm64.tar.gz -C .. VSCode-linux-arm64
 
       - name: Upload x64 Artifact
         uses: actions/upload-artifact@v4
         with:
           name: vscode-linux-x64
-          path: ../VSCode-linux-x64.tar.gz
+          path: .build/VSCode-linux-x64.tar.gz
 
       - name: Upload arm64 Artifact
         uses: actions/upload-artifact@v4
         with:
           name: vscode-linux-arm64
-          path: ../VSCode-linux-arm64.tar.gz
+          path: .build/VSCode-linux-arm64.tar.gz

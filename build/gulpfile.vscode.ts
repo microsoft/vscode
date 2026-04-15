@@ -354,7 +354,34 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			return !set.has(platform);
 		}).map(ext => `!.build/extensions/${ext.name}/**`);
 
-		const extensions = gulp.src(['.build/extensions/**', ...platformSpecificBuiltInExtensionsExclusions], { base: '.build', dot: true });
+		// Exclude platform-specific native modules from extensions // test-workbench_change
+		const platformSpecificNativeModuleExclusions: string[] = []; // test-workbench_change
+		if (platform === 'win32') { // test-workbench_change
+			platformSpecificNativeModuleExclusions.push( // test-workbench_change
+				'!.build/extensions/**/node_modules/**/*-darwin/**', // test-workbench_change
+				'!.build/extensions/**/node_modules/**/*-linux/**', // test-workbench_change
+				'!.build/extensions/**/node_modules/**/darwin-*/**', // test-workbench_change
+				'!.build/extensions/**/node_modules/**/linux-*/**', // test-workbench_change
+				'!.build/extensions/**/node_modules/**/x64-darwin/**', // test-workbench_change
+				'!.build/extensions/**/node_modules/**/arm64-darwin/**' // test-workbench_change
+			); // test-workbench_change
+		} else if (platform === 'darwin') { // test-workbench_change
+			platformSpecificNativeModuleExclusions.push( // test-workbench_change
+				'!.build/extensions/**/node_modules/**/*-win32/**', // test-workbench_change
+				'!.build/extensions/**/node_modules/**/*-linux/**', // test-workbench_change
+				'!.build/extensions/**/node_modules/**/win32-*/**', // test-workbench_change
+				'!.build/extensions/**/node_modules/**/linux-*/**' // test-workbench_change
+			); // test-workbench_change
+		} else if (platform === 'linux') { // test-workbench_change
+			platformSpecificNativeModuleExclusions.push( // test-workbench_change
+				'!.build/extensions/**/node_modules/**/*-darwin/**', // test-workbench_change
+				'!.build/extensions/**/node_modules/**/*-win32/**', // test-workbench_change
+				'!.build/extensions/**/node_modules/**/darwin-*/**', // test-workbench_change
+				'!.build/extensions/**/node_modules/**/win32-*/**' // test-workbench_change
+			); // test-workbench_change
+		} // test-workbench_change
+
+		const extensions = gulp.src(['.build/extensions/**', ...platformSpecificBuiltInExtensionsExclusions, ...platformSpecificNativeModuleExclusions], { base: '.build', dot: true });
 
 		const sourceFilterPattern = stripSourceMapsInPackagingTasks
 			? ['**', '!**/*.{js,css}.map']
@@ -670,12 +697,6 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 
 		const patchPromises = deps.map<Promise<unknown>>(async dep => {
 			const basename = path.basename(dep);
-
-			// test-workbench_change start - skip non-Windows binaries
-			if (dep.includes('darwin') || dep.includes('linux')) {
-				return;
-			}
-			// test-workbench_change end
 
 			await rcedit(path.join(cwd, dep), {
 				'file-version': baseVersion,
