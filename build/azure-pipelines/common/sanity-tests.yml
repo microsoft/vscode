@@ -116,7 +116,7 @@ jobs:
         inputs:
           azureSubscription: vscode
           KeyVaultName: vscode-build-secrets
-          SecretsFilter: "sanity-tests-account,sanity-tests-password"
+          SecretsFilter: "sanity-tests-account,sanity-tests-password,vscodehub-registry-username,vscodehub-registry-password"
 
       # Windows
       - ${{ if eq(parameters.os, 'windows') }}:
@@ -147,11 +147,8 @@ jobs:
 
       # Linux Docker container
       - ${{ if ne(parameters.container, '') }}:
-        - task: Docker@2
+        - bash: echo "$(vscodehub-registry-password)" | docker login vscodehub.azurecr.io -u "$(vscodehub-registry-username)" --password-stdin
           displayName: Login to Container Registry
-          inputs:
-            command: login
-            containerRegistry: vscodehub
 
         - bash: |
             $(TEST_DIR)/scripts/run-docker.sh \
