@@ -1115,7 +1115,7 @@ suite('RunInTerminalTool', () => {
 				} as IRunInTerminalInputParams
 			} as IToolInvocationPreparationContext;
 			const result = await toolWithWorkspace.prepareToolInvocation(context, CancellationToken.None);
-			assertConfirmationRequired(result, `Run command in \`bash\` within \`${isWindows ? '\\tmp' : '\\~/tmp'}\`?`);
+			assertConfirmationRequired(result, `Run command in \`bash\` within \`${isWindows ? '\\tmp' : '~/tmp'}\`?`);
 		});
 
 		test('should use withLanguage inDirectory title when presenter returns languageDisplayName with cd prefix', async () => {
@@ -1138,7 +1138,7 @@ suite('RunInTerminalTool', () => {
 				} as IRunInTerminalInputParams
 			} as IToolInvocationPreparationContext;
 			const result = await toolWithWorkspace.prepareToolInvocation(context, CancellationToken.None);
-			assertConfirmationRequired(result, `Run \`Node.js\` command in \`bash\` within \`${isWindows ? '\\tmp' : '\\~/tmp'}\`?`);
+			assertConfirmationRequired(result, `Run \`Node.js\` command in \`bash\` within \`${isWindows ? '\\tmp' : '~/tmp'}\`?`);
 		});
 	});
 

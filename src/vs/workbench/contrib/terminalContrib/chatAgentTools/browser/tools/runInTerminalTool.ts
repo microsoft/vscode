@@ -826,7 +826,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				cdPrefix,
 			};
 
-			confirmationTitle = localize('runInTerminal.inDirectory', "Run `{0}` command within `{1}`?", shellType, escapeMarkdownSyntaxTokens(directoryLabel));
+			confirmationTitle = localize('runInTerminal.inDirectory', "Run `{0}` command within `{1}`?", shellType, directoryLabel);
 		} else {
 			toolSpecificData.confirmation = {
 				commandLine: commandToDisplay,
@@ -847,9 +847,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				};
 				if (extractedCd && toolSpecificData.confirmation?.cwdLabel) {
 					if (presenterResult.languageDisplayName) {
-						confirmationTitle = localize('runInTerminal.presentationOverride.inDirectory', "Run `{0}` command in `{1}` within `{2}`?", presenterResult.languageDisplayName, shellType, escapeMarkdownSyntaxTokens(toolSpecificData.confirmation.cwdLabel));
+						confirmationTitle = localize('runInTerminal.presentationOverride.inDirectory', "Run `{0}` command in `{1}` within `{2}`?", presenterResult.languageDisplayName, shellType, toolSpecificData.confirmation.cwdLabel);
 					} else {
-						confirmationTitle = localize('runInTerminal.presentationOverride.inDirectory.withoutLanguage', "Run command in `{0}` within `{1}`?", shellType, escapeMarkdownSyntaxTokens(toolSpecificData.confirmation.cwdLabel));
+						confirmationTitle = localize('runInTerminal.presentationOverride.inDirectory.withoutLanguage', "Run command in `{0}` within `{1}`?", shellType, toolSpecificData.confirmation.cwdLabel);
 					}
 				} else {
 					if (presenterResult.languageDisplayName) {
