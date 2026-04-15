@@ -145,6 +145,10 @@ jobs:
         shell: pwsh
         run: npm run gulp compile
 
+      - name: Build Windows x64 Application
+        shell: pwsh
+        run: npm run gulp vscode-win32-x64
+
       - name: Build Windows x64 User Setup
         shell: pwsh
         run: npm run gulp vscode-win32-x64-user-setup
@@ -260,6 +264,10 @@ jobs:
       - name: Compile
         shell: pwsh
         run: npm run gulp compile
+
+      - name: Build Windows arm64 Application
+        shell: pwsh
+        run: npm run gulp vscode-win32-arm64
 
       - name: Build Windows arm64 User Setup
         shell: pwsh
