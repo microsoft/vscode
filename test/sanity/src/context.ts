@@ -1002,19 +1002,15 @@ export class TestContext {
 				// Desktop entry point: <dir>/<App>.app/Contents/MacOS/<Binary>
 				// Agents app: <dir>/<App>.app/Contents/Applications/<Agents>.app
 				const contentsDir = path.dirname(path.dirname(desktopEntryPoint));
-				let appName: string;
-				switch (this.options.quality) {
-					case 'stable':
-						appName = 'Agents.app';
-						break;
-					case 'insider':
-						appName = 'Agents - Insiders.app';
-						break;
-					case 'exploration':
-						appName = 'Agents - Exploration.app';
-						break;
+				const applicationsDir = path.join(contentsDir, 'Applications');
+				if (!fs.existsSync(applicationsDir)) {
+					this.error(`Agents Applications directory does not exist: ${applicationsDir}`);
 				}
-				filePath = path.join(contentsDir, 'Applications', appName);
+				const embeddedApp = fs.readdirSync(applicationsDir).find(f => f.endsWith('.app'));
+				if (!embeddedApp) {
+					this.error(`No embedded .app found in: ${applicationsDir}`);
+				}
+				filePath = path.join(applicationsDir, embeddedApp);
 				break;
 			}
 			case 'win32': {
