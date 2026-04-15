@@ -84,6 +84,7 @@ function callBuild(
 		anonymous?: boolean;
 		showUnavailableFeatured?: boolean;
 		showFeatured?: boolean;
+		newModelIds?: ReadonlySet<string>;
 	} = {},
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const onSelect = () => { };
@@ -107,6 +108,7 @@ function callBuild(
 		opts.showFeatured ?? true,
 		undefined,
 		stubLanguageModelsService,
+		opts.newModelIds,
 	);
 }
 
@@ -731,5 +733,21 @@ suite('buildModelPickerItems', () => {
 		// It should still appear in Other Models since it was not placed
 		const otherGpt = actions.find(a => a.label === 'GPT-4o' && a.section === 'other');
 		assert.ok(otherGpt, 'Version-gated featured model should appear in Other Models when showUnavailableFeatured=false');
+	});
+
+	test('unavailable featured model shows New badge when in newModelIds', () => {
+		const auto = createAutoModel();
+		const items = callBuild([auto], {
+			controlModels: {
+				'claude-opus-4.6': { label: 'Claude Opus 4.6', featured: true, exists: false },
+			},
+			entitlement: ChatEntitlement.Free,
+			newModelIds: new Set(['copilot/claude-opus-4.6']),
+		});
+		const actions = getActionItems(items);
+		const opusItem = actions.find(a => a.label === 'Claude Opus 4.6');
+		assert.ok(opusItem, 'Unavailable featured model should appear');
+		assert.ok(opusItem.disabled, 'Unavailable featured model should be disabled');
+		assert.ok(opusItem.badge, 'Unavailable featured model should have a New badge when in newModelIds');
 	});
 });

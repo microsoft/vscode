@@ -114,4 +114,11 @@ export class NullLanguageModelsService implements ILanguageModelsService {
 	}
 
 	restrictedChatParticipants = observableValue('restrictedChatParticipants', Object.create(null));
+
+	onDidChangeNewModels = Event.None;
+	getNewModelIds(): readonly string[] { return []; }
+	markModelsAsSeen(): void { }
+	refreshNewModels(): void { }
+	simulateNewModel(): string | undefined { return undefined; }
+	getModelNameFromManifest(): string | undefined { return undefined; }
 }

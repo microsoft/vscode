@@ -11,6 +11,7 @@ import { MenuRegistry } from '../../../../platform/actions/common/actions.js';
 import { ProductQualityContext } from '../../../../platform/contextkey/common/contextkeys.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { ChatConfiguration, ChatModeKind } from '../common/constants.js';
+import { ILanguageModelsService } from '../common/languageModels.js';
 import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
 import { localChatSessionType } from '../common/chatSessionsService.js';
 import { ITipExclusionConfig } from './chatTipEligibilityTracker.js';
@@ -37,6 +38,10 @@ export interface ITipBuildContext {
 	 * Keybinding service for looking up keyboard shortcuts.
 	 */
 	readonly keybindingService: IKeybindingService;
+	/**
+	 * Language models service for looking up model metadata.
+	 */
+	readonly languageModelsService: ILanguageModelsService;
 }
 
 /**
@@ -108,9 +113,21 @@ export interface ITipDefinition extends ITipExclusionConfig {
 	 */
 	readonly excludeWhenSettingsChanged?: readonly string[];
 	/**
-	 * Command IDs that dismiss this tip when clicked from the tip markdown.
+	 * Command IDs that dismiss this tip when clicked from the tip markdown or action button.
 	 */
 	readonly dismissWhenCommandsClicked?: readonly string[];
+	/**
+	 * Optional action button rendered alongside the tip text.
+	 * Renders as a proper button widget instead of a markdown link.
+	 */
+	readonly actionButton?: {
+		readonly label: string;
+		readonly commandId: string;
+	};
+	/**
+	 * When true, the "Tip:" prefix is not prepended to the message.
+	 */
+	readonly noPrefix?: boolean;
 }
 
 // -----------------------------------------------------------------------------
@@ -411,6 +428,41 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 		},
 		when: ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
 		excludeWhenToolsInvoked: ['listDebugEvents'],
+	},
+	{
+		id: 'tip.tryNewModel',
+		tier: ChatTipTier.Foundational,
+		priority: 5,
+		buildMessage(ctx) {
+			const newModelIds = ctx.languageModelsService.getNewModelIds();
+			if (newModelIds.length > 0) {
+				const modelId = newModelIds[0];
+				const meta = ctx.languageModelsService.lookupLanguageModel(modelId);
+				const name = meta?.name ?? ctx.languageModelsService.getModelNameFromManifest(modelId);
+				if (name) {
+					return new MarkdownString(
+						localize(
+							'tip.tryNewModelNamed',
+							"{0} is now available!",
+							name,
+						)
+					);
+				}
+			}
+			return new MarkdownString(
+				localize(
+					'tip.tryNewModel',
+					"A new model is now available!"
+				)
+			);
+		},
+		when: ChatContextKeys.hasNewModels.isEqualTo(true),
+		dismissWhenCommandsClicked: ['workbench.action.chat.tryNewModel'],
+		actionButton: {
+			label: localize('tip.tryNewModel.button', "Try It"),
+			commandId: 'workbench.action.chat.tryNewModel',
+		},
+		noPrefix: true,
 	},
 	{
 		id: 'tip.openAgentsWindow',

@@ -84,3 +84,14 @@
 .chat-getting-started-tip-container .chat-tip-widget .rendered-markdown p {
 	margin: 0;
 }
+
+.chat-getting-started-tip-container .chat-tip-widget .chat-tip-action-button {
+	margin-left: auto;
+}
+
+.chat-getting-started-tip-container .chat-tip-widget .chat-tip-action-button .monaco-button {
+	padding: 2px 8px;
+	font-size: var(--vscode-chat-font-size-body-s);
+	white-space: nowrap;
+	flex-shrink: 0;
+}
