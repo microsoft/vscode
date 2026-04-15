@@ -148,13 +148,11 @@ jobs:
 
       # Linux Docker container
       - ${{ if ne(parameters.container, '') }}:
-        - task: AzureCLI@2
+        - task: Docker@2
           displayName: Login to Container Registry
           inputs:
-            azureSubscription: vscode
-            scriptType: bash
-            scriptLocation: inlineScript
-            inlineScript: az acr login --name vscodehub
+            command: login
+            containerRegistry: vscodehub
 
         - bash: |
             $(TEST_DIR)/scripts/run-docker.sh \
