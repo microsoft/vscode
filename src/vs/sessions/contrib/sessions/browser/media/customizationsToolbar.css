@@ -133,4 +133,5 @@
 
 .ai-customization-toolbar.collapsed .ai-customization-toolbar-content {
 	max-height: 0;
+	padding-bottom: 0;
 }

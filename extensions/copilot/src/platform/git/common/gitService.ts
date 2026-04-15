@@ -15,6 +15,7 @@ import { Branch, Change, CommitOptions, CommitShortStat, DiffChange, Ref, RefQue
 export interface RepoContext {
 	readonly rootUri: URI;
 	readonly kind: RepositoryKind;
+	readonly isUsingVirtualFileSystem: boolean;
 	readonly headIncomingChanges: number | undefined;
 	readonly headOutgoingChanges: number | undefined;
 	readonly headBranchName: string | undefined;

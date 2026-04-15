@@ -37,7 +37,6 @@ import { Menus } from '../../../browser/menus.js';
 import { INonSessionTaskEntry, ISessionsConfigurationService, ISessionTaskWithTarget, ITaskEntry, TaskStorageTarget } from './sessionsConfigurationService.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IRunScriptCustomTaskWidgetResult, RunScriptCustomTaskWidget } from './runScriptCustomTaskWidget.js';
-import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 
 
 // Menu IDs - exported for use in auxiliary bar part
@@ -668,7 +667,6 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 				tooltip: '',
 				hover: {
 					content: localize('runActionTooltip', "Run '{0}' in terminal", getTaskDisplayLabel(task)),
-					position: { hoverPosition: HoverPosition.LEFT }
 				},
 				icon: Codicon.play,
 				enabled: true,
@@ -691,7 +689,6 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 				content: canConfigure
 					? localize('addActionTooltip', "Add a new task")
 					: localize('addActionTooltipDisabled', "Cannot add tasks to this session because workspace storage is unavailable"),
-				position: { hoverPosition: HoverPosition.LEFT }
 			},
 			icon: Codicon.add,
 			enabled: canConfigure,
@@ -713,7 +710,6 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 			tooltip: '',
 			hover: {
 				content: localize('generateRunActionTooltip', "Generate a new workspace task"),
-				position: { hoverPosition: HoverPosition.LEFT },
 			},
 			icon: Codicon.sparkle,
 			enabled: true,

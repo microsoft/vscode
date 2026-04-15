@@ -187,6 +187,11 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 	) {
 		super();
 		this._register(this.terminalIntegration);
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ConfigKey.Advanced.CLIShowExternalSessions.fullyQualifiedId)) {
+				this._onDidChangeChatSessionItems.fire();
+			}
+		}));
 
 		// Resolve session dirs for terminal links. See resolveSessionDirsForTerminal.
 		this.terminalIntegration.setSessionDirResolver(terminal =>
@@ -218,12 +223,13 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 	}
 
 	public async provideChatSessionItems(token: vscode.CancellationToken): Promise<vscode.ChatSessionItem[]> {
+		const stopwatch = new StopWatch();
 		const sessions = await this.copilotcliSessionService.getAllSessions(token);
 		const diskSessions = await Promise.all(sessions.map(async session => this.toChatSessionItem(session)));
 
 		const count = diskSessions.length;
-		this.commandExecutionService.executeCommand('setContext', 'github.copilot.chat.cliSessionsEmpty', count === 0);
-
+		void this.commandExecutionService.executeCommand('setContext', 'github.copilot.chat.cliSessionsEmpty', count === 0);
+		this.logService.info(`[CopilotCLIChatSessionContentProvider] listSessions took ${stopwatch.elapsed()}ms`);
 		return diskSessions;
 	}
 
@@ -266,14 +272,14 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 		}
 
 		// Statistics (only returned for trusted workspace/worktree folders)
-		const changes: vscode.ChatSessionChangedFile2[] = [];
+		const changes: vscode.ChatSessionChangedFile[] = [];
 		if (worktreeProperties?.repositoryPath && await vscode.workspace.isResourceTrusted(vscode.Uri.file(worktreeProperties.repositoryPath))) {
 			// Worktree
 			changes.push(...(await this.worktreeManager.getWorktreeChanges(session.id) ?? []));
 		} else if (workingDirectory && await vscode.workspace.isResourceTrusted(workingDirectory)) {
 			// Workspace
 			const workspaceChanges = await this.workspaceFolderService.getWorkspaceChanges(session.id) ?? [];
-			changes.push(...workspaceChanges.map(change => new vscode.ChatSessionChangedFile2(
+			changes.push(...workspaceChanges.map(change => new vscode.ChatSessionChangedFile(
 				vscode.Uri.file(change.filePath),
 				change.originalFilePath
 					? toGitUri(vscode.Uri.file(change.originalFilePath), 'HEAD')
@@ -734,7 +740,7 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 
 	private async forkSession(sessionId: string, requestId: string | undefined, token: CancellationToken): Promise<vscode.ChatSessionItem> {
 		const folderInfo = await this.folderRepositoryManager.getFolderRepository(sessionId, undefined, token);
-		const forkedSessionId = await this.sessionService.forkSessionV1({ sessionId, requestId, workspace: folderInfo }, token);
+		const forkedSessionId = await this.sessionService.forkSession({ sessionId, requestId, workspace: folderInfo }, token);
 
 		const items = await this.sessionItemProvider.provideChatSessionItems(token);
 		const forkedSessionUri = SessionIdForCLI.getResource(forkedSessionId);
@@ -755,7 +761,7 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 				throw error;
 			}
 
-			const partialHistory = await this.sessionService.tryGetPartialSesionHistory(sessionId);
+			const partialHistory = await this.sessionService.tryGetPartialSessionHistory(sessionId);
 			if (partialHistory) {
 				_invalidCopilotCLISessionIdsWithErrorMessage.set(sessionId, error.message || String(error));
 				return partialHistory;
@@ -1293,7 +1299,11 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 						},
 						isUntitled: false,
 						initialSessionOptions: undefined,
-						inputState: undefined as unknown as vscode.ChatSessionInputState
+						inputState: {
+							groups: [],
+							sessionResource: undefined,
+							onDidChange: Event.None
+						}
 					};
 					context = {
 						chatSessionContext,

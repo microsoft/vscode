@@ -105,8 +105,13 @@ jobs:
           name: screenshots
           path: test/componentFixtures/.screenshots/current/
 
+      - name: Skip notice (fork PR)
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+        run: echo "::notice::Skipping screenshot upload and diff — OIDC is not available for fork PRs"
+
       - name: Get OIDC token
         id: oidc
+        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
         run: |
           TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
             "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https://hediet-screenshots.azurewebsites.net" \
@@ -115,6 +120,7 @@ jobs:
           echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
 
       - name: Upload screenshots to service
+        if: steps.oidc.outputs.token
         run: |
           cd test/componentFixtures/.screenshots/current
           zip -qr "$GITHUB_WORKSPACE/screenshots.zip" .
@@ -127,7 +133,7 @@ jobs:
 
       - name: Diff screenshots against merge base
         id: diff
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && steps.oidc.outputs.token
         run: |
           BODY=$(node build/lib/screenshotDiffReport.ts \
             https://hediet-screenshots.azurewebsites.net \

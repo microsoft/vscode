@@ -14,19 +14,19 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { AgentSession, IAgentHostService, type IAgentSessionMetadata } from '../../../../../platform/agentHost/common/agentService.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import type { ISessionAction, ITerminalAction } from '../../../../../platform/agentHost/common/state/protocol/action-origin.generated.js';
+import type { IResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { NotificationType } from '../../../../../platform/agentHost/common/state/protocol/notifications.js';
 import type { IAgentInfo, IRootState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { SessionStatus as ProtocolSessionStatus } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { ActionType, type IActionEnvelope, type INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
-import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
-import { IChatService, type ChatSendResult } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
+import { IChatWidget, IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
+import { IChatService, type ChatSendResult, type IChatSendRequestOptions } from '../../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/common/languageModels.js';
 import { ISessionChangeEvent } from '../../../../services/sessions/common/sessionsProvider.js';
-
-import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { SessionStatus } from '../../../../services/sessions/common/session.js';
 import { LocalAgentHostSessionsProvider } from '../../browser/localAgentHostSessionsProvider.js';
 
 // ---- Mock IAgentHostService -------------------------------------------------
@@ -46,6 +46,8 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	private readonly _sessions = new Map<string, IAgentSessionMetadata>();
 	public disposedSessions: URI[] = [];
 	public dispatchedActions: { action: ISessionAction | ITerminalAction; clientId: string; clientSeq: number }[] = [];
+	public failResolveSessionConfig = false;
+	public resolveSessionConfigResult: IResolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } };
 
 	private _nextSeq = 0;
 
@@ -73,6 +75,14 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		this.disposedSessions.push(session);
 		const rawId = AgentSession.id(session);
 		this._sessions.delete(rawId);
+	}
+
+	override async resolveSessionConfig(): Promise<IResolveSessionConfigResult> {
+		await Promise.resolve();
+		if (this.failResolveSessionConfig) {
+			throw new Error('resolveSessionConfig unavailable');
+		}
+		return this.resolveSessionConfigResult;
 	}
 
 	dispatchAction(action: ISessionAction | ITerminalAction, clientId: string, clientSeq: number): void {
@@ -118,12 +128,13 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 // ---- Test helpers -----------------------------------------------------------
 
-function createSession(id: string, opts?: { provider?: string; summary?: string; project?: { uri: URI; displayName: string }; workingDirectory?: URI; startTime?: number; modifiedTime?: number }): IAgentSessionMetadata {
+function createSession(id: string, opts?: { provider?: string; summary?: string; model?: string; project?: { uri: URI; displayName: string }; workingDirectory?: URI; startTime?: number; modifiedTime?: number }): IAgentSessionMetadata {
 	return {
 		session: AgentSession.uri(opts?.provider ?? 'copilot', id),
 		startTime: opts?.startTime ?? 1000,
 		modifiedTime: opts?.modifiedTime ?? 2000,
 		summary: opts?.summary,
+		model: opts?.model,
 		project: opts?.project,
 		workingDirectory: opts?.workingDirectory,
 	};
@@ -131,7 +142,7 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 
 function createProvider(disposables: DisposableStore, agentHostService: MockAgentHostService, contributions = [
 	{ type: 'agent-host-copilot', name: 'copilot', displayName: 'Copilot', description: 'test', icon: undefined },
-]): LocalAgentHostSessionsProvider {
+], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean }): LocalAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	instantiationService.stub(IAgentHostService, agentHostService);
@@ -143,10 +154,10 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 	});
 	instantiationService.stub(IChatService, {
 		acquireOrLoadSession: async () => undefined,
-		sendRequest: async (): Promise<ChatSendResult> => ({ kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never }),
+		sendRequest: options?.sendRequest ?? (async (): Promise<ChatSendResult> => ({ kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never })),
 	});
 	instantiationService.stub(IChatWidgetService, {
-		openSession: async () => undefined,
+		openSession: async () => options?.openSession ? new class extends mock<IChatWidget>() { }() : undefined,
 	});
 	instantiationService.stub(ILanguageModelsService, {
 		lookupLanguageModel: () => undefined,
@@ -155,7 +166,22 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 	return disposables.add(instantiationService.createInstance(LocalAgentHostSessionsProvider));
 }
 
-function fireSessionAdded(agentHost: MockAgentHostService, rawId: string, opts?: { provider?: string; title?: string; project?: { uri: string; displayName: string }; workingDirectory?: string }): void {
+async function waitForSessionConfig(provider: LocalAgentHostSessionsProvider, sessionId: string, predicate: (config: IResolveSessionConfigResult | undefined) => boolean): Promise<void> {
+	if (predicate(provider.getSessionConfig(sessionId))) {
+		return;
+	}
+
+	await new Promise<void>(resolve => {
+		const disposable = provider.onDidChangeSessionConfig(changedSessionId => {
+			if (changedSessionId === sessionId && predicate(provider.getSessionConfig(sessionId))) {
+				disposable.dispose();
+				resolve();
+			}
+		});
+	});
+}
+
+function fireSessionAdded(agentHost: MockAgentHostService, rawId: string, opts?: { provider?: string; title?: string; model?: string; project?: { uri: string; displayName: string }; workingDirectory?: string }): void {
 	const provider = opts?.provider ?? 'copilot';
 	const sessionUri = AgentSession.uri(provider, rawId);
 	agentHost.fireNotification({
@@ -167,6 +193,7 @@ function fireSessionAdded(agentHost: MockAgentHostService, rawId: string, opts?:
 			status: ProtocolSessionStatus.Idle,
 			createdAt: Date.now(),
 			modifiedAt: Date.now(),
+			model: opts?.model,
 			project: opts?.project,
 			workingDirectory: opts?.workingDirectory,
 		},
@@ -389,95 +416,70 @@ suite('LocalAgentHostSessionsProvider', () => {
 		});
 	}));
 
+	test('uses model metadata as selected model for listed sessions', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('model-1', { summary: 'Model Session', model: 'claude-sonnet-4.5' }));
+
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+
+		const session = provider.getSessions().find(s => s.title.get() === 'Model Session');
+		assert.strictEqual(session?.modelId.get(), 'agent-host-copilot:claude-sonnet-4.5');
+	}));
+
+	test('uses model metadata from session added notification', () => {
+		const provider = createProvider(disposables, agentHost);
+		fireSessionAdded(agentHost, 'notif-model', { title: 'Notif Model Session', model: 'gpt-5' });
+
+		const session = provider.getSessions().find(s => s.title.get() === 'Notif Model Session');
+		assert.strictEqual(session?.modelId.get(), 'agent-host-copilot:gpt-5');
+	});
+
+	test('setModel updates existing session model and dispatches raw model', () => {
+		const provider = createProvider(disposables, agentHost);
+		fireSessionAdded(agentHost, 'set-model', { title: 'Set Model Session', model: 'old-model' });
+
+		const session = provider.getSessions().find(s => s.title.get() === 'Set Model Session');
+		assert.ok(session);
+
+		provider.setModel(session!.sessionId, 'agent-host-copilot:new-model');
+
+		assert.strictEqual(session!.modelId.get(), 'agent-host-copilot:new-model');
+		assert.deepStrictEqual(agentHost.dispatchedActions.at(-1)?.action, {
+			type: ActionType.SessionModelChanged,
+			session: AgentSession.uri('copilot', 'set-model').toString(),
+			model: 'new-model',
+		});
+	});
+
 	// ---- Session lifecycle -------
 
 	test('createNewSession returns session with correct fields', () => {
 		const provider = createProvider(disposables, agentHost);
-		const workspace = {
-			label: 'my-project',
-			icon: { id: 'folder' },
-			repositories: [{ uri: URI.parse('file:///home/user/project'), workingDirectory: undefined, detail: undefined, baseBranchName: undefined, baseBranchProtected: undefined }],
-			requiresWorkspaceTrust: true,
-		};
-
-		const session = provider.createNewSession(workspace);
+		const workspaceUri = URI.parse('file:///home/user/my-project');
+		const session = provider.createNewSession(workspaceUri, provider.sessionTypes[0].id);
 
 		assert.strictEqual(session.providerId, provider.id);
 		assert.strictEqual(session.status.get(), SessionStatus.Untitled);
 		assert.ok(session.workspace.get());
 		assert.strictEqual(session.workspace.get()?.label, 'my-project');
 		assert.strictEqual(session.sessionType, provider.sessionTypes[0].id);
+		assert.deepStrictEqual(provider.getSessionConfig(session.sessionId), { schema: { type: 'object', properties: {} }, values: {} });
 	});
 
-	test('setSessionType rebuilds the pending new session with the selected local agent type', () => {
-		agentHost.setAgents([
-			{ provider: 'copilot', displayName: 'Copilot', description: '', models: [] } as IAgentInfo,
-			{ provider: 'openai', displayName: 'OpenAI', description: '', models: [] } as IAgentInfo,
-		]);
+	test('createNewSession clears session config when resolving config is unavailable', async () => {
+		agentHost.failResolveSessionConfig = true;
 		const provider = createProvider(disposables, agentHost);
-		const workspace = {
-			label: 'my-project',
-			icon: { id: 'folder' },
-			repositories: [{ uri: URI.parse('file:///home/user/project'), workingDirectory: undefined, detail: undefined, baseBranchName: undefined, baseBranchProtected: undefined }],
-			requiresWorkspaceTrust: true,
-		};
-		const pending = provider.createNewSession(workspace);
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await waitForSessionConfig(provider, session.sessionId, config => config === undefined);
 
-		const replacements: { from: ISession; to: ISession }[] = [];
-		disposables.add(provider.onDidReplaceSession(e => replacements.push(e)));
-
-		const openaiType = provider.sessionTypes.find(t => t.id === 'agent-host-openai');
-		assert.ok(openaiType);
-
-		const updated = provider.setSessionType(pending.sessionId, openaiType!);
-		assert.strictEqual(updated.sessionType, 'agent-host-openai');
-		assert.strictEqual(updated.resource.scheme, 'agent-host-openai');
-		assert.notStrictEqual(updated.sessionId, pending.sessionId);
-		assert.strictEqual(updated.workspace.get()?.label, 'my-project');
-
-		assert.strictEqual(replacements.length, 1);
-		assert.strictEqual(replacements[0].from.sessionId, pending.sessionId);
-		assert.strictEqual(replacements[0].to.sessionId, updated.sessionId);
-	});
-
-	test('setSessionType accepts contribution-backed types before rootState is hydrated', () => {
-		agentHost.clearRootState();
-		const provider = createProvider(disposables, agentHost, [
-			{ type: 'agent-host-openai', name: 'openai', displayName: 'OpenAI', description: 'test', icon: undefined },
-			{ type: 'agent-host-anthropic', name: 'anthropic', displayName: 'Anthropic', description: 'test', icon: undefined },
-		]);
-		const workspace = {
-			label: 'my-project',
-			icon: { id: 'folder' },
-			repositories: [{ uri: URI.parse('file:///home/user/project'), workingDirectory: undefined, detail: undefined, baseBranchName: undefined, baseBranchProtected: undefined }],
-			requiresWorkspaceTrust: true,
-		};
-		const pending = provider.createNewSession(workspace);
-		const anthropicType = provider.sessionTypes.find(t => t.id === 'agent-host-anthropic');
-		assert.ok(anthropicType);
-
-		const updated = provider.setSessionType(pending.sessionId, anthropicType!);
-		assert.strictEqual(updated.sessionType, 'agent-host-anthropic');
-		assert.strictEqual(updated.resource.scheme, 'agent-host-anthropic');
-	});
-
-	test('setSessionType throws for existing sessions', () => {
-		const provider = createProvider(disposables, agentHost);
-		fireSessionAdded(agentHost, 'existing-sess', { title: 'Existing' });
-		const existing = provider.getSessions().find(s => s.title.get() === 'Existing');
-		assert.ok(existing);
-		assert.throws(() => provider.setSessionType(existing!.sessionId, provider.sessionTypes[0]));
+		assert.strictEqual(provider.getSessionConfig(session.sessionId), undefined);
 	});
 
 	test('getSessionByResource resolves current new session without listing it', () => {
 		const provider = createProvider(disposables, agentHost);
-		const workspace = {
-			label: 'my-project',
-			icon: { id: 'folder' },
-			repositories: [{ uri: URI.parse('file:///home/user/project'), workingDirectory: undefined, detail: undefined, baseBranchName: undefined, baseBranchProtected: undefined }],
-			requiresWorkspaceTrust: true,
-		};
-		const session = provider.createNewSession(workspace);
+		const workspaceUri = URI.parse('file:///home/user/my-project');
+		const session = provider.createNewSession(workspaceUri, provider.sessionTypes[0].id);
 		const resolved = provider.getSessionByResource(session.resource);
 
 		assert.deepStrictEqual({
@@ -489,13 +491,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 			resolvedResource: session.resource.toString(),
 			resolvedWorkspaceLabel: 'my-project',
 		});
-	});
-
-	test('createNewSession throws when no repository URI', () => {
-		const provider = createProvider(disposables, agentHost);
-		const workspace = { label: 'empty', icon: { id: 'folder' }, repositories: [], requiresWorkspaceTrust: false };
-
-		assert.throws(() => provider.createNewSession(workspace), /Workspace has no repository URI/);
 	});
 
 	// ---- Session actions -------
@@ -515,19 +510,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(AgentSession.provider(disposedUri), 'copilot');
 		assert.strictEqual(AgentSession.id(disposedUri), 'del-sess');
 		assert.strictEqual(provider.getSessions().find(s => s.title.get() === 'To Delete'), undefined);
-	});
-
-	test('setRead toggles read state locally', () => {
-		const provider = createProvider(disposables, agentHost);
-		fireSessionAdded(agentHost, 'read-sess', { title: 'Read Test' });
-
-		const sessions = provider.getSessions();
-		const target = sessions.find(s => s.title.get() === 'Read Test');
-		assert.ok(target);
-
-		assert.strictEqual(target!.isRead.get(), true);
-		provider.setRead(target!.sessionId, false);
-		assert.strictEqual(target!.isRead.get(), false);
 	});
 
 	// ---- Rename -------
@@ -599,6 +581,31 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(changes[0].changed.length, 1);
 	});
 
+	test('server-echoed SessionModelChanged updates cached model', () => {
+		const provider = createProvider(disposables, agentHost);
+		fireSessionAdded(agentHost, 'model-change', { title: 'Model Change', model: 'old-model' });
+
+		const target = provider.getSessions().find(s => s.title.get() === 'Model Change');
+		assert.ok(target);
+
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
+
+		agentHost.fireAction({
+			action: {
+				type: ActionType.SessionModelChanged,
+				session: AgentSession.uri('copilot', 'model-change').toString(),
+				model: 'new-model',
+			},
+			serverSeq: 1,
+			origin: undefined,
+		} as IActionEnvelope);
+
+		assert.strictEqual(target!.modelId.get(), 'agent-host-copilot:new-model');
+		assert.strictEqual(changes.length, 1);
+		assert.strictEqual(changes[0].changed.length, 1);
+	});
+
 	// ---- Refresh on turnComplete -------
 
 	test('turnComplete action triggers session refresh', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -629,55 +636,6 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const updatedSession = provider.getSessions().find(s => s.title.get() === 'After');
 		assert.ok(updatedSession);
 	}));
-
-	// ---- getSessionTypes -------
-
-	test('getSessionTypes returns available types', () => {
-		const provider = createProvider(disposables, agentHost);
-		const types = provider.getSessionTypes('any-id');
-
-		assert.strictEqual(types.length, 1);
-		assert.strictEqual(types[0].id, 'agent-host-copilot');
-		assert.strictEqual(types[0].label, 'Copilot [Local]');
-	});
-
-	test('getSessionTypes returns all types for pending new session, only current type for existing sessions', () => {
-		agentHost.setAgents([
-			{ provider: 'copilot', displayName: 'Copilot', description: '', models: [] } as IAgentInfo,
-			{ provider: 'openai', displayName: 'OpenAI', description: '', models: [] } as IAgentInfo,
-		]);
-		const provider = createProvider(disposables, agentHost);
-		const workspace = {
-			label: 'my-project',
-			icon: { id: 'folder' },
-			repositories: [{ uri: URI.parse('file:///home/user/project'), workingDirectory: undefined, detail: undefined, baseBranchName: undefined, baseBranchProtected: undefined }],
-			requiresWorkspaceTrust: true,
-		};
-		const pending = provider.createNewSession(workspace);
-		assert.strictEqual(provider.getSessionTypes(pending.sessionId).length, 2);
-
-		fireSessionAdded(agentHost, 'existing-openai', { provider: 'openai', title: 'Existing OpenAI' });
-		const existing = provider.getSessions().find(s => s.title.get() === 'Existing OpenAI');
-		assert.ok(existing);
-
-		const existingTypes = provider.getSessionTypes(existing!.sessionId);
-		assert.deepStrictEqual(existingTypes.map(t => ({ id: t.id, label: t.label })), [
-			{ id: 'agent-host-openai', label: 'OpenAI [Local]' },
-		]);
-	});
-
-	test('getSessionTypes synthesizes a stable type for existing sessions whose agent is no longer advertised', () => {
-		const provider = createProvider(disposables, agentHost, []);
-		fireSessionAdded(agentHost, 'existing-openai', { provider: 'openai', title: 'Existing OpenAI' });
-		agentHost.setAgents([]);
-
-		const existing = provider.getSessions().find(s => s.title.get() === 'Existing OpenAI');
-		assert.ok(existing);
-
-		assert.deepStrictEqual(provider.getSessionTypes(existing!.sessionId).map(t => ({ id: t.id, label: t.label })), [
-			{ id: 'agent-host-openai', label: 'openai [Local]' },
-		]);
-	});
 
 	// ---- Session data adapter -------
 
@@ -723,6 +681,18 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(session.title.get(), 'Session abcdef12');
 	}));
 
+	test('new session stays loading when required config is missing', async () => {
+		agentHost.resolveSessionConfigResult = {
+			schema: { type: 'object', required: ['branch'], properties: { branch: { type: 'string', title: 'Branch', enum: ['main'] } } },
+			values: {},
+		};
+		const provider = createProvider(disposables, agentHost);
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.schema.required?.includes('branch') === true);
+
+		assert.strictEqual(session.loading.get(), true);
+	});
+
 	// ---- sendAndCreateChat -------
 
 	test('sendAndCreateChat throws for unknown session', async () => {
@@ -731,5 +701,25 @@ suite('LocalAgentHostSessionsProvider', () => {
 			() => provider.sendAndCreateChat('nonexistent', { query: 'test' }),
 			/not found or not a new session/,
 		);
+	});
+
+	test('sendAndCreateChat forwards resolved session config to chat service', async () => {
+		const sendOptions: IChatSendRequestOptions[] = [];
+		const provider = createProvider(disposables, agentHost, undefined, {
+			openSession: true,
+			sendRequest: async (_resource, _message, options): Promise<ChatSendResult> => {
+				if (options) {
+					sendOptions.push(options);
+				}
+				agentHost.addSession(createSession('created-from-send', { summary: 'Created From Send' }));
+				return { kind: 'sent' as const, data: {} as ChatSendResult extends { kind: 'sent'; data: infer D } ? D : never };
+			},
+		});
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.isolation === 'worktree');
+
+		await provider.sendAndCreateChat(session.sessionId, { query: 'hello' });
+
+		assert.deepStrictEqual(sendOptions.map(options => options.agentHostSessionConfig), [{ isolation: 'worktree' }]);
 	});
 });

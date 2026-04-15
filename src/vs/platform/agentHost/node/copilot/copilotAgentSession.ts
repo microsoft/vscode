@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { PermissionRequest, PermissionRequestResult } from '@github/copilot-sdk';
+import type { PermissionRequest, PermissionRequestResult, Tool, ToolResultObject } from '@github/copilot-sdk';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -15,12 +15,24 @@ import { ILogService } from '../../../log/common/log.js';
 import { localize } from '../../../../nls.js';
 import { IAgentAttachment, IAgentMessageEvent, IAgentProgressEvent, IAgentSubagentStartedEvent, IAgentToolCompleteEvent, IAgentToolStartEvent } from '../../common/agentService.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
-import { SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolResultContentType, type ISessionInputAnswer, type ISessionInputRequest, type IPendingMessage, type IToolResultContent } from '../../common/state/sessionState.js';
+import { SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolResultContentType, type ISessionInputAnswer, type ISessionInputRequest, type IPendingMessage, type IToolCallResult, type IToolResultContent } from '../../common/state/sessionState.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import { getEditFilePath, getInvocationMessage, getPastTenseMessage, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isShellTool } from './copilotToolDisplay.js';
 import { FileEditTracker } from './fileEditTracker.js';
 import { mapSessionEvents } from './mapSessionEvents.js';
 import type { ShellManager } from './copilotShellTools.js';
+import type { IToolDefinition } from '../../common/state/protocol/state.js';
+import type { IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
+
+/**
+ * Immutable snapshot of the active client's contributions at session creation
+ * time. Used to detect when the session needs to be refreshed.
+ */
+export interface IActiveClientSnapshot {
+	readonly clientId: string;
+	readonly tools: readonly IToolDefinition[];
+	readonly plugins: readonly IParsedPlugin[];
+}
 
 /**
  * Factory function that produces a {@link CopilotSessionWrapper}.
@@ -38,6 +50,8 @@ export type SessionWrapperFactory = (callbacks: {
 		readonly onPreToolUse: (input: { toolName: string; toolArgs: unknown }) => Promise<void>;
 		readonly onPostToolUse: (input: { toolName: string; toolArgs: unknown }) => Promise<void>;
 	};
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	readonly clientTools: Tool<any>[];
 }) => Promise<CopilotSessionWrapper>;
 
 /** Matches the SDK's `UserInputRequest` which is not re-exported from the package entry point. */
@@ -140,6 +154,20 @@ function getPermissionDisplay(request: { kind: string;[key: string]: unknown }):
 }
 
 /**
+ * Options for constructing a {@link CopilotAgentSession}.
+ */
+export interface ICopilotAgentSessionOptions {
+	readonly sessionUri: URI;
+	readonly rawSessionId: string;
+	readonly workingDirectory: URI | undefined;
+	readonly onDidSessionProgress: Emitter<IAgentProgressEvent>;
+	readonly wrapperFactory: SessionWrapperFactory;
+	readonly shellManager: ShellManager | undefined;
+	/** Snapshot of the active client's tools and plugins at session creation time. */
+	readonly clientSnapshot?: IActiveClientSnapshot;
+}
+
+/**
  * Encapsulates a single Copilot SDK session and all its associated bookkeeping.
  *
  * Created by {@link CopilotAgent}, one instance per active session. Disposing
@@ -166,31 +194,114 @@ export class CopilotAgentSession extends Disposable {
 	private _wrapper!: CopilotSessionWrapper;
 
 	private readonly _workingDirectory: URI | undefined;
+	/** Snapshot captured at session creation for refresh detection. */
+	private readonly _appliedSnapshot: IActiveClientSnapshot;
+	/** Tool names that are client-provided, derived from snapshot. */
+	private readonly _clientToolNames: ReadonlySet<string>;
+	/** Deferred promises for pending client tool calls, keyed by toolCallId. */
+	private readonly _pendingClientToolCalls = new Map<string, DeferredPromise<ToolResultObject>>();
+
+	private readonly _onDidSessionProgress: Emitter<IAgentProgressEvent>;
+	private readonly _wrapperFactory: SessionWrapperFactory;
+	private readonly _shellManager: ShellManager | undefined;
 
 	constructor(
-		sessionUri: URI,
-		rawSessionId: string,
-		workingDirectory: URI | undefined,
-		private readonly _onDidSessionProgress: Emitter<IAgentProgressEvent>,
-		private readonly _wrapperFactory: SessionWrapperFactory,
-		private readonly _shellManager: ShellManager | undefined,
+		options: ICopilotAgentSessionOptions,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 		@ISessionDataService sessionDataService: ISessionDataService,
 	) {
 		super();
-		this.sessionId = rawSessionId;
-		this.sessionUri = sessionUri;
-		this._workingDirectory = workingDirectory;
+		this.sessionId = options.rawSessionId;
+		this.sessionUri = options.sessionUri;
+		this._workingDirectory = options.workingDirectory;
+		this._onDidSessionProgress = options.onDidSessionProgress;
+		this._wrapperFactory = options.wrapperFactory;
+		this._shellManager = options.shellManager;
 
-		this._databaseRef = sessionDataService.openDatabase(sessionUri);
+		this._appliedSnapshot = options.clientSnapshot ?? { clientId: '', tools: [], plugins: [] };
+		this._clientToolNames = new Set(this._appliedSnapshot.tools.map(t => t.name));
+
+		this._databaseRef = sessionDataService.openDatabase(options.sessionUri);
 		this._register(toDisposable(() => this._databaseRef.dispose()));
 
-		this._editTracker = this._instantiationService.createInstance(FileEditTracker, sessionUri.toString(), this._databaseRef.object);
+		this._editTracker = this._instantiationService.createInstance(FileEditTracker, options.sessionUri.toString(), this._databaseRef.object);
 
 		this._register(toDisposable(() => this._denyPendingPermissions()));
 		this._register(toDisposable(() => this._shellManager?.dispose()));
 		this._register(toDisposable(() => this._cancelPendingUserInputs()));
+		this._register(toDisposable(() => this._cancelPendingClientToolCalls()));
+	}
+
+	/**
+	 * The snapshot of client contributions captured when this session was
+	 * created. Used by the agent to detect when the session is stale.
+	 */
+	get appliedSnapshot(): IActiveClientSnapshot {
+		return this._appliedSnapshot;
+	}
+
+	/**
+	 * Creates SDK {@link Tool} objects for the client-provided tools in the
+	 * applied snapshot. The handler creates a {@link DeferredPromise} and waits
+	 * for the client to dispatch `session/toolCallComplete`.
+	 */
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	createClientSdkTools(): Tool<any>[] {
+		const tools = this._appliedSnapshot.tools;
+		if (tools.length === 0) {
+			return [];
+		}
+		return tools.map(def => ({
+			name: def.name,
+			description: def.description ?? '',
+			parameters: def.inputSchema ?? { type: 'object' as const, properties: {} },
+			handler: async (_args: unknown, invocation: { toolCallId: string }) => {
+				const deferred = new DeferredPromise<ToolResultObject>();
+				this._pendingClientToolCalls.set(invocation.toolCallId, deferred);
+				return deferred.p;
+			},
+		}));
+	}
+
+	/**
+	 * Resolves a pending client tool call. Returns `true` if the
+	 * toolCallId was found and handled.
+	 */
+	handleClientToolCallComplete(toolCallId: string, result: IToolCallResult): boolean {
+		const deferred = this._pendingClientToolCalls.get(toolCallId);
+		if (!deferred) {
+			return false;
+		}
+		this._pendingClientToolCalls.delete(toolCallId);
+
+		const textContent = result.content
+			?.filter(c => c.type === 'text')
+			.map(c => (c as { text: string }).text)
+			.join('\n') ?? '';
+
+		const binaryResults = result.content
+			?.filter(c => c.type === 'embeddedResource')
+			.map(c => {
+				const embedded = c as { data: string; contentType: string };
+				return { data: embedded.data, mimeType: embedded.contentType, type: embedded.contentType };
+			});
+
+		if (result.success) {
+			deferred.complete({
+				textResultForLlm: textContent,
+				resultType: 'success',
+				binaryResultsForLlm: binaryResults?.length ? binaryResults : undefined,
+			});
+		} else {
+			deferred.complete({
+				textResultForLlm: textContent || result.error?.message || 'Tool call failed',
+				resultType: 'failure',
+				error: result.error?.message,
+				binaryResultsForLlm: binaryResults?.length ? binaryResults : undefined,
+			});
+		}
+		return true;
 	}
 
 	/**
@@ -202,6 +313,7 @@ export class CopilotAgentSession extends Disposable {
 		this._wrapper = this._register(await this._wrapperFactory({
 			onPermissionRequest: request => this.handlePermissionRequest(request),
 			onUserInputRequest: (request, invocation) => this.handleUserInputRequest(request, invocation),
+			clientTools: this.createClientSdkTools(),
 			hooks: {
 				onPreToolUse: async input => {
 					if (isEditTool(input.toolName)) {
@@ -446,6 +558,15 @@ export class CopilotAgentSession extends Disposable {
 		const sessionId = this.sessionId;
 		const session = this.sessionUri;
 
+		// Capture SDK event IDs for each user.message event so we can map
+		// protocol turn indices to the event IDs needed by the SDK's
+		// history.truncate and sessions.fork RPCs.
+		this._register(wrapper.onUserMessage(e => {
+			if (this._turnId) {
+				this._databaseRef.object.setTurnEventId(this._turnId, e.id);
+			}
+		}));
+
 		this._register(wrapper.onMessageDelta(e => {
 			this._logService.trace(`[Copilot:${sessionId}] delta: ${e.data.deltaContent}`);
 			this._onDidSessionProgress.fire({
@@ -507,6 +628,7 @@ export class CopilotAgentSession extends Disposable {
 				mcpServerName: e.data.mcpServerName,
 				mcpToolName: e.data.mcpToolName,
 				parentToolCallId: e.data.parentToolCallId,
+				toolClientId: this._clientToolNames.has(e.data.toolName) ? this._appliedSnapshot.clientId : undefined,
 			});
 		}));
 
@@ -736,6 +858,54 @@ export class CopilotAgentSession extends Disposable {
 		}));
 	}
 
+	// ---- SDK event ID tracking & truncation ---------------------------------
+
+	/**
+	 * Returns the SDK event ID for the turn inserted after the given turn,
+	 * or `undefined` if it's the last turn.
+	 */
+	getNextTurnEventId(turnId: string): Promise<string | undefined> {
+		return this._databaseRef.object.getNextTurnEventId(turnId);
+	}
+
+	/**
+	 * Returns the SDK event ID of the earliest turn.
+	 */
+	getFirstTurnEventId(): Promise<string | undefined> {
+		return this._databaseRef.object.getFirstTurnEventId();
+	}
+
+	/**
+	 * Truncates the session history via the SDK's RPC and cleans up
+	 * stale turns from the session database.
+	 *
+	 * @param eventId The SDK event ID at which to truncate. This event
+	 *        and all events after it are removed.
+	 * @param keepTurnId If provided, turns inserted after this turn are
+	 *        deleted from the DB. If omitted, all turns are deleted.
+	 */
+	async truncateAtEventId(eventId: string, keepTurnId?: string): Promise<void> {
+		this._logService.info(`[Copilot:${this.sessionId}] Truncating via SDK RPC at eventId=${eventId}`);
+		const result = await this._wrapper.session.rpc.history.truncate({ eventId });
+		this._logService.info(`[Copilot:${this.sessionId}] SDK truncation removed ${result.eventsRemoved} events`);
+
+		// Clean up stale turns from our DB so getNextTurnEventId doesn't
+		// return event IDs for turns that no longer exist in the SDK.
+		if (keepTurnId) {
+			await this._databaseRef.object.deleteTurnsAfter(keepTurnId);
+		} else {
+			await this._databaseRef.object.deleteAllTurns();
+		}
+	}
+
+	/**
+	 * Bulk-remaps turn IDs in this session's database.
+	 * Used after file-copying a source session's database for a fork.
+	 */
+	async remapTurnIds(mapping: ReadonlyMap<string, string>): Promise<void> {
+		await this._databaseRef.object.remapTurnIds(mapping);
+	}
+
 	// ---- cleanup ------------------------------------------------------------
 
 	private _denyPendingPermissions(): void {
@@ -750,5 +920,12 @@ export class CopilotAgentSession extends Disposable {
 			pending.deferred.complete({ response: SessionInputResponseKind.Cancel });
 		}
 		this._pendingUserInputs.clear();
+	}
+
+	private _cancelPendingClientToolCalls(): void {
+		for (const [, deferred] of this._pendingClientToolCalls) {
+			deferred.complete({ textResultForLlm: 'Tool call cancelled: session ended', resultType: 'failure', error: 'Session ended' });
+		}
+		this._pendingClientToolCalls.clear();
 	}
 }

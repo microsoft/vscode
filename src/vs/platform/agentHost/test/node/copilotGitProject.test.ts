@@ -4,95 +4,75 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import * as cp from 'child_process';
-import * as fs from 'fs';
-import { tmpdir } from 'os';
-import { join } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
-import { Promises } from '../../../../base/node/pfs.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { getRandomTestPath } from '../../../../base/test/node/testUtils.js';
+import type { IAgentHostGitService } from '../../node/agentHostGitService.js';
 import { projectFromCopilotContext, projectFromRepository, resolveGitProject } from '../../node/copilot/copilotGitProject.js';
 
-function execGit(cwd: string, args: string[]): Promise<string> {
-	return new Promise((resolve, reject) => {
-		cp.execFile('git', args, { cwd, encoding: 'utf8' }, (error, stdout, stderr) => {
-			if (error) {
-				reject(new Error(stderr || error.message));
-				return;
-			}
-			resolve(stdout.trim());
-		});
-	});
+class TestAgentHostGitService implements IAgentHostGitService {
+	declare readonly _serviceBrand: undefined;
+
+	insideWorkTree = true;
+	repositoryRoot: URI | undefined;
+	worktreeRoots: URI[] = [];
+
+	async isInsideWorkTree(): Promise<boolean> { return this.insideWorkTree; }
+	async getCurrentBranch(): Promise<string | undefined> { return undefined; }
+	async getDefaultBranch(): Promise<string | undefined> { return undefined; }
+	async getBranches(): Promise<string[]> { return []; }
+	async getRepositoryRoot(): Promise<URI | undefined> { return this.repositoryRoot; }
+	async getWorktreeRoots(): Promise<URI[]> { return this.worktreeRoots; }
+	async addWorktree(): Promise<void> { }
+	async removeWorktree(): Promise<void> { }
 }
 
 suite('Copilot Git Project', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	let testDir: string;
+	let gitService: TestAgentHostGitService;
 
-	setup(async () => {
-		testDir = getRandomTestPath(tmpdir(), 'vsctests', 'copilot-git-project');
-		await fs.promises.mkdir(testDir, { recursive: true });
+	setup(() => {
+		gitService = new TestAgentHostGitService();
 	});
-
-	teardown(async () => {
-		await Promises.rm(testDir);
-	});
-
-	async function createRepository(name: string): Promise<string> {
-		const repositoryPath = join(testDir, name);
-		await fs.promises.mkdir(repositoryPath, { recursive: true });
-		await execGit(repositoryPath, ['init']);
-		await execGit(repositoryPath, ['config', 'user.email', 'test@example.com']);
-		await execGit(repositoryPath, ['config', 'user.name', 'Test User']);
-		await fs.promises.writeFile(join(repositoryPath, 'README.md'), '# Test\n');
-		await execGit(repositoryPath, ['add', 'README.md']);
-		await execGit(repositoryPath, ['commit', '-m', 'initial']);
-		return repositoryPath;
-	}
 
 	test('resolves a repository project from a worktree working directory', async () => {
-		const repositoryPath = await createRepository('source-repo');
-		const canonicalRepositoryPath = await fs.promises.realpath(repositoryPath);
-		const worktreePath = join(testDir, 'worktree-checkout');
-		await execGit(repositoryPath, ['worktree', 'add', worktreePath]);
+		gitService.worktreeRoots = [URI.file('/workspace/source-repo')];
 
-		const project = await resolveGitProject(URI.file(worktreePath));
+		const project = await resolveGitProject(URI.file('/workspace/worktree-checkout'), gitService);
 
 		assert.deepStrictEqual({
 			uri: project?.uri.toString(),
 			displayName: project?.displayName,
 		}, {
-			uri: URI.file(canonicalRepositoryPath).toString(),
+			uri: URI.file('/workspace/source-repo').toString(),
 			displayName: 'source-repo',
 		});
 	});
 
 	test('resolves the repository itself for a normal git working directory', async () => {
-		const repositoryPath = await createRepository('normal-repo');
-		const canonicalRepositoryPath = await fs.promises.realpath(repositoryPath);
+		gitService.repositoryRoot = URI.file('/workspace/normal-repo');
 
-		const project = await resolveGitProject(URI.file(repositoryPath));
+		const project = await resolveGitProject(URI.file('/workspace/normal-repo'), gitService);
 
 		assert.deepStrictEqual({
 			uri: project?.uri.toString(),
 			displayName: project?.displayName,
 		}, {
-			uri: URI.file(canonicalRepositoryPath).toString(),
+			uri: URI.file('/workspace/normal-repo').toString(),
 			displayName: 'normal-repo',
 		});
 	});
 
 	test('returns undefined outside a git working tree', async () => {
-		const folder = join(testDir, 'plain-folder');
-		await fs.promises.mkdir(folder);
+		gitService.insideWorkTree = false;
 
-		assert.strictEqual(await resolveGitProject(URI.file(folder)), undefined);
+		assert.strictEqual(await resolveGitProject(URI.file('/workspace/plain-folder'), gitService), undefined);
 	});
 
 	test('falls back to repository context when no git project is available', async () => {
-		const project = await projectFromCopilotContext({ repository: 'microsoft/vscode' });
+		gitService.insideWorkTree = false;
+
+		const project = await projectFromCopilotContext({ repository: 'microsoft/vscode' }, gitService);
 
 		assert.deepStrictEqual({
 			uri: project?.uri.toString(),

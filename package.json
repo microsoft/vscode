@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.117.0",
-  "distro": "21295cb9c61fb628376d109be52cb7c6e5e396bd",
+  "distro": "53515a4534020f9b4ffb3172649d2fdd0a5d9f63",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -99,7 +99,7 @@
     "@microsoft/dev-tunnels-ssh-tcp": "^3.12.22",
     "@parcel/watcher": "^2.5.6",
     "@types/semver": "^7.5.8",
-    "@vscode/codicons": "^0.0.46-1",
+    "@vscode/codicons": "^0.0.46-5",
     "@vscode/deviceid": "^0.1.1",
     "@vscode/iconv-lite-umd": "0.7.1",
     "@vscode/native-watchdog": "^1.4.6",

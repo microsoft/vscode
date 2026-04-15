@@ -31,6 +31,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { AuxiliaryBarMaximizedContext } from '../../../common/contextkeys.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { getActiveElement } from '../../../../base/browser/dom.js';
+import { isWeb } from '../../../../base/common/platform.js';
 import { IOnboardingService } from '../../welcomeOnboarding/common/onboardingService.js';
 import { ONBOARDING_STORAGE_KEY } from '../../welcomeOnboarding/common/onboardingTypes.js';
 
@@ -233,6 +234,10 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 	private tryShowOnboarding(): void {
 		if (this.environmentService.skipWelcome) {
 			return; // skip welcome flag is set
+		}
+
+		if (isWeb && !this.environmentService.remoteAuthority) {
+			return; // not supported on web without remote authority (e.g. github.dev)
 		}
 
 		if (!this.configurationService.getValue<boolean>('workbench.welcomePage.experimentalOnboarding')) {

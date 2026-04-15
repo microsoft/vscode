@@ -44,6 +44,8 @@ class ChatSessionInputStateImpl implements vscode.ChatSessionInputState {
 	readonly #onDidChangeEmitter = new Emitter<void>();
 	readonly onDidChange = this.#onDidChangeEmitter.event;
 
+	sessionResource: vscode.Uri | undefined;
+
 	constructor(groups: readonly vscode.ChatSessionProviderOptionGroup[], onChangedDelegate?: () => void) {
 		this.#groups = groups;
 		this.#onChangedDelegate = onChangedDelegate;
@@ -605,6 +607,10 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			controllerData?.optionGroups ?? [], context.initialSessionOptions
 		);
 
+		if (inputState instanceof ChatSessionInputStateImpl) {
+			inputState.sessionResource = isUntitledChatSession(sessionResource) ? undefined : sessionResource;
+		}
+
 		const session = await provider.provider.provideChatSessionContent(sessionResource, token, {
 			sessionOptions: context?.initialSessionOptions ?? [],
 			inputState,
@@ -862,17 +868,23 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 	): Promise<vscode.ChatSessionInputState> {
 		const scheme = sessionResource?.scheme;
 		const controllerData = scheme ? this.getChatSessionItemController(scheme) : undefined;
+		const resolvedResource = sessionResource && !isUntitledChatSession(sessionResource) ? sessionResource : undefined;
 		if (controllerData?.controller.getChatSessionInputState) {
 			const result = await controllerData.controller.getChatSessionInputState(
-				sessionResource && !isUntitledChatSession(sessionResource) ? sessionResource : undefined,
+				resolvedResource,
 				{ previousInputState: this._createInputStateFromOptions(controllerData.optionGroups ?? [], initialSessionOptions) },
 				token,
 			);
 			if (result) {
+				if (result instanceof ChatSessionInputStateImpl) {
+					result.sessionResource = resolvedResource;
+				}
 				return result;
 			}
 		}
-		return this._createInputStateFromOptions(controllerData?.optionGroups ?? [], initialSessionOptions);
+		const fallback = this._createInputStateFromOptions(controllerData?.optionGroups ?? [], initialSessionOptions);
+		fallback.sessionResource = resolvedResource;
+		return fallback;
 	}
 
 	/**
@@ -1039,11 +1051,12 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			return undefined;
 		}
 
+		const previousInputState = this._createInputStateFromOptions(controllerData.optionGroups ?? [], request.initialSessionOptions);
 		let inputState: vscode.ChatSessionInputState;
 		if (controllerData.controller.getChatSessionInputState) {
-			inputState = await controllerData.controller.getChatSessionInputState(undefined, { previousInputState: this._createInputStateFromOptions(controllerData.optionGroups ?? [], request.initialSessionOptions) }, token);
+			inputState = await controllerData.controller.getChatSessionInputState(undefined, { previousInputState }, token);
 		} else {
-			inputState = new ChatSessionInputStateImpl([]);
+			inputState = previousInputState;
 		}
 
 		const item = await handler({
@@ -1097,6 +1110,10 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		const inputState = await handler(sessionResource, { previousInputState: undefined }, token);
 		if (!inputState) {
 			return undefined;
+		}
+
+		if (inputState instanceof ChatSessionInputStateImpl) {
+			inputState.sessionResource = sessionResource;
 		}
 
 		// Store the option groups for onSearch callbacks

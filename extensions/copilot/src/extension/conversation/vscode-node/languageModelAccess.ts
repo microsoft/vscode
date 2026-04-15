@@ -56,7 +56,7 @@ const experimentalAutoModelHintMarkers = ['minimax', 'mp3yn0h7', 'yaqq2gxh'];
  */
 function buildConfigurationSchema(endpoint: IChatEndpoint): { configurationSchema?: vscode.LanguageModelConfigurationSchema } {
 	const effortLevels = endpoint.supportsReasoningEffort;
-	if (!effortLevels || effortLevels.length === 0) {
+	if (!effortLevels || effortLevels.length <= 1) {
 		return {};
 	}
 
@@ -300,15 +300,6 @@ export class LanguageModelAccess extends Disposable implements IExtensionContrib
 			const baseCount = await this._promptBaseCountCache.getBaseCount(endpoint);
 			const multiplier = endpoint.multiplier !== undefined ? `${endpoint.multiplier}x` : undefined;
 			let modelDetail: string | undefined;
-
-			// Append rate info to tooltip for all non-Auto models with a multiplier
-			if (endpoint.multiplier !== undefined && !(endpoint instanceof AutoChatEndpoint)) {
-				if (modelTooltip) {
-					modelTooltip = vscode.l10n.t('{0} Rate is counted at {1}x.', modelTooltip, endpoint.multiplier);
-				} else {
-					modelTooltip = vscode.l10n.t('Rate is counted at {0}x.', endpoint.multiplier);
-				}
-			}
 
 			if (endpoint instanceof AutoChatEndpoint) {
 				if (endpoint.discountRange.high === endpoint.discountRange.low && endpoint.discountRange.low !== 0) {

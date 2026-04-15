@@ -49,7 +49,7 @@ import '../workbench/api/browser/viewsExtensionPoint.js';
 //#region --- workbench parts
 
 import '../workbench/browser/parts/editor/editor.contribution.js';
-import '../workbench/browser/parts/editor/editorParts.js';
+// import '../workbench/browser/parts/editor/editorParts.js';
 // import '../workbench/browser/parts/paneCompositePartService.js';
 import '../workbench/browser/parts/banner/bannerPart.js';
 import '../workbench/browser/parts/statusbar/statusbarPart.js';
@@ -454,14 +454,17 @@ import '../workbench/contrib/opener/browser/opener.contribution.js';
 //#region --- sessions contributions
 
 import './browser/paneCompositePartService.js';
+import './browser/parts/editorParts.js';
 import './browser/layoutActions.js';
 
 import './contrib/accountMenu/browser/account.contribution.js';
 import './contrib/aiCustomizationTreeView/browser/aiCustomizationTreeView.contribution.js';
 import './contrib/chat/browser/chat.contribution.js';
+import './contrib/chat/browser/agentHostSessionConfigPicker.js';
 import './contrib/chat/browser/customizationsDebugLog.contribution.js';
 import './contrib/copilotChatSessions/browser/copilotChatSessions.contribution.js';
 import './contrib/sessions/browser/sessions.contribution.js';
+import './contrib/sessions/browser/views/sessionsListModelService.js';
 import './contrib/sessions/browser/customizationsToolbar.contribution.js';
 import './contrib/changes/browser/changesView.contribution.js';
 import './contrib/layout/browser/layout.contribution.js';

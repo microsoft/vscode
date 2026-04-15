@@ -731,6 +731,7 @@ export class TestingGitService implements IGitService {
 			return [{
 				rootUri: workspaceFolderPath,
 				kind: 'repository',
+				isUsingVirtualFileSystem: false,
 				headBranchName: undefined,
 				headCommitHash: undefined,
 				headIncomingChanges: 0,

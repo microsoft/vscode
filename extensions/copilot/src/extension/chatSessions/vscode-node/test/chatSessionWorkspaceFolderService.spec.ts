@@ -291,6 +291,7 @@ describe('ChatSessionWorkspaceFolderService', () => {
 			const repo = {
 				rootUri: URI.file('/repo'),
 				kind: 'repository' as const,
+				isUsingVirtualFileSystem: false,
 				headBranchName: 'main',
 				headCommitHash: 'abc123',
 				headIncomingChanges: 0,

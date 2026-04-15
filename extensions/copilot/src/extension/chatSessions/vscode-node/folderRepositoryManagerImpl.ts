@@ -739,7 +739,7 @@ export abstract class FolderRepositoryManager extends Disposable implements IFol
 					deleteFromSource: moveOrCopyChanges === 'move',
 					untracked: true
 				});
-				stream.markdown(l10n.t('Changes migrated to worktree.'));
+				stream.markdown(l10n.t('Changes migrated to worktree.\n'));
 			}
 		} catch (error) {
 			// Continue even if migration fails

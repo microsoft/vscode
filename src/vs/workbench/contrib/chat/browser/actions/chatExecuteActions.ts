@@ -191,7 +191,7 @@ export class ChatSubmitAction extends SubmitAction {
 		const menuCondition = ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Ask);
 		const precondition = ContextKeyExpr.and(
 			ChatContextKeys.inputHasText,
-			whenNotInProgress,
+			ContextKeyExpr.or(whenNotInProgress, ChatContextKeys.editingRequestType.isEqualTo(ChatContextKeys.EditingRequestType.Sent)),
 			ChatContextKeys.chatSessionOptionsValid,
 		);
 

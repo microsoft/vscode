@@ -668,7 +668,7 @@ class ConversationHistorySummarizer {
 		let summarizationPrompt: ChatMessage[];
 		const associatedRequestId = this.props.promptContext.conversation?.getLatestTurn().id;
 		try {
-			summarizationPrompt = (await renderPromptElement(this.instantiationService, endpoint, ConversationHistorySummarizationPrompt, { ...propsInfo.props, simpleMode: mode === SummaryMode.Simple }, undefined, this.token)).messages;
+			summarizationPrompt = (await renderPromptElement(this.instantiationService, endpoint, ConversationHistorySummarizationPrompt, { ...propsInfo.props, enableCacheBreakpoints: false, simpleMode: mode === SummaryMode.Simple }, undefined, this.token)).messages;
 			this.logInfo(`summarization prompt rendered in ${stopwatch.elapsed()}ms.`, mode);
 		} catch (e) {
 			const budgetExceeded = e instanceof BudgetExceededError;
@@ -700,6 +700,7 @@ class ConversationHistorySummarizer {
 			} : undefined;
 
 			stripCacheBreakpoints(summarizationPrompt);
+			replaceImageContentWithPlaceholders(summarizationPrompt);
 
 			let messages = ToolCallingLoop.stripInternalToolCallIds(summarizationPrompt);
 
@@ -908,6 +909,17 @@ function stripCacheBreakpoints(messages: ChatMessage[]): void {
 	messages.forEach(message => {
 		message.content = message.content.filter(part => {
 			return part.type !== Raw.ChatCompletionContentPartKind.CacheBreakpoint;
+		});
+	});
+}
+
+function replaceImageContentWithPlaceholders(messages: ChatMessage[]): void {
+	messages.forEach(message => {
+		message.content = message.content.map(part => {
+			if (part.type === Raw.ChatCompletionContentPartKind.Image) {
+				return { type: Raw.ChatCompletionContentPartKind.Text, text: '[Image was attached]' };
+			}
+			return part;
 		});
 	});
 }

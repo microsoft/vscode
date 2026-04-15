@@ -86,6 +86,8 @@ If you need a new field on `IPolicyData`, add it to the interface in `src/vs/bas
 
 **Optional: `enumDescriptions` for enum/string policies:**
 
+**IMPORTANT:** If the configuration property has `type: 'string'` and an `enum` array, you **must** include `enumDescriptions` in the `localization` block with the same number of entries as the `enum` array. Without this, `npm run export-policy-data` will fail with: `enumDescriptions must exist and have the same length as enum for policy "..."`.
+
 ```typescript
 localization: {
     description: { key: '...', value: nls.localize('...', "...") },

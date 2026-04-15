@@ -916,6 +916,25 @@
 	margin: 0;
 }
 
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer > .footer > .agents-banner {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	gap: 8px;
+	margin-bottom: 12px;
+}
+
+.monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer > .footer > .agents-banner .agents-banner-button {
+	display: flex;
+	align-items: center;
+	padding: 6px 12px;
+	border-radius: 50px;
+	cursor: pointer;
+	font-family: inherit;
+	font-size: 13px;
+	margin-bottom: 20px;
+}
+
 .monaco-workbench .part.editor > .content .gettingStartedContainer .gettingStartedSlideCategories > .gettingStartedCategoriesContainer .index-list.start-container {
 	min-height: 156px;
 	margin-bottom: 16px;

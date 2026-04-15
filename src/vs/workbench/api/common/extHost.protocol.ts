@@ -1675,12 +1675,12 @@ export interface ExtHostChatAgentsShape2 {
 	$setRequestTools(requestId: string, tools: UserSelectedTools): void;
 	$setYieldRequested(requestId: string, value: boolean): void;
 	$acceptActiveChatSession(sessionResource: UriComponents | undefined): void;
-	$acceptCustomAgents(agents: ICustomAgentDto[]): void;
-	$acceptInstructions(instructions: IInstructionDto[]): void;
-	$acceptSkills(skills: ISkillDto[]): void;
-	$acceptSlashCommands(slashCommands: ISlashCommandDto[]): void;
-	$acceptHooks(hooks: IHookDto[]): void;
-	$acceptPlugins(plugins: IPluginDto[]): void;
+	$onDidChangeCustomAgents(): void;
+	$onDidChangeInstructions(): void;
+	$onDidChangeSkills(): void;
+	$onDidChangeSlashCommands(): void;
+	$onDidChangeHooks(): void;
+	$onDidChangePlugins(): void;
 }
 
 export type IChatResourceSourceDto = 'local' | 'user' | 'extension' | 'plugin';
