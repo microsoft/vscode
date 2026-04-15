@@ -315,6 +315,12 @@ function sendIndividualMessagesTelemetry(telemetryService: ITelemetryService, me
 
 		// Convert message to JSON string for chunking
 		const messageJsonString = JSON.stringify(message);
+
+		// Log assistant messages at the model.message.added send point
+		if (message.role === 'assistant') {
+			logService?.info(`[THINKING-TELEMETRY] model.message.added ${messageDirection} assistant: ${messageJsonString.substring(0, 4000)}`);
+		}
+
 		const maxChunkSize = 8000;
 
 		// Split messageJson into chunks of 8000 characters or less
@@ -447,6 +453,15 @@ export function sendEngineMessagesTelemetry(telemetryService: ITelemetryService,
 	const telemetryDataWithPrompt = telemetryData.extendedBy({
 		messagesJson: JSON.stringify(messages),
 	});
+
+	// Debug log: mirror what engine.messages and model.message.added send for assistant messages
+	const direction = isOutput ? 'output' : 'input';
+	for (const msg of messages) {
+		if (msg.role === 'assistant') {
+			logService?.info(`[THINKING-TELEMETRY] ${direction} assistant message: ${JSON.stringify(msg).substring(0, 4000)}`);
+		}
+	}
+
 	telemetryService.sendEnhancedGHTelemetryEvent('engine.messages', multiplexProperties(telemetryDataWithPrompt.properties), telemetryDataWithPrompt.measurements);
 	// Commenting this out to test a new deduplicated way to collect the same information using sendModelTelemetryEvents()
 	// TO DO remove this line completely if the new way allows for complete reconstruction of entire message arrays with much lower drop rate
