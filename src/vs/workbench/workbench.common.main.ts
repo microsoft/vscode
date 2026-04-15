@@ -350,6 +350,7 @@ import './contrib/inlayHints/browser/inlayHintsAccessibilty.js';
 import './contrib/themes/browser/themes.contribution.js';
 
 // Update
+import './contrib/codiconGallery/browser/codiconGallery.contribution.js';
 import './contrib/update/browser/update.contribution.js';
 
 // Surveys
