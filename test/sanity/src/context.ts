@@ -1288,7 +1288,7 @@ export class TestContext {
 			await new Promise<void>((resolve, reject) => {
 				app.stderr.on('data', (data) => {
 					const text = `[${name}] ${data.toString().trim()}`;
-					if (/ECONNRESET|ECONNABORTED|error listing current tunnels/.test(text)) {
+					if (/ECONNRESET|ECONNABORTED/.test(text)) {
 						this.log(text);
 					} else {
 						reject(new Error(text));
@@ -1298,7 +1298,7 @@ export class TestContext {
 				let terminated = false;
 				app.stdout.on('data', (data) => {
 					const text = data.toString().trim();
-					if (/\berror\b/.test(text)) {
+					if (/\berror\b/.test(text) && !/error listing current tunnels/.test(text)) {
 						reject(new Error(`[${name}] ${text}`));
 					}
 
