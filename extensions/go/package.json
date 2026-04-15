@@ -36,7 +36,13 @@
       "[go]": {
         "editor.insertSpaces": false
       }
-    }
+    },
+    "snippets": [
+      {
+        "language": "go",
+        "path": "./snippets/go.code-snippets"
+      }
+    ]
   },
   "repository": {
     "type": "git",

@@ -1,0 +1,221 @@
+{
+	"Main Package and Function": {
+		"prefix": "main",
+		"body": [
+			"package main",
+			"",
+			"import \"fmt\"",
+			"",
+			"func main() {",
+			"\t$0",
+			"}"
+		],
+		"description": "Go main package with main function"
+	},
+	"Function": {
+		"prefix": "func",
+		"body": [
+			"func ${1:name}(${2:params}) ${3:returnType} {",
+			"\t$0",
+			"}"
+		],
+		"description": "Go function declaration"
+	},
+	"Method": {
+		"prefix": "meth",
+		"body": [
+			"func (${1:r} *${2:ReceiverType}) ${3:MethodName}(${4:params}) ${5:returnType} {",
+			"\t$0",
+			"}"
+		],
+		"description": "Go method with pointer receiver"
+	},
+	"Struct": {
+		"prefix": "struct",
+		"body": [
+			"type ${1:Name} struct {",
+			"\t${2:field} ${3:type}",
+			"}"
+		],
+		"description": "Go struct declaration"
+	},
+	"Interface": {
+		"prefix": "iface",
+		"body": [
+			"type ${1:Name} interface {",
+			"\t${2:MethodName}(${3:params}) ${4:returnType}",
+			"}"
+		],
+		"description": "Go interface declaration"
+	},
+	"Error Check": {
+		"prefix": "err",
+		"body": [
+			"if err != nil {",
+			"\t$0",
+			"}"
+		],
+		"description": "Go error check"
+	},
+	"Error Return": {
+		"prefix": "erret",
+		"body": [
+			"if err != nil {",
+			"\treturn ${1:nil, }err",
+			"}"
+		],
+		"description": "Go error check with return"
+	},
+	"For Loop": {
+		"prefix": "for",
+		"body": [
+			"for ${1:i} := 0; ${1:i} < ${2:count}; ${1:i}++ {",
+			"\t$0",
+			"}"
+		],
+		"description": "Go for loop"
+	},
+	"Range Loop": {
+		"prefix": "range",
+		"body": [
+			"for ${1:key}, ${2:value} := range ${3:collection} {",
+			"\t$0",
+			"}"
+		],
+		"description": "Go range loop"
+	},
+	"Goroutine": {
+		"prefix": "go",
+		"body": [
+			"go func() {",
+			"\t$0",
+			"}()"
+		],
+		"description": "Go goroutine (anonymous function)"
+	},
+	"Select": {
+		"prefix": "select",
+		"body": [
+			"select {",
+			"case ${1:v} := <-${2:ch}:",
+			"\t$3",
+			"default:",
+			"\t$0",
+			"}"
+		],
+		"description": "Go select statement"
+	},
+	"Channel Make": {
+		"prefix": "mkch",
+		"body": [
+			"${1:ch} := make(chan ${2:int}${3:, ${4:bufferSize}})"
+		],
+		"description": "Create a Go channel"
+	},
+	"Switch": {
+		"prefix": "switch",
+		"body": [
+			"switch ${1:variable} {",
+			"case ${2:value}:",
+			"\t$3",
+			"default:",
+			"\t$0",
+			"}"
+		],
+		"description": "Go switch statement"
+	},
+	"If Statement": {
+		"prefix": "if",
+		"body": [
+			"if ${1:condition} {",
+			"\t$0",
+			"}"
+		],
+		"description": "Go if statement"
+	},
+	"If-Else Statement": {
+		"prefix": "ifelse",
+		"body": [
+			"if ${1:condition} {",
+			"\t$2",
+			"} else {",
+			"\t$0",
+			"}"
+		],
+		"description": "Go if-else statement"
+	},
+	"Map": {
+		"prefix": "map",
+		"body": [
+			"${1:m} := map[${2:string}]${3:interface{}}{",
+			"\t$0",
+			"}"
+		],
+		"description": "Go map initialization"
+	},
+	"Slice": {
+		"prefix": "slice",
+		"body": [
+			"${1:s} := []${2:string}{${3}}"
+		],
+		"description": "Go slice initialization"
+	},
+	"Defer": {
+		"prefix": "defer",
+		"body": [
+			"defer ${1:func()}()"
+		],
+		"description": "Go defer statement"
+	},
+	"Println": {
+		"prefix": "pl",
+		"body": [
+			"fmt.Println(${1:\"Hello, World!\"})"
+		],
+		"description": "fmt.Println"
+	},
+	"Printf": {
+		"prefix": "pf",
+		"body": [
+			"fmt.Printf(\"${1:%v}\\n\", ${2:value})"
+		],
+		"description": "fmt.Printf"
+	},
+	"Errorf": {
+		"prefix": "ef",
+		"body": [
+			"fmt.Errorf(\"${1:error}: %w\", ${2:err})"
+		],
+		"description": "fmt.Errorf with %w for error wrapping"
+	},
+	"Package Declaration": {
+		"prefix": "pkg",
+		"body": [
+			"package ${1:main}"
+		],
+		"description": "Go package declaration"
+	},
+	"Import": {
+		"prefix": "import",
+		"body": [
+			"import (",
+			"\t\"${1:fmt}\"",
+			")"
+		],
+		"description": "Go import block"
+	},
+	"Constant": {
+		"prefix": "const",
+		"body": [
+			"const ${1:Name} = ${2:value}"
+		],
+		"description": "Go constant declaration"
+	},
+	"Variable Short": {
+		"prefix": ":=",
+		"body": [
+			"${1:name} := ${2:value}"
+		],
+		"description": "Go short variable declaration"
+	}
+}
