@@ -801,6 +801,10 @@ export interface IEditorOptions {
 	 */
 	matchOnWordStartOnly?: boolean;
 	/**
+	 * Controls whether the cursor should be allowed to move into virtual space.
+	 */
+	virtualSpace?: boolean;
+	/**
 	 * Control the behavior and rendering of the inline hints.
 	 */
 	inlayHints?: IEditorInlayHintsOptions;
@@ -5962,6 +5966,10 @@ export const enum EditorOption {
 	inertialScroll,
 	inlayHints,
 	wrapOnEscapedLineFeeds,
+	/**
+	 * Controls whether the cursor should be allowed to move into virtual space.
+	 */
+	virtualSpace,
 	// Leave these at the end (because they have dependencies!)
 	effectiveCursorStyle,
 	editorClassName,
@@ -6772,6 +6780,10 @@ export const EditorOptions = {
 	)),
 	useShadowDOM: register(new EditorBooleanOption(
 		EditorOption.useShadowDOM, 'useShadowDOM', true
+	)),
+	virtualSpace: register(new EditorBooleanOption(
+		EditorOption.virtualSpace, 'virtualSpace', false,
+		{ description: nls.localize('virtualSpace', "Controls whether the cursor should be allowed to move into virtual space.") }
 	)),
 	useTabStops: register(new EditorBooleanOption(
 		EditorOption.useTabStops, 'useTabStops', true,

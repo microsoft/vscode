@@ -127,13 +127,13 @@ export class ViewCursors extends ViewPart {
 		}
 		return true;
 	}
-	private _onCursorPositionChanged(position: Position, secondaryPositions: Position[], reason: CursorChangeReason): void {
+	private _onCursorPositionChanged(position: Position, leftoverVisibleColumns: number, secondaryPositions: Position[], secondaryLeftoverVisibleColumns: number[], reason: CursorChangeReason): void {
 		const pauseAnimation = (
 			this._secondaryCursors.length !== secondaryPositions.length
 			|| (this._cursorSmoothCaretAnimation === 'explicit' && reason !== CursorChangeReason.Explicit)
 		);
 		this._primaryCursor.setPlurality(secondaryPositions.length ? CursorPlurality.MultiPrimary : CursorPlurality.Single);
-		this._primaryCursor.onCursorPositionChanged(position, pauseAnimation);
+		this._primaryCursor.onCursorPositionChanged(position, leftoverVisibleColumns, pauseAnimation);
 		this._updateBlinking();
 
 		if (this._secondaryCursors.length < secondaryPositions.length) {
@@ -154,7 +154,7 @@ export class ViewCursors extends ViewPart {
 		}
 
 		for (let i = 0; i < secondaryPositions.length; i++) {
-			this._secondaryCursors[i].onCursorPositionChanged(secondaryPositions[i], pauseAnimation);
+			this._secondaryCursors[i].onCursorPositionChanged(secondaryPositions[i], secondaryLeftoverVisibleColumns[i], pauseAnimation);
 		}
 
 	}
@@ -163,7 +163,7 @@ export class ViewCursors extends ViewPart {
 		for (let i = 0, len = e.selections.length; i < len; i++) {
 			positions[i] = e.selections[i].getPosition();
 		}
-		this._onCursorPositionChanged(positions[0], positions.slice(1), e.reason);
+		this._onCursorPositionChanged(positions[0], e.leftoverVisibleColumns[0], positions.slice(1), e.leftoverVisibleColumns.slice(1), e.reason);
 
 		const selectionIsEmpty = e.selections[0].isEmpty();
 		if (this._selectionIsEmpty !== selectionIsEmpty) {

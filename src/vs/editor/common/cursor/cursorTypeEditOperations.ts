@@ -499,12 +499,16 @@ export class InterceptorElectricCharOperation {
 
 export class SimpleCharacterTypeOperation {
 
-	public static getEdits(config: CursorConfiguration, prevEditOperationType: EditOperationType, selections: Selection[], ch: string, isDoingComposition: boolean): EditOperationResult {
+	public static getEdits(config: CursorConfiguration, prevEditOperationType: EditOperationType, selections: Selection[], leftoverVisibleColumns: number[], ch: string, isDoingComposition: boolean): EditOperationResult {
 		// A simple character type
 		const commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
+			let typeText = ch;
+			if (config.virtualSpace && leftoverVisibleColumns[i] > 0) {
+				typeText = ' '.repeat(leftoverVisibleColumns[i]) + ch;
+			}
 			const ChosenReplaceCommand = config.inputMode === 'overtype' && !isDoingComposition ? ReplaceOvertypeCommand : ReplaceCommand;
-			commands[i] = new ChosenReplaceCommand(selections[i], ch);
+			commands[i] = new ChosenReplaceCommand(selections[i], typeText);
 		}
 
 		const opType = getTypingOperation(ch, prevEditOperationType);
@@ -517,11 +521,11 @@ export class SimpleCharacterTypeOperation {
 
 export class EnterOperation {
 
-	public static getEdits(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string, isDoingComposition: boolean): EditOperationResult | undefined {
+	public static getEdits(config: CursorConfiguration, model: ITextModel, selections: Selection[], leftoverVisibleColumns: number[], ch: string, isDoingComposition: boolean): EditOperationResult | undefined {
 		if (!isDoingComposition && ch === '\n') {
 			const commands: ICommand[] = [];
 			for (let i = 0, len = selections.length; i < len; i++) {
-				commands[i] = this._enter(config, model, false, selections[i]);
+				commands[i] = this._enter(config, model, false, selections[i], leftoverVisibleColumns[i]);
 			}
 			return new EditOperationResult(EditOperationType.TypingOther, commands, {
 				shouldPushStackElementBefore: true,
@@ -531,24 +535,40 @@ export class EnterOperation {
 		return;
 	}
 
-	private static _enter(config: CursorConfiguration, model: ITextModel, keepPosition: boolean, range: Range): ICommand {
+	private static _enter(config: CursorConfiguration, model: ITextModel, keepPosition: boolean, range: Range, leftoverVisibleColumns: number = 0): ICommand {
 		if (config.autoIndent === EditorAutoIndentStrategy.None) {
-			return typeCommand(range, '\n', keepPosition);
+			let typeText = '\n';
+			if (config.virtualSpace && leftoverVisibleColumns > 0) {
+				typeText = ' '.repeat(leftoverVisibleColumns) + '\n';
+			}
+			return typeCommand(range, typeText, keepPosition);
 		}
 		if (!model.tokenization.isCheapToTokenize(range.getStartPosition().lineNumber) || config.autoIndent === EditorAutoIndentStrategy.Keep) {
 			const lineText = model.getLineContent(range.startLineNumber);
 			const indentation = strings.getLeadingWhitespace(lineText).substring(0, range.startColumn - 1);
-			return typeCommand(range, '\n' + config.normalizeIndentation(indentation), keepPosition);
+			let typeText = '\n' + config.normalizeIndentation(indentation);
+			if (config.virtualSpace && leftoverVisibleColumns > 0) {
+				typeText = ' '.repeat(leftoverVisibleColumns) + typeText;
+			}
+			return typeCommand(range, typeText, keepPosition);
 		}
 		const r = getEnterAction(config.autoIndent, model, range, config.languageConfigurationService);
 		if (r) {
 			if (r.indentAction === IndentAction.None) {
 				// Nothing special
-				return typeCommand(range, '\n' + config.normalizeIndentation(r.indentation + r.appendText), keepPosition);
+				let typeText = '\n' + config.normalizeIndentation(r.indentation + r.appendText);
+				if (config.virtualSpace && leftoverVisibleColumns > 0) {
+					typeText = ' '.repeat(leftoverVisibleColumns) + typeText;
+				}
+				return typeCommand(range, typeText, keepPosition);
 
 			} else if (r.indentAction === IndentAction.Indent) {
 				// Indent once
-				return typeCommand(range, '\n' + config.normalizeIndentation(r.indentation + r.appendText), keepPosition);
+				let typeText = '\n' + config.normalizeIndentation(r.indentation + r.appendText);
+				if (config.virtualSpace && leftoverVisibleColumns > 0) {
+					typeText = ' '.repeat(leftoverVisibleColumns) + typeText;
+				}
+				return typeCommand(range, typeText, keepPosition);
 
 			} else if (r.indentAction === IndentAction.IndentOutdent) {
 				// Ultra special
@@ -562,7 +582,11 @@ export class EnterOperation {
 				}
 			} else if (r.indentAction === IndentAction.Outdent) {
 				const actualIndentation = unshiftIndent(config, r.indentation);
-				return typeCommand(range, '\n' + config.normalizeIndentation(actualIndentation + r.appendText), keepPosition);
+				let typeText = '\n' + config.normalizeIndentation(actualIndentation + r.appendText);
+				if (config.virtualSpace && leftoverVisibleColumns > 0) {
+					typeText = ' '.repeat(leftoverVisibleColumns) + typeText;
+				}
+				return typeCommand(range, typeText, keepPosition);
 			}
 		}
 
@@ -606,7 +630,11 @@ export class EnterOperation {
 				}
 			}
 		}
-		return typeCommand(range, '\n' + config.normalizeIndentation(indentation), keepPosition);
+		let typeText = '\n' + config.normalizeIndentation(indentation);
+		if (config.virtualSpace && leftoverVisibleColumns > 0) {
+			typeText = ' '.repeat(leftoverVisibleColumns) + typeText;
+		}
+		return typeCommand(range, typeText, keepPosition);
 	}
 
 
@@ -653,13 +681,14 @@ export class EnterOperation {
 
 export class PasteOperation {
 
-	public static getEdits(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], text: string, pasteOnNewLine: boolean, multicursorText: string[]) {
+	public static getEdits(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], leftoverVisibleColumns: number[], text: string, pasteOnNewLine: boolean, multicursorText: string[]) {
 		const distributedPaste = this._distributePasteToCursors(config, selections, text, pasteOnNewLine, multicursorText);
 		if (distributedPaste) {
-			selections = selections.sort(Range.compareRangesUsingStarts);
-			return this._distributedPaste(config, model, selections, distributedPaste);
+			const combined = selections.map((s, i) => ({ s, l: leftoverVisibleColumns[i] }));
+			combined.sort((a, b) => Range.compareRangesUsingStarts(a.s, b.s));
+			return this._distributedPaste(config, model, combined.map(c => c.s), combined.map(c => c.l), distributedPaste);
 		} else {
-			return this._simplePaste(config, model, selections, text, pasteOnNewLine);
+			return this._simplePaste(config, model, selections, leftoverVisibleColumns, text, pasteOnNewLine);
 		}
 	}
 
@@ -691,12 +720,16 @@ export class PasteOperation {
 		return null;
 	}
 
-	private static _distributedPaste(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], text: string[]): EditOperationResult {
+	private static _distributedPaste(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], leftoverVisibleColumns: number[], text: string[]): EditOperationResult {
 		const commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
+			let pasteText = text[i];
+			if (config.virtualSpace && leftoverVisibleColumns[i] > 0) {
+				pasteText = ' '.repeat(leftoverVisibleColumns[i]) + text[i];
+			}
 			const shouldOvertypeOnPaste = config.overtypeOnPaste && config.inputMode === 'overtype';
 			const ChosenReplaceCommand = shouldOvertypeOnPaste ? ReplaceOvertypeCommand : ReplaceCommand;
-			commands[i] = new ChosenReplaceCommand(selections[i], text[i]);
+			commands[i] = new ChosenReplaceCommand(selections[i], pasteText);
 		}
 		return new EditOperationResult(EditOperationType.Other, commands, {
 			shouldPushStackElementBefore: true,
@@ -704,7 +737,7 @@ export class PasteOperation {
 		});
 	}
 
-	private static _simplePaste(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], text: string, pasteOnNewLine: boolean): EditOperationResult {
+	private static _simplePaste(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], leftoverVisibleColumns: number[], text: string, pasteOnNewLine: boolean): EditOperationResult {
 		const commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
@@ -720,9 +753,13 @@ export class PasteOperation {
 				const typeSelection = new Range(position.lineNumber, 1, position.lineNumber, 1);
 				commands[i] = new ReplaceCommandThatPreservesSelection(typeSelection, text, selection, true);
 			} else {
+				let pasteText = text;
+				if (config.virtualSpace && leftoverVisibleColumns[i] > 0) {
+					pasteText = ' '.repeat(leftoverVisibleColumns[i]) + text;
+				}
 				const shouldOvertypeOnPaste = config.overtypeOnPaste && config.inputMode === 'overtype';
 				const ChosenReplaceCommand = shouldOvertypeOnPaste ? ReplaceOvertypeCommand : ReplaceCommand;
-				commands[i] = new ChosenReplaceCommand(selection, text);
+				commands[i] = new ChosenReplaceCommand(selection, pasteText);
 			}
 		}
 		return new EditOperationResult(EditOperationType.Other, commands, {
@@ -759,10 +796,14 @@ export class CompositionOperation {
 
 export class TypeWithoutInterceptorsOperation {
 
-	public static getEdits(prevEditOperationType: EditOperationType, selections: Selection[], str: string): EditOperationResult {
+	public static getEdits(prevEditOperationType: EditOperationType, selections: Selection[], leftoverVisibleColumns: number[], str: string): EditOperationResult {
 		const commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
-			commands[i] = new ReplaceCommand(selections[i], str);
+			let typeText = str;
+			if (leftoverVisibleColumns[i] > 0) {
+				typeText = ' '.repeat(leftoverVisibleColumns[i]) + str;
+			}
+			commands[i] = new ReplaceCommand(selections[i], typeText);
 		}
 		const opType = getTypingOperation(str, prevEditOperationType);
 		return new EditOperationResult(opType, commands, {

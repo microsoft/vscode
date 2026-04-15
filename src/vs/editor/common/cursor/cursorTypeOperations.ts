@@ -57,8 +57,8 @@ export class TypeOperations {
 		return unshiftIndent(config, indentation, count);
 	}
 
-	public static paste(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], text: string, pasteOnNewLine: boolean, multicursorText: string[]): EditOperationResult {
-		return PasteOperation.getEdits(config, model, selections, text, pasteOnNewLine, multicursorText);
+	public static paste(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[], leftoverVisibleColumns: number[], text: string, pasteOnNewLine: boolean, multicursorText: string[]): EditOperationResult {
+		return PasteOperation.getEdits(config, model, selections, leftoverVisibleColumns, text, pasteOnNewLine, multicursorText);
 	}
 
 	public static tab(config: CursorConfiguration, model: ITextModel, selections: Selection[]): ICommand[] {
@@ -162,9 +162,9 @@ export class TypeOperations {
 		return CompositionEndOvertypeOperation.getEdits(config, compositions);
 	}
 
-	public static typeWithInterceptors(isDoingComposition: boolean, prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], autoClosedCharacters: Range[], ch: string): EditOperationResult {
+	public static typeWithInterceptors(isDoingComposition: boolean, prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], leftoverVisibleColumns: number[], autoClosedCharacters: Range[], ch: string): EditOperationResult {
 
-		const enterEdits = EnterOperation.getEdits(config, model, selections, ch, isDoingComposition);
+		const enterEdits = EnterOperation.getEdits(config, model, selections, leftoverVisibleColumns, ch, isDoingComposition);
 		if (enterEdits !== undefined) {
 			return enterEdits;
 		}
@@ -194,11 +194,11 @@ export class TypeOperations {
 			return interceptorElectricCharOperation;
 		}
 
-		return SimpleCharacterTypeOperation.getEdits(config, prevEditOperationType, selections, ch, isDoingComposition);
+		return SimpleCharacterTypeOperation.getEdits(config, prevEditOperationType, selections, leftoverVisibleColumns, ch, isDoingComposition);
 	}
 
-	public static typeWithoutInterceptors(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], str: string): EditOperationResult {
-		return TypeWithoutInterceptorsOperation.getEdits(prevEditOperationType, selections, str);
+	public static typeWithoutInterceptors(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], leftoverVisibleColumns: number[], str: string): EditOperationResult {
+		return TypeWithoutInterceptorsOperation.getEdits(prevEditOperationType, selections, leftoverVisibleColumns, str);
 	}
 }
 
