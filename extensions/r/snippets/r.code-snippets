@@ -1,0 +1,188 @@
+{
+	"R function": {
+		"prefix": "fun",
+		"body": [
+			"${1:name} <- function(${2:args}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "R function definition"
+	},
+	"R if": {
+		"prefix": "if",
+		"body": [
+			"if (${1:condition}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "R if statement"
+	},
+	"R if-else": {
+		"prefix": "ifelse",
+		"body": [
+			"if (${1:condition}) {",
+			"\t${2}",
+			"} else {",
+			"\t$0",
+			"}"
+		],
+		"description": "R if-else statement"
+	},
+	"R for loop": {
+		"prefix": "for",
+		"body": [
+			"for (${1:i} in ${2:1:10}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "R for loop"
+	},
+	"R while loop": {
+		"prefix": "while",
+		"body": [
+			"while (${1:condition}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "R while loop"
+	},
+	"R apply": {
+		"prefix": "apply",
+		"body": [
+			"apply(${1:X}, ${2|1,2|}, ${3:FUN})"
+		],
+		"description": "R apply function"
+	},
+	"R lapply": {
+		"prefix": "lapply",
+		"body": [
+			"lapply(${1:X}, function(${2:x}) {",
+			"\t$0",
+			"})"
+		],
+		"description": "R lapply (list apply)"
+	},
+	"R sapply": {
+		"prefix": "sapply",
+		"body": [
+			"sapply(${1:X}, function(${2:x}) {",
+			"\t$0",
+			"})"
+		],
+		"description": "R sapply (simplified apply)"
+	},
+	"R tryCatch": {
+		"prefix": "try",
+		"body": [
+			"tryCatch({",
+			"\t${1}",
+			"}, error = function(${2:e}) {",
+			"\t$0",
+			"})"
+		],
+		"description": "R tryCatch error handling"
+	},
+	"R library": {
+		"prefix": "lib",
+		"body": [
+			"library(${1:package})"
+		],
+		"description": "R library/package import"
+	},
+	"R require": {
+		"prefix": "req",
+		"body": [
+			"require(${1:package})"
+		],
+		"description": "R require package"
+	},
+	"R data frame": {
+		"prefix": "df",
+		"body": [
+			"${1:df} <- data.frame(",
+			"\t${2:col1} = ${3:c()},",
+			"\t$0",
+			")"
+		],
+		"description": "R data frame creation"
+	},
+	"R vector": {
+		"prefix": "vec",
+		"body": [
+			"${1:v} <- c(${2})"
+		],
+		"description": "R vector creation"
+	},
+	"R list": {
+		"prefix": "list",
+		"body": [
+			"${1:lst} <- list(",
+			"\t${2:name} = ${3:value},",
+			"\t$0",
+			")"
+		],
+		"description": "R list creation"
+	},
+	"R print": {
+		"prefix": "print",
+		"body": [
+			"print(${1:x})"
+		],
+		"description": "R print statement"
+	},
+	"R cat": {
+		"prefix": "cat",
+		"body": [
+			"cat(\"${1:message}\\n\")"
+		],
+		"description": "R cat output"
+	},
+	"R plot": {
+		"prefix": "plot",
+		"body": [
+			"plot(${1:x}, ${2:y},",
+			"\tmain = \"${3:Title}\",",
+			"\txlab = \"${4:X-axis}\",",
+			"\tylab = \"${5:Y-axis}\")"
+		],
+		"description": "R base plot"
+	},
+	"R ggplot": {
+		"prefix": "gg",
+		"body": [
+			"ggplot(${1:data}, aes(x = ${2:x}, y = ${3:y})) +",
+			"\tgeom_${4|point,line,bar|}() +",
+			"\tlabs(title = \"${5:Title}\",",
+			"\t\tx = \"${6:X-label}\",",
+			"\t\ty = \"${7:Y-label}\")"
+		],
+		"description": "R ggplot2 basic plot"
+	},
+	"R pipe": {
+		"prefix": "pipe",
+		"body": [
+			"${1:data} |>",
+			"\t${2:filter}(${3:condition}) |>",
+			"\t$0"
+		],
+		"description": "R native pipe operator (R 4.1+)"
+	},
+	"R assignment": {
+		"prefix": "<-",
+		"body": [
+			"${1:name} <- ${2:value}"
+		],
+		"description": "R assignment operator"
+	},
+	"R switch": {
+		"prefix": "switch",
+		"body": [
+			"switch(${1:expr},",
+			"\t\"${2:case1}\" = ${3:result1},",
+			"\t\"${4:case2}\" = ${5:result2},",
+			"\t${6:default}",
+			")"
+		],
+		"description": "R switch expression"
+	}
+}

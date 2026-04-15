@@ -35,6 +35,12 @@
         "scopeName": "source.r",
         "path": "./syntaxes/r.tmLanguage.json"
       }
+    ],
+    "snippets": [
+      {
+        "language": "r",
+        "path": "./snippets/r.code-snippets"
+      }
     ]
   },
   "repository": {
