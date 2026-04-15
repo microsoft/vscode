@@ -111,7 +111,6 @@ suite('SendToTerminalTool', () => {
 		const value = (result.content[0] as { value: string }).value;
 		assert.ok(value.includes('Successfully sent command'));
 		assert.ok(value.includes(KNOWN_TERMINAL_ID));
-		assert.ok(value.includes('get_terminal_output'), 'should direct agent to use get_terminal_output');
 
 		// Verify sendText was called with shouldExecute=true
 		assert.strictEqual(mockExecution.sentTexts.length, 1);

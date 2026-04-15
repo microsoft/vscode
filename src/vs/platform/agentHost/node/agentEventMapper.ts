@@ -115,6 +115,7 @@ export class AgentEventMapper {
 					toolCallId: e.toolCallId,
 					toolName: e.toolName,
 					displayName: e.displayName,
+					toolClientId: e.toolClientId,
 					_meta: meta,
 				};
 				const readyAction: IToolCallReadyAction = {

@@ -33,6 +33,7 @@ import { enrichToolInvocationWithSubagentMetadata, getAffectedUrisForEditTool, i
 import { getCopilotCLISessionStateDir } from './cliHelpers';
 import type { CopilotCliBridgeSpanProcessor } from './copilotCliBridgeSpanProcessor';
 import { ICopilotCLIImageSupport } from './copilotCLIImageSupport';
+import { handleExitPlanMode } from './exitPlanModeHandler';
 import { PermissionRequest, requestPermission, requiresFileEditconfirmation } from './permissionHelpers';
 import { IQuestion, IUserQuestionHandler } from './userInputHelpers';
 
@@ -458,82 +459,23 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			if (shouldHandleExitPlanModeRequests) {
 				disposables.add(toDisposable(this._sdkSession.on('exit_plan_mode.requested', async (event) => {
 					this.updateArtifacts();
-					type ActionType = Parameters<NonNullable<SessionOptions['onExitPlanMode']>>[0]['actions'][number];
-					if (this._permissionLevel === 'autopilot') {
-						this.logService.trace('[CopilotCLISession] Auto-approving exit plan mode in autopilot');
-						const choices: ActionType[] = (event.data.actions as ActionType[]) ?? [];
-						if (event.data.recommendedAction && choices.includes(event.data.recommendedAction as ActionType)) {
-							this._sdkSession.respondToExitPlanMode(event.data.requestId, { approved: true, selectedAction: event.data.recommendedAction as ActionType, autoApproveEdits: true });
-							return;
-						}
-						if (choices.includes('autopilot')) {
-							this._sdkSession.respondToExitPlanMode(event.data.requestId, { approved: true, selectedAction: 'autopilot', autoApproveEdits: true });
-							return;
-						}
-						if (choices.includes('autopilot_fleet')) {
-							this._sdkSession.respondToExitPlanMode(event.data.requestId, { approved: true, selectedAction: 'autopilot_fleet', autoApproveEdits: true });
-							return;
-						}
-						if (choices.includes('interactive')) {
-							this._sdkSession.respondToExitPlanMode(event.data.requestId, { approved: true, selectedAction: 'interactive' });
-							return;
-						}
-						if (choices.includes('exit_only')) {
-							this._sdkSession.respondToExitPlanMode(event.data.requestId, { approved: true, selectedAction: 'exit_only' });
-							return;
-						}
-						this._sdkSession.respondToExitPlanMode(event.data.requestId, { approved: true, autoApproveEdits: true });
-						return;
-					}
-					if (!(this._toolInvocationToken as unknown)) {
-						this.logService.warn('[ConfirmationTool] No toolInvocationToken available, cannot request exit plan mode approval');
-						this._sdkSession.respondToExitPlanMode(event.data.requestId, { approved: false });
-						return;
-					}
-					const actionDescriptions: Record<string, { label: string; description: string }> = {
-						'autopilot': { label: 'Autopilot', description: l10n.t('Auto-approve all tool calls and continue until the task is done') },
-						'interactive': { label: 'Interactive', description: l10n.t('Let the agent continue in interactive mode, asking for input and approval for each action.') },
-						'exit_only': { label: 'Approve and exit', description: l10n.t('Exit planning, but do not execute the plan. I will execute the plan myself.') },
-						'autopilot_fleet': { label: 'Autopilot Fleet', description: l10n.t('Auto-approve all tool calls, including fleet management actions, and continue until the task is done.') },
-					} satisfies Record<ActionType, { label: string; description: string }>;
-
-					const approved = true;
 					try {
-						const planPath = this._sdkSession.getPlanPath();
-
-						const userInputRequest: IQuestion = {
-							question: planPath ? l10n.t('Approve this plan {0}?', `[Plan.md](${Uri.file(planPath).toString()})`) : l10n.t('Approve this plan?'),
-							header: l10n.t('Approve this plan?'),
-							options: event.data.actions.map(a => ({
-								label: actionDescriptions[a]?.label ?? a,
-								recommended: a === event.data.recommendedAction,
-								description: actionDescriptions[a]?.description ?? '',
-							})),
-							allowFreeformInput: true,
-						};
-						const answer = await this._userQuestionHandler.askUserQuestion(userInputRequest, this._toolInvocationToken as unknown as never, token);
+						const response = await handleExitPlanMode(
+							event.data,
+							this._sdkSession,
+							this._permissionLevel,
+							this._toolInvocationToken,
+							this.workspaceService,
+							this.logService,
+							this._userQuestionHandler,
+							token,
+						);
 						flushPendingInvocationMessages();
-						if (!answer) {
-							this._sdkSession.respondToExitPlanMode(event.data.requestId, { approved: false });
-							return;
-						}
-						if (answer.freeText) {
-							this._sdkSession.respondToExitPlanMode(event.data.requestId, { approved: false, feedback: answer.freeText });
-						} else {
-							let selectedAction: ActionType = answer.selected[0] as ActionType;
-							Object.entries(actionDescriptions).forEach(([action, item]) => {
-								if (item.label === selectedAction) {
-									selectedAction = action as ActionType;
-								}
-							});
-							const autoApproveEdits = approved && this._permissionLevel === 'autoApprove' ? true : undefined;
-							this._sdkSession.respondToExitPlanMode(event.data.requestId, { approved: true, selectedAction, autoApproveEdits });
-						}
+						this._sdkSession.respondToExitPlanMode(event.data.requestId, response);
 					} catch (error) {
-						this.logService.error(error, '[ConfirmationTool] Error showing confirmation tool for exit plan mode');
+						this.logService.error(error, '[CopilotCLISession] Error handling exit plan mode');
+						this._sdkSession.respondToExitPlanMode(event.data.requestId, { approved: false });
 					}
-					this._sdkSession.respondToExitPlanMode(event.data.requestId, { approved: false });
-
 				})));
 			}
 			disposables.add(toDisposable(this._sdkSession.on('user_input.requested', async (event) => {

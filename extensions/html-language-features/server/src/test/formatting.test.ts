@@ -2,11 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import 'mocha';
-import * as path from 'path';
-import * as fs from 'fs';
+import { suite, test } from 'node:test';
+import * as path from 'node:path';
+import * as fs from 'node:fs';
 
-import * as assert from 'assert';
+import assert from 'node:assert/strict';
 import { getLanguageModes, TextDocument, Range, FormattingOptions, ClientCapabilities } from '../modes/languageModes.js';
 
 import { format } from '../modes/formatting.js';
@@ -38,10 +38,14 @@ suite('HTML Embedded Formatting', () => {
 			formatOptions = FormattingOptions.create(2, true);
 		}
 
-		const result = await format(languageModes, document, range, formatOptions, undefined, { css: true, javascript: true });
+		try {
+			const result = await format(languageModes, document, range, formatOptions, undefined, { css: true, javascript: true });
 
-		const actual = TextDocument.applyEdits(document, result);
-		assert.strictEqual(actual, expected, message);
+			const actual = TextDocument.applyEdits(document, result);
+			assert.strictEqual(actual, expected, message);
+		} finally {
+			languageModes.dispose();
+		}
 	}
 
 	async function assertFormatWithFixture(fixtureName: string, expectedPath: string, options?: any, formatOptions?: FormattingOptions): Promise<void> {

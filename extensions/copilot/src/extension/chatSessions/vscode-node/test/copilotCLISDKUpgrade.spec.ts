@@ -56,9 +56,9 @@ describe('CopilotCLI SDK Upgrade', function () {
 			path.join('prebuilds', 'linux-x64', 'computer.node'),
 			path.join('prebuilds', 'win32-arm64', 'computer.node'),
 			path.join('prebuilds', 'win32-x64', 'computer.node'),
-			// win_error_mode
-			path.join('prebuilds', 'win32-arm64', 'win_error_mode.node'),
-			path.join('prebuilds', 'win32-x64', 'win_error_mode.node'),
+			// win32 native module (formerly win_error_mode)
+			path.join('prebuilds', 'win32-arm64', 'win32.node'),
+			path.join('prebuilds', 'win32-x64', 'win32.node'),
 			path.join('ripgrep', 'bin', 'darwin-arm64', 'rg'),
 			path.join('ripgrep', 'bin', 'darwin-x64', 'rg'),
 			path.join('ripgrep', 'bin', 'linux-x64', 'rg'),

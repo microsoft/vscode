@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { timeout } from '../../../../../../base/common/async.js';
 import type { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { createCommandUri, isMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
@@ -16,6 +17,7 @@ import { IChatService, IChatMultiSelectAnswer, IChatQuestionAnswerValue, IChatQu
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ITerminalService } from '../../../../terminal/browser/terminal.js';
+import { getOutput } from '../outputHelpers.js';
 import { buildCommandDisplayText, normalizeCommandForExecution } from '../runInTerminalHelpers.js';
 import { RunInTerminalTool } from './runInTerminalTool.js';
 import { isSessionAutoApproveLevel } from './terminalToolAutoApprove.js';
@@ -25,7 +27,7 @@ export const SendToTerminalToolData: IToolData = {
 	id: TerminalToolId.SendToTerminal,
 	toolReferenceName: 'sendToTerminal',
 	displayName: localize('sendToTerminalTool.displayName', 'Send to Terminal'),
-	modelDescription: `Send input text to a terminal session. This can target either a persistent terminal started with ${TerminalToolId.RunInTerminal} in async mode (using 'id') or any foreground terminal visible in the terminal panel (using 'terminalId'). The 'command' field may be empty or whitespace to press Enter (useful for interactive prompts). After sending, use ${TerminalToolId.GetTerminalOutput} to check updated output for persistent terminals.`,
+	modelDescription: `Send input text to a terminal session. This can target either a persistent terminal started with ${TerminalToolId.RunInTerminal} in async mode (using 'id') or any foreground terminal visible in the terminal panel (using 'terminalId'). The 'command' field may be empty or whitespace to press Enter (useful for interactive prompts). The result includes the last few lines of terminal output captured shortly after sending.`,
 	icon: Codicon.terminal,
 	source: ToolDataSource.Internal,
 	inputSchema: {
@@ -361,10 +363,13 @@ export class SendToTerminalTool extends Disposable implements IToolImpl {
 
 			await instance.sendText(normalizeCommandForExecution(args.command), true);
 
+			await timeout(100);
+			const recentOutput = getOutput(instance, undefined, { lastNLines: 5 });
+
 			return {
 				content: [{
 					kind: 'text',
-					value: `Successfully sent command to foreground terminal ${args.terminalId}. Use ${TerminalToolId.GetTerminalOutput} with terminalId ${args.terminalId} to check for updated output.`
+					value: `Successfully sent command to foreground terminal ${args.terminalId}.${recentOutput ? `\n\nTerminal output (last 5 lines):\n${recentOutput}` : ''}`
 				}]
 			};
 		}
@@ -382,10 +387,13 @@ export class SendToTerminalTool extends Disposable implements IToolImpl {
 
 		await execution.instance.sendText(normalizeCommandForExecution(args.command), true);
 
+		await timeout(100);
+		const recentOutput = getOutput(execution.instance, undefined, { lastNLines: 5 });
+
 		return {
 			content: [{
 				kind: 'text',
-				value: `Successfully sent command to terminal ${args.id}. Use ${TerminalToolId.GetTerminalOutput} to check for updated output.`
+				value: `Successfully sent command to terminal ${args.id}.${recentOutput ? `\n\nTerminal output (last 5 lines):\n${recentOutput}` : ''}`
 			}]
 		};
 	}

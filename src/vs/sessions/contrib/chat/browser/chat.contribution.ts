@@ -19,7 +19,7 @@ import { IViewContainersRegistry, IViewsRegistry, ViewContainerLocation, Extensi
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { IsActiveSessionBackgroundProviderContext, IsNewChatSessionContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { IsNewChatInSessionContext, IsNewChatSessionContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { Menus } from '../../../browser/menus.js';
 import { BranchChatSessionAction } from './branchChatSessionAction.js';
 import { RunScriptContribution } from './runScriptAction.js';
@@ -27,8 +27,6 @@ import './nullInlineChatSessionService.js';
 import './nullChatTipService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
-import { AgenticPromptsService } from './promptsService.js';
-import { IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { ISessionsConfigurationService, SessionsConfigurationService } from './sessionsConfigurationService.js';
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
@@ -37,6 +35,7 @@ import { SessionsCustomizationHarnessService } from './customizationHarnessServi
 import { ChatViewContainerId, ChatViewId } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { NewChatViewPane, SessionsViewId } from './newChatViewPane.js';
+import { NewChatInSessionViewPane, NewChatInSessionViewId } from './newChatInSessionViewPane.js';
 import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/viewPaneContainer.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { ChatViewPane } from '../../../../workbench/contrib/chat/browser/widgetHosts/viewPane/chatViewPane.js';
@@ -48,6 +47,7 @@ import { SessionsChatAccessibilityHelp } from './sessionsChatAccessibilityHelp.j
 import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { IRemoteAgentHostService, IRemoteAgentHostSSHConnection, RemoteAgentHostEntryType } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { encodeHex, VSBuffer } from '../../../../base/common/buffer.js';
 
 export class OpenSessionWorktreeInVSCodeAction extends Action2 {
@@ -58,7 +58,7 @@ export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 			id: OpenSessionWorktreeInVSCodeAction.ID,
 			title: localize2('openInVSCode', 'Open in VS Code'),
 			icon: Codicon.vscodeInsiders,
-			precondition: IsActiveSessionBackgroundProviderContext,
+			precondition: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated()),
 			menu: [{
 				id: Menus.TitleBarSessionMenu,
 				group: 'navigation',
@@ -78,26 +78,6 @@ export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 		const sessionsProvidersService = accessor.get(ISessionsProvidersService);
 		const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
 
-		const activeSession = sessionsManagementService.activeSession.get();
-		if (!activeSession) {
-			return;
-		}
-
-		const workspace = activeSession.workspace.get();
-		const repo = workspace?.repositories[0];
-		const rawFolderUri = activeSession.sessionType === CopilotCLISessionType.id ? repo?.workingDirectory ?? repo?.uri : undefined;
-
-		if (!rawFolderUri) {
-			return;
-		}
-
-		// Unwrap agent-host URIs to get the original file path on the remote
-		const folderUri = rawFolderUri.scheme === AGENT_HOST_SCHEME ? fromAgentHostUri(rawFolderUri) : rawFolderUri;
-
-		// Resolve VS Code remote authority from the session's provider
-		const remoteAuthority = resolveRemoteAuthority(
-			activeSession.providerId, sessionsProvidersService, remoteAgentHostService);
-
 		const scheme = productService.quality === 'stable'
 			? 'vscode'
 			: productService.quality === 'exploration'
@@ -108,6 +88,29 @@ export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 
 		const params = new URLSearchParams();
 		params.set('windowId', '_blank');
+
+		const activeSession = sessionsManagementService.activeSession.get();
+		if (!activeSession) {
+			await openerService.open(URI.from({ scheme, query: params.toString() }), { openExternal: true }); // Open VS Code without a specific path
+			return;
+		}
+
+		const workspace = activeSession.workspace.get();
+		const repo = workspace?.repositories[0];
+		const rawFolderUri = activeSession.sessionType === CopilotCLISessionType.id ? repo?.workingDirectory ?? repo?.uri : undefined;
+
+		if (!rawFolderUri) {
+			await openerService.open(URI.from({ scheme, query: params.toString() }), { openExternal: true }); // Open VS Code without a specific path
+			return;
+		}
+
+		// Unwrap agent-host URIs to get the original file path on the remote
+		const folderUri = rawFolderUri.scheme === AGENT_HOST_SCHEME ? fromAgentHostUri(rawFolderUri) : rawFolderUri;
+
+		// Resolve VS Code remote authority from the session's provider
+		const remoteAuthority = resolveRemoteAuthority(
+			activeSession.providerId, sessionsProvidersService, remoteAgentHostService);
+
 		params.set('session', activeSession.resource.toString());
 
 		if (remoteAuthority) {
@@ -145,7 +148,7 @@ export function resolveRemoteAuthority(
 	remoteAgentHostService: IRemoteAgentHostService,
 ): string | undefined {
 	const provider = sessionsProvidersService.getProvider(providerId);
-	if (!provider?.remoteAddress) {
+	if (!provider || !isAgentHostProvider(provider) || !provider.remoteAddress) {
 		return undefined;
 	}
 
@@ -268,7 +271,7 @@ class RegisterChatViewContainerContribution implements IWorkbenchContribution {
 			canToggleVisibility: false,
 			canMoveView: false,
 			ctorDescriptor: new SyncDescriptor(ChatViewPane),
-			when: IsNewChatSessionContext.negate(),
+			when: ContextKeyExpr.and(IsNewChatSessionContext.negate(), IsNewChatInSessionContext.negate()),
 			windowVisibility: WindowVisibility.Sessions
 		}, {
 			id: SessionsViewId,
@@ -280,6 +283,17 @@ class RegisterChatViewContainerContribution implements IWorkbenchContribution {
 			canMoveView: false,
 			ctorDescriptor: new SyncDescriptor(NewChatViewPane),
 			when: IsNewChatSessionContext,
+			windowVisibility: WindowVisibility.Sessions,
+		}, {
+			id: NewChatInSessionViewId,
+			containerIcon: chatViewContainer.icon,
+			containerTitle: chatViewContainer.title.value,
+			singleViewPaneContainerTitle: chatViewContainer.title.value,
+			name: localize2('sessions.newChatInSession.view', "New Chat"),
+			canToggleVisibility: false,
+			canMoveView: false,
+			ctorDescriptor: new SyncDescriptor(NewChatInSessionViewPane),
+			when: ContextKeyExpr.and(IsNewChatSessionContext.negate(), IsNewChatInSessionContext),
 			windowVisibility: WindowVisibility.Sessions,
 		}], chatViewContainer);
 	}
@@ -294,7 +308,6 @@ registerWorkbenchContribution2(RegisterChatViewContainerContribution.ID, Registe
 registerWorkbenchContribution2(RunScriptContribution.ID, RunScriptContribution, WorkbenchPhase.AfterRestored);
 
 // register services
-registerSingleton(IPromptsService, AgenticPromptsService, InstantiationType.Delayed);
 registerSingleton(ISessionsConfigurationService, SessionsConfigurationService, InstantiationType.Delayed);
 registerSingleton(IAICustomizationWorkspaceService, SessionsAICustomizationWorkspaceService, InstantiationType.Delayed);
 registerSingleton(ICustomizationHarnessService, SessionsCustomizationHarnessService, InstantiationType.Delayed);

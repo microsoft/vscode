@@ -438,7 +438,7 @@ export class ClaudeChatSessionItemController extends Disposable {
 				permissionMode,
 				cwd: folder,
 			};
-			this._controller.items.add(item);
+			this._inProgressItems.set(newSessionId, item);
 			return item;
 		};
 

@@ -146,6 +146,10 @@ export class MockAgent implements IAgent {
 		this.setCustomizationEnabledCalls.push({ uri, enabled });
 	}
 
+	setClientTools(): void { }
+
+	onClientToolCallComplete(): void { }
+
 	async shutdown(): Promise<void> { }
 
 	fireProgress(event: IAgentProgressEvent): void {
@@ -329,7 +333,7 @@ export class ScriptedMockAgent implements IAgent {
 				// Fire tool_start + tool_ready with write permission for a regular file (should be auto-approved)
 				(async () => {
 					await timeout(10);
-					this._onDidSessionProgress.fire({ type: 'tool_start', session, toolCallId: 'tc-write-1', toolName: 'write', displayName: 'Write File', invocationMessage: 'Write file' });
+					this._onDidSessionProgress.fire({ type: 'tool_start', session, toolCallId: 'tc-write-1', toolName: 'create', displayName: 'Create File', invocationMessage: 'Create file' });
 					await timeout(5);
 					this._onDidSessionProgress.fire({ type: 'tool_ready', session, toolCallId: 'tc-write-1', invocationMessage: 'Write src/app.ts', permissionKind: 'write', permissionPath: '/workspace/src/app.ts' });
 					// Auto-approved writes resolve immediately — complete the tool and turn
@@ -346,7 +350,7 @@ export class ScriptedMockAgent implements IAgent {
 				// Fire tool_start + tool_ready with write permission for .env (should be blocked)
 				(async () => {
 					await timeout(10);
-					this._onDidSessionProgress.fire({ type: 'tool_start', session, toolCallId: 'tc-write-env-1', toolName: 'write', displayName: 'Write File', invocationMessage: 'Write file' });
+					this._onDidSessionProgress.fire({ type: 'tool_start', session, toolCallId: 'tc-write-env-1', toolName: 'create', displayName: 'Create File', invocationMessage: 'Create file' });
 					await timeout(5);
 					this._onDidSessionProgress.fire({ type: 'tool_ready', session, toolCallId: 'tc-write-env-1', invocationMessage: 'Write .env', permissionKind: 'write', permissionPath: '/workspace/.env', confirmationTitle: 'Write .env' });
 				})();
@@ -460,6 +464,10 @@ export class ScriptedMockAgent implements IAgent {
 
 	}
 
+	setClientTools(): void { }
+
+	onClientToolCallComplete(): void { }
+
 	async getSessionMessages(session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]> {
 		if (session.toString() === PRE_EXISTING_SESSION_URI.toString()) {
 			return this._preExistingMessages;
@@ -483,14 +491,8 @@ export class ScriptedMockAgent implements IAgent {
 		// Mock agent doesn't track model state
 	}
 
-	async truncateSession(_session: URI, _turnIndex?: number): Promise<void> {
+	async truncateSession(_session: URI, _turnId?: string): Promise<void> {
 		// Mock agent accepts truncation without side effects
-	}
-
-	async forkSession(_sourceSession: URI, newSessionId: string, _turnIndex: number): Promise<void> {
-		// Create the forked session so it can be resumed
-		const session = AgentSession.uri('mock', newSessionId);
-		this._sessions.set(newSessionId, session);
 	}
 
 	respondToPermissionRequest(toolCallId: string, approved: boolean): void {

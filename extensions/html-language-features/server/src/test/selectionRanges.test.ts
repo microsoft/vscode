@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'mocha';
-import * as assert from 'assert';
+import { suite, test } from 'node:test';
+import assert from 'node:assert/strict';
 import { getLanguageModes, ClientCapabilities, TextDocument, SelectionRange } from '../modes/languageModes.js';
 import { getSelectionRanges } from '../modes/selectionRanges.js';
 import { getNodeFileFS } from '../node/nodeFs.js';
@@ -20,19 +20,23 @@ async function assertRanges(content: string, expected: (number | string)[][]): P
 		folders: [{ name: 'foo', uri: 'test://foo' }]
 	};
 	const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST, getNodeFileFS());
-
 	const document = TextDocument.create('test://foo.html', 'html', 1, content);
-	const actualRanges = await getSelectionRanges(languageModes, document, [document.positionAt(offset)]);
-	assert.strictEqual(actualRanges.length, 1);
-	const offsetPairs: [number, string][] = [];
-	let curr: SelectionRange | undefined = actualRanges[0];
-	while (curr) {
-		offsetPairs.push([document.offsetAt(curr.range.start), document.getText(curr.range)]);
-		curr = curr.parent;
-	}
 
-	message += `${JSON.stringify(offsetPairs)}\n but should give:\n${JSON.stringify(expected)}\n`;
-	assert.deepStrictEqual(offsetPairs, expected, message);
+	try {
+		const actualRanges = await getSelectionRanges(languageModes, document, [document.positionAt(offset)]);
+		assert.strictEqual(actualRanges.length, 1);
+		const offsetPairs: [number, string][] = [];
+		let curr: SelectionRange | undefined = actualRanges[0];
+		while (curr) {
+			offsetPairs.push([document.offsetAt(curr.range.start), document.getText(curr.range)]);
+			curr = curr.parent;
+		}
+
+		message += `${JSON.stringify(offsetPairs)}\n but should give:\n${JSON.stringify(expected)}\n`;
+		assert.deepStrictEqual(offsetPairs, expected, message);
+	} finally {
+		languageModes.dispose();
+	}
 }
 
 suite('HTML SelectionRange', () => {

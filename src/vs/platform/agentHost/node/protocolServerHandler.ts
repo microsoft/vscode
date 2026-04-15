@@ -337,7 +337,7 @@ export class ProtocolServerHandler extends Disposable {
 			let createdSession: URI;
 			// Resolve fork turnId to a 0-based index using the source session's
 			// turn list in the state manager.
-			let fork: { session: URI; turnIndex: number } | undefined;
+			let fork: { session: URI; turnIndex: number; turnId: string } | undefined;
 			if (params.fork) {
 				const sourceState = this._stateManager.getSessionState(params.fork.session);
 				if (!sourceState) {
@@ -347,7 +347,7 @@ export class ProtocolServerHandler extends Disposable {
 				if (turnIndex < 0) {
 					throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Fork turn ID ${params.fork.turnId} not found in session ${params.fork.session}`);
 				}
-				fork = { session: URI.parse(params.fork.session), turnIndex };
+				fork = { session: URI.parse(params.fork.session), turnIndex, turnId: params.fork.turnId };
 			}
 			try {
 				createdSession = await this._agentService.createSession({

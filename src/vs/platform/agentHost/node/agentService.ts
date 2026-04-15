@@ -196,6 +196,23 @@ export class AgentService extends Disposable implements IAgentService {
 			throw new Error(`No agent provider registered for: ${providerId ?? '(none)'}`);
 		}
 
+		// When forking, build the old→new turn ID mapping before creating the
+		// session so the agent can use it to remap per-turn data.
+		if (config?.fork) {
+			const sourceState = this._stateManager.getSessionState(config.fork.session.toString());
+			if (sourceState) {
+				const sourceTurns = sourceState.turns.slice(0, config.fork.turnIndex + 1);
+				const turnIdMapping = new Map<string, string>();
+				for (const t of sourceTurns) {
+					turnIdMapping.set(t.id, generateUuid());
+				}
+				config = {
+					...config,
+					fork: { ...config.fork, turnIdMapping },
+				};
+			}
+		}
+
 		// Ensure the command auto-approver is ready before any session events
 		// can arrive. This makes shell command auto-approval fully synchronous.
 		// Safe to run in parallel with createSession since no events flow until
@@ -219,9 +236,9 @@ export class AgentService extends Disposable implements IAgentService {
 		if (config?.fork) {
 			const sourceState = this._stateManager.getSessionState(config.fork.session.toString());
 			let sourceTurns: ITurn[] = [];
-			if (sourceState) {
+			if (sourceState && config.fork.turnIdMapping) {
 				sourceTurns = sourceState.turns.slice(0, config.fork.turnIndex + 1)
-					.map(t => ({ ...t, id: generateUuid() }));
+					.map(t => ({ ...t, id: config!.fork!.turnIdMapping!.get(t.id) ?? generateUuid() }));
 			}
 
 			const summary: ISessionSummary = {

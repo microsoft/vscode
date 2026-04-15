@@ -118,7 +118,7 @@
 		padding: 0;
 		border: none;
 		border-radius: 0;
-		box-shadow: none;
+		box-shadow: none !important;
 		background: transparent;
 		background-color: transparent !important;
 	}
@@ -131,6 +131,8 @@
 	.agent-sessions-find-widget-container > .monaco-tree-type-filter .monaco-tree-type-filter-input > .monaco-findInput > .monaco-inputbox {
 		display: flex;
 		align-items: center;
+		min-height: 24px;
+		box-sizing: border-box;
 	}
 
 	.agent-sessions-find-widget-container > .monaco-tree-type-filter .monaco-tree-type-filter-input > .monaco-findInput > .controls {
@@ -211,6 +213,17 @@
 		flex: 1;
 		overflow: hidden;
 	}
+}
+
+.agent-sessions-workbench.experimental-shell-gradient-background .agent-sessions-viewpane {
+	background: transparent !important;
+}
+
+.agent-sessions-workbench.experimental-shell-gradient-background .part.sidebar > .content .pane-body,
+.agent-sessions-workbench.experimental-shell-gradient-background .part.sidebar > .content .monaco-scrollable-element,
+.agent-sessions-workbench.experimental-shell-gradient-background .part.sidebar > .content .monaco-list,
+.agent-sessions-workbench.experimental-shell-gradient-background .part.sidebar > .content .monaco-list-rows {
+	background: transparent !important;
 }
 
 /* Sessions-app-specific overrides for the agent sessions viewer.

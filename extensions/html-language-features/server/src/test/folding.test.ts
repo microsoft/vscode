@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'mocha';
-import * as assert from 'assert';
+import { suite, test } from 'node:test';
+import assert from 'node:assert/strict';
 import { getFoldingRanges } from '../modes/htmlFolding.js';
 import { TextDocument, getLanguageModes } from '../modes/languageModes.js';
 import { ClientCapabilities } from 'vscode-css-languageservice';
@@ -23,14 +23,18 @@ async function assertRanges(lines: string[], expected: ExpectedIndentRange[], me
 		folders: [{ name: 'foo', uri: 'test://foo' }]
 	};
 	const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST, getNodeFileFS());
-	const actual = await getFoldingRanges(languageModes, document, nRanges, null);
+	try {
+		const actual = await getFoldingRanges(languageModes, document, nRanges, null);
 
-	let actualRanges = [];
-	for (let i = 0; i < actual.length; i++) {
-		actualRanges[i] = r(actual[i].startLine, actual[i].endLine, actual[i].kind);
+		let actualRanges = [];
+		for (let i = 0; i < actual.length; i++) {
+			actualRanges[i] = r(actual[i].startLine, actual[i].endLine, actual[i].kind);
+		}
+		actualRanges = actualRanges.sort((r1, r2) => r1.startLine - r2.startLine);
+		assert.deepStrictEqual(actualRanges, expected, message);
+	} finally {
+		languageModes.dispose();
 	}
-	actualRanges = actualRanges.sort((r1, r2) => r1.startLine - r2.startLine);
-	assert.deepStrictEqual(actualRanges, expected, message);
 }
 
 function r(startLine: number, endLine: number, kind?: string): ExpectedIndentRange {

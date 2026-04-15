@@ -4520,10 +4520,26 @@
 							"advanced"
 						]
 					},
+					"github.copilot.chat.cli.showExternalSessions": {
+						"type": "boolean",
+						"default": false,
+						"markdownDescription": "%github.copilot.config.cli.showExternalSessions%",
+						"tags": [
+							"advanced"
+						]
+					},
 					"github.copilot.chat.cli.planExitMode.enabled": {
 						"type": "boolean",
 						"default": true,
 						"markdownDescription": "%github.copilot.config.cli.planExitMode.enabled%",
+						"tags": [
+							"advanced"
+						]
+					},
+					"github.copilot.chat.cli.planCommand.enabled": {
+						"type": "boolean",
+						"default": true,
+						"markdownDescription": "%github.copilot.config.cli.planCommand.enabled%",
 						"tags": [
 							"advanced"
 						]
@@ -4538,7 +4554,7 @@
 					},
 					"github.copilot.chat.cli.forkSessions.enabled": {
 						"type": "boolean",
-						"default": false,
+						"default": true,
 						"markdownDescription": "%github.copilot.config.cli.forkSessions.enabled%",
 						"tags": [
 							"advanced"
@@ -4625,6 +4641,16 @@
 						"type": "number",
 						"default": 4,
 						"markdownDescription": "%github.copilot.config.searchSubagent.toolCallLimit%",
+						"tags": [
+							"advanced",
+							"experimental",
+							"onExp"
+						]
+					},
+					"github.copilot.chat.searchSubagent.thoroughnessEnabled": {
+						"type": "boolean",
+						"default": false,
+						"markdownDescription": "%github.copilot.config.searchSubagent.thoroughnessEnabled%",
 						"tags": [
 							"advanced",
 							"experimental",
@@ -6091,7 +6117,7 @@
 					{
 						"name": "plan",
 						"description": "%github.copilot.command.cli.plan.description%",
-						"when": "false"
+						"when": "config.github.copilot.chat.cli.planCommand.enabled"
 					},
 					{
 						"name": "fleet",
@@ -6288,6 +6314,7 @@
 		"csv-parse": "^6.0.0",
 		"dotenv": "^17.2.0",
 		"electron": "^39.8.5",
+		"esbuild": "0.27.2",
 		"eslint": "^9.30.0",
 		"eslint-import-resolver-typescript": "^4.4.4",
 		"eslint-plugin-header": "^3.1.1",
@@ -6340,7 +6367,7 @@
 		"@anthropic-ai/claude-agent-sdk": "0.2.98",
 		"@anthropic-ai/sdk": "^0.82.0",
 		"@github/blackbird-external-ingest-utils": "^0.3.0",
-		"@github/copilot": "^1.0.24",
+		"@github/copilot": "^1.0.26",
 		"@google/genai": "^1.22.0",
 		"@humanwhocodes/gitignore-to-minimatch": "1.0.2",
 		"@microsoft/tiktokenizer": "^1.0.10",

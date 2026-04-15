@@ -89,6 +89,7 @@ function makeAgentSession(opts: {
 		lastTurnEnd: chat.lastTurnEnd,
 		description: chat.description,
 		gitHubInfo: observableValue('test.gitHubInfo', undefined),
+		ready: observableValue('test.ready', true),
 		chats: observableValue('test.chats', [chat]),
 		activeChat: observableValue('test.activeChat', chat),
 		mainChat: chat,
@@ -138,6 +139,7 @@ function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerT
 		lastTurnEnd: chat.lastTurnEnd,
 		description: chat.description,
 		gitHubInfo: observableValue('test.gitHubInfo', undefined),
+		ready: observableValue('test.ready', true),
 		chats: observableValue('test.chats', [chat]),
 		mainChat: chat,
 	};

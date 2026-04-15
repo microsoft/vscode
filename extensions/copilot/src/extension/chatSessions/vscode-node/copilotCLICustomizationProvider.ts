@@ -6,7 +6,6 @@
 import * as l10n from '@vscode/l10n';
 import * as vscode from 'vscode';
 import { ICustomInstructionsService } from '../../../platform/customInstructions/common/customInstructionsService';
-import { INSTRUCTION_FILE_EXTENSION, SKILL_FILENAME } from '../../../platform/customInstructions/common/promptTypes';
 import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IPromptsService } from '../../../platform/promptFiles/common/promptsService';
@@ -17,7 +16,6 @@ import { Emitter } from '../../../util/vs/base/common/event';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { basename } from '../../../util/vs/base/common/resources';
 import { URI } from '../../../util/vs/base/common/uri';
-import { IChatPromptFileService } from '../common/chatPromptFileService';
 import { ICopilotCLIAgents } from '../copilotcli/node/copilotCli';
 
 export class CopilotCLICustomizationProvider extends Disposable implements vscode.ChatSessionCustomizationProvider {
@@ -40,7 +38,6 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 	}
 
 	constructor(
-		@IChatPromptFileService private readonly chatPromptFileService: IChatPromptFileService,
 		@ICopilotCLIAgents private readonly copilotCLIAgents: ICopilotCLIAgents,
 		@ICustomInstructionsService private readonly customInstructionsService: ICustomInstructionsService,
 		@IPromptsService private readonly promptsService: IPromptsService,
@@ -50,20 +47,28 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 	) {
 		super();
 
-		this._register(this.chatPromptFileService.onDidChangeCustomAgents(() => this._onDidChange.fire()));
-		this._register(this.chatPromptFileService.onDidChangeInstructions(() => this._onDidChange.fire()));
-		this._register(this.chatPromptFileService.onDidChangeSkills(() => this._onDidChange.fire()));
-		this._register(this.chatPromptFileService.onDidChangeHooks(() => this._onDidChange.fire()));
-		this._register(this.chatPromptFileService.onDidChangePlugins(() => this._onDidChange.fire()));
+		this._register(this.promptsService.onDidChangeCustomAgents(() => this._onDidChange.fire()));
+		this._register(this.promptsService.onDidChangeInstructions(() => this._onDidChange.fire()));
+		this._register(this.promptsService.onDidChangeSkills(() => this._onDidChange.fire()));
+		this._register(this.promptsService.onDidChangeHooks(() => this._onDidChange.fire()));
+		this._register(this.promptsService.onDidChangePlugins(() => this._onDidChange.fire()));
 		this._register(this.copilotCLIAgents.onDidChangeAgents(() => this._onDidChange.fire()));
 	}
 
 	async provideChatSessionCustomizations(token: vscode.CancellationToken): Promise<vscode.ChatSessionCustomizationItem[]> {
-		const agents = await this.getAgentItems();
-		const instructions = await this.getInstructionItems(token);
-		const skills = this.getSkillItems();
-		const hooks = this.getHookItems();
-		const plugins = this.getPluginItems();
+		const [agents, instructions, skills, hooks, plugins] = await Promise.all([
+			this.getAgentItems(token),
+			this.getInstructionItems(token),
+			this.getSkillItems(token),
+			this.getHookItems(token),
+			this.getPluginItems(token),
+		].map(p => p.catch(err => {
+			if (isCancellationError(err) || token.isCancellationRequested) {
+				throw err;
+			}
+			this.logService.error(`[CopilotCLICustomizationProvider] failed to get customizations: ${err}`);
+			return [];
+		})));
 
 		this.logService.debug(`[CopilotCLICustomizationProvider] agents (${agents.length}): ${agents.map(a => a.name).join(', ') || '(none)'}`);
 		this.logService.debug(`[CopilotCLICustomizationProvider] instructions (${instructions.length}): ${instructions.map(i => i.name).join(', ') || '(none)'}`);
@@ -81,7 +86,7 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 	 * Builds agent items from ICopilotCLIAgents, which already merges SDK
 	 * and prompt-file agents with source URIs.
 	 */
-	private async getAgentItems(): Promise<vscode.ChatSessionCustomizationItem[]> {
+	private async getAgentItems(_token: vscode.CancellationToken): Promise<vscode.ChatSessionCustomizationItem[]> {
 		const agentInfos = await this.copilotCLIAgents.getAgents();
 		return agentInfos.map(({ agent, sourceUri }) => ({
 			uri: sourceUri,
@@ -121,7 +126,7 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 
 		// Emit agent instruction files (AGENTS.md, CLAUDE.md, copilot-instructions.md)
 		// that come from customInstructionsService but may not appear in
-		// chatPromptFileService.instructions.
+		// promptsService.getInstructions().
 		for (const uri of agentInstructionUriList) {
 			seenUris.add(uri.toString());
 			items.push({
@@ -132,27 +137,16 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 			});
 		}
 
-		for (const instruction of this.chatPromptFileService.instructions) {
+		for (const instruction of await this.promptsService.getInstructions(token)) {
 			const uri = instruction.uri;
 
 			if (seenUris.has(uri.toString())) {
 				continue; // already emitted as agent instruction
 			}
 
-			const name = deriveNameFromUri(uri, INSTRUCTION_FILE_EXTENSION);
-
-			let pattern: string | undefined;
-			let description: string | undefined;
-			try {
-				const parsed = await this.promptsService.parseFile(uri, token);
-				pattern = parsed.header?.applyTo;
-				description = parsed.header?.description;
-			} catch (err) {
-				if (isCancellationError(err) || token.isCancellationRequested) {
-					throw err;
-				}
-				this.logService.debug(`[CopilotCLICustomizationProvider] failed to parse ${uri.toString()}: ${err}`);
-			}
+			const name = instruction.name;
+			const pattern = instruction.pattern;
+			const description = instruction.description;
 
 			if (pattern !== undefined) {
 				const badge = pattern === '**'
@@ -187,11 +181,11 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 	/**
 	 * Collects all skill items from the prompt file service.
 	 */
-	private getSkillItems(): vscode.ChatSessionCustomizationItem[] {
-		return this.chatPromptFileService.skills.map(s => ({
+	private async getSkillItems(token: vscode.CancellationToken): Promise<vscode.ChatSessionCustomizationItem[]> {
+		return (await this.promptsService.getSkills(token)).map(s => ({
 			uri: s.uri,
 			type: vscode.ChatSessionCustomizationType.Skill,
-			name: deriveNameFromUri(s.uri, SKILL_FILENAME),
+			name: s.name,
 		}));
 	}
 
@@ -199,34 +193,22 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 	 * Collects all hook items from the prompt file service.
 	 * Each item is a hook configuration file (JSON).
 	 */
-	private getHookItems(): vscode.ChatSessionCustomizationItem[] {
-		return this.chatPromptFileService.hooks.map(h => ({
+	private async getHookItems(token: vscode.CancellationToken): Promise<vscode.ChatSessionCustomizationItem[]> {
+		return (await this.promptsService.getHooks(token)).map(h => ({
 			uri: h.uri,
 			type: vscode.ChatSessionCustomizationType.Hook,
 			name: basename(h.uri).replace(/\.json$/i, ''),
 		}));
 	}
 
-	/**	 * Collects all plugin items from the prompt file service.
+	/**
+	 * Collects all plugin items from the prompt file service.
 	 */
-	private getPluginItems(): vscode.ChatSessionCustomizationItem[] {
-		return this.chatPromptFileService.plugins.map(p => ({
+	private async getPluginItems(token: vscode.CancellationToken): Promise<vscode.ChatSessionCustomizationItem[]> {
+		return (await this.promptsService.getPlugins(token)).map(p => ({
 			uri: p.uri,
 			type: vscode.ChatSessionCustomizationType.Plugins,
 			name: basename(p.uri),
 		}));
 	}
-}
-
-function deriveNameFromUri(uri: vscode.Uri, extensionOrFilename: string): string {
-	const filename = basename(uri);
-	if (filename.toLowerCase() === extensionOrFilename.toLowerCase()) {
-		// For files like SKILL.md, use the parent directory name
-		const parts = uri.path.split('/');
-		return parts.length >= 2 ? parts[parts.length - 2] : filename;
-	}
-	if (filename.endsWith(extensionOrFilename)) {
-		return filename.slice(0, -extensionOrFilename.length);
-	}
-	return filename;
 }

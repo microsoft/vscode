@@ -3,8 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import 'mocha';
-import * as assert from 'assert';
+import { suite, test } from 'node:test';
+import assert from 'node:assert/strict';
 import { TextDocument, getLanguageModes, ClientCapabilities, Range, Position } from '../modes/languageModes.js';
 import { newSemanticTokenProvider } from '../modes/semanticTokens.js';
 import { getNodeFileFS } from '../node/nodeFs.js';
@@ -25,22 +25,26 @@ async function assertTokens(lines: string[], expected: ExpectedToken[], ranges?:
 	const languageModes = getLanguageModes({ css: true, javascript: true }, workspace, ClientCapabilities.LATEST, getNodeFileFS());
 	const semanticTokensProvider = newSemanticTokenProvider(languageModes);
 
-	const legend = semanticTokensProvider.legend;
-	const actual = await semanticTokensProvider.getSemanticTokens(document, ranges);
+	try {
+		const legend = semanticTokensProvider.legend;
+		const actual = await semanticTokensProvider.getSemanticTokens(document, ranges);
 
-	const actualRanges = [];
-	let lastLine = 0;
-	let lastCharacter = 0;
-	for (let i = 0; i < actual.length; i += 5) {
-		const lineDelta = actual[i], charDelta = actual[i + 1], len = actual[i + 2], typeIdx = actual[i + 3], modSet = actual[i + 4];
-		const line = lastLine + lineDelta;
-		const character = lineDelta === 0 ? lastCharacter + charDelta : charDelta;
-		const tokenClassifiction = [legend.types[typeIdx], ...legend.modifiers.filter((_, i) => modSet & 1 << i)].join('.');
-		actualRanges.push(t(line, character, len, tokenClassifiction));
-		lastLine = line;
-		lastCharacter = character;
+		const actualRanges = [];
+		let lastLine = 0;
+		let lastCharacter = 0;
+		for (let i = 0; i < actual.length; i += 5) {
+			const lineDelta = actual[i], charDelta = actual[i + 1], len = actual[i + 2], typeIdx = actual[i + 3], modSet = actual[i + 4];
+			const line = lastLine + lineDelta;
+			const character = lineDelta === 0 ? lastCharacter + charDelta : charDelta;
+			const tokenClassifiction = [legend.types[typeIdx], ...legend.modifiers.filter((_, i) => modSet & 1 << i)].join('.');
+			actualRanges.push(t(line, character, len, tokenClassifiction));
+			lastLine = line;
+			lastCharacter = character;
+		}
+		assert.deepStrictEqual(actualRanges, expected, message);
+	} finally {
+		languageModes.dispose();
 	}
-	assert.deepStrictEqual(actualRanges, expected, message);
 }
 
 function t(startLine: number, character: number, length: number, tokenClassifiction: string): ExpectedToken {

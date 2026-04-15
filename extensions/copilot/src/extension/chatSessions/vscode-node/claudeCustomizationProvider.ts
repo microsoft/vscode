@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { AGENT_FILE_EXTENSION, SKILL_FILENAME } from '../../../platform/customInstructions/common/promptTypes';
 import { INativeEnvService } from '../../../platform/env/common/envService';
 import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
 import { ILogService } from '../../../platform/log/common/logService';
@@ -15,7 +14,7 @@ import { basename } from '../../../util/vs/base/common/resources';
 import { URI } from '../../../util/vs/base/common/uri';
 import { IClaudeRuntimeDataService } from '../claude/common/claudeRuntimeDataService';
 import { ClaudeSessionUri } from '../claude/common/claudeSessionUri';
-import { IChatPromptFileService } from '../common/chatPromptFileService';
+import { IPromptsService } from '../../../platform/promptFiles/common/promptsService';
 
 // TODO: Consider reporting Claude slash commands (from Query.supportedCommands()) when appropriate
 // TODO: Report MCP servers when ChatSessionCustomizationType.Mcp is available (use Query.mcpServerStatus())
@@ -79,7 +78,7 @@ export class ClaudeCustomizationProvider extends Disposable implements vscode.Ch
 	}
 
 	constructor(
-		@IChatPromptFileService private readonly chatPromptFileService: IChatPromptFileService,
+		@IPromptsService private readonly promptsService: IPromptsService,
 		@IClaudeRuntimeDataService private readonly runtimeDataService: IClaudeRuntimeDataService,
 		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
 		@IFileSystemService private readonly fileSystemService: IFileSystemService,
@@ -89,12 +88,12 @@ export class ClaudeCustomizationProvider extends Disposable implements vscode.Ch
 		super();
 
 		this._register(this.runtimeDataService.onDidChange(() => this._onDidChange.fire()));
-		this._register(this.chatPromptFileService.onDidChangeCustomAgents(() => this._onDidChange.fire()));
-		this._register(this.chatPromptFileService.onDidChangeSkills(() => this._onDidChange.fire()));
+		this._register(this.promptsService.onDidChangeCustomAgents(() => this._onDidChange.fire()));
+		this._register(this.promptsService.onDidChangeSkills(() => this._onDidChange.fire()));
 		this._register(this.workspaceService.onDidChangeWorkspaceFolders(() => this._onDidChange.fire()));
 	}
 
-	async provideChatSessionCustomizations(_token: vscode.CancellationToken): Promise<vscode.ChatSessionCustomizationItem[]> {
+	async provideChatSessionCustomizations(token: vscode.CancellationToken): Promise<vscode.ChatSessionCustomizationItem[]> {
 		const items: vscode.ChatSessionCustomizationItem[] = [];
 
 		// Agents: hybrid approach — file-based .claude/ agents merged with SDK-provided agents.
@@ -114,9 +113,9 @@ export class ClaudeCustomizationProvider extends Disposable implements vscode.Ch
 		}
 
 		// File-based agents from .claude/ paths — shown pre-session, deduplicated with SDK
-		for (const agent of this.chatPromptFileService.customAgents) {
+		for (const agent of await this.promptsService.getCustomAgents(token)) {
 			if (this.isClaudePath(agent.uri)) {
-				const name = deriveNameFromUri(agent.uri, AGENT_FILE_EXTENSION);
+				const name = agent.name;
 				if (!sdkAgentNames.has(name.toLowerCase())) {
 					items.push({
 						uri: agent.uri,
@@ -137,12 +136,12 @@ export class ClaudeCustomizationProvider extends Disposable implements vscode.Ch
 
 		// Skills from .claude/skills/ directories (user-defined SKILL.md files)
 		const skillItems: vscode.ChatSessionCustomizationItem[] = [];
-		for (const skill of this.chatPromptFileService.skills) {
+		for (const skill of await this.promptsService.getSkills(token)) {
 			if (this.isClaudePath(skill.uri)) {
 				const item: vscode.ChatSessionCustomizationItem = {
 					uri: skill.uri,
 					type: vscode.ChatSessionCustomizationType.Skill,
-					name: deriveNameFromUri(skill.uri, SKILL_FILENAME),
+					name: skill.name,
 				};
 				skillItems.push(item);
 			}
@@ -276,15 +275,3 @@ export class ClaudeCustomizationProvider extends Disposable implements vscode.Ch
 	}
 }
 
-function deriveNameFromUri(uri: vscode.Uri, extensionOrFilename: string): string {
-	const filename = basename(uri);
-	if (filename.toLowerCase() === extensionOrFilename.toLowerCase()) {
-		// For files like SKILL.md, use the parent directory name
-		const parts = uri.path.split('/');
-		return parts.length >= 2 ? parts[parts.length - 2] : filename;
-	}
-	if (filename.endsWith(extensionOrFilename)) {
-		return filename.slice(0, -extensionOrFilename.length);
-	}
-	return filename;
-}

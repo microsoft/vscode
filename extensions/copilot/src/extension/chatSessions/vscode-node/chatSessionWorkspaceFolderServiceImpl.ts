@@ -7,7 +7,7 @@ import { promises as fs } from 'fs';
 import * as vscode from 'vscode';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { getGitHubRepoInfoFromContext, IGitService } from '../../../platform/git/common/gitService';
-import { buildTempIndexEnv, parseGitChangesRaw } from '../../../platform/git/vscode-node/utils';
+import { buildTempIndexEnv, getUncommittedFilePaths, parseGitChangesRaw } from '../../../platform/git/vscode-node/utils';
 import { DiffChange } from '../../../platform/git/vscode/git';
 import { ILogService } from '../../../platform/log/common/logService';
 import { SequencerByKey } from '../../../util/vs/base/common/async';
@@ -197,6 +197,8 @@ export class ChatSessionWorkspaceFolderService extends Disposable implements ICh
 			// Tracked + untracked changes
 			const tmpDirName = `vscode-sessions-${generateUuid()}`;
 			const diffIndexFile = path.join(this.extensionContext.globalStorageUri.fsPath, tmpDirName, 'diff.index');
+			const pathspecFile = path.join(this.extensionContext.globalStorageUri.fsPath, tmpDirName, `pathspec.txt`);
+
 			const env = buildTempIndexEnv(repository, diffIndexFile);
 
 			try {
@@ -212,7 +214,9 @@ export class ChatSessionWorkspaceFolderService extends Disposable implements ICh
 				}
 
 				// Stage entire working directory into temp index
-				await this.gitService.exec(repository.rootUri, ['add', '-A', '--', '.'], env);
+				const uncommittedFilePaths = getUncommittedFilePaths(repository);
+				await fs.writeFile(pathspecFile, uncommittedFilePaths.join('\n'), 'utf8');
+				await this.gitService.exec(repository.rootUri, ['add', '-A', `--pathspec-from-file=${pathspecFile}`], env);
 
 				// Diff the temp index with the base branch
 				const result = await this.gitService.exec(repository.rootUri, ['diff', '--cached', '--raw', '--numstat', '--diff-filter=ADMR', ...noRenamesArg, '-z', ...mergeBaseArg, '--'], env);
