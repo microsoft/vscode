@@ -1997,15 +1997,15 @@ async function webviewPreloads(ctx: PreloadContext) {
 				this._api = await module.activate(this.createRendererContext());
 				this.postDebugMessage('Activated renderer', { duration: `${performance.now() - importStart}ms` });
 
-				const dependantRenderers = ctx.rendererData
+				const dependentRenderers = ctx.rendererData
 					.filter(d => d.entrypoint.extends === this.data.id);
 
-				if (dependantRenderers.length) {
-					this.postDebugMessage('Activating dependant renderers', { dependents: dependantRenderers.map(x => x.id).join(', ') });
+				if (dependentRenderers.length) {
+					this.postDebugMessage('Activating dependent renderers', { dependents: dependentRenderers.map(x => x.id).join(', ') });
 				}
 
 				// Load all renderers that extend this renderer
-				await Promise.all(dependantRenderers.map(async d => {
+				await Promise.all(dependentRenderers.map(async d => {
 					const renderer = renderers.getRenderer(d.id);
 					if (!renderer) {
 						throw new Error(`Could not find extending renderer: ${d.id}`);
@@ -2017,7 +2017,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 						// Squash any errors extends errors. They won't prevent the renderer
 						// itself from working, so just log them.
 						console.error(e);
-						this.postDebugMessage('Activating dependant renderer failed', { dependent: d.id, error: e + '' });
+						this.postDebugMessage('Activating dependent renderer failed', { dependent: d.id, error: e + '' });
 						return undefined;
 					}
 				}));
