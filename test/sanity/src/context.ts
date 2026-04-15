@@ -1288,7 +1288,7 @@ export class TestContext {
 			await new Promise<void>((resolve, reject) => {
 				app.stderr.on('data', (data) => {
 					const text = `[${name}] ${data.toString().trim()}`;
-					if (/ECONNRESET|ECONNABORTED/.test(text)) {
+					if (/ECONNRESET|ECONNABORTED|error listing current tunnels/.test(text)) {
 						this.log(text);
 					} else {
 						reject(new Error(text));

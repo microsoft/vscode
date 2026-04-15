@@ -115,11 +115,6 @@ export function setup(context: TestContext) {
 						test.validate();
 						return true;
 					}
-
-					if (/error listing current tunnels: connection error: error decoding response body: EOF while parsing a value/.test(line)) {
-						context.log('Received known transient error, ignoring and waiting for next output');
-						return;
-					}
 				}
 			);
 		} finally {
