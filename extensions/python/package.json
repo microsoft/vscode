@@ -52,7 +52,13 @@
         "diffEditor.ignoreTrimWhitespace": false,
         "editor.defaultColorDecorators": "never"
       }
-    }
+    },
+    "snippets": [
+      {
+        "language": "python",
+        "path": "./snippets/python.code-snippets"
+      }
+    ]
   },
   "scripts": {
     "update-grammar": "node ../node_modules/vscode-grammar-updater/bin MagicStack/MagicPython grammars/MagicPython.tmLanguage ./syntaxes/MagicPython.tmLanguage.json grammars/MagicRegExp.tmLanguage ./syntaxes/MagicRegExp.tmLanguage.json"

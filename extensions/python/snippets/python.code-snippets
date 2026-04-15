@@ -1,0 +1,217 @@
+{
+	"Main Block": {
+		"prefix": "main",
+		"body": [
+			"if __name__ == '__main__':",
+			"\t$0"
+		],
+		"description": "Python main block guard"
+	},
+	"Function": {
+		"prefix": "def",
+		"body": [
+			"def ${1:function_name}(${2:params}):",
+			"\t${3:pass}"
+		],
+		"description": "Python function definition"
+	},
+	"Function with return type hint": {
+		"prefix": "deft",
+		"body": [
+			"def ${1:function_name}(${2:params}) -> ${3:None}:",
+			"\t${4:pass}"
+		],
+		"description": "Python function with type hints"
+	},
+	"Async Function": {
+		"prefix": "async",
+		"body": [
+			"async def ${1:function_name}(${2:params}):",
+			"\t${3:pass}"
+		],
+		"description": "Python async function definition"
+	},
+	"Class": {
+		"prefix": "class",
+		"body": [
+			"class ${1:ClassName}:",
+			"\tdef __init__(self${2:, ${3:params}}):",
+			"\t\t${4:pass}"
+		],
+		"description": "Python class with __init__"
+	},
+	"Dataclass": {
+		"prefix": "dc",
+		"body": [
+			"from dataclasses import dataclass",
+			"",
+			"@dataclass",
+			"class ${1:ClassName}:",
+			"\t${2:field}: ${3:str}"
+		],
+		"description": "Python dataclass"
+	},
+	"Property": {
+		"prefix": "prop",
+		"body": [
+			"@property",
+			"def ${1:name}(self) -> ${2:type}:",
+			"\treturn self._${1:name}"
+		],
+		"description": "Python property decorator"
+	},
+	"Class Method": {
+		"prefix": "cm",
+		"body": [
+			"@classmethod",
+			"def ${1:method_name}(cls${2:, ${3:params}}):",
+			"\t${4:pass}"
+		],
+		"description": "Python classmethod"
+	},
+	"Static Method": {
+		"prefix": "sm",
+		"body": [
+			"@staticmethod",
+			"def ${1:method_name}(${2:params}):",
+			"\t${3:pass}"
+		],
+		"description": "Python staticmethod"
+	},
+	"For Loop": {
+		"prefix": "for",
+		"body": [
+			"for ${1:item} in ${2:iterable}:",
+			"\t${3:pass}"
+		],
+		"description": "Python for loop"
+	},
+	"For Range": {
+		"prefix": "forr",
+		"body": [
+			"for ${1:i} in range(${2:10}):",
+			"\t${3:pass}"
+		],
+		"description": "Python for range loop"
+	},
+	"While Loop": {
+		"prefix": "while",
+		"body": [
+			"while ${1:condition}:",
+			"\t${2:pass}"
+		],
+		"description": "Python while loop"
+	},
+	"If Statement": {
+		"prefix": "if",
+		"body": [
+			"if ${1:condition}:",
+			"\t${2:pass}"
+		],
+		"description": "Python if statement"
+	},
+	"If-Else Statement": {
+		"prefix": "ifelse",
+		"body": [
+			"if ${1:condition}:",
+			"\t${2:pass}",
+			"else:",
+			"\t${3:pass}"
+		],
+		"description": "Python if-else statement"
+	},
+	"Try-Except": {
+		"prefix": "try",
+		"body": [
+			"try:",
+			"\t${1:pass}",
+			"except ${2:Exception} as ${3:e}:",
+			"\t${4:pass}"
+		],
+		"description": "Python try-except block"
+	},
+	"Try-Except-Finally": {
+		"prefix": "tryf",
+		"body": [
+			"try:",
+			"\t${1:pass}",
+			"except ${2:Exception} as ${3:e}:",
+			"\t${4:pass}",
+			"finally:",
+			"\t${5:pass}"
+		],
+		"description": "Python try-except-finally block"
+	},
+	"With Statement": {
+		"prefix": "with",
+		"body": [
+			"with ${1:open('${2:file.txt}', '${3:r}')} as ${4:f}:",
+			"\t${5:pass}"
+		],
+		"description": "Python with/context manager statement"
+	},
+	"List Comprehension": {
+		"prefix": "lc",
+		"body": [
+			"[${1:expr} for ${2:item} in ${3:iterable}]"
+		],
+		"description": "Python list comprehension"
+	},
+	"Dict Comprehension": {
+		"prefix": "dc2",
+		"body": [
+			"{${1:key}: ${2:value} for ${3:item} in ${4:iterable}}"
+		],
+		"description": "Python dict comprehension"
+	},
+	"Lambda": {
+		"prefix": "lambda",
+		"body": [
+			"lambda ${1:params}: ${2:expression}"
+		],
+		"description": "Python lambda expression"
+	},
+	"Print": {
+		"prefix": "pr",
+		"body": [
+			"print(${1:\"Hello, World!\"})"
+		],
+		"description": "Python print statement"
+	},
+	"F-String": {
+		"prefix": "fs",
+		"body": [
+			"f\"${1:{variable}}\""
+		],
+		"description": "Python f-string"
+	},
+	"Import": {
+		"prefix": "imp",
+		"body": [
+			"import ${1:module}"
+		],
+		"description": "Python import statement"
+	},
+	"From Import": {
+		"prefix": "from",
+		"body": [
+			"from ${1:module} import ${2:name}"
+		],
+		"description": "Python from ... import statement"
+	},
+	"Type Hint Variable": {
+		"prefix": "th",
+		"body": [
+			"${1:variable}: ${2:type} = ${3:value}"
+		],
+		"description": "Python variable with type hint"
+	},
+	"Enumerate": {
+		"prefix": "enum",
+		"body": [
+			"for ${1:i}, ${2:item} in enumerate(${3:iterable}):",
+			"\t${4:pass}"
+		],
+		"description": "Python enumerate loop"
+	}
+}
