@@ -344,7 +344,7 @@ suite('Indent With Tab - TypeScript/JavaScript', () => {
 		assert.ok(true);
 	});
 
-	test.skip('issue #63388: perserve correct indentation on tab 1', () => {
+	test.skip('issue #63388: preserve correct indentation on tab 1', () => {
 
 		// https://github.com/microsoft/vscode/issues/63388
 
@@ -366,7 +366,7 @@ suite('Indent With Tab - TypeScript/JavaScript', () => {
 		});
 	});
 
-	test.skip('issue #63388: perserve correct indentation on tab 2', () => {
+	test.skip('issue #63388: preserve correct indentation on tab 2', () => {
 
 		// https://github.com/microsoft/vscode/issues/63388
 
