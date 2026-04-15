@@ -1,0 +1,193 @@
+{
+	"Flexbox Container": {
+		"prefix": "flex",
+		"body": [
+			"display: flex;",
+			"flex-direction: ${1|row,column,row-reverse,column-reverse|};",
+			"justify-content: ${2|flex-start,flex-end,center,space-between,space-around|};",
+			"align-items: ${3|stretch,flex-start,flex-end,center,baseline|};"
+		],
+		"description": "Flexbox container properties"
+	},
+	"Grid Container": {
+		"prefix": "grid",
+		"body": [
+			"display: grid;",
+			"grid-template-columns: ${1:repeat(3, 1fr)};",
+			"grid-template-rows: ${2:auto};",
+			"gap: ${3:1rem};"
+		],
+		"description": "CSS Grid container properties"
+	},
+	"Media Query": {
+		"prefix": "mq",
+		"body": [
+			"@media (${1|min-width,max-width|}: ${2:768px}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "Responsive media query"
+	},
+	"CSS Variable": {
+		"prefix": "var",
+		"body": [
+			"var(--${1:variable-name})"
+		],
+		"description": "CSS custom property (variable) reference"
+	},
+	"CSS Variable Declaration": {
+		"prefix": "vardef",
+		"body": [
+			"--${1:variable-name}: ${2:value};"
+		],
+		"description": "CSS custom property (variable) definition"
+	},
+	"Root Variables": {
+		"prefix": ":root",
+		"body": [
+			":root {",
+			"\t--${1:primary-color}: ${2:#3498db};",
+			"\t--${3:font-size}: ${4:16px};",
+			"\t$0",
+			"}"
+		],
+		"description": "CSS :root block for global variables"
+	},
+	"Transition": {
+		"prefix": "tr",
+		"body": [
+			"transition: ${1:all} ${2:0.3s} ${3|ease,linear,ease-in,ease-out,ease-in-out|};"
+		],
+		"description": "CSS transition shorthand"
+	},
+	"Animation": {
+		"prefix": "ani",
+		"body": [
+			"animation: ${1:name} ${2:1s} ${3|ease,linear,ease-in,ease-out|} ${4:0s} ${5:1} ${6|normal,reverse,alternate|};"
+		],
+		"description": "CSS animation shorthand"
+	},
+	"Keyframes": {
+		"prefix": "keyframes",
+		"body": [
+			"@keyframes ${1:animationName} {",
+			"\tfrom {",
+			"\t\t$2",
+			"\t}",
+			"\tto {",
+			"\t\t$3",
+			"\t}",
+			"}"
+		],
+		"description": "CSS @keyframes animation"
+	},
+	"Box Shadow": {
+		"prefix": "shadow",
+		"body": [
+			"box-shadow: ${1:0} ${2:2px} ${3:4px} ${4:rgba(0, 0, 0, 0.2)};"
+		],
+		"description": "CSS box-shadow"
+	},
+	"Text Shadow": {
+		"prefix": "tshadow",
+		"body": [
+			"text-shadow: ${1:1px} ${2:1px} ${3:2px} ${4:rgba(0, 0, 0, 0.5)};"
+		],
+		"description": "CSS text-shadow"
+	},
+	"Border Radius": {
+		"prefix": "br",
+		"body": [
+			"border-radius: ${1:4px};"
+		],
+		"description": "CSS border-radius"
+	},
+	"Gradient": {
+		"prefix": "grad",
+		"body": [
+			"background: linear-gradient(${1:to right}, ${2:#3498db}, ${3:#2ecc71});"
+		],
+		"description": "CSS linear gradient background"
+	},
+	"Overflow Hidden": {
+		"prefix": "oh",
+		"body": [
+			"overflow: hidden;"
+		],
+		"description": "CSS overflow: hidden"
+	},
+	"Position Absolute": {
+		"prefix": "posa",
+		"body": [
+			"position: absolute;",
+			"top: ${1:0};",
+			"left: ${2:0};"
+		],
+		"description": "CSS position: absolute with top and left"
+	},
+	"Position Relative": {
+		"prefix": "posr",
+		"body": [
+			"position: relative;"
+		],
+		"description": "CSS position: relative"
+	},
+	"Centered Absolute": {
+		"prefix": "center-abs",
+		"body": [
+			"position: absolute;",
+			"top: 50%;",
+			"left: 50%;",
+			"transform: translate(-50%, -50%);"
+		],
+		"description": "Horizontally and vertically center with absolute positioning"
+	},
+	"Font Import": {
+		"prefix": "@font",
+		"body": [
+			"@font-face {",
+			"\tfont-family: '${1:FontName}';",
+			"\tsrc: url('${2:path/to/font.woff2}') format('woff2');",
+			"\tfont-weight: ${3:normal};",
+			"\tfont-style: ${4:normal};",
+			"}"
+		],
+		"description": "CSS @font-face declaration"
+	},
+	"Clearfix": {
+		"prefix": "clearfix",
+		"body": [
+			"::after {",
+			"\tcontent: '';",
+			"\tdisplay: table;",
+			"\tclear: both;",
+			"}"
+		],
+		"description": "Clearfix for floated elements"
+	},
+	"Aspect Ratio": {
+		"prefix": "aspect",
+		"body": [
+			"aspect-ratio: ${1:16} / ${2:9};"
+		],
+		"description": "CSS aspect-ratio property"
+	},
+	"Scroll Snap": {
+		"prefix": "snap",
+		"body": [
+			"scroll-snap-type: ${1|x,y,both|} ${2|mandatory,proximity|};",
+			"overflow: ${3|auto,scroll|};"
+		],
+		"description": "CSS scroll snap container"
+	},
+	"Focus Visible": {
+		"prefix": ":focus",
+		"body": [
+			":focus-visible {",
+			"\toutline: ${1:2px} ${2|solid,dashed|} ${3:#3498db};",
+			"\toutline-offset: ${4:2px};",
+			"}"
+		],
+		"description": "Accessible :focus-visible selector"
+	}
+}

@@ -38,6 +38,12 @@
           "meta.function.url string.quoted": "other"
         }
       }
+    ],
+    "snippets": [
+      {
+        "language": "css",
+        "path": "./snippets/css.code-snippets"
+      }
     ]
   },
   "repository": {
