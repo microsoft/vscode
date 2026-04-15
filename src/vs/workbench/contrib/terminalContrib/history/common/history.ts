@@ -440,7 +440,7 @@ export async function fetchFishHistory(accessor: ServicesAccessor): Promise<IShe
 	 *
 	 * (https://fishshell.com/docs/current/interactive.html#history-search)
 	 */
-	const overridenDataHome = env['XDG_DATA_HOME'];
+	const overriddenDataHome = env['XDG_DATA_HOME'];
 
 	// TODO: Unchecked fish behavior:
 	// What if XDG_DATA_HOME was defined but somehow $XDG_DATA_HOME/fish/fish_history
@@ -449,7 +449,7 @@ export async function fetchFishHistory(accessor: ServicesAccessor): Promise<IShe
 	let folderPrefix: string | undefined;
 	let filePath: string;
 	let sourceLabel: string;
-	if (overridenDataHome) {
+	if (overriddenDataHome) {
 		sourceLabel = '$XDG_DATA_HOME/fish/fish_history';
 		folderPrefix = env['XDG_DATA_HOME'];
 		filePath = 'fish/fish_history';

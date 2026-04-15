@@ -511,7 +511,7 @@ suite('Terminal history', () => {
 				});
 			});
 
-			suite('local (overriden path)', () => {
+			suite('local (overridden path)', () => {
 				let originalEnvValues: { XDG_DATA_HOME: string | undefined };
 				setup(() => {
 					originalEnvValues = { XDG_DATA_HOME: env['XDG_DATA_HOME'] };
@@ -569,7 +569,7 @@ suite('Terminal history', () => {
 			});
 		});
 
-		suite('remote (overriden path)', () => {
+		suite('remote (overridden path)', () => {
 			let originalEnvValues: { XDG_DATA_HOME: string | undefined };
 			setup(() => {
 				originalEnvValues = { XDG_DATA_HOME: env['XDG_DATA_HOME'] };
