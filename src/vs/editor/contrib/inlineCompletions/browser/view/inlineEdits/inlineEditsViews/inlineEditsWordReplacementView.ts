@@ -144,7 +144,7 @@ export class InlineEditsWordReplacementView extends Disposable implements IInlin
 				alternativeAction = {
 					label: count !== undefined ? (active ? occurrencesLabel : label) : label,
 					tooltip: occurrencesLabel ? `${occurrencesLabel}\n${keybindingTooltip}` : undefined,
-					icon: undefined, //this._viewData.alternativeAction.icon, Do not render icon fo the moment
+					icon: undefined, //this._viewData.alternativeAction.icon, Do not render icon for the moment
 					count,
 					keybinding: this._keybindingService.lookupKeybinding(inlineSuggestCommitAlternativeActionId),
 					active: altModifierActive,
