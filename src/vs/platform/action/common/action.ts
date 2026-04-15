@@ -51,7 +51,7 @@ export interface ICommandActionToggleInfo {
 	tooltip?: string;
 
 	/**
-	 * The title that goes well with a a check mark, e.g "(check) Line Numbers" vs "Toggle Line Numbers"
+	 * The title that goes well with a check mark, e.g "(check) Line Numbers" vs "Toggle Line Numbers"
 	 */
 	title?: string;
 
