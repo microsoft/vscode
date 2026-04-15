@@ -176,7 +176,7 @@ export class ParcelWatcher extends BaseWatcher implements IRecursiveWatcherWithS
 	//
 	private static readonly FILE_CHANGES_HANDLER_DELAY = 75;
 
-	// Reduce likelyhood of spam from file events via throttling.
+	// Reduce likelihood of spam from file events via throttling.
 	// (https://github.com/microsoft/vscode/issues/124723)
 	private readonly throttledFileChangesEmitter = this._register(new ThrottledWorker<IFileChange>(
 		{

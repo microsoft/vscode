@@ -32,7 +32,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 	// Same delay as used for the recursive watcher.
 	private static readonly FILE_CHANGES_HANDLER_DELAY = 75;
 
-	// Reduce likelyhood of spam from file events via throttling.
+	// Reduce likelihood of spam from file events via throttling.
 	// These numbers are a bit more aggressive compared to the
 	// recursive watcher because we can have many individual
 	// node.js watchers per request.
