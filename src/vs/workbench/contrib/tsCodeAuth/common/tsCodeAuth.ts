@@ -14,8 +14,7 @@ export const TSCODE_GATEWAY_BASE_URL = 'https://testhub-gateway-dev.paas.cmbchin
 export const TSCODE_SECRET_STORAGE_KEY = 'tscode-oauth.accessToken';
 
 // test-workbench_change start
-// Set to true to skip real API calls and use mock data for local development
-export const TSCODE_AUTH_MOCK_ENABLED = false;
+// Controlled via product.json field "tsCodeAuthMockEnabled"
 export const TSCODE_AUTH_MOCK_TOKEN: StoredToken = {
 	token: 'mock-access-token-for-dev',
 	userName: 'Mock User',
