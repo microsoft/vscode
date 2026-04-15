@@ -316,5 +316,47 @@
 			"}"
 		],
 		"description": "Async Function Expression"
+	},
+	"Log labeled value to the console": {
+		"prefix": "logl",
+		"body": [
+			"console.log('${1:label}:', ${1:label});",
+			"$0"
+		],
+		"description": "Log a labeled value to the console: console.log('value:', value)"
+	},
+	"Log value as JSON to the console": {
+		"prefix": "logj",
+		"body": [
+			"console.log('${1:label}:', JSON.stringify(${1:label}, null, 2));",
+			"$0"
+		],
+		"description": "Log a value as formatted JSON to the console"
+	},
+	"Log table to the console": {
+		"prefix": "logt",
+		"body": [
+			"console.table(${1:variable});",
+			"$0"
+		],
+		"description": "Log tabular data to the console using console.table"
+	},
+	"Console time measurement": {
+		"prefix": "timer",
+		"body": [
+			"console.time('${1:label}');",
+			"$TM_SELECTED_TEXT$0",
+			"console.timeEnd('${1:label}');"
+		],
+		"description": "Measure execution time with console.time / console.timeEnd"
+	},
+	"Console group": {
+		"prefix": "cgroup",
+		"body": [
+			"console.group('${1:label}');",
+			"\t$TM_SELECTED_TEXT$0",
+			"console.groupEnd();"
+		],
+		"description": "Group console messages with console.group / console.groupEnd"
 	}
 }
