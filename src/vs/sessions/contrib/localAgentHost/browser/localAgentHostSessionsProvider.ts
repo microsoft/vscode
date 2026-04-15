@@ -27,6 +27,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/c
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { agentHostSessionWorkspaceKey, buildAgentHostSessionWorkspace } from '../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../common/sessionConfig.js';
+import { diffsToChanges, diffsEqual } from '../../../common/agentHostDiffs.js';
 import { ISendRequestOptions, ISessionChangeEvent } from '../../../services/sessions/common/sessionsProvider.js';
 import { IAgentHostSessionsProvider } from '../../../common/agentHostSessionsProvider.js';
 import { IChat, ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SessionStatus, type IGitHubInfo, ISessionType } from '../../../services/sessions/common/session.js';
@@ -64,24 +65,6 @@ function buildMutableConfigSchema(config: Record<string, string>): Record<string
  */
 function sessionTypeForProvider(provider: string): string {
 	return `agent-host-${provider}`;
-}
-
-type RawDiff = { readonly uri: string; readonly added?: number; readonly removed?: number };
-
-/**
- * Converts agent host diffs to the chat session file change format.
- */
-function diffsToChanges(diffs: readonly RawDiff[]): IChatSessionFileChange[] {
-	return diffs.map(d => ({
-		modifiedUri: URI.parse(d.uri),
-		insertions: d.added ?? 0,
-		deletions: d.removed ?? 0,
-	}));
-}
-
-function diffsEqual(current: readonly IChatSessionFileChange[], raw: readonly RawDiff[]): boolean {
-	return current.length === raw.length && current.every((c, i) =>
-		c.modifiedUri.toString() === raw[i].uri && c.insertions === (raw[i].added ?? 0) && c.deletions === (raw[i].removed ?? 0));
 }
 
 /**
