@@ -85,7 +85,6 @@ resolve_memory_file_uri
 run_notebook_cell
 run_vscode_command
 search_workspace_symbols
-test_failure
 test_search
 </toolSearchInstructions>
 

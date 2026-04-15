@@ -114,6 +114,7 @@ export const COPILOT_MULTI_CHAT_SETTING = 'sessions.github.copilot.multiChatSess
 
 
 const REPOSITORY_OPTION_ID = 'repository';
+const PARENT_SESSION_OPTION_ID = 'parentSessionId';
 const BRANCH_OPTION_ID = 'branch';
 const ISOLATION_OPTION_ID = 'isolation';
 const AGENT_OPTION_ID = 'agent';
@@ -1727,6 +1728,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: `/untitled-${generateUuid()}` });
 		const session = this.instantiationService.createInstance(CopilotCLISession, resource, newWorkspace, this.id);
 		session.setIsolationMode('workspace');
+		session.setOption(PARENT_SESSION_OPTION_ID, chat.resource.path.slice(1));
 		this._currentNewSession = session;
 		return session;
 	}

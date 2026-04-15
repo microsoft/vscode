@@ -511,25 +511,6 @@
 				}
 			},
 			{
-				"name": "copilot_testFailure",
-				"toolReferenceName": "testFailure",
-				"legacyToolReferenceFullNames": [
-					"testFailure"
-				],
-				"displayName": "%copilot.tools.testFailure.name%",
-				"icon": "$(beaker)",
-				"userDescription": "%copilot.testFailure.tool.description%",
-				"modelDescription": "Includes test failure information in the prompt.",
-				"inputSchema": {},
-				"tags": [
-					"vscode_editing_with_tests",
-					"enable_other_tool_copilot_readFile",
-					"enable_other_tool_copilot_listDirectory",
-					"enable_other_tool_copilot_findFiles",
-					"enable_other_tool_copilot_runTests"
-				]
-			},
-			{
 				"name": "copilot_createNewWorkspace",
 				"displayName": "%github.copilot.tools.createNewWorkspace.name%",
 				"toolReferenceName": "newWorkspace",
@@ -1214,7 +1195,6 @@
 				"description": "",
 				"tools": [
 					"runNotebookCell",
-					"testFailure",
 					"executionSubagent"
 				]
 			},
