@@ -469,7 +469,7 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 		} satisfies { readonly [key: string]: unknown };
 	}
 
-	async provideChatSessionContent(resource: Uri, token: vscode.CancellationToken, _context?: { readonly inputState: vscode.ChatSessionInputState; readonly sessionOptions: ReadonlyArray<{ optionId: string; value: string | vscode.ChatSessionProviderOptionItem }> }): Promise<vscode.ChatSession> {
+	async provideChatSessionContent(resource: Uri, token: vscode.CancellationToken, context?: { readonly inputState: vscode.ChatSessionInputState }): Promise<vscode.ChatSession> {
 		const stopwatch = new StopWatch();
 		try {
 			const copilotcliSessionId = SessionIdForCLI.parse(resource);
@@ -484,47 +484,49 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 				if (!session) {
 					throw new Error('Session not found');
 				}
+
+				const options: Record<string, vscode.ChatSessionProviderOptionItem> = {};
+				for (const group of (context?.inputState.groups || [])) {
+					if (group.selected) {
+						options[group.id] = { ...group.selected, locked: true };
+					}
+				}
+
 				return {
-					history: [],
-					requestHandler: undefined,
 					title: session.label,
-					activeResponseCallback: undefined,
+					history: [],
+					options,
+					requestHandler: undefined,
 				};
 			} else {
 				this.newSessions.delete(resource);
-				return await this.provideChatSessionContentForExistingSession(resource, token);
+				// Fire-and-forget: detect PR when the user opens a session.
+				this._prDetectionService.detectPullRequest(copilotcliSessionId);
+
+				const folderRepo = await this.folderRepositoryManager.getFolderRepository(copilotcliSessionId, undefined, token);
+				const [history, title, optionGroups] = await Promise.all([
+					this.getSessionHistory(copilotcliSessionId, folderRepo, token),
+					this.customSessionTitleService.getCustomSessionTitle(copilotcliSessionId),
+					this._optionGroupBuilder.buildExistingSessionInputStateGroups(resource, token),
+				]);
+
+				const options: Record<string, vscode.ChatSessionProviderOptionItem> = {};
+				for (const group of optionGroups) {
+					if (group.selected) {
+						options[group.id] = { ...group.selected, locked: true };
+					}
+				}
+
+				return {
+					title,
+					history,
+					options,
+					requestHandler: undefined,
+				};
 			}
 		} finally {
 			this.logService.info(`[CopilotCLIChatSessionContentProvider] provideChatSessionContent for ${resource.toString()} took ${stopwatch.elapsed()}ms`);
 		}
-	}
-
-	private async provideChatSessionContentForExistingSession(resource: Uri, token: vscode.CancellationToken): Promise<vscode.ChatSession> {
-		const copilotcliSessionId = SessionIdForCLI.parse(resource);
-
-		// Fire-and-forget: detect PR when the user opens a session.
-		this._prDetectionService.detectPullRequest(copilotcliSessionId);
-
-		const folderRepo = await this.folderRepositoryManager.getFolderRepository(copilotcliSessionId, undefined, token);
-		const [history, title, optionGroups] = await Promise.all([
-			this.getSessionHistory(copilotcliSessionId, folderRepo, token),
-			this.customSessionTitleService.getCustomSessionTitle(copilotcliSessionId),
-			this._optionGroupBuilder.buildExistingSessionInputStateGroups(resource, token),
-		]);
-
-		const options: Record<string, string | vscode.ChatSessionProviderOptionItem> = {};
-		for (const group of optionGroups) {
-			if (group.selected) {
-				options[group.id] = { ...group.selected, locked: true };
-			}
-		}
-
-		return {
-			title,
-			history,
-			options,
-			requestHandler: undefined,
-		};
 	}
 
 	private async getSessionHistory(sessionId: string, workspaceInfo: IWorkspaceInfo, token: vscode.CancellationToken) {

@@ -56,7 +56,7 @@ const experimentalAutoModelHintMarkers = ['minimax', 'mp3yn0h7', 'yaqq2gxh'];
  */
 function buildConfigurationSchema(endpoint: IChatEndpoint): { configurationSchema?: vscode.LanguageModelConfigurationSchema } {
 	const effortLevels = endpoint.supportsReasoningEffort;
-	if (!effortLevels || effortLevels.length === 0) {
+	if (!effortLevels || effortLevels.length <= 1) {
 		return {};
 	}
 
