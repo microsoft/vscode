@@ -32,6 +32,12 @@
         "path": "./syntaxes/shaderlab.tmLanguage.json",
         "scopeName": "source.shaderlab"
       }
+    ],
+    "snippets": [
+      {
+        "language": "shaderlab",
+        "path": "./snippets/shaderlab.code-snippets"
+      }
     ]
   },
   "repository": {

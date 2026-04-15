@@ -1,0 +1,229 @@
+{
+	"ShaderLab Shader": {
+		"prefix": "shader",
+		"body": [
+			"Shader \"${1:Custom/MyShader}\"",
+			"{",
+			"    Properties",
+			"    {",
+			"        ${2:_MainTex} (\"${3:Texture}\", 2D) = \"white\" {}",
+			"    }",
+			"    SubShader",
+			"    {",
+			"        Tags { \"RenderType\" = \"${4|Opaque,Transparent,TransparentCutout|}\" }",
+			"        LOD ${5:200}",
+			"",
+			"        CGPROGRAM",
+			"        #pragma surface surf ${6|Standard,Lambert,BlinnPhong|}",
+			"",
+			"        sampler2D ${2:_MainTex};",
+			"",
+			"        struct Input",
+			"        {",
+			"            float2 uv${2:_MainTex};",
+			"        };",
+			"",
+			"        void surf (Input IN, inout SurfaceOutput${7:Standard} o)",
+			"        {",
+			"            fixed4 c = tex2D (${2:_MainTex}, IN.uv${2:_MainTex});",
+			"            o.Albedo = c.rgb;",
+			"            o.Alpha = c.a;",
+			"        }",
+			"        ENDCG",
+			"    }",
+			"    FallBack \"Diffuse\"",
+			"}"
+		],
+		"description": "Basic Unity Surface Shader"
+	},
+	"ShaderLab Unlit Shader": {
+		"prefix": "unlitshader",
+		"body": [
+			"Shader \"${1:Custom/Unlit}\"",
+			"{",
+			"    Properties",
+			"    {",
+			"        _MainTex (\"Texture\", 2D) = \"white\" {}",
+			"        _Color (\"Color\", Color) = (1, 1, 1, 1)",
+			"    }",
+			"    SubShader",
+			"    {",
+			"        Tags { \"RenderType\" = \"Opaque\" }",
+			"",
+			"        Pass",
+			"        {",
+			"            CGPROGRAM",
+			"            #pragma vertex vert",
+			"            #pragma fragment frag",
+			"            #include \"UnityCG.cginc\"",
+			"",
+			"            struct appdata",
+			"            {",
+			"                float4 vertex : POSITION;",
+			"                float2 uv : TEXCOORD0;",
+			"            };",
+			"",
+			"            struct v2f",
+			"            {",
+			"                float2 uv : TEXCOORD0;",
+			"                float4 vertex : SV_POSITION;",
+			"            };",
+			"",
+			"            sampler2D _MainTex;",
+			"            float4 _MainTex_ST;",
+			"            fixed4 _Color;",
+			"",
+			"            v2f vert (appdata v)",
+			"            {",
+			"                v2f o;",
+			"                o.vertex = UnityObjectToClipPos(v.vertex);",
+			"                o.uv = TRANSFORM_TEX(v.uv, _MainTex);",
+			"                return o;",
+			"            }",
+			"",
+			"            fixed4 frag (v2f i) : SV_Target",
+			"            {",
+			"                return tex2D(_MainTex, i.uv) * _Color;",
+			"            }",
+			"            ENDCG",
+			"        }",
+			"    }",
+			"}"
+		],
+		"description": "Unity Unlit Shader with texture and color"
+	},
+	"ShaderLab Property Color": {
+		"prefix": "propcolor",
+		"body": [
+			"${1:_Color} (\"${2:Color}\", Color) = (${3:1}, ${4:1}, ${5:1}, ${6:1})"
+		],
+		"description": "ShaderLab Color property"
+	},
+	"ShaderLab Property Texture": {
+		"prefix": "proptex",
+		"body": [
+			"${1:_MainTex} (\"${2:Texture}\", 2D) = \"${3:white}\" {}"
+		],
+		"description": "ShaderLab 2D Texture property"
+	},
+	"ShaderLab Property Float": {
+		"prefix": "propfloat",
+		"body": [
+			"${1:_Value} (\"${2:Value}\", Float) = ${3:0.5}"
+		],
+		"description": "ShaderLab Float property"
+	},
+	"ShaderLab Property Range": {
+		"prefix": "proprange",
+		"body": [
+			"${1:_Value} (\"${2:Value}\", Range(${3:0}, ${4:1})) = ${5:0.5}"
+		],
+		"description": "ShaderLab Range slider property"
+	},
+	"ShaderLab Tags": {
+		"prefix": "tags",
+		"body": [
+			"Tags { \"RenderType\" = \"${1|Opaque,Transparent,TransparentCutout,Background,Overlay|}\" \"Queue\" = \"${2|Geometry,AlphaTest,Transparent|}\" }"
+		],
+		"description": "ShaderLab SubShader tags"
+	},
+	"ShaderLab Pass": {
+		"prefix": "pass",
+		"body": [
+			"Pass",
+			"{",
+			"    CGPROGRAM",
+			"    #pragma vertex vert",
+			"    #pragma fragment frag",
+			"    #include \"UnityCG.cginc\"",
+			"",
+			"    $0",
+			"",
+			"    ENDCG",
+			"}"
+		],
+		"description": "ShaderLab Pass block"
+	},
+	"ShaderLab Vertex Input Struct": {
+		"prefix": "appdata",
+		"body": [
+			"struct appdata",
+			"{",
+			"    float4 vertex : POSITION;",
+			"    float2 uv : TEXCOORD0;",
+			"    float3 normal : NORMAL;",
+			"};"
+		],
+		"description": "ShaderLab vertex input struct"
+	},
+	"ShaderLab Vertex to Fragment Struct": {
+		"prefix": "v2f",
+		"body": [
+			"struct v2f",
+			"{",
+			"    float4 vertex : SV_POSITION;",
+			"    float2 uv : TEXCOORD0;",
+			"    float3 worldNormal : TEXCOORD1;",
+			"};"
+		],
+		"description": "ShaderLab v2f (vertex to fragment) struct"
+	},
+	"ShaderLab Vertex Function": {
+		"prefix": "vert",
+		"body": [
+			"v2f vert (appdata v)",
+			"{",
+			"    v2f o;",
+			"    o.vertex = UnityObjectToClipPos(v.vertex);",
+			"    o.uv = TRANSFORM_TEX(v.uv, _MainTex);",
+			"    $0",
+			"    return o;",
+			"}"
+		],
+		"description": "ShaderLab vertex function"
+	},
+	"ShaderLab Fragment Function": {
+		"prefix": "frag",
+		"body": [
+			"fixed4 frag (v2f i) : SV_Target",
+			"{",
+			"    $0",
+			"    return tex2D(_MainTex, i.uv);",
+			"}"
+		],
+		"description": "ShaderLab fragment function"
+	},
+	"ShaderLab Blend Mode": {
+		"prefix": "blend",
+		"body": [
+			"Blend ${1|SrcAlpha OneMinusSrcAlpha,One OneMinusSrcAlpha,One One,Off|}"
+		],
+		"description": "ShaderLab Blend command"
+	},
+	"ShaderLab Cull Mode": {
+		"prefix": "cull",
+		"body": [
+			"Cull ${1|Back,Front,Off|}"
+		],
+		"description": "ShaderLab Cull command"
+	},
+	"ShaderLab ZWrite": {
+		"prefix": "zwrite",
+		"body": [
+			"ZWrite ${1|On,Off|}"
+		],
+		"description": "ShaderLab ZWrite command"
+	},
+	"ShaderLab Stencil": {
+		"prefix": "stencil",
+		"body": [
+			"Stencil",
+			"{",
+			"    Ref ${1:1}",
+			"    Comp ${2|Always,Equal,NotEqual,Less,Greater,LessEqual,GreaterEqual,Never|}",
+			"    Pass ${3|Keep,Replace,IncrSat,DecrSat,Invert,IncrWrap,DecrWrap,Zero|}",
+			"}"
+		],
+		"description": "ShaderLab Stencil block"
+	}
+}
