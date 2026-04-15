@@ -12,5 +12,186 @@
 			"#pragma endregion"
 		],
 		"description": "Folding Region End"
+	},
+	"Main Function": {
+		"prefix": "main",
+		"isFileTemplate": true,
+		"body": [
+			"#include <iostream>",
+			"",
+			"int main(int argc, char* argv[]) {",
+			"\t$0",
+			"\treturn 0;",
+			"}"
+		],
+		"description": "C++ main function"
+	},
+	"Class Definition": {
+		"prefix": "class",
+		"body": [
+			"class ${1:ClassName} {",
+			"public:",
+			"\t${1:ClassName}();",
+			"\t~${1:ClassName}();",
+			"",
+			"private:",
+			"\t$0",
+			"};"
+		],
+		"description": "C++ class definition with constructor and destructor"
+	},
+	"Struct Definition": {
+		"prefix": "struct",
+		"body": [
+			"struct ${1:StructName} {",
+			"\t$0",
+			"};"
+		],
+		"description": "C++ struct definition"
+	},
+	"Include Statement": {
+		"prefix": "inc",
+		"body": [
+			"#include <${1:header}>"
+		],
+		"description": "Include standard header"
+	},
+	"Include Local Header": {
+		"prefix": "incl",
+		"body": [
+			"#include \"${1:header.h}\""
+		],
+		"description": "Include local header file"
+	},
+	"Namespace": {
+		"prefix": "namespace",
+		"body": [
+			"namespace ${1:name} {",
+			"$0",
+			"} // namespace ${1:name}"
+		],
+		"description": "Namespace definition"
+	},
+	"For Loop": {
+		"prefix": "for",
+		"body": [
+			"for (int ${1:i} = 0; ${1:i} < ${2:count}; ++${1:i}) {",
+			"\t$TM_SELECTED_TEXT$0",
+			"}"
+		],
+		"description": "For loop"
+	},
+	"Range-Based For Loop": {
+		"prefix": "foreach",
+		"body": [
+			"for (const auto& ${1:item} : ${2:container}) {",
+			"\t$TM_SELECTED_TEXT$0",
+			"}"
+		],
+		"description": "C++11 range-based for loop"
+	},
+	"While Loop": {
+		"prefix": "while",
+		"body": [
+			"while (${1:condition}) {",
+			"\t$TM_SELECTED_TEXT$0",
+			"}"
+		],
+		"description": "While loop"
+	},
+	"If Statement": {
+		"prefix": "if",
+		"body": [
+			"if (${1:condition}) {",
+			"\t$TM_SELECTED_TEXT$0",
+			"}"
+		],
+		"description": "If statement"
+	},
+	"If-Else Statement": {
+		"prefix": "ifelse",
+		"body": [
+			"if (${1:condition}) {",
+			"\t$TM_SELECTED_TEXT$0",
+			"} else {",
+			"\t",
+			"}"
+		],
+		"description": "If-else statement"
+	},
+	"Switch Statement": {
+		"prefix": "switch",
+		"body": [
+			"switch (${1:expression}) {",
+			"\tcase ${2:value}:",
+			"\t\t$0",
+			"\t\tbreak;",
+			"\tdefault:",
+			"\t\tbreak;",
+			"}"
+		],
+		"description": "Switch statement"
+	},
+	"Cout Statement": {
+		"prefix": "cout",
+		"body": [
+			"std::cout << ${1:value} << std::endl;"
+		],
+		"description": "Print to standard output"
+	},
+	"Cin Statement": {
+		"prefix": "cin",
+		"body": [
+			"std::cin >> ${1:variable};"
+		],
+		"description": "Read from standard input"
+	},
+	"Lambda Expression": {
+		"prefix": "lambda",
+		"body": [
+			"[${1:captures}](${2:params}) -> ${3:return_type} {",
+			"\t$0",
+			"}"
+		],
+		"description": "Lambda expression"
+	},
+	"Unique Pointer": {
+		"prefix": "uptr",
+		"body": [
+			"std::unique_ptr<${1:Type}> ${2:ptr} = std::make_unique<${1:Type}>(${3:args});"
+		],
+		"description": "Unique pointer declaration"
+	},
+	"Shared Pointer": {
+		"prefix": "sptr",
+		"body": [
+			"std::shared_ptr<${1:Type}> ${2:ptr} = std::make_shared<${1:Type}>(${3:args});"
+		],
+		"description": "Shared pointer declaration"
+	},
+	"Try-Catch": {
+		"prefix": "trycatch",
+		"body": [
+			"try {",
+			"\t$TM_SELECTED_TEXT$0",
+			"} catch (const ${1:std::exception}& ${2:e}) {",
+			"\t",
+			"}"
+		],
+		"description": "Try-catch block"
+	},
+	"Auto Variable": {
+		"prefix": "auto",
+		"body": [
+			"auto ${1:name} = ${2:value};"
+		],
+		"description": "Auto type deduction variable"
+	},
+	"Const Variable": {
+		"prefix": "const",
+		"body": [
+			"const ${1:type} ${2:name} = ${3:value};"
+		],
+		"description": "Constant variable declaration"
 	}
 }
