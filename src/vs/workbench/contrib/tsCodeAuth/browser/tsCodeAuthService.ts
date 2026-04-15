@@ -8,6 +8,7 @@ import { Disposable } from '../../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
+import { IProductService } from '../../../../platform/product/common/productService.js'; // test-workbench_change
 import {
 	ITsCodeAuthService,
 	ITsCodeTokenStore,
@@ -15,7 +16,6 @@ import {
 	TokenResponse,
 	TSCODE_BASE_URL,
 	TSCODE_GATEWAY_BASE_URL,
-	TSCODE_AUTH_MOCK_ENABLED,
 	TSCODE_AUTH_MOCK_TOKEN,
 } from '../common/tsCodeAuth.js';
 
@@ -49,6 +49,7 @@ export class TsCodeAuthService extends Disposable implements ITsCodeAuthService 
 		@ITsCodeTokenStore private readonly tokenStore: ITsCodeTokenStore,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@ILogService private readonly logService: ILogService,
+		@IProductService private readonly productService: IProductService, // test-workbench_change
 	) {
 		super();
 	}
@@ -90,7 +91,7 @@ export class TsCodeAuthService extends Disposable implements ITsCodeAuthService 
 		}
 		const appCode = this._currentAppCode;
 
-		if (TSCODE_AUTH_MOCK_ENABLED) {
+		if (this.productService.tsCodeAuthMockEnabled) { // test-workbench_change
 			this._pollingTimer = setTimeout(async () => {
 				await this.tokenStore.saveToken(TSCODE_AUTH_MOCK_TOKEN);
 				this._onDidLogin.fire();

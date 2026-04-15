@@ -284,5 +284,6 @@
 	],
 	"builtInExtensionsEnabledWithAutoUpdates": [
 		"GitHub.copilot-chat"
-	]
+	],
+	"tsCodeAuthMockEnabled": false
 }

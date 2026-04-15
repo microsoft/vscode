@@ -240,6 +240,8 @@ export interface IProductConfiguration {
 	readonly onboardingExtensions?: readonly IProductOnboardingExtension[];
 	readonly onboardingThemes?: readonly IProductOnboardingTheme[];
 
+	readonly tsCodeAuthMockEnabled?: boolean; // test-workbench_change
+
 	readonly embedded?: IEmbeddedProductConfiguration;
 
 	/**
