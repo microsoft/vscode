@@ -1,0 +1,182 @@
+{
+	"Julia Function": {
+		"prefix": "fn",
+		"body": [
+			"function ${1:name}(${2:args})",
+			"\t$0",
+			"end"
+		],
+		"description": "Julia function definition"
+	},
+	"Julia Function with Return Type": {
+		"prefix": "fnr",
+		"body": [
+			"function ${1:name}(${2:args})::${3:ReturnType}",
+			"\t$0",
+			"end"
+		],
+		"description": "Julia function with return type annotation"
+	},
+	"Julia Anonymous Function": {
+		"prefix": "anon",
+		"body": [
+			"${1:x} -> ${2:x^2}"
+		],
+		"description": "Julia anonymous function"
+	},
+	"Julia Struct": {
+		"prefix": "struct",
+		"body": [
+			"struct ${1:Name}",
+			"\t${2:field}::${3:Type}",
+			"end"
+		],
+		"description": "Julia struct (immutable)"
+	},
+	"Julia Mutable Struct": {
+		"prefix": "mstruct",
+		"body": [
+			"mutable struct ${1:Name}",
+			"\t${2:field}::${3:Type}",
+			"end"
+		],
+		"description": "Julia mutable struct"
+	},
+	"Julia Abstract Type": {
+		"prefix": "abstract",
+		"body": [
+			"abstract type ${1:Name} end"
+		],
+		"description": "Julia abstract type"
+	},
+	"Julia If Statement": {
+		"prefix": "if",
+		"body": [
+			"if ${1:condition}",
+			"\t$0",
+			"end"
+		],
+		"description": "Julia if statement"
+	},
+	"Julia If-Else": {
+		"prefix": "ife",
+		"body": [
+			"if ${1:condition}",
+			"\t$0",
+			"else",
+			"\t${2}",
+			"end"
+		],
+		"description": "Julia if-else statement"
+	},
+	"Julia For Loop": {
+		"prefix": "for",
+		"body": [
+			"for ${1:i} in ${2:1:10}",
+			"\t$0",
+			"end"
+		],
+		"description": "Julia for loop"
+	},
+	"Julia While Loop": {
+		"prefix": "while",
+		"body": [
+			"while ${1:condition}",
+			"\t$0",
+			"end"
+		],
+		"description": "Julia while loop"
+	},
+	"Julia Try-Catch": {
+		"prefix": "try",
+		"body": [
+			"try",
+			"\t$0",
+			"catch ${1:e}",
+			"\t${2:@error e}",
+			"end"
+		],
+		"description": "Julia try-catch block"
+	},
+	"Julia Module": {
+		"prefix": "module",
+		"body": [
+			"module ${1:Name}",
+			"",
+			"$0",
+			"",
+			"end  # module ${1:Name}"
+		],
+		"description": "Julia module definition"
+	},
+	"Julia Using": {
+		"prefix": "using",
+		"body": [
+			"using ${1:Package}"
+		],
+		"description": "Julia using statement"
+	},
+	"Julia Import": {
+		"prefix": "import",
+		"body": [
+			"import ${1:Package}: ${2:function}"
+		],
+		"description": "Julia import with specific names"
+	},
+	"Julia List Comprehension": {
+		"prefix": "comp",
+		"body": [
+			"[${1:expr} for ${2:x} in ${3:collection}]"
+		],
+		"description": "Julia list comprehension"
+	},
+	"Julia Dict Comprehension": {
+		"prefix": "dcomp",
+		"body": [
+			"Dict(${1:k} => ${2:v} for (${1:k}, ${2:v}) in ${3:pairs})"
+		],
+		"description": "Julia dict comprehension"
+	},
+	"Julia Println": {
+		"prefix": "print",
+		"body": [
+			"println(${1:value})"
+		],
+		"description": "Julia println"
+	},
+	"Julia String Interpolation": {
+		"prefix": "str",
+		"body": [
+			"\"${1:text} \\$(${2:expr})\""
+		],
+		"description": "Julia string interpolation"
+	},
+	"Julia Macro": {
+		"prefix": "macro",
+		"body": [
+			"macro ${1:name}(${2:args})",
+			"\t$0",
+			"end"
+		],
+		"description": "Julia macro definition"
+	},
+	"Julia Test Module": {
+		"prefix": "testset",
+		"body": [
+			"using Test",
+			"",
+			"@testset \"${1:Test Suite Name}\" begin",
+			"\t@test ${2:1 + 1 == 2}",
+			"\t$0",
+			"end"
+		],
+		"description": "Julia @testset"
+	},
+	"Julia Broadcast": {
+		"prefix": "broadcast",
+		"body": [
+			"${1:f}.(${2:args})"
+		],
+		"description": "Julia broadcasting (dot notation)"
+	}
+}

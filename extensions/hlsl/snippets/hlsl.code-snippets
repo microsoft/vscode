@@ -1,0 +1,173 @@
+{
+	"HLSL Vertex Shader": {
+		"prefix": "vs",
+		"body": [
+			"struct VSInput {",
+			"\tfloat4 position : POSITION;",
+			"\tfloat2 uv : TEXCOORD0;",
+			"};",
+			"",
+			"struct VSOutput {",
+			"\tfloat4 position : SV_Position;",
+			"\tfloat2 uv : TEXCOORD0;",
+			"};",
+			"",
+			"VSOutput ${1:VSMain}(VSInput input) {",
+			"\tVSOutput output;",
+			"\toutput.position = ${2:mul(input.position, WorldViewProjection)};",
+			"\toutput.uv = input.uv;",
+			"\treturn output;",
+			"}"
+		],
+		"description": "HLSL vertex shader template"
+	},
+	"HLSL Pixel Shader": {
+		"prefix": "ps",
+		"body": [
+			"Texture2D ${1:diffuseTexture} : register(t0);",
+			"SamplerState ${2:samplerState} : register(s0);",
+			"",
+			"float4 ${3:PSMain}(float2 uv : TEXCOORD0) : SV_Target {",
+			"\treturn ${1:diffuseTexture}.Sample(${2:samplerState}, uv);",
+			"}"
+		],
+		"description": "HLSL pixel shader template"
+	},
+	"HLSL Compute Shader": {
+		"prefix": "cs",
+		"body": [
+			"RWTexture2D<float4> ${1:output} : register(u0);",
+			"",
+			"[numthreads(${2:8}, ${3:8}, 1)]",
+			"void ${4:CSMain}(uint3 id : SV_DispatchThreadID) {",
+			"\t$0",
+			"\t${1:output}[id.xy] = float4(1, 0, 0, 1);",
+			"}"
+		],
+		"description": "HLSL compute shader template"
+	},
+	"HLSL Constant Buffer": {
+		"prefix": "cbuffer",
+		"body": [
+			"cbuffer ${1:PerFrame} : register(b${2:0}) {",
+			"\tfloat4x4 ${3:WorldViewProjection};",
+			"\t$0",
+			"};"
+		],
+		"description": "HLSL constant buffer"
+	},
+	"HLSL Struct": {
+		"prefix": "struct",
+		"body": [
+			"struct ${1:Name} {",
+			"\t${2:float4} ${3:position} : ${4:SV_Position};",
+			"};"
+		],
+		"description": "HLSL struct with semantic"
+	},
+	"HLSL Texture Sample": {
+		"prefix": "sample",
+		"body": [
+			"${1:texture}.Sample(${2:sampler}, ${3:uv})"
+		],
+		"description": "HLSL texture sample"
+	},
+	"HLSL Texture Sample Level": {
+		"prefix": "sampleLevel",
+		"body": [
+			"${1:texture}.SampleLevel(${2:sampler}, ${3:uv}, ${4:0})"
+		],
+		"description": "HLSL texture sample with mip level"
+	},
+	"HLSL Matrix Multiply": {
+		"prefix": "mul",
+		"body": [
+			"mul(${1:vector}, ${2:matrix})"
+		],
+		"description": "HLSL matrix multiply"
+	},
+	"HLSL Lerp": {
+		"prefix": "lerp",
+		"body": [
+			"lerp(${1:a}, ${2:b}, ${3:t})"
+		],
+		"description": "HLSL lerp"
+	},
+	"HLSL Saturate": {
+		"prefix": "sat",
+		"body": [
+			"saturate(${1:value})"
+		],
+		"description": "HLSL saturate (clamp to 0-1)"
+	},
+	"HLSL Normalize": {
+		"prefix": "norm",
+		"body": [
+			"normalize(${1:vector})"
+		],
+		"description": "HLSL normalize"
+	},
+	"HLSL Dot Product": {
+		"prefix": "dot",
+		"body": [
+			"dot(${1:a}, ${2:b})"
+		],
+		"description": "HLSL dot product"
+	},
+	"HLSL Cross Product": {
+		"prefix": "cross",
+		"body": [
+			"cross(${1:a}, ${2:b})"
+		],
+		"description": "HLSL cross product"
+	},
+	"HLSL Length": {
+		"prefix": "len",
+		"body": [
+			"length(${1:vector})"
+		],
+		"description": "HLSL vector length"
+	},
+	"HLSL Float4": {
+		"prefix": "f4",
+		"body": [
+			"float4(${1:x}, ${2:y}, ${3:z}, ${4:w})"
+		],
+		"description": "HLSL float4 constructor"
+	},
+	"HLSL Float3": {
+		"prefix": "f3",
+		"body": [
+			"float3(${1:x}, ${2:y}, ${3:z})"
+		],
+		"description": "HLSL float3 constructor"
+	},
+	"HLSL Float2": {
+		"prefix": "f2",
+		"body": [
+			"float2(${1:x}, ${2:y})"
+		],
+		"description": "HLSL float2 constructor"
+	},
+	"HLSL Register Texture": {
+		"prefix": "tex",
+		"body": [
+			"Texture${1|2D,3D,2DArray,Cube|}< float4> ${2:texName} : register(t${3:0});"
+		],
+		"description": "HLSL texture register"
+	},
+	"HLSL Register Sampler": {
+		"prefix": "samp",
+		"body": [
+			"SamplerState ${1:sampName} : register(s${2:0});"
+		],
+		"description": "HLSL sampler register"
+	},
+	"HLSL Numthreads": {
+		"prefix": "numthreads",
+		"body": [
+			"[numthreads(${1:8}, ${2:8}, ${3:1})]"
+		],
+		"description": "HLSL numthreads attribute"
+	}
+}
