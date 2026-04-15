@@ -2907,6 +2907,11 @@
         "category": "JavaScript"
       },
       {
+        "command": "typescript.insertConsoleLog",
+        "title": "%typescript.insertConsoleLog.title%",
+        "category": "TypeScript"
+      },
+      {
         "command": "typescript.experimental.enableTsgo",
         "title": "Use TypeScript Go (Experimental)",
         "category": "TypeScript",
@@ -2988,6 +2993,10 @@
         {
           "command": "javascript.removeUnusedImports",
           "when": "supportedCodeAction =~ /(\\s|^)source\\.removeUnusedImports\\b/ && editorLangId =~ /^javascript(react)?$/"
+        },
+        {
+          "command": "typescript.insertConsoleLog",
+          "when": "editorLangId =~ /^(java|type)script(react)?$/ && typescript.isManagedFile"
         }
       ],
       "editor/context": [

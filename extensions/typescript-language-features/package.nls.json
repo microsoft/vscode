@@ -305,6 +305,7 @@
 	"configuration.workspaceSymbols.scope.unifiedDeprecationMessage": "This setting is deprecated. Use `#js/ts.workspaceSymbols.scope#` instead.",
 	"typescript.sortImports": "Sort Imports",
 	"typescript.removeUnusedImports": "Remove Unused Imports",
+	"typescript.insertConsoleLog.title": "Insert Console Log for Selection",
 	"typescript.findAllFileReferences": "Find File References",
 	"typescript.goToSourceDefinition": "Go to Source Definition",
 	"configuration.suggest.classMemberSnippets.enabled": "Enable/disable snippet completions for class members.",

@@ -9,6 +9,7 @@ import { ActiveJsTsEditorTracker } from '../ui/activeJsTsEditorTracker';
 import { Lazy } from '../utils/lazy';
 import { CommandManager } from './commandManager';
 import { ConfigurePluginCommand } from './configurePlugin';
+import { InsertConsoleLogCommand } from './insertConsoleLog';
 import { EnableTsgoCommand, DisableTsgoCommand } from './useTsgo';
 import { JavaScriptGoToProjectConfigCommand, TypeScriptGoToProjectConfigCommand } from './goToProjectConfiguration';
 import { LearnMoreAboutRefactoringsCommand } from './learnMoreAboutRefactorings';
@@ -36,6 +37,7 @@ export function registerBaseCommands(
 	commandManager.register(new LearnMoreAboutRefactoringsCommand());
 	commandManager.register(new TSServerRequestCommand(lazyClientHost));
 	commandManager.register(new OpenJsDocLinkCommand());
+	commandManager.register(new InsertConsoleLogCommand());
 	commandManager.register(new EnableTsgoCommand());
 	commandManager.register(new DisableTsgoCommand());
 }
