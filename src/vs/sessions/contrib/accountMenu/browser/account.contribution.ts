@@ -384,7 +384,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		const titleBarIcon = state.dotBadge ? Codicon.account : state.icon;
 
 		this.avatarElement.classList.toggle('visible', hasLoadedAvatar);
-		this.avatarElement.alt = this.getAvatarAltText();
+		this.avatarElement.alt = this.getAvatarAltText(hasLoadedAvatar);
 		if (hasLoadedAvatar) {
 			if (this.avatarElement.src !== loadedAvatarUrl) {
 				this.avatarElement.src = loadedAvatarUrl;
@@ -403,8 +403,8 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		this.badgeElement.style.display = shouldShowDotBadge ? '' : 'none';
 	}
 
-	private getAvatarAltText(): string {
-		if (this.accountName) {
+	private getAvatarAltText(hasLoadedAvatar: boolean): string {
+		if (hasLoadedAvatar && this.accountProviderId === 'github' && this.accountName) {
 			return localize('accountAvatarAlt', "GitHub profile image for {0}", this.accountName);
 		}
 
@@ -428,6 +428,7 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		}
 
 		const image = new Image();
+		image.referrerPolicy = 'no-referrer';
 		const clearHandlers = () => {
 			image.onload = null;
 			image.onerror = null;
