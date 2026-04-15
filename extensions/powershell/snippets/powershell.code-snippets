@@ -1,0 +1,189 @@
+{
+	"Script Header": {
+		"prefix": "header",
+		"isFileTemplate": true,
+		"body": [
+			"#Requires -Version ${1:5.1}",
+			"<#",
+			".SYNOPSIS",
+			"    ${2:Brief description}",
+			".DESCRIPTION",
+			"    ${3:Detailed description}",
+			".PARAMETER ${4:ParamName}",
+			"    ${5:Description}",
+			"#>",
+			"[CmdletBinding()]",
+			"param(",
+			"    [Parameter(Mandatory)]",
+			"    [string]\\$${6:ParamName}",
+			")",
+			"",
+			"$0"
+		],
+		"description": "PowerShell script header with synopsis"
+	},
+	"Function": {
+		"prefix": "fn",
+		"body": [
+			"function ${1:Verb-Noun} {",
+			"\t[CmdletBinding()]",
+			"\tparam(",
+			"\t\t[Parameter(${2:Mandatory})]",
+			"\t\t[${3:string}]\\$${4:ParamName}",
+			"\t)",
+			"\t",
+			"\t$0",
+			"}"
+		],
+		"description": "PowerShell function with CmdletBinding"
+	},
+	"If Statement": {
+		"prefix": "if",
+		"body": [
+			"if (${1:condition}) {",
+			"\t$2",
+			"}"
+		],
+		"description": "PowerShell if statement"
+	},
+	"If-Else Statement": {
+		"prefix": "ifelse",
+		"body": [
+			"if (${1:condition}) {",
+			"\t$2",
+			"} else {",
+			"\t$3",
+			"}"
+		],
+		"description": "PowerShell if-else statement"
+	},
+	"Switch Statement": {
+		"prefix": "switch",
+		"body": [
+			"switch (${1:variable}) {",
+			"\t'${2:value1}' { ${3:action}; break }",
+			"\t'${4:value2}' { ${5:action}; break }",
+			"\tdefault { $0 }",
+			"}"
+		],
+		"description": "PowerShell switch statement"
+	},
+	"For Loop": {
+		"prefix": "for",
+		"body": [
+			"for (\\$${1:i} = 0; \\$${1:i} -lt ${2:count}; \\$${1:i}++) {",
+			"\t$0",
+			"}"
+		],
+		"description": "PowerShell for loop"
+	},
+	"Foreach Loop": {
+		"prefix": "foreach",
+		"body": [
+			"foreach (\\$${1:item} in ${2:\\$collection}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "PowerShell foreach loop"
+	},
+	"While Loop": {
+		"prefix": "while",
+		"body": [
+			"while (${1:condition}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "PowerShell while loop"
+	},
+	"Try-Catch": {
+		"prefix": "trycatch",
+		"body": [
+			"try {",
+			"\t$1",
+			"} catch {",
+			"\tWrite-Error \"An error occurred: \\$_\"",
+			"}"
+		],
+		"description": "PowerShell try-catch block"
+	},
+	"Try-Catch-Finally": {
+		"prefix": "trycatchf",
+		"body": [
+			"try {",
+			"\t$1",
+			"} catch {",
+			"\tWrite-Error \"An error occurred: \\$_\"",
+			"} finally {",
+			"\t$0",
+			"}"
+		],
+		"description": "PowerShell try-catch-finally block"
+	},
+	"Write-Host": {
+		"prefix": "wh",
+		"body": [
+			"Write-Host \"${1:message}\" -ForegroundColor ${2|Green,Yellow,Red,Cyan,White|}"
+		],
+		"description": "Write-Host with color"
+	},
+	"Write-Output": {
+		"prefix": "wo",
+		"body": [
+			"Write-Output \"${1:message}\""
+		],
+		"description": "Write-Output (pipeline-safe)"
+	},
+	"String Interpolation": {
+		"prefix": "str",
+		"body": [
+			"\"${1:text} \\${${2:variable}}${3: more text}\""
+		],
+		"description": "PowerShell string interpolation"
+	},
+	"Here String": {
+		"prefix": "here",
+		"body": [
+			"\\$${1:text} = @\"",
+			"${2:content}",
+			"\"@"
+		],
+		"description": "PowerShell here-string"
+	},
+	"HashTable": {
+		"prefix": "ht",
+		"body": [
+			"\\$${1:hash} = @{",
+			"\t${2:Key} = '${3:Value}'",
+			"}"
+		],
+		"description": "PowerShell hashtable"
+	},
+	"Pipeline Filter": {
+		"prefix": "where",
+		"body": [
+			"${1:\\$collection} | Where-Object { \\$_.${2:Property} -${3|eq,ne,like,gt,lt|} '${4:value}' }"
+		],
+		"description": "PowerShell Where-Object pipeline filter"
+	},
+	"Select Property": {
+		"prefix": "select",
+		"body": [
+			"${1:\\$collection} | Select-Object ${2:Property1}, ${3:Property2}"
+		],
+		"description": "PowerShell Select-Object"
+	},
+	"Sort By": {
+		"prefix": "sort",
+		"body": [
+			"${1:\\$collection} | Sort-Object ${2:Property} ${3|-Descending|}"
+		],
+		"description": "PowerShell Sort-Object"
+	},
+	"Verbose Message": {
+		"prefix": "verb",
+		"body": [
+			"Write-Verbose \"${1:Verbose message}\""
+		],
+		"description": "Write-Verbose message"
+	}
+}
