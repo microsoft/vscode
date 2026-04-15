@@ -1,0 +1,187 @@
+{
+	"SELECT All": {
+		"prefix": "sel",
+		"body": [
+			"SELECT * FROM ${1:table_name};"
+		],
+		"description": "SELECT all columns from a table"
+	},
+	"SELECT Columns": {
+		"prefix": "selc",
+		"body": [
+			"SELECT ${1:column1}, ${2:column2}",
+			"FROM ${3:table_name}",
+			"WHERE ${4:condition};"
+		],
+		"description": "SELECT specific columns with WHERE"
+	},
+	"SELECT with JOIN": {
+		"prefix": "selj",
+		"body": [
+			"SELECT ${1:t1.column1}, ${2:t2.column2}",
+			"FROM ${3:table1} ${4:t1}",
+			"${5|INNER JOIN,LEFT JOIN,RIGHT JOIN,FULL JOIN|} ${6:table2} ${7:t2} ON ${4:t1}.${8:id} = ${7:t2}.${9:id}",
+			"WHERE ${10:1=1};"
+		],
+		"description": "SELECT with JOIN"
+	},
+	"INSERT INTO": {
+		"prefix": "ins",
+		"body": [
+			"INSERT INTO ${1:table_name} (${2:column1}, ${3:column2})",
+			"VALUES (${4:value1}, ${5:value2});"
+		],
+		"description": "INSERT INTO statement"
+	},
+	"UPDATE": {
+		"prefix": "upd",
+		"body": [
+			"UPDATE ${1:table_name}",
+			"SET ${2:column1} = ${3:value1}",
+			"WHERE ${4:condition};"
+		],
+		"description": "UPDATE statement"
+	},
+	"DELETE": {
+		"prefix": "del",
+		"body": [
+			"DELETE FROM ${1:table_name}",
+			"WHERE ${2:condition};"
+		],
+		"description": "DELETE statement"
+	},
+	"CREATE TABLE": {
+		"prefix": "crt",
+		"body": [
+			"CREATE TABLE ${1:table_name} (",
+			"\t${2:id} INT PRIMARY KEY IDENTITY(1,1),",
+			"\t${3:column1} ${4:VARCHAR(255)} NOT NULL,",
+			"\t${5:created_at} DATETIME DEFAULT GETDATE()",
+			");"
+		],
+		"description": "CREATE TABLE statement"
+	},
+	"CREATE INDEX": {
+		"prefix": "cri",
+		"body": [
+			"CREATE ${1|,UNIQUE |}INDEX ${2:idx_name}",
+			"ON ${3:table_name} (${4:column1}${5:, column2});"
+		],
+		"description": "CREATE INDEX statement"
+	},
+	"ALTER TABLE ADD COLUMN": {
+		"prefix": "altac",
+		"body": [
+			"ALTER TABLE ${1:table_name}",
+			"ADD ${2:column_name} ${3:VARCHAR(255)} ${4:NOT NULL};"
+		],
+		"description": "ALTER TABLE ADD COLUMN"
+	},
+	"DROP TABLE": {
+		"prefix": "drop",
+		"body": [
+			"DROP TABLE IF EXISTS ${1:table_name};"
+		],
+		"description": "DROP TABLE IF EXISTS"
+	},
+	"COUNT": {
+		"prefix": "cnt",
+		"body": [
+			"SELECT COUNT(${1:*}) FROM ${2:table_name}${3: WHERE ${4:condition}};"
+		],
+		"description": "SELECT COUNT"
+	},
+	"GROUP BY": {
+		"prefix": "grp",
+		"body": [
+			"SELECT ${1:column}, COUNT(*) AS ${2:count}",
+			"FROM ${3:table_name}",
+			"GROUP BY ${1:column}",
+			"ORDER BY ${2:count} DESC;"
+		],
+		"description": "GROUP BY with COUNT"
+	},
+	"HAVING": {
+		"prefix": "hav",
+		"body": [
+			"SELECT ${1:column}, ${2:aggregate_function}",
+			"FROM ${3:table_name}",
+			"GROUP BY ${1:column}",
+			"HAVING ${4:condition};"
+		],
+		"description": "GROUP BY with HAVING"
+	},
+	"ORDER BY": {
+		"prefix": "ord",
+		"body": [
+			"ORDER BY ${1:column} ${2|ASC,DESC|};"
+		],
+		"description": "ORDER BY clause"
+	},
+	"LIMIT/TOP": {
+		"prefix": "top",
+		"body": [
+			"SELECT TOP ${1:10} * FROM ${2:table_name};"
+		],
+		"description": "SELECT TOP N rows (T-SQL)"
+	},
+	"CTE": {
+		"prefix": "cte",
+		"body": [
+			"WITH ${1:cte_name} AS (",
+			"\tSELECT ${2:columns}",
+			"\tFROM ${3:table_name}",
+			"\tWHERE ${4:condition}",
+			")",
+			"SELECT * FROM ${1:cte_name};"
+		],
+		"description": "Common Table Expression (CTE)"
+	},
+	"Subquery": {
+		"prefix": "sub",
+		"body": [
+			"SELECT * FROM ${1:table_name}",
+			"WHERE ${2:column} IN (",
+			"\tSELECT ${2:column} FROM ${3:other_table}",
+			"\tWHERE ${4:condition}",
+			");"
+		],
+		"description": "SELECT with subquery"
+	},
+	"CASE WHEN": {
+		"prefix": "case",
+		"body": [
+			"CASE",
+			"\tWHEN ${1:condition1} THEN ${2:result1}",
+			"\tWHEN ${3:condition2} THEN ${4:result2}",
+			"\tELSE ${5:default_result}",
+			"END"
+		],
+		"description": "CASE WHEN expression"
+	},
+	"TRANSACTION": {
+		"prefix": "trx",
+		"body": [
+			"BEGIN TRANSACTION;",
+			"\t$0",
+			"COMMIT TRANSACTION;",
+			"-- ROLLBACK TRANSACTION;"
+		],
+		"description": "SQL transaction block"
+	},
+	"BEGIN TRY CATCH": {
+		"prefix": "trycatch",
+		"body": [
+			"BEGIN TRY",
+			"\tBEGIN TRANSACTION;",
+			"\t$1",
+			"\tCOMMIT TRANSACTION;",
+			"END TRY",
+			"BEGIN CATCH",
+			"\tROLLBACK TRANSACTION;",
+			"\tSELECT ERROR_MESSAGE() AS ErrorMessage;",
+			"END CATCH"
+		],
+		"description": "T-SQL TRY/CATCH with transaction"
+	}
+}

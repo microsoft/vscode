@@ -33,6 +33,12 @@
         "scopeName": "source.sql",
         "path": "./syntaxes/sql.tmLanguage.json"
       }
+    ],
+    "snippets": [
+      {
+        "language": "sql",
+        "path": "./snippets/sql.code-snippets"
+      }
     ]
   },
   "repository": {
