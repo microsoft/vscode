@@ -1,0 +1,184 @@
+{
+	"R Function": {
+		"prefix": "fn",
+		"body": [
+			"${1:name} <- function(${2:params}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "R function declaration"
+	},
+	"R Function with Return": {
+		"prefix": "fnr",
+		"body": [
+			"${1:name} <- function(${2:params}) {",
+			"\t$0",
+			"\treturn(${3:value})",
+			"}"
+		],
+		"description": "R function with return value"
+	},
+	"R For Loop": {
+		"prefix": "for",
+		"body": [
+			"for (${1:i} in ${2:1:10}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "R for loop"
+	},
+	"R While Loop": {
+		"prefix": "while",
+		"body": [
+			"while (${1:condition}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "R while loop"
+	},
+	"R If Statement": {
+		"prefix": "if",
+		"body": [
+			"if (${1:condition}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "R if statement"
+	},
+	"R If-Else": {
+		"prefix": "ife",
+		"body": [
+			"if (${1:condition}) {",
+			"\t$0",
+			"} else {",
+			"\t${2}",
+			"}"
+		],
+		"description": "R if-else"
+	},
+	"R Apply": {
+		"prefix": "apply",
+		"body": [
+			"${1:result} <- apply(${2:X}, ${3|1,2|}, function(${4:x}) {",
+			"\t$0",
+			"})"
+		],
+		"description": "R apply function"
+	},
+	"R Lapply": {
+		"prefix": "lapply",
+		"body": [
+			"${1:result} <- lapply(${2:list}, function(${3:x}) {",
+			"\t$0",
+			"})"
+		],
+		"description": "R lapply function"
+	},
+	"R Sapply": {
+		"prefix": "sapply",
+		"body": [
+			"${1:result} <- sapply(${2:vector}, function(${3:x}) {",
+			"\t$0",
+			"})"
+		],
+		"description": "R sapply function"
+	},
+	"R Vector": {
+		"prefix": "vec",
+		"body": [
+			"${1:v} <- c(${2})"
+		],
+		"description": "R vector with c()"
+	},
+	"R List": {
+		"prefix": "list",
+		"body": [
+			"${1:l} <- list(${2:name} = ${3:value})"
+		],
+		"description": "R named list"
+	},
+	"R Data Frame": {
+		"prefix": "df",
+		"body": [
+			"${1:df} <- data.frame(",
+			"\t${2:col1} = ${3:c()},",
+			"\t${4:col2} = ${5:c()},",
+			"\tstringsAsFactors = FALSE",
+			")"
+		],
+		"description": "R data frame creation"
+	},
+	"R Print": {
+		"prefix": "print",
+		"body": [
+			"print(${1:value})"
+		],
+		"description": "R print statement"
+	},
+	"R Cat": {
+		"prefix": "cat",
+		"body": [
+			"cat(${1:\"message\"}, \"\\n\")"
+		],
+		"description": "R cat output"
+	},
+	"R Sprintf": {
+		"prefix": "sprintf",
+		"body": [
+			"sprintf(\"${1:%s}\", ${2:value})"
+		],
+		"description": "R sprintf for formatted strings"
+	},
+	"R TryCatch": {
+		"prefix": "try",
+		"body": [
+			"tryCatch({",
+			"\t$0",
+			"}, error = function(e) {",
+			"\tmessage('Error: ', e\\$message)",
+			"})"
+		],
+		"description": "R tryCatch error handling"
+	},
+	"R Library": {
+		"prefix": "lib",
+		"body": [
+			"library(${1:package})"
+		],
+		"description": "R library import"
+	},
+	"R ggplot2 Basic": {
+		"prefix": "ggplot",
+		"body": [
+			"library(ggplot2)",
+			"ggplot(${1:data}, aes(x = ${2:x}, y = ${3:y})) +",
+			"\tgeom_${4|point,line,bar,histogram|}() +",
+			"\tlabs(title = '${5:Title}', x = '${6:X}', y = '${7:Y}')"
+		],
+		"description": "R ggplot2 basic plot"
+	},
+	"R dplyr Pipe": {
+		"prefix": "pipe",
+		"body": [
+			"${1:data} |>",
+			"\tdplyr::filter(${2:condition}) |>",
+			"\tdplyr::select(${3:columns}) |>",
+			"\tdplyr::mutate(${4:new_col} = ${5:expr})"
+		],
+		"description": "R dplyr pipe chain"
+	},
+	"R Read CSV": {
+		"prefix": "readcsv",
+		"body": [
+			"${1:df} <- read.csv('${2:file.csv}', stringsAsFactors = FALSE)"
+		],
+		"description": "R read CSV file"
+	},
+	"R Write CSV": {
+		"prefix": "writecsv",
+		"body": [
+			"write.csv(${1:df}, '${2:file.csv}', row.names = FALSE)"
+		],
+		"description": "R write CSV file"
+	}
+}

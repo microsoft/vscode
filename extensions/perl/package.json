@@ -11,7 +11,9 @@
   "scripts": {
     "update-grammar": "node ../node_modules/vscode-grammar-updater/bin textmate/perl.tmbundle Syntaxes/Perl.plist ./syntaxes/perl.tmLanguage.json Syntaxes/Perl%206.tmLanguage ./syntaxes/perl6.tmLanguage.json"
   },
-  "categories": ["Programming Languages"],
+  "categories": [
+    "Programming Languages"
+  ],
   "contributes": {
     "languages": [
       {
@@ -65,6 +67,16 @@
         "language": "raku",
         "scopeName": "source.perl.6",
         "path": "./syntaxes/perl6.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "perl",
+        "path": "./snippets/perl.code-snippets"
+      },
+      {
+        "language": "raku",
+        "path": "./snippets/perl.code-snippets"
       }
     ]
   },

@@ -8,7 +8,9 @@
   "engines": {
     "vscode": "*"
   },
-  "categories": ["Programming Languages"],
+  "categories": [
+    "Programming Languages"
+  ],
   "contributes": {
     "languages": [
       {
@@ -36,6 +38,12 @@
         "language": "powershell",
         "scopeName": "source.powershell",
         "path": "./syntaxes/powershell.tmLanguage.json"
+      }
+    ],
+    "snippets": [
+      {
+        "language": "powershell",
+        "path": "./snippets/powershell.code-snippets"
       }
     ]
   },

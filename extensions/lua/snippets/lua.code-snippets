@@ -1,0 +1,188 @@
+{
+	"Lua Function": {
+		"prefix": "fn",
+		"body": [
+			"function ${1:name}(${2:params})",
+			"\t$0",
+			"end"
+		],
+		"description": "Lua function declaration"
+	},
+	"Lua Local Function": {
+		"prefix": "lfn",
+		"body": [
+			"local function ${1:name}(${2:params})",
+			"\t$0",
+			"end"
+		],
+		"description": "Lua local function declaration"
+	},
+	"Lua Local Variable": {
+		"prefix": "local",
+		"body": [
+			"local ${1:name} = ${2:value}"
+		],
+		"description": "Lua local variable"
+	},
+	"Lua If Statement": {
+		"prefix": "if",
+		"body": [
+			"if ${1:condition} then",
+			"\t$0",
+			"end"
+		],
+		"description": "Lua if statement"
+	},
+	"Lua If-Else": {
+		"prefix": "ife",
+		"body": [
+			"if ${1:condition} then",
+			"\t$0",
+			"else",
+			"\t${2}",
+			"end"
+		],
+		"description": "Lua if-else statement"
+	},
+	"Lua If-Elseif-Else": {
+		"prefix": "ifeif",
+		"body": [
+			"if ${1:condition} then",
+			"\t$0",
+			"elseif ${2:condition} then",
+			"\t${3}",
+			"else",
+			"\t${4}",
+			"end"
+		],
+		"description": "Lua if-elseif-else"
+	},
+	"Lua While Loop": {
+		"prefix": "while",
+		"body": [
+			"while ${1:condition} do",
+			"\t$0",
+			"end"
+		],
+		"description": "Lua while loop"
+	},
+	"Lua Repeat-Until Loop": {
+		"prefix": "repeat",
+		"body": [
+			"repeat",
+			"\t$0",
+			"until ${1:condition}"
+		],
+		"description": "Lua repeat-until loop"
+	},
+	"Lua Numeric For Loop": {
+		"prefix": "forn",
+		"body": [
+			"for ${1:i} = ${2:1}, ${3:10} do",
+			"\t$0",
+			"end"
+		],
+		"description": "Lua numeric for loop"
+	},
+	"Lua Generic For Loop": {
+		"prefix": "forg",
+		"body": [
+			"for ${1:k}, ${2:v} in ${3:pairs(${4:t})} do",
+			"\t$0",
+			"end"
+		],
+		"description": "Lua generic for loop"
+	},
+	"Lua Table": {
+		"prefix": "table",
+		"body": [
+			"local ${1:t} = {",
+			"\t${2:key} = ${3:value},",
+			"}"
+		],
+		"description": "Lua table constructor"
+	},
+	"Lua Array Table": {
+		"prefix": "array",
+		"body": [
+			"local ${1:t} = { ${2} }"
+		],
+		"description": "Lua array-like table"
+	},
+	"Lua Class Pattern": {
+		"prefix": "class",
+		"body": [
+			"local ${1:ClassName} = {}",
+			"${1:ClassName}.__index = ${1:ClassName}",
+			"",
+			"function ${1:ClassName}.new(${2:params})",
+			"\tlocal self = setmetatable({}, ${1:ClassName})",
+			"\t$0",
+			"\treturn self",
+			"end",
+			"",
+			"return ${1:ClassName}"
+		],
+		"description": "Lua OOP class pattern"
+	},
+	"Lua Method": {
+		"prefix": "method",
+		"body": [
+			"function ${1:ClassName}:${2:methodName}(${3:params})",
+			"\t$0",
+			"end"
+		],
+		"description": "Lua method (colon syntax)"
+	},
+	"Lua Require": {
+		"prefix": "require",
+		"body": [
+			"local ${1:module} = require('${2:module_name}')"
+		],
+		"description": "Lua require statement"
+	},
+	"Lua Print": {
+		"prefix": "print",
+		"body": [
+			"print(${1:value})"
+		],
+		"description": "Lua print statement"
+	},
+	"Lua String Format": {
+		"prefix": "format",
+		"body": [
+			"string.format('${1:%s}', ${2:value})"
+		],
+		"description": "Lua string.format"
+	},
+	"Lua Error": {
+		"prefix": "error",
+		"body": [
+			"error('${1:message}', ${2:2})"
+		],
+		"description": "Lua error with level"
+	},
+	"Lua Protected Call": {
+		"prefix": "pcall",
+		"body": [
+			"local ${1:ok}, ${2:err} = pcall(function()",
+			"\t$0",
+			"end)",
+			"if not ${1:ok} then",
+			"\terror(${2:err})",
+			"end"
+		],
+		"description": "Lua pcall error handling"
+	},
+	"Lua Module Pattern": {
+		"prefix": "module",
+		"body": [
+			"local M = {}",
+			"",
+			"$0",
+			"",
+			"return M"
+		],
+		"description": "Lua module pattern"
+	}
+}

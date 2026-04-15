@@ -1,0 +1,208 @@
+{
+	"PowerShell Function": {
+		"prefix": "fn",
+		"body": [
+			"function ${1:Verb-Noun} {",
+			"\t[CmdletBinding()]",
+			"\tparam(",
+			"\t\t[Parameter(Mandatory=\\$${2|true,false|})]",
+			"\t\t[${3:string}]\\$${4:Param}",
+			"\t)",
+			"\t$0",
+			"}"
+		],
+		"description": "PowerShell function with CmdletBinding"
+	},
+	"PowerShell Simple Function": {
+		"prefix": "sfn",
+		"body": [
+			"function ${1:Name} {",
+			"\tparam(${2:\\$Param})",
+			"\t$0",
+			"}"
+		],
+		"description": "PowerShell simple function"
+	},
+	"PowerShell If Statement": {
+		"prefix": "if",
+		"body": [
+			"if (${1:condition}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "PowerShell if statement"
+	},
+	"PowerShell If-Else": {
+		"prefix": "ife",
+		"body": [
+			"if (${1:condition}) {",
+			"\t$0",
+			"} else {",
+			"\t${2}",
+			"}"
+		],
+		"description": "PowerShell if-else"
+	},
+	"PowerShell Switch": {
+		"prefix": "switch",
+		"body": [
+			"switch (\\$${1:variable}) {",
+			"\t'${2:value1}' { ${3:action1} }",
+			"\t'${4:value2}' { ${5:action2} }",
+			"\tDefault { ${6:default} }",
+			"}"
+		],
+		"description": "PowerShell switch statement"
+	},
+	"PowerShell ForEach-Object": {
+		"prefix": "foreach",
+		"body": [
+			"\\$${1:collection} | ForEach-Object {",
+			"\t$0",
+			"}"
+		],
+		"description": "PowerShell ForEach-Object pipeline"
+	},
+	"PowerShell For Loop": {
+		"prefix": "for",
+		"body": [
+			"for (\\$${1:i} = 0; \\$${1:i} -lt ${2:10}; \\$${1:i}++) {",
+			"\t$0",
+			"}"
+		],
+		"description": "PowerShell for loop"
+	},
+	"PowerShell While Loop": {
+		"prefix": "while",
+		"body": [
+			"while (${1:\\$condition}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "PowerShell while loop"
+	},
+	"PowerShell Try-Catch": {
+		"prefix": "try",
+		"body": [
+			"try {",
+			"\t$0",
+			"} catch {",
+			"\tWrite-Error \\$_.Exception.Message",
+			"}"
+		],
+		"description": "PowerShell try-catch"
+	},
+	"PowerShell Try-Catch-Finally": {
+		"prefix": "tryf",
+		"body": [
+			"try {",
+			"\t$0",
+			"} catch {",
+			"\tWrite-Error \\$_.Exception.Message",
+			"} finally {",
+			"\t${2:# cleanup}",
+			"}"
+		],
+		"description": "PowerShell try-catch-finally"
+	},
+	"PowerShell Write-Host": {
+		"prefix": "wh",
+		"body": [
+			"Write-Host \"${1:message}\""
+		],
+		"description": "PowerShell Write-Host"
+	},
+	"PowerShell Write-Output": {
+		"prefix": "wo",
+		"body": [
+			"Write-Output \"${1:message}\""
+		],
+		"description": "PowerShell Write-Output"
+	},
+	"PowerShell Write-Verbose": {
+		"prefix": "wv",
+		"body": [
+			"Write-Verbose \"${1:message}\""
+		],
+		"description": "PowerShell Write-Verbose"
+	},
+	"PowerShell Where-Object": {
+		"prefix": "where",
+		"body": [
+			"\\$${1:collection} | Where-Object { \\$_.${2:Property} -${3|eq,ne,gt,lt,like,match|} '${4:value}' }"
+		],
+		"description": "PowerShell Where-Object filter"
+	},
+	"PowerShell Select-Object": {
+		"prefix": "select",
+		"body": [
+			"\\$${1:collection} | Select-Object ${2:Property1}, ${3:Property2}"
+		],
+		"description": "PowerShell Select-Object"
+	},
+	"PowerShell Get-ChildItem": {
+		"prefix": "gci",
+		"body": [
+			"Get-ChildItem -Path '${1:.}' -Filter '${2:*}' -Recurse"
+		],
+		"description": "PowerShell Get-ChildItem"
+	},
+	"PowerShell Test-Path": {
+		"prefix": "tp",
+		"body": [
+			"if (Test-Path '${1:path}') {",
+			"\t$0",
+			"}"
+		],
+		"description": "PowerShell Test-Path check"
+	},
+	"PowerShell Hashtable": {
+		"prefix": "hash",
+		"body": [
+			"\\$${1:hash} = @{",
+			"\t${2:Key} = '${3:Value}'",
+			"}"
+		],
+		"description": "PowerShell hashtable"
+	},
+	"PowerShell Array": {
+		"prefix": "array",
+		"body": [
+			"\\$${1:arr} = @(${2:'item1', 'item2'})"
+		],
+		"description": "PowerShell array"
+	},
+	"PowerShell Script Block": {
+		"prefix": "sb",
+		"body": [
+			"\\$${1:sb} = {",
+			"\t$0",
+			"}"
+		],
+		"description": "PowerShell script block"
+	},
+	"PowerShell Invoke-Command": {
+		"prefix": "ic",
+		"body": [
+			"Invoke-Command -ComputerName ${1:server} -ScriptBlock {",
+			"\t$0",
+			"}"
+		],
+		"description": "PowerShell Invoke-Command"
+	},
+	"PowerShell Module": {
+		"prefix": "module",
+		"body": [
+			"#Requires -Version ${1:5.1}",
+			"",
+			"function ${2:Verb-Noun} {",
+			"\t[CmdletBinding()]",
+			"\tparam()",
+			"\t$0",
+			"}",
+			"",
+			"Export-ModuleMember -Function ${2:Verb-Noun}"
+		],
+		"description": "PowerShell module template"
+	}
+}

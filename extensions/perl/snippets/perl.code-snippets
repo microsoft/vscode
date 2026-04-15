@@ -1,0 +1,184 @@
+{
+	"Perl Shebang": {
+		"prefix": "shebang",
+		"body": [
+			"#!/usr/bin/env perl",
+			"use strict;",
+			"use warnings;",
+			"",
+			"$0"
+		],
+		"description": "Perl script header with strict and warnings"
+	},
+	"Perl Subroutine": {
+		"prefix": "sub",
+		"body": [
+			"sub ${1:name} {",
+			"\tmy (${2:\\$params}) = @_;",
+			"\t$0",
+			"}"
+		],
+		"description": "Perl subroutine"
+	},
+	"Perl If Statement": {
+		"prefix": "if",
+		"body": [
+			"if (${1:condition}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "Perl if statement"
+	},
+	"Perl If-Else": {
+		"prefix": "ife",
+		"body": [
+			"if (${1:condition}) {",
+			"\t$0",
+			"} else {",
+			"\t${2}",
+			"}"
+		],
+		"description": "Perl if-else"
+	},
+	"Perl Unless": {
+		"prefix": "unless",
+		"body": [
+			"unless (${1:condition}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "Perl unless statement"
+	},
+	"Perl For Loop": {
+		"prefix": "for",
+		"body": [
+			"for my \\$${1:i} (0 .. ${2:9}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "Perl for loop"
+	},
+	"Perl Foreach": {
+		"prefix": "foreach",
+		"body": [
+			"foreach my \\$${1:item} (@${2:array}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "Perl foreach loop"
+	},
+	"Perl While Loop": {
+		"prefix": "while",
+		"body": [
+			"while (${1:condition}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "Perl while loop"
+	},
+	"Perl Array": {
+		"prefix": "array",
+		"body": [
+			"my @${1:array} = (${2});"
+		],
+		"description": "Perl array declaration"
+	},
+	"Perl Hash": {
+		"prefix": "hash",
+		"body": [
+			"my %${1:hash} = (",
+			"\t'${2:key}' => '${3:value}',",
+			");"
+		],
+		"description": "Perl hash declaration"
+	},
+	"Perl Print": {
+		"prefix": "print",
+		"body": [
+			"print \"${1:message}\\n\";"
+		],
+		"description": "Perl print statement"
+	},
+	"Perl Say": {
+		"prefix": "say",
+		"body": [
+			"say \"${1:message}\";"
+		],
+		"description": "Perl say (print with newline)"
+	},
+	"Perl Die": {
+		"prefix": "die",
+		"body": [
+			"die \"${1:error message}: $!\\n\";"
+		],
+		"description": "Perl die statement"
+	},
+	"Perl Regex Match": {
+		"prefix": "match",
+		"body": [
+			"if (\\$${1:str} =~ /${2:pattern}/) {",
+			"\t$0",
+			"}"
+		],
+		"description": "Perl regex match"
+	},
+	"Perl Regex Substitute": {
+		"prefix": "subst",
+		"body": [
+			"\\$${1:str} =~ s/${2:pattern}/${3:replacement}/g;"
+		],
+		"description": "Perl regex substitution"
+	},
+	"Perl Open File": {
+		"prefix": "open",
+		"body": [
+			"open(my \\$${1:fh}, '<', '${2:file}') or die \"Cannot open: $!\\n\";",
+			"while (my \\$${3:line} = <\\$${1:fh}>) {",
+			"\tchomp \\$${3:line};",
+			"\t$0",
+			"}",
+			"close(\\$${1:fh});"
+		],
+		"description": "Perl open and read file"
+	},
+	"Perl Module": {
+		"prefix": "module",
+		"body": [
+			"package ${1:Module::Name};",
+			"",
+			"use strict;",
+			"use warnings;",
+			"",
+			"sub new {",
+			"\tmy (\\$class, %args) = @_;",
+			"\treturn bless {%args}, \\$class;",
+			"}",
+			"",
+			"$0",
+			"",
+			"1;"
+		],
+		"description": "Perl module/package with constructor"
+	},
+	"Perl Use Module": {
+		"prefix": "use",
+		"body": [
+			"use ${1:Module}${2: qw(${3:func})};"
+		],
+		"description": "Perl use statement"
+	},
+	"Perl Map": {
+		"prefix": "map",
+		"body": [
+			"my @${1:result} = map { ${2:\\$_} } @${3:array};"
+		],
+		"description": "Perl map function"
+	},
+	"Perl Grep": {
+		"prefix": "grep",
+		"body": [
+			"my @${1:result} = grep { ${2:\\$_ =~ /${3:pattern}/} } @${4:array};"
+		],
+		"description": "Perl grep function"
+	}
+}
