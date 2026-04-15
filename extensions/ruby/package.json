@@ -67,6 +67,12 @@
         "path": "./syntaxes/ruby.tmLanguage.json"
       }
     ],
+    "snippets": [
+      {
+        "language": "ruby",
+        "path": "./snippets/ruby.code-snippets"
+      }
+    ],
     "configurationDefaults": {
       "[ruby]": {
         "editor.defaultColorDecorators": "never"

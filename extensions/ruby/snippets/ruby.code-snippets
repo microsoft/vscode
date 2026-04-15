@@ -1,0 +1,181 @@
+{
+	"Class": {
+		"prefix": "class",
+		"body": [
+			"class ${1:ClassName}",
+			"  def initialize(${2:params})",
+			"    $0",
+			"  end",
+			"end"
+		],
+		"description": "Ruby class with initialize"
+	},
+	"Module": {
+		"prefix": "module",
+		"body": [
+			"module ${1:ModuleName}",
+			"  $0",
+			"end"
+		],
+		"description": "Ruby module"
+	},
+	"Method": {
+		"prefix": "def",
+		"body": [
+			"def ${1:method_name}(${2:params})",
+			"  $0",
+			"end"
+		],
+		"description": "Ruby method definition"
+	},
+	"Block Do-End": {
+		"prefix": "do",
+		"body": [
+			"do ${1:|${2:arg}|}",
+			"  $0",
+			"end"
+		],
+		"description": "Ruby do-end block"
+	},
+	"Each": {
+		"prefix": "each",
+		"body": [
+			"${1:collection}.each do |${2:item}|",
+			"  $0",
+			"end"
+		],
+		"description": "Ruby each iterator"
+	},
+	"Map": {
+		"prefix": "map",
+		"body": [
+			"${1:collection}.map { |${2:item}| ${3:item} }"
+		],
+		"description": "Ruby map (collect) with block"
+	},
+	"Select": {
+		"prefix": "select",
+		"body": [
+			"${1:collection}.select { |${2:item}| ${3:condition} }"
+		],
+		"description": "Ruby select (filter) with block"
+	},
+	"Times": {
+		"prefix": "times",
+		"body": [
+			"${1:3}.times do |${2:i}|",
+			"  $0",
+			"end"
+		],
+		"description": "Ruby times loop"
+	},
+	"If Statement": {
+		"prefix": "if",
+		"body": [
+			"if ${1:condition}",
+			"  $0",
+			"end"
+		],
+		"description": "Ruby if statement"
+	},
+	"If-Else Statement": {
+		"prefix": "ifelse",
+		"body": [
+			"if ${1:condition}",
+			"  $2",
+			"else",
+			"  $3",
+			"end"
+		],
+		"description": "Ruby if-else statement"
+	},
+	"Unless": {
+		"prefix": "unless",
+		"body": [
+			"unless ${1:condition}",
+			"  $0",
+			"end"
+		],
+		"description": "Ruby unless statement"
+	},
+	"Case/When": {
+		"prefix": "case",
+		"body": [
+			"case ${1:variable}",
+			"when ${2:value1}",
+			"  $3",
+			"when ${4:value2}",
+			"  $5",
+			"else",
+			"  $0",
+			"end"
+		],
+		"description": "Ruby case/when statement"
+	},
+	"Puts": {
+		"prefix": "puts",
+		"body": [
+			"puts ${1:\"Hello, World!\"}"
+		],
+		"description": "Ruby puts output"
+	},
+	"P Debug": {
+		"prefix": "pd",
+		"body": [
+			"p ${1:variable}"
+		],
+		"description": "Ruby p (inspect output)"
+	},
+	"String Interpolation": {
+		"prefix": "si",
+		"body": [
+			"\"#{${1:expression}}\""
+		],
+		"description": "Ruby string interpolation"
+	},
+	"Rescue Block": {
+		"prefix": "rescue",
+		"body": [
+			"begin",
+			"  $1",
+			"rescue ${2:StandardError} => ${3:e}",
+			"  ${4:puts e.message}",
+			"ensure",
+			"  $0",
+			"end"
+		],
+		"description": "Ruby begin/rescue/ensure block"
+	},
+	"Lambda": {
+		"prefix": "lambda",
+		"body": [
+			"${1:func} = lambda { |${2:params}| ${3:body} }"
+		],
+		"description": "Ruby lambda expression"
+	},
+	"Proc": {
+		"prefix": "proc",
+		"body": [
+			"${1:p} = proc { |${2:params}| ${3:body} }"
+		],
+		"description": "Ruby proc"
+	},
+	"Attr Accessor": {
+		"prefix": "attr",
+		"body": [
+			"attr_accessor :${1:name}"
+		],
+		"description": "Ruby attr_accessor"
+	},
+	"RSpec Test": {
+		"prefix": "rspec",
+		"body": [
+			"describe ${1:ClassName} do",
+			"  it '${2:does something}' do",
+			"    expect(${3:subject}).to ${4:eq(expected)}",
+			"  end",
+			"end"
+		],
+		"description": "RSpec describe/it block"
+	}
+}
