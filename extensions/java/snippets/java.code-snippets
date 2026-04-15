@@ -12,5 +12,241 @@
 			"//#endregion"
 		],
 		"description": "Folding Region End"
+	},
+	"Main Method": {
+		"prefix": "main",
+		"body": [
+			"public static void main(String[] args) {",
+			"\t$0",
+			"}"
+		],
+		"description": "Java main method"
+	},
+	"Public Class": {
+		"prefix": "class",
+		"body": [
+			"public class ${1:ClassName} {",
+			"\t$0",
+			"}"
+		],
+		"description": "Public class declaration"
+	},
+	"Interface": {
+		"prefix": "interface",
+		"body": [
+			"public interface ${1:InterfaceName} {",
+			"\t$0",
+			"}"
+		],
+		"description": "Interface declaration"
+	},
+	"Enum": {
+		"prefix": "enum",
+		"body": [
+			"public enum ${1:EnumName} {",
+			"\t${2:VALUE1},",
+			"\t${3:VALUE2}",
+			"}"
+		],
+		"description": "Enum declaration"
+	},
+	"System.out.println": {
+		"prefix": "sout",
+		"body": [
+			"System.out.println(${1:\"Hello, World!\"});"
+		],
+		"description": "Print line to console"
+	},
+	"System.out.printf": {
+		"prefix": "soutf",
+		"body": [
+			"System.out.printf(\"${1:%s}%n\", ${2:value});"
+		],
+		"description": "Print formatted line to console"
+	},
+	"For Loop": {
+		"prefix": "for",
+		"body": [
+			"for (int ${1:i} = 0; ${1:i} < ${2:count}; ${1:i}++) {",
+			"\t$0",
+			"}"
+		],
+		"description": "For loop"
+	},
+	"Enhanced For Loop": {
+		"prefix": "foreach",
+		"body": [
+			"for (${1:Type} ${2:item} : ${3:collection}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "Enhanced for (foreach) loop"
+	},
+	"While Loop": {
+		"prefix": "while",
+		"body": [
+			"while (${1:condition}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "While loop"
+	},
+	"If Statement": {
+		"prefix": "if",
+		"body": [
+			"if (${1:condition}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "If statement"
+	},
+	"If-Else Statement": {
+		"prefix": "ifelse",
+		"body": [
+			"if (${1:condition}) {",
+			"\t$2",
+			"} else {",
+			"\t$0",
+			"}"
+		],
+		"description": "If-else statement"
+	},
+	"Try-Catch": {
+		"prefix": "trycatch",
+		"body": [
+			"try {",
+			"\t$1",
+			"} catch (${2:Exception} ${3:e}) {",
+			"\t${4:e.printStackTrace();}",
+			"}"
+		],
+		"description": "Try-catch block"
+	},
+	"Try-Catch-Finally": {
+		"prefix": "trycatchf",
+		"body": [
+			"try {",
+			"\t$1",
+			"} catch (${2:Exception} ${3:e}) {",
+			"\t${4:e.printStackTrace();}",
+			"} finally {",
+			"\t$0",
+			"}"
+		],
+		"description": "Try-catch-finally block"
+	},
+	"Switch Statement": {
+		"prefix": "switch",
+		"body": [
+			"switch (${1:variable}) {",
+			"\tcase ${2:value}:",
+			"\t\t$3",
+			"\t\tbreak;",
+			"\tdefault:",
+			"\t\t$0",
+			"\t\tbreak;",
+			"}"
+		],
+		"description": "Switch statement"
+	},
+	"Lambda Expression": {
+		"prefix": "lambda",
+		"body": [
+			"(${1:params}) -> ${2:expression}"
+		],
+		"description": "Lambda expression"
+	},
+	"ArrayList": {
+		"prefix": "al",
+		"body": [
+			"ArrayList<${1:String}> ${2:list} = new ArrayList<>();"
+		],
+		"description": "Create an ArrayList"
+	},
+	"HashMap": {
+		"prefix": "hm",
+		"body": [
+			"HashMap<${1:String}, ${2:Object}> ${3:map} = new HashMap<>();"
+		],
+		"description": "Create a HashMap"
+	},
+	"Optional": {
+		"prefix": "opt",
+		"body": [
+			"Optional<${1:Type}> ${2:opt} = Optional.ofNullable(${3:value});"
+		],
+		"description": "Create an Optional"
+	},
+	"StringBuilder": {
+		"prefix": "sb",
+		"body": [
+			"StringBuilder ${1:sb} = new StringBuilder();",
+			"${1:sb}.append($2);",
+			"${1:sb}.toString()$0"
+		],
+		"description": "StringBuilder usage"
+	},
+	"Private Field": {
+		"prefix": "pf",
+		"body": [
+			"private ${1:String} ${2:fieldName};"
+		],
+		"description": "Private field declaration"
+	},
+	"Constructor": {
+		"prefix": "ctor",
+		"body": [
+			"public ${1:ClassName}(${2:params}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "Constructor"
+	},
+	"Getter": {
+		"prefix": "get",
+		"body": [
+			"public ${1:String} get${2:FieldName}() {",
+			"\treturn this.${3:fieldName};",
+			"}"
+		],
+		"description": "Getter method"
+	},
+	"Setter": {
+		"prefix": "set",
+		"body": [
+			"public void set${1:FieldName}(${2:String} ${3:value}) {",
+			"\tthis.${4:fieldName} = ${3:value};",
+			"}"
+		],
+		"description": "Setter method"
+	},
+	"Override": {
+		"prefix": "override",
+		"body": [
+			"@Override",
+			"public ${1:void} ${2:methodName}(${3:params}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "Overridden method with @Override annotation"
+	},
+	"Static Method": {
+		"prefix": "sm",
+		"body": [
+			"public static ${1:void} ${2:methodName}(${3:params}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "Public static method"
+	},
+	"Stream filter/map/collect": {
+		"prefix": "stream",
+		"body": [
+			"${1:collection}.stream()",
+			"\t.filter(${2:item} -> ${3:condition})",
+			"\t.map(${2:item} -> ${4:expression})",
+			"\t.collect(Collectors.toList())$0"
+		],
+		"description": "Stream filter, map and collect"
 	}
 }
