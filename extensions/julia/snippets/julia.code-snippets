@@ -1,0 +1,223 @@
+{
+	"Julia function": {
+		"prefix": "fun",
+		"body": [
+			"function ${1:name}(${2:args})",
+			"\t$0",
+			"end"
+		],
+		"description": "Julia function declaration"
+	},
+	"Julia function one-liner": {
+		"prefix": "funshort",
+		"body": [
+			"${1:name}(${2:args}) = ${0:expression}"
+		],
+		"description": "Julia short-form function"
+	},
+	"Julia anonymous function": {
+		"prefix": "anon",
+		"body": [
+			"${1:args} -> ${0:expression}"
+		],
+		"description": "Julia anonymous function"
+	},
+	"Julia if": {
+		"prefix": "if",
+		"body": [
+			"if ${1:condition}",
+			"\t$0",
+			"end"
+		],
+		"description": "Julia if statement"
+	},
+	"Julia if-else": {
+		"prefix": "ifelse",
+		"body": [
+			"if ${1:condition}",
+			"\t${2}",
+			"else",
+			"\t$0",
+			"end"
+		],
+		"description": "Julia if-else statement"
+	},
+	"Julia if-elseif-else": {
+		"prefix": "ifelseif",
+		"body": [
+			"if ${1:condition}",
+			"\t${2}",
+			"elseif ${3:condition2}",
+			"\t${4}",
+			"else",
+			"\t$0",
+			"end"
+		],
+		"description": "Julia if-elseif-else statement"
+	},
+	"Julia for loop": {
+		"prefix": "for",
+		"body": [
+			"for ${1:i} in ${2:1:10}",
+			"\t$0",
+			"end"
+		],
+		"description": "Julia for loop"
+	},
+	"Julia while loop": {
+		"prefix": "while",
+		"body": [
+			"while ${1:condition}",
+			"\t$0",
+			"end"
+		],
+		"description": "Julia while loop"
+	},
+	"Julia try-catch": {
+		"prefix": "try",
+		"body": [
+			"try",
+			"\t${1}",
+			"catch ${2:e}",
+			"\t$0",
+			"end"
+		],
+		"description": "Julia try-catch block"
+	},
+	"Julia try-catch-finally": {
+		"prefix": "tryf",
+		"body": [
+			"try",
+			"\t${1}",
+			"catch ${2:e}",
+			"\t${3}",
+			"finally",
+			"\t$0",
+			"end"
+		],
+		"description": "Julia try-catch-finally block"
+	},
+	"Julia struct": {
+		"prefix": "struct",
+		"body": [
+			"struct ${1:TypeName}",
+			"\t${2:field}::${3:Type}",
+			"\t$0",
+			"end"
+		],
+		"description": "Julia struct declaration"
+	},
+	"Julia mutable struct": {
+		"prefix": "mstruct",
+		"body": [
+			"mutable struct ${1:TypeName}",
+			"\t${2:field}::${3:Type}",
+			"\t$0",
+			"end"
+		],
+		"description": "Julia mutable struct declaration"
+	},
+	"Julia abstract type": {
+		"prefix": "abstract",
+		"body": [
+			"abstract type ${1:TypeName} end"
+		],
+		"description": "Julia abstract type declaration"
+	},
+	"Julia module": {
+		"prefix": "module",
+		"body": [
+			"module ${1:ModuleName}",
+			"",
+			"$0",
+			"",
+			"end  # module ${1:ModuleName}"
+		],
+		"description": "Julia module declaration"
+	},
+	"Julia using": {
+		"prefix": "using",
+		"body": [
+			"using ${1:Module}"
+		],
+		"description": "Julia using statement"
+	},
+	"Julia import": {
+		"prefix": "import",
+		"body": [
+			"import ${1:Module}: ${2:symbol}"
+		],
+		"description": "Julia import statement"
+	},
+	"Julia println": {
+		"prefix": "println",
+		"body": [
+			"println(${1:\"${2:message}\"})"
+		],
+		"description": "Julia println statement"
+	},
+	"Julia print": {
+		"prefix": "print",
+		"body": [
+			"print(${1:\"${2:message}\"})"
+		],
+		"description": "Julia print statement"
+	},
+	"Julia array comprehension": {
+		"prefix": "comp",
+		"body": [
+			"[${1:expr} for ${2:i} in ${3:collection}]"
+		],
+		"description": "Julia array comprehension"
+	},
+	"Julia dict comprehension": {
+		"prefix": "dcomp",
+		"body": [
+			"Dict(${1:key} => ${2:val} for ${3:i} in ${4:collection})"
+		],
+		"description": "Julia dict comprehension"
+	},
+	"Julia macro": {
+		"prefix": "macro",
+		"body": [
+			"macro ${1:name}(${2:args})",
+			"\t$0",
+			"end"
+		],
+		"description": "Julia macro definition"
+	},
+	"Julia type assertion": {
+		"prefix": "typeassert",
+		"body": [
+			"${1:value}::${2:Type}"
+		],
+		"description": "Julia type assertion"
+	},
+	"Julia begin block": {
+		"prefix": "begin",
+		"body": [
+			"begin",
+			"\t$0",
+			"end"
+		],
+		"description": "Julia begin-end block"
+	},
+	"Julia let block": {
+		"prefix": "let",
+		"body": [
+			"let ${1:var} = ${2:value}",
+			"\t$0",
+			"end"
+		],
+		"description": "Julia let block"
+	},
+	"Julia do block": {
+		"prefix": "do",
+		"body": [
+			"${1:func}(${2:args}) do ${3:arg}",
+			"\t$0",
+			"end"
+		],
+		"description": "Julia do block"
+	}
+}

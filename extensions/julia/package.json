@@ -55,6 +55,12 @@
 			"[julia]": {
 				"editor.defaultColorDecorators": "never"
 			}
-		}
+		},
+		"snippets": [
+			{
+				"language": "julia",
+				"path": "./snippets/julia.code-snippets"
+			}
+		]
 	}
 }
