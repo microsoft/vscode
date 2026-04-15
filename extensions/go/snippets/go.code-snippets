@@ -1,0 +1,214 @@
+{
+	"Go Package Declaration": {
+		"prefix": "pkg",
+		"body": [
+			"package ${1:main}"
+		],
+		"description": "Go package declaration"
+	},
+	"Go Import": {
+		"prefix": "import",
+		"body": [
+			"import (",
+			"\t\"${1:fmt}\"",
+			")"
+		],
+		"description": "Go import block"
+	},
+	"Go Main Function": {
+		"prefix": "main",
+		"body": [
+			"func main() {",
+			"\t$0",
+			"}"
+		],
+		"description": "Go main function"
+	},
+	"Go Function": {
+		"prefix": "func",
+		"body": [
+			"func ${1:name}(${2:params}) ${3:returnType} {",
+			"\t$0",
+			"}"
+		],
+		"description": "Go function declaration"
+	},
+	"Go Function with Error Return": {
+		"prefix": "funce",
+		"body": [
+			"func ${1:name}(${2:params}) (${3:returnType}, error) {",
+			"\t$0",
+			"\treturn ${4:value}, nil",
+			"}"
+		],
+		"description": "Go function returning a value and error"
+	},
+	"Go Struct": {
+		"prefix": "struct",
+		"body": [
+			"type ${1:Name} struct {",
+			"\t${2:Field} ${3:Type}",
+			"}"
+		],
+		"description": "Go struct declaration"
+	},
+	"Go Interface": {
+		"prefix": "iface",
+		"body": [
+			"type ${1:Name} interface {",
+			"\t${2:Method}(${3:params}) ${4:returnType}",
+			"}"
+		],
+		"description": "Go interface declaration"
+	},
+	"Go Method": {
+		"prefix": "method",
+		"body": [
+			"func (${1:r} *${2:Receiver}) ${3:Method}(${4:params}) ${5:returnType} {",
+			"\t$0",
+			"}"
+		],
+		"description": "Go method on a type"
+	},
+	"Go Error Check": {
+		"prefix": "iferr",
+		"body": [
+			"if err != nil {",
+			"\treturn ${1:nil, }err",
+			"}"
+		],
+		"description": "Go idiomatic error check"
+	},
+	"Go For Range": {
+		"prefix": "forr",
+		"body": [
+			"for ${1:i}, ${2:v} := range ${3:collection} {",
+			"\t$0",
+			"}"
+		],
+		"description": "Go for-range loop"
+	},
+	"Go Goroutine": {
+		"prefix": "go",
+		"body": [
+			"go func() {",
+			"\t$0",
+			"}()"
+		],
+		"description": "Go goroutine with anonymous function"
+	},
+	"Go Channel": {
+		"prefix": "chan",
+		"body": [
+			"${1:ch} := make(chan ${2:Type}, ${3:0})"
+		],
+		"description": "Go channel creation"
+	},
+	"Go Select": {
+		"prefix": "select",
+		"body": [
+			"select {",
+			"case ${1:v} := <-${2:ch}:",
+			"\t$0",
+			"case <-${3:done}:",
+			"\treturn",
+			"}"
+		],
+		"description": "Go select statement"
+	},
+	"Go Defer": {
+		"prefix": "defer",
+		"body": [
+			"defer ${1:func}()"
+		],
+		"description": "Go defer statement"
+	},
+	"Go Map": {
+		"prefix": "map",
+		"body": [
+			"${1:m} := map[${2:string}]${3:any}{",
+			"\t\"${4:key}\": ${5:value},",
+			"}"
+		],
+		"description": "Go map literal"
+	},
+	"Go Slice": {
+		"prefix": "slice",
+		"body": [
+			"${1:s} := []${2:Type}{${3}}",
+			""
+		],
+		"description": "Go slice literal"
+	},
+	"Go Test Function": {
+		"prefix": "test",
+		"body": [
+			"func Test${1:Name}(t *testing.T) {",
+			"\t$0",
+			"}"
+		],
+		"description": "Go test function"
+	},
+	"Go Benchmark": {
+		"prefix": "bench",
+		"body": [
+			"func Benchmark${1:Name}(b *testing.B) {",
+			"\tfor i := 0; i < b.N; i++ {",
+			"\t\t$0",
+			"\t}",
+			"}"
+		],
+		"description": "Go benchmark function"
+	},
+	"Go Println": {
+		"prefix": "println",
+		"body": [
+			"fmt.Println(${1})"
+		],
+		"description": "Go fmt.Println"
+	},
+	"Go Printf": {
+		"prefix": "printf",
+		"body": [
+			"fmt.Printf(\"${1:%s}\\n\", ${2:value})"
+		],
+		"description": "Go fmt.Printf"
+	},
+	"Go Errorf": {
+		"prefix": "errorf",
+		"body": [
+			"fmt.Errorf(\"${1:message}: %w\", ${2:err})"
+		],
+		"description": "Go fmt.Errorf with wrapping"
+	},
+	"Go Context": {
+		"prefix": "ctx",
+		"body": [
+			"ctx, cancel := context.WithTimeout(context.Background(), ${1:5}*time.Second)",
+			"defer cancel()"
+		],
+		"description": "Go context with timeout"
+	},
+	"Go WaitGroup": {
+		"prefix": "wg",
+		"body": [
+			"var wg sync.WaitGroup",
+			"wg.Add(${1:1})",
+			"go func() {",
+			"\tdefer wg.Done()",
+			"\t$0",
+			"}()",
+			"wg.Wait()"
+		],
+		"description": "Go WaitGroup pattern"
+	},
+	"Go Mutex": {
+		"prefix": "mutex",
+		"body": [
+			"var mu sync.Mutex",
+			"mu.Lock()",
+			"defer mu.Unlock()"
+		],
+		"description": "Go mutex lock/unlock"
+	}
+}

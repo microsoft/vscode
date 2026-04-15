@@ -1,0 +1,190 @@
+{
+	"Dart Main Function": {
+		"prefix": "main",
+		"body": [
+			"void main() {",
+			"\t$0",
+			"}"
+		],
+		"description": "Dart main function"
+	},
+	"Dart Function": {
+		"prefix": "fn",
+		"body": [
+			"${1:void} ${2:name}(${3:params}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "Dart function declaration"
+	},
+	"Dart Class": {
+		"prefix": "class",
+		"body": [
+			"class ${1:Name} {",
+			"\t${2:Type} ${3:field};",
+			"",
+			"\t${1:Name}(${4:this.${3:field}});",
+			"\t$0",
+			"}"
+		],
+		"description": "Dart class with constructor"
+	},
+	"Dart Abstract Class": {
+		"prefix": "abclass",
+		"body": [
+			"abstract class ${1:Name} {",
+			"\t${2:void} ${3:method}();",
+			"}"
+		],
+		"description": "Dart abstract class"
+	},
+	"Dart Mixin": {
+		"prefix": "mixin",
+		"body": [
+			"mixin ${1:Name} {",
+			"\t$0",
+			"}"
+		],
+		"description": "Dart mixin declaration"
+	},
+	"Dart Extension": {
+		"prefix": "ext",
+		"body": [
+			"extension ${1:Name} on ${2:Type} {",
+			"\t$0",
+			"}"
+		],
+		"description": "Dart extension method"
+	},
+	"Dart Print": {
+		"prefix": "print",
+		"body": [
+			"print(${1:value});"
+		],
+		"description": "Dart print statement"
+	},
+	"Dart For Each": {
+		"prefix": "foreach",
+		"body": [
+			"${1:list}.forEach((${2:item}) {",
+			"\t$0",
+			"});"
+		],
+		"description": "Dart forEach loop"
+	},
+	"Dart For Loop": {
+		"prefix": "forl",
+		"body": [
+			"for (var ${1:i} = 0; ${1:i} < ${2:length}; ${1:i}++) {",
+			"\t$0",
+			"}"
+		],
+		"description": "Dart for loop"
+	},
+	"Dart For-in Loop": {
+		"prefix": "forin",
+		"body": [
+			"for (final ${1:item} in ${2:list}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "Dart for-in loop"
+	},
+	"Dart Async Function": {
+		"prefix": "async",
+		"body": [
+			"Future<${1:void}> ${2:name}(${3:params}) async {",
+			"\t$0",
+			"}"
+		],
+		"description": "Dart async function"
+	},
+	"Dart Await": {
+		"prefix": "await",
+		"body": [
+			"final ${1:result} = await ${2:future};"
+		],
+		"description": "Dart await expression"
+	},
+	"Dart Try-Catch": {
+		"prefix": "try",
+		"body": [
+			"try {",
+			"\t$0",
+			"} catch (${1:e}) {",
+			"\tprint(${1:e});",
+			"}"
+		],
+		"description": "Dart try-catch block"
+	},
+	"Dart Named Constructor": {
+		"prefix": "namedctor",
+		"body": [
+			"${1:ClassName}.${2:named}(${3:params}) : ${4:field = value};"
+		],
+		"description": "Dart named constructor"
+	},
+	"Dart Getter": {
+		"prefix": "get",
+		"body": [
+			"${1:Type} get ${2:name} => ${3:_field};"
+		],
+		"description": "Dart getter"
+	},
+	"Dart Setter": {
+		"prefix": "set",
+		"body": [
+			"set ${1:name}(${2:Type} value) => ${3:_field} = value;"
+		],
+		"description": "Dart setter"
+	},
+	"Dart List": {
+		"prefix": "list",
+		"body": [
+			"final ${1:list} = <${2:Type}>[${3}];"
+		],
+		"description": "Dart typed list"
+	},
+	"Dart Map": {
+		"prefix": "map",
+		"body": [
+			"final ${1:map} = <${2:String}, ${3:dynamic}>{",
+			"\t'${4:key}': ${5:value},",
+			"};"
+		],
+		"description": "Dart map literal"
+	},
+	"Dart Null Check": {
+		"prefix": "null",
+		"body": [
+			"${1:value} ?? ${2:defaultValue}"
+		],
+		"description": "Dart null-coalescing operator"
+	},
+	"Dart Assertion": {
+		"prefix": "assert",
+		"body": [
+			"assert(${1:condition}, '${2:message}');"
+		],
+		"description": "Dart assert statement"
+	},
+	"Dart Stream": {
+		"prefix": "stream",
+		"body": [
+			"Stream<${1:Type}> ${2:name}() async* {",
+			"\tyield ${3:value};",
+			"}"
+		],
+		"description": "Dart async generator / stream"
+	},
+	"Dart Enum": {
+		"prefix": "enum",
+		"body": [
+			"enum ${1:Name} {",
+			"\t${2:value1},",
+			"\t${3:value2},",
+			"}"
+		],
+		"description": "Dart enum"
+	}
+}

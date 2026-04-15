@@ -1,0 +1,233 @@
+{
+	"Python Main Guard": {
+		"prefix": "main",
+		"body": [
+			"if __name__ == '__main__':",
+			"\t$0"
+		],
+		"description": "Python main guard"
+	},
+	"Python Function": {
+		"prefix": "def",
+		"body": [
+			"def ${1:name}(${2:params}):",
+			"\t$0"
+		],
+		"description": "Python function definition"
+	},
+	"Python Function with Docstring": {
+		"prefix": "defd",
+		"body": [
+			"def ${1:name}(${2:params}):",
+			"\t\"\"\"${3:Description.}\"\"\"",
+			"\t$0"
+		],
+		"description": "Python function with docstring"
+	},
+	"Python Async Function": {
+		"prefix": "async",
+		"body": [
+			"async def ${1:name}(${2:params}):",
+			"\t$0"
+		],
+		"description": "Python async function"
+	},
+	"Python Class": {
+		"prefix": "class",
+		"body": [
+			"class ${1:Name}:",
+			"\tdef __init__(self${2:, params}):",
+			"\t\t$0"
+		],
+		"description": "Python class with __init__"
+	},
+	"Python Dataclass": {
+		"prefix": "dataclass",
+		"body": [
+			"from dataclasses import dataclass",
+			"",
+			"@dataclass",
+			"class ${1:Name}:",
+			"\t${2:field}: ${3:str}"
+		],
+		"description": "Python dataclass"
+	},
+	"Python Property": {
+		"prefix": "property",
+		"body": [
+			"@property",
+			"def ${1:name}(self):",
+			"\treturn self._${1:name}",
+			"",
+			"@${1:name}.setter",
+			"def ${1:name}(self, value):",
+			"\tself._${1:name} = value"
+		],
+		"description": "Python property with getter and setter"
+	},
+	"Python List Comprehension": {
+		"prefix": "lc",
+		"body": [
+			"[${1:expr} for ${2:item} in ${3:iterable}${4: if ${5:condition}}]"
+		],
+		"description": "Python list comprehension"
+	},
+	"Python Dict Comprehension": {
+		"prefix": "dc",
+		"body": [
+			"{${1:key}: ${2:value} for ${3:item} in ${4:iterable}}"
+		],
+		"description": "Python dict comprehension"
+	},
+	"Python Generator": {
+		"prefix": "gen",
+		"body": [
+			"(${1:expr} for ${2:item} in ${3:iterable})"
+		],
+		"description": "Python generator expression"
+	},
+	"Python Lambda": {
+		"prefix": "lambda",
+		"body": [
+			"lambda ${1:params}: ${2:expr}"
+		],
+		"description": "Python lambda function"
+	},
+	"Python Try-Except": {
+		"prefix": "try",
+		"body": [
+			"try:",
+			"\t$0",
+			"except ${1:Exception} as e:",
+			"\t${2:raise}"
+		],
+		"description": "Python try-except block"
+	},
+	"Python Try-Except-Finally": {
+		"prefix": "tryf",
+		"body": [
+			"try:",
+			"\t$0",
+			"except ${1:Exception} as e:",
+			"\t${2:raise}",
+			"finally:",
+			"\t${3:pass}"
+		],
+		"description": "Python try-except-finally"
+	},
+	"Python With Statement": {
+		"prefix": "with",
+		"body": [
+			"with ${1:open('${2:file}', '${3|r,w,a|}') as ${4:f}}:",
+			"\t$0"
+		],
+		"description": "Python with statement"
+	},
+	"Python Assert": {
+		"prefix": "assert",
+		"body": [
+			"assert ${1:condition}, '${2:message}'"
+		],
+		"description": "Python assert statement"
+	},
+	"Python Type Hint Function": {
+		"prefix": "deft",
+		"body": [
+			"def ${1:name}(${2:param}: ${3:type}) -> ${4:ReturnType}:",
+			"\t$0"
+		],
+		"description": "Python function with type hints"
+	},
+	"Python Enumerate": {
+		"prefix": "enum",
+		"body": [
+			"for ${1:i}, ${2:item} in enumerate(${3:iterable}):",
+			"\t$0"
+		],
+		"description": "Python enumerate loop"
+	},
+	"Python Zip": {
+		"prefix": "zip",
+		"body": [
+			"for ${1:a}, ${2:b} in zip(${3:iter1}, ${4:iter2}):",
+			"\t$0"
+		],
+		"description": "Python zip loop"
+	},
+	"Python Argparse": {
+		"prefix": "argparse",
+		"body": [
+			"import argparse",
+			"",
+			"parser = argparse.ArgumentParser(description='${1:Description}')",
+			"parser.add_argument('${2:arg}', help='${3:help text}')",
+			"args = parser.parse_args()"
+		],
+		"description": "Python argparse setup"
+	},
+	"Python Logging Setup": {
+		"prefix": "logging",
+		"body": [
+			"import logging",
+			"",
+			"logging.basicConfig(",
+			"\tlevel=logging.${1|DEBUG,INFO,WARNING,ERROR|},",
+			"\tformat='%(asctime)s - %(name)s - %(levelname)s - %(message)s'",
+			")",
+			"logger = logging.getLogger(__name__)"
+		],
+		"description": "Python logging setup"
+	},
+	"Python Unittest TestCase": {
+		"prefix": "unittest",
+		"body": [
+			"import unittest",
+			"",
+			"class ${1:Test}(unittest.TestCase):",
+			"\tdef test_${2:name}(self):",
+			"\t\tself.assertEqual(${3:actual}, ${4:expected})",
+			"",
+			"if __name__ == '__main__':",
+			"\tunittest.main()"
+		],
+		"description": "Python unittest TestCase"
+	},
+	"Python Pytest Function": {
+		"prefix": "pytest",
+		"body": [
+			"def test_${1:name}():",
+			"\t${2:result} = ${3:call}",
+			"\tassert ${2:result} == ${4:expected}"
+		],
+		"description": "Python pytest test function"
+	},
+	"Python Context Manager": {
+		"prefix": "contextmanager",
+		"body": [
+			"from contextlib import contextmanager",
+			"",
+			"@contextmanager",
+			"def ${1:name}(${2:params}):",
+			"\ttry:",
+			"\t\t$0",
+			"\t\tyield",
+			"\tfinally:",
+			"\t\t${3:pass}"
+		],
+		"description": "Python context manager using contextlib"
+	},
+	"Python Decorator": {
+		"prefix": "decorator",
+		"body": [
+			"from functools import wraps",
+			"",
+			"def ${1:decorator}(func):",
+			"\t@wraps(func)",
+			"\tdef wrapper(*args, **kwargs):",
+			"\t\t$0",
+			"\t\treturn func(*args, **kwargs)",
+			"\treturn wrapper"
+		],
+		"description": "Python function decorator"
+	}
+}

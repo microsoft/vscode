@@ -1,0 +1,202 @@
+{
+	"Rust Main Function": {
+		"prefix": "main",
+		"body": [
+			"fn main() {",
+			"\t$0",
+			"}"
+		],
+		"description": "Rust main function"
+	},
+	"Rust Function": {
+		"prefix": "fn",
+		"body": [
+			"fn ${1:name}(${2:params}) -> ${3:ReturnType} {",
+			"\t$0",
+			"}"
+		],
+		"description": "Rust function declaration"
+	},
+	"Rust Function with Result": {
+		"prefix": "fnr",
+		"body": [
+			"fn ${1:name}(${2:params}) -> Result<${3:T}, ${4:E}> {",
+			"\t$0",
+			"\tOk(${5:value})",
+			"}"
+		],
+		"description": "Rust function returning Result"
+	},
+	"Rust Struct": {
+		"prefix": "struct",
+		"body": [
+			"struct ${1:Name} {",
+			"\t${2:field}: ${3:Type},",
+			"}"
+		],
+		"description": "Rust struct declaration"
+	},
+	"Rust Impl Block": {
+		"prefix": "impl",
+		"body": [
+			"impl ${1:Type} {",
+			"\tfn ${2:new}(${3:params}) -> Self {",
+			"\t\t${4:Self {}}",
+			"\t}",
+			"\t$0",
+			"}"
+		],
+		"description": "Rust impl block"
+	},
+	"Rust Trait": {
+		"prefix": "trait",
+		"body": [
+			"trait ${1:Name} {",
+			"\tfn ${2:method}(&self)${3: -> ${4:ReturnType}};",
+			"}"
+		],
+		"description": "Rust trait declaration"
+	},
+	"Rust Enum": {
+		"prefix": "enum",
+		"body": [
+			"enum ${1:Name} {",
+			"\t${2:Variant1},",
+			"\t${3:Variant2}(${4:Type}),",
+			"}"
+		],
+		"description": "Rust enum declaration"
+	},
+	"Rust Match": {
+		"prefix": "match",
+		"body": [
+			"match ${1:expr} {",
+			"\t${2:pattern} => ${3:result},",
+			"\t_ => ${4:default},",
+			"}"
+		],
+		"description": "Rust match expression"
+	},
+	"Rust If Let": {
+		"prefix": "iflet",
+		"body": [
+			"if let ${1:Some(val)} = ${2:expr} {",
+			"\t$0",
+			"}"
+		],
+		"description": "Rust if let pattern"
+	},
+	"Rust While Let": {
+		"prefix": "whilelet",
+		"body": [
+			"while let ${1:Some(val)} = ${2:expr} {",
+			"\t$0",
+			"}"
+		],
+		"description": "Rust while let pattern"
+	},
+	"Rust For Loop": {
+		"prefix": "forr",
+		"body": [
+			"for ${1:item} in ${2:collection} {",
+			"\t$0",
+			"}"
+		],
+		"description": "Rust for loop"
+	},
+	"Rust Closure": {
+		"prefix": "closure",
+		"body": [
+			"|${1:params}| ${2:{ $0 }}"
+		],
+		"description": "Rust closure"
+	},
+	"Rust Vec": {
+		"prefix": "vec",
+		"body": [
+			"vec![${1}]"
+		],
+		"description": "Rust vec! macro"
+	},
+	"Rust HashMap": {
+		"prefix": "hashmap",
+		"body": [
+			"let mut ${1:map} = std::collections::HashMap::new();",
+			"${1:map}.insert(${2:key}, ${3:value});"
+		],
+		"description": "Rust HashMap creation"
+	},
+	"Rust Derive": {
+		"prefix": "derive",
+		"body": [
+			"#[derive(${1:Debug, Clone, PartialEq})]"
+		],
+		"description": "Rust derive attribute"
+	},
+	"Rust Option Unwrap": {
+		"prefix": "unwrap",
+		"body": [
+			"${1:expr}.unwrap_or(${2:default})"
+		],
+		"description": "Rust Option unwrap_or"
+	},
+	"Rust Question Mark": {
+		"prefix": "qmark",
+		"body": [
+			"${1:expr}?"
+		],
+		"description": "Rust ? operator for error propagation"
+	},
+	"Rust Println": {
+		"prefix": "println",
+		"body": [
+			"println!(\"${1}\", ${2});"
+		],
+		"description": "Rust println! macro"
+	},
+	"Rust Eprintln": {
+		"prefix": "eprintln",
+		"body": [
+			"eprintln!(\"${1:error}: {}\", ${2:err});"
+		],
+		"description": "Rust eprintln! macro for stderr"
+	},
+	"Rust Test Module": {
+		"prefix": "testmod",
+		"body": [
+			"#[cfg(test)]",
+			"mod tests {",
+			"\tuse super::*;",
+			"",
+			"\t#[test]",
+			"\tfn ${1:test_name}() {",
+			"\t\t$0",
+			"\t}",
+			"}"
+		],
+		"description": "Rust test module with a test function"
+	},
+	"Rust Assert Equal": {
+		"prefix": "assert",
+		"body": [
+			"assert_eq!(${1:left}, ${2:right});"
+		],
+		"description": "Rust assert_eq! macro"
+	},
+	"Rust Spawn Thread": {
+		"prefix": "spawn",
+		"body": [
+			"std::thread::spawn(move || {",
+			"\t$0",
+			"});"
+		],
+		"description": "Rust thread spawn"
+	},
+	"Rust Arc Mutex": {
+		"prefix": "arcmutex",
+		"body": [
+			"let ${1:shared} = std::sync::Arc::new(std::sync::Mutex::new(${2:value}));"
+		],
+		"description": "Rust Arc<Mutex<T>> pattern for shared mutable state"
+	}
+}
