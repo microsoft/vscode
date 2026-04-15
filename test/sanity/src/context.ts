@@ -1002,15 +1002,19 @@ export class TestContext {
 				// Desktop entry point: <dir>/<App>.app/Contents/MacOS/<Binary>
 				// Agents app: <dir>/<App>.app/Contents/Applications/<Agents>.app
 				const contentsDir = path.dirname(path.dirname(desktopEntryPoint));
-				const applicationsDir = path.join(contentsDir, 'Applications');
-				if (!fs.existsSync(applicationsDir)) {
-					this.error(`Agents Applications directory does not exist: ${applicationsDir}`);
+				let agentsAppName: string;
+				switch (this.options.quality) {
+					case 'stable':
+						agentsAppName = 'Visual Studio Code Agents.app';
+						break;
+					case 'insider':
+						agentsAppName = 'Visual Studio Code Agents - Insiders.app';
+						break;
+					case 'exploration':
+						agentsAppName = 'Visual Studio Code Agents - Exploration.app';
+						break;
 				}
-				const embeddedApp = fs.readdirSync(applicationsDir).find(f => f.endsWith('.app'));
-				if (!embeddedApp) {
-					this.error(`No embedded .app found in: ${applicationsDir}`);
-				}
-				filePath = path.join(applicationsDir, embeddedApp);
+				filePath = path.join(contentsDir, 'Applications', agentsAppName);
 				break;
 			}
 			case 'win32': {
@@ -1033,7 +1037,6 @@ export class TestContext {
 			}
 		}
 
-		console.info(`Validating Agents entry point at: ${filePath}`);
 		if (!filePath || !fs.existsSync(filePath)) {
 			this.error(`Agents entry point does not exist: ${filePath}`);
 		}
