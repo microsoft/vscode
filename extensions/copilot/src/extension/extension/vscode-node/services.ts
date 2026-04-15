@@ -305,7 +305,8 @@ export function registerServices(builder: IInstantiationServiceBuilder, extensio
 }
 
 function setupMSFTExperimentationService(builder: IInstantiationServiceBuilder, extensionContext: ExtensionContext) {
-	if (ExtensionMode.Production === extensionContext.extensionMode && !isScenarioAutomation) {
+	const experimentsEnabled = workspace.getConfiguration('workbench').get<boolean>('enableExperiments', true);
+	if (ExtensionMode.Production === extensionContext.extensionMode && !isScenarioAutomation && experimentsEnabled) {
 		// Intitiate the experimentation service
 		builder.define(IExperimentationService, new SyncDescriptor(MicrosoftExperimentationService));
 	} else {

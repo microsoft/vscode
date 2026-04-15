@@ -1305,9 +1305,6 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				commandDetection!,
 				executionOptions.persistentSession
 			);
-			if (toolTerminal.shellIntegrationQuality === ShellIntegrationQuality.None) {
-				toolResultMessage = '$(info) Enable [shell integration](https://code.visualstudio.com/docs/terminal/shell-integration) to improve command detection';
-			}
 			this._logService.info(`RunInTerminalTool: Using \`${execution.strategy.type}\` execute strategy for command \`${command}\``);
 			store.add(execution);
 			RunInTerminalTool._activeExecutions.set(termId, execution);
@@ -1680,6 +1677,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					toolSpecificData: retryToolSpecificData,
 				}, _countTokens, _progress, token);
 			}
+		}
+
+		// Re-check shell integration quality now that command execution has completed.
+		// Only set the banner if toolResultMessage hasn't already been set (e.g. by the alt-buffer path).
+		this._terminalToolCreator.refreshShellIntegrationQuality(toolTerminal);
+		this._logService.info(`RunInTerminalTool: shellIntegrationQuality=${toolTerminal.shellIntegrationQuality} at banner decision time`);
+		if (!toolResultMessage && toolTerminal.shellIntegrationQuality === ShellIntegrationQuality.None) {
+			toolResultMessage = '$(info) Enable [shell integration](https://code.visualstudio.com/docs/terminal/shell-integration) to improve command detection';
 		}
 
 		const resultText: string[] = [];

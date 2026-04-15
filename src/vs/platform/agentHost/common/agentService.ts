@@ -59,6 +59,8 @@ export interface IAgentSessionProjectInfo {
 export interface IAgentCreateSessionResult {
 	readonly session: URI;
 	readonly project?: IAgentSessionProjectInfo;
+	/** The resolved working directory, which may differ from the requested one (e.g. worktree). */
+	readonly workingDirectory?: URI;
 }
 
 export type AgentProvider = string;
@@ -271,8 +273,8 @@ export interface IAgentToolReadyEvent extends IAgentProgressEventBase {
 	readonly toolInput?: string;
 	/** Short title for the confirmation prompt. */
 	readonly confirmationTitle?: StringOrMarkdown;
-	/** Kind of permission being requested (e.g. `'write'`, `'read'`). */
-	readonly permissionKind?: string;
+	/** Kind of permission being requested. */
+	readonly permissionKind?: 'shell' | 'write' | 'mcp' | 'read' | 'url' | 'custom-tool';
 	/** File path associated with the permission request. */
 	readonly permissionPath?: string;
 }

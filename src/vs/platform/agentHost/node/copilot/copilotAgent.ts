@@ -207,7 +207,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				...(project ? { project } : {}),
 				summary: s.summary,
 				model: metadata.model,
-				workingDirectory: typeof s.context?.cwd === 'string' ? URI.file(s.context.cwd) : metadata.workingDirectory,
+				workingDirectory: metadata.workingDirectory ?? (typeof s.context?.cwd === 'string' ? URI.file(s.context.cwd) : undefined),
 			};
 		}));
 		this._logService.info(`[Copilot] Found ${result.length} sessions`);
@@ -290,7 +290,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._logService.info(`[Copilot] Forked session created: ${session.toString()}`);
 				const project = await projectFromCopilotContext({ cwd: config.workingDirectory?.fsPath }, this._gitService);
 				await this._storeSessionMetadata(session, config.model, config.workingDirectory, project, true);
-				return { session, ...(project ? { project } : {}) };
+				return { session, workingDirectory: config.workingDirectory, ...(project ? { project } : {}) };
 			});
 		}
 
@@ -327,7 +327,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		// Persist model, working directory, and project so we can recreate the
 		// session if the SDK loses it and avoid rediscovering git metadata.
 		await this._storeSessionMetadata(agentSession.sessionUri, config?.model, workingDirectory, project, true);
-		return { session, ...(project ? { project } : {}) };
+		return { session, workingDirectory, ...(project ? { project } : {}) };
 	}
 
 	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<IResolveSessionConfigResult> {
@@ -582,7 +582,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * and returns it. The caller must call {@link CopilotAgentSession.initializeSession}
 	 * to wire up the SDK session.
 	 */
-	private _createAgentSession(wrapperFactory: SessionWrapperFactory, workingDirectory: URI | undefined, sessionId: string, shellManager: ShellManager, snapshot?: IActiveClientSnapshot): CopilotAgentSession {
+	private _createAgentSession(wrapperFactory: SessionWrapperFactory, _workingDirectory: URI | undefined, sessionId: string, shellManager: ShellManager, snapshot?: IActiveClientSnapshot): CopilotAgentSession {
 		const sessionUri = AgentSession.uri(this.id, sessionId);
 
 		const agentSession = this._instantiationService.createInstance(
@@ -590,7 +590,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 			{
 				sessionUri,
 				rawSessionId: sessionId,
-				workingDirectory,
 				onDidSessionProgress: this._onDidSessionProgress,
 				wrapperFactory,
 				shellManager,
@@ -653,7 +652,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._logService.warn(`[Copilot:${sessionId}] getSessionMetadata failed`, err);
 			return undefined;
 		});
-		const workingDirectory = typeof sessionMetadata?.context?.cwd === 'string' ? URI.file(sessionMetadata.context.cwd) : storedMetadata.workingDirectory;
+		const workingDirectory = storedMetadata.workingDirectory ?? (typeof sessionMetadata?.context?.cwd === 'string' ? URI.file(sessionMetadata.context.cwd) : undefined);
 		if (!workingDirectory) {
 			throw new Error(`workingDirectory is required to resume Copilot session '${sessionId}'`);
 		}

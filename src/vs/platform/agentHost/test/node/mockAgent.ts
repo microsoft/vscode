@@ -72,11 +72,14 @@ export class MockAgent implements IAgent {
 		return [...this._sessions.values()].map(s => ({ session: s, startTime: Date.now(), modifiedTime: Date.now(), project: mockProject(this.id), ...this.sessionMetadataOverrides }));
 	}
 
+	/** Optional override for the working directory returned by createSession. */
+	resolvedWorkingDirectory: URI | undefined;
+
 	async createSession(_config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
 		const rawId = `${this.id}-session-${this._nextId++}`;
 		const session = AgentSession.uri(this.id, rawId);
 		this._sessions.set(rawId, session);
-		return { session, project: mockProject(this.id) };
+		return { session, project: mockProject(this.id), workingDirectory: this.resolvedWorkingDirectory };
 	}
 
 	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<IResolveSessionConfigResult> {

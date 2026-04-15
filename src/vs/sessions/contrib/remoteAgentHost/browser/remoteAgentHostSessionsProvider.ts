@@ -22,7 +22,7 @@ import { AgentSession, type IAgentConnection, type IAgentSessionMetadata } from 
 import { RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ActionType, isSessionAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IResolveSessionConfigResult, ISessionConfigValueItem } from '../../../../platform/agentHost/common/state/protocol/commands.js';
-import type { IRootState } from '../../../../platform/agentHost/common/state/protocol/state.js';
+import type { IRootState, ISessionFileDiff } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
@@ -32,6 +32,7 @@ import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/c
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { agentHostSessionWorkspaceKey, buildAgentHostSessionWorkspace } from '../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../common/sessionConfig.js';
+import { diffsToChanges, diffsEqual } from '../../../common/agentHostDiffs.js';
 import { ISessionChangeEvent, ISendRequestOptions } from '../../../services/sessions/common/sessionsProvider.js';
 import { IAgentHostSessionsProvider } from '../../../common/agentHostSessionsProvider.js';
 import { ISession, IChat, IGitHubInfo, ISessionWorkspace, ISessionWorkspaceBrowseAction, SessionStatus, ISessionType, COPILOT_CLI_SESSION_TYPE } from '../../../services/sessions/common/session.js';
@@ -94,6 +95,10 @@ function buildMutableConfigSchema(config: Record<string, string>): Record<string
 
 function toLocalProjectUri(uri: URI, connectionAuthority: string): URI {
 	return uri.scheme === Schemas.file ? toAgentHostUri(uri, connectionAuthority) : uri;
+}
+
+function toLocalDiffUri(connectionAuthority: string): (uri: URI) => URI {
+	return uri => toAgentHostUri(uri, connectionAuthority);
 }
 
 interface IChatData {
@@ -181,6 +186,7 @@ class RemoteSessionAdapter implements IChatData {
 		resourceScheme: string,
 		logicalSessionType: string,
 		private readonly _providerLabel: string,
+		private readonly _mapUri: (uri: URI) => URI,
 	) {
 		const rawId = AgentSession.id(metadata.session);
 		this.agentProvider = AgentSession.provider(metadata.session) ?? DEFAULT_AGENT_HOST_PROVIDER;
@@ -202,6 +208,9 @@ class RemoteSessionAdapter implements IChatData {
 		if (metadata.isDone) {
 			this.isArchived.set(true, undefined);
 		}
+		if (metadata.diffs && metadata.diffs.length > 0) {
+			this.changes.set(diffsToChanges(metadata.diffs, this._mapUri), undefined);
+		}
 	}
 
 	update(metadata: IAgentSessionMetadata): void {
@@ -218,6 +227,9 @@ class RemoteSessionAdapter implements IChatData {
 		const workspace = RemoteAgentHostSessionsProvider.buildWorkspace(metadata.project, metadata.workingDirectory, this._providerLabel);
 		if (agentHostSessionWorkspaceKey(workspace) !== agentHostSessionWorkspaceKey(this.workspace.get())) {
 			this.workspace.set(workspace, undefined);
+		}
+		if (metadata.diffs && !diffsEqual(this.changes.get(), metadata.diffs, this._mapUri)) {
+			this.changes.set(diffsToChanges(metadata.diffs, this._mapUri), undefined);
 		}
 	}
 }
@@ -412,6 +424,8 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements IAgen
 				this._handleIsDoneChanged(e.action.session, e.action.isDone);
 			} else if (e.action.type === ActionType.SessionConfigChanged && isSessionAction(e.action)) {
 				this._handleConfigChanged(e.action.session, e.action.config);
+			} else if (e.action.type === ActionType.SessionDiffsChanged && isSessionAction(e.action)) {
+				this._handleDiffsChanged(e.action.session, e.action.diffs);
 			}
 		}));
 
@@ -1006,7 +1020,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements IAgen
 				} else {
 					const resourceScheme = this._resourceSchemeForMetadata(meta);
 					const logicalType = this._logicalSessionTypeForMetadata(meta);
-					const cached = new RemoteSessionAdapter(meta, this.id, resourceScheme, logicalType, this.label);
+					const cached = new RemoteSessionAdapter(meta, this.id, resourceScheme, logicalType, this.label, toLocalDiffUri(this._connectionAuthority));
 					this._sessionCache.set(rawId, cached);
 					added.push(this._chatToSession(cached));
 				}
@@ -1088,7 +1102,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements IAgen
 		};
 		const resourceScheme = this._resourceSchemeForMetadata(meta);
 		const logicalType = this._logicalSessionTypeForMetadata(meta);
-		const cached = new RemoteSessionAdapter(meta, this.id, resourceScheme, logicalType, this.label);
+		const cached = new RemoteSessionAdapter(meta, this.id, resourceScheme, logicalType, this.label, toLocalDiffUri(this._connectionAuthority));
 		this._sessionCache.set(rawId, cached);
 		this._onDidChangeSessions.fire({ added: [this._chatToSession(cached)], removed: [], changed: [] });
 	}
@@ -1136,6 +1150,16 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements IAgen
 		const cached = this._sessionCache.get(rawId);
 		if (cached) {
 			cached.isArchived.set(isDone, undefined);
+			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._chatToSession(cached)] });
+		}
+	}
+
+	private _handleDiffsChanged(session: string, diffs: ISessionFileDiff[]): void {
+		const rawId = AgentSession.id(session);
+		const cached = this._sessionCache.get(rawId);
+		if (cached) {
+			const mapUri = toLocalDiffUri(this._connectionAuthority);
+			cached.changes.set(diffsToChanges(diffs, mapUri), undefined);
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._chatToSession(cached)] });
 		}
 	}

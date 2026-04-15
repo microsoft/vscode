@@ -485,4 +485,54 @@ suite('AgentService (node dispatcher)', () => {
 			);
 		});
 	});
+
+	// ---- worktree working directory -------------------------------------
+
+	suite('worktree working directory', () => {
+
+		test('createSession uses agent-resolved working directory in state', async () => {
+			// Simulate an agent that resolves a worktree path different from the input
+			const worktreeDir = URI.file('/source/repo.worktrees/agents-xyz');
+			copilotAgent.resolvedWorkingDirectory = worktreeDir;
+			service.registerProvider(copilotAgent);
+
+			const sourceDir = URI.file('/source/repo');
+			const session = await service.createSession({ provider: 'copilot', workingDirectory: sourceDir });
+
+			// The state manager should have the worktree path, not the source path
+			const state = service.stateManager.getSessionState(session.toString());
+			assert.strictEqual(state?.summary.workingDirectory, worktreeDir.toString());
+		});
+
+		test('createSession falls back to config working directory when agent does not resolve', async () => {
+			// Agent does not override the working directory (e.g. folder isolation)
+			copilotAgent.resolvedWorkingDirectory = undefined;
+			service.registerProvider(copilotAgent);
+
+			const sourceDir = URI.file('/source/repo');
+			const session = await service.createSession({ provider: 'copilot', workingDirectory: sourceDir });
+
+			const state = service.stateManager.getSessionState(session.toString());
+			assert.strictEqual(state?.summary.workingDirectory, sourceDir.toString());
+		});
+
+		test('restoreSession uses agent working directory in state', async () => {
+			// Agent returns the worktree path through listSessions
+			const worktreeDir = URI.file('/source/repo.worktrees/agents-xyz');
+			copilotAgent.sessionMetadataOverrides = { workingDirectory: worktreeDir };
+			service.registerProvider(copilotAgent);
+
+			const session = await service.createSession({ provider: 'copilot' });
+
+			// Delete from state to simulate a server restart
+			service.stateManager.deleteSession(session.toString());
+			assert.strictEqual(service.stateManager.getSessionState(session.toString()), undefined);
+
+			// Restore the session (simulates a client subscribing after restart)
+			await service.restoreSession(session);
+
+			const state = service.stateManager.getSessionState(session.toString());
+			assert.strictEqual(state?.summary.workingDirectory, worktreeDir.toString());
+		});
+	});
 });

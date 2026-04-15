@@ -107,6 +107,11 @@ export const AI_CUSTOMIZATION_ITEM_PLUGIN_URI_KEY = 'aiCustomizationManagementIt
 export const AI_CUSTOMIZATION_ITEM_DISABLED_KEY = 'aiCustomizationManagementItemDisabled';
 
 /**
+ * Context key indicating whether the active harness supports troubleshooting.
+ */
+export const AI_CUSTOMIZATION_SUPPORTS_TROUBLESHOOT_KEY = 'aiCustomizationManagementSupportsTroubleshoot';
+
+/**
  * Storage key for persisting the selected section.
  */
 export const AI_CUSTOMIZATION_MANAGEMENT_SELECTED_SECTION_KEY = 'aiCustomizationManagement.selectedSection';

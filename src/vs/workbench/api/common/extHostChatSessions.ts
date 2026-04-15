@@ -44,7 +44,21 @@ class ChatSessionInputStateImpl implements vscode.ChatSessionInputState {
 	readonly #onDidChangeEmitter = new Emitter<void>();
 	readonly onDidChange = this.#onDidChangeEmitter.event;
 
-	sessionResource: vscode.Uri | undefined;
+	#sessionResource: vscode.Uri | undefined;
+	get sessionResource(): vscode.Uri | undefined {
+		return this.#sessionResource;
+	}
+	set sessionResource(value: vscode.Uri | undefined) {
+		this.#sessionResource = value;
+	}
+
+	#untitledSessionResource: vscode.Uri | undefined;
+	get untitledSessionResource(): vscode.Uri | undefined {
+		return this.#untitledSessionResource;
+	}
+	set untitledSessionResource(value: vscode.Uri | undefined) {
+		this.#untitledSessionResource = value;
+	}
 
 	constructor(groups: readonly vscode.ChatSessionProviderOptionGroup[], onChangedDelegate?: () => void) {
 		this.#groups = groups;
@@ -531,7 +545,10 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 						icon: g.icon,
 						commands: g.commands,
 					}));
-					void this._proxy.$updateChatSessionInputState(controllerHandle, serializableGroups);
+					const resource = inputState.sessionResource ?? inputState.untitledSessionResource;
+					if (resource) {
+						void this._proxy.$updateChatSessionInputState(controllerHandle, resource, serializableGroups);
+					}
 				});
 				inputStates.add(inputState);
 				return inputState;
@@ -608,7 +625,11 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		);
 
 		if (inputState instanceof ChatSessionInputStateImpl) {
-			inputState.sessionResource = isUntitledChatSession(sessionResource) ? undefined : sessionResource;
+			if (isUntitledChatSession(sessionResource)) {
+				inputState.untitledSessionResource = sessionResource;
+			} else {
+				inputState.sessionResource = sessionResource;
+			}
 		}
 
 		const session = await provider.provider.provideChatSessionContent(sessionResource, token, {
@@ -877,7 +898,11 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			);
 			if (result) {
 				if (result instanceof ChatSessionInputStateImpl) {
-					result.sessionResource = resolvedResource;
+					if (sessionResource && isUntitledChatSession(sessionResource)) {
+						result.untitledSessionResource = sessionResource;
+					} else if (sessionResource) {
+						result.sessionResource = resolvedResource;
+					}
 				}
 				return result;
 			}
@@ -1094,7 +1119,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		controllerData.onDidChangeChatSessionItemStateEmitter.fire(item);
 	}
 
-	async $provideChatSessionInputState(controllerHandle: number, sessionResourceComponents: UriComponents | undefined, token: CancellationToken): Promise<vscode.ChatSessionProviderOptionGroup[] | undefined> {
+	async $provideChatSessionInputState(controllerHandle: number, sessionResourceComponents: UriComponents, token: CancellationToken): Promise<vscode.ChatSessionProviderOptionGroup[] | undefined> {
 		const controllerData = this._chatSessionItemControllers.get(controllerHandle);
 		if (!controllerData) {
 			this._logService.warn(`No controller found for handle ${controllerHandle}`);
@@ -1106,14 +1131,18 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			return undefined;
 		}
 
-		const sessionResource = sessionResourceComponents ? URI.revive(sessionResourceComponents) : undefined;
-		const inputState = await handler(sessionResource, { previousInputState: undefined }, token);
+		const sessionResource = URI.revive(sessionResourceComponents);
+		const inputState = await handler(isUntitledChatSession(sessionResource) ? undefined : sessionResource, { previousInputState: undefined }, token);
 		if (!inputState) {
 			return undefined;
 		}
 
 		if (inputState instanceof ChatSessionInputStateImpl) {
-			inputState.sessionResource = sessionResource;
+			if (isUntitledChatSession(sessionResource)) {
+				inputState.untitledSessionResource = sessionResource;
+			} else {
+				inputState.sessionResource = sessionResource;
+			}
 		}
 
 		// Store the option groups for onSearch callbacks

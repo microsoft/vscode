@@ -252,7 +252,7 @@ export class AgentService extends Disposable implements IAgentService {
 				modifiedAt: Date.now(),
 				...(created.project ? { project: { uri: created.project.uri.toString(), displayName: created.project.displayName } } : {}),
 				model: config?.model,
-				workingDirectory: config.workingDirectory?.toString(),
+				workingDirectory: (created.workingDirectory ?? config.workingDirectory)?.toString(),
 			};
 			const state = this._stateManager.createSession(summary);
 			state.config = sessionConfig;
@@ -268,7 +268,7 @@ export class AgentService extends Disposable implements IAgentService {
 				modifiedAt: Date.now(),
 				...(created.project ? { project: { uri: created.project.uri.toString(), displayName: created.project.displayName } } : {}),
 				model: config?.model,
-				workingDirectory: config?.workingDirectory?.toString(),
+				workingDirectory: (created.workingDirectory ?? config?.workingDirectory)?.toString(),
 			};
 			const state = this._stateManager.createSession(summary);
 			state.config = sessionConfig;

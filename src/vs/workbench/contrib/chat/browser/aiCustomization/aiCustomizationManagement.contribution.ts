@@ -48,6 +48,7 @@ import {
 	AI_CUSTOMIZATION_ITEM_URI_KEY,
 	AI_CUSTOMIZATION_MANAGEMENT_EDITOR_ID,
 	AI_CUSTOMIZATION_MANAGEMENT_EDITOR_INPUT_ID,
+	AI_CUSTOMIZATION_SUPPORTS_TROUBLESHOOT_KEY,
 	AICustomizationManagementCommands,
 	AICustomizationManagementItemMenuId,
 	AICustomizationManagementSection,
@@ -177,6 +178,16 @@ function extractPluginUri(context: AICustomizationContext): URI | undefined {
 }
 
 /**
+ * Extracts the item name from context.
+ */
+function extractName(context: AICustomizationContext): string | undefined {
+	if (URI.isUri(context) || typeof context === 'string') {
+		return undefined;
+	}
+	return typeof context.name === 'string' ? context.name : undefined;
+}
+
+/**
  * Extracts the item ID from context (used for identifying individual hooks within a file).
  */
 function extractItemId(context: AICustomizationContext): string | undefined {
@@ -246,6 +257,30 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor, context: AICustomizationContext): Promise<void> {
 		const commandService = accessor.get(ICommandService);
 		await commandService.executeCommand('workbench.action.chat.run.prompt.current', extractURI(context));
+	}
+});
+
+// Troubleshoot customization action
+const TROUBLESHOOT_AI_CUSTOMIZATION_ID = 'aiCustomizationManagement.troubleshoot';
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: TROUBLESHOOT_AI_CUSTOMIZATION_ID,
+			title: localize2('troubleshoot', "Troubleshoot"),
+			icon: Codicon.bug,
+		});
+	}
+	async run(accessor: ServicesAccessor, context: AICustomizationContext): Promise<void> {
+		const commandService = accessor.get(ICommandService);
+		const rawName = extractName(context);
+		const displayName = rawName?.replace(/\.md$/i, '');
+		const query = displayName
+			? `/troubleshoot ${displayName} `
+			: '/troubleshoot ';
+		await commandService.executeCommand('workbench.action.chat.open', {
+			query,
+			isPartialQuery: true,
+		});
 	}
 });
 
@@ -449,6 +484,13 @@ MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	when: WHEN_ITEM_IS_DELETABLE,
 });
 
+MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
+	command: { id: TROUBLESHOOT_AI_CUSTOMIZATION_ID, title: localize('troubleshootInline', "Troubleshoot"), icon: Codicon.bug },
+	group: 'inline',
+	order: 2,
+	when: ContextKeyExpr.equals(AI_CUSTOMIZATION_SUPPORTS_TROUBLESHOOT_KEY, true),
+});
+
 // Context menu items (shown on right-click)
 MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	command: { id: OPEN_AI_CUSTOMIZATION_MGMT_FILE_ID, title: localize('open', "Open") },
@@ -461,6 +503,13 @@ MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	group: '2_run',
 	order: 1,
 	when: ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.prompt),
+});
+
+MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
+	command: { id: TROUBLESHOOT_AI_CUSTOMIZATION_ID, title: localize('troubleshootItem', "Troubleshoot") },
+	group: '2_run',
+	order: 2,
+	when: ContextKeyExpr.equals(AI_CUSTOMIZATION_SUPPORTS_TROUBLESHOOT_KEY, true),
 });
 
 MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
