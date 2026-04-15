@@ -208,8 +208,12 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	 */
 	continueMonitoringAsync(token: CancellationToken): void {
 		this._asyncMode = true;
-		// Cancel and dispose any in-progress monitoring run to avoid two concurrent loops
-		this._currentMonitoringCts?.dispose();
+		// Cancel and dispose any in-progress monitoring run to avoid two concurrent loops.
+		// Cancel before dispose so that onCancellationRequested handlers fire and pending
+		// promises (e.g. _waitForNewData) resolve properly.
+		const currentMonitoringCts = this._currentMonitoringCts;
+		currentMonitoringCts?.cancel();
+		currentMonitoringCts?.dispose();
 		this._currentMonitoringCts = new CancellationTokenSource(token);
 		this._state = OutputMonitorState.PollingForIdle;
 		this._startMonitoring(this._command, this._invocationContext, this._currentMonitoringCts.token);
@@ -468,8 +472,9 @@ export function matchTerminalPromptOption(options: readonly string[], suggestedO
 export function detectsInputRequiredPattern(cursorLine: string): boolean {
 	return [
 		// PowerShell-style multi-option line (supports [?] Help and optional default suffix) ending
-		// in whitespace
-		/\s*(?:\[[^\]]\]\s+[^\[\s][^\[]*\s*)+(?:\(default is\s+"[^"]+"\):)?\s+$/,
+		// in whitespace.  The label part uses [^\[\s]+(?:\s+[^\[\s]+)* to support multi-word
+		// labels (e.g. "Yes to All") while avoiding overlap with \s* that caused ReDoS.
+		/\s*(?:\[[^\]]\]\s+[^\[\s]+(?:\s+[^\[\s]+)*\s*)+(?:\(default is\s+"[^"]+"\):)?\s+$/,
 		// Bracketed/parenthesized yes/no pairs at end of line: (y/n), [Y/n], (yes/no), [no/yes]
 		/(?:\(|\[)\s*(?:y(?:es)?\s*\/\s*n(?:o)?|n(?:o)?\s*\/\s*y(?:es)?)\s*(?:\]|\))\s+$/i,
 		// Same as above but allows a preceding '?' or ':' and optional wrappers e.g.

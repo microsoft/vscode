@@ -12,7 +12,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
-import { ActiveSessionProviderIdContext, ActiveSessionTypeContext, IsActiveSessionArchivedContext, IsActiveSessionBackgroundProviderContext, IsNewChatSessionContext } from '../../../common/contextkeys.js';
+import { ActiveSessionProviderIdContext, ActiveSessionTypeContext, IsActiveSessionArchivedContext, IsActiveSessionBackgroundProviderContext, IsNewChatInSessionContext, IsNewChatSessionContext } from '../../../common/contextkeys.js';
 import { ActiveSessionSupportsMultiChatContext, IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
 import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../common/sessionsProvider.js';
@@ -40,6 +40,7 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 	readonly activeProviderId: IObservable<string | undefined> = this._activeProviderId;
 	private lastSelectedSession: URI | undefined;
 	private readonly isNewChatSessionContext: IContextKey<boolean>;
+	private readonly _isNewChatInSessionContext: IContextKey<boolean>;
 	private readonly _activeSessionProviderId: IContextKey<string>;
 	private readonly _activeSessionType: IContextKey<string>;
 	private readonly _isBackgroundProvider: IContextKey<boolean>;
@@ -62,6 +63,7 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		// Bind context key to active session state.
 		// isNewSession is false when there are any established sessions in the model.
 		this.isNewChatSessionContext = IsNewChatSessionContext.bindTo(contextKeyService);
+		this._isNewChatInSessionContext = IsNewChatInSessionContext.bindTo(contextKeyService);
 		this._activeSessionProviderId = ActiveSessionProviderIdContext.bindTo(contextKeyService);
 		this._activeSessionType = ActiveSessionTypeContext.bindTo(contextKeyService);
 		this._isBackgroundProvider = IsActiveSessionBackgroundProviderContext.bindTo(contextKeyService);
@@ -99,6 +101,9 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 			disposables.add(provider.onDidChangeSessions(e => this.onDidChangeSessionsFromSessionsProviders(e)));
 			if (provider.onDidReplaceSession) {
 				disposables.add(provider.onDidReplaceSession(e => this.onDidReplaceSession(e.from, e.to)));
+			}
+			if (provider.onDidReplaceChat) {
+				disposables.add(provider.onDidReplaceChat(e => this._onDidReplaceChat(e.from, e.to)));
 			}
 			if (provider.onDidChangeSessionTypes) {
 				disposables.add(provider.onDidChangeSessionTypes(() => this._updateSessionTypes()));
@@ -143,6 +148,12 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 				removed: [from],
 				changed: [to],
 			});
+		}
+	}
+
+	private _onDidReplaceChat(from: IChat, to: IChat): void {
+		if (this._activeChatObservable && this.uriIdentityService.extUri.isEqual(this._activeChatObservable.get()?.resource, from.resource)) {
+			this._activeChatObservable.set(to, undefined);
 		}
 	}
 
@@ -209,17 +220,25 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		this.isNewChatSessionContext.set(false);
 		this.setActiveSession(session);
 
-		// Update active chat
+		// Find the chat and update active chat
+		let chat: IChat | undefined;
 		if (this._activeChatObservable) {
 			const activeSession = this._activeSession.get();
 			if (activeSession) {
-				const chat = activeSession.chats.get().find(c => this.uriIdentityService.extUri.isEqual(c.resource, chatUri));
+				chat = activeSession.chats.get().find(c => this.uriIdentityService.extUri.isEqual(c.resource, chatUri));
 				if (chat) {
 					this._activeChatObservable.set(chat, undefined);
 				}
 			}
 		}
 
+		// If the chat is untitled (not yet sent), show the new-chat-in-session view
+		if (chat && chat.status.get() === SessionStatus.Untitled) {
+			this._isNewChatInSessionContext.set(true);
+			return;
+		}
+
+		this._isNewChatInSessionContext.set(false);
 		await this.chatWidgetService.openSession(chatUri, ChatViewPaneTarget);
 	}
 
@@ -231,6 +250,7 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		}
 		this.logService.info(`[SessionsManagement] openSession: ${sessionResource.toString()} provider=${sessionData.providerId}`);
 		this.isNewChatSessionContext.set(false);
+		this._isNewChatInSessionContext.set(false);
 		this.setActiveSession(sessionData);
 
 		await this.chatWidgetService.openSession(sessionData.resource, ChatViewPaneTarget, { preserveFocus: options?.preserveFocus });
@@ -265,6 +285,7 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 
 	async sendAndCreateChat(session: ISession, options: ISendRequestOptions): Promise<void> {
 		this.isNewChatSessionContext.set(false);
+		this._isNewChatInSessionContext.set(false);
 
 		const setActiveChatToLast = () => {
 			const activeSession = this._activeSession.get();
@@ -299,6 +320,27 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		}
 	}
 
+	async sendRequest(session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void> {
+		this.isNewChatSessionContext.set(false);
+		this._isNewChatInSessionContext.set(false);
+
+		// Keep the sent chat as the active chat
+		if (this._activeChatObservable) {
+			this._activeChatObservable.set(chat, undefined);
+		}
+
+		const provider = this._getProvider(session);
+		if (!provider) {
+			throw new Error(`Sessions provider '${session.providerId}' not found`);
+		}
+
+		const updatedSession = await provider.sendRequest(session.sessionId, chat.resource, options);
+		if (updatedSession.sessionId !== session.sessionId && this._activeSession.get()?.sessionId === session.sessionId) {
+			this.logService.info(`[SessionsManagement] sendRequest: active session replaced: ${session.sessionId} -> ${updatedSession.sessionId}`);
+			this.setActiveSession(updatedSession);
+		}
+	}
+
 	openNewSessionView(): void {
 		// No-op if the current session is already a new session
 		if (this.isNewChatSessionContext.get()) {
@@ -306,6 +348,28 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		}
 		this.setActiveSession(undefined);
 		this.isNewChatSessionContext.set(true);
+		this._isNewChatInSessionContext.set(false);
+	}
+
+	openNewChatInSession(session: ISession): void {
+		const provider = this._getProvider(session);
+		if (!provider) {
+			this.logService.warn(`[SessionsManagement] openNewChatInSession: provider '${session.providerId}' not found`);
+			return;
+		}
+
+		// Reuse an existing untitled chat if one exists, otherwise create a new one
+		const existingUntitled = session.chats.get().find(c => c.status.get() === SessionStatus.Untitled);
+		const chat = existingUntitled ?? provider.addChat(session.sessionId);
+
+		this.setActiveSession(session);
+
+		// Set the chat as the active chat
+		if (this._activeChatObservable) {
+			this._activeChatObservable.set(chat, undefined);
+		}
+
+		this._isNewChatInSessionContext.set(true);
 	}
 
 	private setActiveSession(session: ISession | undefined): void {
@@ -354,6 +418,33 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 					this.openNewSessionView();
 				}
 				wasArchived = isArchived;
+			}));
+
+			// Track chat list changes — if the active chat is removed, fall back
+			this._activeSessionDisposables.add(autorun(reader => {
+				const chats = session.chats.read(reader);
+				const activeChat = activeChatObs.read(reader);
+				if (activeChat && !chats.some(c => this.uriIdentityService.extUri.isEqual(c.resource, activeChat.resource))) {
+					const fallback = chats[chats.length - 1] ?? session.mainChat;
+					if (fallback) {
+						activeChatObs.set(fallback, undefined);
+					}
+				}
+			}));
+
+			// Open the chat view when the active chat changes
+			let lastActiveChatResource: URI | undefined;
+			this._activeSessionDisposables.add(autorun(reader => {
+				const activeChat = activeChatObs.read(reader);
+				if (activeChat && (!lastActiveChatResource || !this.uriIdentityService.extUri.isEqual(activeChat.resource, lastActiveChatResource))) {
+					lastActiveChatResource = activeChat.resource;
+					if (activeChat.status.read(reader) === SessionStatus.Untitled) {
+						this._isNewChatInSessionContext.set(true);
+					} else {
+						this._isNewChatInSessionContext.set(false);
+						this.chatWidgetService.openSession(activeChat.resource, ChatViewPaneTarget);
+					}
+				}
 			}));
 		} else {
 			this._activeChatObservable = undefined;

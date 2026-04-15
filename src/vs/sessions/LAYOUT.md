@@ -204,6 +204,8 @@ The setting `workbench.editor.useModal` is an enum with three values:
 - `'some'`: Certain editors (e.g. Settings, Keyboard Shortcuts) may open in a modal overlay when requested via `MODAL_GROUP`
 - `'all'`: All editors open in a modal overlay (used by agent sessions window)
 
+The sessions default configuration also sets `workbench.notifications.position` to `'top-right'` so toast notifications anchor in the top-right corner of the sessions window without changing the default notification placement in the regular workbench.
+
 
 ---
 
@@ -421,14 +423,15 @@ Each agent session part uses separate storage keys to avoid conflicts with regul
 
 ### 9.5 Part Borders and Card Appearance
 
-Parts manage their own border and background styling via the `updateStyles()` method. In the default light theme, the sessions workbench surface uses the off-white workbench/sidebar background while the card-like chat, auxiliary bar, and panel surfaces use the brighter editor background. Light themes also override the chat, auxiliary bar, and panel card border color in CSS to use `editorWidget.border`, giving those cards a darker outline. Dark and high-contrast mappings continue to use the existing part border tokens. These surfaces use a **card appearance** with CSS variables for background and border:
+Parts manage their own border and background styling via the `updateStyles()` method. In the default light theme, the sessions workbench surface uses the off-white workbench/sidebar background while the card-like chat, auxiliary bar, and panel surfaces use the brighter editor background. Light themes also override the chat, auxiliary bar, and panel card border color in CSS to use `editorWidget.border`, giving those cards a darker outline. Dark and high-contrast mappings continue to use the existing part border tokens. The optional shell gradient treatment is gated behind the application setting `sessions.experimental.shellGradientBackground`. When that setting is disabled, the sessions shell uses the same solid sidebar/grid backgrounds and sidebar view styling as the upstream default experience. When enabled, the sessions shell adds a single root-level background layer in `browser/media/style.css` (`.agent-sessions-workbench.experimental-shell-gradient-background::before`) that sits behind the workbench parts and falls back to the normal solid shell background when `color-mix(...)` is unavailable. When supported, the layer derives its tint from the theme's primary accent signal in `button.background`. The gradient runs from the base shell color at the top-left toward a gentle accent tint in the bottom-right; light themes use a transparentized accent overlay to preserve a bit more of the original accent hue, dark themes use direct mixes into the shell background, and high-contrast themes disable the gradient entirely for accessibility. Titlebar/sidebar wrappers are made transparent so that one shared layer reads continuously across the whole window chrome without clipping at part boundaries. These surfaces use a **card appearance** with CSS variables for background and border:
 
 | Part | Styling | Notes |
 |------|---------|-------|
-| Sidebar | Right border via `SIDE_BAR_BORDER` / `contrastBorder` | Flush appearance, no card styling |
-| Chat Bar | Card appearance via CSS variables `--part-background` / `--part-border-color`, with a light-theme-only CSS border-color override | Uses `sessionsChatBarBackground`; light themes map the card to `editorBackground` and darken the outline with `editorWidget.border`, while dark and high-contrast themes keep the existing part border token behavior; margins create card offset |
-| Auxiliary Bar | Card appearance via CSS variables `--part-background` / `--part-border-color`, with a light-theme-only CSS border-color override | Uses `sessionsAuxiliaryBarBackground` / `PANEL_BORDER`; default light themes map this card to `editorBackground` and darken the outline with `editorWidget.border`, while dark and high-contrast themes keep the existing sidebar-style surface; margins create card offset |
-| Panel | Card appearance via CSS variables `--part-background` / `--part-border-color`, with a light-theme-only CSS border-color override | Uses `sessionsPanelBackground` / `PANEL_BORDER`; default light themes map this card to `editorBackground` and darken the outline with `editorWidget.border`, while dark and high-contrast themes keep the existing sidebar-style surface; margins create card offset |
+| Sidebar | Right border via `SIDE_BAR_BORDER` / `contrastBorder` | Flush appearance; when `sessions.experimental.shellGradientBackground` is enabled, the sidebar wrappers are transparent so the shared root shell gradient reads through continuously |
+| Chat Bar | Card appearance via CSS variables `--part-background` / `--part-border-color`, with a light-theme-only CSS border-color override | Uses `sessionsChatBarBackground`; remains a solid view surface so chat content is unaffected |
+| Auxiliary Bar | Card appearance via CSS variables `--part-background` / `--part-border-color`, with a light-theme-only CSS border-color override | Uses `sessionsAuxiliaryBarBackground` / `PANEL_BORDER`; remains a solid view surface so files/changes content is unaffected |
+| Panel | Card appearance via CSS variables `--part-background` / `--part-border-color`, with a light-theme-only CSS border-color override | Uses `sessionsPanelBackground` / `PANEL_BORDER`; remains a solid view surface so terminal/debug content is unaffected |
+| Titlebar | Simplified sessions titlebar part | When `sessions.experimental.shellGradientBackground` is enabled, its wrappers are transparent so the shared root shell gradient reads through the top chrome as one continuous surface |
 
 The sessions workbench also scopes its resize sash styling in `browser/media/style.css`, rounding the sash hover indicator and orthogonal drag handles so the layout chrome matches the card surfaces.
 Both sessions chat input surfaces keep the unfocused `editorWidget.border` outline in light themes, but switch to `focusBorder` while focused so the new-chat view and the active chat input match the core workbench chat widget focus treatment.
@@ -651,10 +654,12 @@ interface IPartVisibilityState {
 
 | Date | Change |
 |------|--------|
+| 2026-04-14 | Updated the sessions-only default configuration so notification toasts default to the top-right corner via `workbench.notifications.position: 'top-right'`, without changing the regular workbench default. |
 | 2026-04-10 | Updated the sessions titlebar widget so repository/worktree metadata truncates with ellipsis before the primary AI-generated session title when the command center gets narrow. |
 | 2026-04-10 | Updated workspace/repository section headers in the Sessions sidebar to keep their uppercase titles visible via ellipsis truncation so the section toolbar actions remain reachable when names are long. |
 | 2026-04-10 | Updated the Sessions view header so the sidebar "Sessions" label stays visible and truncates with ellipsis when space is tight instead of being hidden; documented the find-widget exception in the Sessions view spec. |
 | 2026-04-10 | Updated both sessions chat input surfaces so the standalone new-chat input and the active chat widget input switch their border to `focusBorder` while focused, matching the core workbench chat widget focus treatment. |
+| 2026-04-14 | Reworked the sessions accent-tinted background into a single root-level pseudo-element behind the workbench parts, then gated it behind `sessions.experimental.shellGradientBackground` so the shell gradient is opt-in while it is being dogfooded and the default styling remains identical to the upstream non-experimental shell. |
 | 2026-04-08 | Darkened the light-theme-only chat, auxiliary bar, and panel card borders with a sessions-specific CSS `border-color` override that uses `editorWidget.border`; dark and high-contrast themes continue using the existing part border tokens. |
 | 2026-04-08 | Rounded the sessions workbench sash hover indicators and orthogonal drag handles via `browser/media/style.css` so resize handles use rounded corners instead of square edges. |
 | 2026-04-04 | Inverted the default light-theme surface mapping so the sessions window background uses the off-white workbench/sidebar surface while the chat, changes, and panel cards use the brighter editor background; dark and high-contrast mappings remain unchanged. |

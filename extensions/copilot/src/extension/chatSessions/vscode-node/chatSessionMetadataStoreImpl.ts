@@ -343,6 +343,7 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 			...sourceMetadata,
 			customTitle,
 			writtenToDisc: true,
+			parentSessionId: sourceSessionId,
 		};
 		await this.updateMetadataFields(targetSessionId, forkedMetadata);
 	}

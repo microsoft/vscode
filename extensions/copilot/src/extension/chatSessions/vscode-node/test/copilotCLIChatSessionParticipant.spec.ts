@@ -269,7 +269,7 @@ class TestCopilotCLISession extends CopilotCLISession {
 
 class FakeCopilotCLISessionService extends mock<ICopilotCLISessionService>() {
 	private _sessionWorkingDirs = new Map<string, vscode.Uri>();
-	override tryGetPartialSesionHistory: ICopilotCLISessionService['tryGetPartialSesionHistory'] = vi.fn(async () => undefined);
+	override tryGetPartialSessionHistory: ICopilotCLISessionService['tryGetPartialSessionHistory'] = vi.fn(async () => undefined);
 
 	override getSessionWorkingDirectory = vi.fn((sessionId: string): vscode.Uri | undefined => {
 		return this._sessionWorkingDirs.get(sessionId);
@@ -762,7 +762,7 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 			override createSession = vi.fn(async () => {
 				throw new Error('createSession should not be called for invalid sessions');
 			});
-			override tryGetPartialSesionHistory: ICopilotCLISessionService['tryGetPartialSesionHistory'] = vi.fn(async () => ([{} as unknown as vscode.ChatRequestTurn, {} as unknown as vscode.ChatResponseTurn]));
+			override tryGetPartialSessionHistory: ICopilotCLISessionService['tryGetPartialSessionHistory'] = vi.fn(async () => ([{} as unknown as vscode.ChatRequestTurn, {} as unknown as vscode.ChatResponseTurn]));
 		}();
 		invalidSessionService.setTestSessionWorkingDirectory(sessionId, Uri.file(`${sep}workspace`));
 		const invalidContentProvider = new CopilotCLIChatSessionContentProvider(
@@ -814,11 +814,11 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 		const sessionContent = await invalidContentProvider.provideChatSessionContentForExistingSession(sessionResource, contentToken);
 
 		expect(sessionContent.history).toHaveLength(2);
-		expect(invalidSessionService.tryGetPartialSesionHistory).toHaveBeenCalledWith(sessionId);
+		expect(invalidSessionService.tryGetPartialSessionHistory).toHaveBeenCalledWith(sessionId);
 
 		(invalidSessionService.getSession as ReturnType<typeof vi.fn>).mockClear();
 		(invalidSessionService.createSession as ReturnType<typeof vi.fn>).mockClear();
-		(invalidSessionService.tryGetPartialSesionHistory as ReturnType<typeof vi.fn>).mockClear();
+		(invalidSessionService.tryGetPartialSessionHistory as ReturnType<typeof vi.fn>).mockClear();
 		const request = new TestChatRequest('Continue from VS Code');
 		const context = createChatContext(sessionId, false, request);
 		const stream = new MockChatResponseStream();

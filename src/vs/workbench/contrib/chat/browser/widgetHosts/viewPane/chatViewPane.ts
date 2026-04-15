@@ -231,6 +231,20 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// Agent changes
 		this._register(this.chatAgentService.onDidChangeAgents(() => this.onDidChangeAgents()));
 
+		// Session changes
+		this._register(this.chatSessionsService.onDidCommitSession(async (e) => {
+			if (!this.modelRef.value) {
+				return;
+			}
+
+			if (!isEqual(e.original, this.modelRef.value.object.sessionResource)) {
+				return;
+			}
+
+			const modelRef = await this.chatService.acquireOrLoadSession(e.committed, ChatAgentLocation.Chat, CancellationToken.None, 'ChatViewPane#onDidCommitSession');
+			await this.showModel(CancellationToken.None, modelRef);
+		}));
+
 		// Layout changes
 		this._register(Event.any(
 			Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('workbench.sideBar.location')),

@@ -33,11 +33,7 @@ interface IPermissionItem {
 	readonly checked: boolean;
 }
 
-/**
- * A permission picker for the new-session welcome view.
- * Shows Default Approvals, Bypass Approvals, and Autopilot options.
- */
-export class NewChatPermissionPicker extends Disposable {
+export class PermissionPicker extends Disposable {
 
 	private readonly _onDidChangeLevel = this._register(new Emitter<ChatPermissionLevel>());
 	readonly onDidChangeLevel: Event<ChatPermissionLevel> = this._onDidChangeLevel.event;

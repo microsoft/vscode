@@ -86,7 +86,7 @@ import { ChatRequestVariableSet, IChatRequestVariableEntry, isElementVariableEnt
 import { ChatMode, getModeNameForTelemetry, IChatMode, IChatModeService } from '../../../common/chatModes.js';
 import { IChatFollowup, IChatQuestionCarousel, IChatToolInvocation } from '../../../common/chatService/chatService.js';
 import { IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionsService, isIChatSessionFileChange2, localChatSessionType } from '../../../common/chatSessionsService.js';
-import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel } from '../../../common/constants.js';
+import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, isChatPermissionLevel } from '../../../common/constants.js';
 import { IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
 import { ILanguageModelChatMetadata, ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../common/languageModels.js';
 import { IChatModelInputState, IChatRequestModeInfo, IInputModel } from '../../../common/model/chatModel.js';
@@ -559,7 +559,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this._contextResourceLabels = this._register(this.instantiationService.createInstance(ResourceLabels, { onDidChangeVisibility: this._onDidChangeVisibility.event }));
 		this._currentModeObservable = observableValue<IChatMode>('currentMode', this.options.defaultMode ?? ChatMode.Agent);
-		this._currentPermissionLevel = observableValue<ChatPermissionLevel>('permissionLevel', ChatPermissionLevel.Default);
+		this._currentPermissionLevel = observableValue<ChatPermissionLevel>('permissionLevel', this.getDefaultPermissionLevel());
 		this._register(this.editorService.onDidActiveEditorChange(() => {
 			this._indexOfLastOpenedContext = -1;
 			this.refreshChatSessionPickers();
@@ -613,6 +613,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		this.chatModeNameKey = ChatContextKeys.chatModeName.bindTo(contextKeyService);
 		this.chatModelIdKey = ChatContextKeys.chatModelId.bindTo(contextKeyService);
 		this.permissionLevelKey = ChatContextKeys.chatPermissionLevel.bindTo(contextKeyService);
+		this.permissionLevelKey.set(this._currentPermissionLevel.get());
 		this.withinEditSessionKey = ChatContextKeys.withinEditSessionDiff.bindTo(contextKeyService);
 		this.filePartOfEditSessionKey = ChatContextKeys.filePartOfEditSession.bindTo(contextKeyService);
 		this.chatSessionHasOptions = ChatContextKeys.chatSessionHasModels.bindTo(contextKeyService);
@@ -635,6 +636,14 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			const newOptions: IEditorOptions = {};
+			if (e.affectsConfiguration(ChatConfiguration.GlobalAutoApprove)) {
+				this.setPermissionLevel(this._currentPermissionLevel.get());
+			}
+			if (e.affectsConfiguration(ChatConfiguration.DefaultPermissionLevel)) {
+				if (this._chatSessionIsEmpty) {
+					this.setPermissionLevel(this.getDefaultPermissionLevel());
+				}
+			}
 			if (e.affectsConfiguration(AccessibilityVerbositySettingId.Chat)) {
 				newOptions.ariaLabel = this._getAriaLabel();
 			}
@@ -804,10 +813,23 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	public setPermissionLevel(level: ChatPermissionLevel): void {
+		level = this.getPermittedPermissionLevel(level);
 		this._currentPermissionLevel.set(level, undefined);
 		this.permissionLevelKey.set(level);
 		this.permissionWidget?.refresh();
 		this._syncInputStateToModel();
+	}
+
+	private getDefaultPermissionLevel(): ChatPermissionLevel {
+		const level = this.configurationService.getValue<string>(ChatConfiguration.DefaultPermissionLevel);
+		return isChatPermissionLevel(level) ? level : ChatPermissionLevel.Default;
+	}
+
+	private getPermittedPermissionLevel(level: ChatPermissionLevel): ChatPermissionLevel {
+		if (this.configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false && level !== ChatPermissionLevel.Default) {
+			return ChatPermissionLevel.Default;
+		}
+		return level;
 	}
 
 	public openSessionTargetPicker(): void {
@@ -901,6 +923,20 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 		if (chatSessionIsEmpty) {
 			this._setEmptyModelState();
+
+			// The default mode setting may be registered asynchronously by TAS,
+			// and custom modes (like Plan) load asynchronously from prompt files.
+			// Re-apply when either becomes available.
+			this._modelSyncDisposables.add(this.configurationService.onDidChangeConfiguration(e => {
+				if (this._chatSessionIsEmpty && e.affectsConfiguration(ChatConfiguration.DefaultNewSessionMode)) {
+					this._setEmptyModelState();
+				}
+			}));
+			this._modelSyncDisposables.add(this.chatModeService.onDidChangeChatModes(() => {
+				if (this._chatSessionIsEmpty) {
+					this._setEmptyModelState();
+				}
+			}));
 		}
 
 		// Observe changes from model and sync to view
@@ -915,6 +951,8 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 	}
 
 	private _setEmptyModelState() {
+		this.setPermissionLevel(this.getDefaultPermissionLevel());
+
 		if (this.entitlementService.anonymous) {
 			// Be deterministic for anonymous users to support
 			// agentic flows with default model.
@@ -927,8 +965,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		if (typeof rawDefaultMode === 'string') {
 			const defaultMode = rawDefaultMode.trim();
 			if (defaultMode) {
-				// Custom modes are loaded asynchronously, so they may not be available yet
-				// at session initialization time. Built-in modes (ask, edit, agent) are always available.
 				const defaultModeLower = defaultMode.toLowerCase();
 				const resolved = this.chatModeService.findModeById(defaultMode)
 					?? this.chatModeService.findModeByName(defaultMode)
@@ -937,8 +973,6 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 					this.logService.trace(`[ChatInputPart] Applying default mode from setting: ${defaultMode} -> ${resolved.id}`);
 					this.setChatMode(resolved.id, false);
 					this.checkModelSupported();
-				} else {
-					this.logService.trace(`[ChatInputPart] Default mode '${defaultMode}' not found in available modes`);
 				}
 			}
 		}
@@ -999,7 +1033,7 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 
 			// Sync permission level (skip if global auto-approve is on, so the picker stays unchanged)
 			if (!this.configurationService.getValue<boolean>(ChatConfiguration.GlobalAutoApprove)) {
-				const targetLevel = state?.permissionLevel ?? ChatPermissionLevel.Default;
+				const targetLevel = this.getPermittedPermissionLevel(state?.permissionLevel ?? ChatPermissionLevel.Default);
 				if (this._currentPermissionLevel.get() !== targetLevel) {
 					this._currentPermissionLevel.set(targetLevel, undefined);
 					this.permissionLevelKey.set(targetLevel);

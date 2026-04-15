@@ -702,6 +702,14 @@ export class LocalAgentHostSessionsProvider extends Disposable implements IAgent
 		return newSession;
 	}
 
+	addChat(_sessionId: string): IChat {
+		throw new Error('Multiple chats per session is not supported for agent host sessions');
+	}
+
+	async sendRequest(_sessionId: string, _chatResource: URI, _options: ISendRequestOptions): Promise<ISession> {
+		throw new Error('Multiple chats per session is not supported for agent host sessions');
+	}
+
 	private async _resolveSessionConfig(sessionId: string, agentProvider: string, workingDirectory: URI, config: Record<string, string> | undefined): Promise<void> {
 		const request = (this._newSessionConfigRequests.get(sessionId) ?? 0) + 1;
 		this._newSessionConfigRequests.set(sessionId, request);

@@ -19,7 +19,7 @@ import { NextCursorLinePredictionCursorPlacement } from '../../inlineEdits/commo
 import * as triggerOptions from '../../inlineEdits/common/dataTypes/triggerOptions';
 import * as xtabHistoryOptions from '../../inlineEdits/common/dataTypes/xtabHistoryOptions';
 import * as xtabPromptOptions from '../../inlineEdits/common/dataTypes/xtabPromptOptions';
-import { LANGUAGE_CONTEXT_ENABLED_LANGUAGES, LanguageContextLanguages, SpeculativeRequestsAutoExpandEditWindowLines, SpeculativeRequestsCursorPlacement, SpeculativeRequestsEnablement } from '../../inlineEdits/common/dataTypes/xtabPromptOptions';
+import { EarlyDivergenceCancellationMode, LANGUAGE_CONTEXT_ENABLED_LANGUAGES, LanguageContextLanguages, SpeculativeRequestsAutoExpandEditWindowLines, SpeculativeRequestsCursorPlacement, SpeculativeRequestsEnablement } from '../../inlineEdits/common/dataTypes/xtabPromptOptions';
 import { ResponseProcessor } from '../../inlineEdits/common/responseProcessor';
 import { FetcherId } from '../../networking/common/fetcherService';
 import { AlternativeNotebookFormat } from '../../notebook/common/alternativeContentFormat';
@@ -611,6 +611,7 @@ export namespace ConfigKey {
 		export const UseResponsesApiTruncation = defineAndMigrateSetting<boolean | undefined>('chat.advanced.useResponsesApiTruncation', 'chat.useResponsesApiTruncation', false);
 		export const OmitBaseAgentInstructions = defineAndMigrateSetting<boolean>('chat.advanced.omitBaseAgentInstructions', 'chat.omitBaseAgentInstructions', false);
 		export const CLIPlanExitModeEnabled = defineSetting<boolean>('chat.cli.planExitMode.enabled', ConfigType.Simple, true);
+		export const CLIPlanCommandEnabled = defineSetting<boolean>('chat.cli.planCommand.enabled', ConfigType.Simple, true);
 		export const CLIAIGenerateBranchNames = defineSetting<boolean>('chat.cli.aiGenerateBranchNames.enabled', ConfigType.Simple, true);
 		export const CLIForkSessionsEnabled = defineSetting<boolean>('chat.cli.forkSessions.enabled', ConfigType.Simple, true);
 		export const CLIMCPServerEnabled = defineAndMigrateSetting<boolean | undefined>('chat.advanced.cli.mcp.enabled', 'chat.cli.mcp.enabled', true);
@@ -648,10 +649,12 @@ export namespace ConfigKey {
 		export const SearchSubagentToolEnabled = defineSetting<boolean>('chat.searchSubagent.enabled', ConfigType.ExperimentBased, false);
 		/** Use the agentic proxy for the search subagent tool */
 		export const SearchSubagentUseAgenticProxy = defineSetting<boolean>('chat.searchSubagent.useAgenticProxy', ConfigType.ExperimentBased, false);
-		/** Model to use for the search subagent. When useAgenticProxy is true, defaults to 'agentic-search-v3'. When false, defaults to the main agent model. */
+		/** Model to use for the search subagent. When useAgenticProxy is true, defaults to 'vscode-agentic-search-router-a'. When false, defaults to the main agent model. */
 		export const SearchSubagentModel = defineSetting<string>('chat.searchSubagent.model', ConfigType.ExperimentBased, '');
 		/** Maximum number of tool calls the search subagent can make */
 		export const SearchSubagentToolCallLimit = defineSetting<number>('chat.searchSubagent.toolCallLimit', ConfigType.ExperimentBased, 4);
+		/** Enable the thoroughness parameter on the search subagent tool, which adjusts turn limits based on requested thoroughness */
+		export const SearchSubagentThoroughnessEnabled = defineSetting<boolean>('chat.searchSubagent.thoroughnessEnabled', ConfigType.ExperimentBased, false);
 
 		export const ExecutionSubagentToolEnabled = defineSetting<boolean>('chat.executionSubagent.enabled', ConfigType.ExperimentBased, false);
 		/** Model to use for the execution subagent */
@@ -814,7 +817,7 @@ export namespace ConfigKey {
 		export const InlineEditsXtabDiffUseRelativePaths = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.xtabProvider.diffUseRelativePaths', ConfigType.ExperimentBased, xtabPromptOptions.DEFAULT_OPTIONS.diffHistory.useRelativePaths);
 		export const InlineEditsXtabNNonSignificantLinesToConverge = defineTeamInternalSetting<number>('chat.advanced.inlineEdits.xtabProvider.nNonSignificantLinesToConverge', ConfigType.ExperimentBased, ResponseProcessor.DEFAULT_DIFF_PARAMS.nLinesToConverge);
 		export const InlineEditsXtabNSignificantLinesToConverge = defineTeamInternalSetting<number>('chat.advanced.inlineEdits.xtabProvider.nSignificantLinesToConverge', ConfigType.ExperimentBased, ResponseProcessor.DEFAULT_DIFF_PARAMS.nSignificantLinesToConverge);
-		export const InlineEditsXtabEarlyCursorLineDivergenceCancellation = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.xtabProvider.earlyCursorLineDivergenceCancellation', ConfigType.ExperimentBased, false);
+		export const InlineEditsXtabEarlyCursorLineDivergenceCancellation = defineTeamInternalSetting<EarlyDivergenceCancellationMode>('chat.advanced.inlineEdits.xtabProvider.earlyCursorLineDivergenceCancellation', ConfigType.ExperimentBased, EarlyDivergenceCancellationMode.Off, EarlyDivergenceCancellationMode.VALIDATOR);
 		export const InlineEditsXtabLanguageContextEnabled = defineTeamInternalSetting<boolean>('chat.advanced.inlineEdits.xtabProvider.languageContext.enabled', ConfigType.ExperimentBased, xtabPromptOptions.DEFAULT_OPTIONS.languageContext.enabled);
 		export const InlineEditsXtabLanguageContextMaxTokens = defineTeamInternalSetting<number>('chat.advanced.inlineEdits.xtabProvider.languageContext.maxTokens', ConfigType.ExperimentBased, xtabPromptOptions.DEFAULT_OPTIONS.languageContext.maxTokens);
 		export const InlineEditsXtabMaxMergeConflictLines = defineTeamInternalSetting<number | undefined>('chat.advanced.inlineEdits.xtabProvider.maxMergeConflictLines', ConfigType.ExperimentBased, undefined);

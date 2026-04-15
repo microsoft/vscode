@@ -60,6 +60,7 @@ export enum ChatConfiguration {
 
 	ChatCustomizationHarnessSelectorEnabled = 'chat.customizations.harnessSelector.enabled',
 	AutopilotEnabled = 'chat.autopilot.enabled',
+	DefaultPermissionLevel = 'chat.permissions.default',
 	ImageCarouselEnabled = 'imageCarousel.chat.enabled',
 	ArtifactsEnabled = 'chat.artifacts.enabled',
 	ArtifactsRulesByMimeType = 'chat.artifacts.rules.byMimeType',
@@ -89,6 +90,12 @@ export enum ChatPermissionLevel {
 	AutoApprove = 'autoApprove',
 	/** Everything AutoApprove does plus an internal stop hook that continues until the task is done */
 	Autopilot = 'autopilot'
+}
+
+const chatPermissionLevels = new Set<string>(Object.values(ChatPermissionLevel));
+
+export function isChatPermissionLevel(level: string | undefined): level is ChatPermissionLevel {
+	return level !== undefined && chatPermissionLevels.has(level);
 }
 
 /**

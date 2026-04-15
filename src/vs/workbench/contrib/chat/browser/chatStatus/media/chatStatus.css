@@ -112,6 +112,27 @@
 	margin-bottom: 6px;
 }
 
+/* Included Indicator */
+
+.chat-status-bar-entry-tooltip .included-indicator {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	padding: 6px 10px;
+	margin-bottom: 8px;
+	border: 1px solid var(--vscode-editorWidget-border);
+	border-radius: 6px;
+}
+
+.chat-status-bar-entry-tooltip .included-indicator .included-label {
+	font-weight: 600;
+}
+
+.chat-status-bar-entry-tooltip .included-indicator .included-separator,
+.chat-status-bar-entry-tooltip .included-indicator .included-value {
+	color: var(--vscode-descriptionForeground);
+}
+
 .chat-status-bar-entry-tooltip .quota-indicator .quota-label {
 	display: flex;
 	justify-content: space-between;

@@ -476,6 +476,50 @@ describe('createResponsesRequestBody', () => {
 		accessor.dispose();
 		services.dispose();
 	});
+
+	it('sends assistant messages with output content and without a fake output message id', () => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const messages: Raw.ChatMessage[] = [
+			{
+				role: Raw.ChatRole.Assistant,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'previous answer' }],
+			},
+		];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), testEndpoint.model, testEndpoint));
+
+		expect(body.input?.[0]).toMatchObject({
+			role: 'assistant',
+			content: [{ type: 'output_text', text: 'previous answer' }],
+			type: 'message',
+		});
+		expect(body.input?.[0]).not.toHaveProperty('id');
+		expect(body.input?.[0]).not.toHaveProperty('status');
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('does not send whitespace-only assistant messages', () => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const messages: Raw.ChatMessage[] = [
+			{
+				role: Raw.ChatRole.Assistant,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: '   \n\t' }],
+			},
+		];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), testEndpoint.model, testEndpoint));
+
+		expect(body.input).toHaveLength(0);
+
+		accessor.dispose();
+		services.dispose();
+	});
 });
 
 describe('processResponseFromChatEndpoint telemetry', () => {

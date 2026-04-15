@@ -6,8 +6,7 @@
 import type { internal, LocalSessionMetadata, Session, SessionContext, SessionEvent, SessionOptions, SweCustomAgent } from '@github/copilot/sdk';
 import * as l10n from '@vscode/l10n';
 import { createReadStream } from 'node:fs';
-import * as fs from 'node:fs/promises';
-import { devNull, EOL } from 'node:os';
+import { devNull } from 'node:os';
 import { createInterface } from 'node:readline';
 import type { ChatRequest, ChatSessionItem } from 'vscode';
 import { IChatDebugFileLoggerService } from '../../../../platform/chat/common/chatDebugFileLoggerService';
@@ -25,11 +24,10 @@ import { createServiceIdentifier } from '../../../../util/common/services';
 import { coalesce } from '../../../../util/vs/base/common/arrays';
 import { disposableTimeout, raceCancellation, raceCancellationError, SequencerByKey, ThrottledDelayer } from '../../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
-import { CancellationError } from '../../../../util/vs/base/common/errors';
 import { Emitter, Event } from '../../../../util/vs/base/common/event';
 import { Lazy } from '../../../../util/vs/base/common/lazy';
 import { Disposable, DisposableMap, IDisposable, IReference, RefCountedDisposable, toDisposable } from '../../../../util/vs/base/common/lifecycle';
-import { basename, dirname, isEqual, joinPath } from '../../../../util/vs/base/common/resources';
+import { basename, dirname, joinPath } from '../../../../util/vs/base/common/resources';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { generateUuid } from '../../../../util/vs/base/common/uuid';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
@@ -46,7 +44,7 @@ import { buildChatHistoryFromEvents, RequestIdDetails, stripReminders } from '..
 import { ICustomSessionTitleService } from '../common/customSessionTitleService';
 import { IChatDelegationSummaryService } from '../common/delegationSummaryService';
 import { SessionIdForCLI } from '../common/utils';
-import { getCopilotCLISessionDir, getCopilotCLISessionEventsFile, getCopilotCLIWorkspaceFile } from './cliHelpers';
+import { getCopilotCLISessionDir } from './cliHelpers';
 import { getAgentFileNameFromFilePath, ICopilotCLIAgents, ICopilotCLISDK } from './copilotCli';
 import { CopilotCliBridgeSpanProcessor } from './copilotCliBridgeSpanProcessor';
 import { CopilotCLISession, ICopilotCLISession } from './copilotcliSession';
@@ -105,12 +103,8 @@ export interface ICopilotCLISessionService {
 	getSession(options: IGetSessionOptions, token: CancellationToken): Promise<IReference<ICopilotCLISession> | undefined>;
 	createSession(options: ICreateSessionOptions, token: CancellationToken): Promise<IReference<ICopilotCLISession>>;
 	getChatHistory(options: { sessionId: string; workspace: IWorkspaceInfo }, token: CancellationToken): Promise<(ChatRequestTurn2 | ChatResponseTurn2)[]>;
-	/**
-	 * @deprecated Use `forkSession` instead
-	 */
-	forkSessionV1(options: { sessionId: string; requestId: string | undefined; workspace: IWorkspaceInfo }, token: CancellationToken): Promise<string>;
 	forkSession(options: { sessionId: string; requestId: string | undefined; workspace: IWorkspaceInfo }, token: CancellationToken): Promise<string>;
-	tryGetPartialSesionHistory(sessionId: string): Promise<readonly (ChatRequestTurn2 | ChatResponseTurn2)[] | undefined>;
+	tryGetPartialSessionHistory(sessionId: string): Promise<readonly (ChatRequestTurn2 | ChatResponseTurn2)[] | undefined>;
 }
 
 export const ICopilotCLISessionService = createServiceIdentifier<ICopilotCLISessionService>('ICopilotCLISessionService');
@@ -926,86 +920,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 			this._sessionsBeingCreatedViaFork.delete(newSessionId);
 		}
 	}
-
-	/**
-	 * Fork an existing session by creating a new session id and copying the underlying
-	 * Copilot CLI session workspace and metadata.
-	 *
-	 * High-level algorithm:
-	 * 1. Copy the existing session folder (and related files) into a new folder for the new session id.
-	 * 2. Update any session metadata so it references the new session id instead of the original.
-	 * 3. Open the new session and truncate it to the last event id to ensure the event log is consistent.
-	 * 4. Close and reopen the new session (via `getSession`) so in-memory state reflects the updated data.
-	 *
-	 * Returns the id of the forked session.
-	 *
-	 * @deprecated Use `forkSession` which delegates to the SDK's `forkSession` API.
-	 */
-	public async forkSessionV1({ sessionId, requestId, workspace }: { sessionId: string; requestId: string | undefined; workspace: IWorkspaceInfo }, token: CancellationToken): Promise<string> {
-		const newSessionId = generateUuid();
-		this._sessionsBeingCreatedViaFork.add(newSessionId);
-		try {
-			const [sessionManager, title, { history, events: originalSessionEvents }, sessionOptions] = await Promise.all([
-				raceCancellationError(this.getSessionManager(), token),
-				this.getSessionTitle(sessionId, token),
-				requestId ? this.getChatHistoryImpl({ sessionId, workspace }, token) : Promise.resolve({ history: [], events: [] }),
-				this.createSessionsOptions({ workspace, mcpServers: undefined, agent: undefined, sessionId: newSessionId }),
-				copySessionFilesForForking(sessionId, newSessionId, workspace, this._chatSessionMetadataStore, token),
-			]);
-
-			const session = await sessionManager.getSession({ ...sessionOptions, sessionId: newSessionId }, false);
-			if (!session) {
-				this.logService.error(`[CopilotCLISession] CopilotCLI failed to open forked session ${newSessionId}.`);
-				throw new Error(`Failed to fork session ${sessionId}`);
-			}
-
-			const forkedTitlePrefix = l10n.t("Forked: ");
-			const customTitle = title.startsWith(forkedTitlePrefix) ? title : l10n.t("Forked: {0}", title);
-			const customTitlePromise = this.customSessionTitleService.setCustomSessionTitle(newSessionId, customTitle);
-
-			// Only if we have a request to truncate should we open and trucate.
-			if (requestId) {
-				const requestToTruncateTo = history.find(event => event instanceof ChatRequestTurn2 && event.id === requestId);
-				if (requestToTruncateTo) {
-					const requestId = requestToTruncateTo.id;
-					const storedDetails = await this._chatSessionMetadataStore.getRequestDetails(newSessionId);
-					const translatedSDKEvent = storedDetails.find(d => d.vscodeRequestId === requestId || d.copilotRequestId === requestId)?.copilotRequestId;
-					const sdkEvent = originalSessionEvents.find(e => e.type === 'user.message' && e.id === requestId)?.id;
-					const eventToTruncateTo = translatedSDKEvent ?? sdkEvent;
-					if (eventToTruncateTo) {
-						await session.truncateToEvent(eventToTruncateTo);
-						const events = session.getEvents();
-						const eventsFile = Uri.file(getCopilotCLISessionEventsFile(newSessionId));
-						// File must end with EOL
-						const contents = Buffer.from(events.map(e => JSON.stringify(e)).join(EOL) + EOL);
-						await this.fileSystem.writeFile(eventsFile, contents);
-					} else {
-						this.logService.warn(`[CopilotCLISession] Cannot find event id to truncate to for request id ${requestId} in session ${newSessionId}`);
-					}
-
-				} else {
-					this.logService.warn(`[CopilotCLISession] Failed to find event id ${requestId} in session ${newSessionId} while forking. Will not truncate the session.`);
-				}
-			}
-
-			await Promise.all([sessionManager.closeSession(newSessionId), customTitlePromise]);
-
-			this._onDidChangeSessions.fire();
-			this._onDidCreateSession.fire({
-				id: newSessionId,
-				label: customTitle,
-				timing: { created: Date.now(), startTime: Date.now() },
-				workingDirectory: getWorkingDirectory(workspace)
-			});
-
-			return newSessionId;
-		}
-		finally {
-			this._sessionsBeingCreatedViaFork.delete(newSessionId);
-		}
-	}
-
-	public async tryGetPartialSesionHistory(sessionId: string): Promise<readonly (ChatRequestTurn2 | ChatResponseTurn2)[] | undefined> {
+	public async tryGetPartialSessionHistory(sessionId: string): Promise<readonly (ChatRequestTurn2 | ChatResponseTurn2)[] | undefined> {
 		const cached = this._partialSessionHistories.get(sessionId);
 		if (cached) {
 			return cached;
@@ -1315,73 +1230,4 @@ export class RefCountedSession extends RefCountedDisposable implements IReferenc
 	dispose(): void {
 		this.release();
 	}
-}
-
-async function copySessionFilesForForking(sessionId: string, targetSessionId: string, workspaceInfo: IWorkspaceInfo, _chatSessionMetadataStore: IChatSessionMetadataStore, token: CancellationToken): Promise<void> {
-	const sourceDir = getCopilotCLISessionDir(sessionId);
-	const targetDir = getCopilotCLISessionDir(targetSessionId);
-	const filesNotToCopy = [URI.file(getCopilotCLISessionEventsFile(sessionId)), URI.file(getCopilotCLIWorkspaceFile(sessionId)), _chatSessionMetadataStore.getMetadataFileUri(sessionId)];
-	try {
-		await fs.mkdir(targetDir, { recursive: true });
-		await raceCancellationError(Promise.all([
-			copySessionEventFileForForking(sessionId, targetSessionId),
-			copySessionWorkspaceYmlFileForForking(sessionId, targetSessionId),
-			fs.cp(sourceDir, targetDir, {
-				recursive: true,
-				dereference: false,
-				force: true,
-				preserveTimestamps: false,
-				filter(source, destination) {
-					if (filesNotToCopy.some(file => file.fsPath === source)) {
-						return false;
-					}
-					// Lock files created by CLI, since this is a whole new session, nothing is locked.
-					if (source.toLowerCase().endsWith('.lock')) {
-						return false;
-					}
-					const sourceUri = URI.file(source);
-					if (filesNotToCopy.some(file => isEqual(file, sourceUri))) {
-						return false;
-					}
-					return true;
-				},
-			}),
-			(async () => {
-				if (workspaceInfo.worktreeProperties) {
-					await _chatSessionMetadataStore.storeWorktreeInfo(targetSessionId, workspaceInfo.worktreeProperties);
-				} else if (workspaceInfo.folder) {
-					await _chatSessionMetadataStore.storeWorkspaceFolderInfo(targetSessionId, { folderPath: workspaceInfo.folder.fsPath, timestamp: Date.now() });
-					if (workspaceInfo.repositoryProperties) {
-						await _chatSessionMetadataStore.storeRepositoryProperties(targetSessionId, workspaceInfo.repositoryProperties);
-					}
-				}
-			})(),
-		]), token);
-
-		if (token.isCancellationRequested) {
-			throw new CancellationError();
-		}
-	} catch (error) {
-		// If anything goes wrong during the copy, we should clean up the target directory to avoid leaving corrupted sessions around.
-		await fs.rm(targetDir, { recursive: true, force: true }).catch(() => { /* swallow errors */ });
-		throw error;
-	}
-
-}
-
-async function copySessionEventFileForForking(sessionId: string, targetSessionId: string) {
-	const sourceSessionEventFile = getCopilotCLISessionEventsFile(sessionId);
-	const targetSessionEventFile = getCopilotCLISessionEventsFile(targetSessionId);
-
-	await fs.rm(targetSessionEventFile, { force: true });
-	const contents = await fs.readFile(sourceSessionEventFile, { encoding: 'utf8' });
-	const modifiedContents = contents.replaceAll(sessionId, targetSessionId);
-	await fs.writeFile(targetSessionEventFile, modifiedContents);
-}
-
-async function copySessionWorkspaceYmlFileForForking(sessionId: string, targetSessionId: string) {
-	const sourceWorkspaceFile = getCopilotCLIWorkspaceFile(sessionId);
-	const targetWorkspaceFile = getCopilotCLIWorkspaceFile(targetSessionId);
-	const sourceWorkspaceContents = await fs.readFile(sourceWorkspaceFile, { encoding: 'utf8' });
-	await fs.writeFile(targetWorkspaceFile, sourceWorkspaceContents.replaceAll(sessionId, targetSessionId));
 }

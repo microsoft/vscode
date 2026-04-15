@@ -9,7 +9,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../ba
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Event } from '../../../../../../base/common/event.js';
-import { MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { escapeMarkdownSyntaxTokens, MarkdownString, type IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../../../base/common/map.js';
 import { getMediaMime } from '../../../../../../base/common/mime.js';
@@ -28,7 +28,7 @@ import { ITerminalLogService, ITerminalProfile } from '../../../../../../platfor
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { TerminalToolConfirmationStorageKeys } from '../../../../chat/browser/widget/chatContentParts/toolInvocationParts/chatTerminalToolConfirmationSubPart.js';
 import { IChatService, ChatRequestQueueKind, ElicitationState, type IChatExternalToolInvocationUpdate, type IChatTerminalToolInvocationData } from '../../../../chat/common/chatService/chatService.js';
-import { constObservable, type IObservable } from '../../../../../../base/common/observable.js';
+import { autorun, constObservable, type IObservable } from '../../../../../../base/common/observable.js';
 import { ChatModel, type IChatRequestModeInfo } from '../../../../chat/common/model/chatModel.js';
 import type { UserSelectedTools } from '../../../../chat/common/participants/chatAgents.js';
 import { CountTokensCallback, ILanguageModelToolsService, IPreparedToolInvocation, IToolConfirmationMessages, IStreamedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolInvocationStreamContext, IToolResult, ToolDataSource, ToolInvocationPresentation, ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
@@ -621,7 +621,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		const partialInput = context.rawInput as Partial<IRunInTerminalInputParams> | undefined;
 		if (partialInput && typeof partialInput === 'object' && partialInput.command) {
 			const truncatedCommand = buildCommandDisplayText(partialInput.command);
-			const invocationMessage = new MarkdownString(localize('runInTerminal.streaming', "Running `{0}`", truncatedCommand));
+			const invocationMessage = new MarkdownString(localize('runInTerminal.streaming', "Running `{0}`", escapeMarkdownSyntaxTokens(truncatedCommand)));
 			return { invocationMessage };
 		}
 		return { invocationMessage: localize('runInTerminal.streaming.default', "Running command") };
@@ -896,8 +896,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			? rawDisplayCommand.substring(0, 77) + '...'
 			: rawDisplayCommand;
 		const invocationMessage = toolSpecificData.commandLine.isSandboxWrapped
-			? new MarkdownString(localize('runInTerminal.invocation.sandbox', "Running `{0}` in sandbox", displayCommand))
-			: new MarkdownString(localize('runInTerminal.invocation', "Running `{0}`", displayCommand));
+			? new MarkdownString(localize('runInTerminal.invocation.sandbox', "Running `{0}` in sandbox", escapeMarkdownSyntaxTokens(displayCommand)))
+			: new MarkdownString(localize('runInTerminal.invocation', "Running `{0}`", escapeMarkdownSyntaxTokens(displayCommand)));
 
 		return {
 			invocationMessage,
@@ -1029,7 +1029,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				new MarkdownString(localize(
 					'runInTerminal.unsandboxed.autoRetry.confirmationMessage',
 					"`{0}`",
-					buildCommandDisplayText(command)
+					escapeMarkdownSyntaxTokens(buildCommandDisplayText(command))
 				)),
 				'',
 				localize('allow', 'Allow'),
@@ -1078,7 +1078,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			toolCallId,
 			toolName: localize('runInTerminalTool.displayName', 'Run in Terminal'),
 			isComplete,
-			invocationMessage: new MarkdownString(localize('runInTerminal.unsandboxed.autoRetry.invocation', "Running `{0}` outside the sandbox", displayCommand)),
+			invocationMessage: new MarkdownString(localize('runInTerminal.unsandboxed.autoRetry.invocation', "Running `{0}` outside the sandbox", escapeMarkdownSyntaxTokens(displayCommand))),
 			pastTenseMessage: toolResultMessage,
 			toolSpecificData,
 		};
@@ -2116,6 +2116,33 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		// stops asking questions and lets the user finish interacting with the terminal.
 		let userIsReplyingDirectly = false;
 
+		const disposeNotification = () => this._backgroundNotifications.deleteAndDispose(termId);
+
+		// If the user manually stopped the agent, suppress background
+		// steering requests and tear down the notification listeners.
+		const handleSessionCancelled = (): boolean => {
+			if (sessionRef.object.lastRequest?.response?.isCanceled) {
+				disposeNotification();
+				return true;
+			}
+			return false;
+		};
+
+		// Proactively detect session cancellation so that all background
+		// listeners are torn down immediately, rather than waiting for the
+		// next terminal event to fire and discover the cancelled state.
+		store.add(autorun(reader => {
+			const request = sessionRef.object.lastRequestObs.read(reader);
+			if (!request?.response) {
+				return;
+			}
+			reader.store.add(request.response.onDidChange(ev => {
+				if (ev.reason === 'completedRequest' && request.response!.isCanceled) {
+					disposeNotification();
+				}
+			}));
+		}));
+
 		if (outputMonitor) {
 			let lastInputNeededOutput = '';
 			let lastInputNeededNotificationTime = 0;
@@ -2134,6 +2161,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			store.add(outputMonitor.onDidDetectInputNeeded(() => {
 				if (userIsReplyingDirectly) {
 					this._logService.debug(`RunInTerminalTool: Suppressing input-needed notification for terminal ${termId} because user is replying directly`);
+					return;
+				}
+
+				if (handleSessionCancelled()) {
 					return;
 				}
 
@@ -2159,7 +2190,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					...sendOptions,
 					queue: ChatRequestQueueKind.Steering,
 					isSystemInitiated: true,
-					systemInitiatedLabel: localize('backgroundTaskNeedsInput', "Background task `{0}` needs input", commandName),
+					systemInitiatedLabel: localize('terminalNeedsInput', "`{0}` needs input", commandName),
 					terminalExecutionId: termId,
 				}).catch(e => {
 					this._logService.warn(`RunInTerminalTool: Failed to send input-needed notification for terminal ${termId}`, e);
@@ -2181,12 +2212,14 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 
 		store.add(sessionRef);
 
-		const disposeNotification = () => this._backgroundNotifications.deleteAndDispose(termId);
-
 		store.add(commandDetection.onCommandFinished(command => {
 			const execution = RunInTerminalTool._activeExecutions.get(termId);
 			if (!execution) {
 				disposeNotification();
+				return;
+			}
+
+			if (handleSessionCancelled()) {
 				return;
 			}
 
@@ -2205,7 +2238,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				...sendOptions,
 				queue: ChatRequestQueueKind.Steering,
 				isSystemInitiated: true,
-				systemInitiatedLabel: localize('backgroundTaskCompleted', "Background task `{0}` completed", commandName),
+				systemInitiatedLabel: localize('terminalCommandCompleted', "`{0}` completed", commandName),
 				terminalExecutionId: termId,
 			}).catch(e => {
 				this._logService.warn(`RunInTerminalTool: Failed to send completion notification for terminal ${termId}`, e);

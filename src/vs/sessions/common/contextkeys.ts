@@ -9,6 +9,7 @@ import { RawContextKey } from '../../platform/contextkey/common/contextkey.js';
 //#region < --- Active Session --- >
 
 export const IsNewChatSessionContext = new RawContextKey<boolean>('isNewChatSession', true);
+export const IsNewChatInSessionContext = new RawContextKey<boolean>('isNewChatInSession', false, localize('isNewChatInSession', "Whether the user is composing a new chat within the active session"));
 export const ActiveSessionProviderIdContext = new RawContextKey<string>('activeSessionProviderId', '', localize('activeSessionProviderId', "The provider ID of the active session"));
 export const ActiveSessionTypeContext = new RawContextKey<string>('activeSessionType', '', localize('activeSessionType', "The session type of the active session"));
 export const IsActiveSessionBackgroundProviderContext = new RawContextKey<boolean>('isActiveSessionBackgroundProvider', false, localize('isActiveSessionBackgroundProvider', "Whether the active session uses the background agent provider"));

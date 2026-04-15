@@ -365,7 +365,7 @@ describe('CopilotCLISessionService', () => {
 				JSON.stringify({ id: '3', type: 'assistant.message', timestamp: '2024-01-01T00:00:03.000Z', parentId: '2', data: { content: 'Recovered history' } }),
 			].join('\n'));
 
-			const partialHistory = await partialService.tryGetPartialSesionHistory(sessionId);
+			const partialHistory = await partialService.tryGetPartialSessionHistory(sessionId);
 
 			expect(partialHistory).toBeDefined();
 			expect(partialHistory).toHaveLength(2);
@@ -400,13 +400,13 @@ describe('CopilotCLISessionService', () => {
 				JSON.stringify({ id: '2', type: 'user.message', timestamp: '2024-01-01T00:00:01.000Z', parentId: '1', data: { content: 'First call fills cache', attachments: [] } }),
 			].join('\n'));
 
-			const history1 = await partialService.tryGetPartialSesionHistory(sessionId);
+			const history1 = await partialService.tryGetPartialSessionHistory(sessionId);
 
 			// Remove the file so a second disk read would fail
 			await rm(eventsFilePath);
 
 			// Second call must return the cached array (same reference, no re-read)
-			const history2 = await partialService.tryGetPartialSesionHistory(sessionId);
+			const history2 = await partialService.tryGetPartialSessionHistory(sessionId);
 
 			expect(history2).toBe(history1);
 		});
@@ -415,7 +415,7 @@ describe('CopilotCLISessionService', () => {
 			tempStateHome = await mkdtemp(join(tmpdir(), 'copilot-cli-session-service-'));
 			process.env.XDG_STATE_HOME = tempStateHome;
 
-			const result = await service.tryGetPartialSesionHistory('nonexistent-session-id');
+			const result = await service.tryGetPartialSessionHistory('nonexistent-session-id');
 			expect(result).toBeUndefined();
 		});
 	});

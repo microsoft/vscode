@@ -641,8 +641,9 @@ suite('customizationCounts', () => {
 
 			const total = await getCustomizationTotalCount(promptsService, mcpService, workspaceService, contextService);
 
-			// 1 agent + 1 skill + 0 instructions + 1 prompt + 0 hooks + 1 mcp = 4
-			assert.strictEqual(total, 4);
+			// 1 agent + 1 skill + 0 instructions + 0 hooks + 1 mcp = 3
+			// (prompts are not counted in sessions)
+			assert.strictEqual(total, 3);
 		});
 
 		test('empty workspace returns only mcp count', async () => {

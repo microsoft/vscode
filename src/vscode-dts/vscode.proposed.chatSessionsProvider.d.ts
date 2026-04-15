@@ -343,7 +343,7 @@ declare module 'vscode' {
 		/**
 		 * Statistics about the chat session.
 		 */
-		changes?: readonly ChatSessionChangedFile[] | readonly ChatSessionChangedFile2[];
+		changes?: readonly ChatSessionChangedFile[];
 
 		/**
 		 * Arbitrary metadata for the chat session. Can be anything, but must be JSON-stringifyable.
@@ -353,34 +353,7 @@ declare module 'vscode' {
 		metadata?: { readonly [key: string]: any };
 	}
 
-	/**
-	 * @deprecated Use `ChatSessionChangedFile2` instead
-	 */
 	export class ChatSessionChangedFile {
-		/**
-		 * URI of the file.
-		 */
-		modifiedUri: Uri;
-
-		/**
-		 * File opened when the user takes the 'compare' action.
-		 */
-		originalUri?: Uri;
-
-		/**
-		 * Number of insertions made during the session.
-		 */
-		insertions: number;
-
-		/**
-		 * Number of deletions made during the session.
-		 */
-		deletions: number;
-
-		constructor(modifiedUri: Uri, insertions: number, deletions: number, originalUri?: Uri);
-	}
-
-	export class ChatSessionChangedFile2 {
 		/**
 		 * URI of the file.
 		 */
@@ -728,8 +701,17 @@ declare module 'vscode' {
 	export interface ChatSessionInputState {
 		/**
 		 * Fired when the input state is changed by the user.
+		 *
+		 * Move to controller?
 		 */
 		readonly onDidChange: Event<void>;
+
+		/**
+		 * The resource associated with this chat session.
+		 *
+		 * This is `undefined` for chat sessions that have not yet started.
+		 */
+		readonly sessionResource: Uri | undefined;
 
 		/**
 		 * The groups of options to show in the UI for user input.

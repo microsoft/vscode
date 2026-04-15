@@ -4528,6 +4528,14 @@
 							"advanced"
 						]
 					},
+					"github.copilot.chat.cli.planCommand.enabled": {
+						"type": "boolean",
+						"default": true,
+						"markdownDescription": "%github.copilot.config.cli.planCommand.enabled%",
+						"tags": [
+							"advanced"
+						]
+					},
 					"github.copilot.chat.cli.aiGenerateBranchNames.enabled": {
 						"type": "boolean",
 						"default": true,
@@ -4625,6 +4633,16 @@
 						"type": "number",
 						"default": 4,
 						"markdownDescription": "%github.copilot.config.searchSubagent.toolCallLimit%",
+						"tags": [
+							"advanced",
+							"experimental",
+							"onExp"
+						]
+					},
+					"github.copilot.chat.searchSubagent.thoroughnessEnabled": {
+						"type": "boolean",
+						"default": false,
+						"markdownDescription": "%github.copilot.config.searchSubagent.thoroughnessEnabled%",
 						"tags": [
 							"advanced",
 							"experimental",
@@ -6091,7 +6109,7 @@
 					{
 						"name": "plan",
 						"description": "%github.copilot.command.cli.plan.description%",
-						"when": "false"
+						"when": "config.github.copilot.chat.cli.planCommand.enabled"
 					},
 					{
 						"name": "fleet",
@@ -6288,6 +6306,7 @@
 		"csv-parse": "^6.0.0",
 		"dotenv": "^17.2.0",
 		"electron": "^39.8.5",
+		"esbuild": "0.27.2",
 		"eslint": "^9.30.0",
 		"eslint-import-resolver-typescript": "^4.4.4",
 		"eslint-plugin-header": "^3.1.1",

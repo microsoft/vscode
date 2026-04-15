@@ -78,6 +78,11 @@ export interface ChatSessionMetadataFile {
 	firstUserMessage?: string;
 	/** Custom title set by the user or generated for the session. */
 	customTitle?: string;
+	/**
+	 * The ID of the parent session, if this session was forked from another
+	 * session or if the session is a child session created from the Agents app.
+	 */
+	parentSessionId?: string;
 }
 
 export const IChatSessionMetadataStore = createServiceIdentifier<IChatSessionMetadataStore>('IChatSessionMetadataStore');
