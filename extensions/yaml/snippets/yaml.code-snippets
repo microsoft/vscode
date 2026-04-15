@@ -1,0 +1,180 @@
+{
+	"YAML Key-Value": {
+		"prefix": "kv",
+		"body": [
+			"${1:key}: ${2:value}"
+		],
+		"description": "YAML key-value pair"
+	},
+	"YAML List Item": {
+		"prefix": "li",
+		"body": [
+			"- ${1:item}"
+		],
+		"description": "YAML list item"
+	},
+	"YAML List": {
+		"prefix": "list",
+		"body": [
+			"${1:items}:",
+			"  - ${2:item1}",
+			"  - ${3:item2}",
+			"  - ${4:item3}"
+		],
+		"description": "YAML list"
+	},
+	"YAML Mapping": {
+		"prefix": "map",
+		"body": [
+			"${1:name}:",
+			"  ${2:key1}: ${3:value1}",
+			"  ${4:key2}: ${5:value2}"
+		],
+		"description": "YAML mapping (nested object)"
+	},
+	"YAML Multiline String (literal)": {
+		"prefix": "multiline",
+		"body": [
+			"${1:key}: |",
+			"  ${2:line one}",
+			"  ${3:line two}"
+		],
+		"description": "YAML literal block scalar (preserves newlines)"
+	},
+	"YAML Multiline String (folded)": {
+		"prefix": "folded",
+		"body": [
+			"${1:key}: >",
+			"  ${2:line one}",
+			"  ${3:line two}"
+		],
+		"description": "YAML folded block scalar (folds newlines to spaces)"
+	},
+	"YAML Anchor": {
+		"prefix": "anchor",
+		"body": [
+			"${1:name}: &${2:anchor}",
+			"  ${3:key}: ${4:value}"
+		],
+		"description": "YAML anchor definition"
+	},
+	"YAML Alias": {
+		"prefix": "alias",
+		"body": [
+			"${1:name}: *${2:anchor}"
+		],
+		"description": "YAML alias reference"
+	},
+	"YAML Comment": {
+		"prefix": "comment",
+		"body": [
+			"# ${1:comment}"
+		],
+		"description": "YAML comment"
+	},
+	"YAML Document Start": {
+		"prefix": "---",
+		"body": [
+			"---",
+			"$0"
+		],
+		"description": "YAML document start marker"
+	},
+	"YAML GitHub Actions Step": {
+		"prefix": "step",
+		"body": [
+			"- name: ${1:Step name}",
+			"  uses: ${2:actions/checkout@v4}",
+			"  with:",
+			"    ${3:key}: ${4:value}"
+		],
+		"description": "GitHub Actions workflow step"
+	},
+	"YAML GitHub Actions Job": {
+		"prefix": "job",
+		"body": [
+			"${1:job-name}:",
+			"  runs-on: ${2|ubuntu-latest,windows-latest,macos-latest|}",
+			"  steps:",
+			"    - uses: actions/checkout@v4",
+			"    - name: ${3:Step name}",
+			"      run: ${4:command}"
+		],
+		"description": "GitHub Actions job"
+	},
+	"YAML GitHub Actions Workflow": {
+		"prefix": "workflow",
+		"body": [
+			"name: ${1:CI}",
+			"",
+			"on:",
+			"  push:",
+			"    branches: [ ${2:main} ]",
+			"  pull_request:",
+			"    branches: [ ${2:main} ]",
+			"",
+			"jobs:",
+			"  ${3:build}:",
+			"    runs-on: ubuntu-latest",
+			"    steps:",
+			"      - uses: actions/checkout@v4",
+			"      - name: ${4:Build}",
+			"        run: ${5:make build}"
+		],
+		"description": "GitHub Actions workflow file"
+	},
+	"YAML Kubernetes Deployment": {
+		"prefix": "k8sdeploy",
+		"body": [
+			"apiVersion: apps/v1",
+			"kind: Deployment",
+			"metadata:",
+			"  name: ${1:my-app}",
+			"  labels:",
+			"    app: ${1:my-app}",
+			"spec:",
+			"  replicas: ${2:3}",
+			"  selector:",
+			"    matchLabels:",
+			"      app: ${1:my-app}",
+			"  template:",
+			"    metadata:",
+			"      labels:",
+			"        app: ${1:my-app}",
+			"    spec:",
+			"      containers:",
+			"        - name: ${1:my-app}",
+			"          image: ${3:nginx:latest}",
+			"          ports:",
+			"            - containerPort: ${4:80}"
+		],
+		"description": "Kubernetes Deployment manifest"
+	},
+	"YAML Kubernetes Service": {
+		"prefix": "k8ssvc",
+		"body": [
+			"apiVersion: v1",
+			"kind: Service",
+			"metadata:",
+			"  name: ${1:my-service}",
+			"spec:",
+			"  selector:",
+			"    app: ${2:my-app}",
+			"  ports:",
+			"    - protocol: TCP",
+			"      port: ${3:80}",
+			"      targetPort: ${4:8080}",
+			"  type: ${5|ClusterIP,NodePort,LoadBalancer|}"
+		],
+		"description": "Kubernetes Service manifest"
+	},
+	"YAML Environment Variables": {
+		"prefix": "env",
+		"body": [
+			"env:",
+			"  - name: ${1:VAR_NAME}",
+			"    value: ${2:value}"
+		],
+		"description": "YAML environment variables list"
+	}
+}

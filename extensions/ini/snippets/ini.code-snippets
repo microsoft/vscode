@@ -1,0 +1,111 @@
+{
+	"INI Section": {
+		"prefix": "section",
+		"body": [
+			"[${1:section}]",
+			"$0"
+		],
+		"description": "INI section header"
+	},
+	"INI Key-Value": {
+		"prefix": "kv",
+		"body": [
+			"${1:key} = ${2:value}"
+		],
+		"description": "INI key-value pair"
+	},
+	"INI Comment": {
+		"prefix": "comment",
+		"body": [
+			"; ${1:comment}"
+		],
+		"description": "INI comment"
+	},
+	"INI Section with Keys": {
+		"prefix": "sectionkeys",
+		"body": [
+			"[${1:section}]",
+			"${2:key1} = ${3:value1}",
+			"${4:key2} = ${5:value2}",
+			"$0"
+		],
+		"description": "INI section with key-value pairs"
+	},
+	"INI Boolean": {
+		"prefix": "bool",
+		"body": [
+			"${1:key} = ${2|true,false|}"
+		],
+		"description": "INI boolean value"
+	},
+	"INI Number": {
+		"prefix": "num",
+		"body": [
+			"${1:key} = ${2:0}"
+		],
+		"description": "INI numeric value"
+	},
+	"INI List": {
+		"prefix": "list",
+		"body": [
+			"${1:key}[] = ${2:value1}",
+			"${1:key}[] = ${3:value2}",
+			"${1:key}[] = ${4:value3}"
+		],
+		"description": "INI array/list values"
+	},
+	"INI Database Config": {
+		"prefix": "database",
+		"body": [
+			"[database]",
+			"host = ${1:localhost}",
+			"port = ${2:5432}",
+			"name = ${3:mydb}",
+			"user = ${4:admin}",
+			"password = ${5:secret}"
+		],
+		"description": "Database configuration section"
+	},
+	"INI Server Config": {
+		"prefix": "server",
+		"body": [
+			"[server]",
+			"host = ${1:0.0.0.0}",
+			"port = ${2:8080}",
+			"debug = ${3|false,true|}",
+			"workers = ${4:4}"
+		],
+		"description": "Server configuration section"
+	},
+	"INI Logging Config": {
+		"prefix": "logging",
+		"body": [
+			"[logging]",
+			"level = ${1|DEBUG,INFO,WARNING,ERROR,CRITICAL|}",
+			"file = ${2:app.log}",
+			"format = ${3:%(asctime)s - %(levelname)s - %(message)s}"
+		],
+		"description": "Logging configuration section"
+	},
+	"INI Default Section": {
+		"prefix": "default",
+		"body": [
+			"[DEFAULT]",
+			"${1:key} = ${2:value}",
+			"$0"
+		],
+		"description": "INI DEFAULT section (inherited by all sections)"
+	},
+	"INI File Header": {
+		"prefix": "header",
+		"body": [
+			"; ${1:Application} Configuration",
+			"; Generated: ${2:date}",
+			"; Author: ${3:name}",
+			"",
+			"[${4:section}]",
+			"$0"
+		],
+		"description": "INI file with header comment"
+	}
+}

@@ -64,6 +64,16 @@
         "scopeName": "source.ini",
         "path": "./syntaxes/ini.tmLanguage.json"
       }
+    ],
+    "snippets": [
+      {
+        "language": "ini",
+        "path": "./snippets/ini.code-snippets"
+      },
+      {
+        "language": "properties",
+        "path": "./snippets/ini.code-snippets"
+      }
     ]
   },
   "repository": {
