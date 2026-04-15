@@ -431,21 +431,6 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 					}
 				}
 			}));
-
-			// Open the chat view when the active chat changes
-			let lastActiveChatResource: URI | undefined;
-			this._activeSessionDisposables.add(autorun(reader => {
-				const activeChat = activeChatObs.read(reader);
-				if (activeChat && (!lastActiveChatResource || !this.uriIdentityService.extUri.isEqual(activeChat.resource, lastActiveChatResource))) {
-					lastActiveChatResource = activeChat.resource;
-					if (activeChat.status.read(reader) === SessionStatus.Untitled) {
-						this._isNewChatInSessionContext.set(true);
-					} else {
-						this._isNewChatInSessionContext.set(false);
-						this.chatWidgetService.openSession(activeChat.resource, ChatViewPaneTarget);
-					}
-				}
-			}));
 		} else {
 			this._activeChatObservable = undefined;
 			this._activeSession.set(undefined, undefined);
