@@ -3196,27 +3196,6 @@
 							"preview",
 							"onExp"
 						]
-					},
-					"github.copilot.chat.anthropic.toolSearchTool.enabled": {
-						"type": "boolean",
-						"default": true,
-						"markdownDescription": "%github.copilot.config.anthropic.toolSearchTool.enabled%",
-						"tags": [
-							"preview"
-						]
-					},
-					"github.copilot.chat.anthropic.toolSearchTool.mode": {
-						"type": "string",
-						"enum": [
-							"server",
-							"client"
-						],
-						"default": "server",
-						"markdownDescription": "%github.copilot.config.anthropic.toolSearchTool.mode%",
-						"tags": [
-							"preview",
-							"onExp"
-						]
 					}
 				}
 			},

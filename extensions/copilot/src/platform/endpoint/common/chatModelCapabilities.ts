@@ -382,20 +382,21 @@ export function getVerbosityForModelSync(model: IChatEndpoint): 'low' | 'medium'
 	return undefined;
 }
 
-/** Model ID prefixes that support the tool search tool. */
-export const TOOL_SEARCH_SUPPORTED_MODELS = [
-	'claude-sonnet-4.5',
-	'claude-sonnet-4.6',
-	'claude-opus-4.5',
-	'claude-opus-4.6',
-] as const;
-
 /**
  * Returns true if the model supports the tool search tool.
- * Provider-agnostic: add additional model prefixes here as other providers adopt tool search.
+ * Matches any Claude Sonnet or Opus model with version >= 4.5. The minor
+ * version is bounded to 1–2 digits so date suffixes like `-20250514`
+ * cannot be misread as a minor version.
  */
 export function modelSupportsToolSearch(modelId: string): boolean {
-	return TOOL_SEARCH_SUPPORTED_MODELS.some(prefix => modelId.toLowerCase().startsWith(prefix));
+	const normalized = modelId.toLowerCase().replace(/\./g, '-');
+	const match = normalized.match(/^claude-(?:sonnet|opus)-(\d+)(?:-(\d{1,2}))?(?:-|$)/);
+	if (!match) {
+		return false;
+	}
+	const major = parseInt(match[1], 10);
+	const minor = match[2] !== undefined ? parseInt(match[2], 10) : 0;
+	return major > 4 || (major === 4 && minor >= 5);
 }
 
 /**
