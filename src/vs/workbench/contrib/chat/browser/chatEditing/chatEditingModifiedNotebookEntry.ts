@@ -106,7 +106,7 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 		return instantiationService.invokeFunction(async accessor => {
 			const notebookService = accessor.get(INotebookService);
 			const resolver = accessor.get(INotebookEditorModelResolverService);
-			const configurationServie = accessor.get(IConfigurationService);
+			const configurationService = accessor.get(IConfigurationService);
 			const resourceRef: IReference<IResolvedNotebookEditorModel> = await resolver.resolve(uri);
 			const notebook = resourceRef.object.notebook;
 			const originalUri = getNotebookSnapshotFileURI(telemetryInfo.sessionResource, telemetryInfo.requestId, generateUuid(), notebook.uri.scheme === Schemas.untitled ? `/${notebook.uri.path}` : notebook.uri.path, notebook.viewType);
@@ -123,10 +123,10 @@ export class ChatEditingModifiedNotebookEntry extends AbstractChatEditingModifie
 					restoreSnapshot(originalRef.object.notebook, initialContent);
 				} catch (ex) {
 					console.error(`Error restoring snapshot: ${initialContent}`, ex);
-					initialContent = createSnapshot(notebook, options.serializer.options, configurationServie);
+					initialContent = createSnapshot(notebook, options.serializer.options, configurationService);
 				}
 			} else {
-				initialContent = createSnapshot(notebook, options.serializer.options, configurationServie);
+				initialContent = createSnapshot(notebook, options.serializer.options, configurationService);
 				// Both models are the same, ensure the cell ids are the same, this way we get a perfect diffing.
 				// No need to generate edits for this.
 				// We want to ensure they are identitcal, possible original notebook was open and got modified.
