@@ -110,7 +110,6 @@
 
 .agent-sessions-workbench .part.editor:not(.modal-editor-part) {
 	margin: 0 0 0 0;
-	height: calc(100% - 10px) !important;
 	background: var(--vscode-editor-background);
 	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border, transparent));
 	border-right-width: 0;

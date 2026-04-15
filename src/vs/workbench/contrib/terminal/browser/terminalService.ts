@@ -20,7 +20,7 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { ICreateContributedTerminalProfileOptions, IExtensionTerminalProfile, IPtyHostAttachTarget, IRawTerminalInstanceLayoutInfo, IRawTerminalTabLayoutInfo, IShellLaunchConfig, ITerminalBackend, ITerminalLaunchError, ITerminalLogService, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalExitReason, TerminalLocation, TitleEventSource } from '../../../../platform/terminal/common/terminal.js';
+import { ICreateContributedTerminalProfileOptions, IExtensionTerminalProfile, IPtyHostAttachTarget, IRawTerminalInstanceLayoutInfo, IRawTerminalTabLayoutInfo, IShellLaunchConfig, ITerminalBackend, ITerminalLaunchError, ITerminalLogService, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalExitReason, TerminalLocation, TerminalSettingId, TitleEventSource } from '../../../../platform/terminal/common/terminal.js';
 import { formatMessageForTerminal } from '../../../../platform/terminal/common/terminalStrings.js';
 import { iconForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { getIconRegistry } from '../../../../platform/theme/common/iconRegistry.js';
@@ -69,6 +69,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 	private _hostActiveTerminals: Map<ITerminalInstanceHost, ITerminalInstance | undefined> = new Map();
 
 	private _detachedXterms = new Set<IDetachedTerminalInstance>();
+	private _detachedListenersRegistered = false;
 	private readonly _terminalShellTypeContextKey: IContextKey<string>;
 
 	private _isShuttingDown: boolean = false;
@@ -185,7 +186,8 @@ export class TerminalService extends Disposable implements ITerminalService {
 		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@ITimerService private readonly _timerService: ITimerService
+		@ITimerService private readonly _timerService: ITimerService,
+		@IThemeService private readonly _themeService: IThemeService
 	) {
 		super();
 
@@ -1101,6 +1103,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 			xtermColorProvider: options.colorProvider,
 			capabilities,
 			disableOverviewRuler: options.disableOverviewRuler,
+			detached: true,
 		}, undefined);
 
 		if (options.readonly) {
@@ -1109,12 +1112,50 @@ export class TerminalService extends Disposable implements ITerminalService {
 
 		const instance = new DetachedTerminal(xterm, { ...options, capabilities }, this._instantiationService);
 		this._detachedXterms.add(instance);
+		// Ensure centralized theme/config listeners update this detached terminal
+		this._ensureDetachedTerminalListeners();
 		const l = xterm.onDidDispose(() => {
 			this._detachedXterms.delete(instance);
 			l.dispose();
 		});
 
 		return instance;
+	}
+
+	/**
+	 * Registers a single set of global service listeners (theme/config/log-level
+	 * changes) that forward updates to all detached xterm instances. This avoids
+	 * each detached terminal registering its own listener on global singletons.
+	 */
+	private _ensureDetachedTerminalListeners(): void {
+		if (this._detachedListenersRegistered) {
+			return;
+		}
+		this._detachedListenersRegistered = true;
+		this._register(this._themeService.onDidColorThemeChange(() => {
+			for (const instance of this._detachedXterms) {
+				instance.xterm.updateTheme();
+			}
+		}));
+		this._register(this._configurationService.onDidChangeConfiguration(e => {
+			const shouldUpdateConfig = e.affectsConfiguration('terminal.integrated') || e.affectsConfiguration('editor.fastScrollSensitivity') || e.affectsConfiguration('editor.mouseWheelScrollSensitivity') || e.affectsConfiguration('editor.multiCursorModifier');
+			const shouldUpdateTheme = e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled);
+			if (shouldUpdateConfig || shouldUpdateTheme) {
+				for (const instance of this._detachedXterms) {
+					if (shouldUpdateConfig) {
+						instance.xterm.updateConfig();
+					}
+					if (shouldUpdateTheme) {
+						instance.xterm.updateTheme();
+					}
+				}
+			}
+		}));
+		this._register(this._logService.onDidChangeLogLevel(() => {
+			for (const instance of this._detachedXterms) {
+				instance.xterm.updateLogLevel();
+			}
+		}));
 	}
 
 	private async _resolveCwd(shellLaunchConfig: IShellLaunchConfig, splitActiveTerminal: boolean, options?: ICreateTerminalOptions): Promise<void> {
