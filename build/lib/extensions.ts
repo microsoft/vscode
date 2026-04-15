@@ -24,6 +24,7 @@ import { getProductionDependencies } from './dependencies.ts';
 import { type IExtensionDefinition, getExtensionStream } from './builtInExtensions.ts';
 import { fetchUrls, fetchGithub } from './fetch.ts';
 import { createTsgoStream, spawnTsgo } from './tsgo.ts';
+import { prepareBuiltInCopilotExtensionShims } from './copilot.ts';
 import vzip from 'gulp-vinyl-zip';
 
 import { createRequire } from 'module';
@@ -480,6 +481,116 @@ export function packageCopilotExtensionStream(disableMangle: boolean): Stream {
 			.pipe(util2.cleanNodeModules(path.join(root, 'build', '.moduleignore')))
 			.pipe(util2.cleanNodeModules(path.join(root, 'build', `.moduleignore.${process.platform}`)))
 	).pipe(util2.setExecutableBit(['**/*.sh']));
+}
+
+/**
+ * Package the built-in copilot extension as a properly filtered VSIX-equivalent.
+ * Unlike {@link packageCopilotExtensionStream}, this uses vsce.listFiles with
+ * PackageManager.Npm so that .vscodeignore is respected for dependency filtering,
+ * producing output equivalent to what CI ships from the pre-built VSIX.
+ */
+export function packageCopilotExtensionFullStream(): Stream {
+	const vsce = require('@vscode/vsce') as typeof import('@vscode/vsce');
+	const extensionPath = path.join(root, 'extensions', 'copilot');
+	if (!fs.existsSync(extensionPath)) {
+		return es.readArray([]);
+	}
+
+	const esbuildConfigFileName = '.esbuild.ts';
+	const esbuildScript = path.join(extensionPath, esbuildConfigFileName);
+	if (!fs.existsSync(esbuildScript)) {
+		throw new Error(`Copilot esbuild script not found at ${esbuildScript}`);
+	}
+
+	const result = es.through();
+
+	// Step 1: Run esbuild to compile the extension
+	new Promise<void>((resolve, reject) => {
+		const proc = cp.execFile(process.argv[0], [esbuildScript], { cwd: extensionPath }, (error, _stdout, stderr) => {
+			if (error) {
+				return reject(error);
+			}
+			const matches = (stderr || '').match(/\> (.+): error: (.+)?/g);
+			fancyLog(`Bundled extension: ${ansiColors.yellow(path.join('copilot', esbuildConfigFileName))} with ${matches ? matches.length : 0} errors.`);
+			for (const match of matches || []) {
+				fancyLog.error(match);
+			}
+			return resolve();
+		});
+		proc.stdout!.on('data', (data) => {
+			fancyLog(`${ansiColors.green('esbuilding copilot')}: ${data.toString('utf8')}`);
+		});
+	}).then(() => {
+		// Step 2: Use `vsce.listFiles` with Npm package manager so `.vscodeignore`
+		// is applied to both source files AND `node_modules` dependencies.
+		// This is the key difference from `packageCopilotExtensionStream` which
+		// uses `PackageManager.None` and then blindly merges all production deps.
+		return vsce.listFiles({ cwd: extensionPath, packageManager: vsce.PackageManager.Npm });
+	}).then(fileNames => {
+		const files = fileNames
+			.map(fileName => path.join(extensionPath, fileName))
+			.map(filePath => new File({
+				path: filePath,
+				stat: fs.statSync(filePath),
+				base: extensionPath,
+				contents: fs.createReadStream(filePath)
+			}));
+
+		es.readArray(files).pipe(result);
+	}).catch(err => {
+		console.error('Failed to package copilot extension:', err);
+		result.emit('error', err);
+	});
+
+	// Apply the same package.json cleanup as bundled extensions get
+	const cleaned = updateExtensionPackageJSON(
+		result.pipe(rename(p => p.dirname = `extensions/copilot/${p.dirname}`)),
+		(data: any) => {
+			delete data.scripts;
+			delete data.dependencies;
+			delete data.devDependencies;
+			if (data.main) {
+				data.main = data.main.replace('/out/', '/dist/');
+			}
+			return data;
+		}
+	);
+
+	return minifyExtensionResources(cleaned)
+		.pipe(util2.setExecutableBit(['**/*.sh']));
+}
+
+/**
+ * Materializes native dependency shims (`node-pty`, `ripgrep`) into the copilot
+ * extension output at {@link outputDir}. Uses the root `node_modules` as the
+ * source for native binaries, targeting the current platform/arch.
+ *
+ * This is the equivalent of what {@link copyCopilotNativeDepsTask} in
+ * `gulpfile.vscode.ts` does during a full product build, but scoped to
+ * just the standalone copilot extension output.
+ *
+ * Failures are logged as warnings rather than throwing, since the copilot
+ * extension can still create shims at runtime if they are missing.
+ */
+export function prepareCopilotExtensionNativeShims(outputDir: string): void {
+	const platform = process.platform;
+	const arch = process.arch;
+	const appNodeModulesDir = path.join(root, 'node_modules');
+
+	if (!fs.existsSync(outputDir)) {
+		fancyLog.warn('[prepareCopilotExtensionNativeShims] Copilot extension not found at', outputDir, '- skipping shims');
+		return;
+	}
+
+	try {
+		prepareBuiltInCopilotExtensionShims(platform, arch, outputDir, appNodeModulesDir);
+		fancyLog(`[prepareCopilotExtensionNativeShims] Materialized native shims for ${platform}-${arch}`);
+	} catch (err) {
+		// Downgrade to a warning for local builds since the extension
+		// can still function without shims (it creates them at runtime).
+		fancyLog.warn(`[prepareCopilotExtensionNativeShims] Failed to materialize shims: ${err}`);
+		fancyLog.warn('[prepareCopilotExtensionNativeShims] The extension will still work but will create shims at runtime.');
+	}
 }
 
 export function packageMarketplaceExtensionsStream(forWeb: boolean): Stream {

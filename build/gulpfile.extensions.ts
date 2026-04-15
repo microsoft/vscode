@@ -287,6 +287,29 @@ export const compileCopilotExtensionBuildTask = task.define('compile-copilot-ext
 gulp.task(compileCopilotExtensionBuildTask);
 
 /**
+ * Compiles the built-in copilot extension with proper `.vscodeignore` filtering
+ * and materializes native dependency shims (`node-pty`, `ripgrep`).
+ * Produces output equivalent to what CI ships from the pre-built VSIX.
+ *
+ * The result is placed in `.build/extensions/copilot/` and can be copied
+ * directly into a VS Code Insiders installation at:
+ *   `<insiders>/resources/app/extensions/copilot/`
+ */
+export const compileCopilotExtensionFullBuildTask = task.define('compile-copilot-extension-full-build', task.series(
+	// Step 1: Clean previous copilot build output
+	task.define('clean-copilot-build', util.rimraf('.build/extensions/copilot')),
+	// Step 2: Build and package with proper `.vscodeignore` filtering
+	task.define('package-copilot-extension-full', () => ext.packageCopilotExtensionFullStream().pipe(gulp.dest('.build'))),
+	// Step 3: Materialize native dependency shims (`node-pty`, `ripgrep`)
+	task.define('copilot-extension-native-shims', () => {
+		const copilotExtDir = path.join(root, '.build', 'extensions', 'copilot');
+		ext.prepareCopilotExtensionNativeShims(copilotExtDir);
+		return Promise.resolve();
+	})
+));
+gulp.task(compileCopilotExtensionFullBuildTask);
+
+/**
  * Compiles the extensions for the build.
  * This is essentially a helper task that combines {@link cleanExtensionsBuildTask}, {@link compileNonNativeExtensionsBuildTask} and {@link compileNativeExtensionsBuildTask}
  */
