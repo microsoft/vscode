@@ -1,0 +1,152 @@
+{
+	"Handlebars Expression": {
+		"prefix": "hb",
+		"body": [
+			"{{${1:expression}}}"
+		],
+		"description": "Handlebars expression"
+	},
+	"Handlebars Triple (unescaped)": {
+		"prefix": "hbu",
+		"body": [
+			"{{{${1:expression}}}}"
+		],
+		"description": "Handlebars unescaped expression"
+	},
+	"Handlebars If Block": {
+		"prefix": "if",
+		"body": [
+			"{{#if ${1:condition}}}",
+			"\t$0",
+			"{{/if}}"
+		],
+		"description": "Handlebars {{#if}} block"
+	},
+	"Handlebars If-Else Block": {
+		"prefix": "ife",
+		"body": [
+			"{{#if ${1:condition}}}",
+			"\t$0",
+			"{{else}}",
+			"\t${2}",
+			"{{/if}}"
+		],
+		"description": "Handlebars {{#if}} with {{else}}"
+	},
+	"Handlebars Unless Block": {
+		"prefix": "unless",
+		"body": [
+			"{{#unless ${1:condition}}}",
+			"\t$0",
+			"{{/unless}}"
+		],
+		"description": "Handlebars {{#unless}} block"
+	},
+	"Handlebars Each Block": {
+		"prefix": "each",
+		"body": [
+			"{{#each ${1:items}}}",
+			"\t$0",
+			"{{/each}}"
+		],
+		"description": "Handlebars {{#each}} loop"
+	},
+	"Handlebars Each with Index": {
+		"prefix": "eachi",
+		"body": [
+			"{{#each ${1:items}}}",
+			"\t{{@index}}: {{${2:this}}}",
+			"{{/each}}"
+		],
+		"description": "Handlebars {{#each}} with @index"
+	},
+	"Handlebars With Block": {
+		"prefix": "with",
+		"body": [
+			"{{#with ${1:context}}}",
+			"\t$0",
+			"{{/with}}"
+		],
+		"description": "Handlebars {{#with}} context block"
+	},
+	"Handlebars Partial": {
+		"prefix": "partial",
+		"body": [
+			"{{> ${1:partialName}}}"
+		],
+		"description": "Handlebars partial inclusion"
+	},
+	"Handlebars Partial with Context": {
+		"prefix": "partialctx",
+		"body": [
+			"{{> ${1:partialName} ${2:context}}}"
+		],
+		"description": "Handlebars partial with context"
+	},
+	"Handlebars Helper": {
+		"prefix": "helper",
+		"body": [
+			"{{${1:helperName} ${2:arg}}}"
+		],
+		"description": "Handlebars helper call"
+	},
+	"Handlebars Block Helper": {
+		"prefix": "blockhelper",
+		"body": [
+			"{{#${1:helperName} ${2:arg}}}",
+			"\t$0",
+			"{{/${1:helperName}}}"
+		],
+		"description": "Handlebars block helper"
+	},
+	"Handlebars Comment": {
+		"prefix": "comment",
+		"body": [
+			"{{! ${1:comment} }}"
+		],
+		"description": "Handlebars comment (not rendered in HTML)"
+	},
+	"Handlebars Block Comment": {
+		"prefix": "blockcomment",
+		"body": [
+			"{{!--",
+			" ${1:comment}",
+			"--}}"
+		],
+		"description": "Handlebars block comment"
+	},
+	"Handlebars Lookup": {
+		"prefix": "lookup",
+		"body": [
+			"{{lookup ${1:array} ${2:index}}}"
+		],
+		"description": "Handlebars lookup helper"
+	},
+	"Handlebars Log": {
+		"prefix": "log",
+		"body": [
+			"{{log ${1:value}}}"
+		],
+		"description": "Handlebars log helper for debugging"
+	},
+	"Handlebars HTML Template": {
+		"prefix": "html",
+		"body": [
+			"<!DOCTYPE html>",
+			"<html lang=\"en\">",
+			"<head>",
+			"\t<meta charset=\"UTF-8\">",
+			"\t<title>{{${1:title}}}</title>",
+			"</head>",
+			"<body>",
+			"\t{{> ${2:header}}}",
+			"\t<main>",
+			"\t\t$0",
+			"\t</main>",
+			"\t{{> ${3:footer}}}",
+			"</body>",
+			"</html>"
+		],
+		"description": "Handlebars HTML template with partials"
+	}
+}

@@ -1,0 +1,185 @@
+{
+	"Clojure Namespace": {
+		"prefix": "ns",
+		"body": [
+			"(ns ${1:my.namespace}",
+			"  (:require [${2:clojure.string :as str}]))"
+		],
+		"description": "Clojure namespace declaration"
+	},
+	"Clojure Defn": {
+		"prefix": "defn",
+		"body": [
+			"(defn ${1:name}",
+			"  \"${2:Docstring.}\"",
+			"  [${3:args}]",
+			"  $0)"
+		],
+		"description": "Clojure function definition"
+	},
+	"Clojure Defn-": {
+		"prefix": "defn-",
+		"body": [
+			"(defn- ${1:name}",
+			"  [${2:args}]",
+			"  $0)"
+		],
+		"description": "Clojure private function definition"
+	},
+	"Clojure Def": {
+		"prefix": "def",
+		"body": [
+			"(def ${1:name} ${2:value})"
+		],
+		"description": "Clojure value definition"
+	},
+	"Clojure Defmacro": {
+		"prefix": "defmacro",
+		"body": [
+			"(defmacro ${1:name}",
+			"  \"${2:Docstring.}\"",
+			"  [${3:args}]",
+			"  $0)"
+		],
+		"description": "Clojure macro definition"
+	},
+	"Clojure Let": {
+		"prefix": "let",
+		"body": [
+			"(let [${1:x} ${2:value}]",
+			"  $0)"
+		],
+		"description": "Clojure let binding"
+	},
+	"Clojure If": {
+		"prefix": "if",
+		"body": [
+			"(if ${1:condition}",
+			"  ${2:then}",
+			"  ${3:else})"
+		],
+		"description": "Clojure if expression"
+	},
+	"Clojure When": {
+		"prefix": "when",
+		"body": [
+			"(when ${1:condition}",
+			"  $0)"
+		],
+		"description": "Clojure when expression"
+	},
+	"Clojure Cond": {
+		"prefix": "cond",
+		"body": [
+			"(cond",
+			"  ${1:condition1} ${2:result1}",
+			"  ${3:condition2} ${4:result2}",
+			"  :else ${5:default})"
+		],
+		"description": "Clojure cond expression"
+	},
+	"Clojure Map": {
+		"prefix": "map",
+		"body": [
+			"(map ${1:#()} ${2:coll})"
+		],
+		"description": "Clojure map function"
+	},
+	"Clojure Filter": {
+		"prefix": "filter",
+		"body": [
+			"(filter ${1:#()} ${2:coll})"
+		],
+		"description": "Clojure filter function"
+	},
+	"Clojure Reduce": {
+		"prefix": "reduce",
+		"body": [
+			"(reduce ${1:+} ${2:0} ${3:coll})"
+		],
+		"description": "Clojure reduce function"
+	},
+	"Clojure Thread First": {
+		"prefix": "->",
+		"body": [
+			"(-> ${1:value}",
+			"    ${2:(fn1)}",
+			"    ${3:(fn2)})"
+		],
+		"description": "Clojure thread-first macro"
+	},
+	"Clojure Thread Last": {
+		"prefix": "->>",
+		"body": [
+			"(->> ${1:coll}",
+			"     ${2:(map #())}",
+			"     ${3:(filter #())})"
+		],
+		"description": "Clojure thread-last macro"
+	},
+	"Clojure Defrecord": {
+		"prefix": "defrecord",
+		"body": [
+			"(defrecord ${1:Name} [${2:fields}]",
+			"  ${3:Protocol}",
+			"  $0)"
+		],
+		"description": "Clojure defrecord"
+	},
+	"Clojure Defprotocol": {
+		"prefix": "defprotocol",
+		"body": [
+			"(defprotocol ${1:Name}",
+			"  (${2:method} [${3:this}]))"
+		],
+		"description": "Clojure defprotocol"
+	},
+	"Clojure Try-Catch": {
+		"prefix": "try",
+		"body": [
+			"(try",
+			"  $0",
+			"  (catch Exception ${1:e}",
+			"    (println \"Error:\" (.getMessage ${1:e}))))"
+		],
+		"description": "Clojure try-catch"
+	},
+	"Clojure Do": {
+		"prefix": "do",
+		"body": [
+			"(do",
+			"  ${1:expr1}",
+			"  $0)"
+		],
+		"description": "Clojure do block"
+	},
+	"Clojure Println": {
+		"prefix": "println",
+		"body": [
+			"(println ${1:value})"
+		],
+		"description": "Clojure println"
+	},
+	"Clojure Atom": {
+		"prefix": "atom",
+		"body": [
+			"(def ${1:state} (atom ${2:initial-value}))"
+		],
+		"description": "Clojure atom"
+	},
+	"Clojure Swap!": {
+		"prefix": "swap!",
+		"body": [
+			"(swap! ${1:atom} ${2:update-fn})"
+		],
+		"description": "Clojure swap!"
+	},
+	"Clojure Fn": {
+		"prefix": "fn",
+		"body": [
+			"(fn [${1:args}]",
+			"  $0)"
+		],
+		"description": "Clojure anonymous function"
+	}
+}
