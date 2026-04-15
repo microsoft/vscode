@@ -1000,7 +1000,7 @@ export class TestContext {
 		switch (os.platform()) {
 			case 'darwin': {
 				// Desktop entry point: <dir>/<App>.app/Contents/MacOS/<Binary>
-				// Agents app: <dir>/<App>.app/Contents/Applications/<Agents>.app/Contents/MacOS/Electron
+				// Agents app: <dir>/<App>.app/Contents/Applications/<Agents>.app
 				const contentsDir = path.dirname(path.dirname(desktopEntryPoint));
 				let appName: string;
 				switch (this.options.quality) {
@@ -1014,7 +1014,7 @@ export class TestContext {
 						appName = 'Agents - Exploration.app';
 						break;
 				}
-				filePath = path.join(contentsDir, 'Applications', appName, 'Contents/MacOS/Electron');
+				filePath = path.join(contentsDir, 'Applications', appName);
 				break;
 			}
 			case 'win32': {
