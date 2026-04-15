@@ -47,6 +47,12 @@
         "languageId": "handlebars",
         "autoInsert": true
       }
+    ],
+    "snippets": [
+      {
+        "language": "handlebars",
+        "path": "./snippets/handlebars.code-snippets"
+      }
     ]
   },
   "repository": {
