@@ -1805,7 +1805,7 @@ ${entryLabels.join('\n')}
 		// to each other to prevent no-op navigations.
 		this.flatten();
 
-		// Reset indeces
+		// Reset indices
 		this.index = this.stack.length - 1;
 		this.previousIndex = -1;
 
