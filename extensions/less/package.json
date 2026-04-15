@@ -37,6 +37,12 @@
         "path": "./syntaxes/less.tmLanguage.json"
       }
     ],
+    "snippets": [
+      {
+        "language": "less",
+        "path": "./snippets/less.code-snippets"
+      }
+    ],
     "problemMatchers": [
       {
         "name": "lessc",

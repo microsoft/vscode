@@ -1,0 +1,161 @@
+{
+	"Less variable": {
+		"prefix": "var",
+		"body": [
+			"@${1:variable}: ${2:value};"
+		],
+		"description": "Less variable declaration"
+	},
+	"Less mixin": {
+		"prefix": "mixin",
+		"body": [
+			".${1:name}(${2:@args}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "Less mixin definition"
+	},
+	"Less mixin with default": {
+		"prefix": "mixindef",
+		"body": [
+			".${1:name}(@${2:arg}: ${3:default}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "Less mixin with default parameter"
+	},
+	"Less include mixin": {
+		"prefix": "include",
+		"body": [
+			".${1:mixin-name}(${2:args});"
+		],
+		"description": "Less include/call mixin"
+	},
+	"Less extend": {
+		"prefix": "extend",
+		"body": [
+			"&:extend(.${1:selector});"
+		],
+		"description": "Less extend selector"
+	},
+	"Less import": {
+		"prefix": "import",
+		"body": [
+			"@import '${1:filename}';"
+		],
+		"description": "Less import file"
+	},
+	"Less nested selector": {
+		"prefix": "nest",
+		"body": [
+			"${1:.parent} {",
+			"\t${2:property}: ${3:value};",
+			"",
+			"\t&:${4:hover} {",
+			"\t\t$0",
+			"\t}",
+			"}"
+		],
+		"description": "Less nested selector with parent reference"
+	},
+	"Less media query": {
+		"prefix": "media",
+		"body": [
+			"@media (${1|min-width,max-width|}: ${2:768px}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "Less media query"
+	},
+	"Less each loop": {
+		"prefix": "each",
+		"body": [
+			"each(${1:@list}, {",
+			"\t${2:.class-@{value}} {",
+			"\t\t$0",
+			"\t}",
+			"});"
+		],
+		"description": "Less each loop"
+	},
+	"Less when condition": {
+		"prefix": "when",
+		"body": [
+			".${1:mixin}() when (${2:@condition}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "Less mixin guard (when)"
+	},
+	"Less color function": {
+		"prefix": "darken",
+		"body": [
+			"darken(${1:@color}, ${2:10%})"
+		],
+		"description": "Less darken color function"
+	},
+	"Less lighten": {
+		"prefix": "lighten",
+		"body": [
+			"lighten(${1:@color}, ${2:10%})"
+		],
+		"description": "Less lighten color function"
+	},
+	"Less fade": {
+		"prefix": "fade",
+		"body": [
+			"fade(${1:@color}, ${2:50%})"
+		],
+		"description": "Less fade (set opacity) color function"
+	},
+	"Less mix": {
+		"prefix": "mix",
+		"body": [
+			"mix(${1:@color1}, ${2:@color2}, ${3:50%})"
+		],
+		"description": "Less mix two colors"
+	},
+	"Less namespace": {
+		"prefix": "ns",
+		"body": [
+			"#${1:namespace} {",
+			"\t.${2:mixin}() {",
+			"\t\t$0",
+			"\t}",
+			"}"
+		],
+		"description": "Less namespace for mixins"
+	},
+	"Less keyframes": {
+		"prefix": "keyframes",
+		"body": [
+			"@keyframes ${1:name} {",
+			"\t0% {",
+			"\t\t$0",
+			"\t}",
+			"\t100% {",
+			"\t}",
+			"}"
+		],
+		"description": "Less @keyframes animation"
+	},
+	"Less flex container": {
+		"prefix": "flex",
+		"body": [
+			"display: flex;",
+			"align-items: ${1:center};",
+			"justify-content: ${2:space-between};",
+			"gap: ${3:1rem};"
+		],
+		"description": "Less flexbox container"
+	},
+	"Less grid": {
+		"prefix": "grid",
+		"body": [
+			"display: grid;",
+			"grid-template-columns: ${1:repeat(3, 1fr)};",
+			"gap: ${2:1rem};"
+		],
+		"description": "Less CSS grid layout"
+	}
+}
