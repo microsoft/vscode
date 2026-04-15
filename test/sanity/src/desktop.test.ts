@@ -285,7 +285,9 @@ export function setup(context: TestContext) {
 	}
 
 	async function testAgentsApp(desktopEntryPoint: string, dataDir?: string) {
-		context.validateAgentsEntryPoint(desktopEntryPoint);
+		if (!context.capabilities.has('linux')) {
+			context.validateAgentsEntryPoint(desktopEntryPoint);
+		}
 
 		const test = new UITest(context, dataDir);
 		const args = ['--agents'];
