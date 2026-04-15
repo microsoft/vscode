@@ -1927,7 +1927,7 @@ ${entryLabels.join('\n')}
 		// stack.
 
 		if (this.filter === GoFilter.NONE) {
-			return false; // only applies when  we are a filterd stack
+			return false; // only applies when we are a filtered stack
 		}
 
 		if (this.isCurrentSelectionActive()) {
