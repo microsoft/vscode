@@ -153,8 +153,8 @@ export class LinkDetector extends Disposable implements IEditorContribution {
 		const oldDecorations: string[] = [];
 		const keys = Object.keys(this.currentOccurrences);
 		for (const decorationId of keys) {
-			const occurence = this.currentOccurrences[decorationId];
-			oldDecorations.push(occurence.decorationId);
+			const occurrence = this.currentOccurrences[decorationId];
+			oldDecorations.push(occurrence.decorationId);
 		}
 
 		const newDecorations: IModelDeltaDecoration[] = [];
@@ -171,8 +171,8 @@ export class LinkDetector extends Disposable implements IEditorContribution {
 			this.currentOccurrences = {};
 			this.activeLinkDecorationId = null;
 			for (let i = 0, len = decorations.length; i < len; i++) {
-				const occurence = new LinkOccurrence(links[i], decorations[i]);
-				this.currentOccurrences[occurence.decorationId] = occurence;
+				const occurrence = new LinkOccurrence(links[i], decorations[i]);
+				this.currentOccurrences[occurrence.decorationId] = occurrence;
 			}
 		});
 	}
