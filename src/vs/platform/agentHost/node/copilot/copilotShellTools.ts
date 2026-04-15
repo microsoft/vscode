@@ -203,6 +203,13 @@ function prepareOutputForModel(rawOutput: string): string {
 	return text;
 }
 
+function getContentSinceOffset(fullContent: string, offsetBefore: number): string {
+	// When terminal scrollback gets trimmed, the previously captured offset can
+	// point past the current buffer. In that case, return the current buffer so
+	// callers still see the remaining output instead of an empty string.
+	return offsetBefore > fullContent.length ? fullContent : fullContent.substring(offsetBefore);
+}
+
 // ---------------------------------------------------------------------------
 // Tool implementations
 // ---------------------------------------------------------------------------
@@ -246,11 +253,7 @@ async function executeCommandInShell(
 
 		const checkForSentinel = () => {
 			const fullContent = terminalManager.getContent(shell.terminalUri) ?? '';
-			// Clamp offset: the terminal manager trims content when it exceeds
-			// 100k chars (slices to last 80k). If trimming happened after we
-			// captured offsetBefore, scan from the start of the current buffer.
-			const clampedOffset = Math.min(offsetBefore, fullContent.length);
-			const newContent = fullContent.substring(clampedOffset);
+			const newContent = getContentSinceOffset(fullContent, offsetBefore);
 			const parsed = parseSentinel(newContent, sentinelId);
 			if (parsed.found) {
 				const output = prepareOutputForModel(parsed.outputBeforeSentinel);
@@ -270,7 +273,7 @@ async function executeCommandInShell(
 		disposables.add(terminalManager.onExit(shell.terminalUri, (exitCode: number) => {
 			logService.info(`[ShellTool] Shell exited unexpectedly with code ${exitCode}`);
 			const fullContent = terminalManager.getContent(shell.terminalUri) ?? '';
-			const newContent = fullContent.substring(offsetBefore);
+			const newContent = getContentSinceOffset(fullContent, offsetBefore);
 			const output = prepareOutputForModel(newContent);
 			finish(makeFailureResult(`Shell exited with code ${exitCode}\n${output}`));
 		}));
@@ -285,7 +288,7 @@ async function executeCommandInShell(
 		const timer = setTimeout(() => {
 			logService.warn(`[ShellTool] Command timed out after ${timeoutMs}ms`);
 			const fullContent = terminalManager.getContent(shell.terminalUri) ?? '';
-			const newContent = fullContent.substring(offsetBefore);
+			const newContent = getContentSinceOffset(fullContent, offsetBefore);
 			const output = prepareOutputForModel(newContent);
 			finish(makeFailureResult(
 				`Command timed out after ${Math.round(timeoutMs / 1000)}s. Partial output:\n${output}`,
