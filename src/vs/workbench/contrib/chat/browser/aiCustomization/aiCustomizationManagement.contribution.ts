@@ -272,9 +272,10 @@ registerAction2(class extends Action2 {
 	}
 	async run(accessor: ServicesAccessor, context: AICustomizationContext): Promise<void> {
 		const commandService = accessor.get(ICommandService);
-		const name = extractName(context);
-		const query = name
-			? `/troubleshoot ${name} `
+		const rawName = extractName(context);
+		const displayName = rawName?.replace(/\.md$/i, '');
+		const query = displayName
+			? `/troubleshoot ${displayName} `
 			: '/troubleshoot ';
 		await commandService.executeCommand('workbench.action.chat.open', {
 			query,
