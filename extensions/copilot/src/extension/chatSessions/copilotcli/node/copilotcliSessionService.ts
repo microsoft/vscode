@@ -8,7 +8,7 @@ import * as l10n from '@vscode/l10n';
 import { createReadStream } from 'node:fs';
 import { devNull } from 'node:os';
 import { createInterface } from 'node:readline';
-import type { ChatRequest, ChatSessionItem } from 'vscode';
+import type { ChatCustomAgent, ChatRequest, ChatSessionItem } from 'vscode';
 import { IChatDebugFileLoggerService } from '../../../../platform/chat/common/chatDebugFileLoggerService';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { INativeEnvService } from '../../../../platform/env/common/envService';
@@ -18,7 +18,7 @@ import { RelativePattern } from '../../../../platform/filesystem/common/fileType
 import { ILogService } from '../../../../platform/log/common/logService';
 import { deriveCopilotCliOTelEnv } from '../../../../platform/otel/common/agentOTelEnv';
 import { IOTelService } from '../../../../platform/otel/common/otelService';
-import { ParsedPromptFile } from '../../../../platform/promptFiles/common/promptsService';
+import { IPromptsService } from '../../../../platform/promptFiles/common/promptsService';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { createServiceIdentifier } from '../../../../util/common/services';
 import { coalesce } from '../../../../util/vs/base/common/arrays';
@@ -34,7 +34,6 @@ import { IInstantiationService } from '../../../../util/vs/platform/instantiatio
 import { ChatRequestTurn2, ChatResponseTurn2, ChatSessionStatus, Uri } from '../../../../vscodeTypes';
 import { IPromptVariablesService } from '../../../prompt/node/promptVariablesService';
 import { IAgentSessionsWorkspace } from '../../common/agentSessionsWorkspace';
-import { IChatPromptFileService } from '../../common/chatPromptFileService';
 import { IChatSessionMetadataStore, RequestDetails, StoredModeInstructions } from '../../common/chatSessionMetadataStore';
 import { IChatSessionWorkspaceFolderService } from '../../common/chatSessionWorkspaceFolderService';
 import { IChatSessionWorktreeService } from '../../common/chatSessionWorktreeService';
@@ -145,6 +144,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	private _bridgeProcessor: CopilotCliBridgeSpanProcessor | undefined;
 	/** Whether we've attempted to install the bridge (only try once). */
 	private _bridgeInstalled = false;
+	private showExternalSessions: boolean;
 	constructor(
 		@ILogService protected readonly logService: ILogService,
 		@ICopilotCLISDK private readonly copilotCLISDK: ICopilotCLISDK,
@@ -165,13 +165,19 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		@IOTelService private readonly _otelService: IOTelService,
 		@IPromptVariablesService private readonly _promptVariablesService: IPromptVariablesService,
 		@IChatDebugFileLoggerService private readonly _debugFileLogger: IChatDebugFileLoggerService,
-		@IChatPromptFileService private readonly _chatPromptFileService: IChatPromptFileService,
+		@IPromptsService private readonly _promptsService: IPromptsService,
 	) {
 		super();
+		this.showExternalSessions = this.configurationService.getConfig(ConfigKey.Advanced.CLIShowExternalSessions);
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ConfigKey.Advanced.CLIShowExternalSessions.fullyQualifiedId)) {
+				this.showExternalSessions = this.configurationService.getConfig(ConfigKey.Advanced.CLIShowExternalSessions);
+			}
+		}));
 		this.monitorSessionFiles();
 		this._sessionManager = new Lazy<Promise<internal.LocalSessionManager>>(async () => {
 			try {
-				const { internal, createLocalFeatureFlagService, noopTelemetryBinder } = await this.getSDKPackage();
+				const { internal, createLocalFeatureFlagService } = await this.getSDKPackage();
 				// Always enable SDK OTel so the debug panel receives native spans via the bridge.
 				// When user OTel is disabled, we force file exporter to /dev/null so the SDK
 				// creates OtelSessionTracker (for debug panel) but doesn't export to any collector.
@@ -203,7 +209,6 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 				return new internal.LocalSessionManager({
 					featureFlagService: createLocalFeatureFlagService(),
 					telemetryService: new internal.NoopTelemetryService(),
-					telemetryBinder: noopTelemetryBinder
 				}, { flushDebounceMs: undefined, settings: undefined, version: undefined });
 			}
 			catch (error) {
@@ -215,8 +220,8 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	}
 
 	private async getSDKPackage() {
-		const { internal, LocalSession, createLocalFeatureFlagService, noopTelemetryBinder } = await this.copilotCLISDK.getPackage();
-		return { internal, LocalSession, createLocalFeatureFlagService, noopTelemetryBinder };
+		const { internal, LocalSession, createLocalFeatureFlagService } = await this.copilotCLISDK.getPackage();
+		return { internal, LocalSession, createLocalFeatureFlagService };
 	}
 
 	getSessionWorkingDirectory(sessionId: string): Uri | undefined {
@@ -562,6 +567,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 
 			const session = this.createCopilotSession(sdkSession, options.workspace, options.agent?.name, sessionManager);
 			session.object.add(mcpGateway);
+			void this._chatSessionMetadataStore.setSessionOrigin(session.object.sessionId);
 			return session;
 		}
 		catch (error) {
@@ -609,6 +615,13 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		if (isUntitledSessionId(sessionId)) {
 			return true;
 		}
+
+		if (!this.showExternalSessions) {
+			const sessionOrigin = await this._chatSessionMetadataStore.getSessionOrigin(sessionId);
+			if (sessionOrigin !== 'vscode') {
+				return false;
+			}
+		}
 		// If we're in an empty workspace then show all sessions.
 		if (this.workspaceService.getWorkspaceFolders().length === 0) {
 			return true;
@@ -648,7 +661,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	protected async createSessionsOptions(options: ICreateSessionOptions & { mcpServers?: SessionOptions['mcpServers'] }): Promise<Readonly<SessionOptions>> {
 		const [agentInfos, skillLocations] = await Promise.all([
 			this.agents.getAgents(),
-			this.copilotCLISkills.getSkillsLocations(),
+			this.copilotCLISkills.getSkillsLocations(CancellationToken.None),
 		]);
 		const customAgents = agentInfos.map(i => i.agent);
 		const variablesContext = this._promptVariablesService.buildTemplateVariablesContext(options.sessionId, options.debugTargetSessionIds);
@@ -792,14 +805,14 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		const [agentId, storedDetails] = await Promise.all([agentIdPromise, requestDetailsPromise]);
 
 		// Build lookup from copilotRequestId → RequestDetails for the callback
-		const customAgentLookup = this.createCustomAgentLookup();
+		const customAgentLookup = await this.createCustomAgentLookup();
 		const legacyMappings: RequestDetails[] = [];
 		const detailsByCopilotId = new Map<string, RequestIdDetails>();
-		const defaultModeInstructions = agentId ? this.resolveAgentModeInstructions(agentId, customAgentLookup) : undefined;
+		const defaultModeInstructions = agentId ? await this.resolveAgentModeInstructions(agentId, customAgentLookup) : undefined;
 
 		for (const d of storedDetails) {
 			if (d.copilotRequestId) {
-				const modeInstructions = d.modeInstructions ?? this.resolveAgentModeInstructions(d.agentId, customAgentLookup) ?? defaultModeInstructions;
+				const modeInstructions = d.modeInstructions ?? await this.resolveAgentModeInstructions(d.agentId, customAgentLookup) ?? defaultModeInstructions;
 				detailsByCopilotId.set(d.copilotRequestId, { requestId: d.vscodeRequestId, toolIdEditMap: d.toolIdEditMap, modeInstructions });
 			}
 		}
@@ -832,36 +845,38 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		return { history, events };
 	}
 
-	private createCustomAgentLookup(): Map<string, ParsedPromptFile> {
-		const agents = this._chatPromptFileService.customAgentPromptFiles;
-		const lookup = new Map<string, ParsedPromptFile>();
+	private async createCustomAgentLookup(): Promise<Map<string, [ChatCustomAgent, Lazy<Promise<string>>]>> {
+		const agents = await this._promptsService.getCustomAgents(CancellationToken.None);
+		const lookup = new Map<string, [ChatCustomAgent, Lazy<Promise<string>>]>();
 		for (const agent of agents) {
+			const lazyContent = new Lazy(() => this._promptsService.parseFile(agent.uri, CancellationToken.None).then(parsed => parsed.body?.getContent() ?? ''));
 			const keys = [
-				agent.header?.name?.trim(),
+				agent.name?.trim(),
 				agent.uri.toString(),
 				getAgentFileNameFromFilePath(agent.uri),
 			];
 			for (const key of keys) {
 				if (key && !lookup.has(key)) {
-					lookup.set(key, agent);
+					lookup.set(key, [agent, lazyContent]);
 				}
 			}
 		}
 		return lookup;
 	}
 
-	private resolveAgentModeInstructions(agentId: string | undefined, customAgentLookup: Map<string, ParsedPromptFile>): StoredModeInstructions | undefined {
+	private async resolveAgentModeInstructions(agentId: string | undefined, customAgentLookup: Map<string, [ChatCustomAgent, Lazy<Promise<string>>]>): Promise<StoredModeInstructions | undefined> {
 		if (!agentId) {
 			return undefined;
 		}
-		const agent = customAgentLookup.get(agentId);
-		if (!agent) {
+		const agentEntry = customAgentLookup.get(agentId);
+		if (!agentEntry) {
 			return undefined;
 		}
+		const [agent, lazyContent] = agentEntry;
 		return {
 			uri: agent.uri.toString(),
-			name: agent.header?.name?.trim() || agentId,
-			content: agent.body?.getContent() ?? '',
+			name: agent.name?.trim() || agentId,
+			content: await lazyContent.value,
 		};
 	}
 
@@ -1064,6 +1079,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 			this._sessionWrappers.deleteAndLeak(sessionId);
 			// Possible the session was deleted in another vscode session or the like.
 			this._onDidChangeSessions.fire();
+			this._onDidDeleteSession.fire(sessionId);
 		}
 	}
 

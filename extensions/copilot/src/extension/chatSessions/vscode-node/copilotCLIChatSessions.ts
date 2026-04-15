@@ -149,26 +149,36 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 		super();
 
 		let isRefreshing = false;
+		const refreshSessions = async () => {
+			if (isRefreshing) {
+				return;
+			}
+			isRefreshing = true;
+			const stopwatch = new StopWatch();
+			try {
+				const sessions = await this.sessionService.getAllSessions(CancellationToken.None);
+				const items = await Promise.all(sessions.map(async session => this.toChatSessionItem(session)));
+
+				const count = items.length;
+				void this.commandExecutionService.executeCommand('setContext', 'github.copilot.chat.cliSessionsEmpty', count === 0);
+
+				controller.items.replace(items);
+			} finally {
+				isRefreshing = false;
+				this.logService.info(`[CopilotCLIChatSessionContentProvider] listSessions took ${stopwatch.elapsed()}ms`);
+			}
+		};
 		const controller = this.controller = this._register(vscode.chat.createChatSessionItemController(
 			'copilotcli',
 			async () => {
-				if (isRefreshing) {
-					return;
-				}
-				isRefreshing = true;
-				try {
-					const sessions = await this.sessionService.getAllSessions(CancellationToken.None);
-					const items = await Promise.all(sessions.map(async session => this.toChatSessionItem(session)));
-
-					const count = items.length;
-					void this.commandExecutionService.executeCommand('setContext', 'github.copilot.chat.cliSessionsEmpty', count === 0);
-
-					controller.items.replace(items);
-				} finally {
-					isRefreshing = false;
-				}
+				await refreshSessions();
 			}
 		));
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(ConfigKey.Advanced.CLIShowExternalSessions.fullyQualifiedId)) {
+				void refreshSessions();
+			}
+		}));
 		controller.newChatSessionItemHandler = async (context) => {
 			const sessionId = this.sessionService.createNewSessionId();
 			const resource = SessionIdForCLI.getResource(sessionId);

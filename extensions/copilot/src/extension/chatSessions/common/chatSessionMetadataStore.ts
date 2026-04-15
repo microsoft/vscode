@@ -78,6 +78,12 @@ export interface ChatSessionMetadataFile {
 	firstUserMessage?: string;
 	/** Custom title set by the user or generated for the session. */
 	customTitle?: string;
+	/** The creator of this session. */
+	origin?: 'vscode' | 'other';
+	/**
+	 * The kind of session, which can be used to determine how the session was created and possibly how it should be displayed in the UI.
+	 */
+	kind?: 'forked' | 'sub-session';
 	/**
 	 * The ID of the parent session, if this session was forked from another
 	 * session or if the session is a child session created from the Agents app.
@@ -114,4 +120,6 @@ export interface IChatSessionMetadataStore {
 	 * an existing session to a newly forked session, overriding the custom title.
 	 */
 	storeForkedSessionMetadata(sourceSessionId: string, targetSessionId: string, customTitle: string): Promise<void>;
+	setSessionOrigin(sessionId: string): Promise<void>;
+	getSessionOrigin(sessionId: string): Promise<'vscode' | 'other'>;
 }

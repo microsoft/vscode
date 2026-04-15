@@ -33,7 +33,7 @@ import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IHostService } from '../../../../workbench/services/host/browser/host.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { URI } from '../../../../base/common/uri.js';
-import { isWindows } from '../../../../base/common/platform.js';
+import { isWindows, isMacintosh } from '../../../../base/common/platform.js';
 import { UpdateHoverWidget } from './updateHoverWidget.js';
 import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
 import { ChatStatusDashboard } from '../../../../workbench/contrib/chat/browser/chatStatus/chatStatusDashboard.js';
@@ -125,7 +125,7 @@ async function runSessionsUpdateAction(
 ): Promise<void> {
 	if (state.type === StateType.AvailableForDownload) {
 		const isInsiderOrExploration = productService.quality === 'insider' || productService.quality === 'exploration';
-		const hasCrossAppCoordinator = isWindows && isInsiderOrExploration;
+		const hasCrossAppCoordinator = (isWindows || isMacintosh) && isInsiderOrExploration;
 		if (!hasCrossAppCoordinator) {
 			const { confirmed } = await dialogService.confirm({
 				message: localize('sessionsUpdateFromVSCode.title', "Update from VS Code"),

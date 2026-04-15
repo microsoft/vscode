@@ -19,7 +19,7 @@ import { IViewContainersRegistry, IViewsRegistry, ViewContainerLocation, Extensi
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { IsActiveSessionBackgroundProviderContext, IsNewChatInSessionContext, IsNewChatSessionContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { IsNewChatInSessionContext, IsNewChatSessionContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { Menus } from '../../../browser/menus.js';
 import { BranchChatSessionAction } from './branchChatSessionAction.js';
 import { RunScriptContribution } from './runScriptAction.js';
@@ -58,7 +58,7 @@ export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 			id: OpenSessionWorktreeInVSCodeAction.ID,
 			title: localize2('openInVSCode', 'Open in VS Code'),
 			icon: Codicon.vscodeInsiders,
-			precondition: IsActiveSessionBackgroundProviderContext,
+			precondition: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated()),
 			menu: [{
 				id: Menus.TitleBarSessionMenu,
 				group: 'navigation',
@@ -78,26 +78,6 @@ export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 		const sessionsProvidersService = accessor.get(ISessionsProvidersService);
 		const remoteAgentHostService = accessor.get(IRemoteAgentHostService);
 
-		const activeSession = sessionsManagementService.activeSession.get();
-		if (!activeSession) {
-			return;
-		}
-
-		const workspace = activeSession.workspace.get();
-		const repo = workspace?.repositories[0];
-		const rawFolderUri = activeSession.sessionType === CopilotCLISessionType.id ? repo?.workingDirectory ?? repo?.uri : undefined;
-
-		if (!rawFolderUri) {
-			return;
-		}
-
-		// Unwrap agent-host URIs to get the original file path on the remote
-		const folderUri = rawFolderUri.scheme === AGENT_HOST_SCHEME ? fromAgentHostUri(rawFolderUri) : rawFolderUri;
-
-		// Resolve VS Code remote authority from the session's provider
-		const remoteAuthority = resolveRemoteAuthority(
-			activeSession.providerId, sessionsProvidersService, remoteAgentHostService);
-
 		const scheme = productService.quality === 'stable'
 			? 'vscode'
 			: productService.quality === 'exploration'
@@ -108,6 +88,29 @@ export class OpenSessionWorktreeInVSCodeAction extends Action2 {
 
 		const params = new URLSearchParams();
 		params.set('windowId', '_blank');
+
+		const activeSession = sessionsManagementService.activeSession.get();
+		if (!activeSession) {
+			await openerService.open(URI.from({ scheme, query: params.toString() }), { openExternal: true }); // Open VS Code without a specific path
+			return;
+		}
+
+		const workspace = activeSession.workspace.get();
+		const repo = workspace?.repositories[0];
+		const rawFolderUri = activeSession.sessionType === CopilotCLISessionType.id ? repo?.workingDirectory ?? repo?.uri : undefined;
+
+		if (!rawFolderUri) {
+			await openerService.open(URI.from({ scheme, query: params.toString() }), { openExternal: true }); // Open VS Code without a specific path
+			return;
+		}
+
+		// Unwrap agent-host URIs to get the original file path on the remote
+		const folderUri = rawFolderUri.scheme === AGENT_HOST_SCHEME ? fromAgentHostUri(rawFolderUri) : rawFolderUri;
+
+		// Resolve VS Code remote authority from the session's provider
+		const remoteAuthority = resolveRemoteAuthority(
+			activeSession.providerId, sessionsProvidersService, remoteAgentHostService);
+
 		params.set('session', activeSession.resource.toString());
 
 		if (remoteAuthority) {

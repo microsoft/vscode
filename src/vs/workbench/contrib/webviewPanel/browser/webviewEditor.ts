@@ -200,7 +200,7 @@ export class WebviewEditor extends EditorPane {
 		const modalEditorContainer = this._editorGroupsService.activeModalEditorPart?.modalElement;
 		let clippingContainer: HTMLElement | undefined;
 		if (isHTMLElement(modalEditorContainer)) {
-			clippingContainer = modalEditorContainer;
+			clippingContainer = undefined;
 		} else {
 			clippingContainer = this._workbenchLayoutService.getContainer(this.window, Parts.EDITOR_PART);
 		}

@@ -344,11 +344,34 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 			customTitle,
 			writtenToDisc: true,
 			parentSessionId: sourceSessionId,
+			origin: 'vscode',
+			kind: 'forked',
 		};
 		await this.updateMetadataFields(targetSessionId, forkedMetadata);
 	}
 
-	private async getSessionMetadata(sessionId: string): Promise<ChatSessionMetadataFile | undefined> {
+	public async setSessionOrigin(sessionId: string): Promise<void> {
+		await this._intialize.value;
+		await this.updateMetadataFields(sessionId, { origin: 'vscode' });
+	}
+
+	public async getSessionOrigin(sessionId: string): Promise<'vscode' | 'other'> {
+		const metadata = await this.getSessionMetadata(sessionId, false);
+		if (!metadata || Object.keys(metadata).length === 0) {
+			// We always store some metadata
+			return 'other';
+		}
+		if (metadata.origin) {
+			return metadata.origin;
+		}
+		// Older sessions, guess.
+		if (metadata?.repositoryProperties || metadata?.worktreeProperties || metadata?.workspaceFolder) {
+			return 'vscode';
+		}
+		return 'other';
+	}
+
+	private async getSessionMetadata(sessionId: string, createMetadataFileIfNotFound = true): Promise<ChatSessionMetadataFile | undefined> {
 		if (isUntitledSessionId(sessionId)) {
 			return undefined;
 		}
@@ -366,8 +389,10 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 		} catch {
 			// So we don't try again.
 			this._cache[sessionId] = {};
-			await this.updateSessionMetadata(sessionId, {});
-			this.updateGlobalStorage();
+			if (createMetadataFileIfNotFound) {
+				await this.updateSessionMetadata(sessionId, { origin: 'other' });
+				this.updateGlobalStorage();
+			}
 			return undefined;
 		}
 	}

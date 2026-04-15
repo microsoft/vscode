@@ -3,19 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Dimension, getWindowById, isHTMLElement } from '../../../../base/browser/dom.js';
+import { Dimension, getWindowById } from '../../../../base/browser/dom.js';
 import { IMouseWheelEvent } from '../../../../base/browser/mouseEvent.js';
+import { OverlayLayoutElement } from '../../../../base/browser/overlayLayoutElement.js';
 import { CodeWindow } from '../../../../base/browser/window.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
-import { Lazy } from '../../../../base/common/lazy.js';
 import { autorun, observableValue } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IContextKey, IContextKeyService, IScopedContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../platform/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../services/layout/browser/layoutService.js';
-import { IEditorGroupsService } from '../../../services/editor/common/editorGroupsService.js';
 import { IOverlayWebview, IWebview, IWebviewElement, IWebviewService, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_ENABLED, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE, WebviewContentOptions, WebviewExtensionDescription, WebviewInitInfo, WebviewMessageReceivedEvent, WebviewOptions } from './webview.js';
 
 /**
@@ -25,19 +24,8 @@ import { IOverlayWebview, IWebview, IWebviewElement, IWebviewService, KEYBINDING
  * Absolutely positioning is needed because webviews (iframes) cannot be re-parented without losing their state.
  * This means that webviews are always placed on a top level and then moved over
  * the element they are anchored to so they visually look like they are part of the original layout.
- *
- * Here's the dom structure of the overlay webview elements:
- *
- * ```
- * root
- *     clippingWrapper — Used for clipping the webview. Needed for cases where the webview is in a container that can be scrolled.
- *         container - Element laid out over the anchor element. Also holds the find widget.
- *             webview - The actual webview element. This is created and destroyed as needed.
- * ```
  */
 export class OverlayWebview extends Disposable implements IOverlayWebview {
-
-	private static readonly _supportsAnchorPositioning = new Lazy(() => CSS.supports('(top: anchor(top))'));
 
 	private _isFirstLoad = true;
 	private readonly _firstLoadPendingMessages = new Set<{ readonly message: unknown; readonly transfer?: readonly ArrayBuffer[]; readonly resolve: (value: boolean) => void }>();
@@ -67,18 +55,13 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 
 	public origin: string;
 
-	private _container: HTMLDivElement | undefined;
-	private _clippingWrapper: HTMLDivElement | undefined;
-
-	private _clippingAnchor: { readonly element: HTMLElement; readonly name: string } | undefined;
-	private _anchor: { readonly element: HTMLElement; readonly name: string } | undefined;
+	private _overlayLayout: OverlayLayoutElement | undefined;
 
 	public constructor(
 		initInfo: WebviewInitInfo,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@IWebviewService private readonly _webviewService: IWebviewService,
 		@IContextKeyService private readonly _baseContextKeyService: IContextKeyService,
-		@IEditorGroupsService private readonly _editorGroupsService: IEditorGroupsService,
 	) {
 		super();
 
@@ -103,10 +86,8 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	override dispose() {
 		this._isDisposed = true;
 
-		this._clippingWrapper?.remove();
-		this._clippingWrapper = undefined;
-		this._container?.remove();
-		this._container = undefined;
+		this._overlayLayout?.dispose();
+		this._overlayLayout = undefined;
 
 		for (const msg of this._firstLoadPendingMessages) {
 			msg.resolve(false);
@@ -123,43 +104,18 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 			throw new Error(`OverlayWebview has been disposed`);
 		}
 
-		if (!this._container) {
-			const node = document.createElement('div');
-			node.style.position = 'absolute';
-			node.style.overflow = 'hidden';
-			node.style.visibility = 'hidden';
-			this._container = node;
+		if (!this._overlayLayout) {
+			this._overlayLayout = new OverlayLayoutElement();
+			this._overlayLayout.content.style.visibility = 'hidden';
 
-			// Webviews cannot be reparented in the dom as it will destroy their contents.
-			// Mount them to a high level node to avoid this depending on the active container.
-			const modalEditorContainer = this._editorGroupsService.activeModalEditorPart?.modalElement;
-			let root: HTMLElement;
-			if (isHTMLElement(modalEditorContainer)) {
-				root = modalEditorContainer;
-			} else {
-				root = this._layoutService.getContainer(this.window);
-			}
-
-			if (OverlayWebview._supportsAnchorPositioning.value) {
-				node.style.position = 'fixed';
-				node.style.top = 'anchor(top)';
-				node.style.left = 'anchor(left)';
-				node.style.width = 'anchor-size(width)';
-				node.style.height = 'anchor-size(height)';
-				node.style.pointerEvents = 'auto';
-
-				this._clippingWrapper = document.createElement('div');
-				this._clippingWrapper.style.position = 'absolute';
-				this._clippingWrapper.style.clipPath = 'content-box';
-				this._clippingWrapper.style.pointerEvents = 'none';
-				root.appendChild(this._clippingWrapper);
-				this._clippingWrapper.appendChild(node);
-			} else {
-				root.appendChild(node);
-			}
+			// // Webviews cannot be reparented in the dom as it will destroy their contents.
+			// // Mount them to a high level node to avoid this depending on the active container.
+			const root = this._layoutService.getContainer(this.window);
+			root.appendChild(this._overlayLayout.root);
+			this._overlayLayout.root.style.zIndex = '2541'; // One level above the modals
 		}
 
-		return this._container;
+		return this._overlayLayout.content;
 	}
 
 	public claim(owner: unknown, targetWindow: CodeWindow, scopedContextKeyService: IContextKeyService | undefined) {
@@ -175,10 +131,8 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 			// since we are moving to a new window, we need to dispose the webview and recreate
 			this._webview.clear();
 			this._webviewEvents.clear();
-			this._clippingWrapper?.remove();
-			this._clippingWrapper = undefined;
-			this._container?.remove();
-			this._container = undefined;
+			this._overlayLayout?.dispose();
+			this._overlayLayout = undefined;
 		}
 
 		this._owner = owner;
@@ -214,8 +168,8 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 		this._scopedContextKeyService.clear();
 
 		this._owner = undefined;
-		if (this._container) {
-			this._container.style.visibility = 'hidden';
+		if (this._overlayLayout) {
+			this._overlayLayout.content.style.visibility = 'hidden';
 		}
 
 		if (this._options.retainContextWhenHidden) {
@@ -230,62 +184,11 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	}
 
 	public layoutWebviewOverElement(anchorElement: HTMLElement, dimension?: Dimension, clippingContainer?: HTMLElement) {
-		if (!this._container || !this._container.parentElement) {
+		if (!this._overlayLayout || !this._overlayLayout.content.parentElement) {
 			return;
 		}
 
-		if (OverlayWebview._supportsAnchorPositioning.value) {
-			// Use CSS anchor positioning when available to let the browser
-			// automatically track position and size changes between explicit layout calls.
-
-			if (this._anchor?.element !== anchorElement) {
-				const name = getOrCreateAnchorName(anchorElement);
-				this._container.style.setProperty('position-anchor', name);
-				this._anchor = { element: anchorElement, name };
-			}
-
-			if (this._clippingAnchor?.element !== clippingContainer) {
-				this._updateWrapperClipping(clippingContainer);
-			}
-		} else {
-			// Legacy positioning
-			const frameRect = anchorElement.getBoundingClientRect();
-			const containerRect = this._container.parentElement.getBoundingClientRect();
-			const parentBorderTop = (containerRect.height - this._container.parentElement.clientHeight) / 2.0;
-			const parentBorderLeft = (containerRect.width - this._container.parentElement.clientWidth) / 2.0;
-
-			this._container.style.top = `${frameRect.top - containerRect.top - parentBorderTop}px`;
-			this._container.style.left = `${frameRect.left - containerRect.left - parentBorderLeft}px`;
-			this._container.style.width = `${dimension ? dimension.width : frameRect.width}px`;
-			this._container.style.height = `${dimension ? dimension.height : frameRect.height}px`;
-
-			if (clippingContainer) {
-				const { top, left, right, bottom } = computeClippingRect(frameRect, clippingContainer);
-				this._container.style.clipPath = `polygon(${left}px ${top}px, ${right}px ${top}px, ${right}px ${bottom}px, ${left}px ${bottom}px)`;
-			}
-		}
-	}
-
-	private _updateWrapperClipping(clippingContainer: HTMLElement | undefined) {
-		if (!this._clippingWrapper) {
-			return;
-		}
-
-		const ws = this._clippingWrapper.style;
-		if (clippingContainer) {
-			const name = getOrCreateAnchorName(clippingContainer);
-			ws.setProperty('position-anchor', name);
-			ws.setProperty('top', 'anchor(top)');
-			ws.setProperty('left', 'anchor(left)');
-			ws.setProperty('width', 'anchor-size(width)');
-			ws.setProperty('height', 'anchor-size(height)');
-			this._clippingAnchor = { element: clippingContainer, name };
-		} else {
-			ws.setProperty('top', '0');
-			ws.setProperty('left', '0');
-			ws.setProperty('right', '0');
-			ws.setProperty('bottom', '0');
-		}
+		this._overlayLayout?.layoutOverAnchorElement(anchorElement, { clippingContainer, fallbackDimension: dimension });
 	}
 
 	private _show(targetWindow: CodeWindow) {
@@ -360,8 +263,8 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 			this._shouldShowFindWidgetOnRestore = false;
 		}
 
-		if (this._container) {
-			this._container.style.visibility = 'visible';
+		if (this._overlayLayout) {
+			this._overlayLayout.content.style.visibility = 'visible';
 		}
 	}
 
@@ -490,25 +393,4 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 	setContextKeyService(contextKeyService: IContextKeyService) {
 		this._webview.value?.setContextKeyService(contextKeyService);
 	}
-}
-
-function getOrCreateAnchorName(element: HTMLElement): string {
-	const existing = element.style.getPropertyValue('anchor-name');
-	if (existing) {
-		return existing;
-	}
-	const name = `--overlay-webview-anchor-${generateUuid()}`;
-	element.style.setProperty('anchor-name', name);
-	return name;
-}
-
-function computeClippingRect(frameRect: DOMRectReadOnly, clipper: HTMLElement) {
-	const rootRect = clipper.getBoundingClientRect();
-
-	const top = Math.max(rootRect.top - frameRect.top, 0);
-	const right = Math.max(frameRect.width - (frameRect.right - rootRect.right), 0);
-	const bottom = Math.max(frameRect.height - (frameRect.bottom - rootRect.bottom), 0);
-	const left = Math.max(rootRect.left - frameRect.left, 0);
-
-	return { top, right, bottom, left };
 }
