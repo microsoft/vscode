@@ -63,7 +63,8 @@ export class MoveOperations {
 	*/
 	public static moveLeft(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean, noOfColumns: number): SingleCursorState {
 		let lineNumber: number,
-			column: number;
+			column: number,
+			leftoverVisibleColumns: number = 0;
 
 		if (cursor.hasSelection() && !inSelectionMode) {
 			// If the user has a selection and does not want to extend it,
@@ -71,19 +72,26 @@ export class MoveOperations {
 			lineNumber = cursor.selection.startLineNumber;
 			column = cursor.selection.startColumn;
 		} else {
-			// This has no effect if noOfColumns === 1.
-			// It is ok to do so in the half-line scenario.
-			const pos = cursor.position.delta(undefined, -(noOfColumns - 1));
-			// We clip the position before normalization, as normalization is not defined
-			// for possibly negative columns.
-			const normalizedPos = model.normalizePosition(MoveOperations.clipPositionColumn(pos, model), PositionAffinity.Left);
-			const p = MoveOperations.left(config, model, normalizedPos);
+			if (config.virtualSpace && cursor.leftoverVisibleColumns > 0) {
+				lineNumber = cursor.position.lineNumber;
+				column = cursor.position.column;
+				leftoverVisibleColumns = Math.max(0, cursor.leftoverVisibleColumns - noOfColumns);
+			} else {
+				// This has no effect if noOfColumns === 1.
+				// It is ok to do so in the half-line scenario.
+				const pos = cursor.position.delta(undefined, -(noOfColumns - 1));
+				// We clip the position before normalization, as normalization is not defined
+				// for possibly negative columns.
+				const normalizedPos = model.normalizePosition(MoveOperations.clipPositionColumn(pos, model), PositionAffinity.Left);
+				const p = MoveOperations.left(config, model, normalizedPos);
 
-			lineNumber = p.lineNumber;
-			column = p.column;
+				lineNumber = p.lineNumber;
+				column = p.column;
+				leftoverVisibleColumns = 0;
+			}
 		}
 
-		return cursor.move(inSelectionMode, lineNumber, column, 0);
+		return cursor.move(inSelectionMode, lineNumber, column, leftoverVisibleColumns);
 	}
 
 	/**
@@ -137,21 +145,29 @@ export class MoveOperations {
 
 	public static moveRight(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean, noOfColumns: number): SingleCursorState {
 		let lineNumber: number,
-			column: number;
+			column: number,
+			leftoverVisibleColumns: number = 0;
 
 		if (cursor.hasSelection() && !inSelectionMode) {
 			// If we are in selection mode, move right without selection cancels selection and puts cursor at the end of the selection
 			lineNumber = cursor.selection.endLineNumber;
 			column = cursor.selection.endColumn;
 		} else {
-			const pos = cursor.position.delta(undefined, noOfColumns - 1);
-			const normalizedPos = model.normalizePosition(MoveOperations.clipPositionColumn(pos, model), PositionAffinity.Right);
-			const r = MoveOperations.right(config, model, normalizedPos);
-			lineNumber = r.lineNumber;
-			column = r.column;
+			if (config.virtualSpace && cursor.position.column >= model.getLineMaxColumn(cursor.position.lineNumber)) {
+				lineNumber = cursor.position.lineNumber;
+				column = model.getLineMaxColumn(cursor.position.lineNumber);
+				leftoverVisibleColumns = cursor.leftoverVisibleColumns + noOfColumns;
+			} else {
+				const pos = cursor.position.delta(undefined, noOfColumns - 1);
+				const normalizedPos = model.normalizePosition(MoveOperations.clipPositionColumn(pos, model), PositionAffinity.Right);
+				const r = MoveOperations.right(config, model, normalizedPos);
+				lineNumber = r.lineNumber;
+				column = r.column;
+				leftoverVisibleColumns = 0;
+			}
 		}
 
-		return cursor.move(inSelectionMode, lineNumber, column, 0);
+		return cursor.move(inSelectionMode, lineNumber, column, leftoverVisibleColumns);
 	}
 
 	public static vertical(config: CursorConfiguration, model: ICursorSimpleModel, lineNumber: number, column: number, leftoverVisibleColumns: number, newLineNumber: number, allowMoveOnEdgeLine: boolean, normalizationAffinity?: PositionAffinity): CursorPosition {

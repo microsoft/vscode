@@ -53,6 +53,7 @@ export class ViewCursor {
 	private _isVisible: boolean;
 
 	private _position: Position;
+	private _leftoverVisibleColumns: number;
 	private _pluralityClass: string;
 
 	private _lastRenderedContent: string;
@@ -80,6 +81,7 @@ export class ViewCursor {
 		this._domNode.setDisplay('none');
 
 		this._position = new Position(1, 1);
+		this._leftoverVisibleColumns = 0;
 		this._pluralityClass = '';
 		this.setPlurality(plurality);
 
@@ -139,13 +141,14 @@ export class ViewCursor {
 		return true;
 	}
 
-	public onCursorPositionChanged(position: Position, pauseAnimation: boolean): boolean {
+	public onCursorPositionChanged(position: Position, leftoverVisibleColumns: number, pauseAnimation: boolean): boolean {
 		if (pauseAnimation) {
 			this._domNode.domNode.style.transitionProperty = 'none';
 		} else {
 			this._domNode.domNode.style.transitionProperty = '';
 		}
 		this._position = position;
+		this._leftoverVisibleColumns = leftoverVisibleColumns;
 		return true;
 	}
 
@@ -192,6 +195,9 @@ export class ViewCursor {
 			}
 
 			let left = visibleRange.left;
+			if (this._leftoverVisibleColumns > 0 && this._leftoverVisibleColumns < 1000000 && this._context.configuration.options.get(EditorOption.virtualSpace)) {
+				left += this._leftoverVisibleColumns * this._typicalHalfwidthCharacterWidth;
+			}
 			let paddingLeft = 0;
 			if (width >= 2 && left >= 1) {
 				// shift the cursor a bit between the characters
@@ -238,7 +244,12 @@ export class ViewCursor {
 			height = 2;
 		}
 
-		return new ViewCursorRenderData(top, range.left, 0, width, height, textContent, textContentClassName);
+		let left = range.left;
+		if (this._leftoverVisibleColumns > 0 && this._leftoverVisibleColumns < 1000000 && this._context.configuration.options.get(EditorOption.virtualSpace)) {
+			left += this._leftoverVisibleColumns * this._typicalHalfwidthCharacterWidth;
+		}
+
+		return new ViewCursorRenderData(top, left, 0, width, height, textContent, textContentClassName);
 	}
 
 	private _getTokenClassName(position: Position): string {
