@@ -314,7 +314,7 @@ export class SearchView extends ViewPane {
 
 		this._refreshResultsScheduler = this._register(new RunOnceScheduler(this._updateResults.bind(this), 80));
 
-		// storage service listener for for roaming changes
+		// storage service listener for roaming changes
 		this._register(this.storageService.onWillSaveState(() => {
 			this._saveSearchHistoryService();
 		}));
