@@ -433,7 +433,7 @@ class CellInfoContentProvider {
 
 	static readonly ID = 'workbench.contrib.cellInfoContentProvider';
 
-	private readonly _disposables: IDisposable[] = [];
+	private readonly _disposables = this._register(new DisposableStore());
 
 	constructor(
 		@ITextModelService textModelService: ITextModelService,
@@ -442,15 +442,15 @@ class CellInfoContentProvider {
 		@ILabelService private readonly _labelService: ILabelService,
 		@INotebookEditorModelResolverService private readonly _notebookModelResolverService: INotebookEditorModelResolverService,
 	) {
-		this._disposables.push(textModelService.registerTextModelContentProvider(Schemas.vscodeNotebookCellMetadata, {
+		this._disposables.add(textModelService.registerTextModelContentProvider(Schemas.vscodeNotebookCellMetadata, {
 			provideTextContent: this.provideMetadataTextContent.bind(this)
 		}));
 
-		this._disposables.push(textModelService.registerTextModelContentProvider(Schemas.vscodeNotebookCellOutput, {
+		this._disposables.add(textModelService.registerTextModelContentProvider(Schemas.vscodeNotebookCellOutput, {
 			provideTextContent: this.provideOutputTextContent.bind(this)
 		}));
 
-		this._disposables.push(this._labelService.registerFormatter({
+		this._disposables.add(this._labelService.registerFormatter({
 			scheme: Schemas.vscodeNotebookCellMetadata,
 			formatting: {
 				label: '${path} (metadata)',
@@ -458,17 +458,13 @@ class CellInfoContentProvider {
 			}
 		}));
 
-		this._disposables.push(this._labelService.registerFormatter({
+		this._disposables.add(this._labelService.registerFormatter({
 			scheme: Schemas.vscodeNotebookCellOutput,
 			formatting: {
 				label: '${path} (output)',
 				separator: '/'
 			}
 		}));
-	}
-
-	dispose(): void {
-		dispose(this._disposables);
 	}
 
 	async provideMetadataTextContent(resource: URI): Promise<ITextModel | null> {
@@ -654,7 +650,7 @@ class CellInfoContentProvider {
 class NotebookMetadataContentProvider {
 	static readonly ID = 'workbench.contrib.notebookMetadataContentProvider';
 
-	private readonly _disposables: IDisposable[] = [];
+	private readonly _disposables = this._register(new DisposableStore());
 
 	constructor(
 		@ITextModelService textModelService: ITextModelService,
@@ -663,21 +659,17 @@ class NotebookMetadataContentProvider {
 		@ILabelService private readonly _labelService: ILabelService,
 		@INotebookEditorModelResolverService private readonly _notebookModelResolverService: INotebookEditorModelResolverService,
 	) {
-		this._disposables.push(textModelService.registerTextModelContentProvider(Schemas.vscodeNotebookMetadata, {
+		this._disposables.add(textModelService.registerTextModelContentProvider(Schemas.vscodeNotebookMetadata, {
 			provideTextContent: this.provideMetadataTextContent.bind(this)
 		}));
 
-		this._disposables.push(this._labelService.registerFormatter({
+		this._disposables.add(this._labelService.registerFormatter({
 			scheme: Schemas.vscodeNotebookMetadata,
 			formatting: {
 				label: '${path} (metadata)',
 				separator: '/'
 			}
 		}));
-	}
-
-	dispose(): void {
-		dispose(this._disposables);
 	}
 
 	async provideMetadataTextContent(resource: URI): Promise<ITextModel | null> {

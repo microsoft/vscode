@@ -978,6 +978,15 @@ export abstract class BaseExtHostTerminalService extends Disposable implements I
 			processDiposable.dispose();
 			delete this._terminalProcessDisposables[id];
 		}
+
+		// Clean up terminal link cache and cancellation sources
+		this._terminalLinkCache.delete(id);
+		const cancellationSource = this._terminalLinkCancellationSource.get(id);
+		if (cancellationSource) {
+			cancellationSource.dispose(true);
+			this._terminalLinkCancellationSource.delete(id);
+		}
+
 		// Send exit event to main side
 		this._proxy.$sendProcessExit(id, exitCode);
 	}
