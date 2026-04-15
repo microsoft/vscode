@@ -265,10 +265,13 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 
 	private container: HTMLElement | undefined;
 	private iconElement: HTMLElement | undefined;
+	private avatarElement: HTMLImageElement | undefined;
 	private labelElement: HTMLElement | undefined;
 	private badgeElement: HTMLElement | undefined;
 	private accountName: string | undefined;
 	private accountProviderLabel: string | undefined;
+	private accountProviderId: string | undefined;
+	private avatarLoaded = false;
 	private isAccountLoading = true;
 	private accountRequestCounter = 0;
 	private lastState: ReturnType<typeof getAccountTitleBarState>;
@@ -311,8 +314,23 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 		container.classList.add('sessions-account-titlebar-widget');
 
 		this.iconElement = append(container, $('.sessions-account-titlebar-widget-icon'));
+		this.avatarElement = append(container, $('img.sessions-account-titlebar-widget-avatar')) as HTMLImageElement;
+		this.avatarElement.style.display = 'none';
+		this._register(addDisposableListener(this.avatarElement, EventType.LOAD, () => {
+			this.avatarLoaded = true;
+			this.renderState();
+		}));
+		this._register(addDisposableListener(this.avatarElement, EventType.ERROR, () => {
+			this.avatarLoaded = false;
+			this.renderState();
+		}));
 		this.labelElement = append(container, $('span.sessions-account-titlebar-widget-label'));
 		this.badgeElement = append(container, $('span.sessions-account-titlebar-widget-badge'));
+
+		// If account data was resolved before render(), set the avatar src now
+		if (this.accountName && this.accountProviderId === 'github') {
+			this.avatarElement.src = `https://github.com/${encodeURIComponent(this.accountName)}.png?size=64`;
+		}
 
 		this.renderState();
 	}
@@ -337,6 +355,15 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 
 		this.accountName = account?.accountName;
 		this.accountProviderLabel = account?.authenticationProvider.name;
+		this.accountProviderId = account?.authenticationProvider.id;
+		this.avatarLoaded = false;
+
+		if (this.avatarElement && this.accountName && this.accountProviderId === 'github') {
+			this.avatarElement.src = `https://github.com/${encodeURIComponent(this.accountName)}.png?size=64`;
+		} else if (this.avatarElement) {
+			this.avatarElement.removeAttribute('src');
+		}
+
 		this.isAccountLoading = false;
 		this.renderState();
 	}
@@ -369,8 +396,13 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 
 		const shouldShowDotBadge = !!badgeKey && badgeKey !== this.dismissedBadgeKey;
 		const titleBarIcon = state.dotBadge ? Codicon.account : state.icon;
+		const showAvatar = this.avatarLoaded && state.source === 'account' && state.kind === 'default';
 
 		this.iconElement.className = `sessions-account-titlebar-widget-icon ${ThemeIcon.asClassName(titleBarIcon)}`;
+		this.iconElement.style.display = showAvatar ? 'none' : '';
+		if (this.avatarElement) {
+			this.avatarElement.style.display = showAvatar ? '' : 'none';
+		}
 		this.labelElement.textContent = '';
 		this.badgeElement.textContent = '';
 		this.badgeElement.classList.toggle('dot-badge', shouldShowDotBadge);
