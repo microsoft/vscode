@@ -149,6 +149,10 @@ jobs:
         shell: pwsh
         run: npm run gulp vscode-win32-x64
 
+      - name: Prepare Windows x64 Inno Updater
+        shell: pwsh
+        run: npm run gulp vscode-win32-x64-inno-updater
+
       - name: Build Windows x64 User Setup
         shell: pwsh
         run: npm run gulp vscode-win32-x64-user-setup
@@ -268,6 +272,10 @@ jobs:
       - name: Build Windows arm64 Application
         shell: pwsh
         run: npm run gulp vscode-win32-arm64
+
+      - name: Prepare Windows arm64 Inno Updater
+        shell: pwsh
+        run: npm run gulp vscode-win32-arm64-inno-updater
 
       - name: Build Windows arm64 User Setup
         shell: pwsh
