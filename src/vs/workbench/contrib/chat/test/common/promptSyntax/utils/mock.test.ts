@@ -35,33 +35,33 @@ suite('mockService', () => {
 			assert.strictEqual(
 				mock.bar,
 				'oh hi!',
-				'bar should be overriden',
+				'bar should be overridden',
 			);
 
 			assert.strictEqual(
 				mock.baz,
 				42,
-				'baz should be overriden',
+				'baz should be overridden',
 			);
 
 			assert(
 				!(mock.anotherMethod(490274)),
-				'Must execute overriden method correctly 1.',
+				'Must execute overridden method correctly 1.',
 			);
 
 			assert(
 				mock.anotherMethod(NaN),
-				'Must execute overriden method correctly 2.',
+				'Must execute overridden method correctly 2.',
 			);
 
 			assert.throws(() => {
-				// property is not overriden so must throw
+				// property is not overridden so must throw
 				// eslint-disable-next-line local/code-no-unused-expressions
 				mock.foo;
 			});
 
 			assert.throws(() => {
-				// function is not overriden so must throw
+				// function is not overridden so must throw
 				mock.someMethod(randomBoolean());
 			});
 		});
