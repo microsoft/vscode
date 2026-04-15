@@ -12,5 +12,283 @@
 			"#endregion"
 		],
 		"description": "Folding Region End"
+	},
+	"Namespace": {
+		"prefix": "namespace",
+		"body": [
+			"namespace ${1:MyNamespace}",
+			"{",
+			"\t$0",
+			"}"
+		],
+		"description": "Namespace declaration"
+	},
+	"Class": {
+		"prefix": "class",
+		"body": [
+			"public class ${1:ClassName}",
+			"{",
+			"\t$0",
+			"}"
+		],
+		"description": "Public class declaration"
+	},
+	"Interface": {
+		"prefix": "interface",
+		"body": [
+			"public interface ${1:IInterfaceName}",
+			"{",
+			"\t$0",
+			"}"
+		],
+		"description": "Interface declaration"
+	},
+	"Enum": {
+		"prefix": "enum",
+		"body": [
+			"public enum ${1:EnumName}",
+			"{",
+			"\t${2:Value1},",
+			"\t${3:Value2}",
+			"}"
+		],
+		"description": "Enum declaration"
+	},
+	"Constructor": {
+		"prefix": "ctor",
+		"body": [
+			"public ${1:ClassName}(${2:params})",
+			"{",
+			"\t$0",
+			"}"
+		],
+		"description": "Constructor"
+	},
+	"Property": {
+		"prefix": "prop",
+		"body": [
+			"public ${1:string} ${2:PropertyName} { get; set; }"
+		],
+		"description": "Auto-implemented property"
+	},
+	"Property with backing field": {
+		"prefix": "propfull",
+		"body": [
+			"private ${1:string} _${2:fieldName};",
+			"public ${1:string} ${3:PropertyName}",
+			"{",
+			"\tget => _${2:fieldName};",
+			"\tset => _${2:fieldName} = value;",
+			"}"
+		],
+		"description": "Property with backing field"
+	},
+	"Method": {
+		"prefix": "method",
+		"body": [
+			"public ${1:void} ${2:MethodName}(${3:params})",
+			"{",
+			"\t$0",
+			"}"
+		],
+		"description": "Public method"
+	},
+	"Console.WriteLine": {
+		"prefix": "cw",
+		"body": [
+			"Console.WriteLine(${1:\"Hello, World!\"});"
+		],
+		"description": "Console.WriteLine"
+	},
+	"Console.Write": {
+		"prefix": "cwf",
+		"body": [
+			"Console.Write($\"${1:{expression}}\");"
+		],
+		"description": "Console.Write with string interpolation"
+	},
+	"For Loop": {
+		"prefix": "for",
+		"body": [
+			"for (int ${1:i} = 0; ${1:i} < ${2:count}; ${1:i}++)",
+			"{",
+			"\t$0",
+			"}"
+		],
+		"description": "For loop"
+	},
+	"Foreach Loop": {
+		"prefix": "foreach",
+		"body": [
+			"foreach (${1:var} ${2:item} in ${3:collection})",
+			"{",
+			"\t$0",
+			"}"
+		],
+		"description": "Foreach loop"
+	},
+	"While Loop": {
+		"prefix": "while",
+		"body": [
+			"while (${1:condition})",
+			"{",
+			"\t$0",
+			"}"
+		],
+		"description": "While loop"
+	},
+	"If Statement": {
+		"prefix": "if",
+		"body": [
+			"if (${1:condition})",
+			"{",
+			"\t$0",
+			"}"
+		],
+		"description": "If statement"
+	},
+	"If-Else Statement": {
+		"prefix": "ifelse",
+		"body": [
+			"if (${1:condition})",
+			"{",
+			"\t$2",
+			"}",
+			"else",
+			"{",
+			"\t$0",
+			"}"
+		],
+		"description": "If-else statement"
+	},
+	"Switch Statement": {
+		"prefix": "switch",
+		"body": [
+			"switch (${1:variable})",
+			"{",
+			"\tcase ${2:value}:",
+			"\t\t$3",
+			"\t\tbreak;",
+			"\tdefault:",
+			"\t\t$0",
+			"\t\tbreak;",
+			"}"
+		],
+		"description": "Switch statement"
+	},
+	"Try-Catch": {
+		"prefix": "trycatch",
+		"body": [
+			"try",
+			"{",
+			"\t$1",
+			"}",
+			"catch (${2:Exception} ${3:ex})",
+			"{",
+			"\t${4:Console.WriteLine(ex.Message);}",
+			"}"
+		],
+		"description": "Try-catch block"
+	},
+	"Try-Catch-Finally": {
+		"prefix": "trycatchf",
+		"body": [
+			"try",
+			"{",
+			"\t$1",
+			"}",
+			"catch (${2:Exception} ${3:ex})",
+			"{",
+			"\t${4:Console.WriteLine(ex.Message);}",
+			"}",
+			"finally",
+			"{",
+			"\t$0",
+			"}"
+		],
+		"description": "Try-catch-finally block"
+	},
+	"Using Statement": {
+		"prefix": "using",
+		"body": [
+			"using (${1:var} ${2:resource} = ${3:new Resource()})",
+			"{",
+			"\t$0",
+			"}"
+		],
+		"description": "Using statement for IDisposable"
+	},
+	"LINQ Query": {
+		"prefix": "linq",
+		"body": [
+			"var ${1:result} = ${2:collection}",
+			"\t.Where(${3:x} => ${4:condition})",
+			"\t.Select(${3:x} => ${5:x})",
+			"\t.ToList();"
+		],
+		"description": "LINQ Where/Select/ToList"
+	},
+	"Lambda Expression": {
+		"prefix": "lambda",
+		"body": [
+			"(${1:params}) => ${2:expression}"
+		],
+		"description": "Lambda expression"
+	},
+	"Async Method": {
+		"prefix": "asyncm",
+		"body": [
+			"public async Task${1:<${2:TResult}>} ${3:MethodNameAsync}(${4:params})",
+			"{",
+			"\t$0",
+			"}"
+		],
+		"description": "Async method returning Task"
+	},
+	"Null-coalescing": {
+		"prefix": "nc",
+		"body": [
+			"${1:value} ?? ${2:defaultValue}"
+		],
+		"description": "Null-coalescing operator"
+	},
+	"String Interpolation": {
+		"prefix": "si",
+		"body": [
+			"$\"${1:{expression}}\""
+		],
+		"description": "String interpolation"
+	},
+	"List Initialization": {
+		"prefix": "list",
+		"body": [
+			"var ${1:list} = new List<${2:string}> { ${3} };"
+		],
+		"description": "List<T> initialization"
+	},
+	"Dictionary Initialization": {
+		"prefix": "dict",
+		"body": [
+			"var ${1:dict} = new Dictionary<${2:string}, ${3:object}>();"
+		],
+		"description": "Dictionary<K,V> initialization"
+	},
+	"Record": {
+		"prefix": "record",
+		"body": [
+			"public record ${1:RecordName}(${2:string} ${3:Property});"
+		],
+		"description": "C# record type declaration"
+	},
+	"Pattern Matching": {
+		"prefix": "switch-expr",
+		"body": [
+			"${1:result} = ${2:value} switch",
+			"{",
+			"\t${3:pattern} => ${4:expression},",
+			"\t_ => ${5:defaultExpression}",
+			"};"
+		],
+		"description": "Switch expression (pattern matching)"
 	}
 }
