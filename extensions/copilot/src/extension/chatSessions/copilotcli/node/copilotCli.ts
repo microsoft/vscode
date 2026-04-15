@@ -8,21 +8,22 @@ import * as l10n from '@vscode/l10n';
 import { promises as fs } from 'fs';
 import * as path from 'path';
 import type * as vscode from 'vscode';
+import { CancellationToken } from 'vscode-languageserver-protocol';
 import { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { IEnvService } from '../../../../platform/env/common/envService';
 import { IVSCodeExtensionContext } from '../../../../platform/extContext/common/extensionContext';
 import { ILogService } from '../../../../platform/log/common/logService';
-import { type ParsedPromptFile } from '../../../../platform/promptFiles/common/promptsService';
+import { IPromptsService } from '../../../../platform/promptFiles/common/promptsService';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { createServiceIdentifier } from '../../../../util/common/services';
 import { Emitter, Event } from '../../../../util/vs/base/common/event';
 import { Lazy } from '../../../../util/vs/base/common/lazy';
 import { Disposable } from '../../../../util/vs/base/common/lifecycle';
-import { basename } from '../../../../util/vs/base/common/resources';
+import { basename, isEqual } from '../../../../util/vs/base/common/resources';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
-import { IChatPromptFileService } from '../../common/chatPromptFileService';
+import { IChatCustomAgentsService } from '../../common/chatCustomAgentsService';
 import { getCopilotLogger } from './logger';
 import { ensureNodePtyShim } from './nodePtyShim';
 import { ensureRipgrepShim } from './ripgrepShim';
@@ -245,15 +246,16 @@ export class CopilotCLIAgents extends Disposable implements ICopilotCLIAgents {
 	private readonly _onDidChangeAgents = this._register(new Emitter<void>());
 	readonly onDidChangeAgents: Event<void> = this._onDidChangeAgents.event;
 	constructor(
-		@IChatPromptFileService private readonly chatPromptFileService: IChatPromptFileService,
 		@ICopilotCLISDK private readonly copilotCLISDK: ICopilotCLISDK,
 		@IVSCodeExtensionContext private readonly extensionContext: IVSCodeExtensionContext,
 		@ILogService private readonly logService: ILogService,
 		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
+		@IChatCustomAgentsService private readonly chatCustomAgentsService: IChatCustomAgentsService,
+		@IPromptsService private readonly promptsService: IPromptsService,
 	) {
 		super();
 		void this.getAgents();
-		this._register(this.chatPromptFileService.onDidChangeCustomAgents(() => {
+		this._register(this.chatCustomAgentsService.onDidChangeCustomAgents(() => {
 			this._refreshAgents();
 		}));
 		this._register(this.workspaceService.onDidChangeWorkspaceFolders(() => {
@@ -302,15 +304,42 @@ export class CopilotCLIAgents extends Disposable implements ICopilotCLIAgents {
 	}
 
 	async resolveAgent(agentId: string): Promise<SweCustomAgent | undefined> {
-		for (const promptFile of this.chatPromptFileService.customAgentPromptFiles) {
-			if (agentId === promptFile.uri.toString()) {
-				return this.toCustomAgent(promptFile)?.agent;
+		const customAgents = await this.getAgents();
+		let agentIdUri: URI | undefined;
+		try {
+			agentIdUri = URI.parse(agentId);
+		} catch {
+			// Not a URI, continue with string matching.
+		}
+		agentId = agentId.toLowerCase();
+		if (agentIdUri) {
+			const match = customAgents.find(a => isEqual(a.sourceUri, agentIdUri));
+			if (match) {
+				return this.cloneAgent(match.agent);
+			}
+			const customMatch = this.chatCustomAgentsService.getCustomAgents().find(customAgent => isEqual(customAgent.uri, agentIdUri));
+			if (customMatch) {
+				return this.toCustomAgent(customMatch)?.agent;
 			}
 		}
-		const customAgents = await this.getAgents();
-		agentId = agentId.toLowerCase();
-		const match = customAgents.find(a => a.agent.name.toLowerCase() === agentId || a.agent.displayName?.toLowerCase() === agentId);
-		return match ? this.cloneAgent(match.agent) : undefined;
+
+		const match = customAgents.find(a => {
+			if (a.agent.name.toLowerCase() === agentId || a.agent.displayName?.toLowerCase() === agentId) {
+				return true;
+			}
+			return false;
+		});
+		if (match) {
+			return this.cloneAgent(match.agent);
+		}
+
+		for (const customAgent of this.chatCustomAgentsService.getCustomAgents()) {
+			if (agentId === customAgent.name) {
+				return this.toCustomAgent(customAgent)?.agent;
+			}
+		}
+
+		return undefined;
 	}
 
 	async getAgents(): Promise<readonly CLIAgentInfo[]> {
@@ -328,23 +357,17 @@ export class CopilotCLIAgents extends Disposable implements ICopilotCLIAgents {
 
 	async getAgentsImpl(): Promise<readonly CLIAgentInfo[]> {
 		const merged = new Map<string, CLIAgentInfo>();
+
+		this.chatCustomAgentsService.getCustomAgents().forEach(customAgent => {
+			const info = this.toCustomAgent(customAgent);
+			merged.set(info.agent.name.toLowerCase(), info);
+		});
+
 		for (const agent of await this.getSDKAgents()) {
 			merged.set(agent.name.toLowerCase(), {
 				agent: this.cloneAgent(agent),
 				sourceUri: URI.from({ scheme: 'copilotcli', path: `/agents/${agent.name}` }),
 			});
-		}
-		for (const promptFile of this.chatPromptFileService.customAgentPromptFiles) {
-			// Skip legacy .chatmode.md files — they are a deprecated format
-			// and should not appear in the Copilot CLI agent list.
-			if (promptFile.uri.path.toLowerCase().endsWith('.chatmode.md')) {
-				continue;
-			}
-			const info = this.toCustomAgent(promptFile);
-			if (!info) {
-				continue;
-			}
-			merged.set(info.agent.name.toLowerCase(), info);
 		}
 
 		return [...merged.values()];
@@ -362,28 +385,21 @@ export class CopilotCLIAgents extends Disposable implements ICopilotCLIAgents {
 		return agents.map(agent => this.cloneAgent(agent));
 	}
 
-	private toCustomAgent(promptFile: ParsedPromptFile): CLIAgentInfo | undefined {
-		const agentName = getAgentFileNameFromFilePath(promptFile.uri);
-		const headerName = promptFile.header?.name?.trim();
-		const name = headerName === undefined || headerName === '' ? agentName : headerName;
-		if (!name) {
-			return undefined;
-		}
-
-		const tools = promptFile.header?.tools?.filter(tool => !!tool) ?? [];
-		const model = promptFile.header?.model?.[0];
-
+	private toCustomAgent(customAgent: vscode.ChatCustomAgent): CLIAgentInfo {
 		return {
 			agent: {
-				name,
-				displayName: name,
-				description: promptFile.header?.description ?? '',
-				tools: tools.length > 0 ? tools : null,
-				prompt: async () => promptFile.body?.getContent() ?? '',
-				disableModelInvocation: promptFile.header?.disableModelInvocation ?? false,
-				...(model ? { model } : {}),
+				name: customAgent.name,
+				displayName: customAgent.description ?? customAgent.name,
+				description: customAgent.description ?? '',
+				tools: customAgent.tools?.length ? [...customAgent.tools] : null,
+				disableModelInvocation: customAgent.disableModelInvocation,
+				model: customAgent.model?.length ? customAgent.model[0] : undefined,
+				prompt: async () => {
+					const content = await this.promptsService.parseFile(customAgent.uri, CancellationToken.None);
+					return content.body?.getContent() ?? '';
+				}
 			},
-			sourceUri: promptFile.uri,
+			sourceUri: customAgent.uri
 		};
 	}
 
