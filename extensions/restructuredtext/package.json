@@ -31,6 +31,12 @@
 				"scopeName": "source.rst",
 				"path": "./syntaxes/rst.tmLanguage.json"
 			}
+		],
+		"snippets": [
+			{
+				"language": "restructuredtext",
+				"path": "./snippets/restructuredtext.code-snippets"
+			}
 		]
 	},
 	"repository": {

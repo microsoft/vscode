@@ -1,0 +1,169 @@
+{
+	"Pug Doctype HTML5": {
+		"prefix": "doctype",
+		"body": [
+			"doctype html"
+		],
+		"description": "HTML5 doctype"
+	},
+	"Pug HTML Structure": {
+		"prefix": "html",
+		"body": [
+			"html(lang='${1:en}')",
+			"  head",
+			"    meta(charset='UTF-8')",
+			"    meta(name='viewport', content='width=device-width, initial-scale=1.0')",
+			"    title ${2:Document}",
+			"  body",
+			"    $0"
+		],
+		"description": "Basic Pug HTML document structure"
+	},
+	"Pug Tag": {
+		"prefix": "tag",
+		"body": [
+			"${1:div}$0"
+		],
+		"description": "Pug HTML tag"
+	},
+	"Pug Tag with Class": {
+		"prefix": "tagc",
+		"body": [
+			"${1:div}.${2:class-name} $0"
+		],
+		"description": "Pug tag with class"
+	},
+	"Pug Tag with ID": {
+		"prefix": "tagi",
+		"body": [
+			"${1:div}#${2:id-name} $0"
+		],
+		"description": "Pug tag with ID"
+	},
+	"Pug Tag with Attribute": {
+		"prefix": "taga",
+		"body": [
+			"${1:a}(${2:href}='${3:#}') ${4:link text}"
+		],
+		"description": "Pug tag with attribute"
+	},
+	"Pug Comment": {
+		"prefix": "comment",
+		"body": [
+			"// ${1:comment}"
+		],
+		"description": "Pug comment (rendered in HTML)"
+	},
+	"Pug Unbuffered Comment": {
+		"prefix": "commentu",
+		"body": [
+			"//- ${1:comment}"
+		],
+		"description": "Pug unbuffered comment (not rendered)"
+	},
+	"Pug If Statement": {
+		"prefix": "if",
+		"body": [
+			"if ${1:condition}",
+			"  $0"
+		],
+		"description": "Pug if statement"
+	},
+	"Pug If-Else": {
+		"prefix": "ife",
+		"body": [
+			"if ${1:condition}",
+			"  ${2:// true}",
+			"else",
+			"  ${3:// false}"
+		],
+		"description": "Pug if-else statement"
+	},
+	"Pug Each Loop": {
+		"prefix": "each",
+		"body": [
+			"each ${1:item} in ${2:items}",
+			"  $0"
+		],
+		"description": "Pug each loop"
+	},
+	"Pug Each with Index": {
+		"prefix": "eachi",
+		"body": [
+			"each ${1:item}, ${2:index} in ${3:items}",
+			"  $0"
+		],
+		"description": "Pug each loop with index"
+	},
+	"Pug Mixin": {
+		"prefix": "mixin",
+		"body": [
+			"mixin ${1:name}(${2:params})",
+			"  $0"
+		],
+		"description": "Pug mixin definition"
+	},
+	"Pug Mixin Call": {
+		"prefix": "+mixin",
+		"body": [
+			"+${1:name}(${2:args})"
+		],
+		"description": "Pug mixin call"
+	},
+	"Pug Include": {
+		"prefix": "include",
+		"body": [
+			"include ${1:path/to/file}"
+		],
+		"description": "Pug include"
+	},
+	"Pug Extends": {
+		"prefix": "extends",
+		"body": [
+			"extends ${1:layout}",
+			"",
+			"block ${2:content}",
+			"  $0"
+		],
+		"description": "Pug template inheritance"
+	},
+	"Pug Block": {
+		"prefix": "block",
+		"body": [
+			"block ${1:name}",
+			"  $0"
+		],
+		"description": "Pug block definition"
+	},
+	"Pug Script": {
+		"prefix": "script",
+		"body": [
+			"script(src='${1:app.js}')"
+		],
+		"description": "Pug script tag"
+	},
+	"Pug Inline Script": {
+		"prefix": "scripti",
+		"body": [
+			"script.",
+			"  ${1:// JavaScript code}"
+		],
+		"description": "Pug inline script block"
+	},
+	"Pug Link CSS": {
+		"prefix": "css",
+		"body": [
+			"link(rel='stylesheet', href='${1:style.css}')"
+		],
+		"description": "Pug CSS link tag"
+	},
+	"Pug Form": {
+		"prefix": "form",
+		"body": [
+			"form(action='${1:#}', method='${2|get,post|}')",
+			"  input(type='text', name='${3:field}', placeholder='${4:Enter value}')",
+			"  button(type='submit') ${5:Submit}"
+		],
+		"description": "Pug form element"
+	}
+}

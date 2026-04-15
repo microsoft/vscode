@@ -35,6 +35,12 @@
         "path": "./syntaxes/pug.tmLanguage.json"
       }
     ],
+    "snippets": [
+      {
+        "language": "jade",
+        "path": "./snippets/pug.code-snippets"
+      }
+    ],
     "configurationDefaults": {
       "[jade]": {
         "diffEditor.ignoreTrimWhitespace": false

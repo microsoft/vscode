@@ -1,0 +1,198 @@
+{
+	"RST Title": {
+		"prefix": "title",
+		"body": [
+			"${1:Title}",
+			"${1/./=/g}"
+		],
+		"description": "RST document title (overline + underline)"
+	},
+	"RST Heading 1": {
+		"prefix": "h1",
+		"body": [
+			"${1:Heading 1}",
+			"${1/./=/g}"
+		],
+		"description": "RST heading level 1 (= underline)"
+	},
+	"RST Heading 2": {
+		"prefix": "h2",
+		"body": [
+			"${1:Heading 2}",
+			"${1/./\\-/g}"
+		],
+		"description": "RST heading level 2 (- underline)"
+	},
+	"RST Heading 3": {
+		"prefix": "h3",
+		"body": [
+			"${1:Heading 3}",
+			"${1/./~/g}"
+		],
+		"description": "RST heading level 3 (~ underline)"
+	},
+	"RST Bold": {
+		"prefix": "bold",
+		"body": [
+			"**${1:bold text}**"
+		],
+		"description": "RST bold text"
+	},
+	"RST Italic": {
+		"prefix": "italic",
+		"body": [
+			"*${1:italic text}*"
+		],
+		"description": "RST italic text"
+	},
+	"RST Inline Code": {
+		"prefix": "code",
+		"body": [
+			"``${1:code}``"
+		],
+		"description": "RST inline code"
+	},
+	"RST Code Block": {
+		"prefix": "codeblock",
+		"body": [
+			".. code-block:: ${1|python,javascript,typescript,bash,c,cpp,java,ruby,go|}",
+			"",
+			"   $0"
+		],
+		"description": "RST code block directive"
+	},
+	"RST Literal Block": {
+		"prefix": "literal",
+		"body": [
+			"::",
+			"",
+			"   $0"
+		],
+		"description": "RST literal/preformatted block"
+	},
+	"RST Link": {
+		"prefix": "link",
+		"body": [
+			"\`${1:link text} <${2:https://example.com}>\`_"
+		],
+		"description": "RST external hyperlink"
+	},
+	"RST Internal Link": {
+		"prefix": "linkref",
+		"body": [
+			"\`${1:link text}\`_"
+		],
+		"description": "RST internal link reference"
+	},
+	"RST Bullet List": {
+		"prefix": "list",
+		"body": [
+			"* ${1:Item 1}",
+			"* ${2:Item 2}",
+			"* ${3:Item 3}"
+		],
+		"description": "RST bullet list"
+	},
+	"RST Numbered List": {
+		"prefix": "olist",
+		"body": [
+			"#. ${1:Item 1}",
+			"#. ${2:Item 2}",
+			"#. ${3:Item 3}"
+		],
+		"description": "RST auto-numbered list"
+	},
+	"RST Definition List": {
+		"prefix": "deflist",
+		"body": [
+			"${1:term}",
+			"  ${2:definition}"
+		],
+		"description": "RST definition list item"
+	},
+	"RST Note": {
+		"prefix": "note",
+		"body": [
+			".. note::",
+			"",
+			"   $0"
+		],
+		"description": "RST note directive"
+	},
+	"RST Warning": {
+		"prefix": "warning",
+		"body": [
+			".. warning::",
+			"",
+			"   $0"
+		],
+		"description": "RST warning directive"
+	},
+	"RST Tip": {
+		"prefix": "tip",
+		"body": [
+			".. tip::",
+			"",
+			"   $0"
+		],
+		"description": "RST tip directive"
+	},
+	"RST Image": {
+		"prefix": "image",
+		"body": [
+			".. image:: ${1:path/to/image.png}",
+			"   :alt: ${2:image description}",
+			"   :width: ${3:100%}"
+		],
+		"description": "RST image directive"
+	},
+	"RST Figure": {
+		"prefix": "figure",
+		"body": [
+			".. figure:: ${1:path/to/image.png}",
+			"   :alt: ${2:image description}",
+			"",
+			"   ${3:Figure caption}"
+		],
+		"description": "RST figure directive with caption"
+	},
+	"RST Table": {
+		"prefix": "table",
+		"body": [
+			".. list-table:: ${1:Table Title}",
+			"   :header-rows: 1",
+			"",
+			"   * - ${2:Column 1}",
+			"     - ${3:Column 2}",
+			"   * - ${4:Value 1}",
+			"     - ${5:Value 2}"
+		],
+		"description": "RST list-table directive"
+	},
+	"RST TOC Tree": {
+		"prefix": "toctree",
+		"body": [
+			".. toctree::",
+			"   :maxdepth: ${1:2}",
+			"   :caption: ${2:Contents}",
+			"",
+			"   ${3:page1}",
+			"   ${4:page2}"
+		],
+		"description": "RST toctree directive (Sphinx)"
+	},
+	"RST Ref": {
+		"prefix": "ref",
+		"body": [
+			":ref:\`${1:label}\`"
+		],
+		"description": "RST cross-reference (Sphinx)"
+	},
+	"RST Comment": {
+		"prefix": "comment",
+		"body": [
+			".. ${1:comment text}"
+		],
+		"description": "RST comment"
+	}
+}
