@@ -1,0 +1,187 @@
+{
+	"Bash Shebang": {
+		"prefix": "shebang",
+		"isFileTemplate": true,
+		"body": [
+			"#!/usr/bin/env bash",
+			"set -euo pipefail",
+			"",
+			"$0"
+		],
+		"description": "Bash shebang with strict mode"
+	},
+	"If Statement": {
+		"prefix": "if",
+		"body": [
+			"if [[ ${1:condition} ]]; then",
+			"\t$2",
+			"fi"
+		],
+		"description": "Bash if statement"
+	},
+	"If-Else": {
+		"prefix": "ifelse",
+		"body": [
+			"if [[ ${1:condition} ]]; then",
+			"\t$2",
+			"else",
+			"\t$3",
+			"fi"
+		],
+		"description": "Bash if-else statement"
+	},
+	"For Loop": {
+		"prefix": "for",
+		"body": [
+			"for ${1:item} in ${2:list}; do",
+			"\t$3",
+			"done"
+		],
+		"description": "Bash for loop"
+	},
+	"For Range": {
+		"prefix": "forr",
+		"body": [
+			"for ${1:i} in $(seq ${2:1} ${3:10}); do",
+			"\t$0",
+			"done"
+		],
+		"description": "Bash for loop with range"
+	},
+	"While Loop": {
+		"prefix": "while",
+		"body": [
+			"while [[ ${1:condition} ]]; do",
+			"\t$2",
+			"done"
+		],
+		"description": "Bash while loop"
+	},
+	"Case Statement": {
+		"prefix": "case",
+		"body": [
+			"case ${1:variable} in",
+			"\t${2:pattern1})",
+			"\t\t${3:;;};",
+			"\t${4:pattern2})",
+			"\t\t${5:;;};",
+			"\t*)",
+			"\t\t${6:;;};",
+			"esac"
+		],
+		"description": "Bash case statement"
+	},
+	"Function": {
+		"prefix": "fn",
+		"body": [
+			"${1:function_name}() {",
+			"\t$0",
+			"}"
+		],
+		"description": "Bash function definition"
+	},
+	"Echo": {
+		"prefix": "ec",
+		"body": [
+			"echo \"${1:message}\""
+		],
+		"description": "Bash echo"
+	},
+	"Variable": {
+		"prefix": "var",
+		"body": [
+			"${1:NAME}=\"${2:value}\""
+		],
+		"description": "Bash variable assignment"
+	},
+	"Read Input": {
+		"prefix": "read",
+		"body": [
+			"read -r -p \"${1:Enter value: }\" ${2:variable}"
+		],
+		"description": "Bash read input from user"
+	},
+	"Check File Exists": {
+		"prefix": "iffile",
+		"body": [
+			"if [[ -f \"${1:file_path}\" ]]; then",
+			"\t$2",
+			"fi"
+		],
+		"description": "Check if file exists"
+	},
+	"Check Directory Exists": {
+		"prefix": "ifdir",
+		"body": [
+			"if [[ -d \"${1:dir_path}\" ]]; then",
+			"\t$2",
+			"fi"
+		],
+		"description": "Check if directory exists"
+	},
+	"Array": {
+		"prefix": "arr",
+		"body": [
+			"${1:array}=(${2:item1} ${3:item2})",
+			"for ${4:item} in \"\\${${1:array}[@]}\"; do",
+			"\t$0",
+			"done"
+		],
+		"description": "Bash array declaration and loop"
+	},
+	"Command Substitution": {
+		"prefix": "cmd",
+		"body": [
+			"${1:result}=$(${2:command})"
+		],
+		"description": "Bash command substitution"
+	},
+	"Trap on Exit": {
+		"prefix": "trap",
+		"body": [
+			"cleanup() {",
+			"\t${1:echo 'Cleaning up...'}",
+			"}",
+			"trap cleanup EXIT"
+		],
+		"description": "Bash trap on EXIT for cleanup"
+	},
+	"Check if Command Exists": {
+		"prefix": "cmdexists",
+		"body": [
+			"if ! command -v ${1:command_name} &> /dev/null; then",
+			"\techo \"${1:command_name} is not installed\"",
+			"\texit 1",
+			"fi"
+		],
+		"description": "Check if a command exists in PATH"
+	},
+	"Script Arguments": {
+		"prefix": "args",
+		"body": [
+			"if [[ \\$# -lt ${1:1} ]]; then",
+			"\techo \"Usage: \\$0 ${2:<arg1>}\"",
+			"\texit 1",
+			"fi",
+			"",
+			"${3:ARG1}=\"\\${1}\""
+		],
+		"description": "Bash script argument validation"
+	},
+	"Log with Timestamp": {
+		"prefix": "log",
+		"body": [
+			"log() { echo \"[$(date '+%Y-%m-%d %H:%M:%S')] \\$*\"; }"
+		],
+		"description": "Logging function with timestamp"
+	},
+	"Here Document": {
+		"prefix": "heredoc",
+		"body": [
+			"cat <<EOF",
+			"${1:content}",
+			"EOF"
+		],
+		"description": "Bash here document"
+	}
+}

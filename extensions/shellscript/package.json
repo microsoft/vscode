@@ -89,6 +89,12 @@
         ]
       }
     ],
+    "snippets": [
+      {
+        "language": "shellscript",
+        "path": "./snippets/shellscript.code-snippets"
+      }
+    ],
     "configurationDefaults": {
       "[shellscript]": {
         "files.eol": "\n",
