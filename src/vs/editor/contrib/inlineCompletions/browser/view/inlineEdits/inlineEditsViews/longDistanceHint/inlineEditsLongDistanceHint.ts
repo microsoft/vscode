@@ -195,8 +195,8 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 			return undefined;
 		}
 
-		const continousLineRanges = this._lineSizesAroundHintPosition.read(reader);
-		if (continousLineRanges.length === 0) {
+		const continuousLineRanges = this._lineSizesAroundHintPosition.read(reader);
+		if (continuousLineRanges.length === 0) {
 			return undefined;
 		}
 
@@ -233,9 +233,9 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 
 		const endOfLinePadding = (lineNumber: number) => lineNumber === viewState.hint.lineNumber ? 40 : 20;
 
-		for (const continousLineRange of continousLineRanges) {
+		for (const continuousLineRange of continuousLineRanges) {
 			const placementContext = new WidgetPlacementContext(
-				continousLineRange,
+				continuousLineRange,
 				editorTrueContentWidth,
 				endOfLinePadding
 			);
@@ -244,7 +244,7 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 			const showRects = false;
 			if (showRects) {
 				const rects2 = stackSizesDown(
-					new Point(editorTrueContentRight, continousLineRange.top - editorScrollTop),
+					new Point(editorTrueContentRight, continuousLineRange.top - editorScrollTop),
 					placementContext.availableSpaceSizes as Size2D[],
 					'right'
 				);
@@ -271,7 +271,7 @@ export class InlineEditsLongDistanceHint extends Disposable implements IInlineEd
 
 			// Create a fallback placement context for computing overlay vertical position
 			const fallbackPlacementContext = lastPlacementContext ?? new WidgetPlacementContext(
-				continousLineRanges[0],
+				continuousLineRanges[0],
 				editorTrueContentWidth,
 				endOfLinePadding,
 			);
