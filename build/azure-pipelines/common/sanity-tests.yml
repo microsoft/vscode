@@ -89,10 +89,9 @@ jobs:
           displayName: Install Node.js (Windows ARM64)
 
       - ${{ else }}:
-        - task: NodeTool@0
+        - task: UseNode@1
           inputs:
-            versionSource: fromFile
-            versionFilePath: .nvmrc
+            version: '22.22.0'
           displayName: Install Node.js
 
       - script: npm config set registry "$(NPM_REGISTRY)" --location=project
