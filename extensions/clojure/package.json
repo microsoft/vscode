@@ -42,7 +42,13 @@
       "[clojure]": {
         "diffEditor.ignoreTrimWhitespace": false
       }
-    }
+    },
+    "snippets": [
+      {
+        "language": "clojure",
+        "path": "./snippets/clojure.code-snippets"
+      }
+    ]
   },
   "repository": {
     "type": "git",

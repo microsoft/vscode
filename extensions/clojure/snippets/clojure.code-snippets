@@ -1,0 +1,197 @@
+{
+	"Clojure namespace": {
+		"prefix": "ns",
+		"body": [
+			"(ns ${1:my.namespace}",
+			"  (:require [${2:other.ns} :as ${3:alias}]))",
+			"",
+			"$0"
+		],
+		"description": "Clojure namespace declaration"
+	},
+	"Clojure defn": {
+		"prefix": "defn",
+		"body": [
+			"(defn ${1:name}",
+			"  \"${2:docstring}\"",
+			"  [${3:args}]",
+			"  $0)"
+		],
+		"description": "Clojure function definition"
+	},
+	"Clojure defn-": {
+		"prefix": "defn-",
+		"body": [
+			"(defn- ${1:name}",
+			"  \"${2:docstring}\"",
+			"  [${3:args}]",
+			"  $0)"
+		],
+		"description": "Clojure private function definition"
+	},
+	"Clojure def": {
+		"prefix": "def",
+		"body": [
+			"(def ${1:name} ${2:value})"
+		],
+		"description": "Clojure var definition"
+	},
+	"Clojure defmacro": {
+		"prefix": "defmacro",
+		"body": [
+			"(defmacro ${1:name}",
+			"  \"${2:docstring}\"",
+			"  [${3:args}]",
+			"  $0)"
+		],
+		"description": "Clojure macro definition"
+	},
+	"Clojure let": {
+		"prefix": "let",
+		"body": [
+			"(let [${1:binding} ${2:value}]",
+			"  $0)"
+		],
+		"description": "Clojure let binding"
+	},
+	"Clojure fn": {
+		"prefix": "fn",
+		"body": [
+			"(fn [${1:args}]",
+			"  $0)"
+		],
+		"description": "Clojure anonymous function"
+	},
+	"Clojure if": {
+		"prefix": "if",
+		"body": [
+			"(if ${1:condition}",
+			"  ${2:then}",
+			"  ${3:else})"
+		],
+		"description": "Clojure if expression"
+	},
+	"Clojure when": {
+		"prefix": "when",
+		"body": [
+			"(when ${1:condition}",
+			"  $0)"
+		],
+		"description": "Clojure when expression"
+	},
+	"Clojure cond": {
+		"prefix": "cond",
+		"body": [
+			"(cond",
+			"  ${1:condition} ${2:result}",
+			"  :else ${3:default})"
+		],
+		"description": "Clojure cond expression"
+	},
+	"Clojure case": {
+		"prefix": "case",
+		"body": [
+			"(case ${1:expr}",
+			"  ${2:val} ${3:result}",
+			"  ${4:default})"
+		],
+		"description": "Clojure case expression"
+	},
+	"Clojure map": {
+		"prefix": "map",
+		"body": [
+			"(map ${1:f} ${2:coll})"
+		],
+		"description": "Clojure map"
+	},
+	"Clojure filter": {
+		"prefix": "filter",
+		"body": [
+			"(filter ${1:pred} ${2:coll})"
+		],
+		"description": "Clojure filter"
+	},
+	"Clojure reduce": {
+		"prefix": "reduce",
+		"body": [
+			"(reduce ${1:f} ${2:init} ${3:coll})"
+		],
+		"description": "Clojure reduce"
+	},
+	"Clojure for comprehension": {
+		"prefix": "for",
+		"body": [
+			"(for [${1:x} ${2:coll}",
+			"      :when ${3:condition}]",
+			"  $0)"
+		],
+		"description": "Clojure for list comprehension"
+	},
+	"Clojure doseq": {
+		"prefix": "doseq",
+		"body": [
+			"(doseq [${1:x} ${2:coll}]",
+			"  $0)"
+		],
+		"description": "Clojure doseq for side effects"
+	},
+	"Clojure dotimes": {
+		"prefix": "dotimes",
+		"body": [
+			"(dotimes [${1:i} ${2:n}]",
+			"  $0)"
+		],
+		"description": "Clojure dotimes loop"
+	},
+	"Clojure try-catch": {
+		"prefix": "try",
+		"body": [
+			"(try",
+			"  ${1:body}",
+			"  (catch ${2:Exception} ${3:e}",
+			"    $0))"
+		],
+		"description": "Clojure try-catch"
+	},
+	"Clojure defrecord": {
+		"prefix": "defrecord",
+		"body": [
+			"(defrecord ${1:RecordName} [${2:fields}]",
+			"  $0)"
+		],
+		"description": "Clojure record definition"
+	},
+	"Clojure defprotocol": {
+		"prefix": "defprotocol",
+		"body": [
+			"(defprotocol ${1:ProtocolName}",
+			"  (${2:method-name} [${3:this}] \"${4:docstring}\"))"
+		],
+		"description": "Clojure protocol definition"
+	},
+	"Clojure println": {
+		"prefix": "println",
+		"body": [
+			"(println ${1:\"${2:message}\"})"
+		],
+		"description": "Clojure println"
+	},
+	"Clojure thread-first": {
+		"prefix": "->",
+		"body": [
+			"(-> ${1:value}",
+			"    (${2:f1}))",
+			"    $0)"
+		],
+		"description": "Clojure thread-first macro"
+	},
+	"Clojure thread-last": {
+		"prefix": "->>",
+		"body": [
+			"(->> ${1:coll}",
+			"     (${2:map} ${3:f})",
+			"     $0)"
+		],
+		"description": "Clojure thread-last macro"
+	}
+}
