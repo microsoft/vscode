@@ -1,0 +1,223 @@
+{
+	"Ruby Method": {
+		"prefix": "def",
+		"body": [
+			"def ${1:method_name}(${2:params})",
+			"  $0",
+			"end"
+		],
+		"description": "Ruby method definition"
+	},
+	"Ruby Class": {
+		"prefix": "class",
+		"body": [
+			"class ${1:ClassName}",
+			"  def initialize(${2:params})",
+			"    $0",
+			"  end",
+			"end"
+		],
+		"description": "Ruby class definition"
+	},
+	"Ruby Class with Inheritance": {
+		"prefix": "classi",
+		"body": [
+			"class ${1:ClassName} < ${2:ParentClass}",
+			"  def initialize(${3:params})",
+			"    super",
+			"    $0",
+			"  end",
+			"end"
+		],
+		"description": "Ruby class with inheritance"
+	},
+	"Ruby Module": {
+		"prefix": "module",
+		"body": [
+			"module ${1:ModuleName}",
+			"  $0",
+			"end"
+		],
+		"description": "Ruby module definition"
+	},
+	"Ruby If Statement": {
+		"prefix": "if",
+		"body": [
+			"if ${1:condition}",
+			"  $0",
+			"end"
+		],
+		"description": "Ruby if statement"
+	},
+	"Ruby If-Else": {
+		"prefix": "ife",
+		"body": [
+			"if ${1:condition}",
+			"  ${2:# true branch}",
+			"else",
+			"  ${3:# false branch}",
+			"end"
+		],
+		"description": "Ruby if-else statement"
+	},
+	"Ruby Unless": {
+		"prefix": "unless",
+		"body": [
+			"unless ${1:condition}",
+			"  $0",
+			"end"
+		],
+		"description": "Ruby unless statement"
+	},
+	"Ruby Each Loop": {
+		"prefix": "each",
+		"body": [
+			"${1:collection}.each do |${2:item}|",
+			"  $0",
+			"end"
+		],
+		"description": "Ruby each iterator"
+	},
+	"Ruby Times Loop": {
+		"prefix": "times",
+		"body": [
+			"${1:n}.times do |${2:i}|",
+			"  $0",
+			"end"
+		],
+		"description": "Ruby times loop"
+	},
+	"Ruby Map": {
+		"prefix": "map",
+		"body": [
+			"${1:collection}.map { |${2:item}| ${3:item} }"
+		],
+		"description": "Ruby map/collect"
+	},
+	"Ruby Select/Filter": {
+		"prefix": "select",
+		"body": [
+			"${1:collection}.select { |${2:item}| ${3:condition} }"
+		],
+		"description": "Ruby select/filter"
+	},
+	"Ruby Reduce": {
+		"prefix": "reduce",
+		"body": [
+			"${1:collection}.reduce(${2:0}) { |${3:acc}, ${4:item}| ${3:acc} + ${4:item} }"
+		],
+		"description": "Ruby reduce/inject"
+	},
+	"Ruby Lambda": {
+		"prefix": "lambda",
+		"body": [
+			"${1:name} = ->(${2:params}) { ${3:body} }"
+		],
+		"description": "Ruby lambda"
+	},
+	"Ruby Proc": {
+		"prefix": "proc",
+		"body": [
+			"${1:name} = Proc.new { |${2:params}| ${3:body} }"
+		],
+		"description": "Ruby Proc"
+	},
+	"Ruby Begin-Rescue": {
+		"prefix": "rescue",
+		"body": [
+			"begin",
+			"  $1",
+			"rescue ${2:StandardError} => e",
+			"  ${3:puts e.message}",
+			"end"
+		],
+		"description": "Ruby begin-rescue exception handling"
+	},
+	"Ruby Begin-Rescue-Ensure": {
+		"prefix": "rescuef",
+		"body": [
+			"begin",
+			"  $1",
+			"rescue ${2:StandardError} => e",
+			"  ${3:puts e.message}",
+			"ensure",
+			"  $0",
+			"end"
+		],
+		"description": "Ruby begin-rescue-ensure block"
+	},
+	"Ruby attr_accessor": {
+		"prefix": "attr",
+		"body": [
+			"attr_accessor :${1:name}"
+		],
+		"description": "Ruby attr_accessor"
+	},
+	"Ruby attr_reader": {
+		"prefix": "attrr",
+		"body": [
+			"attr_reader :${1:name}"
+		],
+		"description": "Ruby attr_reader"
+	},
+	"Ruby attr_writer": {
+		"prefix": "attrw",
+		"body": [
+			"attr_writer :${1:name}"
+		],
+		"description": "Ruby attr_writer"
+	},
+	"Ruby Hash": {
+		"prefix": "hash",
+		"body": [
+			"${1:name} = {",
+			"  ${2:key}: ${3:value},",
+			"  $0",
+			"}"
+		],
+		"description": "Ruby hash literal"
+	},
+	"Ruby Symbol": {
+		"prefix": "sym",
+		"body": [
+			":${1:symbol}"
+		],
+		"description": "Ruby symbol"
+	},
+	"Ruby Frozen String Literal": {
+		"prefix": "frozen",
+		"body": [
+			"# frozen_string_literal: true",
+			"",
+			"$0"
+		],
+		"description": "Ruby frozen string literal magic comment"
+	},
+	"Ruby RSpec Describe": {
+		"prefix": "describe",
+		"body": [
+			"describe ${1:ClassName} do",
+			"  it '${2:does something}' do",
+			"    $0",
+			"  end",
+			"end"
+		],
+		"description": "RSpec describe block"
+	},
+	"Ruby RSpec It Block": {
+		"prefix": "it",
+		"body": [
+			"it '${1:description}' do",
+			"  $0",
+			"end"
+		],
+		"description": "RSpec it block"
+	},
+	"Ruby Require": {
+		"prefix": "req",
+		"body": [
+			"require '${1:module}'"
+		],
+		"description": "Ruby require statement"
+	}
+}

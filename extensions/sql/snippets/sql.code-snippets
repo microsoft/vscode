@@ -1,0 +1,196 @@
+{
+	"SQL SELECT": {
+		"prefix": "sel",
+		"body": [
+			"SELECT ${1:*}",
+			"FROM ${2:table_name}",
+			"WHERE ${3:condition};"
+		],
+		"description": "SQL SELECT statement"
+	},
+	"SQL SELECT ALL": {
+		"prefix": "selall",
+		"body": [
+			"SELECT *",
+			"FROM ${1:table_name};"
+		],
+		"description": "SQL SELECT all columns"
+	},
+	"SQL SELECT with JOIN": {
+		"prefix": "selj",
+		"body": [
+			"SELECT ${1:t1.column1}, ${2:t2.column2}",
+			"FROM ${3:table1} t1",
+			"${4|INNER JOIN,LEFT JOIN,RIGHT JOIN,FULL OUTER JOIN|} ${5:table2} t2 ON t1.${6:id} = t2.${7:foreign_id}",
+			"WHERE ${8:condition};"
+		],
+		"description": "SQL SELECT with JOIN"
+	},
+	"SQL INSERT": {
+		"prefix": "ins",
+		"body": [
+			"INSERT INTO ${1:table_name} (${2:column1}, ${3:column2})",
+			"VALUES (${4:value1}, ${5:value2});"
+		],
+		"description": "SQL INSERT statement"
+	},
+	"SQL UPDATE": {
+		"prefix": "upd",
+		"body": [
+			"UPDATE ${1:table_name}",
+			"SET ${2:column1} = ${3:value1}",
+			"WHERE ${4:condition};"
+		],
+		"description": "SQL UPDATE statement"
+	},
+	"SQL DELETE": {
+		"prefix": "del",
+		"body": [
+			"DELETE FROM ${1:table_name}",
+			"WHERE ${2:condition};"
+		],
+		"description": "SQL DELETE statement"
+	},
+	"SQL CREATE TABLE": {
+		"prefix": "crttbl",
+		"body": [
+			"CREATE TABLE ${1:table_name} (",
+			"  ${2:id} ${3|INT,BIGINT,SERIAL|} PRIMARY KEY,",
+			"  ${4:column_name} ${5|VARCHAR(255),TEXT,INT,BOOLEAN,TIMESTAMP|} ${6:NOT NULL},",
+			"  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP",
+			");"
+		],
+		"description": "SQL CREATE TABLE statement"
+	},
+	"SQL DROP TABLE": {
+		"prefix": "droptbl",
+		"body": [
+			"DROP TABLE IF EXISTS ${1:table_name};"
+		],
+		"description": "SQL DROP TABLE statement"
+	},
+	"SQL ALTER TABLE ADD COLUMN": {
+		"prefix": "altadd",
+		"body": [
+			"ALTER TABLE ${1:table_name}",
+			"ADD COLUMN ${2:column_name} ${3:VARCHAR(255)};"
+		],
+		"description": "SQL ALTER TABLE ADD COLUMN"
+	},
+	"SQL ALTER TABLE DROP COLUMN": {
+		"prefix": "altdrop",
+		"body": [
+			"ALTER TABLE ${1:table_name}",
+			"DROP COLUMN ${2:column_name};"
+		],
+		"description": "SQL ALTER TABLE DROP COLUMN"
+	},
+	"SQL CREATE INDEX": {
+		"prefix": "idx",
+		"body": [
+			"CREATE ${1|,UNIQUE |}INDEX ${2:idx_name}",
+			"ON ${3:table_name} (${4:column_name});"
+		],
+		"description": "SQL CREATE INDEX"
+	},
+	"SQL GROUP BY": {
+		"prefix": "grpby",
+		"body": [
+			"SELECT ${1:column}, ${2:COUNT(*)}",
+			"FROM ${3:table_name}",
+			"GROUP BY ${1:column}",
+			"HAVING ${4:condition};"
+		],
+		"description": "SQL GROUP BY with HAVING"
+	},
+	"SQL ORDER BY": {
+		"prefix": "ordby",
+		"body": [
+			"SELECT ${1:*}",
+			"FROM ${2:table_name}",
+			"ORDER BY ${3:column} ${4|ASC,DESC|};"
+		],
+		"description": "SQL ORDER BY"
+	},
+	"SQL LIMIT OFFSET": {
+		"prefix": "limit",
+		"body": [
+			"SELECT ${1:*}",
+			"FROM ${2:table_name}",
+			"LIMIT ${3:10} OFFSET ${4:0};"
+		],
+		"description": "SQL LIMIT with OFFSET for pagination"
+	},
+	"SQL Subquery": {
+		"prefix": "subq",
+		"body": [
+			"SELECT ${1:*}",
+			"FROM ${2:table_name}",
+			"WHERE ${3:column} IN (",
+			"  SELECT ${4:column}",
+			"  FROM ${5:other_table}",
+			"  WHERE ${6:condition}",
+			");"
+		],
+		"description": "SQL subquery"
+	},
+	"SQL CTE (Common Table Expression)": {
+		"prefix": "cte",
+		"body": [
+			"WITH ${1:cte_name} AS (",
+			"  SELECT ${2:*}",
+			"  FROM ${3:table_name}",
+			"  WHERE ${4:condition}",
+			")",
+			"SELECT *",
+			"FROM ${1:cte_name};"
+		],
+		"description": "SQL Common Table Expression (CTE)"
+	},
+	"SQL CASE Expression": {
+		"prefix": "case",
+		"body": [
+			"CASE",
+			"  WHEN ${1:condition1} THEN ${2:result1}",
+			"  WHEN ${3:condition2} THEN ${4:result2}",
+			"  ELSE ${5:default_result}",
+			"END"
+		],
+		"description": "SQL CASE expression"
+	},
+	"SQL Transaction": {
+		"prefix": "txn",
+		"body": [
+			"BEGIN;",
+			"",
+			"${1:-- SQL statements}",
+			"",
+			"COMMIT;",
+			"-- ROLLBACK;"
+		],
+		"description": "SQL transaction block"
+	},
+	"SQL CREATE VIEW": {
+		"prefix": "view",
+		"body": [
+			"CREATE OR REPLACE VIEW ${1:view_name} AS",
+			"SELECT ${2:*}",
+			"FROM ${3:table_name}",
+			"WHERE ${4:condition};"
+		],
+		"description": "SQL CREATE VIEW"
+	},
+	"SQL Window Function": {
+		"prefix": "window",
+		"body": [
+			"SELECT",
+			"  ${1:column},",
+			"  ${2|ROW_NUMBER(),RANK(),DENSE_RANK(),SUM(amount),AVG(amount)|} OVER (",
+			"    PARTITION BY ${3:partition_column}",
+			"    ORDER BY ${4:order_column} ${5|ASC,DESC|}",
+			"  ) AS ${6:row_num}",
+			"FROM ${7:table_name};"
+		],
+		"description": "SQL window function"
+	}
+}
