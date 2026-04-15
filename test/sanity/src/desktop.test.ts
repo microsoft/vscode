@@ -263,13 +263,11 @@ export function setup(context: TestContext) {
 
 	async function testDesktopApp(entryPoint: string, dataDir?: string) {
 		const test = new UITest(context, dataDir);
-		const args = [test.workspaceDir];
-		if (dataDir) {
-			args.push(
-				'--extensions-dir', test.extensionsDir,
-				'--user-data-dir', test.userDataDir,
-			);
-		}
+		const args = dataDir ? [] : [
+			'--extensions-dir', test.extensionsDir,
+			'--user-data-dir', test.userDataDir,
+		];
+		args.push(test.workspaceDir);
 
 		context.log(`Starting VS Code ${entryPoint} with args ${args.join(' ')}`);
 		const app = await _electron.launch({ executablePath: entryPoint, args });
@@ -291,11 +289,9 @@ export function setup(context: TestContext) {
 
 		const test = new UITest(context, dataDir);
 		const args = ['--agents'];
-		if (dataDir) {
-			args.push(
-				'--extensions-dir', test.extensionsDir,
-				'--user-data-dir', test.userDataDir,
-			);
+		if (!dataDir) {
+			args.push('--extensions-dir', test.extensionsDir);
+			args.push('--user-data-dir', test.userDataDir);
 		}
 
 		context.log(`Starting Agents app ${desktopEntryPoint} with args ${args.join(' ')}`);
