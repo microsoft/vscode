@@ -550,7 +550,7 @@ export abstract class SimpleFindWidget extends Widget implements IVerticalSashLa
 		const max = parseInt(trimmedCountStr) || this._matchesLimit;
 
 		const input = new NthMatchInput(this._domNode, contextViewService, {
-			placeholder: 'Jump to the target result.',
+			placeholder: 'Jump to the result at the given position.',
 			width: 20,
 			label: NLS_NTH_MATCH_INPUT_LABEL,
 			type: 'text',
