@@ -302,10 +302,15 @@ registerAction2(class ArchiveSectionAction extends Action2 {
 
 		const skipConfirmation = storageService.getBoolean(ConfirmArchiveStorageKey, StorageScope.PROFILE, false);
 		if (!skipConfirmation) {
+			const isPinnedSection = context.id === 'pinned';
 			const confirmed = await dialogService.confirm({
-				message: context.sessions.length === 1
-					? localize('archiveSectionSessions.confirmSingle', "Are you sure you want to mark 1 session from '{0}' as done?", context.label)
-					: localize('archiveSectionSessions.confirm', "Are you sure you want to mark {0} sessions from '{1}' as done?", context.sessions.length, context.label),
+				message: isPinnedSection
+					? (context.sessions.length === 1
+						? localize('archivePinnedSectionSessions.confirmSingle', "Are you sure you want to mark 1 pinned session as done?")
+						: localize('archivePinnedSectionSessions.confirm', "Are you sure you want to mark {0} pinned sessions as done?", context.sessions.length))
+					: (context.sessions.length === 1
+						? localize('archiveSectionSessions.confirmSingle', "Are you sure you want to mark 1 session from '{0}' as done?", context.label)
+						: localize('archiveSectionSessions.confirm', "Are you sure you want to mark {0} sessions from '{1}' as done?", context.sessions.length, context.label)),
 				detail: localize('archiveSectionSessions.detail', "You can restore sessions later if needed from the sessions view."),
 				primaryButton: localize('archiveSectionSessions.archive', "Mark All as Done"),
 				checkbox: {

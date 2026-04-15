@@ -487,6 +487,7 @@ The Sessions view is registered in `contrib/sessions/browser/sessions.contributi
 - **Window visibility**: `WindowVisibility.Sessions`
 - **Primary action**: The sidebar content starts with a left-aligned secondary "New Session" button rendered as `$(plus) Session`, with an inline shortcut hint that reflects the active `workbench.action.sessions.newChat` keybinding when one is available
 - **Header layout**: The sessions list header label remains visible as the sidebar narrows and truncates with ellipsis instead of being hidden outright; the inline find widget still replaces both the label and actions while open
+- **Pinned section**: Pinned chats render in their own uppercase "Pinned" section header at the top of the list; that section reuses the standard section-header styling and only exposes the section-level "Mark All as Done" action (not workspace-specific actions like "New Session")
 
 ---
 
@@ -654,6 +655,7 @@ interface IPartVisibilityState {
 
 | Date | Change |
 |------|--------|
+| 2026-04-15 | Updated the Sessions sidebar so pinned chats render in their own "Pinned" section header using the standard uppercase section styling, and that header only exposes the "Mark All as Done" section action. |
 | 2026-04-14 | Documented the sessions account control as a titlebar widget again and noted that it now prefers the signed-in GitHub profile image, falling back to the existing account codicon when the image is unavailable. |
 | 2026-04-14 | Updated the sessions-only default configuration so notification toasts default to the top-right corner via `workbench.notifications.position: 'top-right'`, without changing the regular workbench default. |
 | 2026-04-10 | Updated the sessions titlebar widget so repository/worktree metadata truncates with ellipsis before the primary AI-generated session title when the command center gets narrow. |
