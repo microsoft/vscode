@@ -66,7 +66,6 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 
 	readonly welcomePageFeatures = {
 		showGettingStartedBanner: true,
-		showGenerateActions: true,
 	};
 
 	readonly hasOverrideProjectRoot = constObservable(false);

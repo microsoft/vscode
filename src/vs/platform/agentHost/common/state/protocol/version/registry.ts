@@ -51,12 +51,16 @@ export const ACTION_INTRODUCED_IN: { readonly [K in IStateAction['type']]: numbe
 	[ActionType.SessionPendingMessageSet]: 1,
 	[ActionType.SessionPendingMessageRemoved]: 1,
 	[ActionType.SessionQueuedMessagesReordered]: 1,
+	[ActionType.SessionInputRequested]: 1,
+	[ActionType.SessionInputAnswerChanged]: 1,
+	[ActionType.SessionInputCompleted]: 1,
 	[ActionType.SessionCustomizationsChanged]: 1,
 	[ActionType.SessionCustomizationToggled]: 1,
 	[ActionType.SessionTruncated]: 1,
 	[ActionType.SessionIsReadChanged]: 1,
 	[ActionType.SessionIsDoneChanged]: 1,
 	[ActionType.SessionDiffsChanged]: 1,
+	[ActionType.SessionConfigChanged]: 1,
 	[ActionType.RootTerminalsChanged]: 1,
 	[ActionType.TerminalData]: 1,
 	[ActionType.TerminalInput]: 1,
@@ -85,6 +89,7 @@ export function isActionKnownToVersion(action: IStateAction, clientVersion: numb
 export const NOTIFICATION_INTRODUCED_IN: { readonly [K in IProtocolNotification['type']]: number } = {
 	[NotificationType.SessionAdded]: 1,
 	[NotificationType.SessionRemoved]: 1,
+	[NotificationType.SessionSummaryChanged]: 1,
 	[NotificationType.AuthRequired]: 1,
 };
 

@@ -158,8 +158,13 @@ const CLEAR_CACHES_COMMAND_ID = 'github.copilot.chat.cloudSessions.clearCaches';
 const USER_SELECTED_REPOS_KEY = 'userSelectedRepositories';
 const USER_SELECTED_REPOS_EXPIRY_MS = 7 * 24 * 60 * 60 * 1000; // 1 week
 
-// TTL for caching /enabled responses (only caches enabled=true; disabled results always re-fetch)
+// TTL for caching /enabled responses when CCA is enabled
 const CCA_ENABLED_CACHE_TTL_MS = 30 * 60 * 1_000; // 30 minutes
+// Shorter TTL for caching /enabled responses when CCA is disabled or undetermined,
+// so users aren't stuck but we don't hammer the endpoint on every options query
+const CCA_DISABLED_CACHE_TTL_MS = 5 * 60 * 1_000; // 5 minutes
+// Status codes that are expected/handled by isCCAEnabled; anything else is unexpected
+const CCA_KNOWN_STATUS_CODES = new Set([401, 403, 422]);
 // TTL for caching session provider options (custom agents, models, partner agents, etc.)
 const OPTIONS_CACHE_TTL_MS = 15 * 60 * 1_000; // 15 minutes
 
@@ -273,7 +278,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	private readonly gitOperationsManager = new CopilotCloudGitOperationsManager(this.logService, this._gitService, this._gitExtensionService);
 
 	// TTL cache for CCA enabled status per repository (key: "owner/repo")
-	// Only caches enabled=true results; disabled results always re-fetch to avoid stuck states
+	// enabled=true cached for 30 min; disabled/undetermined cached for 5 min to reduce traffic
 	private _ccaEnabledCache = new TtlCache<CCAEnabledResult>(CCA_ENABLED_CACHE_TTL_MS);
 
 	// Single-slot TTL cache for the full session provider options result (custom agents, models, partner agents, etc.)
@@ -600,8 +605,8 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 	/**
 	 * Checks if the Copilot cloud agent is enabled for a repository.
 	 * Results are cached with a TTL: enabled=true results are cached for {@link CCA_ENABLED_CACHE_TTL_MS},
-	 * while enabled=false results are never cached (always re-fetched) so users who just
-	 * enabled CCA are not stuck in a disabled state.
+	 * while disabled/undetermined results are cached for a shorter {@link CCA_DISABLED_CACHE_TTL_MS}
+	 * to balance responsiveness with reducing endpoint traffic.
 	 * @param owner Repository owner
 	 * @param repo Repository name
 	 * @returns CCAEnabledResult with enabled status and optional status code
@@ -610,19 +615,20 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 		const cacheKey = `${owner}/${repo}`;
 
 		const cached = this._ccaEnabledCache.get(cacheKey);
-		if (cached !== undefined && cached.enabled === true) {
+		if (cached !== undefined) {
 			this.logService.trace(`copilotCloudSessionsProvider#checkCCAEnabled: using cached CCA enabled status for ${owner}/${repo}: ${cached.enabled}`);
 			return cached;
 		}
 
 		const result = await this._octoKitService.isCCAEnabled(owner, repo, {});
 
-		// Only cache enabled=true results with a TTL; disabled results should always re-fetch
+		// Cache all results: enabled=true uses the default 30 min TTL,
+		// disabled/undetermined uses a shorter 5 min TTL so users who just
+		// enabled CCA aren't stuck for too long
 		if (result.enabled === true) {
 			this._ccaEnabledCache.set(cacheKey, result);
 		} else {
-			// Remove any stale positive cache entry
-			this._ccaEnabledCache.delete(cacheKey);
+			this._ccaEnabledCache.set(cacheKey, result, CCA_DISABLED_CACHE_TTL_MS);
 		}
 
 		this.telemetry.sendTelemetryEvent('copilot.codingAgent.CCAIsEnabledCheck', { microsoft: true, github: false }, {
@@ -630,6 +636,22 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 			statusCode: String(result.statusCode ?? 'none'),
 			cacheHit: 'false',
 		});
+
+		// Track unexpected status codes (429 rate-limit, 5xx, etc.) as errors so they surface in dashboards
+		if (result.statusCode !== undefined && !CCA_KNOWN_STATUS_CODES.has(result.statusCode)) {
+			/* __GDPR__
+				"copilot.codingAgent.CCAIsEnabledUnexpectedStatus" : {
+					"owner": "joshspicer",
+					"comment": "Fired when the /enabled endpoint returns an unexpected HTTP status code (e.g. 429 rate-limit or 5xx).",
+					"statusCode": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The unexpected HTTP status code returned by the /enabled endpoint." },
+					"isRateLimited": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "True if the status code is 429 (rate limited)." }
+				}
+			*/
+			this.telemetry.sendTelemetryErrorEvent('copilot.codingAgent.CCAIsEnabledUnexpectedStatus', { microsoft: true, github: false }, {
+				statusCode: String(result.statusCode),
+				isRateLimited: String(result.statusCode === 429),
+			});
+		}
 
 		this.logService.trace(`copilotCloudSessionsProvider#checkCCAEnabled: fetched CCA enabled status for ${owner}/${repo}: ${result.enabled}`);
 		return result;
@@ -1154,7 +1176,7 @@ export class CopilotCloudSessionsProvider extends Disposable implements vscode.C
 				}
 
 				const multiDiffPart = await this._prFileChangesService.getFileChangesMultiDiffPart(pr);
-				const changes = multiDiffPart?.value?.map(change => new vscode.ChatSessionChangedFile2(
+				const changes = multiDiffPart?.value?.map(change => new vscode.ChatSessionChangedFile(
 					change.goToFileUri!,
 					change.originalUri,
 					change.modifiedUri,

@@ -10,7 +10,7 @@ import { IObservable } from '../../../../util/vs/base/common/observableInternal'
 import { observableValue } from '../../../../util/vs/base/common/observableInternal/observables/observableValue';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IGitService, RepoContext } from '../../../git/common/gitService';
-import { Branch, Change, Commit, CommitOptions, CommitShortStat, DiffChange, LogOptions, Ref, RefQuery, RepositoryAccessDetails, RepositoryState } from '../../../git/vscode/git';
+import { Branch, Change, Commit, CommitOptions, CommitShortStat, DiffChange, LogOptions, Ref, RefQuery, Repository, RepositoryAccessDetails } from '../../../git/vscode/git';
 
 /**
  * A configurable mock implementation of IGitService for testing.
@@ -42,7 +42,7 @@ export class MockGitService implements IGitService {
 		return [];
 	}
 
-	initRepository(_uri: URI): Promise<RepoContext | undefined> {
+	initRepository(_uri: URI): Promise<Repository | undefined> {
 		return Promise.resolve(undefined);
 	}
 
@@ -62,7 +62,11 @@ export class MockGitService implements IGitService {
 		return Promise.resolve(undefined);
 	}
 
-	getRepositoryState(uri: URI, forceOpen?: boolean): Promise<RepositoryState | undefined> {
+	getRepository2(_uri: URI): Promise<Repository | undefined> {
+		return Promise.resolve(undefined);
+	}
+
+	openRepository(_uri: URI): Promise<Repository | undefined> {
 		return Promise.resolve(undefined);
 	}
 

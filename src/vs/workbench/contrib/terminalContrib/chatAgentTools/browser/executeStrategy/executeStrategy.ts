@@ -18,8 +18,11 @@ export interface ITerminalExecuteStrategy extends IDisposable {
 	 * @param commandLine The command line to execute
 	 * @param token Cancellation token
 	 * @param commandId Optional predefined command ID to link the command
+	 * @param commandLineForMetadata Optional command line to report in terminal execution metadata.
+	 * This can differ from the command line that is sent to the shell, for example when the command
+	 * is wrapped for sandbox execution.
 	 */
-	execute(commandLine: string, token: CancellationToken, commandId?: string): Promise<ITerminalExecuteStrategyResult>;
+	execute(commandLine: string, token: CancellationToken, commandId?: string, commandLineForMetadata?: string): Promise<ITerminalExecuteStrategyResult>;
 
 	readonly onDidCreateStartMarker: Event<IXtermMarker | undefined>;
 }

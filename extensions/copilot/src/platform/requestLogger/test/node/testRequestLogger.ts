@@ -11,7 +11,8 @@ import { generateUuid } from '../../../../util/vs/base/common/uuid';
 import { IModelAPIResponse } from '../../../endpoint/common/endpointProvider';
 import { ThinkingData } from '../../../thinking/common/thinking';
 import { CapturingToken } from '../../common/capturingToken';
-import { AbstractRequestLogger, ILoggedRequestInfo, LoggedInfo, LoggedInfoKind, LoggedRequest, LoggedRequestKind, resolveMarkdownContent } from '../../node/requestLogger';
+import { ILoggedRequestInfo, LoggedInfo, LoggedInfoKind, LoggedRequest, LoggedRequestKind, resolveMarkdownContent } from '../../common/requestLogger';
+import { AbstractRequestLogger } from '../../node/requestLogger';
 
 /**
  * A test implementation of IRequestLogger that stores logged requests for verification in tests.

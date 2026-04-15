@@ -19,7 +19,7 @@ import { readFileFromTextBufferOrFS } from '../../filesystem/node/fileSystemServ
 import { IGitService, RepoContext, normalizeFetchUrl } from '../../git/common/gitService';
 import { ILogService } from '../../log/common/logService';
 import { Response } from '../../networking/common/fetcherService';
-import { IRequestLogger } from '../../requestLogger/node/requestLogger';
+import { IRequestLogger } from '../../requestLogger/common/requestLogger';
 import { IWorkspaceService } from '../../workspace/common/workspaceService';
 
 type ContentExclusionRule = {

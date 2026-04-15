@@ -13,9 +13,9 @@ import { acquirePort } from '../../../base/parts/ipc/electron-browser/ipc.mp.js'
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentHostEnabledSettingId, AgentHostIpcChannels, IAgentCreateSessionConfig, IAgentHostService, IAgentService, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult } from '../common/agentService.js';
+import { AgentHostEnabledSettingId, AgentHostIpcChannels, IAgentCreateSessionConfig, IAgentHostService, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult } from '../common/agentService.js';
 import { AgentSubscriptionManager, type IAgentSubscription } from '../common/state/agentSubscription.js';
-import type { ICreateTerminalParams } from '../common/state/protocol/commands.js';
+import type { ICreateTerminalParams, IResolveSessionConfigResult, ISessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { IActionEnvelope, INotification, ISessionAction, ITerminalAction } from '../common/state/sessionActions.js';
 import type { IResourceCopyParams, IResourceCopyResult, IResourceDeleteParams, IResourceDeleteResult, IResourceListResult, IResourceMoveParams, IResourceMoveResult, IResourceReadResult, IResourceWriteParams, IResourceWriteResult, IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { StateComponents, ROOT_STATE_URI, type IRootState } from '../common/state/sessionState.js';
@@ -113,6 +113,12 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 	createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
 		return this._proxy.createSession(config);
 	}
+	resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<IResolveSessionConfigResult> {
+		return this._proxy.resolveSessionConfig(params);
+	}
+	sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<ISessionConfigCompletionsResult> {
+		return this._proxy.sessionConfigCompletions(params);
+	}
 	disposeSession(session: URI): Promise<void> {
 		return this._proxy.disposeSession(session);
 	}
@@ -145,6 +151,10 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 
 	getSubscription<T>(kind: StateComponents, resource: URI): IReference<IAgentSubscription<T>> {
 		return this._subscriptionManager.getSubscription<T>(kind, resource);
+	}
+
+	getSubscriptionUnmanaged<T>(_kind: StateComponents, resource: URI): IAgentSubscription<T> | undefined {
+		return this._subscriptionManager.getSubscriptionUnmanaged<T>(resource);
 	}
 
 	dispatch(action: ISessionAction | ITerminalAction): void {

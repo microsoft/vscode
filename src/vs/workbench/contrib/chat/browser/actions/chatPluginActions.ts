@@ -60,6 +60,7 @@ class InstallFromSourceAction extends Action2 {
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals('view', InstalledAgentPluginsViewId),
 					ChatContextKeys.Setup.hidden.negate(),
+					ChatContextKeys.Setup.disabledInWorkspace.negate(),
 				),
 				group: 'navigation',
 				order: 1,
@@ -75,6 +76,7 @@ class InstallFromSourceAction extends Action2 {
 		const inputBox = store.add(quickInputService.createInputBox());
 		inputBox.placeholder = localize('pluginSourcePlaceholder', "owner/repo or git clone URL");
 		inputBox.prompt = localize('pluginSourcePrompt', "Enter a GitHub repository or git URL to install a plugin from");
+		inputBox.ignoreFocusOut = true;
 		inputBox.show();
 
 		store.add(inputBox.onDidChangeValue(() => {
@@ -146,6 +148,7 @@ class ManagePluginMarketplacesAction extends Action2 {
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals('view', InstalledAgentPluginsViewId),
 					ChatContextKeys.Setup.hidden.negate(),
+					ChatContextKeys.Setup.disabledInWorkspace.negate(),
 				),
 				group: 'navigation',
 				order: 2,

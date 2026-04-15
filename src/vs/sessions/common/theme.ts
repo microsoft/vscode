@@ -47,15 +47,15 @@ export const sessionsPanelBackground = registerColor(
 );
 
 // Sessions chat bar background color
-export const sessionsChatBarBackground = registerColor(
-	'sessionsChatBar.background',
+export const chatBarBackground = registerColor(
+	'chatBar.background',
 	{
 		dark: SIDE_BAR_BACKGROUND,
 		light: editorBackground,
 		hcDark: SIDE_BAR_BACKGROUND,
 		hcLight: SIDE_BAR_BACKGROUND,
 	},
-	localize('sessionsChatBar.background', 'Background color of the chat bar in the agent sessions window.')
+	localize('chatBar.background', 'Background color of the chat bar in the agent sessions window.')
 );
 
 // Sessions sidebar header colors

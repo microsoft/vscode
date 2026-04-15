@@ -19,6 +19,11 @@ export class ChatQuestionCarouselData implements IChatQuestionCarousel {
 	public draftAnswers: IChatQuestionAnswers | undefined;
 	public draftCurrentIndex: number | undefined;
 	public draftCollapsed: boolean | undefined;
+	/**
+	 * Set to `true` when the carousel was dismissed because the user typed
+	 * directly in the associated terminal instead of using the carousel UI.
+	 */
+	public dismissedByTerminalInput?: boolean;
 
 	constructor(
 		public questions: IChatQuestion[],
@@ -28,6 +33,7 @@ export class ChatQuestionCarouselData implements IChatQuestionCarousel {
 		public isUsed?: boolean,
 		public message?: string | IMarkdownString,
 		public source?: ToolDataSource,
+		public terminalId?: string,
 	) { }
 
 	toJSON(): IChatQuestionCarousel {
@@ -40,6 +46,7 @@ export class ChatQuestionCarouselData implements IChatQuestionCarousel {
 			isUsed: this.isUsed,
 			message: this.message,
 			source: this.source,
+			terminalId: this.terminalId,
 		};
 	}
 }

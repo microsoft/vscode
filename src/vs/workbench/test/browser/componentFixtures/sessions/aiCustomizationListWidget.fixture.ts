@@ -103,7 +103,6 @@ function createMockWorkspaceService(): IAICustomizationWorkspaceService {
 		override readonly isSessionsWindow = false;
 		override readonly welcomePageFeatures = {
 			showGettingStartedBanner: true,
-			showGenerateActions: true,
 		};
 		override readonly activeProjectRoot = activeProjectRoot;
 		override readonly hasOverrideProjectRoot = observableValue('hasOverride', false);

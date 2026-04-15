@@ -7,9 +7,11 @@ import assert from 'assert';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { runWithFakedTimers } from '../../../../base/test/common/timeTravelScheduler.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { ActionType, NotificationType, type IActionEnvelope, type INotification } from '../../common/state/sessionActions.js';
-import { ISessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, type IMarkdownResponsePart, type ISessionState } from '../../common/state/sessionState.js';
+import { ISessionSummary, ResponsePartKind, ROOT_STATE_URI, SessionLifecycle, SessionStatus, TurnState, buildSubagentSessionUri, isSubagentSession, parseSubagentSessionUri, type IMarkdownResponsePart, type ISessionState } from '../../common/state/sessionState.js';
+import { type ISessionSummaryChangedNotification } from '../../common/state/protocol/notifications.js';
 import { AgentHostStateManager } from '../../node/agentHostStateManager.js';
 
 suite('AgentHostStateManager', () => {
@@ -26,6 +28,7 @@ suite('AgentHostStateManager', () => {
 			status: SessionStatus.Idle,
 			createdAt: Date.now(),
 			modifiedAt: Date.now(),
+			project: { uri: 'file:///test-project', displayName: 'Test Project' },
 		};
 	}
 
@@ -294,5 +297,112 @@ suite('AgentHostStateManager', () => {
 		manager.restoreSession(makeSessionSummary(), []);
 
 		assert.strictEqual(notifications.length, 0, 'should not emit notification for restored sessions');
+	});
+
+	test('emits sessionSummaryChanged when summary changes', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			manager.createSession(makeSessionSummary());
+			manager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
+
+			const notifications: INotification[] = [];
+			disposables.add(manager.onDidEmitNotification(n => notifications.push(n)));
+
+			manager.dispatchServerAction({ type: ActionType.SessionTitleChanged, session: sessionUri, title: 'New Title' });
+
+			// Should not fire synchronously (debounced)
+			assert.strictEqual(notifications.filter(n => n.type === NotificationType.SessionSummaryChanged).length, 0);
+
+			// Advance past debounce
+			await new Promise(r => setTimeout(r, 150));
+
+			const changed = notifications.filter(n => n.type === NotificationType.SessionSummaryChanged);
+			assert.strictEqual(changed.length, 1);
+			const notification = changed[0] as ISessionSummaryChangedNotification;
+			assert.strictEqual(notification.session, sessionUri);
+			assert.strictEqual(notification.changes.title, 'New Title');
+			assert.strictEqual(notification.changes.status, undefined, 'unchanged fields should be omitted');
+		});
+	});
+
+	test('coalesces multiple summary changes into one notification', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			manager.createSession(makeSessionSummary());
+			manager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
+
+			const notifications: INotification[] = [];
+			disposables.add(manager.onDidEmitNotification(n => notifications.push(n)));
+
+			manager.dispatchServerAction({ type: ActionType.SessionTitleChanged, session: sessionUri, title: 'First' });
+			manager.dispatchServerAction({ type: ActionType.SessionTitleChanged, session: sessionUri, title: 'Second' });
+
+			await new Promise(r => setTimeout(r, 150));
+
+			const changed = notifications.filter(n => n.type === NotificationType.SessionSummaryChanged);
+			assert.strictEqual(changed.length, 1, 'should coalesce into one notification');
+			assert.strictEqual((changed[0] as ISessionSummaryChangedNotification).changes.title, 'Second');
+		});
+	});
+
+	test('does not emit sessionSummaryChanged when summary is unchanged', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			manager.createSession(makeSessionSummary());
+			manager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
+
+			const notifications: INotification[] = [];
+			disposables.add(manager.onDidEmitNotification(n => notifications.push(n)));
+
+			// SessionReady changes lifecycle, not summary — so no summary notification
+			await new Promise(r => setTimeout(r, 150));
+
+			const changed = notifications.filter(n => n.type === NotificationType.SessionSummaryChanged);
+			assert.strictEqual(changed.length, 0);
+		});
+	});
+
+	test('does not emit sessionSummaryChanged for deleted session', () => {
+		return runWithFakedTimers({ useFakeTimers: true }, async () => {
+			manager.createSession(makeSessionSummary());
+			manager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri });
+
+			const notifications: INotification[] = [];
+			disposables.add(manager.onDidEmitNotification(n => notifications.push(n)));
+
+			manager.dispatchServerAction({ type: ActionType.SessionTitleChanged, session: sessionUri, title: 'New Title' });
+			manager.deleteSession(sessionUri);
+
+			await new Promise(r => setTimeout(r, 150));
+
+			const changed = notifications.filter(n => n.type === NotificationType.SessionSummaryChanged);
+			assert.strictEqual(changed.length, 0, 'should not emit for deleted sessions');
+		});
+	});
+});
+
+suite('Subagent URI helpers', () => {
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('buildSubagentSessionUri creates correct URI', () => {
+		assert.strictEqual(
+			buildSubagentSessionUri('copilot:/session-1', 'tc-1'),
+			'copilot:/session-1/subagent/tc-1',
+		);
+	});
+
+	test('parseSubagentSessionUri extracts parent and toolCallId', () => {
+		const parsed = parseSubagentSessionUri('copilot:/session-1/subagent/tc-1');
+		assert.deepStrictEqual(parsed, {
+			parentSession: 'copilot:/session-1',
+			toolCallId: 'tc-1',
+		});
+	});
+
+	test('parseSubagentSessionUri returns undefined for non-subagent URIs', () => {
+		assert.strictEqual(parseSubagentSessionUri('copilot:/session-1'), undefined);
+	});
+
+	test('isSubagentSession identifies subagent URIs', () => {
+		assert.strictEqual(isSubagentSession('copilot:/session-1/subagent/tc-1'), true);
+		assert.strictEqual(isSubagentSession('copilot:/session-1'), false);
 	});
 });

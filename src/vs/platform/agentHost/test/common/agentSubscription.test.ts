@@ -32,6 +32,7 @@ function makeSessionState(sessionUri: string, overrides?: Partial<ISessionState>
 			status: SessionStatus.Idle,
 			createdAt: 1,
 			modifiedAt: 1,
+			project: { uri: 'file:///test-project', displayName: 'Test Project' },
 		},
 		lifecycle: SessionLifecycle.Ready,
 		turns: [],
@@ -618,5 +619,32 @@ suite('AgentSubscriptionManager', () => {
 		// Clean up refs (already disposed with manager, but safe to call)
 		ref1.dispose();
 		ref2.dispose();
+	});
+
+	test('getSubscriptionUnmanaged returns undefined when no subscription exists', () => {
+		const mgr = createManager();
+		const result = mgr.getSubscriptionUnmanaged<ISessionState>(URI.parse('copilot:/nonexistent'));
+		assert.strictEqual(result, undefined);
+	});
+
+	test('getSubscriptionUnmanaged returns existing subscription without affecting refcount', async () => {
+		const mgr = createManager();
+		const uri = URI.parse(sessionUri);
+
+		// Create a subscription via getSubscription
+		const ref = mgr.getSubscription<ISessionState>(StateComponents.Session, uri);
+		await new Promise(r => setTimeout(r, 0));
+
+		// Get it unmanaged
+		const unmanaged = mgr.getSubscriptionUnmanaged<ISessionState>(uri);
+		assert.ok(unmanaged);
+		assert.strictEqual(unmanaged, ref.object);
+
+		// Dispose the ref — subscription should be released (refcount was 1)
+		ref.dispose();
+
+		// Now unmanaged should return undefined since it was released
+		const after = mgr.getSubscriptionUnmanaged<ISessionState>(uri);
+		assert.strictEqual(after, undefined);
 	});
 });

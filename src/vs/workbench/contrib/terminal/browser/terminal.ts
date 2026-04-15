@@ -624,7 +624,7 @@ export interface ITerminalEditorService extends ITerminalInstanceHost {
 
 	openEditor(instance: ITerminalInstance, editorOptions?: TerminalEditorLocation): Promise<void>;
 	detachInstance(instance: ITerminalInstance): void;
-	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): ITerminalInstance;
+	splitInstance(instanceToSplit: ITerminalInstance, shellLaunchConfig?: IShellLaunchConfig): Promise<ITerminalInstance>;
 	revealActiveEditor(preserveFocus?: boolean): Promise<void>;
 	resolveResource(instance: ITerminalInstance): URI;
 	reviveInput(deserializedInput: IDeserializedTerminalEditorInput): EditorInput;
@@ -1156,7 +1156,7 @@ export interface ITerminalInstance extends IBaseTerminalInstance {
 	 */
 	sendPath(originalPath: string | URI, shouldExecute: boolean): Promise<void>;
 
-	runCommand(command: string, shouldExecute?: boolean, commandId?: string, bracketedPasteMode?: boolean): Promise<void>;
+	runCommand(command: string, shouldExecute?: boolean, commandId?: string, bracketedPasteMode?: boolean, commandLineForMetadata?: string): Promise<void>;
 
 	/**
 	 * Takes a path and returns the properly escaped path to send to a given shell. On Windows, this
@@ -1508,6 +1508,21 @@ export interface IDetachedXtermTerminal extends IXtermTerminal {
 	 * and resetting cursor position to the origin.
 	 */
 	reset(): void;
+
+	/**
+	 * Updates the terminal configuration from current settings.
+	 */
+	updateConfig(): void;
+
+	/**
+	 * Updates the terminal theme from the current color theme.
+	 */
+	updateTheme(): void;
+
+	/**
+	 * Updates the xterm log level to match the given VS Code log level.
+	 */
+	updateLogLevel(): void;
 
 	/**
 	 * Access to the terminal buffer for reading cursor position and content.
