@@ -2001,7 +2001,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 					.filter(d => d.entrypoint.extends === this.data.id);
 
 				if (dependantRenderers.length) {
-					this.postDebugMessage('Activating dependant renderers', { dependents: dependantRenderers.map(x => x.id).join(', ') });
+					this.postDebugMessage('Activating dependent renderers', { dependents: dependantRenderers.map(x => x.id).join(', ') });
 				}
 
 				// Load all renderers that extend this renderer
@@ -2017,7 +2017,7 @@ async function webviewPreloads(ctx: PreloadContext) {
 						// Squash any errors extends errors. They won't prevent the renderer
 						// itself from working, so just log them.
 						console.error(e);
-						this.postDebugMessage('Activating dependant renderer failed', { dependent: d.id, error: e + '' });
+						this.postDebugMessage('Activating dependent renderer failed', { dependent: d.id, error: e + '' });
 						return undefined;
 					}
 				}));
