@@ -469,7 +469,7 @@ export class GettingStartedPage extends EditorPane {
 				this.hideCategory(argument);
 				break;
 			}
-			// Use selectTask over selectStep to keep telemetry consistant:https://github.com/microsoft/vscode/issues/122256
+			// Use selectTask over selectStep to keep telemetry consistent:https://github.com/microsoft/vscode/issues/122256
 			case 'selectTask': {
 				this.selectStep(argument);
 				break;
