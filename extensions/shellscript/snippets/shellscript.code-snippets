@@ -1,0 +1,225 @@
+{
+	"Shell Shebang Bash": {
+		"prefix": "shebang",
+		"body": [
+			"#!/usr/bin/env bash",
+			"set -euo pipefail",
+			"",
+			"$0"
+		],
+		"description": "Bash shebang with strict mode"
+	},
+	"Shell Shebang sh": {
+		"prefix": "shebangs",
+		"body": [
+			"#!/bin/sh",
+			"set -eu",
+			"",
+			"$0"
+		],
+		"description": "POSIX sh shebang with strict mode"
+	},
+	"Shell Variable": {
+		"prefix": "var",
+		"body": [
+			"${1:VAR}=\"${2:value}\""
+		],
+		"description": "Shell variable assignment"
+	},
+	"Shell If Statement": {
+		"prefix": "if",
+		"body": [
+			"if ${1:[ condition ]}; then",
+			"  $0",
+			"fi"
+		],
+		"description": "Shell if statement"
+	},
+	"Shell If-Else": {
+		"prefix": "ife",
+		"body": [
+			"if ${1:[ condition ]}; then",
+			"  ${2:# true branch}",
+			"else",
+			"  ${3:# false branch}",
+			"fi"
+		],
+		"description": "Shell if-else statement"
+	},
+	"Shell If-Elif-Else": {
+		"prefix": "ifelif",
+		"body": [
+			"if ${1:[ condition1 ]}; then",
+			"  ${2:# first branch}",
+			"elif ${3:[ condition2 ]}; then",
+			"  ${4:# second branch}",
+			"else",
+			"  ${5:# default branch}",
+			"fi"
+		],
+		"description": "Shell if-elif-else statement"
+	},
+	"Shell For Loop": {
+		"prefix": "for",
+		"body": [
+			"for ${1:item} in ${2:\\$list}; do",
+			"  $0",
+			"done"
+		],
+		"description": "Shell for loop"
+	},
+	"Shell For Range": {
+		"prefix": "forr",
+		"body": [
+			"for ${1:i} in \\$(seq ${2:1} ${3:10}); do",
+			"  $0",
+			"done"
+		],
+		"description": "Shell for range loop"
+	},
+	"Shell While Loop": {
+		"prefix": "while",
+		"body": [
+			"while ${1:[ condition ]}; do",
+			"  $0",
+			"done"
+		],
+		"description": "Shell while loop"
+	},
+	"Shell Until Loop": {
+		"prefix": "until",
+		"body": [
+			"until ${1:[ condition ]}; do",
+			"  $0",
+			"done"
+		],
+		"description": "Shell until loop"
+	},
+	"Shell Case Statement": {
+		"prefix": "case",
+		"body": [
+			"case \\$${1:variable} in",
+			"  ${2:pattern1})",
+			"    ${3:# action1}",
+			"    ;;",
+			"  ${4:pattern2})",
+			"    ${5:# action2}",
+			"    ;;",
+			"  *)",
+			"    ${6:# default}",
+			"    ;;",
+			"esac"
+		],
+		"description": "Shell case statement"
+	},
+	"Shell Function": {
+		"prefix": "fn",
+		"body": [
+			"${1:function_name}() {",
+			"  $0",
+			"}"
+		],
+		"description": "Shell function definition"
+	},
+	"Shell Function with Args": {
+		"prefix": "fnargs",
+		"body": [
+			"${1:function_name}() {",
+			"  local ${2:arg1}=\"\\$1\"",
+			"  local ${3:arg2}=\"\\$2\"",
+			"  $0",
+			"}"
+		],
+		"description": "Shell function with local variables"
+	},
+	"Shell Echo": {
+		"prefix": "echo",
+		"body": [
+			"echo \"${1:message}\""
+		],
+		"description": "Shell echo"
+	},
+	"Shell Printf": {
+		"prefix": "printf",
+		"body": [
+			"printf '%s\\n' \"${1:message}\""
+		],
+		"description": "Shell printf"
+	},
+	"Shell Check Command Exists": {
+		"prefix": "cmdexists",
+		"body": [
+			"if ! command -v ${1:command} &>/dev/null; then",
+			"  echo \"Error: ${1:command} not found\" >&2",
+			"  exit 1",
+			"fi"
+		],
+		"description": "Check if a command exists"
+	},
+	"Shell Check File Exists": {
+		"prefix": "fileexists",
+		"body": [
+			"if [ -f \"${1:\\$file}\" ]; then",
+			"  ${2:# file exists}",
+			"fi"
+		],
+		"description": "Check if a file exists"
+	},
+	"Shell Check Directory Exists": {
+		"prefix": "direxists",
+		"body": [
+			"if [ -d \"${1:\\$dir}\" ]; then",
+			"  ${2:# directory exists}",
+			"fi"
+		],
+		"description": "Check if a directory exists"
+	},
+	"Shell Read Input": {
+		"prefix": "read",
+		"body": [
+			"read -rp \"${1:Enter value: }\" ${2:VAR}"
+		],
+		"description": "Shell read user input"
+	},
+	"Shell Trap Exit": {
+		"prefix": "trap",
+		"body": [
+			"cleanup() {",
+			"  ${1:# cleanup code}",
+			"}",
+			"trap cleanup EXIT"
+		],
+		"description": "Shell trap on EXIT for cleanup"
+	},
+	"Shell Script Header": {
+		"prefix": "header",
+		"body": [
+			"#!/usr/bin/env bash",
+			"# ${1:Script description}",
+			"# Usage: \\$(basename \"\\$0\") ${2:[options]}",
+			"",
+			"set -euo pipefail",
+			"",
+			"SCRIPT_DIR=\"\\$(cd \"\\$(dirname \"\\${BASH_SOURCE[0]}\")\" && pwd)\"",
+			"",
+			"$0"
+		],
+		"description": "Shell script header with common setup"
+	},
+	"Shell Array": {
+		"prefix": "arr",
+		"body": [
+			"${1:arr}=(${2:\"item1\"} ${3:\"item2\"} ${4:\"item3\"})"
+		],
+		"description": "Shell array declaration"
+	},
+	"Shell Iterate Array": {
+		"prefix": "forarr",
+		"body": [
+			"for ${1:item} in \"\\${${2:arr}[@]}\"; do",
+			"  $0",
+			"done"
+		],
+		"description": "Shell iterate over array"
+	}
+}

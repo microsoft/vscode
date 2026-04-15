@@ -108,6 +108,16 @@
         "scopeName": "text.xml.xsl",
         "path": "./syntaxes/xsl.tmLanguage.json"
       }
+    ],
+    "snippets": [
+      {
+        "language": "xml",
+        "path": "./snippets/xml.code-snippets"
+      },
+      {
+        "language": "xsl",
+        "path": "./snippets/xml.code-snippets"
+      }
     ]
   },
   "scripts": {

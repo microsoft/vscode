@@ -1,0 +1,159 @@
+{
+	"XML Declaration": {
+		"prefix": "xmldecl",
+		"body": [
+			"<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+			"$0"
+		],
+		"description": "XML declaration"
+	},
+	"XML Element": {
+		"prefix": "tag",
+		"body": [
+			"<${1:element}>${2:content}</${1:element}>"
+		],
+		"description": "XML element"
+	},
+	"XML Self-Closing Element": {
+		"prefix": "stag",
+		"body": [
+			"<${1:element} />"
+		],
+		"description": "XML self-closing element"
+	},
+	"XML Element with Attribute": {
+		"prefix": "taga",
+		"body": [
+			"<${1:element} ${2:attr}=\"${3:value}\">${4:content}</${1:element}>"
+		],
+		"description": "XML element with attribute"
+	},
+	"XML Comment": {
+		"prefix": "comment",
+		"body": [
+			"<!-- ${1:comment} -->"
+		],
+		"description": "XML comment"
+	},
+	"XML CDATA": {
+		"prefix": "cdata",
+		"body": [
+			"<![CDATA[",
+			"  $0",
+			"]]>"
+		],
+		"description": "XML CDATA section"
+	},
+	"XML Processing Instruction": {
+		"prefix": "pi",
+		"body": [
+			"<?${1:target} ${2:data}?>"
+		],
+		"description": "XML processing instruction"
+	},
+	"XML Namespace": {
+		"prefix": "ns",
+		"body": [
+			"xmlns:${1:prefix}=\"${2:namespace-uri}\""
+		],
+		"description": "XML namespace declaration"
+	},
+	"XML Root Element": {
+		"prefix": "root",
+		"body": [
+			"<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+			"<${1:root}>",
+			"  $0",
+			"</${1:root}>"
+		],
+		"description": "XML root element with declaration"
+	},
+	"XML Maven POM": {
+		"prefix": "pom",
+		"body": [
+			"<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+			"<project xmlns=\"http://maven.apache.org/POM/4.0.0\"",
+			"         xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"",
+			"         xsi:schemaLocation=\"http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd\">",
+			"  <modelVersion>4.0.0</modelVersion>",
+			"",
+			"  <groupId>${1:com.example}</groupId>",
+			"  <artifactId>${2:my-app}</artifactId>",
+			"  <version>${3:1.0.0}</version>",
+			"  <packaging>${4|jar,war,pom|}</packaging>",
+			"",
+			"  <properties>",
+			"    <maven.compiler.source>${5:17}</maven.compiler.source>",
+			"    <maven.compiler.target>${5:17}</maven.compiler.target>",
+			"  </properties>",
+			"",
+			"  <dependencies>",
+			"    $0",
+			"  </dependencies>",
+			"</project>"
+		],
+		"description": "Maven POM file template"
+	},
+	"XML Maven Dependency": {
+		"prefix": "dep",
+		"body": [
+			"<dependency>",
+			"  <groupId>${1:groupId}</groupId>",
+			"  <artifactId>${2:artifactId}</artifactId>",
+			"  <version>${3:version}</version>",
+			"</dependency>"
+		],
+		"description": "Maven dependency entry"
+	},
+	"XML Spring Bean": {
+		"prefix": "bean",
+		"body": [
+			"<bean id=\"${1:beanId}\" class=\"${2:com.example.ClassName}\">",
+			"  <property name=\"${3:propertyName}\" value=\"${4:value}\" />",
+			"</bean>"
+		],
+		"description": "Spring XML bean definition"
+	},
+	"XML RSS Feed": {
+		"prefix": "rss",
+		"body": [
+			"<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+			"<rss version=\"2.0\">",
+			"  <channel>",
+			"    <title>${1:Feed Title}</title>",
+			"    <link>${2:https://example.com}</link>",
+			"    <description>${3:Feed description}</description>",
+			"    <item>",
+			"      <title>${4:Item title}</title>",
+			"      <link>${5:https://example.com/item}</link>",
+			"      <description>${6:Item description}</description>",
+			"    </item>",
+			"  </channel>",
+			"</rss>"
+		],
+		"description": "RSS feed template"
+	},
+	"XML SVG Element": {
+		"prefix": "svg",
+		"body": [
+			"<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"${1:100}\" height=\"${2:100}\" viewBox=\"0 0 ${1:100} ${2:100}\">",
+			"  $0",
+			"</svg>"
+		],
+		"description": "SVG element"
+	},
+	"XML XSLT Stylesheet": {
+		"prefix": "xslt",
+		"body": [
+			"<?xml version=\"1.0\" encoding=\"UTF-8\"?>",
+			"<xsl:stylesheet version=\"1.0\" xmlns:xsl=\"http://www.w3.org/1999/XSL/Transform\">",
+			"",
+			"  <xsl:template match=\"/\">",
+			"    $0",
+			"  </xsl:template>",
+			"",
+			"</xsl:stylesheet>"
+		],
+		"description": "XSLT stylesheet template"
+	}
+}
