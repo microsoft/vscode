@@ -22,7 +22,7 @@ import { AgentSession, type IAgentConnection, type IAgentSessionMetadata } from 
 import { RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ActionType, isSessionAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IResolveSessionConfigResult, ISessionConfigValueItem } from '../../../../platform/agentHost/common/state/protocol/commands.js';
-import type { IRootState } from '../../../../platform/agentHost/common/state/protocol/state.js';
+import type { IRootState, ISessionFileDiff } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
@@ -94,6 +94,24 @@ function buildMutableConfigSchema(config: Record<string, string>): Record<string
 
 function toLocalProjectUri(uri: URI, connectionAuthority: string): URI {
 	return uri.scheme === Schemas.file ? toAgentHostUri(uri, connectionAuthority) : uri;
+}
+
+type RawDiff = { readonly uri: string; readonly added?: number; readonly removed?: number };
+
+/**
+ * Converts agent host diffs to the chat session file change format.
+ */
+function diffsToChanges(diffs: readonly RawDiff[]): IChatSessionFileChange[] {
+	return diffs.map(d => ({
+		modifiedUri: URI.parse(d.uri),
+		insertions: d.added ?? 0,
+		deletions: d.removed ?? 0,
+	}));
+}
+
+function diffsEqual(current: readonly IChatSessionFileChange[], raw: readonly RawDiff[]): boolean {
+	return current.length === raw.length && current.every((c, i) =>
+		c.modifiedUri.toString() === raw[i].uri && c.insertions === (raw[i].added ?? 0) && c.deletions === (raw[i].removed ?? 0));
 }
 
 interface IChatData {
@@ -202,6 +220,9 @@ class RemoteSessionAdapter implements IChatData {
 		if (metadata.isDone) {
 			this.isArchived.set(true, undefined);
 		}
+		if (metadata.diffs && metadata.diffs.length > 0) {
+			this.changes.set(diffsToChanges(metadata.diffs), undefined);
+		}
 	}
 
 	update(metadata: IAgentSessionMetadata): void {
@@ -218,6 +239,9 @@ class RemoteSessionAdapter implements IChatData {
 		const workspace = RemoteAgentHostSessionsProvider.buildWorkspace(metadata.project, metadata.workingDirectory, this._providerLabel);
 		if (agentHostSessionWorkspaceKey(workspace) !== agentHostSessionWorkspaceKey(this.workspace.get())) {
 			this.workspace.set(workspace, undefined);
+		}
+		if (metadata.diffs && !diffsEqual(this.changes.get(), metadata.diffs)) {
+			this.changes.set(diffsToChanges(metadata.diffs), undefined);
 		}
 	}
 }
@@ -412,6 +436,8 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements IAgen
 				this._handleIsDoneChanged(e.action.session, e.action.isDone);
 			} else if (e.action.type === ActionType.SessionConfigChanged && isSessionAction(e.action)) {
 				this._handleConfigChanged(e.action.session, e.action.config);
+			} else if (e.action.type === ActionType.SessionDiffsChanged && isSessionAction(e.action)) {
+				this._handleDiffsChanged(e.action.session, e.action.diffs);
 			}
 		}));
 
@@ -1136,6 +1162,15 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements IAgen
 		const cached = this._sessionCache.get(rawId);
 		if (cached) {
 			cached.isArchived.set(isDone, undefined);
+			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._chatToSession(cached)] });
+		}
+	}
+
+	private _handleDiffsChanged(session: string, diffs: ISessionFileDiff[]): void {
+		const rawId = AgentSession.id(session);
+		const cached = this._sessionCache.get(rawId);
+		if (cached) {
+			cached.changes.set(diffsToChanges(diffs), undefined);
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._chatToSession(cached)] });
 		}
 	}

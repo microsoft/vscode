@@ -16,7 +16,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { AgentSession, IAgentHostService, type IAgentSessionMetadata } from '../../../../platform/agentHost/common/agentService.js';
-import type { IRootState } from '../../../../platform/agentHost/common/state/protocol/state.js';
+import type { IRootState, ISessionFileDiff } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isSessionAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IResolveSessionConfigResult, ISessionConfigValueItem } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -64,6 +64,24 @@ function buildMutableConfigSchema(config: Record<string, string>): Record<string
  */
 function sessionTypeForProvider(provider: string): string {
 	return `agent-host-${provider}`;
+}
+
+type RawDiff = { readonly uri: string; readonly added?: number; readonly removed?: number };
+
+/**
+ * Converts agent host diffs to the chat session file change format.
+ */
+function diffsToChanges(diffs: readonly RawDiff[]): IChatSessionFileChange[] {
+	return diffs.map(d => ({
+		modifiedUri: URI.parse(d.uri),
+		insertions: d.added ?? 0,
+		deletions: d.removed ?? 0,
+	}));
+}
+
+function diffsEqual(current: readonly IChatSessionFileChange[], raw: readonly RawDiff[]): boolean {
+	return current.length === raw.length && current.every((c, i) =>
+		c.modifiedUri.toString() === raw[i].uri && c.insertions === (raw[i].added ?? 0) && c.deletions === (raw[i].removed ?? 0));
 }
 
 /**
@@ -124,6 +142,9 @@ class LocalSessionAdapter implements ISession {
 		if (metadata.isDone) {
 			this.isArchived.set(true, undefined);
 		}
+		if (metadata.diffs && metadata.diffs.length > 0) {
+			this.changes.set(diffsToChanges(metadata.diffs), undefined);
+		}
 
 		this.mainChat = {
 			resource: this.resource,
@@ -183,6 +204,11 @@ class LocalSessionAdapter implements ISession {
 		const modelId = metadata.model ? `${this.sessionType}:${metadata.model}` : undefined;
 		if (modelId !== this.modelId.get()) {
 			this.modelId.set(modelId, undefined);
+			didChange = true;
+		}
+
+		if (metadata.diffs && !diffsEqual(this.changes.get(), metadata.diffs)) {
+			this.changes.set(diffsToChanges(metadata.diffs), undefined);
 			didChange = true;
 		}
 
@@ -296,6 +322,8 @@ export class LocalAgentHostSessionsProvider extends Disposable implements IAgent
 				this._handleIsDoneChanged(e.action.session, e.action.isDone);
 			} else if (e.action.type === ActionType.SessionConfigChanged && isSessionAction(e.action)) {
 				this._handleConfigChanged(e.action.session, e.action.config);
+			} else if (e.action.type === ActionType.SessionDiffsChanged && isSessionAction(e.action)) {
+				this._handleDiffsChanged(e.action.session, e.action.diffs);
 			}
 		}));
 
@@ -928,6 +956,15 @@ export class LocalAgentHostSessionsProvider extends Disposable implements IAgent
 		const cached = this._sessionCache.get(rawId);
 		if (cached) {
 			cached.isArchived.set(isDone, undefined);
+			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
+		}
+	}
+
+	private _handleDiffsChanged(session: string, diffs: ISessionFileDiff[]): void {
+		const rawId = AgentSession.id(session);
+		const cached = this._sessionCache.get(rawId);
+		if (cached) {
+			cached.changes.set(diffsToChanges(diffs), undefined);
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 		}
 	}
