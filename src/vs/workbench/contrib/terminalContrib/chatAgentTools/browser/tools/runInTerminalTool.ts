@@ -531,7 +531,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	 * ITerminalSandboxService.isEnabled(), which reports whether terminal
 	 * sandboxing is currently enabled for the running window.
 	 */
-	protected get _enableCommandLineSandboxRewriting() {
+	public get _enableCommandLineSandboxRewriting() {
 		return true;
 	}
 	constructor(
