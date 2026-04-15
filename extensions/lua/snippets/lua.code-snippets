@@ -1,0 +1,200 @@
+{
+	"Lua function": {
+		"prefix": "fun",
+		"body": [
+			"function ${1:name}(${2:args})",
+			"\t$0",
+			"end"
+		],
+		"description": "Lua function declaration"
+	},
+	"Lua local function": {
+		"prefix": "lfun",
+		"body": [
+			"local function ${1:name}(${2:args})",
+			"\t$0",
+			"end"
+		],
+		"description": "Lua local function declaration"
+	},
+	"Lua anonymous function": {
+		"prefix": "anon",
+		"body": [
+			"function(${1:args})",
+			"\t$0",
+			"end"
+		],
+		"description": "Lua anonymous function"
+	},
+	"Lua local variable": {
+		"prefix": "local",
+		"body": [
+			"local ${1:name} = ${2:value}"
+		],
+		"description": "Lua local variable"
+	},
+	"Lua if": {
+		"prefix": "if",
+		"body": [
+			"if ${1:condition} then",
+			"\t$0",
+			"end"
+		],
+		"description": "Lua if statement"
+	},
+	"Lua if-else": {
+		"prefix": "ifelse",
+		"body": [
+			"if ${1:condition} then",
+			"\t${2}",
+			"else",
+			"\t$0",
+			"end"
+		],
+		"description": "Lua if-else statement"
+	},
+	"Lua if-elseif-else": {
+		"prefix": "ifelseif",
+		"body": [
+			"if ${1:condition} then",
+			"\t${2}",
+			"elseif ${3:condition2} then",
+			"\t${4}",
+			"else",
+			"\t$0",
+			"end"
+		],
+		"description": "Lua if-elseif-else statement"
+	},
+	"Lua for numeric": {
+		"prefix": "for",
+		"body": [
+			"for ${1:i} = ${2:1}, ${3:10} do",
+			"\t$0",
+			"end"
+		],
+		"description": "Lua numeric for loop"
+	},
+	"Lua for generic": {
+		"prefix": "forin",
+		"body": [
+			"for ${1:k}, ${2:v} in pairs(${3:table}) do",
+			"\t$0",
+			"end"
+		],
+		"description": "Lua generic for loop with pairs"
+	},
+	"Lua for ipairs": {
+		"prefix": "foripairs",
+		"body": [
+			"for ${1:i}, ${2:v} in ipairs(${3:table}) do",
+			"\t$0",
+			"end"
+		],
+		"description": "Lua for loop with ipairs"
+	},
+	"Lua while": {
+		"prefix": "while",
+		"body": [
+			"while ${1:condition} do",
+			"\t$0",
+			"end"
+		],
+		"description": "Lua while loop"
+	},
+	"Lua repeat-until": {
+		"prefix": "repeat",
+		"body": [
+			"repeat",
+			"\t$0",
+			"until ${1:condition}"
+		],
+		"description": "Lua repeat-until loop"
+	},
+	"Lua pcall": {
+		"prefix": "pcall",
+		"body": [
+			"local ok, ${1:result} = pcall(function()",
+			"\t$0",
+			"end)"
+		],
+		"description": "Lua protected call"
+	},
+	"Lua xpcall": {
+		"prefix": "xpcall",
+		"body": [
+			"local ok, ${1:result} = xpcall(function()",
+			"\t$0",
+			"end, function(err)",
+			"\treturn debug.traceback(err, 2)",
+			"end)"
+		],
+		"description": "Lua xpcall with traceback"
+	},
+	"Lua table": {
+		"prefix": "table",
+		"body": [
+			"local ${1:name} = {",
+			"\t${2:key} = ${3:value},",
+			"\t$0",
+			"}"
+		],
+		"description": "Lua table declaration"
+	},
+	"Lua class (OOP)": {
+		"prefix": "class",
+		"body": [
+			"local ${1:ClassName} = {}",
+			"${1:ClassName}.__index = ${1:ClassName}",
+			"",
+			"function ${1:ClassName}.new(${2:args})",
+			"\tlocal self = setmetatable({}, ${1:ClassName})",
+			"\t$0",
+			"\treturn self",
+			"end",
+			"",
+			"return ${1:ClassName}"
+		],
+		"description": "Lua class using metatables"
+	},
+	"Lua method": {
+		"prefix": "method",
+		"body": [
+			"function ${1:ClassName}:${2:methodName}(${3:args})",
+			"\t$0",
+			"end"
+		],
+		"description": "Lua method declaration"
+	},
+	"Lua require": {
+		"prefix": "require",
+		"body": [
+			"local ${1:name} = require('${2:module}')"
+		],
+		"description": "Lua require statement"
+	},
+	"Lua print": {
+		"prefix": "print",
+		"body": [
+			"print(${1:\"${2:message}\"})"
+		],
+		"description": "Lua print statement"
+	},
+	"Lua string format": {
+		"prefix": "fmt",
+		"body": [
+			"string.format('${1:%s}', ${2:value})"
+		],
+		"description": "Lua string format"
+	},
+	"Lua coroutine": {
+		"prefix": "coroutine",
+		"body": [
+			"local ${1:co} = coroutine.create(function(${2:args})",
+			"\t$0",
+			"end)",
+			"coroutine.resume(${1:co})"
+		],
+		"description": "Lua coroutine"
+	}
+}

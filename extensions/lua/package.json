@@ -35,6 +35,12 @@
           "comment.line.double-dash.doc.lua": "other"
         }
       }
+    ],
+    "snippets": [
+      {
+        "language": "lua",
+        "path": "./snippets/lua.code-snippets"
+      }
     ]
   },
   "repository": {
