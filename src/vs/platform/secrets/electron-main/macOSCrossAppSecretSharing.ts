@@ -3,10 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as electron from 'electron';
 import { execFile } from 'child_process';
 import { dirname } from '../../../base/common/path.js';
-import { Disposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { ILogService } from '../../log/common/log.js';
 import { IEncryptionMainService } from '../../encryption/common/encryptionService.js';
 import { IStorageMainService } from '../../storage/electron-main/storageMainService.js';
@@ -17,6 +16,7 @@ import { IStorageMain } from '../../storage/electron-main/storageMain.js';
 import { IEnvironmentMainService } from '../../environment/electron-main/environmentMainService.js';
 import { ILaunchMainService } from '../../launch/electron-main/launchMainService.js';
 import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService.js';
+import { ICrossAppIPCService } from '../../crossAppIpc/electron-main/crossAppIpcService.js';
 
 const MIGRATION_STATE_KEY = 'crossAppSecretSharing.migrationDone';
 
@@ -43,7 +43,7 @@ interface CrossAppSecretMessage {
  *
  * **Demand-driven**: Only the agents app initiates migration. If it
  * detects that migration hasn't been done yet, it:
- * 1. Creates a crossAppIPC connection and starts listening.
+ * 1. Waits for the crossAppIPC connection (managed by ICrossAppIPCService).
  * 2. Spawns Code.app with `--share-secrets-with-agents-app`, which
  *    either starts Code.app fresh or (if already running) forwards
  *    the arg to the existing instance via the node IPC socket.
@@ -60,10 +60,10 @@ interface CrossAppSecretMessage {
  */
 export class MacOSCrossAppSecretSharing extends Disposable {
 
-	private ipc: Electron.CrossAppIPC | undefined;
 	private readonly isEmbeddedApp: boolean;
 	private readonly applicationStorage: IStorageMain;
 	private _onHostMigrationComplete: (() => void) | undefined;
+	private readonly hostHandshakeListeners = this._register(new DisposableStore());
 
 	constructor(
 		storageMainService: IStorageMainService,
@@ -73,6 +73,7 @@ export class MacOSCrossAppSecretSharing extends Disposable {
 		environmentMainService: IEnvironmentMainService,
 		launchMainService: ILaunchMainService,
 		lifecycleMainService: ILifecycleMainService,
+		private readonly crossAppIPCService: ICrossAppIPCService,
 	) {
 		super();
 		this.isEmbeddedApp = !!(process as INodeProcess).isEmbeddedApp;
@@ -119,47 +120,41 @@ export class MacOSCrossAppSecretSharing extends Disposable {
 		// will write secrets into applicationStorage.
 		await this.applicationStorage.whenInit;
 
-		const crossAppIPC: Electron.CrossAppIPCModule | undefined = electron.crossAppIPC;
-		if (!crossAppIPC) {
-			this.logService.info('[CrossAppSecretSharing] crossAppIPC not available');
+		if (!this.crossAppIPCService.initialized) {
+			this.logService.info('[CrossAppSecretSharing] crossAppIPC not initialized, skipping migration');
 			return;
 		}
 
 		this.logService.info('[CrossAppSecretSharing] Migration needed, starting...');
 
-		const ipc = crossAppIPC.createCrossAppIPC();
-		this.ipc = ipc;
+		// Listen for connection — when connected, request secrets
+		this._register(this.crossAppIPCService.onDidConnect(isServer => {
+			this.logService.info(`[CrossAppSecretSharing] Connected (isServer=${isServer}), requesting secrets from host app`);
+			this.crossAppIPCService.sendMessage({ type: CrossAppSecretMessageType.SecretRequest });
+		}));
 
-		ipc.on('connected', () => {
-			this.logService.info(`[CrossAppSecretSharing] connected (isServer=${ipc.isServer})`);
-			this.logService.info('[CrossAppSecretSharing] Requesting secrets from host app');
-			this.sendMessage({ type: CrossAppSecretMessageType.SecretRequest });
-		});
-
-		ipc.on('message', (messageEvent) => {
-			const msg = messageEvent.data as CrossAppSecretMessage | undefined;
-			if (msg?.type === CrossAppSecretMessageType.SecretResponse) {
-				this.handleSecretResponse(msg.data ?? {});
+		// Listen for messages
+		this._register(this.crossAppIPCService.onDidReceiveMessage(msg => {
+			const secretMsg = msg as CrossAppSecretMessage;
+			if (secretMsg?.type === CrossAppSecretMessageType.SecretResponse) {
+				this.handleSecretResponse(secretMsg.data ?? {});
 			}
-		});
+		}));
 
-		ipc.on('disconnected', (reason) => {
-			this.logService.info(`[CrossAppSecretSharing] disconnected (${reason})`);
-			this.ipc = undefined;
-		});
-
-		ipc.connect();
+		// If already connected (e.g. service was initialized before storage was ready),
+		// send the request immediately.
+		if (this.crossAppIPCService.connected) {
+			this.logService.info(`[CrossAppSecretSharing] Already connected (isServer=${this.crossAppIPCService.isServer}), requesting secrets from host app`);
+			this.crossAppIPCService.sendMessage({ type: CrossAppSecretMessageType.SecretRequest });
+		}
 
 		// Spawn Code.app with --share-secrets-with-agents-app
 		this.spawnHostApp();
 
-		// If Code.app doesn't connect within 30s (e.g. not installed,
-		// failed to launch), give up and clean up the IPC.
+		// Timeout: if migration doesn't complete within 30s, give up
 		setTimeout(() => {
-			if (this.ipc && !this.isMigrationDone()) {
-				this.logService.warn('[CrossAppSecretSharing] Migration timed out, closing IPC');
-				this.ipc.close();
-				this.ipc = undefined;
+			if (!this.isMigrationDone()) {
+				this.logService.warn('[CrossAppSecretSharing] Migration timed out');
 			}
 		}, 30_000);
 	}
@@ -187,9 +182,8 @@ export class MacOSCrossAppSecretSharing extends Disposable {
 			return;
 		}
 
-		const crossAppIPC: Electron.CrossAppIPCModule | undefined = electron.crossAppIPC;
-		if (!crossAppIPC) {
-			this.logService.info('[CrossAppSecretSharing] crossAppIPC not available');
+		if (!this.crossAppIPCService.initialized) {
+			this.logService.info('[CrossAppSecretSharing] crossAppIPC not initialized');
 			onComplete?.();
 			return;
 		}
@@ -198,34 +192,25 @@ export class MacOSCrossAppSecretSharing extends Disposable {
 
 		this.logService.info('[CrossAppSecretSharing] Host app responding to secret sharing request');
 
-		const ipc = crossAppIPC.createCrossAppIPC();
-		this.ipc = ipc;
+		// Dispose previous listeners if initializeAsHostApp is called again
+		// (e.g. via repeated onDidRequestShareSecrets events).
+		this.hostHandshakeListeners.clear();
 
-		ipc.on('connected', () => {
-			this.logService.info(`[CrossAppSecretSharing] connected (isServer=${ipc.isServer})`);
-		});
-
-		ipc.on('message', (messageEvent) => {
-			const msg = messageEvent.data as CrossAppSecretMessage | undefined;
-			if (msg?.type === CrossAppSecretMessageType.SecretRequest) {
+		// Listen for messages from the agents app
+		this.hostHandshakeListeners.add(this.crossAppIPCService.onDidReceiveMessage(msg => {
+			const secretMsg = msg as CrossAppSecretMessage;
+			if (secretMsg?.type === CrossAppSecretMessageType.SecretRequest) {
 				this.handleSecretRequest();
-			} else if (msg?.type === CrossAppSecretMessageType.SecretAck) {
+			} else if (secretMsg?.type === CrossAppSecretMessageType.SecretAck) {
 				this.handleSecretAck();
 			}
-		});
+		}));
 
-		ipc.on('disconnected', (reason) => {
-			this.logService.info(`[CrossAppSecretSharing] disconnected (${reason})`);
-			this.ipc = undefined;
-
-			// If the agents app disconnected before sending SecretAck
-			// (e.g. it crashed), ensure the host app can still quit
-			// when it was launched solely for migration.
+		// If disconnected before ack, still allow the host to quit
+		this.hostHandshakeListeners.add(this.crossAppIPCService.onDidDisconnect(() => {
 			this._onHostMigrationComplete?.();
 			this._onHostMigrationComplete = undefined;
-		});
-
-		ipc.connect();
+		}));
 	}
 
 	private isMigrationDone(): boolean {
@@ -284,10 +269,8 @@ export class MacOSCrossAppSecretSharing extends Disposable {
 			}
 		}
 
-		this.sendMessage({ type: CrossAppSecretMessageType.SecretResponse, data: secrets });
+		this.crossAppIPCService.sendMessage({ type: CrossAppSecretMessageType.SecretResponse, data: secrets });
 		this.logService.info('[CrossAppSecretSharing] Sent secrets response with', Object.keys(secrets).length, 'keys');
-
-		// Don't close yet — wait for SecretAck from agents app
 	}
 
 	private async handleSecretResponse(secrets: Record<string, string>): Promise<void> {
@@ -317,7 +300,7 @@ export class MacOSCrossAppSecretSharing extends Disposable {
 
 		// Tell the host app migration is done so it can also record it.
 		// Don't close here — let the host close first after receiving the ack.
-		this.sendMessage({ type: CrossAppSecretMessageType.SecretAck });
+		this.crossAppIPCService.sendMessage({ type: CrossAppSecretMessageType.SecretAck });
 	}
 
 	private handleSecretAck(): void {
@@ -327,20 +310,6 @@ export class MacOSCrossAppSecretSharing extends Disposable {
 		const onComplete = this._onHostMigrationComplete;
 		this._onHostMigrationComplete = undefined;
 
-		// Host closes — this triggers 'disconnected' on the agents side
-		this.ipc?.close();
-
 		onComplete?.();
-	}
-
-	private sendMessage(msg: CrossAppSecretMessage): void {
-		if (this.ipc?.connected) {
-			this.ipc.postMessage(msg);
-		}
-	}
-
-	override dispose(): void {
-		this.ipc?.close();
-		super.dispose();
 	}
 }

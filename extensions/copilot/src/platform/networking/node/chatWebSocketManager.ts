@@ -82,6 +82,7 @@ export interface IChatWebSocketRequestOptions {
 	userInitiated: boolean;
 	turnId: string;
 	requestId: string;
+	model: string;
 	countTokens: () => Promise<number>;
 	tokenCountMax: number;
 	modelMaxPromptTokens: number;
@@ -596,7 +597,7 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 		const promptTokenCountPromise = options.countTokens();
 		let promptTokenCount = -1;
 		promptTokenCountPromise.then(count => { promptTokenCount = count; }, () => { promptTokenCount = -2; });
-		const request = new ChatWebSocketActiveRequest(requestId, body.model, options.summarizedAtRoundId, this._configurationService, this._logService);
+		const request = new ChatWebSocketActiveRequest(requestId, options.model, options.summarizedAtRoundId, this._configurationService, this._logService);
 		request.onDidSettle(({ outcome, closeCode, closeReason, serverErrorMessage, serverErrorCode }) => {
 			if (this._activeRequest === request) {
 				this._activeRequest = undefined;
@@ -615,7 +616,7 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 				hadActiveRequest,
 				requestId,
 				gitHubRequestId: this.gitHubRequestId,
-				modelId: body.model,
+				modelId: options.model,
 				requestOutcome: outcome,
 				statefulMarkerMatched,
 				previousResponseIdUnset,
@@ -674,7 +675,7 @@ class ChatWebSocketConnection extends Disposable implements IChatWebSocketConnec
 			hadActiveRequest,
 			requestId,
 			gitHubRequestId: this.gitHubRequestId,
-			modelId: body.model,
+			modelId: options.model,
 			statefulMarkerMatched,
 			previousResponseIdUnset,
 			hasCompactionData,
