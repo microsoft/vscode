@@ -148,7 +148,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 		if (isDirectory) {
 			// Recursive watcher re-use is currently not enabled for when
 			// folders are watched. this is because the dispatching in the
-			// recursive watcher for non-recurive requests is optimized for
+			// recursive watcher for non-recursive requests is optimized for
 			// file changes  where we really only match on the exact path
 			// and not child paths.
 			return false;

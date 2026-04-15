@@ -465,7 +465,7 @@ export async function fetchFishHistory(accessor: ServicesAccessor): Promise<IShe
 
 	/**
 	 * These apply to `fish` v3.5.1:
-	 * - It looks like YAML but it's not. It's, quoting, *"a broken psuedo-YAML"*.
+	 * - It looks like YAML but it's not. It's, quoting, *"a broken pseudo-YAML"*.
 	 *   See these discussions for more details:
 	 *   - https://github.com/fish-shell/fish-shell/pull/6493
 	 *   - https://github.com/fish-shell/fish-shell/issues/3341
