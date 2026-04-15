@@ -671,6 +671,12 @@ function patchWin32DependenciesTask(destinationFolderName: string) {
 		const patchPromises = deps.map<Promise<unknown>>(async dep => {
 			const basename = path.basename(dep);
 
+			// test-workbench_change start - skip non-Windows binaries
+			if (dep.includes('darwin') || dep.includes('linux')) {
+				return;
+			}
+			// test-workbench_change end
+
 			await rcedit(path.join(cwd, dep), {
 				'file-version': baseVersion,
 				'version-string': {

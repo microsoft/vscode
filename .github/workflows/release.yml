@@ -370,27 +370,34 @@ jobs:
       - name: Compile
         run: npm run gulp compile
 
-      - name: Build macOS
+      - name: Build macOS x64
+        run: npm run gulp vscode-darwin-x64
+
+      - name: Build macOS arm64
+        run: npm run gulp vscode-darwin-arm64
+
+      - name: Create macOS x64 archive
         run: |
-          npm run gulp "vscode-darwin-x64" "vscode-darwin-arm64" "vscode-darwin-universal"
+          cd ..
+          ditto -c -k --sequesterRsrc --keepParent VSCode-darwin-x64 VSCode-darwin-x64.zip
+
+      - name: Create macOS arm64 archive
+        run: |
+          cd ..
+          ditto -c -k --sequesterRsrc --keepParent VSCode-darwin-arm64 VSCode-darwin-arm64.zip
 
       - name: Upload x64 Artifact
         uses: actions/upload-artifact@v4
         with:
           name: vscode-darwin-x64
-          path: .build/VSCode-darwin-x64/*.zip
+          path: ../VSCode-darwin-x64.zip
 
       - name: Upload arm64 Artifact
         uses: actions/upload-artifact@v4
         with:
           name: vscode-darwin-arm64
-          path: .build/VSCode-darwin-arm64/*.zip
+          path: ../VSCode-darwin-arm64.zip
 
-      - name: Upload Universal Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: vscode-darwin-universal
-          path: .build/VSCode-darwin-universal/*.zip
 
   build-linux:
     name: Build Linux
@@ -486,14 +493,24 @@ jobs:
         run: |
           npm run gulp "vscode-linux-arm64"
 
+      - name: Create Linux x64 archive
+        run: |
+          cd ..
+          tar -czf VSCode-linux-x64.tar.gz VSCode-linux-x64
+
+      - name: Create Linux arm64 archive
+        run: |
+          cd ..
+          tar -czf VSCode-linux-arm64.tar.gz VSCode-linux-arm64
+
       - name: Upload x64 Artifact
         uses: actions/upload-artifact@v4
         with:
           name: vscode-linux-x64
-          path: .build/VSCode-linux-x64/*.tar.gz
+          path: ../VSCode-linux-x64.tar.gz
 
       - name: Upload arm64 Artifact
         uses: actions/upload-artifact@v4
         with:
           name: vscode-linux-arm64
-          path: .build/VSCode-linux-arm64/*.tar.gz
+          path: ../VSCode-linux-arm64.tar.gz
