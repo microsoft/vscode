@@ -1033,6 +1033,7 @@ export class TestContext {
 			}
 		}
 
+		console.info(`Validating Agents entry point at: ${filePath}`);
 		if (!filePath || !fs.existsSync(filePath)) {
 			this.error(`Agents entry point does not exist: ${filePath}`);
 		}
