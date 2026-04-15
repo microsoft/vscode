@@ -1,0 +1,484 @@
+name: Release Build
+
+on:
+  push:
+    branches:
+      - main
+      - 'release/*'
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      quality:
+        description: 'Quality (oss, insider, stable)'
+        required: false
+        default: 'oss'
+        type: choice
+        options:
+          - oss
+          - insider
+          - stable
+      platforms:
+        description: 'Platforms to build'
+        required: false
+        default: 'win32-x64'
+        type: choice
+        options:
+          - win32-x64
+          - win32-arm64
+          - darwin
+          - linux
+      target:
+        description: 'Target (user or system, Windows only)'
+        required: false
+        default: 'user'
+        type: choice
+        options:
+          - user
+          - system
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+env:
+  VSCODE_QUALITY: ${{ github.event.inputs.quality || 'oss' }}
+
+jobs:
+  build-win32-x64:
+    name: Build Windows x64
+    runs-on: windows-2022
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      (contains('win32-x64,all', github.event.inputs.platforms) || github.event_name != 'workflow_dispatch')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          lfs: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Prepare node_modules cache key
+        shell: pwsh
+        run: |
+          mkdir .build -ea 0
+          node build/azure-pipelines/common/computeNodeModulesCacheKey.ts win32 x64 $(node -p process.arch) > .build/packagelockhash
+
+      - name: Restore node_modules cache
+        uses: actions/cache/restore@v5
+        id: node-modules-cache
+        with:
+          path: .build/node_modules_cache
+          key: "node_modules-windows-x64-${{ hashFiles('.build/packagelockhash') }}"
+
+      - name: Extract node_modules cache
+        if: steps.node-modules-cache.outputs.cache-hit == 'true'
+        shell: pwsh
+        run: 7z.exe x .build/node_modules_cache/cache.7z -aoa
+
+      - name: Install dependencies
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          for ($i = 1; $i -le 5; $i++) {
+            try {
+              exec { npm ci }
+              break
+            }
+            catch {
+              if ($i -eq 5) {
+                Write-Error "npm ci failed after 5 attempts"
+                throw
+              }
+              Write-Host "npm ci failed attempt $i, retrying..."
+              Start-Sleep -Seconds 2
+            }
+          }
+        env:
+          npm_config_arch: x64
+          npm_config_foreground_scripts: "true"
+          VSCODE_ARCH: x64
+
+      - name: Create node_modules archive
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          exec { node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt }
+          exec { mkdir -Force .build/node_modules_cache }
+          exec { 7z.exe a .build/node_modules_cache/cache.7z -mx3 `@.build/node_modules_list.txt }
+
+      - name: Create .build folder
+        shell: pwsh
+        run: mkdir .build -ea 0
+
+      - name: Prepare built-in extensions cache key
+        shell: pwsh
+        run: node build/azure-pipelines/common/computeBuiltInDepsCacheKey.ts > .build/builtindepshash
+
+      - name: Restore built-in extensions cache
+        id: cache-builtin-extensions
+        uses: actions/cache/restore@v5
+        with:
+          enableCrossOsArchive: true
+          path: .build/builtInExtensions
+          key: "builtin-extensions-${{ hashFiles('.build/builtindepshash') }}"
+
+      - name: Download built-in extensions
+        if: steps.cache-builtin-extensions.outputs.cache-hit != 'true'
+        run: node build/lib/builtInExtensions.ts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compile
+        shell: pwsh
+        run: npm run gulp compile
+
+      - name: Build Windows x64 User Setup
+        shell: pwsh
+        run: npm run gulp vscode-win32-x64-user-setup
+
+      - name: Build Windows x64 System Setup
+        shell: pwsh
+        run: npm run gulp vscode-win32-x64-system-setup
+
+      - name: Upload User Setup Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vscode-win32-x64-user-setup
+          path: .build/win32-x64/user-setup/*.exe
+
+      - name: Upload System Setup Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vscode-win32-x64-system-setup
+          path: .build/win32-x64/system-setup/*.exe
+
+  build-win32-arm64:
+    name: Build Windows arm64
+    runs-on: windows-2022
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      (contains('win32-arm64,all', github.event.inputs.platforms) || github.event_name != 'workflow_dispatch')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          lfs: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Prepare node_modules cache key
+        shell: pwsh
+        run: |
+          mkdir .build -ea 0
+          node build/azure-pipelines/common/computeNodeModulesCacheKey.ts win32 arm64 $(node -p process.arch) > .build/packagelockhash
+
+      - name: Restore node_modules cache
+        uses: actions/cache/restore@v5
+        id: node-modules-cache
+        with:
+          path: .build/node_modules_cache
+          key: "node_modules-windows-arm64-${{ hashFiles('.build/packagelockhash') }}"
+
+      - name: Extract node_modules cache
+        if: steps.node-modules-cache.outputs.cache-hit == 'true'
+        shell: pwsh
+        run: 7z.exe x .build/node_modules_cache/cache.7z -aoa
+
+      - name: Install dependencies
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          for ($i = 1; $i -le 5; $i++) {
+            try {
+              exec { npm ci }
+              break
+            }
+            catch {
+              if ($i -eq 5) {
+                Write-Error "npm ci failed after 5 attempts"
+                throw
+              }
+              Write-Host "npm ci failed attempt $i, retrying..."
+              Start-Sleep -Seconds 2
+            }
+          }
+        env:
+          npm_config_arch: arm64
+          npm_config_foreground_scripts: "true"
+          VSCODE_ARCH: arm64
+
+      - name: Create node_modules archive
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          exec { node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt }
+          exec { mkdir -Force .build/node_modules_cache }
+          exec { 7z.exe a .build/node_modules_cache/cache.7z -mx3 `@.build/node_modules_list.txt }
+
+      - name: Create .build folder
+        shell: pwsh
+        run: mkdir .build -ea 0
+
+      - name: Prepare built-in extensions cache key
+        shell: pwsh
+        run: node build/azure-pipelines/common/computeBuiltInDepsCacheKey.ts > .build/builtindepshash
+
+      - name: Restore built-in extensions cache
+        id: cache-builtin-extensions
+        uses: actions/cache/restore@v5
+        with:
+          enableCrossOsArchive: true
+          path: .build/builtInExtensions
+          key: "builtin-extensions-${{ hashFiles('.build/builtindepshash') }}"
+
+      - name: Download built-in extensions
+        if: steps.cache-builtin-extensions.outputs.cache-hit != 'true'
+        run: node build/lib/builtInExtensions.ts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compile
+        shell: pwsh
+        run: npm run gulp compile
+
+      - name: Build Windows arm64 User Setup
+        shell: pwsh
+        run: npm run gulp vscode-win32-arm64-user-setup
+
+      - name: Build Windows arm64 System Setup
+        shell: pwsh
+        run: npm run gulp vscode-win32-arm64-system-setup
+
+      - name: Upload User Setup Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vscode-win32-arm64-user-setup
+          path: .build/win32-arm64/user-setup/*.exe
+
+      - name: Upload System Setup Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vscode-win32-arm64-system-setup
+          path: .build/win32-arm64/system-setup/*.exe
+
+  build-darwin:
+    name: Build macOS
+    runs-on: macos-latest
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      (contains('darwin,all', github.event.inputs.platforms) || github.event_name != 'workflow_dispatch')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          lfs: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Prepare node_modules cache key
+        run: |
+          mkdir -p .build
+          node build/azure-pipelines/common/computeNodeModulesCacheKey.ts darwin x64 $(node -p process.arch) > .build/packagelockhash
+
+      - name: Restore node_modules cache
+        uses: actions/cache/restore@v5
+        id: node-modules-cache
+        with:
+          path: .build/node_modules_cache
+          key: "node_modules-darwin-x64-${{ hashFiles('.build/packagelockhash') }}"
+
+      - name: Extract node_modules cache
+        if: steps.node-modules-cache.outputs.cache-hit == 'true'
+        run: tar -xzf .build/node_modules_cache/cache.tgz
+
+      - name: Install dependencies
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
+        run: |
+          set -e
+          for i in {1..5}; do
+            npm ci && break
+            if [ $i -eq 5 ]; then
+              echo "Npm install failed too many times" >&2
+              exit 1
+            fi
+            echo "Npm install failed $i, trying again..."
+          done
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+
+      - name: Create node_modules archive
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
+        run: |
+          set -e
+          node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
+          mkdir -p .build/node_modules_cache
+          tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
+
+      - name: Create .build folder
+        run: mkdir -p .build
+
+      - name: Prepare built-in extensions cache key
+        run: node build/azure-pipelines/common/computeBuiltInDepsCacheKey.ts > .build/builtindepshash
+
+      - name: Restore built-in extensions cache
+        id: cache-builtin-extensions
+        uses: actions/cache/restore@v5
+        with:
+          enableCrossOsArchive: true
+          path: .build/builtInExtensions
+          key: "builtin-extensions-${{ hashFiles('.build/builtindepshash') }}"
+
+      - name: Download built-in extensions
+        if: steps.cache-builtin-extensions.outputs.cache-hit != 'true'
+        run: node build/lib/builtInExtensions.ts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compile
+        run: npm run gulp compile
+
+      - name: Build macOS
+        run: |
+          npm run gulp "vscode-darwin-x64" "vscode-darwin-arm64" "vscode-darwin-universal"
+
+      - name: Upload x64 Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vscode-darwin-x64
+          path: .build/VSCode-darwin-x64/*.zip
+
+      - name: Upload arm64 Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vscode-darwin-arm64
+          path: .build/VSCode-darwin-arm64/*.zip
+
+      - name: Upload Universal Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vscode-darwin-universal
+          path: .build/VSCode-darwin-universal/*.zip
+
+  build-linux:
+    name: Build Linux
+    runs-on: ubuntu-22.04
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      (contains('linux,all', github.event.inputs.platforms) || github.event_name != 'workflow_dispatch')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          lfs: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Install system dependencies
+        run: |
+          sudo apt update -y
+          sudo apt install -y build-essential pkg-config libx11-dev libx11-xcb-dev libxkbfile-dev libnotify-bin libkrb5-dev libsecret-1-dev libxshmfence-dev
+
+      - name: Prepare node_modules cache key
+        run: |
+          mkdir -p .build
+          node build/azure-pipelines/common/computeNodeModulesCacheKey.ts linux x64 $(node -p process.arch) > .build/packagelockhash
+
+      - name: Restore node_modules cache
+        uses: actions/cache/restore@v5
+        id: node-modules-cache
+        with:
+          path: .build/node_modules_cache
+          key: "node_modules-linux-x64-${{ hashFiles('.build/packagelockhash') }}"
+
+      - name: Extract node_modules cache
+        if: steps.node-modules-cache.outputs.cache-hit == 'true'
+        run: tar -xzf .build/node_modules_cache/cache.tgz
+
+      - name: Install dependencies
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
+        run: |
+          set -e
+          for i in {1..5}; do
+            npm ci && break
+            if [ $i -eq 5 ]; then
+              echo "Npm install failed too many times" >&2
+              exit 1
+            fi
+            echo "Npm install failed $i, trying again..."
+          done
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+
+      - name: Create node_modules archive
+        if: steps.node-modules-cache.outputs.cache-hit != 'true'
+        run: |
+          set -e
+          node build/azure-pipelines/common/listNodeModules.ts .build/node_modules_list.txt
+          mkdir -p .build/node_modules_cache
+          tar -czf .build/node_modules_cache/cache.tgz --files-from .build/node_modules_list.txt
+
+      - name: Create .build folder
+        run: mkdir -p .build
+
+      - name: Prepare built-in extensions cache key
+        run: node build/azure-pipelines/common/computeBuiltInDepsCacheKey.ts > .build/builtindepshash
+
+      - name: Restore built-in extensions cache
+        id: cache-builtin-extensions
+        uses: actions/cache/restore@v5
+        with:
+          enableCrossOsArchive: true
+          path: .build/builtInExtensions
+          key: "builtin-extensions-${{ hashFiles('.build/builtindepshash') }}"
+
+      - name: Download built-in extensions
+        if: steps.cache-builtin-extensions.outputs.cache-hit != 'true'
+        run: node build/lib/builtInExtensions.ts
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Compile
+        run: npm run gulp compile
+
+      - name: Build Linux x64
+        run: |
+          npm run gulp "vscode-linux-x64"
+
+      - name: Build Linux arm64
+        run: |
+          npm run gulp "vscode-linux-arm64"
+
+      - name: Upload x64 Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vscode-linux-x64
+          path: .build/VSCode-linux-x64/*.tar.gz
+
+      - name: Upload arm64 Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vscode-linux-arm64
+          path: .build/VSCode-linux-arm64/*.tar.gz
