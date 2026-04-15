@@ -202,6 +202,7 @@
 		"sash"
 	],
 	// --- Workbench ---
+	"workbench.welcomePage.experimentalOnboarding": false, // test-workbench_change
 	"editor.aiStats.enabled": true, // Team selfhosting on ai stats
 	"azureMcp.enabledServices": [
 		"kusto" // Needed for kusto tool in data.prompt.md
