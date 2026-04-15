@@ -7,7 +7,6 @@ import { $, append, EventType, addDisposableListener, EventHelper, disposableWin
 import { Gesture, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
-import { renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { IAction, toAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from '../../../../../base/common/actions.js';
 import { CancellationToken, cancelOnDispose } from '../../../../../base/common/cancellation.js';
@@ -37,15 +36,11 @@ import { DomWidget } from '../../../../../platform/domWidget/browser/domWidget.j
 import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/editor.js';
 import { IChatEntitlementService, ChatEntitlementService, ChatEntitlement, IQuotaSnapshot, getChatPlanName } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { isNewUser } from './chatStatus.js';
 import product from '../../../../../platform/product/common/product.js';
 import { contrastBorder, inputValidationErrorBorder, inputValidationInfoBorder, inputValidationWarningBorder, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
 import { Color } from '../../../../../base/common/color.js';
-import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { ChatViewId } from '../chat.js';
 import { isCompletionsEnabled } from '../../../../../editor/common/services/completionsEnablement.js';
-import { AgentSessionProviders } from '../agentSessions/agentSessions.js';
 
 const defaultChat = product.defaultChatAgent;
 
@@ -131,8 +126,8 @@ export class ChatStatusDashboard extends DomWidget {
 
 	readonly element = $('div.chat-status-bar-entry-tooltip');
 
-	private readonly dateFormatter = safeIntl.DateTimeFormat(language, { year: 'numeric', month: 'long', day: 'numeric' });
-	private readonly dateTimeFormatter = safeIntl.DateTimeFormat(language, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: 'numeric' });
+	private readonly dateFormatter = safeIntl.DateTimeFormat(language, { month: 'short', day: 'numeric' });
+	private readonly timeFormatter = safeIntl.DateTimeFormat(language, { hour: 'numeric', minute: 'numeric' });
 	private readonly quotaPercentageFormatter = safeIntl.NumberFormat(undefined, { maximumFractionDigits: 1, minimumFractionDigits: 0 });
 	private readonly quotaOverageFormatter = safeIntl.NumberFormat(undefined, { maximumFractionDigits: 2, minimumFractionDigits: 0 });
 
@@ -148,11 +143,9 @@ export class ChatStatusDashboard extends DomWidget {
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ITextResourceConfigurationService private readonly textResourceConfigurationService: ITextResourceConfigurationService,
 		@IInlineCompletionsService private readonly inlineCompletionsService: IInlineCompletionsService,
-		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
-		@IViewsService private readonly viewService: IViewsService,
 	) {
 		super();
 
@@ -205,12 +198,12 @@ export class ChatStatusDashboard extends DomWidget {
 			usageTab.setAttribute('aria-controls', usageContent.id);
 			usageTab.setAttribute('tabindex', '0');
 
-			const inlineSuggestionsTab = tabBar.appendChild($('button.tab'));
-			inlineSuggestionsTab.textContent = localize('inlineSuggestionsTab', "Inline Suggestions");
-			inlineSuggestionsTab.setAttribute('role', 'tab');
-			inlineSuggestionsTab.setAttribute('aria-selected', 'false');
-			inlineSuggestionsTab.setAttribute('aria-controls', inlineSuggestionsContent.id);
-			inlineSuggestionsTab.setAttribute('tabindex', '-1');
+			const quickSettingsTab = tabBar.appendChild($('button.tab'));
+			quickSettingsTab.textContent = localize('quickSettingsTab', "Quick Settings");
+			quickSettingsTab.setAttribute('role', 'tab');
+			quickSettingsTab.setAttribute('aria-selected', 'false');
+			quickSettingsTab.setAttribute('aria-controls', inlineSuggestionsContent.id);
+			quickSettingsTab.setAttribute('tabindex', '-1');
 
 			const switchTab = (activeTab: HTMLElement, inactiveTab: HTMLElement, showContent: HTMLElement, hideContent: HTMLElement) => {
 				activeTab.classList.add('active');
@@ -225,18 +218,18 @@ export class ChatStatusDashboard extends DomWidget {
 				hideContent.inert = true;
 			};
 
-			this._store.add(addDisposableListener(usageTab, EventType.CLICK, () => switchTab(usageTab, inlineSuggestionsTab, usageContent, inlineSuggestionsContent)));
-			this._store.add(addDisposableListener(inlineSuggestionsTab, EventType.CLICK, () => switchTab(inlineSuggestionsTab, usageTab, inlineSuggestionsContent, usageContent)));
+			this._store.add(addDisposableListener(usageTab, EventType.CLICK, () => switchTab(usageTab, quickSettingsTab, usageContent, inlineSuggestionsContent)));
+			this._store.add(addDisposableListener(quickSettingsTab, EventType.CLICK, () => switchTab(quickSettingsTab, usageTab, inlineSuggestionsContent, usageContent)));
 
 			// Keyboard navigation between tabs
 			this._store.add(addDisposableListener(tabBar, EventType.KEY_DOWN, (e: KeyboardEvent) => {
 				if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
 					e.preventDefault();
 					if (usageTab.classList.contains('active')) {
-						switchTab(inlineSuggestionsTab, usageTab, inlineSuggestionsContent, usageContent);
-						inlineSuggestionsTab.focus();
+						switchTab(quickSettingsTab, usageTab, inlineSuggestionsContent, usageContent);
+						quickSettingsTab.focus();
 					} else {
-						switchTab(usageTab, inlineSuggestionsTab, usageContent, inlineSuggestionsContent);
+						switchTab(usageTab, quickSettingsTab, usageContent, inlineSuggestionsContent);
 						usageTab.focus();
 					}
 				}
@@ -255,35 +248,6 @@ export class ChatStatusDashboard extends DomWidget {
 			this.renderUsageContent(this.element, token);
 		} else if (hasInlineSuggestionsSection) {
 			this.renderInlineSuggestionsContent(this.element, token);
-		}
-
-		// Chat sessions (below tabs)
-		{
-			const inProgress = this.chatSessionsService.getInProgress().filter(item => item.count > 0);
-			if (inProgress.length > 0) {
-
-				this.element.appendChild($('hr'));
-				this.renderHeader(this.element, this._store, localize('chatAgentSessionsTitle', "Agent Sessions"), toAction({
-					id: 'workbench.view.chat.status.sessions',
-					label: localize('viewChatSessionsLabel', "View Agent Sessions"),
-					tooltip: localize('viewChatSessionsTooltip', "View Agent Sessions"),
-					class: ThemeIcon.asClassName(Codicon.eye),
-					run: () => {
-						this.viewService.openView(ChatViewId, true);
-						this.hoverService.hideHover(true);
-					}
-				}));
-
-				for (const { chatSessionType } of inProgress) {
-					const displayName = this.getDisplayNameForChatSessionType(chatSessionType);
-					if (displayName) {
-						const text = '$(loading~spin) ' + localize('inProgressChatSession', "{0} in progress", displayName);
-						const chatSessionsElement = this.element.appendChild($('div.description'));
-						const parts = renderLabelWithIcons(text);
-						chatSessionsElement.append(...parts);
-					}
-				}
-			}
 		}
 
 		// New to Chat / Signed out
@@ -345,12 +309,17 @@ export class ChatStatusDashboard extends DomWidget {
 		const { chat: chatQuota, completions: completionsQuota, premiumChat: premiumChatQuota, resetDate, resetDateHasTime } = this.chatEntitlementService.quotas;
 
 		if (chatQuota || premiumChatQuota) {
-			const chatQuotaIndicator = chatQuota && (chatQuota.total > 0 || chatQuota.unlimited) ? this.createQuotaIndicator(container, this._store, chatQuota, localize('chatsLabel', "Chat messages"), false) : undefined;
-			const premiumChatLabel = premiumChatQuota?.overageEnabled && !premiumChatQuota?.unlimited ? localize('includedPremiumChatsLabel', "Included premium requests") : localize('premiumChatsLabel', "Premium requests");
-			const premiumChatQuotaIndicator = premiumChatQuota && (premiumChatQuota.total > 0 || premiumChatQuota.unlimited) ? this.createQuotaIndicator(container, this._store, premiumChatQuota, premiumChatLabel, true) : undefined;
+			const resetLabel = resetDate ? (resetDateHasTime ? localize('quotaResetsAt', "Resets {0} at {1}", this.dateFormatter.value.format(new Date(resetDate)), this.timeFormatter.value.format(new Date(resetDate))) : localize('quotaResets', "Resets {0}", this.dateFormatter.value.format(new Date(resetDate)))) : undefined;
 
-			if (resetDate) {
-				container.appendChild($('div.description', undefined, localize('limitQuota', "Allowance resets {0}.", resetDateHasTime ? this.dateTimeFormatter.value.format(new Date(resetDate)) : this.dateFormatter.value.format(new Date(resetDate)))));
+			let chatQuotaIndicator: ((quota: IQuotaSnapshot | string) => void) | undefined;
+			if (chatQuota && !chatQuota.unlimited && chatQuota.total > 0) {
+				chatQuotaIndicator = this.createQuotaIndicator(container, this._store, chatQuota, localize('chatsLabel', "Chat messages"), false, resetLabel);
+			}
+
+			let premiumChatQuotaIndicator: ((quota: IQuotaSnapshot | string) => void) | undefined;
+			if (premiumChatQuota && !premiumChatQuota.unlimited && premiumChatQuota.total > 0) {
+				const premiumChatLabel = premiumChatQuota.overageEnabled ? localize('includedPremiumChatsLabel', "Included premium requests") : localize('premiumChatsLabel', "Premium requests");
+				premiumChatQuotaIndicator = this.createQuotaIndicator(container, this._store, premiumChatQuota, premiumChatLabel, true, resetLabel);
 			}
 
 			if (this.chatEntitlementService.entitlement === ChatEntitlement.Free && (Number(chatQuota?.percentRemaining) <= 25 || Number(completionsQuota?.percentRemaining) <= 25)) {
@@ -384,23 +353,20 @@ export class ChatStatusDashboard extends DomWidget {
 	private renderInlineSuggestionsContent(container: HTMLElement, token: CancellationToken, updatePromise?: Promise<void>): void {
 		// Completions quota
 		{
-			const { completions: completionsQuota } = this.chatEntitlementService.quotas;
-			if (completionsQuota && (completionsQuota.total > 0 || completionsQuota.unlimited)) {
-				if (completionsQuota.unlimited) {
-					this.createIncludedIndicator(container, localize('completionsLabel', "Inline Suggestions"));
-				} else {
-					const completionsQuotaIndicator = this.createQuotaIndicator(container, this._store, completionsQuota, localize('completionsLabel', "Inline Suggestions"), false);
-					(async () => {
-						await (updatePromise ?? this.chatEntitlementService.update(token));
-						if (token.isCancellationRequested) {
-							return;
-						}
-						const { completions } = this.chatEntitlementService.quotas;
-						if (completions) {
-							completionsQuotaIndicator(completions);
-						}
-					})();
-				}
+			const { completions: completionsQuota, resetDate, resetDateHasTime } = this.chatEntitlementService.quotas;
+			const resetLabel = resetDate ? (resetDateHasTime ? localize('quotaResetsAt', "Resets {0} at {1}", this.dateFormatter.value.format(new Date(resetDate)), this.timeFormatter.value.format(new Date(resetDate))) : localize('quotaResets', "Resets {0}", this.dateFormatter.value.format(new Date(resetDate)))) : undefined;
+			if (completionsQuota && !completionsQuota.unlimited && completionsQuota.total > 0) {
+				const completionsQuotaIndicator = this.createQuotaIndicator(container, this._store, completionsQuota, localize('completionsLabel', "Inline Suggestions"), false, resetLabel);
+				(async () => {
+					await (updatePromise ?? this.chatEntitlementService.update(token));
+					if (token.isCancellationRequested) {
+						return;
+					}
+					const { completions } = this.chatEntitlementService.quotas;
+					if (completions) {
+						completionsQuotaIndicator(completions);
+					}
+				})();
 			} else if (this.chatEntitlementService.anonymous && this.chatEntitlementService.sentiment.completed) {
 				this.createQuotaIndicator(container, this._store, localize('quotaLimited', "Limited"), localize('completionsLabel', "Inline Suggestions"), false);
 			}
@@ -475,18 +441,6 @@ export class ChatStatusDashboard extends DomWidget {
 		}
 	}
 
-	private getDisplayNameForChatSessionType(chatSessionType: string): string | undefined {
-		if (chatSessionType === AgentSessionProviders.Local) {
-			return localize('chat.session.inProgress.local', "Local Agent");
-		} else if (chatSessionType === AgentSessionProviders.Background) {
-			return localize('chat.session.inProgress.background', "Background Agent");
-		} else if (chatSessionType === AgentSessionProviders.Cloud) {
-			return localize('chat.session.inProgress.cloud', "Cloud Agent");
-		} else {
-			return this.chatSessionsService.getChatSessionContribution(chatSessionType)?.displayName;
-		}
-	}
-
 	private canUseChat(): boolean {
 		if (!this.chatEntitlementService.sentiment.completed || this.chatEntitlementService.sentiment.disabled || this.chatEntitlementService.sentiment.untrusted) {
 			return false; // chat not completed or not enabled
@@ -523,26 +477,35 @@ export class ChatStatusDashboard extends DomWidget {
 		this.hoverService.hideHover(true);
 	}
 
-	private createQuotaIndicator(container: HTMLElement, disposables: DisposableStore, quota: IQuotaSnapshot | string, label: string, supportsOverage: boolean): (quota: IQuotaSnapshot | string) => void {
+	private createQuotaIndicator(container: HTMLElement, disposables: DisposableStore, quota: IQuotaSnapshot | string, label: string, supportsOverage: boolean, resetLabel?: string): (quota: IQuotaSnapshot | string) => void {
 		const quotaValue = $('span.quota-value');
+		const quotaValueSuffix = $('span.quota-value-suffix');
 		const quotaBit = $('div.quota-bit');
 		const overageLabel = $('span.overage-label');
+		const resetValue = $('span.quota-reset');
+
+		if (resetLabel) {
+			resetValue.textContent = resetLabel;
+		}
 
 		const quotaIndicator = container.appendChild($('div.quota-indicator', undefined,
-			$('div.quota-label', undefined,
-				$('span', undefined, label),
-				quotaValue
+			$('div.quota-title', undefined, label),
+			$('div.quota-details', undefined,
+				$('div.quota-percentage', undefined,
+					quotaValue,
+					quotaValueSuffix
+				),
+				resetValue
 			),
 			$('div.quota-bar', undefined,
 				quotaBit
-			),
-			$('div.description', undefined,
-				overageLabel
 			)
 		));
 
+		container.appendChild($('div.description', undefined, overageLabel));
+
 		if (supportsOverage && (this.chatEntitlementService.entitlement === ChatEntitlement.EDU || this.chatEntitlementService.entitlement === ChatEntitlement.Pro || this.chatEntitlementService.entitlement === ChatEntitlement.ProPlus)) {
-			const manageOverageButton = disposables.add(new Button(quotaIndicator, { ...defaultButtonStyles, secondary: true, hoverDelegate: nativeHoverDelegate }));
+			const manageOverageButton = disposables.add(new Button(container, { ...defaultButtonStyles, secondary: true, hoverDelegate: nativeHoverDelegate }));
 			manageOverageButton.label = localize('enableAdditionalUsage', "Manage paid premium requests");
 			disposables.add(manageOverageButton.onDidClick(() => this.runCommandAndClose(() => this.openerService.open(URI.parse(defaultChat.manageOverageUrl)))));
 		}
@@ -552,7 +515,7 @@ export class ChatStatusDashboard extends DomWidget {
 			quotaIndicator.classList.remove('warning');
 
 			let usedPercentage: number;
-			if (typeof quota === 'string' || quota.unlimited) {
+			if (typeof quota === 'string') {
 				usedPercentage = 0;
 			} else {
 				usedPercentage = Math.max(0, 100 - quota.percentRemaining);
@@ -560,12 +523,13 @@ export class ChatStatusDashboard extends DomWidget {
 
 			if (typeof quota === 'string') {
 				quotaValue.textContent = quota;
-			} else if (quota.unlimited) {
-				quotaValue.textContent = localize('quotaUnlimited', "Included");
+				quotaValueSuffix.textContent = '';
 			} else if (quota.overageCount) {
-				quotaValue.textContent = localize('quotaDisplayWithOverage', "+{0} requests", this.quotaOverageFormatter.value.format(quota.overageCount));
+				quotaValue.textContent = `+${this.quotaOverageFormatter.value.format(quota.overageCount)}`;
+				quotaValueSuffix.textContent = ` ${localize('quotaOverageRequests', "requests")}`;
 			} else {
 				quotaValue.textContent = localize('quotaDisplay', "{0}%", this.quotaPercentageFormatter.value.format(usedPercentage));
+				quotaValueSuffix.textContent = ` ${localize('quotaUsed', "used")}`;
 			}
 
 			quotaBit.style.width = `${usedPercentage}%`;
@@ -578,9 +542,7 @@ export class ChatStatusDashboard extends DomWidget {
 			}
 
 			if (supportsOverage) {
-				if (typeof quota !== 'string' && quota.unlimited) {
-					overageLabel.textContent = '';
-				} else if (typeof quota !== 'string' && quota?.overageEnabled) {
+				if (typeof quota !== 'string' && quota?.overageEnabled) {
 					overageLabel.replaceChildren(
 						localize('additionalUsageApprovedLine1', "Additional premium requests approved."),
 						$('br'),
@@ -597,13 +559,6 @@ export class ChatStatusDashboard extends DomWidget {
 		update(quota);
 
 		return update;
-	}
-
-	private createIncludedIndicator(container: HTMLElement, label: string): void {
-		const includedContainer = container.appendChild($('div.included-indicator'));
-		includedContainer.appendChild($('span.included-label', undefined, label));
-		includedContainer.appendChild($('span.included-separator', { 'aria-hidden': 'true' }, '\u00B7'));
-		includedContainer.appendChild($('span.included-value', undefined, localize('includedWithPlan', "Included with your plan.")));
 	}
 
 	private createSettings(container: HTMLElement, disposables: DisposableStore): HTMLElement {

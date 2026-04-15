@@ -1068,7 +1068,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		this._extensionService.activateByEvent('onTerminal:*');
 		let instance;
 		if (parent) {
-			instance = this._splitTerminal(shellLaunchConfig, location, parent);
+			instance = await this._splitTerminal(shellLaunchConfig, location, parent);
 		} else {
 			instance = this._createTerminal(shellLaunchConfig, location, options);
 		}
@@ -1176,7 +1176,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 		}
 	}
 
-	private _splitTerminal(shellLaunchConfig: IShellLaunchConfig, location: TerminalLocation, parent: ITerminalInstance): ITerminalInstance {
+	private async _splitTerminal(shellLaunchConfig: IShellLaunchConfig, location: TerminalLocation, parent: ITerminalInstance): Promise<ITerminalInstance> {
 		let instance;
 		// Use the URI from the base instance if it exists, this will correctly split local terminals
 		if (typeof shellLaunchConfig.cwd !== 'object' && typeof parent.shellLaunchConfig.cwd === 'object') {
@@ -1187,7 +1187,7 @@ export class TerminalService extends Disposable implements ITerminalService {
 			});
 		}
 		if (location === TerminalLocation.Editor || parent.target === TerminalLocation.Editor) {
-			instance = this._terminalEditorService.splitInstance(parent, shellLaunchConfig);
+			instance = await this._terminalEditorService.splitInstance(parent, shellLaunchConfig);
 		} else {
 			const group = this._terminalGroupService.getGroupForInstance(parent);
 			if (!group) {
