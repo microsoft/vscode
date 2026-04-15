@@ -95,8 +95,8 @@ export interface IXtermTerminalOptions {
 	 * When true, skips registering listeners on global singleton services
 	 * (configuration, theme, log level) to avoid accumulating listeners when
 	 * many detached terminals are created concurrently. The caller should use
-	 * {@link XtermTerminal.updateConfig} and {@link XtermTerminal.updateTheme}
-	 * to apply changes externally.
+	 * {@link XtermTerminal.updateConfig}, {@link XtermTerminal.updateTheme},
+	 * and {@link XtermTerminal.updateLogLevel} to apply those changes externally.
 	 */
 	detached?: boolean;
 }
@@ -542,6 +542,10 @@ export class XtermTerminal extends Disposable implements IXtermTerminal, IDetach
 	resize(columns: number, rows: number): void {
 		this._logService.debug('resizing', columns, rows);
 		this.raw.resize(columns, rows);
+	}
+
+	updateLogLevel(): void {
+		this.raw.options.logLevel = vscodeToXtermLogLevel(this._logService.getLevel());
 	}
 
 	updateConfig(): void {

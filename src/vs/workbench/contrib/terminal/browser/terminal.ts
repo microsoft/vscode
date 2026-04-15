@@ -1520,6 +1520,11 @@ export interface IDetachedXtermTerminal extends IXtermTerminal {
 	updateTheme(): void;
 
 	/**
+	 * Updates the xterm log level to match the given VS Code log level.
+	 */
+	updateLogLevel(): void;
+
+	/**
 	 * Access to the terminal buffer for reading cursor position and content.
 	 */
 	readonly buffer: IBufferSet;

@@ -20,7 +20,7 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
-import { ICreateContributedTerminalProfileOptions, IExtensionTerminalProfile, IPtyHostAttachTarget, IRawTerminalInstanceLayoutInfo, IRawTerminalTabLayoutInfo, IShellLaunchConfig, ITerminalBackend, ITerminalLaunchError, ITerminalLogService, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalExitReason, TerminalLocation, TitleEventSource } from '../../../../platform/terminal/common/terminal.js';
+import { ICreateContributedTerminalProfileOptions, IExtensionTerminalProfile, IPtyHostAttachTarget, IRawTerminalInstanceLayoutInfo, IRawTerminalTabLayoutInfo, IShellLaunchConfig, ITerminalBackend, ITerminalLaunchError, ITerminalLogService, ITerminalsLayoutInfo, ITerminalsLayoutInfoById, TerminalExitReason, TerminalLocation, TerminalSettingId, TitleEventSource } from '../../../../platform/terminal/common/terminal.js';
 import { formatMessageForTerminal } from '../../../../platform/terminal/common/terminalStrings.js';
 import { iconForeground } from '../../../../platform/theme/common/colorRegistry.js';
 import { getIconRegistry } from '../../../../platform/theme/common/iconRegistry.js';
@@ -1123,9 +1123,9 @@ export class TerminalService extends Disposable implements ITerminalService {
 	}
 
 	/**
-	 * Registers a single set of global service listeners (theme/config changes)
-	 * that forward updates to all detached xterm instances. This avoids each
-	 * detached terminal registering its own listener on global singletons.
+	 * Registers a single set of global service listeners (theme/config/log-level
+	 * changes) that forward updates to all detached xterm instances. This avoids
+	 * each detached terminal registering its own listener on global singletons.
 	 */
 	private _ensureDetachedTerminalListeners(): void {
 		if (this._detachedListenersRegistered) {
@@ -1138,10 +1138,22 @@ export class TerminalService extends Disposable implements ITerminalService {
 			}
 		}));
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('terminal.integrated') || e.affectsConfiguration('editor.fastScrollSensitivity') || e.affectsConfiguration('editor.mouseWheelScrollSensitivity') || e.affectsConfiguration('editor.multiCursorModifier')) {
+			const shouldUpdateConfig = e.affectsConfiguration('terminal.integrated') || e.affectsConfiguration('editor.fastScrollSensitivity') || e.affectsConfiguration('editor.mouseWheelScrollSensitivity') || e.affectsConfiguration('editor.multiCursorModifier');
+			const shouldUpdateTheme = e.affectsConfiguration(TerminalSettingId.ShellIntegrationDecorationsEnabled);
+			if (shouldUpdateConfig || shouldUpdateTheme) {
 				for (const instance of this._detachedXterms) {
-					instance.xterm.updateConfig();
+					if (shouldUpdateConfig) {
+						instance.xterm.updateConfig();
+					}
+					if (shouldUpdateTheme) {
+						instance.xterm.updateTheme();
+					}
 				}
+			}
+		}));
+		this._register(this._logService.onDidChangeLogLevel(() => {
+			for (const instance of this._detachedXterms) {
+				instance.xterm.updateLogLevel();
 			}
 		}));
 	}

@@ -277,6 +277,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 	private _toolbarIsHiddenTerminal = false;
 	private _toolbarOutputExpanded = false;
 	private _actionBar: ActionBar | undefined;
+	private readonly _actionBarActions = new DisposableStore();
 
 	private readonly _terminalData: IChatTerminalToolInvocationData;
 	private _terminalCommandUri: URI | undefined;
@@ -391,6 +392,7 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 		const actionBarEl = h('.chat-terminal-action-bar@actionBar');
 		elements.title.append(actionBarEl.root);
 		this._actionBar = this._register(new ActionBar(actionBarEl.actionBar));
+		this._register(this._actionBarActions);
 		let didInitializeTerminalActions = false;
 		const initializeTerminalActionsOnce = () => {
 			if (didInitializeTerminalActions || this._store.isDisposed) {
@@ -677,40 +679,47 @@ export class ChatTerminalToolProgressPart extends BaseChatToolInvocationSubPart 
 			return;
 		}
 		this._actionBar.clear();
+		this._actionBarActions.clear();
 		const actions: IAction[] = [];
 		if (this._toolbarCanContinueInBackground) {
-			actions.push(new Action(
+			const action = new Action(
 				TerminalContribCommandId.ContinueInBackground,
 				localize('continueInBackground', 'Continue in Background'),
 				ThemeIcon.asClassName(Codicon.debugContinue),
 				true,
 				() => this.continueInBackground()
-			));
+			);
+			this._actionBarActions.add(action);
+			actions.push(action);
 		}
 		if (this._toolbarHasInstance) {
 			const focusLabel = this._toolbarIsHiddenTerminal
 				? localize('showTerminal', 'Show and Focus Terminal')
 				: localize('focusTerminal', 'Focus Terminal');
-			actions.push(new Action(
+			const action = new Action(
 				TerminalContribCommandId.FocusChatInstanceAction,
 				focusLabel,
 				ThemeIcon.asClassName(Codicon.openInProduct),
 				true,
 				() => this.focusTerminal()
-			));
+			);
+			this._actionBarActions.add(action);
+			actions.push(action);
 		}
 		if (this._toolbarHasOutput && !this._usesCollapsibleWrapper) {
 			const toggleIcon = this._toolbarOutputExpanded ? Codicon.chevronDown : Codicon.chevronRight;
 			const toggleLabel = this._toolbarOutputExpanded
 				? localize('hideTerminalOutput', 'Hide Output')
 				: localize('showTerminalOutput', 'Show Output');
-			actions.push(new Action(
+			const action = new Action(
 				TerminalContribCommandId.ToggleChatTerminalOutput,
 				toggleLabel,
 				ThemeIcon.asClassName(toggleIcon),
 				true,
 				() => this.toggleOutputFromAction()
-			));
+			);
+			this._actionBarActions.add(action);
+			actions.push(action);
 		}
 		this._actionBar.push(actions, { icon: true, label: false });
 	}
