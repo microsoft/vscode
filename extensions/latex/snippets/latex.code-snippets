@@ -1,0 +1,219 @@
+{
+	"LaTeX article document": {
+		"prefix": "article",
+		"body": [
+			"\\\\documentclass[${1:12pt}]{article}",
+			"\\\\usepackage[utf8]{inputenc}",
+			"\\\\usepackage[T1]{fontenc}",
+			"\\\\usepackage{amsmath}",
+			"\\\\usepackage{amssymb}",
+			"",
+			"\\\\title{${2:Title}}",
+			"\\\\author{${3:Author}}",
+			"\\\\date{\\\\today}",
+			"",
+			"\\\\begin{document}",
+			"\\\\maketitle",
+			"",
+			"$0",
+			"",
+			"\\\\end{document}"
+		],
+		"description": "LaTeX article document template"
+	},
+	"LaTeX beamer presentation": {
+		"prefix": "beamer",
+		"body": [
+			"\\\\documentclass{beamer}",
+			"\\\\title{${1:Presentation Title}}",
+			"\\\\author{${2:Author}}",
+			"\\\\date{\\\\today}",
+			"",
+			"\\\\begin{document}",
+			"\\\\maketitle",
+			"",
+			"\\\\begin{frame}{${3:Frame Title}}",
+			"$0",
+			"\\\\end{frame}",
+			"",
+			"\\\\end{document}"
+		],
+		"description": "LaTeX Beamer presentation template"
+	},
+	"LaTeX section": {
+		"prefix": "section",
+		"body": [
+			"\\\\section{${1:Section Title}}",
+			"$0"
+		],
+		"description": "LaTeX section"
+	},
+	"LaTeX subsection": {
+		"prefix": "subsection",
+		"body": [
+			"\\\\subsection{${1:Subsection Title}}",
+			"$0"
+		],
+		"description": "LaTeX subsection"
+	},
+	"LaTeX equation environment": {
+		"prefix": "eq",
+		"body": [
+			"\\\\begin{equation}",
+			"\t$0",
+			"\\\\end{equation}"
+		],
+		"description": "LaTeX equation environment"
+	},
+	"LaTeX aligned equations": {
+		"prefix": "align",
+		"body": [
+			"\\\\begin{align}",
+			"\t${1:a} &= ${2:b} \\\\\\\\",
+			"\t$0",
+			"\\\\end{align}"
+		],
+		"description": "LaTeX align environment"
+	},
+	"LaTeX inline math": {
+		"prefix": "im",
+		"body": [
+			"\\$${1:expression}\\$"
+		],
+		"description": "LaTeX inline math"
+	},
+	"LaTeX display math": {
+		"prefix": "dm",
+		"body": [
+			"\\\\[",
+			"\t$0",
+			"\\\\]"
+		],
+		"description": "LaTeX display math"
+	},
+	"LaTeX itemize list": {
+		"prefix": "itemize",
+		"body": [
+			"\\\\begin{itemize}",
+			"\t\\\\item $0",
+			"\\\\end{itemize}"
+		],
+		"description": "LaTeX itemize list"
+	},
+	"LaTeX enumerate list": {
+		"prefix": "enumerate",
+		"body": [
+			"\\\\begin{enumerate}",
+			"\t\\\\item $0",
+			"\\\\end{enumerate}"
+		],
+		"description": "LaTeX enumerate list"
+	},
+	"LaTeX figure": {
+		"prefix": "figure",
+		"body": [
+			"\\\\begin{figure}[${1:htbp}]",
+			"\t\\\\centering",
+			"\t\\\\includegraphics[width=${2:0.8\\\\textwidth}]{${3:filename}}",
+			"\t\\\\caption{${4:Caption}}",
+			"\t\\\\label{fig:${5:label}}",
+			"\\\\end{figure}"
+		],
+		"description": "LaTeX figure with caption"
+	},
+	"LaTeX table": {
+		"prefix": "table",
+		"body": [
+			"\\\\begin{table}[${1:htbp}]",
+			"\t\\\\centering",
+			"\t\\\\caption{${2:Caption}}",
+			"\t\\\\label{tab:${3:label}}",
+			"\t\\\\begin{tabular}{${4:ccc}}",
+			"\t\t\\\\hline",
+			"\t\t${5:Col1} & ${6:Col2} & ${7:Col3} \\\\\\\\",
+			"\t\t\\\\hline",
+			"\t\t$0",
+			"\t\t\\\\hline",
+			"\t\\\\end{tabular}",
+			"\\\\end{table}"
+		],
+		"description": "LaTeX table"
+	},
+	"LaTeX bibliography": {
+		"prefix": "bib",
+		"body": [
+			"\\\\bibliographystyle{${1:plain}}",
+			"\\\\bibliography{${2:references}}"
+		],
+		"description": "LaTeX bibliography"
+	},
+	"LaTeX usepackage": {
+		"prefix": "usepackage",
+		"body": [
+			"\\\\usepackage{${1:package}}"
+		],
+		"description": "LaTeX usepackage"
+	},
+	"LaTeX label and ref": {
+		"prefix": "label",
+		"body": [
+			"\\\\label{${1:type}:${2:name}}"
+		],
+		"description": "LaTeX label"
+	},
+	"LaTeX citation": {
+		"prefix": "cite",
+		"body": [
+			"\\\\cite{${1:key}}"
+		],
+		"description": "LaTeX citation"
+	},
+	"LaTeX text bold": {
+		"prefix": "bf",
+		"body": [
+			"\\\\textbf{${1:text}}"
+		],
+		"description": "LaTeX bold text"
+	},
+	"LaTeX text italic": {
+		"prefix": "it",
+		"body": [
+			"\\\\textit{${1:text}}"
+		],
+		"description": "LaTeX italic text"
+	},
+	"LaTeX text underline": {
+		"prefix": "ul",
+		"body": [
+			"\\\\underline{${1:text}}"
+		],
+		"description": "LaTeX underlined text"
+	},
+	"LaTeX abstract": {
+		"prefix": "abstract",
+		"body": [
+			"\\\\begin{abstract}",
+			"\t$0",
+			"\\\\end{abstract}"
+		],
+		"description": "LaTeX abstract"
+	},
+	"LaTeX verbatim": {
+		"prefix": "verb",
+		"body": [
+			"\\\\begin{verbatim}",
+			"$0",
+			"\\\\end{verbatim}"
+		],
+		"description": "LaTeX verbatim block"
+	},
+	"LaTeX minipage": {
+		"prefix": "minipage",
+		"body": [
+			"\\\\begin{minipage}{${1:0.5\\\\textwidth}}",
+			"\t$0",
+			"\\\\end{minipage}"
+		],
+		"description": "LaTeX minipage"
+	}
+}

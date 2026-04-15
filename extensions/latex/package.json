@@ -111,6 +111,12 @@
         "scopeName": "source.cpp.embedded.latex",
         "path": "./syntaxes/cpp-grammar-bailout.tmLanguage.json"
       }
+    ],
+    "snippets": [
+      {
+        "language": "latex",
+        "path": "./snippets/latex.code-snippets"
+      }
     ]
   },
   "repository": {
