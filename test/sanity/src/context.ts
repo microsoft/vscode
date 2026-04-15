@@ -1298,7 +1298,7 @@ export class TestContext {
 				let terminated = false;
 				app.stdout.on('data', (data) => {
 					const text = data.toString().trim();
-					if (/\berror\b/.test(text) && !/error listing current tunnels/.test(text)) {
+					if (/\berror\b/.test(text)) {
 						reject(new Error(`[${name}] ${text}`));
 					}
 
