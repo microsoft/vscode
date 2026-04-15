@@ -202,7 +202,7 @@ export function matchCellBasedOnSimilarties(modifiedCells: ICell[], originalCell
 				if (matchesForThisOriginalIndex && previousMatchedOriginalIndex < originalIndex) {
 					const betterMatch = Array.from(matchesForThisOriginalIndex).find(([modifiedIndex, value]) => {
 						if (modifiedIndex === i) {
-							// This is the same modifeid entry.
+							// This is the same modified entry.
 							return false;
 						}
 						if (modifiedIndex >= nextMatchedModifiedIndex) {
