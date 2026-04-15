@@ -329,10 +329,6 @@ class TitleBarAccountWidget extends BaseActionViewItem {
 			return;
 		}
 
-		this.showPanel();
-	}
-
-	showPanel(): void {
 		this.showCombinedPanel();
 	}
 
@@ -738,7 +734,7 @@ class AccountWidgetContribution extends Disposable implements IWorkbenchContribu
 			}
 
 			async run(): Promise<void> {
-				accountWidget?.togglePanel();
+				accountWidget?.onClick();
 			}
 		}));
 
