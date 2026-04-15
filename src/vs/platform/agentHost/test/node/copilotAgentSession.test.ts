@@ -7,7 +7,6 @@ import assert from 'assert';
 import type { CopilotSession, SessionEvent, SessionEventPayload, SessionEventType, TypedSessionEventHandler } from '@github/copilot-sdk';
 import { Emitter } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
-import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { NullLogService, ILogService } from '../../../log/common/log.js';
 import { IFileService } from '../../../files/common/files.js';
@@ -64,7 +63,7 @@ class MockCopilotSession {
 
 // ---- Helpers ----------------------------------------------------------------
 
-async function createAgentSession(disposables: DisposableStore, options?: { workingDirectory?: URI }): Promise<{
+async function createAgentSession(disposables: DisposableStore): Promise<{
 	session: CopilotAgentSession;
 	mockSession: MockCopilotSession;
 	progressEvents: IAgentProgressEvent[];
@@ -90,7 +89,6 @@ async function createAgentSession(disposables: DisposableStore, options?: { work
 		{
 			sessionUri,
 			rawSessionId: 'test-session-1',
-			workingDirectory: options?.workingDirectory,
 			onDidSessionProgress: progressEmitter,
 			wrapperFactory: factory,
 			shellManager: undefined,
@@ -115,16 +113,14 @@ suite('CopilotAgentSession', () => {
 
 	suite('permission handling', () => {
 
-		test('does not auto-approve read inside working directory (deferred to side effects)', async () => {
-			const { session, progressEvents } = await createAgentSession(disposables, { workingDirectory: URI.file('/workspace') });
+		test('read permission fires tool_ready (deferred to side effects)', async () => {
+			const { session, progressEvents } = await createAgentSession(disposables);
 			const resultPromise = session.handlePermissionRequest({
 				kind: 'read',
 				path: '/workspace/src/file.ts',
 				toolCallId: 'tc-1',
 			});
 
-			// Read should NOT be auto-approved at the session level — it fires
-			// a tool_ready event so agentSideEffects can handle it.
 			assert.strictEqual(progressEvents.length, 1);
 			assert.strictEqual(progressEvents[0].type, 'tool_ready');
 
@@ -133,16 +129,14 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(result.kind, 'approved');
 		});
 
-		test('does not auto-approve write inside working directory (deferred to side effects)', async () => {
-			const { session, progressEvents } = await createAgentSession(disposables, { workingDirectory: URI.file('/workspace') });
+		test('write permission fires tool_ready (deferred to side effects)', async () => {
+			const { session, progressEvents } = await createAgentSession(disposables);
 			const resultPromise = session.handlePermissionRequest({
 				kind: 'write',
 				fileName: '/workspace/src/file.ts',
 				toolCallId: 'tc-1',
 			});
 
-			// Write should NOT be auto-approved at the session level — it fires
-			// a tool_ready event so agentSideEffects can apply glob patterns.
 			assert.strictEqual(progressEvents.length, 1);
 			assert.strictEqual(progressEvents[0].type, 'tool_ready');
 
@@ -151,8 +145,8 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(result.kind, 'approved');
 		});
 
-		test('does not auto-approve write outside working directory', async () => {
-			const { session, progressEvents } = await createAgentSession(disposables, { workingDirectory: URI.file('/workspace') });
+		test('write permission outside working directory fires tool_ready', async () => {
+			const { session, progressEvents } = await createAgentSession(disposables);
 
 			const resultPromise = session.handlePermissionRequest({
 				kind: 'write',
@@ -168,8 +162,8 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(result.kind, 'approved');
 		});
 
-		test('does not auto-approve read outside working directory', async () => {
-			const { session, progressEvents } = await createAgentSession(disposables, { workingDirectory: URI.file('/workspace') });
+		test('read permission outside working directory fires tool_ready', async () => {
+			const { session, progressEvents } = await createAgentSession(disposables);
 
 			// Kick off permission request but don't await — it will block
 			const resultPromise = session.handlePermissionRequest({

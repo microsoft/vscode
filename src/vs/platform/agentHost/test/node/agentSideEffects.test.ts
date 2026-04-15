@@ -902,6 +902,71 @@ suite('AgentSideEffects', () => {
 		});
 	});
 
+	// ---- Read auto-approve -------------------------------------------------
+
+	suite('read auto-approve', () => {
+
+		test('auto-approves reads inside working directory', () => {
+			setupSession(URI.file('/workspace').toString());
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_start',
+				toolCallId: 'tc-read-1',
+				toolName: 'read',
+				displayName: 'Read',
+				invocationMessage: 'Read file',
+			});
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_ready',
+				toolCallId: 'tc-read-1',
+				invocationMessage: 'Read src/app.ts',
+				permissionKind: 'read',
+				permissionPath: '/workspace/src/app.ts',
+			});
+
+			assert.deepStrictEqual(agent.respondToPermissionCalls, [
+				{ requestId: 'tc-read-1', approved: true },
+			]);
+		});
+
+		test('does not auto-approve reads outside working directory', () => {
+			setupSession(URI.file('/workspace').toString());
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			const envelopes: IActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_start',
+				toolCallId: 'tc-read-2',
+				toolName: 'read',
+				displayName: 'Read',
+				invocationMessage: 'Read file',
+			});
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_ready',
+				toolCallId: 'tc-read-2',
+				invocationMessage: 'Read /etc/passwd',
+				permissionKind: 'read',
+				permissionPath: '/etc/passwd',
+			});
+
+			assert.strictEqual(agent.respondToPermissionCalls.length, 0);
+
+			const readyAction = envelopes.find(e => e.action.type === ActionType.SessionToolCallReady);
+			assert.ok(readyAction, 'should dispatch tool_ready for read outside working directory');
+		});
+	});
+
 	// ---- Title persistence --------------------------------------------------
 
 	suite('title persistence', () => {

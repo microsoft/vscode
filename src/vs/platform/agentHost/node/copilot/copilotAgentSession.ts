@@ -99,6 +99,11 @@ function tryStringify(value: unknown): string | undefined {
 /**
  * Derives display fields from a permission request for the tool confirmation UI.
  */
+/** Safely extract a string value from an SDK field that may be `unknown` at runtime. */
+function str(value: unknown): string | undefined {
+	return typeof value === 'string' ? value : undefined;
+}
+
 function getPermissionDisplay(request: ITypedPermissionRequest): {
 	confirmationTitle: string;
 	invocationMessage: string;
@@ -106,8 +111,11 @@ function getPermissionDisplay(request: ITypedPermissionRequest): {
 	/** Normalized permission kind for auto-approval routing. */
 	permissionKind: IAgentToolReadyEvent['permissionKind'];
 } {
-	const path = request.path ?? request.fileName;
-	const { fullCommandText, intention, serverName, toolName } = request;
+	const path = str(request.path) ?? str(request.fileName);
+	const fullCommandText = str(request.fullCommandText);
+	const intention = str(request.intention);
+	const serverName = str(request.serverName);
+	const toolName = str(request.toolName);
 
 	switch (request.kind) {
 		case 'shell':
@@ -120,9 +128,9 @@ function getPermissionDisplay(request: ITypedPermissionRequest): {
 		case 'custom-tool': {
 			// Custom tool overrides (e.g. our shell tool). Extract the actual
 			// tool args from the SDK's wrapper envelope.
-			const args = request.args;
+			const args = typeof request.args === 'object' && request.args !== null ? request.args as Record<string, unknown> : undefined;
 			const command = typeof args?.command === 'string' ? args.command : undefined;
-			const sdkToolName = request.toolName;
+			const sdkToolName = str(request.toolName);
 			if (command && sdkToolName && isShellTool(sdkToolName)) {
 				return {
 					confirmationTitle: localize('copilot.permission.shell.title', "Run in terminal"),
@@ -177,7 +185,6 @@ function getPermissionDisplay(request: ITypedPermissionRequest): {
 export interface ICopilotAgentSessionOptions {
 	readonly sessionUri: URI;
 	readonly rawSessionId: string;
-	readonly workingDirectory: URI | undefined;
 	readonly onDidSessionProgress: Emitter<IAgentProgressEvent>;
 	readonly wrapperFactory: SessionWrapperFactory;
 	readonly shellManager: ShellManager | undefined;
@@ -485,7 +492,7 @@ export class CopilotAgentSession extends Disposable {
 			toolInput,
 			confirmationTitle,
 			permissionKind,
-			permissionPath: request.path ?? request.fileName,
+			permissionPath: str(request.path) ?? str(request.fileName),
 		});
 
 		const approved = await deferred.p;
