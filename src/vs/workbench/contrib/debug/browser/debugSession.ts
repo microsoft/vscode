@@ -1490,7 +1490,7 @@ export class DebugSession implements IDebugSession {
 	private shutdown(): void {
 		this.rawListeners.clear();
 		if (this.raw) {
-			// Send out disconnect and immediatly dispose (do not wait for response) #127418
+			// Send out disconnect and immediately dispose (do not wait for response) #127418
 			this.raw.disconnect({});
 			this.raw.dispose();
 			this.raw = undefined;
