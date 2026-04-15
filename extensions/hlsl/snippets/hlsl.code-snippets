@@ -1,0 +1,194 @@
+{
+	"HLSL vertex shader": {
+		"prefix": "vs",
+		"body": [
+			"struct ${1:VSInput} {",
+			"\tfloat4 position : POSITION;",
+			"\tfloat2 uv : TEXCOORD0;",
+			"};",
+			"",
+			"struct ${2:VSOutput} {",
+			"\tfloat4 position : SV_POSITION;",
+			"\tfloat2 uv : TEXCOORD0;",
+			"};",
+			"",
+			"${2:VSOutput} ${3:VS}(${1:VSInput} input) {",
+			"\t${2:VSOutput} output;",
+			"\toutput.position = input.position;",
+			"\toutput.uv = input.uv;",
+			"\t$0",
+			"\treturn output;",
+			"}"
+		],
+		"description": "HLSL vertex shader boilerplate"
+	},
+	"HLSL pixel shader": {
+		"prefix": "ps",
+		"body": [
+			"float4 ${1:PS}(${2:float2 uv : TEXCOORD0}) : SV_TARGET {",
+			"\t$0",
+			"\treturn float4(1.0, 1.0, 1.0, 1.0);",
+			"}"
+		],
+		"description": "HLSL pixel shader boilerplate"
+	},
+	"HLSL compute shader": {
+		"prefix": "cs",
+		"body": [
+			"[numthreads(${1:8}, ${2:8}, ${3:1})]",
+			"void ${4:CS}(uint3 dispatchThreadId : SV_DispatchThreadID) {",
+			"\t$0",
+			"}"
+		],
+		"description": "HLSL compute shader boilerplate"
+	},
+	"HLSL cbuffer": {
+		"prefix": "cbuffer",
+		"body": [
+			"cbuffer ${1:ConstantBuffer} : register(b${2:0}) {",
+			"\tfloat4x4 ${3:worldViewProj};",
+			"\t$0",
+			"};"
+		],
+		"description": "HLSL constant buffer"
+	},
+	"HLSL texture2D": {
+		"prefix": "tex2d",
+		"body": [
+			"Texture2D ${1:tex} : register(t${2:0});",
+			"SamplerState ${3:sampler} : register(s${4:0});"
+		],
+		"description": "HLSL 2D texture and sampler"
+	},
+	"HLSL textureCube": {
+		"prefix": "texcube",
+		"body": [
+			"TextureCube ${1:cubeTex} : register(t${2:0});",
+			"SamplerState ${3:sampler} : register(s${4:0});"
+		],
+		"description": "HLSL cube texture and sampler"
+	},
+	"HLSL struct": {
+		"prefix": "struct",
+		"body": [
+			"struct ${1:Name} {",
+			"\t${2:float4} ${3:field} : ${4:SEMANTIC};",
+			"\t$0",
+			"};"
+		],
+		"description": "HLSL struct declaration"
+	},
+	"HLSL function": {
+		"prefix": "fun",
+		"body": [
+			"${1:float4} ${2:name}(${3:float4 param}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "HLSL function declaration"
+	},
+	"HLSL if": {
+		"prefix": "if",
+		"body": [
+			"if (${1:condition}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "HLSL if statement"
+	},
+	"HLSL for loop": {
+		"prefix": "for",
+		"body": [
+			"for (int ${1:i} = 0; ${1:i} < ${2:count}; ${1:i}++) {",
+			"\t$0",
+			"}"
+		],
+		"description": "HLSL for loop"
+	},
+	"HLSL while loop": {
+		"prefix": "while",
+		"body": [
+			"while (${1:condition}) {",
+			"\t$0",
+			"}"
+		],
+		"description": "HLSL while loop"
+	},
+	"HLSL lerp": {
+		"prefix": "lerp",
+		"body": [
+			"lerp(${1:a}, ${2:b}, ${3:t})"
+		],
+		"description": "HLSL linear interpolation"
+	},
+	"HLSL saturate": {
+		"prefix": "sat",
+		"body": [
+			"saturate(${1:value})"
+		],
+		"description": "HLSL saturate (clamp to [0,1])"
+	},
+	"HLSL float2": {
+		"prefix": "f2",
+		"body": [
+			"float2(${1:x}, ${2:y})"
+		],
+		"description": "HLSL float2 constructor"
+	},
+	"HLSL float3": {
+		"prefix": "f3",
+		"body": [
+			"float3(${1:x}, ${2:y}, ${3:z})"
+		],
+		"description": "HLSL float3 constructor"
+	},
+	"HLSL float4": {
+		"prefix": "f4",
+		"body": [
+			"float4(${1:x}, ${2:y}, ${3:z}, ${4:w})"
+		],
+		"description": "HLSL float4 constructor"
+	},
+	"HLSL dot product": {
+		"prefix": "dot",
+		"body": [
+			"dot(${1:a}, ${2:b})"
+		],
+		"description": "HLSL dot product"
+	},
+	"HLSL cross product": {
+		"prefix": "cross",
+		"body": [
+			"cross(${1:a}, ${2:b})"
+		],
+		"description": "HLSL cross product"
+	},
+	"HLSL normalize": {
+		"prefix": "norm",
+		"body": [
+			"normalize(${1:v})"
+		],
+		"description": "HLSL normalize vector"
+	},
+	"HLSL sample texture": {
+		"prefix": "sample",
+		"body": [
+			"${1:tex}.Sample(${2:sampler}, ${3:uv})"
+		],
+		"description": "HLSL texture sample"
+	},
+	"HLSL RWBuffer": {
+		"prefix": "rwbuf",
+		"body": [
+			"RWStructuredBuffer<${1:float4}> ${2:buffer} : register(u${3:0});"
+		],
+		"description": "HLSL read-write structured buffer"
+	},
+	"HLSL define": {
+		"prefix": "define",
+		"body": [
+			"#define ${1:NAME} ${2:value}"
+		],
+		"description": "HLSL preprocessor define"
+	}
+}

@@ -39,6 +39,12 @@
         "path": "./syntaxes/hlsl.tmLanguage.json",
         "scopeName": "source.hlsl"
       }
+    ],
+    "snippets": [
+      {
+        "language": "hlsl",
+        "path": "./snippets/hlsl.code-snippets"
+      }
     ]
   },
   "repository": {
