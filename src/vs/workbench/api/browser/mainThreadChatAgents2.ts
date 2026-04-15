@@ -46,9 +46,8 @@ import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
 import { ExtHostChatAgentsShape2, ExtHostContext, IChatAgentInvokeResult, IChatSessionCustomizationItemDto, IChatSessionCustomizationProviderMetadataDto, IChatNotebookEditDto, IChatParticipantMetadata, IChatProgressDto, IChatSessionContextDto, ICustomAgentDto, IDynamicChatAgentProps, IExtensionChatAgentMetadata, IHookDto, IInstructionDto, IPluginDto, ISkillDto, ISlashCommandDto, MainContext, MainThreadChatAgentsShape2 } from '../common/extHost.protocol.js';
 import { NotebookDto } from './mainThreadNotebookDto.js';
 import { isUntitledChatSession } from '../../contrib/chat/common/model/chatUri.js';
-import { ICustomizationHarnessService, IExternalCustomizationItem, IExternalCustomizationItemProvider, IHarnessDescriptor } from '../../contrib/chat/common/customizationHarnessService.js';
+import { ICustomizationHarnessService, ICustomizationItem, ICustomizationItemProvider, IHarnessDescriptor } from '../../contrib/chat/common/customizationHarnessService.js';
 import { AICustomizationManagementSection, BUILTIN_STORAGE } from '../../contrib/chat/common/aiCustomizationWorkspaceService.js';
-import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { IAgentPluginService } from '../../contrib/chat/common/plugins/agentPluginService.js';
 import { IWorkbenchEnvironmentService } from '../../services/environment/common/environmentService.js';
 
@@ -134,23 +133,12 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		@IPromptsService private readonly _promptsService: IPromptsService,
 		@ILanguageModelToolsService private readonly _languageModelToolsService: ILanguageModelToolsService,
 		@ICustomizationHarnessService private readonly _customizationHarnessService: ICustomizationHarnessService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IAgentPluginService private readonly _agentPluginService: IAgentPluginService,
 		@IWorkbenchEnvironmentService private readonly _environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostChatAgents2);
-
-		// When the provider API kill-switch is toggled off, dispose all registered providers
-		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('chat.customizations.providerApi.enabled')) {
-				if (!this._configurationService.getValue<boolean>('chat.customizations.providerApi.enabled')) {
-					this._customizationProviders.clearAndDisposeAll();
-					this._customizationProviderEmitters.clearAndDisposeAll();
-				}
-			}
-		}));
 
 		this._register(this._chatService.onDidDisposeSession(e => {
 			for (const resource of e.sessionResources) {
@@ -247,6 +235,8 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 			extensionId: agent.source.storage === PromptsStorage.extension ? agent.source.extensionId.value : undefined,
 			pluginUri: agent.source.storage === PromptsStorage.plugin ? agent.source.pluginUri : undefined,
 			argumentHint: agent.argumentHint,
+			tools: agent.tools,
+			model: agent.model,
 			userInvocable: agent.visibility.userInvocable,
 			disableModelInvocation: !agent.visibility.agentInvocable,
 		};
@@ -757,13 +747,10 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 	}
 
 	async $registerChatSessionCustomizationProvider(handle: number, chatSessionType: string, metadata: IChatSessionCustomizationProviderMetadataDto, extensionId: ExtensionIdentifier): Promise<void> {
-		if (this._environmentService.isSessionsWindow) {
-			this._logService.trace(`[MainThreadChatAgents2] Sessions window does not use the customization provider API, ignoring registration from ${extensionId.value}`);
-			return;
-		}
-
-		if (!this._configurationService.getValue<boolean>('chat.customizations.providerApi.enabled')) {
-			this._logService.trace(`[MainThreadChatAgents2] Customization provider API is disabled, ignoring registration from ${extensionId.value}`);
+		// In the sessions window, only the Copilot CLI harness is accepted via the
+		// extension API. Other harnesses (e.g. Claude) are not shown in sessions.
+		// AHP remote servers register directly via registerExternalHarness.
+		if (this._environmentService.isSessionsWindow && chatSessionType !== 'copilotcli') {
 			return;
 		}
 
@@ -777,14 +764,14 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		this._customizationProviderEmitters.set(handle, emitter);
 
 		// Build the item provider that calls back to the ExtHost
-		const itemProvider: IExternalCustomizationItemProvider = {
+		const itemProvider: ICustomizationItemProvider = {
 			onDidChange: emitter.event,
 			provideChatSessionCustomizations: async (token) => {
 				const items = await this._proxy.$provideChatSessionCustomizations(handle, token);
 				if (!items) {
 					return undefined;
 				}
-				return items.map((item: IChatSessionCustomizationItemDto): IExternalCustomizationItem => ({
+				return items.map((item: IChatSessionCustomizationItemDto): ICustomizationItem => ({
 					uri: URI.revive(item.uri),
 					type: item.type,
 					name: item.name,

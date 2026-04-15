@@ -385,9 +385,9 @@ export async function main(argv: string[]): Promise<void> {
 
 			const filenamePrefix = randomPath(homedir(), 'prof');
 
-			addArg(argv, `--inspect-brk=${profileHost}:${portMain}`);
-			addArg(argv, `--remote-debugging-port=${profileHost}:${portRenderer}`);
-			addArg(argv, `--inspect-brk-extensions=${profileHost}:${portExthost}`);
+			addArg(argv, `--inspect-brk=${portMain}`);
+			addArg(argv, `--remote-debugging-port=${portRenderer}`);
+			addArg(argv, `--inspect-brk-extensions=${portExthost}`);
 			addArg(argv, `--prof-startup-prefix`, filenamePrefix);
 			addArg(argv, `--no-cached-data`);
 
@@ -487,10 +487,10 @@ export async function main(argv: string[]): Promise<void> {
 
 			// Figure out the app to launch: with --agents we try to launch the embedded app on Windows
 			let execToLaunch = process.execPath;
-			if (isWindows && args.agents && product.embedded?.win32SiblingExeBasename) {
-				const siblingExe = join(dirname(process.execPath), `${product.embedded.win32SiblingExeBasename}.exe`);
+			if (isWindows && args.agents && product.win32SiblingExeBasename) {
+				const siblingExe = join(dirname(process.execPath), `${product.win32SiblingExeBasename}.exe`);
 				try {
-					if (existsSync(siblingExe) && statSync(siblingExe).isFile()) {
+					if (statSync(siblingExe).isFile()) {
 						execToLaunch = siblingExe;
 						argv = argv.filter(arg => arg !== '--agents');
 					}

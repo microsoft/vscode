@@ -11,20 +11,41 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { FileSystemProviderErrorCode, IFileService, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentMessageEvent, IAgentService, IAgentSessionMetadata, IAgentToolCompleteEvent, IAgentToolStartEvent, IAuthenticateParams, IAuthenticateResult } from '../common/agentService.js';
+import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentMessageEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSubagentStartedEvent, IAgentToolCompleteEvent, IAgentToolStartEvent, IAuthenticateParams, IAuthenticateResult } from '../common/agentService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
-import { ActionType, IActionEnvelope, INotification, ISessionAction } from '../common/state/sessionActions.js';
+import { ActionType, IActionEnvelope, INotification, ISessionAction, ITerminalAction, isSessionAction } from '../common/state/sessionActions.js';
+import type { ICreateTerminalParams, IResolveSessionConfigResult, ISessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, type IDirectoryEntry, type IResourceCopyParams, type IResourceCopyResult, type IResourceDeleteParams, type IResourceDeleteResult, type IResourceListResult, type IResourceMoveParams, type IResourceMoveResult, type IResourceReadResult, type IResourceWriteParams, type IResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
-import { ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, TurnState, type IResponsePart, type ISessionSummary, type IToolCallCompletedState, type ITurn } from '../common/state/sessionState.js';
+import { ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, parseSubagentSessionUri, type IResponsePart, type ISessionConfigState, type ISessionFileDiff, type ISessionSummary, type IToolCallCompletedState, type IToolResultSubagentContent, type ITurn } from '../common/state/sessionState.js';
 import { AgentSideEffects } from './agentSideEffects.js';
+import { AgentHostTerminalManager, type IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { ISessionDbUriFields, parseSessionDbUri } from './copilot/fileEditTracker.js';
-import { SessionStateManager } from './sessionStateManager.js';
+import { AgentHostStateManager } from './agentHostStateManager.js';
 
 /**
  * The agent service implementation that runs inside the agent-host utility
  * process. Dispatches to registered {@link IAgent} instances based
  * on the provider identifier in the session configuration.
  */
+/**
+ * Extracts subagent metadata from a tool start event's arguments,
+ * matching the event mapper's extraction for the eager toolKind path.
+ */
+function extractSubagentMeta(start: IAgentToolStartEvent | undefined): { subagentDescription?: string; subagentAgentName?: string } {
+	if (!start?.toolKind || start.toolKind !== 'subagent' || !start.toolArguments) {
+		return {};
+	}
+	try {
+		const args = JSON.parse(start.toolArguments) as Record<string, unknown>;
+		return {
+			subagentDescription: typeof args.description === 'string' && args.description.length > 0 ? args.description : undefined,
+			subagentAgentName: typeof args.agentName === 'string' && args.agentName.length > 0 ? args.agentName : undefined,
+		};
+	} catch {
+		return {};
+	}
+}
+
 export class AgentService extends Disposable implements IAgentService {
 	declare readonly _serviceBrand: undefined;
 
@@ -37,10 +58,10 @@ export class AgentService extends Disposable implements IAgentService {
 	readonly onDidNotification = this._onDidNotification.event;
 
 	/** Authoritative state manager for the sessions process protocol. */
-	private readonly _stateManager: SessionStateManager;
+	private readonly _stateManager: AgentHostStateManager;
 
 	/** Exposes the state manager for co-hosting a WebSocket protocol server. */
-	get stateManager(): SessionStateManager { return this._stateManager; }
+	get stateManager(): AgentHostStateManager { return this._stateManager; }
 
 	/** Registered providers keyed by their {@link AgentProvider} id. */
 	private readonly _providers = new Map<AgentProvider, IAgent>();
@@ -54,6 +75,11 @@ export class AgentService extends Disposable implements IAgentService {
 	private readonly _agents = observableValue<readonly IAgent[]>('agents', []);
 	/** Shared side-effect handler for action dispatch and session lifecycle. */
 	private readonly _sideEffects: AgentSideEffects;
+	/** Manages PTY-backed terminals for the agent host protocol. */
+	private readonly _terminalManager: AgentHostTerminalManager;
+
+	/** Exposes the terminal manager for use by agent providers. */
+	get terminalManager(): IAgentHostTerminalManager { return this._terminalManager; }
 
 	constructor(
 		private readonly _logService: ILogService,
@@ -62,7 +88,7 @@ export class AgentService extends Disposable implements IAgentService {
 	) {
 		super();
 		this._logService.info('AgentService initialized');
-		this._stateManager = this._register(new SessionStateManager(_logService));
+		this._stateManager = this._register(new AgentHostStateManager(_logService));
 		this._register(this._stateManager.onDidEmitEnvelope(e => this._onDidAction.fire(e)));
 		this._register(this._stateManager.onDidEmitNotification(e => this._onDidNotification.fire(e)));
 		this._sideEffects = this._register(new AgentSideEffects(this._stateManager, {
@@ -70,6 +96,10 @@ export class AgentService extends Disposable implements IAgentService {
 			sessionDataService: this._sessionDataService,
 			agents: this._agents,
 		}, this._logService));
+
+		// Terminal management — the terminal manager listens to the state
+		// manager's action stream and dispatches PTY output back through it.
+		this._terminalManager = this._register(new AgentHostTerminalManager(this._stateManager, this._logService));
 	}
 
 	// ---- provider registration ----------------------------------------------
@@ -122,20 +152,19 @@ export class AgentService extends Disposable implements IAgentService {
 					return s;
 				}
 				try {
-					const [customTitle, isReadRaw, isDoneRaw] = await Promise.all([
-						ref.object.getMetadata('customTitle'),
-						ref.object.getMetadata('isRead'),
-						ref.object.getMetadata('isDone'),
-					]);
+					const m = await ref.object.getMetadataObject({ customTitle: true, isRead: true, isDone: true, diffs: true });
 					let updated = s;
-					if (customTitle) {
-						updated = { ...updated, summary: customTitle };
+					if (m.customTitle) {
+						updated = { ...updated, summary: m.customTitle };
 					}
-					if (isReadRaw !== undefined) {
-						updated = { ...updated, isRead: isReadRaw === 'true' };
+					if (m.isRead !== undefined) {
+						updated = { ...updated, isRead: m.isRead === 'true' };
 					}
-					if (isDoneRaw !== undefined) {
-						updated = { ...updated, isDone: isDoneRaw === 'true' };
+					if (m.isDone !== undefined) {
+						updated = { ...updated, isDone: m.isDone === 'true' };
+					}
+					if (m.diffs) {
+						try { updated = { ...updated, diffs: JSON.parse(m.diffs) }; } catch { /* ignore malformed */ }
 					}
 					return updated;
 				} finally {
@@ -147,8 +176,17 @@ export class AgentService extends Disposable implements IAgentService {
 			return s;
 		}));
 
-		this._logService.trace(`[AgentService] listSessions returned ${result.length} sessions`);
-		return result;
+		// Overlay live session status from the state manager
+		const withStatus = result.map(s => {
+			const liveState = this._stateManager.getSessionState(s.session.toString());
+			if (liveState) {
+				return { ...s, status: liveState.summary.status, model: liveState.summary.model ?? s.model };
+			}
+			return s;
+		});
+
+		this._logService.trace(`[AgentService] listSessions returned ${withStatus.length} sessions`);
+		return withStatus;
 	}
 
 	async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
@@ -158,29 +196,49 @@ export class AgentService extends Disposable implements IAgentService {
 			throw new Error(`No agent provider registered for: ${providerId ?? '(none)'}`);
 		}
 
+		// When forking, build the old→new turn ID mapping before creating the
+		// session so the agent can use it to remap per-turn data.
+		if (config?.fork) {
+			const sourceState = this._stateManager.getSessionState(config.fork.session.toString());
+			if (sourceState) {
+				const sourceTurns = sourceState.turns.slice(0, config.fork.turnIndex + 1);
+				const turnIdMapping = new Map<string, string>();
+				for (const t of sourceTurns) {
+					turnIdMapping.set(t.id, generateUuid());
+				}
+				config = {
+					...config,
+					fork: { ...config.fork, turnIdMapping },
+				};
+			}
+		}
+
 		// Ensure the command auto-approver is ready before any session events
 		// can arrive. This makes shell command auto-approval fully synchronous.
 		// Safe to run in parallel with createSession since no events flow until
 		// sendMessage() is called.
 		this._logService.trace(`[AgentService] createSession: initializing auto-approver and creating session...`);
-		const [, session] = await Promise.all([
+		const [, created] = await Promise.all([
 			this._sideEffects.initialize(),
 			provider.createSession(config),
 		]);
+		const session = created.session;
 		this._logService.trace(`[AgentService] createSession: initialization complete`);
 
 		this._logService.trace(`[AgentService] createSession: provider=${provider.id} model=${config?.model ?? '(default)'}`);
 		this._sessionToProvider.set(session.toString(), provider.id);
 		this._logService.trace(`[AgentService] createSession returned: ${session.toString()}`);
 
+		const sessionConfig = await this._resolveCreatedSessionConfig(provider, config);
+
 		// When forking, populate the new session's protocol state with
 		// the source session's turns so the client sees the forked history.
 		if (config?.fork) {
 			const sourceState = this._stateManager.getSessionState(config.fork.session.toString());
 			let sourceTurns: ITurn[] = [];
-			if (sourceState) {
+			if (sourceState && config.fork.turnIdMapping) {
 				sourceTurns = sourceState.turns.slice(0, config.fork.turnIndex + 1)
-					.map(t => ({ ...t, id: generateUuid() }));
+					.map(t => ({ ...t, id: config!.fork!.turnIdMapping!.get(t.id) ?? generateUuid() }));
 			}
 
 			const summary: ISessionSummary = {
@@ -190,9 +248,12 @@ export class AgentService extends Disposable implements IAgentService {
 				status: SessionStatus.Idle,
 				createdAt: Date.now(),
 				modifiedAt: Date.now(),
+				...(created.project ? { project: { uri: created.project.uri.toString(), displayName: created.project.displayName } } : {}),
+				model: config?.model,
 				workingDirectory: config.workingDirectory?.toString(),
 			};
 			const state = this._stateManager.createSession(summary);
+			state.config = sessionConfig;
 			state.turns = sourceTurns;
 		} else {
 			// Create empty state for new sessions
@@ -203,13 +264,51 @@ export class AgentService extends Disposable implements IAgentService {
 				status: SessionStatus.Idle,
 				createdAt: Date.now(),
 				modifiedAt: Date.now(),
+				...(created.project ? { project: { uri: created.project.uri.toString(), displayName: created.project.displayName } } : {}),
+				model: config?.model,
 				workingDirectory: config?.workingDirectory?.toString(),
 			};
-			this._stateManager.createSession(summary);
+			const state = this._stateManager.createSession(summary);
+			state.config = sessionConfig;
 		}
 		this._stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: session.toString() });
 
 		return session;
+	}
+
+	private async _resolveCreatedSessionConfig(provider: IAgent, config: IAgentCreateSessionConfig | undefined): Promise<ISessionConfigState | undefined> {
+		if (!config?.config && !config?.workingDirectory) {
+			return undefined;
+		}
+		try {
+			const resolved = await provider.resolveSessionConfig({
+				provider: provider.id,
+				workingDirectory: config.workingDirectory,
+				config: config.config,
+			});
+			return { schema: resolved.schema, values: resolved.values };
+		} catch (error) {
+			this._logService.error(`[AgentService] Failed to resolve created session config for provider ${provider.id}`, error);
+			return config.config ? { schema: { type: 'object', properties: {} }, values: config.config } : undefined;
+		}
+	}
+
+	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<IResolveSessionConfigResult> {
+		const providerId = params.provider ?? this._defaultProvider;
+		const provider = providerId ? this._providers.get(providerId) : undefined;
+		if (!provider) {
+			throw new Error(`No agent provider registered for: ${providerId ?? '(none)'}`);
+		}
+		return provider.resolveSessionConfig(params);
+	}
+
+	async sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<ISessionConfigCompletionsResult> {
+		const providerId = params.provider ?? this._defaultProvider;
+		const provider = providerId ? this._providers.get(providerId) : undefined;
+		if (!provider) {
+			throw new Error(`No agent provider registered for: ${providerId ?? '(none)'}`);
+		}
+		return provider.sessionConfigCompletions(params);
 	}
 
 	async disposeSession(session: URI): Promise<void> {
@@ -219,20 +318,44 @@ export class AgentService extends Disposable implements IAgentService {
 			await provider.disposeSession(session);
 			this._sessionToProvider.delete(session.toString());
 		}
+		// Remove all subagent sessions for this parent
+		this._sideEffects.removeSubagentSessions(session.toString());
 		this._stateManager.deleteSession(session.toString());
 	}
 
 	// ---- Protocol methods ---------------------------------------------------
 
+	async createTerminal(params: ICreateTerminalParams): Promise<void> {
+		await this._terminalManager.createTerminal(params);
+	}
+
+	async disposeTerminal(terminal: URI): Promise<void> {
+		this._terminalManager.disposeTerminal(terminal.toString());
+	}
+
 	async subscribe(resource: URI): Promise<IStateSnapshot> {
 		this._logService.trace(`[AgentService] subscribe: ${resource.toString()}`);
-		let snapshot = this._stateManager.getSnapshot(resource.toString());
+		const resourceStr = resource.toString();
+
+		// Check for terminal state
+		const terminalState = this._terminalManager.getTerminalState(resourceStr);
+		if (terminalState) {
+			return { resource: resourceStr, state: terminalState, fromSeq: this._stateManager.serverSeq };
+		}
+
+		let snapshot = this._stateManager.getSnapshot(resourceStr);
 		if (!snapshot) {
-			await this.restoreSession(resource);
-			snapshot = this._stateManager.getSnapshot(resource.toString());
+			// Try subagent restore before regular session restore
+			const parsed = parseSubagentSessionUri(resourceStr);
+			if (parsed) {
+				await this._restoreSubagentSession(resourceStr, parsed.parentSession, parsed.toolCallId);
+			} else {
+				await this.restoreSession(resource);
+			}
+			snapshot = this._stateManager.getSnapshot(resourceStr);
 		}
 		if (!snapshot) {
-			throw new Error(`Cannot subscribe to unknown resource: ${resource.toString()}`);
+			throw new Error(`Cannot subscribe to unknown resource: ${resourceStr}`);
 		}
 		return snapshot;
 	}
@@ -243,14 +366,17 @@ export class AgentService extends Disposable implements IAgentService {
 		// in Phase 4 (multi-client). For now this is a no-op.
 	}
 
-	dispatchAction(action: ISessionAction, clientId: string, clientSeq: number): void {
+	dispatchAction(action: ISessionAction | ITerminalAction, clientId: string, clientSeq: number): void {
 		this._logService.trace(`[AgentService] dispatchAction: type=${action.type}, clientId=${clientId}, clientSeq=${clientSeq}`, action);
 
 		const origin = { clientId, clientSeq };
-		const state = this._stateManager.dispatchClientAction(action, origin);
-		this._logService.trace(`[AgentService] resulting state:`, state);
 
-		this._sideEffects.handleAction(action);
+		if (isSessionAction(action)) {
+			this._stateManager.dispatchClientAction(action, origin);
+			this._sideEffects.handleAction(action);
+		} else {
+			this._stateManager.dispatchClientAction(action, origin);
+		}
 	}
 
 	async resourceList(uri: URI): Promise<IResourceListResult> {
@@ -318,25 +444,25 @@ export class AgentService extends Disposable implements IAgentService {
 		let title = meta.summary ?? 'Session';
 		let isRead: boolean | undefined;
 		let isDone: boolean | undefined;
+		let diffs: ISessionFileDiff[] | undefined;
 		const ref = this._sessionDataService.tryOpenDatabase?.(session);
 		if (ref) {
 			try {
 				const db = await ref;
 				if (db) {
 					try {
-						const [customTitle, isReadRaw, isDoneRaw] = await Promise.all([
-							db.object.getMetadata('customTitle'),
-							db.object.getMetadata('isRead'),
-							db.object.getMetadata('isDone'),
-						]);
-						if (customTitle) {
-							title = customTitle;
+						const m = await db.object.getMetadataObject({ customTitle: true, isRead: true, isDone: true, diffs: true });
+						if (m.customTitle) {
+							title = m.customTitle;
 						}
-						if (isReadRaw !== undefined) {
-							isRead = isReadRaw === 'true';
+						if (m.isRead !== undefined) {
+							isRead = m.isRead === 'true';
 						}
-						if (isDoneRaw !== undefined) {
-							isDone = isDoneRaw === 'true';
+						if (m.isDone !== undefined) {
+							isDone = m.isDone === 'true';
+						}
+						if (m.diffs) {
+							try { diffs = JSON.parse(m.diffs); } catch { /* ignore malformed */ }
 						}
 					} finally {
 						db.dispose();
@@ -354,9 +480,12 @@ export class AgentService extends Disposable implements IAgentService {
 			status: SessionStatus.Idle,
 			createdAt: meta.startTime,
 			modifiedAt: meta.modifiedTime,
+			...(meta.project ? { project: { uri: meta.project.uri.toString(), displayName: meta.project.displayName } } : {}),
+			model: meta.model,
 			workingDirectory: meta.workingDirectory?.toString(),
 			isRead,
 			isDone,
+			diffs,
 		};
 
 		this._stateManager.restoreSession(summary, turns);
@@ -478,9 +607,12 @@ export class AgentService extends Disposable implements IAgentService {
 	 * closes it.
 	 */
 	private _buildTurnsFromMessages(
-		messages: readonly (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[],
+		messages: readonly (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent | IAgentSubagentStartedEvent)[],
 	): ITurn[] {
 		const turns: ITurn[] = [];
+		// Track subagent metadata by parent tool call ID so we can inject
+		// IToolResultSubagentContent into the parent tool call's completion content
+		const subagentsByToolCallId = new Map<string, IAgentSubagentStartedEvent>();
 		let currentTurn: {
 			id: string;
 			userMessage: { text: string };
@@ -512,6 +644,12 @@ export class AgentService extends Disposable implements IAgentService {
 				}
 				currentTurn = startTurn(msg.messageId, msg.content);
 			} else if (msg.type === 'message' && msg.role === 'assistant') {
+				// Skip inner assistant messages from subagent sessions.
+				// These have parentToolCallId set and belong to the child
+				// session, not the parent turn.
+				if (msg.parentToolCallId) {
+					continue;
+				}
 				if (!currentTurn) {
 					currentTurn = startTurn(msg.messageId, '');
 				}
@@ -528,12 +666,37 @@ export class AgentService extends Disposable implements IAgentService {
 					finalizeTurn(currentTurn, TurnState.Complete);
 					currentTurn = undefined;
 				}
+			} else if (msg.type === 'subagent_started') {
+				subagentsByToolCallId.set(msg.toolCallId, msg);
 			} else if (msg.type === 'tool_start') {
+				// Skip inner tool calls from subagent sessions — they belong
+				// to the child session, not the parent turn.
+				if (msg.parentToolCallId) {
+					continue;
+				}
 				currentTurn?.pendingTools.set(msg.toolCallId, msg);
 			} else if (msg.type === 'tool_complete') {
+				// Skip inner tool completions from subagent sessions.
+				if (msg.parentToolCallId) {
+					continue;
+				}
 				if (currentTurn) {
 					const start = currentTurn.pendingTools.get(msg.toolCallId);
 					currentTurn.pendingTools.delete(msg.toolCallId);
+
+					// Inject subagent content if this tool call spawned a subagent
+					const subagentEvent = subagentsByToolCallId.get(msg.toolCallId);
+					const contentWithSubagent = msg.result.content ? [...msg.result.content] : [];
+					if (subagentEvent) {
+						const parentSessionStr = msg.session.toString();
+						contentWithSubagent.push({
+							type: ToolResultContentType.Subagent,
+							resource: buildSubagentSessionUri(parentSessionStr, msg.toolCallId),
+							title: subagentEvent.agentDisplayName,
+							agentName: subagentEvent.agentName,
+							description: subagentEvent.agentDescription,
+						});
+					}
 
 					const tc: IToolCallCompletedState = {
 						status: ToolCallStatus.Completed,
@@ -544,13 +707,14 @@ export class AgentService extends Disposable implements IAgentService {
 						toolInput: start?.toolInput,
 						success: msg.result.success,
 						pastTenseMessage: msg.result.pastTenseMessage,
-						content: msg.result.content,
+						content: contentWithSubagent.length > 0 ? contentWithSubagent : undefined,
 						error: msg.result.error,
 						confirmed: ToolCallConfirmationReason.NotNeeded,
-						_meta: start ? {
-							toolKind: start.toolKind,
-							language: start.language,
-						} : undefined,
+						_meta: {
+							toolKind: start?.toolKind,
+							language: start?.language,
+							...extractSubagentMeta(start),
+						},
 					};
 					currentTurn.responseParts.push({
 						kind: ResponsePartKind.ToolCall,
@@ -565,6 +729,117 @@ export class AgentService extends Disposable implements IAgentService {
 		}
 
 		return turns;
+	}
+
+	/**
+	 * Builds turns for a subagent child session by extracting events
+	 * from the parent session's messages that have the matching
+	 * `parentToolCallId`. Creates a single turn containing all inner
+	 * tool calls.
+	 */
+	private _buildSubagentTurns(
+		parentMessages: readonly (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent | IAgentSubagentStartedEvent)[],
+		parentToolCallId: string,
+		childSessionUri: string,
+	): ITurn[] {
+		// Collect all inner tool call IDs that belong to this subagent
+		const innerToolCallIds = new Set<string>();
+		for (const msg of parentMessages) {
+			if ((msg.type === 'tool_start' || msg.type === 'tool_complete') && msg.parentToolCallId === parentToolCallId) {
+				innerToolCallIds.add(msg.toolCallId);
+			}
+		}
+
+		// Collect subagent_started events for nested subagents spawned by
+		// inner tool calls of this child session
+		const subagentsByToolCallId = new Map<string, IAgentSubagentStartedEvent>();
+		for (const msg of parentMessages) {
+			if (msg.type === 'subagent_started' && innerToolCallIds.has(msg.toolCallId)) {
+				subagentsByToolCallId.set(msg.toolCallId, msg);
+			}
+		}
+
+		// Filter for events belonging to this subagent
+		const innerMessages = parentMessages.filter(msg => {
+			if (msg.type === 'tool_start' || msg.type === 'tool_complete') {
+				return msg.parentToolCallId === parentToolCallId;
+			}
+			if (msg.type === 'message') {
+				return msg.parentToolCallId === parentToolCallId;
+			}
+			return false;
+		});
+
+		if (innerMessages.length === 0) {
+			return [];
+		}
+
+		// Build a single turn with all inner tool calls
+		const responseParts: IResponsePart[] = [];
+		const pendingTools = new Map<string, IAgentToolStartEvent>();
+
+		for (const msg of innerMessages) {
+			if (msg.type === 'tool_start') {
+				pendingTools.set(msg.toolCallId, msg);
+			} else if (msg.type === 'tool_complete') {
+				const start = pendingTools.get(msg.toolCallId);
+				pendingTools.delete(msg.toolCallId);
+
+				// Inject nested subagent content if applicable
+				const subagentEvent = subagentsByToolCallId.get(msg.toolCallId);
+				const contentWithSubagent = msg.result.content ? [...msg.result.content] : [];
+				if (subagentEvent) {
+					contentWithSubagent.push({
+						type: ToolResultContentType.Subagent,
+						resource: buildSubagentSessionUri(childSessionUri, msg.toolCallId),
+						title: subagentEvent.agentDisplayName,
+						agentName: subagentEvent.agentName,
+						description: subagentEvent.agentDescription,
+					});
+				}
+
+				const tc: IToolCallCompletedState = {
+					status: ToolCallStatus.Completed,
+					toolCallId: msg.toolCallId,
+					toolName: start?.toolName ?? 'unknown',
+					displayName: start?.displayName ?? 'Unknown Tool',
+					invocationMessage: start?.invocationMessage ?? '',
+					toolInput: start?.toolInput,
+					success: msg.result.success,
+					pastTenseMessage: msg.result.pastTenseMessage,
+					content: contentWithSubagent.length > 0 ? contentWithSubagent : undefined,
+					error: msg.result.error,
+					confirmed: ToolCallConfirmationReason.NotNeeded,
+					_meta: {
+						toolKind: start?.toolKind,
+						language: start?.language,
+						...extractSubagentMeta(start),
+					},
+				};
+				responseParts.push({
+					kind: ResponsePartKind.ToolCall,
+					toolCall: tc,
+				});
+			} else if (msg.type === 'message' && msg.role === 'assistant' && msg.content) {
+				responseParts.push({
+					kind: ResponsePartKind.Markdown,
+					id: generateUuid(),
+					content: msg.content,
+				});
+			}
+		}
+
+		if (responseParts.length === 0) {
+			return [];
+		}
+
+		return [{
+			id: generateUuid(),
+			userMessage: { text: '' },
+			responseParts,
+			usage: undefined,
+			state: TurnState.Complete,
+		}];
 	}
 
 	private async _fetchSessionDbContent(fields: ISessionDbUriFields): Promise<IResourceReadResult> {
@@ -587,6 +862,90 @@ export class AgentService extends Disposable implements IAgentService {
 		} finally {
 			ref.dispose();
 		}
+	}
+
+	/**
+	 * Restores a subagent session from its parent session's event history.
+	 * Loads the parent's raw messages, filters for events belonging to
+	 * the subagent (by `parentToolCallId`), and builds the child session's
+	 * turns from those events.
+	 */
+	private async _restoreSubagentSession(subagentUri: string, parentSession: string, toolCallId: string): Promise<void> {
+		// Ensure the parent session is loaded first
+		const parentUri = URI.parse(parentSession);
+		if (!this._stateManager.getSessionState(parentSession)) {
+			try {
+				await this.restoreSession(parentUri);
+			} catch {
+				this._logService.warn(`[AgentService] Cannot restore parent session for subagent: ${parentSession}`);
+				return;
+			}
+		}
+
+		const parentState = this._stateManager.getSessionState(parentSession);
+		if (!parentState) {
+			return;
+		}
+
+		// Search completed turns and active turn for the subagent content metadata
+		const allTurns = [...parentState.turns];
+		if (parentState.activeTurn) {
+			allTurns.push(parentState.activeTurn as ITurn);
+		}
+
+		let subagentContent: IToolResultSubagentContent | undefined;
+		for (const turn of allTurns) {
+			for (const part of turn.responseParts) {
+				if (part.kind === ResponsePartKind.ToolCall) {
+					const tc = part.toolCall;
+					// Check both completed and running tool calls — running
+					// tool calls receive subagent content via ContentChanged
+					const content = tc.status === ToolCallStatus.Completed
+						? tc.content
+						: (tc.status === ToolCallStatus.Running ? tc.content : undefined);
+					if (content) {
+						for (const c of content) {
+							if (c.type === ToolResultContentType.Subagent && c.resource === subagentUri) {
+								subagentContent = c;
+								break;
+							}
+						}
+					}
+				}
+			}
+			if (subagentContent) {
+				break;
+			}
+		}
+
+		// Load parent's raw messages and extract inner events for this subagent
+		let childTurns: ITurn[] = [];
+		const agent = this._findProviderForSession(parentUri);
+		if (agent) {
+			try {
+				const messages = await agent.getSessionMessages(parentUri);
+				childTurns = this._buildSubagentTurns(messages, toolCallId, subagentUri);
+			} catch (err) {
+				this._logService.warn(`[AgentService] Failed to load parent messages for subagent restore: ${subagentUri}`, err);
+			}
+		}
+
+		// Use metadata from subagent content if available, otherwise synthesize
+		const title = subagentContent?.title ?? 'Subagent';
+
+		this._stateManager.restoreSession(
+			{
+				resource: subagentUri,
+				provider: 'subagent',
+				title,
+				status: SessionStatus.Idle,
+				createdAt: Date.now(),
+				modifiedAt: Date.now(),
+				...(parentState?.summary.project ? { project: parentState.summary.project } : {}),
+			},
+			childTurns,
+		);
+		this._logService.info(`[AgentService] Restored subagent session: ${subagentUri} with ${childTurns.length} turn(s)`);
 	}
 
 	private _findProviderForSession(session: URI | string): IAgent | undefined {

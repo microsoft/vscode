@@ -47,6 +47,8 @@ export interface ILanguageModelToolConfirmationRef {
 		label: string;
 		/** Precomputed SHA-256 key for the combination */
 		key: string;
+		/** String representation of the arguments for this combination */
+		arguments?: string;
 	};
 }
 

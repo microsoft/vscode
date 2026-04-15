@@ -48,7 +48,7 @@ import { ChatSessionStore, IChatSessionEntryMetadata } from '../model/chatSessio
 import { IChatSlashCommandService } from '../participants/chatSlashCommands.js';
 import { IChatTransferService } from '../model/chatTransferService.js';
 import { chatSessionResourceToId, getChatSessionType, isUntitledChatSession, LocalChatSessionUri } from '../model/chatUri.js';
-import { ChatRequestVariableSet, IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
+import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptTextVariableEntry } from '../attachments/chatVariableEntries.js';
 import { ChatAgentLocation, ChatModeKind } from '../constants.js';
 import { ChatMessageRole, IChatMessage, ILanguageModelsService } from '../languageModels.js';
 import { ILanguageModelToolsService } from '../tools/languageModelToolsService.js';
@@ -830,6 +830,7 @@ export class ChatService extends Disposable implements IChatService {
 			userSelectedTools: options.userSelectedTools?.get(),
 			isSystemInitiated: options.isSystemInitiated,
 			systemInitiatedLabel: options.systemInitiatedLabel,
+			terminalExecutionId: options.terminalExecutionId,
 		});
 
 		const deferred = new DeferredPromise<ChatSendResult>();
@@ -848,7 +849,6 @@ export class ChatService extends Disposable implements IChatService {
 	async sendRequest(sessionResource: URI, request: string, options?: IChatSendRequestOptions): Promise<ChatSendResult> {
 		this.trace('sendRequest', `sessionResource: ${sessionResource.toString()}, message: ${request.substring(0, 20)}${request.length > 20 ? '[...]' : ''}}`);
 
-
 		if (!request.trim() && !options?.slashCommand && !options?.agentId && !options?.agentIdSilent) {
 			this.trace('sendRequest', 'Rejected empty message');
 			return { kind: 'rejected', reason: 'Empty message' };
@@ -859,87 +859,95 @@ export class ChatService extends Disposable implements IChatService {
 			throw new Error(`Unknown session: ${sessionResource}`);
 		}
 
+		let tempRef: IChatModelReference | undefined;
 		let newSessionResource: URI | undefined;
+		try {
+			// Workaround for the contributed chat sessions
+			//
+			// Internally blank widgets uses special sessions with an untitled- path. We do not want these leaking out
+			// to the rest of code. Instead use `createNewChatSessionItem` to make sure the session gets properly initialized with a real resource before processing the first request.
+			if (!model.hasRequests && isUntitledChatSession(sessionResource) && getChatSessionType(sessionResource) !== localChatSessionType) {
 
-		// Workaround for the contributed chat sessions
-		//
-		// Internally blank widgets uses special sessions with an untitled- path. We do not want these leaking out
-		// to the rest of code. Instead use `createNewChatSessionItem` to make sure the session gets properly initialized with a real resource before processing the first request.
-		if (!model.hasRequests && isUntitledChatSession(sessionResource) && getChatSessionType(sessionResource) !== localChatSessionType) {
+				const parsedRequest = this.parseChatRequest(sessionResource, request, options?.location ?? model.initialLocation, options);
+				const commandPart = parsedRequest.parts.find((r): r is ChatRequestSlashCommandPart => r instanceof ChatRequestSlashCommandPart);
+				const requestText = getPromptText(parsedRequest).message;
 
-			const parsedRequest = this.parseChatRequest(sessionResource, request, options?.location ?? model.initialLocation, options);
-			const commandPart = parsedRequest.parts.find((r): r is ChatRequestSlashCommandPart => r instanceof ChatRequestSlashCommandPart);
-			const requestText = getPromptText(parsedRequest).message;
+				// Capture session options before loading the remote session,
+				// since the alias registration below may change the lookup.
+				const initialSessionOptions = this.chatSessionService.getSessionOptions(sessionResource);
 
-			// Capture session options before loading the remote session,
-			// since the alias registration below may change the lookup.
-			const initialSessionOptions = this.chatSessionService.getSessionOptions(sessionResource);
+				const newItem = await this.chatSessionService.createNewChatSessionItem(getChatSessionType(sessionResource), { prompt: requestText, command: commandPart?.text, initialSessionOptions }, CancellationToken.None);
+				if (newItem) {
+					// Register alias so session-option lookups work with the new resource
+					this.chatSessionService.registerSessionResourceAlias(sessionResource, newItem.resource);
 
-			const newItem = await this.chatSessionService.createNewChatSessionItem(getChatSessionType(sessionResource), { prompt: requestText, command: commandPart?.text, initialSessionOptions }, CancellationToken.None);
-			if (newItem) {
-				model = (await this.loadRemoteSession(newItem.resource, model.initialLocation, CancellationToken.None))?.object as ChatModel | undefined;
-				if (!model) {
-					throw new Error(`Failed to load session for resource: ${newItem.resource}`);
-				}
+					tempRef = await this.loadRemoteSession(newItem.resource, model.initialLocation, CancellationToken.None);
+					model = tempRef?.object as ChatModel | undefined;
+					if (!model) {
+						throw new Error(`Failed to load session for resource: ${newItem.resource}`);
+					}
 
-				// Register alias so session-option lookups work with the new resource
-				this.chatSessionService.registerSessionResourceAlias(sessionResource, newItem.resource);
 
-				// Update the new model's contributed session with initialSessionOptions
-				// so that the agent receives them when invoked.
-				if (initialSessionOptions) {
-					this.chatSessionService.updateSessionOptions(model.sessionResource, initialSessionOptions);
-				}
+					// Update the new model's contributed session with initialSessionOptions
+					// so that the agent receives them when invoked.
+					if (initialSessionOptions) {
+						this.chatSessionService.updateSessionOptions(model.sessionResource, initialSessionOptions);
+					}
 
-				sessionResource = newItem.resource;
-				newSessionResource = newItem.resource;
-			}
-		}
+					this.chatSessionService.fireSessionCommitted(sessionResource, newItem.resource);
 
-		const hasPendingRequest = this._pendingRequests.has(sessionResource);
-
-		if (options?.queue) {
-			const queued = this.queuePendingRequest(model, sessionResource, request, options);
-			if (!options.pauseQueue) {
-				this.processPendingRequests(sessionResource);
-			}
-			return queued;
-		} else if (hasPendingRequest) {
-			this.trace('sendRequest', `Session ${sessionResource} already has a pending request`);
-			return { kind: 'rejected', reason: 'Request already in progress' };
-		}
-
-		const requests = model.getRequests();
-		for (let i = requests.length - 1; i >= 0; i -= 1) {
-			const request = requests[i];
-			if (request.shouldBeRemovedOnSend) {
-				if (request.shouldBeRemovedOnSend.afterUndoStop) {
-					request.response?.finalizeUndoState();
-				} else {
-					await this.removeRequest(sessionResource, request.id);
+					sessionResource = newItem.resource;
+					newSessionResource = newItem.resource;
 				}
 			}
+
+			const hasPendingRequest = this._pendingRequests.has(sessionResource);
+
+			if (options?.queue) {
+				const queued = this.queuePendingRequest(model, sessionResource, request, options);
+				if (!options.pauseQueue) {
+					this.processPendingRequests(sessionResource);
+				}
+				return queued;
+			} else if (hasPendingRequest) {
+				this.trace('sendRequest', `Session ${sessionResource} already has a pending request`);
+				return { kind: 'rejected', reason: 'Request already in progress' };
+			}
+
+			const requests = model.getRequests();
+			for (let i = requests.length - 1; i >= 0; i -= 1) {
+				const request = requests[i];
+				if (request.shouldBeRemovedOnSend) {
+					if (request.shouldBeRemovedOnSend.afterUndoStop) {
+						request.response?.finalizeUndoState();
+					} else {
+						await this.removeRequest(sessionResource, request.id);
+					}
+				}
+			}
+
+			const location = options?.location ?? model.initialLocation;
+			const attempt = options?.attempt ?? 0;
+			const defaultAgent = this.chatAgentService.getDefaultAgent(location, options?.modeInfo?.kind)!;
+
+			const parsedRequest = this.parseChatRequest(sessionResource, request, location, options);
+			const silentAgent = options?.agentIdSilent ? this.chatAgentService.getAgent(options.agentIdSilent) : undefined;
+			const agent = silentAgent ?? parsedRequest.parts.find((r): r is ChatRequestAgentPart => r instanceof ChatRequestAgentPart)?.agent ?? defaultAgent;
+			const agentSlashCommandPart = parsedRequest.parts.find((r): r is ChatRequestAgentSubcommandPart => r instanceof ChatRequestAgentSubcommandPart);
+
+			// This method is only returning whether the request was accepted - don't block on the actual request
+			return {
+				kind: 'sent',
+				newSessionResource,
+				data: {
+					...this._sendRequestAsync(model, sessionResource, parsedRequest, attempt, !options?.noCommandDetection, silentAgent ?? defaultAgent, location, options),
+					agent,
+					slashCommand: agentSlashCommandPart?.command,
+				},
+			};
+		} finally {
+			tempRef?.dispose();
 		}
-
-		const location = options?.location ?? model.initialLocation;
-		const attempt = options?.attempt ?? 0;
-		const defaultAgent = this.chatAgentService.getDefaultAgent(location, options?.modeInfo?.kind)!;
-
-		const parsedRequest = this.parseChatRequest(sessionResource, request, location, options);
-		const silentAgent = options?.agentIdSilent ? this.chatAgentService.getAgent(options.agentIdSilent) : undefined;
-		const agent = silentAgent ?? parsedRequest.parts.find((r): r is ChatRequestAgentPart => r instanceof ChatRequestAgentPart)?.agent ?? defaultAgent;
-		const agentSlashCommandPart = parsedRequest.parts.find((r): r is ChatRequestAgentSubcommandPart => r instanceof ChatRequestAgentSubcommandPart);
-
-		// This method is only returning whether the request was accepted - don't block on the actual request
-		return {
-			kind: 'sent',
-			newSessionResource,
-			data: {
-				...this._sendRequestAsync(model, sessionResource, parsedRequest, attempt, !options?.noCommandDetection, silentAgent ?? defaultAgent, location, options),
-				agent,
-				slashCommand: agentSlashCommandPart?.command,
-			},
-		};
 	}
 
 	private parseChatRequest(sessionResource: URI, request: string, location: ChatAgentLocation, options: IChatSendRequestOptions | undefined): IParsedChatRequest {
@@ -1154,7 +1162,7 @@ export class ChatService extends Disposable implements IChatService {
 					const initialAgent = agentPart?.agent ?? defaultAgent;
 					const initialCommand = agentSlashCommandPart?.command;
 					const initVariableData: IChatRequestVariableData = { variables: [] };
-					request = model.addRequest(parsedRequest, initVariableData, attempt, options?.modeInfo, initialAgent, initialCommand, options?.confirmation, options?.locationData, options?.attachedContext, undefined, options?.userSelectedModelId, options?.userSelectedTools?.get(), undefined, options?.isSystemInitiated, options?.systemInitiatedLabel);
+					request = model.addRequest(parsedRequest, initVariableData, attempt, options?.modeInfo, initialAgent, initialCommand, options?.confirmation, options?.locationData, options?.attachedContext, undefined, options?.userSelectedModelId, options?.userSelectedTools?.get(), undefined, options?.isSystemInitiated, options?.systemInitiatedLabel, options?.terminalExecutionId);
 					const thisRequest = request;
 					completeResponseCreated();
 
@@ -1171,8 +1179,17 @@ export class ChatService extends Disposable implements IChatService {
 					if (instructionEntries.length > 0) {
 						allContext.push(...instructionEntries);
 					}
+
+					// Store only non-instruction variables on the model.
+					// Automatically-added promptText entries (~33 KB each) are
+					// ephemeral — re-collected every turn, never rendered in
+					// the UI, and not needed in serialized session history.
+					const storedVariables = allContext.filter(v => !(isPromptTextVariableEntry(v) && v.automaticallyAdded));
+					model.updateRequest(request, { variables: storedVariables });
+
+					// The full set (including instructions) is passed to the
+					// agent request only — not stored on the request model.
 					let variableData: IChatRequestVariableData = { variables: allContext };
-					model.updateRequest(request, variableData);
 
 					// Merge resolved variables (e.g. images from directories) for the
 					// agent request only - they are not stored on the request model.
@@ -1200,6 +1217,7 @@ export class ChatService extends Disposable implements IChatService {
 							locationData: thisRequest.locationData,
 							acceptedConfirmationData: options?.acceptedConfirmationData,
 							rejectedConfirmationData: options?.rejectedConfirmationData,
+							agentHostSessionConfig: options?.agentHostSessionConfig,
 							userSelectedModelId: options?.userSelectedModelId,
 							modelConfiguration: options?.userSelectedModelId ? this.languageModelsService.getModelConfiguration(options.userSelectedModelId) : undefined,
 							userSelectedTools: options?.userSelectedTools?.get(),
@@ -1474,8 +1492,20 @@ export class ChatService extends Disposable implements IChatService {
 
 		// Build send options from the first request, combining attachments from all
 		const firstRequest = allRequests[0];
+
+		// Preserve terminal correlation only when all merged requests agree on the
+		// same terminal. With subagents, multiple terminals can queue steering
+		// requests simultaneously — picking one arbitrarily would misattribute the
+		// notification, so we drop the ID when they conflict.
+		const terminalIds = new Set(allRequests.map(req => req.sendOptions.terminalExecutionId).filter((id): id is string => !!id));
+		if (terminalIds.size > 1) {
+			this.info('processNextPendingRequest', `Dropping terminalExecutionId: ${terminalIds.size} conflicting terminal IDs (${[...terminalIds].join(', ')})`);
+		}
+		const mergedTerminalExecutionId = terminalIds.size === 1 ? [...terminalIds][0] : undefined;
+
 		const sendOptions: IChatSendRequestOptions = {
 			...firstRequest.sendOptions,
+			terminalExecutionId: mergedTerminalExecutionId,
 			attachedContext: allRequests.flatMap(req => req.request.variableData.variables.slice()),
 		};
 

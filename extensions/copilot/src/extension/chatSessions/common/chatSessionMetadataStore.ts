@@ -18,6 +18,11 @@ export interface RepositoryProperties {
 	readonly repositoryPath: string;
 	readonly branchName?: string;
 	readonly baseBranchName?: string;
+	readonly upstreamBranchName?: string;
+	readonly hasGitHubRemote?: boolean;
+	readonly incomingChanges?: number;
+	readonly outgoingChanges?: number;
+	readonly uncommittedChanges?: number;
 }
 
 /**
@@ -73,6 +78,17 @@ export interface ChatSessionMetadataFile {
 	firstUserMessage?: string;
 	/** Custom title set by the user or generated for the session. */
 	customTitle?: string;
+	/** The creator of this session. */
+	origin?: 'vscode' | 'other';
+	/**
+	 * The kind of session, which can be used to determine how the session was created and possibly how it should be displayed in the UI.
+	 */
+	kind?: 'forked' | 'sub-session';
+	/**
+	 * The ID of the parent session, if this session was forked from another
+	 * session or if the session is a child session created from the Agents app.
+	 */
+	parentSessionId?: string;
 }
 
 export const IChatSessionMetadataStore = createServiceIdentifier<IChatSessionMetadataStore>('IChatSessionMetadataStore');
@@ -86,7 +102,6 @@ export interface IChatSessionMetadataStore {
 	storeRepositoryProperties(sessionId: string, properties: RepositoryProperties): Promise<void>;
 	getRepositoryProperties(sessionId: string): Promise<RepositoryProperties | undefined>;
 	getSessionIdForWorktree(folder: vscode.Uri): Promise<string | undefined>;
-	getSessionIdForWorkspaceFolder(folder: vscode.Uri): Promise<string[]>;
 	getWorktreeProperties(sessionId: string): Promise<ChatSessionWorktreeProperties | undefined>;
 	getWorktreeProperties(folder: Uri): Promise<ChatSessionWorktreeProperties | undefined>;
 	getSessionWorkspaceFolder(sessionId: string): Promise<vscode.Uri | undefined>;
@@ -100,4 +115,11 @@ export interface IChatSessionMetadataStore {
 	getRequestDetails(sessionId: string): Promise<RequestDetails[]>;
 	updateRequestDetails(sessionId: string, details: (Partial<RequestDetails> & { vscodeRequestId: string })[]): Promise<void>;
 	getSessionAgent(sessionId: string): Promise<string | undefined>;
+	/**
+	 * Copy all VS Code-specific metadata (workspace info, request details, etc.) from
+	 * an existing session to a newly forked session, overriding the custom title.
+	 */
+	storeForkedSessionMetadata(sourceSessionId: string, targetSessionId: string, customTitle: string): Promise<void>;
+	setSessionOrigin(sessionId: string): Promise<void>;
+	getSessionOrigin(sessionId: string): Promise<'vscode' | 'other'>;
 }

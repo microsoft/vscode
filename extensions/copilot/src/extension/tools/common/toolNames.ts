@@ -54,6 +54,8 @@ export enum ToolName {
 	CoreManageTodoList = 'manage_todo_list',
 	CoreRunInTerminal = 'run_in_terminal',
 	CoreGetTerminalOutput = 'get_terminal_output',
+	CoreSendToTerminal = 'send_to_terminal',
+	CoreKillTerminal = 'kill_terminal',
 	CoreTerminalSelection = 'terminal_selection',
 	CoreTerminalLastCommand = 'terminal_last_command',
 	CoreCreateAndRunTask = 'create_and_run_task',
@@ -71,7 +73,32 @@ export enum ToolName {
 	ToolSearch = 'tool_search',
 	ResolveMemoryFileUri = 'resolve_memory_file_uri',
 	ExecutionSubagent = 'execution_subagent',
+	CoreOpenBrowserPage = 'open_browser_page',
+	CoreClickElement = 'click_element',
+	CoreScreenshotPage = 'screenshot_page',
+	CoreNavigatePage = 'navigate_page',
+	CoreReadPage = 'read_page',
+	CoreHoverElement = 'hover_element',
+	CoreDragElement = 'drag_element',
+	CoreTypeInPage = 'type_in_page',
+	CoreHandleDialog = 'handle_dialog',
+	CoreRunPlaywrightCode = 'run_playwright_code',
 }
+
+/**
+ * Agentic browser tool IDs that are NOT the open_browser_page tool.
+ */
+export const agenticBrowserTools = [
+	ToolName.CoreClickElement,
+	ToolName.CoreScreenshotPage,
+	ToolName.CoreNavigatePage,
+	ToolName.CoreReadPage,
+	ToolName.CoreHoverElement,
+	ToolName.CoreDragElement,
+	ToolName.CoreTypeInPage,
+	ToolName.CoreHandleDialog,
+	ToolName.CoreRunPlaywrightCode,
+] as const;
 
 export enum ContributedToolName {
 	ApplyPatch = 'copilot_applyPatch',
@@ -169,6 +196,8 @@ export const toolCategories: Record<ToolName, ToolCategory> = {
 	[ToolName.CoreRunInTerminal]: ToolCategory.Core,
 	[ToolName.ListDirectory]: ToolCategory.Core,
 	[ToolName.CoreGetTerminalOutput]: ToolCategory.Core,
+	[ToolName.CoreSendToTerminal]: ToolCategory.Core,
+	[ToolName.CoreKillTerminal]: ToolCategory.Core,
 	[ToolName.CoreManageTodoList]: ToolCategory.Core,
 	[ToolName.MultiReplaceString]: ToolCategory.Core,
 	[ToolName.FindFiles]: ToolCategory.Core,
@@ -184,7 +213,6 @@ export const toolCategories: Record<ToolName, ToolCategory> = {
 	// never enabled, so it doesn't matter where it's categorized
 	[ToolName.EditFilesPlaceholder]: ToolCategory.Core,
 
-
 	// Jupyter Notebook Tools
 	[ToolName.CreateNewJupyterNotebook]: ToolCategory.JupyterNotebook,
 	[ToolName.EditNotebook]: ToolCategory.JupyterNotebook,
@@ -195,6 +223,16 @@ export const toolCategories: Record<ToolName, ToolCategory> = {
 	// Web Interaction
 	[ToolName.FetchWebPage]: ToolCategory.WebInteraction,
 	[ToolName.GithubRepo]: ToolCategory.WebInteraction,
+	[ToolName.CoreOpenBrowserPage]: ToolCategory.WebInteraction,
+	[ToolName.CoreClickElement]: ToolCategory.WebInteraction,
+	[ToolName.CoreScreenshotPage]: ToolCategory.WebInteraction,
+	[ToolName.CoreNavigatePage]: ToolCategory.WebInteraction,
+	[ToolName.CoreReadPage]: ToolCategory.WebInteraction,
+	[ToolName.CoreHoverElement]: ToolCategory.WebInteraction,
+	[ToolName.CoreDragElement]: ToolCategory.WebInteraction,
+	[ToolName.CoreTypeInPage]: ToolCategory.WebInteraction,
+	[ToolName.CoreHandleDialog]: ToolCategory.WebInteraction,
+	[ToolName.CoreRunPlaywrightCode]: ToolCategory.WebInteraction,
 
 	// VS Code Interaction
 	[ToolName.SearchWorkspaceSymbols]: ToolCategory.VSCodeInteraction,

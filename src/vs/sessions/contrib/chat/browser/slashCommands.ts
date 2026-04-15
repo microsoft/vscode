@@ -160,13 +160,6 @@ export class SlashCommandHandler extends Disposable {
 			execute: openSection(AICustomizationManagementSection.Instructions),
 		});
 		this._slashCommands.push({
-			command: 'prompts',
-			detail: localize('slashCommand.prompts', "View and manage prompt files"),
-			sortText: 'z3_prompts',
-			executeImmediately: true,
-			execute: openSection(AICustomizationManagementSection.Prompts),
-		});
-		this._slashCommands.push({
 			command: 'hooks',
 			detail: localize('slashCommand.hooks', "View and manage hooks"),
 			sortText: 'z3_hooks',

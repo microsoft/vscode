@@ -18,7 +18,7 @@ import { DocumentHistory, HistoryContext, IHistoryContextProvider } from '../../
 import { IXtabHistoryEditEntry, IXtabHistoryEntry, NesXtabHistoryTracker } from '../../../platform/inlineEdits/common/workspaceEditTracker/nesXtabHistoryTracker';
 import { ILogger, ILogService, LogTarget } from '../../../platform/log/common/logService';
 import { CapturingToken } from '../../../platform/requestLogger/common/capturingToken';
-import { IRequestLogger, LoggedRequestKind } from '../../../platform/requestLogger/node/requestLogger';
+import { IRequestLogger, LoggedRequestKind } from '../../../platform/requestLogger/common/requestLogger';
 import { ISnippyService } from '../../../platform/snippy/common/snippyService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ErrorUtils } from '../../../util/common/errors';
@@ -333,6 +333,11 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			logger.trace('cached edit was previously rejected');
 			telemetryBuilder.setStatus('previouslyRejectedCache');
 			telemetryBuilder.setWasPreviouslyRejected();
+			logContext.markAsPreviouslyRejected();
+			const rejectedEdit = cachedEdit.rebasedEdit ?? cachedEdit.edit;
+			if (rejectedEdit) {
+				this._rejectionCollector.reject(docId, rejectedEdit);
+			}
 			const nextEditResult = new NextEditResult(logContext.requestId, cachedEdit.source, undefined);
 			return nextEditResult;
 		}
@@ -420,6 +425,8 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 				telemetryBuilder.setStatus('emptyEditsButHasNextCursorPosition');
 				return new NextEditResult(logContext.requestId, req, { jumpToPosition: error.nextCursorPosition, targetDocumentId: error.nextCursorDocumentId, documentBeforeEdits: documentAtInvocationTime, isFromCursorJump: false, isSubsequentEdit: false });
 			}
+		} else if (error instanceof NoNextEditReason.GotCancelled) {
+			logContext.setIsSkipped();
 		}
 
 		const emptyResult = new NextEditResult(logContext.requestId, req, undefined);
@@ -440,6 +447,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			logger.trace('edit was previously rejected');
 			telemetryBuilder.setStatus('previouslyRejected');
 			telemetryBuilder.setWasPreviouslyRejected();
+			logContext.markAsPreviouslyRejected();
 			return emptyResult;
 		}
 
@@ -829,7 +837,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 					ithEdit === 0 ? targetDocState.nextEdits : undefined,
 					ithEdit === 0 ? nextEditRequest.intermediateUserEdit : undefined,
 					req,
-					{ isFromCursorJump: streamedEdit.isFromCursorJump, originalEditWindow: streamedEdit.originalWindow }
+					{ isFromCursorJump: streamedEdit.isFromCursorJump, originalEditWindow: streamedEdit.originalWindow, cursorOffset: targetDocState.docId === curDocId ? activeDocSelection?.start : undefined }
 				);
 				myLogger.trace(`populated cache for ${ithEdit}`);
 			}
@@ -1279,10 +1287,13 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		const capturingToken = new CapturingToken(label, undefined);
 
 		void this._requestLogger.captureInvocation(capturingToken, async () => {
+			this._addLiveLogContextEntry(logContext, label);
 			try {
-				await this._runSpeculativeProviderCall(nextEditRequest, projectedDocuments, curDocId, req, logger);
+				await this._runSpeculativeProviderCall(nextEditRequest, projectedDocuments, curDocId, req, shiftedSelection.start, logger);
+			} catch (e) {
+				logContext.setError(e);
 			} finally {
-				this._addLogContextEntry(logContext, label);
+				logContext.markCompleted();
 			}
 		});
 
@@ -1297,6 +1308,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		projectedDocuments: readonly ProcessedDoc[],
 		curDocId: DocumentId,
 		req: NextEditFetchRequest,
+		cursorOffset: number,
 		parentLogger: ILogger
 	): Promise<void> {
 		const logger = parentLogger.createSubLogger('_runSpeculativeProviderCall');
@@ -1324,6 +1336,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 					Result.error(res.value.v),
 					res.value.telemetryBuilder
 				));
+				logContext.markAsNoSuggestions();
 				logger.trace('speculative request completed with no edits');
 			} else {
 
@@ -1361,7 +1374,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 								ithEdit === 0 ? targetDocState.nextEdits : undefined,
 								undefined, // no userEditSince for speculative
 								req,
-								{ isFromCursorJump: streamedEdit.isFromCursorJump, originalEditWindow: streamedEdit.originalWindow }
+								{ isFromCursorJump: streamedEdit.isFromCursorJump, originalEditWindow: streamedEdit.originalWindow, cursorOffset: targetDocState.docId === curDocId ? cursorOffset : undefined }
 							);
 
 							if (!nextEditRequest.firstEdit.isSettled && cachedEdit) {
@@ -1372,6 +1385,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 										res.value.telemetryBuilder
 									)
 								);
+								logContext.setResponseResults([nextEditReplacement]);
 							}
 
 							logger.trace(`cached speculative edit ${ithEdit}`);
@@ -1390,6 +1404,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 								res.value.telemetryBuilder
 							)
 						);
+						logContext.markAsNoSuggestions();
 					}
 				});
 			}
@@ -1468,16 +1483,15 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 		this._snippyService.handlePostInsertion(docId.toUri(), suggestion.result.documentBeforeEdits, suggestion.result.edit);
 	}
 
-	private _addLogContextEntry(logContext: InlineEditRequestLogContext, debugNameOverride?: string): void {
-		if (!logContext.includeInLogTree) {
-			return;
-		}
+	private _addLiveLogContextEntry(logContext: InlineEditRequestLogContext, debugNameOverride?: string): void {
 		this._requestLogger.addEntry({
 			type: LoggedRequestKind.MarkdownContentRequest,
 			debugName: debugNameOverride ?? logContext.getDebugName(),
-			icon: logContext.getIcon(),
+			icon: () => logContext.getIcon(),
 			startTimeMs: logContext.time,
-			markdownContent: logContext.toLogDocument(),
+			markdownContent: () => logContext.toLogDocument(),
+			onDidChange: logContext.onDidChange,
+			isVisible: () => logContext.includeInLogTree,
 		});
 	}
 

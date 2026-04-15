@@ -59,6 +59,28 @@ jobs:
       - name: Capture screenshots
         run: ./node_modules/.bin/component-explorer render --project ./test/componentFixtures/component-explorer.json
 
+      - name: Log fixture errors
+        if: always()
+        run: |
+          MANIFEST="test/componentFixtures/.screenshots/current/manifest.json"
+          if [ ! -f "$MANIFEST" ]; then
+            echo "::warning::No manifest found — render may have failed entirely"
+            exit 0
+          fi
+          ERRORS=$(node -e "
+            const m = require('./$MANIFEST');
+            const errs = m.fixtures.filter(f => f.hasError);
+            if (!errs.length) { console.log('No fixture errors.'); process.exit(0); }
+            console.log(errs.length + ' fixture(s) with errors:');
+            for (const f of errs) {
+              console.log('::error::' + f.fixtureId + ': ' + (f.error || 'unknown error'));
+              if (f.events?.length) {
+                for (const e of f.events) { console.log('  event: ' + JSON.stringify(e)); }
+              }
+            }
+          ")
+          echo "$ERRORS"
+
       - name: Check blocks-ci screenshots
         id: blocks-ci
         run: |
@@ -83,8 +105,13 @@ jobs:
           name: screenshots
           path: test/componentFixtures/.screenshots/current/
 
+      - name: Skip notice (fork PR)
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+        run: echo "::notice::Skipping screenshot upload and diff — OIDC is not available for fork PRs"
+
       - name: Get OIDC token
         id: oidc
+        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
         run: |
           TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
             "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https://hediet-screenshots.azurewebsites.net" \
@@ -93,6 +120,7 @@ jobs:
           echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
 
       - name: Upload screenshots to service
+        if: steps.oidc.outputs.token
         run: |
           cd test/componentFixtures/.screenshots/current
           zip -qr "$GITHUB_WORKSPACE/screenshots.zip" .
@@ -105,7 +133,7 @@ jobs:
 
       - name: Diff screenshots against merge base
         id: diff
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && steps.oidc.outputs.token
         run: |
           BODY=$(node build/lib/screenshotDiffReport.ts \
             https://hediet-screenshots.azurewebsites.net \
@@ -118,6 +146,13 @@ jobs:
             echo "body<<SCREENSHOT_EOF" >> "$GITHUB_OUTPUT"
             echo "$BODY" >> "$GITHUB_OUTPUT"
             echo "SCREENSHOT_EOF" >> "$GITHUB_OUTPUT"
+          else
+            echo "No screenshot changes to report."
+          fi
+          if [ -f .tmp/screenshotDiffReport.json ]; then
+            echo "::group::Compare response JSON"
+            cat .tmp/screenshotDiffReport.json
+            echo "::endgroup::"
           fi
         continue-on-error: true
         env:
@@ -125,7 +160,7 @@ jobs:
 
       - name: Post PR comment
         if: github.event_name == 'pull_request' && (steps.diff.outputs.has_changes == 'true' || steps.blocks-ci.outputs.match == 'false')
-        uses: actions/github-script@v7
+        uses: actions/github-script@v8
         with:
           script: |
             const marker = '<!-- screenshot-diff-report -->';

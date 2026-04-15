@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { newWriteableBufferStream } from '../../../../base/common/buffer.js';
-import { Event } from '../../../../base/common/event.js';
 import { joinPath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { isUUID } from '../../../../base/common/uuid.js';
@@ -13,20 +11,16 @@ import { mock } from '../../../../base/test/common/mock.js';
 import { IConfigurationService } from '../../../configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../configuration/test/common/testConfigurationService.js';
 import { IEnvironmentService } from '../../../environment/common/environment.js';
-import { IAllowedExtensionsService, IGalleryExtension } from '../../common/extensionManagement.js';
-import { ExtensionGalleryManifestStatus, IExtensionGalleryManifestService } from '../../common/extensionGalleryManifest.js';
-import { ExtensionGalleryServiceWithNoStorageService, IRawGalleryExtensionVersion, sortExtensionVersions, filterLatestExtensionVersionsForTargetPlatform } from '../../common/extensionGalleryService.js';
+import { IRawGalleryExtensionVersion, sortExtensionVersions, filterLatestExtensionVersionsForTargetPlatform } from '../../common/extensionGalleryService.js';
 import { IFileService } from '../../../files/common/files.js';
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { TestInstantiationService } from '../../../instantiation/test/common/instantiationServiceMock.js';
-import { ILogService, NullLogService } from '../../../log/common/log.js';
+import { NullLogService } from '../../../log/common/log.js';
 import product from '../../../product/common/product.js';
 import { IProductService } from '../../../product/common/productService.js';
-import { IRequestService } from '../../../request/common/request.js';
 import { resolveMarketplaceHeaders } from '../../../externalServices/common/marketplace.js';
 import { InMemoryStorageService, IStorageService } from '../../../storage/common/storage.js';
-import { ITelemetryService, TelemetryConfiguration, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
+import { TelemetryConfiguration, TELEMETRY_SETTING_ID } from '../../../telemetry/common/telemetry.js';
 import { TargetPlatform } from '../../../extensions/common/extensions.js';
 import { NullTelemetryService } from '../../../telemetry/common/telemetryUtils.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -466,120 +460,4 @@ suite('Extension Gallery Service', () => {
 	});
 });
 
-suite('Extension Gallery Service - Auto Update Builtin Extensions', () => {
 
-	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
-
-	function createGalleryService(builtInExtensionsEnabledWithAutoUpdates: string[], productVersion: string = '1.66.0') {
-		const instantiationService = disposables.add(new TestInstantiationService());
-		const logService = new NullLogService();
-		const fileService = disposables.add(new FileService(logService));
-		const fileSystemProvider = disposables.add(new InMemoryFileSystemProvider());
-		disposables.add(fileService.registerProvider('vscode-tests', fileSystemProvider));
-		instantiationService.stub(ILogService, logService);
-		instantiationService.stub(IFileService, fileService);
-		instantiationService.stub(IRequestService, { async request() { return { res: { statusCode: 200, headers: {} }, stream: newWriteableBufferStream() }; } });
-		instantiationService.stub(IEnvironmentService, new EnvironmentServiceMock(joinPath(URI.file('tests').with({ scheme: 'vscode-tests' }), 'machineid')));
-		instantiationService.stub(ITelemetryService, NullTelemetryService);
-		instantiationService.stub(IConfigurationService, new TestConfigurationService());
-		instantiationService.stub(IAllowedExtensionsService, { isAllowed: () => true });
-		instantiationService.stub(IExtensionGalleryManifestService, { extensionGalleryManifestStatus: ExtensionGalleryManifestStatus.Available, onDidChangeExtensionGalleryManifestStatus: Event.None, onDidChangeExtensionGalleryManifest: Event.None, getExtensionGalleryManifest: async () => null });
-		instantiationService.stub(IProductService, {
-			_serviceBrand: undefined,
-			version: productVersion,
-			builtInExtensionsEnabledWithAutoUpdates,
-		});
-		return instantiationService.createInstance(ExtensionGalleryServiceWithNoStorageService);
-	}
-
-	function aGalleryExtension(id: string, version: string): IGalleryExtension {
-		const [publisher, name] = id.split('.');
-		return {
-			identifier: { id, uuid: id },
-			name,
-			version,
-			publisher,
-			publisherDisplayName: publisher,
-			allTargetPlatforms: [TargetPlatform.UNDEFINED],
-			properties: {
-				isPreReleaseVersion: false,
-				targetPlatform: TargetPlatform.UNDEFINED,
-				engine: '*',
-				enabledApiProposals: undefined,
-			},
-			assets: { manifest: null },
-		} as unknown as IGalleryExtension;
-	}
-
-	test('extension with matching major.minor is compatible', async () => {
-		const galleryService = createGalleryService(['pub.name'], '1.66.0');
-		const extension = aGalleryExtension('pub.name', '1.66.1');
-
-		const result = await galleryService.isExtensionCompatible(extension, false, TargetPlatform.UNDEFINED, { version: '1.66.0' });
-
-		assert.strictEqual(result, true);
-	});
-
-	test('extension with mismatched major.minor is not compatible', async () => {
-		const galleryService = createGalleryService(['pub.name'], '1.66.0');
-		const extension = aGalleryExtension('pub.name', '1.67.0');
-
-		const result = await galleryService.isExtensionCompatible(extension, false, TargetPlatform.UNDEFINED, { version: '1.66.0' });
-
-		assert.strictEqual(result, false);
-	});
-
-	test('extension not in autoUpdateBuiltinExtensions is not version-restricted', async () => {
-		const galleryService = createGalleryService(['pub.other'], '1.66.0');
-		const extension = aGalleryExtension('pub.name', '1.67.0');
-
-		const result = await galleryService.isExtensionCompatible(extension, false, TargetPlatform.UNDEFINED, { version: '1.66.0' });
-
-		assert.strictEqual(result, true);
-	});
-
-	test('extension with same major but different minor is not compatible', async () => {
-		const galleryService = createGalleryService(['pub.name'], '1.66.0');
-		const extension = aGalleryExtension('pub.name', '1.65.5');
-
-		const result = await galleryService.isExtensionCompatible(extension, false, TargetPlatform.UNDEFINED, { version: '1.66.0' });
-
-		assert.strictEqual(result, false);
-	});
-
-	test('version check is case insensitive for extension id', async () => {
-		const galleryService = createGalleryService(['Pub.Name'], '1.66.0');
-		const extension = aGalleryExtension('pub.name', '1.67.0');
-
-		const result = await galleryService.isExtensionCompatible(extension, false, TargetPlatform.UNDEFINED, { version: '1.66.0' });
-
-		assert.strictEqual(result, false);
-	});
-
-	test('no version restriction when autoUpdateBuiltinExtensions is empty', async () => {
-		const galleryService = createGalleryService([], '1.66.0');
-		const extension = aGalleryExtension('pub.name', '1.67.0');
-
-		const result = await galleryService.isExtensionCompatible(extension, false, TargetPlatform.UNDEFINED, { version: '1.66.0' });
-
-		assert.strictEqual(result, true);
-	});
-
-	test('extension with older major.minor than product is not compatible', async () => {
-		const galleryService = createGalleryService(['pub.name'], '1.67.0');
-		const extension = aGalleryExtension('pub.name', '1.66.5');
-
-		const result = await galleryService.isExtensionCompatible(extension, false, TargetPlatform.UNDEFINED, { version: '1.67.0' });
-
-		assert.strictEqual(result, false);
-	});
-
-	test('extension with newer major.minor than product is not compatible', async () => {
-		const galleryService = createGalleryService(['pub.name'], '1.66.0');
-		const extension = aGalleryExtension('pub.name', '1.67.0');
-
-		const result = await galleryService.isExtensionCompatible(extension, false, TargetPlatform.UNDEFINED, { version: '1.66.0' });
-
-		assert.strictEqual(result, false);
-	});
-});

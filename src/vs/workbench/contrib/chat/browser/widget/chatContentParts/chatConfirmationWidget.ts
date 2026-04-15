@@ -6,10 +6,12 @@
 import * as dom from '../../../../../../base/browser/dom.js';
 import { IRenderedMarkdown } from '../../../../../../base/browser/markdownRenderer.js';
 import { Button, ButtonWithDropdown, IButton, IButtonOptions } from '../../../../../../base/browser/ui/button/button.js';
+import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollbar/scrollableElement.js';
 import { Action, Separator } from '../../../../../../base/common/actions.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
-import { Disposable, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
+import { ScrollbarVisibility } from '../../../../../../base/common/scrollable.js';
 import type { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { localize } from '../../../../../../nls.js';
 import { MenuWorkbenchToolBar } from '../../../../../../platform/actions/browser/toolbar.js';
@@ -118,6 +120,8 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 	}
 
 	private readonly messageElement: HTMLElement;
+	private readonly messageScrollable: DomScrollableElement;
+	private readonly messageContentDisposables = this._register(new MutableDisposable<DisposableStore>());
 
 	constructor(
 		protected readonly context: IChatContentPartRenderContext,
@@ -154,6 +158,18 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 		));
 
 		this.messageElement = elements.message;
+		const messageParent = this.messageElement.parentElement;
+		const messageNextSibling = this.messageElement.nextSibling;
+		this.messageScrollable = this._register(new DomScrollableElement(this.messageElement, {
+			vertical: ScrollbarVisibility.Auto,
+			horizontal: ScrollbarVisibility.Hidden,
+			consumeMouseWheelIfScrollbarIsNeeded: true,
+		}));
+		this.messageScrollable.getDomNode().classList.add('chat-confirmation-widget-message-scrollable');
+		messageParent?.insertBefore(this.messageScrollable.getDomNode(), messageNextSibling);
+		const messageResizeObserver = this._register(new dom.DisposableResizeObserver(() => this.messageScrollable.scanDomNode()));
+		this._register(messageResizeObserver.observe(this.messageElement));
+		this._register(messageResizeObserver.observe(this.messageScrollable.getDomNode()));
 
 		// Create buttons
 		buttons.forEach(buttonData => {
@@ -216,7 +232,12 @@ abstract class BaseSimpleChatConfirmationWidget<T> extends Disposable {
 	}
 
 	protected renderMessage(element: HTMLElement): void {
+		const store = new DisposableStore();
+		const messageContentResizeObserver = store.add(new dom.DisposableResizeObserver(() => this.messageScrollable.scanDomNode()));
+		store.add(messageContentResizeObserver.observe(element));
+		this.messageContentDisposables.value = store;
 		this.messageElement.append(element);
+		this.messageScrollable.scanDomNode();
 	}
 }
 
@@ -271,6 +292,8 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 	}
 
 	private readonly messageElement: HTMLElement;
+	private readonly messageScrollable: DomScrollableElement;
+	private readonly messageContentDisposables = this._register(new MutableDisposable<DisposableStore>());
 	private readonly markdownContentPart = this._register(new MutableDisposable<ChatMarkdownContentPart>());
 
 	public get codeblocksPartId() {
@@ -320,6 +343,18 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 		));
 
 		this.messageElement = elements.message;
+		const messageParent = this.messageElement.parentElement;
+		const messageNextSibling = this.messageElement.nextSibling;
+		this.messageScrollable = this._register(new DomScrollableElement(this.messageElement, {
+			vertical: ScrollbarVisibility.Auto,
+			horizontal: ScrollbarVisibility.Hidden,
+			consumeMouseWheelIfScrollbarIsNeeded: true,
+		}));
+		this.messageScrollable.getDomNode().classList.add('chat-confirmation-widget-message-scrollable');
+		messageParent?.insertBefore(this.messageScrollable.getDomNode(), messageNextSibling);
+		const messageResizeObserver = this._register(new dom.DisposableResizeObserver(() => this.messageScrollable.scanDomNode()));
+		this._register(messageResizeObserver.observe(this.messageElement));
+		this._register(messageResizeObserver.observe(this.messageScrollable.getDomNode()));
 
 		this.updateButtons(buttons);
 
@@ -414,10 +449,16 @@ abstract class BaseChatConfirmationWidget<T> extends Disposable {
 			element = part.domNode;
 		}
 
-		for (const child of this.messageElement.children) {
-			child.remove();
+		dom.clearNode(this.messageElement);
+		const store = new DisposableStore();
+		const messageContentResizeObserver = store.add(new dom.DisposableResizeObserver(() => this.messageScrollable.scanDomNode()));
+		store.add(messageContentResizeObserver.observe(element));
+		if (this.markdownContentPart.value) {
+			store.add(this.markdownContentPart.value.onDidChangeHeight(() => this.messageScrollable.scanDomNode()));
 		}
+		this.messageContentDisposables.value = store;
 		this.messageElement.append(element);
+		this.messageScrollable.scanDomNode();
 	}
 }
 export class ChatConfirmationWidget<T> extends BaseChatConfirmationWidget<T> {

@@ -83,6 +83,7 @@ export interface ITerminalProfileService {
 	readonly onDidChangeAvailableProfiles: Event<ITerminalProfile[]>;
 	getContributedDefaultProfile(shellLaunchConfig: IShellLaunchConfig): Promise<IExtensionTerminalProfile | undefined>;
 	registerContributedProfile(args: IRegisterContributedProfileArgs): Promise<void>;
+	registerInternalContributedProfile(profile: IExtensionTerminalProfile): IDisposable;
 	getContributedProfileProvider(extensionIdentifier: string, id: string): ITerminalProfileProvider | undefined;
 	registerTerminalProfileProvider(extensionIdentifier: string, id: string, profileProvider: ITerminalProfileProvider): IDisposable;
 }
@@ -194,6 +195,7 @@ export interface ITerminalConfiguration {
 		title: string;
 		description: string;
 		separator: string;
+		allowAgentCliTitle: boolean;
 	};
 	bellDuration: number;
 	defaultLocation: TerminalLocationConfigValue;

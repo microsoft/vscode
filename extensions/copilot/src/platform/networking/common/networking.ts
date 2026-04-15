@@ -198,6 +198,11 @@ export interface IMakeChatRequestOptions {
 	useFetcher?: FetcherId;
 	/** Per-request model capability opt-ins (thinking, tool search, context editing). */
 	modelCapabilities?: IModelCapabilityOptions;
+	/**
+	 * The round ID at which the most recent client-side summarization occurred.
+	 * Used to detect when the WebSocket stateful marker predates a summary.
+	 */
+	summarizedAtRoundId?: string;
 	/** Enable retrying once on simple network errors like ECONNRESET. */
 	canRetryOnceWithoutRollback?: boolean;
 	/** Custom metadata to be displayed in the log document */
