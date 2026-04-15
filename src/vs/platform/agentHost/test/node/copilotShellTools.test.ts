@@ -13,7 +13,7 @@ import { NullLogService } from '../../../log/common/log.js';
 import { type ICreateTerminalParams } from '../../common/state/protocol/commands.js';
 import { TerminalClaimKind, type ITerminalClaim, type ITerminalInfo, type ITerminalState } from '../../common/state/protocol/state.js';
 import { type IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
-import { createShellTools, ShellManager } from '../../node/copilot/copilotShellTools.js';
+import { createShellTools, getContentSinceOffset, ShellManager } from '../../node/copilot/copilotShellTools.js';
 
 interface IMockTerminal {
 	content: string;
@@ -175,5 +175,12 @@ suite('copilotShellTools', () => {
 		assert.strictEqual(result.error, 'timeout');
 		assert.ok(result.textResultForLlm.includes('Partial output:'));
 		assert.ok(result.textResultForLlm.includes('BBBB'));
+	});
+
+	test('getContentSinceOffset clamps invalid offsets to the current buffer', () => {
+		assert.strictEqual(getContentSinceOffset('hello', Number.NaN), 'hello');
+		assert.strictEqual(getContentSinceOffset('hello', -1), 'hello');
+		assert.strictEqual(getContentSinceOffset('hello', 99), 'hello');
+		assert.strictEqual(getContentSinceOffset('hello', 2), 'llo');
 	});
 });

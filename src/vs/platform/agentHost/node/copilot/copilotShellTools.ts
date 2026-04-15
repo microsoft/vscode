@@ -203,11 +203,12 @@ function prepareOutputForModel(rawOutput: string): string {
 	return text;
 }
 
-function getContentSinceOffset(fullContent: string, offsetBefore: number): string {
+export function getContentSinceOffset(fullContent: string, offsetBefore: number): string {
 	// When terminal scrollback gets trimmed, the previously captured offset can
 	// point past the current buffer. In that case, return the current buffer so
 	// callers still see the remaining output instead of an empty string.
-	return offsetBefore > fullContent.length ? fullContent : fullContent.substring(offsetBefore);
+	const validOffset = Number.isFinite(offsetBefore) && offsetBefore >= 0 ? offsetBefore : 0;
+	return validOffset > fullContent.length ? fullContent : fullContent.substring(validOffset);
 }
 
 // ---------------------------------------------------------------------------
