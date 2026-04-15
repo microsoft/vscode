@@ -1,0 +1,162 @@
+{
+	"Dockerfile Node.js app": {
+		"prefix": "node",
+		"body": [
+			"FROM node:${1:20}-alpine",
+			"WORKDIR /app",
+			"COPY package*.json ./",
+			"RUN npm ci --only=production",
+			"COPY . .",
+			"EXPOSE ${2:3000}",
+			"USER node",
+			"CMD [\"node\", \"${3:index.js}\"]"
+		],
+		"description": "Dockerfile for Node.js application"
+	},
+	"Dockerfile Python app": {
+		"prefix": "python",
+		"body": [
+			"FROM python:${1:3.12}-slim",
+			"WORKDIR /app",
+			"COPY requirements.txt .",
+			"RUN pip install --no-cache-dir -r requirements.txt",
+			"COPY . .",
+			"EXPOSE ${2:8000}",
+			"CMD [\"python\", \"${3:app.py}\"]"
+		],
+		"description": "Dockerfile for Python application"
+	},
+	"Dockerfile Go app": {
+		"prefix": "go",
+		"body": [
+			"FROM golang:${1:1.22}-alpine AS builder",
+			"WORKDIR /app",
+			"COPY go.mod go.sum ./",
+			"RUN go mod download",
+			"COPY . .",
+			"RUN CGO_ENABLED=0 GOOS=linux go build -o main .",
+			"",
+			"FROM scratch",
+			"COPY --from=builder /app/main /main",
+			"EXPOSE ${2:8080}",
+			"CMD [\"/main\"]"
+		],
+		"description": "Multi-stage Dockerfile for Go application"
+	},
+	"Dockerfile FROM": {
+		"prefix": "FROM",
+		"body": [
+			"FROM ${1:ubuntu}:${2:22.04}"
+		],
+		"description": "Dockerfile FROM instruction"
+	},
+	"Dockerfile multi-stage FROM": {
+		"prefix": "FROMs",
+		"body": [
+			"FROM ${1:node}:${2:20} AS ${3:builder}"
+		],
+		"description": "Dockerfile multi-stage FROM with alias"
+	},
+	"Dockerfile RUN": {
+		"prefix": "RUN",
+		"body": [
+			"RUN ${1:command}"
+		],
+		"description": "Dockerfile RUN instruction"
+	},
+	"Dockerfile RUN apt-get": {
+		"prefix": "RUNapt",
+		"body": [
+			"RUN apt-get update && apt-get install -y \\\\",
+			"\t${1:package1} \\\\",
+			"\t${2:package2} \\\\",
+			"&& rm -rf /var/lib/apt/lists/*"
+		],
+		"description": "Dockerfile RUN apt-get install (best practice)"
+	},
+	"Dockerfile COPY": {
+		"prefix": "COPY",
+		"body": [
+			"COPY ${1:src} ${2:dest}"
+		],
+		"description": "Dockerfile COPY instruction"
+	},
+	"Dockerfile ADD": {
+		"prefix": "ADD",
+		"body": [
+			"ADD ${1:src} ${2:dest}"
+		],
+		"description": "Dockerfile ADD instruction"
+	},
+	"Dockerfile ENV": {
+		"prefix": "ENV",
+		"body": [
+			"ENV ${1:KEY}=${2:value}"
+		],
+		"description": "Dockerfile ENV instruction"
+	},
+	"Dockerfile ARG": {
+		"prefix": "ARG",
+		"body": [
+			"ARG ${1:name}=${2:default}"
+		],
+		"description": "Dockerfile ARG build argument"
+	},
+	"Dockerfile EXPOSE": {
+		"prefix": "EXPOSE",
+		"body": [
+			"EXPOSE ${1:8080}"
+		],
+		"description": "Dockerfile EXPOSE port"
+	},
+	"Dockerfile WORKDIR": {
+		"prefix": "WORKDIR",
+		"body": [
+			"WORKDIR ${1:/app}"
+		],
+		"description": "Dockerfile WORKDIR instruction"
+	},
+	"Dockerfile USER": {
+		"prefix": "USER",
+		"body": [
+			"USER ${1:nonroot}"
+		],
+		"description": "Dockerfile USER instruction"
+	},
+	"Dockerfile CMD": {
+		"prefix": "CMD",
+		"body": [
+			"CMD [\"${1:executable}\", \"${2:arg}\"]"
+		],
+		"description": "Dockerfile CMD instruction"
+	},
+	"Dockerfile ENTRYPOINT": {
+		"prefix": "ENTRYPOINT",
+		"body": [
+			"ENTRYPOINT [\"${1:executable}\"]"
+		],
+		"description": "Dockerfile ENTRYPOINT instruction"
+	},
+	"Dockerfile HEALTHCHECK": {
+		"prefix": "HEALTHCHECK",
+		"body": [
+			"HEALTHCHECK --interval=${1:30s} --timeout=${2:3s} --retries=${3:3} \\\\",
+			"\tCMD ${4:curl -f http://localhost:${5:8080}/health || exit 1}"
+		],
+		"description": "Dockerfile HEALTHCHECK instruction"
+	},
+	"Dockerfile LABEL": {
+		"prefix": "LABEL",
+		"body": [
+			"LABEL ${1:maintainer}=\"${2:name@example.com}\""
+		],
+		"description": "Dockerfile LABEL instruction"
+	},
+	"Dockerfile VOLUME": {
+		"prefix": "VOLUME",
+		"body": [
+			"VOLUME [\"${1:/data}\"]"
+		],
+		"description": "Dockerfile VOLUME instruction"
+	}
+}

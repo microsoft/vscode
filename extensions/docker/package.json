@@ -48,7 +48,13 @@
           "strings": true
         }
       }
-    }
+    },
+    "snippets": [
+      {
+        "language": "dockerfile",
+        "path": "./snippets/dockerfile.code-snippets"
+      }
+    ]
   },
   "repository": {
     "type": "git",
