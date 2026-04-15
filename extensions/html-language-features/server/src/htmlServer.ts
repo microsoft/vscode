@@ -289,7 +289,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 				const modes = languageModes.getAllModesInDocument(textDocument);
 				const settings = await getDocumentSettings(textDocument, () => modes.some(m => !!m.doValidation));
 				const latestTextDocument = documents.get(textDocument.uri);
-				if (latestTextDocument && latestTextDocument.version === version) { // check no new version has come in after in after the async op
+				if (latestTextDocument && latestTextDocument.version === version) { // check no new version has come in after the async op
 					for (const mode of modes) {
 						if (mode.doValidation && isValidationEnabled(mode.getId(), settings)) {
 							pushAll(diagnostics, await mode.doValidation(latestTextDocument, settings));
@@ -445,7 +445,7 @@ export function startServer(connection: Connection, runtime: RuntimeEnvironment)
 				}
 			}
 			return links;
-		}, [], `Error while document links for ${documentLinkParam.textDocument.uri}`, token);
+		}, [], `Error while computing document links for ${documentLinkParam.textDocument.uri}`, token);
 	});
 
 	connection.onDocumentSymbol((documentSymbolParms, token) => {
