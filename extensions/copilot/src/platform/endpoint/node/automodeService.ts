@@ -187,9 +187,14 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 			entry.needsReEval = false;
 		}
 
+		// Read the routing method experiment variable eagerly so the experiment
+		// framework records the assignment for ALL auto-mode users, not just the
+		// subset that also has UseAutoModeRouting enabled.
+		const routingMethod = this._configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.AutoModeRoutingMethod, this._expService) || undefined;
+
 		const routerResult = skipRouter
 			? { lastRoutedPrompt: chatRequest?.prompt?.trim() ?? entry?.lastRoutedPrompt }
-			: await this._tryRouterSelection(chatRequest, conversationId, entry, token, knownEndpoints);
+			: await this._tryRouterSelection(chatRequest, conversationId, entry, token, knownEndpoints, routingMethod);
 		let selectedModel = routerResult.selectedModel;
 		const lastRoutedPrompt = routerResult.lastRoutedPrompt;
 		const routerFallbackReason = routerResult.fallbackReason;
@@ -248,6 +253,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		entry: AutoModelCacheEntry | undefined,
 		token: AutoModeAPIResponse,
 		knownEndpoints: IChatEndpoint[],
+		routingMethod?: string,
 	): Promise<{ selectedModel?: IChatEndpoint; lastRoutedPrompt?: string; fallbackReason?: string }> {
 		const prompt = chatRequest?.prompt?.trim();
 		const lastRoutedPrompt = entry?.lastRoutedPrompt ?? prompt;
@@ -277,7 +283,6 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 				previous_model: entry?.endpoint?.model,
 				turn_number: (entry?.turnCount ?? 0) + 1,
 			};
-			const routingMethod = this._configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.AutoModeRoutingMethod, this._expService) || undefined;
 			const result = await this._routerDecisionFetcher.getRouterDecision(prompt, token.session_token, token.available_models, undefined, contextSignals, chatRequest?.sessionId, chatRequest?.id, routingMethod);
 
 			if (result.fallback) {
