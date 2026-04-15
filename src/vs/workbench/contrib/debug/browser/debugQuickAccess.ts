@@ -95,7 +95,7 @@ export class StartDebugQuickAccessProvider extends PickerQuickAccessProvider<IPi
 			picks.push({
 				type: 'separator', label: localize({
 					key: 'contributed',
-					comment: ['contributed is lower case because it looks better like that in UI. Nothing preceeds it. It is a name of the grouping of debug configurations.']
+					comment: ['contributed is lower case because it looks better like that in UI. Nothing precedes it. It is a name of the grouping of debug configurations.']
 				}, "contributed")
 			});
 		}
