@@ -169,41 +169,25 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		// Push the initial active session if there is already a focused widget
 		this._acceptActiveChatSession(this._chatWidgetService.lastFocusedWidget);
 
-		// Push custom agents to ext host
-		void this._pushCustomAgents();
 		this._register(this._promptsService.onDidChangeCustomAgents(() => {
-			void this._pushCustomAgents();
+			this._proxy.$onDidChangeCustomAgents();
 		}));
-
-		// Push instructions to ext host
-		void this._pushInstructions();
 		this._register(this._promptsService.onDidChangeInstructions(() => {
-			void this._pushInstructions();
+			this._proxy.$onDidChangeInstructions();
 		}));
-
-		// Push skills to ext host
-		void this._pushSkills();
 		this._register(this._promptsService.onDidChangeSkills(() => {
-			void this._pushSkills();
+			this._proxy.$onDidChangeSkills();
 		}));
-
-		// Push slash commands to ext host
-		void this._pushSlashCommands();
 		this._register(this._promptsService.onDidChangeSlashCommands(() => {
-			void this._pushSlashCommands();
+			this._proxy.$onDidChangeSlashCommands();
 		}));
-
-		// Push hooks to ext host
-		void this._pushHooks();
 		this._register(this._promptsService.onDidChangeHooks(() => {
-			void this._pushHooks();
+			this._proxy.$onDidChangeHooks();
 		}));
 
-		// Push plugins to ext host (reactive via autorun)
 		this._register(autorun(reader => {
-			const plugins = this._agentPluginService.plugins.read(reader);
-			const dtos: IPluginDto[] = plugins.map(p => ({ uri: p.uri }));
-			this._proxy.$acceptPlugins(dtos);
+			this._agentPluginService.plugins.read(reader);
+			this._proxy.$onDidChangePlugins();
 		}));
 	}
 
@@ -309,45 +293,6 @@ export class MainThreadChatAgents2 extends Disposable implements MainThreadChatA
 		return plugins.map(plugin => ({ uri: plugin.uri }));
 	}
 
-	private async _pushCustomAgents(): Promise<void> {
-		try {
-			this._proxy.$acceptCustomAgents(await this.$provideCustomAgents(CancellationToken.None));
-		} catch (error) {
-			this._logService.error('[chat] Failed to push custom agents to extension host', error);
-		}
-	}
-
-	private async _pushInstructions(): Promise<void> {
-		try {
-			this._proxy.$acceptInstructions(await this.$provideInstructions(CancellationToken.None));
-		} catch (error) {
-			this._logService.error('[chat] Failed to push instructions to extension host', error);
-		}
-	}
-
-	private async _pushSkills(): Promise<void> {
-		try {
-			this._proxy.$acceptSkills(await this.$provideSkills(CancellationToken.None));
-		} catch (error) {
-			this._logService.error('[chat] Failed to push skills to extension host', error);
-		}
-	}
-
-	private async _pushSlashCommands(): Promise<void> {
-		try {
-			this._proxy.$acceptSlashCommands(await this.$provideSlashCommands(CancellationToken.None));
-		} catch (error) {
-			this._logService.error('[chat] Failed to push slash commands to extension host', error);
-		}
-	}
-
-	private async _pushHooks(): Promise<void> {
-		try {
-			this._proxy.$acceptHooks(await this.$provideHooks(CancellationToken.None));
-		} catch (error) {
-			this._logService.error('[chat] Failed to push hooks to extension host', error);
-		}
-	}
 
 	$unregisterAgent(handle: number): void {
 		this._agents.deleteAndDispose(handle);
