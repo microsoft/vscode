@@ -54,7 +54,7 @@ jobs:
     runs-on: windows-2022
     if: >-
       (github.event_name == 'workflow_dispatch' && (contains('win32-x64,all', github.event.inputs.platforms) || github.event.inputs.platforms == '')) ||
-      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/') || startsWith(github.ref, 'refs/tags/v')))
+      (github.event_name == 'push' && !startsWith(github.ref, 'refs/heads/dependabot/'))
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -168,7 +168,7 @@ jobs:
     runs-on: windows-2022
     if: >-
       (github.event_name == 'workflow_dispatch' && (contains('win32-arm64,all', github.event.inputs.platforms) || github.event.inputs.platforms == '')) ||
-      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/') || startsWith(github.ref, 'refs/tags/v')))
+      (github.event_name == 'push' && !startsWith(github.ref, 'refs/heads/dependabot/'))
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -282,7 +282,7 @@ jobs:
     runs-on: macos-latest
     if: >-
       (github.event_name == 'workflow_dispatch' && (contains('darwin,all', github.event.inputs.platforms) || github.event.inputs.platforms == '')) ||
-      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/') || startsWith(github.ref, 'refs/tags/v')))
+      (github.event_name == 'push' && !startsWith(github.ref, 'refs/heads/dependabot/'))
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -384,7 +384,7 @@ jobs:
     runs-on: ubuntu-22.04
     if: >-
       (github.event_name == 'workflow_dispatch' && (contains('linux,all', github.event.inputs.platforms) || github.event.inputs.platforms == '')) ||
-      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/heads/release/') || startsWith(github.ref, 'refs/tags/v')))
+      (github.event_name == 'push' && !startsWith(github.ref, 'refs/heads/dependabot/'))
     steps:
       - name: Checkout
         uses: actions/checkout@v6
