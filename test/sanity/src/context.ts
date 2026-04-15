@@ -990,36 +990,35 @@ export class TestContext {
 	}
 
 	/**
-	 * Validates that the Agents app binary exists alongside the desktop entry point.
-	 * On Linux there is no separate binary; the desktop binary is used with `--agents`.
-	 * @param desktopEntryPoint The path to the VS Code desktop entry point executable.
+	 * Validates that the Agents app binary exists in the specified installation directory.
+	 * @param dir The directory of the VS Code installation.
+	 * @returns The path to the Agents entry point executable.
 	 */
-	public validateAgentsEntryPoint(desktopEntryPoint: string): void {
+	public validateAgentsEntryPoint(dir: string): void {
 		let filePath: string = '';
 
 		switch (os.platform()) {
 			case 'darwin': {
-				// Desktop entry point: <dir>/<App>.app/Contents/MacOS/<Binary>
-				// Agents app: <dir>/<App>.app/Contents/Applications/<Agents>.app
-				const contentsDir = path.dirname(path.dirname(desktopEntryPoint));
+				let appName: string;
 				let agentsAppName: string;
 				switch (this.options.quality) {
 					case 'stable':
+						appName = 'Visual Studio Code.app';
 						agentsAppName = 'Visual Studio Code Agents.app';
 						break;
 					case 'insider':
+						appName = 'Visual Studio Code - Insiders.app';
 						agentsAppName = 'Visual Studio Code Agents - Insiders.app';
 						break;
 					case 'exploration':
+						appName = 'Visual Studio Code - Exploration.app';
 						agentsAppName = 'Visual Studio Code Agents - Exploration.app';
 						break;
 				}
-				filePath = path.join(contentsDir, 'Applications', agentsAppName);
+				filePath = path.join(dir, appName, 'Contents', 'Applications', agentsAppName);
 				break;
 			}
 			case 'win32': {
-				// Desktop entry point: <dir>/Code - Insiders.exe
-				// Agents app: <dir>/Agents - Insiders.exe (sibling)
 				let exeName: string;
 				switch (this.options.quality) {
 					case 'stable':
@@ -1032,7 +1031,7 @@ export class TestContext {
 						exeName = 'Agents - Exploration.exe';
 						break;
 				}
-				filePath = path.join(path.dirname(desktopEntryPoint), exeName);
+				filePath = path.join(dir, exeName);
 				break;
 			}
 		}
