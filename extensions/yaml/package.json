@@ -89,6 +89,12 @@
         ]
       }
     ],
+    "snippets": [
+      {
+        "language": "yaml",
+        "path": "./snippets/yaml.code-snippets"
+      }
+    ],
     "configurationDefaults": {
       "[yaml]": {
         "editor.insertSpaces": true,

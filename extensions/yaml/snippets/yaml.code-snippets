@@ -1,0 +1,149 @@
+{
+	"GitHub Actions Workflow": {
+		"prefix": "gh-actions",
+		"isFileTemplate": true,
+		"body": [
+			"name: ${1:CI}",
+			"",
+			"on:",
+			"  push:",
+			"    branches: [ ${2:main} ]",
+			"  pull_request:",
+			"    branches: [ ${2:main} ]",
+			"",
+			"jobs:",
+			"  build:",
+			"    runs-on: ${3|ubuntu-latest,windows-latest,macos-latest|}",
+			"    steps:",
+			"      - uses: actions/checkout@v4",
+			"      - name: ${4:Run build}",
+			"        run: ${5:echo 'Hello World'}"
+		],
+		"description": "GitHub Actions workflow template"
+	},
+	"Docker Compose Service": {
+		"prefix": "docker-svc",
+		"body": [
+			"${1:service-name}:",
+			"  image: ${2:image-name}:${3:latest}",
+			"  ports:",
+			"    - \"${4:8080}:${5:80}\"",
+			"  environment:",
+			"    - ${6:ENV_VAR}=${7:value}",
+			"  volumes:",
+			"    - ${8:./data}:${9:/app/data}"
+		],
+		"description": "Docker Compose service definition"
+	},
+	"YAML Key-Value": {
+		"prefix": "kv",
+		"body": [
+			"${1:key}: ${2:value}"
+		],
+		"description": "YAML key-value pair"
+	},
+	"YAML List": {
+		"prefix": "list",
+		"body": [
+			"${1:key}:",
+			"  - ${2:item1}",
+			"  - ${3:item2}"
+		],
+		"description": "YAML list"
+	},
+	"YAML Nested Object": {
+		"prefix": "obj",
+		"body": [
+			"${1:parent}:",
+			"  ${2:child}: ${3:value}"
+		],
+		"description": "YAML nested object"
+	},
+	"Kubernetes Deployment": {
+		"prefix": "k8s-deploy",
+		"isFileTemplate": true,
+		"body": [
+			"apiVersion: apps/v1",
+			"kind: Deployment",
+			"metadata:",
+			"  name: ${1:deployment-name}",
+			"  labels:",
+			"    app: ${1:deployment-name}",
+			"spec:",
+			"  replicas: ${2:3}",
+			"  selector:",
+			"    matchLabels:",
+			"      app: ${1:deployment-name}",
+			"  template:",
+			"    metadata:",
+			"      labels:",
+			"        app: ${1:deployment-name}",
+			"    spec:",
+			"      containers:",
+			"      - name: ${3:container-name}",
+			"        image: ${4:image:tag}",
+			"        ports:",
+			"        - containerPort: ${5:80}"
+		],
+		"description": "Kubernetes Deployment manifest"
+	},
+	"Kubernetes Service": {
+		"prefix": "k8s-svc",
+		"body": [
+			"apiVersion: v1",
+			"kind: Service",
+			"metadata:",
+			"  name: ${1:service-name}",
+			"spec:",
+			"  selector:",
+			"    app: ${2:app-name}",
+			"  ports:",
+			"    - protocol: TCP",
+			"      port: ${3:80}",
+			"      targetPort: ${4:80}",
+			"  type: ${5|ClusterIP,NodePort,LoadBalancer|}"
+		],
+		"description": "Kubernetes Service manifest"
+	},
+	"Kubernetes ConfigMap": {
+		"prefix": "k8s-cm",
+		"body": [
+			"apiVersion: v1",
+			"kind: ConfigMap",
+			"metadata:",
+			"  name: ${1:config-name}",
+			"data:",
+			"  ${2:key}: ${3:value}"
+		],
+		"description": "Kubernetes ConfigMap"
+	},
+	"YAML Anchor": {
+		"prefix": "anchor",
+		"body": [
+			"${1:anchor_name}: &${2:ref}",
+			"  ${3:key}: ${4:value}",
+			"",
+			"${5:other_key}:",
+			"  <<: *${2:ref}"
+		],
+		"description": "YAML anchor and alias (merge key)"
+	},
+	"Multi-line String": {
+		"prefix": "ml",
+		"body": [
+			"${1:key}: |",
+			"  ${2:line 1}",
+			"  ${3:line 2}"
+		],
+		"description": "YAML multi-line literal block string"
+	},
+	"Folded String": {
+		"prefix": "fold",
+		"body": [
+			"${1:key}: >",
+			"  ${2:This is a folded}",
+			"  ${3:multi-line string}"
+		],
+		"description": "YAML folded block string"
+	}
+}
