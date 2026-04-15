@@ -39,6 +39,12 @@
         "scopeName": "source.dotenv",
         "path": "./syntaxes/dotenv.tmLanguage.json"
       }
+    ],
+    "snippets": [
+      {
+        "language": "dotenv",
+        "path": "./snippets/dotenv.code-snippets"
+      }
     ]
   },
   "repository": {

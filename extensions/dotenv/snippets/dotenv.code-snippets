@@ -1,0 +1,143 @@
+{
+	"Dotenv Variable": {
+		"prefix": "var",
+		"body": [
+			"${1:VARIABLE_NAME}=${2:value}"
+		],
+		"description": "Environment variable assignment"
+	},
+	"Dotenv Quoted Variable": {
+		"prefix": "varq",
+		"body": [
+			"${1:VARIABLE_NAME}=\"${2:value}\""
+		],
+		"description": "Environment variable with quoted value"
+	},
+	"Dotenv Comment": {
+		"prefix": "comment",
+		"body": [
+			"# ${1:comment}"
+		],
+		"description": "Dotenv comment"
+	},
+	"Dotenv Section Comment": {
+		"prefix": "section",
+		"body": [
+			"",
+			"# ${1:Section Name}",
+			"# ${2:Description}",
+			"${3:VAR_NAME}=${4:value}"
+		],
+		"description": "Dotenv section with comment"
+	},
+	"Dotenv Database Config": {
+		"prefix": "db",
+		"body": [
+			"# Database",
+			"DB_HOST=${1:localhost}",
+			"DB_PORT=${2:5432}",
+			"DB_NAME=${3:mydb}",
+			"DB_USER=${4:postgres}",
+			"DB_PASSWORD=${5:secret}"
+		],
+		"description": "Database connection environment variables"
+	},
+	"Dotenv App Config": {
+		"prefix": "app",
+		"body": [
+			"# Application",
+			"APP_NAME=${1:my-app}",
+			"APP_ENV=${2|development,staging,production|}",
+			"APP_PORT=${3:3000}",
+			"APP_DEBUG=${4|true,false|}",
+			"APP_SECRET=${5:changeme}"
+		],
+		"description": "Basic application environment variables"
+	},
+	"Dotenv JWT Config": {
+		"prefix": "jwt",
+		"body": [
+			"# JWT",
+			"JWT_SECRET=${1:your-secret-key}",
+			"JWT_EXPIRES_IN=${2:7d}",
+			"JWT_ALGORITHM=${3:HS256}"
+		],
+		"description": "JWT authentication environment variables"
+	},
+	"Dotenv SMTP Config": {
+		"prefix": "smtp",
+		"body": [
+			"# SMTP / Email",
+			"SMTP_HOST=${1:smtp.gmail.com}",
+			"SMTP_PORT=${2:587}",
+			"SMTP_USER=${3:user@example.com}",
+			"SMTP_PASS=${4:password}",
+			"SMTP_FROM=${5:noreply@example.com}"
+		],
+		"description": "SMTP email environment variables"
+	},
+	"Dotenv Redis Config": {
+		"prefix": "redis",
+		"body": [
+			"# Redis",
+			"REDIS_HOST=${1:localhost}",
+			"REDIS_PORT=${2:6379}",
+			"REDIS_PASSWORD=${3:}",
+			"REDIS_DB=${4:0}"
+		],
+		"description": "Redis connection environment variables"
+	},
+	"Dotenv AWS Config": {
+		"prefix": "aws",
+		"body": [
+			"# AWS",
+			"AWS_ACCESS_KEY_ID=${1:your-access-key}",
+			"AWS_SECRET_ACCESS_KEY=${2:your-secret-key}",
+			"AWS_REGION=${3:us-east-1}",
+			"AWS_S3_BUCKET=${4:my-bucket}"
+		],
+		"description": "AWS credentials environment variables"
+	},
+	"Dotenv API Keys": {
+		"prefix": "api",
+		"body": [
+			"# API Keys",
+			"${1:SERVICE}_API_KEY=${2:your-api-key}",
+			"${1:SERVICE}_API_SECRET=${3:your-api-secret}",
+			"${1:SERVICE}_API_URL=${4:https://api.example.com}"
+		],
+		"description": "API key environment variables"
+	},
+	"Dotenv OAuth Config": {
+		"prefix": "oauth",
+		"body": [
+			"# OAuth",
+			"OAUTH_CLIENT_ID=${1:client-id}",
+			"OAUTH_CLIENT_SECRET=${2:client-secret}",
+			"OAUTH_CALLBACK_URL=${3:http://localhost:3000/auth/callback}"
+		],
+		"description": "OAuth configuration environment variables"
+	},
+	"Dotenv Full Template": {
+		"prefix": "template",
+		"body": [
+			"# Application",
+			"APP_NAME=${1:my-app}",
+			"APP_ENV=${2|development,staging,production|}",
+			"APP_PORT=${3:3000}",
+			"APP_SECRET=${4:changeme}",
+			"",
+			"# Database",
+			"DB_HOST=${5:localhost}",
+			"DB_PORT=${6:5432}",
+			"DB_NAME=${7:mydb}",
+			"DB_USER=${8:postgres}",
+			"DB_PASSWORD=${9:secret}",
+			"",
+			"# Logging",
+			"LOG_LEVEL=${10|debug,info,warn,error|}",
+			""
+		],
+		"description": "Full .env file template"
+	}
+}

@@ -46,6 +46,16 @@
         "scopeName": "source.objcpp",
         "path": "./syntaxes/objective-c++.tmLanguage.json"
       }
+    ],
+    "snippets": [
+      {
+        "language": "objective-c",
+        "path": "./snippets/objc.code-snippets"
+      },
+      {
+        "language": "objective-cpp",
+        "path": "./snippets/objc.code-snippets"
+      }
     ]
   },
   "repository": {

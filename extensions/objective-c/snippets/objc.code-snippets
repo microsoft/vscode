@@ -1,0 +1,185 @@
+{
+	"Objective-C Interface": {
+		"prefix": "@interface",
+		"body": [
+			"@interface ${1:ClassName} : ${2:NSObject}",
+			"",
+			"${0:// Properties and method declarations}",
+			"",
+			"@end"
+		],
+		"description": "Objective-C class interface declaration"
+	},
+	"Objective-C Implementation": {
+		"prefix": "@implementation",
+		"body": [
+			"@implementation ${1:ClassName}",
+			"",
+			"$0",
+			"",
+			"@end"
+		],
+		"description": "Objective-C class implementation"
+	},
+	"Objective-C Property": {
+		"prefix": "@property",
+		"body": [
+			"@property (${1|nonatomic, strong|,nonatomic, weak|,nonatomic, copy|,nonatomic, assign|,atomic, strong|}) ${2:NSString} *${3:propertyName};"
+		],
+		"description": "Objective-C property declaration"
+	},
+	"Objective-C Method Declaration": {
+		"prefix": "method",
+		"body": [
+			"- (${1:void})${2:methodName};"
+		],
+		"description": "Objective-C instance method declaration"
+	},
+	"Objective-C Method Implementation": {
+		"prefix": "methodi",
+		"body": [
+			"- (${1:void})${2:methodName} {",
+			"  $0",
+			"}"
+		],
+		"description": "Objective-C instance method implementation"
+	},
+	"Objective-C Method with Parameter": {
+		"prefix": "methodp",
+		"body": [
+			"- (${1:void})${2:methodName}:(${3:NSString *})${4:param} {",
+			"  $0",
+			"}"
+		],
+		"description": "Objective-C method with parameter"
+	},
+	"Objective-C Class Method": {
+		"prefix": "classmethod",
+		"body": [
+			"+ (${1:instancetype})${2:sharedInstance} {",
+			"  $0",
+			"}"
+		],
+		"description": "Objective-C class method"
+	},
+	"Objective-C Init": {
+		"prefix": "init",
+		"body": [
+			"- (instancetype)init {",
+			"  self = [super init];",
+			"  if (self) {",
+			"    $0",
+			"  }",
+			"  return self;",
+			"}"
+		],
+		"description": "Objective-C designated initializer"
+	},
+	"Objective-C If Statement": {
+		"prefix": "if",
+		"body": [
+			"if (${1:condition}) {",
+			"  $0",
+			"}"
+		],
+		"description": "Objective-C if statement"
+	},
+	"Objective-C For Loop": {
+		"prefix": "for",
+		"body": [
+			"for (NSInteger ${1:i} = 0; ${1:i} < ${2:count}; ${1:i}++) {",
+			"  $0",
+			"}"
+		],
+		"description": "Objective-C for loop"
+	},
+	"Objective-C Fast Enumeration": {
+		"prefix": "foreach",
+		"body": [
+			"for (${1:id} ${2:item} in ${3:collection}) {",
+			"  $0",
+			"}"
+		],
+		"description": "Objective-C fast enumeration"
+	},
+	"Objective-C NSLog": {
+		"prefix": "log",
+		"body": [
+			"NSLog(@\"${1:%@}\", ${2:variable});"
+		],
+		"description": "NSLog statement"
+	},
+	"Objective-C String": {
+		"prefix": "str",
+		"body": [
+			"NSString *${1:str} = @\"${2:value}\";"
+		],
+		"description": "Objective-C NSString literal"
+	},
+	"Objective-C Array": {
+		"prefix": "arr",
+		"body": [
+			"NSArray *${1:arr} = @[${2:@\"item1\"}, ${3:@\"item2\"}];"
+		],
+		"description": "Objective-C NSArray literal"
+	},
+	"Objective-C Mutable Array": {
+		"prefix": "marrr",
+		"body": [
+			"NSMutableArray *${1:arr} = [NSMutableArray array];"
+		],
+		"description": "Objective-C NSMutableArray"
+	},
+	"Objective-C Dictionary": {
+		"prefix": "dict",
+		"body": [
+			"NSDictionary *${1:dict} = @{",
+			"  @\"${2:key}\": ${3:@\"value\"},",
+			"};"
+		],
+		"description": "Objective-C NSDictionary literal"
+	},
+	"Objective-C Block": {
+		"prefix": "block",
+		"body": [
+			"^${1:void}(${2:id ${3:obj}}) {",
+			"  $0",
+			"}"
+		],
+		"description": "Objective-C block"
+	},
+	"Objective-C Dispatch Async": {
+		"prefix": "async",
+		"body": [
+			"dispatch_async(dispatch_get_${1|main_queue,global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0)|}(), ^{",
+			"  $0",
+			"});"
+		],
+		"description": "Objective-C dispatch_async"
+	},
+	"Objective-C Protocol": {
+		"prefix": "@protocol",
+		"body": [
+			"@protocol ${1:ProtocolName} <${2:NSObject}>",
+			"",
+			"$0",
+			"",
+			"@end"
+		],
+		"description": "Objective-C protocol declaration"
+	},
+	"Objective-C Singleton": {
+		"prefix": "singleton",
+		"body": [
+			"+ (instancetype)sharedInstance {",
+			"  static ${1:ClassName} *_sharedInstance = nil;",
+			"  static dispatch_once_t onceToken;",
+			"  dispatch_once(&onceToken, ^{",
+			"    _sharedInstance = [[${1:ClassName} alloc] init];",
+			"  });",
+			"  return _sharedInstance;",
+			"}"
+		],
+		"description": "Objective-C singleton pattern"
+	}
+}
