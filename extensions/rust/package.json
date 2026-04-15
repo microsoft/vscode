@@ -32,6 +32,12 @@
         "path": "./syntaxes/rust.tmLanguage.json",
         "scopeName": "source.rust"
       }
+    ],
+    "snippets": [
+      {
+        "language": "rust",
+        "path": "./snippets/rust.code-snippets"
+      }
     ]
   },
   "repository": {

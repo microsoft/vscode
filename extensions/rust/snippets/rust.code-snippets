@@ -1,0 +1,212 @@
+{
+	"Main Function": {
+		"prefix": "main",
+		"body": [
+			"fn main() {",
+			"\t$0",
+			"}"
+		],
+		"description": "Rust main function"
+	},
+	"Function": {
+		"prefix": "fn",
+		"body": [
+			"fn ${1:function_name}(${2:params}) -> ${3:()} {",
+			"\t$0",
+			"}"
+		],
+		"description": "Rust function definition"
+	},
+	"Public Function": {
+		"prefix": "pubfn",
+		"body": [
+			"pub fn ${1:function_name}(${2:params}) -> ${3:()} {",
+			"\t$0",
+			"}"
+		],
+		"description": "Rust public function"
+	},
+	"Struct": {
+		"prefix": "struct",
+		"body": [
+			"struct ${1:Name} {",
+			"\t${2:field}: ${3:type},",
+			"}"
+		],
+		"description": "Rust struct definition"
+	},
+	"Impl Block": {
+		"prefix": "impl",
+		"body": [
+			"impl ${1:Type} {",
+			"\tpub fn new(${2:params}) -> Self {",
+			"\t\tSelf {",
+			"\t\t\t$3",
+			"\t\t}",
+			"\t}",
+			"\t$0",
+			"}"
+		],
+		"description": "Rust impl block with new()"
+	},
+	"Trait": {
+		"prefix": "trait",
+		"body": [
+			"trait ${1:TraitName} {",
+			"\tfn ${2:method_name}(${3:&self}${4:, params}) -> ${5:()};",
+			"}"
+		],
+		"description": "Rust trait definition"
+	},
+	"Enum": {
+		"prefix": "enum",
+		"body": [
+			"enum ${1:Name} {",
+			"\t${2:Variant1},",
+			"\t${3:Variant2}(${4:Type}),",
+			"}"
+		],
+		"description": "Rust enum definition"
+	},
+	"Match Expression": {
+		"prefix": "match",
+		"body": [
+			"match ${1:value} {",
+			"\t${2:pattern} => ${3:expression},",
+			"\t_ => ${4:default},",
+			"}"
+		],
+		"description": "Rust match expression"
+	},
+	"If Let": {
+		"prefix": "iflet",
+		"body": [
+			"if let ${1:Some(${2:value})} = ${3:expression} {",
+			"\t$0",
+			"}"
+		],
+		"description": "Rust if-let pattern matching"
+	},
+	"While Let": {
+		"prefix": "whilelet",
+		"body": [
+			"while let ${1:Some(${2:value})} = ${3:expression} {",
+			"\t$0",
+			"}"
+		],
+		"description": "Rust while-let loop"
+	},
+	"For Loop": {
+		"prefix": "for",
+		"body": [
+			"for ${1:item} in ${2:iterable} {",
+			"\t$0",
+			"}"
+		],
+		"description": "Rust for loop"
+	},
+	"Loop": {
+		"prefix": "loop",
+		"body": [
+			"loop {",
+			"\t$0",
+			"}"
+		],
+		"description": "Rust infinite loop"
+	},
+	"Result Return": {
+		"prefix": "result",
+		"body": [
+			"Result<${1:T}, ${2:E}>"
+		],
+		"description": "Rust Result type"
+	},
+	"Option Type": {
+		"prefix": "option",
+		"body": [
+			"Option<${1:T}>"
+		],
+		"description": "Rust Option type"
+	},
+	"Println": {
+		"prefix": "pl",
+		"body": [
+			"println!(\"${1:{}}\", ${2:value});"
+		],
+		"description": "Rust println! macro"
+	},
+	"Format": {
+		"prefix": "fmt",
+		"body": [
+			"format!(\"${1:{}}\", ${2:value})"
+		],
+		"description": "Rust format! macro"
+	},
+	"Vec Initialization": {
+		"prefix": "vec",
+		"body": [
+			"let ${1:v}: Vec<${2:i32}> = Vec::new();"
+		],
+		"description": "Rust Vec initialization"
+	},
+	"HashMap": {
+		"prefix": "map",
+		"body": [
+			"let mut ${1:map}: HashMap<${2:String}, ${3:i32}> = HashMap::new();"
+		],
+		"description": "Rust HashMap"
+	},
+	"Use Statement": {
+		"prefix": "use",
+		"body": [
+			"use ${1:std::collections::HashMap};"
+		],
+		"description": "Rust use statement"
+	},
+	"Closure": {
+		"prefix": "closure",
+		"body": [
+			"|${1:x}| ${2:x + 1}"
+		],
+		"description": "Rust closure"
+	},
+	"Derive": {
+		"prefix": "derive",
+		"body": [
+			"#[derive(${1|Debug,Clone,PartialEq,Eq,Hash,Serialize,Deserialize|})]"
+		],
+		"description": "Rust derive attribute"
+	},
+	"Test Function": {
+		"prefix": "test",
+		"body": [
+			"#[test]",
+			"fn ${1:test_name}() {",
+			"\t$0",
+			"}"
+		],
+		"description": "Rust test function"
+	},
+	"Test Module": {
+		"prefix": "testmod",
+		"body": [
+			"#[cfg(test)]",
+			"mod tests {",
+			"\tuse super::*;",
+			"",
+			"\t#[test]",
+			"\tfn ${1:test_name}() {",
+			"\t\t$0",
+			"\t}",
+			"}"
+		],
+		"description": "Rust test module"
+	},
+	"Assert Equal": {
+		"prefix": "aeq",
+		"body": [
+			"assert_eq!(${1:expected}, ${2:actual});"
+		],
+		"description": "Rust assert_eq! macro"
+	}
+}
