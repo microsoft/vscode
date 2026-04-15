@@ -292,10 +292,14 @@ export class PackageJSONContribution implements IJSONContribution {
 		return info;
 	}
 
-	private async npmView(npmCommandPath: string, pack: string, resource: Uri | undefined): Promise<ViewPackageInfo | undefined> {
+	/**
+	 * Runs an npm command and returns its stdout, or undefined if the command fails.
+	 * Sets up cwd from resource, applies corepack env vars, and handles win32 shell quoting.
+	 * Pass ignoreError=true to return stdout even when the command exits with a non-zero code.
+	 */
+	private async runNpmCommand(npmCommandPath: string, args: string[], resource: Uri | undefined): Promise<string | undefined> {
 		const cp = await import('child_process');
 		return new Promise((resolve, _reject) => {
-			const args = ['view', '--json', '--', pack, 'description', 'dist-tags.latest', 'homepage', 'version', 'time'];
 			const cwd = resource && resource.scheme === 'file' ? dirname(resource.fsPath) : undefined;
 
 			// corepack npm wrapper would automatically update package.json. disable that behavior.
@@ -310,24 +314,29 @@ export class PackageJSONContribution implements IJSONContribution {
 				commandPath = `"${npmCommandPath}"`;
 			}
 			cp.execFile(commandPath, args, options, (error, stdout) => {
-				if (!error) {
-					try {
-						const content = JSON.parse(stdout);
-						const version = content['dist-tags.latest'] || content['version'];
-						resolve({
-							description: content['description'],
-							version,
-							time: content.time?.[version],
-							homepage: content['homepage']
-						});
-						return;
-					} catch (e) {
-						// ignore
-					}
-				}
-				resolve(undefined);
+				resolve(error ? undefined : stdout);
 			});
 		});
+	}
+
+	private async npmView(npmCommandPath: string, pack: string, resource: Uri | undefined): Promise<ViewPackageInfo | undefined> {
+		const args = ['view', '--json', '--', pack, 'description', 'dist-tags.latest', 'homepage', 'version', 'time'];
+		const stdout = await this.runNpmCommand(npmCommandPath, args, resource);
+		if (stdout) {
+			try {
+				const content = JSON.parse(stdout);
+				const version = content['dist-tags.latest'] || content['version'];
+				return {
+					description: content['description'],
+					version,
+					time: content.time?.[version],
+					homepage: content['homepage']
+				};
+			} catch (e) {
+				// ignore
+			}
+		}
+		return undefined;
 	}
 
 	private async npmjsView(pack: string): Promise<ViewPackageInfo | undefined> {
@@ -353,31 +362,18 @@ export class PackageJSONContribution implements IJSONContribution {
 	}
 
 	private async npmListInstalledVersion(npmCommandPath: string, pack: string, resource: Uri | undefined): Promise<string | undefined> {
-		const cp = await import('child_process');
-		return new Promise((resolve, _reject) => {
-			const args = ['ls', '--json', '--depth=0', '--', pack];
-			const cwd = resource && resource.scheme === 'file' ? dirname(resource.fsPath) : undefined;
-
-			// Match npmView
-			const env = { ...process.env, COREPACK_ENABLE_AUTO_PIN: '0', COREPACK_ENABLE_PROJECT_SPEC: '0' };
-			let options: cp.ExecFileOptions = { cwd, env };
-			let commandPath: string = npmCommandPath;
-			if (process.platform === 'win32') {
-				options = { cwd, env, shell: true };
-				commandPath = `"${npmCommandPath}"`;
+		const args = ['ls', '--json', '--depth=0', '--', pack];
+		const stdout = await this.runNpmCommand(npmCommandPath, args, resource);
+		if (stdout) {
+			try {
+				const content = JSON.parse(stdout);
+				const version = content?.dependencies?.[pack]?.version;
+				return typeof version === 'string' ? version : undefined;
+			} catch (e) {
+				// ignore
 			}
-			cp.execFile(commandPath, args, options, (_error, stdout) => {
-				try {
-					const content = JSON.parse(stdout);
-					const version = content?.dependencies?.[pack]?.version;
-					resolve(typeof version === 'string' ? version : undefined);
-					return;
-				} catch (e) {
-					// ignore
-				}
-				resolve(undefined);
-			});
-		});
+		}
+		return undefined;
 	}
 
 	public getInfoContribution(resource: Uri, location: Location): Thenable<MarkdownString[] | null> | null {
