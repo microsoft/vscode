@@ -338,7 +338,7 @@ export abstract class AbstractExtensionsProfileScannerService extends Disposable
 					if (Array.isArray(parsedData) && parsedData.every(candidate => isStoredProfileExtension(candidate))) {
 						storedProfileExtensions = parsedData;
 					} else {
-						this.logService.warn('Skipping migrating from old default profile locaiton: Found invalid data', parsedData);
+						this.logService.warn('Skipping migrating from old default profile location: Found invalid data', parsedData);
 					}
 				} catch (error) {
 					/* Ignore */
