@@ -54,7 +54,7 @@ export class NativeAuxiliaryWindow extends AuxiliaryWindow {
 		super(window, container, stylesHaveLoaded, configurationService, hostService, environmentService, contextMenuService, layoutService);
 
 		if (!isMacintosh) {
-			// For now, limit this to platforms that have clear maximised
+			// For now, limit this to platforms that have clear maximized
 			// transitions (Windows, Linux) via window buttons.
 			this.handleMaximizedState();
 		}

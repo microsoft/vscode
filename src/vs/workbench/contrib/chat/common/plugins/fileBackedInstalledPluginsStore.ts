@@ -23,7 +23,7 @@ const LEGACY_INSTALLED_PLUGINS_STORAGE_KEY = 'chat.plugins.installed.v1';
 const LEGACY_MARKETPLACE_INDEX_STORAGE_KEY = 'chat.plugins.marketplaces.index.v1';
 
 /**
- * Minimal entry stored in `installed.json`. URIs are serialised as strings
+ * Minimal entry stored in `installed.json`. URIs are serialized as strings
  * so that external tools can read and write the file without depending on
  * VS Code internal URI representations.
  */

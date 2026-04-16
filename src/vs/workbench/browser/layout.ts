@@ -1643,7 +1643,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 				if (!this.inMaximizedAuxiliaryBarTransition) {
 
 					// skip reacting when we are transitioning
-					// in or out of maximised auxiliary bar to prevent
+					// in or out of maximized auxiliary bar to prevent
 					// stepping on each other toes because this
 					// transition is already dealing with all parts
 					// visibility efficiently.
@@ -1846,7 +1846,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private setEditorHidden(hidden: boolean): void {
 		if (!hidden && this.setAuxiliaryBarMaximized(false) && this.isVisible(Parts.EDITOR_PART)) {
-			return; // return: leaving maximised auxiliary bar made this part visible
+			return; // return: leaving maximized auxiliary bar made this part visible
 		}
 
 		this.stateModel.setRuntimeValue(LayoutStateKeys.EDITOR_HIDDEN, hidden);
@@ -1882,7 +1882,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private setSideBarHidden(hidden: boolean): void {
 		if (!hidden && this.setAuxiliaryBarMaximized(false) && this.isVisible(Parts.SIDEBAR_PART)) {
-			return; // return: leaving maximised auxiliary bar made this part visible
+			return; // return: leaving maximized auxiliary bar made this part visible
 		}
 
 		this.stateModel.setRuntimeValue(LayoutStateKeys.SIDEBAR_HIDDEN, hidden);
@@ -2021,7 +2021,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 		}
 
 		if (!hidden && this.setAuxiliaryBarMaximized(false) && this.isVisible(Parts.PANEL_PART)) {
-			return; // return: leaving maximised auxiliary bar made this part visible
+			return; // return: leaving maximized auxiliary bar made this part visible
 		}
 
 		const wasHidden = !this.isVisible(Parts.PANEL_PART);
@@ -2220,7 +2220,7 @@ export abstract class Layout extends Disposable implements IWorkbenchLayoutServi
 
 	private setAuxiliaryBarHidden(hidden: boolean, skipLayout?: boolean): void {
 		if (hidden && this.setAuxiliaryBarMaximized(false) && !this.isVisible(Parts.AUXILIARYBAR_PART)) {
-			return; // return: leaving maximised auxiliary bar made this part hidden
+			return; // return: leaving maximized auxiliary bar made this part hidden
 		}
 
 		this.stateModel.setRuntimeValue(LayoutStateKeys.AUXILIARYBAR_HIDDEN, hidden);

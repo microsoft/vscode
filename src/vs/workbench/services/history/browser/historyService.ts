@@ -1031,7 +1031,7 @@ export class HistoryService extends Disposable implements IHistoryService {
 
 		// We want to merge the opened editors from the last
 		// session with the stored editors from the last
-		// session. Because not all editors can be serialised
+		// session. Because not all editors can be serialized
 		// we want to make sure to include all opened editors
 		// too.
 		// Opened editors should always be first in the history
