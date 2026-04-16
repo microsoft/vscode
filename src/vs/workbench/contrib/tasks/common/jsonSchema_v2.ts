@@ -188,7 +188,7 @@ const presentation: IJSONSchema = {
 			type: 'string',
 			enum: ['shared', 'dedicated', 'new'],
 			default: 'shared',
-			description: nls.localize('JsonSchema.tasks.presentation.instance', 'Controls if the panel is shared between tasks, dedicated to this task or a new one is created on every run.')
+			description: nls.localize('JsonSchema.tasks.presentation.instance', 'Controls whether the panel is shared between tasks, dedicated to this task or a new one is created on every run.')
 		},
 		showReuseMessage: {
 			type: 'boolean',

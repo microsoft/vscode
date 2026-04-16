@@ -45,7 +45,7 @@ const keyboardConfiguration: IConfigurationNode = {
 			scope: ConfigurationScope.APPLICATION,
 			type: 'boolean',
 			default: false,
-			markdownDescription: nls.localize('mapAltGrToCtrlAlt', "Controls if the AltGraph+ modifier should be treated as Ctrl+Alt+."),
+			markdownDescription: nls.localize('mapAltGrToCtrlAlt', "Controls whether the AltGraph+ modifier should be treated as Ctrl+Alt+."),
 			included: OS === OperatingSystem.Windows
 		}
 	}

@@ -98,7 +98,7 @@ const notebookProviderContribution: IJSONSchema = {
 			},
 			[NotebookEditorContribution.priority]: {
 				type: 'string',
-				markdownDeprecationMessage: nls.localize('contributes.priority', 'Controls if the custom editor is enabled automatically when the user opens a file. This may be overridden by users using the `workbench.editorAssociations` setting.'),
+				markdownDeprecationMessage: nls.localize('contributes.priority', 'Controls whether the custom editor is enabled automatically when the user opens a file. This may be overridden by users using the `workbench.editorAssociations` setting.'),
 				enum: [
 					NotebookEditorPriority.default,
 					NotebookEditorPriority.option,

@@ -328,7 +328,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 	id: 'files',
 	properties: {
 		[autoSaveSetting]: {
-			description: localize('refactoring.autoSave', "Controls if files that were part of a refactoring are saved automatically"),
+			description: localize('refactoring.autoSave', "Controls whether files that were part of a refactoring are saved automatically"),
 			default: true,
 			type: 'boolean'
 		}

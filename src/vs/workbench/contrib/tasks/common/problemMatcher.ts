@@ -1271,7 +1271,7 @@ export namespace Schemas {
 			applyTo: {
 				type: 'string',
 				enum: ['allDocuments', 'openDocuments', 'closedDocuments'],
-				description: localize('ProblemMatcherSchema.applyTo', 'Controls if a problem reported on a text document is applied only to open, closed or all documents.')
+				description: localize('ProblemMatcherSchema.applyTo', 'Controls whether a problem reported on a text document is applied only to open, closed or all documents.')
 			},
 			pattern: PatternType,
 			fileLocation: {
