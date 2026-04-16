@@ -341,7 +341,7 @@ export class VSCodeWorkspace extends ObservableWorkspace implements IDisposable 
 		const notebookDocs = this._notebookDocsWithShouldTrackFlag.read(reader);
 		notebookDocs.forEach(d => {
 			map.set(d.doc.uri.toString(), d);
-			// Markdown cells will be treated as standalone text documents (old behaviour).
+			// Markdown cells will be treated as standalone text documents (old behavior).
 			d.doc.getCells().filter(cell => cell.kind === NotebookCellKind.Code).forEach(cell => map.set(cell.document.uri.toString(), d));
 		});
 		return map;

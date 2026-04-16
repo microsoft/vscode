@@ -80,7 +80,7 @@ export async function getGhostTextStrategy(
 		case BlockMode.ParsingAndServer:
 		case BlockMode.MoreMultiline:
 		default: {
-			// we shouldn't drop through to here, but in case we do, be explicit about the behaviour
+			// we shouldn't drop through to here, but in case we do, be explicit about the behavior
 			let requestMultiline: MultilineDetermination;
 			try {
 				requestMultiline = await instantiationService.invokeFunction(shouldRequestMultiline,

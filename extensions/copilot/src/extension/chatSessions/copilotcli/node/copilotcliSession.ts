@@ -201,7 +201,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	/**
 	 * Entry point for every chat request against this session.
 	 *
-	 * **Steering behaviour**: if the session is already busy (`InProgress` or
+	 * **Steering behavior**: if the session is already busy (`InProgress` or
 	 * `NeedsInput`), the incoming message is treated as a *steering* request.
 	 * Steering sends the new prompt to the SDK with `mode: 'immediate'` so it is
 	 * injected into the running conversation as additional context. The steering

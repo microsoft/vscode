@@ -201,7 +201,7 @@ export function contextIndentationFromText(source: string, offset: number, langu
 }
 
 // If the model thinks we are at the end of a line, do we want to offer a completion
-// for the next line? For now (05 Oct 2021) we leave it as false to minimise behaviour
+// for the next line? For now (05 Oct 2021) we leave it as false to minimise behavior
 // changes between parsing and indentation mode.
 const OfferNextLineCompletion = false;
 
