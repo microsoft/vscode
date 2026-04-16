@@ -14,7 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { AgentSession, IAgent } from '../../common/agentService.js';
+import { AgentSession, DEFAULT_SESSION_TITLE, IAgent } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType, IActionEnvelope, ISessionAction } from '../../common/state/sessionActions.js';
 import { PendingMessageKind, ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType } from '../../common/state/sessionState.js';
@@ -137,7 +137,7 @@ suite('AgentSideEffects', () => {
 			stateManager.createSession({
 				resource: sessionUri.toString(),
 				provider: 'mock',
-				title: '',
+				title: DEFAULT_SESSION_TITLE,
 				status: SessionStatus.Idle,
 				createdAt: Date.now(),
 				modifiedAt: Date.now(),

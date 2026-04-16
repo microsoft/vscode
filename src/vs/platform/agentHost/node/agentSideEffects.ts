@@ -12,7 +12,7 @@ import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
-import { IAgent, IAgentAttachment, IAgentProgressEvent } from '../common/agentService.js';
+import { DEFAULT_SESSION_TITLE, IAgent, IAgentAttachment, IAgentProgressEvent } from '../common/agentService.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { ActionType, ISessionAction } from '../common/state/sessionActions.js';
@@ -559,11 +559,11 @@ export class AgentSideEffects extends Disposable {
 				// On the very first turn, immediately set the session title to the
 				// user's message so the UI shows a meaningful title right away
 				// while waiting for the AI-generated title. Only apply when the
-				// title is still empty (the default) to avoid clobbering a title
-				// set by the user or provider before the first turn.
+				// title is still the default placeholder to avoid clobbering a
+				// title set by the user or provider before the first turn.
 				const state = this._stateManager.getSessionState(action.session);
 				const fallbackTitle = action.userMessage.text.trim();
-				if (state && state.turns.length === 0 && !state.summary.title && fallbackTitle.length > 0) {
+				if (state && state.turns.length === 0 && state.summary.title === DEFAULT_SESSION_TITLE && fallbackTitle.length > 0) {
 					this._stateManager.dispatchServerAction({
 						type: ActionType.SessionTitleChanged,
 						session: action.session,
