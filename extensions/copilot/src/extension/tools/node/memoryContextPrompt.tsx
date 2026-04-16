@@ -224,8 +224,9 @@ export class MemoryContextPrompt extends PromptElement<MemoryContextPromptProps>
 		return memories.map(m => {
 			const lines = [`**${m.subject}**`, `- Fact: ${m.fact}`];
 
-			if (m.citations.length > 0) {
-				lines.push(`- Citations: ${m.citations.join(', ')}`);
+			const citations = Array.isArray(m.citations) ? m.citations : m.citations ? [m.citations] : [];
+			if (citations.length > 0) {
+				lines.push(`- Citations: ${citations.join(', ')}`);
 			}
 
 			// Include reason if present (from CAPI format)
