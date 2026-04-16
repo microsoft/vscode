@@ -117,7 +117,7 @@ export interface IChatSentiment {
 	 * User signals intent to disable Chat.
 	 *
 	 * Note: in contrast to `hidden`, this should not hide
-	 * Chat but but disable its functionality.
+	 * Chat but disable its functionality.
 	 */
 	disabled?: boolean;
 

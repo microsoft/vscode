@@ -296,7 +296,7 @@ const apiMenus: IAPIMenu[] = [
 	{
 		key: 'comments/commentThread/comment/context',
 		id: MenuId.CommentThreadCommentContext,
-		description: localize('comment.commentContext', "The contributed comment context menu, rendered as a right click menu on the an individual comment in the comment thread's peek view."),
+		description: localize('comment.commentContext', "The contributed comment context menu, rendered as a right click menu on an individual comment in the comment thread's peek view."),
 		proposed: 'contribCommentPeekContext'
 	},
 	{
