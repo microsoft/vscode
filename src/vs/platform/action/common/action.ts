@@ -87,7 +87,7 @@ export interface ICommandAction {
 	source?: ICommandActionSource;
 	/**
 	 * Precondition controls enablement (for example for a menu item, show
-	 * it in grey or for a command, do not allow to invoke it)
+	 * it in gray or for a command, do not allow to invoke it)
 	 */
 	precondition?: ContextKeyExpression;
 
