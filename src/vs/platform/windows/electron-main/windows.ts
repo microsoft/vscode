@@ -350,7 +350,7 @@ export namespace WindowStateValidator {
 				logService.trace('window#validateWindowState: restoring fullscreen to previous display');
 
 				const defaults = defaultWindowState(WindowMode.Fullscreen); // make sure we have good values when the user restores the window
-				defaults.x = display.bounds.x; // carefull to use displays x/y position so that the window ends up on the correct monitor
+				defaults.x = display.bounds.x; // careful to use displays x/y position so that the window ends up on the correct monitor
 				defaults.y = display.bounds.y;
 
 				return defaults;

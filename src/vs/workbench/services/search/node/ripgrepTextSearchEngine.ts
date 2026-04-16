@@ -709,7 +709,7 @@ function getEscapeAwareSplitStringForRipgrep(pattern: string): { fixedStart?: st
 				break;
 			case '{':
 				if (escaped) {
-					// if we escaped this opening bracket, then it is to be taken literally. Remove the `\` because we've acknowleged it and add the `{` to the appropriate string
+					// if we escaped this opening bracket, then it is to be taken literally. Remove the `\` because we've acknowledged it and add the `{` to the appropriate string
 					if (inBraces) {
 						strInBraces += char;
 					} else {
