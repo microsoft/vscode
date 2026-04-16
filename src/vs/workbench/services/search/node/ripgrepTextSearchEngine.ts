@@ -623,9 +623,10 @@ export function fixRegexNewline(pattern: string): string {
 					const otherContent = pattern.slice(parent.start + 2, char.start) + pattern.slice(char.end, parent.end - 1);
 					if (parent.parent?.type === 'Quantifier') {
 						// If quantified, we can't use a negative lookahead in a quantifier.
-						// But `.` already doesn't match new lines, so we can just use that
-						// (with any other negations) instead.
-						replace(parent.start, parent.end, otherContent ? `[^${otherContent}]` : '.');
+						// We need to also exclude `\r` so the regex behaves the same on CRLF
+						// and LF files (ripgrep's `--crlf` only adjusts `^`/`$`, not `.`),
+						// see #271544.
+						replace(parent.start, parent.end, `[^\\r\\n${otherContent}]`);
 					} else {
 						replace(parent.start, parent.end, '(?!\\r?\\n' + (otherContent ? `|[${otherContent}]` : '') + ')');
 					}
@@ -637,6 +638,26 @@ export function fixRegexNewline(pattern: string): string {
 			} else if (parent.type === 'Quantifier') {
 				replace(char.start, char.end, '(?:\\r?\\n)');
 			}
+		},
+		onCharacterSetEnter(set) {
+			// Ripgrep's `--crlf` flag makes `^`/`$` recognize `\r\n` as a line
+			// boundary, but does not change `.` so it still matches `\r`. As a
+			// result, the same regex can match across CRLF lines while failing on
+			// LF lines (see #271544). Replace `.` with `[^\r\n]` so it consistently
+			// excludes both halves of a CRLF line terminator. We only do this for
+			// the literal `.` character set, never for `\d`/`\s`/`\w` and never
+			// inside a character class (where `.` is already a literal dot and
+			// won't be reported here as a CharacterSet).
+			if (set.kind !== 'any' || set.raw !== '.') {
+				return;
+			}
+
+			if (context.some(isLookBehind)) {
+				// avoid changing the width of a lookbehind, see #100569
+				return;
+			}
+
+			replace(set.start, set.end, '[^\\r\\n]');
 		},
 		onQuantifierEnter(node) {
 			context.unshift(node);
