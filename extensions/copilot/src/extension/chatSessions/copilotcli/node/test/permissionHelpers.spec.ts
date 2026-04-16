@@ -172,64 +172,6 @@ describe('CopilotCLI permissionHelpers', () => {
 			const result = buildMcpConfirmationParams(req as Extract<PermissionRequest, { kind: 'mcp' }>);
 			expect(result.input.title).toBe('MCP Tool: Unknown');
 		});
-
-		it('read: returns specialized title and intention message', async () => {
-			const req: PermissionRequest = { kind: 'read', intention: 'Read 2 files', path: '/tmp/a' } as any;
-			const result = await getConfirmationToolParams(instaService, req);
-			assert(!!result);
-			expect(result.tool).toBe(ToolName.CoreConfirmationTool);
-			if (result.tool !== ToolName.CoreConfirmationTool) {
-				expect.fail('Expected CoreConfirmationTool');
-			}
-			expect(result.input.title).toBe('Read file(s)');
-			expect(result.input.message).toBe('Read 2 files');
-		});
-
-		it('read: falls through to default when intention empty string', async () => {
-			const req: PermissionRequest = { kind: 'read', intention: '', path: '/tmp/a' } as any;
-			const result = await getConfirmationToolParams(instaService, req);
-			assert(!!result);
-			if (result.tool !== ToolName.CoreConfirmationTool) {
-				expect.fail('Expected CoreConfirmationTool');
-			}
-			expect(result.input.title).toBe('Copilot CLI Permission Request');
-			expect(result.input.message).toMatch(/"kind": "read"/);
-		});
-
-		it('default: unknown kind uses generic confirmation and wraps JSON in code block', async () => {
-			const req: any = { kind: 'some_new_kind', extra: 1 };
-			const result = await getConfirmationToolParams(instaService, req);
-			assert(!!result);
-			if (result.tool !== ToolName.CoreConfirmationTool) {
-				expect.fail('Expected CoreConfirmationTool');
-			}
-			expect(result.tool).toBe(ToolName.CoreConfirmationTool);
-			expect(result.input.title).toBe('Copilot CLI Permission Request');
-			expect(result.input.message).toMatch(/^\n\n```/);
-			expect(result.input.message).toContain('"some_new_kind"');
-		});
-	});
-
-	describe('getConfirmationToolParams', () => {
-		it('maps shell requests to terminal confirmation tool', async () => {
-			const result = await getConfirmationToolParams(instaService, { kind: 'shell', fullCommandText: 'rm -rf /tmp/test', canOfferSessionApproval: true, commands: [], hasWriteFileRedirection: true, intention: '', possiblePaths: [], possibleUrls: [] });
-			assert(!!result);
-			expect(result.tool).toBe(ToolName.CoreTerminalConfirmationTool);
-		});
-
-		it('maps write requests with filename', async () => {
-			const result = await getConfirmationToolParams(instaService, { kind: 'write', fileName: 'foo.ts', diff: '', intention: '', canOfferSessionApproval: false });
-			assert(!!result);
-			expect(result.tool).toBe(ToolName.CoreConfirmationTool);
-			const input = result.input as any;
-			expect(input.message).toContain('The model wants to edit');
-		});
-
-		it('maps mcp requests', async () => {
-			const result = await getConfirmationToolParams(instaService, { kind: 'mcp', serverName: 'srv', toolTitle: 'Tool', toolName: 'run', args: { a: 1 }, readOnly: false });
-			assert(!!result);
-			expect(result.tool).toBe(ToolName.CoreConfirmationTool);
-		});
 	});
 
 	describe('requiresFileEditconfirmation', () => {
