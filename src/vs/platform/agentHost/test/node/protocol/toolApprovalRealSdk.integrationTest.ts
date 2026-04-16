@@ -68,12 +68,12 @@ interface IRealSessionResult {
 
 /** Full version that returns the sessionAdded notification and subscribe snapshot for assertions. */
 async function createRealSessionFull(c: TestProtocolClient, clientId: string, trackingList: string[], workingDirectory?: string): Promise<IRealSessionResult> {
-	await c.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId });
+	await c.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId }, 30_000);
 
-	await c.call('authenticate', { resource: 'https://api.github.com', token: resolveGitHubToken() });
+	await c.call('authenticate', { resource: 'https://api.github.com', token: resolveGitHubToken() }, 30_000);
 
 	const sessionUri = URI.from({ scheme: 'copilot', path: `/real-test-${Date.now()}` }).toString();
-	await c.call('createSession', { session: sessionUri, provider: 'copilot', workingDirectory });
+	await c.call('createSession', { session: sessionUri, provider: 'copilot', workingDirectory }, 30_000);
 
 	const notif = await c.waitForNotification(n =>
 		n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded',
@@ -109,6 +109,8 @@ function dispatchTurn(c: TestProtocolClient, session: string, turnId: string, te
 	let client: TestProtocolClient;
 	/** Session URIs created during the current test, disposed in teardown. */
 	const createdSessions: string[] = [];
+	/** Temp directories created during the current test, removed in teardown. */
+	const tempDirs: string[] = [];
 
 	suiteSetup(async function () {
 		this.timeout(60_000);
@@ -136,6 +138,12 @@ function dispatchTurn(c: TestProtocolClient, session: string, turnId: string, te
 		}
 		createdSessions.length = 0;
 		client.close();
+
+		// Remove temp directories created during this test
+		for (const dir of tempDirs) {
+			rmSync(dir, { recursive: true, force: true });
+		}
+		tempDirs.length = 0;
 	});
 
 	// ---- Basic turn execution ------------------------------------------------
@@ -143,7 +151,7 @@ function dispatchTurn(c: TestProtocolClient, session: string, turnId: string, te
 	test('sends a simple message and receives a response', async function () {
 		this.timeout(120_000);
 
-		const sessionUri = await createRealSession(client, 'real-sdk-simple', createdSessions, `file://${tmpdir()}`);
+		const sessionUri = await createRealSession(client, 'real-sdk-simple', createdSessions, URI.file(tmpdir()).toString());
 		dispatchTurn(client, sessionUri, 'turn-1', 'Say exactly "hello" and nothing else', 1);
 
 		// Wait for the turn to complete — the real SDK may take a while
@@ -159,7 +167,9 @@ function dispatchTurn(c: TestProtocolClient, session: string, turnId: string, te
 	test('tool call triggers permission request and can be approved', async function () {
 		this.timeout(120_000);
 
-		const sessionUri = await createRealSession(client, 'real-sdk-permission', createdSessions, 'file:///tmp/test-workspace');
+		const tempDir = mkdtempSync(`${tmpdir()}/ahp-perm-test-`);
+		tempDirs.push(tempDir);
+		const sessionUri = await createRealSession(client, 'real-sdk-permission', createdSessions, URI.file(tempDir).toString());
 		dispatchTurn(client, sessionUri, 'turn-perm', 'Run the shell command: echo "hello from test"', 1);
 
 		// The real SDK should fire a tool call that needs permission
@@ -199,7 +209,7 @@ function dispatchTurn(c: TestProtocolClient, session: string, turnId: string, te
 	test('can abort a running turn', async function () {
 		this.timeout(120_000);
 
-		const sessionUri = await createRealSession(client, 'real-sdk-abort', createdSessions, `file://${tmpdir()}`);
+		const sessionUri = await createRealSession(client, 'real-sdk-abort', createdSessions, URI.file(tmpdir()).toString());
 		dispatchTurn(client, sessionUri, 'turn-abort', 'Write a very long essay about the history of computing', 1);
 
 		// Wait a moment for the turn to start processing, then abort
@@ -234,6 +244,7 @@ function dispatchTurn(c: TestProtocolClient, session: string, turnId: string, te
 		// Use a real temp directory so the path exists on disk.
 		// Clean it up at the end to avoid leaving test artifacts.
 		const tempDir = mkdtempSync(`${tmpdir()}/ahp-test-`);
+		tempDirs.push(tempDir);
 		const workingDirUri = URI.file(tempDir).toString();
 
 		await client.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'real-sdk-workdir' });
@@ -263,8 +274,6 @@ function dispatchTurn(c: TestProtocolClient, session: string, turnId: string, te
 			workingDirUri,
 			`subscribe snapshot summary should carry the requested working directory`,
 		);
-
-		rmSync(tempDir, { recursive: true, force: true });
 	});
 
 	// ---- Worktree isolation -------------------------------------------------
@@ -274,7 +283,11 @@ function dispatchTurn(c: TestProtocolClient, session: string, turnId: string, te
 
 		// Set up a minimal git repo so the server can create a worktree
 		const tempDir = mkdtempSync(`${tmpdir()}/ahp-wt-test-`);
-		execSync('git init && git commit --allow-empty -m "init"', { cwd: tempDir });
+		tempDirs.push(tempDir, `${tempDir}.worktrees`);
+		execSync('git init', { cwd: tempDir });
+		execSync('git config user.name "Agent Host Test"', { cwd: tempDir });
+		execSync('git config user.email "agent-host-test@example.com"', { cwd: tempDir });
+		execSync('git commit --allow-empty -m "init"', { cwd: tempDir });
 		const defaultBranch = execSync('git branch --show-current', { cwd: tempDir, encoding: 'utf-8' }).trim();
 		const workingDirUri = URI.file(tempDir).toString();
 
@@ -360,11 +373,5 @@ function dispatchTurn(c: TestProtocolClient, session: string, turnId: string, te
 		// Verify the turn got a response (the session resumed successfully)
 		const responseParts = client.receivedNotifications(n => isActionNotification(n, 'session/responsePart'));
 		assert.ok(responseParts.length > 0, 'should have received at least one response part after session refresh');
-
-		// Clean up: disposeSession will remove the worktree via git, and we
-		// remove the temp repo + worktrees directory ourselves.
-		// (The worktrees sibling dir is <tempDir>.worktrees)
-		rmSync(tempDir, { recursive: true, force: true });
-		rmSync(`${tempDir}.worktrees`, { recursive: true, force: true });
 	});
 });

@@ -219,8 +219,7 @@ export async function startServer(options?: { readonly quiet?: boolean }): Promi
 
 /**
  * Start the agent host server with the real Copilot SDK agent (no mock agent).
- * This requires a GitHub token passed via `GITHUB_TOKEN` env var. The server
- * is started with logging enabled so the CopilotAgent is registered.
+ * The server is started with logging enabled so the CopilotAgent is registered.
  */
 export async function startRealServer(): Promise<IServerHandle> {
 	return new Promise((resolve, reject) => {
