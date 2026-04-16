@@ -57,7 +57,8 @@ export function normalizeCitations(citations: string | string[] | undefined): st
 }
 
 /**
- * Type guard to validate if an object is a valid RepoMemoryEntry (MemoryResponse from package).
+ * Type guard to validate if an object is a valid RepoMemoryEntry.
+ * Accepts both new format (citations: string[]) and legacy format (citations: string).
  */
 export function isRepoMemoryEntry(obj: unknown): obj is MemoryResponse {
 	if (typeof obj !== 'object' || obj === null) {
@@ -65,10 +66,12 @@ export function isRepoMemoryEntry(obj: unknown): obj is MemoryResponse {
 	}
 	const entry = obj as Record<string, unknown>;
 
+	// Required fields
 	if (typeof entry.subject !== 'string' || typeof entry.fact !== 'string') {
 		return false;
 	}
 
+	// Optional fields
 	if (entry.citations !== undefined) {
 		const isString = typeof entry.citations === 'string';
 		const isStringArray = Array.isArray(entry.citations) && entry.citations.every(c => typeof c === 'string');
