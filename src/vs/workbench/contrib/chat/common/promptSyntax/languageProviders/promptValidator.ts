@@ -769,7 +769,7 @@ export class PromptValidator {
 		if (!attribute) {
 			return;
 		}
-		report(toMarker(localize('promptValidator.inferDeprecated', "The 'infer' attribute is deprecated in favour of 'user-invocable' and 'disable-model-invocation'."), attribute.value.range, MarkerSeverity.Error));
+		report(toMarker(localize('promptValidator.inferDeprecated', "The 'infer' attribute is deprecated in favor of 'user-invocable' and 'disable-model-invocation'."), attribute.value.range, MarkerSeverity.Error));
 	}
 
 	private validateTarget(attributes: IHeaderAttribute[], report: (markers: IMarkerData) => void): undefined {

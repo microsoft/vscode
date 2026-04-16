@@ -93,7 +93,7 @@ function findEditor(model: ITextModel, codeEditorService: ICodeEditorService): I
 		for (const editor of codeEditorService.listCodeEditors()) {
 			if (editor.hasModel() && editor.getModel() === model) {
 				if (editor.hasTextFocus()) {
-					return editor; // favour focused editor if there are multiple
+					return editor; // favor focused editor if there are multiple
 				}
 
 				candidate = editor;

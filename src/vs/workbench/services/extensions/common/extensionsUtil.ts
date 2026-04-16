@@ -24,7 +24,7 @@ export function dedupExtensions(system: IExtensionDescription[], user: IExtensio
 		if (extension) {
 			if (extension.isBuiltin) {
 				if (semver.gte(extension.version, userExtension.version)) {
-					logService.warn(`Skipping extension ${userExtension.extensionLocation.path} in favour of the builtin extension ${extension.extensionLocation.path}.`);
+					logService.warn(`Skipping extension ${userExtension.extensionLocation.path} in favor of the builtin extension ${extension.extensionLocation.path}.`);
 					return;
 				}
 				// Overwriting a builtin extension inherits the `isBuiltin` property and it doesn't show a warning

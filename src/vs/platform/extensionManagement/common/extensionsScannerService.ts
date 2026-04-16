@@ -385,12 +385,12 @@ export abstract class AbstractExtensionsScannerService extends Disposable implem
 			}
 			if (existing.isValid === extension.isValid) {
 				if (pickLatest && semver.gt(existing.manifest.version, extension.manifest.version)) {
-					this.logService.debug(`Skipping extension ${extension.location.path} with lower version ${extension.manifest.version} in favour of ${existing.location.path} with version ${existing.manifest.version}`);
+					this.logService.debug(`Skipping extension ${extension.location.path} with lower version ${extension.manifest.version} in favor of ${existing.location.path} with version ${existing.manifest.version}`);
 					return false;
 				}
 				if (semver.eq(existing.manifest.version, extension.manifest.version)) {
 					if (existing.type === ExtensionType.System) {
-						this.logService.debug(`Skipping extension ${extension.location.path} in favour of system extension ${existing.location.path} with same version`);
+						this.logService.debug(`Skipping extension ${extension.location.path} in favor of system extension ${existing.location.path} with same version`);
 						return false;
 					}
 					if (existing.targetPlatform === targetPlatform) {
