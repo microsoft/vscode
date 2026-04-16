@@ -124,11 +124,11 @@ class DocumentSymbolsOutline implements IOutline<DocumentSymbolItem> {
 	readonly outlineKind = 'documentSymbols';
 
 	get activeElement(): DocumentSymbolItem | undefined {
-		const posistion = this._editor.getPosition();
-		if (!posistion || !this._outlineModel) {
+		const position = this._editor.getPosition();
+		if (!position || !this._outlineModel) {
 			return undefined;
 		} else {
-			return this._outlineModel.getItemEnclosingPosition(posistion);
+			return this._outlineModel.getItemEnclosingPosition(position);
 		}
 	}
 

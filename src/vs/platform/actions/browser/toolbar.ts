@@ -103,7 +103,7 @@ export class WorkbenchToolBar extends ToolBar {
 			getKeyBinding: (action) => _keybindingService.lookupKeybinding(action.id) ?? undefined,
 			// options (override defaults)
 			..._options,
-			// mandatory (overide options)
+			// mandatory (override options)
 			allowContextMenu: true,
 			skipTelemetry: typeof _options?.telemetrySource === 'string',
 		});
