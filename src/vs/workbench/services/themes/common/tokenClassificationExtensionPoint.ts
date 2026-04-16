@@ -109,7 +109,7 @@ export class TokenClassificationExtensionPoints {
 	constructor() {
 		function validateTypeOrModifier(contribution: ITokenTypeExtensionPoint | ITokenModifierExtensionPoint, extensionPoint: string, collector: ExtensionMessageCollector): boolean {
 			if (typeof contribution.id !== 'string' || contribution.id.length === 0) {
-				collector.error(nls.localize('invalid.id', "'configuration.{0}.id' must be defined and can not be empty", extensionPoint));
+				collector.error(nls.localize('invalid.id', "'configuration.{0}.id' must be defined and cannot be empty", extensionPoint));
 				return false;
 			}
 			if (!contribution.id.match(typeAndModifierIdPattern)) {
@@ -122,7 +122,7 @@ export class TokenClassificationExtensionPoints {
 				return false;
 			}
 			if (typeof contribution.description !== 'string' || contribution.id.length === 0) {
-				collector.error(nls.localize('invalid.description', "'configuration.{0}.description' must be defined and can not be empty", extensionPoint));
+				collector.error(nls.localize('invalid.description', "'configuration.{0}.description' must be defined and cannot be empty", extensionPoint));
 				return false;
 			}
 			return true;
