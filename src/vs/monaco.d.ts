@@ -3727,7 +3727,7 @@ declare namespace monaco.editor {
 		 */
 		doubleClickSelectsBlock?: boolean;
 		/**
-		 * Controls if the editor should allow to move selections via drag and drop.
+		 * Controls whether the editor should allow you to move selections via drag and drop.
 		 * Defaults to false.
 		 */
 		dragAndDrop?: boolean;

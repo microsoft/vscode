@@ -477,7 +477,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'explorer.enableDragAndDrop': {
 			'type': 'boolean',
-			'description': nls.localize('enableDragAndDrop', "Controls whether the Explorer should allow to move files and folders via drag and drop. This setting only effects drag and drop from inside the Explorer."),
+			'description': nls.localize('enableDragAndDrop', "Controls whether the Explorer should allow you to move files and folders via drag and drop. This setting only effects drag and drop from inside the Explorer."),
 			'default': true
 		},
 		'explorer.confirmDragAndDrop': {
