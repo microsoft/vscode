@@ -237,7 +237,7 @@ class OpenDisassemblyViewAction extends Action2 {
 			id: OpenDisassemblyViewAction.ID,
 			title: {
 				...nls.localize2('openDisassemblyView', "Open Disassembly View"),
-				mnemonicTitle: nls.localize({ key: 'miDisassemblyView', comment: ['&& denotes a mnemonic'] }, "&&DisassemblyView"),
+				mnemonicTitle: nls.localize({ key: 'miDisassemblyView', comment: ['&& denotes a mnemonic'] }, "&&Disassembly View"),
 			},
 			precondition: CONTEXT_FOCUSED_STACK_FRAME_HAS_INSTRUCTION_POINTER_REFERENCE,
 			menu: [
@@ -277,7 +277,7 @@ class ToggleDisassemblyViewSourceCodeAction extends Action2 {
 			id: ToggleDisassemblyViewSourceCodeAction.ID,
 			title: {
 				...nls.localize2('toggleDisassemblyViewSourceCode', "Toggle Source Code in Disassembly View"),
-				mnemonicTitle: nls.localize({ key: 'mitogglesource', comment: ['&& denotes a mnemonic'] }, "&&ToggleSource"),
+				mnemonicTitle: nls.localize({ key: 'mitogglesource', comment: ['&& denotes a mnemonic'] }, "&&Toggle Source"),
 			},
 			metadata: {
 				description: nls.localize2('toggleDisassemblyViewSourceCodeDescription', 'Shows or hides source code in disassembly')
