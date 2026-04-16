@@ -41,7 +41,8 @@ export const enum TerminalContextKeyStrings {
 	ShellType = 'terminalShellType',
 	InTerminalRunCommandPicker = 'inTerminalRunCommandPicker',
 	TerminalShellIntegrationEnabled = 'terminalShellIntegrationEnabled',
-	DictationInProgress = 'terminalDictationInProgress'
+	DictationInProgress = 'terminalDictationInProgress',
+	ActiveGroupIsLast = 'terminalActiveGroupIsLast'
 }
 
 export namespace TerminalContextKeys {
@@ -62,6 +63,9 @@ export namespace TerminalContextKeys {
 
 	/** The current number of terminal groups. */
 	export const groupCount = new RawContextKey<number>(TerminalContextKeyStrings.GroupCount, 0, true);
+
+	/** Whether the active terminal group is the last one in the list. */
+	export const activeGroupIsLast = new RawContextKey<boolean>(TerminalContextKeyStrings.ActiveGroupIsLast, false, true);
 
 	/** Whether the terminal tabs view is narrow. */
 	export const tabsNarrow = new RawContextKey<boolean>(TerminalContextKeyStrings.TabsNarrow, false, true);

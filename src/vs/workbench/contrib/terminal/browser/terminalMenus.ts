@@ -667,7 +667,7 @@ export function setupTerminalMenus(): void {
 						id: TerminalCommandId.KillGroupsBelow,
 						title: localize('killGroupsBelow', 'Kill Terminals Below')
 					},
-					when: ContextKeyExpr.greater(TerminalContextKeys.groupCount.key, 1),
+					when: ContextKeyExpr.and(ContextKeyExpr.greater(TerminalContextKeys.groupCount.key, 1), TerminalContextKeys.activeGroupIsLast.toNegated()),
 					group: TerminalContextMenuGroup.Kill,
 					order: 1
 				}

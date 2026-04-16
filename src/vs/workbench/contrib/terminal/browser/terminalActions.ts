@@ -565,8 +565,8 @@ export function registerTerminalActions() {
 		id: TerminalCommandId.MoveTabUp,
 		title: localize2('workbench.action.terminal.moveTabUp', 'Move Terminal Tab Up'),
 		precondition: ContextKeyExpr.greater(TerminalContextKeys.groupCount.key, 1),
-		run: (c, accessor, _args, allInstanceArgs) => {
-			const instances = getSelectedViewInstances2(accessor, allInstanceArgs);
+		run: (c, accessor, focusedArgs, allInstanceArgs) => {
+			const instances = getSelectedViewInstances2(accessor, allInstanceArgs) ?? getSelectedViewInstances2(accessor, focusedArgs);
 			const instance = instances?.[0] ?? c.groupService.activeInstance;
 			const group = instance ? c.groupService.getGroupForInstance(instance) : c.groupService.activeGroup;
 			if (group) {
@@ -579,8 +579,8 @@ export function registerTerminalActions() {
 		id: TerminalCommandId.MoveTabDown,
 		title: localize2('workbench.action.terminal.moveTabDown', 'Move Terminal Tab Down'),
 		precondition: ContextKeyExpr.greater(TerminalContextKeys.groupCount.key, 1),
-		run: (c, accessor, _args, allInstanceArgs) => {
-			const instances = getSelectedViewInstances2(accessor, allInstanceArgs);
+		run: (c, accessor, focusedArgs, allInstanceArgs) => {
+			const instances = getSelectedViewInstances2(accessor, allInstanceArgs) ?? getSelectedViewInstances2(accessor, focusedArgs);
 			const instance = instances?.[0] ?? c.groupService.activeInstance;
 			const group = instance ? c.groupService.getGroupForInstance(instance) : c.groupService.activeGroup;
 			if (group) {
@@ -594,8 +594,8 @@ export function registerTerminalActions() {
 		title: localize2('workbench.action.terminal.killGroupsBelow', 'Kill Terminals Below'),
 		f1: true,
 		precondition: ContextKeyExpr.greater(TerminalContextKeys.groupCount.key, 1),
-		run: async (c, accessor, _args, allInstanceArgs) => {
-			const instances = getSelectedViewInstances2(accessor, allInstanceArgs);
+		run: async (c, accessor, focusedArgs, allInstanceArgs) => {
+			const instances = getSelectedViewInstances2(accessor, allInstanceArgs) ?? getSelectedViewInstances2(accessor, focusedArgs);
 			const instance = instances?.[0] ?? c.groupService.activeInstance;
 			const group = instance ? c.groupService.getGroupForInstance(instance) : c.groupService.activeGroup;
 			if (group) {
