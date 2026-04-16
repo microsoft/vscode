@@ -89,17 +89,6 @@ export interface ICopilotToolCall {
 	id: string;
 }
 
-export interface IServerToolCall {
-	/** Indicates this is a server-side tool call (e.g., tool_search, websearch) - not validated/executed by client */
-	isServer: true;
-	name: string;
-	id: string;
-	/** The parsed input arguments for this tool call */
-	args?: unknown;
-	/** The parsed result returned by the server for this tool call */
-	result?: unknown;
-}
-
 export interface ICopilotToolCallStreamUpdate {
 	name: string;
 	arguments: string;
@@ -162,8 +151,6 @@ export interface IResponseDelta {
 	statefulMarker?: string;
 	/** Context management information from Anthropic Messages API */
 	contextManagement?: ContextManagementResponse | OpenAIContextManagementResponse;
-	/** Server-side tool calls (e.g., tool_search) - reported for logging but not validated/executed */
-	serverToolCalls?: IServerToolCall[];
 }
 
 export function isOpenAIContextManagementResponse(value: ContextManagementResponse | OpenAIContextManagementResponse): value is OpenAIContextManagementResponse {
