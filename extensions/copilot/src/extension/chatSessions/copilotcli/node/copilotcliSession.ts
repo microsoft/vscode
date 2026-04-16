@@ -443,39 +443,44 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 
 				try {
 					let response: PermissionRequestResult;
-					switch (permissionRequest.kind) {
-						case 'read':
-							response = await handleReadPermission(
-								this.sessionId, permissionRequest, toolParentCallId,
-								this.attachments, this._imageSupport, this.workspace, this.workspaceService,
-								this._toolsService, toolInvocationToken, this.logService, token,
-							);
-							break;
-						case 'write':
-							response = await handleWritePermission(
-								this.sessionId, permissionRequest, toolData, toolParentCallId,
-								this._stream, editTracker, this.workspace, this.workspaceService,
-								this.instantiationService, this._toolsService, toolInvocationToken, this.logService, token,
-							);
-							break;
-						case 'shell':
-							response = await handleShellPermission(
-								permissionRequest, toolParentCallId,
-								this.workspace, this._toolsService, toolInvocationToken, this.logService, token,
-							);
-							break;
-						case 'mcp':
-							response = await handleMcpPermission(
-								permissionRequest, toolParentCallId,
-								this._toolsService, toolInvocationToken, this.logService, token,
-							);
-							break;
-						default:
-							response = await showInteractivePermissionPrompt(
-								permissionRequest, toolParentCallId,
-								this._toolsService, toolInvocationToken, this.logService, token,
-							);
-							break;
+					if (this._permissionLevel === 'autoApprove' || this._permissionLevel === 'autopilot') {
+						this.logService.trace(`[CopilotCLISession] Auto Approving ${permissionRequest.kind} request (permission level: ${this._permissionLevel})`);
+						response = { kind: 'approved' };
+					} else {
+						switch (permissionRequest.kind) {
+							case 'read':
+								response = await handleReadPermission(
+									this.sessionId, permissionRequest, toolParentCallId,
+									this.attachments, this._imageSupport, this.workspace, this.workspaceService,
+									this._toolsService, toolInvocationToken, this.logService, token,
+								);
+								break;
+							case 'write':
+								response = await handleWritePermission(
+									this.sessionId, permissionRequest, toolData, toolParentCallId,
+									this._stream, editTracker, this.workspace, this.workspaceService,
+									this.instantiationService, this._toolsService, toolInvocationToken, this.logService, token,
+								);
+								break;
+							case 'shell':
+								response = await handleShellPermission(
+									permissionRequest, toolParentCallId,
+									this.workspace, this._toolsService, toolInvocationToken, this.logService, token,
+								);
+								break;
+							case 'mcp':
+								response = await handleMcpPermission(
+									permissionRequest, toolParentCallId,
+									this._toolsService, toolInvocationToken, this.logService, token,
+								);
+								break;
+							default:
+								response = await showInteractivePermissionPrompt(
+									permissionRequest, toolParentCallId,
+									this._toolsService, toolInvocationToken, this.logService, token,
+								);
+								break;
+						}
 					}
 
 					flushPendingInvocationMessageForToolCallId(permissionRequest.toolCallId);
