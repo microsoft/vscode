@@ -5670,7 +5670,7 @@ class EditorDropIntoEditor extends BaseEditorOption<EditorOption.dropIntoEditor,
 					],
 					enumDescriptions: [
 						nls.localize('dropIntoEditor.showDropSelector.afterDrop', "Show the drop selector widget after a file is dropped into the editor."),
-						nls.localize('dropIntoEditor.showDropSelector.never', "Never show the drop selector widget. Instead the default drop provider is always used."),
+						nls.localize('dropIntoEditor.showDropSelector.never', "Never show the drop selector widget. Instead, the default drop provider is always used."),
 					],
 					default: 'afterDrop',
 				},
@@ -5737,7 +5737,7 @@ class EditorPasteAs extends BaseEditorOption<EditorOption.pasteAs, IPasteAsOptio
 					],
 					enumDescriptions: [
 						nls.localize('pasteAs.showPasteSelector.afterPaste', "Show the paste selector widget after content is pasted into the editor."),
-						nls.localize('pasteAs.showPasteSelector.never', "Never show the paste selector widget. Instead the default pasting behavior is always used."),
+						nls.localize('pasteAs.showPasteSelector.never', "Never show the paste selector widget. Instead, the default pasting behavior is always used."),
 					],
 					default: 'afterPaste',
 				},
