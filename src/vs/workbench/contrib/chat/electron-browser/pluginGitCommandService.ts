@@ -15,7 +15,7 @@ import { IPluginGitService } from '../common/plugins/pluginGitService.js';
  * delegate to the git extension (which may be running on a remote host).
  *
  * Cancellation tokens are mapped to operation IDs so that cancel requests
- * survive the IPC boundary to the shared process (tokens don't serialise).
+ * survive the IPC boundary to the shared process (tokens don't serialize).
  */
 export class NativePluginGitCommandService implements IPluginGitService {
 	declare readonly _serviceBrand: undefined;
