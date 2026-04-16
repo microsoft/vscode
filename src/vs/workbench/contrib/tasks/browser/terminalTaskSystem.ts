@@ -287,7 +287,7 @@ export class TerminalTaskSystem extends Disposable implements ITaskSystem {
 				throw new TaskError(Severity.Error, error.message, TaskErrors.UnknownError);
 			} else {
 				this._log(error.toString());
-				throw new TaskError(Severity.Error, nls.localize('TerminalTaskSystem.unknownError', 'A unknown error has occurred while executing a task. See task output log for details.'), TaskErrors.UnknownError);
+				throw new TaskError(Severity.Error, nls.localize('TerminalTaskSystem.unknownError', 'An unknown error has occurred while executing a task. See task output log for details.'), TaskErrors.UnknownError);
 			}
 		}
 	}

@@ -347,7 +347,7 @@ export const schema: IJSONSchema = {
 					{
 						label: 'onOpenExternalUri',
 						body: 'onOpenExternalUri',
-						description: nls.localize('vscode.extension.activationEvents.onOpenExternalUri', 'An activation event emitted whenever a external uri (such as an http or https link) is being opened.'),
+						description: nls.localize('vscode.extension.activationEvents.onOpenExternalUri', 'An activation event emitted whenever an external uri (such as an http or https link) is being opened.'),
 					},
 					{
 						label: 'onCustomEditor',

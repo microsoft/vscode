@@ -97,7 +97,7 @@ export const languagesExtPoint: IExtensionPoint<IRawLanguageExtensionPoint[]> = 
 				},
 				icon: {
 					type: 'object',
-					description: localize('vscode.extension.contributes.languages.icon', 'A icon to use as file icon, if no icon theme provides one for the language.'),
+					description: localize('vscode.extension.contributes.languages.icon', 'An icon to use as file icon, if no icon theme provides one for the language.'),
 					properties: {
 						light: {
 							description: localize('vscode.extension.contributes.languages.icon.light', 'Icon path when a light theme is used'),
