@@ -5,6 +5,9 @@ on:
     branches:
       - main
       - 'release/*'
+    paths:
+      - 'src/vs/sessions/**'
+      - 'scripts/code-sessions-web.*'
   workflow_dispatch:
 
 permissions:

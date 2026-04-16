@@ -14,7 +14,20 @@ type IsExecutableFile = (candidate: string) => boolean;
 
 function defaultIsExecutableFile(candidate: string): boolean {
 	try {
-		return fs.existsSync(candidate) && !fs.lstatSync(candidate).isDirectory();
+		if (!fs.existsSync(candidate)) {
+			return false;
+		}
+
+		const stat = fs.lstatSync(candidate);
+		if (stat.isDirectory()) {
+			return false;
+		}
+
+		if (process.platform !== 'win32') {
+			fs.accessSync(candidate, fs.constants.X_OK);
+		}
+
+		return true;
 	} catch {
 		return false;
 	}

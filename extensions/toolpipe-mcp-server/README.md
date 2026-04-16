@@ -185,7 +185,7 @@ ToolPipe provides instant hash generation.
 
 ### Tools not appearing in chat
 1. Reload VS Code window (Cmd+Shift+P → "Developer: Reload Window")
-2. Verify the MCP server started successfully (check Output → "ToolPipe MCP Server")
+2. Verify the MCP server started successfully by checking the Extension Host or Developer Tools logs for error messages
 3. Restart Copilot Chat
 
 ### Local server not starting

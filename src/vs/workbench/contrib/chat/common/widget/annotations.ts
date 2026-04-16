@@ -53,7 +53,6 @@ function inferLanguageFromLabel(label: string): string | undefined {
 		'psm1': 'powershell',
 		'lua': 'lua',
 		'r': 'r',
-		'R': 'r',
 		'sql': 'sql',
 		'html': 'html',
 		'htm': 'html',
@@ -111,12 +110,12 @@ export function annotateSpecialMarkdownContent(response: Iterable<IChatProgressR
 				let markdownText = `[${label}](${printUri.toString()})`;
 
 				// If the inline reference includes a code snippet, append it as a code block
-				if (item.snippet) {
+				if (item.snippet !== undefined && item.snippet !== null) {
 					const languageId = item.languageId || inferLanguageFromLabel(label) || '';
 					// Use a fence length that exceeds any backtick run in the snippet
 					const fenceLength = Math.max(3, (item.snippet.match(/`+/g)?.reduce((max, run) => Math.max(max, run.length), 0) ?? 0) + 1);
 					const fence = '`'.repeat(fenceLength);
-					markdownText += `\n${fence}${languageId}\n${item.snippet}\n${fence}`;
+					markdownText += `\n${fence}${languageId}\n${item.snippet}\n${fence}\n`;
 				}
 
 				const annotationMetadata = { [refId]: item };
