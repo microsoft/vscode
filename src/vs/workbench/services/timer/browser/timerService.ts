@@ -159,7 +159,7 @@ export interface IStartupMetrics {
 	 */
 	readonly timers: {
 		/**
-		 * The time it took to receieve the [`ready`](https://electronjs.org/docs/api/app#event-ready)-event. Measured from the first line
+		 * The time it took to receive the [`ready`](https://electronjs.org/docs/api/app#event-ready)-event. Measured from the first line
 		 * of JavaScript code till receiving that event.
 		 *
 		 * * Happens in the main-process
