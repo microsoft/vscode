@@ -170,11 +170,11 @@ export class PolicyConfiguration extends Disposable implements IPolicyConfigurat
 		const wasEmpty = this._configurationModel.isEmpty();
 
 		for (const key of keys) {
-			const proprety = configurationProperties[key] ?? excludedConfigurationProperties[key];
-			const policyName = proprety?.policy?.name;
+			const property = configurationProperties[key] ?? excludedConfigurationProperties[key];
+			const policyName = property?.policy?.name;
 			if (policyName) {
 				let policyValue: PolicyValue | ParsedType | undefined = this.policyService.getPolicyValue(policyName);
-				if (isString(policyValue) && proprety.type !== 'string') {
+				if (isString(policyValue) && property?.type !== 'string') {
 					try {
 						policyValue = this.parse(policyValue);
 					} catch (e) {

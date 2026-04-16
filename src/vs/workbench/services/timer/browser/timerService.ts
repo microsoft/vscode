@@ -462,7 +462,7 @@ export interface ITimerService {
 	/**
 	 * Return the duration between two marks.
 	 * @param from from mark name
-	 * @param to to mark name
+	 * @param to mark name
 	 */
 	getDuration(from: string, to: string): number;
 
