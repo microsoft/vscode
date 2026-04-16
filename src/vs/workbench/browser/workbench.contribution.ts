@@ -165,7 +165,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'string',
 				'enum': ['text', 'hidden'],
 				'default': 'text',
-				'markdownDescription': localize("workbench.editor.empty.hint", "Controls if the empty editor text hint should be visible in the editor.")
+				'markdownDescription': localize("workbench.editor.empty.hint", "Controls whether the empty editor text hint should be visible in the editor.")
 			},
 			'workbench.editor.languageDetection': {
 				type: 'boolean',
@@ -291,12 +291,12 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'workbench.editor.splitOnDragAndDrop': {
 				'type': 'boolean',
 				'default': true,
-				'description': localize('splitOnDragAndDrop', "Controls if editor groups can be split from drag and drop operations by dropping an editor or file on the edges of the editor area.")
+				'description': localize('splitOnDragAndDrop', "Controls whether editor groups can be split from drag and drop operations by dropping an editor or file on the edges of the editor area.")
 			},
 			'workbench.editor.dragToOpenWindow': {
 				'type': 'boolean',
 				'default': true,
-				'markdownDescription': localize('dragToOpenWindow', "Controls if editors can be dragged out of the window to open them in a new window. Press and hold the `Alt` key while dragging to toggle this dynamically.")
+				'markdownDescription': localize('dragToOpenWindow', "Controls whether editors can be dragged out of the window to open them in a new window. Press and hold the `Alt` key while dragging to toggle this dynamically.")
 			},
 			'workbench.editor.focusRecentEditorAfterClose': {
 				'type': 'boolean',
@@ -412,7 +412,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'workbench.editor.centeredLayoutAutoResize': {
 				'type': 'boolean',
 				'default': true,
-				'description': localize('centeredLayoutAutoResize', "Controls if the centered layout should automatically resize to maximum width when more than one group is open. Once only one group is open it will resize back to the original centered width.")
+				'description': localize('centeredLayoutAutoResize', "Controls whether the centered layout should automatically resize to maximum width when more than one group is open. Once only one group is open it will resize back to the original centered width.")
 			},
 			'workbench.editor.centeredLayoutFixedWidth': {
 				'type': 'boolean',
@@ -433,7 +433,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'workbench.editor.limit.enabled': {
 				'type': 'boolean',
 				'default': false,
-				'description': localize('limitEditorsEnablement', "Controls if the number of opened editors should be limited or not. When enabled, less recently used editors will close to make space for newly opening editors.")
+				'description': localize('limitEditorsEnablement', "Controls whether the number of opened editors should be limited or not. When enabled, less recently used editors will close to make space for newly opening editors.")
 			},
 			'workbench.editor.limit.value': {
 				'type': 'number',
@@ -444,12 +444,12 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			'workbench.editor.limit.excludeDirty': {
 				'type': 'boolean',
 				'default': false,
-				'description': localize('limitEditorsExcludeDirty', "Controls if the maximum number of opened editors should exclude dirty editors for counting towards the configured limit.")
+				'description': localize('limitEditorsExcludeDirty', "Controls whether the maximum number of opened editors should exclude dirty editors for counting towards the configured limit.")
 			},
 			'workbench.editor.limit.perEditorGroup': {
 				'type': 'boolean',
 				'default': false,
-				'description': localize('perEditorGroup', "Controls if the limit of maximum opened editors should apply per editor group or across all editor groups.")
+				'description': localize('perEditorGroup', "Controls whether the limit of maximum opened editors should apply per editor group or across all editor groups.")
 			},
 			'workbench.localHistory.enabled': {
 				'type': 'boolean',
