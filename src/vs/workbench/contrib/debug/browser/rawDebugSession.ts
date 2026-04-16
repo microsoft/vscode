@@ -267,7 +267,7 @@ export class RawDebugSession implements IDisposable {
 	 */
 	async start(): Promise<void> {
 		if (!this.debugAdapter) {
-			return Promise.reject(new Error(nls.localize('noDebugAdapterStart', "No debug adapter, can not start debug session.")));
+			return Promise.reject(new Error(nls.localize('noDebugAdapterStart', "No debug adapter, cannot start debug session.")));
 		}
 
 		await this.debugAdapter.startSession();
