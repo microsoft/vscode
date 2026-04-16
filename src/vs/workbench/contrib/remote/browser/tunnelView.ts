@@ -673,9 +673,9 @@ class TunnelItem implements ITunnelItem {
 	get tooltipPostfix(): string {
 		let information: string;
 		if (this.localAddress) {
-			information = nls.localize('remote.tunnel.tooltipForwarded', "Remote port {0}:{1} forwarded to local address {2}. ", this.remoteHost, this.remotePort, this.localAddress);
+			information = nls.localize('remote.tunnel.tooltipForwarded', "Remote port {0}:{1} forwarded to local address {2}.", this.remoteHost, this.remotePort, this.localAddress);
 		} else {
-			information = nls.localize('remote.tunnel.tooltipCandidate', "Remote port {0}:{1} not forwarded. ", this.remoteHost, this.remotePort);
+			information = nls.localize('remote.tunnel.tooltipCandidate', "Remote port {0}:{1} not forwarded.", this.remoteHost, this.remotePort);
 		}
 
 		return information;

@@ -815,7 +815,7 @@ export class RemoteStatusIndicator extends Disposable implements IWorkbenchContr
 				if (remoteExtension) {
 					quickPick.items = [];
 					quickPick.busy = true;
-					quickPick.placeholder = nls.localize('remote.startActions.installingExtension', 'Installing extension... ');
+					quickPick.placeholder = nls.localize('remote.startActions.installingExtension', 'Installing extension...');
 
 					try {
 						await this.installExtension(remoteExtension.id, selectedItems[0].label);
