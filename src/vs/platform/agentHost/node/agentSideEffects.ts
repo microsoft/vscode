@@ -558,10 +558,12 @@ export class AgentSideEffects extends Disposable {
 
 				// On the very first turn, immediately set the session title to the
 				// user's message so the UI shows a meaningful title right away
-				// while waiting for the AI-generated title.
+				// while waiting for the AI-generated title. Only apply when the
+				// title is still empty (the default) to avoid clobbering a title
+				// set by the user or provider before the first turn.
 				const state = this._stateManager.getSessionState(action.session);
 				const fallbackTitle = action.userMessage.text.trim();
-				if (state && state.turns.length === 0 && fallbackTitle.length > 0) {
+				if (state && state.turns.length === 0 && !state.summary.title && fallbackTitle.length > 0) {
 					this._stateManager.dispatchServerAction({
 						type: ActionType.SessionTitleChanged,
 						session: action.session,

@@ -187,8 +187,7 @@ suite('AgentSideEffects', () => {
 			setupDefaultSession();
 			startTurn('turn-1');
 
-			// After the first turn starts, the session has an active turn.
-			// Now change the title back to default to isolate the turns.length check.
+			// Complete the first turn so turns.length becomes 1.
 			stateManager.dispatchServerAction({
 				type: ActionType.SessionTurnComplete,
 				session: sessionUri.toString(),
@@ -207,6 +206,33 @@ suite('AgentSideEffects', () => {
 
 			const titleAction = envelopes.find(e => e.action.type === ActionType.SessionTitleChanged);
 			assert.strictEqual(titleAction, undefined, 'should not dispatch titleChanged on second turn');
+		});
+
+		test('does not dispatch titleChanged when title is already set', () => {
+			// Session has a non-empty title (e.g. user renamed before first message)
+			stateManager.createSession({
+				resource: sessionUri.toString(),
+				provider: 'mock',
+				title: 'User Renamed',
+				status: SessionStatus.Idle,
+				createdAt: Date.now(),
+				modifiedAt: Date.now(),
+				project: { uri: 'file:///test-project', displayName: 'Test Project' },
+			});
+			stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri.toString() });
+
+			const envelopes: IActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+			sideEffects.handleAction({
+				type: ActionType.SessionTurnStarted,
+				session: sessionUri.toString(),
+				turnId: 'turn-1',
+				userMessage: { text: 'hello' },
+			});
+
+			const titleAction = envelopes.find(e => e.action.type === ActionType.SessionTitleChanged);
+			assert.strictEqual(titleAction, undefined, 'should not clobber existing title');
 		});
 	});
 
