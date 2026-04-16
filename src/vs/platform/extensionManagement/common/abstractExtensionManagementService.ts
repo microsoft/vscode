@@ -620,8 +620,8 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 		const allDependenciesAndPacks: { gallery: IGalleryExtension; manifest: IExtensionManifest }[] = [];
 		const collectDependenciesAndPackExtensionsToInstall = async (extensionIdentifier: IExtensionIdentifier, manifest: IExtensionManifest): Promise<void> => {
 			knownIdentifiers.push(extensionIdentifier);
-			const dependecies: string[] = manifest.extensionDependencies ? manifest.extensionDependencies.filter(dep => !installed.some(e => areSameExtensions(e.identifier, { id: dep }))) : [];
-			const dependenciesAndPackExtensions = [...dependecies];
+			const dependencies: string[] = manifest.extensionDependencies ? manifest.extensionDependencies.filter(dep => !installed.some(e => areSameExtensions(e.identifier, { id: dep }))) : [];
+			const dependenciesAndPackExtensions = [...dependencies];
 			if (manifest.extensionPack) {
 				const existing = installed.find(e => areSameExtensions(e.identifier, extensionIdentifier));
 				for (const extension of manifest.extensionPack) {
@@ -643,7 +643,7 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 						if (knownIdentifiers.find(identifier => areSameExtensions(identifier, galleryExtension.identifier))) {
 							continue;
 						}
-						const isDependency = dependecies.some(id => areSameExtensions({ id }, galleryExtension.identifier));
+						const isDependency = dependencies.some(id => areSameExtensions({ id }, galleryExtension.identifier));
 						let compatible;
 						try {
 							compatible = await this.checkAndGetCompatibleVersion(galleryExtension, false, preferPreRelease, productVersion);
