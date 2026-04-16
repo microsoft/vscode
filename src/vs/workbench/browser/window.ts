@@ -87,7 +87,7 @@ export abstract class BaseWindow extends Disposable {
 			// to focus the window which can take care of bringin the
 			// window to the front.
 			//
-			// To minimise disruption by bringing windows to the front
+			// To minimize disruption by bringing windows to the front
 			// by accident, we only do this if the window is not already
 			// focused and the active window is not the target window
 			// but has focus. This is an indication that multiple windows

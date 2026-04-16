@@ -129,7 +129,7 @@ export class TelemetryData {
 			// We want to keep including these properties in secure/enhanced telemetry.
 			return map;
 		}
-		// deliberately written in the same style as `sanitizeKeys` to minimise risk
+		// deliberately written in the same style as `sanitizeKeys` to minimize risk
 		const returnValue: { [key: string]: any } = {};
 		for (const key in map) {
 			if (!TelemetryData.keysToRemoveFromStandardTelemetry.includes(key)) {
