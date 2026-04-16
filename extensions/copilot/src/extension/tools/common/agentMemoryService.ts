@@ -8,14 +8,11 @@ import {
 	fetchMemoryPrompts,
 	fetchRecentMemories,
 	storeMemory,
-	voteMemory,
 	type MemoryApiOptions,
 	type MemoryFetchFn,
 	type MemoryPromptResponse,
 	type MemoryResponse,
 	type StoreMemoryRequest,
-	type VoteMemoryRequest,
-	type VoteMemoryOptions,
 } from '@github/copilot-agentic-tools/memory';
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
@@ -125,10 +122,6 @@ export interface IAgentMemoryService {
 	 */
 	storeUserMemory(memory: StoreMemoryRequest): Promise<boolean>;
 
-	/**
-	 * Vote on a memory via the Copilot Memory service.
-	 */
-	voteOnMemory(vote: VoteMemoryRequest, scope: 'repository' | 'user'): Promise<boolean>;
 
 	/**
 	 * Fetch the unified memory prompt from the /prompt endpoint.
@@ -366,58 +359,6 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 		}
 	}
 
-	async voteOnMemory(vote: VoteMemoryRequest, scope: 'repository' | 'user'): Promise<boolean> {
-		try {
-			if (!this.isCAPIMemorySyncConfigEnabled()) {
-				return false;
-			}
-
-			const token = await this.getToken();
-			if (!token) {
-				this.logService.warn('[AgentMemoryService] No GitHub session available for voting on memory');
-				return false;
-			}
-
-			let options: VoteMemoryOptions;
-			if (scope === 'repository') {
-				const repoNwo = await this.getRepoNwo();
-				if (!repoNwo) {
-					return false;
-				}
-				const [owner, repo] = repoNwo.split('/');
-				options = {
-					scope: 'repository',
-					owner,
-					repo,
-					token,
-					integrationId: INTEGRATION_ID,
-					baseUrl: this.getBaseUrl(),
-					agent: 'vscode',
-					fetch: this.makeFetch(),
-					logger: this.makeLogger(),
-				};
-			} else {
-				options = {
-					scope: 'user',
-					token,
-					integrationId: INTEGRATION_ID,
-					baseUrl: this.getBaseUrl(),
-					agent: 'vscode',
-					fetch: this.makeFetch(),
-					logger: this.makeLogger(),
-				};
-			}
-
-			const result = await voteMemory(vote, options);
-			if (!result.success) {
-				this.logService.warn(`[AgentMemoryService] Failed to vote on memory: ${result.error}`);
-			}
-			return result.success;
-		} catch (error) {
-			this.logService.warn(`[AgentMemoryService] Failed to vote on memory: ${error}`);
-			return false;
-		}
-	}
 
 	async getMemoryPrompt(repoNwo?: string): Promise<MemoryPromptResponse | undefined> {
 		try {

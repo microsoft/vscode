@@ -11,7 +11,6 @@ import { DisposableStore } from '../../../util/vs/base/common/lifecycle';
 import { IAgentMemoryService, type MemoryPromptResponse } from '../common/agentMemoryService';
 import { ToolRegistry } from '../common/toolsRegistry';
 import { buildStoreMemoryToolDefinition, StoreMemoryTool } from './storeMemoryTool';
-import { buildVoteMemoryToolDefinition, VoteMemoryTool } from './voteMemoryTool';
 
 export interface IAgentMemoryToolRegistrar {
 	readonly _serviceBrand: undefined;
@@ -68,13 +67,6 @@ export class AgentMemoryToolRegistrar implements IAgentMemoryToolRegistrar {
 		this._registrations.add(ToolRegistry.registerModelSpecificTool(storeDefinition, StoreMemoryTool));
 		this.logService.info(`[AgentMemoryToolRegistrar] Registered store_memory tool (schema v${storeToolDef.definitionVersion})`);
 
-		// vote_memory is only registered when the server returns voteToolDefinition
-		if (promptResponse.voteToolDefinition) {
-			const { name, description } = promptResponse.voteToolDefinition;
-			const voteDefinition = buildVoteMemoryToolDefinition(name, description);
-			this._registrations.add(ToolRegistry.registerModelSpecificTool(voteDefinition, VoteMemoryTool));
-			this.logService.info('[AgentMemoryToolRegistrar] Registered vote_memory tool');
-		}
 	}
 
 	dispose(): void {
