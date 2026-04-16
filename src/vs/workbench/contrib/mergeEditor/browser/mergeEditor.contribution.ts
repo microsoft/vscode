@@ -56,7 +56,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		'mergeEditor.showDeletionMarkers': {
 			type: 'boolean',
 			default: true,
-			description: 'Controls if deletions in base or one of the inputs should be indicated by a vertical bar.',
+			description: 'Controls whether deletions in base or one of the inputs should be indicated by a vertical bar.',
 		},
 	}
 });
