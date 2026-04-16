@@ -2527,7 +2527,7 @@ export class ToggleEditorTypeAction extends Action2 {
 			return;
 		}
 
-		// Replace the current editor with the next avaiable editor type
+		// Replace the current editor with the next available editor type
 		await editorService.replaceEditors([
 			{
 				editor: activeEditorPane.input,

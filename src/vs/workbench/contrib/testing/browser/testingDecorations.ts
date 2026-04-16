@@ -98,7 +98,7 @@ class CachedDecorations {
 		const key = testIds.sort().join('\0\0');
 		return this.runByIdKey.get(key);
 	}
-	/** Adds a new test run decroation */
+	/** Adds a new test run decoration */
 	public addTest(d: RunTestDecoration) {
 		const key = d.testIds.sort().join('\0\0');
 		this.runByIdKey.set(key, d);

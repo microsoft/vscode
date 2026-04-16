@@ -24,7 +24,7 @@ import { isMacintosh } from '../../../../../../base/common/platform.js';
  * shell integration, here are some problems that are expected:
  *
  * - `133;C` command executed may not happen.
- * - `633;E` comamnd line reporting will likely not happen, so the command line contained in the
+ * - `633;E` command line reporting will likely not happen, so the command line contained in the
  *   execution start and end events will be of low confidence and chances are it will be wrong.
  * - Execution tracking may be incorrect, particularly when `executeCommand` calls are overlapped,
  *   such as Python activating the environment at the same time as Copilot executing a command. So

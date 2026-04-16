@@ -92,7 +92,7 @@ export interface ITestRunProfileReference {
 }
 
 /**
- * A fully-resolved request to run tests, passsed between the main thread
+ * A fully-resolved request to run tests, passed between the main thread
  * and extension host.
  */
 export interface ResolvedTestRunRequest {
@@ -593,7 +593,7 @@ export namespace TestResultItem {
 export interface ISerializedTestResults {
 	/** ID of these test results */
 	id: string;
-	/** Time the results were compelted */
+	/** Time the results were completed */
 	completedAt: number;
 	/** Subset of test result items */
 	items: TestResultItem.Serialized[];
