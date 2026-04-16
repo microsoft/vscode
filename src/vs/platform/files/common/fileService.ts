@@ -816,7 +816,7 @@ export class FileService extends Disposable implements IFileService {
 
 	private async doMoveCopy(sourceProvider: IFileSystemProvider, source: URI, targetProvider: IFileSystemProvider, target: URI, mode: 'move' | 'copy', overwrite: boolean): Promise<'move' | 'copy'> {
 		if (source.toString() === target.toString()) {
-			return mode; // simulate node.js behaviour here and do a no-op if paths match
+			return mode; // simulate node.js behavior here and do a no-op if paths match
 		}
 
 		// validation

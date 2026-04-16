@@ -30,7 +30,7 @@ import { PromptsStorage } from '../../common/promptSyntax/service/promptsService
 import { getTarget } from '../../common/promptSyntax/languageProviders/promptFileAttributes.js';
 
 /**
- * Options to override the default folder-picker and editor-open behaviour
+ * Options to override the default folder-picker and editor-open behavior
  * of the new-prompt-file actions. The agentic editor passes these to open
  * files in the embedded editor and pre-resolve the target folder.
  */

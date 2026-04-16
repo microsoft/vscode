@@ -1170,7 +1170,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 					target: Target.GitHubCopilot,
 				});
 			} else {
-				// Core: use the default core behaviour
+				// Core: use the default core behavior
 				await this.instantiationService.invokeFunction(showConfigureHooksQuickPick, {
 					openEditor: async (resource) => {
 						await this.showEmbeddedEditor(resource, basename(resource), PromptsType.hook, PromptsStorage.local, true);

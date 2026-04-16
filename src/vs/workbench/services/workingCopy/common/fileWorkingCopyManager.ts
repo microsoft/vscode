@@ -60,7 +60,7 @@ export interface IFileWorkingCopyManager<S extends IStoredFileWorkingCopyModel, 
 	 * disposed.
 	 *
 	 * Use the `IStoredFileWorkingCopyResolveOptions.reload` option to control the
-	 * behaviour for when a stored file working copy was previously already resolved
+	 * behavior for when a stored file working copy was previously already resolved
 	 * with regards to resolving it again from the underlying file resource
 	 * or not.
 	 *

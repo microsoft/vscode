@@ -296,7 +296,7 @@ export interface ILifecycleService {
 
 	/**
 	 * Triggers a shutdown of the workbench. Depending on native or web, this can have
-	 * different implementations and behaviour.
+	 * different implementations and behavior.
 	 *
 	 * **Note:** this should normally not be called. See related methods in `IHostService`
 	 * and `INativeHostService` to close a window or quit the application.

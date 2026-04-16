@@ -131,7 +131,7 @@ export class SCMViewService implements ISCMViewService {
 	readonly didFinishLoadingRepositories = observableValue<boolean>(this, false);
 
 	get visibleRepositories(): ISCMRepository[] {
-		// In order to match the legacy behaviour, when the repositories are sorted by discovery time,
+		// In order to match the legacy behavior, when the repositories are sorted by discovery time,
 		// the visible repositories are sorted by the selection index instead of the discovery time.
 		if (this._repositoriesSortKey === ISCMRepositorySortKey.DiscoveryTime) {
 			return this._repositories

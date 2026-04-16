@@ -496,7 +496,7 @@ function ensureWriteOptions(options?: IWriteFileOptions): IEnsuredWriteFileOptio
  */
 async function rename(source: string, target: string, windowsRetryTimeout: number | false = 60000): Promise<void> {
 	if (source === target) {
-		return;  // simulate node.js behaviour here and do a no-op if paths match
+		return;  // simulate node.js behavior here and do a no-op if paths match
 	}
 
 	try {

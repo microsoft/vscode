@@ -415,7 +415,7 @@ export interface IEditorOptions {
 	 */
 	colorDecoratorsLimit?: number;
 	/**
-	 * Control the behaviour of comments in the editor.
+	 * Control the behavior of comments in the editor.
 	 */
 	comments?: IEditorCommentsOptions;
 	/**
@@ -458,7 +458,7 @@ export interface IEditorOptions {
 	 */
 	multiCursorMergeOverlapping?: boolean;
 	/**
-	 * Configure the behaviour when pasting a text with the line count equal to the cursor count.
+	 * Configure the behavior when pasting a text with the line count equal to the cursor count.
 	 * Defaults to 'spread'.
 	 */
 	multiCursorPaste?: 'spread' | 'full';
@@ -552,7 +552,7 @@ export interface IEditorOptions {
 	 */
 	autoIndentOnPasteWithinString?: boolean;
 	/**
-	 * Emulate selection behaviour of tab characters when using spaces for indentation.
+	 * Emulate selection behavior of tab characters when using spaces for indentation.
 	 * This means selection will stick to tab stops.
 	 */
 	stickyTabStops?: boolean;

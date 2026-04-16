@@ -1825,7 +1825,7 @@ class SettingTextRenderer extends AbstractSettingTextRenderer implements ITreeRe
 		const template = super.renderTemplate(_container, false);
 
 		// TODO@9at8: listWidget filters out all key events from input boxes, so we need to come up with a better way
-		// Disable ArrowUp and ArrowDown behaviour in favor of list navigation
+		// Disable ArrowUp and ArrowDown behavior in favor of list navigation
 		template.toDispose.add(DOM.addStandardDisposableListener(template.inputBox.inputElement, DOM.EventType.KEY_DOWN, e => {
 			if (e.equals(KeyCode.UpArrow) || e.equals(KeyCode.DownArrow)) {
 				e.preventDefault();

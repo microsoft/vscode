@@ -298,7 +298,7 @@ const enum Step {
 }
 
 /**
- * Optional callbacks and settings for customizing the hook creation and opening behaviour.
+ * Optional callbacks and settings for customizing the hook creation and opening behavior.
  * The agentic editor passes these to open hooks in the embedded editor and
  * track worktree files for auto-commit.
  */
