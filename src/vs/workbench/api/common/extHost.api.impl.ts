@@ -1751,7 +1751,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			getHooks(token: vscode.CancellationToken) {
 				checkProposedApiEnabled(extension, 'chatPromptFiles');
-				return extHostChatAgents2.provideHooks(token) as Thenable<readonly vscode.ChatResource[]>;
+				return extHostChatAgents2.provideHooks(token) as Thenable<readonly vscode.ChatHook[]>;
 			},
 			onDidChangeHooks: (listener, thisArgs?, disposables?) => {
 				checkProposedApiEnabled(extension, 'chatPromptFiles');
@@ -1759,7 +1759,7 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			},
 			getPlugins(token: vscode.CancellationToken) {
 				checkProposedApiEnabled(extension, 'chatPromptFiles');
-				return extHostChatAgents2.providePlugins(token) as Thenable<readonly vscode.ChatResource[]>;
+				return extHostChatAgents2.providePlugins(token) as Thenable<readonly vscode.ChatPlugin[]>;
 			},
 			onDidChangePlugins: (listener, thisArgs?, disposables?) => {
 				checkProposedApiEnabled(extension, 'chatPromptFiles');

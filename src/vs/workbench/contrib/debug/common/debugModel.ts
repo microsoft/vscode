@@ -2064,9 +2064,23 @@ export class DebugModel extends Disposable implements IDebugModel {
 		this._onDidChangeBreakpoints.fire({ added: [newInstructionBreakpoint], sessionOnly: true });
 	}
 
-	removeInstructionBreakpoints(instructionReference?: string, offset?: number): void {
+	removeInstructionBreakpoints(instructionReference?: string, offset?: number, address?: bigint): void {
 		let removed: InstructionBreakpoint[] = [];
-		if (instructionReference) {
+		if (address !== undefined) {
+			// Prefer matching by resolved memory address: `instructionReference` is
+			// allowed by the Debug Adapter Protocol to change between disassemble
+			// requests (e.g. after symbol reloads), so matching on reference+offset
+			// alone would fail to locate the breakpoint that the user is trying to
+			// toggle off. The `address` on an `InstructionBreakpoint` is the stable
+			// resolved memory address and uniquely identifies it.
+			for (let i = 0; i < this.instructionBreakpoints.length; i++) {
+				const ibp = this.instructionBreakpoints[i];
+				if (ibp.address === address) {
+					removed.push(ibp);
+					this.instructionBreakpoints.splice(i--, 1);
+				}
+			}
+		} else if (instructionReference) {
 			for (let i = 0; i < this.instructionBreakpoints.length; i++) {
 				const ibp = this.instructionBreakpoints[i];
 				if (ibp.instructionReference === instructionReference && (offset === undefined || ibp.offset === offset)) {

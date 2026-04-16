@@ -1473,14 +1473,6 @@ configurationRegistry.registerConfiguration({
 				mode: 'auto'
 			}
 		},
-		[ChatConfiguration.SubagentToolCustomAgents]: {
-			type: 'boolean',
-			description: nls.localize('chat.subagentTool.customAgents', "Whether the runSubagent tool is able to use custom agents. When enabled, the tool can take the name of a custom agent, but it must be given the exact name of the agent."),
-			default: true,
-			experiment: {
-				mode: 'auto'
-			}
-		},
 		[ChatConfiguration.GeneralPurposeAgentEnabled]: {
 			type: 'boolean',
 			description: nls.localize('chat.generalPurposeAgent.enabled', "Controls whether the built-in General Purpose agent is available as a subagent."),

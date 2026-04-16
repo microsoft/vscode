@@ -891,8 +891,13 @@ export class RefreshAgentSessionsViewerAction extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor, agentSessionsControl: IAgentSessionsControl) {
-		agentSessionsControl.refresh();
+	override run(accessor: ServicesAccessor, agentSessionsControl?: IAgentSessionsControl) {
+		const control = agentSessionsControl ?? accessor.get(IViewsService).getActiveViewWithId<ChatViewPane>(ChatViewId)?.agentSessionsControl;
+		if (control) {
+			control.refresh();
+		} else {
+			accessor.get(ICommandService).executeCommand('sessionsViewPane.refresh');
+		}
 	}
 }
 
@@ -911,8 +916,13 @@ export class FindAgentSessionInViewerAction extends Action2 {
 		});
 	}
 
-	override run(accessor: ServicesAccessor, agentSessionsControl: IAgentSessionsControl) {
-		return agentSessionsControl.openFind();
+	override run(accessor: ServicesAccessor, agentSessionsControl?: IAgentSessionsControl) {
+		const control = agentSessionsControl ?? accessor.get(IViewsService).getActiveViewWithId<ChatViewPane>(ChatViewId)?.agentSessionsControl;
+		if (control) {
+			return control.openFind();
+		} else {
+			return accessor.get(ICommandService).executeCommand('sessionsViewPane.find');
+		}
 	}
 }
 
