@@ -233,7 +233,7 @@ export class MainThreadFileSystemEventService implements MainThreadFileSystemEve
 		}
 
 		// Correlated file watching: use an exclusive `createWatcher()`
-		// Note: currently not enabled for extensions (but leaving in in case of future usage)
+		// Note: currently not enabled for extensions (but leaving in case of future usage)
 		if (correlate && !opts.recursive) {
 			this._logService.trace(`MainThreadFileSystemEventService#$watch(): request to start watching correlated (extension: ${extensionId}, path: ${uri.toString(true)}, recursive: ${opts.recursive}, session: ${session}, excludes: ${JSON.stringify(opts.excludes)}, includes: ${JSON.stringify(opts.includes)})`);
 

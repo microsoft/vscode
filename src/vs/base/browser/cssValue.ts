@@ -76,7 +76,7 @@ export function className(value: string, escapingExpected = false): CssFragment 
 type InlineCssTemplateValue = CssFragment | Color;
 
 /**
- * Template string tag that that constructs a CSS fragment.
+ * Template string tag that constructs a CSS fragment.
  *
  * All expressions in the template must be css safe values.
  */
