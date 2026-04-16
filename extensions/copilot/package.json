@@ -3927,6 +3927,17 @@
 			{
 				"id": "advanced",
 				"properties": {
+					"github.copilot.chat.advanced.reasoningEffortOverride": {
+						"type": [
+							"string",
+							"null"
+						],
+						"default": null,
+						"markdownDescription": "Overrides the reasoning/thinking effort sent to model APIs (e.g. `low`, `medium`, `high`). Used by evals.\n\n**Note**: This is an advanced debugging setting.",
+						"tags": [
+							"advanced"
+						]
+					},
 					"github.copilot.chat.installExtensionSkill.enabled": {
 						"type": "boolean",
 						"default": false,
