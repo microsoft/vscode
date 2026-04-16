@@ -192,7 +192,7 @@ export async function main(desc: ProductDescription, args: string[]): Promise<vo
 			if (!stdinFilePath) {
 				stdinFilePath = getStdinFilePath();
 				const readFromStdinDone = new DeferredPromise<void>();
-				await readFromStdin(stdinFilePath, verbose, () => readFromStdinDone.complete()); // throws error if file can not be written
+				await readFromStdin(stdinFilePath, verbose, () => readFromStdinDone.complete()); // throws error if file cannot be written
 				if (!parsedArgs.wait) {
 					// if `--wait` is not provided, we keep this process alive
 					// for at least as long as the stdin stream is open to

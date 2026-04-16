@@ -790,7 +790,7 @@ class InlineBreakpointWidget implements IContentWidget, IDisposable {
 		if (!this.range) {
 			return null;
 		}
-		// Workaround: since the content widget can not be placed before the first column we need to force the left position
+		// Workaround: since the content widget cannot be placed before the first column we need to force the left position
 		this.domNode.classList.toggle('line-start', this.range.startColumn === 1);
 
 		return {

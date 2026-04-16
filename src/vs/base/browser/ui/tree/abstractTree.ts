@@ -1875,7 +1875,7 @@ class StickyScrollWidget<T, TFilterData, TRef> implements IDisposable {
 			container.setAttribute('aria-level', `${ariaLevel}`);
 		}
 
-		// Sticky Scroll elements can not be selected
+		// Sticky Scroll elements cannot be selected
 		container.setAttribute('aria-selected', String(false));
 
 		return result;
@@ -2103,7 +2103,7 @@ class StickyScrollFocus<T, TFilterData, TRef> extends Disposable {
 
 	private setFocus(newFocusIndex: number): void {
 		if (0 > newFocusIndex) {
-			throw new Error('addFocus() can not remove focus');
+			throw new Error('addFocus() cannot remove focus');
 		}
 		if (!this.state && newFocusIndex >= 0) {
 			throw new Error('Cannot set focus index when state is undefined');

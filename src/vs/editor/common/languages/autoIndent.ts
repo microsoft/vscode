@@ -134,7 +134,7 @@ export function getInheritIndentForLine(
 			line: precedingUnIgnoredLine
 		};
 	} else {
-		// precedingUnIgnoredLine can not be ignored.
+		// precedingUnIgnoredLine cannot be ignored.
 		// it doesn't increase indent of following lines
 		// it doesn't increase just next line
 		// so current line is not affect by precedingUnIgnoredLine

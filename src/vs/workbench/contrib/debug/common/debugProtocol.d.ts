@@ -1861,7 +1861,7 @@ declare namespace DebugProtocol {
 		description?: string;
 		/** Initial value of the filter option. If not specified a value false is assumed. */
 		default?: boolean;
-		/** Controls whether a condition can be specified for this filter option. If false or missing, a condition can not be set. */
+		/** Controls whether a condition can be specified for this filter option. If false or missing, a condition cannot be set. */
 		supportsCondition?: boolean;
 		/** A help text providing information about the condition. This string is shown as the placeholder text for a text box and can be translated. */
 		conditionDescription?: string;
@@ -1956,7 +1956,7 @@ declare namespace DebugProtocol {
 		*/
 		path?: string;
 		/** If the value > 0 the contents of the source must be retrieved through the `source` request (even if a path is specified).
-			Since a `sourceReference` is only valid for a session, it can not be used to persist a source.
+			Since a `sourceReference` is only valid for a session, it cannot be used to persist a source.
 			The value should be less than or equal to 2147483647 (2^31-1).
 		*/
 		sourceReference?: number;
@@ -2329,7 +2329,7 @@ declare namespace DebugProtocol {
 		length?: number;
 		/** Determines the start of the new selection after the text has been inserted (or replaced). `selectionStart` is measured in UTF-16 code units and must be in the range 0 and length of the completion text. If omitted the selection starts at the end of the completion text. */
 		selectionStart?: number;
-		/** Determines the length of the new selection after the text has been inserted (or replaced) and it is measured in UTF-16 code units. The selection can not extend beyond the bounds of the completion text. If omitted the length is assumed to be 0. */
+		/** Determines the length of the new selection after the text has been inserted (or replaced) and it is measured in UTF-16 code units. The selection cannot extend beyond the bounds of the completion text. If omitted the length is assumed to be 0. */
 		selectionLength?: number;
 	}
 

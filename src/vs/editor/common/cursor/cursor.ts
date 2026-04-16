@@ -991,7 +991,7 @@ export class CommandExecutor {
 			return -(Range.compareRangesUsingEnds(a.range, b.range));
 		});
 
-		// Operations can not overlap!
+		// Operations cannot overlap!
 		const loserCursorsMap: { [index: string]: boolean } = {};
 
 		for (let i = 1; i < operations.length; i++) {

@@ -204,7 +204,7 @@ export class ChatSelectedTools extends Disposable {
 				this.updateCustomModeTools(mode.uri.get(), enablementMap);
 				return;
 			} else {
-				// can not write to extensions, store
+				// cannot write to extensions, store
 				this._sessionStates.set(mode.id, ToolEnablementStates.fromMap(enablementMap));
 				return;
 			}
