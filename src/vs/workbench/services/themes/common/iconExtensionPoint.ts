@@ -119,7 +119,7 @@ export class IconExtensionPoint {
 							}
 						}, iconContribution.description);
 					} else {
-						collector.error(nls.localize('invalid.icons.default', "'configuration.icons.default' must be either a reference to the id of an other theme icon (string) or a icon definition (object) with properties `fontPath` and `fontCharacter`."));
+						collector.error(nls.localize('invalid.icons.default', "'configuration.icons.default' must be either a reference to the id of another theme icon (string) or an icon definition (object) with properties `fontPath` and `fontCharacter`."));
 					}
 				}
 			}

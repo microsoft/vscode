@@ -85,7 +85,7 @@ const tokenStyleDefaultsExtPoint = ExtensionsRegistry.registerExtensionPoint<ITo
 			type: 'object',
 			properties: {
 				language: {
-					description: nls.localize('contributes.semanticTokenScopes.languages', 'Lists the languge for which the defaults are.'),
+					description: nls.localize('contributes.semanticTokenScopes.languages', 'Lists the language for which the defaults are.'),
 					type: 'string'
 				},
 				scopes: {
