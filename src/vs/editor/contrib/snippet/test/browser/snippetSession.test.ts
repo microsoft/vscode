@@ -643,7 +643,7 @@ suite('SnippetSession', function () {
 		assert.strictEqual(editor.getModel()!.getValue(), 'test 1\ntest 2\ntest 3\ntest 4\n');
 	});
 
-	test('Snippet variable text isn\'t whitespace normalised, #31124', function () {
+	test('Snippet variable text isn\'t whitespace normalized, #31124', function () {
 		editor.getModel()!.setValue([
 			'start',
 			'\t\t-one',

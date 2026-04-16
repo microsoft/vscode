@@ -381,7 +381,7 @@ function attributeArrayToRecord(attributes: string[]): Record<string, string> {
 	return record;
 }
 
-/** Slightly customised CDP debugger inspect highlight colours. */
+/** Slightly customized CDP debugger inspect highlight colors. */
 const inspectHighlightConfig = {
 	showInfo: true,
 	showRulers: false,
