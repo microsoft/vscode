@@ -37,7 +37,7 @@ export const CONFLICT_RESOLUTION_SCHEME = 'conflictResolution';
 
 const LEARN_MORE_DIRTY_WRITE_IGNORE_KEY = 'learnMoreDirtyWriteError';
 
-const conflictEditorHelp = localize('userGuide', "Use the actions in the editor tool bar to either undo your changes or overwrite the content of the file with your changes.");
+const conflictEditorHelp = localize('userGuide', "Use the actions in the editor toolbar to either undo your changes or overwrite the content of the file with your changes.");
 
 // A handler for text file save error happening with conflict resolution actions
 export class TextFileSaveErrorHandler extends Disposable implements ISaveErrorHandler, IWorkbenchContribution {
