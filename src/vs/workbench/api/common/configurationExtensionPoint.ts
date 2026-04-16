@@ -363,7 +363,7 @@ jsonRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 						},
 						name: {
 							type: 'string',
-							description: nls.localize('workspaceConfig.name.description', "An optional name for the folder. ")
+							description: nls.localize('workspaceConfig.name.description', "An optional name for the folder.")
 						}
 					},
 					required: ['path']
@@ -375,7 +375,7 @@ jsonRegistry.registerSchema('vscode://schemas/workspaceConfig', {
 						},
 						name: {
 							type: 'string',
-							description: nls.localize('workspaceConfig.name.description', "An optional name for the folder. ")
+							description: nls.localize('workspaceConfig.name.description', "An optional name for the folder.")
 						}
 					},
 					required: ['uri']

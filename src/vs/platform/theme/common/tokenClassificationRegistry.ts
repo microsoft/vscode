@@ -570,7 +570,7 @@ function createDefaultTokenClassificationRegistry(): TokenClassificationRegistry
 	registerTokenType('event', nls.localize('event', "Style for events."), [['variable.other.event']]);
 	registerTokenType('decorator', nls.localize('decorator', "Style for decorators & annotations."), [['entity.name.decorator'], ['entity.name.function']]);
 
-	registerTokenType('label', nls.localize('labels', "Style for labels. "), undefined);
+	registerTokenType('label', nls.localize('labels', "Style for labels."), undefined);
 
 	// default token modifiers
 
