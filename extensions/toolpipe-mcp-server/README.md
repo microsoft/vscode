@@ -113,7 +113,7 @@ Once configured, ToolPipe tools are automatically available to:
 |---------|------|---------|-------------|
 | `toolpipeMcpServer.enabled` | boolean | `true` | Enable/disable the extension |
 | `toolpipeMcpServer.mode` | string | `remote` | Connection mode: `remote` or `local` |
-| `toolpipeMcpServer.remoteUrl` | string | `https://troops-submission-what-stays.trycloudflare.com/mcp` | Remote server URL |
+| `toolpipeMcpServer.remoteUrl` | string | `` (empty) | Remote server URL |
 | `toolpipeMcpServer.localCommand` | string | `npx` | Command for local server |
 | `toolpipeMcpServer.localArgs` | array | `["@cosai-labs/toolpipe-mcp-server"]` | Arguments for local server |
 

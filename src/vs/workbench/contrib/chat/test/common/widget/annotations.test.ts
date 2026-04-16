@@ -367,10 +367,10 @@ suite('Annotations', function () {
 			assert.strictEqual(result.length, 1);
 			const md = result[0] as IChatMarkdownContent;
 			const value = md.content.value;
-			// Should use 4 backticks (one more than the max run of 3 in the snippet)
-			assert.ok(value.includes('````typescript'));
+			// Should use 3 backticks (minimum fence, since max backtick run is 1: max(3, 1+1) = 3)
+			assert.ok(value.includes('```typescript'));
 			assert.ok(value.includes(snippetWithBackticks));
-			assert.ok(value.includes('````'));
+			assert.ok(value.includes('```\n'), 'Should have closing fence with newline');
 		});
 
 		test('snippet with multiple backtick sequences uses longest length', () => {
@@ -457,8 +457,8 @@ suite('Annotations', function () {
 			assert.strictEqual(result.length, 1);
 			const md = result[0] as IChatMarkdownContent;
 			const value = md.content.value;
-			// Should use 4 backticks even without explicit language
-			assert.ok(value.includes('````'));
+			// Should use 3 backticks (minimum fence, since max backtick run is 1)
+			assert.ok(value.includes('```'));
 			assert.ok(value.includes(snippetWithBackticks));
 		});
 
