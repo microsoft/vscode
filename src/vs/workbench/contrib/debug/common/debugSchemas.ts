@@ -219,7 +219,7 @@ export const launchSchema: IJSONSchema = {
 				properties: {
 					name: {
 						type: 'string',
-						description: nls.localize('app.launch.json.compound.name', "Name of compound. Appears in the launch configuration drop down menu.")
+						description: nls.localize('app.launch.json.compound.name', "Name of compound. Appears in the launch configuration dropdown menu.")
 					},
 					presentation: presentationSchema,
 					configurations: {
@@ -235,7 +235,7 @@ export const launchSchema: IJSONSchema = {
 								properties: {
 									name: {
 										enum: [],
-										description: nls.localize('app.launch.json.compound.name', "Name of compound. Appears in the launch configuration drop down menu.")
+										description: nls.localize('app.launch.json.compound.name', "Name of compound. Appears in the launch configuration dropdown menu.")
 									},
 									folder: {
 										enum: [],
