@@ -129,7 +129,86 @@ suite('AgentSideEffects', () => {
 		});
 	});
 
-	// ---- handleAction: session/turnCancelled ----------------------------
+	// ---- immediate title on first turn -----------------------------------
+
+	suite('immediate title on first turn', () => {
+
+		function setupDefaultSession(): void {
+			stateManager.createSession({
+				resource: sessionUri.toString(),
+				provider: 'mock',
+				title: '',
+				status: SessionStatus.Idle,
+				createdAt: Date.now(),
+				modifiedAt: Date.now(),
+				project: { uri: 'file:///test-project', displayName: 'Test Project' },
+			});
+			stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri.toString() });
+		}
+
+		test('dispatches titleChanged with user message on first turn', () => {
+			setupDefaultSession();
+
+			const envelopes: IActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+			sideEffects.handleAction({
+				type: ActionType.SessionTurnStarted,
+				session: sessionUri.toString(),
+				turnId: 'turn-1',
+				userMessage: { text: 'Fix the login bug' },
+			});
+
+			const titleAction = envelopes.find(e => e.action.type === ActionType.SessionTitleChanged);
+			assert.ok(titleAction, 'should dispatch session/titleChanged');
+			if (titleAction?.action.type === ActionType.SessionTitleChanged) {
+				assert.strictEqual(titleAction.action.title, 'Fix the login bug');
+			}
+		});
+
+		test('does not dispatch titleChanged when message is whitespace', () => {
+			setupDefaultSession();
+
+			const envelopes: IActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+			sideEffects.handleAction({
+				type: ActionType.SessionTurnStarted,
+				session: sessionUri.toString(),
+				turnId: 'turn-1',
+				userMessage: { text: '   ' },
+			});
+
+			const titleAction = envelopes.find(e => e.action.type === ActionType.SessionTitleChanged);
+			assert.strictEqual(titleAction, undefined, 'should not dispatch titleChanged for empty message');
+		});
+
+		test('does not dispatch titleChanged on second turn', () => {
+			setupDefaultSession();
+			startTurn('turn-1');
+
+			// After the first turn starts, the session has an active turn.
+			// Now change the title back to default to isolate the turns.length check.
+			stateManager.dispatchServerAction({
+				type: ActionType.SessionTurnComplete,
+				session: sessionUri.toString(),
+				turnId: 'turn-1',
+			});
+
+			const envelopes: IActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+			sideEffects.handleAction({
+				type: ActionType.SessionTurnStarted,
+				session: sessionUri.toString(),
+				turnId: 'turn-2',
+				userMessage: { text: 'second message' },
+			});
+
+			const titleAction = envelopes.find(e => e.action.type === ActionType.SessionTitleChanged);
+			assert.strictEqual(titleAction, undefined, 'should not dispatch titleChanged on second turn');
+		});
+	});
 
 	suite('handleAction — session/turnCancelled', () => {
 

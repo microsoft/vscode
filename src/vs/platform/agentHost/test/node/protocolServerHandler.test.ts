@@ -95,7 +95,7 @@ class MockAgentService implements IAgentService {
 		this._stateManager.createSession({
 			resource: session.toString(),
 			provider: config?.provider ?? 'copilot',
-			title: 'New Session',
+			title: '',
 			status: SessionStatus.Idle,
 			createdAt: Date.now(),
 			modifiedAt: Date.now(),

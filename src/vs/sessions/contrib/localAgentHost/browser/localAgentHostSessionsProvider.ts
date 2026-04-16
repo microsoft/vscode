@@ -280,10 +280,6 @@ export class LocalAgentHostSessionsProvider extends Disposable implements IAgent
 				this._handleSessionAdded(n.summary);
 			} else if (n.type === 'notify/sessionRemoved') {
 				this._handleSessionRemoved(n.session);
-			} else if (n.type === 'notify/sessionSummaryChanged') {
-				if (n.changes.title !== undefined) {
-					this._handleTitleChanged(n.session, n.changes.title);
-				}
 			}
 		}));
 
