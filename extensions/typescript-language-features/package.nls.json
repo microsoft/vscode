@@ -118,7 +118,7 @@
 	"configuration.suggest.paths": "Enable/disable suggestions for paths in import statements and require calls.",
 	"configuration.suggest.paths.unifiedDeprecationMessage": "This setting is deprecated. Use `#js/ts.suggest.paths#` instead.",
 	"configuration.tsserver.useSeparateSyntaxServer": "Enable/disable spawning a separate TypeScript server that can more quickly respond to syntax related operations, such as calculating folding or computing document symbols.",
-	"configuration.tsserver.useSyntaxServer": "Controls if TypeScript launches a dedicated server to more quickly handle syntax related operations, such as computing code folding.",
+	"configuration.tsserver.useSyntaxServer": "Controls whether TypeScript launches a dedicated server to more quickly handle syntax related operations, such as computing code folding.",
 	"configuration.tsserver.useSyntaxServer.unifiedDeprecationMessage": "This setting is deprecated. Use `#js/ts.tsserver.useSyntaxServer#` instead.",
 	"configuration.tsserver.useSyntaxServer.always": "Use a lighter weight syntax server to handle all IntelliSense operations. This disables project-wide features including auto-imports, cross-file completions, and go to definition for symbols in other files. Only use this for very large projects where performance is critical.",
 	"configuration.tsserver.useSyntaxServer.never": "Don't use a dedicated syntax server. Use a single server to handle all IntelliSense operations.",

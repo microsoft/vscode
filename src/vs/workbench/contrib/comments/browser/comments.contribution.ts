@@ -122,7 +122,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		'comments.useRelativeTime': {
 			type: 'boolean',
 			default: true,
-			description: nls.localize('useRelativeTime', "Determines if relative time will be used in comment timestamps (ex. '1 day ago').")
+			description: nls.localize('useRelativeTime', "Determines whether relative time will be used in comment timestamps (ex. '1 day ago').")
 		},
 		'comments.visible': {
 			type: 'boolean',
