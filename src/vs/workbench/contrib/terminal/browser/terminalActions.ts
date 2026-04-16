@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { isKeyboardEvent, isMouseEvent, isPointerEvent, getActiveWindow } from '../../../../base/browser/dom.js';
+import { Limiter } from '../../../../base/common/async.js';
 import { Action } from '../../../../base/common/actions.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
@@ -600,10 +601,11 @@ export function registerTerminalActions() {
 			const group = instance ? c.groupService.getGroupForInstance(instance) : c.groupService.activeGroup;
 			if (group) {
 				const groupsBelow = c.groupService.getGroupsBelow(group);
+				const limiter = new Limiter<void>(5);
 				const disposePromises: Promise<void>[] = [];
 				for (const g of groupsBelow) {
 					for (const inst of g.terminalInstances.slice()) {
-						disposePromises.push(c.service.safeDisposeTerminal(inst));
+						disposePromises.push(limiter.queue(() => c.service.safeDisposeTerminal(inst)));
 					}
 				}
 				await Promise.all(disposePromises);
