@@ -38,7 +38,7 @@ const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoin
 			properties: {
 				scheme: {
 					type: 'string',
-					description: localize('vscode.extension.contributes.resourceLabelFormatters.scheme', 'URI scheme on which to match the formatter on. For example "file". Simple glob patterns are supported.'),
+					description: localize('vscode.extension.contributes.resourceLabelFormatters.scheme', 'URI scheme on which to match the formatter on. For example, "file". Simple glob patterns are supported.'),
 				},
 				authority: {
 					type: 'string',
