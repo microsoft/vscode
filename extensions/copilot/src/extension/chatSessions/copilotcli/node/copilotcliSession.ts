@@ -441,54 +441,61 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				const toolParentCallId = pendingData ? pendingData[2] : undefined;
 				const toolInvocationToken = this._toolInvocationToken as unknown as never;
 
-				let response: PermissionRequestResult;
-				switch (permissionRequest.kind) {
-					case 'read':
-						response = await handleReadPermission(
-							this.sessionId, permissionRequest, toolParentCallId,
-							this.attachments, this._imageSupport, this.workspace, this.workspaceService,
-							this._toolsService, toolInvocationToken, this.logService, token,
-						);
-						break;
-					case 'write':
-						response = await handleWritePermission(
-							this.sessionId, permissionRequest, toolData, toolParentCallId,
-							this._stream, editTracker, this.workspace, this.workspaceService,
-							this.instantiationService, this._toolsService, toolInvocationToken, this.logService, token,
-						);
-						break;
-					case 'shell':
-						response = await handleShellPermission(
-							permissionRequest, toolParentCallId,
-							this.workspace, this._toolsService, toolInvocationToken, this.logService, token,
-						);
-						break;
-					case 'mcp':
-						response = await handleMcpPermission(
-							permissionRequest, toolParentCallId,
-							this._toolsService, toolInvocationToken, this.logService, token,
-						);
-						break;
-					default:
-						response = await showInteractivePermissionPrompt(
-							permissionRequest, toolParentCallId,
-							this._toolsService, toolInvocationToken, this.logService, token,
-						);
-						break;
+				try {
+					let response: PermissionRequestResult;
+					switch (permissionRequest.kind) {
+						case 'read':
+							response = await handleReadPermission(
+								this.sessionId, permissionRequest, toolParentCallId,
+								this.attachments, this._imageSupport, this.workspace, this.workspaceService,
+								this._toolsService, toolInvocationToken, this.logService, token,
+							);
+							break;
+						case 'write':
+							response = await handleWritePermission(
+								this.sessionId, permissionRequest, toolData, toolParentCallId,
+								this._stream, editTracker, this.workspace, this.workspaceService,
+								this.instantiationService, this._toolsService, toolInvocationToken, this.logService, token,
+							);
+							break;
+						case 'shell':
+							response = await handleShellPermission(
+								permissionRequest, toolParentCallId,
+								this.workspace, this._toolsService, toolInvocationToken, this.logService, token,
+							);
+							break;
+						case 'mcp':
+							response = await handleMcpPermission(
+								permissionRequest, toolParentCallId,
+								this._toolsService, toolInvocationToken, this.logService, token,
+							);
+							break;
+						default:
+							response = await showInteractivePermissionPrompt(
+								permissionRequest, toolParentCallId,
+								this._toolsService, toolInvocationToken, this.logService, token,
+							);
+							break;
+					}
+
+					flushPendingInvocationMessageForToolCallId(permissionRequest.toolCallId);
+
+					this._requestLogger.addEntry({
+						type: LoggedRequestKind.MarkdownContentRequest,
+						debugName: `Permission Request`,
+						startTimeMs: Date.now(),
+						icon: Codicon.question,
+						markdownContent: this._renderPermissionToMarkdown(permissionRequest, response.kind),
+						isConversationRequest: true
+					});
+
+					this._sdkSession.respondToPermission(requestId, response);
 				}
-
-				flushPendingInvocationMessageForToolCallId(permissionRequest.toolCallId);
-
-				this._requestLogger.addEntry({
-					type: LoggedRequestKind.MarkdownContentRequest,
-					debugName: `Permission Request`,
-					startTimeMs: Date.now(),
-					icon: Codicon.question,
-					markdownContent: this._renderPermissionToMarkdown(permissionRequest, response.kind),
-					isConversationRequest: true
-				});
-
-				this._sdkSession.respondToPermission(requestId, response);
+				catch (error) {
+					this.logService.error(error, `[CopilotCLISession] Error handling permission request of kind ${permissionRequest.kind}`);
+					flushPendingInvocationMessageForToolCallId(permissionRequest.toolCallId);
+					this._sdkSession.respondToPermission(requestId, { kind: 'denied-interactively-by-user' });
+				}
 			})));
 			if (shouldHandleExitPlanModeRequests) {
 				disposables.add(toDisposable(this._sdkSession.on('exit_plan_mode.requested', async (event) => {
