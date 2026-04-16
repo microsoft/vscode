@@ -143,6 +143,9 @@ import '../workbench/contrib/welcomeBanner/browser/welcomeBanner.contribution.js
 // Web tunnel agent host — discovers tunnels via Dev Tunnels REST API and connects via relay
 import './contrib/remoteAgentHost/browser/webTunnelAgentHostService.contribution.js';
 
+// Open in VS Code — web uses protocol handler; desktop overrides in electron-browser
+import './contrib/chat/browser/openInVSCode.contribution.js';
+
 // Tunnel agent host — reconciles discovered tunnels into session providers
 import './contrib/remoteAgentHost/browser/tunnelAgentHost.contribution.js';
 
