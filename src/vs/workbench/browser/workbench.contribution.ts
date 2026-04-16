@@ -860,7 +860,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 				'type': 'boolean',
 				'default': true,
 				'scope': ConfigurationScope.APPLICATION,
-				'description': localize('enableMenuBarMnemonics', "Controls whether the main menus can be opened via Alt-key shortcuts. Disabling mnemonics allows to bind these Alt-key shortcuts to editor commands instead."),
+				'description': localize('enableMenuBarMnemonics', "Controls whether the main menus can be opened via Alt-key shortcuts. Disabling mnemonics allows you to bind these Alt-key shortcuts to editor commands instead."),
 				'included': isWindows || isLinux
 			},
 			'window.customMenuBarAltFocus': {

@@ -425,11 +425,11 @@ import product from '../../platform/product/common/product.js';
 			},
 			'force-color-profile': {
 				type: 'string',
-				markdownDescription: localize('argv.forceColorProfile', 'Allows to override the color profile to use. If you experience colors appear badly, try to set this to `srgb` and restart.')
+				markdownDescription: localize('argv.forceColorProfile', 'Allows you to override the color profile to use. If you experience colors appear badly, try to set this to `srgb` and restart.')
 			},
 			'enable-crash-reporter': {
 				type: 'boolean',
-				markdownDescription: localize('argv.enableCrashReporter', 'Allows to disable crash reporting, should restart the app if the value is changed.')
+				markdownDescription: localize('argv.enableCrashReporter', 'Allows you to disable crash reporting, should restart the app if the value is changed.')
 			},
 			'crash-reporter-id': {
 				type: 'string',
