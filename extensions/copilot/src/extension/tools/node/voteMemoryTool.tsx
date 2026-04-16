@@ -36,7 +36,8 @@ export class VoteMemoryTool implements ICopilotModelSpecificTool<VoteMemoryInput
 			}
 		} catch (error) {
 			this.logService.error('[VoteMemoryTool] Error voting on memory:', error);
-			return new LanguageModelToolResult([new LanguageModelTextPart(`Error voting on memory: ${error}`)]);
+			const errorMessage = error instanceof Error ? error.message : String(error);
+			return new LanguageModelToolResult([new LanguageModelTextPart(`Error voting on memory: ${errorMessage}`)]);
 		}
 	}
 }
