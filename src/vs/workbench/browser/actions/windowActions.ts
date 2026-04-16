@@ -200,7 +200,7 @@ abstract class BaseOpenRecentAction extends Action2 {
 					if (confirmed) {
 						hostService.openWindow(
 							[context.item.openable], {
-							remoteAuthority: context.item.remoteAuthority || null // local window if remoteAuthority is not set or can not be deducted from the openable
+							remoteAuthority: context.item.remoteAuthority || null // local window if remoteAuthority is not set or cannot be deduced from the openable
 						});
 						quickInputService.cancel();
 					}
@@ -212,7 +212,7 @@ abstract class BaseOpenRecentAction extends Action2 {
 			return hostService.openWindow([pick.openable], {
 				forceNewWindow: keyMods?.ctrlCmd,
 				forceReuseWindow: keyMods?.alt,
-				remoteAuthority: pick.remoteAuthority || null // local window if remoteAuthority is not set or can not be deducted from the openable
+				remoteAuthority: pick.remoteAuthority || null // local window if remoteAuthority is not set or cannot be deduced from the openable
 			});
 		}
 	}

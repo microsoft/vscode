@@ -535,7 +535,7 @@ export class MainThreadTask extends Disposable implements MainThreadTaskShape {
 						if (task) {
 							tasks.push(task);
 						} else {
-							console.error(`Task System: can not convert task: ${JSON.stringify(dto.definition, undefined, 0)}. Task will be dropped`);
+							console.error(`Task System: cannot convert task: ${JSON.stringify(dto.definition, undefined, 0)}. Task will be dropped`);
 						}
 					}
 					const processedExtension: IExtensionDescription = {

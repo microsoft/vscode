@@ -1057,7 +1057,7 @@ export class GettingStartedPage extends EditorPane {
 				this.telemetryService.publicLog2<GettingStartedActionEvent, GettingStartedActionClassification>('gettingStarted.ActionExecuted', { command: 'openRecent', argument: undefined, walkthroughId: this.currentWalkthrough?.id });
 				this.hostService.openWindow([windowOpenable], {
 					forceNewWindow: e.ctrlKey || e.metaKey,
-					remoteAuthority: recent.remoteAuthority || null // local window if remoteAuthority is not set or can not be deducted from the openable
+					remoteAuthority: recent.remoteAuthority || null // local window if remoteAuthority is not set or cannot be deduced from the openable
 				});
 				e.preventDefault();
 				e.stopPropagation();

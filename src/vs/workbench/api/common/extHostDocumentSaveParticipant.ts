@@ -114,7 +114,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 			// eslint-disable-next-line @typescript-eslint/no-explicit-any
 			waitUntil(p: Promise<any | vscode.TextEdit[]>) {
 				if (Object.isFrozen(promises)) {
-					throw illegalState('waitUntil can not be called async');
+					throw illegalState('waitUntil cannot be called async');
 				}
 				promises.push(Promise.resolve(p));
 			}
