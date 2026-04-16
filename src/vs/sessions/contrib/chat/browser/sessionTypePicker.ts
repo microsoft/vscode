@@ -12,9 +12,10 @@ import { IActionWidgetService } from '../../../../platform/actionWidget/browser/
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { autorun, IReader } from '../../../../base/common/observable.js';
 import { ISession, ISessionType } from '../../../services/sessions/common/session.js';
 import { Emitter } from '../../../../base/common/event.js';
+import { URI } from '../../../../base/common/uri.js';
 
 export class SessionTypePicker extends Disposable {
 
@@ -35,10 +36,17 @@ export class SessionTypePicker extends Disposable {
 	) {
 		super();
 
-		const refresh = (session: ISession | undefined) => {
+		const refresh = (session: ISession | undefined, reader: IReader | undefined) => {
 			if (session) {
 				const provider = this.sessionsProvidersService.getProvider(session.providerId);
-				this._supportedSessionTypes = provider?.getSessionTypes(session.resource) ?? [];
+				// Pass the workspace repository URI (not the session's own resource URI)
+				// so that providers can correctly determine the supported session types
+				// based on the workspace scheme (e.g. GitHub remote repositories only
+				// support Cloud sessions). Fall back to the session resource when the
+				// workspace has not resolved yet.
+				const workspace = reader ? session.workspace.read(reader) : session.workspace.get();
+				const repositoryUri: URI = workspace?.repositories[0]?.uri ?? session.resource;
+				this._supportedSessionTypes = provider?.getSessionTypes(repositoryUri) ?? [];
 				const providerTypes = provider ? [...provider.sessionTypes] : [];
 				const providerTypeIds = new Set(providerTypes.map(t => t.id));
 				this._allProviderSessionTypes = [
@@ -56,12 +64,12 @@ export class SessionTypePicker extends Disposable {
 
 		this._register(autorun(reader => {
 			const session = this.sessionsManagementService.activeSession.read(reader);
-			refresh(session);
+			refresh(session, reader);
 		}));
 		// Re-read when a provider advertises/removes session types at runtime
 		// (e.g. a remote agent host discovers a new agent).
 		this._register(this.sessionsManagementService.onDidChangeSessionTypes(() => {
-			refresh(this.sessionsManagementService.activeSession.get());
+			refresh(this.sessionsManagementService.activeSession.get(), undefined);
 		}));
 	}
 
