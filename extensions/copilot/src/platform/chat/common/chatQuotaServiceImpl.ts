@@ -93,6 +93,8 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 		const weeklyRateLimitHeader = headers.get('x-usage-ratelimit-weekly');
 		this._rateLimitInfo.session = sessionRateLimitHeader ? this._processHeaderValue(sessionRateLimitHeader) : undefined;
 		this._rateLimitInfo.weekly = weeklyRateLimitHeader ? this._processHeaderValue(weeklyRateLimitHeader) : undefined;
+		this._clearStaleThresholds(this._rateLimitInfo.session, this._shownSessionThresholds);
+		this._clearStaleThresholds(this._rateLimitInfo.weekly, this._shownWeeklyThresholds);
 		this._pendingRateLimitWarning = this._computeRateLimitWarning() ?? this._pendingRateLimitWarning;
 	}
 
@@ -134,6 +136,19 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 			return sessionWarning;
 		}
 		return this._checkThreshold(this._rateLimitInfo.weekly, this._shownWeeklyThresholds, 'weekly');
+	}
+
+	private _clearStaleThresholds(info: IChatQuota | undefined, shownThresholds: Set<number>): void {
+		if (!info) {
+			shownThresholds.clear();
+			return;
+		}
+		const percentUsed = 100 - info.percentRemaining;
+		for (const threshold of shownThresholds) {
+			if (percentUsed < threshold) {
+				shownThresholds.delete(threshold);
+			}
+		}
 	}
 
 	private _checkThreshold(info: IChatQuota | undefined, shownThresholds: Set<number>, type: 'session' | 'weekly'): IRateLimitWarning | undefined {
