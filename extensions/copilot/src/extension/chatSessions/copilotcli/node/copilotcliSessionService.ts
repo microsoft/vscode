@@ -567,7 +567,6 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 
 			const session = this.createCopilotSession(sdkSession, options.workspace, options.agent?.name, sessionManager);
 			session.object.add(mcpGateway);
-			await sessionManager.loadDeferredRepoHooks(sdkSession);
 			void this._chatSessionMetadataStore.setSessionOrigin(session.object.sessionId);
 			return session;
 		}
@@ -752,7 +751,6 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 
 				const session = this.createCopilotSession(sdkSession, options.workspace, options.agent?.name, sessionManager);
 				session.object.add(mcpGateway);
-				await sessionManager.loadDeferredRepoHooks(sdkSession);
 				return session;
 			}
 			catch (error) {
