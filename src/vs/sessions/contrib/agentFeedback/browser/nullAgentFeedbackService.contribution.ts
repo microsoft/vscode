@@ -35,16 +35,16 @@ class NullAgentFeedbackService extends Disposable implements IAgentFeedbackServi
 		};
 	}
 
-	removeFeedback(): void { }
-	updateFeedback(): void { }
-	getFeedback(): readonly IAgentFeedback[] { return []; }
-	getMostRecentSessionForResource(): URI | undefined { return undefined; }
-	async revealFeedback(): Promise<void> { }
+	removeFeedback(_sessionResource: URI, _feedbackId: string): void { }
+	updateFeedback(_sessionResource: URI, _feedbackId: string, _text: string): void { }
+	getFeedback(_sessionResource: URI): readonly IAgentFeedback[] { return []; }
+	getMostRecentSessionForResource(_resourceUri: URI): URI | undefined { return undefined; }
+	async revealFeedback(_sessionResource: URI, _feedbackId: string): Promise<void> { }
 	async revealSessionComment(): Promise<void> { }
 	getNextFeedback(): IAgentFeedback | undefined { return undefined; }
 	getNextNavigableItem<T extends INavigableSessionComment>(): T | undefined { return undefined; }
 	setNavigationAnchor(): void { }
-	getNavigationBearing(): IAgentFeedbackNavigationBearing { return { activeIdx: -1, totalCount: 0 }; }
+	getNavigationBearing(_sessionResource: URI): IAgentFeedbackNavigationBearing { return { activeIdx: -1, totalCount: 0 }; }
 	clearFeedback(): void { }
 	async addFeedbackAndSubmit(): Promise<void> { }
 }
