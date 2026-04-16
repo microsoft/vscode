@@ -82,12 +82,10 @@ export class MemoryContextPrompt extends PromptElement<MemoryContextPromptProps>
 		let repoMemories: MemoryResponse[] | undefined;
 		if (enableCopilotMemory) {
 			const repoNwo = await this.getRepoNwo();
-			// Fetch prompt and register tools in parallel — both depend on the same /prompt call
-			// but registerMemoryTools() makes its own call so they can run concurrently.
-			const [promptResponse] = await Promise.all([
-				this.agentMemoryService.getMemoryPrompt(repoNwo),
-				this.agentMemoryToolRegistrar.registerMemoryTools(),
-			]);
+			// Fetch once and pass the response to registerMemoryTools so it can reuse it,
+			// avoiding a redundant /prompt call.
+			const promptResponse = await this.agentMemoryService.getMemoryPrompt(repoNwo);
+			await this.agentMemoryToolRegistrar.registerMemoryTools(promptResponse);
 			memoryPromptText = promptResponse?.memoriesContext.prompt;
 			// Fall back to individual repo memories if /prompt endpoint is unavailable
 			if (!memoryPromptText) {

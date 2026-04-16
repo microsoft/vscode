@@ -10,7 +10,7 @@ import { IExperimentationService } from '../../../platform/telemetry/common/null
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { createServiceIdentifier } from '../../../util/common/services';
 import { DisposableStore } from '../../../util/vs/base/common/lifecycle';
-import { IAgentMemoryService } from '../common/agentMemoryService';
+import { IAgentMemoryService, type MemoryPromptResponse } from '../common/agentMemoryService';
 import { ToolRegistry } from '../common/toolsRegistry';
 import { buildStoreMemoryToolDefinition, StoreMemoryTool } from './storeMemoryTool';
 import { buildVoteMemoryToolDefinition, VoteMemoryTool } from './voteMemoryTool';
@@ -18,11 +18,12 @@ import { buildVoteMemoryToolDefinition, VoteMemoryTool } from './voteMemoryTool'
 export interface IAgentMemoryToolRegistrar {
 	readonly _serviceBrand: undefined;
 	/**
-	 * Fetch the /prompt response and register store_memory (and optionally vote_memory)
-	 * as model-specific tools. Safe to call multiple times — re-registers on each call
-	 * to pick up updated tool definitions from the server.
+	 * Register store_memory (and optionally vote_memory) as model-specific tools using an
+	 * already-fetched prompt response. When called without a response, fetches the /prompt
+	 * endpoint itself. Safe to call multiple times — re-registers on each call to pick up
+	 * updated tool definitions from the server.
 	 */
-	registerMemoryTools(): Promise<void>;
+	registerMemoryTools(promptResponse?: MemoryPromptResponse): Promise<void>;
 }
 
 export const IAgentMemoryToolRegistrar = createServiceIdentifier<IAgentMemoryToolRegistrar>('IAgentMemoryToolRegistrar');
@@ -63,15 +64,17 @@ export class AgentMemoryToolRegistrar implements IAgentMemoryToolRegistrar {
 		}
 	}
 
-	async registerMemoryTools(): Promise<void> {
+	async registerMemoryTools(promptResponse?: MemoryPromptResponse): Promise<void> {
 		const enabled = this.configurationService.getExperimentBasedConfig(ConfigKey.CopilotMemoryEnabled, this.experimentationService);
 		if (!enabled) {
 			this._registrations.clear();
 			return;
 		}
 
-		const repoNwo = await this.getRepoNwo();
-		const promptResponse = await this.agentMemoryService.getMemoryPrompt(repoNwo);
+		if (!promptResponse) {
+			const repoNwo = await this.getRepoNwo();
+			promptResponse = await this.agentMemoryService.getMemoryPrompt(repoNwo);
+		}
 		if (!promptResponse) {
 			this.logService.warn('[AgentMemoryToolRegistrar] Could not fetch memory prompt — skipping tool registration');
 			return;
