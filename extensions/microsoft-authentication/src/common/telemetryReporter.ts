@@ -38,7 +38,7 @@ export class MicrosoftAuthenticationTelemetryReporter implements IExperimentatio
 
 	sendActivatedWithMsalNoBrokerEvent(): void {
 		/* __GDPR__
-			"activatingMsalNoBroker" : { "owner": "TylerLeonhardt", "comment": "Used to determine how often users use the msal-no-broker login flow. This only fires if the user explictly opts in to this." }
+			"activatingMsalNoBroker" : { "owner": "TylerLeonhardt", "comment": "Used to determine how often users use the msal-no-broker login flow. This only fires if the user explicitly opts in to this." }
 		*/
 		this._telemetryReporter.sendTelemetryEvent('activatingmsalnobroker');
 	}
