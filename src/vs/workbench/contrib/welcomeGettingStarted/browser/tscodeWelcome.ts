@@ -41,6 +41,7 @@ import { IMarkdownRendererService } from '../../../../platform/markdown/browser/
 interface TscodeWelcomeMemento {
 	hasShownAnimation?: boolean;
 	lastFaceType?: string;
+	hasLoggedIn?: boolean; // test-workbench_change
 }
 
 export class TscodeWelcomePage extends GettingStartedPage {
@@ -142,6 +143,12 @@ export class TscodeWelcomePage extends GettingStartedPage {
 			// Skip animation if it has been shown before
 			return;
 		}
+
+		// test-workbench_change start - Skip animation if user has not logged in
+		if (!this.tscodeMementoData.hasLoggedIn) {
+			return;
+		}
+		// test-workbench_change end
 
 		if (this.animationShown) {
 			return;
