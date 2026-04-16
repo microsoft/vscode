@@ -103,6 +103,8 @@ import { IRemoteAgentHostService } from '../platform/agentHost/common/remoteAgen
 import { RemoteAgentHostService } from '../platform/agentHost/browser/remoteAgentHostServiceImpl.js';
 import { ISSHRemoteAgentHostService } from '../platform/agentHost/common/sshRemoteAgentHost.js';
 import { NullSSHRemoteAgentHostService } from '../platform/agentHost/browser/nullSshRemoteAgentHostService.js';
+import { IAgentHostService } from '../platform/agentHost/common/agentService.js';
+import { NullAgentHostService } from '../platform/agentHost/browser/nullAgentHostService.js';
 
 registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService, InstantiationType.Delayed);
 registerSingleton(IAccessibilityService, AccessibilityService, InstantiationType.Delayed);
@@ -124,6 +126,7 @@ registerSingleton(ISharedWebContentExtractorService, NullSharedWebContentExtract
 registerSingleton(IMcpGalleryManifestService, WorkbenchMcpGalleryManifestService, InstantiationType.Delayed);
 registerSingleton(IRemoteAgentHostService, RemoteAgentHostService, InstantiationType.Delayed);
 registerSingleton(ISSHRemoteAgentHostService, NullSSHRemoteAgentHostService, InstantiationType.Delayed);
+registerSingleton(IAgentHostService, NullAgentHostService, InstantiationType.Delayed);
 
 //#endregion
 
@@ -143,9 +146,15 @@ import './contrib/remoteAgentHost/browser/webTunnelAgentHostService.contribution
 // Tunnel agent host — reconciles discovered tunnels into session providers
 import './contrib/remoteAgentHost/browser/tunnelAgentHost.contribution.js';
 
+// Remote agent host terminal profiles — registers terminal profiles for connected agent hosts
+import './contrib/remoteAgentHost/browser/remoteAgentHostTerminal.contribution.js';
+
 // Remote agent host session provider — discovers agents and registers sessions
 import './contrib/remoteAgentHost/browser/remoteAgentHost.contribution.js';
 import './contrib/remoteAgentHost/browser/remoteAgentHostActions.js';
+
+// TODO: support agent feedback in web
+import './contrib/agentFeedback/browser/nullAgentFeedbackService.contribution.js';
 import '../workbench/contrib/webview/browser/webview.web.contribution.js';
 import '../workbench/contrib/extensions/browser/extensions.web.contribution.js';
 import '../workbench/contrib/terminal/browser/terminal.web.contribution.js';

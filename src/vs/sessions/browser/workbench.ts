@@ -12,7 +12,7 @@ import { DeferredPromise, RunOnceScheduler } from '../../base/common/async.js';
 import { isFullscreen, onDidChangeFullscreen, isChrome, isFirefox, isSafari } from '../../base/browser/browser.js';
 import { mark } from '../../base/common/performance.js';
 import { onUnexpectedError, setUnexpectedErrorHandler } from '../../base/common/errors.js';
-import { isWindows, isLinux, isWeb, isNative, isMacintosh } from '../../base/common/platform.js';
+import { isWindows, isLinux, isWeb, isNative, isMacintosh, isMobile } from '../../base/common/platform.js';
 import { Parts, Position, PanelAlignment, IWorkbenchLayoutService, SINGLE_WINDOW_PARTS, MULTI_WINDOW_PARTS, IPartVisibilityChangeEvent, positionToString } from '../../workbench/services/layout/browser/layoutService.js';
 import { ILayoutOffsetInfo } from '../../platform/layout/browser/layoutService.js';
 import { Part } from '../../workbench/browser/part.js';
@@ -694,6 +694,16 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 		// Initialize layout state (must be done before createWorkbenchLayout)
 		this._mainContainerDimension = getClientArea(this.parent, new Dimension(800, 600));
+
+		// Default to list-detail on mobile web only. Desktop behavior stays unchanged,
+		// regardless of how narrow the window is resized.
+		if (isWeb && isMobile) {
+			this.partVisibility.sidebar = false;
+		}
+	}
+
+	private isMobileWebLayout(): boolean {
+		return isWeb && isMobile;
 	}
 
 	private areAllGroupsEmpty(): boolean {
@@ -904,9 +914,39 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 		// Layout the grid widget
 		this.workbenchGrid.layout(this._mainContainerDimension.width, this._mainContainerDimension.height);
+		this.layoutMobileSidebar();
 
 		// Emit as event
 		this.handleContainerDidLayout(this.mainContainer, this._mainContainerDimension);
+	}
+
+	private layoutMobileSidebar(): void {
+		const sidebarContainer = this.getContainer(mainWindow, Parts.SIDEBAR_PART);
+		const sidebarPart = this.getPart(Parts.SIDEBAR_PART);
+		if (!sidebarContainer) {
+			return;
+		}
+
+		if (!this.isMobileWebLayout() || !this.partVisibility.sidebar) {
+			sidebarContainer.style.position = '';
+			sidebarContainer.style.top = '';
+			sidebarContainer.style.left = '';
+			sidebarContainer.style.width = '';
+			sidebarContainer.style.height = '';
+			sidebarContainer.style.zIndex = '';
+			return;
+		}
+
+		const titleBarHeight = this.workbenchGrid.getViewSize(this.titleBarPartView).height;
+		const mobileWidth = this._mainContainerDimension.width;
+		const mobileHeight = Math.max(0, this._mainContainerDimension.height - titleBarHeight);
+		sidebarContainer.style.position = 'fixed';
+		sidebarContainer.style.top = `${titleBarHeight}px`;
+		sidebarContainer.style.left = '0';
+		sidebarContainer.style.width = `${mobileWidth}px`;
+		sidebarContainer.style.height = `${mobileHeight}px`;
+		sidebarContainer.style.zIndex = '30';
+		sidebarPart.layout(mobileWidth, mobileHeight, titleBarHeight, 0);
 	}
 
 	private handleContainerDidLayout(container: HTMLElement, dimension: IDimension): void {
@@ -1103,6 +1143,8 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 				this.paneCompositeService.openPaneComposite(viewletToOpen, ViewContainerLocation.Sidebar);
 			}
 		}
+
+		this.layoutMobileSidebar();
 	}
 
 	private setAuxiliaryBarHidden(hidden: boolean): void {

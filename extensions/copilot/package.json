@@ -6171,57 +6171,71 @@
 		"chatPromptFiles": [
 			{
 				"path": "./assets/prompts/plan.prompt.md",
-				"when": "chatSessionType == local"
+				"when": "chatSessionType == local",
+				"sessionTypes": ["local"]
 			}
 		],
 		"chatSkills": [
 			{
 				"path": "./assets/prompts/skills/project-setup-info-local/SKILL.md",
-				"when": "chatSessionType == local && config.github.copilot.chat.projectSetupInfoSkill.enabled && !config.github.copilot.chat.newWorkspace.useContext7"
+				"when": "chatSessionType == local && config.github.copilot.chat.projectSetupInfoSkill.enabled && !config.github.copilot.chat.newWorkspace.useContext7",
+				"sessionTypes": ["local"]
 			},
 			{
 				"path": "./assets/prompts/skills/project-setup-info-context7/SKILL.md",
-				"when": "chatSessionType == local && config.github.copilot.chat.projectSetupInfoSkill.enabled && config.github.copilot.chat.newWorkspace.useContext7"
+				"when": "chatSessionType == local && config.github.copilot.chat.projectSetupInfoSkill.enabled && config.github.copilot.chat.newWorkspace.useContext7",
+				"sessionTypes": ["local"]
 			},
 			{
 				"path": "./assets/prompts/skills/install-vscode-extension/SKILL.md",
-				"when": "chatSessionType == local && config.github.copilot.chat.installExtensionSkill.enabled && config.github.copilot.chat.newWorkspaceCreation.enabled"
+				"when": "chatSessionType == local && config.github.copilot.chat.installExtensionSkill.enabled && config.github.copilot.chat.newWorkspaceCreation.enabled",
+				"sessionTypes": ["local"]
 			},
 			{
 				"path": "./assets/prompts/skills/get-search-view-results/SKILL.md",
-				"when": "chatSessionType == local && config.github.copilot.chat.getSearchViewResultsSkill.enabled"
+				"when": "chatSessionType == local && config.github.copilot.chat.getSearchViewResultsSkill.enabled",
+				"sessionTypes": ["local"]
 			},
 			{
 				"path": "./assets/prompts/skills/troubleshoot/SKILL.md",
-				"when": "chatSessionType == local || chatSessionType == copilotcli"
+				"when": "chatSessionType == local || chatSessionType == copilotcli",
+				"sessionTypes": ["local", "copilotcli"]
 			},
 			{
 				"path": "./assets/prompts/skills/agent-customization/SKILL.md",
-				"when": "chatSessionType == local || chatSessionType == copilotcli"
+				"when": "chatSessionType == local || chatSessionType == copilotcli",
+				"sessionTypes": ["local", "copilotcli"]
 			},
 			{
 				"path": "./assets/prompts/skills/init/SKILL.md",
-				"when": "chatSessionType == local"
+				"when": "chatSessionType == local",
+				"sessionTypes": ["local"]
 			},
 			{
 				"path": "./assets/prompts/skills/create-prompt/SKILL.md",
-				"when": "chatSessionType == local"
+				"when": "chatSessionType == local",
+				"sessionTypes": ["local"]
 			},
 			{
 				"path": "./assets/prompts/skills/create-instructions/SKILL.md",
-				"when": "chatSessionType == local"
+				"when": "chatSessionType == local",
+				"sessionTypes": ["local"]
+
 			},
 			{
 				"path": "./assets/prompts/skills/create-skill/SKILL.md",
-				"when": "chatSessionType == local"
+				"when": "chatSessionType == local",
+				"sessionTypes": ["local"]
 			},
 			{
 				"path": "./assets/prompts/skills/create-agent/SKILL.md",
-				"when": "chatSessionType == local"
+				"when": "chatSessionType == local",
+				"sessionTypes": ["local"]
 			},
 			{
 				"path": "./assets/prompts/skills/create-hook/SKILL.md",
-				"when": "chatSessionType == local"
+				"when": "chatSessionType == local",
+				"sessionTypes": ["local"]
 			}
 		],
 		"terminal": {

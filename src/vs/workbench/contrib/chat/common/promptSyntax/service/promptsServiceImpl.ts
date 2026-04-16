@@ -481,6 +481,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 						source: PromptFileSource.ExtensionAPI,
 						name: file.name,
 						description: file.description,
+						sessionTypes: file.sessionTypes,
 					} satisfies IExtensionPromptPath);
 				}
 			} catch (e) {
@@ -702,6 +703,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 			argumentHint: argumentHint,
 			userInvocable: userInvocable ?? true,
 			when,
+			sessionTypes: promptPath.sessionTypes,
 		};
 	}
 
@@ -805,7 +807,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 					? ContextKeyExpr.deserialize(promptPath.when) ?? undefined
 					: undefined;
 				if (!ast.header) {
-					const agent: ICustomAgent = { uri, name, agentInstructions, source, target, visibility: { userInvocable: true, agentInvocable: true }, ...(when !== undefined ? { when } : undefined) };
+					const agent: ICustomAgent = { uri, name, agentInstructions, source, target, visibility: { userInvocable: true, agentInvocable: true }, sessionTypes: promptPath.sessionTypes, ...(when !== undefined ? { when } : undefined) };
 					return { status: 'loaded', promptPath: this.withPromptPathMetadata(promptPath, name, description), agent };
 				}
 				const visibility = {
@@ -832,7 +834,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 					hooks = parseSubagentHooksFromYaml(hooksRaw, workspaceRootUri, userHome, target);
 				}
 
-				const agent: ICustomAgent = { uri, name, description, model, tools, handOffs, argumentHint, target, visibility, agents, hooks, agentInstructions, source, ...(when !== undefined ? { when } : undefined) };
+				const agent: ICustomAgent = { uri, name, description, model, tools, handOffs, argumentHint, target, visibility, agents, hooks, agentInstructions, source, sessionTypes: promptPath.sessionTypes, ...(when !== undefined ? { when } : undefined) };
 				return { status: 'loaded', promptPath: this.withPromptPathMetadata(promptPath, name, description), agent };
 			} catch (e) {
 				const error = e instanceof Error ? e : new Error(String(e));
@@ -868,7 +870,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 		return new PromptFileParser().parse(uri, fileContent.value.toString());
 	}
 
-	public registerContributedFile(type: PromptsType, uri: URI, extension: IExtensionDescription, name?: string, description?: string, when?: string) {
+	public registerContributedFile(type: PromptsType, uri: URI, extension: IExtensionDescription, name?: string, description?: string, when?: string, sessionTypes?: readonly string[]) {
 		const bucket = this.contributedFiles[type];
 		if (bucket.has(uri)) {
 			// keep first registration per extension (handler filters duplicates per extension already)
@@ -894,7 +896,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				const msg = e instanceof Error ? e.message : String(e);
 				this.logger.error(`[registerContributedFile] Failed to make prompt file readonly: ${uri}`, msg);
 			}
-			return { uri, name, description, when, storage: PromptsStorage.extension, type, extension, source: PromptFileSource.ExtensionContribution } satisfies IExtensionPromptPath;
+			return { uri, name, description, when, sessionTypes, storage: PromptsStorage.extension, type, extension, source: PromptFileSource.ExtensionContribution } satisfies IExtensionPromptPath;
 		})();
 		bucket.set(uri, entryPromise);
 		if (when) {
@@ -1175,6 +1177,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 					when,
 					pluginUri: file.promptPath.pluginUri,
 					extension: file.promptPath.extension,
+					sessionTypes: file.promptPath.sessionTypes,
 				});
 			}
 		}
@@ -1329,6 +1332,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 					description: file.promptPath.description,
 					pattern: file.pattern,
 					when,
+					sessionTypes: file.promptPath.sessionTypes,
 				});
 			}
 		}
