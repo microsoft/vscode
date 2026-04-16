@@ -1,6 +1,6 @@
 services:
   elasticsearch:
-    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/elasticsearch:8.17.3-linuxarm64
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/elasticsearch:8.18.1-linuxarm64
     container_name: elasticsearch
     environment:
       - TZ=Asia/Shanghai
@@ -27,7 +27,7 @@ services:
       retries: 5
 
   es-setup:
-    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/elasticsearch:8.17.3-linuxarm64
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/elasticsearch:8.18.1-linuxarm64
     container_name: es-setup
     depends_on:
       elasticsearch:
@@ -51,11 +51,13 @@ services:
         curl -s -X PUT -u elastic:$$ELASTIC_PASSWORD -H "Content-Type: application/json" http://elasticsearch:9200/_security/role/telemetry_viewer -d '{"cluster":["monitor"],"indices":[{"names":["tscode-telemetry-*"],"privileges":["read","view_index_metadata"]}],"applications":[{"application":"kibana-.kibana","privileges":["read"],"resources":["*"]}]}' &&
         echo "=== 创建 viewer 访客用户 ===" &&
         curl -s -X PUT -u elastic:$$ELASTIC_PASSWORD -H "Content-Type: application/json" http://elasticsearch:9200/_security/user/viewer -d "{\"password\":\"$$VIEWER_PASSWORD\",\"roles\":[\"telemetry_viewer\"],\"full_name\":\"Telemetry Viewer\"}" &&
+        echo "=== 注册原始数据索引模板 ===" &&
+        curl -s -X PUT -u elastic:$$ELASTIC_PASSWORD -H "Content-Type: application/json" http://elasticsearch:9200/_index_template/tscode-telemetry-raw -d '{"index_patterns":["tscode-telemetry-raw-*"],"priority":200,"template":{"settings":{"index.mapping.total_fields.limit":3000,"number_of_shards":1,"number_of_replicas":1,"index.refresh_interval":"5s"},"mappings":{"dynamic":true,"dynamic_templates":[{"strings_as_keywords":{"match_mapping_type":"string","mapping":{"type":"keyword","ignore_above":512}}}],"properties":{"@timestamp":{"type":"date"},"@version":{"type":"keyword"},"type":{"type":"keyword"},"tags":{"type":"keyword"},"name":{"type":"keyword"},"time":{"type":"date"},"iKey":{"type":"keyword"},"ver":{"type":"keyword"}}}},"_meta":{"description":"TSCode 遥测原始数据索引模板 - 防止字段爆炸，字符串统一映射为 keyword","version":"1.0.0"}}' &&
         echo "=== 初始化完成 ==="
     restart: "no"
 
   logstash:
-    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/logstash:8.17.3-linuxarm64
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/logstash:8.18.1-linuxarm64
     container_name: logstash
     user: root
     environment:
@@ -82,7 +84,7 @@ services:
       retries: 5
 
   kibana:
-    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/kibana:8.17.3-linuxarm64
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/kibana:8.18.1-linuxarm64
     container_name: kibana
     environment:
       - I18N_LOCALE=zh-CN
