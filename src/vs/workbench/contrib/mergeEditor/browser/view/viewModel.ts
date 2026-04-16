@@ -366,7 +366,7 @@ class AttachedHistory extends Disposable {
 
 	/**
 	 * Pushes an history item that is tied to the last text edit (or an extension of it).
-	 * When the last text edit is undone/redone, so is is this history item.
+	 * When the last text edit is undone/redone, so is this history item.
 	 */
 	public pushAttachedHistoryElement(element: IAttachedHistoryElement): void {
 		this.attachedHistory.push({ altId: this.model.getAlternativeVersionId(), element });
