@@ -205,7 +205,7 @@ export class ConfigurationEditing {
 			try {
 				// Optimization: we apply edits to a text model and save it
 				// right after. Use the files config service to signal this
-				// to the workbench to optimise the UI during this operation.
+				// to the workbench to optimize the UI during this operation.
 				// For example, avoids to briefly show dirty indicators.
 				disposable = this.filesConfigurationService.enableAutoSaveAfterShortDelay(model.uri);
 				if (this.applyEditsToBuffer(edit, model)) {
