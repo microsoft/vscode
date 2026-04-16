@@ -934,7 +934,7 @@ export abstract class AbstractExtensionManagementService extends CommontExtensio
 				extensionToUninstall.manifest.displayName || extensionToUninstall.manifest.name, dependents[0].manifest.displayName || dependents[0].manifest.name, dependents[1].manifest.displayName || dependents[1].manifest.name);
 		}
 		if (dependents.length === 1) {
-			return nls.localize('singleIndirectDependentError', "Cannot uninstall '{0}' extension . It includes uninstalling '{1}' extension and '{2}' extension depends on this.",
+			return nls.localize('singleIndirectDependentError', "Cannot uninstall '{0}' extension. It includes uninstalling '{1}' extension and '{2}' extension depends on this.",
 				extensionToUninstall.manifest.displayName || extensionToUninstall.manifest.name, dependingExtension.manifest.displayName
 			|| dependingExtension.manifest.name, dependents[0].manifest.displayName || dependents[0].manifest.name);
 		}

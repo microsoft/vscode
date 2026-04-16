@@ -425,7 +425,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'explorer.openEditors.minVisible': {
 			'type': 'number',
-			'description': nls.localize({ key: 'openEditorsVisibleMin', comment: ['Open is an adjective'] }, "The minimum number of editor slots pre-allocated in the Open Editors pane. If set to 0 the Open Editors pane will dynamically resize based on the number of editors."),
+			'description': nls.localize({ key: 'openEditorsVisibleMin', comment: ['Open is an adjective'] }, "The minimum number of editor slots pre-allocated in the Open Editors pane. If set to 0, the Open Editors pane will dynamically resize based on the number of editors."),
 			'default': 0,
 			'minimum': 0
 		},
