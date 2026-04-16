@@ -254,49 +254,49 @@ abstract class BaseFocusAction extends Action2 {
 		this.focusNextOrPreviousPart(layoutService, editorService, this.focusNext);
 	}
 
-	private findVisibleNeighbour(layoutService: IWorkbenchLayoutService, part: Parts, next: boolean): Parts {
+	private findVisibleNeighbor(layoutService: IWorkbenchLayoutService, part: Parts, next: boolean): Parts {
 		const activeWindow = getActiveWindow();
 		const windowIsAuxiliary = isAuxiliaryWindow(activeWindow);
 
-		let neighbour: Parts;
+		let neighbor: Parts;
 		if (windowIsAuxiliary) {
 			switch (part) {
 				case Parts.EDITOR_PART:
-					neighbour = Parts.STATUSBAR_PART;
+					neighbor = Parts.STATUSBAR_PART;
 					break;
 				default:
-					neighbour = Parts.EDITOR_PART;
+					neighbor = Parts.EDITOR_PART;
 			}
 		} else {
 			switch (part) {
 				case Parts.EDITOR_PART:
-					neighbour = next ? Parts.PANEL_PART : Parts.SIDEBAR_PART;
+					neighbor = next ? Parts.PANEL_PART : Parts.SIDEBAR_PART;
 					break;
 				case Parts.PANEL_PART:
-					neighbour = next ? Parts.AUXILIARYBAR_PART : Parts.EDITOR_PART;
+					neighbor = next ? Parts.AUXILIARYBAR_PART : Parts.EDITOR_PART;
 					break;
 				case Parts.AUXILIARYBAR_PART:
-					neighbour = next ? Parts.STATUSBAR_PART : Parts.PANEL_PART;
+					neighbor = next ? Parts.STATUSBAR_PART : Parts.PANEL_PART;
 					break;
 				case Parts.STATUSBAR_PART:
-					neighbour = next ? Parts.ACTIVITYBAR_PART : Parts.AUXILIARYBAR_PART;
+					neighbor = next ? Parts.ACTIVITYBAR_PART : Parts.AUXILIARYBAR_PART;
 					break;
 				case Parts.ACTIVITYBAR_PART:
-					neighbour = next ? Parts.SIDEBAR_PART : Parts.STATUSBAR_PART;
+					neighbor = next ? Parts.SIDEBAR_PART : Parts.STATUSBAR_PART;
 					break;
 				case Parts.SIDEBAR_PART:
-					neighbour = next ? Parts.EDITOR_PART : Parts.ACTIVITYBAR_PART;
+					neighbor = next ? Parts.EDITOR_PART : Parts.ACTIVITYBAR_PART;
 					break;
 				default:
-					neighbour = Parts.EDITOR_PART;
+					neighbor = Parts.EDITOR_PART;
 			}
 		}
 
-		if (layoutService.isVisible(neighbour, activeWindow) || neighbour === Parts.EDITOR_PART) {
-			return neighbour;
+		if (layoutService.isVisible(neighbor, activeWindow) || neighbor === Parts.EDITOR_PART) {
+			return neighbor;
 		}
 
-		return this.findVisibleNeighbour(layoutService, neighbour, next);
+		return this.findVisibleNeighbor(layoutService, neighbor, next);
 	}
 
 	private focusNextOrPreviousPart(layoutService: IWorkbenchLayoutService, editorService: IEditorService, next: boolean): void {
@@ -315,7 +315,7 @@ abstract class BaseFocusAction extends Action2 {
 			currentlyFocusedPart = Parts.PANEL_PART;
 		}
 
-		layoutService.focusPart(currentlyFocusedPart ? this.findVisibleNeighbour(layoutService, currentlyFocusedPart, next) : Parts.EDITOR_PART, getActiveWindow());
+		layoutService.focusPart(currentlyFocusedPart ? this.findVisibleNeighbor(layoutService, currentlyFocusedPart, next) : Parts.EDITOR_PART, getActiveWindow());
 	}
 }
 
