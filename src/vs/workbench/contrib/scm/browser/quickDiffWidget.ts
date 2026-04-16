@@ -271,12 +271,12 @@ class QuickDiffWidget extends PeekViewWidget {
 			const label = this.model.quickDiffs
 				.find(quickDiff => quickDiff.id === this._providerId)?.label ?? '';
 
-			detail = this.model.changes.length > 1
+			detail = providerChanges.length > 1
 				? nls.localize('changes', "{0} - {1} of {2} changes", label, providerIndex + 1, providerChanges.length)
 				: nls.localize('change', "{0} - {1} of {2} change", label, providerIndex + 1, providerChanges.length);
 			this.dropdownContainer!.style.display = 'none';
 		} else {
-			detail = this.model.changes.length > 1
+			detail = providerChanges.length > 1
 				? nls.localize('multiChanges', "{0} of {1} changes", providerIndex + 1, providerChanges.length)
 				: nls.localize('multiChange', "{0} of {1} change", providerIndex + 1, providerChanges.length);
 			this.dropdownContainer!.style.display = 'inherit';
