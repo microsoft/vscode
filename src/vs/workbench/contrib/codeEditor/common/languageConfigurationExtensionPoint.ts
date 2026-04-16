@@ -583,7 +583,7 @@ const schema: IJSONSchema = {
 		},
 		autoClosingPairs: {
 			default: [['(', ')'], ['[', ']'], ['{', '}']],
-			description: nls.localize('schema.autoClosingPairs', 'Defines the bracket pairs. When a opening bracket is entered, the closing bracket is inserted automatically.'),
+			description: nls.localize('schema.autoClosingPairs', 'Defines the bracket pairs. When an opening bracket is entered, the closing bracket is inserted automatically.'),
 			type: 'array',
 			items: {
 				oneOf: [{
