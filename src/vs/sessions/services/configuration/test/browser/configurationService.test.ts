@@ -125,6 +125,24 @@ suite('Sessions ConfigurationService', () => {
 		assert.strictEqual(testObject.getValue('sessionsConfigurationService.testSetting', { resource: folder }), 'defaultValue');
 	}));
 
+	test('removing a folder whose configuration was never loaded does not throw (issue #310369)', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// Simulates the lifecycle race where `onDidChangeWorkspaceFolders` fires a removal
+		// for a folder that has no entry in the internal `_configuration.folderConfigurations`
+		// map (e.g., because `initialize()` replaced `_configuration` between an add and a
+		// remove, or because the folder was never loaded due to timing). Prior to the fix
+		// this caused `compareAndDeleteFolderConfiguration` to throw `Unknown folder`.
+		const neverLoadedFolder = joinPath(ROOT, 'neverLoadedFolder');
+		await fileService.createFolder(neverLoadedFolder);
+		const event = {
+			added: [],
+			removed: [{ uri: neverLoadedFolder, name: 'neverLoadedFolder', index: 0, toResource: (r: string) => joinPath(neverLoadedFolder, r) }],
+			changed: []
+		};
+		assert.doesNotThrow(() => {
+			(testObject as unknown as { onWorkspaceFoldersChanged: (e: unknown) => void }).onWorkspaceFoldersChanged(event);
+		});
+	}));
+
 	test('configuration change event is fired when folders with settings are removed', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const folder = joinPath(ROOT, 'removedFolder2');
 		await fileService.createFolder(folder);

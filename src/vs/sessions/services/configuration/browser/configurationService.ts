@@ -254,15 +254,24 @@ export class ConfigurationService extends Disposable implements IWorkbenchConfig
 	}
 
 	private onWorkspaceFoldersChanged(e: IWorkspaceFoldersChangeEvent): void {
-		// Remove configurations for removed folders
+		// Remove configurations for folders no longer part of the workspace.
+		// Iterate the cached folder configs (rather than `e.removed`) so that we only
+		// delete folder configurations that were actually loaded. A removal event for a
+		// folder whose configuration was never loaded (e.g., due to an init/load race)
+		// would otherwise cause `compareAndDeleteFolderConfiguration` to throw
+		// `Unknown folder`. This mirrors the safe pattern used by the workbench
+		// `ConfigurationService.onFoldersChanged`.
 		const previousData = this._configuration.toData();
 		const keys: string[] = [];
 		const overrides: [string, string[]][] = [];
-		for (const folder of e.removed) {
-			const change = this._configuration.compareAndDeleteFolderConfiguration(folder.uri);
-			keys.push(...change.keys);
-			overrides.push(...change.overrides);
-			this.cachedFolderConfigs.deleteAndDispose(folder.uri);
+		const workspaceFolders = this.workspaceService.getWorkspace().folders;
+		for (const key of [...this.cachedFolderConfigs.keys()]) {
+			if (!workspaceFolders.some(folder => folder.uri.toString() === key.toString())) {
+				const change = this._configuration.compareAndDeleteFolderConfiguration(key);
+				keys.push(...change.keys);
+				overrides.push(...change.overrides);
+				this.cachedFolderConfigs.deleteAndDispose(key);
+			}
 		}
 		if (keys.length || overrides.length) {
 			this.triggerConfigurationChange({ keys, overrides }, previousData, ConfigurationTarget.WORKSPACE_FOLDER);
