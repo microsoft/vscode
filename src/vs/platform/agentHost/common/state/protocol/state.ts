@@ -282,8 +282,6 @@ export interface ISessionState {
 	serverTools?: IToolDefinition[];
 	/** The client currently providing tools and interactive capabilities to this session */
 	activeClient?: ISessionActiveClient;
-	/** The working directory URI for this session */
-	workingDirectory?: URI;
 	/** Completed turns */
 	turns: ITurn[];
 	/** Currently in-progress turn */
@@ -1413,14 +1411,83 @@ export interface ITerminalState {
 	/** Terminal height in rows */
 	rows?: number;
 	/**
-	 * Accumulated terminal output. May contain ANSI escape sequences.
-	 * The scrollback length is implementation-defined.
+	 * Typed content parts, replacing the flat `content: string`.
+	 *
+	 * Naive consumers that only need the raw VT stream can reconstruct it with:
+	 *   `content.map(p => p.type === 'command' ? p.output : p.value).join('')`
+	 *
+	 * Consumers that need command boundaries can filter by part type.
 	 */
-	content: string;
+	content: ITerminalContentPart[];
 	/** Process exit code, set when the terminal process exits */
 	exitCode?: number;
 	/** Who currently holds this terminal */
 	claim: ITerminalClaim;
+	/**
+	 * Whether this terminal emits `terminal/commandExecuted` and
+	 * `terminal/commandFinished` actions and populates `command`-typed parts.
+	 *
+	 * Clients MUST check this flag before relying on command detection.
+	 * Do NOT use the presence of a `command` part as a feature flag — parts
+	 * are absent in the normal idle state.
+	 */
+	supportsCommandDetection?: boolean;
+}
+
+// ─── Terminal Content Parts ──────────────────────────────────────────────────
+
+/**
+ * A content part within terminal output.
+ *
+ * @category Terminal Types
+ */
+export type ITerminalContentPart =
+	| ITerminalUnclassifiedPart
+	| ITerminalCommandPart;
+
+/**
+ * Unstructured terminal output — content before, between, or after commands,
+ * or from terminals that do not support command detection.
+ *
+ * @category Terminal Types
+ */
+export interface ITerminalUnclassifiedPart {
+	type: 'unclassified';
+	/** Accumulated VT output. Appended to by `terminal/data` when no command is executing. */
+	value: string;
+}
+
+/**
+ * A single command: its command line and the output it produced.
+ *
+ * While `isComplete` is false the command is still executing; `output` grows
+ * as `terminal/data` actions arrive. At `terminal/commandFinished` the part
+ * is mutated in-place with `isComplete: true` and the completion metadata.
+ *
+ * @category Terminal Types
+ */
+export interface ITerminalCommandPart {
+	type: 'command';
+	/**
+	 * Stable id matching the `commandId` on the corresponding
+	 * `terminal/commandExecuted` and `terminal/commandFinished` actions.
+	 */
+	commandId: string;
+	/** The command line submitted to the shell. */
+	commandLine: string;
+	/**
+	 * Accumulated VT output. Appended to by `terminal/data` while `isComplete`
+	 * is false. Shell integration escape sequences are stripped by the server.
+	 */
+	output: string;
+	/** Unix timestamp (ms) when execution started, as reported by the server. */
+	timestamp: number;
+	/** Whether the command has finished. */
+	isComplete: boolean;
+	/** Shell exit code. Set at completion. `undefined` if unknown. */
+	exitCode?: number;
+	/** Wall-clock duration in milliseconds. Set at completion. */
+	durationMs?: number;
 }
 
 // ─── Common Types ────────────────────────────────────────────────────────────

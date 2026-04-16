@@ -118,6 +118,18 @@ export interface ISessionsManagementService {
 	 */
 	sendAndCreateChat(session: ISession, options: ISendRequestOptions): Promise<void>;
 
+	/**
+	 * Send a request for an existing chat within a session.
+	 */
+	sendRequest(session: ISession, chat: IChat, options: ISendRequestOptions): Promise<void>;
+
+	/**
+	 * Switch to the new-chat-in-session view.
+	 * Adds a new chat to the session via the provider, makes it the active chat,
+	 * and shows a rich input for composing a message.
+	 */
+	openNewChatInSession(session: ISession): void;
+
 	// -- Session Actions --
 
 	/** Archive a session. */

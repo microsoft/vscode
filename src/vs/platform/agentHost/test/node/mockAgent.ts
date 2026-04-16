@@ -72,15 +72,18 @@ export class MockAgent implements IAgent {
 		return [...this._sessions.values()].map(s => ({ session: s, startTime: Date.now(), modifiedTime: Date.now(), project: mockProject(this.id), ...this.sessionMetadataOverrides }));
 	}
 
+	/** Optional override for the working directory returned by createSession. */
+	resolvedWorkingDirectory: URI | undefined;
+
 	async createSession(_config?: IAgentCreateSessionConfig): Promise<IAgentCreateSessionResult> {
 		const rawId = `${this.id}-session-${this._nextId++}`;
 		const session = AgentSession.uri(this.id, rawId);
 		this._sessions.set(rawId, session);
-		return { session, project: mockProject(this.id) };
+		return { session, project: mockProject(this.id), workingDirectory: this.resolvedWorkingDirectory };
 	}
 
 	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<IResolveSessionConfigResult> {
-		return { ready: true, schema: { type: 'object', properties: {} }, values: params.config ?? {} };
+		return { schema: { type: 'object', properties: {} }, values: params.config ?? {} };
 	}
 
 	async sessionConfigCompletions(_params: IAgentSessionConfigCompletionsParams): Promise<ISessionConfigCompletionsResult> {
@@ -233,7 +236,6 @@ export class ScriptedMockAgent implements IAgent {
 		const isolation = params.config?.isolation === 'folder' || params.config?.isolation === 'worktree' ? params.config.isolation : 'worktree';
 		const branch = isolation === 'worktree' && typeof params.config?.branch === 'string' ? params.config.branch : 'main';
 		return {
-			ready: true,
 			schema: {
 				type: 'object',
 				properties: {
@@ -333,7 +335,7 @@ export class ScriptedMockAgent implements IAgent {
 				// Fire tool_start + tool_ready with write permission for a regular file (should be auto-approved)
 				(async () => {
 					await timeout(10);
-					this._onDidSessionProgress.fire({ type: 'tool_start', session, toolCallId: 'tc-write-1', toolName: 'write', displayName: 'Write File', invocationMessage: 'Write file' });
+					this._onDidSessionProgress.fire({ type: 'tool_start', session, toolCallId: 'tc-write-1', toolName: 'create', displayName: 'Create File', invocationMessage: 'Create file' });
 					await timeout(5);
 					this._onDidSessionProgress.fire({ type: 'tool_ready', session, toolCallId: 'tc-write-1', invocationMessage: 'Write src/app.ts', permissionKind: 'write', permissionPath: '/workspace/src/app.ts' });
 					// Auto-approved writes resolve immediately — complete the tool and turn
@@ -350,7 +352,7 @@ export class ScriptedMockAgent implements IAgent {
 				// Fire tool_start + tool_ready with write permission for .env (should be blocked)
 				(async () => {
 					await timeout(10);
-					this._onDidSessionProgress.fire({ type: 'tool_start', session, toolCallId: 'tc-write-env-1', toolName: 'write', displayName: 'Write File', invocationMessage: 'Write file' });
+					this._onDidSessionProgress.fire({ type: 'tool_start', session, toolCallId: 'tc-write-env-1', toolName: 'create', displayName: 'Create File', invocationMessage: 'Create file' });
 					await timeout(5);
 					this._onDidSessionProgress.fire({ type: 'tool_ready', session, toolCallId: 'tc-write-env-1', invocationMessage: 'Write .env', permissionKind: 'write', permissionPath: '/workspace/.env', confirmationTitle: 'Write .env' });
 				})();

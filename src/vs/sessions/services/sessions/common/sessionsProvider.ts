@@ -7,7 +7,7 @@ import { Event } from '../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction } from './session.js';
+import { IChat, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction } from './session.js';
 
 /**
  * Event fired when sessions change within a provider.
@@ -166,4 +166,21 @@ export interface ISessionsProvider {
 	 * @param options Options for the request, including the query and any attached context entries.
 	 */
 	sendAndCreateChat(sessionId: string, options: ISendRequestOptions): Promise<ISession>;
+
+	/**
+	 * Add a new empty chat to an existing session without sending a request.
+	 * The new chat is registered in the group model and can be used to compose
+	 * a message before sending.
+	 * @param sessionId The ID of the session to add a chat to.
+	 * @returns The newly created chat.
+	 */
+	addChat(sessionId: string): IChat;
+
+	/**
+	 * Send a request for an existing chat within a session.
+	 * @param sessionId The ID of the session containing the chat.
+	 * @param chatResource The resource URI of the chat to send the request for.
+	 * @param options Options for the request, including the query and any attached context entries.
+	 */
+	sendRequest(sessionId: string, chatResource: URI, options: ISendRequestOptions): Promise<ISession>;
 }

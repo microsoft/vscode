@@ -17,7 +17,7 @@ import { ChatFetchResponseType, ChatLocation, ChatResponse } from '../../chat/co
 import { getTextPart } from '../../chat/common/globalStringUtils';
 import { CHAT_MODEL, ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { ILogService } from '../../log/common/logService';
-import { isAnthropicContextEditingEnabled, isAnthropicToolSearchEnabled } from '../../networking/common/anthropic';
+import { isAnthropicContextEditingEnabled } from '../../networking/common/anthropic';
 import { FinishedCallback, getRequestId, ICopilotToolCall, OptionalChatRequestParams } from '../../networking/common/fetch';
 import { IFetcherService, Response } from '../../networking/common/fetcherService';
 import { createCapiRequestBody, IChatEndpoint, ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions } from '../../networking/common/networking';
@@ -199,7 +199,7 @@ export class ChatEndpoint implements IChatEndpoint {
 			if (!this.supportsAdaptiveThinking) {
 				betas.push('interleaved-thinking-2025-05-14');
 			}
-			if (isAnthropicToolSearchEnabled(this, this._configurationService)) {
+			if (this.supportsToolSearch) {
 				betas.push('advanced-tool-use-2025-11-20');
 			}
 			if (isAnthropicContextEditingEnabled(this, this._configurationService, this._expService)) {

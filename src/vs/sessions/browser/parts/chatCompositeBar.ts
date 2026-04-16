@@ -11,12 +11,15 @@ import { autorun } from '../../../base/common/observable.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
 import { PANEL_ACTIVE_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND } from '../../../workbench/common/theme.js';
 import { Action } from '../../../base/common/actions.js';
+import { ActionBar } from '../../../base/browser/ui/actionbar/actionbar.js';
+import { Codicon } from '../../../base/common/codicons.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
 import { IContextMenuService } from '../../../platform/contextview/browser/contextView.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { localize } from '../../../nls.js';
 import { IQuickInputService } from '../../../platform/quickinput/common/quickInput.js';
 import { chatBarBackground } from '../../common/theme.js';
-import { IChat } from '../../services/sessions/common/session.js';
+import { IChat, SessionStatus } from '../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../services/sessions/common/sessionsManagement.js';
 
 interface IChatTab {
@@ -106,6 +109,31 @@ export class ChatCompositeBar extends Disposable {
 		}));
 		tab.appendChild(labelEl);
 
+		// Track untitled state for styling (dirty dot + close button)
+		this._tabDisposables.add(autorun(reader => {
+			const status = chat.status.read(reader);
+			tab.classList.toggle('untitled', status === SessionStatus.Untitled);
+		}));
+
+		// Close action bar — only for non-main chats, visible on hover/active when untitled
+		if (!isMainChat) {
+			const closeAction = this._tabDisposables.add(new Action(
+				'chatCompositeBar.closeChat',
+				localize('closeChat', "Close"),
+				ThemeIcon.asClassName(Codicon.close),
+				true,
+				async () => {
+					const session = this._sessionsManagementService.activeSession.get();
+					if (session) {
+						await this._sessionsManagementService.deleteChat(session, chat.resource);
+					}
+				},
+			));
+			const actionBar = this._tabDisposables.add(new ActionBar(tab, { actionViewItemProvider: undefined }));
+			actionBar.push(closeAction, { icon: true, label: false });
+			actionBar.getContainer().classList.add('chat-composite-bar-tab-actions');
+		}
+
 		const indicator = $('.chat-composite-bar-tab-indicator');
 		tab.appendChild(indicator);
 
@@ -143,6 +171,11 @@ export class ChatCompositeBar extends Disposable {
 		}));
 
 		this._tabDisposables.add(addDisposableListener(tab, EventType.CONTEXT_MENU, (e: MouseEvent) => {
+			// No context menu for untitled chats
+			if (chat.status.get() === SessionStatus.Untitled) {
+				e.preventDefault();
+				return;
+			}
 			e.preventDefault();
 			e.stopPropagation();
 			const event = new StandardMouseEvent(getWindow(tab), e);

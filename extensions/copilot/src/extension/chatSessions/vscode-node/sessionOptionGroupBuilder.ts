@@ -549,7 +549,7 @@ export class SessionOptionGroupBuilder implements ISessionOptionGroupBuilder {
 	 */
 	async rebuildInputState(state: vscode.ChatSessionInputState, selectedFolderUri?: vscode.Uri): Promise<void> {
 		const newGroups = await this._buildGroupsOnce(state, selectedFolderUri);
-		if (!optionGroupsEqual(state.groups, newGroups)) {
+		if (!optionGroupsEqual(state.groups, newGroups) || selectedFolderUri) {
 			state.groups = newGroups;
 		}
 		if (selectedFolderUri) {

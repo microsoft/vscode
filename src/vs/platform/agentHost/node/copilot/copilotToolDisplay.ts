@@ -39,11 +39,13 @@ const enum CopilotToolName {
 
 	View = 'view',
 	Edit = 'edit',
-	Write = 'write',
+	Create = 'create',
 	Grep = 'grep',
 	Glob = 'glob',
-	Patch = 'patch',
+	ApplyPatch = 'apply_patch',
+	GitApplyPatch = 'git_apply_patch',
 	WebSearch = 'web_search',
+	WebFetch = 'web_fetch',
 	AskUser = 'ask_user',
 	ReportIntent = 'report_intent',
 }
@@ -54,7 +56,7 @@ interface ICopilotShellToolArgs {
 	timeout?: number;
 }
 
-/** Parameters for file tools (`view`, `edit`, `write`). */
+/** Parameters for file tools (`view`, `edit`, `create`). */
 interface ICopilotFileToolArgs {
 	path: string;
 }
@@ -75,8 +77,9 @@ interface ICopilotGlobToolArgs {
 /** Set of tool names that perform file edits. */
 const EDIT_TOOL_NAMES: ReadonlySet<string> = new Set([
 	CopilotToolName.Edit,
-	CopilotToolName.Write,
-	CopilotToolName.Patch,
+	CopilotToolName.Create,
+	CopilotToolName.ApplyPatch,
+	CopilotToolName.GitApplyPatch,
 ]);
 
 /**
@@ -161,11 +164,13 @@ export function getToolDisplayName(toolName: string): string {
 		case CopilotToolName.ListPowerShell: return localize('toolName.listShells', "List Shells");
 		case CopilotToolName.View: return localize('toolName.view', "View File");
 		case CopilotToolName.Edit: return localize('toolName.edit', "Edit File");
-		case CopilotToolName.Write: return localize('toolName.write', "Write File");
+		case CopilotToolName.Create: return localize('toolName.create', "Create File");
 		case CopilotToolName.Grep: return localize('toolName.grep', "Search");
 		case CopilotToolName.Glob: return localize('toolName.glob', "Find Files");
-		case CopilotToolName.Patch: return localize('toolName.patch', "Patch");
+		case CopilotToolName.ApplyPatch:
+		case CopilotToolName.GitApplyPatch: return localize('toolName.patch', "Patch");
 		case CopilotToolName.WebSearch: return localize('toolName.webSearch', "Web Search");
+		case CopilotToolName.WebFetch: return localize('toolName.webFetch', "Web Fetch");
 		case CopilotToolName.AskUser: return localize('toolName.askUser', "Ask User");
 		default: return toolName;
 	}
@@ -196,12 +201,12 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 			}
 			return localize('toolInvoke.edit', "Editing file");
 		}
-		case CopilotToolName.Write: {
+		case CopilotToolName.Create: {
 			const args = parameters as ICopilotFileToolArgs | undefined;
 			if (args?.path) {
-				return localize('toolInvoke.writeFile', "Writing to {0}", args.path);
+				return localize('toolInvoke.createFile', "Creating {0}", args.path);
 			}
-			return localize('toolInvoke.write', "Writing file");
+			return localize('toolInvoke.create', "Creating file");
 		}
 		case CopilotToolName.Grep: {
 			const args = parameters as ICopilotGrepToolArgs | undefined;
@@ -251,12 +256,12 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 			}
 			return localize('toolComplete.edit', "Edited file");
 		}
-		case CopilotToolName.Write: {
+		case CopilotToolName.Create: {
 			const args = parameters as ICopilotFileToolArgs | undefined;
 			if (args?.path) {
-				return localize('toolComplete.writeFile', "Wrote to {0}", args.path);
+				return localize('toolComplete.createFile', "Created {0}", args.path);
 			}
-			return localize('toolComplete.write', "Wrote file");
+			return localize('toolComplete.create', "Created file");
 		}
 		case CopilotToolName.Grep: {
 			const args = parameters as ICopilotGrepToolArgs | undefined;

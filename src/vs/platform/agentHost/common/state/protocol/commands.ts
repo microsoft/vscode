@@ -705,8 +705,8 @@ export interface IAuthenticateResult {
  *
  * The client calls this command whenever the user changes a significant input
  * (e.g. picks a working directory, toggles a property). Each response returns
- * the full current property set (not a delta). When `ready` is `true`, the
- * client may call `createSession` with the accumulated config.
+ * the full current property set (not a delta). The returned `values` contain
+ * server-resolved defaults to pass to `createSession`.
  *
  * @category Commands
  * @method resolveSessionConfig
@@ -722,7 +722,6 @@ export interface IAuthenticateResult {
  *
  * // Server → Client (git repo detected, offers worktree option)
  * { "jsonrpc": "2.0", "id": 5, "result": {
- *   "ready": true,
  *   "schema": {
  *     "type": "object",
  *     "properties": {
@@ -740,7 +739,6 @@ export interface IAuthenticateResult {
  *
  * // Server → Client (now requires branch selection)
  * { "jsonrpc": "2.0", "id": 6, "result": {
- *   "ready": false,
  *   "schema": {
  *     "type": "object",
  *     "properties": {
@@ -768,8 +766,6 @@ export interface IResolveSessionConfigParams {
  * Result of the `resolveSessionConfig` command.
  */
 export interface IResolveSessionConfigResult {
-	/** True when all required configuration is satisfied and `createSession` can be called */
-	ready: boolean;
 	/** JSON Schema describing available configuration properties given the current context */
 	schema: ISessionConfigSchema;
 	/** Current configuration values (echoed back with server-resolved defaults applied) */

@@ -9,6 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { removeAnsiEscapeCodes } from '../../../../base/common/strings.js';
 import * as platform from '../../../../base/common/platform.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { ILogService } from '../../../log/common/log.js';
 import { TerminalClaimKind, type ITerminalSessionClaim } from '../../common/state/protocol/state.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
@@ -64,6 +65,9 @@ export class ShellManager {
 	private readonly _shells = new Map<string, IManagedShell>();
 	private readonly _toolCallShells = new Map<string, string>();
 
+	private readonly _onDidAssociateTerminal = new Emitter<{ toolCallId: string; terminalUri: string; displayName: string }>();
+	readonly onDidAssociateTerminal: Event<{ toolCallId: string; terminalUri: string; displayName: string }> = this._onDidAssociateTerminal.event;
+
 	constructor(
 		private readonly _sessionUri: URI,
 		@IAgentHostTerminalManager private readonly _terminalManager: IAgentHostTerminalManager,
@@ -115,6 +119,11 @@ export class ShellManager {
 
 	private _trackToolCall(toolCallId: string, shellId: string): void {
 		this._toolCallShells.set(toolCallId, shellId);
+		const shell = this._shells.get(shellId);
+		if (shell) {
+			const displayName = shell.shellType === 'bash' ? 'Bash' : 'PowerShell';
+			this._onDidAssociateTerminal.fire({ toolCallId, terminalUri: shell.terminalUri, displayName });
+		}
 	}
 
 	getTerminalUriForToolCall(toolCallId: string): string | undefined {
@@ -216,6 +225,88 @@ function makeFailureResult(text: string, error?: string): ToolResultObject {
 }
 
 async function executeCommandInShell(
+	shell: IManagedShell,
+	command: string,
+	timeoutMs: number,
+	terminalManager: IAgentHostTerminalManager,
+	logService: ILogService,
+): Promise<ToolResultObject> {
+	if (terminalManager.supportsCommandDetection(shell.terminalUri)) {
+		return executeCommandWithShellIntegration(shell, command, timeoutMs, terminalManager, logService);
+	}
+	return executeCommandWithSentinel(shell, command, timeoutMs, terminalManager, logService);
+}
+
+/**
+ * Execute a command using shell integration (OSC 633) for completion detection.
+ * No sentinel echo is injected — the shell's own command-finished signal
+ * provides the exit code and cleanly delineated output.
+ */
+async function executeCommandWithShellIntegration(
+	shell: IManagedShell,
+	command: string,
+	timeoutMs: number,
+	terminalManager: IAgentHostTerminalManager,
+	logService: ILogService,
+): Promise<ToolResultObject> {
+	const disposables = new DisposableStore();
+
+	terminalManager.writeInput(shell.terminalUri, `${command}\r`);
+
+	return new Promise<ToolResultObject>(resolve => {
+		let resolved = false;
+		const finish = (result: ToolResultObject) => {
+			if (resolved) {
+				return;
+			}
+			resolved = true;
+			disposables.dispose();
+			resolve(result);
+		};
+
+		disposables.add(terminalManager.onCommandFinished(shell.terminalUri, event => {
+			const output = prepareOutputForModel(event.output);
+			const exitCode = event.exitCode ?? 0;
+			logService.info(`[ShellTool] Command completed (shell integration) with exit code ${exitCode}`);
+			if (exitCode === 0) {
+				finish(makeSuccessResult(`Exit code: ${exitCode}\n${output}`));
+			} else {
+				finish(makeFailureResult(`Exit code: ${exitCode}\n${output}`));
+			}
+		}));
+
+		disposables.add(terminalManager.onExit(shell.terminalUri, (exitCode: number) => {
+			logService.info(`[ShellTool] Shell exited unexpectedly with code ${exitCode}`);
+			const fullContent = terminalManager.getContent(shell.terminalUri) ?? '';
+			const output = prepareOutputForModel(fullContent);
+			finish(makeFailureResult(`Shell exited with code ${exitCode}\n${output}`));
+		}));
+
+		disposables.add(terminalManager.onClaimChanged(shell.terminalUri, (claim) => {
+			if (claim.kind === TerminalClaimKind.Session && !claim.toolCallId) {
+				logService.info(`[ShellTool] Continuing in background (claim narrowed)`);
+				finish(makeSuccessResult('The user chose to continue this command in the background. The terminal is still running.'));
+			}
+		}));
+
+		const timer = setTimeout(() => {
+			logService.warn(`[ShellTool] Command timed out after ${timeoutMs}ms`);
+			const fullContent = terminalManager.getContent(shell.terminalUri) ?? '';
+			const output = prepareOutputForModel(fullContent);
+			finish(makeFailureResult(
+				`Command timed out after ${Math.round(timeoutMs / 1000)}s. Partial output:\n${output}`,
+				'timeout',
+			));
+		}, timeoutMs);
+		disposables.add(toDisposable(() => clearTimeout(timer)));
+	});
+}
+
+/**
+ * Fallback: execute a command using a sentinel echo to detect completion.
+ * Used when shell integration is not available.
+ */
+async function executeCommandWithSentinel(
 	shell: IManagedShell,
 	command: string,
 	timeoutMs: number,

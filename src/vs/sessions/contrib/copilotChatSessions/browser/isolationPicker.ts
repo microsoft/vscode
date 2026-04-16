@@ -66,7 +66,8 @@ export class IsolationPicker extends Disposable {
 		this._register(autorun(reader => {
 			const session = this.sessionsManagementService.activeSession.read(reader);
 			const isLoading = session?.loading.read(reader);
-			const providerSession = session ? this.sessionsProvidersService.getProvider<CopilotChatSessionsProvider>(session.providerId)?.getSession(session.sessionId) : undefined;
+			const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
+			const providerSession = provider instanceof CopilotChatSessionsProvider ? provider.getSession(session!.sessionId) : undefined;
 			if (providerSession) {
 				const gitRepo = providerSession.gitRepository;
 				const repoState = gitRepo?.state?.read?.(reader);
@@ -84,7 +85,8 @@ export class IsolationPicker extends Disposable {
 
 	private _getSessionIsolationMode(): IsolationMode {
 		const session = this.sessionsManagementService.activeSession.get();
-		const providerSession = session ? this.sessionsProvidersService.getProvider<CopilotChatSessionsProvider>(session.providerId)?.getSession(session.sessionId) : undefined;
+		const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
+		const providerSession = provider instanceof CopilotChatSessionsProvider ? provider.getSession(session!.sessionId) : undefined;
 		return providerSession?.isolationMode.get() ?? 'worktree';
 	}
 
@@ -165,7 +167,8 @@ export class IsolationPicker extends Disposable {
 
 	private _setModeOnSession(mode: IsolationMode): void {
 		const session = this.sessionsManagementService.activeSession.get();
-		const providerSession = session ? this.sessionsProvidersService.getProvider<CopilotChatSessionsProvider>(session.providerId)?.getSession(session.sessionId) : undefined;
+		const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
+		const providerSession = provider instanceof CopilotChatSessionsProvider ? provider.getSession(session!.sessionId) : undefined;
 		providerSession?.setIsolationMode(mode);
 	}
 

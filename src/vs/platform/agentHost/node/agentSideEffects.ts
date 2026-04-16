@@ -12,7 +12,7 @@ import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
-import { DEFAULT_SESSION_TITLE, IAgent, IAgentAttachment, IAgentProgressEvent } from '../common/agentService.js';
+import { DEFAULT_SESSION_TITLE, IAgent, IAgentAttachment, IAgentProgressEvent, type IAgentToolReadyEvent } from '../common/agentService.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { ActionType, ISessionAction } from '../common/state/sessionActions.js';
@@ -165,7 +165,7 @@ export class AgentSideEffects extends Disposable {
 	 * dispatched to the state manager), or `false` to proceed normally.
 	 */
 	private _tryAutoApproveToolReady(
-		e: { readonly toolCallId: string; readonly session: URI; readonly permissionKind?: string; readonly permissionPath?: string; readonly toolInput?: string },
+		e: { readonly toolCallId: string; readonly session: URI; readonly permissionKind?: IAgentToolReadyEvent['permissionKind']; readonly permissionPath?: string; readonly toolInput?: string },
 		sessionKey: ProtocolURI,
 		agent: IAgent,
 	): boolean {
@@ -180,10 +180,23 @@ export class AgentSideEffects extends Disposable {
 			return true;
 		}
 
+		// Read auto-approval: approve reads inside the session's working directory.
+		if (e.permissionKind === 'read' && e.permissionPath) {
+			const workDir = sessionState?.summary.workingDirectory;
+			const workingDirectory = workDir ? URI.parse(workDir) : undefined;
+			if (workingDirectory && extUriBiasedIgnorePathCase.isEqualOrParent(normalizePath(URI.file(e.permissionPath)), workingDirectory)) {
+				this._logService.trace(`[AgentSideEffects] Auto-approving read of ${e.permissionPath}`);
+				this._toolCallAgents.delete(`${sessionKey}:${e.toolCallId}`);
+				agent.respondToPermissionRequest(e.toolCallId, true);
+				return true;
+			}
+			return false;
+		}
+
 		// Write auto-approval: only within the session's working directory,
 		// then apply the default glob patterns for protected files.
 		if (e.permissionKind === 'write' && e.permissionPath) {
-			const workDir = sessionState?.workingDirectory ?? sessionState?.summary.workingDirectory;
+			const workDir = sessionState?.summary.workingDirectory;
 			const workingDirectory = workDir ? URI.parse(workDir) : undefined;
 			if (workingDirectory && extUriBiasedIgnorePathCase.isEqualOrParent(normalizePath(URI.file(e.permissionPath)), workingDirectory)) {
 				if (this._shouldAutoApproveEdit(e.permissionPath)) {

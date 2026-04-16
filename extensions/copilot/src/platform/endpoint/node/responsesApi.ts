@@ -20,6 +20,7 @@ import { FinishedCallback, getRequestId, IResponseDelta, OpenAiResponsesFunction
 import { IChatEndpoint, ICreateEndpointBodyOptions, IEndpointBody } from '../../networking/common/networking';
 import { ChatCompletion, FinishedCompletionReason, modelsWithoutResponsesContextManagement, openAIContextManagementCompactionType, OpenAIContextManagementResponse, rawMessageToCAPI, TokenLogProb } from '../../networking/common/openai';
 import { sendEngineMessagesTelemetry, sendResponsesApiCompactionTelemetry } from '../../networking/node/chatStream';
+import { IChatWebSocketManager } from '../../networking/node/chatWebSocketManager';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { TelemetryData } from '../../telemetry/common/telemetryData';
@@ -28,7 +29,6 @@ import { rawPartAsCompactionData } from '../common/compactionDataContainer';
 import { rawPartAsPhaseData } from '../common/phaseDataContainer';
 import { getIndexOfStatefulMarker, getStatefulMarkerAndIndex } from '../common/statefulMarkerContainer';
 import { rawPartAsThinkingData } from '../common/thinkingDataContainer';
-import { IChatWebSocketManager } from '../../networking/node/chatWebSocketManager';
 
 export function getResponsesApiCompactionThreshold(configService: IConfigurationService, expService: IExperimentationService, endpoint: IChatEndpoint): number | undefined {
 	const contextManagementEnabled = configService.getExperimentBasedConfig(ConfigKey.ResponsesApiContextManagementEnabled, expService) && !modelsWithoutResponsesContextManagement.has(endpoint.family);
@@ -125,9 +125,17 @@ export function getResponsesApiCompactionThresholdFromBody(body: Pick<IEndpointB
 	return undefined;
 }
 
-type ResponseOutputMessageWithPhase = OpenAI.Responses.ResponseOutputMessage & {
+interface ResponseInputAssistantTextContentPart {
+	type: 'output_text';
+	text: string;
+}
+
+interface ResponseInputAssistantMessageWithPhase {
+	type: 'message';
+	role: 'assistant';
+	content: ResponseInputAssistantTextContentPart[];
 	phase?: string;
-};
+}
 
 interface ResponseOutputItemWithPhase {
 	phase?: string;
@@ -216,18 +224,17 @@ function rawMessagesToResponseAPI(modelId: string, messages: readonly Raw.ChatMe
 				if (message.content.length) {
 					input.push(...extractCompactionData(message.content));
 					input.push(...extractThinkingData(message.content));
-					const asstContent = message.content.map(rawContentToResponsesOutputContent).filter(isDefined);
+					const asstContent = message.content.map(rawContentToResponsesAssistantContent).filter(isDefined);
 					if (asstContent.length) {
-						const assistantMessage: ResponseOutputMessageWithPhase = {
+						const assistantMessage: ResponseInputAssistantMessageWithPhase = {
 							role: 'assistant',
 							content: asstContent,
-							// I don't think this needs to be round-tripped.
-							id: 'msg_123',
-							status: 'completed',
 							type: 'message',
 							phase: extractPhaseData(message.content),
 						};
-						input.push(assistantMessage);
+						// The Responses API expects previous assistant message content as output_text/refusal,
+						// but the SDK's ResponseOutputMessage type requires response-only id/status fields.
+						input.push(assistantMessage as OpenAI.Responses.ResponseInputItem);
 					}
 				}
 				if (message.toolCalls) {
@@ -313,11 +320,11 @@ function rawContentToResponsesContent(part: Raw.ChatCompletionContentPart): Open
 	}
 }
 
-function rawContentToResponsesOutputContent(part: Raw.ChatCompletionContentPart): OpenAI.Responses.ResponseOutputText | OpenAI.Responses.ResponseOutputRefusal | undefined {
+function rawContentToResponsesAssistantContent(part: Raw.ChatCompletionContentPart): Pick<OpenAI.Responses.ResponseOutputText, 'type' | 'text'> | undefined {
 	switch (part.type) {
 		case Raw.ChatCompletionContentPartKind.Text:
 			if (part.text.trim()) {
-				return { type: 'output_text', text: part.text, annotations: [] };
+				return { type: 'output_text', text: part.text };
 			}
 	}
 }

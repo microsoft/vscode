@@ -80,7 +80,7 @@ function startAgentHost(): void {
 	// Create the real service implementation that lives in this process
 	let agentService: AgentService;
 	try {
-		agentService = new AgentService(logService, fileService, sessionDataService);
+		agentService = new AgentService(logService, fileService, sessionDataService, productService);
 		const pluginManager = new AgentPluginManager(URI.file(environmentService.userDataPath), fileService, logService);
 		const diServices = new ServiceCollection();
 		diServices.set(ILogService, logService);

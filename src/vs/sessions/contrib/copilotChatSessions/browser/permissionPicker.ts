@@ -67,7 +67,10 @@ export class PermissionPicker extends Disposable {
 			if (!session) {
 				return;
 			}
-			this.sessionsProvidersService.getProvider<CopilotChatSessionsProvider>(session.providerId)?.getSession(session.sessionId)?.setPermissionLevel(level);
+			const provider = this.sessionsProvidersService.getProvider(session.providerId);
+			if (provider instanceof CopilotChatSessionsProvider) {
+				provider.getSession(session.sessionId)?.setPermissionLevel(level);
+			}
 		}));
 	}
 
@@ -193,7 +196,6 @@ export class PermissionPicker extends Disposable {
 			undefined,
 			[],
 			{
-				getAriaLabel: (item) => item.label ?? '',
 				getWidgetAriaLabel: () => localize('permissionPicker.ariaLabel', "Permission Picker"),
 			},
 			listOptions,

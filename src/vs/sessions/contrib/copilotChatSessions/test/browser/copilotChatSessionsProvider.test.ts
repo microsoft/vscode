@@ -13,7 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
@@ -116,12 +116,21 @@ function createProvider(
 	instantiationService.stub(IConfigurationService, configService);
 	instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
 	instantiationService.stub(IFileDialogService, {});
+	instantiationService.stub(IDialogService, {
+		confirm: async () => ({ confirmed: true }),
+	});
 	instantiationService.stub(ICommandService, {
 		executeCommand: async (_id: string, ...args: any[]) => {
-			// Simulate 'github.copilot.cli.sessions.delete' removing the session
-			const opts = args[0];
-			if (opts?.resource) {
-				model.removeSession(opts.resource);
+			// Simulate 'agents.github.copilot.cli.deleteSessions' removing sessions
+			const items = args[0];
+			if (Array.isArray(items)) {
+				for (const item of items) {
+					if (item?.resource) {
+						model.removeSession(item.resource);
+					}
+				}
+			} else if (items?.resource) {
+				model.removeSession(items.resource);
 			}
 			return undefined;
 		},
@@ -189,6 +198,9 @@ function createProviderForSendTests(
 	instantiationService.stub(IConfigurationService, configService);
 	instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
 	instantiationService.stub(IFileDialogService, {});
+	instantiationService.stub(IDialogService, {
+		confirm: async () => ({ confirmed: true }),
+	});
 	instantiationService.stub(ICommandService, { executeCommand: async () => undefined });
 	instantiationService.stub(IAgentSessionsService, {
 		model: model as unknown as IAgentSessionsModel,

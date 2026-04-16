@@ -53,10 +53,7 @@ suite('Protocol WebSocket - Session Config', function () {
 			workingDirectory,
 		});
 
-		assert.deepStrictEqual({ ready: initial.ready, values: initial.values }, {
-			ready: true,
-			values: { isolation: 'worktree', branch: 'main' },
-		});
+		assert.deepStrictEqual(initial.values, { isolation: 'worktree', branch: 'main' });
 		assert.deepStrictEqual(Object.keys(initial.schema.properties), ['isolation', 'branch']);
 		assert.deepStrictEqual(initial.schema.properties.branch.enum, ['main']);
 		assert.strictEqual(initial.schema.properties.branch.enumDynamic, true);
@@ -68,10 +65,7 @@ suite('Protocol WebSocket - Session Config', function () {
 			config: { isolation: 'folder', branch: 'feature/config' },
 		});
 
-		assert.deepStrictEqual({ ready: folder.ready, values: folder.values }, {
-			ready: true,
-			values: { isolation: 'folder', branch: 'main' },
-		});
+		assert.deepStrictEqual(folder.values, { isolation: 'folder', branch: 'main' });
 		assert.strictEqual(folder.schema.properties.branch.enumDynamic, false);
 		assert.strictEqual(folder.schema.properties.branch.readOnly, true);
 	});

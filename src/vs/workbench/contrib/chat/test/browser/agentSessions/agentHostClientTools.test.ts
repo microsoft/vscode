@@ -404,6 +404,7 @@ suite('AgentHostClientTools', () => {
 			instantiationService.stub(ITerminalChatService, {
 				onDidContinueInBackground: Event.None,
 				registerTerminalInstanceWithToolSession: () => { },
+				getAhpCommandSource: () => undefined,
 			});
 			instantiationService.stub(IAgentHostTerminalService, {
 				reviveTerminal: async () => undefined!,

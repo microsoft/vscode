@@ -158,7 +158,7 @@ async function main(): Promise<void> {
 	const sessionDataService = new SessionDataService(URI.file(environmentService.userDataPath), fileService, logService);
 
 	// Create the agent service (owns AgentHostStateManager + AgentSideEffects internally)
-	const agentService = new AgentService(logService, fileService, sessionDataService);
+	const agentService = new AgentService(logService, fileService, sessionDataService, productService);
 	disposables.add(agentService);
 
 	// Register agents

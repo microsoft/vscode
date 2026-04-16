@@ -63,6 +63,9 @@ export const enum ActionType {
 	TerminalCwdChanged = 'terminal/cwdChanged',
 	TerminalExited = 'terminal/exited',
 	TerminalCleared = 'terminal/cleared',
+	TerminalCommandDetectionAvailable = 'terminal/commandDetectionAvailable',
+	TerminalCommandExecuted = 'terminal/commandExecuted',
+	TerminalCommandFinished = 'terminal/commandFinished',
 }
 
 // ─── Action Envelope ─────────────────────────────────────────────────────────
@@ -991,6 +994,74 @@ export interface ITerminalClearedAction {
 	terminal: URI;
 }
 
+/**
+ * Shell integration has loaded and the terminal now supports command
+ * detection. The server dispatches this when shell integration becomes
+ * available (which may happen asynchronously after the terminal is created).
+ *
+ * Clients MUST NOT assume command detection is available until this action
+ * (or `terminal/commandExecuted`) has been received.
+ *
+ * @category Terminal Actions
+ * @version 1
+ */
+export interface ITerminalCommandDetectionAvailableAction {
+	type: ActionType.TerminalCommandDetectionAvailable;
+	/** Terminal URI */
+	terminal: URI;
+}
+
+/**
+ * A command has been submitted to the shell and is now executing.
+ * All subsequent `terminal/data` actions (until the matching
+ * `terminal/commandFinished`) constitute this command's output.
+ *
+ * @category Terminal Actions
+ * @version 1
+ */
+export interface ITerminalCommandExecutedAction {
+	type: ActionType.TerminalCommandExecuted;
+	/** Terminal URI */
+	terminal: URI;
+	/**
+	 * Stable identifier for this command, scoped to the terminal URI.
+	 * Allows correlating `commandExecuted` → `commandFinished` pairs.
+	 */
+	commandId: string;
+	/** The command line text that was submitted */
+	commandLine: string;
+	/**
+	 * Unix timestamp (ms) of when the command started executing, as measured
+	 * on the server.
+	 */
+	timestamp: number;
+}
+
+/**
+ * A command has finished executing.
+ *
+ * The sequence of `terminal/data` actions between the preceding
+ * `terminal/commandExecuted` (same `commandId`) and this action constitutes
+ * the complete output of the command.
+ *
+ * @category Terminal Actions
+ * @version 1
+ */
+export interface ITerminalCommandFinishedAction {
+	type: ActionType.TerminalCommandFinished;
+	/** Terminal URI */
+	terminal: URI;
+	/** Matches the `commandId` from the corresponding `commandExecuted` */
+	commandId: string;
+	/** Shell exit code. `undefined` if the shell did not report one. */
+	exitCode?: number;
+	/**
+	 * Wall-clock duration of the command in milliseconds, as measured by the
+	 * shell integration script on the server side.
+	 */
+	durationMs?: number;
+}
+
 // ─── Discriminated Union ─────────────────────────────────────────────────────
 
 /**
@@ -1042,4 +1113,7 @@ export type IStateAction =
 	| ITerminalTitleChangedAction
 	| ITerminalCwdChangedAction
 	| ITerminalExitedAction
-	| ITerminalClearedAction;
+	| ITerminalClearedAction
+	| ITerminalCommandDetectionAvailableAction
+	| ITerminalCommandExecutedAction
+	| ITerminalCommandFinishedAction;

@@ -655,16 +655,6 @@ suite('stripToolSearchMessages', () => {
 		}
 	});
 
-	test('does not strip server-side tool_search_tool_regex', () => {
-		const messages = [
-			makeUserMessage(),
-			makeAssistantMessage([{ id: 'tc1', name: 'tool_search_tool_regex' }]),
-			makeToolResult('tc1'),
-		];
-		const result = stripToolSearchMessages(messages);
-		expect(result).toBe(messages);
-	});
-
 	test('preserves non-tool messages', () => {
 		const messages = [
 			makeUserMessage('first'),

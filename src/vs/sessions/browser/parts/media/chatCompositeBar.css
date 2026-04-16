@@ -54,6 +54,10 @@
 	background-color: var(--vscode-activityBarTop-activeBackground, color-mix(in srgb, var(--vscode-sideBarTitle-foreground) 5%, transparent));
 }
 
+.chat-composite-bar-tab.untitled {
+	padding-right: 4px;
+}
+
 /* Hide the underline indicator — mirrors auxiliarybar active-item-indicator hiding */
 .chat-composite-bar-tab-indicator {
 	display: none;
@@ -62,4 +66,27 @@
 .chat-composite-bar-tab:focus-visible {
 	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: -1px;
+}
+
+/* Close action bar — hidden by default, shown on hover/active for untitled chats only */
+.chat-composite-bar-tab-actions {
+	display: none;
+	margin-left: 2px;
+}
+
+.chat-composite-bar-tab-actions .action-item .action-label {
+	width: 16px;
+	height: 16px;
+	border-radius: 4px;
+	color: var(--chat-tab-inactive-foreground, currentColor);
+}
+
+.chat-composite-bar-tab.untitled:hover .chat-composite-bar-tab-actions,
+.chat-composite-bar-tab.untitled.active .chat-composite-bar-tab-actions {
+	display: flex;
+}
+
+.chat-composite-bar-tab-actions .action-item .action-label:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--chat-tab-active-foreground);
 }

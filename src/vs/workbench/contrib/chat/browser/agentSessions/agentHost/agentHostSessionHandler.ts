@@ -42,7 +42,7 @@ import { getAgentHostIcon } from '../agentSessions.js';
 import { AgentHostEditingSession } from './agentHostEditingSession.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
-import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, getTerminalContentUri, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, type IToolCallFileEdit } from './stateToProgressAdapter.js';
+import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, getTerminalContentUri, makeAhpTerminalToolSessionId, parseAhpTerminalToolSessionId, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, type IToolCallFileEdit } from './stateToProgressAdapter.js';
 import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 
 // =============================================================================
@@ -69,20 +69,6 @@ interface ITurnProcessingContext {
 	readonly cancellationToken: CancellationToken;
 	/** Called when a completed tool produces file edits. */
 	readonly onFileEdits?: (tc: IToolCallState, fileEdits: IToolCallFileEdit[]) => void;
-}
-
-function makeAhpTerminalToolSessionId(terminalUri: string, session: URI): string {
-	return JSON.stringify({ terminal: terminalUri, session: session.toString() });
-}
-
-function parseAhpTerminalToolSessionId(id: string): { terminal: string; session: string } | undefined {
-	try {
-		const parsed = JSON.parse(id);
-		if (typeof parsed?.terminal === 'string' && typeof parsed?.session === 'string') {
-			return parsed;
-		}
-	} catch { /* not an AHP terminal session ID */ }
-	return undefined;
 }
 
 /**
@@ -147,14 +133,12 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 	private readonly _onDidStartServerRequest = this._register(new Emitter<{ prompt: string }>());
 	readonly onDidStartServerRequest = this._onDidStartServerRequest.event;
 
-	readonly requestHandler: IChatSession['requestHandler'];
 	interruptActiveResponseCallback: IChatSession['interruptActiveResponseCallback'];
 	readonly forkSession: IChatSession['forkSession'];
 
 	constructor(
 		readonly sessionResource: URI,
 		readonly history: readonly IChatSessionHistoryItem[],
-		private readonly _sendRequest: (request: IChatAgentRequest, progress: (parts: IChatProgress[]) => void, token: CancellationToken) => Promise<void>,
 		private readonly _forkSession: ((request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken) => Promise<IChatSessionItem>),
 		initialProgress: IChatProgress[] | undefined,
 		onDispose: () => void,
@@ -170,13 +154,6 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 
 		this._register(toDisposable(() => this._onWillDispose.fire()));
 		this._register(toDisposable(onDispose));
-
-		this.requestHandler = async (request, progress, _history, cancellationToken) => {
-			this._logService.info('[AgentHost] requestHandler called');
-			this.isCompleteObs.set(false, undefined);
-			await this._sendRequest(request, progress, cancellationToken);
-			this.isCompleteObs.set(true, undefined);
-		};
 
 		// Provide interrupt callback when reconnecting to an active turn or
 		// when this is a brand-new session (no history yet).
@@ -425,7 +402,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				const sessionState = this._getSessionState(resolvedSession.toString());
 				if (sessionState) {
 					const modelId = this._toLanguageModelId(sessionResource, sessionState.summary.model);
-					history.push(...turnsToHistory(sessionState.turns, this._config.agentId, modelId));
+					history.push(...turnsToHistory(resolvedSession, sessionState.turns, this._config.agentId, modelId));
 
 					// Enrich history with inner tool calls from subagent
 					// child sessions. Subscribes to each child session so
@@ -459,7 +436,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 							parts: [],
 							participant: this._config.agentId,
 						});
-						initialProgress = activeTurnToProgress(sessionState.activeTurn);
+						initialProgress = activeTurnToProgress(resolvedSession, sessionState.activeTurn);
 						this._logService.info(`[AgentHost] Reconnecting to active turn ${activeTurnId} for session ${resolvedSession.toString()}`);
 					}
 				}
@@ -475,20 +452,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			AgentHostChatSession,
 			sessionResource,
 			history,
-			async (request: IChatAgentRequest, progress: (parts: IChatProgress[]) => void, token: CancellationToken) => {
-				// todo@connor4312, I think IChatSession.requestHandler is actually
-				// dead code and I don't believe this is ever called.
-				const backendSession = resolvedSession ?? await this._createAndSubscribe(sessionResource, request.userSelectedModelId, undefined, request.agentHostSessionConfig);
-				if (!resolvedSession) {
-					resolvedSession = backendSession;
-					this._sessionToBackend.set(sessionResource, backendSession);
-				}
-				// For existing sessions, set up pending message sync on the first turn
-				// (after the ChatModel becomes available in the ChatService).
-				this._ensurePendingMessageSubscription(sessionResource, backendSession);
-				return this._handleTurn(backendSession, request, progress, token);
-			},
-			(request, token) => {
+			(request: IChatSessionRequestHistoryItem | undefined, token: CancellationToken) => {
 				resolvedSession ??= this._sessionToBackend.get(sessionResource);
 				if (!resolvedSession) {
 					throw new BugIndicatingError('Cannot fork session before the initial request');
@@ -1104,7 +1068,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const existingState = existing.state.get();
 			if (existingState.type !== IChatToolInvocation.StateKind.WaitingForConfirmation) {
 				existing.didExecuteTool(undefined);
-				const confirmInvocation = toolCallStateToInvocation(tc);
+				const confirmInvocation = toolCallStateToInvocation(tc, undefined, ctx.backendSession);
 				ctx.activeToolInvocations.set(toolCallId, confirmInvocation);
 				ctx.progress([confirmInvocation]);
 				this._awaitToolConfirmation(confirmInvocation, toolCallId, ctx.backendSession, ctx.turnId, ctx.cancellationToken);
@@ -1131,7 +1095,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// Running was skipped due to throttling and terminal content
 			// only appears at Completed time.
 			this._reviveTerminalIfNeeded(existing, tc, ctx.backendSession);
-			fileEdits = finalizeToolInvocation(existing, tc);
+			fileEdits = finalizeToolInvocation(existing, tc, ctx.backendSession);
 		}
 
 		return { invocation: existing, fileEdits };
@@ -1260,6 +1224,18 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const existing = invocation.toolSpecificData?.kind === 'terminal'
 				? invocation.toolSpecificData as IChatTerminalToolInvocationData
 				: undefined;
+
+			// Resolve the terminalCommandId from the AHP command source
+			let terminalCommandId = existing?.terminalCommandId;
+			if (!terminalCommandId) {
+				const source = this._terminalChatService.getAhpCommandSource(sessionId);
+				if (source) {
+					// Use the executing command or the most recent completed command
+					const cmd = source.executingCommandObject ?? source.commands[source.commands.length - 1];
+					terminalCommandId = cmd?.id;
+				}
+			}
+
 			invocation.toolSpecificData = {
 				...existing,
 				kind: 'terminal',
@@ -1267,6 +1243,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				language: 'shellscript',
 				terminalToolSessionId: sessionId,
 				terminalCommandUri: URI.parse(terminalUri),
+				terminalCommandId,
 			};
 		});
 	}
@@ -1321,7 +1298,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						let existing = ctx.activeToolInvocations.get(tc.toolCallId);
 
 						if (!existing) {
-							existing = toolCallStateToInvocation(tc);
+							existing = toolCallStateToInvocation(tc, undefined, ctx.backendSession);
 							ctx.activeToolInvocations.set(tc.toolCallId, existing);
 							ctx.progress([existing]);
 
@@ -1585,7 +1562,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 									if (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled) {
 										const completedTc = tc as ICompletedToolCall;
 										const fileEditParts = completedToolCallToEditParts(completedTc);
-										const serialized = completedToolCallToSerialized(completedTc, toolCallId);
+										const serialized = completedToolCallToSerialized(completedTc, toolCallId, URI.parse(childSessionUri));
 										if (fileEditParts.length > 0) {
 											serialized.presentation = ToolInvocationPresentation.Hidden;
 										}
@@ -1636,7 +1613,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					let existing = activeChildToolInvocations.get(tc.toolCallId);
 
 					if (!existing) {
-						existing = toolCallStateToInvocation(tc, parentToolCallId);
+						existing = toolCallStateToInvocation(tc, parentToolCallId, URI.parse(childSessionUri));
 						activeChildToolInvocations.set(tc.toolCallId, existing);
 						emitProgress([existing]);
 
@@ -1647,7 +1624,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						const existingState = existing.state.get();
 						if (existingState.type !== IChatToolInvocation.StateKind.WaitingForConfirmation) {
 							existing.didExecuteTool(undefined);
-							const confirmInvocation = toolCallStateToInvocation(tc, parentToolCallId);
+							const confirmInvocation = toolCallStateToInvocation(tc, parentToolCallId, URI.parse(childSessionUri));
 							activeChildToolInvocations.set(tc.toolCallId, confirmInvocation);
 							emitProgress([confirmInvocation]);
 							this._awaitToolConfirmation(confirmInvocation, tc.toolCallId, URI.parse(childSessionUri), turnId, childCts.token);
@@ -1657,7 +1634,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					}
 
 					if (existing && (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled) && !IChatToolInvocation.isComplete(existing)) {
-						finalizeToolInvocation(existing, tc);
+						finalizeToolInvocation(existing, tc, URI.parse(childSessionUri));
 					}
 				}
 			}
@@ -1889,11 +1866,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 */
 	private async _ensureTerminalInstance(terminalUri: string, backendSession: URI): Promise<string> {
 		const terminalToolSessionId = makeAhpTerminalToolSessionId(terminalUri, backendSession);
-		const instance = await this._agentHostTerminalService.reviveTerminal(
+		const parsedUri = URI.parse(terminalUri);
+		await this._agentHostTerminalService.reviveTerminal(
 			this._config.connection,
-			URI.parse(terminalUri),
+			parsedUri,
+			terminalToolSessionId
 		);
-		this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, instance);
+
 		return terminalToolSessionId;
 	}
 
