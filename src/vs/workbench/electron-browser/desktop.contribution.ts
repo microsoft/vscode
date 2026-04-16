@@ -210,7 +210,7 @@ import product from '../../platform/product/common/product.js';
 			'window.zoomPerWindow': {
 				'type': 'boolean',
 				'default': true,
-				'markdownDescription': localize({ comment: ['{0} will be a setting name rendered as a link'], key: 'zoomPerWindow' }, "Controls if the 'Zoom In' and 'Zoom Out' commands apply the zoom level to all windows or only the active window. See {0} for configuring a default zoom level for all windows.", '`#window.zoomLevel#`'),
+				'markdownDescription': localize({ comment: ['{0} will be a setting name rendered as a link'], key: 'zoomPerWindow' }, "Controls whether the 'Zoom In' and 'Zoom Out' commands apply the zoom level to all windows or only the active window. See {0} for configuring a default zoom level for all windows.", '`#window.zoomLevel#`'),
 				tags: ['accessibility']
 			},
 			'window.newWindowDimensions': {
@@ -302,7 +302,7 @@ import product from '../../platform/product/common/product.js';
 			'window.nativeFullScreen': {
 				'type': 'boolean',
 				'default': true,
-				'description': localize('window.nativeFullScreen', "Controls if native full-screen should be used on macOS. Disable this option to prevent macOS from creating a new space when going full-screen."),
+				'description': localize('window.nativeFullScreen', "Controls whether native full-screen should be used on macOS. Disable this option to prevent macOS from creating a new space when going full-screen."),
 				'scope': ConfigurationScope.APPLICATION,
 				'included': isMacintosh
 			},

@@ -62,7 +62,7 @@ const resourceLabelFormattersExtPoint = ExtensionsRegistry.registerExtensionPoin
 						},
 						tildify: {
 							type: 'boolean',
-							description: localize('vscode.extension.contributes.resourceLabelFormatters.tildify', "Controls if the start of the uri label should be tildified when possible.")
+							description: localize('vscode.extension.contributes.resourceLabelFormatters.tildify', "Controls whether the start of the uri label should be tildified when possible.")
 						},
 						workspaceSuffix: {
 							type: 'string',

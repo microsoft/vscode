@@ -1460,7 +1460,7 @@ class EditorAccessibilitySupport extends BaseEditorOption<EditorOption.accessibi
 				],
 				default: 'auto',
 				tags: ['accessibility'],
-				description: nls.localize('accessibilitySupport', "Controls if the UI should run in a mode where it is optimized for screen readers.")
+				description: nls.localize('accessibilitySupport', "Controls whether the UI should run in a mode where it is optimized for screen readers.")
 			}
 		);
 	}
@@ -1526,7 +1526,7 @@ class EditorComments extends BaseEditorOption<EditorOption.comments, IEditorComm
 				'editor.comments.ignoreEmptyLines': {
 					type: 'boolean',
 					default: defaults.ignoreEmptyLines,
-					description: nls.localize('comments.ignoreEmptyLines', 'Controls if empty lines should be ignored with toggle, add or remove actions for line comments.')
+					description: nls.localize('comments.ignoreEmptyLines', 'Controls whether empty lines should be ignored with toggle, add or remove actions for line comments.')
 				},
 			}
 		);
