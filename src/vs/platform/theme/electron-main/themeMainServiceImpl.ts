@@ -148,7 +148,7 @@ export class ThemeMainService extends Disposable implements IThemeMainService {
 		}
 
 		// high contrast is set if one of shouldUseInvertedColorScheme or shouldUseHighContrastColors is set,
-		// reflecting the 'Invert colours' and `Increase contrast` settings in MacOS
+		// reflecting the 'Invert colors' and `Increase contrast` settings in MacOS
 		else if (isMacintosh) {
 			if (electron.nativeTheme.shouldUseInvertedColorScheme || electron.nativeTheme.shouldUseHighContrastColors) {
 				return { dark: electron.nativeTheme.shouldUseDarkColors, highContrast: true };

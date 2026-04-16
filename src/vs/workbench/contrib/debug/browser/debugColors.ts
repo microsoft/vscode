@@ -113,7 +113,7 @@ export function registerColors() {
 	}, localize('debugIcon.stepBackForeground', "Debug toolbar icon for step back."));
 
 	registerThemingParticipant((theme, collector) => {
-		// All these colours provide a default value so they will never be undefined, hence the `!`
+		// All these colors provide a default value so they will never be undefined, hence the `!`
 		const badgeBackgroundColor = theme.getColor(badgeBackground)!;
 		const badgeForegroundColor = theme.getColor(badgeForeground)!;
 		const listDeemphasizedForegroundColor = theme.getColor(listDeemphasizedForeground)!;
