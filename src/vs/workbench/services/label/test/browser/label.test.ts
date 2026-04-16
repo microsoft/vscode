@@ -98,7 +98,7 @@ suite('URI Label', () => {
 		assert.strictEqual(labelService.getUriBasenameLabel(uri1), 'END');
 	});
 
-	test('mulitple authority', function () {
+	test('multiple authority', function () {
 		labelService.registerFormatter({
 			scheme: 'vscode',
 			authority: 'not_matching_but_long',

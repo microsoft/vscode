@@ -190,7 +190,7 @@ registerTerminalAction({
 	],
 	run: async (c, accessor) => {
 		let activeInstance = c.service.activeInstance;
-		// If an instanec doesn't exist, create one and wait for shell type to be set
+		// If an instance doesn't exist, create one and wait for shell type to be set
 		if (!activeInstance) {
 			const newInstance = activeInstance = await c.service.getActiveOrCreateInstance();
 			await c.service.revealActiveTerminal();
