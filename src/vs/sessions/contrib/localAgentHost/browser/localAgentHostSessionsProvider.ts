@@ -16,7 +16,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { AgentSession, IAgentHostService, type IAgentSessionMetadata } from '../../../../platform/agentHost/common/agentService.js';
-import type { IRootState, ISessionFileDiff } from '../../../../platform/agentHost/common/state/protocol/state.js';
+import type { IRootState, ISessionFileDiff, ISessionSummary as IProtocolSessionSummary } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isSessionAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IResolveSessionConfigResult, ISessionConfigValueItem } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -27,7 +27,8 @@ import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/c
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { agentHostSessionWorkspaceKey, buildAgentHostSessionWorkspace } from '../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../common/sessionConfig.js';
-import { diffsToChanges, diffsEqual } from '../../../common/agentHostDiffs.js';
+import { diffsToChanges, diffsEqual, mapProtocolStatus } from '../../../common/agentHostDiffs.js';
+import { NotificationType } from '../../../../platform/agentHost/common/state/protocol/notifications.js';
 import { ISendRequestOptions, ISessionChangeEvent } from '../../../services/sessions/common/sessionsProvider.js';
 import { IAgentHostSessionsProvider } from '../../../common/agentHostSessionsProvider.js';
 import { IChat, ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SessionStatus, type IGitHubInfo, ISessionType } from '../../../services/sessions/common/session.js';
@@ -83,7 +84,7 @@ class LocalSessionAdapter implements ISession {
 	readonly workspace: ISettableObservable<ISessionWorkspace | undefined>;
 	readonly title: ISettableObservable<string>;
 	readonly updatedAt: ISettableObservable<Date>;
-	readonly status = observableValue<SessionStatus>('status', SessionStatus.Completed);
+	readonly status: ISettableObservable<SessionStatus>;
 	readonly changes = observableValue<readonly IChatSessionFileChange[]>('changes', []);
 	readonly modelId: ISettableObservable<string | undefined>;
 	readonly mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>('mode', undefined);
@@ -114,6 +115,7 @@ class LocalSessionAdapter implements ISession {
 		this.createdAt = new Date(metadata.startTime);
 		this.title = observableValue('title', metadata.summary || `Session ${rawId.substring(0, 8)}`);
 		this.updatedAt = observableValue('updatedAt', new Date(metadata.modifiedTime));
+		this.status = observableValue<SessionStatus>('status', metadata.status !== undefined ? mapProtocolStatus(metadata.status) : SessionStatus.Completed);
 		this.modelId = observableValue<string | undefined>('modelId', metadata.model ? `${logicalSessionType}:${metadata.model}` : undefined);
 		this.lastTurnEnd = observableValue('lastTurnEnd', metadata.modifiedTime ? new Date(metadata.modifiedTime) : undefined);
 		this.description = observableValue('description', new MarkdownString().appendText(localize('localAgentHostDescription', "Local")));
@@ -153,6 +155,14 @@ class LocalSessionAdapter implements ISession {
 		if (summary !== undefined && summary !== this.title.get()) {
 			this.title.set(summary, undefined);
 			didChange = true;
+		}
+
+		if (metadata.status !== undefined) {
+			const uiStatus = mapProtocolStatus(metadata.status);
+			if (uiStatus !== this.status.get()) {
+				this.status.set(uiStatus, undefined);
+				didChange = true;
+			}
 		}
 
 		const modifiedTime = metadata.modifiedTime;
@@ -285,10 +295,12 @@ export class LocalAgentHostSessionsProvider extends Disposable implements IAgent
 
 		// Listen for notifications from the agent host to update the session list
 		this._register(this._agentHostService.onDidNotification(n => {
-			if (n.type === 'notify/sessionAdded') {
+			if (n.type === NotificationType.SessionAdded) {
 				this._handleSessionAdded(n.summary);
-			} else if (n.type === 'notify/sessionRemoved') {
+			} else if (n.type === NotificationType.SessionRemoved) {
 				this._handleSessionRemoved(n.session);
+			} else if (n.type === NotificationType.SessionSummaryChanged) {
+				this._handleSessionSummaryChanged(n.session, n.changes);
 			}
 		}));
 
@@ -948,6 +960,38 @@ export class LocalAgentHostSessionsProvider extends Disposable implements IAgent
 		const cached = this._sessionCache.get(rawId);
 		if (cached) {
 			cached.changes.set(diffsToChanges(diffs), undefined);
+			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
+		}
+	}
+
+	private _handleSessionSummaryChanged(session: string, changes: Partial<IProtocolSessionSummary>): void {
+		const rawId = AgentSession.id(session);
+		const cached = this._sessionCache.get(rawId);
+		if (!cached) {
+			return;
+		}
+
+		let didChange = false;
+
+		if (changes.status !== undefined) {
+			const uiStatus = mapProtocolStatus(changes.status);
+			if (uiStatus !== cached.status.get()) {
+				cached.status.set(uiStatus, undefined);
+				didChange = true;
+			}
+		}
+
+		if (changes.title !== undefined && changes.title !== cached.title.get()) {
+			cached.title.set(changes.title, undefined);
+			didChange = true;
+		}
+
+		if (changes.diffs !== undefined && !diffsEqual(cached.changes.get(), changes.diffs)) {
+			cached.changes.set(diffsToChanges(changes.diffs), undefined);
+			didChange = true;
+		}
+
+		if (didChange) {
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 		}
 	}

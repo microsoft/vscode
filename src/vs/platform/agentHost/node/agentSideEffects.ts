@@ -3,16 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SequencerByKey } from '../../../base/common/async.js';
+import { disposableTimeout, SequencerByKey } from '../../../base/common/async.js';
 import { match as globMatch } from '../../../base/common/glob.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase, normalizePath } from '../../../base/common/resources.js';
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
-import { IAgent, IAgentAttachment, IAgentProgressEvent, type IAgentToolReadyEvent } from '../common/agentService.js';
+import { IAgent, IAgentAttachment, IAgentProgressEvent, type IAgentToolCompleteEvent, type IAgentToolReadyEvent } from '../common/agentService.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { ActionType, ISessionAction } from '../common/state/sessionActions.js';
@@ -24,6 +24,7 @@ import {
 	ToolCallStatus,
 	ToolResultContentType,
 	buildSubagentSessionUri,
+	getToolFileEdits,
 	type ISessionCustomization,
 	type ISessionModelInfo,
 	type ISessionState,
@@ -70,6 +71,9 @@ export class AgentSideEffects extends Disposable {
 	private readonly _diffComputeService: IDiffComputeService;
 	/** Serializes per-session diff computations to avoid races with stale previousDiffs. */
 	private readonly _diffComputationSequencer = new SequencerByKey<string>();
+	/** Per-session debounce timers for mid-turn diff computation. */
+	private readonly _debouncedDiffTimers = this._register(new DisposableMap<string>());
+	private static readonly _DIFF_DEBOUNCE_MS = 5000;
 
 	/**
 	 * Maps `parentSession:toolCallId` → subagent session URI.
@@ -332,12 +336,16 @@ export class AgentSideEffects extends Disposable {
 				// When a parent tool call completes, complete any associated subagent session
 				if (e.type === 'tool_complete') {
 					this.completeSubagentSession(sessionKey, e.toolCallId);
+					if (getToolFileEdits((e as IAgentToolCompleteEvent).result).length > 0) {
+						this._scheduleDebouncedDiffComputation(sessionKey, turnId);
+					}
 				}
 			}
 
-			// After a turn completes (idle event), compute session diffs and
-			// try to consume the next queued message
+			// After a turn completes (idle event), flush any pending debounced
+			// diff computation and compute final diffs immediately.
 			if (e.type === 'idle') {
+				this._cancelDebouncedDiffComputation(sessionKey);
 				this._computeSessionDiffs(sessionKey, turnId);
 				this._tryConsumeNextQueuedMessage(sessionKey);
 			}
@@ -848,6 +856,28 @@ export class AgentSideEffects extends Disposable {
 	}
 
 	// ---- Session diff computation ----------------------------------------------
+
+	/**
+	 * Schedules a debounced diff computation for a session. If a timer is
+	 * already pending for this session, it is replaced (restarting the delay).
+	 * The computation fires after {@link _DIFF_DEBOUNCE_MS} unless cancelled
+	 * or flushed by the turn-complete handler.
+	 */
+	private _scheduleDebouncedDiffComputation(session: ProtocolURI, turnId: string): void {
+		// DisposableMap.set() auto-disposes any previous timer for this session
+		this._debouncedDiffTimers.set(session, disposableTimeout(() => {
+			this._debouncedDiffTimers.deleteAndDispose(session);
+			this._computeSessionDiffs(session, turnId);
+		}, AgentSideEffects._DIFF_DEBOUNCE_MS));
+	}
+
+	/**
+	 * Cancels any pending debounced diff computation for a session.
+	 * Called at turn end before the final (non-debounced) computation.
+	 */
+	private _cancelDebouncedDiffComputation(session: ProtocolURI): void {
+		this._debouncedDiffTimers.deleteAndDispose(session);
+	}
 
 	/**
 	 * Asynchronously (re)computes aggregated diff statistics for a session
