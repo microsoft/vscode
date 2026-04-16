@@ -4,11 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import {
+	checkMemoryEnabled,
 	fetchMemoryPrompts,
 	fetchRecentMemories,
 	storeMemory,
 	voteMemory,
 	type MemoryApiOptions,
+	type MemoryFetchFn,
 	type MemoryPromptResponse,
 	type MemoryResponse,
 	type StoreMemoryRequest,
@@ -20,6 +22,7 @@ import { ConfigKey, IConfigurationService } from '../../../platform/configuratio
 import { ICAPIClientService } from '../../../platform/endpoint/common/capiClient';
 import { getGithubRepoIdFromFetchUrl, getOrderedRemoteUrlsFromContext, IGitService, toGithubNwo } from '../../../platform/git/common/gitService';
 import { ILogService } from '../../../platform/log/common/logService';
+import { IFetcherService } from '../../../platform/networking/common/fetcherService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { createServiceIdentifier } from '../../../util/common/services';
@@ -135,6 +138,7 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 	constructor(
 		@ILogService private readonly logService: ILogService,
 		@ICAPIClientService private readonly capiClientService: ICAPIClientService,
+		@IFetcherService private readonly fetcherService: IFetcherService,
 		@IGitService private readonly gitService: IGitService,
 		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
 		@IConfigurationService private readonly configService: IConfigurationService,
@@ -175,7 +179,20 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 	}
 
 	private getBaseUrl(): string {
-		return this.capiClientService.capiPingURL.replace(/\/_ping$/, '');
+		// Strip the trailing /_ping path segment to get the API base URL
+		const pingUrl = this.capiClientService.capiPingURL;
+		const lastSlash = pingUrl.lastIndexOf('/');
+		return lastSlash > 0 ? pingUrl.slice(0, lastSlash) : pingUrl;
+	}
+
+	private makeFetch(): MemoryFetchFn {
+		const fetcher = this.fetcherService;
+		return (url: string, init?: { method?: string; headers?: any; body?: any }) => fetcher.fetch(url, {
+			callSite: 'AgentMemoryService',
+			method: (init?.method as 'GET' | 'POST' | 'PUT') ?? 'GET',
+			headers: init?.headers as Record<string, string> | undefined,
+			body: init?.body as string | undefined,
+		}) as unknown as Promise<any>;
 	}
 
 	private async getToken(): Promise<string | undefined> {
@@ -208,24 +225,16 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 			}
 
 			const [owner, repo] = repoNwo.split('/');
-			const baseUrl = this.getBaseUrl();
-			const url = `${baseUrl}/agents/swe/internal/memory/v0/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/enabled`;
-
-			const response = await fetch(url, {
-				method: 'GET',
-				headers: {
-					'Authorization': `Bearer ${token}`,
-					'Copilot-Integration-Id': INTEGRATION_ID,
-				},
+			const enabled = await checkMemoryEnabled({
+				scope: 'repository',
+				owner,
+				repo,
+				token,
+				integrationId: INTEGRATION_ID,
+				baseUrl: this.getBaseUrl(),
+				fetch: this.makeFetch(),
+				logger: this.makeLogger(),
 			});
-
-			if (!response.ok) {
-				this.logService.warn(`[AgentMemoryService] Memory enablement check failed: ${response.statusText}`);
-				return false;
-			}
-
-			const data = await response.json() as { enabled?: boolean };
-			const enabled = data?.enabled ?? false;
 			this.logService.info(`[AgentMemoryService] Copilot Memory enabled for ${repoNwo}: ${enabled}`);
 			return enabled;
 		} catch (error) {
@@ -261,6 +270,7 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 				integrationId: INTEGRATION_ID,
 				baseUrl: this.getBaseUrl(),
 				limit,
+				fetch: this.makeFetch(),
 				logger: this.makeLogger(),
 			};
 
@@ -300,6 +310,7 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 				integrationId: INTEGRATION_ID,
 				baseUrl: this.getBaseUrl(),
 				agent: 'vscode',
+				fetch: this.makeFetch(),
 				logger: this.makeLogger(),
 			};
 
@@ -332,6 +343,7 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 				integrationId: INTEGRATION_ID,
 				baseUrl: this.getBaseUrl(),
 				agent: 'vscode',
+				fetch: this.makeFetch(),
 				logger: this.makeLogger(),
 			};
 
@@ -373,6 +385,7 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 					integrationId: INTEGRATION_ID,
 					baseUrl: this.getBaseUrl(),
 					agent: 'vscode',
+					fetch: this.makeFetch(),
 					logger: this.makeLogger(),
 				};
 			} else {
@@ -382,6 +395,7 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 					integrationId: INTEGRATION_ID,
 					baseUrl: this.getBaseUrl(),
 					agent: 'vscode',
+					fetch: this.makeFetch(),
 					logger: this.makeLogger(),
 				};
 			}
@@ -420,6 +434,7 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 					token,
 					integrationId: INTEGRATION_ID,
 					baseUrl: this.getBaseUrl(),
+					fetch: this.makeFetch(),
 					logger: this.makeLogger(),
 				};
 			} else {
@@ -428,6 +443,7 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 					token,
 					integrationId: INTEGRATION_ID,
 					baseUrl: this.getBaseUrl(),
+					fetch: this.makeFetch(),
 					logger: this.makeLogger(),
 				};
 			}
