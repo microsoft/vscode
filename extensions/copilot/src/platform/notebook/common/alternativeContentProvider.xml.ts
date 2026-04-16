@@ -158,7 +158,7 @@ export class AlternativeXmlNotebookContentProvider extends BaseAlternativeNotebo
 			} else if (index >= 0) {
 				if (previousLineEndedWithEndCellMarker && previousLine) {
 					// Some how we have two subsequent lines that end with the cell marker,
-					// Weird, shoudl not happen, if it does, yield the previous line.
+					// Weird, should not happen, if it does, yield the previous line.
 					yield previousLine;
 					previousLine = undefined;
 				}

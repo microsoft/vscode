@@ -356,7 +356,7 @@ export class CommentNodeRenderer implements IListRenderer<ITreeNode<CommentNode>
 	}
 
 	disposeTemplate(templateData: ICommentThreadTemplateData): void {
-		templateData.disposables.forEach(disposeable => disposeable.dispose());
+		templateData.disposables.forEach(disposable => disposable.dispose());
 		templateData.elementDisposables.dispose();
 		templateData.actionBar.dispose();
 	}

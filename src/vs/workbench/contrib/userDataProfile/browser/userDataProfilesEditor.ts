@@ -1149,7 +1149,7 @@ class UseForCurrentWindowPropertyRenderer extends ProfilePropertyRenderer {
 		let profileElement: ProfileTreeElement | undefined;
 
 		const useForCurrentWindowContainer = append(parent, $('.profile-row-container'));
-		append(useForCurrentWindowContainer, $('.profile-label-element', undefined, localize('use for curren window', "Use for Current Window")));
+		append(useForCurrentWindowContainer, $('.profile-label-element', undefined, localize('use for current window', "Use for Current Window")));
 		const useForCurrentWindowValueContainer = append(useForCurrentWindowContainer, $('.profile-use-for-current-container'));
 		const useForCurrentWindowTitle = localize('enable for current window', "Use this profile for the current window");
 		const useForCurrentWindowCheckbox = disposables.add(new Checkbox(useForCurrentWindowTitle, false, defaultCheckboxStyles));
