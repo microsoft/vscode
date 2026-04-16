@@ -1347,7 +1347,7 @@ export namespace Schemas {
 				properties: {
 					activeOnStart: {
 						type: 'boolean',
-						description: localize('ProblemMatcherSchema.background.activeOnStart', 'If set to true the background monitor starts in active mode. This is the same as outputting a line that matches beginsPattern when the task starts.')
+						description: localize('ProblemMatcherSchema.background.activeOnStart', 'If set to true, the background monitor starts in active mode. This is the same as outputting a line that matches beginsPattern when the task starts.')
 					},
 					beginsPattern: {
 						oneOf: [
@@ -1356,7 +1356,7 @@ export namespace Schemas {
 							},
 							Schemas.WatchingPattern
 						],
-						description: localize('ProblemMatcherSchema.background.beginsPattern', 'If matched in the output the start of a background task is signaled.')
+						description: localize('ProblemMatcherSchema.background.beginsPattern', 'If matched in the output, the start of a background task is signaled.')
 					},
 					endsPattern: {
 						oneOf: [
@@ -1365,7 +1365,7 @@ export namespace Schemas {
 							},
 							Schemas.WatchingPattern
 						],
-						description: localize('ProblemMatcherSchema.background.endsPattern', 'If matched in the output the end of a background task is signaled.')
+						description: localize('ProblemMatcherSchema.background.endsPattern', 'If matched in the output, the end of a background task is signaled.')
 					}
 				}
 			},
@@ -1377,7 +1377,7 @@ export namespace Schemas {
 				properties: {
 					activeOnStart: {
 						type: 'boolean',
-						description: localize('ProblemMatcherSchema.watching.activeOnStart', 'If set to true the watcher starts in active mode. This is the same as outputting a line that matches beginsPattern when the task starts.')
+						description: localize('ProblemMatcherSchema.watching.activeOnStart', 'If set to true, the watcher starts in active mode. This is the same as outputting a line that matches beginsPattern when the task starts.')
 					},
 					beginsPattern: {
 						oneOf: [
@@ -1386,7 +1386,7 @@ export namespace Schemas {
 							},
 							Schemas.WatchingPattern
 						],
-						description: localize('ProblemMatcherSchema.watching.beginsPattern', 'If matched in the output the start of a watching task is signaled.')
+						description: localize('ProblemMatcherSchema.watching.beginsPattern', 'If matched in the output, the start of a watching task is signaled.')
 					},
 					endsPattern: {
 						oneOf: [
@@ -1395,7 +1395,7 @@ export namespace Schemas {
 							},
 							Schemas.WatchingPattern
 						],
-						description: localize('ProblemMatcherSchema.watching.endsPattern', 'If matched in the output the end of a watching task is signaled.')
+						description: localize('ProblemMatcherSchema.watching.endsPattern', 'If matched in the output, the end of a watching task is signaled.')
 					}
 				}
 			}

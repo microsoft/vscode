@@ -20,14 +20,14 @@ const schema: IJSONSchema = {
 			properties: {
 				cwd: {
 					type: 'string',
-					description: nls.localize('JsonSchema.options.cwd', 'The current working directory of the executed program or script. If omitted Code\'s current workspace root is used.')
+					description: nls.localize('JsonSchema.options.cwd', 'The current working directory of the executed program or script. If omitted, Code\'s current workspace root is used.')
 				},
 				env: {
 					type: 'object',
 					additionalProperties: {
 						type: 'string'
 					},
-					description: nls.localize('JsonSchema.options.env', 'The environment of the executed program or shell. If omitted the parent process\' environment is used.')
+					description: nls.localize('JsonSchema.options.env', 'The environment of the executed program or shell. If omitted, the parent process\' environment is used.')
 				}
 			},
 			additionalProperties: {
@@ -166,12 +166,12 @@ const schema: IJSONSchema = {
 				},
 				suppressTaskName: {
 					type: 'boolean',
-					description: nls.localize('JsonSchema.tasks.suppressTaskName', 'Controls whether the task name is added as an argument to the command. If omitted the globally defined value is used.'),
+					description: nls.localize('JsonSchema.tasks.suppressTaskName', 'Controls whether the task name is added as an argument to the command. If omitted, the globally defined value is used.'),
 					default: true
 				},
 				showOutput: {
 					$ref: '#/definitions/showOutputType',
-					description: nls.localize('JsonSchema.tasks.showOutput', 'Controls whether the output of the running task is shown or not. If omitted the globally defined value is used.')
+					description: nls.localize('JsonSchema.tasks.showOutput', 'Controls whether the output of the running task is shown or not. If omitted, the globally defined value is used.')
 				},
 				echoCommand: {
 					type: 'boolean',
@@ -230,7 +230,7 @@ const schema: IJSONSchema = {
 				},
 				showOutput: {
 					$ref: '#/definitions/showOutputType',
-					description: nls.localize('JsonSchema.showOutput', 'Controls whether the output of the running task is shown or not. If omitted \'always\' is used.')
+					description: nls.localize('JsonSchema.showOutput', 'Controls whether the output of the running task is shown or not. If omitted, \'always\' is used.')
 				},
 				isWatching: {
 					type: 'boolean',
