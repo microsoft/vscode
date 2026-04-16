@@ -325,7 +325,7 @@ const registry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Con
 			},
 			'workbench.editor.closeOnFileDelete': {
 				'type': 'boolean',
-				'description': localize('closeOnFileDelete', "Controls whether editors showing a file that was opened during the session should close automatically when getting deleted or renamed by some other process. Disabling this will keep the editor open  on such an event. Note that deleting from within the application will always close the editor and that editors with unsaved changes will never close to preserve your data."),
+				'description': localize('closeOnFileDelete', "Controls whether editors showing a file that was opened during the session should close automatically when getting deleted or renamed by some other process. Disabling this will keep the editor open on such an event. Note that deleting from within the application will always close the editor and that editors with unsaved changes will never close to preserve your data."),
 				'default': false
 			},
 			'workbench.editor.openPositioning': {

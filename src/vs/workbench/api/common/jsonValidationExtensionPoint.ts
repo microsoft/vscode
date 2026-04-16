@@ -79,7 +79,7 @@ export class JSONValidationExtensionPoint {
 							collector.error(nls.localize('invalid.url.fileschema', "'configuration.jsonValidation.url' is an invalid relative URL: {0}", e.message));
 						}
 					} else if (!/^[^:/?#]+:\/\//.test(uri)) {
-						collector.error(nls.localize('invalid.url.schema', "'configuration.jsonValidation.url' must be an absolute URL or start with './'  to reference schemas located in the extension."));
+						collector.error(nls.localize('invalid.url.schema', "'configuration.jsonValidation.url' must be an absolute URL or start with './' to reference schemas located in the extension."));
 						return;
 					}
 				});
