@@ -304,7 +304,7 @@ export class LinkDetector implements ILinkDetector {
 			}
 			this.decorateLink(link, uri, fulltext, hoverBehavior, (preserveFocus: boolean) => this.editorService.openEditor({ resource: uri, options: { ...options, preserveFocus } }));
 		}).catch(() => {
-			// If the uri cannot be resolved we should not spam the console with error, remain quite #86587
+			// If the uri cannot be resolved we should not spam the console with error, remain quiet #86587
 		});
 		return link;
 	}
