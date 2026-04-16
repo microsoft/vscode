@@ -22,7 +22,6 @@ export enum ToolName {
 	ApplyPatch = 'apply_patch',
 	Codebase = 'semantic_search',
 	VSCodeAPI = 'get_vscode_api',
-	TestFailure = 'test_failure',
 	FindFiles = 'file_search',
 	FindTextInFiles = 'grep_search',
 	ReadFile = 'read_file',
@@ -62,6 +61,7 @@ export enum ToolName {
 	CoreRunTask = 'run_task',
 	CoreGetTaskOutput = 'get_task_output',
 	CoreRunTest = 'runTests',
+	CoreTestFailure = 'testFailure',
 	EditFilesPlaceholder = 'edit_files',
 	CoreRunSubagent = 'runSubagent',
 	CoreConfirmationTool = 'vscode_get_confirmation',
@@ -105,7 +105,6 @@ export enum ContributedToolName {
 	Codebase = 'copilot_searchCodebase',
 	SearchWorkspaceSymbols = 'copilot_searchWorkspaceSymbols',
 	VSCodeAPI = 'copilot_getVSCodeAPI',
-	TestFailure = 'copilot_testFailure',
 	/** @deprecated moving to core soon */
 	RunTests = 'copilot_runTests1',
 	FindFiles = 'copilot_findFiles',
@@ -249,9 +248,9 @@ export const toolCategories: Record<ToolName, ToolCategory> = {
 	[ToolName.CoreTerminalLastCommand]: ToolCategory.VSCodeInteraction,
 
 	// Testing
-	[ToolName.TestFailure]: ToolCategory.Testing,
 	[ToolName.FindTestFiles]: ToolCategory.Testing,
 	[ToolName.CoreRunTest]: ToolCategory.Testing,
+	[ToolName.CoreTestFailure]: ToolCategory.Testing,
 
 	// Other tools - categorize appropriately
 	[ToolName.CoreConfirmationTool]: ToolCategory.VSCodeInteraction,

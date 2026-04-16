@@ -18,6 +18,7 @@ import { AgentSession, IAgent } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType, IActionEnvelope, ISessionAction } from '../../common/state/sessionActions.js';
 import { PendingMessageKind, ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType } from '../../common/state/sessionState.js';
+import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
 import { AgentSideEffects } from '../../node/agentSideEffects.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
@@ -129,7 +130,136 @@ suite('AgentSideEffects', () => {
 		});
 	});
 
-	// ---- handleAction: session/turnCancelled ----------------------------
+	// ---- immediate title on first turn -----------------------------------
+
+	suite('immediate title on first turn', () => {
+
+		function setupDefaultSession(): void {
+			stateManager.createSession({
+				resource: sessionUri.toString(),
+				provider: 'mock',
+				title: '',
+				status: SessionStatus.Idle,
+				createdAt: Date.now(),
+				modifiedAt: Date.now(),
+				project: { uri: 'file:///test-project', displayName: 'Test Project' },
+			});
+			stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri.toString() });
+		}
+
+		test('dispatches titleChanged with user message on first turn', () => {
+			setupDefaultSession();
+
+			const envelopes: IActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+			sideEffects.handleAction({
+				type: ActionType.SessionTurnStarted,
+				session: sessionUri.toString(),
+				turnId: 'turn-1',
+				userMessage: { text: 'Fix the login bug' },
+			});
+
+			const titleAction = envelopes.find(e => e.action.type === ActionType.SessionTitleChanged);
+			assert.ok(titleAction, 'should dispatch session/titleChanged');
+			if (titleAction?.action.type === ActionType.SessionTitleChanged) {
+				assert.strictEqual(titleAction.action.title, 'Fix the login bug');
+			}
+		});
+
+		test('does not dispatch titleChanged when message is whitespace', () => {
+			setupDefaultSession();
+
+			const envelopes: IActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+			sideEffects.handleAction({
+				type: ActionType.SessionTurnStarted,
+				session: sessionUri.toString(),
+				turnId: 'turn-1',
+				userMessage: { text: '   ' },
+			});
+
+			const titleAction = envelopes.find(e => e.action.type === ActionType.SessionTitleChanged);
+			assert.strictEqual(titleAction, undefined, 'should not dispatch titleChanged for empty message');
+		});
+
+		test('normalizes whitespace and truncates long messages', () => {
+			setupDefaultSession();
+
+			const envelopes: IActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+			const longMessage = 'Fix the bug\nin the login\tpage  please ' + 'a'.repeat(250);
+			sideEffects.handleAction({
+				type: ActionType.SessionTurnStarted,
+				session: sessionUri.toString(),
+				turnId: 'turn-1',
+				userMessage: { text: longMessage },
+			});
+
+			const titleAction = envelopes.find(e => e.action.type === ActionType.SessionTitleChanged);
+			assert.ok(titleAction, 'should dispatch session/titleChanged');
+			if (titleAction?.action.type === ActionType.SessionTitleChanged) {
+				assert.ok(!titleAction.action.title.includes('\n'), 'should not contain newlines');
+				assert.ok(!titleAction.action.title.includes('\t'), 'should not contain tabs');
+				assert.ok(!titleAction.action.title.includes('  '), 'should not contain double spaces');
+				assert.ok(titleAction.action.title.length <= 200, 'should be truncated to 200 chars');
+			}
+		});
+
+		test('does not dispatch titleChanged on second turn', () => {
+			setupDefaultSession();
+			startTurn('turn-1');
+
+			// Complete the first turn so turns.length becomes 1.
+			stateManager.dispatchServerAction({
+				type: ActionType.SessionTurnComplete,
+				session: sessionUri.toString(),
+				turnId: 'turn-1',
+			});
+
+			const envelopes: IActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+			sideEffects.handleAction({
+				type: ActionType.SessionTurnStarted,
+				session: sessionUri.toString(),
+				turnId: 'turn-2',
+				userMessage: { text: 'second message' },
+			});
+
+			const titleAction = envelopes.find(e => e.action.type === ActionType.SessionTitleChanged);
+			assert.strictEqual(titleAction, undefined, 'should not dispatch titleChanged on second turn');
+		});
+
+		test('does not dispatch titleChanged when title is already set', () => {
+			// Session has a non-empty title (e.g. user renamed before first message)
+			stateManager.createSession({
+				resource: sessionUri.toString(),
+				provider: 'mock',
+				title: 'User Renamed',
+				status: SessionStatus.Idle,
+				createdAt: Date.now(),
+				modifiedAt: Date.now(),
+				project: { uri: 'file:///test-project', displayName: 'Test Project' },
+			});
+			stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri.toString() });
+
+			const envelopes: IActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+			sideEffects.handleAction({
+				type: ActionType.SessionTurnStarted,
+				session: sessionUri.toString(),
+				turnId: 'turn-1',
+				userMessage: { text: 'hello' },
+			});
+
+			const titleAction = envelopes.find(e => e.action.type === ActionType.SessionTitleChanged);
+			assert.strictEqual(titleAction, undefined, 'should not clobber existing title');
+		});
+	});
 
 	suite('handleAction — session/turnCancelled', () => {
 
@@ -901,6 +1031,71 @@ suite('AgentSideEffects', () => {
 		});
 	});
 
+	// ---- Read auto-approve -------------------------------------------------
+
+	suite('read auto-approve', () => {
+
+		test('auto-approves reads inside working directory', () => {
+			setupSession(URI.file('/workspace').toString());
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_start',
+				toolCallId: 'tc-read-1',
+				toolName: 'read',
+				displayName: 'Read',
+				invocationMessage: 'Read file',
+			});
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_ready',
+				toolCallId: 'tc-read-1',
+				invocationMessage: 'Read src/app.ts',
+				permissionKind: 'read',
+				permissionPath: '/workspace/src/app.ts',
+			});
+
+			assert.deepStrictEqual(agent.respondToPermissionCalls, [
+				{ requestId: 'tc-read-1', approved: true },
+			]);
+		});
+
+		test('does not auto-approve reads outside working directory', () => {
+			setupSession(URI.file('/workspace').toString());
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			const envelopes: IActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_start',
+				toolCallId: 'tc-read-2',
+				toolName: 'read',
+				displayName: 'Read',
+				invocationMessage: 'Read file',
+			});
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_ready',
+				toolCallId: 'tc-read-2',
+				invocationMessage: 'Read /etc/passwd',
+				permissionKind: 'read',
+				permissionPath: '/etc/passwd',
+			});
+
+			assert.strictEqual(agent.respondToPermissionCalls.length, 0);
+
+			const readyAction = envelopes.find(e => e.action.type === ActionType.SessionToolCallReady);
+			assert.ok(readyAction, 'should dispatch tool_ready for read outside working directory');
+		});
+	});
+
 	// ---- Title persistence --------------------------------------------------
 
 	suite('title persistence', () => {
@@ -952,7 +1147,7 @@ suite('AgentSideEffects', () => {
 			const sessionDataService = createSessionDataService(sessionDb);
 			const localAgent = new MockAgent();
 			disposables.add(toDisposable(() => localAgent.dispose()));
-			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService));
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService));
 			localService.registerProvider(localAgent);
 
 			// Create a session on the agent backend
@@ -972,7 +1167,7 @@ suite('AgentSideEffects', () => {
 			const sessionDataService = createSessionDataService(sessionDb);
 			const localAgent = new MockAgent();
 			disposables.add(toDisposable(() => localAgent.dispose()));
-			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService));
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService));
 			localService.registerProvider(localAgent);
 
 			// Create a session on the agent backend

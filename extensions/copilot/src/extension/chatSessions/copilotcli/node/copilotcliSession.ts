@@ -20,7 +20,6 @@ import { CancellationToken } from '../../../../util/vs/base/common/cancellation'
 import { Codicon } from '../../../../util/vs/base/common/codicons';
 import { Emitter } from '../../../../util/vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../util/vs/base/common/lifecycle';
-import { extUriBiasedIgnorePathCase, isEqual } from '../../../../util/vs/base/common/resources';
 import { truncate } from '../../../../util/vs/base/common/strings';
 import { ThemeIcon } from '../../../../util/vs/base/common/themables';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
@@ -29,12 +28,11 @@ import { IToolsService } from '../../../tools/common/toolsService';
 import { IChatSessionMetadataStore } from '../../common/chatSessionMetadataStore';
 import { ExternalEditTracker } from '../../common/externalEditTracker';
 import { getWorkingDirectory, isIsolationEnabled, IWorkspaceInfo } from '../../common/workspaceInfo';
-import { enrichToolInvocationWithSubagentMetadata, getAffectedUrisForEditTool, isCopilotCliEditToolCall, isCopilotCLIToolThatCouldRequirePermissions, processToolExecutionComplete, processToolExecutionStart, ToolCall, updateTodoList } from '../common/copilotCLITools';
-import { getCopilotCLISessionStateDir } from './cliHelpers';
+import { enrichToolInvocationWithSubagentMetadata, isCopilotCliEditToolCall, isCopilotCLIToolThatCouldRequirePermissions, processToolExecutionComplete, processToolExecutionStart, ToolCall, updateTodoList } from '../common/copilotCLITools';
 import type { CopilotCliBridgeSpanProcessor } from './copilotCliBridgeSpanProcessor';
 import { ICopilotCLIImageSupport } from './copilotCLIImageSupport';
 import { handleExitPlanMode } from './exitPlanModeHandler';
-import { PermissionRequest, requestPermission, requiresFileEditconfirmation } from './permissionHelpers';
+import { handleMcpPermission, handleReadPermission, handleShellPermission, handleWritePermission, type PermissionRequest, type PermissionRequestResult, showInteractivePermissionPrompt } from './permissionHelpers';
 import { IQuestion, IUserQuestionHandler } from './userInputHelpers';
 
 /**
@@ -429,32 +427,80 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			disposables.add(toDisposable(this._sdkSession.on('permission.requested', async (event) => {
 				const permissionRequest = event.data.permissionRequest;
 				const requestId = event.data.requestId;
-				const response = await this.requestPermission(permissionRequest, editTracker,
-					(toolCallId: string) => {
-						const toolData = toolCalls.get(toolCallId);
-						if (!toolData) {
-							return undefined;
-						}
-						const data = pendingToolInvocations.get(toolCallId);
-						if (data) {
-							return [toolData, data[2]] as const;
-						}
-						return [toolData, undefined] as const;
-					},
-					token
-				);
-				flushPendingInvocationMessageForToolCallId(permissionRequest.toolCallId);
 
-				this._requestLogger.addEntry({
-					type: LoggedRequestKind.MarkdownContentRequest,
-					debugName: `Permission Request`,
-					startTimeMs: Date.now(),
-					icon: Codicon.question,
-					markdownContent: this._renderPermissionToMarkdown(permissionRequest, response.kind),
-					isConversationRequest: true
-				});
+				// Auto-approve all requests when the permission level allows it.
+				if (this._permissionLevel === 'autoApprove' || this._permissionLevel === 'autopilot') {
+					this.logService.trace(`[CopilotCLISession] Auto Approving ${permissionRequest.kind} request (permission level: ${this._permissionLevel})`);
+					this._sdkSession.respondToPermission(requestId, { kind: 'approved' });
+					return;
+				}
 
-				this._sdkSession.respondToPermission(requestId, response);
+				// Resolve tool call data for the permission request.
+				const toolData = permissionRequest.toolCallId ? toolCalls.get(permissionRequest.toolCallId) : undefined;
+				const pendingData = permissionRequest.toolCallId ? pendingToolInvocations.get(permissionRequest.toolCallId) : undefined;
+				const toolParentCallId = pendingData ? pendingData[2] : undefined;
+				const toolInvocationToken = this._toolInvocationToken as unknown as never;
+
+				try {
+					let response: PermissionRequestResult;
+					if (this._permissionLevel === 'autoApprove' || this._permissionLevel === 'autopilot') {
+						this.logService.trace(`[CopilotCLISession] Auto Approving ${permissionRequest.kind} request (permission level: ${this._permissionLevel})`);
+						response = { kind: 'approved' };
+					} else {
+						switch (permissionRequest.kind) {
+							case 'read':
+								response = await handleReadPermission(
+									this.sessionId, permissionRequest, toolParentCallId,
+									this.attachments, this._imageSupport, this.workspace, this.workspaceService,
+									this._toolsService, toolInvocationToken, this.logService, token,
+								);
+								break;
+							case 'write':
+								response = await handleWritePermission(
+									this.sessionId, permissionRequest, toolData, toolParentCallId,
+									this._stream, editTracker, this.workspace, this.workspaceService,
+									this.instantiationService, this._toolsService, toolInvocationToken, this.logService, token,
+								);
+								break;
+							case 'shell':
+								response = await handleShellPermission(
+									permissionRequest, toolParentCallId,
+									this.workspace, this._toolsService, toolInvocationToken, this.logService, token,
+								);
+								break;
+							case 'mcp':
+								response = await handleMcpPermission(
+									permissionRequest, toolParentCallId,
+									this._toolsService, toolInvocationToken, this.logService, token,
+								);
+								break;
+							default:
+								response = await showInteractivePermissionPrompt(
+									permissionRequest, toolParentCallId,
+									this._toolsService, toolInvocationToken, this.logService, token,
+								);
+								break;
+						}
+					}
+
+					flushPendingInvocationMessageForToolCallId(permissionRequest.toolCallId);
+
+					this._requestLogger.addEntry({
+						type: LoggedRequestKind.MarkdownContentRequest,
+						debugName: `Permission Request`,
+						startTimeMs: Date.now(),
+						icon: Codicon.question,
+						markdownContent: this._renderPermissionToMarkdown(permissionRequest, response.kind),
+						isConversationRequest: true
+					});
+
+					this._sdkSession.respondToPermission(requestId, response);
+				}
+				catch (error) {
+					this.logService.error(error, `[CopilotCLISession] Error handling permission request of kind ${permissionRequest.kind}`);
+					flushPendingInvocationMessageForToolCallId(permissionRequest.toolCallId);
+					this._sdkSession.respondToPermission(requestId, { kind: 'denied-interactively-by-user' });
+				}
 			})));
 			if (shouldHandleExitPlanModeRequests) {
 				disposables.add(toDisposable(this._sdkSession.on('exit_plan_mode.requested', async (event) => {
@@ -866,132 +912,6 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 
 	public getSelectedModelId() {
 		return this._sdkSession.getSelectedModel();
-	}
-
-	private isFileFromSessionWorkspace(file: Uri): boolean {
-		const workingDirectory = getWorkingDirectory(this.workspace);
-		if (workingDirectory && extUriBiasedIgnorePathCase.isEqualOrParent(file, workingDirectory)) {
-			return true;
-		}
-		if (this.workspace.folder && extUriBiasedIgnorePathCase.isEqualOrParent(file, this.workspace.folder)) {
-			return true;
-		}
-		// Only if we have a worktree should we check the repository.
-		// As this means the user created a worktree and we have a repository.
-		// & if the worktree is automatically trusted, then so is the repository as we created the worktree from that.
-		if (this.workspace.worktree && this.workspace.repository && extUriBiasedIgnorePathCase.isEqualOrParent(file, this.workspace.repository)) {
-			return true;
-		}
-
-		return false;
-	}
-	private async requestPermission(
-		permissionRequest: PermissionRequest,
-		editTracker: ExternalEditTracker,
-		getToolCall: (toolCallId: string) => undefined | [ToolCall, parentToolCallId: string | undefined],
-		token: vscode.CancellationToken
-	): Promise<{ kind: 'approved' } | { kind: 'denied-interactively-by-user' }> {
-		if (this._permissionLevel === 'autoApprove' || this._permissionLevel === 'autopilot') {
-			this.logService.trace(`[CopilotCLISession] Auto Approving ${permissionRequest.kind} request (permission level: ${this._permissionLevel})`);
-			return { kind: 'approved' };
-		}
-
-		const workingDirectory = getWorkingDirectory(this.workspace);
-
-		if (permissionRequest.kind === 'read') {
-			// If user is reading a file in the working directory or workspace, auto-approve
-			// read requests. Outside workspace reads (e.g., /etc/passwd) will still require
-			// approval.
-			const data = Uri.file(permissionRequest.path);
-
-			if (this._imageSupport.isTrustedImage(data)) {
-				return { kind: 'approved' };
-			}
-
-			if (this.isFileFromSessionWorkspace(data)) {
-				this.logService.trace(`[CopilotCLISession] Auto Approving request to read file in session workspace ${permissionRequest.path}`);
-				return { kind: 'approved' };
-			}
-
-			if (this.workspaceService.getWorkspaceFolder(data)) {
-				this.logService.trace(`[CopilotCLISession] Auto Approving request to read workspace file ${permissionRequest.path}`);
-				return { kind: 'approved' };
-			}
-
-			// If reading a file from session directory, e.g. plan.md, then auto approve it, this is internal file to Cli.
-			const sessionDir = Uri.joinPath(Uri.file(getCopilotCLISessionStateDir()), this.sessionId);
-			if (extUriBiasedIgnorePathCase.isEqualOrParent(data, sessionDir)) {
-				this.logService.trace(`[CopilotCLISession] Auto Approving request to read Copilot CLI session resource ${permissionRequest.path}`);
-				return { kind: 'approved' };
-			}
-
-			// If model is trying to read the contents of a file thats attached, then auto-approve it, as this is an explicit action by the user to share the file with the model.
-			if (this.attachments.some(attachment => attachment.type === 'file' && isEqual(Uri.file(attachment.path), data))) {
-				this.logService.trace(`[CopilotCLISession] Auto Approving request to read attached file ${permissionRequest.path}`);
-				return { kind: 'approved' };
-			}
-		}
-
-		// Get hold of file thats being edited if this is a edit tool call (requiring write permissions).
-		const toolData = permissionRequest.toolCallId ? getToolCall(permissionRequest.toolCallId) : undefined;
-		const toolCall = toolData ? toolData[0] : undefined;
-		const toolParentCallId = toolData ? toolData[1] : undefined;
-		const editFiles = toolCall ? getAffectedUrisForEditTool(toolCall) : undefined;
-		// Sometimes we don't get a tool call id for the edit permission request
-		const editFile = permissionRequest.kind === 'write' ? (editFiles && editFiles.length ? editFiles[0] : (permissionRequest.fileName ? Uri.file(permissionRequest.fileName) : undefined)) : undefined;
-		if (workingDirectory && permissionRequest.kind === 'write' && editFile) {
-			const isWorkspaceFile = this.workspaceService.getWorkspaceFolder(editFile);
-			const isWorkingDirectoryFile = !this.workspaceService.getWorkspaceFolder(workingDirectory) && extUriBiasedIgnorePathCase.isEqualOrParent(editFile, workingDirectory);
-
-			let autoApprove = false;
-			// If isolation is enabled, we only auto-approve writes within the working directory.
-			if (isIsolationEnabled(this.workspace) && isWorkingDirectoryFile) {
-				autoApprove = true;
-			}
-			// If its a workspace file, and not editing protected files, we auto-approve.
-			if (!autoApprove && isWorkspaceFile && !(await requiresFileEditconfirmation(this.instantiationService, permissionRequest, toolCall))) {
-				autoApprove = true;
-			}
-			// If we're working in the working directory (non-isolation), and not editing protected files, we auto-approve.
-			if (!autoApprove && isWorkingDirectoryFile && !(await requiresFileEditconfirmation(this.instantiationService, permissionRequest, toolCall, workingDirectory))) {
-				autoApprove = true;
-			}
-
-			if (autoApprove) {
-				this.logService.trace(`[CopilotCLISession] Auto Approving request ${editFile.fsPath}`);
-
-				// If we're editing a file, start tracking the edit & wait for core to acknowledge it.
-				if (toolCall && this._stream) {
-					this.logService.trace(`[CopilotCLISession] Starting to track edit for toolCallId ${toolCall.toolCallId} & file ${editFile.fsPath}`);
-					await editTracker.trackEdit(toolCall.toolCallId, [editFile], this._stream);
-				}
-
-				return { kind: 'approved' };
-			}
-		}
-		// If reading a file from session directory, e.g. plan.md, then auto approve it, this is internal file to Cli.
-		const sessionDir = Uri.joinPath(Uri.file(getCopilotCLISessionStateDir()), this.sessionId);
-		if (permissionRequest.kind === 'write' && editFile && extUriBiasedIgnorePathCase.isEqualOrParent(editFile, sessionDir)) {
-			this.logService.trace(`[CopilotCLISession] Auto Approving request to write to Copilot CLI session resource ${editFile.fsPath}`);
-			return { kind: 'approved' };
-		}
-
-		try {
-			if (await requestPermission(this.instantiationService, permissionRequest, toolCall, getWorkingDirectory(this.workspace), this._toolsService, this._toolInvocationToken as unknown as never, toolParentCallId, token)) {
-				// If we're editing a file, start tracking the edit & wait for core to acknowledge it.
-				if (editFile && toolCall && this._stream) {
-					this.logService.trace(`[CopilotCLISession] Starting to track edit for toolCallId ${toolCall.toolCallId} & file ${editFile.fsPath}`);
-					await editTracker.trackEdit(toolCall.toolCallId, [editFile], this._stream);
-				}
-				return { kind: 'approved' };
-			}
-		} catch (error) {
-			this.logService.error(`[CopilotCLISession] Permission request error: ${error}`);
-		} finally {
-			this._permissionRequested = undefined;
-		}
-
-		return { kind: 'denied-interactively-by-user' };
 	}
 
 	private _logRequest(userPrompt: string, modelId: string, attachments: Attachment[], startTimeMs: number): void {

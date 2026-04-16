@@ -364,3 +364,42 @@
 		opacity: 0.4;
 	}
 }
+
+/* Shimmer effect for in-progress session titles when not selected */
+
+.monaco-list-row:not(.selected) .session-item.in-progress .session-title {
+	background: linear-gradient(
+		90deg,
+		var(--vscode-foreground) 0%,
+		var(--vscode-foreground) 30%,
+		var(--vscode-chat-thinkingShimmer) 50%,
+		var(--vscode-foreground) 70%,
+		var(--vscode-foreground) 100%
+	);
+	background-size: 400% 100%;
+	background-clip: text;
+	-webkit-background-clip: text;
+	-webkit-text-fill-color: transparent;
+	animation: session-title-shimmer 3s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.monaco-list-row:not(.selected) .session-item.in-progress .session-title {
+		animation: none;
+		background: none;
+		background-clip: border-box;
+		-webkit-background-clip: border-box;
+		color: var(--vscode-foreground);
+		-webkit-text-fill-color: var(--vscode-foreground);
+	}
+}
+
+@keyframes session-title-shimmer {
+	0% {
+		background-position: 120% 0;
+	}
+
+	100% {
+		background-position: -120% 0;
+	}
+}

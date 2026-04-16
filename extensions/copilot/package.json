@@ -511,25 +511,6 @@
 				}
 			},
 			{
-				"name": "copilot_testFailure",
-				"toolReferenceName": "testFailure",
-				"legacyToolReferenceFullNames": [
-					"testFailure"
-				],
-				"displayName": "%copilot.tools.testFailure.name%",
-				"icon": "$(beaker)",
-				"userDescription": "%copilot.testFailure.tool.description%",
-				"modelDescription": "Includes test failure information in the prompt.",
-				"inputSchema": {},
-				"tags": [
-					"vscode_editing_with_tests",
-					"enable_other_tool_copilot_readFile",
-					"enable_other_tool_copilot_listDirectory",
-					"enable_other_tool_copilot_findFiles",
-					"enable_other_tool_copilot_runTests"
-				]
-			},
-			{
 				"name": "copilot_createNewWorkspace",
 				"displayName": "%github.copilot.tools.createNewWorkspace.name%",
 				"toolReferenceName": "newWorkspace",
@@ -1214,7 +1195,6 @@
 				"description": "",
 				"tools": [
 					"runNotebookCell",
-					"testFailure",
 					"executionSubagent"
 				]
 			},
@@ -2146,6 +2126,11 @@
 				"command": "github.copilot.cli.sessions.delete",
 				"title": "%github.copilot.command.deleteAgentSession%",
 				"icon": "$(close)",
+				"category": "Copilot CLI"
+			},
+			{
+				"command": "agents.github.copilot.cli.deleteSessions",
+				"title": "%github.copilot.command.deleteAgentSession%",
 				"category": "Copilot CLI"
 			},
 			{
@@ -3207,27 +3192,6 @@
 						"type": "boolean",
 						"default": true,
 						"markdownDescription": "%github.copilot.config.tools.viewImage.enabled%",
-						"tags": [
-							"preview",
-							"onExp"
-						]
-					},
-					"github.copilot.chat.anthropic.toolSearchTool.enabled": {
-						"type": "boolean",
-						"default": true,
-						"markdownDescription": "%github.copilot.config.anthropic.toolSearchTool.enabled%",
-						"tags": [
-							"preview"
-						]
-					},
-					"github.copilot.chat.anthropic.toolSearchTool.mode": {
-						"type": "string",
-						"enum": [
-							"server",
-							"client"
-						],
-						"default": "server",
-						"markdownDescription": "%github.copilot.config.anthropic.toolSearchTool.mode%",
 						"tags": [
 							"preview",
 							"onExp"
@@ -6367,7 +6331,7 @@
 		"@anthropic-ai/claude-agent-sdk": "0.2.98",
 		"@anthropic-ai/sdk": "^0.82.0",
 		"@github/blackbird-external-ingest-utils": "^0.3.0",
-		"@github/copilot": "^1.0.26",
+		"@github/copilot": "^1.0.28",
 		"@google/genai": "^1.22.0",
 		"@humanwhocodes/gitignore-to-minimatch": "1.0.2",
 		"@microsoft/tiktokenizer": "^1.0.10",

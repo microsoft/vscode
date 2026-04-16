@@ -127,6 +127,12 @@ export interface IHarnessDescriptor {
 	 */
 	readonly itemProvider?: ICustomizationItemProvider;
 	/**
+	 * When `true`, the "Troubleshoot" action is available in item context
+	 * menus. This opens chat with the `/troubleshoot` command pre-filled
+	 * for the selected customization.
+	 */
+	readonly supportsTroubleshoot?: boolean;
+	/**
 	 * When set, this harness supports syncing local customizations to a
 	 * remote target. The UI shows local items with sync checkboxes when
 	 * this harness is active.
@@ -257,6 +263,13 @@ export interface ICustomizationHarnessService {
 // #region Shared filter constants
 
 /**
+ * Empty filter returned when no harness is registered yet.
+ */
+const EMPTY_FILTER: IStorageSourceFilter = {
+	sources: [],
+};
+
+/**
  * Hooks filter — local, user, and plugin sources.
  */
 const HOOKS_FILTER: IStorageSourceFilter = {
@@ -303,6 +316,7 @@ export function createVSCodeHarnessDescriptor(extras: readonly string[]): IHarne
 		id: CustomizationHarness.VSCode,
 		label: localize('harness.local', "Local"),
 		icon: ThemeIcon.fromId(Codicon.vm.id),
+		supportsTroubleshoot: true,
 		sectionOverrides: new Map([
 			[AICustomizationManagementSection.Instructions, {
 				rootFileShortcuts: [AGENT_MD_FILENAME],
@@ -488,8 +502,8 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 	getStorageSourceFilter(type: PromptsType): IStorageSourceFilter {
 		const activeId = this._activeHarness.get();
 		const all = this._getAllHarnesses();
-		const descriptor = all.find(h => h.id === activeId);
-		return descriptor?.getStorageSourceFilter(type) ?? all[0].getStorageSourceFilter(type);
+		const descriptor = all.find(h => h.id === activeId) ?? all[0];
+		return descriptor?.getStorageSourceFilter(type) ?? EMPTY_FILTER;
 	}
 
 	getActiveDescriptor(): IHarnessDescriptor {

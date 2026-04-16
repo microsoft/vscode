@@ -70,7 +70,6 @@ function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISession 
 		lastTurnEnd: chat.lastTurnEnd,
 		description: chat.description,
 		gitHubInfo: observableValue('gitHubInfo', undefined),
-		ready: observableValue('ready', true),
 		chats: observableValue('chats', [chat]),
 		mainChat: chat,
 	};

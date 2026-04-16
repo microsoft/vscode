@@ -931,6 +931,31 @@ export function registerCLIChatCommands(
 ): IDisposable {
 	const disposableStore = new DisposableStore();
 
+	async function deleteSessionById(id: string): Promise<void> {
+		const worktree = await copilotCLIWorktreeManagerService.getWorktreeProperties(id);
+		const worktreePath = await copilotCLIWorktreeManagerService.getWorktreePath(id);
+
+		await copilotCLISessionService.deleteSession(id);
+		await copilotCliWorkspaceSession.deleteTrackedWorkspaceFolder(id);
+
+		if (worktreePath) {
+			const worktreeExists = await fileSystemService.stat(worktreePath).then(() => true, () => false);
+			if (worktreeExists) {
+				try {
+					const repository = worktree ? await gitService.getRepository(vscode.Uri.file(worktree.repositoryPath), true) : undefined;
+					if (!repository) {
+						throw new Error(l10n.t('No active repository found to delete worktree.'));
+					}
+					await gitService.deleteWorktree(repository.rootUri, worktreePath.fsPath);
+				} catch (error) {
+					vscode.window.showErrorMessage(l10n.t('Failed to delete worktree: {0}', error instanceof Error ? error.message : String(error)));
+				}
+			}
+		}
+
+		await contentProvider.refreshSession({ reason: 'delete', sessionId: id });
+	}
+
 	// Terminal integration setup: resolve session dirs for terminal links.
 	disposableStore.add(terminalIntegration);
 	terminalIntegration.setSessionDirResolver(terminal =>
@@ -939,7 +964,6 @@ export function registerCLIChatCommands(
 	disposableStore.add(vscode.commands.registerCommand('github.copilot.cli.sessions.delete', async (sessionItem?: vscode.ChatSessionItem) => {
 		if (sessionItem?.resource) {
 			const id = SessionIdForCLI.parse(sessionItem.resource);
-			const worktree = await copilotCLIWorktreeManagerService.getWorktreeProperties(id);
 			const worktreePath = await copilotCLIWorktreeManagerService.getWorktreePath(id);
 
 			const confirmMessage = worktreePath
@@ -954,22 +978,34 @@ export function registerCLIChatCommands(
 			);
 
 			if (result === deleteLabel) {
-				await copilotCliWorkspaceSession.deleteTrackedWorkspaceFolder(id);
-				await copilotCLISessionService.deleteSession(id);
+				await deleteSessionById(id);
+			}
+		}
+	}));
+	disposableStore.add(vscode.commands.registerCommand('agents.github.copilot.cli.deleteSessions', async (sessionItems?: vscode.ChatSessionItem[], options?: { skipConfirmation?: boolean }) => {
+		if (!sessionItems?.length) {
+			return;
+		}
 
-				if (worktreePath) {
-					try {
-						const repository = worktree ? await gitService.getRepository(vscode.Uri.file(worktree.repositoryPath), true) : undefined;
-						if (!repository) {
-							throw new Error(l10n.t('No active repository found to delete worktree.'));
-						}
-						await gitService.deleteWorktree(repository.rootUri, worktreePath.fsPath);
-					} catch (error) {
-						vscode.window.showErrorMessage(l10n.t('Failed to delete worktree: {0}', error instanceof Error ? error.message : String(error)));
-					}
-				}
+		if (!options?.skipConfirmation) {
+			const deleteLabel = l10n.t('Delete');
+			const confirmMessage = sessionItems.length === 1
+				? l10n.t('Are you sure you want to delete the session?')
+				: l10n.t('Are you sure you want to delete {0} sessions?', sessionItems.length);
+			const result = await vscode.window.showWarningMessage(
+				confirmMessage,
+				{ modal: true },
+				deleteLabel
+			);
+			if (result !== deleteLabel) {
+				return;
+			}
+		}
 
-				await contentProvider.refreshSession({ reason: 'delete', sessionId: id });
+		for (const sessionItem of sessionItems) {
+			if (sessionItem.resource) {
+				const id = SessionIdForCLI.parse(sessionItem.resource);
+				await deleteSessionById(id);
 			}
 		}
 	}));

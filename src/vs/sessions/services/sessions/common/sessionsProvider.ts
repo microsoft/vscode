@@ -96,15 +96,6 @@ export interface ISessionsProvider {
 	readonly onDidReplaceSession?: Event<{ readonly from: ISession; readonly to: ISession }>;
 
 	/**
-	 * Optional. Fires when a temporary (untitled) chat is atomically replaced
-	 * by a committed chat after the first turn.
-	 *
-	 * @internal This is an implementation detail of the Copilot Chat sessions
-	 * provider. Do not implement or consume this event in other providers.
-	 */
-	readonly onDidReplaceChat?: Event<{ readonly from: IChat; readonly to: IChat }>;
-
-	/**
 	 * List of workspace browse actions supported by the provider. These are used to contribute entries to the "Open Workspace" picker. Consumers should not cache this list, but should call `resolveWorkspace` when an action is executed.
 	 */
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];

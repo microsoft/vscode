@@ -49,7 +49,7 @@ class NewChatWidget extends Disposable {
 			if (!session) {
 				return false;
 			}
-			return !session.loading.read(reader) && session.ready.read(reader);
+			return !session.loading.read(reader);
 		});
 
 		const loading = derived(reader => {

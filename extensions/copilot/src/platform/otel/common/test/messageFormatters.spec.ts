@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { describe, expect, it } from 'vitest';
-import { toInputMessages, toOutputMessages, toSystemInstructions, toToolDefinitions, truncateForOTel } from '../messageFormatters';
+import { normalizeProviderMessages, toInputMessages, toOutputMessages, toSystemInstructions, toToolDefinitions, truncateForOTel } from '../messageFormatters';
 
 describe('toInputMessages', () => {
 	it('converts a simple text message', () => {
@@ -69,6 +69,95 @@ describe('toInputMessages', () => {
 	it('preserves undefined role', () => {
 		const result = toInputMessages([{ content: 'no role' }]);
 		expect(result[0].role).toBeUndefined();
+	});
+
+	it('converts OpenAI tool-result messages to tool_call_response', () => {
+		const result = toInputMessages([{
+			role: 'tool',
+			content: 'file contents here',
+			tool_call_id: 'call_abc123',
+		}]);
+		expect(result).toEqual([{
+			role: 'tool',
+			parts: [{ type: 'tool_call_response', id: 'call_abc123', response: 'file contents here' }],
+		}]);
+	});
+});
+
+describe('normalizeProviderMessages', () => {
+	it('converts Anthropic tool_use blocks to tool_call', () => {
+		const result = normalizeProviderMessages([{
+			role: 'assistant',
+			content: [
+				{ type: 'text', text: 'Let me read that file' },
+				{ type: 'tool_use', id: 'toolu_123', name: 'readFile', input: { path: 'foo.ts' } },
+			],
+		}]);
+		expect(result).toEqual([{
+			role: 'assistant',
+			parts: [
+				{ type: 'text', content: 'Let me read that file' },
+				{ type: 'tool_call', id: 'toolu_123', name: 'readFile', arguments: { path: 'foo.ts' } },
+			],
+		}]);
+	});
+
+	it('converts Anthropic tool_result blocks to tool_call_response', () => {
+		const result = normalizeProviderMessages([{
+			role: 'user',
+			content: [
+				{ type: 'tool_result', tool_use_id: 'toolu_123', content: 'file contents' },
+			],
+		}]);
+		expect(result).toEqual([{
+			role: 'user',
+			parts: [
+				{ type: 'tool_call_response', id: 'toolu_123', response: 'file contents' },
+			],
+		}]);
+	});
+
+	it('converts OpenAI tool-result messages', () => {
+		const result = normalizeProviderMessages([{
+			role: 'tool',
+			tool_call_id: 'call_abc',
+			content: 'result text',
+		}]);
+		expect(result).toEqual([{
+			role: 'tool',
+			parts: [{ type: 'tool_call_response', id: 'call_abc', response: 'result text' }],
+		}]);
+	});
+
+	it('converts OpenAI tool_calls array', () => {
+		const result = normalizeProviderMessages([{
+			role: 'assistant',
+			content: 'thinking...',
+			tool_calls: [{ id: 'call_1', function: { name: 'search', arguments: '{"q":"test"}' } }],
+		}]);
+		expect(result).toEqual([{
+			role: 'assistant',
+			parts: [
+				{ type: 'text', content: 'thinking...' },
+				{ type: 'tool_call', id: 'call_1', name: 'search', arguments: { q: 'test' } },
+			],
+		}]);
+	});
+
+	it('handles plain string content', () => {
+		const result = normalizeProviderMessages([{ role: 'user', content: 'hello' }]);
+		expect(result).toEqual([{ role: 'user', parts: [{ type: 'text', content: 'hello' }] }]);
+	});
+
+	it('handles Anthropic thinking blocks', () => {
+		const result = normalizeProviderMessages([{
+			role: 'assistant',
+			content: [{ type: 'thinking', thinking: 'Let me consider...' }],
+		}]);
+		expect(result).toEqual([{
+			role: 'assistant',
+			parts: [{ type: 'reasoning', content: 'Let me consider...' }],
+		}]);
 	});
 });
 

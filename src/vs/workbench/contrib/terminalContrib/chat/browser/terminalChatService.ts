@@ -8,7 +8,7 @@ import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable }
 import { ResourceMap } from '../../../../../base/common/map.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
-import { IChatTerminalToolProgressPart, ITerminalChatService, ITerminalInstance, ITerminalService } from '../../../terminal/browser/terminal.js';
+import { IAhpTerminalCommandSource, IChatTerminalToolProgressPart, ITerminalChatService, ITerminalInstance, ITerminalService } from '../../../terminal/browser/terminal.js';
 import { IContextKey, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { IChatService } from '../../../chat/common/chatService/chatService.js';
@@ -33,6 +33,7 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 	private readonly _chatSessionResourceByTerminalInstance = new Map<ITerminalInstance, URI>();
 	private readonly _terminalInstanceListenersByToolSessionId = this._register(new DisposableMap<string, IDisposable>());
 	private readonly _chatSessionListenersByTerminalInstance = this._register(new DisposableMap<ITerminalInstance, IDisposable>());
+	private readonly _ahpCommandSources = new Map<string, IAhpTerminalCommandSource>();
 
 	private readonly _onDidContinueInBackground = this._register(new Emitter<string>());
 	readonly onDidContinueInBackground: Event<string> = this._onDidContinueInBackground.event;
@@ -348,5 +349,18 @@ export class TerminalChatService extends Disposable implements ITerminalChatServ
 
 	continueInBackground(terminalToolSessionId: string): void {
 		this._onDidContinueInBackground.fire(terminalToolSessionId);
+	}
+
+	registerAhpCommandSource(terminalToolSessionId: string, source: IAhpTerminalCommandSource): IDisposable {
+		this._ahpCommandSources.set(terminalToolSessionId, source);
+		return toDisposable(() => {
+			if (this._ahpCommandSources.get(terminalToolSessionId) === source) {
+				this._ahpCommandSources.delete(terminalToolSessionId);
+			}
+		});
+	}
+
+	getAhpCommandSource(terminalToolSessionId: string): IAhpTerminalCommandSource | undefined {
+		return this._ahpCommandSources.get(terminalToolSessionId);
 	}
 }

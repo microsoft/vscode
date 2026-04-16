@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
-import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, observableValue } from '../../../../base/common/observable.js';
 import * as nls from '../../../../nls.js';
@@ -108,7 +107,6 @@ class AgentHostModelPickerContribution extends Disposable implements IWorkbenchC
 				};
 				const pickerOptions: IChatInputPickerOptions = {
 					hideChevrons: observableValue('hideChevrons', false),
-					hoverPosition: { hoverPosition: HoverPosition.ABOVE },
 				};
 				const action = { id: 'sessions.agentHost.modelPicker', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } };
 				const modelPicker = instantiationService.createInstance(ModelPickerActionItem, action, delegate, pickerOptions);

@@ -16,7 +16,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { AgentSession, IAgentHostService, type IAgentSessionMetadata } from '../../../../platform/agentHost/common/agentService.js';
-import type { IRootState } from '../../../../platform/agentHost/common/state/protocol/state.js';
+import type { IRootState, ISessionFileDiff } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isSessionAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IResolveSessionConfigResult, ISessionConfigValueItem } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -26,6 +26,8 @@ import { IChatSessionFileChange, IChatSessionsService } from '../../../../workbe
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { agentHostSessionWorkspaceKey, buildAgentHostSessionWorkspace } from '../../../common/agentHostSessionWorkspace.js';
+import { isSessionConfigComplete } from '../../../common/sessionConfig.js';
+import { diffsToChanges, diffsEqual } from '../../../common/agentHostDiffs.js';
 import { ISendRequestOptions, ISessionChangeEvent } from '../../../services/sessions/common/sessionsProvider.js';
 import { IAgentHostSessionsProvider } from '../../../common/agentHostSessionsProvider.js';
 import { IChat, ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SessionStatus, type IGitHubInfo, ISessionType } from '../../../services/sessions/common/session.js';
@@ -85,13 +87,12 @@ class LocalSessionAdapter implements ISession {
 	readonly changes = observableValue<readonly IChatSessionFileChange[]>('changes', []);
 	readonly modelId: ISettableObservable<string | undefined>;
 	readonly mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>('mode', undefined);
-	readonly loading = observableValue('loading', false);
+	readonly loading = observableValue(this, false);
 	readonly isArchived = observableValue('isArchived', false);
 	readonly isRead = observableValue('isRead', true);
 	readonly description: ISettableObservable<IMarkdownString | undefined>;
 	readonly lastTurnEnd: ISettableObservable<Date | undefined>;
 	readonly gitHubInfo = observableValue<IGitHubInfo | undefined>('gitHubInfo', undefined);
-	readonly ready = observableValue('ready', true);
 
 	readonly mainChat: IChat;
 	readonly chats: IObservable<readonly IChat[]>;
@@ -111,7 +112,7 @@ class LocalSessionAdapter implements ISession {
 		this.providerId = providerId;
 		this.sessionType = logicalSessionType;
 		this.createdAt = new Date(metadata.startTime);
-		this.title = observableValue('title', metadata.summary ?? `Session ${rawId.substring(0, 8)}`);
+		this.title = observableValue('title', metadata.summary || `Session ${rawId.substring(0, 8)}`);
 		this.updatedAt = observableValue('updatedAt', new Date(metadata.modifiedTime));
 		this.modelId = observableValue<string | undefined>('modelId', metadata.model ? `${logicalSessionType}:${metadata.model}` : undefined);
 		this.lastTurnEnd = observableValue('lastTurnEnd', metadata.modifiedTime ? new Date(metadata.modifiedTime) : undefined);
@@ -123,6 +124,9 @@ class LocalSessionAdapter implements ISession {
 		}
 		if (metadata.isDone) {
 			this.isArchived.set(true, undefined);
+		}
+		if (metadata.diffs && metadata.diffs.length > 0) {
+			this.changes.set(diffsToChanges(metadata.diffs), undefined);
 		}
 
 		this.mainChat = {
@@ -186,6 +190,11 @@ class LocalSessionAdapter implements ISession {
 			didChange = true;
 		}
 
+		if (metadata.diffs && !diffsEqual(this.changes.get(), metadata.diffs)) {
+			this.changes.set(diffsToChanges(metadata.diffs), undefined);
+			didChange = true;
+		}
+
 		return didChange;
 	}
 }
@@ -244,7 +253,7 @@ export class LocalAgentHostSessionsProvider extends Disposable implements IAgent
 	private _currentNewSession: ISession | undefined;
 	private _currentNewSessionStatus: ISettableObservable<SessionStatus> | undefined;
 	private _currentNewSessionModelId: ISettableObservable<string | undefined> | undefined;
-	private _currentNewSessionReady: ISettableObservable<boolean> | undefined;
+	private _currentNewSessionLoading: ISettableObservable<boolean> | undefined;
 	private readonly _newSessionWorkspaces = new Map<string, URI>();
 	private readonly _newSessionConfigs = new Map<string, IResolveSessionConfigResult>();
 	private readonly _newSessionAgentProviders = new Map<string, string>();
@@ -296,6 +305,8 @@ export class LocalAgentHostSessionsProvider extends Disposable implements IAgent
 				this._handleIsDoneChanged(e.action.session, e.action.isDone);
 			} else if (e.action.type === ActionType.SessionConfigChanged && isSessionAction(e.action)) {
 				this._handleConfigChanged(e.action.session, e.action.config);
+			} else if (e.action.type === ActionType.SessionDiffsChanged && isSessionAction(e.action)) {
+				this._handleDiffsChanged(e.action.session, e.action.diffs);
 			}
 		}));
 
@@ -405,7 +416,7 @@ export class LocalAgentHostSessionsProvider extends Disposable implements IAgent
 		this._currentNewSession = undefined;
 		this._selectedModelId = undefined;
 		this._currentNewSessionModelId = undefined;
-		this._currentNewSessionReady = undefined;
+		this._currentNewSessionLoading = undefined;
 
 		const sessionType = this.sessionTypes.find(t => t.id === sessionTypeId);
 		if (!sessionType) {
@@ -433,7 +444,7 @@ export class LocalAgentHostSessionsProvider extends Disposable implements IAgent
 		const isRead = observableValue(this, true);
 		const description = observableValue<IMarkdownString | undefined>(this, undefined);
 		const lastTurnEnd = observableValue<Date | undefined>(this, undefined);
-		const ready = observableValue(this, false);
+		const loading = observableValue(this, true);
 		const createdAt = new Date();
 
 		const mainChat: IChat = {
@@ -455,25 +466,23 @@ export class LocalAgentHostSessionsProvider extends Disposable implements IAgent
 			changes,
 			modelId,
 			mode,
-			loading: observableValue(this, false),
+			loading,
 			isArchived,
 			isRead,
 			description,
 			lastTurnEnd,
 			gitHubInfo: observableValue(this, undefined),
-			ready,
 			mainChat,
 			chats: constObservable([mainChat]),
 		};
 		this._currentNewSession = session;
 		this._currentNewSessionStatus = status;
 		this._currentNewSessionModelId = modelId;
-		this._currentNewSessionReady = ready;
+		this._currentNewSessionLoading = loading;
 		const agentProvider = this._agentProviderFromSessionType(sessionType.id);
 		this._newSessionWorkspaces.set(session.sessionId, workspaceUri);
 		this._newSessionAgentProviders.set(session.sessionId, agentProvider);
-		this._newSessionConfigs.set(session.sessionId, { ready: false, schema: { type: 'object', properties: {} }, values: {} });
-		this._updateSessionReady(session.sessionId);
+		this._newSessionConfigs.set(session.sessionId, { schema: { type: 'object', properties: {} }, values: {} });
 		this._onDidChangeSessionConfig.fire(session.sessionId);
 		this._resolveSessionConfig(session.sessionId, agentProvider, workspaceUri, undefined);
 		return session;
@@ -488,8 +497,8 @@ export class LocalAgentHostSessionsProvider extends Disposable implements IAgent
 		const workingDirectory = this._newSessionWorkspaces.get(sessionId);
 		if (workingDirectory) {
 			const current = this._newSessionConfigs.get(sessionId)?.values ?? {};
-			this._newSessionConfigs.set(sessionId, { ready: false, schema: { type: 'object', properties: {} }, values: { ...current, [property]: value } });
-			this._updateSessionReady(sessionId);
+			this._newSessionConfigs.set(sessionId, { schema: { type: 'object', properties: {} }, values: { ...current, [property]: value } });
+			this._setNewSessionLoading(sessionId, true);
 			this._onDidChangeSessionConfig.fire(sessionId);
 			await this._resolveSessionConfig(sessionId, this._getAgentProviderForSession(sessionId), workingDirectory, { ...current, [property]: value });
 			return;
@@ -510,7 +519,6 @@ export class LocalAgentHostSessionsProvider extends Disposable implements IAgent
 			...runningConfig,
 			values: { ...runningConfig.values, [property]: value },
 		});
-		this._updateSessionReady(sessionId);
 		this._onDidChangeSessionConfig.fire(sessionId);
 
 		// Dispatch to the agent host
@@ -676,7 +684,7 @@ export class LocalAgentHostSessionsProvider extends Disposable implements IAgent
 		this._selectedModelId = undefined;
 		this._currentNewSessionStatus = undefined;
 		this._currentNewSessionModelId = undefined;
-		this._currentNewSessionReady = undefined;
+		this._currentNewSessionLoading = undefined;
 
 		try {
 			const committedSession = await this._waitForNewSession(existingKeys);
@@ -684,7 +692,7 @@ export class LocalAgentHostSessionsProvider extends Disposable implements IAgent
 				this._preserveSessionMutableConfig(chatId, committedSession.sessionId);
 				this._currentNewSession = undefined;
 				this._currentNewSessionModelId = undefined;
-				this._currentNewSessionReady = undefined;
+				this._currentNewSessionLoading = undefined;
 				this._clearNewSessionConfig(chatId);
 				this._onDidReplaceSession.fire({ from: newSession, to: committedSession });
 				return committedSession;
@@ -697,7 +705,7 @@ export class LocalAgentHostSessionsProvider extends Disposable implements IAgent
 
 		this._currentNewSession = undefined;
 		this._currentNewSessionModelId = undefined;
-		this._currentNewSessionReady = undefined;
+		this._currentNewSessionLoading = undefined;
 		this._clearNewSessionConfig(chatId);
 		return newSession;
 	}
@@ -710,26 +718,27 @@ export class LocalAgentHostSessionsProvider extends Disposable implements IAgent
 		throw new Error('Multiple chats per session is not supported for agent host sessions');
 	}
 
-	private async _resolveSessionConfig(sessionId: string, agentProvider: string, workingDirectory: URI, config: Record<string, string> | undefined): Promise<void> {
+	private async _resolveSessionConfig(sessionId: string, agentProvider: string, workspaceUri: URI, config: Record<string, string> | undefined): Promise<void> {
 		const request = (this._newSessionConfigRequests.get(sessionId) ?? 0) + 1;
 		this._newSessionConfigRequests.set(sessionId, request);
 		try {
 			const result = await this._agentHostService.resolveSessionConfig({
 				provider: agentProvider,
-				workingDirectory,
+				workingDirectory: workspaceUri,
 				config,
 			});
 			if (this._newSessionConfigRequests.get(sessionId) !== request) {
 				return;
 			}
 			this._newSessionConfigs.set(sessionId, result);
+			this._setNewSessionLoading(sessionId, !isSessionConfigComplete(result));
 		} catch {
 			if (this._newSessionConfigRequests.get(sessionId) !== request) {
 				return;
 			}
 			this._newSessionConfigs.delete(sessionId);
+			this._setNewSessionLoading(sessionId, false);
 		}
-		this._updateSessionReady(sessionId);
 		this._onDidChangeSessionConfig.fire(sessionId);
 	}
 
@@ -763,7 +772,6 @@ export class LocalAgentHostSessionsProvider extends Disposable implements IAgent
 		}
 		if (Object.keys(mutableProperties).length > 0) {
 			this._runningSessionConfigs.set(newSessionId, {
-				ready: true,
 				schema: { type: 'object', properties: mutableProperties },
 				values: mutableValues,
 			});
@@ -935,6 +943,15 @@ export class LocalAgentHostSessionsProvider extends Disposable implements IAgent
 		}
 	}
 
+	private _handleDiffsChanged(session: string, diffs: ISessionFileDiff[]): void {
+		const rawId = AgentSession.id(session);
+		const cached = this._sessionCache.get(rawId);
+		if (cached) {
+			cached.changes.set(diffsToChanges(diffs), undefined);
+			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
+		}
+	}
+
 	private _handleConfigChanged(session: string, config: Record<string, string>): void {
 		const rawId = AgentSession.id(session);
 		const cached = this._sessionCache.get(rawId);
@@ -952,26 +969,17 @@ export class LocalAgentHostSessionsProvider extends Disposable implements IAgent
 			// Session was restored (e.g. after reload) — create a minimal
 			// config entry from the changed values so the picker can render.
 			this._runningSessionConfigs.set(sessionId, {
-				ready: true,
 				schema: { type: 'object', properties: buildMutableConfigSchema(config) },
 				values: config,
 			});
 		}
-		this._updateSessionReady(sessionId);
 		this._onDidChangeSessionConfig.fire(sessionId);
 	}
 
-	private _updateSessionReady(sessionId: string): void {
-		const configReady = this.getSessionConfig(sessionId)?.ready ?? true;
-		// New (untitled) session
+	private _setNewSessionLoading(sessionId: string, loading: boolean): void {
 		if (this._currentNewSession?.sessionId === sessionId) {
-			this._currentNewSessionReady?.set(configReady, undefined);
-			return;
+			this._currentNewSessionLoading?.set(loading, undefined);
 		}
-		// Running session
-		const rawId = this._rawIdFromChatId(sessionId);
-		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
-		cached?.ready.set(configReady, undefined);
 	}
 
 	private _rawIdFromChatId(chatId: string): string | undefined {

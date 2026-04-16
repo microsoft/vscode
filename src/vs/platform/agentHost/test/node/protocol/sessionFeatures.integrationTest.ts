@@ -77,7 +77,15 @@ suite('Protocol WebSocket — Session Features', function () {
 		const sessionUri = await createAndSubscribeSession(client, 'test-agent-title');
 		dispatchTurnStarted(client, sessionUri, 'turn-title', 'with-title', 1);
 
-		const titleNotif = await client.waitForNotification(n => isActionNotification(n, 'session/titleChanged'));
+		// The first titleChanged is the immediate fallback (user message text).
+		// Wait for the agent-generated title which arrives second.
+		const titleNotif = await client.waitForNotification(n => {
+			if (!isActionNotification(n, 'session/titleChanged')) {
+				return false;
+			}
+			const action = getActionEnvelope(n).action as ITitleChangedAction;
+			return action.title === MOCK_AUTO_TITLE;
+		});
 		const titleAction = getActionEnvelope(titleNotif).action as ITitleChangedAction;
 		assert.strictEqual(titleAction.title, MOCK_AUTO_TITLE);
 
@@ -86,6 +94,31 @@ suite('Protocol WebSocket — Session Features', function () {
 		const snapshot = await client.call<ISubscribeResult>('subscribe', { resource: sessionUri });
 		const state = snapshot.snapshot.state as ISessionState;
 		assert.strictEqual(state.summary.title, MOCK_AUTO_TITLE);
+	});
+
+	test('first turn immediately sets title to user message', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-immediate-title');
+
+		// Verify the session starts with the default placeholder title
+		const before = await client.call<ISubscribeResult>('subscribe', { resource: sessionUri });
+		assert.strictEqual((before.snapshot.state as ISessionState).summary.title, '');
+
+		// Send first turn — side effects should dispatch an immediate titleChanged
+		// with the user's message text before the agent produces its own title.
+		dispatchTurnStarted(client, sessionUri, 'turn-immediate', 'Fix the login bug', 1);
+
+		// The first titleChanged should carry the user message text
+		const titleNotif = await client.waitForNotification(n => isActionNotification(n, 'session/titleChanged'));
+		const titleAction = getActionEnvelope(titleNotif).action as ITitleChangedAction;
+		assert.strictEqual(titleAction.title, 'Fix the login bug');
+
+		// listSessions should also reflect the updated title
+		const result = await client.call<IListSessionsResult>('listSessions');
+		const session = result.items.find(s => s.resource === sessionUri);
+		assert.ok(session, 'session should appear in listSessions');
+		assert.strictEqual(session.title, 'Fix the login bug');
 	});
 
 	test('renamed session title persists across listSessions', async function () {

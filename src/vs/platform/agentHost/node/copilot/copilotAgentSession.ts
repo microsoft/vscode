@@ -8,12 +8,11 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
-import { extUriBiasedIgnorePathCase, normalizePath } from '../../../../base/common/resources.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { localize } from '../../../../nls.js';
-import { IAgentAttachment, IAgentMessageEvent, IAgentProgressEvent, IAgentSubagentStartedEvent, IAgentToolCompleteEvent, IAgentToolStartEvent } from '../../common/agentService.js';
+import { IAgentAttachment, IAgentMessageEvent, IAgentProgressEvent, IAgentSubagentStartedEvent, IAgentToolCompleteEvent, IAgentToolReadyEvent, IAgentToolStartEvent } from '../../common/agentService.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolResultContentType, type ISessionInputAnswer, type ISessionInputRequest, type IPendingMessage, type IToolCallResult, type IToolResultContent } from '../../common/state/sessionState.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
@@ -44,7 +43,7 @@ export interface IActiveClientSnapshot {
  * `resumeSession()`. In tests, it returns a mock wrapper directly.
  */
 export type SessionWrapperFactory = (callbacks: {
-	readonly onPermissionRequest: (request: PermissionRequest) => Promise<PermissionRequestResult>;
+	readonly onPermissionRequest: (request: ITypedPermissionRequest) => Promise<PermissionRequestResult>;
 	readonly onUserInputRequest: (request: IUserInputRequest, invocation: { sessionId: string }) => Promise<IUserInputResponse>;
 	readonly hooks: {
 		readonly onPreToolUse: (input: { toolName: string; toolArgs: unknown }) => Promise<void>;
@@ -67,6 +66,28 @@ interface IUserInputResponse {
 	wasFreeform: boolean;
 }
 
+/**
+ * Extends the SDK's {@link PermissionRequest} with the known extra properties
+ * that arrive on the index-signature. The SDK defines these as `[key: string]: unknown`
+ * so this interface adds proper types for the fields we actually use.
+ */
+interface ITypedPermissionRequest extends PermissionRequest {
+	/** File path — set for `read` permission requests. */
+	path?: string;
+	/** File path — set for `write` permission requests. */
+	fileName?: string;
+	/** Full shell command text — set for `shell` permission requests. */
+	fullCommandText?: string;
+	/** Human-readable intention describing the operation. */
+	intention?: string;
+	/** MCP server name — set for `mcp` permission requests. */
+	serverName?: string;
+	/** Tool name — set for `mcp` and `custom-tool` permission requests. */
+	toolName?: string;
+	/** Tool arguments — set for `custom-tool` permission requests. */
+	args?: Record<string, unknown>;
+}
+
 function tryStringify(value: unknown): string | undefined {
 	try {
 		return JSON.stringify(value);
@@ -78,18 +99,23 @@ function tryStringify(value: unknown): string | undefined {
 /**
  * Derives display fields from a permission request for the tool confirmation UI.
  */
-function getPermissionDisplay(request: { kind: string;[key: string]: unknown }): {
+/** Safely extract a string value from an SDK field that may be `unknown` at runtime. */
+function str(value: unknown): string | undefined {
+	return typeof value === 'string' ? value : undefined;
+}
+
+function getPermissionDisplay(request: ITypedPermissionRequest): {
 	confirmationTitle: string;
 	invocationMessage: string;
 	toolInput?: string;
 	/** Normalized permission kind for auto-approval routing. */
-	permissionKind: string;
+	permissionKind: IAgentToolReadyEvent['permissionKind'];
 } {
-	const path = typeof request.path === 'string' ? request.path : (typeof request.fileName === 'string' ? request.fileName : undefined);
-	const fullCommandText = typeof request.fullCommandText === 'string' ? request.fullCommandText : undefined;
-	const intention = typeof request.intention === 'string' ? request.intention : undefined;
-	const serverName = typeof request.serverName === 'string' ? request.serverName : undefined;
-	const toolName = typeof request.toolName === 'string' ? request.toolName : undefined;
+	const path = str(request.path) ?? str(request.fileName);
+	const fullCommandText = str(request.fullCommandText);
+	const intention = str(request.intention);
+	const serverName = str(request.serverName);
+	const toolName = str(request.toolName);
 
 	switch (request.kind) {
 		case 'shell':
@@ -104,7 +130,7 @@ function getPermissionDisplay(request: { kind: string;[key: string]: unknown }):
 			// tool args from the SDK's wrapper envelope.
 			const args = typeof request.args === 'object' && request.args !== null ? request.args as Record<string, unknown> : undefined;
 			const command = typeof args?.command === 'string' ? args.command : undefined;
-			const sdkToolName = typeof request.toolName === 'string' ? request.toolName : undefined;
+			const sdkToolName = str(request.toolName);
 			if (command && sdkToolName && isShellTool(sdkToolName)) {
 				return {
 					confirmationTitle: localize('copilot.permission.shell.title', "Run in terminal"),
@@ -159,7 +185,6 @@ function getPermissionDisplay(request: { kind: string;[key: string]: unknown }):
 export interface ICopilotAgentSessionOptions {
 	readonly sessionUri: URI;
 	readonly rawSessionId: string;
-	readonly workingDirectory: URI | undefined;
 	readonly onDidSessionProgress: Emitter<IAgentProgressEvent>;
 	readonly wrapperFactory: SessionWrapperFactory;
 	readonly shellManager: ShellManager | undefined;
@@ -179,7 +204,7 @@ export class CopilotAgentSession extends Disposable {
 	readonly sessionUri: URI;
 
 	/** Tracks active tool invocations so we can produce past-tense messages on completion. */
-	private readonly _activeToolCalls = new Map<string, { toolName: string; displayName: string; parameters: Record<string, unknown> | undefined }>();
+	private readonly _activeToolCalls = new Map<string, { toolName: string; displayName: string; parameters: Record<string, unknown> | undefined; content: IToolResultContent[] }>();
 	/** Pending permission requests awaiting a renderer-side decision. */
 	private readonly _pendingPermissions = new Map<string, DeferredPromise<boolean>>();
 	/** Pending user input requests awaiting a renderer-side answer. */
@@ -193,7 +218,6 @@ export class CopilotAgentSession extends Disposable {
 	/** SDK session wrapper, set by {@link initializeSession}. */
 	private _wrapper!: CopilotSessionWrapper;
 
-	private readonly _workingDirectory: URI | undefined;
 	/** Snapshot captured at session creation for refresh detection. */
 	private readonly _appliedSnapshot: IActiveClientSnapshot;
 	/** Tool names that are client-provided, derived from snapshot. */
@@ -214,7 +238,6 @@ export class CopilotAgentSession extends Disposable {
 		super();
 		this.sessionId = options.rawSessionId;
 		this.sessionUri = options.sessionUri;
-		this._workingDirectory = options.workingDirectory;
 		this._onDidSessionProgress = options.onDidSessionProgress;
 		this._wrapperFactory = options.wrapperFactory;
 		this._shellManager = options.shellManager;
@@ -230,12 +253,37 @@ export class CopilotAgentSession extends Disposable {
 		this._register(toDisposable(() => this._denyPendingPermissions()));
 		this._register(toDisposable(() => this._shellManager?.dispose()));
 		this._register(toDisposable(() => this._cancelPendingUserInputs()));
+
+		// When a shell tool associates a terminal with a tool call, fire a
+		// tool_content_changed event so the UI can connect to the terminal
+		// while the command is still running.
+		if (this._shellManager) {
+			this._register(this._shellManager.onDidAssociateTerminal(({ toolCallId, terminalUri, displayName }) => {
+				const tracked = this._activeToolCalls.get(toolCallId);
+				if (!tracked) {
+					return;
+				}
+
+				tracked.content.push({
+					type: ToolResultContentType.Terminal,
+					resource: terminalUri,
+					title: displayName,
+				});
+
+				this._onDidSessionProgress.fire({
+					session: this.sessionUri,
+					type: 'tool_content_changed',
+					toolCallId,
+					content: tracked.content,
+				});
+			}));
+		}
 		this._register(toDisposable(() => this._cancelPendingClientToolCalls()));
 	}
 
 	/**
 	 * The snapshot of client contributions captured when this session was
-	 * created. Used by the agent to detect when the session is stale.
+	 * created. Used by the agent to detect when the session is 1stale.
 	 */
 	get appliedSnapshot(): IActiveClientSnapshot {
 		return this._appliedSnapshot;
@@ -416,18 +464,9 @@ export class CopilotAgentSession extends Disposable {
 	 * side-effects layer to respond via {@link respondToPermissionRequest}.
 	 */
 	async handlePermissionRequest(
-		request: PermissionRequest,
+		request: ITypedPermissionRequest,
 	): Promise<PermissionRequestResult> {
 		this._logService.info(`[Copilot:${this.sessionId}] Permission request: kind=${request.kind}`);
-
-		// Auto-approve reads inside the working directory
-		if (request.kind === 'read') {
-			const requestPath = typeof request.path === 'string' ? request.path : undefined;
-			if (requestPath && this._workingDirectory && extUriBiasedIgnorePathCase.isEqualOrParent(normalizePath(URI.file(requestPath)), this._workingDirectory)) {
-				this._logService.trace(`[Copilot:${this.sessionId}] Auto-approving read inside working directory: ${requestPath}`);
-				return { kind: 'approved' };
-			}
-		}
 
 		const toolCallId = request.toolCallId;
 		if (!toolCallId) {
@@ -453,7 +492,7 @@ export class CopilotAgentSession extends Disposable {
 			toolInput,
 			confirmationTitle,
 			permissionKind,
-			permissionPath: typeof request.path === 'string' ? request.path : (typeof request.fileName === 'string' ? request.fileName : undefined),
+			permissionPath: str(request.path) ?? str(request.fileName),
 		});
 
 		const approved = await deferred.p;
@@ -611,7 +650,7 @@ export class CopilotAgentSession extends Disposable {
 				try { parameters = JSON.parse(toolArgs) as Record<string, unknown>; } catch { /* ignore */ }
 			}
 			const displayName = getToolDisplayName(e.data.toolName);
-			this._activeToolCalls.set(e.data.toolCallId, { toolName: e.data.toolName, displayName, parameters });
+			this._activeToolCalls.set(e.data.toolCallId, { toolName: e.data.toolName, displayName, parameters, content: [] });
 			const toolKind = getToolKind(e.data.toolName);
 
 			this._onDidSessionProgress.fire({
@@ -642,7 +681,7 @@ export class CopilotAgentSession extends Disposable {
 			const displayName = tracked.displayName;
 			const toolOutput = e.data.error?.message ?? e.data.result?.content;
 
-			const content: IToolResultContent[] = [];
+			const content: IToolResultContent[] = [...tracked.content];
 			if (toolOutput !== undefined) {
 				content.push({ type: ToolResultContentType.Text, text: toolOutput });
 			}
@@ -659,10 +698,11 @@ export class CopilotAgentSession extends Disposable {
 				}
 			}
 
-			// Add terminal content reference for shell tools
+			// Add terminal content reference for shell tools (skip if already
+			// added during onDidAssociateTerminal while the tool was running)
 			if (isShellTool(tracked.toolName) && this._shellManager) {
 				const terminalUri = this._shellManager.getTerminalUriForToolCall(e.data.toolCallId);
-				if (terminalUri) {
+				if (terminalUri && !content.some(c => c.type === ToolResultContentType.Terminal && c.resource === terminalUri)) {
 					content.push({
 						type: ToolResultContentType.Terminal,
 						resource: terminalUri,

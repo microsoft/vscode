@@ -186,8 +186,6 @@ export interface ISession {
 	readonly lastTurnEnd: IObservable<Date | undefined>;
 	/** GitHub information associated with this session, if any. */
 	readonly gitHubInfo: IObservable<IGitHubInfo | undefined>;
-	/** Whether the session is ready to accept requests. */
-	readonly ready: IObservable<boolean>;
 	/** The chats belonging to this session group. */
 	readonly chats: IObservable<readonly IChat[]>;
 	/** The main (first) chat of this session. */

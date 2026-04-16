@@ -9,9 +9,11 @@ import { Server as UtilityProcessServer } from '../../../base/parts/ipc/node/ipc
 import { isUtilityProcess } from '../../../base/parts/sandbox/node/electronTypes.js';
 import { Emitter } from '../../../base/common/event.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { isWindows } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
+import { generateUuid } from '../../../base/common/uuid.js';
 import * as os from 'os';
-import { AgentHostIpcChannels } from '../common/agentService.js';
+import { AgentHostIpcChannels, IAgentHostSocketInfo, IConnectionTrackerService } from '../common/agentService.js';
 import { AgentService } from './agentService.js';
 import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
@@ -42,6 +44,7 @@ import { AGENT_CLIENT_SCHEME } from '../common/agentClientUri.js';
 import { IAgentPluginManager } from '../common/agentPluginManager.js';
 import { AgentPluginManager } from './agentPluginManager.js';
 import { AgentHostGitService, IAgentHostGitService } from './agentHostGitService.js';
+import { join } from '../../../base/common/path.js';
 
 // Entry point for the agent host utility process.
 // Sets up IPC, logging, and registers agent providers (Copilot).
@@ -80,7 +83,7 @@ function startAgentHost(): void {
 	// Create the real service implementation that lives in this process
 	let agentService: AgentService;
 	try {
-		agentService = new AgentService(logService, fileService, sessionDataService);
+		agentService = new AgentService(logService, fileService, sessionDataService, productService);
 		const pluginManager = new AgentPluginManager(URI.file(environmentService.userDataPath), fileService, logService);
 		const diServices = new ServiceCollection();
 		diServices.set(ILogService, logService);
@@ -105,13 +108,45 @@ function startAgentHost(): void {
 	// This is NOT part of the agent host protocol -- it is only used by the
 	// server process to manage the agent host process lifetime.
 	const connectionCountEmitter = disposables.add(new Emitter<number>());
-	const connectionTrackerChannel = ProxyChannel.fromService(
-		{ onDidChangeConnectionCount: connectionCountEmitter.event },
-		disposables,
-	);
+	let dynamicSocketInfo: IAgentHostSocketInfo | undefined;
+	const connectionTrackerService: IConnectionTrackerService = {
+		onDidChangeConnectionCount: connectionCountEmitter.event,
+		async startWebSocketServer(): Promise<IAgentHostSocketInfo> {
+			if (dynamicSocketInfo) {
+				return dynamicSocketInfo;
+			}
+
+			const socketPath = isWindows
+				? `\\\\.\\pipe\\vscode-agent-host-${generateUuid().replace(/-/g, '')}`
+				: join(os.tmpdir(), `vscode-agent-host-${generateUuid().replace(/-/g, '')}.sock`);
+
+			const wsServer = disposables.add(await WebSocketProtocolServer.create(
+				{ socketPath },
+				logService,
+			));
+
+			const clientFileSystemProvider = disposables.add(new AgentHostClientFileSystemProvider());
+			disposables.add(fileService.registerProvider(AGENT_CLIENT_SCHEME, clientFileSystemProvider));
+
+			const protocolHandler = disposables.add(new ProtocolServerHandler(
+				agentService,
+				agentService.stateManager,
+				wsServer,
+				{ defaultDirectory: URI.file(os.homedir()).toString() },
+				clientFileSystemProvider,
+				logService,
+			));
+			disposables.add(protocolHandler.onDidChangeConnectionCount(count => connectionCountEmitter.fire(count)));
+
+			logService.info(`[AgentHost] Dynamic WebSocket server listening on ${socketPath}`);
+			dynamicSocketInfo = { socketPath };
+			return dynamicSocketInfo;
+		},
+	};
+	const connectionTrackerChannel = ProxyChannel.fromService(connectionTrackerService, disposables);
 	server.registerChannel(AgentHostIpcChannels.ConnectionTracker, connectionTrackerChannel);
 
-	// Start WebSocket server for external clients if configured
+	// Start WebSocket server for external clients if configured (env-var flow for CLI/server)
 	startWebSocketServer(agentService, fileService, logService, disposables, count => connectionCountEmitter.fire(count)).catch(err => {
 		logService.error('Failed to start WebSocket server', err);
 	});

@@ -133,7 +133,6 @@ import './chatManagement/chatManagement.contribution.js';
 import './aiCustomization/aiCustomizationWorkspaceService.js';
 import './aiCustomization/customizationHarnessService.js';
 import './aiCustomization/aiCustomizationManagement.contribution.js';
-import { AI_CUSTOMIZATION_WELCOME_PAGE_VARIANT_SETTING } from './aiCustomization/aiCustomizationManagement.js';
 
 import { ChatOutputRendererService, IChatOutputRendererService } from './chatOutputItemRenderer.js';
 import { ChatCompatibilityNotifier, ChatExtensionPointHandler } from './chatParticipant.contribution.js';
@@ -203,18 +202,6 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.experimentalSessionsWindowOverride', "When true, enables sessions-window-specific behavior for extensions."),
 			default: false,
 			tags: ['experimental'],
-		},
-		[AI_CUSTOMIZATION_WELCOME_PAGE_VARIANT_SETTING]: {
-			type: 'string',
-			enum: ['classic', 'promptLaunchers'],
-			enumDescriptions: [
-				nls.localize('chat.customizations.welcomePageVariant.classic', "Uses the original welcome page layout from the baseline implementation."),
-				nls.localize('chat.customizations.welcomePageVariant.promptLaunchers', "Uses the experimental welcome page with grouped command prompt launchers."),
-			],
-			description: nls.localize('chat.customizations.welcomePageVariant', "Controls which welcome page implementation is shown in Agent Customizations."),
-			default: 'promptLaunchers',
-			tags: ['experimental'],
-			scope: ConfigurationScope.APPLICATION,
 		},
 		'chat.fontSize': {
 			type: 'number',

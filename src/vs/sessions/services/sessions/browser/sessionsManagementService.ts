@@ -102,9 +102,6 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 			if (provider.onDidReplaceSession) {
 				disposables.add(provider.onDidReplaceSession(e => this.onDidReplaceSession(e.from, e.to)));
 			}
-			if (provider.onDidReplaceChat) {
-				disposables.add(provider.onDidReplaceChat(e => this._onDidReplaceChat(e.from, e.to)));
-			}
 			if (provider.onDidChangeSessionTypes) {
 				disposables.add(provider.onDidChangeSessionTypes(() => this._updateSessionTypes()));
 			}
@@ -148,12 +145,6 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 				removed: [from],
 				changed: [to],
 			});
-		}
-	}
-
-	private _onDidReplaceChat(from: IChat, to: IChat): void {
-		if (this._activeChatObservable && this.uriIdentityService.extUri.isEqual(this._activeChatObservable.get()?.resource, from.resource)) {
-			this._activeChatObservable.set(to, undefined);
 		}
 	}
 
@@ -427,7 +418,7 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 				if (activeChat && !chats.some(c => this.uriIdentityService.extUri.isEqual(c.resource, activeChat.resource))) {
 					const fallback = chats[chats.length - 1] ?? session.mainChat;
 					if (fallback) {
-						activeChatObs.set(fallback, undefined);
+						this.openChat(session, fallback.resource);
 					}
 				}
 			}));

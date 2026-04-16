@@ -47,6 +47,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public disposedSessions: URI[] = [];
 	public dispatchedActions: { action: ISessionAction | ITerminalAction; clientId: string; clientSeq: number }[] = [];
 	public failResolveSessionConfig = false;
+	public resolveSessionConfigResult: IResolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } };
 
 	private _nextSeq = 0;
 
@@ -81,7 +82,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		if (this.failResolveSessionConfig) {
 			throw new Error('resolveSessionConfig unavailable');
 		}
-		return { ready: true, schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } };
+		return this.resolveSessionConfigResult;
 	}
 
 	dispatchAction(action: ISessionAction | ITerminalAction, clientId: string, clientSeq: number): void {
@@ -163,6 +164,21 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 	});
 
 	return disposables.add(instantiationService.createInstance(LocalAgentHostSessionsProvider));
+}
+
+async function waitForSessionConfig(provider: LocalAgentHostSessionsProvider, sessionId: string, predicate: (config: IResolveSessionConfigResult | undefined) => boolean): Promise<void> {
+	if (predicate(provider.getSessionConfig(sessionId))) {
+		return;
+	}
+
+	await new Promise<void>(resolve => {
+		const disposable = provider.onDidChangeSessionConfig(changedSessionId => {
+			if (changedSessionId === sessionId && predicate(provider.getSessionConfig(sessionId))) {
+				disposable.dispose();
+				resolve();
+			}
+		});
+	});
 }
 
 function fireSessionAdded(agentHost: MockAgentHostService, rawId: string, opts?: { provider?: string; title?: string; model?: string; project?: { uri: string; displayName: string }; workingDirectory?: string }): void {
@@ -448,14 +464,14 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.ok(session.workspace.get());
 		assert.strictEqual(session.workspace.get()?.label, 'my-project');
 		assert.strictEqual(session.sessionType, provider.sessionTypes[0].id);
-		assert.deepStrictEqual(provider.getSessionConfig(session.sessionId), { ready: false, schema: { type: 'object', properties: {} }, values: {} });
+		assert.deepStrictEqual(provider.getSessionConfig(session.sessionId), { schema: { type: 'object', properties: {} }, values: {} });
 	});
 
 	test('createNewSession clears session config when resolving config is unavailable', async () => {
 		agentHost.failResolveSessionConfig = true;
 		const provider = createProvider(disposables, agentHost);
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
-		await timeout(0);
+		await waitForSessionConfig(provider, session.sessionId, config => config === undefined);
 
 		assert.strictEqual(provider.getSessionConfig(session.sessionId), undefined);
 	});
@@ -665,6 +681,18 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(session.title.get(), 'Session abcdef12');
 	}));
 
+	test('new session stays loading when required config is missing', async () => {
+		agentHost.resolveSessionConfigResult = {
+			schema: { type: 'object', required: ['branch'], properties: { branch: { type: 'string', title: 'Branch', enum: ['main'] } } },
+			values: {},
+		};
+		const provider = createProvider(disposables, agentHost);
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.schema.required?.includes('branch') === true);
+
+		assert.strictEqual(session.loading.get(), true);
+	});
+
 	// ---- sendAndCreateChat -------
 
 	test('sendAndCreateChat throws for unknown session', async () => {
@@ -688,7 +716,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			},
 		});
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
-		await timeout(0);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.isolation === 'worktree');
 
 		await provider.sendAndCreateChat(session.sessionId, { query: 'hello' });
 

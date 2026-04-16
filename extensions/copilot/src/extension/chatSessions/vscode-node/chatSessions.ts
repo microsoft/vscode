@@ -26,6 +26,7 @@ import { IToolsService } from '../../tools/common/toolsService';
 import { IClaudeRuntimeDataService } from '../claude/common/claudeRuntimeDataService';
 import { ClaudeSessionUri } from '../claude/common/claudeSessionUri';
 import { ClaudeToolPermissionService, IClaudeToolPermissionService } from '../claude/common/claudeToolPermissionService';
+import { ClaudeCodeFolderMruService } from '../claude/node/claudeCodeFolderMru';
 import { ClaudeAgentManager } from '../claude/node/claudeCodeAgent';
 import { ClaudeCodeModels, IClaudeCodeModels } from '../claude/node/claudeCodeModels';
 import { ClaudeCodeSdkService, IClaudeCodeSdkService } from '../claude/node/claudeCodeSdkService';
@@ -142,6 +143,7 @@ export class ChatSessionsContrib extends Disposable implements IExtensionContrib
 				[IChatSessionWorktreeCheckpointService, new SyncDescriptor(ChatSessionWorktreeCheckpointService)],
 				[IChatSessionWorkspaceFolderService, new SyncDescriptor(ChatSessionWorkspaceFolderService)],
 				[IFolderRepositoryManager, new SyncDescriptor(ClaudeFolderRepositoryManager)],
+				[IChatFolderMruService, new SyncDescriptor(ClaudeCodeFolderMruService)],
 				[IClaudeRuntimeDataService, new SyncDescriptor(ClaudeRuntimeDataService)],
 			));
 		const claudeAgentManager = this._register(claudeAgentInstaService.createInstance(ClaudeAgentManager));

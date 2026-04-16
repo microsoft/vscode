@@ -44,7 +44,7 @@ export class OpenAgentsWindowAction extends Action2 {
 			await openerService.open(URI.from({ scheme: productService.embedded.urlProtocol, authority: Schemas.file }), { openExternal: true });
 		} else {
 			const nativeHostService = accessor.get(INativeHostService);
-			await nativeHostService.openAgentsWindow({ forceNewWindow: options?.forceNewWindow });
+			await nativeHostService.openAgentsWindow({ forceNewWindow: options?.forceNewWindow ?? true });
 		}
 	}
 }
