@@ -50,7 +50,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 				this._proxy.$acceptDebugSessionNameChanged(this.getSessionDto(session), name);
 			}));
 		}));
-		// Need to start listening early to new session events because a custom event can come while a session is initialising
+		// Need to start listening early to new session events because a custom event can come while a session is initializing
 		this._toDispose.add(debugService.onWillNewSession(session => {
 			let store = sessionListeners.get(session);
 			if (!store) {

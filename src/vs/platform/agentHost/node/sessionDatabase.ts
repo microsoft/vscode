@@ -181,7 +181,7 @@ export async function runMigrations(db: Database, migrations: readonly ISessionD
 
 /**
  * A wrapper around a `@vscode/sqlite3` {@link Database} instance with
- * lazy initialisation.
+ * lazy initialization.
  *
  * The underlying connection is opened on the first async method call
  * (not at construction time), allowing the object to be created

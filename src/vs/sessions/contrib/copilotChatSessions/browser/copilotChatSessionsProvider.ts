@@ -1701,7 +1701,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	/**
 	 * Waits for an {@link AgentSessionAdapter} with the given resource to appear
 	 * in the session cache (populated by {@link _refreshSessionCache}).
-	 * Only called once during session initialisation (after the commit event),
+	 * Only called once during session initialization (after the commit event),
 	 * so the timeout has no performance impact on steady-state operations.
 	 */
 	private async _waitForSessionInCache(resource: URI): Promise<AgentSessionAdapter> {

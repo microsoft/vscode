@@ -137,7 +137,7 @@ export function contextIndentationFromText(source: string, offset: number, langu
 				if (i >= 0) {
 					ind = undefined;
 					i--;
-					// This is the same loop as above but specialised for direction = -1
+					// This is the same loop as above but specialized for direction = -1
 					while (ind === undefined && i >= 0) {
 						ind = indentationOfLine(lines[i]);
 						indIdx = i;

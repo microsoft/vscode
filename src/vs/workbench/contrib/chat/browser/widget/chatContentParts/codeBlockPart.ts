@@ -124,7 +124,7 @@ export class CodeBlockPart extends Disposable {
 	/**
 	 * Compute a pool reuse key for a code block. When the same key is used
 	 * across render cycles the pool will try to return the same CodeBlockPart,
-	 * which lets the setText append-optimisation avoid a full model reset.
+	 * which lets the setText append-optimization avoid a full model reset.
 	 */
 	static poolKey(elementId: string, codeBlockIndex: number): string {
 		return `${elementId}/${codeBlockIndex}`;
