@@ -871,7 +871,7 @@ export class AccessibleView extends Disposable {
 
 	private _disableVerbosityHint(provider: AccesibleViewContentProvider): string {
 		if (provider.options.type === AccessibleViewType.Help && this._verbosityEnabled()) {
-			return localize('acessibleViewDisableHint', "\nDisable accessibility verbosity for this feature{0}.", `<keybinding:${AccessibilityCommandId.DisableVerbosityHint}>`);
+			return localize('accessibleViewDisableHint', "\nDisable accessibility verbosity for this feature{0}.", `<keybinding:${AccessibilityCommandId.DisableVerbosityHint}>`);
 		}
 		return '';
 	}
@@ -965,9 +965,9 @@ export class AccessibleViewService extends Disposable implements IAccessibleView
 		const keybinding = this._keybindingService.lookupKeybinding(AccessibilityCommandId.OpenAccessibleView)?.getAriaLabel();
 		let hint = null;
 		if (keybinding) {
-			hint = localize('acessibleViewHint', "Inspect this in the accessible view with {0}", keybinding);
+			hint = localize('accessibleViewHint', "Inspect this in the accessible view with {0}", keybinding);
 		} else {
-			hint = localize('acessibleViewHintNoKbEither', "Inspect this in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding.");
+			hint = localize('accessibleViewHintNoKbEither', "Inspect this in the accessible view via the command Open Accessible View which is currently not triggerable via keybinding.");
 		}
 		return hint;
 	}

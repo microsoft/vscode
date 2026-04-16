@@ -664,7 +664,7 @@ class TunnelItem implements ITunnelItem {
 				description += ` (${this.pid})`;
 			}
 		} else if (this.hasRunningProcess) {
-			description = nls.localize('tunnelView.runningProcess.inacessable', "Process information unavailable");
+			description = nls.localize('tunnelView.runningProcess.inaccessible', "Process information unavailable");
 		}
 
 		return description;
