@@ -232,7 +232,7 @@ export interface IEditorOptions {
 	 */
 	overviewRulerLanes?: number;
 	/**
-	 * Controls if a border should be drawn around the overview ruler.
+	 * Controls whether a border should be drawn around the overview ruler.
 	 * Defaults to `true`.
 	 */
 	overviewRulerBorder?: boolean;
@@ -572,7 +572,7 @@ export interface IEditorOptions {
 	 */
 	doubleClickSelectsBlock?: boolean;
 	/**
-	 * Controls if the editor should allow to move selections via drag and drop.
+	 * Controls whether the editor should allow to move selections via drag and drop.
 	 * Defaults to false.
 	 */
 	dragAndDrop?: boolean;
@@ -1724,11 +1724,11 @@ export interface IEditorFindOptions {
 	 */
 	findOnType?: boolean;
 	/**
-	 * Controls if we seed search string in the Find Widget with editor selection.
+	 * Controls whether we seed search string in the Find Widget with editor selection.
 	 */
 	seedSearchStringFromSelection?: 'never' | 'always' | 'selection';
 	/**
-	 * Controls if Find in Selection flag is turned on in the editor.
+	 * Controls whether Find in Selection flag is turned on in the editor.
 	 */
 	autoFindInSelection?: 'never' | 'always' | 'multiline';
 	/*
@@ -1737,7 +1737,7 @@ export interface IEditorFindOptions {
 	addExtraSpaceOnTop?: boolean;
 	/**
 	 * @internal
-	 * Controls if the Find Widget should read or modify the shared find clipboard on macOS
+	 * Controls whether the Find Widget should read or modify the shared find clipboard on macOS
 	 */
 	globalFindClipboard?: boolean;
 	/**
@@ -5638,7 +5638,7 @@ export interface IDropIntoEditorOptions {
 	enabled?: boolean;
 
 	/**
-	 * Controls if a widget is shown after a drop.
+	 * Controls whether a widget is shown after a drop.
 	 * Defaults to 'afterDrop'.
 	 */
 	showDropSelector?: 'afterDrop' | 'never';
@@ -5663,7 +5663,7 @@ class EditorDropIntoEditor extends BaseEditorOption<EditorOption.dropIntoEditor,
 				},
 				'editor.dropIntoEditor.showDropSelector': {
 					type: 'string',
-					markdownDescription: nls.localize('dropIntoEditor.showDropSelector', "Controls if a widget is shown when dropping files into the editor. This widget lets you control how the file is dropped."),
+					markdownDescription: nls.localize('dropIntoEditor.showDropSelector', "Controls whether a widget is shown when dropping files into the editor. This widget lets you control how the file is dropped."),
 					enum: [
 						'afterDrop',
 						'never'
@@ -5705,7 +5705,7 @@ export interface IPasteAsOptions {
 	enabled?: boolean;
 
 	/**
-	 * Controls if a widget is shown after a drop.
+	 * Controls whether a widget is shown after a drop.
 	 * Defaults to 'afterPaste'.
 	 */
 	showPasteSelector?: 'afterPaste' | 'never';
@@ -5730,7 +5730,7 @@ class EditorPasteAs extends BaseEditorOption<EditorOption.pasteAs, IPasteAsOptio
 				},
 				'editor.pasteAs.showPasteSelector': {
 					type: 'string',
-					markdownDescription: nls.localize('pasteAs.showPasteSelector', "Controls if a widget is shown when pasting content in to the editor. This widget lets you control how the file is pasted."),
+					markdownDescription: nls.localize('pasteAs.showPasteSelector', "Controls whether a widget is shown when pasting content into the editor. This widget lets you control how the file is pasted."),
 					enum: [
 						'afterPaste',
 						'never'
@@ -6556,7 +6556,7 @@ export const EditorOptions = {
 	)),
 	renderLineHighlightOnlyWhenFocus: register(new EditorBooleanOption(
 		EditorOption.renderLineHighlightOnlyWhenFocus, 'renderLineHighlightOnlyWhenFocus', false,
-		{ description: nls.localize('renderLineHighlightOnlyWhenFocus', "Controls if the editor should render the current line highlight only when the editor is focused.") }
+		{ description: nls.localize('renderLineHighlightOnlyWhenFocus', "Controls whether the editor should render the current line highlight only when the editor is focused.") }
 	)),
 	renderValidationDecorations: register(new EditorStringEnumOption(
 		EditorOption.renderValidationDecorations, 'renderValidationDecorations',

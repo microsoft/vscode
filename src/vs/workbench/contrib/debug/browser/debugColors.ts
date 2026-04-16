@@ -125,7 +125,7 @@ export function registerColors() {
 		const toolbarHoverBackgroundColor = theme.getColor(toolbarHoverBackground);
 
 		collector.addRule(`
-			/* Text colour of the call stack row's filename */
+			/* Text color of the call stack row's filename */
 			.debug-pane .debug-call-stack .monaco-list-row:not(.selected) .stack-frame > .file .file-name {
 				color: ${listDeemphasizedForegroundColor}
 			}

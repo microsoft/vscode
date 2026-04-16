@@ -1673,7 +1673,7 @@ suite('EditorService', () => {
 		assert.strictEqual(service.isVisible(input1), true);
 		assert.strictEqual(service.isOpened(input1), true);
 
-		// Open to the side uses existing neighbour group if any
+		// Open to the side uses existing neighbor group if any
 		editor = await service.openEditor(input2, { pinned: true, preserveFocus: true }, SIDE_GROUP);
 		assert.strictEqual(part.activeGroup, rootGroup);
 		assert.strictEqual(part.count, 2);

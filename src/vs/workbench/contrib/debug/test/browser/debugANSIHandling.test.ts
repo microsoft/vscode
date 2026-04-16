@@ -174,12 +174,12 @@ suite('Debug - ANSI Handling', () => {
 		for (let i = 30; i <= 37; i++) {
 			const customClassName: string = 'code-foreground-colored';
 
-			// Foreground colour class
+			// Foreground color class
 			assertSingleSequenceElement('\x1b[' + i + 'm', (child) => {
 				assert(child.classList.contains(customClassName), `Custom foreground class not found on element after foreground ANSI code #${i}.`);
 			});
 
-			// Cancellation code removes colour class
+			// Cancellation code removes color class
 			assertSingleSequenceElement('\x1b[' + i + ';39m', (child) => {
 				assert(child.classList.contains(customClassName) === false, 'Custom foreground class still found after foreground cancellation code.');
 				assertInlineColor(child, 'foreground', undefined, 'Custom color style still found after foreground cancellation code.');
@@ -189,12 +189,12 @@ suite('Debug - ANSI Handling', () => {
 		for (let i = 40; i <= 47; i++) {
 			const customClassName: string = 'code-background-colored';
 
-			// Foreground colour class
+			// Foreground color class
 			assertSingleSequenceElement('\x1b[' + i + 'm', (child) => {
 				assert(child.classList.contains(customClassName), `Custom background class not found on element after background ANSI code #${i}.`);
 			});
 
-			// Cancellation code removes colour class
+			// Cancellation code removes color class
 			assertSingleSequenceElement('\x1b[' + i + ';49m', (child) => {
 				assert(child.classList.contains(customClassName) === false, 'Custom background class still found after background cancellation code.');
 				assertInlineColor(child, 'foreground', undefined, 'Custom color style still found after background cancellation code.');
@@ -205,12 +205,12 @@ suite('Debug - ANSI Handling', () => {
 		for (let i = 0; i <= 255; i++) {
 			const customClassName: string = 'code-underline-colored';
 
-			// Underline colour class
+			// Underline color class
 			assertSingleSequenceElement('\x1b[58;5;' + i + 'm', (child) => {
 				assert(child.classList.contains(customClassName), `Custom underline color class not found on element after underline color ANSI code 58;5;${i}m.`);
 			});
 
-			// Cancellation underline color code removes colour class
+			// Cancellation underline color code removes color class
 			assertSingleSequenceElement('\x1b[58;5;' + i + 'm\x1b[59m', (child) => {
 				assert(child.classList.contains(customClassName) === false, 'Custom underline color class still found after underline color cancellation code 59m.');
 				assertInlineColor(child, 'underline', undefined, 'Custom underline color style still found after underline color cancellation code 59m.');
@@ -994,7 +994,7 @@ suite('Debug - ANSI Handling', () => {
 	test('Empty sequence output', () => {
 
 		const sequences: string[] = [
-			// No colour codes
+			// No color codes
 			'',
 			'\x1b[;m',
 			'\x1b[1;;m',
