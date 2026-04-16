@@ -372,6 +372,20 @@ export class DisassemblyView extends EditorPane {
 	}
 
 	async goToInstructionAndOffset(instructionReference: string, offset: number, focus?: boolean) {
+		// Instruction references are opaque handles that may point at unrelated
+		// memory regions (e.g. different processes or address spaces in a
+		// multi-process debug session). When the target instructionReference
+		// differs from what is currently rendered, we cannot assume the two
+		// regions are contiguous, so clear and reload rather than splicing new
+		// rows in next to stale ones from the previous region (#291640).
+		if (this._disassembledInstructions && this._disassembledInstructions.length > 0) {
+			const currentFirst = this._disassembledInstructions.row(0);
+			if (currentFirst !== disassemblyNotAvailable && currentFirst.instructionReference !== instructionReference) {
+				this.reloadDisassembly(instructionReference, offset);
+				return;
+			}
+		}
+
 		let addr = this._referenceToMemoryAddress.get(instructionReference);
 		if (addr === undefined) {
 			await this.loadDisassembledInstructions(instructionReference, 0, -DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD, DisassemblyView.NUM_INSTRUCTIONS_TO_LOAD * 2);
