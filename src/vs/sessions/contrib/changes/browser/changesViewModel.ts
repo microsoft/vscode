@@ -8,6 +8,7 @@ import { arrayEqualsC, structuralEquals } from '../../../../base/common/equals.j
 import { Iterable } from '../../../../base/common/iterator.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { derived, derivedOpts, IObservable, IObservableWithChange, ISettableObservable, runOnChange, observableValue, observableSignalFromEvent, constObservable, ObservablePromise, derivedObservableWithCache } from '../../../../base/common/observable.js';
+import { isWeb } from '../../../../base/common/platform.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -320,7 +321,7 @@ export class ChangesViewModel extends Disposable {
 			equalsFn: arrayEqualsC<IChatSessionFileChange | IChatSessionFileChange2>()
 		}, reader => {
 			const hasGitRepository = this.activeSessionHasGitRepositoryObs.read(reader);
-			if (!hasGitRepository) {
+			if (!hasGitRepository && !isWeb) {
 				return [];
 			}
 

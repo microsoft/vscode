@@ -146,6 +146,9 @@ import './contrib/remoteAgentHost/browser/tunnelAgentHost.contribution.js';
 // Remote agent host session provider — discovers agents and registers sessions
 import './contrib/remoteAgentHost/browser/remoteAgentHost.contribution.js';
 import './contrib/remoteAgentHost/browser/remoteAgentHostActions.js';
+
+// TODO: support agent feedback in web
+import './contrib/agentFeedback/browser/nullAgentFeedbackService.contribution.js';
 import '../workbench/contrib/webview/browser/webview.web.contribution.js';
 import '../workbench/contrib/extensions/browser/extensions.web.contribution.js';
 import '../workbench/contrib/terminal/browser/terminal.web.contribution.js';
