@@ -44,11 +44,15 @@ function code() {
 	export ELECTRON_ENABLE_LOGGING=1
 
 	if [[ -n "${NODE_OPTIONS}" ]]; then
-		export VSCODE_NODE_OPTIONS="${NODE_OPTIONS}"
+		if [[ -z "${VSCODE_NODE_OPTIONS+x}" ]]; then
+			export VSCODE_NODE_OPTIONS="${NODE_OPTIONS}"
+		fi
 		unset NODE_OPTIONS
 	fi
 	if [[ -n "${NODE_REPL_EXTERNAL_MODULE}" ]]; then
-		export VSCODE_NODE_REPL_EXTERNAL_MODULE="${NODE_REPL_EXTERNAL_MODULE}"
+		if [[ -z "${VSCODE_NODE_REPL_EXTERNAL_MODULE+x}" ]]; then
+			export VSCODE_NODE_REPL_EXTERNAL_MODULE="${NODE_REPL_EXTERNAL_MODULE}"
+		fi
 		unset NODE_REPL_EXTERNAL_MODULE
 	fi
 
