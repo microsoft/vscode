@@ -198,7 +198,7 @@ export class TypeOperations {
 	}
 
 	public static typeWithoutInterceptors(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[], leftoverVisibleColumns: number[], str: string): EditOperationResult {
-		return TypeWithoutInterceptorsOperation.getEdits(prevEditOperationType, selections, leftoverVisibleColumns, str);
+		return TypeWithoutInterceptorsOperation.getEdits(config, model, prevEditOperationType, selections, leftoverVisibleColumns, str);
 	}
 }
 
