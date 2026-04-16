@@ -19,17 +19,18 @@ The Agent Sessions Workbench (`Workbench` in `sessions/browser/workbench.ts`) pr
 ### 2.1 Visual Representation
 
 ```
-┌─────────┬───────────────────────────────────────────────────────┐
-│         │                    Titlebar                           │
-│         ├────────────────────────────────────┬──────────────────┤
-│ Sidebar │              Chat Bar              │  Auxiliary Bar   │
-│         ├────────────────────────────────────┴──────────────────┤
-│         │                      Panel                            │
-└─────────┴───────────────────────────────────────────────────────┘
+┌─────────┬────────────────────────────────────────────────────────────────────┐
+│         │                            Titlebar                                │
+│         ├───────────────────────────┬────────────────┬───────────────────────┤
+│ Sidebar │         Chat Bar          │ Editor (hid.) │     Auxiliary Bar     │
+│         ├───────────────────────────┴────────────────┴───────────────────────┤
+│         │                              Panel                                 │
+└─────────┴────────────────────────────────────────────────────────────────────┘
 
 Editors open via MODAL_GROUP into the standard ModalEditorPart overlay
 (created on-demand by EditorParts.createModalEditorPart). The main
-editor part exists but is hidden (display:none) for future use.
+editor part is hidden by default and is only shown for explicit
+editor opens or restores that target the main editor part.
 ```
 
 ### 2.2 Parts
@@ -41,7 +42,7 @@ editor part exists but is hidden (display:none) for future use.
 | Titlebar | `Parts.TITLEBAR_PART` | Top of right section | Always visible | — |
 | Sidebar | `Parts.SIDEBAR_PART` | Left, spans full height from top to bottom | Visible | `ViewContainerLocation.Sidebar` |
 | Chat Bar | `Parts.CHATBAR_PART` | Top-right section, takes remaining width | Visible | `ViewContainerLocation.ChatBar` |
-| Editor | `Parts.EDITOR_PART` | Hidden main part (not in grid); editors open via `MODAL_GROUP` into `ModalEditorPart` overlay | Hidden | — |
+| Editor | `Parts.EDITOR_PART` | Top-right section, in the grid but hidden by default; explicit opens or restores that target the main editor part can reveal it while modal editors still open via `MODAL_GROUP` into `ModalEditorPart` overlay | Hidden | — |
 | Auxiliary Bar | `Parts.AUXILIARYBAR_PART` | Top-right section, right side | Visible | `ViewContainerLocation.AuxiliaryBar` |
 | Panel | `Parts.PANEL_PART` | Below Chat Bar and Auxiliary Bar (right section only) | Hidden | `ViewContainerLocation.Panel` |
 
@@ -178,7 +179,7 @@ The sessions sidebar can be resized down to a minimum width of 170px.
 
 ### 4.3 Editor Modal
 
-The main editor part is created but hidden (`display:none`). It exists for future use but is not currently visible. All editors are forced to open in the `ModalEditorPart` overlay via the standard `createModalEditorPart()` mechanism.
+The main editor part is created hidden (`display:none`) and remains hidden for the default sessions experience. Flows that explicitly open or restore an editor into the main editor part can reveal it, and modal editor opens do not change the visibility of an already visible main editor. Editors without an explicit main-part target still open in the `ModalEditorPart` overlay via the standard `createModalEditorPart()` mechanism.
 
 #### How It Works
 
@@ -248,7 +249,8 @@ setPartHidden(hidden: boolean, part: Parts): void
 - **Panel Part:**
   - If the panel is maximized when hiding, it exits maximized state first
 - **Editor Part:**
-  - The main editor part is always hidden (`display:none`); `setEditorHidden()` is a no-op
+    - The main editor part is hidden by default but can be shown for explicit editor workflows that target the main editor part
+    - Modal editor opens do not change the current main editor visibility state
   - All editors open via `MODAL_GROUP` into the `ModalEditorPart` overlay, which manages its own lifecycle
 
 ### 6.2 Part Sizing
@@ -655,6 +657,8 @@ interface IPartVisibilityState {
 
 | Date | Change |
 |------|--------|
+| 2026-04-16 | Updated the layout visual representation to show the editor part in the top-right row and mark it as hidden by default. |
+| 2026-04-16 | Fixed the sessions workbench so modal editor opens no longer hide an already visible main editor part, and documented that the main editor stays hidden by default but can be revealed by explicit non-modal editor flows. |
 | 2026-04-15 | Updated the Sessions sidebar so pinned chats render in their own "Pinned" section header using the standard uppercase section styling, and that header only exposes the "Mark All as Done" section action. |
 | 2026-04-14 | Documented the sessions account control as a titlebar widget again and noted that it now prefers the signed-in GitHub profile image, falling back to the existing account codicon when the image is unavailable. |
 | 2026-04-14 | Updated the sessions-only default configuration so notification toasts default to the top-right corner via `workbench.notifications.position: 'top-right'`, without changing the regular workbench default. |

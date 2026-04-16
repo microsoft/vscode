@@ -1174,6 +1174,32 @@
 				"legacyToolReferenceFullNames": [
 					"editFiles"
 				]
+			},
+			{
+				"name": "copilot_sessionStoreSql",
+				"displayName": "Session Store SQL",
+				"toolReferenceName": "sessionStoreSql",
+				"userDescription": "Query your Copilot session history using SQL",
+				"modelDescription": "Execute read-only SQL queries against the global session store containing history from ALL past coding sessions. Use this proactively when the user asks about:\n- What they've worked on recently or in the past\n- Prior approaches to similar problems\n- Project history and file changes\n- Sessions linked to PRs, issues, or commits\n- Temporal queries ('what was I doing yesterday?')\n\nSupports SQLite SQL including JOINs, FTS5 MATCH queries, aggregations, and subqueries.\n\n**Only one query per call — do not combine multiple statements with semicolons.**\n\nSchema:\n- sessions — id, cwd, repository, branch, summary, created_at, updated_at\n- turns — session_id, turn_index, user_message, assistant_response, timestamp\n- session_files — session_id, file_path, tool_name (edit/create), turn_index\n- session_refs — session_id, ref_type (commit/pr/issue), ref_value, turn_index\n- search_index — FTS5 virtual table (content, session_id, source_type). Use WHERE search_index MATCH 'query' for full-text search.",
+				"tags": [],
+				"canBeReferencedInPrompt": false,
+				"inputSchema": {
+					"type": "object",
+					"properties": {
+						"query": {
+							"type": "string",
+							"description": "A single read-only SQL query to execute. Supports SELECT, WITH, JOINs, aggregations, and FTS5 MATCH. Only one statement per call — do not combine multiple queries with semicolons."
+						},
+						"description": {
+							"type": "string",
+							"description": "A 2-5 word summary of what this query does (e.g. 'Recent sessions overview', 'Find PR sessions')."
+						}
+					},
+					"required": [
+						"query",
+						"description"
+					]
+				}
 			}
 		],
 		"languageModelToolSets": [
@@ -1486,6 +1512,21 @@
 					{
 						"name": "compact",
 						"description": "%copilot.agent.compact.description%"
+					},
+					{
+						"name": "chronicle",
+						"description": "%copilot.chronicle.description%",
+						"when": "github.copilot.sessionSearch.enabled"
+					},
+					{
+						"name": "chronicle:standup",
+						"description": "%copilot.chronicle.standup.description%",
+						"when": "github.copilot.sessionSearch.enabled"
+					},
+					{
+						"name": "chronicle:tips",
+						"description": "%copilot.chronicle.tips.description%",
+						"when": "github.copilot.sessionSearch.enabled"
 					},
 					{
 						"name": "explain",
@@ -3927,6 +3968,17 @@
 			{
 				"id": "advanced",
 				"properties": {
+					"github.copilot.chat.reasoningEffortOverride": {
+						"type": [
+							"string",
+							"null"
+						],
+						"default": null,
+						"markdownDescription": "Overrides the reasoning/thinking effort sent to model APIs. The configured value must match a reasoning-effort value supported by the selected model or endpoint (for example, `low`, `medium`, `high`, or other model-specific values). Used by evals.\n\n**Note**: This is an advanced debugging setting.",
+						"tags": [
+							"advanced"
+						]
+					},
 					"github.copilot.chat.installExtensionSkill.enabled": {
 						"type": "boolean",
 						"default": false,

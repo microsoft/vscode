@@ -175,6 +175,7 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 
 		const baseTelemetry = TelemetryData.createAndMarkAsIssued({
 			...telemetryProperties,
+			...(conversationId ? { conversationId } : {}),
 			headerRequestId: ourRequestId,
 			baseModel: chatEndpoint.model,
 			uiKind: ChatLocation.toString(location)

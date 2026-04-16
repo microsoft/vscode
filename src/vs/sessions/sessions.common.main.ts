@@ -12,10 +12,10 @@ import { TERMINAL_BACKGROUND_COLOR } from '../workbench/contrib/terminal/common/
 
 import '../workbench/api/browser/extensionHost.contribution.js';
 import '../workbench/browser/workbench.contribution.js';
-import { sessionsPanelBackground } from './common/theme.js';
+import { agentsPanelBackground } from './common/theme.js';
 
-getColorRegistry().updateDefaultColor(PANEL_BACKGROUND, sessionsPanelBackground);
-getColorRegistry().updateDefaultColor(TERMINAL_BACKGROUND_COLOR, sessionsPanelBackground);
+getColorRegistry().updateDefaultColor(PANEL_BACKGROUND, agentsPanelBackground);
+getColorRegistry().updateDefaultColor(TERMINAL_BACKGROUND_COLOR, agentsPanelBackground);
 
 //#endregion
 

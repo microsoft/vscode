@@ -6,17 +6,17 @@
 /* ---- Sidebar & Auxiliary Bar Card Appearance ---- */
 
 .agent-sessions-workbench .part.sidebar {
-	background: var(--vscode-sessionsSidebar-background);
+	background: var(--vscode-agents-background);
 }
 
 .agent-sessions-workbench > .monaco-grid-view {
-	background-color: var(--vscode-sessionsSidebar-background);
+	background-color: var(--vscode-agents-background);
 }
 
 .agent-sessions-workbench.experimental-shell-gradient-background {
 	position: relative;
 	isolation: isolate;
-	background: var(--vscode-sessionsSidebar-background);
+	background: var(--vscode-agents-background);
 }
 
 .agent-sessions-workbench.experimental-shell-gradient-background::before {
@@ -25,7 +25,7 @@
 	inset: 0;
 	z-index: 0;
 	pointer-events: none;
-	background: var(--vscode-sessionsSidebar-background);
+	background: var(--vscode-agents-background);
 }
 
 @supports (background: color-mix(in srgb, black 0%, white)) {
@@ -34,11 +34,11 @@
 			linear-gradient(
 				to bottom right,
 				transparent 0%,
-				color-mix(in srgb, var(--vscode-button-background) 7%, transparent) 58%,
-				color-mix(in srgb, var(--vscode-button-background) 10%, transparent) 82%,
-				color-mix(in srgb, var(--vscode-button-background) 12%, transparent) 100%
+				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 7%, transparent) 58%,
+				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 10%, transparent) 82%,
+				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 12%, transparent) 100%
 			),
-			var(--vscode-sessionsSidebar-background);
+			var(--vscode-agents-background);
 	}
 
 	.monaco-workbench.vs.agent-sessions-workbench.experimental-shell-gradient-background::before {
@@ -46,20 +46,20 @@
 			linear-gradient(
 				to bottom right,
 				transparent 0%,
-				color-mix(in srgb, var(--vscode-button-background) 2%, transparent) 45%,
-				color-mix(in srgb, var(--vscode-button-background) 10%, transparent) 75%,
-				color-mix(in srgb, var(--vscode-button-background) 20%, transparent) 100%
+				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 2%, transparent) 45%,
+				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 10%, transparent) 75%,
+				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 20%, transparent) 100%
 			),
-			var(--vscode-sessionsSidebar-background);
+			var(--vscode-agents-background);
 	}
 
 	.monaco-workbench.vs-dark.agent-sessions-workbench.experimental-shell-gradient-background::before {
 		background: linear-gradient(
 			to bottom right,
-			var(--vscode-sessionsSidebar-background) 0%,
-			color-mix(in srgb, var(--vscode-button-background) 10%, var(--vscode-sessionsSidebar-background)) 56%,
-			color-mix(in srgb, var(--vscode-button-background) 14%, var(--vscode-sessionsSidebar-background)) 82%,
-			color-mix(in srgb, var(--vscode-button-background) 18%, var(--vscode-sessionsSidebar-background)) 100%
+			var(--vscode-agents-background) 0%,
+			color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 10%, var(--vscode-agents-background)) 56%,
+			color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 14%, var(--vscode-agents-background)) 82%,
+			color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 18%, var(--vscode-agents-background)) 100%
 		);
 	}
 }
@@ -142,7 +142,7 @@
 }
 
 .agent-sessions-workbench .part.auxiliarybar > .content .pane-body {
-	background-color: var(--vscode-sessionsAuxiliaryBar-background);
+	background-color: var(--vscode-agentsPanel-background);
 }
 
 .agent-sessions-workbench .part.panel {
@@ -230,12 +230,21 @@
 
 .agent-sessions-workbench .interactive-session .chat-input-container {
 	border-radius: var(--vscode-cornerRadius-large);
-	border-color: var(--vscode-editorWidget-border, var(--vscode-widget-border)) !important;
+	border-color: var(--vscode-agentsChatInput-border) !important;
+	background-color: var(--vscode-agentsChatInput-background);
+	color: var(--vscode-agentsChatInput-foreground);
 }
 
 .agent-sessions-workbench .interactive-session .chat-input-container.focused {
-	border-color: var(--vscode-focusBorder) !important;
+	border-color: var(--vscode-agentsChatInput-focusBorder, var(--vscode-focusBorder)) !important;
 }
+
+/* Make the Monaco editor inside the chat input transparent so it inherits the chatInput.background */
+.agent-sessions-workbench .interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor,
+.agent-sessions-workbench .interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor .monaco-editor-background {
+	background-color: transparent !important;
+}
+
 .agent-sessions-workbench .interactive-session .interactive-input-part {
 	width: 100%;
 	max-width: 950px;
@@ -256,30 +265,30 @@
 /* ---- Sessions Action Widget Pickers ---- */
 
 .agent-sessions-workbench .action-widget {
-	background-color: var(--vscode-sessionsPanel-background);
+	background-color: var(--vscode-agentsPanel-background);
 }
 
 .agent-sessions-workbench .action-widget .action-widget-action-bar,
 .agent-sessions-workbench .action-widget .action-list-filter {
-	background-color: var(--vscode-sessionsPanel-background);
+	background-color: var(--vscode-agentsPanel-background);
 }
 
 .agent-sessions-workbench .action-widget .monaco-scrollable-element > .monaco-list-rows {
-	background-color: var(--vscode-sessionsPanel-background) !important;
+	background-color: var(--vscode-agentsPanel-background) !important;
 }
 
 /* ---- Sessions Quick Picks ---- */
 
 .agent-sessions-workbench .quick-input-widget,
 .agent-sessions-workbench .quick-input-titlebar {
-	background-color: var(--vscode-sessionsPanel-background) !important;
+	background-color: var(--vscode-agentsPanel-background) !important;
 }
 
 .agent-sessions-workbench .quick-input-header,
 .agent-sessions-workbench .quick-input-html-widget,
 .agent-sessions-workbench .quick-input-list .monaco-scrollable-element > .monaco-list-rows,
 .agent-sessions-workbench .quick-input-tree .monaco-scrollable-element > .monaco-list-rows {
-	background-color: var(--vscode-sessionsPanel-background) !important;
+	background-color: var(--vscode-agentsPanel-background) !important;
 }
 
 .agent-sessions-workbench .quick-input-header {
@@ -291,7 +300,7 @@
 .agent-sessions-workbench .context-view.monaco-menu-container,
 .agent-sessions-workbench .context-view.monaco-menu-container .monaco-menu,
 .agent-sessions-workbench .context-view.monaco-menu-container .monaco-scrollable-element {
-	background-color: var(--vscode-sessionsPanel-background) !important;
+	background-color: var(--vscode-agentsPanel-background) !important;
 }
 
 /* Keep code block backgrounds stable across themes; add separation in older light themes via border only */

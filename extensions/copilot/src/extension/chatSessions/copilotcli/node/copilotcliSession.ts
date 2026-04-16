@@ -7,6 +7,7 @@ import type { Attachment, SendOptions, Session, SessionOptions } from '@github/c
 import * as l10n from '@vscode/l10n';
 import type * as vscode from 'vscode';
 import type { ChatParticipantToolToken } from 'vscode';
+import { IRunCommandExecutionService } from '../../../../platform/commands/common/runCommandExecutionService';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { GenAiMetrics } from '../../../../platform/otel/common/genAiMetrics';
@@ -29,6 +30,7 @@ import { IChatSessionMetadataStore } from '../../common/chatSessionMetadataStore
 import { ExternalEditTracker } from '../../common/externalEditTracker';
 import { getWorkingDirectory, isIsolationEnabled, IWorkspaceInfo } from '../../common/workspaceInfo';
 import { enrichToolInvocationWithSubagentMetadata, isCopilotCliEditToolCall, isCopilotCLIToolThatCouldRequirePermissions, processToolExecutionComplete, processToolExecutionStart, ToolCall, updateTodoList } from '../common/copilotCLITools';
+import { SessionIdForCLI } from '../common/utils';
 import type { CopilotCliBridgeSpanProcessor } from './copilotCliBridgeSpanProcessor';
 import { ICopilotCLIImageSupport } from './copilotCLIImageSupport';
 import { handleExitPlanMode } from './exitPlanModeHandler';
@@ -93,6 +95,12 @@ export interface ICopilotCLISession extends IDisposable {
 	addUserMessage(content: string): void;
 	addUserAssistantMessage(content: string): void;
 	getSelectedModelId(): Promise<string | undefined>;
+	/**
+	 * Temporarily sets the session resource.
+	 * Only for non-controller code paths.
+	 * @deprecated
+	 */
+	setSessionResource(resource: vscode.Uri): IDisposable;
 }
 
 export class CopilotCLISession extends DisposableStore implements ICopilotCLISession {
@@ -147,6 +155,8 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	setSdkTraceContextUpdater(updater: ((traceparent?: string, tracestate?: string) => void) | undefined): void {
 		this._updateSdkTraceContext = updater;
 	}
+	private _sessionResource: Uri;
+
 	constructor(
 		private readonly _workspaceInfo: IWorkspaceInfo,
 		private readonly _agentName: string | undefined,
@@ -162,11 +172,19 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		@IUserQuestionHandler private readonly _userQuestionHandler: IUserQuestionHandler,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IOTelService private readonly _otelService: IOTelService,
+		@IRunCommandExecutionService private readonly _commandExecutionService: IRunCommandExecutionService,
 	) {
 		super();
 		this.sessionId = _sdkSession.sessionId;
+		this._sessionResource = SessionIdForCLI.getResource(this.sessionId);
 	}
 
+	setSessionResource(resource: vscode.Uri): IDisposable {
+		this._sessionResource = resource;
+		return this.add(toDisposable(() => {
+			this._sessionResource = SessionIdForCLI.getResource(this.sessionId);
+		}));
+	}
 	attachStream(stream: vscode.ChatResponseStream): IDisposable {
 		this._stream = stream;
 		return toDisposable(() => {
@@ -517,6 +535,16 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 							token,
 						);
 						flushPendingInvocationMessages();
+
+						// Update the permission picker dropdown based on the selected action
+						if (response.approved && response.selectedAction !== 'exit_only') {
+							const autopilotSelected = response.selectedAction === 'autopilot' || response.selectedAction === 'autopilot_fleet';
+							const commandId = 'workbench.action.chat.copilotcli.approval';
+							this._commandExecutionService.executeCommand(commandId, this._sessionResource, autopilotSelected).catch(error => {
+								this.logService.error(error, '[CopilotCLISession] Failed to update permission picker');
+							});
+						}
+
 						this._sdkSession.respondToExitPlanMode(event.data.requestId, response);
 					} catch (error) {
 						this.logService.error(error, '[CopilotCLISession] Error handling exit plan mode');

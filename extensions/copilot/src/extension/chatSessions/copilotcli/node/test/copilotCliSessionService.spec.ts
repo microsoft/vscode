@@ -42,6 +42,7 @@ import { CopilotCLIMCPHandler } from '../mcpHandler';
 import { IQuestion, IQuestionAnswer, IUserQuestionHandler } from '../userInputHelpers';
 import { MockCliSdkSession, MockCliSdkSessionManager, MockSkillLocations, NullCopilotCLIAgents, NullICopilotCLIImageSupport } from './testHelpers';
 import { MockPromptsService } from '../../../../../platform/promptFiles/test/common/mockPromptsService';
+import { MockRunCommandExecutionService } from '../../../../../platform/commands/common/mockRunCommandExecutionService';
 
 // Re-export for backward compatibility with other spec files
 export { MockCliSdkSession, MockCliSdkSessionManager, MockSkillLocations, NullCopilotCLIAgents, NullICopilotCLIImageSupport } from './testHelpers';
@@ -56,7 +57,7 @@ class MockLocalSession {
 	}
 }
 
-class NullAgentSessionsWorkspace implements IAgentSessionsWorkspace {
+export class NullAgentSessionsWorkspace implements IAgentSessionsWorkspace {
 	_serviceBrand: undefined;
 	readonly isAgentSessionsWorkspace = false;
 }
@@ -147,7 +148,7 @@ describe('CopilotCLISessionService', () => {
 						}
 					}();
 				}
-				return disposables.add(new CopilotCLISession(workspaceInfo, agentName, sdkSession, [], logService, workspaceService, new MockChatSessionMetadataStore(), instantiationService, new NullRequestLogger(), new NullICopilotCLIImageSupport(), new FakeToolsService(), new FakeUserQuestionHandler(), accessor.get(IConfigurationService), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' }))));
+				return disposables.add(new CopilotCLISession(workspaceInfo, agentName, sdkSession, [], logService, workspaceService, new MockChatSessionMetadataStore(), instantiationService, new NullRequestLogger(), new NullICopilotCLIImageSupport(), new FakeToolsService(), new FakeUserQuestionHandler(), accessor.get(IConfigurationService), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })), new MockRunCommandExecutionService()));
 			}
 		} as unknown as IInstantiationService;
 		const configurationService = accessor.get(IConfigurationService);

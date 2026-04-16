@@ -127,6 +127,7 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	allowTools['task_complete'] = request.permissionLevel === 'autopilot';
 
 	allowTools[ToolName.EditFilesPlaceholder] = false;
+	allowTools[ToolName.SessionStoreSql] = false; // Only available via /chronicle
 	// todo@connor4312: string check here is for back-compat for 1.109 Insiders
 	if (Iterable.some(request.tools, ([t, enabled]) => (typeof t === 'string' ? t : t.name) === ContributedToolName.EditFilesPlaceholder && enabled === false)) {
 		allowTools[ToolName.ApplyPatch] = false;

@@ -671,14 +671,12 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		// Register layout listeners
 		this.registerLayoutListeners();
 
-		// Keep background editor hidden for modal opens, only show for non-modal opens.
+		// Editor opens should only affect the main editor part when
+		// they actually target one of the main editor groups. Modal
+		// opens stay neutral.
 		this._register(this.editorService.onWillOpenEditor(e => {
-			const isModalOpen = this.editorGroupService.activeModalEditorPart?.groups.some(group => group.id === e.groupId) ?? false;
-
-			if (isModalOpen) {
-				if (this.partVisibility.editor) {
-					this.setEditorHidden(true);
-				}
+			const targetsMainEditorPart = this.editorGroupService.mainPart.groups.some(group => group.id === e.groupId);
+			if (!targetsMainEditorPart) {
 				return;
 			}
 

@@ -1389,6 +1389,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			// Previously we just updated it with details of the folder.
 			// If user has selected a repo, then update with repo information (right icons, etc).
 			if (isUntitled) {
+				disposables.add(session.object.setSessionResource(resource));
 				void this.lockRepoOptionForSession(context, token);
 				this.customSessionTitleService.generateSessionTitle(session.object.sessionId, request, token).catch(ex => this.logService.error(ex, 'Failed to generate custom session title'));
 			}

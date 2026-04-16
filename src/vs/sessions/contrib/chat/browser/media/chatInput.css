@@ -29,7 +29,7 @@
 
 .new-chat-input-container .chat-input-container {
 	overflow: hidden;
-	border-color: var(--vscode-contrastBorder, var(--vscode-editorWidget-border));
+	border-color: var(--vscode-agentsChatInput-border);
 }
 
 .new-chat-input-area {
@@ -37,16 +37,21 @@
 	width: 100%;
 	max-width: 800px;
 	box-sizing: border-box;
-	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border, var(--vscode-contrastBorder, transparent)));
+	border: 1px solid var(--vscode-agentsChatInput-border);
 	border-radius: 8px;
-	background-color: var(--vscode-input-background);
+	background-color: var(--vscode-agentsChatInput-background);
+	color: var(--vscode-agentsChatInput-foreground);
 	overflow: hidden;
 	display: flex;
 	flex-direction: column;
 }
 
 .new-chat-input-area:focus-within {
-	border-color: var(--vscode-focusBorder);
+	border-color: var(--vscode-agentsChatInput-focusBorder, var(--vscode-focusBorder));
+}
+
+.new-chat-input-area .monaco-editor .ghost-text-decoration {
+	color: var(--vscode-agentsChatInput-placeholderForeground);
 }
 
 .chat-input-picker-item .action-label.disabled {
@@ -64,7 +69,7 @@
 .sessions-chat-editor .monaco-editor,
 .sessions-chat-editor .monaco-editor .overflow-guard,
 .sessions-chat-editor .monaco-editor-background {
-	background-color: var(--vscode-input-background) !important;
+	background-color: transparent !important;
 	border-radius: 8px 8px 0 0;
 }
 
