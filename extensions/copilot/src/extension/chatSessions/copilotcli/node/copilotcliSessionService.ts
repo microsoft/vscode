@@ -173,7 +173,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		this.monitorSessionFiles();
 		this._sessionManager = new Lazy<Promise<internal.LocalSessionManager>>(async () => {
 			try {
-				const { internal, createLocalFeatureFlagService, noopTelemetryBinder } = await this.getSDKPackage();
+				const { internal, createLocalFeatureFlagService } = await this.getSDKPackage();
 				// Always enable SDK OTel so the debug panel receives native spans via the bridge.
 				// When user OTel is disabled, we force file exporter to /dev/null so the SDK
 				// creates OtelSessionTracker (for debug panel) but doesn't export to any collector.
@@ -205,7 +205,6 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 				return new internal.LocalSessionManager({
 					featureFlagService: createLocalFeatureFlagService(),
 					telemetryService: new internal.NoopTelemetryService(),
-					telemetryBinder: noopTelemetryBinder
 				}, { flushDebounceMs: undefined, settings: undefined, version: undefined });
 			}
 			catch (error) {
@@ -217,8 +216,8 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	}
 
 	private async getSDKPackage() {
-		const { internal, LocalSession, createLocalFeatureFlagService, noopTelemetryBinder } = await this.copilotCLISDK.getPackage();
-		return { internal, LocalSession, createLocalFeatureFlagService, noopTelemetryBinder };
+		const { internal, LocalSession, createLocalFeatureFlagService } = await this.copilotCLISDK.getPackage();
+		return { internal, LocalSession, createLocalFeatureFlagService };
 	}
 
 	getSessionWorkingDirectory(sessionId: string): Uri | undefined {

@@ -313,7 +313,7 @@ describe('CopilotCLI permissionHelpers', () => {
 		});
 
 		it('maps write requests with filename', async () => {
-			const result = await getConfirmationToolParams(instaService, { kind: 'write', fileName: 'foo.ts', diff: '', intention: '' });
+			const result = await getConfirmationToolParams(instaService, { kind: 'write', fileName: 'foo.ts', diff: '', intention: '', canOfferSessionApproval: false });
 			assert(!!result);
 			expect(result.tool).toBe(ToolName.CoreConfirmationTool);
 			const input = result.input as any;
