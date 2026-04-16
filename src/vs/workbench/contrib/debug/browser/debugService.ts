@@ -598,7 +598,7 @@ export class DebugService implements IDebugService {
 				if (err && err.message) {
 					await this.showError(err.message);
 				} else if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-					await this.showError(nls.localize('noFolderWorkspaceDebugError', "The active file can not be debugged. Make sure it is saved and that you have a debug extension installed for that file type."));
+					await this.showError(nls.localize('noFolderWorkspaceDebugError', "The active file cannot be debugged. Make sure it is saved and that you have a debug extension installed for that file type."));
 				}
 				if (launch && !initCancellationToken.token.isCancellationRequested) {
 					await launch.openConfigFile({ preserveFocus: true }, initCancellationToken.token);
@@ -792,7 +792,7 @@ export class DebugService implements IDebugService {
 					this.paneCompositeService.openPaneComposite(EXPLORER_VIEWLET_ID, ViewContainerLocation.Sidebar);
 				}
 
-				// Data breakpoints that can not be persisted should be cleared when a session ends
+				// Data breakpoints that cannot be persisted should be cleared when a session ends
 				const dataBreakpoints = this.model.getDataBreakpoints().filter(dbp => !dbp.canPersist);
 				dataBreakpoints.forEach(dbp => this.model.removeDataBreakpoints(dbp.getId()));
 
