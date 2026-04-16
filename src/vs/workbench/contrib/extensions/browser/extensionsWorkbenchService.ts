@@ -339,7 +339,7 @@ export class Extension implements IExtension {
 				return false;
 			}
 			// Do not allow updating system extensions in stable
-			if (this.type === ExtensionType.System && this.productService.quality === 'stable') {
+			if (this.type === ExtensionType.System && this.productService.quality === 'stable' && !this.productService.builtInExtensionsEnabledWithAutoUpdates?.some(id => id.toLowerCase() === this.identifier.id.toLowerCase())) {
 				return false;
 			}
 			if (!this.local.preRelease && this.gallery.properties.isPreReleaseVersion) {
@@ -673,7 +673,7 @@ class Extensions extends Disposable {
 		const extensions = await this.mapInstalledExtensionWithCompatibleGalleryExtension(galleryExtensions, productVersion);
 		for (const [extension, gallery] of extensions) {
 			// update metadata of the extension if it does not exist
-			if (extension.local && !extension.local.identifier.uuid) {
+			if (extension.local && extension.local.type !== ExtensionType.System && !extension.local.identifier.uuid) {
 				extension.local = await this.updateMetadata(extension.local, gallery);
 			}
 			if (!extension.gallery || extension.gallery.version !== gallery.version || extension.gallery.properties.targetPlatform !== gallery.properties.targetPlatform) {
@@ -1611,10 +1611,14 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 		await this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension), options, options?.sideByside ? SIDE_GROUP : useModal ? MODAL_GROUP : ACTIVE_GROUP);
 	}
 
-	async openSearch(searchValue: string, preserveFoucs?: boolean): Promise<void> {
-		const viewPaneContainer = (await this.viewsService.openViewContainer(VIEWLET_ID, true))?.getViewPaneContainer() as IExtensionsViewPaneContainer;
+	async openSearch(searchValue: string, preserveFocus?: boolean): Promise<void> {
+		const viewPaneContainer = (await this.viewsService.openViewContainer(VIEWLET_ID, true))?.getViewPaneContainer() as IExtensionsViewPaneContainer | undefined;
+		if (!viewPaneContainer) {
+			this.logService.trace('ExtensionsWorkbenchService#openSearch: extension view pane container was not available');
+			return;
+		}
 		viewPaneContainer.search(searchValue);
-		if (!preserveFoucs) {
+		if (!preserveFocus) {
 			viewPaneContainer.focus();
 		}
 	}
@@ -1959,14 +1963,14 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				// Skip if check updates only for builtin extensions and current extension is not builtin.
 				continue;
 			}
-			if (installed.isBuiltin && !installed.local?.pinned && (installed.type === ExtensionType.System || !installed.local?.identifier.uuid)) {
-				// Skip checking updates for a builtin extension if it is a system extension or if it does not has Marketplace identifier
+			if (!installed.local?.forceAutoUpdate && installed.isBuiltin && !installed.local?.pinned && (installed.type === ExtensionType.System || !installed.local?.identifier.uuid)) {
+				// Skip checking updates for a builtin extension if it is a system extension or if it does not have a Marketplace identifier
 				continue;
 			}
 			if (installed.local?.source === 'resource') {
 				continue;
 			}
-			infos.push({ ...installed.identifier, preRelease: !!installed.local?.preRelease });
+			infos.push({ ...installed.identifier, preRelease: !!installed.local?.preRelease, currentVersion: installed.isBuiltin ? installed.version : undefined });
 		}
 		if (infos.length) {
 			const targetPlatform = await extensions[0].server.extensionManagementService.getTargetPlatform();
@@ -2235,6 +2239,11 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			return false;
 		}
 
+		if (extension.local?.forceAutoUpdate) {
+			// Extensions marked for auto-update are always auto-updated
+			return true;
+		}
+
 		const autoUpdateValue = this.getAutoUpdateValue();
 
 		if (autoUpdateValue === false) {
@@ -2493,6 +2502,34 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	async install(arg: string | URI | IExtension, installOptions: InstallExtensionOptions = {}, progressLocation?: ProgressLocation | string): Promise<IExtension> {
+		const extension = await this._install(arg, installOptions, progressLocation);
+
+		if (!extension) {
+			throw new Error(nls.localize('unknown', "Unable to install extension"));
+		}
+
+		if (installOptions.enable) {
+			if (extension.enablementState === EnablementState.DisabledWorkspace || extension.enablementState === EnablementState.DisabledGlobally) {
+				if (installOptions.justification) {
+					const result = await this.dialogService.confirm({
+						title: nls.localize('enableExtensionTitle', "Enable Extension"),
+						message: nls.localize('enableExtensionMessage', "Would you like to enable '{0}' extension?", extension.displayName),
+						detail: isString(installOptions.justification) ? installOptions.justification : installOptions.justification.reason,
+						primaryButton: isString(installOptions.justification) ? nls.localize({ key: 'enableButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Enable Extension") : nls.localize({ key: 'enableButtonLabelWithAction', comment: ['&& denotes a mnemonic'] }, "&&Enable Extension and {0}", installOptions.justification.action),
+					});
+					if (!result.confirmed) {
+						throw new CancellationError();
+					}
+				}
+				await this.setEnablement(extension, extension.enablementState === EnablementState.DisabledWorkspace ? EnablementState.EnabledWorkspace : EnablementState.EnabledGlobally);
+			}
+			await this.waitUntilExtensionIsEnabled(extension);
+		}
+
+		return extension;
+	}
+
+	private async _install(arg: string | URI | IExtension, installOptions: InstallExtensionOptions = {}, progressLocation?: ProgressLocation | string): Promise<IExtension | undefined> {
 		let installable: URI | IGalleryExtension | IResourceExtension | undefined;
 		let extension: IExtension | undefined;
 		let servers: IExtensionManagementServer[] | undefined;
@@ -2506,7 +2543,11 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 			// Install by id
 			if (isString(arg)) {
 				extension = this.local.find(e => areSameExtensions(e.identifier, { id: arg }));
-				if (!extension?.isBuiltin) {
+				if (extension?.isBuiltin) {
+					if (this.productService.builtInExtensionsEnabledWithAutoUpdates?.some(id => id.toLowerCase() === arg.toLowerCase())) {
+						return extension;
+					}
+				} else {
 					installableInfo = { id: arg, version: installOptions.version, preRelease: installOptions.installPreReleaseVersion ?? this.extensionManagementService.preferPreReleases };
 				}
 			}
@@ -2630,29 +2671,6 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 				}
 			}
 		}
-
-		if (!extension) {
-			throw new Error(nls.localize('unknown', "Unable to install extension"));
-		}
-
-		if (installOptions.enable) {
-			if (extension.enablementState === EnablementState.DisabledWorkspace || extension.enablementState === EnablementState.DisabledGlobally) {
-				if (installOptions.justification) {
-					const result = await this.dialogService.confirm({
-						title: nls.localize('enableExtensionTitle', "Enable Extension"),
-						message: nls.localize('enableExtensionMessage', "Would you like to enable '{0}' extension?", extension.displayName),
-						detail: isString(installOptions.justification) ? installOptions.justification : installOptions.justification.reason,
-						primaryButton: isString(installOptions.justification) ? nls.localize({ key: 'enableButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Enable Extension") : nls.localize({ key: 'enableButtonLabelWithAction', comment: ['&& denotes a mnemonic'] }, "&&Enable Extension and {0}", installOptions.justification.action),
-					});
-					if (!result.confirmed) {
-						throw new CancellationError();
-					}
-				}
-				await this.setEnablement(extension, extension.enablementState === EnablementState.DisabledWorkspace ? EnablementState.EnabledWorkspace : EnablementState.EnabledGlobally);
-			}
-			await this.waitUntilExtensionIsEnabled(extension);
-		}
-
 		return extension;
 	}
 

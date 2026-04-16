@@ -83,6 +83,7 @@ export interface ITerminalProfileService {
 	readonly onDidChangeAvailableProfiles: Event<ITerminalProfile[]>;
 	getContributedDefaultProfile(shellLaunchConfig: IShellLaunchConfig): Promise<IExtensionTerminalProfile | undefined>;
 	registerContributedProfile(args: IRegisterContributedProfileArgs): Promise<void>;
+	registerInternalContributedProfile(profile: IExtensionTerminalProfile): IDisposable;
 	getContributedProfileProvider(extensionIdentifier: string, id: string): ITerminalProfileProvider | undefined;
 	registerTerminalProfileProvider(extensionIdentifier: string, id: string, profileProvider: ITerminalProfileProvider): IDisposable;
 }
@@ -194,6 +195,7 @@ export interface ITerminalConfiguration {
 		title: string;
 		description: string;
 		separator: string;
+		allowAgentCliTitle: boolean;
 	};
 	bellDuration: number;
 	defaultLocation: TerminalLocationConfigValue;
@@ -452,6 +454,7 @@ export const enum TerminalCommandId {
 	FocusNext = 'workbench.action.terminal.focusNext',
 	FocusPrevious = 'workbench.action.terminal.focusPrevious',
 	Paste = 'workbench.action.terminal.paste',
+	PastePwsh = 'workbench.action.terminal.pastePwsh',
 	PasteSelection = 'workbench.action.terminal.pasteSelection',
 	SelectDefaultProfile = 'workbench.action.terminal.selectDefaultShell',
 	RunSelectedText = 'workbench.action.terminal.runSelectedText',
@@ -522,6 +525,7 @@ export const DEFAULT_COMMANDS_TO_SKIP_SHELL: string[] = [
 	TerminalCommandId.New,
 	TerminalCommandId.NewInNewWindow,
 	TerminalCommandId.Paste,
+	TerminalCommandId.PastePwsh,
 	TerminalCommandId.PasteSelection,
 	TerminalCommandId.ResizePaneDown,
 	TerminalCommandId.ResizePaneLeft,

@@ -355,8 +355,6 @@ export class BrowserEditor extends EditorPane {
 	get browserContainer(): HTMLElement { return this._browserContainer; }
 	private _placeholderScreenshot!: HTMLElement;
 	private _overlayPauseContainer!: HTMLElement;
-	private _overlayPauseHeading!: HTMLElement;
-	private _overlayPauseDetail!: HTMLElement;
 	private _errorContainer!: HTMLElement;
 	private _welcomeContainer!: HTMLElement;
 	private _canGoBackContext!: IContextKey<boolean>;
@@ -458,10 +456,12 @@ export class BrowserEditor extends EditorPane {
 		// Create overlay pause container (hidden by default via CSS)
 		this._overlayPauseContainer = $('.browser-overlay-paused');
 		const overlayPauseMessage = $('.browser-overlay-paused-message');
-		this._overlayPauseHeading = $('.browser-overlay-paused-heading');
-		this._overlayPauseDetail = $('.browser-overlay-paused-detail');
-		overlayPauseMessage.appendChild(this._overlayPauseHeading);
-		overlayPauseMessage.appendChild(this._overlayPauseDetail);
+		const overlayPauseHeading = $('.browser-overlay-paused-heading');
+		const overlayPauseDetail = $('.browser-overlay-paused-detail');
+		overlayPauseHeading.textContent = localize('browser.overlayPauseHeading.notification', "Paused due to Notification");
+		overlayPauseDetail.textContent = localize('browser.overlayPauseDetail.notification', "Dismiss the notification to continue using the browser.");
+		overlayPauseMessage.appendChild(overlayPauseHeading);
+		overlayPauseMessage.appendChild(overlayPauseDetail);
 		this._overlayPauseContainer.appendChild(overlayPauseMessage);
 		placeholderContents.appendChild(this._overlayPauseContainer);
 
@@ -533,6 +533,15 @@ export class BrowserEditor extends EditorPane {
 		}
 
 		this._inputDisposables.clear();
+
+		// Set initial navigation state from the input so that the UI is populated while the model is loading.
+		this.updateNavigationState({
+			url: input.url || '',
+			title: input.title || '',
+			canGoBack: false,
+			canGoForward: false,
+			certificateError: undefined
+		});
 
 		// Resolve the browser view model from the input
 		const model = await input.resolve();
@@ -709,14 +718,6 @@ export class BrowserEditor extends EditorPane {
 		// Only show the pause message for notification overlays
 		const hasNotificationOverlay = overlappingOverlays.some(overlay => overlay.type === BrowserOverlayType.Notification);
 		this._overlayPauseContainer.classList.toggle('show-message', hasNotificationOverlay);
-
-		if (hasNotificationOverlay) {
-			this._overlayPauseHeading.textContent = localize('browser.overlayPauseHeading.notification', "Paused due to Notification");
-			this._overlayPauseDetail.textContent = localize('browser.overlayPauseDetail.notification', "Dismiss the notification to continue using the browser.");
-		} else {
-			this._overlayPauseHeading.textContent = '';
-			this._overlayPauseDetail.textContent = '';
-		}
 	}
 
 	private updateErrorDisplay(): void {

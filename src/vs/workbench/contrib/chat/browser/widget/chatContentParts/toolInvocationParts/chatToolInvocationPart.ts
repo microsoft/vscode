@@ -36,6 +36,10 @@ import { ChatToolStreamingSubPart } from './chatToolStreamingSubPart.js';
 export class ChatToolInvocationPart extends Disposable implements IChatContentPart {
 	public readonly domNode: HTMLElement;
 
+	public get toolCallId(): string {
+		return this.toolInvocation.toolCallId;
+	}
+
 	public get codeblocks(): IChatCodeBlockInfo[] {
 		const codeblocks = this.subPart?.codeblocks ?? [];
 		if (this.mcpAppPart) {
@@ -89,8 +93,11 @@ export class ChatToolInvocationPart extends Disposable implements IChatContentPa
 
 		if (toolInvocation.kind === 'toolInvocation') {
 			const initialState = toolInvocation.state.get().type;
+			const initialDataKind = toolInvocation.toolSpecificDataKind.get();
 			this._register(autorun(reader => {
-				if (toolInvocation.state.read(reader).type !== initialState) {
+				const stateChanged = toolInvocation.state.read(reader).type !== initialState;
+				const dataKindChanged = toolInvocation.toolSpecificDataKind.read(reader) !== initialDataKind;
+				if (stateChanged || dataKindChanged) {
 					render();
 				}
 			}));

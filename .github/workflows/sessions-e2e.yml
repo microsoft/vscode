@@ -7,6 +7,9 @@ on:
       - 'release/*'
   workflow_dispatch:
 
+# just commenting "on" property causes emails to be sent to everyone
+on: workflow_dispatch
+
 permissions:
   contents: read
 

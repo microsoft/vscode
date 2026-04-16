@@ -21,11 +21,12 @@ import { IPreferencesService } from '../../../../../workbench/services/preferenc
 import { IOutputService } from '../../../../../workbench/services/output/common/output.js';
 import { IUriIdentityService } from '../../../../../platform/uriIdentity/common/uriIdentity.js';
 import { extUri } from '../../../../../base/common/resources.js';
-import { ISessionsProvidersService } from '../../../sessions/browser/sessionsProvidersService.js';
-import { ISessionsManagementService } from '../../../sessions/browser/sessionsManagementService.js';
-import { ISessionChangeEvent, ISessionsProvider } from '../../../sessions/browser/sessionsProvider.js';
-import { ISessionWorkspace } from '../../../sessions/common/sessionData.js';
+import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
+import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
+import { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { WorkspacePicker, IWorkspaceSelection } from '../../browser/sessionWorkspacePicker.js';
+import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 
 // ---- Storage key (must match the one in sessionWorkspacePicker.ts) ----------
 const STORAGE_KEY_RECENT_WORKSPACES = 'sessions.recentlyPickedWorkspaces';
@@ -35,12 +36,12 @@ const STORAGE_KEY_RECENT_WORKSPACES = 'sessions.recentlyPickedWorkspaces';
 function createMockProvider(id: string, opts?: {
 	connectionStatus?: ISettableObservable<RemoteAgentHostConnectionStatus>;
 }): ISessionsProvider {
-	return {
+	const base = {
 		id,
 		label: `Provider ${id}`,
 		icon: Codicon.remote,
 		sessionTypes: [],
-		connectionStatus: opts?.connectionStatus,
+		onDidChangeSessionTypes: Event.None,
 		browseActions: [],
 		resolveWorkspace: (uri: URI): ISessionWorkspace => ({
 			label: uri.path.substring(1) || uri.path,
@@ -51,7 +52,6 @@ function createMockProvider(id: string, opts?: {
 		onDidChangeSessions: Event.None,
 		getSessions: () => [],
 		createNewSession: () => { throw new Error('Not implemented'); },
-		setSessionType: () => { throw new Error('Not implemented'); },
 		getSessionTypes: () => [],
 		renameChat: async () => { },
 		setModel: () => { },
@@ -59,34 +59,52 @@ function createMockProvider(id: string, opts?: {
 		unarchiveSession: async () => { },
 		deleteSession: async () => { },
 		deleteChat: async () => { },
-		setRead: () => { },
 		sendAndCreateChat: async () => { throw new Error('Not implemented'); },
+		addChat: () => { throw new Error('Not implemented'); },
+		sendRequest: async () => { throw new Error('Not implemented'); },
 		capabilities: { multipleChatsPerSession: false },
+		onDidChangeCapabilities: Event.None,
 	};
+	if (opts?.connectionStatus) {
+		return {
+			...base,
+			connectionStatus: opts.connectionStatus,
+			onDidChangeSessionConfig: Event.None,
+			getSessionConfig: () => undefined,
+			setSessionConfigValue: async () => { },
+			getSessionConfigCompletions: async () => [],
+			getCreateSessionConfig: () => undefined,
+			clearSessionConfig: () => { },
+		} as IAgentHostSessionsProvider;
+	}
+	return base;
 }
 
 class MockSessionsProvidersService extends Disposable {
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onDidChangeProviders = this._register(new Emitter<void>());
-	readonly onDidChangeProviders: Event<void> = this._onDidChangeProviders.event;
-	readonly onDidChangeSessions: Event<ISessionChangeEvent> = Event.None;
-	readonly onDidReplaceSession = Event.None;
+	private readonly _onDidChangeProviders = this._register(new Emitter<ISessionsProvidersChangeEvent>());
+	readonly onDidChangeProviders: Event<ISessionsProvidersChangeEvent> = this._onDidChangeProviders.event;
 
 	private _providers: ISessionsProvider[] = [];
 
 	setProviders(providers: ISessionsProvider[]): void {
+		const oldProviders = this._providers;
 		this._providers = providers;
-		this._onDidChangeProviders.fire();
+		const oldIds = new Set(oldProviders.map(p => p.id));
+		const newIds = new Set(providers.map(p => p.id));
+		this._onDidChangeProviders.fire({
+			added: providers.filter(p => !oldIds.has(p.id)),
+			removed: oldProviders.filter(p => !newIds.has(p.id)),
+		});
 	}
 
 	getProviders(): ISessionsProvider[] {
 		return this._providers;
 	}
 
-	resolveWorkspace(providerId: string, repositoryUri: URI): ISessionWorkspace | undefined {
-		const provider = this._providers.find(p => p.id === providerId);
-		return provider?.resolveWorkspace(repositoryUri);
+	getProvider<T extends ISessionsProvider>(providerId: string): T | undefined {
+		return this._providers.find(p => p.id === providerId) as T | undefined;
 	}
 }
 
@@ -151,12 +169,12 @@ suite('WorkspacePicker - Connection Status', () => {
 
 	test('restore skips unavailable (disconnected) provider', () => {
 		const remoteStatus = observableValue<RemoteAgentHostConnectionStatus>('status', RemoteAgentHostConnectionStatus.Disconnected);
-		const remoteProvider = createMockProvider('remote-1', { connectionStatus: remoteStatus });
+		const remoteProvider = createMockProvider('agenthost-remote-1', { connectionStatus: remoteStatus });
 		const localProvider = createMockProvider('local-1');
 
 		const storage = disposables.add(new TestStorageService());
 		seedStorage(storage, [
-			{ uri: URI.file('/remote/project'), providerId: 'remote-1', checked: true },
+			{ uri: URI.file('/remote/project'), providerId: 'agenthost-remote-1', checked: true },
 			{ uri: URI.file('/local/project'), providerId: 'local-1', checked: false },
 		]);
 
@@ -169,12 +187,12 @@ suite('WorkspacePicker - Connection Status', () => {
 
 	test('restore skips connecting provider', () => {
 		const remoteStatus = observableValue<RemoteAgentHostConnectionStatus>('status', RemoteAgentHostConnectionStatus.Connecting);
-		const remoteProvider = createMockProvider('remote-1', { connectionStatus: remoteStatus });
+		const remoteProvider = createMockProvider('agenthost-remote-1', { connectionStatus: remoteStatus });
 		const localProvider = createMockProvider('local-1');
 
 		const storage = disposables.add(new TestStorageService());
 		seedStorage(storage, [
-			{ uri: URI.file('/remote/project'), providerId: 'remote-1', checked: true },
+			{ uri: URI.file('/remote/project'), providerId: 'agenthost-remote-1', checked: true },
 			{ uri: URI.file('/local/project'), providerId: 'local-1', checked: false },
 		]);
 
@@ -186,31 +204,31 @@ suite('WorkspacePicker - Connection Status', () => {
 
 	test('restore picks connected remote provider', () => {
 		const remoteStatus = observableValue<RemoteAgentHostConnectionStatus>('status', RemoteAgentHostConnectionStatus.Connected);
-		const remoteProvider = createMockProvider('remote-1', { connectionStatus: remoteStatus });
+		const remoteProvider = createMockProvider('agenthost-remote-1', { connectionStatus: remoteStatus });
 
 		const storage = disposables.add(new TestStorageService());
 		seedStorage(storage, [
-			{ uri: URI.file('/remote/project'), providerId: 'remote-1', checked: true },
+			{ uri: URI.file('/remote/project'), providerId: 'agenthost-remote-1', checked: true },
 		]);
 
 		providersService.setProviders([remoteProvider]);
 		const picker = createTestPicker(disposables, providersService, storage);
 
-		assertSelectedProvider(picker, 'remote-1');
+		assertSelectedProvider(picker, 'agenthost-remote-1');
 	});
 
 	test('disconnect clears selection from that provider', () => {
 		const remoteStatus = observableValue<RemoteAgentHostConnectionStatus>('status', RemoteAgentHostConnectionStatus.Connected);
-		const remoteProvider = createMockProvider('remote-1', { connectionStatus: remoteStatus });
+		const remoteProvider = createMockProvider('agenthost-remote-1', { connectionStatus: remoteStatus });
 
 		const storage = disposables.add(new TestStorageService());
 		seedStorage(storage, [
-			{ uri: URI.file('/remote/project'), providerId: 'remote-1', checked: true },
+			{ uri: URI.file('/remote/project'), providerId: 'agenthost-remote-1', checked: true },
 		]);
 
 		providersService.setProviders([remoteProvider]);
 		const picker = createTestPicker(disposables, providersService, storage);
-		assertSelectedProvider(picker, 'remote-1');
+		assertSelectedProvider(picker, 'agenthost-remote-1');
 
 		// Disconnect
 		remoteStatus.set(RemoteAgentHostConnectionStatus.Disconnected, undefined);
@@ -219,16 +237,16 @@ suite('WorkspacePicker - Connection Status', () => {
 
 	test('reconnect restores the same workspace', () => {
 		const remoteStatus = observableValue<RemoteAgentHostConnectionStatus>('status', RemoteAgentHostConnectionStatus.Connected);
-		const remoteProvider = createMockProvider('remote-1', { connectionStatus: remoteStatus });
+		const remoteProvider = createMockProvider('agenthost-remote-1', { connectionStatus: remoteStatus });
 
 		const storage = disposables.add(new TestStorageService());
 		seedStorage(storage, [
-			{ uri: URI.file('/remote/project'), providerId: 'remote-1', checked: true },
+			{ uri: URI.file('/remote/project'), providerId: 'agenthost-remote-1', checked: true },
 		]);
 
 		providersService.setProviders([remoteProvider]);
 		const picker = createTestPicker(disposables, providersService, storage);
-		assertSelectedProvider(picker, 'remote-1');
+		assertSelectedProvider(picker, 'agenthost-remote-1');
 
 		// Disconnect — clears selection
 		remoteStatus.set(RemoteAgentHostConnectionStatus.Disconnected, undefined);
@@ -236,7 +254,7 @@ suite('WorkspacePicker - Connection Status', () => {
 
 		// Reconnect — should restore
 		remoteStatus.set(RemoteAgentHostConnectionStatus.Connected, undefined);
-		assertSelectedProvider(picker, 'remote-1', 'Should restore after reconnect');
+		assertSelectedProvider(picker, 'agenthost-remote-1', 'Should restore after reconnect');
 		assert.strictEqual(
 			picker.selectedProject?.workspace.repositories[0]?.uri.path,
 			'/remote/project',
@@ -246,18 +264,18 @@ suite('WorkspacePicker - Connection Status', () => {
 
 	test('disconnect does not auto-select another provider workspace', () => {
 		const remoteStatus = observableValue<RemoteAgentHostConnectionStatus>('status', RemoteAgentHostConnectionStatus.Connected);
-		const remoteProvider = createMockProvider('remote-1', { connectionStatus: remoteStatus });
+		const remoteProvider = createMockProvider('agenthost-remote-1', { connectionStatus: remoteStatus });
 		const localProvider = createMockProvider('local-1');
 
 		const storage = disposables.add(new TestStorageService());
 		seedStorage(storage, [
-			{ uri: URI.file('/remote/project'), providerId: 'remote-1', checked: true },
+			{ uri: URI.file('/remote/project'), providerId: 'agenthost-remote-1', checked: true },
 			{ uri: URI.file('/local/project'), providerId: 'local-1', checked: false },
 		]);
 
 		providersService.setProviders([remoteProvider, localProvider]);
 		const picker = createTestPicker(disposables, providersService, storage);
-		assertSelectedProvider(picker, 'remote-1');
+		assertSelectedProvider(picker, 'agenthost-remote-1');
 
 		// Disconnect remote
 		remoteStatus.set(RemoteAgentHostConnectionStatus.Disconnected, undefined);
@@ -269,11 +287,11 @@ suite('WorkspacePicker - Connection Status', () => {
 	test('checked is globally unique after persist', () => {
 		const localProvider = createMockProvider('local-1');
 		const remoteStatus = observableValue<RemoteAgentHostConnectionStatus>('status', RemoteAgentHostConnectionStatus.Connected);
-		const remoteProvider = createMockProvider('remote-1', { connectionStatus: remoteStatus });
+		const remoteProvider = createMockProvider('agenthost-remote-1', { connectionStatus: remoteStatus });
 
 		const storage = disposables.add(new TestStorageService());
 		seedStorage(storage, [
-			{ uri: URI.file('/remote/project'), providerId: 'remote-1', checked: true },
+			{ uri: URI.file('/remote/project'), providerId: 'agenthost-remote-1', checked: true },
 			{ uri: URI.file('/local/project'), providerId: 'local-1', checked: false },
 		]);
 
@@ -298,25 +316,29 @@ suite('WorkspacePicker - Connection Status', () => {
 
 	test('onDidSelectWorkspace fires on reconnect restore', () => {
 		const remoteStatus = observableValue<RemoteAgentHostConnectionStatus>('status', RemoteAgentHostConnectionStatus.Connected);
-		const remoteProvider = createMockProvider('remote-1', { connectionStatus: remoteStatus });
+		const remoteProvider = createMockProvider('agenthost-remote-1', { connectionStatus: remoteStatus });
 
 		const storage = disposables.add(new TestStorageService());
 		seedStorage(storage, [
-			{ uri: URI.file('/remote/project'), providerId: 'remote-1', checked: true },
+			{ uri: URI.file('/remote/project'), providerId: 'agenthost-remote-1', checked: true },
 		]);
 
 		providersService.setProviders([remoteProvider]);
 		const picker = createTestPicker(disposables, providersService, storage);
 
 		const selected: IWorkspaceSelection[] = [];
-		disposables.add(picker.onDidSelectWorkspace(w => selected.push(w)));
+		disposables.add(picker.onDidSelectWorkspace(w => {
+			if (w) {
+				selected.push(w);
+			}
+		}));
 
 		// Disconnect then reconnect
 		remoteStatus.set(RemoteAgentHostConnectionStatus.Disconnected, undefined);
 		remoteStatus.set(RemoteAgentHostConnectionStatus.Connected, undefined);
 
 		assert.strictEqual(selected.length, 1, 'onDidSelectWorkspace should fire once on reconnect');
-		assert.strictEqual(selected[0].providerId, 'remote-1');
+		assert.strictEqual(selected[0].providerId, 'agenthost-remote-1');
 		assert.strictEqual(selected[0].workspace.repositories[0]?.uri.path, '/remote/project', 'Event should carry the correct workspace URI');
 	});
 

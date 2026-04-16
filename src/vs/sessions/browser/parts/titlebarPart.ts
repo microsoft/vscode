@@ -14,10 +14,8 @@ import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
-import { WORKBENCH_BACKGROUND } from '../../../workbench/common/theme.js';
-import { chatBarTitleBackground, chatBarTitleForeground } from '../../common/theme.js';
+import { agentsPanelForeground } from '../../common/theme.js';
 import { isMacintosh, isWeb, isNative, platformLocale } from '../../../base/common/platform.js';
-import { Color } from '../../../base/common/color.js';
 import { EventType, EventHelper, append, $, addDisposableListener, prepend, getWindow, getWindowId } from '../../../base/browser/dom.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
@@ -84,6 +82,8 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	get leftContainer(): HTMLElement { return this.leftContent; }
 	get rightContainer(): HTMLElement { return this.rightContent; }
 	get rightWindowControlsContainer(): HTMLElement | undefined { return this.windowControlsContainer; }
+
+	private chatBarResizeObserver: ResizeObserver | undefined;
 
 	private readonly titleBarStyle: TitlebarStyle;
 	private isInactive: boolean = false;
@@ -242,18 +242,11 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		if (this.element) {
 			this.element.classList.toggle('inactive', this.isInactive);
 
-			const titleBackground = this.getColor(chatBarTitleBackground, (color, theme) => {
-				return color.isOpaque() ? color : color.makeOpaque(WORKBENCH_BACKGROUND(theme));
-			}) || '';
-			this.element.style.backgroundColor = titleBackground;
+			// Titlebar is transparent — it inherits the sidebar/gradient background via CSS.
+			// Only set foreground color for text/icon contrast.
+			this.element.style.backgroundColor = '';
 
-			if (titleBackground && Color.fromHex(titleBackground).isLighter()) {
-				this.element.classList.add('light');
-			} else {
-				this.element.classList.remove('light');
-			}
-
-			const titleForeground = this.getColor(chatBarTitleForeground);
+			const titleForeground = this.getColor(agentsPanelForeground);
 			this.element.style.color = titleForeground || '';
 		}
 	}
@@ -282,6 +275,26 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	override layout(width: number, height: number): void {
 		this.updateLayout();
 		super.layoutContents(width, height);
+		this.installChatBarResizeObserver();
+	}
+
+	private installChatBarResizeObserver(): void {
+		if (this.chatBarResizeObserver) {
+			return;
+		}
+
+		const chatBarContainer = this.layoutService.getContainer(getWindow(this.element), Parts.CHATBAR_PART);
+		if (!chatBarContainer) {
+			return;
+		}
+
+		this.chatBarResizeObserver = new ResizeObserver(entries => {
+			for (const entry of entries) {
+				this.centerContent.style.maxWidth = `${entry.contentRect.width}px`;
+			}
+		});
+		this.chatBarResizeObserver.observe(chatBarContainer);
+		this._register({ dispose: () => this.chatBarResizeObserver?.disconnect() });
 	}
 
 	private updateLayout(): void {

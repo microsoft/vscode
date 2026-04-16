@@ -28,7 +28,7 @@ import { LocalChatSessionUri } from '../../contrib/chat/common/model/chatUri.js'
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { checkProposedApiEnabled, isProposedApiEnabled } from '../../services/extensions/common/extensions.js';
 import { Dto } from '../../services/extensions/common/proxyIdentifier.js';
-import { ExtHostChatAgentsShape2, IChatAgentCompletionItem, IChatAgentHistoryEntryDto, IChatAgentInvokeResult, IChatAgentProgressShape, IChatSessionCustomizationItemDto, IChatSessionCustomizationProviderMetadataDto, IChatProgressDto, IChatSessionContextDto, ICustomAgentDto, IExtensionChatAgentMetadata, IHookDto, IInstructionDto, IMainContext, IPluginDto, ISkillDto, MainContext, MainThreadChatAgentsShape2 } from './extHost.protocol.js';
+import { ExtHostChatAgentsShape2, IChatAgentCompletionItem, IChatAgentHistoryEntryDto, IChatAgentInvokeResult, IChatAgentProgressShape, IChatSessionCustomizationItemDto, IChatSessionCustomizationProviderMetadataDto, IChatProgressDto, IChatSessionContextDto, ICustomAgentDto, IExtensionChatAgentMetadata, IHookDto, IInstructionDto, IMainContext, IPluginDto, ISkillDto, ISlashCommandDto, MainContext, MainThreadChatAgentsShape2 } from './extHost.protocol.js';
 import { CommandsConverter, ExtHostCommands } from './extHostCommands.js';
 import { ExtHostDiagnostics } from './extHostDiagnostics.js';
 import { ExtHostDocuments } from './extHostDocuments.js';
@@ -38,6 +38,7 @@ import * as typeConvert from './extHostTypeConverters.js';
 import * as extHostTypes from './extHostTypes.js';
 import { IPromptFileContext, IPromptFileResource } from '../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../contrib/chat/common/promptSyntax/promptTypes.js';
+import { ExtHostChatSessions } from './extHostChatSessions.js';
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors.js';
 
 export class ChatAgentResponseStream {
@@ -498,16 +499,19 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 	readonly onDidChangeInstructions = this._onDidChangeInstructions.event;
 	private readonly _onDidChangeSkills = this._register(new Emitter<void>());
 	readonly onDidChangeSkills = this._onDidChangeSkills.event;
+	private readonly _onDidChangeSlashCommands = this._register(new Emitter<void>());
+	readonly onDidChangeSlashCommands = this._onDidChangeSlashCommands.event;
 	private readonly _onDidChangeHooks = this._register(new Emitter<void>());
 	readonly onDidChangeHooks = this._onDidChangeHooks.event;
 	private readonly _onDidChangePlugins = this._register(new Emitter<void>());
 	readonly onDidChangePlugins = this._onDidChangePlugins.event;
 
-	private _customAgents: vscode.ChatResource[] = [];
-	private _instructions: vscode.ChatResource[] = [];
-	private _skills: vscode.ChatResource[] = [];
-	private _hooks: vscode.ChatResource[] = [];
-	private _plugins: vscode.ChatResource[] = [];
+	private readonly _customAgents = new CachedPromise(() => this._proxy.$provideCustomAgents(CancellationToken.None).then(agents => agents.map(agent => this.toCustomAgent(agent))));
+	private readonly _instructions = new CachedPromise(() => this._proxy.$provideInstructions(CancellationToken.None).then(instructions => instructions.map(instruction => this.toInstruction(instruction))));
+	private readonly _skills = new CachedPromise(() => this._proxy.$provideSkills(CancellationToken.None).then(skills => skills.map(skill => this.toSkill(skill))));
+	private readonly _slashCommands = new CachedPromise(() => this._proxy.$provideSlashCommands(CancellationToken.None).then(slashCommands => slashCommands.map(slashCommand => this.toSlashCommand(slashCommand))));
+	private readonly _hooks = new CachedPromise(() => this._proxy.$provideHooks(CancellationToken.None).then(hooks => hooks.map(hook => this.toHook(hook))));
+	private readonly _plugins = new CachedPromise(() => this._proxy.$providePlugins(CancellationToken.None).then(plugins => plugins.map(plugin => this.toPlugin(plugin))));
 
 	private _activeChatPanelSessionResource: URI | undefined;
 
@@ -518,48 +522,119 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		return this._activeChatPanelSessionResource;
 	}
 
-	get customAgents(): readonly vscode.ChatResource[] {
-		return this._customAgents;
+
+	private toCustomAgent(dto: ICustomAgentDto): vscode.ChatCustomAgent {
+		return Object.freeze<vscode.ChatCustomAgent>({
+			uri: URI.revive(dto.uri),
+			name: dto.name,
+			description: dto.description,
+			source: dto.source,
+			extensionId: dto.extensionId,
+			pluginUri: dto.pluginUri ? URI.revive(dto.pluginUri) : undefined,
+			argumentHint: dto.argumentHint,
+			tools: dto.tools,
+			model: dto.model,
+			userInvocable: dto.userInvocable,
+			disableModelInvocation: dto.disableModelInvocation,
+		});
 	}
 
-	get instructions(): readonly vscode.ChatResource[] {
-		return this._instructions;
+	private toInstruction(dto: IInstructionDto): vscode.ChatInstruction {
+		return Object.freeze<vscode.ChatInstruction>({
+			uri: URI.revive(dto.uri),
+			name: dto.name,
+			description: dto.description,
+			source: dto.source,
+			extensionId: dto.extensionId,
+			pluginUri: dto.pluginUri ? URI.revive(dto.pluginUri) : undefined,
+			pattern: dto.pattern,
+		});
 	}
 
-	get skills(): readonly vscode.ChatResource[] {
-		return this._skills;
+	private toSkill(dto: ISkillDto): vscode.ChatSkill {
+		return Object.freeze<vscode.ChatSkill>({
+			uri: URI.revive(dto.uri),
+			name: dto.name,
+			description: dto.description,
+			source: dto.source,
+			extensionId: dto.extensionId,
+			pluginUri: dto.pluginUri ? URI.revive(dto.pluginUri) : undefined,
+			userInvocable: dto.userInvocable,
+		});
 	}
 
-	get hooks(): readonly vscode.ChatResource[] {
-		return this._hooks;
+	private toSlashCommand(dto: ISlashCommandDto): vscode.ChatSlashCommand {
+		return Object.freeze<vscode.ChatSlashCommand>({
+			uri: URI.revive(dto.uri),
+			name: dto.name,
+			description: dto.description,
+			source: dto.source,
+			extensionId: dto.extensionId,
+			pluginUri: dto.pluginUri ? URI.revive(dto.pluginUri) : undefined,
+			argumentHint: dto.argumentHint,
+			userInvocable: dto.userInvocable,
+		});
 	}
 
-	get plugins(): readonly vscode.ChatResource[] {
-		return this._plugins;
+	private toHook(dto: IHookDto): vscode.ChatHook {
+		return Object.freeze({ uri: URI.revive(dto.uri) });
 	}
 
-	$acceptCustomAgents(agents: ICustomAgentDto[]): void {
-		this._customAgents = agents.map(a => Object.freeze({ uri: URI.revive(a.uri) }));
+	private toPlugin(dto: IPluginDto): vscode.ChatPlugin {
+		return Object.freeze({ uri: URI.revive(dto.uri) });
+	}
+
+	provideCustomAgents(token: vscode.CancellationToken): Thenable<readonly vscode.ChatCustomAgent[]> {
+		return this._customAgents.get(token);
+	}
+
+	provideInstructions(token: vscode.CancellationToken): Thenable<readonly vscode.ChatInstruction[]> {
+		return this._instructions.get(token);
+	}
+
+	provideSkills(token: vscode.CancellationToken): Thenable<readonly vscode.ChatSkill[]> {
+		return this._skills.get(token);
+	}
+
+	provideSlashCommands(token: vscode.CancellationToken): Thenable<readonly vscode.ChatSlashCommand[]> {
+		return this._slashCommands.get(token);
+	}
+
+	provideHooks(token: vscode.CancellationToken): Thenable<readonly vscode.ChatHook[]> {
+		return this._hooks.get(token);
+	}
+
+	providePlugins(token: vscode.CancellationToken): Thenable<readonly vscode.ChatPlugin[]> {
+		return this._plugins.get(token);
+	}
+
+	$onDidChangeCustomAgents(): void {
+		this._customAgents.clear();
 		this._onDidChangeCustomAgents.fire();
 	}
 
-	$acceptInstructions(instructions: IInstructionDto[]): void {
-		this._instructions = instructions.map(i => Object.freeze({ uri: URI.revive(i.uri) }));
+	$onDidChangeInstructions(): void {
+		this._instructions.clear();
 		this._onDidChangeInstructions.fire();
 	}
 
-	$acceptSkills(skills: ISkillDto[]): void {
-		this._skills = skills.map(s => Object.freeze({ uri: URI.revive(s.uri) }));
+	$onDidChangeSkills(): void {
+		this._skills.clear();
 		this._onDidChangeSkills.fire();
 	}
 
-	$acceptHooks(hooks: IHookDto[]): void {
-		this._hooks = hooks.map(h => Object.freeze({ uri: URI.revive(h.uri) }));
+	$onDidChangeSlashCommands(): void {
+		this._slashCommands.clear();
+		this._onDidChangeSlashCommands.fire();
+	}
+
+	$onDidChangeHooks(): void {
+		this._hooks.clear();
 		this._onDidChangeHooks.fire();
 	}
 
-	$acceptPlugins(plugins: IPluginDto[]): void {
-		this._plugins = plugins.map(p => Object.freeze({ uri: URI.revive(p.uri) }));
+	$onDidChangePlugins(): void {
+		this._plugins.clear();
 		this._onDidChangePlugins.fire();
 	}
 
@@ -571,7 +646,8 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 		private readonly _editorsAndDocuments: ExtHostDocumentsAndEditors,
 		private readonly _languageModels: ExtHostLanguageModels,
 		private readonly _diagnostics: ExtHostDiagnostics,
-		private readonly _tools: ExtHostLanguageModelTools
+		private readonly _tools: ExtHostLanguageModelTools,
+		private readonly _chatSessions: ExtHostChatSessions,
 	) {
 		super();
 		this._proxy = mainContext.getProxy(MainContext.MainThreadChatAgents2);
@@ -878,13 +954,20 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			// If this request originates from a contributed chat session editor, attempt to resolve the ChatSession API object
 			let chatSessionContext: vscode.ChatSessionContext | undefined;
 			if (context.chatSessionContext) {
+				const sessionResource = URI.revive(context.chatSessionContext.chatSessionResource);
+				const inputState = await this._chatSessions.getInputStateForSession(
+					sessionResource,
+					context.chatSessionContext.initialSessionOptions,
+					token,
+				);
 				chatSessionContext = {
 					chatSessionItem: {
-						resource: URI.revive(context.chatSessionContext.chatSessionResource),
+						resource: sessionResource,
 						label: context.chatSessionContext.isUntitled ? 'Untitled Session' : 'Session',
 					},
 					isUntitled: context.chatSessionContext.isUntitled,
 					initialSessionOptions: context.chatSessionContext.initialSessionOptions,
+					inputState,
 				};
 			}
 
@@ -1402,6 +1485,35 @@ function raceCancellationWithTimeout<T>(cancelWait: number, promise: Promise<T>,
 		});
 		promise.then(resolve, reject).finally(() => ref.dispose());
 	});
+}
+
+/**
+ * Lazily computes and caches a promise result until explicitly cleared.
+ * Failed computations are not retained so later callers can retry.
+ */
+class CachedPromise<T> {
+
+	private cachedPromise: Promise<readonly T[]> | undefined;
+
+	constructor(private readonly computeFn: () => Promise<readonly T[]>) { }
+
+	get(token: CancellationToken): Promise<readonly T[]> {
+		if (!this.cachedPromise) {
+			const promise = this.computeFn().catch(err => {
+				if (this.cachedPromise === promise) {
+					this.cachedPromise = undefined;
+				}
+				throw err;
+			});
+			this.cachedPromise = promise;
+		}
+
+		return raceCancellation(this.cachedPromise, token, []);
+	}
+
+	clear(): void {
+		this.cachedPromise = undefined;
+	}
 }
 
 function isBuiltinParticipant(agentId: string): boolean {

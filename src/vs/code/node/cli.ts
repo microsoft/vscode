@@ -385,9 +385,9 @@ export async function main(argv: string[]): Promise<void> {
 
 			const filenamePrefix = randomPath(homedir(), 'prof');
 
-			addArg(argv, `--inspect-brk=${profileHost}:${portMain}`);
-			addArg(argv, `--remote-debugging-port=${profileHost}:${portRenderer}`);
-			addArg(argv, `--inspect-brk-extensions=${profileHost}:${portExthost}`);
+			addArg(argv, `--inspect-brk=${portMain}`);
+			addArg(argv, `--remote-debugging-port=${portRenderer}`);
+			addArg(argv, `--inspect-brk-extensions=${portExthost}`);
 			addArg(argv, `--prof-startup-prefix`, filenamePrefix);
 			addArg(argv, `--no-cached-data`);
 
@@ -484,8 +484,23 @@ export async function main(argv: string[]): Promise<void> {
 			if (!args.verbose && args.status) {
 				options['stdio'] = ['ignore', 'pipe', 'ignore']; // restore ability to see output when --status is used
 			}
-			// We spawn process.execPath directly
-			child = spawn(process.execPath, argv.slice(2), options);
+
+			// Figure out the app to launch: with --agents we try to launch the embedded app on Windows
+			let execToLaunch = process.execPath;
+			if (isWindows && args.agents && product.win32SiblingExeBasename) {
+				const siblingExe = join(dirname(process.execPath), `${product.win32SiblingExeBasename}.exe`);
+				try {
+					if (statSync(siblingExe).isFile()) {
+						execToLaunch = siblingExe;
+						argv = argv.filter(arg => arg !== '--agents');
+					}
+				} catch (error) {
+					/* may not exist on disk */
+				}
+			}
+
+			// We spawn the resolved executable directly
+			child = spawn(execToLaunch, argv.slice(2), options);
 		} else {
 			// On macOS, we spawn using the open command to obtain behavior
 			// similar to if the app was launched from the dock

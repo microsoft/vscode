@@ -102,6 +102,7 @@ const desktopEntryPoints = [
 	'vs/platform/files/node/watcher/watcherMain',
 	'vs/platform/terminal/node/ptyHostMain',
 	'vs/platform/agentHost/node/agentHostMain',
+	'vs/platform/agentHost/node/diffWorkerMain',
 	'vs/workbench/api/node/extensionHostProcess',
 ];
 
@@ -130,6 +131,7 @@ const serverEntryPoints = [
 	'vs/platform/files/node/watcher/watcherMain',
 	'vs/platform/terminal/node/ptyHostMain',
 	'vs/platform/agentHost/node/agentHostMain',
+	'vs/platform/agentHost/node/diffWorkerMain',
 ];
 
 // Bootstrap files per target
@@ -276,6 +278,7 @@ const desktopResourcePatterns = [
 	// Media - images
 	'vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.svg',
 	'vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.png',
+	'vs/workbench/contrib/welcomeOnboarding/browser/media/*.svg',
 	'vs/workbench/contrib/extensions/browser/media/{theme-icon.png,language-icon.svg}',
 	'vs/workbench/services/extensionManagement/common/media/*.svg',
 	'vs/workbench/services/extensionManagement/common/media/*.png',
@@ -335,6 +338,7 @@ const serverWebResourcePatterns = [
 	// Media - images
 	'vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.svg',
 	'vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.png',
+	'vs/workbench/contrib/welcomeOnboarding/browser/media/*.svg',
 	'vs/workbench/contrib/extensions/browser/media/*.svg',
 	'vs/workbench/contrib/extensions/browser/media/*.png',
 	'vs/workbench/services/extensionManagement/common/media/*.svg',
@@ -361,6 +365,7 @@ const webResourcePatterns = [
 	// Media - images
 	'vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.svg',
 	'vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.png',
+	'vs/workbench/contrib/welcomeOnboarding/browser/media/*.svg',
 	'vs/workbench/contrib/extensions/browser/media/*.svg',
 	'vs/workbench/contrib/extensions/browser/media/*.png',
 	'vs/workbench/services/extensionManagement/common/media/*.svg',
@@ -712,7 +717,22 @@ async function transpileFile(srcPath: string, destPath: string): Promise<void> {
 	});
 
 	await fs.promises.mkdir(path.dirname(destPath), { recursive: true });
-	await fs.promises.writeFile(destPath, result.code);
+
+	const adjustedCode = adjustEsmUrl(result.code);
+	await fs.promises.writeFile(destPath, adjustedCode);
+}
+
+/*
+ * This enables https://github.com/microsoft/esm-url-bundler-plugins to work on both original and transpiled sources.
+ * Usees regex to only replace `.ts?esm` inside quoted URL strings, avoiding false positives.
+ *
+ * E.g.:
+ * -  esmModuleLocationBundler: () => new URL("../../../api/worker/extensionHostWorkerMain.ts?esm", import.meta.url)
+ * +  esmModuleLocationBundler: () => new URL("../../../api/worker/extensionHostWorkerMain.js?esm", import.meta.url)
+ */
+function adjustEsmUrl(code: string): string {
+	const fixedCode = code.replace(/\.ts(\?esm['"])/g, '.js$1');
+	return fixedCode;
 }
 
 async function transpile(outDir: string, excludeTests: boolean): Promise<void> {
@@ -1002,6 +1022,29 @@ ${tslib}`,
 		} else {
 			await fs.promises.writeFile(mapFile.path, mapFile.contents);
 		}
+	}
+
+	// Syntax-check JS files that were post-processed (mangle-privates, NLS).
+	// These steps do raw string surgery on bundled JS so a bug could silently
+	// produce syntactically broken output. Catch it here at build time.
+	// Uses esbuild.transform() as a parser since the bundles are ESM.
+	const postProcessedFiles = new Set([...mangleEdits.keys(), ...nlsEdits.keys()]);
+	if (postProcessedFiles.size > 0) {
+		const errors = (await Promise.all([...postProcessedFiles].map(async jsPath => {
+			try {
+				const src = await fs.promises.readFile(jsPath, 'utf-8');
+				await esbuild.transform(src, { loader: 'js', format: 'esm' });
+				return undefined;
+			} catch (e: unknown) {
+				const rel = path.relative(path.join(REPO_ROOT, outDir), jsPath);
+				const message = e instanceof Error ? e.message : String(e);
+				return { rel, message };
+			}
+		}))).filter(error => error !== undefined).sort((a, b) => a.rel.localeCompare(b.rel));
+		if (errors.length > 0) {
+			throw new Error(`[bundle] Syntax errors in post-processed JS files:\n${errors.map(e => `${e.rel}: ${e.message}`).join('\n')}`);
+		}
+		console.log(`[bundle] Syntax check passed for ${postProcessedFiles.size} post-processed JS files`);
 	}
 
 	// Log mangle-privates stats

@@ -343,7 +343,7 @@ declare module 'vscode' {
 		/**
 		 * Statistics about the chat session.
 		 */
-		changes?: readonly ChatSessionChangedFile[] | readonly ChatSessionChangedFile2[];
+		changes?: readonly ChatSessionChangedFile[];
 
 		/**
 		 * Arbitrary metadata for the chat session. Can be anything, but must be JSON-stringifyable.
@@ -353,34 +353,7 @@ declare module 'vscode' {
 		metadata?: { readonly [key: string]: any };
 	}
 
-	/**
-	 * @deprecated Use `ChatSessionChangedFile2` instead
-	 */
 	export class ChatSessionChangedFile {
-		/**
-		 * URI of the file.
-		 */
-		modifiedUri: Uri;
-
-		/**
-		 * File opened when the user takes the 'compare' action.
-		 */
-		originalUri?: Uri;
-
-		/**
-		 * Number of insertions made during the session.
-		 */
-		insertions: number;
-
-		/**
-		 * Number of deletions made during the session.
-		 */
-		deletions: number;
-
-		constructor(modifiedUri: Uri, insertions: number, deletions: number, originalUri?: Uri);
-	}
-
-	export class ChatSessionChangedFile2 {
 		/**
 		 * URI of the file.
 		 */
@@ -594,8 +567,15 @@ declare module 'vscode' {
 		/**
 		 * The initial option selections for the session, provided with the first request.
 		 * Contains the options the user selected (or defaults) before the session was created.
+		 *
+		 * @deprecated Use `inputState` instead
 		 */
 		readonly initialSessionOptions?: ReadonlyArray<{ optionId: string; value: string | ChatSessionProviderOptionItem }>;
+
+		/**
+		 * The current input state of the chat session.
+		 */
+		readonly inputState: ChatSessionInputState;
 	}
 
 	export interface ChatSessionCapabilities {
@@ -692,6 +672,8 @@ declare module 'vscode' {
 		 *
 		 * These commands will be displayed at the bottom of the group.
 		 *
+		 * For extensions using the legacy `commands` API, these commands are passed the sessionResource as the first argument.
+		 *
 		 * For extensions that use the new `provideChatSessionInputState` API, these commands are passed a context object
 		 * `{ inputState: ChatSessionInputState; sessionResource: Uri | undefined }` that they can use to determine which session and options they are being invoked for.
 		 */
@@ -719,8 +701,17 @@ declare module 'vscode' {
 	export interface ChatSessionInputState {
 		/**
 		 * Fired when the input state is changed by the user.
+		 *
+		 * Move to controller?
 		 */
 		readonly onDidChange: Event<void>;
+
+		/**
+		 * The resource associated with this chat session.
+		 *
+		 * This is `undefined` for chat sessions that have not yet started.
+		 */
+		readonly sessionResource: Uri | undefined;
 
 		/**
 		 * The groups of options to show in the UI for user input.

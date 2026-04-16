@@ -11,8 +11,8 @@ import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
-import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { CopilotChatSessionsProvider, ICopilotChatSession } from './copilotChatSessionsProvider.js';
 
 const FILTER_THRESHOLD = 10;
@@ -41,7 +41,8 @@ export class BranchPicker extends Disposable {
 
 		this._register(autorun(reader => {
 			const session = this.sessionsManagementService.activeSession.read(reader);
-			const providerSession = session ? this.sessionsProvidersService.getProvider<CopilotChatSessionsProvider>(session.providerId)?.getSession(session.sessionId) : undefined;
+			const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
+			const providerSession = provider instanceof CopilotChatSessionsProvider ? provider.getSession(session!.sessionId) : undefined;
 			if (providerSession) {
 				providerSession.loading.read(reader);
 				providerSession.branches.read(reader);
@@ -57,7 +58,8 @@ export class BranchPicker extends Disposable {
 		if (!session) {
 			return undefined;
 		}
-		return this.sessionsProvidersService.getProvider<CopilotChatSessionsProvider>(session.providerId)?.getSession(session.sessionId);
+		const provider = this.sessionsProvidersService.getProvider(session.providerId);
+		return provider instanceof CopilotChatSessionsProvider ? provider.getSession(session.sessionId) : undefined;
 	}
 
 	render(container: HTMLElement): void {
@@ -129,7 +131,7 @@ export class BranchPicker extends Disposable {
 	}
 
 	private _updateTriggerLabel(): void {
-		if (!this._triggerElement || !this._slotElement) {
+		if (!this._triggerElement) {
 			return;
 		}
 		dom.clearNode(this._triggerElement);
@@ -137,7 +139,7 @@ export class BranchPicker extends Disposable {
 		const session = this._getSession();
 		const branches = session?.branches.get() ?? [];
 		const isLoading = session?.loading.get() ?? false;
-		const isDisabled = session?.isolationMode.get() === 'workspace';
+		const isDisabled = session?.isolationMode.get() === 'workspace' || branches.length === 0;
 		const label = session?.branch.get() ?? localize('branchPicker.select', "Branch");
 
 		dom.append(this._triggerElement, renderIcon(Codicon.gitBranch));
@@ -145,11 +147,8 @@ export class BranchPicker extends Disposable {
 		labelSpan.textContent = label;
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
 
-		const visible = !(isLoading || branches.length === 0);
-		dom.setVisibility(visible, this._slotElement);
-		this._slotElement.classList.toggle('disabled', isDisabled);
-		this._triggerElement.setAttribute('aria-hidden', String(!visible));
-		this._triggerElement.setAttribute('aria-disabled', String(isDisabled));
-		this._triggerElement.tabIndex = visible && !isDisabled ? 0 : -1;
+		this._slotElement?.classList.toggle('disabled', isLoading || isDisabled);
+		this._triggerElement.setAttribute('aria-disabled', String(isLoading || isDisabled));
+		this._triggerElement.tabIndex = (isLoading || isDisabled) ? -1 : 0;
 	}
 }

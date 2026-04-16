@@ -320,6 +320,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			context: openConfig.context,
 			contextWindowId: openConfig.contextWindowId,
 			initialStartup: openConfig.initialStartup,
+			forceNewWindow: openConfig.forceNewWindow,
 		};
 	}
 

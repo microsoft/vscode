@@ -10,10 +10,8 @@ import { isEqualOrParent } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { AgentHostEnabledSettingId, IAgentHostService, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
-import { type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { isSessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import { SessionClientState } from '../../../../../../platform/agentHost/common/state/sessionClientState.js';
-import { ROOT_STATE_URI, type IAgentInfo, type ICustomizationRef, type IRootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { type IProtectedResourceMetadata, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { type IAgentInfo, type ICustomizationRef, type IRootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -36,7 +34,7 @@ import { AgentHostSessionListController } from './agentHostSessionListController
 import { LoggingAgentConnection } from './loggingAgentConnection.js';
 import { SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
 
-export { AgentHostSessionHandler } from './agentHostSessionHandler.js';
+export { AgentHostSessionHandler, getAgentHostBranchNameHint } from './agentHostSessionHandler.js';
 export { AgentHostSessionListController } from './agentHostSessionListController.js';
 
 /**
@@ -51,7 +49,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	static readonly ID = 'workbench.contrib.agentHostContribution';
 
 	private _loggedConnection: LoggingAgentConnection | undefined;
-	private _clientState: SessionClientState | undefined;
+
 	private readonly _agentRegistrations = this._register(new DisposableMap<AgentProvider, DisposableStore>());
 	/** Model providers keyed by agent provider, for pushing model updates. */
 	private readonly _modelProviders = new Map<AgentProvider, AgentHostLanguageModelProvider>();
@@ -80,47 +78,20 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		this._loggedConnection = this._register(this._instantiationService.createInstance(
 			LoggingAgentConnection,
 			this._agentHostService,
-			'agentHostIpc.local',
+			`agenthost.${this._agentHostService.clientId}`,
 			'Agent Host (Local)'));
 
 		this._register(_agentHostFileSystemService.registerAuthority('local', this._agentHostService));
 
-		// Shared client state for protocol reconciliation
-		this._clientState = this._register(new SessionClientState(this._agentHostService.clientId, this._logService, () => this._agentHostService.nextClientSeq()));
-
-		// Forward action envelopes from the host to client state
-		this._register(this._loggedConnection.onDidAction(envelope => {
-			// Only root actions are relevant here; session actions are
-			// handled by individual session handlers.
-			if (!isSessionAction(envelope.action)) {
-				this._clientState!.receiveEnvelope(envelope);
-			}
-		}));
-
-		// Forward notifications to client state
-		this._register(this._loggedConnection.onDidNotification(n => {
-			this._clientState!.receiveNotification(n);
-		}));
-
 		// React to root state changes (agent discovery / removal)
-		this._register(this._clientState.onDidChangeRootState(rootState => {
+		this._register(this._agentHostService.rootState.onDidChange(rootState => {
 			this._handleRootStateChange(rootState);
 		}));
 
-		this._initializeAndSubscribe();
-	}
-
-	private async _initializeAndSubscribe(): Promise<void> {
-		try {
-			const snapshot = await this._loggedConnection!.subscribe(URI.parse(ROOT_STATE_URI));
-			if (this._store.isDisposed) {
-				return;
-			}
-			// Feed snapshot into client state - fires onDidChangeRootState
-			this._clientState!.handleSnapshot(ROOT_STATE_URI, snapshot.state, snapshot.fromSeq);
-		} catch (err) {
-			this._logService.error('[AgentHost] Failed to subscribe to root state', err);
-			this._loggedConnection!.logError('subscribe(root)', err);
+		// Process initial root state if already available
+		const initialRootState = this._agentHostService.rootState.value;
+		if (initialRootState && !(initialRootState instanceof Error)) {
+			this._handleRootStateChange(initialRootState);
 		}
 	}
 
@@ -134,6 +105,10 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 				this._modelProviders.delete(provider);
 			}
 		}
+
+		// Authenticate using protectedResources from agent info
+		this._authenticateWithServer(rootState.agents)
+			.catch(() => { /* best-effort */ });
 
 		// Register new agents and push model updates to existing ones
 		for (const agent of rootState.agents) {
@@ -168,7 +143,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		}));
 
 		// Session list controller
-		const listController = store.add(this._instantiationService.createInstance(AgentHostSessionListController, sessionType, agent.provider, this._loggedConnection!, undefined));
+		const listController = store.add(this._instantiationService.createInstance(AgentHostSessionListController, sessionType, agent.provider, this._loggedConnection!, undefined, 'local'));
 		store.add(this._chatSessionsService.registerChatSessionItemController(sessionType, listController));
 
 		// Customization sync provider + bundler + observable
@@ -201,27 +176,32 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			description: agent.description,
 			connection: this._loggedConnection!,
 			connectionAuthority: 'local',
-			resolveAuthentication: () => this._resolveAuthenticationInteractively(),
+			resolveAuthentication: (resources) => this._resolveAuthenticationInteractively(resources),
 			customizations,
 		}));
 		store.add(this._chatSessionsService.registerChatSessionContentProvider(sessionType, sessionHandler));
 
-		// Language model provider
+		// Language model provider.
+		// Order matters: `updateModels` must be called after
+		// `registerLanguageModelProvider` so the initial `onDidChange` is observed.
 		const vendorDescriptor = { vendor, displayName: agent.displayName, configuration: undefined, managementCommand: undefined, when: undefined };
 		this._languageModelsService.deltaLanguageModelChatProviderDescriptors([vendorDescriptor], []);
 		store.add(toDisposable(() => this._languageModelsService.deltaLanguageModelChatProviderDescriptors([], [vendorDescriptor])));
 		const modelProvider = store.add(new AgentHostLanguageModelProvider(sessionType, vendor));
-		modelProvider.updateModels(agent.models);
 		this._modelProviders.set(agent.provider, modelProvider);
 		store.add(toDisposable(() => this._modelProviders.delete(agent.provider)));
 		store.add(this._languageModelsService.registerLanguageModelProvider(vendor, modelProvider));
+		modelProvider.updateModels(agent.models);
 
-		// Push auth token and refresh models from server
-		this._authenticateWithServer().then(() => this._loggedConnection!.refreshModels()).catch(() => { /* best-effort */ });
-		store.add(this._defaultAccountService.onDidChangeDefaultAccount(() =>
-			this._authenticateWithServer().then(() => this._loggedConnection!.refreshModels()).catch(() => { /* best-effort */ })));
-		store.add(this._authenticationService.onDidChangeSessions(() =>
-			this._authenticateWithServer().then(() => this._loggedConnection!.refreshModels()).catch(() => { /* best-effort */ })));
+		// Re-authenticate when credentials change
+		store.add(this._defaultAccountService.onDidChangeDefaultAccount(() => {
+			const agents = this._getRootAgents();
+			this._authenticateWithServer(agents).catch(() => { /* best-effort */ });
+		}));
+		store.add(this._authenticationService.onDidChangeSessions(() => {
+			const agents = this._getRootAgents();
+			this._authenticateWithServer(agents).catch(() => { /* best-effort */ });
+		}));
 	}
 
 	/**
@@ -266,23 +246,27 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		return refs;
 	}
 
+	private _getRootAgents(): readonly IAgentInfo[] {
+		const rootState = this._agentHostService.rootState.value;
+		return (rootState && !(rootState instanceof Error)) ? rootState.agents : [];
+	}
+
 	/**
-	 * Discover auth requirements from the server's resource metadata
-	 * and authenticate using matching tokens resolved via the standard
-	 * VS Code authentication service (same flow as MCP auth).
+	 * Authenticate using protectedResources from agent info in root state.
+	 * Resolves tokens via the standard VS Code authentication service.
 	 */
-	private async _authenticateWithServer(): Promise<void> {
+	private async _authenticateWithServer(agents: readonly IAgentInfo[]): Promise<void> {
 		try {
-			const metadata = await this._loggedConnection!.getResourceMetadata();
-			this._logService.trace(`[AgentHost] Resource metadata: ${metadata.resources.length} resource(s)`);
-			for (const resource of metadata.resources) {
-				const resourceUri = URI.parse(resource.resource);
-				const token = await this._resolveTokenForResource(resourceUri, resource.authorization_servers ?? [], resource.scopes_supported ?? []);
-				if (token) {
-					this._logService.info(`[AgentHost] Authenticating for resource: ${resource.resource}`);
-					await this._loggedConnection!.authenticate({ resource: resource.resource, token });
-				} else {
-					this._logService.info(`[AgentHost] No token resolved for resource: ${resource.resource}`);
+			for (const agent of agents) {
+				for (const resource of agent.protectedResources ?? []) {
+					const resourceUri = URI.parse(resource.resource);
+					const token = await this._resolveTokenForResource(resourceUri, resource.authorization_servers ?? [], resource.scopes_supported ?? []);
+					if (token) {
+						this._logService.info(`[AgentHost] Authenticating for resource: ${resource.resource}`);
+						await this._loggedConnection!.authenticate({ resource: resource.resource, token });
+					} else {
+						this._logService.info(`[AgentHost] No token resolved for resource: ${resource.resource}`);
+					}
 				}
 			}
 		} catch (err) {
@@ -301,17 +285,25 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 
 	/**
 	 * Interactively prompt the user to authenticate when the server requires it.
-	 * Fetches resource metadata, resolves the auth provider, creates a session
-	 * (which triggers the login UI), and pushes the token to the server.
-	 * Returns true if authentication succeeded.
+	 * Uses protectedResources from root state, resolves the auth provider,
+	 * creates a session (which triggers the login UI), and pushes the token
+	 * to the server. Returns true if authentication succeeded.
 	 */
-	private async _resolveAuthenticationInteractively(): Promise<boolean> {
+	private async _resolveAuthenticationInteractively(protectedResources: IProtectedResourceMetadata[]): Promise<boolean> {
 		try {
-			const metadata = await this._loggedConnection!.getResourceMetadata();
-			for (const resource of metadata.resources) {
+			for (const resource of protectedResources) {
+				const resourceUri = URI.parse(resource.resource);
+				const resolved = await resolveTokenForResource(resourceUri, resource.authorization_servers || [], resource.scopes_supported || [], this._authenticationService, this._logService, '[AgentHost]');
+				if (resolved) {
+					await this._loggedConnection!.authenticate({
+						resource: resource.resource,
+						token: resolved,
+					});
+					return true;
+				}
+
 				for (const server of resource.authorization_servers ?? []) {
 					const serverUri = URI.parse(server);
-					const resourceUri = URI.parse(resource.resource);
 					const providerId = await this._authenticationService.getOrActivateProviderIdForServer(serverUri, resourceUri);
 					if (!providerId) {
 						continue;

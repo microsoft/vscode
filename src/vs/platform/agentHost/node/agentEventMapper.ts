@@ -12,17 +12,21 @@ import type {
 	IAgentReasoningEvent,
 	IAgentTitleChangedEvent,
 	IAgentToolCompleteEvent,
+	IAgentToolContentChangedEvent,
 	IAgentToolStartEvent,
-	IAgentUsageEvent
+	IAgentUsageEvent,
+	IAgentUserInputRequestEvent
 } from '../common/agentService.js';
 import {
 	ActionType,
 	type ISessionAction,
 	type ISessionErrorAction,
+	type ISessionInputRequestedAction,
 	type ITitleChangedAction,
 	type IToolCallCompleteAction,
 	type IToolCallReadyAction,
 	type IToolCallStartAction,
+	type ISessionToolCallContentChangedAction,
 	type ITurnCompleteAction,
 	type IUsageAction
 } from '../common/state/sessionActions.js';
@@ -90,6 +94,22 @@ export class AgentEventMapper {
 				// We emit both toolCallStart (streaming → created) and toolCallReady
 				// (params complete → running with auto-confirm) as a pair.
 				const e = event as IAgentToolStartEvent;
+				const meta: Record<string, unknown> = { toolKind: e.toolKind, language: e.language };
+
+				// For subagent tools, extract agent metadata from tool arguments
+				// so the renderer can display the name/description immediately.
+				if (e.toolKind === 'subagent' && e.toolArguments) {
+					try {
+						const args = JSON.parse(e.toolArguments) as Record<string, unknown>;
+						if (typeof args.description === 'string') {
+							meta.subagentDescription = args.description;
+						}
+						if (typeof args.agentName === 'string') {
+							meta.subagentAgentName = args.agentName;
+						}
+					} catch { /* ignore parse errors */ }
+				}
+
 				const startAction: IToolCallStartAction = {
 					type: ActionType.SessionToolCallStart,
 					session,
@@ -97,7 +117,8 @@ export class AgentEventMapper {
 					toolCallId: e.toolCallId,
 					toolName: e.toolName,
 					displayName: e.displayName,
-					_meta: { toolKind: e.toolKind, language: e.language },
+					toolClientId: e.toolClientId,
+					_meta: meta,
 				};
 				const readyAction: IToolCallReadyAction = {
 					type: ActionType.SessionToolCallReady,
@@ -136,6 +157,17 @@ export class AgentEventMapper {
 					toolCallId: e.toolCallId,
 					result: e.result,
 				} satisfies IToolCallCompleteAction;
+			}
+
+			case 'tool_content_changed': {
+				const e = event as IAgentToolContentChangedEvent;
+				return {
+					type: ActionType.SessionToolCallContentChanged,
+					session,
+					turnId,
+					toolCallId: e.toolCallId,
+					content: e.content,
+				} satisfies ISessionToolCallContentChangedAction;
 			}
 
 			case 'idle':
@@ -227,6 +259,15 @@ export class AgentEventMapper {
 					turnId,
 					part: { kind: ResponsePartKind.Markdown, id: partId, content: e.content },
 				};
+			}
+
+			case 'user_input_request': {
+				const e = event as IAgentUserInputRequestEvent;
+				return {
+					type: ActionType.SessionInputRequested,
+					session,
+					request: e.request,
+				} satisfies ISessionInputRequestedAction;
 			}
 
 			default:

@@ -148,6 +148,7 @@ export interface IChatAgentRequest {
 	locationData?: Revived<IChatLocationData>;
 	acceptedConfirmationData?: unknown[];
 	rejectedConfirmationData?: unknown[];
+	agentHostSessionConfig?: Record<string, string>;
 	userSelectedModelId?: string;
 	modelConfiguration?: IStringDictionary<unknown>;
 	userSelectedTools?: UserSelectedTools;

@@ -13,8 +13,8 @@ import { IActionWidgetService } from '../../../../platform/actionWidget/browser/
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IChatSessionProviderOptionItem, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
-import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { CopilotChatSessionsProvider, RemoteNewSession } from './copilotChatSessionsProvider.js';
 
 const FILTER_THRESHOLD = 10;
@@ -58,7 +58,8 @@ export class CloudModelPicker extends Disposable {
 
 		this._register(autorun(reader => {
 			const session = sessionsManagementService.activeSession.read(reader);
-			const providerSession = session ? sessionsProvidersService.getProvider<CopilotChatSessionsProvider>(session.providerId)?.getSession(session.sessionId) : undefined;
+			const provider = session ? sessionsProvidersService.getProvider(session.providerId) : undefined;
+			const providerSession = provider instanceof CopilotChatSessionsProvider ? provider.getSession(session!.sessionId) : undefined;
 			if (providerSession instanceof RemoteNewSession) {
 				this._setSession(providerSession);
 			}
@@ -198,7 +199,7 @@ export class CloudModelPicker extends Disposable {
 	}
 
 	private _updateTriggerLabel(): void {
-		if (!this._triggerElement || !this._slotElement) {
+		if (!this._triggerElement) {
 			return;
 		}
 
@@ -209,11 +210,7 @@ export class CloudModelPicker extends Disposable {
 		labelSpan.textContent = label;
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
 
-		const visible = this._models.length > 0;
-		dom.setVisibility(visible, this._slotElement);
-		this._slotElement.classList.toggle('disabled', false);
-		this._triggerElement.setAttribute('aria-hidden', String(!visible));
-		this._triggerElement.setAttribute('aria-disabled', String(!visible));
-		this._triggerElement.tabIndex = visible ? 0 : -1;
+		this._slotElement?.classList.toggle('disabled', this._models.length === 0);
+		this._triggerElement.setAttribute('aria-disabled', String(this._models.length === 0));
 	}
 }

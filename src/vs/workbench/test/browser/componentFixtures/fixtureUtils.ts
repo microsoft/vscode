@@ -90,7 +90,7 @@ import { ITextModelService } from '../../../../editor/common/services/resolverSe
 import { IAgentFeedbackService } from '../../../../sessions/contrib/agentFeedback/browser/agentFeedbackService.js';
 import { IChatEditingService } from '../../../contrib/chat/common/editing/chatEditingService.js';
 // eslint-disable-next-line local/code-import-patterns
-import { ISessionsManagementService } from '../../../../sessions/contrib/sessions/browser/sessionsManagementService.js';
+import { ISessionsManagementService } from '../../../../sessions/services/sessions/common/sessionsManagement.js';
 // eslint-disable-next-line local/code-import-patterns
 import { ICodeReviewService, CodeReviewStateKind, PRReviewStateKind } from '../../../../sessions/contrib/codeReview/browser/codeReviewService.js';
 import { constObservable } from '../../../../base/common/observable.js';
@@ -98,10 +98,11 @@ import { constObservable } from '../../../../base/common/observable.js';
 // Editor
 import { ITextModel } from '../../../../editor/common/model.js';
 
-
+import './fixtures.css';
 
 // Import color registrations to ensure colors are available
-import { isThenable } from '../../../../base/common/async.js';
+import { IdleDeadline, installFakeRunWhenIdle } from '../../../../base/common/async.js';
+import { AsyncSchedulerProcessor, TimeTravelScheduler } from '../../../../base/test/common/timeTravelScheduler.js';
 import '../../../../platform/theme/common/colors/baseColors.js';
 import '../../../../platform/theme/common/colors/editorColors.js';
 import '../../../../platform/theme/common/colors/listColors.js';
@@ -291,7 +292,7 @@ function installGlobalStyles(): void {
 
 export function setupTheme(container: HTMLElement, theme: ColorThemeData): void {
 	installGlobalStyles();
-	container.classList.add('monaco-workbench', getPlatformClass(), ...theme.classNames);
+	container.classList.add('monaco-workbench', getPlatformClass(), 'disable-animations', ...theme.classNames);
 }
 
 function getPlatformClass(): string {
@@ -449,6 +450,8 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		_serviceBrand: undefined,
 		registerTextModelContentProvider: () => ({ dispose: () => { } }),
 		canHandleResource: () => false,
+		// eslint-disable-next-line local/code-no-any-casts, @typescript-eslint/no-explicit-any
+		createModelReference: async () => ({ object: { textEditorModel: null }, dispose() { } } as any),
 	});
 
 	defineInstance(IAgentFeedbackService, {
@@ -479,6 +482,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 
 	definePartialInstance(ISessionsManagementService, {
 		_serviceBrand: undefined,
+		activeSession: constObservable(undefined),
 		getSession: () => undefined,
 		getSessions: () => [],
 	});
@@ -496,8 +500,22 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		markPRReviewCommentConverted: () => { },
 	});
 
-	// Allow additional services to be registered
-	options?.additionalServices?.({ define, defineInstance, definePartialInstance });
+	// Allow additional services to override defaults
+	options?.additionalServices?.({
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		define: <T>(id: ServiceIdentifier<T>, ctor: new (...args: any[]) => T) => {
+			services.set(id, new SyncDescriptor(ctor));
+			serviceIdentifiers.push(id);
+		},
+		defineInstance: <T>(id: ServiceIdentifier<T>, instance: T) => {
+			services.set(id, instance);
+			serviceIdentifiers.push(id);
+		},
+		definePartialInstance: <T>(id: ServiceIdentifier<T>, instance: Partial<T>) => {
+			services.set(id, instance as T);
+			serviceIdentifiers.push(id);
+		},
+	});
 
 	const instantiationService = disposables.add(new TestInstantiationService(services, true));
 
@@ -624,12 +642,52 @@ export function defineComponentFixture(options: ComponentFixtureOptions): Themed
 		isolation: 'none',
 		displayMode: { type: 'component' },
 		background: theme === darkTheme ? 'dark' : 'light',
-		render: (container: HTMLElement) => {
+		render: async (container: HTMLElement) => {
 			const disposableStore = new DisposableStore();
-			setupTheme(container, theme);
-			// Start render (may be async) - component-explorer will wait 2 rAF after this returns
-			const result = options.render({ container, disposableStore, theme });
-			return isThenable(result) ? result.then(() => disposableStore) : disposableStore;
+
+			const schedulerStore = disposableStore.add(new DisposableStore());
+			const scheduler = new TimeTravelScheduler(Date.now());
+			const p = schedulerStore.add(new AsyncSchedulerProcessor(scheduler, {
+				maxTaskCount: 100,
+			}));
+
+			async function actualRender() {
+
+				setupTheme(container, theme);
+
+				schedulerStore.add(scheduler.installGlobally());
+				disposableStore.add(installFakeRunWhenIdle((_targetWindow, callback, _timeout?) => {
+					return scheduler.schedule({
+						time: scheduler.now,
+						run: () => {
+							const deadline: IdleDeadline = {
+								didTimeout: true,
+								timeRemaining: () => 50,
+							};
+							callback(deadline);
+						},
+						source: {
+							toString() { return 'runWhenIdle'; },
+							stackTrace: undefined,
+						},
+					});
+				}));
+
+				const result = options.render({ container, disposableStore, theme });
+
+				const p2 = p.waitFor(1000);
+
+				await Promise.all([
+					result instanceof Promise ? result : Promise.resolve(),
+					p2,
+				]);
+			}
+
+			await actualRender();
+
+			schedulerStore.dispose();
+
+			return disposableStore;
 		},
 	});
 
