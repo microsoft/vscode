@@ -98,6 +98,11 @@ export interface IAgentMemoryService {
 	readonly _serviceBrand: undefined;
 
 	/**
+	 * Get the GitHub owner/repo NWO for the current workspace, or undefined if not available.
+	 */
+	getRepoNwo(): Promise<string | undefined>;
+
+	/**
 	 * Check if Copilot Memory is enabled for the current repository.
 	 */
 	checkMemoryEnabled(): Promise<boolean>;
@@ -148,7 +153,7 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 		super();
 	}
 
-	private async getRepoNwo(): Promise<string | undefined> {
+	async getRepoNwo(): Promise<string | undefined> {
 		try {
 			const workspaceFolders = this.workspaceService.getWorkspaceFolders();
 			if (!workspaceFolders || workspaceFolders.length === 0) {

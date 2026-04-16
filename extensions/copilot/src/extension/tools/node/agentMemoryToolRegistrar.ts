@@ -4,10 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
-import { getGithubRepoIdFromFetchUrl, getOrderedRemoteUrlsFromContext, IGitService, toGithubNwo } from '../../../platform/git/common/gitService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
-import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { createServiceIdentifier } from '../../../util/common/services';
 import { DisposableStore } from '../../../util/vs/base/common/lifecycle';
 import { IAgentMemoryService, type MemoryPromptResponse } from '../common/agentMemoryService';
@@ -37,32 +35,8 @@ export class AgentMemoryToolRegistrar implements IAgentMemoryToolRegistrar {
 		@IAgentMemoryService private readonly agentMemoryService: IAgentMemoryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExperimentationService private readonly experimentationService: IExperimentationService,
-		@IGitService private readonly gitService: IGitService,
-		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
 		@ILogService private readonly logService: ILogService,
 	) { }
-
-	private async getRepoNwo(): Promise<string | undefined> {
-		try {
-			const workspaceFolders = this.workspaceService.getWorkspaceFolders();
-			if (!workspaceFolders || workspaceFolders.length === 0) {
-				return undefined;
-			}
-			const repo = await this.gitService.getRepository(workspaceFolders[0]);
-			if (!repo) {
-				return undefined;
-			}
-			for (const remoteUrl of getOrderedRemoteUrlsFromContext(repo)) {
-				const repoId = getGithubRepoIdFromFetchUrl(remoteUrl);
-				if (repoId) {
-					return toGithubNwo(repoId);
-				}
-			}
-			return undefined;
-		} catch {
-			return undefined;
-		}
-	}
 
 	async registerMemoryTools(promptResponse?: MemoryPromptResponse): Promise<void> {
 		const enabled = this.configurationService.getExperimentBasedConfig(ConfigKey.CopilotMemoryEnabled, this.experimentationService);
@@ -72,7 +46,7 @@ export class AgentMemoryToolRegistrar implements IAgentMemoryToolRegistrar {
 		}
 
 		if (!promptResponse) {
-			const repoNwo = await this.getRepoNwo();
+			const repoNwo = await this.agentMemoryService.getRepoNwo();
 			promptResponse = await this.agentMemoryService.getMemoryPrompt(repoNwo);
 		}
 		if (!promptResponse) {

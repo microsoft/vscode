@@ -8,10 +8,8 @@ import { ConfigKey, IConfigurationService } from '../../../platform/configuratio
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
 import { FileType } from '../../../platform/filesystem/common/fileTypes';
-import { IGitService, getGithubRepoIdFromFetchUrl, getOrderedRemoteUrlsFromContext, toGithubNwo } from '../../../platform/git/common/gitService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
-import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { URI } from '../../../util/vs/base/common/uri';
 import { Tag } from '../../prompts/node/base/tag';
 import type { MemoryResponse } from '@github/copilot-agentic-tools/memory';
@@ -37,32 +35,8 @@ export class MemoryContextPrompt extends PromptElement<MemoryContextPromptProps>
 		@IVSCodeExtensionContext private readonly extensionContext: IVSCodeExtensionContext,
 		@IFileSystemService private readonly fileSystemService: IFileSystemService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
-		@IGitService private readonly gitService: IGitService,
-		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
 	) {
 		super(props);
-	}
-
-	private async getRepoNwo(): Promise<string | undefined> {
-		try {
-			const workspaceFolders = this.workspaceService.getWorkspaceFolders();
-			if (!workspaceFolders || workspaceFolders.length === 0) {
-				return undefined;
-			}
-			const repo = await this.gitService.getRepository(workspaceFolders[0]);
-			if (!repo) {
-				return undefined;
-			}
-			for (const remoteUrl of getOrderedRemoteUrlsFromContext(repo)) {
-				const repoId = getGithubRepoIdFromFetchUrl(remoteUrl);
-				if (repoId) {
-					return toGithubNwo(repoId);
-				}
-			}
-			return undefined;
-		} catch {
-			return undefined;
-		}
 	}
 
 	async render() {
@@ -81,7 +55,7 @@ export class MemoryContextPrompt extends PromptElement<MemoryContextPromptProps>
 		let memoryPromptText: string | undefined;
 		let repoMemories: MemoryResponse[] | undefined;
 		if (enableCopilotMemory) {
-			const repoNwo = await this.getRepoNwo();
+			const repoNwo = await this.agentMemoryService.getRepoNwo();
 			// Fetch once and pass the response to registerMemoryTools so it can reuse it,
 			// avoiding a redundant /prompt call.
 			const promptResponse = await this.agentMemoryService.getMemoryPrompt(repoNwo);
