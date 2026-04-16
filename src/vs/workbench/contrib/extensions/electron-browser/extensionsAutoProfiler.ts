@@ -111,12 +111,12 @@ export class ExtensionsAutoProfiler implements IWorkbenchContribution {
 				await timeout(5e3, cts.token);
 			} catch {
 				// can throw cancellation error. that is
-				// OK, we stop profiling and analyse the
+				// OK, we stop profiling and analyze the
 				// profile anyways
 			}
 
 			try {
-				// stop profiling and analyse results
+				// stop profiling and analyze results
 				this._processCpuProfile(await session.stop());
 			} catch (err) {
 				onUnexpectedError(err);
@@ -145,7 +145,7 @@ export class ExtensionsAutoProfiler implements IWorkbenchContribution {
 			);
 		}
 
-		// analyse profile by extension-category
+		// analyze profile by extension-category
 		const categories: [location: URI, id: string][] = this._extensionService.extensions
 			.filter(e => e.extensionLocation.scheme === Schemas.file)
 			.map(e => [e.extensionLocation, ExtensionIdentifier.toKey(e.identifier)]);

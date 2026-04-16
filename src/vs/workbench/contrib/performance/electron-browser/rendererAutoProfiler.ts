@@ -71,7 +71,7 @@ export class RendererProfiling {
 				// pause observation, we'll take a detailed look
 				obs.disconnect();
 
-				// profile renderer for 5secs, analyse, and take action depending on the result
+				// profile renderer for 5secs, analyze, and take action depending on the result
 				for (let i = 0; i < 3; i++) {
 
 					try {
