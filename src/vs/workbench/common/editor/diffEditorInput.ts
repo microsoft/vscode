@@ -245,7 +245,7 @@ export class DiffEditorInput extends SideBySideEditorInput implements IDiffEdito
 
 		// Free the diff editor model but do not propagate the dispose() call to the two inputs
 		// We never created the two inputs (original and modified) so we cannot dispose
-		// them without sideeffects.
+		// them without side effects.
 		if (this.cachedModel) {
 			this.cachedModel.dispose();
 			this.cachedModel = undefined;
