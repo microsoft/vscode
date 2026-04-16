@@ -1164,7 +1164,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		assert.deepStrictEqual(testObject.getValue('configurationService.folder.policyObjectSetting'), { a: true });
 	}));
 
-	test('reload configuration emits events after global configuraiton changes', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('reload configuration emits events after global configuration changes', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		await fileService.writeFile(userDataProfileService.currentProfile.settingsResource, VSBuffer.fromString('{ "testworkbench.editor.tabs": true }'));
 		const target = sinon.spy();
 		disposables.add(testObject.onDidChangeConfiguration(target));
@@ -1172,7 +1172,7 @@ suite('WorkspaceConfigurationService - Folder', () => {
 		assert.ok(target.called);
 	}));
 
-	test('reload configuration emits events after workspace configuraiton changes', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('reload configuration emits events after workspace configuration changes', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		await fileService.writeFile(joinPath(workspaceService.getWorkspace().folders[0].uri, '.vscode', 'settings.json'), VSBuffer.fromString('{ "configurationService.folder.testSetting": "workspaceValue" }'));
 		const target = sinon.spy();
 		disposables.add(testObject.onDidChangeConfiguration(target));
@@ -2798,7 +2798,7 @@ suite('WorkspaceConfigurationService - Remote Folder', () => {
 	let testObject: WorkspaceService, folder: URI,
 		machineSettingsResource: URI, remoteSettingsResource: URI, fileSystemProvider: InMemoryFileSystemProvider, resolveRemoteEnvironment: () => void,
 		instantiationService: TestInstantiationService, fileService: IFileService, environmentService: BrowserWorkbenchEnvironmentService, userDataProfileService: IUserDataProfileService;
-	const remoteAuthority = 'configuraiton-tests';
+	const remoteAuthority = 'configuration-tests';
 	const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 

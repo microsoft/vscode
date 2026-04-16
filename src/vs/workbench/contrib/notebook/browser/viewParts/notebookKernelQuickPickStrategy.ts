@@ -271,7 +271,7 @@ abstract class KernelPickerStrategyBase implements IKernelPickerStrategy {
 				this._productService.quality !== 'stable'
 			);
 		} else if (isSourcePick(pick)) {
-			// selected explicilty, it should trigger the execution?
+			// selected explicitly, it should trigger the execution?
 			pick.action.runAction();
 		}
 
@@ -624,7 +624,7 @@ export class KernelPickerMRUStrategy extends KernelPickerStrategyBase {
 				await this._selectOneKernel(notebook, selectedKernelPickItem.label, selectedKernelPickItem.kernels);
 				return true;
 			} else if (isSourcePick(selectedKernelPickItem)) {
-				// selected explicilty, it should trigger the execution?
+				// selected explicitly, it should trigger the execution?
 				try {
 					await selectedKernelPickItem.action.runAction();
 					return true;

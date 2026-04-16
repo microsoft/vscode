@@ -1357,7 +1357,7 @@ suite('ConfigurationChangeEvent', () => {
 		const configuration = new TestConfiguration(ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()), ConfigurationModel.createEmptyModel(new NullLogService()));
 		const change = configuration.compareAndUpdateLocalUserConfiguration(toConfigurationModel({
 			'launch': {
-				'configuraiton': {}
+				'configuration': {}
 			},
 			'launch.version': 1,
 			'tasks': {
