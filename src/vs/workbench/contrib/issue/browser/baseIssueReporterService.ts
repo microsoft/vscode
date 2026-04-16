@@ -616,11 +616,11 @@ export class BaseIssueReporterService extends Disposable {
 			// eslint-disable-next-line no-restricted-syntax
 			const descriptionTextArea = <HTMLInputElement>this.getElementById('issue-title');
 			if (value === IssueSource.VSCode) {
-				descriptionTextArea.placeholder = localize('vscodePlaceholder', "E.g Workbench is missing problems panel");
+				descriptionTextArea.placeholder = localize('vscodePlaceholder', "e.g. Workbench is missing problems panel");
 			} else if (value === IssueSource.Extension) {
-				descriptionTextArea.placeholder = localize('extensionPlaceholder', "E.g. Missing alt text on extension readme image");
+				descriptionTextArea.placeholder = localize('extensionPlaceholder', "e.g. Missing alt text on extension readme image");
 			} else if (value === IssueSource.Marketplace) {
-				descriptionTextArea.placeholder = localize('marketplacePlaceholder', "E.g Cannot disable installed extension");
+				descriptionTextArea.placeholder = localize('marketplacePlaceholder', "e.g. Cannot disable installed extension");
 			} else {
 				descriptionTextArea.placeholder = localize('undefinedPlaceholder', "Please enter a title");
 			}

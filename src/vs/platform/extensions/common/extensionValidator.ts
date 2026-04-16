@@ -404,13 +404,13 @@ function isVersionValid(currentVersion: string, date: ProductDate, requestedVers
 	if (desiredVersion.majorBase === 0) {
 		// force that major and minor must be specific
 		if (!desiredVersion.majorMustEqual || !desiredVersion.minorMustEqual) {
-			notices.push(nls.localize('versionSpecificity1', "Version specified in `engines.vscode` ({0}) is not specific enough. For vscode versions before 1.0.0, please define at a minimum the major and minor desired version. E.g. ^0.10.0, 0.10.x, 0.11.0, etc.", requestedVersion));
+			notices.push(nls.localize('versionSpecificity1', "Version specified in `engines.vscode` ({0}) is not specific enough. For vscode versions before 1.0.0, please define at a minimum the major and minor desired version. e.g. ^0.10.0, 0.10.x, 0.11.0, etc.", requestedVersion));
 			return false;
 		}
 	} else {
 		// force that major must be specific
 		if (!desiredVersion.majorMustEqual) {
-			notices.push(nls.localize('versionSpecificity2', "Version specified in `engines.vscode` ({0}) is not specific enough. For vscode versions after 1.0.0, please define at a minimum the major desired version. E.g. ^1.10.0, 1.10.x, 1.x.x, 2.x.x, etc.", requestedVersion));
+			notices.push(nls.localize('versionSpecificity2', "Version specified in `engines.vscode` ({0}) is not specific enough. For vscode versions after 1.0.0, please define at a minimum the major desired version. e.g. ^1.10.0, 1.10.x, 1.x.x, 2.x.x, etc.", requestedVersion));
 			return false;
 		}
 	}
