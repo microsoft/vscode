@@ -166,7 +166,7 @@ export class DefineKeybindingWidget extends Widget {
 		this._domNode.setWidth(DefineKeybindingWidget.WIDTH);
 		this._domNode.setHeight(DefineKeybindingWidget.HEIGHT);
 
-		const message = nls.localize('defineKeybinding.initial', "Press desired key combination and then press ENTER.");
+		const message = nls.localize('defineKeybinding.initial', "Press desired key combination and then press Enter.");
 		dom.append(this._domNode.domNode, dom.$('.message', undefined, message));
 
 		this._domNode.domNode.style.backgroundColor = asCssVariable(editorWidgetBackground);
