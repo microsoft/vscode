@@ -95,7 +95,7 @@ export class ColorExtensionPoint {
 				const collector = extension.collector;
 
 				if (!extensionValue || !Array.isArray(extensionValue)) {
-					collector.error(nls.localize('invalid.colorConfiguration', "'configuration.colors' must be a array"));
+					collector.error(nls.localize('invalid.colorConfiguration', "'configuration.colors' must be an array"));
 					return;
 				}
 				const parseColorValue = (s: string, name: string) => {
