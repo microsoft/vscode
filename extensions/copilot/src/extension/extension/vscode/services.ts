@@ -64,7 +64,7 @@ import { IUrlOpener, NullUrlOpener } from '../../../platform/open/common/opener'
 import { RealUrlOpener } from '../../../platform/open/vscode/opener';
 import { IProjectTemplatesIndex, ProjectTemplatesIndex } from '../../../platform/projectTemplatesIndex/common/projectTemplatesIndex';
 import { IPromptsService } from '../../../platform/promptFiles/common/promptsService';
-import { PromptsServiceImpl } from '../../../platform/promptFiles/common/promptsServiceImpl';
+import { PromptsServiceImpl } from '../../../platform/promptFiles/vscode/promptsServiceImpl';
 import { IPromptPathRepresentationService, PromptPathRepresentationService } from '../../../platform/prompts/common/promptPathRepresentationService';
 import { IReleaseNotesService } from '../../../platform/releaseNotes/common/releaseNotesService';
 import { ReleaseNotesService } from '../../../platform/releaseNotes/vscode/releaseNotesServiceImpl';

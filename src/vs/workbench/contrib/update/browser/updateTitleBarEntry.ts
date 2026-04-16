@@ -13,19 +13,17 @@ import { isWeb } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { DisablementReason, IUpdateService, State, StateType } from '../../../../platform/update/common/update.js';
 import { IWorkbenchContribution } from '../../../common/contributions.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IChatService } from '../../chat/common/chatService/chatService.js';
-import { computeProgressPercent, isMajorMinorVersionChange } from '../common/updateUtils.js';
+import { computeProgressPercent } from '../common/updateUtils.js';
 import { waitForState } from '../../../../base/common/observable.js';
 import './media/updateTitleBarEntry.css';
 import { UpdateTooltip } from './updateTooltip.js';
@@ -33,16 +31,11 @@ import { UpdateTooltip } from './updateTooltip.js';
 const UPDATE_TITLE_BAR_ACTION_ID = 'workbench.actions.updateIndicator';
 const UPDATE_TITLE_BAR_CONTEXT = new RawContextKey<boolean>('updateTitleBar', false);
 
+const DISABLED_REMINDER_LAST_SHOWN_KEY = 'update/disabledReminderLastShown';
+const DISABLED_REMINDER_PERIOD = 30 * 24 * 60 * 60 * 1000; // 30 days
+
 const ACTIONABLE_STATES: readonly StateType[] = [StateType.AvailableForDownload, StateType.Downloaded, StateType.Ready];
 const DETAILED_STATES: readonly StateType[] = [...ACTIONABLE_STATES, StateType.CheckingForUpdates, StateType.Downloading, StateType.Updating, StateType.Overwriting];
-
-const LAST_KNOWN_VERSION_KEY = 'updateTitleBarEntry/lastKnownVersion';
-
-interface ILastKnownVersion {
-	readonly version: string;
-	readonly commit: string | undefined;
-	readonly timestamp: number;
-}
 
 registerAction2(class UpdateIndicatorTitleBarAction extends Action2 {
 	constructor() {
@@ -75,11 +68,9 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IChatService private readonly chatService: IChatService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IHostService private readonly hostService: IHostService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IProductService private readonly productService: IProductService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IUpdateService updateService: IUpdateService,
 	) {
@@ -115,18 +106,7 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 			}
 		));
 
-		this._register(CommandsRegistry.registerCommand('_update.showUpdateInfo', (_accessor, markdown?: string) => this.showUpdateInfo(markdown)));
-
 		void this.onStateChange(true);
-	}
-
-	private async showUpdateInfo(markdown?: string) {
-		const rendered = await this.tooltip.renderPostInstall(markdown);
-		if (rendered) {
-			this.tooltipVisible = true;
-			this.context.set(true);
-			this.entry?.showTooltip(true);
-		}
 	}
 
 	private async onStateChange(startup = false) {
@@ -142,36 +122,38 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 			return;
 		}
 
-		let showTooltip = startup && this.detectVersionChange();
-		if (showTooltip && this.configurationService.getValue<boolean>('update.showPostInstallInfo') !== false) {
-			showTooltip = await this.tooltip.renderPostInstall();
-		} else {
-			this.tooltip.renderState(this.state);
-			switch (this.state.type) {
-				case StateType.Disabled:
-					if (startup) {
-						const reason = this.state.reason;
-						showTooltip = reason === DisablementReason.InvalidConfiguration || reason === DisablementReason.RunningAsAdmin;
+		this.tooltip.renderState(this.state);
+		let showTooltip = false;
+		switch (this.state.type) {
+			case StateType.Disabled:
+				if (startup) {
+					const reason = this.state.reason;
+					if (reason === DisablementReason.InvalidConfiguration || reason === DisablementReason.RunningAsAdmin) {
+						const lastShown = this.storageService.getNumber(DISABLED_REMINDER_LAST_SHOWN_KEY, StorageScope.APPLICATION);
+						showTooltip = lastShown === undefined || (Date.now() - lastShown) >= DISABLED_REMINDER_PERIOD;
 					}
-					break;
-				case StateType.Idle:
-					showTooltip = !!this.state.error;
-					break;
-				case StateType.Downloading:
-				case StateType.Updating:
-				case StateType.Overwriting:
-					this.context.set(this.state.explicit);
-					break;
-				case StateType.Restarting:
-					this.context.set(true);
-					break;
-			}
+				}
+				break;
+			case StateType.Idle:
+				showTooltip = !!this.state.error;
+				break;
+			case StateType.Downloading:
+			case StateType.Updating:
+			case StateType.Overwriting:
+				this.context.set(this.state.explicit);
+				break;
+			case StateType.Restarting:
+				this.context.set(true);
+				break;
 		}
 
 		if (showTooltip) {
 			this.tooltipVisible = true;
 			this.context.set(true);
 			this.entry?.showTooltip();
+			if (this.state.type === StateType.Disabled) {
+				this.storageService.store(DISABLED_REMINDER_LAST_SHOWN_KEY, Date.now(), StorageScope.APPLICATION, StorageTarget.MACHINE);
+			}
 		}
 	}
 
@@ -191,30 +173,6 @@ export class UpdateTitleBarContribution extends Disposable implements IWorkbench
 		}
 	}
 
-	private detectVersionChange() {
-		let from: ILastKnownVersion | undefined;
-		try {
-			from = this.storageService.getObject(LAST_KNOWN_VERSION_KEY, StorageScope.APPLICATION);
-		} catch { }
-
-		const to: ILastKnownVersion = {
-			version: this.productService.version,
-			commit: this.productService.commit,
-			timestamp: Date.now(),
-		};
-
-		if (from?.commit === to.commit) {
-			return false;
-		}
-
-		this.storageService.store(LAST_KNOWN_VERSION_KEY, JSON.stringify(to), StorageScope.APPLICATION, StorageTarget.MACHINE);
-
-		if (from) {
-			return isMajorMinorVersionChange(from.version, to.version);
-		}
-
-		return false;
-	}
 }
 
 /**

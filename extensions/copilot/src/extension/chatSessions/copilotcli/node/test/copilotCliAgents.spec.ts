@@ -7,22 +7,15 @@ import type { SweCustomAgent } from '@github/copilot/sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { IVSCodeExtensionContext } from '../../../../../platform/extContext/common/extensionContext';
 import { ILogService } from '../../../../../platform/log/common/logService';
-import { PromptFileParser, type ParsedPromptFile } from '../../../../../platform/promptFiles/common/promptsService';
+import { PromptFileParser } from '../../../../../platform/promptFiles/common/promptsService';
 import { IWorkspaceService } from '../../../../../platform/workspace/common/workspaceService';
-import { Emitter, Event } from '../../../../../util/vs/base/common/event';
-import { Disposable, DisposableStore } from '../../../../../util/vs/base/common/lifecycle';
+import { Event } from '../../../../../util/vs/base/common/event';
+import { DisposableStore } from '../../../../../util/vs/base/common/lifecycle';
 import { URI } from '../../../../../util/vs/base/common/uri';
 import { createExtensionUnitTestingServices } from '../../../../test/node/services';
-import { IChatPromptFileService } from '../../../common/chatPromptFileService';
 import { CopilotCLIAgents, type ICopilotCLISDK } from '../copilotCli';
-
-const CopilotCLIAgentsConstructor = CopilotCLIAgents as unknown as new (
-	chatPromptFileService: IChatPromptFileService,
-	copilotCLISDK: ICopilotCLISDK,
-	extensionContext: IVSCodeExtensionContext,
-	logService: ILogService,
-	workspaceService: IWorkspaceService,
-) => CopilotCLIAgents;
+import { MockPromptsService } from '../../../../../platform/promptFiles/test/common/mockPromptsService';
+import type { ChatCustomAgent } from 'vscode';
 
 function createMockExtensionContext(): IVSCodeExtensionContext {
 	const workspaceState = new Map<string, unknown>();
@@ -43,36 +36,13 @@ function createMockExtensionContext(): IVSCodeExtensionContext {
 	} as unknown as IVSCodeExtensionContext;
 }
 
-class TestChatPromptFileService extends Disposable implements IChatPromptFileService {
-	declare _serviceBrand: undefined;
-	private readonly _onDidChangeCustomAgents = this._register(new Emitter<void>());
-	readonly onDidChangeCustomAgents: Event<void> = this._onDidChangeCustomAgents.event;
-	readonly onDidChangeInstructions: Event<void> = Event.None;
-	readonly onDidChangeSkills: Event<void> = Event.None;
-	readonly onDidChangeHooks: Event<void> = Event.None;
-	readonly onDidChangePlugins: Event<void> = Event.None;
-	readonly customAgents: readonly import('vscode').ChatResource[] = [];
-	readonly instructions: readonly import('vscode').ChatResource[] = [];
-	readonly skills: readonly import('vscode').ChatResource[] = [];
-	readonly hooks: readonly import('vscode').ChatResource[] = [];
-	readonly plugins: readonly import('vscode').ChatResource[] = [];
-
-	constructor(private _customAgentPromptFiles: ParsedPromptFile[] = []) {
-		super();
-	}
-
-	get customAgentPromptFiles(): readonly ParsedPromptFile[] {
-		return [...this._customAgentPromptFiles];
-	}
-
-	setCustomAgents(customAgents: ParsedPromptFile[]): void {
-		this._customAgentPromptFiles = customAgents;
-		this._onDidChangeCustomAgents.fire();
-	}
+interface PromptFileInfo {
+	readonly uri: URI;
+	readonly content: string;
 }
 
-function parsePromptFile(fileName: string, content: string): ParsedPromptFile {
-	return new PromptFileParser().parse(URI.file(`/workspace/.github/agents/${fileName}`), content);
+function mockPromptFile(fileName: string, content: string): PromptFileInfo {
+	return { uri: URI.file(`/workspace/.github/agents/${fileName}`), content };
 }
 
 function createMockSDK(agentsByCall: ReadonlyArray<ReadonlyArray<SweCustomAgent>>): ICopilotCLISDK {
@@ -113,23 +83,44 @@ describe('CopilotCLIAgents', () => {
 		disposables.clear();
 	});
 
-	function createAgents(options: { sdkAgentsByCall: ReadonlyArray<ReadonlyArray<SweCustomAgent>>; promptAgents?: ParsedPromptFile[] }): { agents: CopilotCLIAgents; chatPromptFileService: TestChatPromptFileService; sdk: ICopilotCLISDK } {
-		const chatPromptFileService = new TestChatPromptFileService(options.promptAgents ?? []);
+	function createChatCustomAgent(mock: PromptFileInfo): ChatCustomAgent {
+		const parsed = new PromptFileParser().parse(mock.uri, mock.content);
+		return {
+			uri: mock.uri,
+			source: 'local',
+			name: parsed.header?.name ?? mock.uri.path.split('/').pop()?.replace('.agent.md', '') ?? 'unknown',
+			description: parsed.header?.description ?? '',
+			model: parsed.header?.model,
+			tools: parsed.header?.tools,
+			userInvocable: parsed.header?.userInvokable ?? true,
+			disableModelInvocation: parsed.header?.disableModelInvocation ?? false,
+		};
+	}
+
+	function createAgents(options: { sdkAgentsByCall: ReadonlyArray<ReadonlyArray<SweCustomAgent>>; customAgents?: PromptFileInfo[] }): { agents: CopilotCLIAgents; promptsService: MockPromptsService; sdk: ICopilotCLISDK } {
+		const promptsService = disposables.add(new MockPromptsService());
+		if (options.customAgents) {
+			const customAgents = [];
+			for (const ca of options.customAgents) {
+				promptsService.setFileContent(ca.uri, ca.content);
+				customAgents.push(createChatCustomAgent(ca));
+			}
+			promptsService.setCustomAgents(customAgents);
+		}
 		const sdk = createMockSDK(options.sdkAgentsByCall);
-		const agents = new CopilotCLIAgentsConstructor(
-			chatPromptFileService,
+		const agents = new CopilotCLIAgents(
+			promptsService,
 			sdk,
 			createMockExtensionContext(),
 			logService,
 			createWorkspaceService(),
 		);
-		disposables.add(chatPromptFileService);
 		disposables.add(agents);
-		return { agents, chatPromptFileService, sdk };
+		return { agents, promptsService, sdk };
 	}
 
 	it('prefers prompt-derived agents over SDK agents with the same name', async () => {
-		const promptAgent = parsePromptFile('merge.agent.md', `---
+		const promptAgent = mockPromptFile('merge.agent.md', `---
 name: MergeMe
 description: Prompt description
 tools: []
@@ -146,7 +137,7 @@ Prompt body`);
 				prompt: async () => 'sdk body',
 				disableModelInvocation: false,
 			}]],
-			promptAgents: [promptAgent]
+			customAgents: [promptAgent]
 		});
 
 		const result = await agents.getAgents();
@@ -165,7 +156,7 @@ Prompt body`);
 	it('derives agent name from filename when frontmatter name is missing', async () => {
 		const { agents } = createAgents({
 			sdkAgentsByCall: [[]],
-			promptAgents: [parsePromptFile('invalid.agent.md', `---
+			customAgents: [mockPromptFile('invalid.agent.md', `---
 description: Missing name
 tools: ['read_file']
 ---
@@ -181,9 +172,9 @@ Body`)]
 	});
 
 	it('refreshes cached agents when custom agents change', async () => {
-		const { agents, chatPromptFileService, sdk } = createAgents({
+		const { agents, promptsService, sdk } = createAgents({
 			sdkAgentsByCall: [[], []],
-			promptAgents: [parsePromptFile('first.agent.md', `---
+			customAgents: [mockPromptFile('first.agent.md', `---
 name: First
 description: First prompt agent
 ---
@@ -191,11 +182,11 @@ First body`)]
 		});
 
 		const first = await agents.getAgents();
-		chatPromptFileService.setCustomAgents([parsePromptFile('second.agent.md', `---
+		promptsService.setCustomAgents([createChatCustomAgent(mockPromptFile('second.agent.md', `---
 name: Second
 description: Second prompt agent
 ---
-Second body`)]);
+Second body`))]);
 		const second = await agents.getAgents();
 
 		expect(first.map(a => a.agent.name)).toEqual(['First']);
@@ -204,22 +195,23 @@ Second body`)]);
 	});
 
 	it('filters out legacy .chatmode.md files', async () => {
-		const chatmodeFile = new PromptFileParser().parse(
-			URI.file('/workspace/.github/chatmodes/test.chatmode.md'),
-			`---
+		const chatmodeFile = {
+			uri:
+				URI.file('/workspace/.github/chatmodes/test.chatmode.md'),
+			content: `---
 name: TestMode
 description: A legacy chatmode
 ---
 Body`
-		);
-		const agentFile = parsePromptFile('real.agent.md', `---
+		};
+		const agentFile = mockPromptFile('real.agent.md', `---
 name: RealAgent
 description: A real agent
 ---
 Body`);
 		const { agents } = createAgents({
 			sdkAgentsByCall: [[]],
-			promptAgents: [chatmodeFile, agentFile]
+			customAgents: [chatmodeFile, agentFile]
 		});
 
 		const result = await agents.getAgents();

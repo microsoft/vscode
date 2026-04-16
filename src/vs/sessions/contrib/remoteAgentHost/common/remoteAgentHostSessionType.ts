@@ -6,17 +6,18 @@
 import { type AgentProvider } from '../../../../platform/agentHost/common/agentService.js';
 
 /**
- * Builds the session type id for a remote agent host.
+ * Builds the unique per-connection identifier for a remote agent host.
  *
- * This single string is used as all three of:
- * - `ISession.sessionType` (the logical session type the sessions app reads)
+ * This string is used as:
  * - The resource URI scheme registered via `registerChatSessionContentProvider`
- * - The language model's `targetChatSessionType` published by `AgentHostLanguageModelProvider`
+ * - The language model vendor / `targetChatSessionType` published by
+ *   `AgentHostLanguageModelProvider`
  *
- * Keeping them unified means the model picker (which filters by
- * `targetChatSessionType === session.sessionType`) automatically finds the
- * remote host's own models, and feature gating based on session type naturally
- * distinguishes remote sessions from local agent host sessions.
+ * It is **not** used as `ISession.sessionType` for copilot agents — those
+ * use the platform-registered `COPILOT_CLI_SESSION_TYPE` (`copilotcli`) so
+ * that remote copilot sessions align with the type used by other copilot
+ * providers (local CLI, cloud). Non-copilot agents continue to use this
+ * value as their `ISession.sessionType`.
  *
  * The helper is provider-agnostic: remote agents are discovered dynamically
  * from each host's root state, so the same formula naturally supports any

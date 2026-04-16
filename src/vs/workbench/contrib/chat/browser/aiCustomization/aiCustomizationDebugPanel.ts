@@ -9,7 +9,7 @@ import { IPromptsService, PromptsStorage, IPromptPath } from '../../common/promp
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IAICustomizationWorkspaceService, applyStorageSourceFilter, IStorageSourceFilter } from '../../common/aiCustomizationWorkspaceService.js';
 import { AICustomizationManagementSection } from './aiCustomizationManagement.js';
-import { IExternalCustomizationItemProvider, IHarnessDescriptor } from '../../common/customizationHarnessService.js';
+import { ICustomizationItemProvider, IHarnessDescriptor } from '../../common/customizationHarnessService.js';
 
 /**
  * Maps section ID to prompt type. Duplicated from aiCustomizationListWidget
@@ -41,7 +41,12 @@ export interface IDebugWidgetState {
 
 /**
  * Generates a debug diagnostics report for the AI Customization list widget.
- * Returns the report as a string suitable for opening in an editor.
+ *
+ * The report follows the unified pipeline:
+ *   1. Provider output — what the active provider returns
+ *   2. Raw PromptsService data — lower-level service output (when no extension provider)
+ *   3. Widget state — normalized items and display entries after grouping
+ *   4. Source folders — where files are discovered from
  */
 export async function generateCustomizationDebugReport(
 	section: AICustomizationManagementSection,
@@ -49,8 +54,8 @@ export async function generateCustomizationDebugReport(
 	workspaceService: IAICustomizationWorkspaceService,
 	widgetState: IDebugWidgetState,
 	activeDescriptor?: IHarnessDescriptor,
+	promptsServiceItemProvider?: ICustomizationItemProvider,
 ): Promise<string> {
-	const externalProvider = activeDescriptor?.itemProvider;
 	const promptType = sectionToPromptType(section);
 	const filter = workspaceService.getStorageSourceFilter(promptType);
 	const lines: string[] = [];
@@ -61,7 +66,7 @@ export async function generateCustomizationDebugReport(
 	lines.push(`Sections: [${workspaceService.managementSections.join(', ')}]`);
 	lines.push(`Filter sources: [${filter.sources.join(', ')}]`);
 
-	// Dump active harness descriptor
+	// Active harness descriptor
 	if (activeDescriptor) {
 		lines.push('');
 		lines.push('--- Active Harness ---');
@@ -86,22 +91,45 @@ export async function generateCustomizationDebugReport(
 	}
 	lines.push('');
 
-	if (externalProvider) {
-		await appendExternalProviderData(lines, externalProvider, promptType);
+	// Determine which provider the widget actually uses (mirrors getItemSource logic)
+	const extensionProvider = activeDescriptor?.itemProvider;
+	const hasSyncProvider = !!activeDescriptor?.syncProvider;
+	const effectiveProvider = extensionProvider ?? (hasSyncProvider ? undefined : promptsServiceItemProvider);
+
+	// Stage 1: Provider output
+	if (effectiveProvider) {
+		let providerLabel: string;
+		if (extensionProvider) {
+			providerLabel = 'Extension Provider';
+		} else {
+			providerLabel = 'PromptsService Adapter (fallback — no extension provider registered)';
+		}
+		await appendProviderData(lines, effectiveProvider, promptType, providerLabel);
+	} else if (hasSyncProvider) {
+		lines.push('--- Stage 1: No item provider (sync-only harness) ---');
+		lines.push('');
 	} else {
+		lines.push('--- Stage 1: No provider available ---');
+		lines.push('');
+	}
+
+	// Stage 2: Raw PromptsService data — always useful for diagnostics
+	if (!extensionProvider) {
 		await appendRawServiceData(lines, promptsService, promptType);
 		await appendFilteredData(lines, promptsService, promptType, filter);
 	}
+
+	// Stage 3: Widget state
 	appendWidgetState(lines, widgetState);
-	if (!externalProvider) {
-		await appendSourceFolders(lines, promptsService, promptType);
-	}
+
+	// Stage 4: Source folders
+	await appendSourceFolders(lines, promptsService, promptType);
 
 	return lines.join('\n');
 }
 
-async function appendExternalProviderData(lines: string[], provider: IExternalCustomizationItemProvider, promptType: PromptsType): Promise<void> {
-	lines.push('--- External Provider Data ---');
+async function appendProviderData(lines: string[], provider: ICustomizationItemProvider, promptType: PromptsType, label: string): Promise<void> {
+	lines.push(`--- Stage 1: Provider Output (${label}) ---`);
 
 	const allItems = await provider.provideChatSessionCustomizations(CancellationToken.None);
 	if (!allItems) {
@@ -122,12 +150,19 @@ async function appendExternalProviderData(lines: string[], provider: IExternalCu
 	for (const [type, items] of byType) {
 		lines.push(`  ${type}: ${items.length} items`);
 		for (const item of items) {
-			lines.push(`    ${item.name} — ${item.uri.fsPath ?? item.uri.toString()}`);
+			const path = item.uri.scheme === 'file' ? item.uri.fsPath : item.uri.toString();
+			lines.push(`    ${item.name} — ${path}`);
 			if (item.description) {
 				lines.push(`      desc: ${item.description}`);
 			}
+			if (item.storage) {
+				lines.push(`      storage: ${item.storage}`);
+			}
 			if (item.groupKey) {
 				lines.push(`      groupKey: ${item.groupKey}`);
+			}
+			if (item.extensionLabel) {
+				lines.push(`      extensionLabel: ${item.extensionLabel}`);
 			}
 			if (item.badge) {
 				lines.push(`      badge: ${item.badge}`);
@@ -138,18 +173,16 @@ async function appendExternalProviderData(lines: string[], provider: IExternalCu
 			if (item.enabled === false) {
 				lines.push(`      enabled: false`);
 			}
-			lines.push(`      scheme: ${item.uri.scheme}`);
 		}
 	}
 
-	// Show items matching the current section
 	const sectionItems = allItems.filter(i => i.type === promptType);
 	lines.push(`  Items matching current section (${promptType}): ${sectionItems.length}`);
 	lines.push('');
 }
 
 async function appendRawServiceData(lines: string[], promptsService: IPromptsService, promptType: PromptsType): Promise<void> {
-	lines.push('--- Stage 1: Raw PromptsService Data ---');
+	lines.push('--- Stage 2a: Raw PromptsService Data ---');
 
 	const [localFiles, userFiles, extensionFiles] = await Promise.all([
 		promptsService.listPromptFilesForStorage(promptType, PromptsStorage.local, CancellationToken.None),
@@ -203,7 +236,7 @@ async function appendRawServiceData(lines: string[], promptsService: IPromptsSer
 }
 
 async function appendFilteredData(lines: string[], promptsService: IPromptsService, promptType: PromptsType, filter: IStorageSourceFilter): Promise<void> {
-	lines.push('--- Stage 2: After applyStorageSourceFilter ---');
+	lines.push('--- Stage 2b: After applyStorageSourceFilter ---');
 
 	const [localFiles, userFiles, extensionFiles] = await Promise.all([
 		promptsService.listPromptFilesForStorage(promptType, PromptsStorage.local, CancellationToken.None),
@@ -239,7 +272,6 @@ function appendWidgetState(lines: string[], state: IDebugWidgetState): void {
 	lines.push(`    extension: ${state.allItems.filter(i => i.storage === PromptsStorage.extension).length}`);
 	lines.push(`    plugin:    ${state.allItems.filter(i => i.storage === PromptsStorage.plugin).length}`);
 
-	// Show each item with its groupKey and storage
 	for (const item of state.allItems) {
 		lines.push(`    - ${item.name} [storage=${item.storage ?? '?'}, groupKey=${item.groupKey ?? '(none)'}]`);
 	}
@@ -255,7 +287,7 @@ function appendWidgetState(lines: string[], state: IDebugWidgetState): void {
 }
 
 async function appendSourceFolders(lines: string[], promptsService: IPromptsService, promptType: PromptsType): Promise<void> {
-	lines.push('--- Source Folders (creation targets) ---');
+	lines.push('--- Stage 4: Source Folders (creation targets) ---');
 	const sourceFolders = await promptsService.getSourceFolders(promptType);
 	for (const sf of sourceFolders) {
 		lines.push(`  [${sf.storage}] ${sf.uri.fsPath}`);

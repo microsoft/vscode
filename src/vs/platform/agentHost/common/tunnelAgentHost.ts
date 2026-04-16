@@ -5,6 +5,7 @@
 
 import { Event } from '../../../base/common/event.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import type { IAgentHostSocketInfo } from './agentService.js';
 
 export const ITunnelAgentHostService = createDecorator<ITunnelAgentHostService>('tunnelAgentHostService');
 
@@ -212,4 +213,55 @@ export interface ITunnelAgentHostService {
 	 * Returns `undefined` if no cached session is available.
 	 */
 	getAuthProvider(options?: { silent?: boolean }): Promise<'github' | 'microsoft' | undefined>;
+}
+
+// ---- Tunnel hosting (exposing the local agent host to remote clients) --------
+
+/** IPC channel name for the tunnel host service. */
+export const TUNNEL_HOST_CHANNEL = 'tunnelHost';
+
+/** Output channel ID for the tunnel host logs. */
+export const TUNNEL_HOST_LOG_ID = 'tunnelHostService';
+
+/** Information about an actively hosted tunnel. */
+export interface ITunnelHostInfo {
+	readonly tunnelName: string;
+	readonly tunnelId: string;
+	readonly clusterId: string;
+	readonly domain: string;
+}
+
+/** Status of the tunnel host. */
+export type TunnelHostStatus =
+	| { readonly active: false }
+	| { readonly active: true; readonly info: ITunnelHostInfo };
+
+/**
+ * Shared-process service that hosts a dev tunnel using `TunnelRelayTunnelHost`
+ * and pipes incoming connections to the local agent host.
+ */
+export const ITunnelAgentHostHostingService = createDecorator<ITunnelAgentHostHostingService>('tunnelAgentHostHostingService');
+
+export interface ITunnelAgentHostHostingService {
+	readonly _serviceBrand: undefined;
+
+	/** Fires when the hosting status changes. */
+	readonly onDidChangeStatus: Event<TunnelHostStatus>;
+
+	/**
+	 * Start hosting a dev tunnel that forwards connections to the local
+	 * agent host. Creates a tunnel with the appropriate labels and port
+	 * configuration, then connects a `TunnelRelayTunnelHost`.
+	 *
+	 * @param token The user's access token.
+	 * @param authProvider The auth provider that issued the token.
+	 * @param socketInfo Socket path for the local agent host.
+	 */
+	startHosting(token: string, authProvider: 'github' | 'microsoft', socketInfo: IAgentHostSocketInfo): Promise<ITunnelHostInfo>;
+
+	/** Stop hosting and clean up the tunnel. */
+	stopHosting(): Promise<void>;
+
+	/** Get the current hosting status. */
+	getStatus(): Promise<TunnelHostStatus>;
 }

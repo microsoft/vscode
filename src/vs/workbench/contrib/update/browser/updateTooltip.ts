@@ -4,24 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
-import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { MarkdownString } from '../../../../base/common/htmlContent.js';
-import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable } from '../../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { localize } from '../../../../nls.js';
 import { IClipboardService } from '../../../../platform/clipboard/common/clipboardService.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
-import { IMarkdownRendererService, openLinkFromMarkdown } from '../../../../platform/markdown/browser/markdownRenderer.js';
 import { IMeteredConnectionService } from '../../../../platform/meteredConnection/common/meteredConnection.js';
-import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { asTextOrError, IRequestService } from '../../../../platform/request/common/request.js';
 import { AvailableForDownload, Disabled, DisablementReason, Downloaded, Downloading, Idle, IUpdate, Overwriting, Ready, Restarting, State, StateType, Updating } from '../../../../platform/update/common/update.js';
 import { ShowCurrentReleaseNotesActionId } from '../common/update.js';
-import { computeDownloadSpeed, computeDownloadTimeRemaining, computeProgressPercent, formatBytes, formatDate, formatTimeRemaining, getUpdateInfoUrl, tryParseDate } from '../common/updateUtils.js';
+import { computeDownloadSpeed, computeDownloadTimeRemaining, computeProgressPercent, formatBytes, formatDate, formatTimeRemaining, tryParseDate } from '../common/updateUtils.js';
 import './media/updateTooltip.css';
 
 /**
@@ -53,10 +48,6 @@ export class UpdateTooltip extends Disposable {
 	private readonly timeRemainingNode: HTMLElement;
 	private readonly speedInfoNode: HTMLElement;
 
-	// Update markdown section
-	private readonly markdownContainer: HTMLElement;
-	private readonly markdown = this._register(new MutableDisposable());
-
 	// State-specific message
 	private readonly messageNode: HTMLElement;
 
@@ -72,11 +63,8 @@ export class UpdateTooltip extends Disposable {
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IHoverService private readonly hoverService: IHoverService,
-		@IMarkdownRendererService private readonly markdownRendererService: IMarkdownRendererService,
 		@IMeteredConnectionService private readonly meteredConnectionService: IMeteredConnectionService,
-		@IOpenerService private readonly openerService: IOpenerService,
 		@IProductService private readonly productService: IProductService,
-		@IRequestService private readonly requestService: IRequestService,
 	) {
 		super();
 
@@ -121,9 +109,6 @@ export class UpdateTooltip extends Disposable {
 		this.downloadStatsContainer = dom.append(this.progressContainer, dom.$('.download-stats'));
 		this.timeRemainingNode = dom.append(this.downloadStatsContainer, dom.$('.time-remaining'));
 		this.speedInfoNode = dom.append(this.downloadStatsContainer, dom.$('.speed-info'));
-
-		// Update markdown section
-		this.markdownContainer = dom.append(this.domNode, dom.$('.update-markdown'));
 
 		// State-specific message
 		this.messageNode = dom.append(this.domNode, dom.$('.state-message'));
@@ -171,8 +156,6 @@ export class UpdateTooltip extends Disposable {
 		this.speedInfoNode.textContent = '';
 		this.timeRemainingNode.textContent = '';
 		this.messageNode.style.display = 'none';
-		this.markdownContainer.style.display = 'none';
-		this.markdown.clear();
 		this.actionButton.style.display = 'none';
 		this.actionButton.dataset.commandId = '';
 		this.releaseNotesButton.style.marginRight = '';
@@ -380,51 +363,6 @@ export class UpdateTooltip extends Disposable {
 	private renderRestarting({ update }: Restarting) {
 		this.renderTitleAndInfo(localize('updateTooltip.restartingTitle', "Restarting {0}", this.productService.nameShort), update);
 		this.renderMessage(localize('updateTooltip.restartingPleaseWait', "Restarting to update, please wait..."));
-	}
-
-	public async renderPostInstall(markdown?: string): Promise<boolean> {
-		this.hideAll();
-		this.renderTitleAndInfo(localize('updateTooltip.installedDefaultTitle', "New Update Installed"));
-		this.renderMessage(
-			localize('updateTooltip.installedDefaultMessage', "See release notes for details on what's new in this release."),
-			Codicon.info);
-
-		let text: string | null = markdown ?? null;
-		if (!text) {
-			try {
-				const url = getUpdateInfoUrl(this.productService.version);
-				const context = await this.requestService.request({ url, callSite: 'updateTooltip' }, CancellationToken.None);
-				text = await asTextOrError(context);
-			} catch { }
-		}
-
-		if (!text) {
-			return false;
-		}
-
-		this.titleNode.textContent = localize('updateTooltip.installedTitle', "New in {0}", this.productService.version);
-		this.productInfoNode.style.display = 'none';
-		this.messageNode.style.display = 'none';
-
-		const rendered = this.markdownRendererService.render(
-			new MarkdownString(text, {
-				isTrusted: true,
-				supportHtml: true,
-				supportThemeIcons: true,
-			}),
-			{
-				actionHandler: (link, mdStr) => {
-					openLinkFromMarkdown(this.openerService, link, mdStr.isTrusted);
-					this.hoverService.hideHover(true);
-				},
-			});
-
-		this.markdown.value = rendered;
-		dom.clearNode(this.markdownContainer);
-		this.markdownContainer.appendChild(rendered.element);
-		this.markdownContainer.style.display = '';
-
-		return true;
 	}
 
 	private renderTitleAndInfo(title: string, update?: IUpdate) {

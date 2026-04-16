@@ -42,6 +42,23 @@
 	color: inherit;
 }
 
+.agent-sessions-workbench .sessions-account-titlebar-widget-icon.hidden {
+	display: none;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-widget-avatar {
+	display: none;
+	flex: 0 0 auto;
+	width: 16px;
+	height: 16px;
+	border-radius: 50%;
+	object-fit: cover;
+}
+
+.agent-sessions-workbench .sessions-account-titlebar-widget-avatar.visible {
+	display: block;
+}
+
 .agent-sessions-workbench .sessions-account-titlebar-widget-label {
 	display: none;
 }

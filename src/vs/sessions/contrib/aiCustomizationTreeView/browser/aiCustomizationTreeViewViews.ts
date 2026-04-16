@@ -386,13 +386,6 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 				icon: instructionsIcon,
 			},
 			{
-				type: 'category',
-				id: 'category-prompts',
-				label: localize('prompts', "Prompts"),
-				promptType: PromptsType.prompt,
-				icon: promptIcon,
-			},
-			{
 				type: 'link',
 				id: 'link-mcp-servers',
 				label: localize('mcpServers', "MCP Servers"),

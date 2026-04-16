@@ -392,6 +392,7 @@ suite('InlineEditTriggerer', () => {
 			const doc2 = createTextDocument(undefined, Uri.file('file2.py'));
 
 			nextEditProvider.lastRejectionTime = Date.now() - TRIGGER_INLINE_EDIT_REJECTION_COOLDOWN - 1;
+			nextEditProvider.lastOutcome = NesOutcome.Accepted;
 
 			// Configure to trigger on document switch
 			void configurationService.setConfig(ConfigKey.Advanced.InlineEditsTriggerOnEditorChangeAfterSeconds, 30);
@@ -504,6 +505,7 @@ suite('InlineEditTriggerer', () => {
 			const doc2 = createTextDocument(undefined, Uri.file('file2.py'));
 
 			nextEditProvider.lastRejectionTime = Date.now() - TRIGGER_INLINE_EDIT_REJECTION_COOLDOWN - 1;
+			nextEditProvider.lastOutcome = NesOutcome.Accepted;
 
 			const triggerAfterSeconds = 30;
 			// Configure to trigger on document switch
@@ -930,6 +932,7 @@ suite('InlineEditTriggerer', () => {
 			const doc2 = createTextDocument(undefined, Uri.file('file2.py'), 'line1\nline2');
 
 			nextEditProvider.lastRejectionTime = Date.now() - TRIGGER_INLINE_EDIT_REJECTION_COOLDOWN - 1;
+			nextEditProvider.lastOutcome = NesOutcome.Accepted;
 			void configurationService.setConfig(ConfigKey.Advanced.InlineEditsTriggerOnEditorChangeAfterSeconds, 30);
 
 			// Edit doc1 and trigger
@@ -1148,6 +1151,7 @@ suite('InlineEditTriggerer', () => {
 			const doc2 = createTextDocument(undefined, Uri.file('file2.py'));
 
 			nextEditProvider.lastRejectionTime = Date.now() - TRIGGER_INLINE_EDIT_REJECTION_COOLDOWN - 1;
+			nextEditProvider.lastOutcome = NesOutcome.Accepted;
 			void configurationService.setConfig(ConfigKey.Advanced.InlineEditsTriggerOnEditorChangeAfterSeconds, 30);
 
 			// Fire an undo change — this should still update lastEditTimestamp
@@ -1216,25 +1220,31 @@ suite('InlineEditTriggerer', () => {
 			assert.strictEqual(firedEvents.length, 0, 'Should not fire on doc switch during rejection cooldown');
 		});
 
-		test('Same-line cooldown is bypassed when triggerOnActiveEditorChange is set', () => {
-			const { document, textEditor } = createTextDocument();
+		test('Same-line cooldown is bypassed after switching away and back', () => {
+			const doc1 = createTextDocument(undefined, Uri.file('file1.py'));
+			const doc2 = createTextDocument(undefined, Uri.file('file2.py'));
 			nextEditProvider.lastRejectionTime = Date.now() - TRIGGER_INLINE_EDIT_REJECTION_COOLDOWN - 1;
 
-			// Enable triggerOnActiveEditorChange — this bypasses same-line cooldown
-			void configurationService.setConfig(ConfigKey.Advanced.InlineEditsTriggerOnEditorChangeAfterSeconds, 30);
-
-			triggerTextChange(document);
-			triggerTextSelectionChange(textEditor, new Selection(0, 5, 0, 5));
+			// Edit doc1 and trigger on line 0
+			triggerTextChange(doc1.document);
+			triggerTextSelectionChange(doc1.textEditor, new Selection(0, 5, 0, 5));
 
 			const initialCount = firedEvents.length;
 			assert.isAtLeast(initialCount, 1, 'First trigger should fire');
 
-			// Same line, different column — normally would be in cooldown,
-			// but triggerOnActiveEditorChange is set so cooldown is bypassed
-			triggerTextSelectionChange(textEditor, new Selection(0, 10, 0, 10));
+			// Same line — cooldown blocks
+			triggerTextSelectionChange(doc1.textEditor, new Selection(0, 10, 0, 10));
+			assert.strictEqual(firedEvents.length, initialCount, 'Same-line cooldown should block');
 
-			assert.isAtLeast(firedEvents.length, initialCount + 1,
-				'Same-line cooldown should be bypassed when triggerOnActiveEditorChange is set');
+			// Switch to doc2
+			triggerTextChange(doc2.document);
+			triggerTextSelectionChange(doc2.textEditor, new Selection(0, 0, 0, 0));
+			const countAfterDoc2 = firedEvents.length;
+
+			// Switch back to doc1, same line — cooldown should be cleared by the doc switch
+			triggerTextSelectionChange(doc1.textEditor, new Selection(0, 10, 0, 10));
+			assert.isAtLeast(firedEvents.length, countAfterDoc2 + 1,
+				'Same-line cooldown should be bypassed after switching away and back');
 		});
 
 		test('Output pane documents are ignored for selection changes', () => {

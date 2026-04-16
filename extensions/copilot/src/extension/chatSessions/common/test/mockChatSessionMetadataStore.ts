@@ -20,6 +20,7 @@ export class MockChatSessionMetadataStore implements IChatSessionMetadataStore {
 	private readonly _firstUserMessages = new Map<string, string>();
 	private readonly _customTitles = new Map<string, string>();
 	private readonly _requestDetails = new Map<string, RequestDetails[]>();
+	private readonly _sessionOrigins = new Map<string, 'vscode' | 'other'>();
 
 	async deleteSessionMetadata(sessionId: string): Promise<void> {
 		this._worktreeProperties.delete(sessionId);
@@ -133,5 +134,13 @@ export class MockChatSessionMetadataStore implements IChatSessionMetadataStore {
 		if (firstMsg) {
 			this._firstUserMessages.set(targetSessionId, firstMsg);
 		}
+	}
+
+	async setSessionOrigin(sessionId: string): Promise<void> {
+		this._sessionOrigins.set(sessionId, 'vscode');
+	}
+
+	async getSessionOrigin(sessionId: string): Promise<'vscode' | 'other'> {
+		return this._sessionOrigins.get(sessionId) ?? 'vscode';
 	}
 }

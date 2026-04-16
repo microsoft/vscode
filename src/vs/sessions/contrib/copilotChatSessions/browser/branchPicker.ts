@@ -41,7 +41,8 @@ export class BranchPicker extends Disposable {
 
 		this._register(autorun(reader => {
 			const session = this.sessionsManagementService.activeSession.read(reader);
-			const providerSession = session ? this.sessionsProvidersService.getProvider<CopilotChatSessionsProvider>(session.providerId)?.getSession(session.sessionId) : undefined;
+			const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
+			const providerSession = provider instanceof CopilotChatSessionsProvider ? provider.getSession(session!.sessionId) : undefined;
 			if (providerSession) {
 				providerSession.loading.read(reader);
 				providerSession.branches.read(reader);
@@ -57,7 +58,8 @@ export class BranchPicker extends Disposable {
 		if (!session) {
 			return undefined;
 		}
-		return this.sessionsProvidersService.getProvider<CopilotChatSessionsProvider>(session.providerId)?.getSession(session.sessionId);
+		const provider = this.sessionsProvidersService.getProvider(session.providerId);
+		return provider instanceof CopilotChatSessionsProvider ? provider.getSession(session.sessionId) : undefined;
 	}
 
 	render(container: HTMLElement): void {

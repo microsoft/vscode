@@ -337,7 +337,7 @@ export class ProtocolServerHandler extends Disposable {
 			let createdSession: URI;
 			// Resolve fork turnId to a 0-based index using the source session's
 			// turn list in the state manager.
-			let fork: { session: URI; turnIndex: number } | undefined;
+			let fork: { session: URI; turnIndex: number; turnId: string } | undefined;
 			if (params.fork) {
 				const sourceState = this._stateManager.getSessionState(params.fork.session);
 				if (!sourceState) {
@@ -347,7 +347,7 @@ export class ProtocolServerHandler extends Disposable {
 				if (turnIndex < 0) {
 					throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Fork turn ID ${params.fork.turnId} not found in session ${params.fork.session}`);
 				}
-				fork = { session: URI.parse(params.fork.session), turnIndex };
+				fork = { session: URI.parse(params.fork.session), turnIndex, turnId: params.fork.turnId };
 			}
 			try {
 				createdSession = await this._agentService.createSession({
@@ -356,6 +356,7 @@ export class ProtocolServerHandler extends Disposable {
 					workingDirectory: params.workingDirectory ? URI.parse(params.workingDirectory) : undefined,
 					session: URI.parse(params.session),
 					fork,
+					config: params.config,
 				});
 			} catch (err) {
 				if (err instanceof ProtocolError) {
@@ -386,11 +387,28 @@ export class ProtocolServerHandler extends Disposable {
 				createdAt: s.startTime,
 				modifiedAt: s.modifiedTime,
 				...(s.project ? { project: { uri: s.project.uri.toString(), displayName: s.project.displayName } } : {}),
+				model: s.model,
 				workingDirectory: s.workingDirectory?.toString(),
 				isRead: s.isRead,
 				isDone: s.isDone,
 			}));
 			return { items };
+		},
+		resolveSessionConfig: async (_client, params) => {
+			return this._agentService.resolveSessionConfig({
+				provider: params.provider,
+				workingDirectory: params.workingDirectory ? URI.parse(params.workingDirectory) : undefined,
+				config: params.config,
+			});
+		},
+		sessionConfigCompletions: async (_client, params) => {
+			return this._agentService.sessionConfigCompletions({
+				provider: params.provider,
+				workingDirectory: params.workingDirectory ? URI.parse(params.workingDirectory) : undefined,
+				config: params.config,
+				property: params.property,
+				query: params.query,
+			});
 		},
 		fetchTurns: async (_client, params) => {
 			const state = this._stateManager.getSessionState(params.session);

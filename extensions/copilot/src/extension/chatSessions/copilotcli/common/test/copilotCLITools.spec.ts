@@ -339,6 +339,50 @@ describe('CopilotCLITools', () => {
 			expect(requestTurn.modeInstructions2!.name).toBe('builtin-agent');
 			expect(requestTurn.modeInstructions2!.isBuiltin).toBe(true);
 		});
+
+		it('prefixes prompt with /autopilot when agentMode is autopilot', () => {
+			const events: any[] = [
+				{ type: 'user.message', data: { content: 'Fix the bug', attachments: [], agentMode: 'autopilot' } },
+				{ type: 'assistant.message', data: { content: 'Done' } }
+			];
+			const turns = buildChatHistoryFromEvents('', undefined, events, getVSCodeRequestId, delegationSummary, logger);
+			expect(turns).toHaveLength(2);
+			const requestTurn = turns[0] as ChatRequestTurn2;
+			expect(requestTurn.prompt).toBe('/autopilot Fix the bug');
+		});
+
+		it('prefixes prompt with /plan when agentMode is plan', () => {
+			const events: any[] = [
+				{ type: 'user.message', data: { content: 'Create a plan', attachments: [], agentMode: 'plan' } },
+				{ type: 'assistant.message', data: { content: 'Here is the plan' } }
+			];
+			const turns = buildChatHistoryFromEvents('', undefined, events, getVSCodeRequestId, delegationSummary, logger);
+			expect(turns).toHaveLength(2);
+			const requestTurn = turns[0] as ChatRequestTurn2;
+			expect(requestTurn.prompt).toBe('/plan Create a plan');
+		});
+
+		it('does not prefix prompt when agentMode is not set', () => {
+			const events: any[] = [
+				{ type: 'user.message', data: { content: 'Hello', attachments: [] } },
+				{ type: 'assistant.message', data: { content: 'Hi' } }
+			];
+			const turns = buildChatHistoryFromEvents('', undefined, events, getVSCodeRequestId, delegationSummary, logger);
+			expect(turns).toHaveLength(2);
+			const requestTurn = turns[0] as ChatRequestTurn2;
+			expect(requestTurn.prompt).toBe('Hello');
+		});
+
+		it('does not prefix prompt when agentMode is an unknown value', () => {
+			const events: any[] = [
+				{ type: 'user.message', data: { content: 'Hello', attachments: [], agentMode: 'unknown-mode' } },
+				{ type: 'assistant.message', data: { content: 'Hi' } }
+			];
+			const turns = buildChatHistoryFromEvents('', undefined, events, getVSCodeRequestId, delegationSummary, logger);
+			expect(turns).toHaveLength(2);
+			const requestTurn = turns[0] as ChatRequestTurn2;
+			expect(requestTurn.prompt).toBe('Hello');
+		});
 	});
 
 	describe('createCopilotCLIToolInvocation', () => {

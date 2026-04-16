@@ -3,18 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { LanguageModelCache, getLanguageModelCache } from '../languageModelCache';
+import { LanguageModelCache, getLanguageModelCache } from '../languageModelCache.js';
 import {
 	SymbolInformation, SymbolKind, CompletionItem, Location, SignatureHelp, SignatureInformation, ParameterInformation,
 	Definition, TextEdit, TextDocument, Diagnostic, DiagnosticSeverity, Range, CompletionItemKind, Hover,
 	DocumentHighlight, DocumentHighlightKind, CompletionList, Position, FormattingOptions, FoldingRange, FoldingRangeKind, SelectionRange,
 	LanguageMode, Settings, SemanticTokenData, Workspace, DocumentContext, CompletionItemData, isCompletionItemData, FILE_PROTOCOL, DocumentUri
-} from './languageModes';
-import { getWordAtText, isWhitespaceOnly, repeat } from '../utils/strings';
-import { HTMLDocumentRegions } from './embeddedSupport';
+} from './languageModes.js';
+import { getWordAtText, isWhitespaceOnly, repeat } from '../utils/strings.js';
+import { HTMLDocumentRegions } from './embeddedSupport.js';
 
 import * as ts from 'typescript';
-import { getSemanticTokens, getSemanticTokenLegend } from './javascriptSemanticTokens';
+import { getSemanticTokens, getSemanticTokenLegend } from './javascriptSemanticTokens.js';
 
 const JS_WORD_REGEX = /(-?\d*\.\d\w*)|([^\`\~\!\@\#\%\^\&\*\(\)\-\=\+\[\{\]\}\\\|\;\:\'\"\,\.\<\>\/\?\s]+)/g;
 

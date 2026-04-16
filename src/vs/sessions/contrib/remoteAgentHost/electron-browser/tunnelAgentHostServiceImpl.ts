@@ -22,7 +22,7 @@ import {
 	type ITunnelAgentHostMainService,
 	type ITunnelInfo,
 } from '../../../../platform/agentHost/common/tunnelAgentHost.js';
-import { RemoteAgentHostProtocolClient } from '../../../../platform/agentHost/electron-browser/remoteAgentHostProtocolClient.js';
+import { RemoteAgentHostProtocolClient } from '../../../../platform/agentHost/browser/remoteAgentHostProtocolClient.js';
 import { TunnelRelayTransport } from '../../../../platform/agentHost/electron-browser/tunnelRelayTransport.js';
 
 const LOG_PREFIX = '[TunnelAgentHost]';
@@ -112,6 +112,7 @@ export class TunnelAgentHostService extends Disposable implements ITunnelAgentHo
 					type: RemoteAgentHostEntryType.Tunnel,
 					tunnelId: tunnel.tunnelId,
 					clusterId: tunnel.clusterId,
+					label: tunnel.name,
 					authProvider: auth.provider,
 				},
 			}, protocolClient);

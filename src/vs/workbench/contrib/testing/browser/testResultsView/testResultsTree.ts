@@ -655,15 +655,44 @@ export class OutputPeekTree extends Disposable {
 			return;
 		}
 
-		const actions = this.treeActions.provideActionBar(evt.element);
+		// When a row is compressed (e.g. a TestCaseElement is rendered along
+		// with its only TestMessageElement child), the renderer shows the inline
+		// action bar for the parent element. Mirror that logic here so the
+		// right-click menu offers the same actions as the inline action bar
+		// shown on the visible row.
+		const element = this.getRenderedElement(evt.element);
+		const actions = this.treeActions.provideActionBar(element);
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => evt.anchor,
 			getActions: () => actions.secondary.length
 				? [...actions.primary, new Separator(), ...actions.secondary]
 				: actions.primary,
-			getActionsContext: () => evt.element?.context,
+			getActionsContext: () => element.context,
 			actionRunner: this.contextMenuActionRunner,
 		});
+	}
+
+	private getRenderedElement(element: ITreeElement): ITreeElement {
+		// See TestRunElementRenderer.renderCompressedElements for the matching
+		// logic that decides which element gets the inline action bar.
+		if (!(element instanceof TaskElement) && !(element instanceof TestMessageElement)) {
+			return element;
+		}
+
+		try {
+			const compressed = this.tree.getCompressedTreeNode(element as TreeElement);
+			const chain = compressed.element?.elements;
+			if (chain && chain.length >= 2 && chain[chain.length - 1] === element) {
+				const parent = chain[chain.length - 2];
+				if (parent) {
+					return parent;
+				}
+			}
+		} catch {
+			// element may no longer be in the tree; fall through
+		}
+
+		return element;
 	}
 
 	public override dispose() {

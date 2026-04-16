@@ -22,6 +22,7 @@ import './media/notebookChatEditorOverlay.css';
 import * as DOM from '../../../../base/browser/dom.js';
 import * as domStylesheets from '../../../../base/browser/domStylesheets.js';
 import { IMouseWheelEvent, StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
+import { OverlayLayoutElement } from '../../../../base/browser/overlayLayoutElement.js';
 import { IListContextMenuEvent } from '../../../../base/browser/ui/list/list.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import { SequencerByKey } from '../../../../base/common/async.js';
@@ -49,7 +50,7 @@ import { IContextKey, IContextKeyService, RawContextKey } from '../../../../plat
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { ILayoutService } from '../../../../platform/layout/browser/layoutService.js';
+import { IWorkbenchLayoutService, Parts } from '../../../services/layout/browser/layoutService.js';
 import { registerZIndex, ZIndex } from '../../../../platform/layout/browser/zIndexRegistry.js';
 import { IEditorProgressService, IProgressRunner } from '../../../../platform/progress/common/progress.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
@@ -92,7 +93,6 @@ import { IEditorGroupsService } from '../../../services/editor/common/editorGrou
 import { NotebookPerfMarks } from '../common/notebookPerformance.js';
 import { BaseCellEditorOptions } from './viewModel/cellEditorOptions.js';
 import { FloatingEditorClickMenu } from '../../../browser/codeeditor.js';
-import { IDimension } from '../../../../editor/common/core/2d/dimension.js';
 import { CellFindMatchModel } from './contrib/find/findModel.js';
 import { INotebookLoggingService } from '../common/notebookLoggingService.js';
 import { Schemas } from '../../../../base/common/network.js';
@@ -190,6 +190,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	//#endregion
 	private _overlayContainer!: HTMLElement;
+	private _overlayLayout!: OverlayLayoutElement;
 	private _notebookTopToolbarContainer!: HTMLElement;
 	private _notebookTopToolbar!: NotebookEditorWorkbenchToolbar;
 	private _notebookStickyScrollContainer!: HTMLElement;
@@ -217,7 +218,6 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	private _dimension?: DOM.Dimension;
 	private _position?: DOM.IDomPosition;
 	private _shadowElement?: HTMLElement;
-	private _shadowElementViewInfo: { height: number; width: number; top: number; left: number } | null = null;
 	private _cellLayoutManager: NotebookCellLayoutManager | undefined;
 
 	private readonly _editorFocus: IContextKey<boolean>;
@@ -310,14 +310,14 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		readonly creationOptions: INotebookEditorCreationOptions,
 		dimension: DOM.Dimension | undefined,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IEditorGroupsService editorGroupsService: IEditorGroupsService,
+		@IEditorGroupsService private readonly editorGroupsService: IEditorGroupsService,
 		@INotebookRendererMessagingService private readonly notebookRendererMessaging: INotebookRendererMessagingService,
 		@INotebookEditorService private readonly notebookEditorService: INotebookEditorService,
 		@INotebookKernelService private readonly notebookKernelService: INotebookKernelService,
 		@INotebookService private readonly _notebookService: INotebookService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ILayoutService private readonly layoutService: ILayoutService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@INotebookExecutionService private readonly notebookExecutionService: INotebookExecutionService,
@@ -331,7 +331,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this.isReplHistory = creationOptions.isReplHistory ?? false;
 		this._readOnly = creationOptions.isReadOnly ?? false;
 
-		this._overlayContainer = document.createElement('div');
+		this._overlayLayout = new OverlayLayoutElement();
+		this._overlayContainer = this._overlayLayout.content;
 		this.scopedContextKeyService = this._register(contextKeyService.createScoped(this._overlayContainer));
 		this.instantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 
@@ -421,8 +422,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 				return;
 			}
 
-			this.updateShadowElement(this._shadowElement, this._dimension);
-			this.layoutContainerOverShadowElement(this._dimension, this._position);
+			this.layoutContainerOverShadowElement(this._shadowElement, this._dimension, this._position);
 		}));
 
 		this.notebookEditorService.addNotebookEditor(this);
@@ -434,7 +434,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._overlayContainer.inert = true;
 		this._overlayContainer.style.visibility = 'hidden';
 
-		container.appendChild(this._overlayContainer);
+		container.appendChild(this._overlayLayout.root);
 
 		this._createBody(this._overlayContainer);
 		this._generateFontInfo();
@@ -1880,7 +1880,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 	}
 
 	layout(dimension: DOM.Dimension, shadowElement?: HTMLElement, position?: DOM.IDomPosition): void {
-		if (!shadowElement && this._shadowElementViewInfo === null) {
+		if (!shadowElement && !this._shadowElement) {
 			this._dimension = dimension;
 			this._position = position;
 			return;
@@ -1905,12 +1905,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 	private layoutNotebook(dimension: DOM.Dimension, shadowElement?: HTMLElement, position?: DOM.IDomPosition) {
 		if (shadowElement) {
-			this.updateShadowElement(shadowElement, dimension, position);
-		}
-
-		if (this._shadowElementViewInfo && this._shadowElementViewInfo.width <= 0 && this._shadowElementViewInfo.height <= 0) {
-			this.onWillHide();
-			return;
+			this._shadowElement = shadowElement;
 		}
 
 		this._dimension = dimension;
@@ -1930,12 +1925,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		this._overlayContainer.inert = false;
-		this._overlayContainer.style.visibility = 'visible';
-		this._overlayContainer.style.display = 'block';
-		this._overlayContainer.style.position = 'absolute';
-		this._overlayContainer.style.overflow = 'hidden';
 
-		this.layoutContainerOverShadowElement(dimension, position);
+		this.layoutContainerOverShadowElement(shadowElement ?? this._shadowElement, dimension, position);
 
 		if (this._webviewTransparentCover) {
 			this._webviewTransparentCover.style.height = `${dimension.height}px`;
@@ -1948,45 +1939,20 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this._viewContext?.eventDispatcher.emit([new NotebookLayoutChangedEvent({ width: true, fontInfo: true }, this.getLayoutInfo())]);
 	}
 
-	private updateShadowElement(shadowElement: HTMLElement, dimension?: IDimension, position?: DOM.IDomPosition) {
-		this._shadowElement = shadowElement;
-		if (dimension && position) {
-			this._shadowElementViewInfo = {
-				height: dimension.height,
-				width: dimension.width,
-				top: position.top,
-				left: position.left,
-			};
+	private layoutContainerOverShadowElement(shadowElement: HTMLElement | undefined, dimension?: DOM.Dimension, position?: DOM.IDomPosition): void {
+		if (!shadowElement) {
+			return;
+		}
+
+		const modalEditorContainer = this.editorGroupsService.activeModalEditorPart?.modalElement;
+		let clippingContainer: HTMLElement | undefined;
+		if (DOM.isHTMLElement(modalEditorContainer)) {
+			clippingContainer = modalEditorContainer;
 		} else {
-			// We have to recompute position and size ourselves (which is slow)
-			const containerRect = shadowElement.getBoundingClientRect();
-			this._shadowElementViewInfo = {
-				height: containerRect.height,
-				width: containerRect.width,
-				top: containerRect.top,
-				left: containerRect.left
-			};
-		}
-	}
-
-	private layoutContainerOverShadowElement(dimension?: DOM.Dimension, position?: DOM.IDomPosition): void {
-		if (dimension && position) {
-			this._overlayContainer.style.top = `${position.top}px`;
-			this._overlayContainer.style.left = `${position.left}px`;
-			this._overlayContainer.style.width = `${dimension.width}px`;
-			this._overlayContainer.style.height = `${dimension.height}px`;
-			return;
+			clippingContainer = this.layoutService.getContainer(DOM.getWindow(this.getDomNode()), Parts.EDITOR_PART);
 		}
 
-		if (!this._shadowElementViewInfo) {
-			return;
-		}
-
-		const elementContainerRect = this._overlayContainer.parentElement?.getBoundingClientRect();
-		this._overlayContainer.style.top = `${this._shadowElementViewInfo.top - (elementContainerRect?.top || 0)}px`;
-		this._overlayContainer.style.left = `${this._shadowElementViewInfo.left - (elementContainerRect?.left || 0)}px`;
-		this._overlayContainer.style.width = `${dimension ? dimension.width : this._shadowElementViewInfo.width}px`;
-		this._overlayContainer.style.height = `${dimension ? dimension.height : this._shadowElementViewInfo.height}px`;
+		this._overlayLayout.layoutOverAnchorElement(shadowElement, { clippingContainer, fallbackDimension: dimension, fallbackPosition: position });
 	}
 
 	//#endregion

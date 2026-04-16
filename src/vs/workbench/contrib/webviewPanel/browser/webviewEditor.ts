@@ -6,7 +6,7 @@
 import * as DOM from '../../../../base/browser/dom.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { DisposableStore, IDisposable, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
+import { DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { isWeb } from '../../../../base/common/platform.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import * as nls from '../../../../nls.js';
@@ -190,26 +190,6 @@ export class WebviewEditor extends EditorPane {
 
 		this.synchronizeWebviewContainerDimensions(input.webview);
 		this._webviewVisibleDisposables.add(this.trackFocus(input.webview));
-
-		// Use CSS Anchor Positioning to automatically track position changes.
-		// The editor element's parent acts as the CSS anchor, and the webview
-		// container is tethered to it.
-		// Falls back to explicit pixel positioning via layoutWebviewOverElement
-		// when anchor positioning is not supported.
-		if (this._element?.parentElement && CSS.supports('(top: anchor(top))')) {
-			const anchorName = `--${this._element.id}`;
-			this._element.parentElement.style.setProperty('anchor-name', anchorName);
-			const container = input.webview.container;
-			container.style.setProperty('position-anchor', anchorName);
-			container.style.setProperty('top', 'anchor(top)');
-			container.style.setProperty('left', 'anchor(left)');
-			this._webviewVisibleDisposables.add(toDisposable(() => {
-				this._element?.parentElement?.style.removeProperty('anchor-name');
-				container.style.removeProperty('position-anchor');
-				container.style.removeProperty('top');
-				container.style.removeProperty('left');
-			}));
-		}
 	}
 
 	private synchronizeWebviewContainerDimensions(webview: IOverlayWebview, dimension?: DOM.Dimension) {
@@ -220,19 +200,11 @@ export class WebviewEditor extends EditorPane {
 		const modalEditorContainer = this._editorGroupsService.activeModalEditorPart?.modalElement;
 		let clippingContainer: HTMLElement | undefined;
 		if (isHTMLElement(modalEditorContainer)) {
-			clippingContainer = modalEditorContainer;
+			clippingContainer = undefined;
 		} else {
 			clippingContainer = this._workbenchLayoutService.getContainer(this.window, Parts.EDITOR_PART);
 		}
 		webview.layoutWebviewOverElement(this._element.parentElement!, dimension, clippingContainer);
-
-		// Re-apply CSS anchor positioning after layoutWebviewOverElement sets
-		// explicit pixel values for top/left. This lets the browser handle
-		// position tracking between explicit layout calls.
-		if (CSS.supports('(top: anchor(top))') && this._element.parentElement?.style.getPropertyValue('anchor-name')) {
-			webview.container.style.setProperty('top', 'anchor(top)');
-			webview.container.style.setProperty('left', 'anchor(left)');
-		}
 	}
 
 	private trackFocus(webview: IOverlayWebview): IDisposable {

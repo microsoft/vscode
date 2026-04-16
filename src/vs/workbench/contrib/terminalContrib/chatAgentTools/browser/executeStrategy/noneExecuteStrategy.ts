@@ -39,7 +39,7 @@ export class NoneExecuteStrategy extends Disposable implements ITerminalExecuteS
 		super();
 	}
 
-	async execute(commandLine: string, token: CancellationToken, commandId?: string): Promise<ITerminalExecuteStrategyResult> {
+	async execute(commandLine: string, token: CancellationToken, _commandId?: string, _commandLineForMetadata?: string): Promise<ITerminalExecuteStrategyResult> {
 		const store = new DisposableStore();
 		try {
 			if (token.isCancellationRequested) {

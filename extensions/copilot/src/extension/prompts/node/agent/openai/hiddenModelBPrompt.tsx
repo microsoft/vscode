@@ -6,7 +6,7 @@
 import { PromptElement, PromptSizing } from '@vscode/prompt-tsx';
 import { isHiddenModelB } from '../../../../../platform/endpoint/common/chatModelCapabilities';
 import { IChatEndpoint } from '../../../../../platform/networking/common/networking';
-import { GPT5CopilotIdentityRule } from '../../base/copilotIdentity';
+import { HiddenModelBCopilotIdentityRule } from '../../base/copilotIdentity';
 import { InstructionMessage } from '../../base/instructionMessage';
 import { ResponseTranslationRules } from '../../base/responseTranslationRules';
 import { Gpt5SafetyRule } from '../../base/safetyRules';
@@ -165,7 +165,7 @@ class HiddenModelBPromptResolver implements IAgentPrompt {
 	}
 
 	resolveCopilotIdentityRules(endpoint: IChatEndpoint): CopilotIdentityRulesConstructor | undefined {
-		return GPT5CopilotIdentityRule;
+		return HiddenModelBCopilotIdentityRule;
 	}
 
 	resolveSafetyRules(endpoint: IChatEndpoint): SafetyRulesConstructor | undefined {

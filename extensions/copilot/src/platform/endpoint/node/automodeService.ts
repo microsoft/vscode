@@ -22,7 +22,7 @@ import { IExperimentationService } from '../../telemetry/common/nullExperimentat
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { ICAPIClientService } from '../common/capiClient';
 import { AutoChatEndpoint } from './autoChatEndpoint';
-import { RouterDecisionFetcher, RoutingContextSignals } from './routerDecisionFetcher';
+import { RouterDecisionError, RouterDecisionFetcher, RoutingContextSignals } from './routerDecisionFetcher';
 
 interface AutoModeAPIResponse {
 	available_models: string[];
@@ -201,11 +201,13 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 					"automode.routerFallback" : {
 						"owner": "lramos15",
 						"comment": "Reports when the auto mode router is skipped or fails and falls back to default model selection",
-						"reason": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The reason the router was skipped or failed (hasImage, noMatchingEndpoint, routerError, routerTimeout)" }
+						"reason": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The reason the router was skipped or failed, e.g. emptyPrompt, emptyCandidateList, noMatchingEndpoint, routerError, routerTimeout, or a server error code" },
+						"hasImage": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the request contained an attached image" }
 					}
 				*/
 				this._telemetryService.sendMSFTTelemetryEvent('automode.routerFallback', {
 					reason: routerFallbackReason,
+					hasImage: String(hasImage(chatRequest)),
 				});
 			}
 			selectedModel = this._selectDefaultModel(entry?.endpoint?.modelProvider, token.available_models, knownEndpoints);
@@ -252,10 +254,6 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 		const prompt = chatRequest?.prompt?.trim();
 		const lastRoutedPrompt = entry?.lastRoutedPrompt ?? prompt;
 
-		if (hasImage(chatRequest)) {
-			return { lastRoutedPrompt, fallbackReason: 'hasImage' };
-		}
-
 		if (!this._isRouterEnabled(chatRequest) || conversationId === 'unknown') {
 			return { lastRoutedPrompt };
 		}
@@ -278,7 +276,7 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 				turn_number: (entry?.turnCount ?? 0) + 1,
 			};
 			const routingMethod = this._configurationService.getExperimentBasedConfig(ConfigKey.TeamInternal.AutoModeRoutingMethod, this._expService) || undefined;
-			const result = await this._routerDecisionFetcher.getRouterDecision(prompt, token.session_token, token.available_models, undefined, contextSignals, chatRequest?.sessionId, chatRequest?.id, routingMethod);
+			const result = await this._routerDecisionFetcher.getRouterDecision(prompt, token.session_token, token.available_models, undefined, contextSignals, conversationId, chatRequest?.id, routingMethod, hasImage(chatRequest));
 
 			if (result.fallback) {
 				this._logService.info(`[AutomodeService] Router signaled fallback: ${result.fallback_reason ?? 'unknown'}, routing_method=${result.routing_method ?? 'n/a'}`);
@@ -303,7 +301,14 @@ export class AutomodeService extends Disposable implements IAutomodeService {
 			return { selectedModel, lastRoutedPrompt: prompt };
 		} catch (e) {
 			const isTimeout = isAbortError(e);
-			const fallbackReason = isTimeout ? 'routerTimeout' : 'routerError';
+			let fallbackReason: string;
+			if (isTimeout) {
+				fallbackReason = 'routerTimeout';
+			} else if (e instanceof RouterDecisionError && e.errorCode) {
+				fallbackReason = e.errorCode;
+			} else {
+				fallbackReason = 'routerError';
+			}
 			this._logService.error(`Failed to get routed model for conversation ${conversationId} (${fallbackReason}):`, (e as Error).message);
 			return { lastRoutedPrompt: prompt, fallbackReason };
 		}

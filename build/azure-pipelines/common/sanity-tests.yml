@@ -14,9 +14,6 @@ parameters:
   - name: arch
     type: string
     default: amd64
-  - name: baseImage
-    type: string
-    default: ""
   - name: args
     type: string
     default: ""
@@ -42,8 +39,6 @@ jobs:
       TEST_DIR: $(Build.SourcesDirectory)/test/sanity
       LOG_FILE: $(TEST_DIR)/results.xml
       SCREENSHOTS_DIR: $(TEST_DIR)/screenshots
-      DOCKER_CACHE_DIR: $(Pipeline.Workspace)/docker-cache
-      DOCKER_CACHE_FILE: $(DOCKER_CACHE_DIR)/${{ parameters.container }}.tar
     steps:
       - checkout: self
         fetchDepth: 1
@@ -94,10 +89,9 @@ jobs:
           displayName: Install Node.js (Windows ARM64)
 
       - ${{ else }}:
-        - task: NodeTool@0
+        - task: UseNode@1
           inputs:
-            versionSource: fromFile
-            versionFilePath: .nvmrc
+            version: '22.22.0'
           displayName: Install Node.js
 
       - script: npm config set registry "$(NPM_REGISTRY)" --location=project
@@ -153,25 +147,17 @@ jobs:
 
       # Linux Docker container
       - ${{ if ne(parameters.container, '') }}:
-        - task: Cache@2
+        - task: Docker@1
+          displayName: Login to Container Registry
           inputs:
-            key: 'docker-v3 | "${{ parameters.container }}" | "${{ parameters.arch }}" | "$(Agent.OS)" | $(TEST_DIR)/containers/${{ parameters.container }}.dockerfile'
-            path: $(DOCKER_CACHE_DIR)
-            restoreKeys: docker-v3 | "${{ parameters.container }}" | "${{ parameters.arch }}" | "$(Agent.OS)"
-            cacheHitVar: DOCKER_CACHE_HIT
-          displayName: Download Docker Image
-
-        - bash: |
-            docker load -i "$(DOCKER_CACHE_FILE)"
-            rm -f "$(DOCKER_CACHE_FILE)"
-          condition: eq(variables.DOCKER_CACHE_HIT, 'true')
-          displayName: Load Docker Image
+            azureSubscriptionEndpoint: vscode
+            azureContainerRegistry: vscodehub.azurecr.io
+            command: login
 
         - bash: |
             $(TEST_DIR)/scripts/run-docker.sh \
               --container "${{ parameters.container }}" \
               --arch "${{ parameters.arch }}" \
-              --base-image "${{ parameters.baseImage }}" \
               --quality "$(BUILD_QUALITY)" \
               --commit "$(BUILD_COMMIT)" \
               --test-results "/root/results.xml" \
@@ -183,12 +169,6 @@ jobs:
           env:
             GITHUB_ACCOUNT: $(sanity-tests-account)
             GITHUB_PASSWORD: $(sanity-tests-password)
-
-        - bash: |
-            mkdir -p "$(DOCKER_CACHE_DIR)"
-            docker save -o "$(DOCKER_CACHE_FILE)" "${{ parameters.container }}"
-          condition: and(succeeded(), ne(variables.DOCKER_CACHE_HIT, 'true'))
-          displayName: Save Docker Image
 
       - ${{ if eq(parameters.os, 'windows') }}:
         - script: |

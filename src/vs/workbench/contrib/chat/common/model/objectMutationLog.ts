@@ -225,6 +225,9 @@ const LF = VSBuffer.fromString('\n');
 export class ObjectMutationLog<TFrom, TTo> {
 	private _previous: TTo | undefined;
 	private _entryCount = 0;
+	private _hasPendingWrite = false;
+	private _pendingPrevious: TTo | undefined;
+	private _pendingEntryCount = 0;
 
 	constructor(
 		private readonly _transform: Transform<TFrom, TTo>,
@@ -241,10 +244,16 @@ export class ObjectMutationLog<TFrom, TTo> {
 
 	/**
 	 * Creates an initial log file from the serialized object.
+	 *
+	 * Unlike {@link write}, this commits state immediately without requiring
+	 * {@link confirmWrite}. This is safe because the returned buffer contains
+	 * a self-contained `Initial` entry — if it fails to persist, no
+	 * incremental entries can be appended to a non-existent file.
 	 */
 	createInitialFromSerialized(value: TTo): VSBuffer {
 		this._previous = value;
 		this._entryCount = 1;
+		this._clearPending();
 		const entry: Entry = { kind: EntryKind.Initial, v: value };
 		return VSBuffer.fromString(JSON.stringify(entry) + '\n');
 	}
@@ -274,12 +283,21 @@ export class ObjectMutationLog<TFrom, TTo> {
 							state = entry.v;
 							break;
 						case EntryKind.Set:
+							if (state === undefined) {
+								throw new Error('Log file is missing an initial entry');
+							}
 							this._applySet(state, entry.k, entry.v);
 							break;
 						case EntryKind.Push:
+							if (state === undefined) {
+								throw new Error('Log file is missing an initial entry');
+							}
 							this._applyPush(state, entry.k, entry.v, entry.i);
 							break;
 						case EntryKind.Delete:
+							if (state === undefined) {
+								throw new Error('Log file is missing an initial entry');
+							}
 							this._applySet(state, entry.k, undefined);
 							break;
 						default:
@@ -296,19 +314,26 @@ export class ObjectMutationLog<TFrom, TTo> {
 
 		this._previous = state as TTo;
 		this._entryCount = lineCount;
+		this._clearPending();
 		return state as TTo;
 	}
 
 	/**
 	 * Writes updates to the log. Returns the operation type and data to write.
+	 * The caller **must** invoke {@link confirmWrite} after the data is
+	 * successfully persisted to commit the internal state. Without confirmation,
+	 * the next write is computed against the last confirmed state, and will only
+	 * produce a full initial entry when no confirmed state exists, preventing
+	 * corrupted log files when a write fails.
 	 */
 	write(current: TFrom): { op: 'append' | 'replace'; data: VSBuffer } {
 		const currentValue = this._transform.extract(current);
 
 		if (!this._previous || this._entryCount > this._compactAfterEntries) {
 			// No previous state, create initial
-			this._previous = currentValue;
-			this._entryCount = 1;
+			this._hasPendingWrite = true;
+			this._pendingPrevious = currentValue;
+			this._pendingEntryCount = 1;
 			const entry: Entry = { kind: EntryKind.Initial, v: currentValue };
 			return { op: 'replace', data: VSBuffer.fromString(JSON.stringify(entry) + '\n') };
 		}
@@ -328,11 +353,13 @@ export class ObjectMutationLog<TFrom, TTo> {
 
 		if (entries.length === 0) {
 			// No changes
+			this._clearPending();
 			return { op: 'append', data: VSBuffer.fromString('') };
 		}
 
-		this._entryCount += entries.length;
-		this._previous = currentValue;
+		this._hasPendingWrite = true;
+		this._pendingEntryCount = this._entryCount + entries.length;
+		this._pendingPrevious = currentValue;
 
 		// Append entries - build string directly
 		let data = '';
@@ -340,6 +367,23 @@ export class ObjectMutationLog<TFrom, TTo> {
 			data += JSON.stringify(e) + '\n';
 		}
 		return { op: 'append', data: VSBuffer.fromString(data) };
+	}
+
+	/**
+	 * Commits the internal state after a successful write to disk.
+	 */
+	confirmWrite(): void {
+		if (this._hasPendingWrite) {
+			this._previous = this._pendingPrevious;
+			this._entryCount = this._pendingEntryCount;
+			this._clearPending();
+		}
+	}
+
+	private _clearPending(): void {
+		this._hasPendingWrite = false;
+		this._pendingPrevious = undefined;
+		this._pendingEntryCount = 0;
 	}
 
 	private _applySet(state: unknown, path: ObjectPath, value: unknown): void {

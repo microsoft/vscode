@@ -52,6 +52,7 @@ export {
 	type ISessionInputCompletedAction,
 	type ISessionIsReadChangedAction,
 	type ISessionIsDoneChangedAction,
+	type ISessionToolCallContentChangedAction,
 	type IStateAction,
 } from './protocol/actions.js';
 

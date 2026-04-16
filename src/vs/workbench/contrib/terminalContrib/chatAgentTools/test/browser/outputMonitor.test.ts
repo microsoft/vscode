@@ -271,6 +271,15 @@ suite('OutputMonitor', () => {
 				false
 			);
 		});
+		test('PowerShell regex does not cause catastrophic backtracking (ReDoS)', () => {
+			// Pathological input: many spaces not followed by a bracket.
+			// With the old overlapping regex this would hang; it must return promptly.
+			const start = performance.now();
+			const pathological = '[Y] Yes' + ' '.repeat(200) + 'x';
+			detectsInputRequiredPattern(pathological);
+			const elapsed = performance.now() - start;
+			assert.ok(elapsed < 500, `Regex took ${elapsed}ms on pathological input, expected < 500ms`);
+		});
 		test('Line ends with colon', () => {
 			assert.strictEqual(detectsInputRequiredPattern('Enter your name: '), true);
 			assert.strictEqual(detectsInputRequiredPattern('Password: '), true);

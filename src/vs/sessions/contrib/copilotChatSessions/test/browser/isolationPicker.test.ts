@@ -16,6 +16,7 @@ import { TestInstantiationService } from '../../../../../platform/instantiation/
 import { GitRefType } from '../../../../../workbench/contrib/git/common/gitService.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { IActiveSession, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { CopilotChatSessionsProvider } from '../../browser/copilotChatSessionsProvider.js';
 import { IsolationMode, IsolationPicker } from '../../browser/isolationPicker.js';
 
 interface IIsolationActionItem {
@@ -49,12 +50,12 @@ function createPicker(
 		workingTreeChanges: [],
 		untrackedChanges: [],
 	});
-	const provider = {
+	const provider = Object.assign(Object.create(CopilotChatSessionsProvider.prototype), {
 		getSession: () => ({
 			gitRepository: { state: gitState },
 			isolationMode,
 		}),
-	};
+	});
 
 	instantiationService.stub(IActionWidgetService, {
 		isVisible: false,

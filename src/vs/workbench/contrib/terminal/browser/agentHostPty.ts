@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Barrier } from '../../../../base/common/async.js';
+import { Emitter, Event } from '../../../../base/common/event.js';
 import { DisposableStore, IReference } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IProcessPropertyMap, ITerminalChildProcess, ITerminalLaunchError, ITerminalLaunchResult, ProcessPropertyType } from '../../../../platform/terminal/common/terminal.js';
 import { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
 import { ActionType, IActionEnvelope } from '../../../../platform/agentHost/common/state/sessionActions.js';
-import { TerminalClaimKind, type ITerminalState } from '../../../../platform/agentHost/common/state/protocol/state.js';
+import { TerminalClaimKind, type ITerminalContentPart, type ITerminalState } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
 import { StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { BasePty } from '../common/basePty.js';
@@ -31,6 +32,51 @@ export interface IAgentHostPtyOptions {
 	readonly attachOnly?: boolean;
 }
 
+export interface IAgentHostPtyCommandExecutedEvent {
+	readonly commandId: string;
+	readonly commandLine: string;
+	readonly timestamp: number;
+	/** The stored VT output for this command (present during content replay). */
+	readonly storedOutput?: string;
+}
+
+export interface IAgentHostPtyCommandFinishedEvent {
+	readonly commandId: string;
+	readonly exitCode?: number;
+	readonly durationMs?: number;
+}
+
+export const enum AhpCommandMarkKind {
+	Executed = 's',
+	End = 'e'
+}
+
+
+/**
+ * Generates the mark ID used to correlate SetMark VT codes with xterm markers
+ * via {@link IBufferMarkCapability.getMark}.
+ */
+export function getAhpCommandMarkId(commandId: string, kind: AhpCommandMarkKind): string {
+	return `ahp-${commandId}-${kind}`;
+}
+
+/** Generates an OSC 633 SetMark sequence for an AHP command boundary. */
+function getAhpCommandMarkCode(commandId: string, kind: AhpCommandMarkKind): string {
+	return `\x1b]633;SetMark;Id=${getAhpCommandMarkId(commandId, kind)};Hidden\x07`;
+}
+
+/**
+ * The sentinel prefix used by copilot shell tools for exit code detection.
+ * When shell integration is active, these internal sentinel echo commands
+ * get detected as real commands — we suppress them from command events.
+ */
+const COPILOT_SENTINEL_PREFIX = '<<<COPILOT_SENTINEL_';
+
+/** Returns whether a command line is a copilot sentinel echo, not a real user command. */
+function isCopilotSentinelCommand(commandLine: string): boolean {
+	return commandLine.includes(COPILOT_SENTINEL_PREFIX);
+}
+
 /**
  * A pseudo-terminal backed by an Agent Host Protocol terminal subscription.
  *
@@ -50,6 +96,26 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 	private readonly _subscriptionDisposables = this._register(new DisposableStore());
 	private _subscriptionRef: IReference<IAgentSubscription<ITerminalState>> | undefined;
 	private _initialCwd = '';
+
+	private readonly _onCommandExecuted = this._register(new Emitter<IAgentHostPtyCommandExecutedEvent>());
+	readonly onCommandExecuted: Event<IAgentHostPtyCommandExecutedEvent> = this._onCommandExecuted.event;
+
+	private readonly _onCommandFinished = this._register(new Emitter<IAgentHostPtyCommandFinishedEvent>());
+	readonly onCommandFinished: Event<IAgentHostPtyCommandFinishedEvent> = this._onCommandFinished.event;
+
+	private readonly _onSupportsCommandDetection = this._register(new Emitter<void>());
+	readonly onSupportsCommandDetection: Event<void> = this._onSupportsCommandDetection.event;
+
+	private _supportsCommandDetection = false;
+	get supportsCommandDetection(): boolean { return this._supportsCommandDetection; }
+
+	/**
+	 * Command IDs for sentinel commands that should be suppressed from shell
+	 * integration events. When the copilot shell tools fall back to sentinel-
+	 * based exit code detection, shell integration may also detect the sentinel
+	 * echo as a real command — we filter those out here.
+	 */
+	private readonly _suppressedCommandIds = new Set<string>();
 
 	constructor(
 		id: number,
@@ -93,9 +159,11 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 			const state = subscription.value as ITerminalState;
 
 			// 4. Replay any existing content from the snapshot
-			if (state.content) {
-				this.handleData(state.content);
+			if (state.supportsCommandDetection) {
+				this._supportsCommandDetection = true;
+				this._onSupportsCommandDetection.fire();
 			}
+			this._replayContent(state.content);
 
 			// 5. Track initial cwd
 			this._initialCwd = state.cwd?.toString() ?? '';
@@ -148,6 +216,72 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 					});
 				}
 				break;
+			case ActionType.TerminalCommandDetectionAvailable:
+				if (!this._supportsCommandDetection) {
+					this._supportsCommandDetection = true;
+					this._onSupportsCommandDetection.fire();
+				}
+				break;
+			case ActionType.TerminalCommandExecuted:
+				if (isCopilotSentinelCommand(action.commandLine)) {
+					this._suppressedCommandIds.add(action.commandId);
+					break;
+				}
+				this.handleData(getAhpCommandMarkCode(action.commandId, AhpCommandMarkKind.Executed));
+				this._onCommandExecuted.fire({
+					commandId: action.commandId,
+					commandLine: action.commandLine,
+					timestamp: action.timestamp,
+				});
+				break;
+			case ActionType.TerminalCommandFinished:
+				if (this._suppressedCommandIds.delete(action.commandId)) {
+					break;
+				}
+				this.handleData(getAhpCommandMarkCode(action.commandId, AhpCommandMarkKind.End));
+				this._onCommandFinished.fire({
+					commandId: action.commandId,
+					exitCode: action.exitCode,
+					durationMs: action.durationMs,
+				});
+				break;
+		}
+	}
+
+	/**
+	 * Replays structured terminal content parts from the initial state snapshot.
+	 * Emits command lifecycle events for command parts so that consumers
+	 * (e.g. {@link AhpTerminalCommandSource}) can reconstruct command history.
+	 */
+	private _replayContent(content: ITerminalContentPart[]): void {
+		for (const part of content) {
+			if (part.type === 'unclassified') {
+				if (part.value) {
+					this.handleData(part.value);
+				}
+			} else if (part.type === 'command') {
+				if (isCopilotSentinelCommand(part.commandLine)) {
+					continue;
+				}
+				this.handleData(getAhpCommandMarkCode(part.commandId, AhpCommandMarkKind.Executed));
+				this._onCommandExecuted.fire({
+					commandId: part.commandId,
+					commandLine: part.commandLine,
+					timestamp: part.timestamp,
+					storedOutput: part.output,
+				});
+				if (part.output) {
+					this.handleData(part.output);
+				}
+				if (part.isComplete) {
+					this.handleData(getAhpCommandMarkCode(part.commandId, AhpCommandMarkKind.End));
+					this._onCommandFinished.fire({
+						commandId: part.commandId,
+						exitCode: part.exitCode,
+						durationMs: part.durationMs,
+					});
+				}
+			}
 		}
 	}
 

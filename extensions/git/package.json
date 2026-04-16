@@ -3740,7 +3740,7 @@
             "%config.addAICoAuthor.all%"
           ],
           "scope": "resource",
-          "default": "off",
+          "default": "all",
           "description": "%config.addAICoAuthor%"
         },
         "git.ignoreSubmodules": {

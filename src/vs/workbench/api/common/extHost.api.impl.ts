@@ -1717,10 +1717,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatDebug');
 				return extHostChatDebug.onDidAddCoreEvent(listener, thisArgs, disposables);
 			},
-			get customAgents() {
-				checkProposedApiEnabled(extension, 'chatPromptFiles');
-				return extHostChatAgents2.customAgents as readonly vscode.ChatCustomAgent[];
-			},
 			getCustomAgents(token: vscode.CancellationToken) {
 				checkProposedApiEnabled(extension, 'chatPromptFiles');
 				return extHostChatAgents2.provideCustomAgents(token) as Thenable<readonly vscode.ChatCustomAgent[]>;
@@ -1728,10 +1724,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			onDidChangeCustomAgents: (listener, thisArgs?, disposables?) => {
 				checkProposedApiEnabled(extension, 'chatPromptFiles');
 				return extHostChatAgents2.onDidChangeCustomAgents(listener, thisArgs, disposables);
-			},
-			get instructions() {
-				checkProposedApiEnabled(extension, 'chatPromptFiles');
-				return extHostChatAgents2.instructions as readonly vscode.ChatInstruction[];
 			},
 			getInstructions(token: vscode.CancellationToken) {
 				checkProposedApiEnabled(extension, 'chatPromptFiles');
@@ -1741,10 +1733,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatPromptFiles');
 				return extHostChatAgents2.onDidChangeInstructions(listener, thisArgs, disposables);
 			},
-			get skills() {
-				checkProposedApiEnabled(extension, 'chatPromptFiles');
-				return extHostChatAgents2.skills as readonly vscode.ChatSkill[];
-			},
 			getSkills(token: vscode.CancellationToken) {
 				checkProposedApiEnabled(extension, 'chatPromptFiles');
 				return extHostChatAgents2.provideSkills(token) as Thenable<readonly vscode.ChatSkill[]>;
@@ -1752,10 +1740,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			onDidChangeSkills: (listener, thisArgs?, disposables?) => {
 				checkProposedApiEnabled(extension, 'chatPromptFiles');
 				return extHostChatAgents2.onDidChangeSkills(listener, thisArgs, disposables);
-			},
-			get slashCommands() {
-				checkProposedApiEnabled(extension, 'chatPromptFiles');
-				return extHostChatAgents2.slashCommands as readonly vscode.ChatSlashCommand[];
 			},
 			getSlashCommands(token: vscode.CancellationToken) {
 				checkProposedApiEnabled(extension, 'chatPromptFiles');
@@ -1765,10 +1749,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 				checkProposedApiEnabled(extension, 'chatPromptFiles');
 				return extHostChatAgents2.onDidChangeSlashCommands(listener, thisArgs, disposables);
 			},
-			get hooks() {
-				checkProposedApiEnabled(extension, 'chatPromptFiles');
-				return extHostChatAgents2.hooks as readonly vscode.ChatResource[];
-			},
 			getHooks(token: vscode.CancellationToken) {
 				checkProposedApiEnabled(extension, 'chatPromptFiles');
 				return extHostChatAgents2.provideHooks(token) as Thenable<readonly vscode.ChatResource[]>;
@@ -1776,10 +1756,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			onDidChangeHooks: (listener, thisArgs?, disposables?) => {
 				checkProposedApiEnabled(extension, 'chatPromptFiles');
 				return extHostChatAgents2.onDidChangeHooks(listener, thisArgs, disposables);
-			},
-			get plugins() {
-				checkProposedApiEnabled(extension, 'chatPromptFiles');
-				return extHostChatAgents2.plugins as readonly vscode.ChatResource[];
 			},
 			getPlugins(token: vscode.CancellationToken) {
 				checkProposedApiEnabled(extension, 'chatPromptFiles');
@@ -2132,7 +2108,6 @@ export function createApiFactoryAndRegisterActors(accessor: ServicesAccessor): I
 			InteractiveSessionVoteDirection: extHostTypes.InteractiveSessionVoteDirection,
 			ChatCopyKind: extHostTypes.ChatCopyKind,
 			ChatSessionChangedFile: extHostTypes.ChatSessionChangedFile,
-			ChatSessionChangedFile2: extHostTypes.ChatSessionChangedFile2,
 			ChatEditingSessionActionOutcome: extHostTypes.ChatEditingSessionActionOutcome,
 			InteractiveEditorResponseFeedbackKind: extHostTypes.InteractiveEditorResponseFeedbackKind,
 			DebugStackFrame: extHostTypes.DebugStackFrame,

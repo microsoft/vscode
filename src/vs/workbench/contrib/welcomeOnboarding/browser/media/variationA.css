@@ -132,7 +132,7 @@
 	display: flex;
 	flex-direction: column;
 	min-height: 0;
-	overflow: hidden;
+	overflow: visible;
 }
 
 .onboarding-a-footer {
@@ -167,12 +167,19 @@
 
 .onboarding-a-btn:focus-visible {
 	outline: 2px solid var(--vscode-focusBorder);
-	outline-offset: 1px;
+	outline-offset: 2px;
 }
 
 .onboarding-a-btn-primary {
 	background: var(--vscode-button-background);
 	color: var(--vscode-button-foreground);
+}
+
+.onboarding-a-btn-primary:focus-visible {
+	outline: none;
+	box-shadow:
+		0 0 0 2px var(--vscode-editorWidget-background, #252526),
+		0 0 0 4px var(--vscode-focusBorder);
 }
 
 .onboarding-a-btn-primary:hover {
@@ -200,6 +207,19 @@
 }
 
 .onboarding-a-btn-ghost:hover {
+	color: var(--vscode-editor-foreground);
+}
+
+.onboarding-a-btn-tertiary {
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+	border: none;
+	padding: 6px 16px;
+	font-size: 13px;
+	cursor: pointer;
+}
+
+.onboarding-a-btn-tertiary:hover {
 	color: var(--vscode-editor-foreground);
 }
 
@@ -376,7 +396,7 @@
 
 .onboarding-a-signin-btn:focus-visible {
 	outline: 2px solid var(--vscode-focusBorder);
-	outline-offset: 1px;
+	outline-offset: 2px;
 }
 
 .onboarding-a-signin-btn-label {
@@ -472,6 +492,7 @@
 	display: grid;
 	grid-template-columns: repeat(4, minmax(0, 1fr));
 	gap: 10px;
+	padding: 4px;
 }
 
 .onboarding-a-theme-grid.theme-grid-expanded {
@@ -502,6 +523,29 @@
 	box-shadow: 0 0 0 1px var(--vscode-focusBorder, #007acc);
 }
 
+.monaco-workbench.hc-black .onboarding-a-theme-card,
+.monaco-workbench.hc-light .onboarding-a-theme-card {
+	border-width: 2px;
+	border-color: var(--vscode-contrastBorder);
+}
+
+.monaco-workbench.hc-black .onboarding-a-theme-card:hover,
+.monaco-workbench.hc-light .onboarding-a-theme-card:hover {
+	border-color: var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+}
+
+.monaco-workbench.hc-black .onboarding-a-theme-card:focus-visible,
+.monaco-workbench.hc-light .onboarding-a-theme-card:focus-visible {
+	outline: 2px solid var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+	outline-offset: 2px;
+}
+
+.monaco-workbench.hc-black .onboarding-a-theme-card.selected,
+.monaco-workbench.hc-light .onboarding-a-theme-card.selected {
+	border-color: var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+	box-shadow: 0 0 0 1px var(--vscode-contrastActiveBorder, var(--vscode-focusBorder));
+}
+
 .onboarding-a-theme-preview {
 	overflow: hidden;
 }
@@ -514,7 +558,7 @@
 
 .onboarding-a-theme-label {
 	padding: 4px 6px;
-	font-size: 10px;
+	font-size: 12px;
 	font-weight: 500;
 	text-align: center;
 	color: var(--vscode-editor-foreground);
@@ -720,7 +764,7 @@
 	align-items: center;
 	gap: 16px;
 	margin-top: auto;
-	padding-top: 10px;
+	padding: 14px 4px 4px 4px;
 }
 
 /* Tip banner */
@@ -788,6 +832,12 @@
 	text-decoration: underline;
 }
 
+.onboarding-a-doc-link:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
+	border-radius: 2px;
+}
+
 /* Sign-in icon row */
 .onboarding-a-signin-icon-row {
 	display: flex;
@@ -826,13 +876,28 @@
 }
 
 .onboarding-a-signin-btn.primary {
-	background: var(--vscode-editor-background);
-	border-color: var(--vscode-focusBorder);
-	box-shadow: 0 0 0 1px color-mix(in srgb, var(--vscode-focusBorder) 18%, transparent);
+	background: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border-color: var(--vscode-button-background);
 }
 
 .onboarding-a-signin-btn.primary:hover {
-	background: var(--vscode-list-hoverBackground);
+	background: var(--vscode-button-hoverBackground);
+}
+
+.onboarding-a-signin-btn.primary:focus-visible {
+	outline: none;
+	box-shadow:
+		0 0 0 2px var(--vscode-editorWidget-background, #252526),
+		0 0 0 4px var(--vscode-focusBorder);
+}
+
+.onboarding-a-signin-btn.primary .onboarding-a-provider-mark.github .codicon {
+	color: var(--vscode-button-foreground);
+}
+
+.onboarding-a-signin-btn.primary .onboarding-a-signin-btn-label {
+	color: var(--vscode-button-foreground);
 }
 
 @media (max-width: 720px) {
@@ -1019,8 +1084,10 @@
 }
 
 .onboarding-a-ext-install:focus-visible {
-	outline: 2px solid var(--vscode-focusBorder);
-	outline-offset: 1px;
+	outline: none;
+	box-shadow:
+		0 0 0 2px var(--vscode-editorWidget-background, #252526),
+		0 0 0 4px var(--vscode-focusBorder);
 }
 
 .onboarding-a-ext-install.installed {

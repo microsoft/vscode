@@ -506,6 +506,7 @@ export abstract class ChatTelemetry<C extends IDocumentContext | undefined = IDo
 		const toolCallProperties = {
 			intentId: this._intent.id,
 			conversationId: this._conversation.sessionId,
+			requestId: this.telemetryMessageId,
 			responseType,
 			toolCounts: JSON.stringify(toolCounts),
 			model: this._endpoint.model
@@ -532,6 +533,7 @@ export abstract class ChatTelemetry<C extends IDocumentContext | undefined = IDo
 				"comment": "Records information about tool calls during a request.",
 				"intentId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Id for the invoked intent." },
 				"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Id for the current chat conversation." },
+				"requestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Id for the current turn request." },
 				"numRequests": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The total number of requests made" },
 				"turnIndex": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The conversation turn index" },
 				"toolCounts": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": false, "comment": "The number of times each tool was used" },

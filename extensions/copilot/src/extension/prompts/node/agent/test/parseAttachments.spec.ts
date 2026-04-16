@@ -29,6 +29,8 @@ import { CopilotCLIPromptResolver } from '../../../../chatSessions/copilotcli/no
 import { MockSkillLocations } from '../../../../chatSessions/copilotcli/node/test/testHelpers';
 import { createExtensionUnitTestingServices } from '../../../../test/node/services';
 import { TestChatRequest } from '../../../../test/node/testHelpers';
+import { MockExtensionContext } from '../../../../../platform/test/node/extensionContext';
+import { IVSCodeExtensionContext } from '../../../../../platform/extContext/common/extensionContext';
 
 
 suite('CopilotCLI Generate & parse prompts', () => {
@@ -53,7 +55,7 @@ suite('CopilotCLI Generate & parse prompts', () => {
 				if (workspaceType === 'workspace' || workspaceType === 'worktree') {
 					workspaceService.getWorkspaceFolders().push(URI.file('/workspace'));
 				}
-				resolver = new CopilotCLIPromptResolver(imageSupport, logService, fileSystem, workspaceService, services.seal(), accessor.get(IIgnoreService), new MockSkillLocations());
+				resolver = new CopilotCLIPromptResolver(imageSupport, logService, fileSystem, workspaceService, services.seal(), accessor.get(IIgnoreService), new MockSkillLocations(), new MockExtensionContext() as unknown as IVSCodeExtensionContext);
 			});
 			afterEach(() => {
 				disposables.clear();
@@ -546,7 +548,7 @@ suite('multi-workspace with additionalWorkspaces', () => {
 		};
 		workspaceService.getWorkspaceFolders().push(URI.file('/workspace'));
 		workspaceService.getWorkspaceFolders().push(URI.file('/workspace2'));
-		resolver = new CopilotCLIPromptResolver(imageSupport, logService, fileSystem, workspaceService, services.seal(), accessor.get(IIgnoreService), new MockSkillLocations());
+		resolver = new CopilotCLIPromptResolver(imageSupport, logService, fileSystem, workspaceService, services.seal(), accessor.get(IIgnoreService), new MockSkillLocations(), new MockExtensionContext() as unknown as IVSCodeExtensionContext);
 	});
 
 	afterEach(() => {

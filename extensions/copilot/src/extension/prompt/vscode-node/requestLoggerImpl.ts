@@ -372,20 +372,6 @@ export class RequestLogger extends AbstractRequestLogger {
 		));
 	}
 
-	public override logServerToolCall(id: string, name: string, args: unknown, result: LanguageModelToolResult2): void {
-		this._addEntry(new LoggedToolCall(
-			id,
-			`${name} [server]`,
-			args,
-			result,
-			this.currentRequest,
-			Date.now(),
-			undefined, // thinking
-			undefined, // edits
-			undefined  // toolMetadata
-		));
-	}
-
 	/** Start tracking edits made to the workspace for every tool call. */
 	public override enableWorkspaceEditTracing(): void {
 		if (!this._workspaceEditRecorder) {

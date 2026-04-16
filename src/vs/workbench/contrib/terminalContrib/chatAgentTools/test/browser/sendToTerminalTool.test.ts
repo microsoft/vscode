@@ -16,6 +16,7 @@ import { ITerminalChatService, type ITerminalInstance } from '../../../../termin
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import type { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IChatService } from '../../../../chat/common/chatService/chatService.js';
+import { URI } from '../../../../../../base/common/uri.js';
 
 suite('SendToTerminalTool', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -110,7 +111,6 @@ suite('SendToTerminalTool', () => {
 		const value = (result.content[0] as { value: string }).value;
 		assert.ok(value.includes('Successfully sent command'));
 		assert.ok(value.includes(KNOWN_TERMINAL_ID));
-		assert.ok(value.includes('get_terminal_output'), 'should direct agent to use get_terminal_output');
 
 		// Verify sendText was called with shouldExecute=true
 		assert.strictEqual(mockExecution.sentTexts.length, 1);
@@ -134,10 +134,11 @@ suite('SendToTerminalTool', () => {
 		assert.strictEqual(mockExecution.sentTexts[0].shouldExecute, true);
 	});
 
-	function createPreparationContext(id: string, command: string): IToolInvocationPreparationContext {
+	function createPreparationContext(id: string, command: string, chatSessionResource?: URI): IToolInvocationPreparationContext {
 		return {
 			parameters: { id, command },
 			toolCallId: 'test-call',
+			chatSessionResource,
 		} as unknown as IToolInvocationPreparationContext;
 	}
 
@@ -176,5 +177,177 @@ suite('SendToTerminalTool', () => {
 		assert.ok(prepared);
 		const message = prepared.invocationMessage as IMarkdownString;
 		assert.ok(!message.value.includes('\n'), 'newlines should be collapsed to spaces');
+	});
+
+	test('prepareToolInvocation skips confirmation when answering a question carousel', async () => {
+		const sessionResource = URI.parse('chat-session://test-session');
+		const mockSession = {
+			getRequests: () => [{
+				response: {
+					response: {
+						value: [{
+							kind: 'questionCarousel' as const,
+							terminalId: KNOWN_TERMINAL_ID,
+							questions: [{ id: 'q1', title: 'package name?', message: 'package name?' }],
+							data: { q1: 'my-package' },
+						}]
+					}
+				}
+			}],
+		};
+		instantiationService.stub(IChatService, 'getSession', () => mockSession);
+		tool = store.add(instantiationService.createInstance(SendToTerminalTool));
+
+		const prepared = await tool.prepareToolInvocation(
+			createPreparationContext(KNOWN_TERMINAL_ID, 'my-package', sessionResource),
+			CancellationToken.None,
+		);
+
+		assert.ok(prepared);
+		assert.strictEqual(prepared.confirmationMessages, undefined, 'should skip confirmation when the command matches a carousel answer');
+	});
+
+	test('prepareToolInvocation does not skip confirmation when the command does not match a carousel answer', async () => {
+		const sessionResource = URI.parse('chat-session://test-session');
+		const mockSession = {
+			getRequests: () => [{
+				response: {
+					response: {
+						value: [{
+							kind: 'questionCarousel' as const,
+							terminalId: KNOWN_TERMINAL_ID,
+							questions: [{ id: 'q1', title: 'package name?', message: 'package name?' }],
+							data: { q1: 'my-package' },
+						}]
+					}
+				}
+			}],
+		};
+		instantiationService.stub(IChatService, 'getSession', () => mockSession);
+		tool = store.add(instantiationService.createInstance(SendToTerminalTool));
+
+		const prepared = await tool.prepareToolInvocation(
+			createPreparationContext(KNOWN_TERMINAL_ID, 'different-package', sessionResource),
+			CancellationToken.None,
+		);
+
+		assert.ok(prepared);
+		assert.ok(prepared.confirmationMessages, 'should require confirmation when the command does not match a carousel answer');
+	});
+
+	test('prepareToolInvocation skips confirmation only for exact matches in multi-question carousels', async () => {
+		const sessionResource = URI.parse('chat-session://test-session');
+		const carousel = {
+			kind: 'questionCarousel' as const,
+			terminalId: KNOWN_TERMINAL_ID,
+			questions: [
+				{ id: 'q1', title: 'package name?', message: 'package name?' },
+				{ id: 'q2', title: 'entry point?', message: 'entry point?' }
+			],
+			data: { q1: 'my-package', q2: 'src/index.ts' },
+		};
+		// Simulate one prior send_to_terminal invocation after the carousel
+		// so that positional matching targets question[1] (entry point)
+		const priorSendInvocation = {
+			kind: 'toolInvocation' as const,
+			toolId: 'send_to_terminal',
+		};
+		const mockSession = {
+			getRequests: () => [{
+				response: {
+					response: {
+						value: [carousel, priorSendInvocation]
+					}
+				}
+			}],
+		};
+		instantiationService.stub(IChatService, 'getSession', () => mockSession);
+		tool = store.add(instantiationService.createInstance(SendToTerminalTool));
+
+		const exactMatchPrepared = await tool.prepareToolInvocation(
+			createPreparationContext(KNOWN_TERMINAL_ID, 'src/index.ts', sessionResource),
+			CancellationToken.None,
+		);
+
+		assert.ok(exactMatchPrepared);
+		assert.strictEqual(exactMatchPrepared.confirmationMessages, undefined, 'should skip confirmation when the command exactly matches a carousel answer');
+
+		const mismatchedPrepared = await tool.prepareToolInvocation(
+			createPreparationContext(KNOWN_TERMINAL_ID, 'src/index.js', sessionResource),
+			CancellationToken.None,
+		);
+
+		assert.ok(mismatchedPrepared);
+		assert.ok(mismatchedPrepared.confirmationMessages, 'should require confirmation when the command does not exactly match any carousel answer');
+	});
+
+	test('prepareToolInvocation uses positional matching for identical answers (all defaults)', async () => {
+		const sessionResource = URI.parse('chat-session://test-session');
+		const carousel = {
+			kind: 'questionCarousel' as const,
+			terminalId: KNOWN_TERMINAL_ID,
+			questions: [
+				{ id: 'q1', title: 'package name?', message: 'package name?' },
+				{ id: 'q2', title: 'version?', message: 'version?' },
+				{ id: 'q3', title: 'description?', message: 'description?' },
+			],
+			data: { q1: '', q2: '', q3: '' },
+		};
+
+		// First call: no prior send_to_terminal → positional index 0 → "package name?"
+		const mockSession0 = {
+			getRequests: () => [{
+				response: { response: { value: [carousel] } }
+			}],
+		};
+		instantiationService.stub(IChatService, 'getSession', () => mockSession0);
+		tool = store.add(instantiationService.createInstance(SendToTerminalTool));
+
+		const first = await tool.prepareToolInvocation(
+			createPreparationContext(KNOWN_TERMINAL_ID, '', sessionResource),
+			CancellationToken.None,
+		);
+		assert.ok(first);
+		assert.strictEqual(first.confirmationMessages, undefined);
+		const firstMsg = first.pastTenseMessage as IMarkdownString;
+		assert.ok(firstMsg.value.includes('package'), 'first call should show package name question');
+
+		// Second call: one prior send_to_terminal → positional index 1 → "version?"
+		const priorSend1 = { kind: 'toolInvocation' as const, toolId: 'send_to_terminal' };
+		const mockSession1 = {
+			getRequests: () => [{
+				response: { response: { value: [carousel, priorSend1] } }
+			}],
+		};
+		instantiationService.stub(IChatService, 'getSession', () => mockSession1);
+		tool = store.add(instantiationService.createInstance(SendToTerminalTool));
+
+		const second = await tool.prepareToolInvocation(
+			createPreparationContext(KNOWN_TERMINAL_ID, '', sessionResource),
+			CancellationToken.None,
+		);
+		assert.ok(second);
+		assert.strictEqual(second.confirmationMessages, undefined);
+		const secondMsg = second.pastTenseMessage as IMarkdownString;
+		assert.ok(secondMsg.value.includes('version'), 'second call should show version question');
+
+		// Third call: two prior send_to_terminal → positional index 2 → "description?"
+		const priorSend2 = { kind: 'toolInvocation' as const, toolId: 'send_to_terminal' };
+		const mockSession2 = {
+			getRequests: () => [{
+				response: { response: { value: [carousel, priorSend1, priorSend2] } }
+			}],
+		};
+		instantiationService.stub(IChatService, 'getSession', () => mockSession2);
+		tool = store.add(instantiationService.createInstance(SendToTerminalTool));
+
+		const third = await tool.prepareToolInvocation(
+			createPreparationContext(KNOWN_TERMINAL_ID, '', sessionResource),
+			CancellationToken.None,
+		);
+		assert.ok(third);
+		assert.strictEqual(third.confirmationMessages, undefined);
+		const thirdMsg = third.pastTenseMessage as IMarkdownString;
+		assert.ok(thirdMsg.value.includes('description'), 'third call should show description question');
 	});
 });

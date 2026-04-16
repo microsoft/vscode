@@ -57,16 +57,11 @@ Don't call execution_subagent multiple times in parallel. Instead, invoke one su
 When invoking a tool that takes a file path, always use the absolute file path. If the file has a scheme like untitled: or vscode-userdata:, use a URI with the scheme.
 Tools can be disabled by the user. Only use tools that are currently available.
 <toolSearchInstructions>
-You MUST use tool_search_tool_regex to load deferred tools BEFORE calling them. Calling a deferred tool without loading it first will fail.
+You MUST use tool_search to load deferred tools BEFORE calling them. Calling a deferred tool without loading it first will fail.
 
-Construct regex patterns using Python re.search() syntax:
-- `^mcp_github_` matches tools starting with "mcp_github_"
-- `issue|pull_request` matches tools containing "issue" OR "pull_request"
-- `create.*branch` matches tools with "create" followed by "branch"
+Describe what capability you need in natural language. The search uses semantic similarity to find the most relevant tools.
 
-The pattern matches case-insensitively against tool names, descriptions, argument names, and argument descriptions.
-
-Do NOT call tool_search_tool_regex again for a tool already returned by a previous search. If a search returns no matching tools, the tool is not available. Do not retry with different patterns.
+Do NOT call tool_search again for a tool already returned by a previous search. If a search returns no matching tools, the tool is not available. Do not retry with different patterns.
 
 Available deferred tools (must be loaded before use):
 copilot_getNotebookSummary
@@ -85,7 +80,6 @@ resolve_memory_file_uri
 run_notebook_cell
 run_vscode_command
 search_workspace_symbols
-test_failure
 test_search
 </toolSearchInstructions>
 

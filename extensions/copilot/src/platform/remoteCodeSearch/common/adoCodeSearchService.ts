@@ -196,7 +196,10 @@ export class AdoCodeSearchService extends Disposable implements IAdoCodeSearchSe
 				statusCode: result.status,
 			});
 
-			// TODO: how can we tell the difference between no access to repo and semantic search not being enabled?
+			if (result.status === 401 || result.status === 403) {
+				return Result.error<RemoteCodeSearchError>({ type: 'not-authorized' });
+			}
+
 			return Result.error<RemoteCodeSearchError>({ type: 'generic-error', error: new Error(`ADO code search index status request failed with status: ${result.status}`) });
 		}
 		type AdoIndexStatusResponse = {

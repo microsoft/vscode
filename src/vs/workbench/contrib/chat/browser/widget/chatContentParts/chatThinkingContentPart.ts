@@ -309,6 +309,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.currentTitle = extractedTitle;
 		if (extractedTitle !== this.defaultTitle) {
 			this.lastExtractedTitle = extractedTitle;
+			this.extractedTitles.push(extractedTitle);
 		}
 		this.currentThinkingValue = initialText;
 
@@ -937,6 +938,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 		if (this.content.generatedTitle) {
 			this.currentTitle = this.content.generatedTitle;
+			this.setGeneratedTitleOnAllParts(this.content.generatedTitle);
 			this.setFinalizedTitle(this.content.generatedTitle);
 			return;
 		}
@@ -1436,6 +1438,30 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 
 		this.updateDropdownClickability();
 		this._onDidChangeHeight.fire();
+	}
+
+	/**
+	 * Removes a markdown edit pill child by its part ID (codeblocksPartId).
+	 */
+	public removeEditPillByPartId(partId: string): void {
+		let removed = false;
+
+		const lazyIndex = this.lazyItems.findIndex(item => item.kind === 'tool' && item.toolInvocationId === partId);
+		if (lazyIndex !== -1) {
+			this.lazyItems.splice(lazyIndex, 1);
+			removed = true;
+		}
+
+		if (this.diffStatsByPartId.delete(partId)) {
+			this.updateAggregatedDiff();
+			removed = true;
+		}
+
+		if (removed) {
+			this.appendedItemCount = Math.max(0, this.appendedItemCount - 1);
+			this.updateDropdownClickability();
+			this._onDidChangeHeight.fire();
+		}
 	}
 
 	/**

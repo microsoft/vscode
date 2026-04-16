@@ -11,330 +11,285 @@
 	position: relative;
 }
 
-/* Welcome container fills available space and centers content */
-.sessions-chat-widget .agent-chat-welcome-container {
-	flex: 1;
+.new-chat-widget-container {
 	display: flex;
 	flex-direction: column;
 	align-items: center;
 	justify-content: center;
+	width: 100%;
+	height: 100%;
+	box-sizing: border-box;
+	overflow: hidden;
+	padding: 16px 16px 20px 16px;
+	container-type: size;
+	position: relative;
 }
 
-/* Input area */
-.sessions-chat-input-area {
-	position: relative;
+.new-chat-widget-container.revealed {
+	justify-content: center;
+}
+
+.new-chat-widget-container.revealed .new-chat-input-container {
+	display: block;
+	animation: chat-full-welcome-fade-in 0.35s ease 0.15s both;
+}
+
+/* Option group pickers container (above the input) */
+.new-session-workspace-picker-container {
+	display: none;
 	width: 100%;
 	max-width: 800px;
+	margin: 0 0 8px 0;
+	padding: 0;
 	box-sizing: border-box;
-	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border, var(--vscode-contrastBorder, transparent)));
-	border-radius: 8px;
-	background-color: var(--vscode-input-background);
-	overflow: hidden;
+}
+
+.new-chat-widget-container.revealed .new-session-workspace-picker-container {
+	display: block;
+	animation: chat-full-welcome-fade-in 0.35s ease 0.1s both;
+}
+
+@keyframes chat-full-welcome-fade-in {
+	from {
+		opacity: 0;
+		transform: translateY(12px);
+	}
+
+	to {
+		opacity: 1;
+		transform: translateY(0);
+	}
+}
+
+.new-session-workspace-picker-container:empty {
+	display: none;
+	margin-bottom: 0;
+}
+
+.new-chat-widget-content {
+	width: 100%;
+	max-width: 800px;
 	display: flex;
 	flex-direction: column;
+	align-items: stretch;
 }
 
-.sessions-chat-input-area:focus-within {
-	border-color: var(--vscode-focusBorder);
+.new-chat-widget-container .new-chat-bottom-container {
+	width: 100%;
+	max-width: 800px;
+	margin-top: 8px;
+	box-sizing: border-box;
+	display: none;
+	flex-direction: row;
+	align-items: center;
+	gap: 4px;
+	min-height: 28px;
+	justify-content: space-between;
 }
 
-/* Editor */
-/* Height constraints are driven by MIN_EDITOR_HEIGHT / MAX_EDITOR_HEIGHT in newChatViewPane.ts */
-.sessions-chat-editor {
-	padding: 0 8px 6px 10px;
-	flex-shrink: 1;
+.new-chat-widget-container.revealed .new-chat-bottom-container {
+	display: flex;
 }
 
-.sessions-chat-editor .monaco-editor,
-.sessions-chat-editor .monaco-editor .overflow-guard,
-.sessions-chat-editor .monaco-editor-background {
+.new-chat-widget-container .new-chat-bottom-container .new-chat-controls-container {
+	display: flex;
+}
+
+.new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	min-width: 0;
+}
+
+.chat-controls-container .monaco-editor-background {
 	background-color: var(--vscode-input-background) !important;
-	border-radius: 8px 8px 0 0;
 }
 
-/* Toolbar */
-.sessions-chat-toolbar {
+/* Pickers row - two equal halves */
+.session-workspace-picker {
 	display: flex;
+	flex-direction: row;
+	flex-wrap: nowrap;
 	align-items: center;
-	padding: 0 6px 6px 6px;
-	gap: 4px;
-	color: var(--vscode-icon-foreground);
+	justify-content: flex-start;
+	gap: 6px;
+	width: 100%;
+	box-sizing: border-box;
+	padding: 0;
 }
 
-.sessions-chat-toolbar-spacer {
-	flex: 1;
+.session-workspace-picker:empty {
+	display: none;
 }
 
-.sessions-chat-toolbar-pickers {
-	display: flex;
+.session-workspace-picker-label {
+	font-size: 18px;
+	line-height: 1.25;
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+}
+
+/* Project picker in inline title row */
+.sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label {
+	height: auto;
+	padding: 4px;
+	font-size: 18px;
+	line-height: 1.25;
+	border: none;
+	background-color: transparent;
+	color: var(--vscode-foreground);
+	border-radius: 4px;
+}
+
+.sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+}
+
+.sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label .sessions-chat-dropdown-label {
+	font-size: 18px;
+}
+
+.sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label > .codicon:not(.sessions-chat-dropdown-chevron) {
+	font-size: 16px;
+	margin: 0;
+}
+
+.sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label .sessions-chat-dropdown-chevron {
+	display: inline-flex;
 	align-items: center;
-	gap: 4px;
+	justify-content: center;
+	font-size: 16px;
+	margin-left: 6px;
+	line-height: 1;
+	transform: translateY(1px);
 }
 
-/* Model picker - uses workbench ModelPickerActionItem */
-/* Session config toolbar (mode, model pickers via MenuWorkbenchToolBar) */
-.sessions-chat-config-toolbar {
+.sessions-chat-dropdown-label {
+	margin-left: 4px;
+}
+
+.sessions-chat-picker-slot {
 	display: flex;
 	align-items: center;
 	min-width: 0;
 	overflow: hidden;
 }
 
-.sessions-chat-config-toolbar .monaco-toolbar {
-	height: auto;
-}
-
-.sessions-chat-config-toolbar .monaco-action-bar .action-item {
-	display: flex;
-	align-items: center;
-}
-
-.sessions-chat-config-toolbar .action-label {
+.sessions-chat-picker-slot .action-label {
 	display: flex;
 	align-items: center;
 	height: 16px;
 	padding: 3px 3px 3px 6px;
 	background-color: transparent;
 	border: none;
-	border-radius: 4px;
+	color: var(--vscode-icon-foreground);
 	font-size: 13px;
 	cursor: pointer;
-	color: var(--vscode-icon-foreground);
 	white-space: nowrap;
+	border-radius: 4px;
 	min-width: 0;
 	overflow: hidden;
 }
 
-.sessions-chat-config-toolbar .action-label:hover {
+.sessions-chat-picker-slot .action-label.hidden {
+	display: none;
+}
+
+.sessions-chat-picker-slot .action-label:hover {
 	background-color: var(--vscode-toolbar-hoverBackground);
 	color: var(--vscode-foreground);
 }
 
-.sessions-chat-config-toolbar .action-label .codicon {
-	font-size: 14px;
-	flex-shrink: 0;
-}
-
-.sessions-chat-config-toolbar .action-label .codicon-chevron-down {
-	font-size: 12px;
-	margin-left: 6px;
-}
-
-/* Send button - wraps a Button widget */
-.sessions-chat-send-button {
-	display: flex;
-	align-items: center;
-}
-
-.sessions-chat-send-button .monaco-button {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 22px;
-	height: 22px;
-	min-width: 22px;
-	padding: 0;
-	border-radius: 4px;
-	color: var(--vscode-icon-foreground);
-	background: transparent !important;
-	border: none !important;
-	cursor: pointer;
-}
-
-.sessions-chat-send-button .monaco-button.disabled {
+.sessions-chat-picker-slot.disabled .action-label {
+	opacity: 0.5;
 	cursor: default;
+	pointer-events: none;
 }
 
-.sessions-chat-send-button .monaco-button:not(.disabled):hover {
-	background-color: var(--vscode-toolbar-hoverBackground) !important;
+.sessions-chat-picker-slot.disabled .action-label:hover {
+	background-color: transparent;
+	color: var(--vscode-icon-foreground);
 }
 
-.sessions-chat-send-button .monaco-button .codicon {
-	font-size: 16px;
+.sessions-chat-picker-slot.loading .action-label {
+	opacity: 0.5;
+	cursor: default;
+	pointer-events: none;
 }
 
-/* Loading spinner in toolbar */
-.sessions-chat-loading-spinner {
+.sessions-chat-picker-slot.loading .action-label .codicon-chevron-down {
 	display: none;
+}
+
+.sessions-chat-picker-slot.loading .action-label::after {
+	content: '';
+	display: inline-block;
 	width: 12px;
 	height: 12px;
-	margin-right: 4px;
-	border: 1.5px solid var(--vscode-icon-foreground);
+	margin-left: 4px;
+	border: 1.5px solid var(--vscode-descriptionForeground);
 	border-top-color: transparent;
 	border-radius: 50%;
-	animation: sessions-chat-spin 0.8s linear infinite;
-	opacity: 0.6;
+	animation: sessions-chat-picker-spin 0.8s linear infinite;
 	flex-shrink: 0;
 }
 
-.sessions-chat-loading-spinner.visible {
-	display: block;
-}
-
-@keyframes sessions-chat-spin {
+@keyframes sessions-chat-picker-spin {
 	to {
 		transform: rotate(360deg);
 	}
 }
 
-/* Attach row (pills only, above editor, inside input area) */
-.sessions-chat-attach-row {
-	display: flex;
-	flex-wrap: wrap;
-	align-items: center;
-	gap: 4px;
-	padding: 4px 6px 0 6px;
-}
-
-.sessions-chat-attach-row:has(.sessions-chat-attached-context:empty) {
-	display: none;
-}
-
-/* Attach context button */
-.sessions-chat-attach-button {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 22px;
-	height: 22px;
-	border-radius: 4px;
-	cursor: pointer;
-	color: var(--vscode-icon-foreground);
-	background: transparent;
-	border: none;
-	outline: none;
-}
-
-.sessions-chat-attach-button:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-}
-
-.sessions-chat-attach-button:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
-}
-
-.sessions-chat-attach-button .codicon {
-	font-size: 16px;
-}
-
-/* Attached context container */
-.sessions-chat-attached-context {
-	display: flex;
-	flex-wrap: wrap;
-	gap: 4px;
-	align-items: center;
-}
-
-.sessions-chat-attached-context:empty,
-.sessions-chat-attached-context[style*="display: none"] {
-	display: none !important;
-}
-
-/* Attachment pills */
-.sessions-chat-attachment-pill {
-	display: inline-flex;
-	align-items: center;
-	overflow: hidden;
-	font-size: 11px;
-	padding: 0 4px 0 0;
-	border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-background, transparent));
-	border-radius: 4px;
-	height: 18px;
-	max-width: 200px;
-	width: fit-content;
-}
-
-.sessions-chat-attachment-name {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.sessions-chat-attachment-pill .codicon {
+.sessions-chat-picker-slot .action-label .codicon {
 	font-size: 14px;
 	flex-shrink: 0;
-	padding: 0 3px;
 }
 
-.sessions-chat-attachment-pill .monaco-icon-label {
-	gap: 4px;
-}
-
-.sessions-chat-attachment-pill .monaco-icon-label::before {
-	height: auto;
-	padding: 0 0 0 2px;
-	line-height: 100% !important;
-	align-self: center;
-}
-
-.sessions-chat-attachment-pill .monaco-icon-label .monaco-icon-label-container {
-	display: flex;
-}
-
-.sessions-chat-attachment-pill .monaco-icon-label .monaco-icon-label-container .monaco-highlighted-label {
+.sessions-chat-picker-slot .action-label .codicon-chevron-down {
 	display: inline-flex;
 	align-items: center;
+	justify-content: center;
+	font-size: 12px;
+	margin-left: 6px;
+	line-height: 1;
+	transform: translateY(1px);
+}
+
+.sessions-chat-picker-slot .action-label .chat-session-option-label {
 	overflow: hidden;
-	white-space: nowrap;
 	text-overflow: ellipsis;
 }
 
-.sessions-chat-attachment-remove {
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	cursor: pointer;
-	flex-shrink: 0;
-	color: var(--vscode-descriptionForeground);
-	margin-left: 4px;
+.sessions-chat-picker-slot .action-label span + .chat-session-option-label {
+	margin-left: 2px;
 }
 
-.sessions-chat-attachment-pill:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
+.sessions-chat-picker-slot .action-label.warning {
+	color: var(--vscode-problemsWarningIcon-foreground);
+	opacity: 0.75;
 }
 
-.sessions-chat-attachment-remove .codicon {
-	font-size: 12px;
-	padding: 0;
+.sessions-chat-picker-slot .action-label.warning .codicon {
+	color: var(--vscode-problemsWarningIcon-foreground) !important;
 }
 
-.sessions-chat-attachment-remove:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
+.sessions-chat-picker-slot .action-label.warning:hover {
+	color: var(--vscode-problemsWarningIcon-foreground);
+	opacity: 1;
 }
 
-/* Drag and drop */
-.sessions-chat-dnd-overlay {
-	position: absolute;
-	top: 0;
-	left: 0;
-	width: 100%;
-	height: 100%;
-	box-sizing: border-box;
-	display: none;
-	z-index: 10;
-	background-color: var(--vscode-sideBar-dropBackground, var(--vscode-list-dropBackground));
+.sessions-chat-picker-slot .action-label.info {
+	color: var(--vscode-problemsInfoIcon-foreground);
+	opacity: 0.75;
 }
 
-.sessions-chat-dnd-overlay.visible {
-	display: flex;
-	align-items: center;
-	justify-content: center;
+.sessions-chat-picker-slot .action-label.info .codicon {
+	color: var(--vscode-problemsInfoIcon-foreground) !important;
 }
 
-.sessions-chat-dnd-overlay .attach-context-overlay-text {
-	padding: 0.6em;
-	margin: 0.2em;
-	line-height: 12px;
-	height: 12px;
-	display: flex;
-	align-items: center;
-	text-align: center;
-	background-color: var(--vscode-sideBar-background, var(--vscode-editor-background));
-}
-
-.sessions-chat-dnd-overlay .attach-context-overlay-text .codicon {
-	height: 12px;
-	font-size: 12px;
-	margin-right: 3px;
+.sessions-chat-picker-slot .action-label.info:hover {
+	color: var(--vscode-problemsInfoIcon-foreground);
+	opacity: 1;
 }

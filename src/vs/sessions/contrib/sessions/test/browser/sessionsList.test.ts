@@ -9,7 +9,7 @@ import { observableValue } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { IChat, ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { groupByWorkspace, sortSessions, SessionsSorting } from '../../browser/views/sessionsList.js';
+import { groupByWorkspace, groupSessionsForList, sortSessions, SessionsGrouping, SessionsSorting } from '../../browser/views/sessionsList.js';
 
 function createSession(id: string, opts: {
 	workspaceLabel?: string;
@@ -152,6 +152,36 @@ suite('Sessions - SessionsList Helpers', () => {
 			const sorted = sortSessions(sessions, SessionsSorting.Updated);
 
 			assert.deepStrictEqual(sorted.map(s => s.sessionId), ['b', 'c', 'a']);
+		});
+	});
+
+	suite('groupSessionsForList', () => {
+
+		test('shows pinned sessions in a dedicated top section', () => {
+			const pinned = createSession('pinned', { workspaceLabel: 'Alpha', createdAt: new Date('2024-06-01') });
+			const regular = createSession('regular', { workspaceLabel: 'Beta', createdAt: new Date('2024-05-01') });
+			const sections = groupSessionsForList(
+				[pinned, regular],
+				SessionsGrouping.Workspace,
+				SessionsSorting.Created,
+				session => session.sessionId === pinned.sessionId,
+			);
+
+			assert.deepStrictEqual(sections.map(section => section.id), ['pinned', 'workspace:Beta']);
+			assert.deepStrictEqual(sections[0].sessions.map(session => session.sessionId), ['pinned']);
+		});
+
+		test('keeps archived sessions in Done even when pinned', () => {
+			const archivedPinned = createSession('archived-pinned', { workspaceLabel: 'Alpha', isArchived: true, createdAt: new Date('2024-06-01') });
+			const sections = groupSessionsForList(
+				[archivedPinned],
+				SessionsGrouping.Workspace,
+				SessionsSorting.Created,
+				() => true,
+			);
+
+			assert.deepStrictEqual(sections.map(section => section.id), ['archived']);
+			assert.deepStrictEqual(sections[0].sessions.map(session => session.sessionId), ['archived-pinned']);
 		});
 	});
 });

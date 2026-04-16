@@ -660,7 +660,19 @@ export function buildChatHistoryFromEvents(sessionId: string, modelId: string | 
 						isBuiltin: defaultModeInstructionsForLastRequest.isBuiltin,
 					};
 				}
-				turns.push(new ChatRequestTurn2(prompt, undefined, references, '', [], undefined, details?.requestId ?? event.id, modelId, modeInstructions2));
+				let commandPrefix = '';
+				switch (event.data.agentMode) {
+					case 'autopilot': {
+						commandPrefix = '/autopilot ';
+						break;
+					}
+					case 'plan': {
+						commandPrefix = '/plan ';
+						break;
+					}
+				}
+
+				turns.push(new ChatRequestTurn2(`${commandPrefix}${prompt}`, undefined, references, '', [], undefined, details?.requestId ?? event.id, modelId, modeInstructions2));
 				break;
 			}
 			case 'assistant.message_delta': {

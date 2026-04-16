@@ -34,6 +34,14 @@ export interface IAccountTitleBarState {
 	readonly revealLabelOnHover?: boolean;
 }
 
+export function getAccountProfileImageUrl(accountProviderId: string | undefined, accountName: string | undefined): string | undefined {
+	if (accountProviderId !== 'github' || !accountName?.trim()) {
+		return undefined;
+	}
+
+	return `https://github.com/${encodeURIComponent(accountName.trim())}.png?size=64`;
+}
+
 export function getAccountTitleBarBadgeKey(state: IAccountTitleBarState): string | undefined {
 	if (!state.dotBadge) {
 		return undefined;

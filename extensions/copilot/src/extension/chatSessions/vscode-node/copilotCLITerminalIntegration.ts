@@ -19,6 +19,7 @@ import { createServiceIdentifier } from '../../../util/common/services';
 import { disposableTimeout } from '../../../util/vs/base/common/async';
 import { Disposable, DisposableStore } from '../../../util/vs/base/common/lifecycle';
 import * as path from '../../../util/vs/base/common/path';
+import { windowsToGitBashPath } from '../../../util/vs/workbench/contrib/terminalContrib/suggest/browser/terminalGitBashHelpers';
 import { PythonTerminalService } from './copilotCLIPythonTerminalService';
 import { CopilotCLITerminalLinkProvider, SessionDirResolver } from './copilotCLITerminalLinkProvider';
 
@@ -45,7 +46,7 @@ export interface ICopilotCLITerminalIntegration extends Disposable {
 }
 
 type IShellInfo = {
-	shell: 'zsh' | 'bash' | 'pwsh' | 'powershell' | 'cmd';
+	shell: 'zsh' | 'bash' | 'pwsh' | 'powershell' | 'cmd' | 'fish';
 	shellPath: string;
 	shellArgs: string[];
 	iconPath?: ThemeIcon;
@@ -59,6 +60,12 @@ export class CopilotCLITerminalIntegration extends Disposable implements ICopilo
 	declare _serviceBrand: undefined;
 	private readonly initialization: Promise<void>;
 	private shellScriptPath: string | undefined;
+	/**
+	 * On Windows only: a POSIX shell script (no extension) that Git Bash / MSYS bash
+	 * can execute. Used when the user's default shell is `bash.exe`, since bash cannot
+	 * run the `copilot.bat` shim.
+	 */
+	private posixShellScriptPath: string | undefined;
 	private powershellScriptPath: string | undefined;
 	private readonly pythonTerminalService: PythonTerminalService;
 	private readonly _linkProvider: CopilotCLITerminalLinkProvider | undefined;
@@ -102,6 +109,17 @@ powershell -ExecutionPolicy Bypass -File "${this.powershellScriptPath}" %*
 `;
 			this.shellScriptPath = path.join(storageLocation, `${COPILOT_CLI_COMMAND}.bat`);
 			await fs.writeFile(this.shellScriptPath, copilotPowershellScript);
+
+			// Also create a POSIX shell script for Git Bash on Windows. Bash cannot
+			// execute the .bat shim directly inside a `bash -c` string, and we cannot run
+			// the JS shim via Electron-as-node here because Electron on Windows does not
+			// support console stdin (see copilotCLIShim.ts header). Instead, delegate to
+			// the existing .bat shim, which routes through cmd.exe -> PowerShell where
+			// console stdin works correctly.
+			const posixBatPath = windowsToGitBashPath(this.shellScriptPath);
+			const copilotBashScript = `#!/bin/sh\nexec "${posixBatPath}" "$@"\n`;
+			this.posixShellScriptPath = path.join(storageLocation, COPILOT_CLI_COMMAND);
+			await fs.writeFile(this.posixShellScriptPath, copilotBashScript);
 		} else {
 			const copilotShellScript = `#!/bin/sh
 unset NODE_OPTIONS
@@ -116,11 +134,16 @@ ELECTRON_RUN_AS_NODE=1 "${process.execPath}" "${path.join(storageLocation, COPIL
 
 		const provideTerminalProfile = async () => {
 			const shellInfo = await this.getShellInfo([]);
-			if (!shellInfo) {
-				return;
-			}
-			this.sendTerminalOpenTelemetry('new', shellInfo.shell, 'newFromTerminalProfile', 'panel');
 			const options = await getCommonTerminalOptions('GitHub Copilot CLI', this._authenticationService, this._otelService, 'panel');
+			this.sendTerminalOpenTelemetry('new', shellInfo?.shell ?? 'unknown', 'newFromTerminalProfile', 'panel');
+			if (!shellInfo) {
+				// Create a profile with the user's default shell as a fallback.
+				return new TerminalProfile({
+					...options,
+					titleTemplate: '${sequence}',
+					iconPath: COPILOT_ICON,
+				});
+			}
 			return new TerminalProfile({
 				...options,
 				titleTemplate: '${sequence}',
@@ -219,8 +242,8 @@ ELECTRON_RUN_AS_NODE=1 "${process.execPath}" "${path.join(storageLocation, COPIL
 
 	private buildCommandForPythonTerminal(copilotCommand: string, cliArgs: string[], shellInfo: IShellInfo) {
 		let commandPrefix = '';
-		if (shellInfo.shell === 'zsh' || shellInfo.shell === 'bash') {
-			// Starting with empty space to hide from terminal history (only for bash and zsh which use &&)
+		if (shellInfo.shell === 'zsh' || shellInfo.shell === 'bash' || shellInfo.shell === 'fish') {
+			// Starting with empty space to hide from terminal history
 			commandPrefix = ' ';
 		}
 		if (shellInfo.shell === 'powershell' || shellInfo.shell === 'pwsh') {
@@ -282,47 +305,70 @@ ELECTRON_RUN_AS_NODE=1 "${process.execPath}" "${path.join(storageLocation, COPIL
 
 	private async getShellInfo(cliArgs: string[]): Promise<IShellInfo | undefined> {
 		const configPlatform = process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'osx' : 'linux';
-		const defaultProfile = this.getDefaultShellProfile();
-		if (!defaultProfile) {
-			return;
+
+		// vscode.env.shell already resolves to the user's configured default terminal profile path.
+		const shellPath = this.envService.shell;
+		const defaultProfileName = workspace.getConfiguration('terminal').get<string | undefined>(`integrated.defaultProfile.${configPlatform}`);
+		let shellArgs: string[] = [];
+		if (defaultProfileName) {
+			const profiles = workspace.getConfiguration('terminal').get<Record<string, { path?: string | string[]; args?: string[] }>>(`integrated.profiles.${configPlatform}`);
+			const profileArgs = profiles?.[defaultProfileName]?.args;
+			shellArgs = Array.isArray(profileArgs) ? profileArgs : [];
 		}
-		const profiles = workspace.getConfiguration('terminal').get<Record<string, { path: string; args?: string[]; icon?: string }>>(`integrated.profiles.${configPlatform}`);
-		const profile = profiles ? profiles[defaultProfile] : undefined;
-		if (!profile) {
-			return;
-		}
+
+		// Detect shell type from the resolved shell path basename,
+		// matching how getShellIntegrationInjection() does it in terminalEnvironment.ts
+		const shellBasename = process.platform === 'win32'
+			? path.basename(shellPath).toLowerCase()
+			: path.basename(shellPath);
 		const iconPath = COPILOT_ICON;
-		const shellArgs = Array.isArray(profile.args) ? profile.args : [];
-		const paths = profile.path ? (Array.isArray(profile.path) ? profile.path : [profile.path]) : [];
-		const shellPath = (await getFirstAvailablePath(paths)) || this.envService.shell;
-		if (defaultProfile === 'zsh' && this.shellScriptPath) {
+
+		if (shellBasename === 'zsh' && this.shellScriptPath) {
 			return {
 				shell: 'zsh',
-				shellPath: shellPath || 'zsh',
+				shellPath,
 				shellArgs: [`-ci${shellArgs.includes('-l') ? 'l' : ''}`, quoteArgsForShell(this.shellScriptPath, cliArgs)],
 				iconPath,
 				copilotCommand: this.shellScriptPath,
 				exitCommand: `&& exit`
 			};
-		} else if (defaultProfile === 'bash' && this.shellScriptPath) {
+		} else if ((shellBasename === 'bash' || shellBasename === 'bash.exe') && (configPlatform === 'windows' ? this.posixShellScriptPath : this.shellScriptPath)) {
+			// On Windows (Git Bash), use the POSIX shim and reference it by its MSYS path,
+			// since the path lives inside the `-ic` shell-string and is not translated by MSYS.
+			const scriptPath = configPlatform === 'windows' ? this.posixShellScriptPath! : this.shellScriptPath!;
+			const bashScriptPath = configPlatform === 'windows' ? windowsToGitBashPath(scriptPath) : scriptPath;
 			return {
 				shell: 'bash',
-				shellPath: shellPath || 'bash',
-				shellArgs: [`-${shellArgs.includes('-l') ? 'l' : ''}ic`, quoteArgsForShell(this.shellScriptPath, cliArgs)],
+				shellPath,
+				shellArgs: [`-${shellArgs.includes('-l') ? 'l' : ''}ic`, quoteArgsForShell(bashScriptPath, cliArgs)],
 				iconPath,
-				copilotCommand: this.shellScriptPath,
+				copilotCommand: bashScriptPath,
 				exitCommand: `&& exit`
 			};
-		} else if (defaultProfile === 'pwsh' && this.powershellScriptPath && configPlatform !== 'windows') {
+		} else if (shellBasename === 'fish' && this.shellScriptPath) {
+			const fishArgs: string[] = [];
+			if (shellArgs.includes('-l')) {
+				fishArgs.push('-l');
+			}
+			fishArgs.push('-c', quoteArgsForShell(this.shellScriptPath, cliArgs));
+			return {
+				shell: 'fish',
+				shellPath,
+				shellArgs: fishArgs,
+				iconPath,
+				copilotCommand: this.shellScriptPath,
+				exitCommand: `; and exit`
+			};
+		} else if ((shellBasename === 'pwsh' || shellBasename === 'pwsh.exe') && this.powershellScriptPath) {
 			return {
 				shell: 'pwsh',
-				shellPath: shellPath || 'pwsh',
+				shellPath,
 				shellArgs: ['-File', this.powershellScriptPath, ...cliArgs],
 				iconPath,
 				copilotCommand: this.powershellScriptPath,
 				exitCommand: `&& exit`
 			};
-		} else if (defaultProfile === 'PowerShell' && this.powershellScriptPath && configPlatform === 'windows' && shellPath) {
+		} else if ((shellBasename === 'powershell' || shellBasename === 'powershell.exe') && this.powershellScriptPath && configPlatform === 'windows') {
 			return {
 				shell: 'powershell',
 				shellPath,
@@ -331,35 +377,20 @@ ELECTRON_RUN_AS_NODE=1 "${process.execPath}" "${path.join(storageLocation, COPIL
 				copilotCommand: this.powershellScriptPath,
 				exitCommand: `&& exit`
 			};
-		} else if (defaultProfile === 'Command Prompt' && this.shellScriptPath && configPlatform === 'windows') {
+		} else if ((shellBasename === 'cmd' || shellBasename === 'cmd.exe') && this.shellScriptPath && configPlatform === 'windows') {
 			return {
 				shell: 'cmd',
-				shellPath: shellPath || 'cmd.exe',
+				shellPath,
 				shellArgs: ['/c', this.shellScriptPath, ...cliArgs],
 				iconPath,
 				copilotCommand: this.shellScriptPath,
 				exitCommand: '&& exit'
 			};
 		}
+
+		return undefined;
 	}
 
-	private getDefaultShellProfile(): string | undefined {
-		const configPlatform = process.platform === 'win32' ? 'windows' : process.platform === 'darwin' ? 'osx' : 'linux';
-		const defaultProfile = workspace.getConfiguration('terminal').get<string | undefined>(`integrated.defaultProfile.${configPlatform}`);
-		if (defaultProfile) {
-			return defaultProfile === 'Windows PowerShell' ? 'PowerShell' : defaultProfile;
-		}
-		const shell = this.envService.shell;
-		switch (configPlatform) {
-			case 'osx':
-			case 'linux': {
-				return shell.includes('zsh') ? 'zsh' : shell.includes('bash') ? 'bash' : undefined;
-			}
-			case 'windows': {
-				return shell.includes('pwsh') ? 'PowerShell' : shell.includes('powershell') ? 'PowerShell' : undefined;
-			}
-		}
-	}
 }
 
 function quoteArgsForShell(shellScript: string, args: string[]): string {
@@ -403,41 +434,4 @@ async function getCommonTerminalOptions(name: string, authenticationService: IAu
 		};
 	}
 	return options;
-}
-
-const pathValidations = new Map<string, boolean>();
-async function getFirstAvailablePath(paths: string[]): Promise<string | undefined> {
-	for (const p of paths) {
-		// Sometimes we can have paths like `${env:HOME}\Systemycmd.exe` which need to be resolved
-		const resolvedPath = resolveEnvVariables(p);
-		if (pathValidations.get(resolvedPath) === true) {
-			return resolvedPath;
-		}
-		if (pathValidations.get(resolvedPath) === false) {
-			continue;
-		}
-		// Possible its just a command name without path
-		if (path.basename(p) === p) {
-			return p;
-		}
-		try {
-			const stat = await fs.stat(resolvedPath);
-			if (stat.isFile()) {
-				pathValidations.set(resolvedPath, true);
-				return resolvedPath;
-			}
-			pathValidations.set(resolvedPath, false);
-		} catch {
-			// Ignore errors and continue checking other paths
-			pathValidations.set(resolvedPath, false);
-		}
-	}
-	return undefined;
-}
-
-function resolveEnvVariables(value: string): string {
-	return value.replace(/\$\{env:([^}]+)\}/g, (match, envVarName) => {
-		const envValue = process.env[envVarName];
-		return envValue !== undefined ? envValue : match;
-	});
 }

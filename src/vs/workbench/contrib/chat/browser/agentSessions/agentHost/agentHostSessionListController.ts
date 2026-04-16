@@ -167,11 +167,11 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 		workingDirectory?: URI;
 		createdAt: number;
 		modifiedAt: number;
-		diffs?: readonly ISessionFileDiff[] | readonly { readonly uri: string; readonly added?: number; readonly removed?: number }[];
+		diffs?: readonly ISessionFileDiff[];
 	}): IChatSessionItem {
 		return {
 			resource: URI.from({ scheme: this._sessionType, path: `/${rawId}` }),
-			label: opts.title ?? `Session ${rawId.substring(0, 8)}`,
+			label: opts.title || `Session ${rawId.substring(0, 8)}`,
 			description: this._description,
 			iconPath: getAgentHostIcon(this._productService),
 			status: mapSessionStatus(opts.status),

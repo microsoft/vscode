@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { SessionOptions, SweCustomAgent } from '@github/copilot/sdk';
-import type { Uri } from 'vscode';
+import type { CancellationToken, Uri } from 'vscode';
 import { Event } from '../../../../../util/vs/base/common/event';
 import { Disposable, IDisposable } from '../../../../../util/vs/base/common/lifecycle';
 import { URI } from '../../../../../util/vs/base/common/uri';
@@ -43,7 +43,7 @@ export class MockSkillLocations implements ICopilotCLISkills {
 	constructor(locations: Uri[] = []) {
 		this.locations = locations;
 	}
-	getSkillsLocations(): Uri[] {
+	async getSkillsLocations(_token: CancellationToken): Promise<Uri[]> {
 		return this.locations;
 	}
 }
@@ -103,7 +103,7 @@ export class NullICopilotCLIImageSupport implements ICopilotCLIImageSupport {
 
 export class NullCopilotCLIMCPHandler implements ICopilotCLIMCPHandler {
 	_serviceBrand: undefined;
-	async loadMcpConfig(): Promise<{ mcpConfig: Record<string, NonNullable<SessionOptions['mcpServers']>[string]> | undefined; disposable: IDisposable }> {
+	async loadMcpConfig(_resource: URI): Promise<{ mcpConfig: Record<string, NonNullable<SessionOptions['mcpServers']>[string]> | undefined; disposable: IDisposable }> {
 		return { mcpConfig: undefined, disposable: Disposable.None };
 	}
 }

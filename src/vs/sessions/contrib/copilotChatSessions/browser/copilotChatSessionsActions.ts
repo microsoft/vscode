@@ -11,14 +11,12 @@ import { Action2, registerAction2, MenuId, MenuRegistry, isIMenuItem } from '../
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
-import { IModelPickerDelegate } from '../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem.js';
+import { ModelPickerActionItem, IModelPickerDelegate } from '../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem.js';
 import { IChatInputPickerOptions } from '../../../../workbench/contrib/chat/browser/widget/input/chatInputPickerActionItem.js';
-import { EnhancedModelPickerActionItem } from '../../../../workbench/contrib/chat/browser/widget/input/modelPickerActionItem2.js';
-import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 import { IContextKeyService, ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { Menus } from '../../../browser/menus.js';
@@ -28,20 +26,18 @@ import { SessionItemContextMenuId } from '../../sessions/browser/views/sessionsL
 import { COPILOT_CLI_SESSION_TYPE, COPILOT_CLOUD_SESSION_TYPE, ISession } from '../../../services/sessions/common/session.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { COPILOT_PROVIDER_ID, CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
-import { ActiveSessionHasGitRepositoryContext, ActiveSessionProviderIdContext, ActiveSessionTypeContext, ChatSessionProviderIdContext } from '../../../common/contextkeys.js';
+import { ActiveSessionHasGitRepositoryContext, ActiveSessionProviderIdContext, ActiveSessionTypeContext, ChatSessionProviderIdContext, IsNewChatSessionContext } from '../../../common/contextkeys.js';
 import { IsolationPicker } from './isolationPicker.js';
 import { BranchPicker } from './branchPicker.js';
 import { ModePicker } from './modePicker.js';
 import { CloudModelPicker } from './modelPicker.js';
-import { NewChatPermissionPicker } from '../../chat/browser/newChatPermissionPicker.js';
+import { PermissionPicker } from './permissionPicker.js';
 
 const IsActiveSessionCopilotCLI = ContextKeyExpr.equals(ActiveSessionTypeContext.key, COPILOT_CLI_SESSION_TYPE);
 const IsActiveSessionCopilotCloud = ContextKeyExpr.equals(ActiveSessionTypeContext.key, COPILOT_CLOUD_SESSION_TYPE);
 const IsActiveCopilotChatSessionProvider = ContextKeyExpr.equals(ActiveSessionProviderIdContext.key, COPILOT_PROVIDER_ID);
 const IsActiveSessionCopilotChatCLI = ContextKeyExpr.and(IsActiveSessionCopilotCLI, IsActiveCopilotChatSessionProvider);
 const IsActiveSessionCopilotChatCloud = ContextKeyExpr.and(IsActiveSessionCopilotCloud, IsActiveCopilotChatSessionProvider);
-const IsActiveSessionRemoteAgentHost = ContextKeyExpr.regex(ActiveSessionProviderIdContext.key, /^agenthost-/);
-const IsActiveSessionLocalAgentHost = ContextKeyExpr.equals(ActiveSessionProviderIdContext.key, 'local-agent-host');
 
 // -- Actions --
 
@@ -56,6 +52,7 @@ registerAction2(class extends Action2 {
 				group: 'navigation',
 				order: 1,
 				when: ContextKeyExpr.and(
+					IsNewChatSessionContext,
 					IsActiveSessionCopilotChatCLI,
 					ContextKeyExpr.equals('config.github.copilot.chat.cli.isolationOption.enabled', true),
 				),
@@ -76,7 +73,7 @@ registerAction2(class extends Action2 {
 				id: Menus.NewSessionRepositoryConfig,
 				group: 'navigation',
 				order: 2,
-				when: IsActiveSessionCopilotChatCLI,
+				when: ContextKeyExpr.and(IsNewChatSessionContext, IsActiveSessionCopilotChatCLI),
 			}],
 		});
 	}
@@ -110,7 +107,7 @@ registerAction2(class extends Action2 {
 				id: Menus.NewSessionConfig,
 				group: 'navigation',
 				order: 1,
-				when: ContextKeyExpr.or(IsActiveSessionCopilotChatCLI, IsActiveSessionRemoteAgentHost, IsActiveSessionLocalAgentHost),
+				when: IsActiveSessionCopilotChatCLI,
 			}],
 		});
 	}
@@ -235,10 +232,9 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 				};
 				const pickerOptions: IChatInputPickerOptions = {
 					hideChevrons: observableValue('hideChevrons', false),
-					hoverPosition: { hoverPosition: HoverPosition.ABOVE },
 				};
 				const action = { id: 'sessions.modelPicker', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } };
-				const modelPicker = instantiationService.createInstance(EnhancedModelPickerActionItem, action, delegate, pickerOptions);
+				const modelPicker = instantiationService.createInstance(ModelPickerActionItem, action, delegate, pickerOptions);
 
 				// Initialize with remembered model or first available model
 				const rememberedModelId = storageService.get('sessions.localModelPicker.selectedModelId', StorageScope.PROFILE);
@@ -278,7 +274,7 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 		this._register(actionViewItemService.register(
 			Menus.NewSessionControl, 'sessions.defaultCopilot.permissionPicker',
 			() => {
-				const picker = instantiationService.createInstance(NewChatPermissionPicker);
+				const picker = instantiationService.createInstance(PermissionPicker);
 				return new PickerActionViewItem(picker);
 			},
 		));
@@ -319,7 +315,8 @@ class CopilotActiveSessionContribution extends Disposable implements IWorkbenchC
 		this._register(autorun((reader: IReader) => {
 			const session = sessionsManagementService.activeSession.read(reader);
 			if (session?.providerId === COPILOT_PROVIDER_ID) {
-				const providerSession = sessionsProvidersService.getProvider<CopilotChatSessionsProvider>(session.providerId)?.getSession(session.sessionId);
+				const provider = sessionsProvidersService.getProvider(session.providerId);
+				const providerSession = provider instanceof CopilotChatSessionsProvider ? provider.getSession(session.sessionId) : undefined;
 				const isLoading = providerSession?.loading.read(reader);
 				hasRepositoryKey.set(!isLoading && !!providerSession?.gitRepository);
 			} else {
@@ -363,6 +360,9 @@ class CopilotSessionContextMenuBridge extends Disposable implements IWorkbenchCo
 			if (!commandId.startsWith('github.copilot.')) {
 				continue;
 			}
+			if (commandId === 'github.copilot.cli.sessions.delete') {
+				continue; // Delete is handled natively via sessionsManagementService
+			}
 			if (this._bridgedIds.has(commandId)) {
 				continue;
 			}
@@ -397,3 +397,28 @@ class CopilotSessionContextMenuBridge extends Disposable implements IWorkbenchCo
 }
 
 registerWorkbenchContribution2(CopilotSessionContextMenuBridge.ID, CopilotSessionContextMenuBridge, WorkbenchPhase.AfterRestored);
+
+registerAction2(class DeleteSessionAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsViewPane.copilot.deleteSession',
+			title: localize2('deleteSession', "Delete..."),
+			menu: [{
+				id: SessionItemContextMenuId,
+				group: '1_edit',
+				order: 4,
+				when: ContextKeyExpr.equals(ChatSessionProviderIdContext.key, COPILOT_PROVIDER_ID),
+			}]
+		});
+	}
+	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
+		if (!context) {
+			return;
+		}
+		const sessions = Array.isArray(context) ? context : [context];
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		for (const session of sessions) {
+			await sessionsManagementService.deleteSession(session);
+		}
+	}
+});

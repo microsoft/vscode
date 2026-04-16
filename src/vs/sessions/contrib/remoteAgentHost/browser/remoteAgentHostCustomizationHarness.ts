@@ -12,7 +12,7 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { AICustomizationManagementSection, type IStorageSourceFilter } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { PromptsStorage } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-import { type IHarnessDescriptor, type IExternalCustomizationItem, type IExternalCustomizationItemProvider } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
+import { type IHarnessDescriptor, type ICustomizationItem, type ICustomizationItemProvider } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import type { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
 import { ActionType } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { type IAgentInfo, type ICustomizationRef, type ISessionCustomization, CustomizationStatus } from '../../../../platform/agentHost/common/state/sessionState.js';
@@ -23,7 +23,7 @@ export { AgentCustomizationSyncProvider as RemoteAgentSyncProvider } from '../..
 
 /**
  * Maps a {@link CustomizationStatus} enum value to the string literal
- * expected by {@link IExternalCustomizationItem.status}.
+ * expected by {@link ICustomizationItem.status}.
  */
 function toStatusString(status: CustomizationStatus | undefined): 'loading' | 'loaded' | 'degraded' | 'error' | undefined {
 	switch (status) {
@@ -37,14 +37,14 @@ function toStatusString(status: CustomizationStatus | undefined): 'loading' | 'l
 
 /**
  * Provider that exposes a remote agent's customizations as
- * {@link IExternalCustomizationItem} entries for the list widget.
+ * {@link ICustomizationItem} entries for the list widget.
  *
  * Baseline items come from {@link IAgentInfo.customizations} (available
  * without an active session). When a session is active, the provider
  * overlays {@link ISessionCustomization} data, which includes loading
  * status and enabled state.
  */
-export class RemoteAgentCustomizationItemProvider extends Disposable implements IExternalCustomizationItemProvider {
+export class RemoteAgentCustomizationItemProvider extends Disposable implements ICustomizationItemProvider {
 	private readonly _onDidChange = this._register(new Emitter<void>());
 	readonly onDidChange: Event<void> = this._onDidChange.event;
 
@@ -79,7 +79,7 @@ export class RemoteAgentCustomizationItemProvider extends Disposable implements 
 		this._onDidChange.fire();
 	}
 
-	async provideChatSessionCustomizations(_token: CancellationToken): Promise<IExternalCustomizationItem[]> {
+	async provideChatSessionCustomizations(_token: CancellationToken): Promise<ICustomizationItem[]> {
 		// When a session is active, prefer session-level data (includes status)
 		if (this._sessionCustomizations) {
 			return this._sessionCustomizations.map(sc => ({
@@ -108,7 +108,7 @@ export class RemoteAgentCustomizationItemProvider extends Disposable implements 
  * the agent host protocol.
  *
  * The descriptor exposes the agent's server-provided customizations through
- * an {@link IExternalCustomizationItemProvider} and allows the user to
+ * an {@link ICustomizationItemProvider} and allows the user to
  * select local customizations for syncing via an {@link ICustomizationSyncProvider}.
  */
 export function createRemoteAgentHarnessDescriptor(

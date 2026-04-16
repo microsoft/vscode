@@ -113,6 +113,7 @@
 	.chat-attachments-container > .chat-input-toolbar {
 		margin-left: auto;
 		margin-right: 16px;
+		width: 100%;
 	}
 
 	/* TODO@jrieken this isn't the nicest selector... */

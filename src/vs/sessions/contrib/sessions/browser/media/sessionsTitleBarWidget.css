@@ -151,7 +151,7 @@
 	font-variant-numeric: tabular-nums;
 	text-align: center;
 	border-radius: 4px;
-	background-color: var(--vscode-activityBarBadge-background);
-	color: var(--vscode-activityBarBadge-foreground);
+	background-color: var(--vscode-agentsUnreadBadge-background);
+	color: var(--vscode-agentsUnreadBadge-foreground);
 	pointer-events: none;
 }

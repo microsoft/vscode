@@ -252,6 +252,7 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 					defaultIntentId;
 
 				const handler = this.instantiationService.createInstance(ChatParticipantRequestHandler, context.history, request, stream, token, { agentName: name, agentId: id, intentId }, () => context.yieldRequested, telemetryMessageId);
+
 				let result = await handler.getResult();
 
 				// Auto-retry with Auto model when the setting is enabled and the handler signals it
@@ -320,6 +321,7 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 		stream.warning(new vscode.MarkdownString(vscode.l10n.t('You were rate-limited on the selected model. Switching to Auto and retrying your request.')));
 		return request;
 	}
+
 }
 
 type IntentOrGetter = Intent | ((request: vscode.ChatRequest) => Intent);

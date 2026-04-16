@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { ChatEntitlement } from '../../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { getAccountTitleBarBadgeKey, getAccountTitleBarState, IAccountTitleBarStateContext } from '../../browser/accountTitleBarState.js';
+import { getAccountProfileImageUrl, getAccountTitleBarBadgeKey, getAccountTitleBarState, IAccountTitleBarStateContext } from '../../browser/accountTitleBarState.js';
 
 suite('Sessions - Account Title Bar State', () => {
 
@@ -142,5 +142,18 @@ suite('Sessions - Account Title Bar State', () => {
 			label: 'Agents Signed Out',
 			kind: 'prominent',
 		});
+	});
+
+	test('returns a GitHub profile image URL for GitHub accounts', () => {
+		assert.strictEqual(
+			getAccountProfileImageUrl('github', 'mona lisa'),
+			'https://github.com/mona%20lisa.png?size=64'
+		);
+	});
+
+	test('falls back to the codicon when no GitHub profile image URL is available', () => {
+		assert.strictEqual(getAccountProfileImageUrl(undefined, 'octocat'), undefined);
+		assert.strictEqual(getAccountProfileImageUrl('github-enterprise', 'octocat'), undefined);
+		assert.strictEqual(getAccountProfileImageUrl('github', undefined), undefined);
 	});
 });

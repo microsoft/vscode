@@ -41,8 +41,6 @@ const mochaOptions: MochaOptions = {
 	slow: 3 * 60 * 1000,
 	grep: options.grep,
 	fgrep: options.fgrep,
-	reporter: testResults ? 'mocha-junit-reporter' : undefined,
-	reporterOptions: testResults ? { mochaFile: testResults, outputs: true } : undefined,
 };
 
 if (testResults) {
@@ -65,6 +63,12 @@ const runner = mocha.run(failures => {
 		process.exit(process.exitCode);
 	}, 1000);
 });
+
+// Attach JUnit reporter for CI test result publishing (runs alongside the default spec reporter)
+if (testResults) {
+	const JUnitReporter = (await import('mocha-junit-reporter' as string)).default;
+	new JUnitReporter(runner, { reporterOptions: { mochaFile: testResults, outputs: true } });
+}
 
 if (options.verbose) {
 	runner.on('test', (test) => console.log(`Starting: ${test.fullTitle()}`));

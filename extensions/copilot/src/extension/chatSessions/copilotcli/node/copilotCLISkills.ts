@@ -20,11 +20,12 @@ import {
 import { isObject } from '../../../../util/vs/base/common/types';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
-import { IChatPromptFileService } from '../../common/chatPromptFileService';
+import { IPromptsService } from '../../../../platform/promptFiles/common/promptsService';
+import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 
 export interface ICopilotCLISkills {
 	readonly _serviceBrand: undefined;
-	getSkillsLocations(): Uri[];
+	getSkillsLocations(token: CancellationToken): Promise<Uri[]>;
 }
 
 export const ICopilotCLISkills = createServiceIdentifier<ICopilotCLISkills>('ICopilotCLISkills');
@@ -37,12 +38,12 @@ export class CopilotCLISkills extends Disposable implements ICopilotCLISkills {
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@INativeEnvService private readonly envService: INativeEnvService,
 		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
-		@IChatPromptFileService private readonly chatPromptFileService: IChatPromptFileService,
+		@IPromptsService private readonly promptsService: IPromptsService,
 	) {
 		super();
 	}
 
-	public getSkillsLocations(): Uri[] {
+	public async getSkillsLocations(token: CancellationToken): Promise<Uri[]> {
 		// Get additional skill locations from config
 		const configSkillLocationUris = new ResourceSet();
 		const locations = this.configurationService.getNonExtensionConfig<Record<string, boolean>>(SKILLS_LOCATION_KEY);
@@ -68,7 +69,7 @@ export class CopilotCLISkills extends Disposable implements ICopilotCLISkills {
 				}
 			}
 		}
-		this.chatPromptFileService.skills
+		(await this.promptsService.getSkills(token))
 			.filter(s => s.uri.scheme === Schemas.file)
 			.map(s => s.uri)
 			.map(uri => dirname(dirname(uri)))

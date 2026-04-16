@@ -19,7 +19,6 @@ const PROMPT_SECTIONS: { section: AICustomizationManagementSection; type: Prompt
 	{ section: AICustomizationManagementSection.Agents, type: PromptsType.agent },
 	{ section: AICustomizationManagementSection.Skills, type: PromptsType.skill },
 	{ section: AICustomizationManagementSection.Instructions, type: PromptsType.instructions },
-	{ section: AICustomizationManagementSection.Prompts, type: PromptsType.prompt },
 	{ section: AICustomizationManagementSection.Hooks, type: PromptsType.hook },
 ];
 

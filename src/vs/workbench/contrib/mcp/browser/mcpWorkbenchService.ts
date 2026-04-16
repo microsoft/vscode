@@ -725,8 +725,8 @@ export class McpWorkbenchService extends Disposable implements IMcpWorkbenchServ
 		return true;
 	}
 
-	async openSearch(searchValue: string, preserveFoucs?: boolean): Promise<void> {
-		await this.extensionsWorkbenchService.openSearch(`@mcp ${searchValue}`, preserveFoucs);
+	async openSearch(searchValue: string, preserveFocus?: boolean): Promise<void> {
+		await this.extensionsWorkbenchService.openSearch(`@mcp ${searchValue}`, preserveFocus);
 	}
 
 	async open(extension: IWorkbenchMcpServer, options?: IEditorOptions): Promise<void> {

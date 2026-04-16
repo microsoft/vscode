@@ -12,7 +12,7 @@
 
 import { Event } from '../../../../base/common/event.js';
 import { IDisposable } from '../../../../base/common/lifecycle.js';
-import type { IProtocolMessage, IAhpServerNotification, IJsonRpcResponse, IJsonRpcRequest } from './sessionProtocol.js';
+import type { IProtocolMessage, IAhpServerNotification, IJsonRpcNotification, IJsonRpcResponse, IJsonRpcRequest } from './sessionProtocol.js';
 
 /**
  * A bidirectional transport for protocol messages. Implementations handle
@@ -33,7 +33,7 @@ export interface IProtocolTransport extends IDisposable {
 	 * - `IAhpServerNotification` — server→client notifications.
 	 * - `IJsonRpcResponse` — dynamically-constructed success/error responses.
 	 */
-	send(message: IProtocolMessage | IAhpServerNotification | IJsonRpcResponse | IJsonRpcRequest): void;
+	send(message: IProtocolMessage | IAhpServerNotification | IJsonRpcNotification | IJsonRpcResponse | IJsonRpcRequest): void;
 }
 
 /**

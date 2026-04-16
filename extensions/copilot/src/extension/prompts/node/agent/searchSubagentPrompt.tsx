@@ -11,7 +11,14 @@ import { ChatToolCalls } from '../panel/toolCalling';
 
 export interface SearchSubagentPromptProps extends GenericBasePromptElementProps {
 	readonly maxSearchTurns: number;
+	/** Thoroughness level requested by the caller. Influences the speed vs. thoroughness guidance in the system prompt. */
+	readonly thoroughness?: 'normal' | 'deep';
 }
+
+const THOROUGHNESS_GUIDANCE: Record<NonNullable<SearchSubagentPromptProps['thoroughness']>, string> = {
+	normal: 'Use a balanced approach: parallelize where possible and stop when you have sufficient context.',
+	deep: 'Go broad to narrow: start with semantic or glob search to discover relevant areas, then narrow with text search. Parallelize tool calls. Read files when you need full context.',
+};
 
 /**
  * Prompt for the search subagent that uses custom search instructions
@@ -28,12 +35,15 @@ export class SearchSubagentPrompt extends PromptElement<SearchSubagentPromptProp
 		const currentTurn = toolCallRounds?.length ?? 0;
 		const isLastTurn = currentTurn >= this.props.maxSearchTurns - 1;
 
+		const thoroughnessGuidance = this.props.thoroughness ? THOROUGHNESS_GUIDANCE[this.props.thoroughness] : undefined;
+
 		return (
 			<>
 				<SystemMessage priority={1000}>
 					You are an AI coding research assistant that uses search tools to gather information. You can call tools to search for information and read files across a codebase.<br />
 					<br />
-					Once you have thoroughly searched the repository, return a message with ONLY: the &lt;final_answer&gt; tag to provide paths and line ranges of relevant code snippets.<br />
+					{thoroughnessGuidance && (<>{thoroughnessGuidance}<br /><br /></>)}
+					Once you have searched the repository, return a message with ONLY: the &lt;final_answer&gt; tag to provide paths and line ranges of relevant code snippets.<br />
 					<br />
 					Example:<br />
 					<br />

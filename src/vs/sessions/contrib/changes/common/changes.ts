@@ -15,6 +15,7 @@ export const enum ChangesViewMode {
 
 export const enum ChangesVersionMode {
 	BranchChanges = 'branchChanges',
+	UncommittedChanges = 'uncommittedChanges',
 	OutgoingChanges = 'outgoingChanges',
 	AllChanges = 'allChanges',
 	LastTurn = 'lastTurn'

@@ -168,7 +168,7 @@ suite('mapSessionEvents', () => {
 			const events: ISessionEvent[] = [
 				{
 					type: 'tool.execution_start',
-					data: { toolCallId: 'tc-multi', toolName: 'write' },
+					data: { toolCallId: 'tc-multi', toolName: 'edit' },
 				},
 				{
 					type: 'tool.execution_complete',

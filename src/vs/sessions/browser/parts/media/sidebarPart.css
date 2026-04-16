@@ -45,24 +45,8 @@
 	align-items: stretch;
 	gap: 4px;
 	padding: 6px 0 0 0;
-	border-top: 1px solid var(--vscode-panel-border, transparent);
 	margin: 0 10px 2px 10px;
 	flex-shrink: 0;
-}
-
-/* Inset pane section header borders — hide inline border-top, replace with inset pseudo-element */
-.agent-sessions-workbench .part.sidebar .pane > .pane-header {
-	border-top-color: transparent !important;
-}
-
-.agent-sessions-workbench .part.sidebar .split-view-view:not(:first-of-type) > .pane > .pane-header::before {
-	content: '';
-	position: absolute;
-	top: 0;
-	left: 10px;
-	right: 0;
-	height: 1px;
-	background-color: var(--vscode-panel-border, transparent);
 }
 
 /* Make the toolbar fill the footer width and stack actions vertically */

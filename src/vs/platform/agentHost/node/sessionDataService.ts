@@ -8,7 +8,7 @@ import { URI } from '../../../base/common/uri.js';
 import { IFileService } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
 import { AgentSession } from '../common/agentService.js';
-import { ISessionDatabase, ISessionDataService } from '../common/sessionDataService.js';
+import { ISessionDatabase, ISessionDataService, SESSION_DB_FILENAME } from '../common/sessionDataService.js';
 import { SessionDatabase } from './sessionDatabase.js';
 
 class SessionDatabaseCollection extends ReferenceCollection<ISessionDatabase> {
@@ -48,7 +48,7 @@ export class SessionDataService implements ISessionDataService {
 	) {
 		this._basePath = URI.joinPath(userDataPath, 'agentSessionData');
 		this._databases = new SessionDatabaseCollection(
-			getDbPath ?? (key => URI.joinPath(this._basePath, key, 'session.db').fsPath),
+			getDbPath ?? (key => URI.joinPath(this._basePath, key, SESSION_DB_FILENAME).fsPath),
 			this._logService,
 		);
 	}
@@ -72,7 +72,7 @@ export class SessionDataService implements ISessionDataService {
 
 	async tryOpenDatabase(session: URI): Promise<IReference<ISessionDatabase> | undefined> {
 		const key = this._sanitizedSessionKey(session);
-		const dbPath = URI.joinPath(this._basePath, key, 'session.db');
+		const dbPath = URI.joinPath(this._basePath, key, SESSION_DB_FILENAME);
 		if (!await this._fileService.exists(dbPath)) {
 			return undefined;
 		}

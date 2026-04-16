@@ -7,16 +7,14 @@ import type { SweCustomAgent } from '@github/copilot/sdk';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import * as vscode from 'vscode';
 import { ILogService } from '../../../../platform/log/common/logService';
-import { IPromptsService, ParsedPromptFile, PromptFileParser } from '../../../../platform/promptFiles/common/promptsService';
 import { MockCustomInstructionsService } from '../../../../platform/test/common/testCustomInstructionsService';
 import { mock } from '../../../../util/common/test/simpleMock';
-import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { Emitter } from '../../../../util/vs/base/common/event';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { URI } from '../../../../util/vs/base/common/uri';
-import { IChatPromptFileService } from '../../common/chatPromptFileService';
 import { CLIAgentInfo, ICopilotCLIAgents } from '../../copilotcli/node/copilotCli';
 import { CopilotCLICustomizationProvider } from '../copilotCLICustomizationProvider';
+import { MockPromptsService } from '../../../../platform/promptFiles/test/common/mockPromptsService';
 
 class FakeChatSessionCustomizationType {
 	static readonly Agent = new FakeChatSessionCustomizationType('agent');
@@ -55,49 +53,24 @@ function makeFileAgentInfo(name: string, fileUri: URI, description = ''): CLIAge
 	};
 }
 
-class MockChatPromptFileService extends mock<IChatPromptFileService>() {
-	private readonly _onDidChangeCustomAgents = new Emitter<void>();
-	override readonly onDidChangeCustomAgents = this._onDidChangeCustomAgents.event;
-	private readonly _onDidChangeInstructions = new Emitter<void>();
-	override readonly onDidChangeInstructions = this._onDidChangeInstructions.event;
-	private readonly _onDidChangeSkills = new Emitter<void>();
-	override readonly onDidChangeSkills = this._onDidChangeSkills.event;
-	private readonly _onDidChangeHooks = new Emitter<void>();
-	override readonly onDidChangeHooks = this._onDidChangeHooks.event;
-	private readonly _onDidChangePlugins = new Emitter<void>();
-	override readonly onDidChangePlugins = this._onDidChangePlugins.event;
+/** Creates a ChatInstruction stub with the required name and source fields. */
+function makeInstruction(uri: URI, name: string, pattern: string | undefined, description?: string): vscode.ChatInstruction {
+	return { uri, name, pattern, source: 'local', description };
+}
 
-	private _customAgents: vscode.ChatResource[] = [];
-	private _instructions: vscode.ChatResource[] = [];
-	private _skills: vscode.ChatResource[] = [];
-	private _hooks: vscode.ChatResource[] = [];
-	private _plugins: vscode.ChatResource[] = [];
+/** Creates a ChatSkill stub, deriving the name from the parent directory for SKILL.md files. */
+function makeSkill(uri: URI, name: string): vscode.ChatSkill {
+	return { uri, name: name, source: 'local' };
+}
 
-	override get customAgents(): readonly vscode.ChatResource[] { return this._customAgents; }
-	override get instructions(): readonly vscode.ChatResource[] { return this._instructions; }
-	override get skills(): readonly vscode.ChatResource[] { return this._skills; }
-	override get hooks(): readonly vscode.ChatResource[] { return this._hooks; }
-	override get plugins(): readonly vscode.ChatResource[] { return this._plugins; }
+/** Creates a ChatHook stub. */
+function makeHook(uri: URI): vscode.ChatHook {
+	return { uri };
+}
 
-	setCustomAgents(agents: vscode.ChatResource[]) { this._customAgents = agents; }
-	setInstructions(instructions: vscode.ChatResource[]) { this._instructions = instructions; }
-	setSkills(skills: vscode.ChatResource[]) { this._skills = skills; }
-	setHooks(hooks: vscode.ChatResource[]) { this._hooks = hooks; }
-	setPlugins(plugins: vscode.ChatResource[]) { this._plugins = plugins; }
-
-	fireCustomAgentsChanged() { this._onDidChangeCustomAgents.fire(); }
-	fireInstructionsChanged() { this._onDidChangeInstructions.fire(); }
-	fireSkillsChanged() { this._onDidChangeSkills.fire(); }
-	fireHooksChanged() { this._onDidChangeHooks.fire(); }
-	firePluginsChanged() { this._onDidChangePlugins.fire(); }
-
-	override dispose() {
-		this._onDidChangeCustomAgents.dispose();
-		this._onDidChangeInstructions.dispose();
-		this._onDidChangeSkills.dispose();
-		this._onDidChangeHooks.dispose();
-		this._onDidChangePlugins.dispose();
-	}
+/** Creates a ChatPlugin stub. */
+function makePlugin(uri: URI): vscode.ChatPlugin {
+	return { uri };
 }
 
 class MockCopilotCLIAgents extends mock<ICopilotCLIAgents>() {
@@ -123,25 +96,11 @@ class TestCustomInstructionsService extends MockCustomInstructionsService {
 	override getAgentInstructions(): Promise<URI[]> { return Promise.resolve(this._agentInstructions); }
 }
 
-class TestPromptsService extends mock<IPromptsService>() {
-	private readonly parser = new PromptFileParser();
-	private _fileContents = new Map<string, string>();
-
-	/** Register content so parseFile returns a parsed result for the given URI. */
-	setFileContent(uri: URI, content: string) { this._fileContents.set(uri.toString(), content); }
-
-	override async parseFile(uri: URI, _token: CancellationToken): Promise<ParsedPromptFile> {
-		const content = this._fileContents.get(uri.toString()) ?? '';
-		return this.parser.parse(uri, content);
-	}
-}
-
 describe('CopilotCLICustomizationProvider', () => {
 	let disposables: DisposableStore;
-	let mockPromptFileService: MockChatPromptFileService;
+	let mockPromptsService: MockPromptsService;
 	let mockCopilotCLIAgents: MockCopilotCLIAgents;
 	let mockCustomInstructionsService: TestCustomInstructionsService;
-	let mockPromptsService: TestPromptsService;
 	let provider: CopilotCLICustomizationProvider;
 
 	let originalChatSessionCustomizationType: unknown;
@@ -150,12 +109,10 @@ describe('CopilotCLICustomizationProvider', () => {
 		originalChatSessionCustomizationType = (vscode as Record<string, unknown>).ChatSessionCustomizationType;
 		(vscode as Record<string, unknown>).ChatSessionCustomizationType = FakeChatSessionCustomizationType;
 		disposables = new DisposableStore();
-		mockPromptFileService = disposables.add(new MockChatPromptFileService());
+		mockPromptsService = disposables.add(new MockPromptsService());
 		mockCopilotCLIAgents = disposables.add(new MockCopilotCLIAgents());
 		mockCustomInstructionsService = new TestCustomInstructionsService();
-		mockPromptsService = new TestPromptsService();
 		provider = disposables.add(new CopilotCLICustomizationProvider(
-			mockPromptFileService,
 			mockCopilotCLIAgents,
 			mockCustomInstructionsService,
 			mockPromptsService,
@@ -256,7 +213,7 @@ describe('CopilotCLICustomizationProvider', () => {
 
 		it('returns instructions with on-demand groupKey when no applyTo pattern', async () => {
 			const uri = URI.file('/workspace/.github/copilot-instructions.md');
-			mockPromptFileService.setInstructions([{ uri }]);
+			mockPromptsService.setInstructions([makeInstruction(uri, 'copilot-instructions', undefined)]);
 
 			const items = await provider.provideChatSessionCustomizations(undefined!);
 			expect(items).toHaveLength(1);
@@ -267,7 +224,7 @@ describe('CopilotCLICustomizationProvider', () => {
 
 		it('returns skills', async () => {
 			const uri = URI.file('/workspace/.github/skills/lint-check/SKILL.md');
-			mockPromptFileService.setSkills([{ uri }]);
+			mockPromptsService.setSkills([makeSkill(uri, 'lint-check')]);
 
 			const items = await provider.provideChatSessionCustomizations(undefined!);
 			expect(items).toHaveLength(1);
@@ -278,7 +235,7 @@ describe('CopilotCLICustomizationProvider', () => {
 
 		it('derives skill name from parent directory for SKILL.md files', async () => {
 			const uri = URI.file('/workspace/.copilot/skills/my-skill/SKILL.md');
-			mockPromptFileService.setSkills([{ uri }]);
+			mockPromptsService.setSkills([makeSkill(uri, 'my-skill')]);
 
 			const items = await provider.provideChatSessionCustomizations(undefined!);
 			expect(items).toHaveLength(1);
@@ -287,10 +244,10 @@ describe('CopilotCLICustomizationProvider', () => {
 
 		it('returns all matching types combined', async () => {
 			mockCopilotCLIAgents.setAgents([makeAgentInfo('explore', 'Explore')]);
-			mockPromptFileService.setInstructions([{ uri: URI.file('/workspace/.github/b.instructions.md') }]);
-			mockPromptFileService.setSkills([{ uri: URI.file('/workspace/.github/skills/c/SKILL.md') }]);
-			mockPromptFileService.setHooks([{ uri: URI.file('/workspace/.copilot/hooks/pre-commit.json') }]);
-			mockPromptFileService.setPlugins([{ uri: URI.file('/workspace/.copilot/plugins/my-plugin') }]);
+			mockPromptsService.setInstructions([makeInstruction(URI.file('/workspace/.github/b.instructions.md'), 'b instructions', undefined)]);
+			mockPromptsService.setSkills([makeSkill(URI.file('/workspace/.github/skills/c/SKILL.md'), 'c')]);
+			mockPromptsService.setHooks([makeHook(URI.file('/workspace/.copilot/hooks/pre-commit.json'))]);
+			mockPromptsService.setPlugins([makePlugin(URI.file('/workspace/.copilot/plugins/my-plugin'))]);
 
 			const items = await provider.provideChatSessionCustomizations(undefined!);
 			expect(items).toHaveLength(5);
@@ -298,7 +255,7 @@ describe('CopilotCLICustomizationProvider', () => {
 
 		it('returns hooks with correct type and name', async () => {
 			const uri = URI.file('/workspace/.copilot/hooks/diagnostics.json');
-			mockPromptFileService.setHooks([{ uri }]);
+			mockPromptsService.setHooks([makeHook(uri)]);
 
 			const items = await provider.provideChatSessionCustomizations(undefined!);
 			expect(items).toHaveLength(1);
@@ -308,16 +265,16 @@ describe('CopilotCLICustomizationProvider', () => {
 		});
 
 		it('strips .json extension from hook file name', async () => {
-			mockPromptFileService.setHooks([{ uri: URI.file('/workspace/.copilot/hooks/security-checks.json') }]);
+			mockPromptsService.setHooks([makeHook(URI.file('/workspace/.copilot/hooks/security-checks.json'))]);
 
 			const items = await provider.provideChatSessionCustomizations(undefined!);
 			expect(items[0].name).toBe('security-checks');
 		});
 
 		it('returns multiple hooks', async () => {
-			mockPromptFileService.setHooks([
-				{ uri: URI.file('/workspace/.copilot/hooks/hooks.json') },
-				{ uri: URI.file('/workspace/.copilot/hooks/diagnostics.json') },
+			mockPromptsService.setHooks([
+				makeHook(URI.file('/workspace/.copilot/hooks/hooks.json')),
+				makeHook(URI.file('/workspace/.copilot/hooks/diagnostics.json')),
 			]);
 
 			const items = await provider.provideChatSessionCustomizations(undefined!);
@@ -327,7 +284,7 @@ describe('CopilotCLICustomizationProvider', () => {
 
 		it('returns plugins with correct type and name derived from URI', async () => {
 			const uri = URI.file('/workspace/.copilot/plugins/lint-rules');
-			mockPromptFileService.setPlugins([{ uri }]);
+			mockPromptsService.setPlugins([makePlugin(uri)]);
 
 			const items = await provider.provideChatSessionCustomizations(undefined!);
 			expect(items).toHaveLength(1);
@@ -340,7 +297,7 @@ describe('CopilotCLICustomizationProvider', () => {
 	describe('instruction groupKeys and badges', () => {
 		it('uses agent-instructions groupKey for copilot-instructions.md files', async () => {
 			const uri = URI.file('/workspace/.github/copilot-instructions.md');
-			mockPromptFileService.setInstructions([{ uri }]);
+			mockPromptsService.setInstructions([makeInstruction(uri, 'copilot-instructions', undefined)]);
 			mockCustomInstructionsService.setAgentInstructionUris([uri]);
 
 			const items = await provider.provideChatSessionCustomizations(undefined!);
@@ -356,7 +313,7 @@ describe('CopilotCLICustomizationProvider', () => {
 			const copilotUri = URI.file('/workspace/.github/copilot-instructions.md');
 			// Agent instructions are NOT in chatPromptFileService.instructions —
 			// they come only from customInstructionsService.getAgentInstructions().
-			mockPromptFileService.setInstructions([]);
+			mockPromptsService.setInstructions([]);
 			mockCustomInstructionsService.setAgentInstructionUris([agentsUri, claudeUri, copilotUri]);
 
 			const items = await provider.provideChatSessionCustomizations(undefined!);
@@ -373,7 +330,6 @@ describe('CopilotCLICustomizationProvider', () => {
 			const existingUris = new Set([agentsUri.toString(), claudeUri.toString()]);
 
 			const testProvider = disposables.add(new CopilotCLICustomizationProvider(
-				mockPromptFileService,
 				mockCopilotCLIAgents,
 				mockCustomInstructionsService,
 				mockPromptsService,
@@ -386,7 +342,7 @@ describe('CopilotCLICustomizationProvider', () => {
 				} as any,
 			));
 
-			mockPromptFileService.setInstructions([]);
+			mockPromptsService.setInstructions([]);
 			mockCustomInstructionsService.setAgentInstructionUris([]);
 
 			const items = await testProvider.provideChatSessionCustomizations(undefined!);
@@ -398,13 +354,7 @@ describe('CopilotCLICustomizationProvider', () => {
 
 		it('uses context-instructions groupKey with badge for instructions with applyTo pattern', async () => {
 			const uri = URI.file('/workspace/.github/style.instructions.md');
-			mockPromptFileService.setInstructions([{ uri }]);
-			mockPromptsService.setFileContent(uri, [
-				'---',
-				'applyTo: \'src/**/*.ts\'',
-				'---',
-				'Use TypeScript best practices.',
-			].join('\n'));
+			mockPromptsService.setInstructions([makeInstruction(uri, 'style instructions', 'src/**/*.ts')]);
 
 			const items = await provider.provideChatSessionCustomizations(undefined!);
 			const instrItems = items.filter(i => i.type === FakeChatSessionCustomizationType.Instructions);
@@ -416,13 +366,7 @@ describe('CopilotCLICustomizationProvider', () => {
 
 		it('uses "always added" badge when applyTo is **', async () => {
 			const uri = URI.file('/workspace/.github/global.instructions.md');
-			mockPromptFileService.setInstructions([{ uri }]);
-			mockPromptsService.setFileContent(uri, [
-				'---',
-				'applyTo: \'**\'',
-				'---',
-				'Global rules.',
-			].join('\n'));
+			mockPromptsService.setInstructions([makeInstruction(uri, 'global instructions', '**')]);
 
 			const items = await provider.provideChatSessionCustomizations(undefined!);
 			const instrItems = items.filter(i => i.type === FakeChatSessionCustomizationType.Instructions);
@@ -434,13 +378,7 @@ describe('CopilotCLICustomizationProvider', () => {
 
 		it('uses on-demand-instructions groupKey for instructions without applyTo', async () => {
 			const uri = URI.file('/workspace/.github/refactor.instructions.md');
-			mockPromptFileService.setInstructions([{ uri }]);
-			mockPromptsService.setFileContent(uri, [
-				'---',
-				'description: \'Refactoring guidelines\'',
-				'---',
-				'Prefer small functions.',
-			].join('\n'));
+			mockPromptsService.setInstructions([makeInstruction(uri, 'refactor instructions', undefined, 'Refactoring guidelines')]);
 
 			const items = await provider.provideChatSessionCustomizations(undefined!);
 			const instrItems = items.filter(i => i.type === FakeChatSessionCustomizationType.Instructions);
@@ -452,14 +390,7 @@ describe('CopilotCLICustomizationProvider', () => {
 
 		it('includes description from parsed header', async () => {
 			const uri = URI.file('/workspace/.github/testing.instructions.md');
-			mockPromptFileService.setInstructions([{ uri }]);
-			mockPromptsService.setFileContent(uri, [
-				'---',
-				'applyTo: \'**/*.spec.ts\'',
-				'description: \'Testing standards\'',
-				'---',
-				'Write unit tests with vitest.',
-			].join('\n'));
+			mockPromptsService.setInstructions([makeInstruction(uri, 'testing instructions', '**/*.spec.ts', 'Testing standards')]);
 
 			const items = await provider.provideChatSessionCustomizations(undefined!);
 			const instrItems = items.filter(i => i.type === FakeChatSessionCustomizationType.Instructions);
@@ -472,7 +403,7 @@ describe('CopilotCLICustomizationProvider', () => {
 			const agentUri = URI.file('/workspace/.github/copilot-instructions.md');
 			const contextUri = URI.file('/workspace/.github/style.instructions.md');
 			const onDemandUri = URI.file('/workspace/.github/refactor.instructions.md');
-			mockPromptFileService.setInstructions([{ uri: agentUri }, { uri: contextUri }, { uri: onDemandUri }]);
+			mockPromptsService.setInstructions([makeInstruction(agentUri, 'copilot instructions', undefined), makeInstruction(contextUri, 'style instructions', 'src/**'), makeInstruction(onDemandUri, 'refactor instructions', undefined)]);
 			mockCustomInstructionsService.setAgentInstructionUris([agentUri]);
 			mockPromptsService.setFileContent(contextUri, '---\napplyTo: \'src/**\'\n---\nStyle rules.');
 			mockPromptsService.setFileContent(onDemandUri, '---\ndescription: Refactoring\n---\nRefactor tips.');
@@ -497,7 +428,7 @@ describe('CopilotCLICustomizationProvider', () => {
 
 		it('falls back to on-demand-instructions when file has no YAML header', async () => {
 			const uri = URI.file('/workspace/.github/plain.instructions.md');
-			mockPromptFileService.setInstructions([{ uri }]);
+			mockPromptsService.setInstructions([makeInstruction(uri, 'plain instructions', undefined)]);
 			mockPromptsService.setFileContent(uri, 'Just plain text, no frontmatter.');
 
 			const items = await provider.provideChatSessionCustomizations(undefined!);
@@ -513,7 +444,7 @@ describe('CopilotCLICustomizationProvider', () => {
 			let fired = false;
 			disposables.add(provider.onDidChange(() => { fired = true; }));
 
-			mockPromptFileService.fireCustomAgentsChanged();
+			mockPromptsService.fireCustomAgentsChanged();
 			expect(fired).toBe(true);
 		});
 
@@ -521,7 +452,7 @@ describe('CopilotCLICustomizationProvider', () => {
 			let fired = false;
 			disposables.add(provider.onDidChange(() => { fired = true; }));
 
-			mockPromptFileService.fireInstructionsChanged();
+			mockPromptsService.fireInstructionsChanged();
 			expect(fired).toBe(true);
 		});
 
@@ -529,7 +460,7 @@ describe('CopilotCLICustomizationProvider', () => {
 			let fired = false;
 			disposables.add(provider.onDidChange(() => { fired = true; }));
 
-			mockPromptFileService.fireSkillsChanged();
+			mockPromptsService.fireSkillsChanged();
 			expect(fired).toBe(true);
 		});
 
@@ -537,7 +468,7 @@ describe('CopilotCLICustomizationProvider', () => {
 			let fired = false;
 			disposables.add(provider.onDidChange(() => { fired = true; }));
 
-			mockPromptFileService.fireHooksChanged();
+			mockPromptsService.fireHooksChanged();
 			expect(fired).toBe(true);
 		});
 
@@ -545,7 +476,7 @@ describe('CopilotCLICustomizationProvider', () => {
 			let fired = false;
 			disposables.add(provider.onDidChange(() => { fired = true; }));
 
-			mockPromptFileService.firePluginsChanged();
+			mockPromptsService.firePluginsChanged();
 			expect(fired).toBe(true);
 		});
 

@@ -304,11 +304,12 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}, options);
 	}
 
-	async openAgentsWindow(windowId: number | undefined): Promise<void> {
+	async openAgentsWindow(windowId: number | undefined, options?: { readonly forceNewWindow?: boolean }): Promise<void> {
 		await this.windowsMainService.openAgentsWindow({
 			context: OpenContext.API,
 			contextWindowId: windowId,
-			cli: this.environmentMainService.args
+			cli: this.environmentMainService.args,
+			forceNewWindow: options?.forceNewWindow,
 		});
 	}
 

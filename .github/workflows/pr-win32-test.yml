@@ -181,6 +181,10 @@ jobs:
             compile-extension:vscode-test-resolver `
           }
 
+      - name: Compile Copilot extension
+        shell: pwsh
+        run: npm --prefix extensions/copilot run compile
+
       - name: Diagnostics before integration test runs
         shell: pwsh
         run: .\build\azure-pipelines\win32\listprocesses.bat

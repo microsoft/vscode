@@ -35,22 +35,22 @@ class MockPRFetcher {
 	postReviewCommentCalls: { body: string; inReplyTo: number }[] = [];
 	postIssueCommentCalls: { body: string }[] = [];
 
-	async getPullRequest(_owner: string, _repo: string, _prNumber: number): Promise<IGitHubPullRequest> {
+	async getPullRequest(_owner: string, _repo: string, _prNumber: number): Promise<{
+		readonly pullRequest: IGitHubPullRequest;
+		readonly mergeability: IGitHubPullRequestMergeability;
+		readonly reviewThreads: readonly IGitHubPRReviewThread[];
+	}> {
 		if (!this.nextPR) {
 			throw new Error('No mock PR');
 		}
-		return this.nextPR;
-	}
-
-	async getMergeability(_owner: string, _repo: string, _prNumber: number): Promise<IGitHubPullRequestMergeability> {
 		if (!this.nextMergeability) {
 			throw new Error('No mock mergeability');
 		}
-		return this.nextMergeability;
-	}
-
-	async getReviewThreads(_owner: string, _repo: string, _prNumber: number): Promise<IGitHubPRReviewThread[]> {
-		return this.nextThreads;
+		return {
+			pullRequest: this.nextPR,
+			mergeability: this.nextMergeability,
+			reviewThreads: this.nextThreads,
+		};
 	}
 
 	async postReviewComment(_owner: string, _repo: string, _prNumber: number, body: string, inReplyTo: number): Promise<IGitHubPRComment> {
@@ -157,17 +157,10 @@ suite('GitHubPullRequestModel', () => {
 		assert.strictEqual(model.reviewThreads.get().length, 1);
 	});
 
-	test('refreshThreads only updates threads', async () => {
-		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService));
-		mockFetcher.nextThreads = [makeThread('thread-100', 'src/a.ts'), makeThread('thread-200', 'src/b.ts')];
-
-		await model.refreshThreads();
-		assert.strictEqual(model.pullRequest.get(), undefined); // not refreshed
-		assert.strictEqual(model.reviewThreads.get().length, 2);
-	});
-
 	test('postReviewComment calls fetcher and refreshes threads', async () => {
 		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService));
+		mockFetcher.nextPR = makePR();
+		mockFetcher.nextMergeability = { canMerge: true, blockers: [] };
 		mockFetcher.nextThreads = [];
 
 		const comment = await model.postReviewComment('LGTM', 100);
@@ -178,6 +171,8 @@ suite('GitHubPullRequestModel', () => {
 
 	test('postIssueComment calls fetcher', async () => {
 		const model = store.add(new GitHubPullRequestModel('owner', 'repo', 1, mockFetcher as unknown as GitHubPRFetcher, logService));
+		mockFetcher.nextPR = makePR();
+		mockFetcher.nextMergeability = { canMerge: true, blockers: [] };
 
 		const comment = await model.postIssueComment('Great work!');
 		assert.strictEqual(comment.body, 'Great work!');

@@ -69,7 +69,6 @@ import '../workbench/services/userDataProfile/browser/userDataProfileStorageServ
 import '../workbench/services/configurationResolver/browser/configurationResolverService.js';
 import '../platform/extensionResourceLoader/browser/extensionResourceLoaderService.js';
 import '../workbench/services/auxiliaryWindow/browser/auxiliaryWindowService.js';
-import '../workbench/services/browserElements/browser/webBrowserElementsService.js';
 import '../workbench/services/power/browser/powerService.js';
 import '../platform/sandbox/browser/sandboxHelperService.js';
 
@@ -100,7 +99,10 @@ import { IWebContentExtractorService, NullWebContentExtractorService, ISharedWeb
 import { IMcpGalleryManifestService } from '../platform/mcp/common/mcpGalleryManifest.js';
 import { WorkbenchMcpGalleryManifestService } from '../workbench/services/mcp/browser/mcpGalleryManifestService.js';
 import { UserDataSyncResourceProviderService } from '../platform/userDataSync/common/userDataSyncResourceProvider.js';
-import { IRemoteAgentHostService, NullRemoteAgentHostService } from '../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostService } from '../platform/agentHost/common/remoteAgentHostService.js';
+import { RemoteAgentHostService } from '../platform/agentHost/browser/remoteAgentHostServiceImpl.js';
+import { ISSHRemoteAgentHostService } from '../platform/agentHost/common/sshRemoteAgentHost.js';
+import { NullSSHRemoteAgentHostService } from '../platform/agentHost/browser/nullSshRemoteAgentHostService.js';
 
 registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService, InstantiationType.Delayed);
 registerSingleton(IAccessibilityService, AccessibilityService, InstantiationType.Delayed);
@@ -120,7 +122,8 @@ registerSingleton(ILanguagePackService, WebLanguagePacksService, InstantiationTy
 registerSingleton(IWebContentExtractorService, NullWebContentExtractorService, InstantiationType.Delayed);
 registerSingleton(ISharedWebContentExtractorService, NullSharedWebContentExtractorService, InstantiationType.Delayed);
 registerSingleton(IMcpGalleryManifestService, WorkbenchMcpGalleryManifestService, InstantiationType.Delayed);
-registerSingleton(IRemoteAgentHostService, NullRemoteAgentHostService, InstantiationType.Delayed);
+registerSingleton(IRemoteAgentHostService, RemoteAgentHostService, InstantiationType.Delayed);
+registerSingleton(ISSHRemoteAgentHostService, NullSSHRemoteAgentHostService, InstantiationType.Delayed);
 
 //#endregion
 
@@ -133,6 +136,16 @@ import '../workbench/contrib/performance/browser/performance.web.contribution.js
 import '../workbench/contrib/preferences/browser/keyboardLayoutPicker.js';
 import '../workbench/contrib/debug/browser/extensionHostDebugService.js';
 import '../workbench/contrib/welcomeBanner/browser/welcomeBanner.contribution.js';
+
+// Web tunnel agent host — discovers tunnels via Dev Tunnels REST API and connects via relay
+import './contrib/remoteAgentHost/browser/webTunnelAgentHostService.contribution.js';
+
+// Tunnel agent host — reconciles discovered tunnels into session providers
+import './contrib/remoteAgentHost/browser/tunnelAgentHost.contribution.js';
+
+// Remote agent host session provider — discovers agents and registers sessions
+import './contrib/remoteAgentHost/browser/remoteAgentHost.contribution.js';
+import './contrib/remoteAgentHost/browser/remoteAgentHostActions.js';
 import '../workbench/contrib/webview/browser/webview.web.contribution.js';
 import '../workbench/contrib/extensions/browser/extensions.web.contribution.js';
 import '../workbench/contrib/terminal/browser/terminal.web.contribution.js';

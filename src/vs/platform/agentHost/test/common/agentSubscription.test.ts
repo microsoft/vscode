@@ -12,7 +12,7 @@ import { SessionLifecycle, SessionStatus, TerminalClaimKind, type IRootState, ty
 import { StateComponents } from '../../common/state/sessionState.js';
 import { AgentSubscriptionManager, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// Helpers
 
 function makeRootState(overrides?: Partial<IRootState>): IRootState {
 	return {
@@ -43,7 +43,7 @@ function makeSessionState(sessionUri: string, overrides?: Partial<ISessionState>
 function makeTerminalState(overrides?: Partial<ITerminalState>): ITerminalState {
 	return {
 		title: 'bash',
-		content: '',
+		content: [],
 		claim: { kind: TerminalClaimKind.Client, clientId: 'c1' },
 		...overrides,
 	};
@@ -57,7 +57,7 @@ const noop = () => { };
 const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' }).toString();
 const terminalUri = URI.from({ scheme: 'agenthost-terminal', path: '/term1' }).toString();
 
-// ─── RootStateSubscription ───────────────────────────────────────────────────
+// RootStateSubscription
 
 suite('RootStateSubscription', () => {
 
@@ -138,7 +138,7 @@ suite('RootStateSubscription', () => {
 		));
 		assert.strictEqual(sub.value, undefined);
 
-		// Now apply snapshot with fromSeq=1 → envelope at seq 2 should replay
+		// Now apply snapshot with fromSeq=1; envelope at seq 2 should replay
 		sub.handleSnapshot(makeRootState(), 1);
 		assert.strictEqual((sub.value! as IRootState).activeSessions, 7);
 	});
@@ -165,7 +165,7 @@ suite('RootStateSubscription', () => {
 	});
 });
 
-// ─── SessionStateSubscription ────────────────────────────────────────────────
+// SessionStateSubscription
 
 suite('SessionStateSubscription', () => {
 
@@ -236,7 +236,7 @@ suite('SessionStateSubscription', () => {
 
 		// After confirmation, verifiedValue should match
 		assert.strictEqual(sub.verifiedValue!.summary.title, 'Optimistic');
-		// No pending → value falls through to confirmed
+		// No pending, value falls through to confirmed
 		assert.strictEqual((sub.value as ISessionState).summary.title, 'Optimistic');
 	});
 
@@ -260,7 +260,7 @@ suite('SessionStateSubscription', () => {
 
 		// Confirmed state unchanged
 		assert.strictEqual(sub.verifiedValue!.summary.title, 'Test');
-		// No more pending → value = confirmed
+		// No more pending, value = confirmed
 		assert.strictEqual((sub.value as ISessionState).summary.title, 'Test');
 	});
 
@@ -372,7 +372,7 @@ suite('SessionStateSubscription', () => {
 	});
 });
 
-// ─── TerminalStateSubscription ───────────────────────────────────────────────
+// TerminalStateSubscription
 
 suite('TerminalStateSubscription', () => {
 
@@ -397,7 +397,9 @@ suite('TerminalStateSubscription', () => {
 			1,
 		));
 
-		assert.strictEqual((sub.value as ITerminalState).content, 'hello');
+		assert.deepStrictEqual((sub.value as ITerminalState).content, [
+			{ type: 'unclassified', value: 'hello' },
+		]);
 	});
 
 	test('ignores terminal actions for other URIs', () => {
@@ -409,7 +411,7 @@ suite('TerminalStateSubscription', () => {
 			1,
 		));
 
-		assert.strictEqual((sub.value as ITerminalState).content, '');
+		assert.deepStrictEqual((sub.value as ITerminalState).content, []);
 	});
 
 	test('ignores non-terminal actions', () => {
@@ -421,7 +423,7 @@ suite('TerminalStateSubscription', () => {
 			1,
 		));
 
-		assert.strictEqual((sub.value as ITerminalState).content, '');
+		assert.deepStrictEqual((sub.value as ITerminalState).content, []);
 	});
 
 	test('handleSnapshot sets value', () => {
@@ -432,7 +434,7 @@ suite('TerminalStateSubscription', () => {
 	});
 });
 
-// ─── AgentSubscriptionManager ────────────────────────────────────────────────
+// AgentSubscriptionManager
 
 suite('AgentSubscriptionManager', () => {
 
@@ -640,7 +642,7 @@ suite('AgentSubscriptionManager', () => {
 		assert.ok(unmanaged);
 		assert.strictEqual(unmanaged, ref.object);
 
-		// Dispose the ref — subscription should be released (refcount was 1)
+		// Dispose the ref. Subscription should be released (refcount was 1)
 		ref.dispose();
 
 		// Now unmanaged should return undefined since it was released

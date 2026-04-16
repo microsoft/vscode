@@ -2571,6 +2571,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// When the widget has loaded a new session, return a snapshot of the tools for this session.
 		// Only sync with the tools model when this session is shown with the same mode.
 		const scopedTools = derived(reader => {
+			if (this._store.isDisposed) {
+				return lastToolsSnapshot;
+			}
 			const activeSession = this._viewModelObs.read(reader)?.sessionResource;
 			const currentModeId = this.input.currentModeObs.read(reader).id;
 			if (isEqual(activeSession, sessionResource) && currentModeId === capturedModeId) {

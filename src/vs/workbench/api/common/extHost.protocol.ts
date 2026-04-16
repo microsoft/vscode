@@ -1675,12 +1675,12 @@ export interface ExtHostChatAgentsShape2 {
 	$setRequestTools(requestId: string, tools: UserSelectedTools): void;
 	$setYieldRequested(requestId: string, value: boolean): void;
 	$acceptActiveChatSession(sessionResource: UriComponents | undefined): void;
-	$acceptCustomAgents(agents: ICustomAgentDto[]): void;
-	$acceptInstructions(instructions: IInstructionDto[]): void;
-	$acceptSkills(skills: ISkillDto[]): void;
-	$acceptSlashCommands(slashCommands: ISlashCommandDto[]): void;
-	$acceptHooks(hooks: IHookDto[]): void;
-	$acceptPlugins(plugins: IPluginDto[]): void;
+	$onDidChangeCustomAgents(): void;
+	$onDidChangeInstructions(): void;
+	$onDidChangeSkills(): void;
+	$onDidChangeSlashCommands(): void;
+	$onDidChangeHooks(): void;
+	$onDidChangePlugins(): void;
 }
 
 export type IChatResourceSourceDto = 'local' | 'user' | 'extension' | 'plugin';
@@ -3706,7 +3706,7 @@ export interface MainThreadChatSessionsShape extends IDisposable {
 	$onDidChangeChatSessionOptions(handle: number, sessionResource: UriComponents, updates: Record<string, string | IChatSessionProviderOptionItem>): void;
 	$onDidChangeChatSessionProviderOptions(handle: number): void;
 
-	$updateChatSessionInputState(controllerHandle: number, optionGroups: readonly IChatSessionProviderOptionGroup[]): void;
+	$updateChatSessionInputState(controllerHandle: number, sessionResource: UriComponents, optionGroups: readonly IChatSessionProviderOptionGroup[]): void;
 
 	$handleProgressChunk(handle: number, sessionResource: UriComponents, requestId: string, chunks: (IChatProgressDto | [IChatProgressDto, number])[]): Promise<void>;
 	$handleAnchorResolve(handle: number, sessionResource: UriComponents, requestId: string, requestHandle: string, anchor: Dto<IChatContentInlineReference>): void;

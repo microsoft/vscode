@@ -13,7 +13,6 @@ import { CDPEvent, CDPRequest, CDPResponse } from '../../../../platform/browserV
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { localize } from '../../../../nls.js';
-import { IElementData } from '../../../../platform/browserElements/common/browserElements.js';
 import { IPlaywrightService } from '../../../../platform/browserView/common/playwrightService.js';
 import {
 	IBrowserViewBounds,
@@ -33,6 +32,7 @@ import {
 	IBrowserViewFindInPageResult,
 	IBrowserViewVisibilityEvent,
 	IBrowserViewCertificateError,
+	IElementData,
 	browserZoomDefaultIndex,
 	browserZoomFactors
 } from '../../../../platform/browserView/common/browserView.js';

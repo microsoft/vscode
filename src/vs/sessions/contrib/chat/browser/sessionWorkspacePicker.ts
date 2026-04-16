@@ -11,6 +11,7 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { URI, UriComponents } from '../../../../base/common/uri.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { isNative } from '../../../../base/common/platform.js';
 import { localize } from '../../../../nls.js';
 import { IActionWidgetService } from '../../../../platform/actionWidget/browser/actionWidget.js';
 import { ActionListItemKind, IActionListDelegate, IActionListItem } from '../../../../platform/actionWidget/browser/actionList.js';
@@ -30,7 +31,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import { ISessionWorkspace, ISessionWorkspaceBrowseAction } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
+import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { COPILOT_PROVIDER_ID } from '../../copilotChatSessions/browser/copilotChatSessionsProvider.js';
 
 const LEGACY_STORAGE_KEY_RECENT_PROJECTS = 'sessions.recentlyPickedProjects';
@@ -64,9 +65,9 @@ interface IWorkspacePickerItem {
 	readonly browseActionIndex?: number;
 	readonly checked?: boolean;
 	/** Remote provider reference for gear menu actions. */
-	readonly remoteProvider?: ISessionsProvider;
-	/** When true, clicking this item triggers the tunnel connection command. */
-	readonly tunnelAction?: boolean;
+	readonly remoteProvider?: IAgentHostSessionsProvider;
+	/** Command to execute when this item is selected. */
+	readonly commandId?: string;
 }
 
 /**
@@ -189,8 +190,8 @@ export class WorkspacePicker extends Disposable {
 		const delegate: IActionListDelegate<IWorkspacePickerItem> = {
 			onSelect: (item) => {
 				this.actionWidgetService.hide();
-				if (item.tunnelAction) {
-					this.commandService.executeCommand('workbench.action.sessions.connectViaTunnel');
+				if (item.commandId) {
+					this.commandService.executeCommand(item.commandId);
 				} else if (item.selection && this._isProviderUnavailable(item.selection.providerId)) {
 					// Workspace belongs to an unavailable remote — ignore selection
 					return;
@@ -371,7 +372,7 @@ export class WorkspacePicker extends Disposable {
 		// Browse actions from all providers
 		const allBrowseActions = this._getAllBrowseActions();
 		// Remote providers with connection status
-		const remoteProviders = allProviders.filter(p => p.connectionStatus !== undefined);
+		const remoteProviders = allProviders.filter(isAgentHostProvider).filter(p => p.connectionStatus !== undefined);
 
 		if (items.length > 0 && (allBrowseActions.length > 0 || remoteProviders.length > 0)) {
 			items.push({ kind: ActionListItemKind.Separator, label: '' });
@@ -469,7 +470,7 @@ export class WorkspacePicker extends Disposable {
 			});
 		}
 
-		// "Tunnels..." entry — shown when remote agent hosts are enabled
+		// "Tunnels..." and "SSH..." entries — shown when remote agent hosts are enabled
 		if (this.configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
 			if (items.length > 0 && items[items.length - 1].kind !== ActionListItemKind.Separator) {
 				items.push({ kind: ActionListItemKind.Separator, label: '' });
@@ -478,8 +479,16 @@ export class WorkspacePicker extends Disposable {
 				kind: ActionListItemKind.Action,
 				label: localize('workspacePicker.tunnels', "Tunnels..."),
 				group: { title: '', icon: Codicon.cloud },
-				item: { tunnelAction: true },
+				item: { commandId: 'workbench.action.sessions.connectViaTunnel' },
 			});
+			if (isNative) {
+				items.push({
+					kind: ActionListItemKind.Action,
+					label: localize('workspacePicker.ssh', "SSH..."),
+					group: { title: '', icon: Codicon.remote },
+					item: { commandId: 'workbench.action.sessions.connectViaSSH' },
+				});
+			}
 		}
 
 		return items;
@@ -529,12 +538,12 @@ export class WorkspacePicker extends Disposable {
 	 * This ensures the action widget has fully hidden before the quickpick opens,
 	 * preventing focus conflicts that cause the quickpick to flash and disappear.
 	 */
-	private _showRemoteHostOptionsDelayed(provider: ISessionsProvider): void {
+	private _showRemoteHostOptionsDelayed(provider: IAgentHostSessionsProvider): void {
 		const timeout = setTimeout(() => this._showRemoteHostOptions(provider), 1);
 		this._renderDisposables.add({ dispose: () => clearTimeout(timeout) });
 	}
 
-	private async _showRemoteHostOptions(provider: ISessionsProvider): Promise<void> {
+	private async _showRemoteHostOptions(provider: IAgentHostSessionsProvider): Promise<void> {
 		const address = provider.remoteAddress;
 		if (!address) {
 			return;
@@ -611,8 +620,8 @@ export class WorkspacePicker extends Disposable {
 	 * Returns false for providers without connection status (e.g. local providers).
 	 */
 	private _isProviderUnavailable(providerId: string): boolean {
-		const provider = this.sessionsProvidersService.getProviders().find(p => p.id === providerId);
-		if (!provider?.connectionStatus) {
+		const provider = this.sessionsProvidersService.getProvider(providerId);
+		if (!provider || !isAgentHostProvider(provider) || !provider.connectionStatus) {
 			return false;
 		}
 		return provider.connectionStatus.get() !== RemoteAgentHostConnectionStatus.Connected;
@@ -624,7 +633,7 @@ export class WorkspacePicker extends Disposable {
 	 * provider. When a remote reconnects, try to restore a stored workspace.
 	 */
 	private _watchConnectionStatus(): void {
-		const remoteProviders = this.sessionsProvidersService.getProviders().filter(p => p.connectionStatus !== undefined);
+		const remoteProviders = this.sessionsProvidersService.getProviders().filter(isAgentHostProvider).filter(p => p.connectionStatus !== undefined);
 		if (remoteProviders.length === 0) {
 			this._connectionStatusListener.clear();
 			return;

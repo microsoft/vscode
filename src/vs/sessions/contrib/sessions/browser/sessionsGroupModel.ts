@@ -164,6 +164,22 @@ export class SessionsGroupModel extends Disposable {
 	}
 
 	/**
+	 * Atomically replaces a chat ID in its group, keeping the same position.
+	 * Fires a single change event. No-op if the old chat is not found.
+	 */
+	replaceChat(oldChatId: string, newChatId: string): void {
+		for (const [sessionId, group] of this._groups) {
+			const idx = group.chatIds.indexOf(oldChatId);
+			if (idx !== -1) {
+				group.chatIds[idx] = newChatId;
+				this._save();
+				this._onDidChange.fire({ sessionId });
+				return;
+			}
+		}
+	}
+
+	/**
 	 * Deletes an entire session group and all its chat associations.
 	 */
 	deleteSession(sessionId: string): void {

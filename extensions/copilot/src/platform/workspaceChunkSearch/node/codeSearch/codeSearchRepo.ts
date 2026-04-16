@@ -5,7 +5,7 @@
 import * as l10n from '@vscode/l10n';
 import { Result } from '../../../../util/common/result';
 import { CallTracker, TelemetryCorrelationId } from '../../../../util/common/telemetryCorrelationId';
-import { CancelablePromise, DeferredPromise, IntervalTimer, createCancelablePromise, raceCancellationError, raceTimeout, timeout } from '../../../../util/vs/base/common/async';
+import { CancelablePromise, DeferredPromise, createCancelablePromise, raceCancellationError, raceTimeout, timeout } from '../../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { isCancellationError } from '../../../../util/vs/base/common/errors';
 import { Emitter, Event } from '../../../../util/vs/base/common/event';
@@ -158,9 +158,8 @@ export interface CodeSearchRepo extends IDisposable {
 
 abstract class BaseRemoteCodeSearchRepo extends Disposable implements CodeSearchRepo {
 
-	// TODO: Switch to use backoff instead of polling at fixed intervals
-	private readonly _repoIndexPollingInterval = 3000; // ms
-	private readonly maxPollingAttempts = 120;
+	private readonly _initialPollingDelay = 2000; // ms
+	private readonly _maxPollingAttempts = 10;
 
 	private _state: RemoteCodeSearchState;
 
@@ -183,7 +182,6 @@ abstract class BaseRemoteCodeSearchRepo extends Disposable implements CodeSearch
 	public readonly onDidChangeStatus = this._onDidChangeStatus.event;
 
 	private _repoIndexPolling?: {
-		readonly poll: IntervalTimer;
 		readonly deferredP: DeferredPromise<void>;
 		attemptNumber: number;
 	};
@@ -239,7 +237,7 @@ abstract class BaseRemoteCodeSearchRepo extends Disposable implements CodeSearch
 	public abstract prepareSearch(telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<boolean>;
 
 	public async refreshStatusFromEndpoint(force = false, telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<RemoteCodeSearchState | undefined> {
-		if (!force && this.status === CodeSearchRepoStatus.Ready) {
+		if (!force && (this.status === CodeSearchRepoStatus.Ready || this.status === CodeSearchRepoStatus.NotAuthorized)) {
 			return;
 		}
 
@@ -287,78 +285,91 @@ abstract class BaseRemoteCodeSearchRepo extends Disposable implements CodeSearch
 
 		const existing = this._repoIndexPolling;
 		if (existing) {
-			existing.attemptNumber = 0; // reset
+			// Use existing polling
 			return existing.deferredP.p;
 		}
 
 		const deferredP = new DeferredPromise<void>();
-		const poll = new IntervalTimer();
-
-		const pollEntry = { poll, deferredP, attemptNumber: 0 };
+		const pollEntry = { deferredP, attemptNumber: 0 };
 		this._repoIndexPolling = pollEntry;
 
-		const onComplete = () => {
-			poll.cancel();
-			deferredP.complete();
-			this._repoIndexPolling = undefined;
-		};
-
-		poll.cancelAndSet(async () => {
-			if (this._isDisposed) {
-				// It's possible the repo has been closed since
-				this._logService.trace(`CodeSearchChunkSearch.startPollingForRepoIndexingComplete(${this.repoInfo.rootUri}). Repo no longer tracked.`);
-				return onComplete();
-			}
-
-			if (this.status === CodeSearchRepoStatus.BuildingIndex) {
-				const attemptNumber = pollEntry.attemptNumber++;
-				if (attemptNumber > this.maxPollingAttempts) {
-					this._logService.trace(`CodeSearchChunkSearch.startPollingForRepoIndexingComplete(${this.repoInfo.rootUri}). Max attempts reached.Stopping polling.`);
-					if (!this._isDisposed) {
-						this.updateState({ status: CodeSearchRepoStatus.CouldNotCheckIndexStatus });
-					}
-					return onComplete();
-				}
-
-				this._logService.trace(`CodeSearchChunkSearch.startPollingForRepoIndexingComplete(${this.repoInfo.rootUri}). Checking endpoint for status.`);
-				let polledState: RemoteCodeSearchState | undefined;
-				try {
-					polledState = await this.fetchRemoteIndexState(new TelemetryCorrelationId(new CallTracker('CodeSearchRepo::poll')), CancellationToken.None);
-				} catch {
-					// noop
-				}
-				this._logService.trace(`CodeSearchChunkSearch.startPollingForRepoIndexingComplete(${this.repoInfo.rootUri}). Got back new status from endpoint: ${polledState?.status}.`);
-
-				switch (polledState?.status) {
-					case CodeSearchRepoStatus.Ready: {
-						this._logService.trace(`CodeSearchChunkSearch.startPollingForRepoIndexingComplete(${this.repoInfo.rootUri}). Repo indexed successfully.`);
-						if (!this._isDisposed) {
-							this.updateState(polledState);
-						}
-						return onComplete();
-					}
-					case CodeSearchRepoStatus.BuildingIndex: {
-						// Poll again
+		const runPoll = async () => {
+			try {
+				while (true) {
+					if (this._isDisposed) {
+						this._logService.trace(`CodeSearchChunkSearch.startPollingForRepoIndexingComplete(${this.repoInfo.rootUri}). Repo no longer tracked.`);
 						return;
 					}
-					default: {
-						// We got some other state, so stop polling
+
+					if (this.status !== CodeSearchRepoStatus.BuildingIndex) {
+						this._logService.trace(`CodeSearchChunkSearch.startPollingForRepoIndexingComplete(${this.repoInfo.rootUri}). Found unexpected repo state: ${this.status}. Stopping polling`);
+						return;
+					}
+
+					const attemptNumber = pollEntry.attemptNumber++;
+					if (attemptNumber >= this._maxPollingAttempts) {
+						this._logService.trace(`CodeSearchChunkSearch.startPollingForRepoIndexingComplete(${this.repoInfo.rootUri}). Max attempts reached. Stopping polling.`);
 						if (!this._isDisposed) {
-							this.updateState(polledState ?? { status: CodeSearchRepoStatus.CouldNotCheckIndexStatus });
+							this.updateState({ status: CodeSearchRepoStatus.CouldNotCheckIndexStatus });
 						}
-						return onComplete();
+						return;
+					}
+
+					const delay = this._initialPollingDelay * Math.pow(1.5, attemptNumber);
+					await timeout(delay);
+					if (this._isDisposed) {
+						return;
+					}
+
+					this._logService.trace(`CodeSearchChunkSearch.startPollingForRepoIndexingComplete(${this.repoInfo.rootUri}). Checking endpoint for status.`);
+					let polledState: RemoteCodeSearchState | undefined;
+					try {
+						polledState = await this.fetchRemoteIndexState(new TelemetryCorrelationId(new CallTracker('CodeSearchRepo::poll')), CancellationToken.None);
+					} catch {
+						// noop
+					}
+					this._logService.trace(`CodeSearchChunkSearch.startPollingForRepoIndexingComplete(${this.repoInfo.rootUri}). Got back new status from endpoint: ${polledState?.status}.`);
+
+					switch (polledState?.status) {
+						case CodeSearchRepoStatus.Ready: {
+							this._logService.trace(`CodeSearchChunkSearch.startPollingForRepoIndexingComplete(${this.repoInfo.rootUri}). Repo indexed successfully.`);
+							if (!this._isDisposed) {
+								this.updateState(polledState);
+							}
+							return;
+						}
+						case CodeSearchRepoStatus.BuildingIndex: {
+							// Continue polling with next backoff delay
+							continue;
+						}
+						default: {
+							// We got some other state, so stop polling
+							if (!this._isDisposed) {
+								this.updateState(polledState ?? { status: CodeSearchRepoStatus.CouldNotCheckIndexStatus });
+							}
+							return;
+						}
 					}
 				}
-			} else {
-				this._logService.trace(`CodeSearchChunkSearch.startPollingForRepoIndexingComplete(${this.repoInfo.rootUri}). Found unknown repo state: ${this.status}. Stopping polling`);
-				return onComplete();
+			} finally {
+				deferredP.complete();
+				this._repoIndexPolling = undefined;
 			}
-		}, this._repoIndexPollingInterval);
+		};
+
+		runPoll().catch(() => { });
 
 		return deferredP.p;
 	}
 }
 export class GithubCodeSearchRepo extends BaseRemoteCodeSearchRepo {
+
+	/** Minimum time between index state refreshes when already Ready  */
+	private readonly _indexStateRefreshInterval = 30 * 60 * 1000;
+
+	private _lastIndexStateRefreshTime = 0;
+	private _hadOutOfSyncResult = false;
+
 	constructor(
 		repoInfo: RepoInfo,
 		private readonly _githubRepoId: GithubRepoId,
@@ -370,12 +381,16 @@ export class GithubCodeSearchRepo extends BaseRemoteCodeSearchRepo {
 		super(repoInfo, remoteInfo, logService, telemetryService);
 	}
 
-	public searchRepo(authOptions: { silent: boolean }, embeddingType: EmbeddingType, resolvedQuery: string, maxResultCountHint: number, options: WorkspaceChunkSearchOptions, telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<CodeSearchResult> {
-		return this._githubCodeSearchService.searchRepo(authOptions, embeddingType, {
+	public override async searchRepo(authOptions: { silent: boolean }, embeddingType: EmbeddingType, resolvedQuery: string, maxResultCountHint: number, options: WorkspaceChunkSearchOptions, telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<CodeSearchResult> {
+		const result = await this._githubCodeSearchService.searchRepo(authOptions, embeddingType, {
 			githubRepoId: this._githubRepoId,
 			localRepoRoot: this.repoInfo.rootUri,
 			indexedCommit: undefined, // TODO
 		}, resolvedQuery, maxResultCountHint, options, telemetryInfo, token);
+		if (result.outOfSync) {
+			this._hadOutOfSyncResult = true;
+		}
+		return result;
 	}
 
 	protected async doFetchRemoteIndexState(telemetryInfo: TelemetryCorrelationId, token: CancellationToken): Promise<Result<RemoteCodeSearchIndexState, RemoteCodeSearchError>> {
@@ -414,9 +429,13 @@ export class GithubCodeSearchRepo extends BaseRemoteCodeSearchRepo {
 
 		await measureExecTime(() => raceTimeout((async () => {
 			if (this.status === CodeSearchRepoStatus.Ready) {
-				// Try to update the indexed commit to ensure we're up to date
-				const newState = await raceCancellationError(this.fetchRemoteIndexState(telemetryInfo, token), token);
-				this.updateState(newState);
+				const timeSinceLastRefresh = Date.now() - this._lastIndexStateRefreshTime;
+				if (timeSinceLastRefresh >= this._indexStateRefreshInterval || this._hadOutOfSyncResult) {
+					this._hadOutOfSyncResult = false;
+					const newState = await raceCancellationError(this.fetchRemoteIndexState(telemetryInfo, token), token);
+					this._lastIndexStateRefreshTime = Date.now();
+					this.updateState(newState);
+				}
 				return;
 			}
 

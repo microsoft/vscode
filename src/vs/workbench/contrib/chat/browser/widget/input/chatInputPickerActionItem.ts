@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getActiveWindow } from '../../../../../../base/browser/dom.js';
-import { IHoverPositionOptions } from '../../../../../../base/browser/ui/hover/hover.js';
 import { IAction } from '../../../../../../base/common/actions.js';
 import { autorun, IObservable } from '../../../../../../base/common/observable.js';
 import { ActionWidgetDropdownActionViewItem } from '../../../../../../platform/actions/browser/actionWidgetDropdownActionViewItem.js';
@@ -25,8 +24,6 @@ export interface IChatInputPickerOptions {
 	readonly actionContext?: IChatExecuteActionContext;
 
 	readonly hideChevrons: IObservable<boolean>;
-
-	readonly hoverPosition?: IHoverPositionOptions;
 }
 
 /**

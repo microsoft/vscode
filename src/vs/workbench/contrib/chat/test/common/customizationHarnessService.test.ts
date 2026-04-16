@@ -8,7 +8,7 @@ import { Emitter } from '../../../../../base/common/event.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { CustomizationHarness, CustomizationHarnessServiceBase, createVSCodeHarnessDescriptor, IExternalCustomizationItemProvider, IHarnessDescriptor, matchesWorkspaceSubpath } from '../../common/customizationHarnessService.js';
+import { CustomizationHarness, CustomizationHarnessServiceBase, createVSCodeHarnessDescriptor, ICustomizationItemProvider, IHarnessDescriptor, matchesWorkspaceSubpath } from '../../common/customizationHarnessService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { CancellationToken } from '../../../../../base/common/cancellation.js';
@@ -147,7 +147,7 @@ suite('CustomizationHarnessService', () => {
 				{ uri: URI.parse('file:///workspace/.claude/SKILL.md'), type: 'skill', name: 'Test Skill', description: 'A test skill' },
 			];
 
-			const itemProvider: IExternalCustomizationItemProvider = {
+			const itemProvider: ICustomizationItemProvider = {
 				onDidChange: emitter.event,
 				provideChatSessionCustomizations: async () => testItems,
 			};

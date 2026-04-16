@@ -32,21 +32,21 @@ import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatSessionOptionsMap, ChatSessionStatus, IChatNewSessionRequest, IChatSession, IChatSessionCommitEvent, IChatSessionContentProvider, IChatSessionCustomizationItemGroup, IChatSessionCustomizationsProvider, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, isSessionInProgressStatus, ReadonlyChatSessionOptionsMap, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
-import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
+import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { IChatService, ResponseModelState } from '../../common/chatService/chatService.js';
 import { autorun, observableFromEvent } from '../../../../../base/common/observable.js';
 import { IChatRequestVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { ChatViewId } from '../chat.js';
+import { ChatViewId, IChatWidgetService } from '../chat.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
 import { BugIndicatingError, isCancellationError } from '../../../../../base/common/errors.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { isUntitledChatSession, LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { assertNever } from '../../../../../base/common/assert.js';
-import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { Target } from '../../common/promptSyntax/promptTypes.js';
 import { slashReg } from '../../common/requestParser/chatRequestParser.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
@@ -1036,7 +1036,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}
 
 		let session: IChatSession;
-		const newSessionOptionGroups = await this.getNewChatSessionInputState(resolvedType);
+		const newSessionOptionGroups = isUntitledChatSession(sessionResource) ? await this.getNewChatSessionInputState(resolvedType, sessionResource) : undefined;
 		if (isUntitledChatSession(sessionResource) && newSessionOptionGroups) {
 			const options: ChatSessionOptionsMap = new Map();
 			for (const group of newSessionOptionGroups) {
@@ -1156,21 +1156,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 	public setOptionGroupsForSessionType(chatSessionType: string, handle: number, optionGroups?: IChatSessionProviderOptionGroup[]): void {
 		if (optionGroups) {
 			this._sessionTypeOptions.set(chatSessionType, optionGroups);
-
-			// Apply selected values from the updated option groups directly to all active
-			// sessions of this type. We write to the session's option cache without firing
-			// _onDidChangeSessionOptions to avoid a feedback loop: that event triggers
-			// $provideHandleOptionsChange back to the extension host, which may re-set
-			// inputState.groups -> $updateChatSessionInputState -> here again.
-			for (const [_, sessionData] of this._sessions) {
-				if (sessionData.chatSessionType === chatSessionType) {
-					for (const group of optionGroups) {
-						if (group.selected) {
-							sessionData.setOption(group.id, group.selected);
-						}
-					}
-				}
-			}
 		} else {
 			this._sessionTypeOptions.delete(chatSessionType);
 		}
@@ -1184,10 +1169,10 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return this._sessionTypeOptions.get(chatSessionType);
 	}
 
-	public async getNewChatSessionInputState(chatSessionType: string): Promise<readonly IChatSessionProviderOptionGroup[] | undefined> {
+	public async getNewChatSessionInputState(chatSessionType: string, sessionResource: URI): Promise<readonly IChatSessionProviderOptionGroup[] | undefined> {
 		const controllerData = this._itemControllers.get(chatSessionType);
 		if (controllerData?.controller.getNewChatSessionInputState) {
-			const groups = await controllerData.controller.getNewChatSessionInputState(CancellationToken.None);
+			const groups = await controllerData.controller.getNewChatSessionInputState(sessionResource, CancellationToken.None);
 			if (groups?.length) {
 				this._sessionTypeOptions.set(chatSessionType, [...groups]);
 				this._onDidChangeOptionGroups.fire(chatSessionType);
@@ -1252,6 +1237,21 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 }
 
 registerSingleton(IChatSessionsService, ChatSessionsService, InstantiationType.Delayed);
+
+CommandsRegistry.registerCommand('workbench.action.chat.copilotcli.approval', (accessor: ServicesAccessor, sessionResource: UriComponents, setAutopilot: boolean) => {
+	const chatWidgetService = accessor.get(IChatWidgetService);
+	const widget = chatWidgetService.getWidgetBySessionResource(URI.revive(sessionResource));
+	if (!widget) {
+		return;
+	}
+	if (setAutopilot) {
+		widget.inputPart.setPermissionLevel(ChatPermissionLevel.Autopilot);
+	} else {
+		if (widget.inputPart.currentPermissionLevelObs.get() === ChatPermissionLevel.Autopilot) {
+			widget.inputPart.setPermissionLevel(ChatPermissionLevel.Default);
+		}
+	}
+});
 
 
 

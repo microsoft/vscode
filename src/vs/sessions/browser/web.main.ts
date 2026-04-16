@@ -11,7 +11,6 @@ import { Workbench as SessionsWorkbench } from './workbench.js';
 export class SessionsBrowserMain extends BrowserMain {
 
 	protected override createWorkbench(domElement: HTMLElement, serviceCollection: ServiceCollection, logService: ILogService): IBrowserMainWorkbench {
-		console.log('[Sessions Web] Creating Sessions workbench (not standard workbench)');
 		return new SessionsWorkbench(domElement, undefined, serviceCollection, logService);
 	}
 }

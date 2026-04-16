@@ -17,7 +17,9 @@ const HIDDEN_MODEL_A_HASHES = [
 
 
 const HIDDEN_MODEL_B_HASHES = [
-	'1f48b3271e760c69ab2b17dcae5f5c661fa5b644c5976a8a99b23e05ae3cb6d6'
+	'1f48b3271e760c69ab2b17dcae5f5c661fa5b644c5976a8a99b23e05ae3cb6d6',
+	'ffc50c70661c227edf8daae6f8dbed2dd0645386c12d43bc7fc44da166e043bd',
+	'257c934076307881132be702a901618969591f0e11e1df51b22b1d4010f0a0d0',
 ];
 
 const VSC_MODEL_HASHES_A = [
@@ -96,7 +98,7 @@ export function isHiddenModelF(model: LanguageModelChat | IChatEndpoint) {
 
 export function isHiddenModelG(model: LanguageModelChat | IChatEndpoint) {
 	const family_hash = getCachedSha256Hash(model.family);
-	return family_hash === '94e44d9d24608ae2161d0c56704f226dc89c2cd8be566abb8fbfbded5a507401';
+	return family_hash === '3ae755cc6122a54cc873e3ba2bd8703883b4a711d1af2707ef00f2c2c963ee8d';
 }
 
 export function isHiddenFamilyH(model: LanguageModelChat | IChatEndpoint) {
@@ -380,20 +382,21 @@ export function getVerbosityForModelSync(model: IChatEndpoint): 'low' | 'medium'
 	return undefined;
 }
 
-/** Model ID prefixes that support the tool search tool. */
-export const TOOL_SEARCH_SUPPORTED_MODELS = [
-	'claude-sonnet-4.5',
-	'claude-sonnet-4.6',
-	'claude-opus-4.5',
-	'claude-opus-4.6',
-] as const;
-
 /**
  * Returns true if the model supports the tool search tool.
- * Provider-agnostic: add additional model prefixes here as other providers adopt tool search.
+ * Matches any Claude Sonnet or Opus model with version >= 4.5. The minor
+ * version is bounded to 1–2 digits so date suffixes like `-20250514`
+ * cannot be misread as a minor version.
  */
 export function modelSupportsToolSearch(modelId: string): boolean {
-	return TOOL_SEARCH_SUPPORTED_MODELS.some(prefix => modelId.toLowerCase().startsWith(prefix));
+	const normalized = modelId.toLowerCase().replace(/\./g, '-');
+	const match = normalized.match(/^claude-(?:sonnet|opus)-(\d+)(?:-(\d{1,2}))?(?:-|$)/);
+	if (!match) {
+		return false;
+	}
+	const major = parseInt(match[1], 10);
+	const minor = match[2] !== undefined ? parseInt(match[2], 10) : 0;
+	return major > 4 || (major === 4 && minor >= 5);
 }
 
 /**

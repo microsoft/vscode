@@ -990,6 +990,58 @@ export class TestContext {
 	}
 
 	/**
+	 * Validates that the Agents app binary exists in the specified installation directory.
+	 * @param dir The directory of the VS Code installation.
+	 * @returns The path to the Agents entry point executable.
+	 */
+	public validateAgentsEntryPoint(dir: string): void {
+		let filePath: string = '';
+
+		switch (os.platform()) {
+			case 'darwin': {
+				let appName: string;
+				let agentsAppName: string;
+				switch (this.options.quality) {
+					case 'stable':
+						appName = 'Visual Studio Code.app';
+						agentsAppName = 'Visual Studio Code Agents.app';
+						break;
+					case 'insider':
+						appName = 'Visual Studio Code - Insiders.app';
+						agentsAppName = 'Visual Studio Code Agents - Insiders.app';
+						break;
+					case 'exploration':
+						appName = 'Visual Studio Code - Exploration.app';
+						agentsAppName = 'Visual Studio Code Agents - Exploration.app';
+						break;
+				}
+				filePath = path.join(dir, appName, 'Contents', 'Applications', agentsAppName);
+				break;
+			}
+			case 'win32': {
+				let exeName: string;
+				switch (this.options.quality) {
+					case 'stable':
+						exeName = 'Agents.exe';
+						break;
+					case 'insider':
+						exeName = 'Agents - Insiders.exe';
+						break;
+					case 'exploration':
+						exeName = 'Agents - Exploration.exe';
+						break;
+				}
+				filePath = path.join(dir, exeName);
+				break;
+			}
+		}
+
+		if (!filePath || !fs.existsSync(filePath)) {
+			this.error(`Agents entry point does not exist: ${filePath}`);
+		}
+	}
+
+	/**
 	 * Returns the entry point executable for the VS Code CLI in the specified directory.
 	 * @param dir The directory containing unpacked CLI files.
 	 * @returns The path to the CLI entry point executable.

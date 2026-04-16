@@ -1,0 +1,106 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Overrides for the new-chat-in-session view to match VS Code chat input styling */
+
+/* Position the input at the bottom of the view */
+.new-chat-in-session .new-chat-widget-container,
+.new-chat-in-session .new-chat-widget-container.revealed {
+	justify-content: flex-end;
+	padding: 0;
+}
+
+/* Match VS Code interactive-input-part layout */
+.new-chat-in-session .new-chat-widget-content {
+	width: 100%;
+	max-width: 950px;
+	margin: 0 auto !important;
+	padding: 4px 10px !important;
+	box-sizing: border-box;
+}
+.new-chat-in-session .new-chat-input-container,
+.new-chat-in-session .new-chat-bottom-container,
+.new-chat-in-session .new-chat-input-area {
+	max-width: 950px;
+}
+/* Match VS Code interactive-input-part margin and padding */
+.new-chat-in-session .new-chat-input-container {
+	margin-top: 0;
+}
+.new-chat-in-session .new-chat-input-area {
+	padding: 0 6px 6px 6px;
+	border: 1px solid var(--vscode-agentsChatInput-border) !important;
+	border-radius: var(--vscode-cornerRadius-large, 8px);
+}
+
+.new-chat-in-session .new-chat-input-area:focus-within {
+	border-color: var(--vscode-agentsChatInput-focusBorder, var(--vscode-focusBorder)) !important;
+}
+
+.new-chat-in-session .sessions-chat-editor {
+	padding: 0 0 0 4px;
+}
+
+.new-chat-in-session .sessions-chat-editor .monaco-editor,
+.new-chat-in-session .sessions-chat-editor .monaco-editor .overflow-guard,
+.new-chat-in-session .sessions-chat-editor .monaco-editor-background {
+	border-radius: var(--vscode-cornerRadius-large, 8px) var(--vscode-cornerRadius-large, 8px) 0 0;
+}
+
+/* Bottom container: match VS Code secondary toolbar */
+.new-chat-in-session .new-chat-bottom-container {
+	padding: 0 4px 0 5px;
+	margin-top: 4px;
+	min-height: auto;
+	gap: 6px;
+}
+
+.new-chat-in-session .new-chat-controls-container {
+	gap: 6px;
+}
+
+/* Input toolbar: match VS Code chat-input-toolbars gap */
+.new-chat-in-session .sessions-chat-toolbar {
+	margin-top: 4px;
+	padding: 0px;
+	gap: 6px;
+}
+
+/* Config toolbar items spacing */
+.new-chat-in-session .sessions-chat-config-toolbar .monaco-action-bar .actions-container {
+	gap: 6px;
+}
+
+/* Picker labels: match VS Code chat-secondary-toolbar sizing for all pickers */
+.new-chat-in-session .new-chat-bottom-container .action-label,
+.new-chat-in-session .sessions-chat-toolbar .action-label {
+	height: 16px;
+	padding: 3px 0px 3px 6px;
+	font-size: 11px;
+	color: var(--vscode-icon-foreground);
+}
+
+.new-chat-in-session .new-chat-bottom-container .action-label .codicon,
+.new-chat-in-session .sessions-chat-toolbar .action-label .codicon {
+	font-size: 12px;
+}
+
+.new-chat-in-session .new-chat-bottom-container .action-label .codicon-chevron-down,
+.new-chat-in-session .sessions-chat-toolbar .action-label .codicon-chevron-down {
+	font-size: 10px;
+	margin-left: 4px;
+	opacity: 0.75;
+}
+
+.new-chat-in-session .sessions-chat-dropdown-label {
+	margin-left: 4px;
+}
+
+/* Disable fade-in animations — show content immediately */
+.new-chat-in-session .new-chat-widget-container.revealed .new-chat-input-container,
+.new-chat-in-session .new-chat-widget-container.revealed .new-chat-bottom-container,
+.new-chat-in-session .new-chat-widget-container.revealed .new-session-workspace-picker-container {
+	animation: none;
+}

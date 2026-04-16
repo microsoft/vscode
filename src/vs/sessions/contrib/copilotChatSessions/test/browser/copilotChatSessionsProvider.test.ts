@@ -13,7 +13,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { TestStorageService } from '../../../../../workbench/test/common/workbenchTestServices.js';
@@ -30,7 +30,7 @@ import { IChatResponseModel } from '../../../../../workbench/contrib/chat/common
 import { IChatAgentData } from '../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
 import { ISessionChangeEvent } from '../../../../services/sessions/common/sessionsProvider.js';
-import { ISessionWorkspace, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { CopilotCLISessionType, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { CopilotChatSessionsProvider, COPILOT_PROVIDER_ID } from '../../browser/copilotChatSessionsProvider.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 
@@ -116,12 +116,21 @@ function createProvider(
 	instantiationService.stub(IConfigurationService, configService);
 	instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
 	instantiationService.stub(IFileDialogService, {});
+	instantiationService.stub(IDialogService, {
+		confirm: async () => ({ confirmed: true }),
+	});
 	instantiationService.stub(ICommandService, {
 		executeCommand: async (_id: string, ...args: any[]) => {
-			// Simulate 'github.copilot.cli.sessions.delete' removing the session
-			const opts = args[0];
-			if (opts?.resource) {
-				model.removeSession(opts.resource);
+			// Simulate 'agents.github.copilot.cli.deleteSessions' removing sessions
+			const items = args[0];
+			if (Array.isArray(items)) {
+				for (const item of items) {
+					if (item?.resource) {
+						model.removeSession(item.resource);
+					}
+				}
+			} else if (items?.resource) {
+				model.removeSession(items.resource);
 			}
 			return undefined;
 		},
@@ -189,6 +198,9 @@ function createProviderForSendTests(
 	instantiationService.stub(IConfigurationService, configService);
 	instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
 	instantiationService.stub(IFileDialogService, {});
+	instantiationService.stub(IDialogService, {
+		confirm: async () => ({ confirmed: true }),
+	});
 	instantiationService.stub(ICommandService, { executeCommand: async () => undefined });
 	instantiationService.stub(IAgentSessionsService, {
 		model: model as unknown as IAgentSessionsModel,
@@ -226,8 +238,6 @@ function createProviderForSendTests(
 
 	return disposables.add(instantiationService.createInstance(CopilotChatSessionsProvider));
 }
-
-
 
 suite('CopilotChatSessionsProvider', () => {
 	const disposables = new DisposableStore();
@@ -314,18 +324,6 @@ suite('CopilotChatSessionsProvider', () => {
 	// requires IGitService and creates disposables that are hard to clean
 	// up in isolation. Full integration tests should cover session creation.
 
-	test('createNewSession throws when workspace has no repository', () => {
-		const provider = createProvider(disposables, model);
-		const workspace: ISessionWorkspace = {
-			label: 'empty',
-			icon: Codicon.folder,
-			repositories: [],
-			requiresWorkspaceTrust: true,
-		};
-
-		assert.throws(() => provider.createNewSession(workspace), /Workspace has no repository URI/);
-	});
-
 	// ---- Session actions -------
 
 	test('archiveSession sets archived state', () => {
@@ -354,20 +352,6 @@ suite('CopilotChatSessionsProvider', () => {
 		provider.unarchiveSession(session.sessionId);
 
 		assert.strictEqual(agentSession.isArchived(), false);
-	});
-
-	test('setRead marks session as read', () => {
-		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: '/session-1' });
-		const agentSession = createMockAgentSession(resource, { read: false });
-		model.addSession(agentSession);
-
-		const provider = createProvider(disposables, model);
-		provider.getSessions();
-
-		const session = provider.getSessions()[0];
-		provider.setRead(session.sessionId, true);
-
-		assert.strictEqual(agentSession.isRead(), true);
 	});
 
 	// ---- Single-chat mode (multi-chat disabled) -------
@@ -644,18 +628,7 @@ suite('CopilotChatSessionsProvider', () => {
 	// ---- Uncommitted temp session cleanup ------------------------------------
 
 	suite('uncommitted temp session cleanup', () => {
-		const workspace: ISessionWorkspace = {
-			label: 'repo',
-			icon: Codicon.folder,
-			repositories: [{
-				uri: URI.file('/test/repo'),
-				workingDirectory: undefined,
-				detail: undefined,
-				baseBranchName: undefined,
-				baseBranchProtected: undefined,
-			}],
-			requiresWorkspaceTrust: false,
-		};
+		const workspace = URI.file('/test/repo');
 
 		/**
 		 * Returns a provider wired up so that sendRequest keeps the request
@@ -704,7 +677,7 @@ suite('CopilotChatSessionsProvider', () => {
 		test('deleteSession removes a temp session that is awaiting commit', async () => {
 			const { provider, cancelRequest } = makeInFlightProvider();
 
-			const newSession = provider.createNewSession(workspace);
+			const newSession = provider.createNewSession(workspace, CopilotCLISessionType.id);
 			const sessionId = newSession.sessionId;
 
 			const added = waitForSessionAdded(provider);
@@ -724,7 +697,7 @@ suite('CopilotChatSessionsProvider', () => {
 		test('archiveSession archives a temp session that is awaiting commit', async () => {
 			const { provider, cancelRequest } = makeInFlightProvider();
 
-			const newSession = provider.createNewSession(workspace);
+			const newSession = provider.createNewSession(workspace, CopilotCLISessionType.id);
 			const sessionId = newSession.sessionId;
 
 			const added = waitForSessionAdded(provider);
@@ -748,7 +721,7 @@ suite('CopilotChatSessionsProvider', () => {
 		test('archiveSession archives a stopped session that was never committed', async () => {
 			const { provider, cancelRequest } = makeInFlightProvider();
 
-			const newSession = provider.createNewSession(workspace);
+			const newSession = provider.createNewSession(workspace, CopilotCLISessionType.id);
 			const sessionId = newSession.sessionId;
 
 			const added = waitForSessionAdded(provider);
@@ -814,7 +787,7 @@ suite('CopilotChatSessionsProvider', () => {
 		test('stopping a committed session keeps it in the list', async () => {
 			const { provider, commitSession, cancelRequest } = makeCommittableProvider();
 
-			const newSession = provider.createNewSession(workspace);
+			const newSession = provider.createNewSession(workspace, CopilotCLISessionType.id);
 			const sessionId = newSession.sessionId;
 
 			const added = waitForSessionAdded(provider);
@@ -851,7 +824,7 @@ suite('CopilotChatSessionsProvider', () => {
 			const changes: ISessionChangeEvent[] = [];
 			disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
 
-			const newSession = provider.createNewSession(workspace);
+			const newSession = provider.createNewSession(workspace, CopilotCLISessionType.id);
 			const sessionId = newSession.sessionId;
 
 			const added = waitForSessionAdded(provider);

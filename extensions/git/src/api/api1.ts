@@ -80,6 +80,7 @@ export class ApiRepository implements Repository {
 	readonly kind: RepositoryKind;
 	readonly state: RepositoryState;
 	readonly ui: RepositoryUIState;
+	readonly isUsingVirtualFileSystem: boolean;
 
 	readonly onDidCommit: Event<void>;
 	readonly onDidCheckout: Event<void>;
@@ -92,6 +93,7 @@ export class ApiRepository implements Repository {
 		this.inputBox = new ApiInputBox(this.#repository.inputBox);
 		this.state = new ApiRepositoryState(this.#repository);
 		this.ui = new ApiRepositoryUIState(this.#repository.sourceControl);
+		this.isUsingVirtualFileSystem = this.#repository.isUsingVirtualFileSystem;
 
 		this.onDidCommit = mapEvent<OperationResult, void>(
 			filterEvent(this.#repository.onDidRunOperation, e => e.operation.kind === OperationKind.Commit), () => null);

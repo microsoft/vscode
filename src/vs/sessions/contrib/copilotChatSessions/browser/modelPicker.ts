@@ -58,7 +58,8 @@ export class CloudModelPicker extends Disposable {
 
 		this._register(autorun(reader => {
 			const session = sessionsManagementService.activeSession.read(reader);
-			const providerSession = session ? sessionsProvidersService.getProvider<CopilotChatSessionsProvider>(session.providerId)?.getSession(session.sessionId) : undefined;
+			const provider = session ? sessionsProvidersService.getProvider(session.providerId) : undefined;
+			const providerSession = provider instanceof CopilotChatSessionsProvider ? provider.getSession(session!.sessionId) : undefined;
 			if (providerSession instanceof RemoteNewSession) {
 				this._setSession(providerSession);
 			}

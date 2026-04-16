@@ -8,9 +8,11 @@ import { DocumentId } from '../../../../platform/inlineEdits/common/dataTypes/do
 import { NoNextEditReason, StreamedEdit } from '../../../../platform/inlineEdits/common/statelessNextEditProvider';
 import { TestLogService } from '../../../../platform/testing/common/testLogService';
 import { AsyncIterUtils } from '../../../../util/common/asyncIterableUtils';
+import { AsyncIterableSource } from '../../../../util/vs/base/common/async';
 import { Position } from '../../../../util/vs/editor/common/core/position';
 import { StringText } from '../../../../util/vs/editor/common/core/text/abstractText';
 import { ensureDependenciesAreSet } from '../../../../util/vs/editor/common/core/text/positionToOffset';
+import { FetchStreamError } from '../../common/fetchStreamError';
 import { CurrentDocument } from '../../common/xtabCurrentDocument';
 import { XtabCustomDiffPatchResponseHandler } from '../../node/xtabCustomDiffPatchResponseHandler';
 
@@ -139,67 +141,50 @@ another_file.js:
 		`);
 	});
 
-	it('stops yielding edits when getFetchFailure returns a failure', async () => {
-		const patchText = `/file.ts:0
--old
-+new
-/file.ts:5
--another old
-+another new`;
-		const linesStream = AsyncIterUtils.fromArray(patchText.split('\n'));
+	it('stops yielding edits when stream rejects with FetchStreamError', async () => {
+		const cancellationReason = new NoNextEditReason.GotCancelled('afterFetchCall');
 		const docId = DocumentId.create('file:///file.ts');
 		const documentBeforeEdits = new CurrentDocument(new StringText('old\n'), new Position(1, 1));
 
-		let yieldCount = 0;
-		const cancellationReason = new NoNextEditReason.GotCancelled('afterFetchCall');
+		// Emit the first patch completely, then reject with FetchStreamError
+		async function* makeStream(): AsyncGenerator<string> {
+			yield '/file.ts:0';
+			yield '-old';
+			yield '+new';
+			yield '/file.ts:5';
+			yield '-another old';
+			yield '+another new';
+			throw new FetchStreamError(cancellationReason);
+		}
 
 		const { edits, returnValue } = await consumeHandleResponse(
-			linesStream,
+			makeStream(),
 			documentBeforeEdits,
 			docId,
 			undefined,
 			undefined,
 			new TestLogService(),
-			() => {
-				// Signal failure after the first edit has been yielded
-				if (yieldCount++ > 0) {
-					return cancellationReason;
-				}
-				return undefined;
-			},
 		);
 
 		expect(edits).toHaveLength(1);
-		expect(returnValue).toBe(cancellationReason);
+		expect(returnValue).toEqual(cancellationReason);
 	});
 
-	it('does not yield incomplete patch when fetch is cancelled mid-stream', async () => {
-		// Stream is truncated before the last line "+one more new" is emitted,
-		// simulating a cancellation that cuts off the response mid-patch.
-		const truncatedPatchText = `/file.ts:0
--old
-+new
-/file.ts:5
--another old
-+another new`;
-		const linesStream = AsyncIterUtils.fromArray(truncatedPatchText.split('\n'));
+	it('returns FetchStreamError reason when stream rejects before any patches', async () => {
+		const cancellationReason = new NoNextEditReason.GotCancelled('afterFetchCall');
 		const docId = DocumentId.create('file:///file.ts');
 		const documentBeforeEdits = new CurrentDocument(new StringText('old\n'), new Position(1, 1));
 
-		const cancellationReason = new NoNextEditReason.GotCancelled('afterFetchCall');
+		const source = new AsyncIterableSource<string>();
+		source.reject(new FetchStreamError(cancellationReason));
 
 		const { edits, returnValue } = await consumeHandleResponse(
-			linesStream,
+			source.asyncIterable,
 			documentBeforeEdits,
 			docId,
 			undefined,
 			undefined,
 			new TestLogService(),
-			() => {
-				// Fetch was cancelled — the full patch had "+one more new" but the
-				// stream was resolved early so it's missing from the second patch.
-				return cancellationReason;
-			},
 		);
 
 		expect(edits).toHaveLength(0);

@@ -57,7 +57,7 @@ export class ChatVariablesCollection {
 				if (variable.value) {
 					const originalName = variable.name;
 					const uniqueName = this.uniqueFileName(originalName, this._source.slice(0, i));
-					this._variables.push({ reference: variable, originalName, uniqueName, value: variable.value, range: variable.range, isMarkedReadonly: variable.isReadonly });
+					this._variables.push({ reference: variable, originalName, uniqueName, value: variable.value, range: variable.range, isMarkedReadonly: false });
 				}
 			}
 		}

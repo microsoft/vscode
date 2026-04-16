@@ -6,6 +6,7 @@
 import './media/changesTitleBarWidget.css';
 
 import { $, append } from '../../../../base/browser/dom.js';
+import { mainWindow } from '../../../../base/browser/window.js';
 import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { createInstantHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 import { IAction } from '../../../../base/common/actions.js';
@@ -24,6 +25,7 @@ import { IsAuxiliaryWindowContext, AuxiliaryBarVisibleContext } from '../../../.
 import { getAgentChangesSummary } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IPaneCompositePartService } from '../../../../workbench/services/panecomposite/browser/panecomposite.js';
+import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { ViewContainerLocation } from '../../../../workbench/common/views.js';
 import { Menus } from '../../../browser/menus.js';
@@ -184,12 +186,24 @@ registerAction2(class extends Action2 {
 	run(accessor: ServicesAccessor): void {
 		const layoutService = accessor.get(IWorkbenchLayoutService);
 		const paneCompositeService = accessor.get(IPaneCompositePartService);
+		const editorGroupService = accessor.get(IEditorGroupsService);
 		const telemetryService = accessor.get(ITelemetryService);
 
 		const isVisible = !layoutService.isVisible(Parts.AUXILIARYBAR_PART);
-		layoutService.setPartHidden(!isVisible, Parts.AUXILIARYBAR_PART);
+
 		if (isVisible) {
+			// Editor part
+			const hasEditors = editorGroupService.groups.some(group => !group.isEmpty);
+			if (hasEditors && !layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
+				layoutService.setPartHidden(false, Parts.EDITOR_PART);
+			}
+
+			// Auxiliary bar part
+			layoutService.setPartHidden(false, Parts.AUXILIARYBAR_PART);
 			paneCompositeService.openPaneComposite(CHANGES_VIEW_CONTAINER_ID, ViewContainerLocation.AuxiliaryBar);
+		} else {
+			layoutService.setPartHidden(true, Parts.EDITOR_PART);
+			layoutService.setPartHidden(true, Parts.AUXILIARYBAR_PART);
 		}
 
 		logChangesViewToggle(telemetryService, isVisible);

@@ -60,6 +60,7 @@ export const ACTION_INTRODUCED_IN: { readonly [K in IStateAction['type']]: numbe
 	[ActionType.SessionIsReadChanged]: 1,
 	[ActionType.SessionIsDoneChanged]: 1,
 	[ActionType.SessionDiffsChanged]: 1,
+	[ActionType.SessionConfigChanged]: 1,
 	[ActionType.RootTerminalsChanged]: 1,
 	[ActionType.TerminalData]: 1,
 	[ActionType.TerminalInput]: 1,
@@ -69,6 +70,9 @@ export const ACTION_INTRODUCED_IN: { readonly [K in IStateAction['type']]: numbe
 	[ActionType.TerminalCwdChanged]: 1,
 	[ActionType.TerminalExited]: 1,
 	[ActionType.TerminalCleared]: 1,
+	[ActionType.TerminalCommandDetectionAvailable]: 1,
+	[ActionType.TerminalCommandExecuted]: 1,
+	[ActionType.TerminalCommandFinished]: 1,
 };
 
 /**

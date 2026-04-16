@@ -130,6 +130,14 @@ export class ChatEditor extends AbstractEditorWithViewState<IChatEditorViewState
 		this._register(this.widget.onDidSubmitAgent(() => {
 			this.group.pinEditor(this.input);
 		}));
+		this._register(this.widget.onDidChangeViewModel((e) => {
+			if (e.currentSessionResource && this.input instanceof ChatEditorInput) {
+				const newModel = this.chatService.getSession(e.currentSessionResource);
+				if (newModel) {
+					this.input.updateModel(newModel);
+				}
+			}
+		}));
 		this.widget.render(parent);
 		this.widget.setVisible(true);
 	}

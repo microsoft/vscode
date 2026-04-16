@@ -5,6 +5,7 @@
 
 import * as os from 'os';
 import * as vscode from 'vscode';
+import { ConfigKey } from '../../../platform/configuration/common/configurationService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { DEFAULT_OTLP_ENDPOINT } from '../../../platform/otel/common/otelConfig';
 import { IOTelService } from '../../../platform/otel/common/otelService';
@@ -42,6 +43,10 @@ export class OTelContrib extends Disposable implements IExtensionContribution {
 			await this._otelService.flush();
 			this._logService.info('[OTel] Flush complete');
 		}));
+
+		// Prompt for reload when OTel settings change — these are read once at
+		// activation and the OTel SDK cannot be reconfigured at runtime.
+		this._watchForReloadRequiredChanges();
 
 		// Export the agent-traces.db file.
 		// Programmatic (eval harness): called with savePath URI or string → copies DB there.
@@ -92,6 +97,39 @@ export class OTelContrib extends Disposable implements IExtensionContribution {
 			this._telemetryService.sendMSFTTelemetryEvent('otel.exportAgentTracesDB', {
 				interactive: String(!savePath),
 			});
+		}));
+	}
+
+	private _watchForReloadRequiredChanges(): void {
+		const reloadSettings = [
+			ConfigKey.Advanced.OTelEnabled,
+			ConfigKey.Advanced.OTelExporterType,
+			ConfigKey.Advanced.OTelOtlpEndpoint,
+			ConfigKey.Advanced.OTelCaptureContent,
+			ConfigKey.Advanced.OTelOutfile,
+			ConfigKey.Advanced.OTelDbSpanExporter,
+		];
+
+		// Snapshot initial values to avoid prompting when the setting hasn't actually changed
+		const initialValues = new Map(reloadSettings.map(s => [s.fullyQualifiedId, vscode.workspace.getConfiguration().get(s.fullyQualifiedId)]));
+
+		this._register(vscode.workspace.onDidChangeConfiguration(async e => {
+			const currentConfig = vscode.workspace.getConfiguration();
+			const changed = reloadSettings.some(s =>
+				e.affectsConfiguration(s.fullyQualifiedId) &&
+				currentConfig.get(s.fullyQualifiedId) !== initialValues.get(s.fullyQualifiedId)
+			);
+			if (!changed) {
+				return;
+			}
+			const reloadWindowLabel = vscode.l10n.t("Reload Window");
+			const selection = await vscode.window.showInformationMessage(
+				vscode.l10n.t("Copilot OTel settings changed - a reload is required for the change to take effect."),
+				reloadWindowLabel,
+			);
+			if (selection === reloadWindowLabel) {
+				await vscode.commands.executeCommand('workbench.action.reloadWindow');
+			}
 		}));
 	}
 
