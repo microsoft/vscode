@@ -69,7 +69,7 @@ export interface IFileWorkingCopyModel extends IDisposable {
 
 	/**
 	 * Optional additional configuration for the model that drives
-	 * some of the working copy behaviour.
+	 * some of the working copy behavior.
 	 */
 	readonly configuration?: IFileWorkingCopyModelConfiguration;
 

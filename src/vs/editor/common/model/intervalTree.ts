@@ -410,7 +410,7 @@ function adjustMarkerBeforeColumn(markerOffset: number, markerStickToPreviousCha
 }
 
 /**
- * This is a lot more complicated than strictly necessary to maintain the same behaviour
+ * This is a lot more complicated than strictly necessary to maintain the same behavior
  * as when decorations were implemented using two markers.
  */
 export function nodeAcceptEdit(node: IntervalNode, start: number, end: number, textLength: number, forceMoveMarkers: boolean): void {

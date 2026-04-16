@@ -334,11 +334,11 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 	private doFindGroupByDirection(direction: GroupDirection, source: IEditorGroupView | GroupIdentifier, wrap?: boolean): IEditorGroupView | undefined {
 		const sourceGroupView = this.assertGroupView(source);
 
-		// Find neighbours and sort by our MRU list
-		const neighbours = this.gridWidget.getNeighborViews(sourceGroupView, this.toGridViewDirection(direction), wrap);
-		neighbours.sort(((n1, n2) => this.mostRecentActiveGroups.indexOf(n1.id) - this.mostRecentActiveGroups.indexOf(n2.id)));
+		// Find neighbors and sort by our MRU list
+		const neighbors = this.gridWidget.getNeighborViews(sourceGroupView, this.toGridViewDirection(direction), wrap);
+		neighbors.sort(((n1, n2) => this.mostRecentActiveGroups.indexOf(n1.id) - this.mostRecentActiveGroups.indexOf(n2.id)));
 
-		return neighbours[0];
+		return neighbors[0];
 	}
 
 	private doFindGroupByLocation(location: GroupLocation, source: IEditorGroupView | GroupIdentifier, wrap?: boolean): IEditorGroupView | undefined {

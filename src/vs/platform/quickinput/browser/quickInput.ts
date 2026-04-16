@@ -1019,7 +1019,7 @@ export class QuickPick<T extends IQuickPickItem, O extends { useSeparators: bool
 					this.handleAccept(false);
 				}
 				// Unset quick navigate after press. It is only valid once
-				// and should not result in any behaviour change afterwards
+				// and should not result in any behavior change afterwards
 				// if the picker remains open because there was no active item
 				this._quickNavigate = undefined;
 			}

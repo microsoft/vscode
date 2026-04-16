@@ -425,7 +425,7 @@ export interface IEditorGroupsContainer {
 
 	/**
 	 * Merge the editors of a group into a target group. By default, all editors will
-	 * move and the source group will close. This behaviour can be configured via the
+	 * move and the source group will close. This behavior can be configured via the
 	 * `IMergeGroupOptions` options.
 	 *
 	 * @param group the group to merge

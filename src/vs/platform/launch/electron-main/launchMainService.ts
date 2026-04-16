@@ -70,11 +70,11 @@ export class LaunchMainService implements ILaunchMainService {
 			return;
 		}
 
-		// macOS: Electron > 7.x changed its behaviour to not
+		// macOS: Electron > 7.x changed its behavior to not
 		// bring the application to the foreground when a window
 		// is focused programmatically. Only via `app.focus` and
 		// the option `steal: true` can you get the previous
-		// behaviour back. The only reason to use this option is
+		// behavior back. The only reason to use this option is
 		// when a window is getting focused while the application
 		// is not in the foreground and since we got instructed
 		// to open a new window from another instance, we ensure

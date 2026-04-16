@@ -611,7 +611,7 @@ export class LifecycleMainService extends Disposable implements ILifecycleMainSe
 			if (!veto && willRestart) {
 				// Windows: we are about to restart and as such we need to restore the original
 				// current working directory we had on startup to get the exact same startup
-				// behaviour. As such, we briefly change back to that directory and then when
+				// behavior. As such, we briefly change back to that directory and then when
 				// Code starts it will set it back to the installation directory again.
 				try {
 					if (isWindows) {

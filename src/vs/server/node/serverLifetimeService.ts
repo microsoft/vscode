@@ -11,7 +11,7 @@ export const IServerLifetimeService = createDecorator<IServerLifetimeService>('s
 
 export const SHUTDOWN_TIMEOUT = 5 * 60 * 1000;
 
-/** Options controlling the auto-shutdown behaviour. */
+/** Options controlling the auto-shutdown behavior. */
 export interface IServerLifetimeOptions {
 	/** When `false` (default), the server never auto-shuts down. */
 	readonly enableAutoShutdown?: boolean;

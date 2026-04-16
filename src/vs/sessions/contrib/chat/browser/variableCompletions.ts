@@ -105,7 +105,7 @@ function computeRange(model: ITextModel, position: Position, reg: RegExp): IComp
  * following the same pattern as {@link SlashCommandHandler}.
  *
  * Completions are scoped to the workspace selected in the workspace picker dropdown,
- * matching the behaviour of the "Add Context..." attach button.
+ * matching the behavior of the "Add Context..." attach button.
  * For local/remote workspaces the search service is used; for virtual filesystems
  * (e.g. `github-remote-file://`) the file service tree is walked directly.
  */

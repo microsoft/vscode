@@ -292,7 +292,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 							mapPathToStatDisposable.delete(changedFileName);
 
 							// Depending on the OS the watcher runs on, there
-							// is different behaviour for when the watched
+							// is different behavior for when the watched
 							// folder path is being deleted:
 							//
 							// -   macOS: not reported but events continue to
@@ -376,7 +376,7 @@ export class NodeJSFileWatcherLibrary extends Disposable {
 					if (type === 'rename' || !isEqual(changedFileName, pathBasename, !isLinux)) {
 
 						// Depending on the OS the watcher runs on, there
-						// is different behaviour for when the watched
+						// is different behavior for when the watched
 						// file path is being deleted:
 						//
 						// -   macOS: "rename" event is reported and events
