@@ -3,8 +3,8 @@ services:
     image: openresty/openresty:alpine
     container_name: nginx
     volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./split_ndjson.lua:/etc/nginx/split_ndjson.lua:ro
+      - ./nginx.conf:/usr/local/openresty/nginx/conf/nginx.conf:ro # test-workbench_change
+      - ./split_ndjson.lua:/usr/local/openresty/nginx/conf/split_ndjson.lua:ro # test-workbench_change
       - /etc/localtime:/etc/localtime:ro
     ports:
       - "8088:80"    # Kibana 访问入口
@@ -14,7 +14,7 @@ services:
       - elk_network
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8081 || exit 1"]
+      test: ["CMD-SHELL", "wget -qO /dev/null http://localhost:8081 2>&1; exit 0"] # test-workbench_change
       interval: 30s
       timeout: 10s
       retries: 5
