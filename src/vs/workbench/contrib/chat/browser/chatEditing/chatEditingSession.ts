@@ -524,7 +524,7 @@ export class ChatEditingSession extends Disposable implements IChatEditingSessio
 		const completePromise = new DeferredPromise<void>();
 		const startPromise = new DeferredPromise<void>();
 
-		// Sequence all edits made this this resource in this streaming edits instance,
+		// Sequence all edits made this resource in this streaming edits instance,
 		// and also sequence the resource overall in the rare (currently invalid?) case
 		// that edits are made in parallel to the same resource,
 		const sequencer = new ThrottledSequencer(15, 1000);
