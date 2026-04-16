@@ -209,10 +209,13 @@ class CodeMain {
 
 		// Policy
 		let policyService: IPolicyService | undefined;
-		if (isWindows && productService.win32RegValueName) {
-			policyService = disposables.add(new NativePolicyService(logService, productService.win32RegValueName));
-		} else if (isMacintosh && productService.darwinBundleIdentifier) {
-			policyService = disposables.add(new NativePolicyService(logService, productService.darwinBundleIdentifier));
+		const policyProductName = isWindows
+			? (productService.parentPolicyConfig?.win32RegValueName ?? productService.win32RegValueName)
+			: (productService.parentPolicyConfig?.darwinBundleIdentifier ?? productService.darwinBundleIdentifier);
+		if (isWindows && policyProductName) {
+			policyService = disposables.add(new NativePolicyService(logService, policyProductName));
+		} else if (isMacintosh && policyProductName) {
+			policyService = disposables.add(new NativePolicyService(logService, policyProductName));
 		} else if (isLinux) {
 			policyService = disposables.add(new FilePolicyService(URI.file(LINUX_SYSTEM_POLICY_FILE_PATH), fileService, logService));
 		} else if (environmentMainService.policyFile) {
@@ -335,15 +338,27 @@ class CodeMain {
 
 					// Windows: when the existing instance is running at a different
 					// elevation level (e.g. admin vs non-admin), the connection
-					// fails with EPERM. In that case, allow this instance to start
-					// independently with its own IPC server rather than blocking.
+					// fails with EPERM. Allowing two such instances to share a
+					// userDataDir would cause profile corruption (the elevated
+					// instance writes as SYSTEM and the unelevated one cannot
+					// modify those files). Only allow the second instance to
+					// start independently when the user has explicitly opted
+					// into an isolated profile via --user-data-dir.
 					if (isWindows && error.code === 'EPERM') {
-						logService.warn('Another instance is running at a different elevation level. Starting as independent instance.');
+						if (environmentMainService.args['user-data-dir']) {
+							logService.warn('Another instance is running at a different elevation level. Starting independent instance with explicit --user-data-dir.');
 
-						mainProcessNodeIpcServer = await nodeIPCServe(createRandomIPCHandle());
-						Event.once(lifecycleMainService.onWillShutdown)(() => mainProcessNodeIpcServer.dispose());
+							mainProcessNodeIpcServer = await nodeIPCServe(createRandomIPCHandle());
+							Event.once(lifecycleMainService.onWillShutdown)(() => mainProcessNodeIpcServer.dispose());
 
-						return mainProcessNodeIpcServer;
+							return mainProcessNodeIpcServer;
+						}
+
+						this.showStartupWarningDialog(
+							localize('secondInstanceAdmin', "Another instance of {0} is already running as administrator.", productService.nameShort),
+							localize('secondInstanceAdminDetail', "Please close the other instance and try again. To run a separate instance alongside the elevated one, start with --user-data-dir pointing to a different directory."),
+							productService
+						);
 					}
 
 					throw error;
