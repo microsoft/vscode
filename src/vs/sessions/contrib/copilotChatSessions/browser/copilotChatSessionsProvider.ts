@@ -975,7 +975,10 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		const [repoUri, worktreeUri, branchName, baseBranchName, baseBranchProtected] = this._extractRepositoryFromMetadata(session);
 
 		const repository: ISessionRepository = {
-			uri: repoUri ?? URI.parse('unknown:'),
+			// Fallback URI must carry a non-empty path, otherwise downstream callers
+			// such as URI.joinPath / WorkspaceFolder.toResource throw
+			// "cannot call joinPath on URI without path" (see #310777).
+			uri: repoUri ?? URI.from({ scheme: 'unknown', path: '/' }),
 			workingDirectory: worktreeUri,
 			detail: branchName,
 			baseBranchName,

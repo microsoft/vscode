@@ -41,10 +41,12 @@ function createMockAgentSession(resource: URI, opts?: {
 	title?: string;
 	archived?: boolean;
 	read?: boolean;
+	metadata?: Record<string, unknown> | undefined;
 }): IAgentSession {
 	const providerType = opts?.providerType ?? AgentSessionProviders.Background;
 	let archived = opts?.archived ?? false;
 	let read = opts?.read ?? true;
+	const metadata = opts && 'metadata' in opts ? opts.metadata : { repositoryPath: '/test/repo' };
 	return new class extends mock<IAgentSession>() {
 		override readonly resource = resource;
 		override readonly providerType = providerType;
@@ -53,7 +55,7 @@ function createMockAgentSession(resource: URI, opts?: {
 		override readonly status = ChatSessionStatus.Completed;
 		override readonly icon = Codicon.copilot;
 		override readonly timing = { created: Date.now(), lastRequestStarted: undefined, lastRequestEnded: undefined };
-		override readonly metadata = { repositoryPath: '/test/repo' };
+		override readonly metadata = metadata as IAgentSession['metadata'];
 		override isArchived(): boolean { return archived; }
 		override setArchived(value: boolean): void { archived = value; }
 		override isPinned(): boolean { return false; }
@@ -614,6 +616,33 @@ suite('CopilotChatSessionsProvider', () => {
 				assert.strictEqual(changedIds.length, uniqueIds.size, 'Changed events should not have duplicates');
 			}
 		});
+	});
+
+	// ---- Workspace fallback (repo-less sessions) -------
+
+	test('session without repository metadata has a workspace URI with a non-empty path (regression #310777)', () => {
+		// Background session with no metadata: _extractRepositoryFromMetadata
+		// returns [undefined, ...] and _buildWorkspace must provide a safe
+		// fallback URI. Historically this used URI.parse('unknown:'), which
+		// produced a URI with an empty path that crashed URI.joinPath /
+		// WorkspaceFolder.toResource / compareAndDeleteFolderConfiguration
+		// across ~13 telemetry buckets (see issues #310777, #310752, #310369,
+		// #310370, #310368, #310364, #310365, #310366, #310357, #310180,
+		// #308827).
+		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: '/session-no-repo' });
+		model.addSession(createMockAgentSession(resource, { metadata: undefined }));
+
+		const provider = createProvider(disposables, model);
+		const session = provider.getSessions()[0];
+		const workspace = session.workspace.get();
+
+		assert.ok(workspace, 'session should have a workspace');
+		const fallbackUri = workspace!.repositories[0].uri;
+		assert.ok(fallbackUri.path.length > 0, `fallback URI must have a non-empty path, got ${fallbackUri.toString()}`);
+
+		// The core symptom of #310777: any of these calls must not throw.
+		assert.doesNotThrow(() => URI.joinPath(fallbackUri, '.vscode', 'settings.json'));
+		assert.doesNotThrow(() => URI.joinPath(fallbackUri, '.vscode/extensions.json'));
 	});
 
 	// ---- Browse actions -------
