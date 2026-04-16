@@ -116,7 +116,7 @@
 	"github.copilot.git.generateCommitMessage": "Generate Commit Message",
 	"github.copilot.git.resolveMergeConflicts": "Resolve Conflicts with AI",
 	"github.copilot.devcontainer.generateDevContainerConfig": "Generate Dev Container Configuration",
-	"github.copilot.config.enableCodeActions": "Controls if Copilot commands are shown as Code Actions when available",
+	"github.copilot.config.enableCodeActions": "Controls whether Copilot commands are shown as Code Actions when available",
 	"github.copilot.config.renameSuggestions.triggerAutomatically": "Controls whether Copilot generates suggestions for renaming",
 	"github.copilot.config.localeOverride": "Specify a locale that Copilot should respond in, e.g. `en` or `fr`. By default, Copilot will respond using VS Code's configured display language locale.",
 	"github.copilot.config.edits.enabled": "Whether to enable the Copilot Edits feature.",
