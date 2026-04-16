@@ -47,6 +47,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IActionViewItemProvider } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { fromNow } from '../../../../base/common/date.js';
+import { ContextKeys } from './scmViewPane.js';
 
 type TreeElement = ISCMRepository | SCMArtifactGroupTreeElement | SCMArtifactTreeElement | IResourceNode<SCMArtifactTreeElement, SCMArtifactGroupTreeElement>;
 
@@ -439,6 +440,7 @@ export class SCMRepositoriesViewPane extends ViewPane {
 
 	private readonly visibilityDisposables = new DisposableStore();
 	private readonly repositoryDisposables = new DisposableMap<ISCMRepository>();
+	private readonly focusedArtifactGroupIdContextKey;
 
 	constructor(
 		options: IViewPaneOptions,
@@ -457,6 +459,8 @@ export class SCMRepositoriesViewPane extends ViewPane {
 		@IStorageService private readonly storageService: IStorageService
 	) {
 		super({ ...options, titleMenuId: MenuId.SCMSourceControlTitle }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
+
+		this.focusedArtifactGroupIdContextKey = ContextKeys.SCMRepositoryFocusedArtifactGroupId.bindTo(contextKeyService);
 
 		this.visibleCountObs = observableConfigValue('scm.repositories.visible', 10, this.configurationService);
 		this.providerCountBadgeObs = observableConfigValue<'hidden' | 'auto' | 'visible'>('scm.providerCountBadge', 'hidden', this.configurationService);
@@ -549,6 +553,24 @@ export class SCMRepositoriesViewPane extends ViewPane {
 	override focus(): void {
 		super.focus();
 		this.tree.domFocus();
+	}
+
+	getFocusedArtifact(): { repository: ISCMRepository; artifact: { id: string; name: string; description?: string }; groupId: string } | undefined {
+		const focused = this.tree.getFocus();
+		if (focused.length === 0 || !focused[0]) {
+			return undefined;
+		}
+
+		const element = focused[0];
+		if (isSCMArtifactTreeElement(element)) {
+			return {
+				repository: element.repository,
+				artifact: element.artifact,
+				groupId: element.group.id
+			};
+		}
+
+		return undefined;
 	}
 
 	private createTree(container: HTMLElement, viewState?: IAsyncDataTreeViewState): void {
@@ -736,6 +758,23 @@ export class SCMRepositoriesViewPane extends ViewPane {
 				this.scmViewService.focus(e.elements[0]);
 			}
 		}
+
+		// Update artifact group context key
+		this.updateFocusedArtifactGroupId(e.elements);
+	}
+
+	private updateFocusedArtifactGroupId(elements: (TreeElement | null)[]): void {
+		if (elements.length > 0 && elements[0]) {
+			const element = elements[0];
+			if (isSCMArtifactTreeElement(element)) {
+				this.focusedArtifactGroupIdContextKey.set(element.group.id);
+				return;
+			} else if (isSCMArtifactNode(element)) {
+				this.focusedArtifactGroupIdContextKey.set(element.context.artifactGroup.id);
+				return;
+			}
+		}
+		this.focusedArtifactGroupIdContextKey.reset();
 	}
 
 	private onDidTreeFocus(): void {

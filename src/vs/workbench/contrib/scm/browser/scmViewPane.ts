@@ -947,7 +947,8 @@ export const ContextKeys = {
 	RepositoryVisibilityCount: new RawContextKey<number>('scmRepositoryVisibleCount', 0),
 	RepositoryVisibility(repository: ISCMRepository) {
 		return new RawContextKey<boolean>(`scmRepositoryVisible:${repository.provider.id}`, false);
-	}
+	},
+	SCMRepositoryFocusedArtifactGroupId: new RawContextKey<string | undefined>('scmRepositoryFocusedArtifactGroupId', undefined),
 };
 
 MenuRegistry.appendMenuItem(MenuId.SCMTitle, {

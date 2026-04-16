@@ -9,7 +9,7 @@ import { IWorkbenchContributionsRegistry, registerWorkbenchContribution2, Extens
 import { QuickDiffWorkbenchController } from './quickDiffDecorator.js';
 import { VIEWLET_ID, ISCMService, VIEW_PANE_ID, ISCMProvider, ISCMViewService, REPOSITORIES_VIEW_PANE_ID, HISTORY_VIEW_PANE_ID } from '../common/scm.js';
 import { KeyMod, KeyCode } from '../../../../base/common/keyCodes.js';
-import { MenuRegistry, MenuId, registerAction2, Action2 } from '../../../../platform/actions/common/actions.js';
+import { MenuRegistry, MenuId, registerAction2, Action2, MenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { SCMActiveResourceContextKeyController, SCMActiveRepositoryController } from './activity.js';
 import { LifecyclePhase } from '../../../services/lifecycle/common/lifecycle.js';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from '../../../../platform/configuration/common/configurationRegistry.js';
@@ -42,7 +42,7 @@ import { SCMHistoryViewPane } from './scmHistoryViewPane.js';
 import { QuickDiffModelService, IQuickDiffModelService } from './quickDiffModel.js';
 import { QuickDiffEditorController } from './quickDiffWidget.js';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
-import { RemoteNameContext, ResourceContextKey } from '../../../common/contextkeys.js';
+import { FocusedViewContext, RemoteNameContext, ResourceContextKey } from '../../../common/contextkeys.js';
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { SCMAccessibilityHelp } from './scmAccessibilityHelp.js';
 import { EditorContextKeys } from '../../../../editor/common/editorContextKeys.js';
@@ -678,6 +678,59 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const scmView = await viewsService.openView<SCMViewPane>(VIEW_PANE_ID);
 		if (scmView) {
 			scmView.focusNextResourceGroup();
+		}
+	}
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'workbench.scm.repositories.dropArtifact',
+	weight: KeybindingWeight.WorkbenchContrib,
+	when: ContextKeyExpr.and(
+		ContextKeyExpr.equals(FocusedViewContext.key, REPOSITORIES_VIEW_PANE_ID),
+		ContextKeys.SCMRepositoryFocusedArtifactGroupId.notEqualsTo('')
+	),
+	primary: KeyCode.Delete,
+	mac: {
+		primary: KeyMod.CtrlCmd | KeyCode.Backspace,
+		secondary: [KeyCode.Delete]
+	},
+	handler: async accessor => {
+		const viewsService = accessor.get(IViewsService);
+		const commandService = accessor.get(ICommandService);
+		const view = viewsService.getActiveViewWithId<SCMRepositoriesViewPane>(REPOSITORIES_VIEW_PANE_ID);
+		if (!view) {
+			return;
+		}
+
+		const focusedArtifact = view.getFocusedArtifact();
+		if (!focusedArtifact) {
+			return;
+		}
+
+		const { repository, artifact, groupId } = focusedArtifact;
+		const provider = repository.provider;
+
+		// Get the artifact context menu and find a delete/drop action
+		const menus = accessor.get(ISCMViewService).menus.getRepositoryMenus(provider);
+		const artifactGroups = await provider.artifactProvider.get()?.provideArtifactGroups();
+		const artifactGroup = artifactGroups?.find(g => g.id === groupId);
+		if (!artifactGroup) {
+			return;
+		}
+
+		const menu = menus.getArtifactMenu(artifactGroup, artifact);
+		const actions = menu.getActions({ arg: provider, shouldForwardArgs: true });
+
+		for (const [, groupActions] of actions) {
+			for (const action of groupActions) {
+				if (action instanceof MenuItemAction) {
+					const id = action.item.id.toLowerCase();
+					if (id.includes('drop') || id.includes('delete')) {
+						await commandService.executeCommand(action.item.id, provider, artifact);
+						return;
+					}
+				}
+			}
 		}
 	}
 });
