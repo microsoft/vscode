@@ -321,7 +321,7 @@ export abstract class ChatTelemetry<C extends IDocumentContext | undefined = IDo
 	protected _editCount: number = 0;
 	protected _editLineCount: number = 0;
 
-	// todo@connor4312: temporary event to track occurences of patches in response
+	// todo@connor4312: temporary event to track occurrences of patches in response
 	// text, ref https://github.com/microsoft/vscode-copilot/issues/16608
 	private _didSeePatchInResponse = false;
 	private _lastMarkdownLine = '';
@@ -448,7 +448,7 @@ export abstract class ChatTelemetry<C extends IDocumentContext | undefined = IDo
 		this._sendResponseInternalTelemetryEvent(responseType, response);
 
 
-		// todo@connor4312: temporary event to track occurences of patches in response
+		// todo@connor4312: temporary event to track occurrences of patches in response
 		// text, ref https://github.com/microsoft/vscode-copilot/issues/16608
 		if (this._didSeePatchInResponse) {
 			/* __GDPR__
