@@ -359,7 +359,7 @@
 	"github.copilot.config.projectLabels.inline": "Add project labels in inline edit requests.",
 	"github.copilot.config.workspace.maxLocalIndexSize": "Maximum size of the local workspace index.",
 	"github.copilot.config.workspace.enableCodeSearch": "Enable code search in workspace context.",
-	"github.copilot.config.workspace.maxDiffSizeBeforeUsingExternalIngest": "Maximum number of local changes before we start using using external ingest.",
+	"github.copilot.config.workspace.maxDiffSizeBeforeUsingExternalIngest": "Maximum number of local changes before we start using external ingest.",
 	"github.copilot.config.workspace.preferredEmbeddingsModel": "Preferred embeddings model for semantic search.",
 	"github.copilot.config.workspace.prototypeAdoCodeSearchEndpointOverride": "Override endpoint for Azure DevOps code search prototype.",
 	"github.copilot.config.feedback.onChange": "Enable feedback collection on configuration changes.",
