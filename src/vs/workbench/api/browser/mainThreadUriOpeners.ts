@@ -17,7 +17,7 @@ import { ExtHostContext, ExtHostUriOpenersShape, MainContext, MainThreadUriOpene
 import { defaultExternalUriOpenerId } from '../../contrib/externalUriOpener/common/configuration.js';
 import { ContributedExternalUriOpenersStore } from '../../contrib/externalUriOpener/common/contributedOpeners.js';
 import { IExternalOpenerProvider, IExternalUriOpener, IExternalUriOpenerService } from '../../contrib/externalUriOpener/common/externalUriOpenerService.js';
-import { IExtensionService } from '../../services/extensions/common/extensions.js';
+import { ActivationKind, IExtensionService } from '../../services/extensions/common/extensions.js';
 import { extHostNamedCustomer, IExtHostContext } from '../../services/extensions/common/extHostCustomers.js';
 
 interface RegisteredOpenerMetadata {
@@ -56,7 +56,12 @@ export class MainThreadUriOpeners extends Disposable implements MainThreadUriOpe
 			return;
 		}
 
-		await this.extensionService.activateByEvent(`onOpenExternalUri:${targetUri.scheme}`);
+		// Use `Immediate` activation so that URL clicks are not blocked while a
+		// remote extension host is still being resolved/connected. Waiting here
+		// would defer opening the link until the remote connection completes,
+		// which is a problem e.g. for 2FA login URLs printed during connect.
+		// See https://github.com/microsoft/vscode/issues/236398
+		await this.extensionService.activateByEvent(`onOpenExternalUri:${targetUri.scheme}`, ActivationKind.Immediate);
 
 		for (const [id, openerMetadata] of this._registeredOpeners) {
 			if (openerMetadata.schemes.has(targetUri.scheme)) {
