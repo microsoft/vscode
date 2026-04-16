@@ -361,7 +361,7 @@ export interface AmbiguousRunTestsRequest {
 	exclude?: InternalTestItem[];
 	/** Whether this was triggered from an auto run. */
 	continuous?: boolean;
-	/** Whether this was trigged by a user action in UI. Default=true */
+	/** Whether this was triggered by a user action in UI. Default=true */
 	preserveFocus?: boolean;
 }
 

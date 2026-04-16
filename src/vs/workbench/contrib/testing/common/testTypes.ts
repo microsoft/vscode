@@ -105,7 +105,7 @@ export interface ResolvedTestRunRequest {
 	exclude?: string[];
 	/** Whether this is a continuous test run */
 	continuous?: boolean;
-	/** Whether this was trigged by a user action in UI. Default=true */
+	/** Whether this was triggered by a user action in UI. Default=true */
 	preserveFocus?: boolean;
 }
 

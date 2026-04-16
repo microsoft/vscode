@@ -801,7 +801,7 @@ suite('Glob', () => {
 		assert.strictEqual(glob.parse(expr)('bar.js', undefined, hasSibling), null);
 	});
 
-	test('expression with multipe basename globs', function () {
+	test('expression with multiple basename globs', function () {
 		const expr = {
 			'**/bar': true,
 			'{**/baz,**/foo}': true

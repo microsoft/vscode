@@ -271,7 +271,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 	private async doWriteFileAtomic(resource: URI, tempResource: URI, content: Uint8Array, opts: IFileWriteOptions): Promise<void> {
 
 		// Ensure to create locks for all resources involved
-		// since atomic write involves mutiple disk operations
+		// since atomic write involves multiple disk operations
 		// and resources.
 
 		const locks = new DisposableStore();

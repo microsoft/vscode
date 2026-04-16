@@ -217,7 +217,7 @@ suite('ViewContainerModel', () => {
 		assert.deepStrictEqual(target.elements, [view3]);
 
 		testObject.setVisible('view3', false);
-		assert.deepStrictEqual(testObject.visibleViewDescriptors, [], 'view3 shoud hide');
+		assert.deepStrictEqual(testObject.visibleViewDescriptors, [], 'view3 should hide');
 		assert.deepStrictEqual(target.elements, []);
 
 		testObject.setVisible('view1', true);
