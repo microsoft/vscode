@@ -56,7 +56,7 @@ export class ExtHostNotebookDocumentSaveParticipant implements ExtHostNotebookDo
 
 		await this._onWillSaveNotebookDocumentEvent.fireAsync({ notebook: document.apiNotebook, reason: TextDocumentSaveReason.to(reason) }, token, async (thenable: Promise<unknown>, listener) => {
 			const now = Date.now();
-			const data = await await Promise.resolve(thenable);
+			const data = await Promise.resolve(thenable);
 			if (Date.now() - now > this._thresholds.timeout) {
 				this._logService.warn('onWillSaveNotebookDocument-listener from extension', (<IExtensionListener<NotebookDocumentWillSaveEvent>>listener).extension.identifier);
 			}
