@@ -50,13 +50,13 @@ suite('Arrays', () => {
 
 	test('quickSelect', () => {
 
-		function assertMedian(expexted: number, data: number[], nth: number = Math.floor(data.length / 2)) {
+		function assertMedian(expected: number, data: number[], nth: number = Math.floor(data.length / 2)) {
 			const compare = (a: number, b: number) => a - b;
 			const actual1 = arrays.quickSelect(nth, data, compare);
-			assert.strictEqual(actual1, expexted);
+			assert.strictEqual(actual1, expected);
 
 			const actual2 = data.slice().sort(compare)[nth];
-			assert.strictEqual(actual2, expexted);
+			assert.strictEqual(actual2, expected);
 		}
 
 		assertMedian(5, [9, 1, 0, 2, 3, 4, 6, 8, 7, 10, 5]);
