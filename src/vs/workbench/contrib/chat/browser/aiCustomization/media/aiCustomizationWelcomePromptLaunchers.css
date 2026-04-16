@@ -233,7 +233,7 @@
 	padding: 4px 6px;
 	border-radius: 4px;
 	background: var(--vscode-button-secondaryBackground);
-	border: 1px solid var(--vscode-button-border);
+	border: 1px solid var(--vscode-button-border, var(--vscode-contrastBorder, transparent));
 }
 
 .ai-customization-management-editor .welcome-prompts-card-action:hover {
