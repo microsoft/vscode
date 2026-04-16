@@ -15,10 +15,9 @@ import { buildStoreMemoryToolDefinition, StoreMemoryTool } from './storeMemoryTo
 export interface IAgentMemoryToolRegistrar {
 	readonly _serviceBrand: undefined;
 	/**
-	 * Register store_memory (and optionally vote_memory) as model-specific tools using an
-	 * already-fetched prompt response. When called without a response, fetches the /prompt
-	 * endpoint itself. Safe to call multiple times — re-registers on each call to pick up
-	 * updated tool definitions from the server.
+	 * Register store_memory as a model-specific tool using an already-fetched prompt response.
+	 * When called without a response, fetches the /prompt endpoint itself. Safe to call multiple
+	 * times — re-registers on each call to pick up updated tool definitions from the server.
 	 */
 	registerMemoryTools(promptResponse?: MemoryPromptResponse): Promise<void>;
 }
