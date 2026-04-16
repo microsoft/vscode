@@ -313,7 +313,7 @@ export class ContinuousRunUsingProfileTestAction extends Action2 {
 	constructor() {
 		super({
 			id: TestCommandId.ContinousRunUsingForTest,
-			title: localize2('testing.startContinuousRunUsing', 'Start Continous Run Using...'),
+			title: localize2('testing.startContinuousRunUsing', 'Start Continuous Run Using...'),
 			icon: icons.testingDebugIcon,
 			menu: [
 				{
