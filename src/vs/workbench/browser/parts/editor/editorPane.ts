@@ -157,7 +157,7 @@ export abstract class EditorPane<MementoType extends object = object> extends Co
 	 *
 	 * @param visible the state of visibility of this editor
 	 */
-	public setEditorVisible(visible: boolean): void {
+	protected setEditorVisible(visible: boolean): void {
 		// Subclasses can implement
 	}
 
