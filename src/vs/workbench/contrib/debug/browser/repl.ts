@@ -1046,7 +1046,7 @@ registerAction2(class extends ViewAction<Repl> {
 
 	async runInView(accessor: ServicesAccessor, view: Repl, session: IDebugSession | undefined) {
 		const debugService = accessor.get(IDebugService);
-		// If session is already the focused session we need to manualy update the tree since view model will not send a focused change event
+		// If session is already the focused session we need to manually update the tree since view model will not send a focused change event
 		if (session && session.state !== State.Inactive && session !== debugService.getViewModel().focusedSession) {
 			session = resolveChildSession(session, debugService.getModel().getSessions());
 			await debugService.focusStackFrame(undefined, undefined, session, { explicit: true });

@@ -1453,7 +1453,7 @@ export class TypeAheadAddon extends Disposable implements ITerminalAddon {
 		const buffer = terminal.buffer.active;
 
 		// Detect programs like git log/less that use the normal buffer but don't
-		// take input by deafult (fixes #109541)
+		// take input by default (fixes #109541)
 		if (buffer.cursorX === 1 && buffer.cursorY === terminal.rows - 1) {
 			if (buffer.getLine(buffer.cursorY + buffer.baseY)?.getCell(0)?.getChars() === ':') {
 				return;
