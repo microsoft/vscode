@@ -41,6 +41,17 @@ const SHELL_EXECUTABLE_REGEXES = [
 	/^python(\d(\.\d{0,2})?)?\.exe$/,
 ];
 
+/**
+ * npm-installed agent CLIs appear in the process tree as plain `node.exe`, so we identify
+ * them by matching the package folder in node's command line.
+ */
+const NODE_AGENT_CLI_PATTERNS: ReadonlyArray<{ regex: RegExp; executable: string }> = [
+	{ regex: /[\\/]claude-code[\\/]/i, executable: 'claude.exe' },
+	{ regex: /[\\/]codex[\\/]/i, executable: 'codex.exe' },
+	{ regex: /[\\/]copilot[\\/]/i, executable: 'copilot.exe' },
+	{ regex: /[\\/]gemini-cli[\\/]/i, executable: 'gemini.exe' },
+];
+
 let windowsProcessTree: typeof WindowsProcessTreeType;
 
 export class WindowsShellHelper extends Disposable implements IWindowsShellHelper {
@@ -96,6 +107,15 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 		if (!tree) {
 			return '';
 		}
+		// Detect npm-installed agent CLIs running inside `node.exe` by inspecting the command line
+		// passed to Node. Without this we'd treat them as a generic Node shell.
+		if (tree.name === 'node.exe' && tree.commandLine) {
+			for (const { regex, executable } of NODE_AGENT_CLI_PATTERNS) {
+				if (regex.test(tree.commandLine)) {
+					return executable;
+				}
+			}
+		}
 		if (SHELL_EXECUTABLES.indexOf(tree.name) === -1) {
 			return tree.name;
 		}
@@ -142,7 +162,7 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 				const name = this.traverseTree(tree);
 				this._currentRequest = undefined;
 				resolve(name);
-			});
+			}, windowsProcessTree.ProcessDataFlag.CommandLine);
 		});
 		return this._currentRequest;
 	}
@@ -165,6 +185,14 @@ export class WindowsShellHelper extends Disposable implements IWindowsShellHelpe
 				return GeneralShellType.NuShell;
 			case 'xonsh.exe':
 				return GeneralShellType.Xonsh;
+			case 'claude.exe':
+				return GeneralShellType.Claude;
+			case 'codex.exe':
+				return GeneralShellType.Codex;
+			case 'copilot.exe':
+				return GeneralShellType.Copilot;
+			case 'gemini.exe':
+				return GeneralShellType.Gemini;
 			case 'wsl.exe':
 			case 'ubuntu.exe':
 			case 'ubuntu1804.exe':

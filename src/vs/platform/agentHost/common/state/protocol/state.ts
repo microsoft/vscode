@@ -282,8 +282,6 @@ export interface ISessionState {
 	serverTools?: IToolDefinition[];
 	/** The client currently providing tools and interactive capabilities to this session */
 	activeClient?: ISessionActiveClient;
-	/** The working directory URI for this session */
-	workingDirectory?: URI;
 	/** Completed turns */
 	turns: ITurn[];
 	/** Currently in-progress turn */
@@ -294,6 +292,8 @@ export interface ISessionState {
 	queuedMessages?: IPendingMessage[];
 	/** Requests for user input that are currently blocking or informing session progress */
 	inputRequests?: ISessionInputRequest[];
+	/** Session configuration schema and current values */
+	config?: ISessionConfigState;
 	/**
 	 * Server-provided customizations active in this session.
 	 *
@@ -376,6 +376,74 @@ export interface ISessionSummary {
 	isDone?: boolean;
 	/** Files changed during this session with diff statistics */
 	diffs?: ISessionFileDiff[];
+}
+
+// ─── Session Config Types ────────────────────────────────────────────────────
+
+/**
+ * A JSON Schema-compatible string enum property descriptor with display extensions.
+ *
+ * Standard JSON Schema fields (`type`, `title`, `description`, `default`,
+ * `enum`) allow validators to process the schema. Display extensions
+ * (`enumLabels`, `enumDescriptions`) are parallel arrays that provide UI metadata for each `enum` value.
+ *
+ * @category Session Config Types
+ */
+export interface ISessionConfigPropertySchema {
+	/** JSON Schema: property type. Only string enum properties are currently supported. */
+	type: 'string';
+	/** JSON Schema: human-readable label for the property */
+	title: string;
+	/** JSON Schema: description / tooltip */
+	description?: string;
+	/** JSON Schema: default value */
+	default?: string;
+	/** JSON Schema: allowed values */
+	enum: string[];
+	/** Display extension: human-readable label per enum value (parallel array) */
+	enumLabels?: string[];
+	/** Display extension: description per enum value (parallel array) */
+	enumDescriptions?: string[];
+	/**
+	 * Display extension: when `true`, the full set of allowed values is too large
+	 * to enumerate statically. The client SHOULD use `sessionConfigCompletions`
+	 * to fetch matching values based on user input. Any values in `enum` are
+	 * seed/recent values for initial display.
+	 */
+	enumDynamic?: boolean;
+	/** JSON Schema: when `true`, the property is displayed but cannot be modified by the user */
+	readOnly?: boolean;
+	/** When `true`, the user may change this property after session creation */
+	sessionMutable?: boolean;
+}
+
+/**
+ * A JSON Schema object describing available session configuration metadata.
+ *
+ * @category Session Config Types
+ */
+export interface ISessionConfigSchema {
+	/** JSON Schema: always `'object'` */
+	type: 'object';
+	/** JSON Schema: property descriptors keyed by property id */
+	properties: Record<string, ISessionConfigPropertySchema>;
+	/** JSON Schema: list of required property ids */
+	required?: string[];
+}
+
+/**
+ * Live session configuration metadata.
+ *
+ * The schema describes the available configuration properties and the values
+ * contain the current value for each resolved property.
+ *
+ * @category Session Config Types
+ */
+export interface ISessionConfigState {
+	/** JSON Schema describing available configuration properties */
+	schema: ISessionConfigSchema;
+	/** Current configuration values */
+	values: Record<string, string>;
 }
 
 // ─── Session Input Types ────────────────────────────────────────────────────
@@ -994,9 +1062,6 @@ export type IToolCallState =
 /**
  * Describes a tool available in a session, provided by either the server or the active client.
  *
- * This type mirrors the MCP `Tool` type from the Model Context Protocol specification
- * (2025-11-25 draft) and will continue to track it.
- *
  * @category Tool Definition Types
  */
 export interface IToolDefinition {
@@ -1346,14 +1411,83 @@ export interface ITerminalState {
 	/** Terminal height in rows */
 	rows?: number;
 	/**
-	 * Accumulated terminal output. May contain ANSI escape sequences.
-	 * The scrollback length is implementation-defined.
+	 * Typed content parts, replacing the flat `content: string`.
+	 *
+	 * Naive consumers that only need the raw VT stream can reconstruct it with:
+	 *   `content.map(p => p.type === 'command' ? p.output : p.value).join('')`
+	 *
+	 * Consumers that need command boundaries can filter by part type.
 	 */
-	content: string;
+	content: ITerminalContentPart[];
 	/** Process exit code, set when the terminal process exits */
 	exitCode?: number;
 	/** Who currently holds this terminal */
 	claim: ITerminalClaim;
+	/**
+	 * Whether this terminal emits `terminal/commandExecuted` and
+	 * `terminal/commandFinished` actions and populates `command`-typed parts.
+	 *
+	 * Clients MUST check this flag before relying on command detection.
+	 * Do NOT use the presence of a `command` part as a feature flag — parts
+	 * are absent in the normal idle state.
+	 */
+	supportsCommandDetection?: boolean;
+}
+
+// ─── Terminal Content Parts ──────────────────────────────────────────────────
+
+/**
+ * A content part within terminal output.
+ *
+ * @category Terminal Types
+ */
+export type ITerminalContentPart =
+	| ITerminalUnclassifiedPart
+	| ITerminalCommandPart;
+
+/**
+ * Unstructured terminal output — content before, between, or after commands,
+ * or from terminals that do not support command detection.
+ *
+ * @category Terminal Types
+ */
+export interface ITerminalUnclassifiedPart {
+	type: 'unclassified';
+	/** Accumulated VT output. Appended to by `terminal/data` when no command is executing. */
+	value: string;
+}
+
+/**
+ * A single command: its command line and the output it produced.
+ *
+ * While `isComplete` is false the command is still executing; `output` grows
+ * as `terminal/data` actions arrive. At `terminal/commandFinished` the part
+ * is mutated in-place with `isComplete: true` and the completion metadata.
+ *
+ * @category Terminal Types
+ */
+export interface ITerminalCommandPart {
+	type: 'command';
+	/**
+	 * Stable id matching the `commandId` on the corresponding
+	 * `terminal/commandExecuted` and `terminal/commandFinished` actions.
+	 */
+	commandId: string;
+	/** The command line submitted to the shell. */
+	commandLine: string;
+	/**
+	 * Accumulated VT output. Appended to by `terminal/data` while `isComplete`
+	 * is false. Shell integration escape sequences are stripped by the server.
+	 */
+	output: string;
+	/** Unix timestamp (ms) when execution started, as reported by the server. */
+	timestamp: number;
+	/** Whether the command has finished. */
+	isComplete: boolean;
+	/** Shell exit code. Set at completion. `undefined` if unknown. */
+	exitCode?: number;
+	/** Wall-clock duration in milliseconds. Set at completion. */
+	durationMs?: number;
 }
 
 // ─── Common Types ────────────────────────────────────────────────────────────

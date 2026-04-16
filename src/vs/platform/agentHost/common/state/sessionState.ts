@@ -43,6 +43,7 @@ export {
 	type IResponsePart,
 	type IRootState,
 	type ISessionActiveClient,
+	type ISessionConfigState,
 	type ISessionFileDiff,
 	type ISessionModelInfo,
 	type ISessionState,

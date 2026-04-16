@@ -33,7 +33,7 @@
 	gap: 4px;
 	padding: 2px 0 6px;
 	margin-bottom: 6px;
-	border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border, transparent);
+	border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border, var(--vscode-panel-border, var(--vscode-widget-border, transparent)));
 }
 
 .ai-customization-management-editor .sidebar-home-button {
@@ -41,16 +41,17 @@
 	display: flex;
 	align-items: center;
 	gap: 10px;
-	padding: 5px 8px;
+	padding: 4px 8px;
 	border: none;
 	border-radius: 4px;
-	background: var(--vscode-dropdown-background);
-	color: var(--vscode-dropdown-foreground);
+	background: transparent;
+	color: var(--vscode-foreground);
 	cursor: pointer;
 	font-size: 12px;
 	font-weight: 600;
 	line-height: 18px;
 	font-family: inherit;
+	transition: background-color 0.1s ease;
 }
 
 .ai-customization-management-editor .sidebar-home-button:hover {
@@ -79,66 +80,6 @@
 	overflow: hidden;
 }
 
-/* Folder picker footer (sessions window only) */
-.ai-customization-management-editor .sidebar-folder-picker {
-	flex-shrink: 0;
-	display: flex;
-	align-items: center;
-	gap: 2px;
-	padding: 6px 4px;
-	border-top: 1px solid var(--vscode-sideBarSectionHeader-border, transparent);
-}
-
-.ai-customization-management-editor .folder-picker-button {
-	display: flex;
-	align-items: center;
-	gap: 6px;
-	flex: 1;
-	min-width: 0;
-	padding: 4px 6px;
-	border: none;
-	border-radius: 4px;
-	background: transparent;
-	color: var(--vscode-descriptionForeground);
-	cursor: pointer;
-	font-size: 13px;
-}
-
-.ai-customization-management-editor .folder-picker-button:hover {
-	background-color: var(--vscode-list-hoverBackground);
-}
-
-.ai-customization-management-editor .folder-picker-icon {
-	flex-shrink: 0;
-	font-size: 14px;
-}
-
-.ai-customization-management-editor .folder-picker-label {
-	overflow: hidden;
-	text-overflow: ellipsis;
-	white-space: nowrap;
-}
-
-.ai-customization-management-editor .folder-picker-clear {
-	flex-shrink: 0;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 22px;
-	height: 22px;
-	padding: 0;
-	border: none;
-	border-radius: 4px;
-	background: transparent;
-	color: var(--vscode-descriptionForeground);
-	cursor: pointer;
-	font-size: 12px;
-}
-
-.ai-customization-management-editor .folder-picker-clear:hover {
-	background-color: var(--vscode-list-hoverBackground);
-}
-
 /* Section list items */
 .ai-customization-management-editor .section-list-item {
 	display: flex;
@@ -155,17 +96,13 @@
 }
 
 /* Selected section - using list selection */
-.ai-customization-management-editor .monaco-list .monaco-list-row.selected .section-list-item {
-	background-color: var(--vscode-list-activeSelectionBackground);
-	color: var(--vscode-list-activeSelectionForeground);
+.ai-customization-management-editor .monaco-list .monaco-list-row.section-list-item.selected .section-icon {
+	color: inherit;
+	opacity: 1;
 }
 
-.ai-customization-management-editor .monaco-list .monaco-list-row.selected .section-list-item .section-icon {
-	color: var(--vscode-list-activeSelectionIconForeground, var(--vscode-list-activeSelectionForeground));
-}
-
-.ai-customization-management-editor .monaco-list .monaco-list-row.selected .section-list-item .section-label {
-	color: var(--vscode-list-activeSelectionForeground);
+.ai-customization-management-editor .monaco-list .monaco-list-row.section-list-item.selected .section-count {
+	color: inherit;
 }
 
 .ai-customization-management-editor .section-icon {

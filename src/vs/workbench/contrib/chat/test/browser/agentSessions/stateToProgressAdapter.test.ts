@@ -10,7 +10,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/
 import { ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, type IActiveTurn, type ICompletedToolCall, type IToolCallRunningState, type ITurn, type IToolCallResponsePart, ToolCallCancellationReason } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatToolInvocationSerialized, type IChatMarkdownContent } from '../../../common/chatService/chatService.js';
 import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
-import { turnsToHistory, activeTurnToProgress, toolCallStateToInvocation, finalizeToolInvocation, updateRunningToolSpecificData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
+import { turnsToHistory, activeTurnToProgress, toolCallStateToInvocation as rawToolCallStateToInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
 // ---- Helper factories -------------------------------------------------------
 
@@ -51,6 +51,14 @@ function createTurn(overrides?: Partial<ITurn>): ITurn {
 	};
 }
 
+function toolCallStateToInvocation(tc: Parameters<typeof rawToolCallStateToInvocation>[0], subAgentInvocationId?: string) {
+	return rawToolCallStateToInvocation(tc, subAgentInvocationId, URI.file('/'));
+}
+
+function finalizeToolInvocation(invocation: Parameters<typeof rawFinalizeToolInvocation>[0], tc: Parameters<typeof rawFinalizeToolInvocation>[1]) {
+	return rawFinalizeToolInvocation(invocation, tc, URI.file('/'));
+}
+
 // ---- Tests ------------------------------------------------------------------
 
 suite('stateToProgressAdapter', () => {
@@ -60,7 +68,7 @@ suite('stateToProgressAdapter', () => {
 	suite('turnsToHistory', () => {
 
 		test('empty turns produces empty history', () => {
-			const result = turnsToHistory([], 'p');
+			const result = turnsToHistory(URI.file('/'), [], 'p');
 			assert.deepStrictEqual(result, []);
 		});
 
@@ -70,7 +78,7 @@ suite('stateToProgressAdapter', () => {
 				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall() } as IToolCallResponsePart],
 			});
 
-			const history = turnsToHistory([turn], 'participant-1');
+			const history = turnsToHistory(URI.file('/'), [turn], 'participant-1');
 			assert.strictEqual(history.length, 2);
 
 			// Request
@@ -90,6 +98,22 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(serialized.isComplete, true);
 		});
 
+		test('request history includes restored model id', () => {
+			const turn = createTurn({
+				userMessage: { text: 'Use restored model' },
+			});
+
+			const history = turnsToHistory(URI.file('/'), [turn], 'participant-1', 'agent-host-copilot:gpt-5');
+
+			assert.deepStrictEqual(history[0], {
+				id: turn.id,
+				type: 'request',
+				prompt: 'Use restored model',
+				participant: 'participant-1',
+				modelId: 'agent-host-copilot:gpt-5',
+			});
+		});
+
 		test('terminal tool call in history has correct terminal data', () => {
 			const turn = createTurn({
 				responseParts: [{
@@ -104,7 +128,7 @@ suite('stateToProgressAdapter', () => {
 				} as IToolCallResponsePart],
 			});
 
-			const history = turnsToHistory([turn], 'p');
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
 			const response = history[1];
 			assert.strictEqual(response.type, 'response');
 			if (response.type !== 'response') { return; }
@@ -132,7 +156,7 @@ suite('stateToProgressAdapter', () => {
 				} as IToolCallResponsePart],
 			});
 
-			const history = turnsToHistory([turn], 'p');
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
 			const response = history[1];
 			assert.strictEqual(response.type, 'response');
 			if (response.type !== 'response') { return; }
@@ -163,7 +187,7 @@ suite('stateToProgressAdapter', () => {
 				} as IToolCallResponsePart],
 			});
 
-			const history = turnsToHistory([turn], 'p');
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
 			const response = history[1];
 			assert.strictEqual(response.type, 'response');
 			if (response.type !== 'response') { return; }
@@ -182,7 +206,7 @@ suite('stateToProgressAdapter', () => {
 				responseParts: [{ kind: ResponsePartKind.Markdown, id: 'md-1', content: 'Hello world' }],
 			});
 
-			const history = turnsToHistory([turn], 'p');
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
 			assert.strictEqual(history.length, 2);
 
 			const response = history[1];
@@ -199,7 +223,7 @@ suite('stateToProgressAdapter', () => {
 				error: { errorType: 'test', message: 'boom' },
 			});
 
-			const history = turnsToHistory([turn], 'p');
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
 			const response = history[1];
 			assert.strictEqual(response.type, 'response');
 			if (response.type !== 'response') { return; }
@@ -221,7 +245,7 @@ suite('stateToProgressAdapter', () => {
 				} as IToolCallResponsePart],
 			});
 
-			const history = turnsToHistory([turn], 'p');
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
 			const response = history[1];
 			assert.strictEqual(response.type, 'response');
 			if (response.type !== 'response') { return; }
@@ -485,12 +509,12 @@ suite('stateToProgressAdapter', () => {
 		}
 
 		test('empty active turn produces empty progress', () => {
-			const result = activeTurnToProgress(createActiveTurnState());
+			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState());
 			assert.deepStrictEqual(result, []);
 		});
 
 		test('produces markdown content for streamed text', () => {
-			const result = activeTurnToProgress(createActiveTurnState([
+			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([
 				{ kind: ResponsePartKind.Markdown, id: 'md-1', content: 'Hello world' },
 			]));
 			assert.strictEqual(result.length, 1);
@@ -499,7 +523,7 @@ suite('stateToProgressAdapter', () => {
 		});
 
 		test('produces thinking progress for reasoning', () => {
-			const result = activeTurnToProgress(createActiveTurnState([
+			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([
 				{ kind: ResponsePartKind.Reasoning, id: 'r-1', content: 'Let me think about this...' },
 			]));
 			assert.strictEqual(result.length, 1);
@@ -507,7 +531,7 @@ suite('stateToProgressAdapter', () => {
 		});
 
 		test('reasoning comes before streamed text when ordered that way', () => {
-			const result = activeTurnToProgress(createActiveTurnState([
+			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([
 				{ kind: ResponsePartKind.Reasoning, id: 'r-1', content: 'Hmm...' },
 				{ kind: ResponsePartKind.Markdown, id: 'md-1', content: 'Result text' },
 			]));
@@ -517,7 +541,7 @@ suite('stateToProgressAdapter', () => {
 		});
 
 		test('serializes completed tool calls', () => {
-			const result = activeTurnToProgress(createActiveTurnState([
+			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([
 				{
 					kind: ResponsePartKind.ToolCall,
 					toolCall: {
@@ -537,7 +561,7 @@ suite('stateToProgressAdapter', () => {
 		});
 
 		test('creates live invocations for running tool calls', () => {
-			const result = activeTurnToProgress(createActiveTurnState([
+			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([
 				{
 					kind: ResponsePartKind.ToolCall,
 					toolCall: createToolCallState({
@@ -553,7 +577,7 @@ suite('stateToProgressAdapter', () => {
 		});
 
 		test('creates confirmation invocations for pending tool confirmations', () => {
-			const result = activeTurnToProgress(createActiveTurnState([
+			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([
 				{
 					kind: ResponsePartKind.ToolCall,
 					toolCall: {
@@ -575,7 +599,7 @@ suite('stateToProgressAdapter', () => {
 		});
 
 		test('includes all parts in correct order', () => {
-			const result = activeTurnToProgress(createActiveTurnState([
+			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([
 				{ kind: ResponsePartKind.Reasoning, id: 'r-1', content: 'Thinking...' },
 				{ kind: ResponsePartKind.Markdown, id: 'md-1', content: 'Output so far' },
 				{
@@ -620,7 +644,7 @@ suite('stateToProgressAdapter', () => {
 				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: tc } as IToolCallResponsePart],
 			});
 
-			const history = turnsToHistory([turn], 'p');
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
 			const response = history[1];
 			assert.strictEqual(response.type, 'response');
 			if (response.type !== 'response') { return; }
@@ -649,7 +673,7 @@ suite('stateToProgressAdapter', () => {
 				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: tc } as IToolCallResponsePart],
 			});
 
-			const history = turnsToHistory([turn], 'p');
+			const history = turnsToHistory(URI.file('/'), [turn], 'p');
 			const response = history[1];
 			assert.strictEqual(response.type, 'response');
 			if (response.type !== 'response') { return; }

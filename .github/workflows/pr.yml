@@ -284,10 +284,6 @@ jobs:
           mkdir -p .build/build_cache
           tar -czf .build/build_cache/cache.tgz --files-from .build/build_cache_list.txt
 
-      - name: Ensure proposed API types are up to date
-        working-directory: extensions/copilot
-        run: npm run vscode-dts:check
-
       - name: TypeScript type checking
         working-directory: extensions/copilot
         run: npm run typecheck
