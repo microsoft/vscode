@@ -110,6 +110,15 @@ export abstract class AbstractVariableResolverService implements IConfigurationR
 		}
 	}
 
+	/**
+	 * Default implementation is a no-op passthrough. Subclasses that back `${file}`
+	 * with an editor service (see `BaseConfigurationResolverService`) override this
+	 * to honor the snapshot.
+	 */
+	public withActiveFileOverride<T>(_resource: uri | undefined, fn: () => Promise<T>): Promise<T> {
+		return fn();
+	}
+
 	private fsPath(displayUri: uri): string {
 		return this._labelService ? this._labelService.getUriLabel(displayUri, { noPrefix: true }) : displayUri.fsPath;
 	}
