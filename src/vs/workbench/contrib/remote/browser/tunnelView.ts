@@ -1173,7 +1173,7 @@ export namespace ForwardPortAction {
 	export const COMMANDPALETTE_ID = 'remote.tunnel.forwardCommandPalette';
 	export const LABEL: ILocalizedString = nls.localize2('remote.tunnel.forward', "Forward a Port");
 	export const TREEITEM_LABEL = nls.localize('remote.tunnel.forwardItem', "Forward Port");
-	const forwardPrompt = nls.localize('remote.tunnel.forwardPrompt', "Port number or address (eg. 3000 or 10.10.10.10:2000).");
+	const forwardPrompt = nls.localize('remote.tunnel.forwardPrompt', "Port number or address (e.g. 3000 or 10.10.10.10:2000).");
 
 	function validateInput(remoteExplorerService: IRemoteExplorerService, tunnelService: ITunnelService, value: string, canElevate: boolean): { content: string; severity: Severity } | null {
 		const parsed = parseAddress(value);
