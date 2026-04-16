@@ -449,7 +449,7 @@ suite('TokensStore', () => {
 	});
 
 
-	test('issue #95949: Identifiers are colored in bold when targetting keywords', () => {
+	test('issue #95949: Identifiers are colored in bold when targeting keywords', () => {
 
 		function createTMMetadata(foreground: number, fontStyle: number, languageId: number): number {
 			return (

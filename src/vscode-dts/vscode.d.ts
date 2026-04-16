@@ -9619,7 +9619,7 @@ declare module 'vscode' {
 		 *
 		 * The `excludes` array is used to indicate paths that should be excluded from file
 		 * watching. It is typically derived from the `files.watcherExclude` setting that
-		 * is configurable by the user. Each entry can be be:
+		 * is configurable by the user. Each entry can be:
 		 * - the absolute path to exclude
 		 * - a relative path to exclude (for example `build/output`)
 		 * - a simple glob pattern (for example `**​/build`, `output/**`)
@@ -12613,7 +12613,7 @@ declare module 'vscode' {
 		 * Note writing `\n` will just move the cursor down 1 row, you need to write `\r` as well
 		 * to move the cursor to the left-most cell.
 		 *
-		 * Events fired before {@link Pseudoterminal.open} is called will be be ignored.
+		 * Events fired before {@link Pseudoterminal.open} is called will be ignored.
 		 *
 		 * **Example:** Write red text to the terminal
 		 * ```typescript
@@ -12640,7 +12640,7 @@ declare module 'vscode' {
 		 * bar). Set to `undefined` for the terminal to go back to the regular dimensions (fit to
 		 * the size of the panel).
 		 *
-		 * Events fired before {@link Pseudoterminal.open} is called will be be ignored.
+		 * Events fired before {@link Pseudoterminal.open} is called will be ignored.
 		 *
 		 * **Example:** Override the dimensions of a terminal to 20 columns and 10 rows
 		 * ```typescript
@@ -12664,7 +12664,7 @@ declare module 'vscode' {
 		/**
 		 * An event that when fired will signal that the pty is closed and dispose of the terminal.
 		 *
-		 * Events fired before {@link Pseudoterminal.open} is called will be be ignored.
+		 * Events fired before {@link Pseudoterminal.open} is called will be ignored.
 		 *
 		 * A number can be used to provide an exit code for the terminal. Exit codes must be
 		 * positive and a non-zero exit codes signals failure which shows a notification for a
@@ -12696,7 +12696,7 @@ declare module 'vscode' {
 		/**
 		 * An event that when fired allows changing the name of the terminal.
 		 *
-		 * Events fired before {@link Pseudoterminal.open} is called will be be ignored.
+		 * Events fired before {@link Pseudoterminal.open} is called will be ignored.
 		 *
 		 * **Example:** Change the terminal name to "My new terminal".
 		 * ```typescript
@@ -17927,7 +17927,7 @@ declare module 'vscode' {
 		forceNewSession?: boolean | AuthenticationGetSessionPresentationOptions | AuthenticationForceNewSessionOptions;
 
 		/**
-		 * Whether we should show the indication to sign in in the Accounts menu.
+		 * Whether we should show the indication to sign in the Accounts menu.
 		 *
 		 * If false, the user will be shown a badge on the Accounts menu with an option to sign in for the extension.
 		 * If true, no indication will be shown.
