@@ -809,6 +809,7 @@ class AccountWidgetContribution extends Disposable implements IWorkbenchContribu
 						id: Menus.TitleBarRightLayout,
 						group: 'navigation',
 						order: 100,
+						when: IsAuxiliaryWindowContext.toNegated(),
 					}
 				});
 			}
