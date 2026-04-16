@@ -207,11 +207,11 @@ import './contrib/notebook/browser/notebook.contribution.js';
 import './contrib/speech/browser/speech.contribution.js';
 
 // Chat
-import './contrib/chat/browser/chat.contribution.js';
-import './contrib/inlineChat/browser/inlineChat.contribution.js';
+//import './contrib/chat/browser/chat.contribution.js'; // test-workbench_change
+//import './contrib/inlineChat/browser/inlineChat.contribution.js'; // test-workbench_change
 import './contrib/mcp/browser/mcp.contribution.js';
-import './contrib/chat/browser/chatSessions/chatSessions.contribution.js';
-import './contrib/chat/browser/contextContrib/chatContext.contribution.js';
+//import './contrib/chat/browser/chatSessions/chatSessions.contribution.js'; // test-workbench_change
+//import './contrib/chat/browser/contextContrib/chatContext.contribution.js'; // test-workbench_change
 import './contrib/imageCarousel/browser/imageCarousel.contribution.js';
 
 // Interactive

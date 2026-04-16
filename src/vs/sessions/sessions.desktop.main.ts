@@ -177,7 +177,7 @@ import '../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.contributio
 import '../workbench/contrib/remoteTunnel/electron-browser/remoteTunnel.contribution.js';
 
 // Chat
-import '../workbench/contrib/chat/electron-browser/chat.contribution.js';
+//import '../workbench/contrib/chat/electron-browser/chat.contribution.js'; // test-workbench_change
 import './contrib/agentFeedback/browser/agentFeedback.contribution.js';
 
 // Encryption
