@@ -796,11 +796,11 @@ export class CompositionOperation {
 
 export class TypeWithoutInterceptorsOperation {
 
-	public static getEdits(prevEditOperationType: EditOperationType, selections: Selection[], leftoverVisibleColumns: number[], str: string): EditOperationResult {
+	public static getEdits(config: CursorConfiguration, model: ITextModel, prevEditOperationType: EditOperationType, selections: Selection[], leftoverVisibleColumns: number[], str: string): EditOperationResult {
 		const commands: ICommand[] = [];
 		for (let i = 0, len = selections.length; i < len; i++) {
 			let typeText = str;
-			if (leftoverVisibleColumns[i] > 0) {
+			if (config.virtualSpace && leftoverVisibleColumns[i] > 0 && selections[i].positionColumn === model.getLineMaxColumn(selections[i].positionLineNumber)) {
 				typeText = ' '.repeat(leftoverVisibleColumns[i]) + str;
 			}
 			commands[i] = new ReplaceCommand(selections[i], typeText);

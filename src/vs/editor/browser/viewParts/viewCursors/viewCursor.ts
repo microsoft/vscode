@@ -12,6 +12,7 @@ import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
 import { RenderingContext, RestrictedRenderingContext } from '../../view/renderingContext.js';
 import { ViewContext } from '../../../common/viewModel/viewContext.js';
+import { CursorColumns } from '../../../common/core/cursorColumns.js';
 import * as viewEvents from '../../../common/viewEvents.js';
 import { MOUSE_CURSOR_TEXT_CSS_CLASS_NAME } from '../../../../base/browser/ui/mouseCursor/mouseCursor.js';
 
@@ -195,7 +196,7 @@ export class ViewCursor {
 			}
 
 			let left = visibleRange.left;
-			if (this._leftoverVisibleColumns > 0 && this._leftoverVisibleColumns < 1000000 && this._context.configuration.options.get(EditorOption.virtualSpace)) {
+			if (this._leftoverVisibleColumns > 0 && this._leftoverVisibleColumns < CursorColumns.MAX_VIRTUAL_SPACE_COLUMNS && this._context.configuration.options.get(EditorOption.virtualSpace)) {
 				left += this._leftoverVisibleColumns * this._typicalHalfwidthCharacterWidth;
 			}
 			let paddingLeft = 0;
@@ -245,7 +246,7 @@ export class ViewCursor {
 		}
 
 		let left = range.left;
-		if (this._leftoverVisibleColumns > 0 && this._leftoverVisibleColumns < 1000000 && this._context.configuration.options.get(EditorOption.virtualSpace)) {
+		if (this._leftoverVisibleColumns > 0 && this._leftoverVisibleColumns < CursorColumns.MAX_VIRTUAL_SPACE_COLUMNS && this._context.configuration.options.get(EditorOption.virtualSpace)) {
 			left += this._leftoverVisibleColumns * this._typicalHalfwidthCharacterWidth;
 		}
 

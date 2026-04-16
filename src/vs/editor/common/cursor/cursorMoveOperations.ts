@@ -73,9 +73,19 @@ export class MoveOperations {
 			column = cursor.selection.startColumn;
 		} else {
 			if (config.virtualSpace && cursor.leftoverVisibleColumns > 0) {
-				lineNumber = cursor.position.lineNumber;
-				column = cursor.position.column;
-				leftoverVisibleColumns = Math.max(0, cursor.leftoverVisibleColumns - noOfColumns);
+				if (noOfColumns <= cursor.leftoverVisibleColumns) {
+					lineNumber = cursor.position.lineNumber;
+					column = cursor.position.column;
+					leftoverVisibleColumns = cursor.leftoverVisibleColumns - noOfColumns;
+				} else {
+					const remainingColumns = noOfColumns - cursor.leftoverVisibleColumns;
+					const pos = cursor.position.delta(undefined, -(remainingColumns - 1));
+					const normalizedPos = model.normalizePosition(MoveOperations.clipPositionColumn(pos, model), PositionAffinity.Left);
+					const p = MoveOperations.left(config, model, normalizedPos);
+					lineNumber = p.lineNumber;
+					column = p.column;
+					leftoverVisibleColumns = 0;
+				}
 			} else {
 				// This has no effect if noOfColumns === 1.
 				// It is ok to do so in the half-line scenario.
