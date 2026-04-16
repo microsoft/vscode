@@ -900,7 +900,7 @@ declare module 'vscode' {
 
 		/**
 		 * An optional flag that controls if an {@link NotebookEditor notebook editor}-tab shows as preview. Preview tabs will
-		 * be replaced and reused until set to stay - either explicitly or through editing. The default behaviour depends
+		 * be replaced and reused until set to stay - either explicitly or through editing. The default behavior depends
 		 * on the `workbench.editor.enablePreview`-setting.
 		 */
 		readonly preview?: boolean;
@@ -2108,7 +2108,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Options to configure the behaviour of a file save dialog.
+	 * Options to configure the behavior of a file save dialog.
 	 */
 	export interface SaveDialogOptions {
 		/**
@@ -5209,7 +5209,7 @@ declare module 'vscode' {
 		 *
 		 * *Note* that this function is called when completion items are already showing in the UI or when an item has been
 		 * selected for insertion. Because of that, no property that changes the presentation (label, sorting, filtering etc)
-		 * or the (primary) insert behaviour ({@link CompletionItem.insertText insertText}) can be changed.
+		 * or the (primary) insert behavior ({@link CompletionItem.insertText insertText}) can be changed.
 		 *
 		 * This function may fill in {@link CompletionItem.additionalTextEdits additionalTextEdits}. However, that means an item might be
 		 * inserted *before* resolving is done and in that case the editor will do a best effort to still apply those additional
@@ -8701,7 +8701,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Controls the behaviour of the terminal's visibility.
+	 * Controls the behavior of the terminal's visibility.
 	 */
 	export enum TaskRevealKind {
 		/**
@@ -11286,7 +11286,7 @@ declare module 'vscode' {
 		 * clickable buttons.
 		 *
 		 * @param message The message to show.
-		 * @param options Configures the behaviour of the message.
+		 * @param options Configures the behavior of the message.
 		 * @param items A set of items that will be rendered as actions in the message.
 		 * @returns A thenable that resolves to the selected item or `undefined` when being dismissed.
 		 */
@@ -11309,7 +11309,7 @@ declare module 'vscode' {
 		 * @see {@link window.showInformationMessage showInformationMessage}
 		 *
 		 * @param message The message to show.
-		 * @param options Configures the behaviour of the message.
+		 * @param options Configures the behavior of the message.
 		 * @param items A set of items that will be rendered as actions in the message.
 		 * @returns A thenable that resolves to the selected item or `undefined` when being dismissed.
 		 */
@@ -11332,7 +11332,7 @@ declare module 'vscode' {
 		 * @see {@link window.showInformationMessage showInformationMessage}
 		 *
 		 * @param message The message to show.
-		 * @param options Configures the behaviour of the message.
+		 * @param options Configures the behavior of the message.
 		 * @param items A set of items that will be rendered as actions in the message.
 		 * @returns A thenable that resolves to the selected item or `undefined` when being dismissed.
 		 */
@@ -11355,7 +11355,7 @@ declare module 'vscode' {
 		 * @see {@link window.showInformationMessage showInformationMessage}
 		 *
 		 * @param message The message to show.
-		 * @param options Configures the behaviour of the message.
+		 * @param options Configures the behavior of the message.
 		 * @param items A set of items that will be rendered as actions in the message.
 		 * @returns A thenable that resolves to the selected item or `undefined` when being dismissed.
 		 */
@@ -11378,7 +11378,7 @@ declare module 'vscode' {
 		 * @see {@link window.showInformationMessage showInformationMessage}
 		 *
 		 * @param message The message to show.
-		 * @param options Configures the behaviour of the message.
+		 * @param options Configures the behavior of the message.
 		 * @param items A set of items that will be rendered as actions in the message.
 		 * @returns A thenable that resolves to the selected item or `undefined` when being dismissed.
 		 */
@@ -11401,7 +11401,7 @@ declare module 'vscode' {
 		 * @see {@link window.showInformationMessage showInformationMessage}
 		 *
 		 * @param message The message to show.
-		 * @param options Configures the behaviour of the message.
+		 * @param options Configures the behavior of the message.
 		 * @param items A set of items that will be rendered as actions in the message.
 		 * @returns A thenable that resolves to the selected item or `undefined` when being dismissed.
 		 */
