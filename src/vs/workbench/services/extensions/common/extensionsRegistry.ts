@@ -281,7 +281,7 @@ export const schema: IJSONSchema = {
 					},
 					{
 						label: 'onDebug',
-						description: nls.localize('vscode.extension.activationEvents.onDebug', 'An activation event emitted whenever a user is about to start debugging or about to setup debug configurations.'),
+						description: nls.localize('vscode.extension.activationEvents.onDebug', 'An activation event emitted whenever a user is about to start debugging or about to set up debug configurations.'),
 						body: 'onDebug'
 					},
 					{
@@ -598,7 +598,7 @@ export const schema: IJSONSchema = {
 			],
 			properties: {
 				'url': {
-					description: nls.localize('vscode.extension.contributes.sponsor.url', "URL from where users can sponsor your extension. It must be a valid URL with a HTTP or HTTPS protocol. Example value: https://github.com/sponsors/nvaccess"),
+					description: nls.localize('vscode.extension.contributes.sponsor.url', "URL from where users can sponsor your extension. It must be a valid URL with an HTTP or HTTPS protocol. Example value: https://github.com/sponsors/nvaccess"),
 					type: 'string',
 				}
 			}
