@@ -1,6 +1,6 @@
 services:
   elasticsearch:
-    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/elasticsearch:8.18.1-linuxarm64
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/elasticsearch:8.18.1
     container_name: elasticsearch
     environment:
       - TZ=Asia/Shanghai
@@ -20,6 +20,7 @@ services:
       - /etc/localtime:/etc/localtime:ro
     networks:
       - elk
+      - telemetry_elk
     healthcheck:
       test: ["CMD-SHELL", "curl -f -u elastic:Admin@123456 http://localhost:9200/_cluster/health || exit 1"]
       interval: 30s
@@ -27,7 +28,7 @@ services:
       retries: 5
 
   es-setup:
-    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/elasticsearch:8.18.1-linuxarm64
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/elasticsearch:8.18.1
     container_name: es-setup
     depends_on:
       elasticsearch:
@@ -57,7 +58,7 @@ services:
     restart: "no"
 
   logstash:
-    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/logstash:8.18.1-linuxarm64
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/logstash:8.18.1
     container_name: logstash
     user: root
     environment:
@@ -65,6 +66,7 @@ services:
       - ES_HOSTS=http://elasticsearch:9200
       - ES_USER=logstash_user
       - ES_PASSWORD=Logstash@123456
+      - MONITORING_ENABLED=false # test-workbench_change
     volumes:
       - ./logstash.conf:/usr/share/logstash/pipeline/logstash.conf:ro
       - /etc/localtime:/etc/localtime:ro
@@ -74,6 +76,7 @@ services:
       - "9600:9600"
     networks:
       - elk
+      - telemetry_elk
     depends_on:
       es-setup:
         condition: service_completed_successfully
@@ -84,7 +87,7 @@ services:
       retries: 5
 
   kibana:
-    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/kibana:8.18.1-linuxarm64
+    image: swr.cn-north-4.myhuaweicloud.com/ddn-k8s/docker.io/kibana:8.18.1
     container_name: kibana
     environment:
       - I18N_LOCALE=zh-CN
@@ -100,6 +103,7 @@ services:
       - "5601:5601"
     networks:
       - elk
+      - telemetry_elk
     depends_on:
       es-setup:
         condition: service_completed_successfully
@@ -116,3 +120,6 @@ volumes:
 networks:
   elk:
     driver: bridge
+  telemetry_elk:
+    external: true
+    name: telemetry_elk # test-workbench_change

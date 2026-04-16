@@ -1,0 +1,4 @@
+-- test-workbench_change - new file
+-- Placeholder: split_ndjson.lua
+-- This file is reserved for future NDJSON splitting logic via OpenResty.
+-- Currently not used; nginx.conf handles proxying directly.
