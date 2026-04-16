@@ -196,7 +196,7 @@ export class NodeOTelService implements IOTelService {
 
 		// When OTel is enabled only for dbSpanExporter (no OTLP endpoint/file/console configured),
 		// use a noop exporter as the primary span exporter so the pipeline still runs.
-		// If the user also explicitly enabled OTel (via setting or env var), honour their
+		// If the user also explicitly enabled OTel (via setting or env var), honor their
 		// exporter config and don't switch to noop.
 		const dbOnlyMode = config.dbSpanExporter
 			&& !config.enabledExplicitly

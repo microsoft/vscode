@@ -152,7 +152,7 @@ export class CommitCommandsCenter {
 
 			if (command === undefined) {
 				// Commit WAS NOT initiated using the action button (ex: keybinding, toolbar action,
-				// command palette) so we have to honour the default post commit command (memento/setting).
+				// command palette) so we have to honor the default post commit command (memento/setting).
 				const primaryCommand = this.getPrimaryCommand();
 				command = primaryCommand.arguments?.length === 2 ? primaryCommand.arguments[1] : null;
 			}
