@@ -18,7 +18,7 @@ import { LanguageContextEntry, LanguageContextResponse } from '../../../platform
 import { LanguageId } from '../../../platform/inlineEdits/common/dataTypes/languageId';
 import { NextCursorLinePrediction, NextCursorLinePredictionCursorPlacement } from '../../../platform/inlineEdits/common/dataTypes/nextCursorLinePrediction';
 import * as xtabPromptOptions from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
-import { AggressivenessSetting, isAggressivenessStrategy, LanguageContextLanguages, LanguageContextOptions } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
+import { AggressivenessSetting, EarlyDivergenceCancellationMode, isAggressivenessStrategy, LanguageContextLanguages, LanguageContextOptions } from '../../../platform/inlineEdits/common/dataTypes/xtabPromptOptions';
 import { InlineEditRequestLogContext } from '../../../platform/inlineEdits/common/inlineEditLogContext';
 import { IInlineEditsModelService } from '../../../platform/inlineEdits/common/inlineEditsModelService';
 import { ResponseProcessor } from '../../../platform/inlineEdits/common/responseProcessor';
@@ -35,6 +35,7 @@ import { IExperimentationService } from '../../../platform/telemetry/common/null
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { raceFilter } from '../../../util/common/async';
 import { AsyncIterUtils, AsyncIterUtilsExt } from '../../../util/common/asyncIterableUtils';
+import { backwardCompatSetting } from '../../../util/common/backwardCompatSetting';
 import { ErrorUtils } from '../../../util/common/errors';
 import { Result } from '../../../util/common/result';
 import { assertNever } from '../../../util/vs/base/common/assert';
@@ -50,12 +51,14 @@ import { Range } from '../../../util/vs/editor/common/core/range';
 import { LineRange } from '../../../util/vs/editor/common/core/ranges/lineRange';
 import { OffsetRange } from '../../../util/vs/editor/common/core/ranges/offsetRange';
 import { StringText } from '../../../util/vs/editor/common/core/text/abstractText';
+import { PositionOffsetTransformer } from '../../../util/vs/editor/common/core/text/positionToOffset';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { Position as VscodePosition } from '../../../vscodeTypes';
 import { DelaySession } from '../../inlineEdits/common/delay';
 import { getOrDeduceSelectionFromLastEdit } from '../../inlineEdits/common/nearbyCursorInlineEditProvider';
 import { UserInteractionMonitor } from '../../inlineEdits/common/userInteractionMonitor';
 import { IgnoreImportChangesAspect } from '../../inlineEdits/node/importFiltering';
+import { FetchStreamError } from '../common/fetchStreamError';
 import { determineIsInlineSuggestionPosition } from '../common/inlineSuggestion';
 import { LintErrors } from '../common/lintErrors';
 import { ClippedDocument, constructTaggedFile, getUserPrompt, N_LINES_ABOVE, N_LINES_AS_CONTEXT, N_LINES_BELOW, PromptPieces } from '../common/promptCrafting';
@@ -65,7 +68,7 @@ import { nes41Miniv3SystemPrompt, simplifiedPrompt, systemPromptTemplate, unifie
 import { PromptTags } from '../common/tags';
 import { TerminalMonitor } from '../common/terminalOutput';
 import { CurrentDocument } from '../common/xtabCurrentDocument';
-import { getCurrentCursorLine, isModelCursorLineCompatible } from './cursorLineDivergence';
+import { getCurrentLine, isModelLineCompatible } from './cursorLineDivergence';
 import { EditIntentParseMode } from './editIntent';
 import { handleCodeBlock, handleEditWindowOnly, handleEditWindowWithEditIntent, handleUnifiedWithXml, ResponseParseResult } from './responseFormatHandlers';
 import { XtabCustomDiffPatchResponseHandler } from './xtabCustomDiffPatchResponseHandler';
@@ -133,7 +136,6 @@ namespace FetchResult {
 	export class Lines {
 		constructor(
 			readonly linesStream: AsyncIterable<string>,
-			readonly getFetchFailure: () => NoNextEditReason | undefined,
 			readonly getResponseSoFar: () => string,
 			readonly fetchRequestStopWatch: StopWatch,
 		) { }
@@ -747,8 +749,6 @@ export class XtabProvider implements IStatelessNextEditProvider {
 
 		let responseSoFar = '';
 
-		let chatResponseFailure: ChatFetchError | undefined;
-
 		let ttft: number | undefined;
 
 		const firstTokenReceived = new DeferredPromise<void>();
@@ -802,22 +802,23 @@ export class XtabProvider implements IStatelessNextEditProvider {
 
 		fetchResultPromise
 			.then((response) => {
-				// this's a way to signal the edit-pushing code to know if the request failed and
-				// 	it shouldn't push edits constructed from an erroneous response
-				chatResponseFailure = response.type !== ChatFetchResponseType.Success ? response : undefined;
+				if (response.type !== ChatFetchResponseType.Success) {
+					fetchStreamSource.reject(new FetchStreamError(mapChatFetcherErrorToNoNextEditReason(response)));
+				} else {
+					fetchStreamSource.resolve();
+				}
 			})
 			.catch((err: unknown) => {
 				// in principle this shouldn't happen because ChatMLFetcher's fetchOne should not throw
 				logContext.setError(ErrorUtils.fromUnknown(err));
 				logContext.addLog(`ChatMLFetcher fetch call threw -- this's UNEXPECTED!`);
+				fetchStreamSource.reject(ErrorUtils.fromUnknown(err));
 			}).finally(() => {
 				logContext.setFetchEndTime();
 
 				if (!firstTokenReceived.isSettled) {
 					firstTokenReceived.complete();
 				}
-
-				fetchStreamSource.resolve();
 
 				logContext.setResponse(responseSoFar);
 			});
@@ -837,9 +838,6 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			return new FetchResult.FetchFailure(mapChatFetcherErrorToNoNextEditReason(fetchRes));
 		}
 
-		const getFetchFailure = (): NoNextEditReason | undefined =>
-			chatResponseFailure ? mapChatFetcherErrorToNoNextEditReason(chatResponseFailure) : undefined;
-
 		const llmLinesStream = AsyncIterUtilsExt.splitLines(AsyncIterUtils.map(fetchStreamSource.stream, (chunk) => chunk.delta.text));
 
 		// logging of times
@@ -856,7 +854,7 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			}
 		})();
 
-		return new FetchResult.Lines(linesStream, getFetchFailure, () => responseSoFar, fetchRequestStopWatch);
+		return new FetchResult.Lines(linesStream, () => responseSoFar, fetchRequestStopWatch);
 	}
 
 	private async *_streamEditsImpl(
@@ -892,158 +890,152 @@ export class XtabProvider implements IStatelessNextEditProvider {
 			return fetchResult.reason;
 		}
 
-		const { linesStream, getFetchFailure, getResponseSoFar, fetchRequestStopWatch } = fetchResult;
+		const { linesStream, getResponseSoFar, fetchRequestStopWatch } = fetchResult;
 
 		// Phase 2: Dispatch to the appropriate response format handler
 		const isFromCursorJump = retryState instanceof RetryState.Retrying && retryState.reason === 'cursorJump';
 
 		let parseResult: ResponseParseResult.t;
 
-		switch (responseOpts.responseFormat) {
-			case xtabPromptOptions.ResponseFormat.EditWindowOnly: {
-				parseResult = handleEditWindowOnly(linesStream);
-				break;
-			}
-			case xtabPromptOptions.ResponseFormat.CodeBlock: {
-				parseResult = handleCodeBlock(linesStream);
-				break;
-			}
-			case xtabPromptOptions.ResponseFormat.EditWindowWithEditIntent:
-			case xtabPromptOptions.ResponseFormat.EditWindowWithEditIntentShort: {
-				const parseMode = responseOpts.responseFormat === xtabPromptOptions.ResponseFormat.EditWindowWithEditIntentShort
-					? EditIntentParseMode.ShortName
-					: EditIntentParseMode.Tags;
-				parseResult = await handleEditWindowWithEditIntent(linesStream, tracer, parseMode, getFetchFailure);
-				break;
-			}
-			case xtabPromptOptions.ResponseFormat.CustomDiffPatch: {
-				const activeDoc = request.getActiveDocument();
-				const currentDocument = promptPieces.currentDocument;
-				const lastLine = currentDocument.lines[clippedTaggedCurrentDoc.keptRange.endExclusive - 1];
-				const lastLineLength = lastLine.length;
-				const pseudoEditWindow = currentDocument.transformer.getOffsetRange(new Range(clippedTaggedCurrentDoc.keptRange.start + 1, 1, clippedTaggedCurrentDoc.keptRange.endExclusive, lastLineLength + 1));
-				parseResult = new ResponseParseResult.DirectEdits(
-					XtabCustomDiffPatchResponseHandler.handleResponse(
-						linesStream,
-						currentDocument,
-						activeDoc.id,
-						activeDoc.workspaceRoot,
-						pseudoEditWindow,
-						tracer,
-						getFetchFailure,
-					),
-				);
-				break;
-			}
-			case xtabPromptOptions.ResponseFormat.UnifiedWithXml: {
-				parseResult = await handleUnifiedWithXml(
-					linesStream,
-					{
-						editWindowLines,
-						editWindowLineRange,
-						cursorOriginalLinesOffset,
-						cursorColumnZeroBased: promptPieces.currentDocument.cursorPosition.column - 1,
-						editWindow,
-						originalEditWindow,
-						targetDocument,
-						isFromCursorJump,
-					},
-					request.documentBeforeEdits,
-					tracer,
-					getFetchFailure,
-				);
-				break;
-			}
-			default:
-				assertNever(responseOpts.responseFormat);
-		}
-
-		// Handle result uniformly
-		if (parseResult instanceof ResponseParseResult.Done) {
-			return parseResult.reason;
-		}
-
-		if (parseResult instanceof ResponseParseResult.DirectEdits) {
-			return yield* parseResult.stream;
-		}
-
-		// parseResult is EditWindowLines — log edit-intent telemetry and apply aggressiveness filter
-		if (parseResult.editIntentMetadata) {
-			const { intent, parseError } = parseResult.editIntentMetadata;
-			telemetry.setEditIntent(intent);
-			if (parseError) {
-				telemetry.setEditIntentParseError(parseError);
-			}
-			if (!xtabPromptOptions.EditIntent.shouldShowEdit(intent, promptPieces.aggressivenessLevel)) {
-				tracer.trace(`Filtered out edit due to edit intent "${intent}" with aggressiveness "${promptPieces.aggressivenessLevel}"`);
-				return new NoNextEditReason.FilteredOut(`editIntent:${intent} aggressivenessLevel:${promptPieces.aggressivenessLevel}`);
-			}
-		}
-
-		const cleanedLinesStream = parseResult.lines;
-
-		const diffOptions: ResponseProcessor.DiffParams = {
-			emitFastCursorLineChange: ResponseProcessor.mapEmitFastCursorLineChange(this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderEmitFastCursorLineChange, this.expService)),
-			nLinesToConverge: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabNNonSignificantLinesToConverge, this.expService),
-			nSignificantLinesToConverge: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabNSignificantLinesToConverge, this.expService),
-		};
-
-		tracer.trace(`starting to diff stream against edit window lines with latency ${fetchRequestStopWatch.elapsed()} ms`);
-
-		// Wrap the line stream to detect early cursor-line divergence.
-		// If the user has typed at the cursor since the request started and the cursor line
-		// in the model's response doesn't match what the user currently has, the response
-		// is stale and we can cancel early instead of waiting for the full response.
-		//
-		// We check compatibility using `isModelCursorLineCompatible`: the user's
-		// cursor-line change must be contained within the model's cursor-line change range
-		// and match via the helper's `startsWith` / auto-close subsequence rules.
-		const earlyCursorLineDivergenceCancellation = this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabEarlyCursorLineDivergenceCancellation, this.expService);
-		let cursorLineDiverged = false;
-		const divergenceCheckedStream: AsyncIterable<string> = earlyCursorLineDivergenceCancellation
-			? (async function* () {
-				let lineIdx = 0;
-				for await (const line of cleanedLinesStream) {
-					if (lineIdx === cursorOriginalLinesOffset) {
-						const intermediateEdit = request.intermediateUserEdit;
-						if (intermediateEdit && !intermediateEdit.isEmpty()) {
-							const cursorDocLineIdx = editWindowLineRange.start + cursorOriginalLinesOffset;
-							const currentCursorLine = getCurrentCursorLine(request.documentBeforeEdits.getTransformer(), cursorDocLineIdx, intermediateEdit);
-							if (currentCursorLine !== undefined) {
-								const originalCursorLine = editWindowLines[cursorOriginalLinesOffset];
-								if (currentCursorLine !== originalCursorLine // user changed the cursor line
-									&& !isModelCursorLineCompatible(originalCursorLine, currentCursorLine, line) // model's cursor line isn't compatible with user's typing
-								) {
-									cursorLineDiverged = true;
-									tracer.trace(`Cursor line DIVERGED: model="${line}" current="${currentCursorLine}"`);
-									// Cancel our local fetch token so the HTTP request is
-									// aborted immediately. We own this token, so this is safe.
-									fetchCts.cancel();
-									return;
-								}
-							}
-						}
-					}
-					yield line;
-					lineIdx++;
-				}
-			})()
-			: cleanedLinesStream;
-
-		let i = 0;
-		let hasBeenDelayed = false;
 		try {
-			for await (const edit of ResponseProcessor.diff(editWindowLines, divergenceCheckedStream, cursorOriginalLinesOffset, diffOptions)) {
-
-				if (cursorLineDiverged) {
+			switch (responseOpts.responseFormat) {
+				case xtabPromptOptions.ResponseFormat.EditWindowOnly: {
+					parseResult = handleEditWindowOnly(linesStream);
 					break;
 				}
+				case xtabPromptOptions.ResponseFormat.CodeBlock: {
+					parseResult = handleCodeBlock(linesStream);
+					break;
+				}
+				case xtabPromptOptions.ResponseFormat.EditWindowWithEditIntent:
+				case xtabPromptOptions.ResponseFormat.EditWindowWithEditIntentShort: {
+					const parseMode = responseOpts.responseFormat === xtabPromptOptions.ResponseFormat.EditWindowWithEditIntentShort
+						? EditIntentParseMode.ShortName
+						: EditIntentParseMode.Tags;
+					parseResult = await handleEditWindowWithEditIntent(linesStream, tracer, parseMode);
+					break;
+				}
+				case xtabPromptOptions.ResponseFormat.CustomDiffPatch: {
+					const activeDoc = request.getActiveDocument();
+					const currentDocument = promptPieces.currentDocument;
+					const lastLine = currentDocument.lines[clippedTaggedCurrentDoc.keptRange.endExclusive - 1];
+					const lastLineLength = lastLine.length;
+					const pseudoEditWindow = currentDocument.transformer.getOffsetRange(new Range(clippedTaggedCurrentDoc.keptRange.start + 1, 1, clippedTaggedCurrentDoc.keptRange.endExclusive, lastLineLength + 1));
+					parseResult = new ResponseParseResult.DirectEdits(
+						XtabCustomDiffPatchResponseHandler.handleResponse(
+							linesStream,
+							currentDocument,
+							activeDoc.id,
+							activeDoc.workspaceRoot,
+							pseudoEditWindow,
+							tracer,
+						),
+					);
+					break;
+				}
+				case xtabPromptOptions.ResponseFormat.UnifiedWithXml: {
+					parseResult = await handleUnifiedWithXml(
+						linesStream,
+						{
+							editWindowLines,
+							editWindowLineRange,
+							cursorOriginalLinesOffset,
+							cursorColumnZeroBased: promptPieces.currentDocument.cursorPosition.column - 1,
+							editWindow,
+							originalEditWindow,
+							targetDocument,
+							isFromCursorJump,
+						},
+						request.documentBeforeEdits,
+						tracer,
+					);
+					break;
+				}
+				default:
+					assertNever(responseOpts.responseFormat);
+			}
 
-				{
-					const fetchFailure = getFetchFailure();
-					if (fetchFailure) {
-						return fetchFailure;
+			// Handle result uniformly
+			if (parseResult instanceof ResponseParseResult.Done) {
+				return parseResult.reason;
+			}
+
+			if (parseResult instanceof ResponseParseResult.DirectEdits) {
+				return yield* parseResult.stream;
+			}
+
+			// parseResult is EditWindowLines — log edit-intent telemetry and apply aggressiveness filter
+			if (parseResult.editIntentMetadata) {
+				const { intent, parseError } = parseResult.editIntentMetadata;
+				telemetry.setEditIntent(intent);
+				if (parseError) {
+					telemetry.setEditIntentParseError(parseError);
+				}
+				if (!xtabPromptOptions.EditIntent.shouldShowEdit(intent, promptPieces.aggressivenessLevel)) {
+					tracer.trace(`Filtered out edit due to edit intent "${intent}" with aggressiveness "${promptPieces.aggressivenessLevel}"`);
+					return new NoNextEditReason.FilteredOut(`editIntent:${intent} aggressivenessLevel:${promptPieces.aggressivenessLevel}`);
+				}
+			}
+
+			const cleanedLinesStream = parseResult.lines;
+
+			const diffOptions: ResponseProcessor.DiffParams = {
+				emitFastCursorLineChange: ResponseProcessor.mapEmitFastCursorLineChange(this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabProviderEmitFastCursorLineChange, this.expService)),
+				nLinesToConverge: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabNNonSignificantLinesToConverge, this.expService),
+				nSignificantLinesToConverge: this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabNSignificantLinesToConverge, this.expService),
+			};
+
+			tracer.trace(`starting to diff stream against edit window lines with latency ${fetchRequestStopWatch.elapsed()} ms`);
+
+			// Wrap the line stream to detect early divergence between the user's
+			// intermediate edits and the model's streamed output.
+			// In `Cursor` mode only the cursor line is checked; in `EditWindow`
+			// mode every line in the edit window is checked.
+			//
+			// We check compatibility using `isModelLineCompatible`: the user's
+			// line change must be contained within the model's line change range
+			// and match via the helper's `startsWith` / auto-close subsequence rules.
+			const earlyDivergenceMode = backwardCompatSetting<boolean | EarlyDivergenceCancellationMode | undefined, EarlyDivergenceCancellationMode>(
+				this.configService.getExperimentBasedConfig(ConfigKey.TeamInternal.InlineEditsXtabEarlyCursorLineDivergenceCancellation, this.expService),
+				(value) => {
+					switch (value) {
+						case false:
+						case undefined:
+							return EarlyDivergenceCancellationMode.Off;
+						case true:
+							return EarlyDivergenceCancellationMode.Cursor;
+						case EarlyDivergenceCancellationMode.Off:
+						case EarlyDivergenceCancellationMode.Cursor:
+						case EarlyDivergenceCancellationMode.EditWindow:
+							return value;
+						default:
+							return EarlyDivergenceCancellationMode.Off;
 					}
+				}
+			);
+
+			let lineDiverged = false;
+
+			const divergenceCheckedStream: AsyncIterable<string> = earlyDivergenceMode === EarlyDivergenceCancellationMode.Off
+				? cleanedLinesStream
+				: linesWithIntermediateEditDivergenceCheck(
+					cleanedLinesStream,
+					cursorOriginalLinesOffset,
+					request,
+					editWindowLineRange,
+					editWindowLines,
+					fetchCts,
+					tracing,
+					(value: boolean) => { lineDiverged = value; },
+					earlyDivergenceMode,
+				);
+
+			let i = 0;
+			let hasBeenDelayed = false;
+			for await (const edit of ResponseProcessor.diff(editWindowLines, divergenceCheckedStream, cursorOriginalLinesOffset, diffOptions)) {
+
+				if (lineDiverged) {
+					break;
 				}
 
 				tracer.trace(`ResponseProcessor streamed edit #${i} with latency ${fetchRequestStopWatch.elapsed()} ms`);
@@ -1100,22 +1092,19 @@ export class XtabProvider implements IStatelessNextEditProvider {
 				}
 			}
 
-			if (cursorLineDiverged) {
-				return new NoNextEditReason.GotCancelled('cursorLineDiverged');
-			}
-
-			{
-				const fetchFailure = getFetchFailure();
-				if (fetchFailure) {
-					return fetchFailure;
-				}
+			if (lineDiverged) {
+				return new NoNextEditReason.GotCancelled(
+					earlyDivergenceMode === EarlyDivergenceCancellationMode.Cursor ? 'cursorLineDiverged' : 'editWindowLineDiverged'
+				);
 			}
 
 			return new NoNextEditReason.NoSuggestions(request.documentBeforeEdits, editWindow);
 
 		} catch (err) {
+			if (err instanceof FetchStreamError) {
+				return err.reason;
+			}
 			logContext.setError(err);
-			// Properly handle the error by pushing it as a result
 			return new NoNextEditReason.Unexpected(ErrorUtils.fromUnknown(err));
 		}
 	}
@@ -1691,5 +1680,65 @@ export function getPredictionContents(doc: StatelessNextEditDocument, editWindow
 		return `${workspaceRelativeDocPath}:`;
 	} else {
 		assertNever(responseFormat);
+	}
+}
+
+async function* linesWithIntermediateEditDivergenceCheck(
+	cleanedLinesStream: AsyncIterable<string>,
+	cursorOriginalLinesOffset: number,
+	request: StatelessNextEditRequest,
+	editWindowLineRange: OffsetRange,
+	editWindowLines: readonly string[],
+	fetchCts: CancellationTokenSource,
+	{ tracer }: RequestTracingContext,
+	setLineDiverged: (value: boolean) => void,
+	mode: EarlyDivergenceCancellationMode.Cursor | EarlyDivergenceCancellationMode.EditWindow,
+) {
+	const intermediateEdit = request.intermediateUserEdit;
+	if (!intermediateEdit || intermediateEdit.isEmpty()) {
+		yield* cleanedLinesStream;
+		return;
+	}
+
+	const transformer = request.documentBeforeEdits.getTransformer();
+
+	// Precompute the post-edit document once to avoid O(lines * docSize) in EditWindow mode.
+	const currentDoc = intermediateEdit.apply(transformer.text);
+	const currentTransformer = new PositionOffsetTransformer(currentDoc);
+	const precomputed = { currentDoc, currentTransformer };
+
+	const shouldCheckLine = (lineIdx: number): boolean => {
+		if (lineIdx >= editWindowLines.length) {
+			return false;
+		}
+		switch (mode) {
+			case EarlyDivergenceCancellationMode.Cursor:
+				return lineIdx === cursorOriginalLinesOffset;
+			case EarlyDivergenceCancellationMode.EditWindow:
+				return true;
+		}
+	};
+
+	let lineIdx = 0;
+	for await (const line of cleanedLinesStream) {
+		if (shouldCheckLine(lineIdx)) {
+			const docLineIdx = editWindowLineRange.start + lineIdx;
+			const currentLine = getCurrentLine(transformer, docLineIdx, intermediateEdit, precomputed);
+			if (currentLine !== undefined) {
+				const originalLine = editWindowLines[lineIdx];
+				if (currentLine !== originalLine // user changed this line
+					&& !isModelLineCompatible(originalLine, currentLine, line) // model's line isn't compatible with user's typing
+				) {
+					setLineDiverged(true);
+					tracer.trace(`Line ${lineIdx} DIVERGED (mode=${mode}): model="${line}" current="${currentLine}"`);
+					// Cancel our local fetch token so the HTTP request is
+					// aborted immediately. We own this token, so this is safe.
+					fetchCts.cancel();
+					return;
+				}
+			}
+		}
+		yield line;
+		lineIdx++;
 	}
 }

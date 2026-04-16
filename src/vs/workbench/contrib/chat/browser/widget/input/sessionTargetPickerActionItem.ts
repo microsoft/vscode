@@ -77,7 +77,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 						category: this._getSessionCategory(sessionTypeItem),
 						description: this._getSessionDescription(sessionTypeItem),
 						tooltip: '',
-						hover: { content: sessionTypeItem.hoverDescription, position: this.pickerOptions.hoverPosition },
+						hover: { content: sessionTypeItem.hoverDescription },
 						run: async () => {
 							this._run(sessionTypeItem);
 						},

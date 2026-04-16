@@ -129,6 +129,33 @@
 	outline-offset: -1px;
 }
 
+.ai-customization-management-editor .welcome-prompts-input-submit.welcome-prompts-input-submit-disabled {
+	opacity: 0.4;
+	cursor: default;
+	pointer-events: none;
+}
+
+.ai-customization-management-editor .welcome-prompts-input-row.sent {
+	justify-content: center;
+}
+
+.ai-customization-management-editor .welcome-prompts-input-row.sent .welcome-prompts-input {
+	display: none;
+}
+
+.ai-customization-management-editor .welcome-prompts-sent-label {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	padding: 0 8px;
+	white-space: nowrap;
+	animation: welcomePromptsSentFadeIn 0.2s ease;
+}
+
+@keyframes welcomePromptsSentFadeIn {
+	from { opacity: 0; transform: translateY(2px); }
+	to { opacity: 1; transform: translateY(0); }
+}
+
 .ai-customization-management-editor .welcome-prompts-input-helper {
 	font-size: 12px;
 	line-height: 1.5;

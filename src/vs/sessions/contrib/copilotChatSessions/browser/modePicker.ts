@@ -218,7 +218,10 @@ export class ModePicker extends Disposable {
 			return;
 		}
 
-		this.sessionsProvidersService.getProvider<CopilotChatSessionsProvider>(session.providerId)?.getSession(session.sessionId)?.setMode(mode);
+		const provider = this.sessionsProvidersService.getProvider(session.providerId);
+		if (provider instanceof CopilotChatSessionsProvider) {
+			provider.getSession(session.sessionId)?.setMode(mode);
+		}
 	}
 
 	private _updateTriggerLabel(): void {

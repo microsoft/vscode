@@ -12,7 +12,7 @@ import { ChatLocation, ChatResponse } from '../../../../platform/chat/common/com
 import { CustomModel, EndpointEditToolName } from '../../../../platform/endpoint/common/endpointProvider';
 import { AnthropicMessagesProcessor } from '../../../../platform/endpoint/node/messagesApi';
 import { ILogService } from '../../../../platform/log/common/logService';
-import { FinishedCallback, OptionalChatRequestParams } from '../../../../platform/networking/common/fetch';
+import { FinishedCallback, getRequestId, OptionalChatRequestParams } from '../../../../platform/networking/common/fetch';
 import { Response } from '../../../../platform/networking/common/fetcherService';
 import { IChatEndpoint, ICreateEndpointBodyOptions, IEndpointBody, IEndpointFetchOptions, IMakeChatRequestOptions } from '../../../../platform/networking/common/networking';
 import { ChatCompletion } from '../../../../platform/networking/common/openai';
@@ -609,7 +609,8 @@ class ClaudeStreamingPassThroughEndpoint implements IChatEndpoint {
 			// We parse the stream just to return a correct ChatCompletion for logging the response and token usage details.
 			const requestId = response.headers.get('X-Request-ID') ?? generateUuid();
 			const ghRequestId = response.headers.get('x-github-request-id') ?? '';
-			const processor = this.instantiationService.createInstance(AnthropicMessagesProcessor, telemetryData, requestId, ghRequestId);
+			const { serverExperiments } = getRequestId(response.headers);
+			const processor = this.instantiationService.createInstance(AnthropicMessagesProcessor, telemetryData, requestId, ghRequestId, serverExperiments);
 			const parser = new SSEParser((ev) => {
 				try {
 					const trimmed = ev.data?.trim();
