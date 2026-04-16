@@ -1148,7 +1148,7 @@ export interface IDebugService {
 	readonly onDidChangeState: Event<State>;
 
 	/**
-	 * Allows to register on sessions about to be created (not yet fully initialised).
+	 * Allows to register on sessions about to be created (not yet fully initialized).
 	 * This is fired exactly one time for any given session.
 	 */
 	readonly onWillNewSession: Event<IDebugSession>;

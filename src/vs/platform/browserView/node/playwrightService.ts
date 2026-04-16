@@ -37,7 +37,7 @@ const DEFERRED_RESULT_CLEANUP_MS = 5 * 60_000; // 5 minutes
  * Shared-process implementation of {@link IPlaywrightService}.
  *
  * Creates a {@link PlaywrightPageManager} eagerly on construction to track
- * browser views. The Playwright browser connection is lazily initialised
+ * browser views. The Playwright browser connection is lazily initialized
  * only when an operation that requires it is called.
  */
 export class PlaywrightService extends Disposable implements IPlaywrightService {

@@ -184,7 +184,7 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 			}
 		}));
 		this._register(this.debugService.onWillNewSession(async newSession => {
-			// Need to listen to output events for sessions which are not yet fully initialised
+			// Need to listen to output events for sessions which are not yet fully initialized
 			const input = this.tree?.getInput();
 			if (!input || input.state === State.Inactive) {
 				await this.selectSession(newSession);
