@@ -56,7 +56,7 @@ export class AtomicTabMoveOperations {
 	 * nearest tab, if atomic tabs are enabled. Left and right are used for the
 	 * arrow key movements, nearest is used for mouse selection. It returns
 	 * -1 if atomic tabs are not relevant and you should fall back to normal
-	 * behaviour.
+	 * behavior.
 	 *
 	 * **Note**: `position` and the return value are 0-based.
 	 */

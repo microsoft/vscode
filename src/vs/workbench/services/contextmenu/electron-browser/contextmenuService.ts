@@ -252,7 +252,7 @@ class NativeContextMenuService extends Disposable implements IContextMenuService
 				enabled: !!entry.enabled,
 				click: event => {
 
-					// To preserve pre-electron-2.x behaviour, we first trigger
+					// To preserve pre-electron-2.x behavior, we first trigger
 					// the onHide callback and then the action.
 					// Fixes https://github.com/microsoft/vscode/issues/45601
 					onHide();

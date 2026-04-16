@@ -189,7 +189,7 @@ export interface IEditorOptions {
 	 * Tells the editor to not receive keyboard focus when the editor is being opened.
 	 *
 	 * Will also not activate the group the editor opens in unless the group is already
-	 * the active one. This behaviour can be overridden via the `activation` option.
+	 * the active one. This behavior can be overridden via the `activation` option.
 	 */
 	preserveFocus?: boolean;
 
@@ -248,7 +248,7 @@ export interface IEditorOptions {
 	 * in the background without loading its contents.
 	 *
 	 * Will also not activate the group the editor opens in unless the group is already
-	 * the active one. This behaviour can be overridden via the `activation` option.
+	 * the active one. This behavior can be overridden via the `activation` option.
 	 */
 	inactive?: boolean;
 

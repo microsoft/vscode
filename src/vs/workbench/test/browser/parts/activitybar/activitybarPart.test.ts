@@ -79,7 +79,7 @@ suite('ActivitybarPart', () => {
 		layoutService.isVisible = (_part: Parts) => false;
 
 		// Stub instantiation service—createCompositeBar is only called in show(),
-		// which we skip in unit tests focused on dimensions / style behaviour.
+		// which we skip in unit tests focused on dimensions / style behavior.
 		const stubInstantiationService = { createInstance: () => { throw new Error('not expected'); } } as unknown as IInstantiationService;
 
 		const part = disposables.add(new ActivitybarPart(

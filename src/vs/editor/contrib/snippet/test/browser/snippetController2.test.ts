@@ -253,7 +253,7 @@ suite('SnippetController2', function () {
 		assertContextKeys(contextKeys, false, false, false);
 	});
 
-	test('Inconsistent tab stop behaviour with recursive snippets and tab / shift tab, #27543', function () {
+	test('Inconsistent tab stop behavior with recursive snippets and tab / shift tab, #27543', function () {
 		ctrl = instaService.createInstance(SnippetController2, editor);
 		ctrl.insert('1_calize(${1:nl}, \'${2:value}\')$0');
 

@@ -246,7 +246,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			preserveFocus: options.preserveFocus,
 			pinned: options.pinned,
 			selection: options.selection,
-			// preserve pre 1.38 behaviour to not make group active when preserveFocus: true
+			// preserve pre 1.38 behavior to not make group active when preserveFocus: true
 			// but make sure to restore the editor to fix https://github.com/microsoft/vscode/issues/79633
 			activation: options.preserveFocus ? EditorActivation.RESTORE : undefined,
 			override: EditorResolution.EXCLUSIVE_ONLY

@@ -671,7 +671,7 @@ suite('FilteredEditorGroupModel', () => {
 		assert.strictEqual(stickyFilteredEditorGroup.id, model.id);
 		assert.strictEqual(unstickyFilteredEditorGroup.id, model.id);
 
-		// group locking same behaviour
+		// group locking same behavior
 		assert.strictEqual(stickyFilteredEditorGroup.isLocked, model.isLocked);
 		assert.strictEqual(unstickyFilteredEditorGroup.isLocked, model.isLocked);
 

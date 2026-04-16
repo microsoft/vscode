@@ -2360,7 +2360,7 @@ suite('Editor Controller', () => {
 		});
 	});
 
-	test('issue #4312: trying to type a tab character over a sequence of spaces results in unexpected behaviour', () => {
+	test('issue #4312: trying to type a tab character over a sequence of spaces results in unexpected behavior', () => {
 		const model = createTextModel(
 			[
 				'var foo = 123;       // this is a comment',

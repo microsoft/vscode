@@ -115,7 +115,7 @@ class TestModalEditorSidebarHost extends Disposable {
 		return MODAL_MIN_WIDTH + (this._hasSidebar ? MODAL_SIDEBAR_MIN_WIDTH : 0);
 	}
 
-	// --- option propagation (mirrors updateOptions behaviour) ---------------
+	// --- option propagation (mirrors updateOptions behavior) ---------------
 
 	updateOptions(options: IModalEditorPartOptions): void {
 		if (options.sidebar) {

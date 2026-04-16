@@ -386,7 +386,7 @@ export class Menubar extends Disposable {
 		// so we need to unset it there.
 		//
 		// This is a bit ugly but `setApplicationMenu()` has some nice
-		// behaviour we want:
+		// behavior we want:
 		// - on macOS it is required because menus are application set
 		// - we use `getApplicationMenu()` to access the current state
 		// - new windows immediately get the same menu when opening

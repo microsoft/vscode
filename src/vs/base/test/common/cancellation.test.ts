@@ -243,7 +243,7 @@ suite('CancellationTokenPool', function () {
 		source2.dispose();
 	});
 
-	test('single token pool behaviour', function () {
+	test('single token pool behavior', function () {
 		const pool = new CancellationTokenPool();
 		store.add(pool);
 

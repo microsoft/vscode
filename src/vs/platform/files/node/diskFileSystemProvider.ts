@@ -672,7 +672,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		const toFilePath = this.toFilePath(to);
 
 		if (fromFilePath === toFilePath) {
-			return; // simulate node.js behaviour here and do a no-op if paths match
+			return; // simulate node.js behavior here and do a no-op if paths match
 		}
 
 		try {
@@ -699,7 +699,7 @@ export class DiskFileSystemProvider extends AbstractDiskFileSystemProvider imple
 		const toFilePath = this.toFilePath(to);
 
 		if (fromFilePath === toFilePath) {
-			return; // simulate node.js behaviour here and do a no-op if paths match
+			return; // simulate node.js behavior here and do a no-op if paths match
 		}
 
 		try {

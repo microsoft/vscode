@@ -86,7 +86,7 @@ suite('ExtHostWorkspace', function () {
 		assertAsRelativePath(ws, '/Coding/Two2/files/out.txt', '/Coding/Two2/files/out.txt');
 	});
 
-	test('slightly inconsistent behaviour of asRelativePath and getWorkspaceFolder, #31553', function () {
+	test('slightly inconsistent behavior of asRelativePath and getWorkspaceFolder, #31553', function () {
 		const mrws = createExtHostWorkspace(new TestRPCProtocol(), { id: 'foo', folders: [aWorkspaceFolderData(URI.file('/Coding/One'), 0), aWorkspaceFolderData(URI.file('/Coding/Two'), 1)], name: 'Test' }, new NullLogService());
 
 		assertAsRelativePath(mrws, '/Coding/One/file.txt', 'One/file.txt');

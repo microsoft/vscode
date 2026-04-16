@@ -287,7 +287,7 @@ export class MultiDiffEditorInput extends EditorInput implements ILanguageSuppor
 		if (items) {
 			await Promise.all(items.map(async item => {
 				const model = item.diffEditorViewModel.model;
-				const handleOriginal = model.original.uri.scheme !== Schemas.untitled && this._textFileService.isDirty(model.original.uri); // match diff editor behaviour
+				const handleOriginal = model.original.uri.scheme !== Schemas.untitled && this._textFileService.isDirty(model.original.uri); // match diff editor behavior
 
 				await Promise.all([
 					handleOriginal ? mode === 'save' ? this._textFileService.save(model.original.uri, options) : this._textFileService.revert(model.original.uri, options) : Promise.resolve(),

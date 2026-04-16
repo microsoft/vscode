@@ -852,7 +852,7 @@ export function parsePluginSource(
 		return { kind: PluginSourceKind.RelativePath, path: resolved };
 	}
 
-	// String source → legacy relative-path behaviour.
+	// String source → legacy relative-path behavior.
 	if (typeof rawSource === 'string') {
 		const resolved = resolvePluginSource(pluginRoot, rawSource);
 		if (resolved === undefined) {

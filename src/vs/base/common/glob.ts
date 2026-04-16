@@ -355,7 +355,7 @@ function parsePattern(arg1: string | IRelativePattern, options: IGlobOptions): P
 		...options,
 		equals: ignoreCase ? equalsIgnoreCase : (a: string, b: string) => a === b,
 		endsWith: ignoreCase ? endsWithIgnoreCase : (str: string, candidate: string) => str.endsWith(candidate),
-		isEqualOrParent: (base: string, candidate: string) => isEqualOrParent(base, candidate, options.ignoreCase ?? !isLinux /* preserve old behaviour for when option is not adopted */)
+		isEqualOrParent: (base: string, candidate: string) => isEqualOrParent(base, candidate, options.ignoreCase ?? !isLinux /* preserve old behavior for when option is not adopted */)
 	};
 
 	// Check cache

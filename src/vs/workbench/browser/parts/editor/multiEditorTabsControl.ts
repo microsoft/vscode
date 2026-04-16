@@ -414,7 +414,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 				return;  // need at least 2 open editors
 			}
 
-			// Shift-key enables or disables this behaviour depending on the setting
+			// Shift-key enables or disables this behavior depending on the setting
 			if (this.groupsView.partOptions.scrollToSwitchTabs === true) {
 				if (e.shiftKey) {
 					return; // 'on': only enable this when Shift-key is not pressed

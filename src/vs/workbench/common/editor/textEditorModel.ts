@@ -83,7 +83,7 @@ export class BaseTextEditorModel extends EditorModel implements ITextEditorModel
 		// This is technically not 100% correct, because 'api' can also be
 		// set as source if a model is resolved as text first and then
 		// transitions into the resolved language. But to preserve the current
-		// behaviour, we do not change this property. Rather, `languageChangeSource`
+		// behavior, we do not change this property. Rather, `languageChangeSource`
 		// can be used to get more fine grained information.
 		return typeof this._languageChangeSource === 'string';
 	}
