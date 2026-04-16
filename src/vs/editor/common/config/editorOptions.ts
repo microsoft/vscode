@@ -1460,7 +1460,7 @@ class EditorAccessibilitySupport extends BaseEditorOption<EditorOption.accessibi
 				],
 				default: 'auto',
 				tags: ['accessibility'],
-				description: nls.localize('accessibilitySupport', "Controls if the UI should run in a mode where it is optimized for screen readers.")
+				description: nls.localize('accessibilitySupport', "Controls whether the UI should run in a mode where it is optimized for screen readers.")
 			}
 		);
 	}
@@ -5663,7 +5663,7 @@ class EditorDropIntoEditor extends BaseEditorOption<EditorOption.dropIntoEditor,
 				},
 				'editor.dropIntoEditor.showDropSelector': {
 					type: 'string',
-					markdownDescription: nls.localize('dropIntoEditor.showDropSelector', "Controls if a widget is shown when dropping files into the editor. This widget lets you control how the file is dropped."),
+					markdownDescription: nls.localize('dropIntoEditor.showDropSelector', "Controls whether a widget is shown when dropping files into the editor. This widget lets you control how the file is dropped."),
 					enum: [
 						'afterDrop',
 						'never'
@@ -5730,7 +5730,7 @@ class EditorPasteAs extends BaseEditorOption<EditorOption.pasteAs, IPasteAsOptio
 				},
 				'editor.pasteAs.showPasteSelector': {
 					type: 'string',
-					markdownDescription: nls.localize('pasteAs.showPasteSelector', "Controls if a widget is shown when pasting content in to the editor. This widget lets you control how the file is pasted."),
+					markdownDescription: nls.localize('pasteAs.showPasteSelector', "Controls whether a widget is shown when pasting content in to the editor. This widget lets you control how the file is pasted."),
 					enum: [
 						'afterPaste',
 						'never'
@@ -6556,7 +6556,7 @@ export const EditorOptions = {
 	)),
 	renderLineHighlightOnlyWhenFocus: register(new EditorBooleanOption(
 		EditorOption.renderLineHighlightOnlyWhenFocus, 'renderLineHighlightOnlyWhenFocus', false,
-		{ description: nls.localize('renderLineHighlightOnlyWhenFocus', "Controls if the editor should render the current line highlight only when the editor is focused.") }
+		{ description: nls.localize('renderLineHighlightOnlyWhenFocus', "Controls whether the editor should render the current line highlight only when the editor is focused.") }
 	)),
 	renderValidationDecorations: register(new EditorStringEnumOption(
 		EditorOption.renderValidationDecorations, 'renderValidationDecorations',

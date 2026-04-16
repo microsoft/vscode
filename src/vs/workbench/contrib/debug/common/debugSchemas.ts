@@ -167,7 +167,7 @@ export const presentationSchema: IJSONSchema = {
 		hidden: {
 			type: 'boolean',
 			default: false,
-			description: nls.localize('presentation.hidden', "Controls if this configuration should be shown in the configuration dropdown and the command palette.")
+			description: nls.localize('presentation.hidden', "Controls whether this configuration should be shown in the configuration dropdown and the command palette.")
 		},
 		group: {
 			type: 'string',

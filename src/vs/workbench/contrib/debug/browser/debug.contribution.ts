@@ -553,7 +553,7 @@ configurationRegistry.registerConfiguration({
 		'debug.internalConsoleOptions': INTERNAL_CONSOLE_OPTIONS_SCHEMA,
 		'debug.console.closeOnEnd': {
 			type: 'boolean',
-			description: nls.localize('debug.console.closeOnEnd', "Controls if the Debug Console should be automatically closed when the debug session ends."),
+			description: nls.localize('debug.console.closeOnEnd', "Controls whether the Debug Console should be automatically closed when the debug session ends."),
 			default: false
 		},
 		'debug.terminal.clearBeforeReusing': {
@@ -588,17 +588,17 @@ configurationRegistry.registerConfiguration({
 		},
 		'debug.console.wordWrap': {
 			type: 'boolean',
-			description: nls.localize('debug.console.wordWrap', "Controls if the lines should wrap in the Debug Console."),
+			description: nls.localize('debug.console.wordWrap', "Controls whether the lines should wrap in the Debug Console."),
 			default: true
 		},
 		'debug.console.historySuggestions': {
 			type: 'boolean',
-			description: nls.localize('debug.console.historySuggestions', "Controls if the Debug Console should suggest previously typed input."),
+			description: nls.localize('debug.console.historySuggestions', "Controls whether the Debug Console should suggest previously typed input."),
 			default: true
 		},
 		'debug.console.collapseIdenticalLines': {
 			type: 'boolean',
-			description: nls.localize('debug.console.collapseIdenticalLines', "Controls if the Debug Console should collapse identical lines and show a number of occurrences with a badge."),
+			description: nls.localize('debug.console.collapseIdenticalLines', "Controls whether the Debug Console should collapse identical lines and show a number of occurrences with a badge."),
 			default: true
 		},
 		'debug.console.acceptSuggestionOnEnter': {

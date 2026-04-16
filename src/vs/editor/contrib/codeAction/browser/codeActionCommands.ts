@@ -48,7 +48,7 @@ const argsSchema = {
 		'preferred': {
 			type: 'boolean',
 			default: false,
-			description: nls.localize('args.schema.preferred', "Controls if only preferred code actions should be returned."),
+			description: nls.localize('args.schema.preferred', "Controls whether only preferred code actions should be returned."),
 		}
 	}
 } as const satisfies IJSONSchema;
