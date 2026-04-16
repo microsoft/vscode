@@ -66,6 +66,7 @@ export class AgentMemoryToolRegistrar implements IAgentMemoryToolRegistrar {
 	async registerMemoryTools(): Promise<void> {
 		const enabled = this.configurationService.getExperimentBasedConfig(ConfigKey.CopilotMemoryEnabled, this.experimentationService);
 		if (!enabled) {
+			this._registrations.clear();
 			return;
 		}
 
