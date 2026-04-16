@@ -1051,7 +1051,7 @@ registerAction2(class extends ViewAction<Repl> {
 			session = resolveChildSession(session, debugService.getModel().getSessions());
 			await debugService.focusStackFrame(undefined, undefined, session, { explicit: true });
 		}
-		// Need to select the session in the view since the focussed session might not have changed
+		// Need to select the session in the view since the focused session might not have changed
 		await view.selectSession(session);
 	}
 });
