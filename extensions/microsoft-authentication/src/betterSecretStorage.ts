@@ -28,7 +28,7 @@ export class BetterTokenStorage<T> {
 	/**
 	 *
 	 * @param keylistKey The key in the secret storage that will hold the list of keys associated with this instance of BetterTokenStorage
-	 * @param context the vscode Context used to register disposables and retreive the vscode.SecretStorage for this instance of VS Code
+	 * @param context the vscode Context used to register disposables and retrieve the vscode.SecretStorage for this instance of VS Code
 	 */
 	constructor(private keylistKey: string, context: ExtensionContext) {
 		this._secretStorage = context.secrets;
