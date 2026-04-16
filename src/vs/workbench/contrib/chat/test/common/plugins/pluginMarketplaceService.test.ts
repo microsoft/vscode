@@ -4,13 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { timeout } from '../../../../../../base/common/async.js';
+import { VSBuffer } from '../../../../../../base/common/buffer.js';
 import { Event } from '../../../../../../base/common/event.js';
 import { observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
-import { IFileService } from '../../../../../../platform/files/common/files.js';
+import { IFileService, IFileSystemWatcher } from '../../../../../../platform/files/common/files.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
 import { IRequestService } from '../../../../../../platform/request/common/request.js';
@@ -520,5 +522,266 @@ suite('getPluginSourceLabel', () => {
 
 	test('formats pip source with version', () => {
 		assert.strictEqual(getPluginSourceLabel({ kind: PluginSourceKind.Pip, package: 'my-plugin', version: '2.0' }), 'my-plugin==2.0');
+	});
+});
+
+/**
+ * Minimal in-memory file service used to simulate `installed.json` and
+ * marketplace definition files on disk during hydration tests.
+ */
+class HydrationTestFileService {
+	private readonly _files = new Map<string, string>();
+	private readonly _folders = new Set<string>();
+
+	async exists(resource: URI): Promise<boolean> {
+		const key = resource.toString();
+		return this._files.has(key) || this._folders.has(key);
+	}
+
+	async readFile(resource: URI): Promise<{ value: VSBuffer }> {
+		const key = resource.toString();
+		const value = this._files.get(key);
+		if (value === undefined) {
+			throw new Error(`Missing file: ${key}`);
+		}
+		return { value: VSBuffer.fromString(value) };
+	}
+
+	async writeFile(_resource: URI, _content: VSBuffer): Promise<unknown> {
+		// Writes are not needed for hydration tests; swallow them.
+		return {};
+	}
+
+	async createFolder(resource: URI): Promise<unknown> {
+		this._folders.add(resource.toString());
+		return {};
+	}
+
+	createWatcher(): IFileSystemWatcher {
+		return { onDidChange: Event.None, dispose: () => { } };
+	}
+
+	setFile(resource: URI, content: string): void {
+		this._files.set(resource.toString(), content);
+	}
+}
+
+suite('PluginMarketplaceService - hydration of installed plugins', () => {
+	const store = ensureNoDisposablesAreLeakedInTestSuite();
+
+	const agentPluginsHome = URI.file('/agent-plugins');
+	const installedJsonUri = URI.joinPath(agentPluginsHome, 'installed.json');
+	const marketplaceRepoDir = URI.file('/agent-plugins/github.com/sugeryp/marketplace-plugins-test');
+	const marketplaceRef = parseMarketplaceReference('sugeryp/marketplace-plugins-test')!;
+
+	interface ICreateServiceOptions {
+		installedEntries: { pluginUri: URI; marketplace: string }[];
+		marketplaceJsonPath: string;
+		marketplaceJsonContent: object;
+		/** URI returned by getPluginInstallUri for a plugin, keyed by plugin name. */
+		installUrisByName: Map<string, URI>;
+		/** URI returned by getPluginSourceInstallUri, keyed by source kind. */
+		sourceInstallUrisByKind: Map<PluginSourceKind, URI>;
+	}
+
+	function createService(options: ICreateServiceOptions): PluginMarketplaceService {
+		const fileService = new HydrationTestFileService();
+
+		// Seed installed.json so FileBackedInstalledPluginsStore picks up the
+		// stored entries at construction time, simulating a restart with
+		// pre-existing installed plugins.
+		fileService.setFile(installedJsonUri, JSON.stringify({
+			version: 1,
+			installed: options.installedEntries.map(e => ({
+				pluginUri: e.pluginUri.toString(),
+				marketplace: e.marketplace,
+			})),
+		}));
+
+		// Seed the marketplace.json inside the (mock) cloned repo directory so
+		// _readPluginsFromDirectory can parse it during hydration.
+		fileService.setFile(
+			URI.joinPath(marketplaceRepoDir, options.marketplaceJsonPath),
+			JSON.stringify(options.marketplaceJsonContent),
+		);
+
+		const instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(IConfigurationService, new TestConfigurationService({
+			[ChatConfiguration.PluginMarketplaces]: ['sugeryp/marketplace-plugins-test'],
+			[ChatConfiguration.PluginsEnabled]: true,
+		}));
+		instantiationService.stub(IEnvironmentService, { cacheHome: URI.file('/cache') } as Partial<IEnvironmentService> as IEnvironmentService);
+		instantiationService.stub(IFileService, fileService as unknown as IFileService);
+		instantiationService.stub(IAgentPluginRepositoryService, {
+			agentPluginsHome,
+			getRepositoryUri: () => marketplaceRepoDir,
+			getPluginInstallUri: (plugin: IMarketplacePlugin) => {
+				return options.installUrisByName.get(plugin.name)
+					// Default: marketplace-relative path (mirrors production behaviour).
+					?? URI.joinPath(marketplaceRepoDir, plugin.source || plugin.name);
+			},
+			getPluginSourceInstallUri: (descriptor: { kind: PluginSourceKind }) => {
+				const uri = options.sourceInstallUrisByKind.get(descriptor.kind);
+				if (!uri) {
+					throw new Error(`No source install URI stubbed for ${descriptor.kind}`);
+				}
+				return uri;
+			},
+		} as unknown as IAgentPluginRepositoryService);
+		instantiationService.stub(ILogService, new NullLogService());
+		instantiationService.stub(IRequestService, {} as unknown as IRequestService);
+		instantiationService.stub(IStorageService, store.add(new InMemoryStorageService()));
+		instantiationService.stub(IWorkspacePluginSettingsService, {
+			extraMarketplaces: observableValue('test.extraMarketplaces', []),
+			enabledPlugins: observableValue('test.enabledPlugins', new Map()),
+		} as Partial<IWorkspacePluginSettingsService> as IWorkspacePluginSettingsService);
+		instantiationService.stub(IWorkspaceTrustManagementService, {
+			isWorkspaceTrusted: () => true,
+			onDidChangeTrust: Event.None,
+		} as Partial<IWorkspaceTrustManagementService> as IWorkspaceTrustManagementService);
+
+		return store.add(instantiationService.createInstance(PluginMarketplaceService));
+	}
+
+	async function waitForHydration(service: PluginMarketplaceService, expectedCount: number): Promise<void> {
+		for (let i = 0; i < 50; i++) {
+			if (service.installedPlugins.get().length >= expectedCount) {
+				return;
+			}
+			await timeout(10);
+		}
+	}
+
+	test('hydrates metadata for inline RelativePath plugins after restart', async () => {
+		// installed.json entry for an inline plugin uses the marketplace-relative URI,
+		// which matches getPluginInstallUri() directly.
+		const inlineInstallUri = URI.joinPath(marketplaceRepoDir, 'plugins/hello-sample');
+
+		const service = createService({
+			installedEntries: [{ pluginUri: inlineInstallUri, marketplace: marketplaceRef.displayLabel }],
+			marketplaceJsonPath: '.claude-plugin/marketplace.json',
+			marketplaceJsonContent: {
+				name: 'sugeryp/marketplace-plugins-test',
+				owner: { name: 'sugeryp' },
+				plugins: [
+					{
+						name: 'hello-sample',
+						source: './plugins/hello-sample',
+						description: 'inline sample plugin',
+						version: '0.1.0',
+					},
+				],
+			},
+			installUrisByName: new Map([['hello-sample', inlineInstallUri]]),
+			sourceInstallUrisByKind: new Map(),
+		});
+
+		await waitForHydration(service, 1);
+
+		const installed = service.installedPlugins.get();
+		assert.strictEqual(installed.length, 1, 'inline plugin should be hydrated on restart');
+		assert.strictEqual(installed[0].plugin.name, 'hello-sample');
+		assert.strictEqual(installed[0].plugin.sourceDescriptor.kind, PluginSourceKind.RelativePath);
+	});
+
+	test('hydrates metadata for GitHub-source plugins after restart (#308504)', async () => {
+		// External-source plugins are stored in installed.json with the URI
+		// returned by getPluginSourceInstallUri(), which points to a separate
+		// cache directory — NOT the marketplace-relative path that
+		// getPluginInstallUri() would return. Prior to #308504 the hydration
+		// path only compared against getPluginInstallUri(), so the match always
+		// failed and the plugin appeared uninstalled after reload.
+		const githubSourceInstallUri = URI.file('/agent-plugins/github.com/sugeryp/edge-tag');
+		const marketplaceRelativeUri = URI.joinPath(marketplaceRepoDir, 'edge-tag');
+
+		const service = createService({
+			installedEntries: [{ pluginUri: githubSourceInstallUri, marketplace: marketplaceRef.displayLabel }],
+			marketplaceJsonPath: '.claude-plugin/marketplace.json',
+			marketplaceJsonContent: {
+				name: 'sugeryp/marketplace-plugins-test',
+				owner: { name: 'sugeryp' },
+				plugins: [
+					{
+						name: 'edge-tag',
+						description: 'github-source plugin',
+						version: '0.1.0',
+						source: { source: 'github', repo: 'sugeryp/edge-tag', ref: 'plugin-test' },
+					},
+				],
+			},
+			installUrisByName: new Map([['edge-tag', marketplaceRelativeUri]]),
+			sourceInstallUrisByKind: new Map([[PluginSourceKind.GitHub, githubSourceInstallUri]]),
+		});
+
+		await waitForHydration(service, 1);
+
+		const installed = service.installedPlugins.get();
+		assert.strictEqual(installed.length, 1, 'external-source plugin should be hydrated on restart');
+		assert.strictEqual(installed[0].plugin.name, 'edge-tag');
+		assert.strictEqual(installed[0].plugin.sourceDescriptor.kind, PluginSourceKind.GitHub);
+		assert.strictEqual(installed[0].pluginUri.toString(), githubSourceInstallUri.toString());
+	});
+
+	test('hydrates metadata for npm-source plugins after restart (#308504)', async () => {
+		const npmSourceInstallUri = URI.file('/agent-plugins/npm/@acme/my-plugin');
+		const marketplaceRelativeUri = URI.joinPath(marketplaceRepoDir, 'my-npm-plugin');
+
+		const service = createService({
+			installedEntries: [{ pluginUri: npmSourceInstallUri, marketplace: marketplaceRef.displayLabel }],
+			marketplaceJsonPath: '.claude-plugin/marketplace.json',
+			marketplaceJsonContent: {
+				name: 'sugeryp/marketplace-plugins-test',
+				owner: { name: 'sugeryp' },
+				plugins: [
+					{
+						name: 'my-npm-plugin',
+						description: 'npm-source plugin',
+						version: '1.0.0',
+						source: { source: 'npm', package: '@acme/my-plugin' },
+					},
+				],
+			},
+			installUrisByName: new Map([['my-npm-plugin', marketplaceRelativeUri]]),
+			sourceInstallUrisByKind: new Map([[PluginSourceKind.Npm, npmSourceInstallUri]]),
+		});
+
+		await waitForHydration(service, 1);
+
+		const installed = service.installedPlugins.get();
+		assert.strictEqual(installed.length, 1, 'npm-source plugin should be hydrated on restart');
+		assert.strictEqual(installed[0].plugin.name, 'my-npm-plugin');
+		assert.strictEqual(installed[0].plugin.sourceDescriptor.kind, PluginSourceKind.Npm);
+	});
+
+	test('does not hydrate when neither install URI matches', async () => {
+		const service = createService({
+			installedEntries: [{
+				pluginUri: URI.file('/agent-plugins/unrelated/path'),
+				marketplace: marketplaceRef.displayLabel,
+			}],
+			marketplaceJsonPath: '.claude-plugin/marketplace.json',
+			marketplaceJsonContent: {
+				name: 'sugeryp/marketplace-plugins-test',
+				owner: { name: 'sugeryp' },
+				plugins: [
+					{
+						name: 'edge-tag',
+						description: 'github-source plugin',
+						version: '0.1.0',
+						source: { source: 'github', repo: 'sugeryp/edge-tag' },
+					},
+				],
+			},
+			installUrisByName: new Map([['edge-tag', URI.joinPath(marketplaceRepoDir, 'edge-tag')]]),
+			sourceInstallUrisByKind: new Map([[PluginSourceKind.GitHub, URI.file('/agent-plugins/github.com/sugeryp/edge-tag')]]),
+		});
+
+		// Give the async hydration a chance to run — it should find no match
+		// and leave installedPlugins empty.
+		for (let i = 0; i < 10; i++) {
+			await timeout(10);
+		}
+
+		assert.strictEqual(service.installedPlugins.get().length, 0, 'unrelated URI must not be matched against any plugin');
 	});
 });

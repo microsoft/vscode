@@ -610,7 +610,19 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 				const plugins = await this._readPluginsFromDirectory(repoDir, reference);
 				const match = plugins.find(p => {
 					const installUri = this._pluginRepositoryService.getPluginInstallUri(p);
-					return isEqual(installUri, entry.pluginUri);
+					if (isEqual(installUri, entry.pluginUri)) {
+						return true;
+					}
+					// External-source plugins (GitHub, GitUrl, Npm, Pip) are stored
+					// with a URI from getPluginSourceInstallUri() which resolves to a
+					// separate cache directory, not the marketplace-relative path that
+					// getPluginInstallUri() returns. Fall back to comparing against the
+					// source install URI for these plugins. (#308504)
+					if (p.sourceDescriptor.kind !== PluginSourceKind.RelativePath) {
+						const sourceInstallUri = this._pluginRepositoryService.getPluginSourceInstallUri(p.sourceDescriptor);
+						return isEqual(sourceInstallUri, entry.pluginUri);
+					}
+					return false;
 				});
 				if (match) {
 					this._pluginMetadata.set(key, match);
