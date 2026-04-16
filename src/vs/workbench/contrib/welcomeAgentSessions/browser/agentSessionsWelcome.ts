@@ -827,7 +827,7 @@ export class AgentSessionsWelcomePage extends EditorPane {
 			return;
 		}
 
-		// TODO: @osortega this is a weird way of doing this, maybe we handle the 2-colum layout in the control itself?
+		// TODO: @osortega this is a weird way of doing this, maybe we handle the 2-column layout in the control itself?
 		const sessionsWidth = Math.min(800, this.lastDimension.width - 80);
 		// Calculate height based on actual visible sessions (capped at MAX_SESSIONS)
 		// Use ITEM_HEIGHT per item from AgentSessionsListDelegate

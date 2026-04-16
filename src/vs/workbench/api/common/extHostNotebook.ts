@@ -448,7 +448,7 @@ export class ExtHostNotebookController implements ExtHostNotebookShape {
 									// if the include is from the settings and target isn't, even if it matches, it's still overridden.
 									return false;
 								} else {
-									// longer filePatterns are considered more specifc, so they always have precedence the shorter patterns
+									// longer filePatterns are considered more specific, so they always have precedence the shorter patterns
 									return target.filenamePatterns.some(targetFilePattern => globMatchesResource(targetFilePattern, uri));
 								}
 							});

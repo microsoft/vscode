@@ -593,7 +593,7 @@ export namespace TestResultItem {
 export interface ISerializedTestResults {
 	/** ID of these test results */
 	id: string;
-	/** Time the results were compelted */
+	/** Time the results were completed */
 	completedAt: number;
 	/** Subset of test result items */
 	items: TestResultItem.Serialized[];

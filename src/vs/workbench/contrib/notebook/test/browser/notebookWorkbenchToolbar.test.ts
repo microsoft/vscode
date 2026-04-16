@@ -104,7 +104,7 @@ suite('Workbench Toolbar calculateActions (strategy always + never)', () => {
 		assert.deepEqual(result.secondaryActions, [actions[2], separator, ...defaultSecondaryActionModels].map(action => action.action));
 	});
 
-	test('should not render separator if preceeded by size 0 action(s).', () => {
+	test('should not render separator if preceded by size 0 action(s).', () => {
 		const actions: IActionModel[] = [
 			{ action: disposables.add(new Action('action0', 'Action 0')), size: 0, visible: true, renderLabel: true },
 			{ action: new Separator(), size: 1, visible: true, renderLabel: true },
@@ -271,7 +271,7 @@ suite('Workbench Toolbar Dynamic calculateActions (strategy dynamic)', () => {
 		assert.deepEqual(result.secondaryActions, defaultSecondaryActions);
 	});
 
-	test('should not render separator if preceeded by size 0 action(s), but keep size 0 action in primary.', () => {
+	test('should not render separator if preceded by size 0 action(s), but keep size 0 action in primary.', () => {
 		const containerSize = 116;
 		const input: IActionModel[] = [
 			{ action: actionTemplate[0], size: 0, visible: true, renderLabel: true }, 	// hidden

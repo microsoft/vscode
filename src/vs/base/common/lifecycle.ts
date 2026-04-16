@@ -159,7 +159,7 @@ export class DisposableTracker implements IDisposableTracker {
 			});
 
 			if (uncoveredLeakingObjs.length === 0) {
-				throw new Error('There are cyclic diposable chains!');
+				throw new Error('There are cyclic disposable chains!');
 			}
 		}
 

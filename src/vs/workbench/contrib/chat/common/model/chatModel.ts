@@ -738,7 +738,7 @@ class ResponseView extends AbstractResponse {
 		public readonly undoStop: string,
 	) {
 		let idx = _response.value.findIndex(v => v.kind === 'undoStop' && v.id === undoStop);
-		// Undo stops are inserted before `codeblockUri`'s, which are preceeded by a
+		// Undo stops are inserted before `codeblockUri`'s, which are preceded by a
 		// markdownContent containing the opening code fence. Adjust the index
 		// backwards to avoid a buggy response if it looked like this happened.
 		if (_response.value[idx + 1]?.kind === 'codeblockUri' && _response.value[idx - 1]?.kind === 'markdownContent') {
