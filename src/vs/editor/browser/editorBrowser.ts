@@ -1145,7 +1145,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	setHiddenAreas(ranges: IRange[], source?: unknown): void;
 
 	/**
-	 * Sets the editor aria options, primarily the active descendent.
+	 * Sets the editor aria options, primarily the active descendant.
 	 * @internal
 	 */
 	setAriaOptions(options: IEditorAriaOptions): void;

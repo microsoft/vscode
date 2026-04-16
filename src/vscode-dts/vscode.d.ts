@@ -8297,7 +8297,7 @@ declare module 'vscode' {
 		 * Provide decorations for a given uri.
 		 *
 		 * *Note* that this function is only called when a file gets rendered in the UI.
-		 * This means a decoration from a descendent that propagates upwards must be signaled
+		 * This means a decoration from a descendant that propagates upwards must be signaled
 		 * to the editor via the {@link FileDecorationProvider.onDidChangeFileDecorations onDidChangeFileDecorations}-event.
 		 *
 		 * @param uri The uri of the file to provide a decoration for.
