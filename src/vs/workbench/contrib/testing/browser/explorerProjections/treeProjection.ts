@@ -38,7 +38,7 @@ const computedStateAccessor: IComputedStateAndDurationAccessor<TreeTestItemEleme
 };
 
 /**
- * Test tree element element that groups be hierarchy.
+ * Test tree element that groups by hierarchy.
  */
 class TreeTestItemElement extends TestItemTreeElement {
 	/**

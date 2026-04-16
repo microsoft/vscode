@@ -293,7 +293,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 			return;
 		} else if (ThemeIcon.isThemeIcon(icon)) {
 			// TODO: Since IQuickPickItem and IQuickInputButton do not support ThemeIcon directly, the color ID is lost here.
-			// We should consider changing changing iconPath/iconClass to IconPath in both interfaces.
+			// We should consider changing iconPath/iconClass to IconPath in both interfaces.
 			// Request for color support: https://github.com/microsoft/vscode/issues/185356..
 			target.iconClass = ThemeIcon.asClassName(icon);
 		} else if (isUriComponents(icon)) {

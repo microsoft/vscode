@@ -18,7 +18,7 @@ import { ITestService } from '../../common/testService.js';
 import { ITestItemUpdate, InternalTestItem, TestDiffOpType, TestItemExpandState, TestResultState, TestsDiff, applyTestItemUpdate } from '../../common/testTypes.js';
 
 /**
- * Test tree element element that groups be hierarchy.
+ * Test tree element that groups by hierarchy.
  */
 class ListTestItemElement extends TestItemTreeElement {
 	private errorChild?: TestTreeErrorMessage;

@@ -381,7 +381,7 @@ export abstract class AbstractStorageService extends Disposable implements IStor
 				// In the browser we do not have support for long running unload sequences. As such,
 				// we cannot ask for saving state in that moment, because that would result in a
 				// long running operation.
-				// Instead, periodically ask customers to save save. The library will be clever enough
+				// Instead, periodically ask customers to save. The library will be clever enough
 				// to only save state that has actually changed.
 				this.flushWhenIdleScheduler.schedule();
 			})();

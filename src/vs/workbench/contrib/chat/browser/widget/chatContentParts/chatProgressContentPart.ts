@@ -107,7 +107,7 @@ export class ChatProgressContentPart extends Disposable implements IChatContentP
 	}
 
 	hasSameContent(other: IChatRendererContent, followingContent: IChatRendererContent[], element: ChatTreeItem): boolean {
-		// Progress parts render render until some other content shows up, then they hide.
+		// Progress parts render until some other content shows up, then they hide.
 		// When some other content shows up, need to signal to be rerendered as hidden.
 		if (followingContent.some(part => part.kind !== 'progressMessage') && !this.isHidden) {
 			return false;
