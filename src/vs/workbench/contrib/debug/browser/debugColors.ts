@@ -113,7 +113,7 @@ export function registerColors() {
 	}, localize('debugIcon.stepBackForeground', "Debug toolbar icon for step back."));
 
 	registerThemingParticipant((theme, collector) => {
-		// All these colours provide a default value so they will never be undefined, hence the `!`
+		// All these colors provide a default value so they will never be undefined, hence the `!`
 		const badgeBackgroundColor = theme.getColor(badgeBackground)!;
 		const badgeForegroundColor = theme.getColor(badgeForeground)!;
 		const listDeemphasizedForegroundColor = theme.getColor(listDeemphasizedForeground)!;
@@ -125,7 +125,7 @@ export function registerColors() {
 		const toolbarHoverBackgroundColor = theme.getColor(toolbarHoverBackground);
 
 		collector.addRule(`
-			/* Text colour of the call stack row's filename */
+			/* Text color of the call stack row's filename */
 			.debug-pane .debug-call-stack .monaco-list-row:not(.selected) .stack-frame > .file .file-name {
 				color: ${listDeemphasizedForegroundColor}
 			}

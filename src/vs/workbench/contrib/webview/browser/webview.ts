@@ -278,7 +278,7 @@ export interface IWebview extends IDisposable {
  */
 export interface IWebviewElement extends IWebview {
 	/**
-	 * Append the webview to a HTML element.
+	 * Append the webview to an HTML element.
 	 *
 	 * Note that the webview content will be destroyed if any part of the parent hierarchy
 	 * changes. You can avoid this by using a {@link IOverlayWebview} instead.
