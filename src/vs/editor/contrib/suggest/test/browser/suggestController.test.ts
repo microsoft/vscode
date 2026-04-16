@@ -526,7 +526,7 @@ suite('SuggestController', function () {
 		assert.strictEqual(editor.getValue(), 'filter');
 	});
 
-	test('Fast autocomple typing selects the previous autocomplete suggestion, #71795', async function () {
+	test('Fast autocomplete typing selects the previous autocomplete suggestion, #71795', async function () {
 		disposables.add(languageFeaturesService.completionProvider.register({ scheme: 'test-ctrl' }, {
 			_debugDisplayName: 'test',
 			provideCompletionItems(doc, pos) {

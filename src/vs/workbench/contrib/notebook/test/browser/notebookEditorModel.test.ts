@@ -266,7 +266,7 @@ suite('NotebookFileWorkingCopyModel', function () {
 
 	});
 
-	test('Notebook model will not return a save delegate if the serializer has not been retreived', async function () {
+	test('Notebook model will not return a save delegate if the serializer has not been retrieved', async function () {
 		const notebook = instantiationService.createInstance(NotebookTextModel,
 			'notebook',
 			URI.file('test'),

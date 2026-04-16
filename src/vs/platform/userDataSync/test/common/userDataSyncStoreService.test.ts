@@ -374,7 +374,7 @@ suite('UserDataSyncStoreService', () => {
 		assert.strictEqual(target.donotMakeRequestsUntil?.getTime(), testObject.donotMakeRequestsUntil?.getTime());
 	});
 
-	test('test donotMakeRequestsUntil is checked and reset after retreived', async () => {
+	test('test donotMakeRequestsUntil is checked and reset after retrieved', async () => {
 		return runWithFakedTimers({ useFakeTimers: true }, async () => {
 			const client = disposableStore.add(new UserDataSyncClient(new UserDataSyncTestServer(1, 0.25)));
 			await client.setUp();
