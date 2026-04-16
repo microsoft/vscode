@@ -56,7 +56,7 @@ export class JSONValidationExtensionPoint {
 				const extensionLocation = extension.description.extensionLocation;
 
 				if (!extensionValue || !Array.isArray(extensionValue)) {
-					collector.error(nls.localize('invalid.jsonValidation', "'configuration.jsonValidation' must be a array"));
+					collector.error(nls.localize('invalid.jsonValidation', "'configuration.jsonValidation' must be an array"));
 					return;
 				}
 				extensionValue.forEach(extension => {
