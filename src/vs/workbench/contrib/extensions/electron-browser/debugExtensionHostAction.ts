@@ -41,7 +41,7 @@ async function getExtensionHostPort(
 	if (inspectPorts.length === 0) {
 		const res = await dialogService.confirm({
 			message: nls.localize('restart1', "Debug Extensions"),
-			detail: nls.localize('restart2', "In order to debug extensions a restart is required. Do you want to restart '{0}' now?", productService.nameLong),
+			detail: nls.localize('restart2', "In order to debug extensions, a restart is required. Do you want to restart '{0}' now?", productService.nameLong),
 			primaryButton: nls.localize({ key: 'restart3', comment: ['&& denotes a mnemonic'] }, "&&Restart")
 		});
 		if (res.confirmed) {
