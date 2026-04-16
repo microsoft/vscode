@@ -285,7 +285,7 @@ async function invokeConfirmationTool(
 			return { kind: 'approved' };
 		}
 	} catch (error) {
-		logService.error(`[CopilotCLISession] Permission request error: ${error}`);
+		logService.error(error, `[CopilotCLISession] Permission request error`);
 	}
 	return { kind: 'denied-interactively-by-user' };
 }
@@ -343,7 +343,7 @@ async function trackEditIfNeeded(editTracker: ExternalEditTracker, toolCall: Too
 		try {
 			await editTracker.trackEdit(toolCall.toolCallId, [editFile], stream);
 		} catch (error) {
-			logService.error(`[CopilotCLISession] Failed to track edit for toolCallId ${toolCall.toolCallId}: ${error}`);
+			logService.error(error, `[CopilotCLISession] Failed to track edit for toolCallId ${toolCall.toolCallId}`);
 		}
 	}
 }
