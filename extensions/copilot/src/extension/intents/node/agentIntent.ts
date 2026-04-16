@@ -659,7 +659,21 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			));
 		}
 
+		const lastMessage = result.messages.at(-1);
+		if (lastMessage?.role === Raw.ChatRole.User) {
+			const currentTurn = promptContext.conversation?.getLatestTurn();
+			if (currentTurn && !currentTurn.getMetadata(RenderedUserMessageMetadata)) {
+				currentTurn.setMetadata(new RenderedUserMessageMetadata(lastMessage.content));
+			}
+		}
+
+		addCacheBreakpoints(result.messages);
+
 		// Post-render: kick off background compaction at ≥ 80% if idle.
+		// This must run AFTER addCacheBreakpoints so that the messages
+		// forwarded to the background summarizer include cache breakpoints,
+		// making the prompt prefix byte-identical to the main agent fetch
+		// and enabling prompt cache hits on the summarization call.
 		if (summarizationEnabled && backgroundSummarizer && !didSummarizeThisIteration) {
 			const postRenderRatio = baseBudget > 0
 				? (result.tokenCount + toolTokens) / baseBudget
@@ -682,16 +696,6 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 				this._startBackgroundSummarization(backgroundSummarizer, result.messages, promptContext, props, token, postRenderRatio, useInlineSummarization);
 			}
 		}
-
-		const lastMessage = result.messages.at(-1);
-		if (lastMessage?.role === Raw.ChatRole.User) {
-			const currentTurn = promptContext.conversation?.getLatestTurn();
-			if (currentTurn && !currentTurn.getMetadata(RenderedUserMessageMetadata)) {
-				currentTurn.setMetadata(new RenderedUserMessageMetadata(lastMessage.content));
-			}
-		}
-
-		addCacheBreakpoints(result.messages);
 
 		if (this.request.command === 'error') {
 			// Should trigger a 400
@@ -806,9 +810,14 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			try {
 				if (useInlineSummarization) {
 					// Inline mode: fork the exact messages from the main render
-					// and append a summary user message. The prompt prefix is
-					// byte-identical to the main agent loop for cache hits.
-					const strippedMainMessages = ToolCallingLoop.stripInternalToolCallIds(mainRenderMessages);
+					// and append a summary user message. The prompt prefix must
+					// be byte-identical to the main agent fetch for cache hits.
+					// Apply the same post-processing as the tool calling loop
+					// (strip internal IDs + validate/filter orphaned tool messages)
+					// so the message arrays match exactly.
+					const strippedMainMessages = ToolCallingLoop.validateToolMessagesCore(
+						ToolCallingLoop.stripInternalToolCallIds(mainRenderMessages),
+					).messages;
 					const summaryMsgResult = await renderPromptElement(
 						this.instantiationService,
 						this.endpoint,
