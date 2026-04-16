@@ -10,6 +10,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: sessions-e2e-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
 jobs:
   sessions-e2e:
     name: Sessions E2E Tests
