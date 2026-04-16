@@ -124,7 +124,7 @@ Strict import dependency rules — violations will cause build failures:
 - Listens to SDK events and translates them to VS Code chat UI parts
 - Manages permission flow
 - Tracks external edits via `ExternalEditTracker` for proper diff display
-- Supports CLI commands: `compact`, `plan``fleet`
+- Supports CLI commands: `compact`, `plan`, `fleet`
 - Built-in slash commands: `/commit`, `/sync`, `/merge`, `/create-pr`, `/create-draft-pr`, `/update-pr`
 - Captures pull request URLs from `create_pull_request` tool results
 
