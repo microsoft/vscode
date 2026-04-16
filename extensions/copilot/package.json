@@ -3933,7 +3933,7 @@
 							"null"
 						],
 						"default": null,
-						"markdownDescription": "Overrides the reasoning/thinking effort sent to model APIs (e.g. `low`, `medium`, `high`). Used by evals.\n\n**Note**: This is an advanced debugging setting.",
+						"markdownDescription": "Overrides the reasoning/thinking effort sent to model APIs. The configured value must match a reasoning-effort value supported by the selected model or endpoint (for example, `low`, `medium`, `high`, or other model-specific values). Used by evals.\n\n**Note**: This is an advanced debugging setting.",
 						"tags": [
 							"advanced"
 						]
