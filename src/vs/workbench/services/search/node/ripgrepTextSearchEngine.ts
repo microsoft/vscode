@@ -695,7 +695,7 @@ function getEscapeAwareSplitStringForRipgrep(pattern: string): { fixedStart?: st
 		switch (char) {
 			case '\\':
 				if (escaped) {
-					// If we're already escaped, then just leave the escaped slash and the preceeding slash that escapes it.
+					// If we're already escaped, then just leave the escaped slash and the preceding slash that escapes it.
 					// The two escaped slashes will result in a single slash and whatever processes the glob later will properly process the escape
 					if (inBraces) {
 						strInBraces += '\\' + char;
