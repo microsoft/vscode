@@ -475,7 +475,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		'notebook.navigation.allowNavigateToSurroundingCells': {
 			type: 'boolean',
 			default: true,
-			markdownDescription: localize('notebook.navigation.allowNavigateToSurroundingCells', "When enabled cursor can navigate to the next/previous cell when the current cursor in the cell editor is at the first/last line.")
+			markdownDescription: localize('notebook.navigation.allowNavigateToSurroundingCells', "When enabled, cursor can navigate to the next/previous cell when the current cursor in the cell editor is at the first/last line.")
 		}
 	}
 });
