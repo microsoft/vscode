@@ -712,7 +712,7 @@ export namespace ConfigKey {
 		export const OTelDbSpanExporter = defineSetting<boolean>('chat.otel.dbSpanExporter.enabled', ConfigType.Simple, false);
 
 		/** Internal: override reasoning/thinking effort sent to model APIs (e.g. Responses API, Messages API). Used by evals. */
-		export const ReasoningEffortOverride = defineSetting<string | null>('chat.advanced.reasoningEffortOverride', ConfigType.Simple, null);
+		export const ReasoningEffortOverride = defineSetting<string | null>('chat.reasoningEffortOverride', ConfigType.Simple, null);
 	}
 
 	/**

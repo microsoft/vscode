@@ -3927,7 +3927,7 @@
 			{
 				"id": "advanced",
 				"properties": {
-					"github.copilot.chat.advanced.reasoningEffortOverride": {
+					"github.copilot.chat.reasoningEffortOverride": {
 						"type": [
 							"string",
 							"null"
