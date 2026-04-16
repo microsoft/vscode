@@ -171,7 +171,7 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 	}): IChatSessionItem {
 		return {
 			resource: URI.from({ scheme: this._sessionType, path: `/${rawId}` }),
-			label: opts.title ?? `Session ${rawId.substring(0, 8)}`,
+			label: opts.title || `Session ${rawId.substring(0, 8)}`,
 			description: this._description,
 			iconPath: getAgentHostIcon(this._productService),
 			status: mapSessionStatus(opts.status),

@@ -14,7 +14,7 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
-import { AgentSession, DEFAULT_SESSION_TITLE, IAgent } from '../../common/agentService.js';
+import { AgentSession, IAgent } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { ActionType, IActionEnvelope, ISessionAction } from '../../common/state/sessionActions.js';
 import { PendingMessageKind, ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType } from '../../common/state/sessionState.js';
@@ -138,7 +138,7 @@ suite('AgentSideEffects', () => {
 			stateManager.createSession({
 				resource: sessionUri.toString(),
 				provider: 'mock',
-				title: DEFAULT_SESSION_TITLE,
+				title: '',
 				status: SessionStatus.Idle,
 				createdAt: Date.now(),
 				modifiedAt: Date.now(),
@@ -182,6 +182,30 @@ suite('AgentSideEffects', () => {
 
 			const titleAction = envelopes.find(e => e.action.type === ActionType.SessionTitleChanged);
 			assert.strictEqual(titleAction, undefined, 'should not dispatch titleChanged for empty message');
+		});
+
+		test('normalizes whitespace and truncates long messages', () => {
+			setupDefaultSession();
+
+			const envelopes: IActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
+
+			const longMessage = 'Fix the bug\nin the login\tpage  please ' + 'a'.repeat(250);
+			sideEffects.handleAction({
+				type: ActionType.SessionTurnStarted,
+				session: sessionUri.toString(),
+				turnId: 'turn-1',
+				userMessage: { text: longMessage },
+			});
+
+			const titleAction = envelopes.find(e => e.action.type === ActionType.SessionTitleChanged);
+			assert.ok(titleAction, 'should dispatch session/titleChanged');
+			if (titleAction?.action.type === ActionType.SessionTitleChanged) {
+				assert.ok(!titleAction.action.title.includes('\n'), 'should not contain newlines');
+				assert.ok(!titleAction.action.title.includes('\t'), 'should not contain tabs');
+				assert.ok(!titleAction.action.title.includes('  '), 'should not contain double spaces');
+				assert.ok(titleAction.action.title.length <= 200, 'should be truncated to 200 chars');
+			}
 		});
 
 		test('does not dispatch titleChanged on second turn', () => {

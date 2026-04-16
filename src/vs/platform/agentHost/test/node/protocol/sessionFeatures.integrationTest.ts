@@ -5,7 +5,6 @@
 
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
-import { DEFAULT_SESSION_TITLE } from '../../../common/agentService.js';
 import { ISubscribeResult } from '../../../common/state/protocol/commands.js';
 import type { IModelChangedAction, IResponsePartAction, ISessionAddedNotification, ITitleChangedAction } from '../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../common/state/sessionCapabilities.js';
@@ -104,7 +103,7 @@ suite('Protocol WebSocket — Session Features', function () {
 
 		// Verify the session starts with the default placeholder title
 		const before = await client.call<ISubscribeResult>('subscribe', { resource: sessionUri });
-		assert.strictEqual((before.snapshot.state as ISessionState).summary.title, DEFAULT_SESSION_TITLE);
+		assert.strictEqual((before.snapshot.state as ISessionState).summary.title, '');
 
 		// Send first turn — side effects should dispatch an immediate titleChanged
 		// with the user's message text before the agent produces its own title.

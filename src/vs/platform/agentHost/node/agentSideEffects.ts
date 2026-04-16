@@ -12,7 +12,7 @@ import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
-import { DEFAULT_SESSION_TITLE, IAgent, IAgentAttachment, IAgentProgressEvent, type IAgentToolReadyEvent } from '../common/agentService.js';
+import { IAgent, IAgentAttachment, IAgentProgressEvent, type IAgentToolReadyEvent } from '../common/agentService.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { ActionType, ISessionAction } from '../common/state/sessionActions.js';
@@ -575,8 +575,8 @@ export class AgentSideEffects extends Disposable {
 				// title is still the default placeholder to avoid clobbering a
 				// title set by the user or provider before the first turn.
 				const state = this._stateManager.getSessionState(action.session);
-				const fallbackTitle = action.userMessage.text.trim();
-				if (state && state.turns.length === 0 && state.summary.title === DEFAULT_SESSION_TITLE && fallbackTitle.length > 0) {
+				const fallbackTitle = action.userMessage.text.trim().replace(/\s+/g, ' ').slice(0, 200);
+				if (state && state.turns.length === 0 && !state.summary.title && fallbackTitle.length > 0) {
 					this._stateManager.dispatchServerAction({
 						type: ActionType.SessionTitleChanged,
 						session: action.session,

@@ -11,7 +11,7 @@ import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { FileSystemProviderErrorCode, IFileService, toFileSystemProviderErrorCode } from '../../files/common/files.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentProvider, AgentSession, DEFAULT_SESSION_TITLE, IAgent, IAgentCreateSessionConfig, IAgentMessageEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSubagentStartedEvent, IAgentToolCompleteEvent, IAgentToolStartEvent, IAuthenticateParams, IAuthenticateResult } from '../common/agentService.js';
+import { AgentProvider, AgentSession, IAgent, IAgentCreateSessionConfig, IAgentMessageEvent, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSubagentStartedEvent, IAgentToolCompleteEvent, IAgentToolStartEvent, IAuthenticateParams, IAuthenticateResult } from '../common/agentService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
 import { ActionType, IActionEnvelope, INotification, ISessionAction, ITerminalAction, isSessionAction } from '../common/state/sessionActions.js';
 import type { ICreateTerminalParams, IResolveSessionConfigResult, ISessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
@@ -179,16 +179,15 @@ export class AgentService extends Disposable implements IAgentService {
 		}));
 
 		// Overlay live session state from the state manager.
-		// For the title, prefer the state manager's value when it has
-		// been changed from the initial placeholder, so SDK-sourced
-		// titles are not overwritten by the default.
+		// For the title, prefer the state manager's value when it is
+		// non-empty, so SDK-sourced titles are not overwritten by the
+		// initial empty placeholder.
 		const withStatus = result.map(s => {
 			const liveState = this._stateManager.getSessionState(s.session.toString());
 			if (liveState) {
-				const liveTitle = liveState.summary.title;
 				return {
 					...s,
-					summary: (liveTitle && liveTitle !== DEFAULT_SESSION_TITLE) ? liveTitle : s.summary,
+					summary: liveState.summary.title || s.summary,
 					status: liveState.summary.status,
 					model: liveState.summary.model ?? s.model,
 				};
@@ -271,7 +270,7 @@ export class AgentService extends Disposable implements IAgentService {
 			const summary: ISessionSummary = {
 				resource: session.toString(),
 				provider: provider.id,
-				title: DEFAULT_SESSION_TITLE,
+				title: '',
 				status: SessionStatus.Idle,
 				createdAt: Date.now(),
 				modifiedAt: Date.now(),
