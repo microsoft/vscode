@@ -185,7 +185,7 @@
 	content: '';
 	position: absolute;
 	inset: 1px;
-	border-radius: 10px;
+	border-radius: 999px;
 	background: var(--vscode-scrollbarSlider-background);
 }
 
