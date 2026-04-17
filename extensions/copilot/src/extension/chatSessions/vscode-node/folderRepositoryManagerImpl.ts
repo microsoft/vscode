@@ -255,7 +255,7 @@ export abstract class FolderRepositoryManager extends Disposable implements IFol
 					: undefined;
 
 				const mergeBaseCommit = repoContext?.headBranchName && branchBase?.commit
-					? await this.gitService.getMergeBase(selectedFolder, repoContext.headBranchName, branchBase.commit)
+					? await this.gitService.getMergeBase(repoContext.rootUri, repoContext.headBranchName, branchBase.commit)
 					: undefined;
 
 				const gitHubRemote = repoContext

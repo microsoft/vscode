@@ -131,7 +131,7 @@ export class ChatSessionWorktreeService extends Disposable implements IChatSessi
 					upstreamBranchName: activeRepository.upstreamRemote && activeRepository.upstreamBranchName
 						? `${activeRepository.upstreamRemote}/${activeRepository.upstreamBranchName}`
 						: undefined,
-					mergeBaseCommit: baseCommit,
+					mergeBaseCommit: baseCommit ?? activeRepository.headCommitHash,
 					hasGitHubRemote: gitHubRemote !== undefined,
 					incomingChanges,
 					outgoingChanges,
