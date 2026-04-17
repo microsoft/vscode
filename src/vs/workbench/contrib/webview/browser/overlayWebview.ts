@@ -112,7 +112,6 @@ export class OverlayWebview extends Disposable implements IOverlayWebview {
 			// // Mount them to a high level node to avoid this depending on the active container.
 			const root = this._layoutService.getContainer(this.window);
 			root.appendChild(this._overlayLayout.root);
-			this._overlayLayout.root.style.zIndex = '2541'; // One level above the modals
 		}
 
 		return this._overlayLayout.content;

@@ -131,6 +131,14 @@ export interface ICommonNativeHostService {
 
 	openAgentsWindow(options?: { readonly forceNewWindow?: boolean }): Promise<void>;
 
+	/**
+	 * Launches the sibling application (host ↔ embedded).
+	 * The launched process is detached with its own process group.
+	 *
+	 * @param args CLI arguments to pass to the sibling application.
+	 */
+	launchSiblingApp(args?: string[]): Promise<void>;
+
 	isFullScreen(options?: INativeHostOptions): Promise<boolean>;
 	toggleFullScreen(options?: INativeHostOptions): Promise<void>;
 

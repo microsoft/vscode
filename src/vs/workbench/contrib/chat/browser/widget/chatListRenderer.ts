@@ -907,8 +907,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const label = dom.append(dividerContent, dom.$('span.pending-divider-label'));
 
 		if (element.dividerKind === ChatRequestQueueKind.Steering) {
-			label.textContent = localize('steeringDivider', "Steering");
-			label.title = localize('steeringDividerTooltip', "Steering message will be sent after the next tool call happens");
+			if (element.isSystemInitiated) {
+				label.textContent = localize('systemNotificationDivider', "System Notification");
+				label.title = localize('systemNotificationDividerTooltip', "System notification will be sent after the next tool call happens");
+			} else {
+				label.textContent = localize('steeringDivider', "Steering");
+				label.title = localize('steeringDividerTooltip', "Steering message will be sent after the next tool call happens");
+			}
 		} else {
 			label.textContent = localize('queuedDivider', "Queued");
 			label.title = localize('queuedDividerTooltip', "Queued messages will be sent after the current request completes");

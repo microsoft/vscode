@@ -231,6 +231,7 @@ export interface IChatPendingDividerViewModel {
 	readonly sessionResource: URI;
 	readonly isComplete: true;
 	readonly dividerKind: ChatRequestQueueKind;
+	readonly isSystemInitiated?: boolean;
 	currentRenderedHeight: number | undefined;
 }
 
@@ -355,7 +356,8 @@ export class ChatViewModel extends Disposable implements IChatViewModel {
 
 			// Add steering requests with their divider first
 			if (steeringRequests.length > 0) {
-				items.push({ kind: 'pendingDivider', id: 'pending-divider-steering', sessionResource: this._model.sessionResource, isComplete: true, dividerKind: ChatRequestQueueKind.Steering, currentRenderedHeight: undefined });
+				const isSystemInitiated = steeringRequests.every(p => p.request.isSystemInitiated);
+				items.push({ kind: 'pendingDivider', id: 'pending-divider-steering', sessionResource: this._model.sessionResource, isComplete: true, dividerKind: ChatRequestQueueKind.Steering, isSystemInitiated, currentRenderedHeight: undefined });
 				for (const pending of steeringRequests) {
 					const requestVM = this.instantiationService.createInstance(ChatRequestViewModel, pending.request, pending.kind);
 					items.push(requestVM);

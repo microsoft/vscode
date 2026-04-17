@@ -536,7 +536,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 			const entitlementsResult = await this.getEntitlements(sessions, accountPolicyData, options);
 			const entitlementsData = entitlementsResult?.data;
 			const entitlementsFetchedAt = entitlementsResult?.fetchedAt;
-			const tokenEntitlementsResult = entitlementsData?.chat_enabled ? await this.getTokenEntitlements(sessions, accountPolicyData) : undefined;
+			const tokenEntitlementsResult = entitlementsData?.chat_enabled ? await this.getTokenEntitlements(sessions, accountPolicyData, options) : undefined;
 
 			const tokenEntitlementsFetchedAt: number | undefined = tokenEntitlementsResult?.fetchedAt;
 			let mcpRegistryDataFetchedAt: number | undefined;
@@ -548,7 +548,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 				policyData.chat_preview_features_enabled = tokenEntitlementsData.policyData.chat_preview_features_enabled;
 				policyData.mcp = tokenEntitlementsData.policyData.mcp;
 				if (policyData.mcp) {
-					const mcpRegistryResult = await this.getMcpRegistryProvider(sessions, accountPolicyData);
+					const mcpRegistryResult = await this.getMcpRegistryProvider(sessions, accountPolicyData, options);
 					mcpRegistryDataFetchedAt = mcpRegistryResult?.fetchedAt;
 					policyData.mcpRegistryUrl = mcpRegistryResult?.data?.url;
 					policyData.mcpAccess = mcpRegistryResult?.data?.registry_access;
@@ -629,8 +629,8 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		return expectedScopes.every(scope => scopes.includes(scope));
 	}
 
-	private async getTokenEntitlements(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined): Promise<{ data: { policyData: Partial<IPolicyData>; copilotTokenInfo: ICopilotTokenInfo } | undefined; fetchedAt: number }> {
-		if (accountPolicyData?.tokenEntitlementsFetchedAt && !this.isDataStale(accountPolicyData.tokenEntitlementsFetchedAt)) {
+	private async getTokenEntitlements(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined, options?: { forceRefresh?: boolean }): Promise<{ data: { policyData: Partial<IPolicyData>; copilotTokenInfo: ICopilotTokenInfo } | undefined; fetchedAt: number }> {
+		if (!options?.forceRefresh && accountPolicyData?.tokenEntitlementsFetchedAt && !this.isDataStale(accountPolicyData.tokenEntitlementsFetchedAt)) {
 			this.logService.debug('[DefaultAccount] Using last fetched token entitlements data');
 			return { data: { policyData: accountPolicyData.policyData, copilotTokenInfo: this._copilotTokenInfo ?? {} }, fetchedAt: accountPolicyData.tokenEntitlementsFetchedAt };
 		}
@@ -723,8 +723,8 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		return { data: undefined, fetchedAt: Date.now() };
 	}
 
-	private async getMcpRegistryProvider(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined): Promise<{ data: IMcpRegistryProvider | null; fetchedAt: number } | undefined> {
-		if (accountPolicyData?.mcpRegistryDataFetchedAt && !this.isDataStale(accountPolicyData.mcpRegistryDataFetchedAt)) {
+	private async getMcpRegistryProvider(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined, options?: { forceRefresh?: boolean }): Promise<{ data: IMcpRegistryProvider | null; fetchedAt: number } | undefined> {
+		if (!options?.forceRefresh && accountPolicyData?.mcpRegistryDataFetchedAt && !this.isDataStale(accountPolicyData.mcpRegistryDataFetchedAt)) {
 			this.logService.debug('[DefaultAccount] Using last fetched MCP registry data');
 			const data = accountPolicyData.policyData.mcpRegistryUrl && accountPolicyData.policyData.mcpAccess ? { url: accountPolicyData.policyData.mcpRegistryUrl, registry_access: accountPolicyData.policyData.mcpAccess } : null;
 			return { data, fetchedAt: accountPolicyData.mcpRegistryDataFetchedAt };

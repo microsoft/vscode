@@ -269,6 +269,29 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 
 				return result;
 			} finally {
+				const rateLimitWarning = this._chatQuotaService.consumeRateLimitWarning();
+				if (rateLimitWarning) {
+					const resetDate = rateLimitWarning.resetDate;
+					const now = new Date();
+					const includeYear = resetDate.getFullYear() !== now.getFullYear();
+					const dateStr = new Intl.DateTimeFormat(undefined, includeYear
+						? { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }
+						: { month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' }
+					).format(resetDate);
+					stream.warning(new vscode.MarkdownString(
+						rateLimitWarning.type === 'session'
+							? vscode.l10n.t({
+								message: "You've used {0}% of your session rate limit. Your session rate limit will reset on {1}. [Learn More]({2})",
+								args: [rateLimitWarning.percentUsed, dateStr, 'https://aka.ms/github-copilot-rate-limit-error'],
+								comment: [`{Locked=']({'}`]
+							})
+							: vscode.l10n.t({
+								message: "You've used {0}% of your weekly rate limit. Your weekly rate limit will reset on {1}. [Learn More]({2})",
+								args: [rateLimitWarning.percentUsed, dateStr, 'https://aka.ms/github-copilot-rate-limit-error'],
+								comment: [`{Locked=']({'}`]
+							})
+					));
+				}
 				markChatExt(request.sessionId, ChatExtPerfMark.DidHandleParticipant);
 				clearChatExtMarks(request.sessionId);
 			}

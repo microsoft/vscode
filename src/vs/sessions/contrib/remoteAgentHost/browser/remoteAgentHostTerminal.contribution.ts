@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { localize } from '../../../../nls.js';
+import { isWeb } from '../../../../base/common/platform.js';
 import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -33,11 +34,23 @@ export class RemoteAgentHostTerminalContribution extends AgentHostTerminalContri
 
 
 		// React to connection changes
-		this._register(this._remoteAgentHostService.onDidChangeConnections(() => this._reconcile()));
+		this._register(this._remoteAgentHostService.onDidChangeConnections(() => {
+			this._reconcile();
+		}));
+
+		// The base-class constructor already called _reconcile(), but at that
+		// point _remoteAgentHostService was not yet assigned (guard returned
+		// early). Re-reconcile now to pick up any existing connections.
+		this._reconcile();
 	}
 
 	protected override _collectEntries(): IAgentHostEntry[] {
 		const entries: IAgentHostEntry[] = [];
+		// Guard: _remoteAgentHostService may not be assigned yet when the
+		// base-class constructor calls _reconcile() before super() returns.
+		if (!this._remoteAgentHostService) {
+			return isWeb ? entries : super._collectEntries();
+		}
 		// Remote connections
 		for (const info of this._remoteAgentHostService.connections) {
 			if (info.status !== RemoteAgentHostConnectionStatus.Connected) {
@@ -60,7 +73,7 @@ export class RemoteAgentHostTerminalContribution extends AgentHostTerminalContri
 			});
 		}
 
-		return [...entries, ...super._collectEntries()];
+		return isWeb ? entries : [...entries, ...super._collectEntries()];
 	}
 }
 registerWorkbenchContribution2(AgentHostTerminalContribution.ID, RemoteAgentHostTerminalContribution, WorkbenchPhase.AfterRestored);
