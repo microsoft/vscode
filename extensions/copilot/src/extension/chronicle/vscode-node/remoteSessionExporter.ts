@@ -83,6 +83,9 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 	private _isFlushing = false;
 	private _firstCloudWriteLogged = false;
 
+	/** The session source of the first initialized session (for firstWrite telemetry). */
+	private _firstCloudWriteSessionSource: string | undefined;
+
 	/** Resolved lazily on first use. */
 	private _repository: GitHubRepository | undefined;
 	private _repositoryResolved = false;
@@ -245,10 +248,16 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 
 	// ── Lazy session initialization ──────────────────────────────────────────────
 
-	private async _initializeSession(sessionId: string, _triggerSpan: ICompletedSpanData): Promise<void> {
+	private async _initializeSession(sessionId: string, triggerSpan: ICompletedSpanData): Promise<void> {
 		this._initializingSessions.add(sessionId);
 
 		try {
+			const sessionSource = (triggerSpan.attributes[GenAiAttr.AGENT_NAME] as string | undefined) ?? 'unknown';
+
+			// Track the source of the very first session for firstWrite telemetry
+			if (!this._firstCloudWriteSessionSource) {
+				this._firstCloudWriteSessionSource = sessionSource;
+			}
 			const repo = await this._resolveRepository();
 			if (!repo) {
 				this._disabledSessions.add(sessionId);
@@ -268,6 +277,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 "owner": "vijayu",
 "comment": "Tracks cloud sync operations (session init, creation, flush, errors)",
 "operation": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The operation performed." },
+"sessionSource": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The agent name/source for the session, or unknown if unavailable." },
 "success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the operation succeeded." },
 "error": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "comment": "Truncated error message if failed." },
 "indexingLevel": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The indexing level for the session." },
@@ -277,6 +287,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			this._telemetryService.sendMSFTTelemetryEvent('chronicle.cloudSync', {
 				operation: 'sessionInit',
 				success: 'true',
+				sessionSource,
 			});
 		} catch (err) {
 
@@ -539,6 +550,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 
 					this._telemetryService.sendMSFTTelemetryEvent('chronicle.cloudSync', {
 						operation: 'firstWrite',
+						sessionSource: this._firstCloudWriteSessionSource ?? 'unknown',
 					}, {});
 				}
 			} else if (!allSuccess) {

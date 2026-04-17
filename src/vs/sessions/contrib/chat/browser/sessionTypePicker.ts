@@ -166,5 +166,7 @@ export class SessionTypePicker extends Disposable {
 		labelSpan.textContent = modeLabel;
 
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
+
+		this._triggerElement.ariaLabel = localize('sessionTypePicker.triggerAriaLabel', "Pick Session Type, {0}", modeLabel);
 	}
 }

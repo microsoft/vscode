@@ -147,6 +147,8 @@ export class BranchPicker extends Disposable {
 		labelSpan.textContent = label;
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
 
+		this._triggerElement.ariaLabel = localize('branchPicker.triggerAriaLabel', "Pick Branch, {0}", label);
+
 		this._slotElement?.classList.toggle('disabled', isLoading || isDisabled);
 		this._triggerElement.setAttribute('aria-disabled', String(isLoading || isDisabled));
 		this._triggerElement.tabIndex = (isLoading || isDisabled) ? -1 : 0;

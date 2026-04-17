@@ -222,6 +222,7 @@ export interface IProductConfiguration {
 	readonly 'editSessions.store'?: Omit<ConfigurationSyncStore, 'insidersUrl' | 'stableUrl'>;
 	readonly darwinUniversalAssetId?: string;
 	readonly darwinBundleIdentifier?: string;
+	readonly darwinSiblingBundleIdentifier?: string;
 	readonly profileTemplatesUrl?: string;
 
 	readonly commonlyUsedSettings?: string[];
@@ -282,6 +283,7 @@ export type IEmbeddedProductConfiguration = Pick<IProductConfiguration,
 	'applicationName' |
 	'dataFolderName' |
 	'darwinBundleIdentifier' |
+	'darwinSiblingBundleIdentifier' |
 	'urlProtocol' |
 	'win32AppUserModelId' |
 	'win32MutexName' |

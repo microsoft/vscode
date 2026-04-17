@@ -8,6 +8,19 @@ import type { IFileEditRecord, ISessionDatabase } from '../common/sessionDataSer
 import type { IDiffComputeService } from '../common/diffComputeService.js';
 import { FileEditKind, type ISessionFileDiff } from '../common/state/sessionState.js';
 
+function getFileEditUri(diff: ISessionFileDiff): string | undefined {
+	return diff.after?.uri ?? diff.before?.uri;
+}
+
+function createSessionFileDiff(identity: IFileIdentity, added: number, removed: number): ISessionFileDiff {
+	const uri = URI.file(identity.terminalPath).toString();
+	const content = { uri };
+	return {
+		...(identity.lastKind === FileEditKind.Delete ? { before: { uri, content } } : { after: { uri, content } }),
+		diff: { added, removed },
+	};
+}
+
 /**
  * Represents a file's identity across renames, tracking its first and last
  * snapshots in the session for diff computation.
@@ -72,7 +85,7 @@ export async function computeSessionDiffs(
 			return [...incremental.previousDiffs];
 		}
 
-		const previousDiffsUris = new Set(incremental.previousDiffs.map(d => d.uri));
+		const previousDiffsUris = new Set(incremental.previousDiffs.map(getFileEditUri));
 		const needsFullHistory = turnEdits.some(e =>
 			e.kind === FileEditKind.Rename ||
 			previousDiffsUris.has(URI.file(e.filePath).toString())
@@ -148,7 +161,7 @@ export async function computeSessionDiffs(
 	// In incremental slow-path mode, build a lookup map from URI string →
 	// previous diff so untouched identities can carry over their previous results.
 	const previousDiffsMap = (incremental && !fastPath)
-		? new Map(incremental.previousDiffs.map(d => [d.uri, d]))
+		? new Map(incremental.previousDiffs.map(d => [getFileEditUri(d), d]))
 		: undefined;
 
 	// Compute diffs for each file identity
@@ -192,11 +205,7 @@ export async function computeSessionDiffs(
 			}
 
 			const counts = await diffService.computeDiffCounts(beforeText, afterText);
-			results.push({
-				uri: URI.file(identity.terminalPath).toString(),
-				added: counts.added,
-				removed: counts.removed,
-			});
+			results.push(createSessionFileDiff(identity, counts.added, counts.removed));
 		})());
 	}
 
