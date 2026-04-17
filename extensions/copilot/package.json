@@ -6349,7 +6349,7 @@
 		"@anthropic-ai/sdk": "^0.82.0",
 		"@github/blackbird-external-ingest-utils": "^0.3.0",
 		"@github/copilot": "^1.0.24",
-		"@github/copilot-agentic-tools": "file:../../../copilot-agentic-tools",
+		"@github/copilot-agentic-tools": "^1.0.0",
 		"@google/genai": "^1.22.0",
 		"@humanwhocodes/gitignore-to-minimatch": "1.0.2",
 		"@microsoft/tiktokenizer": "^1.0.10",
