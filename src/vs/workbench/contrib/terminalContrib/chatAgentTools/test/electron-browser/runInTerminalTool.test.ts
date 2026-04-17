@@ -1118,6 +1118,20 @@ suite('RunInTerminalTool', () => {
 			assertConfirmationRequired(result, `Run command in \`bash\` within \`${isWindows ? '\\tmp' : '~/tmp'}\`?`);
 		});
 
+		test('should not show undefined in confirmation message when explanation and goal are missing', async () => {
+			const params: Partial<IRunInTerminalInputParams> = {
+				command: 'rm file.txt',
+			};
+			delete params.explanation;
+			delete params.goal;
+			const result = await executeToolTest(params);
+			assertConfirmationRequired(result);
+			const message = result?.confirmationMessages?.message;
+			ok(message, 'Expected confirmation message to be defined');
+			const messageText = typeof message === 'string' ? message : message.value;
+			ok(!messageText.includes('undefined'), `Confirmation message should not contain "undefined", got: ${messageText}`);
+		});
+
 		test('should use withLanguage inDirectory title when presenter returns languageDisplayName with cd prefix', async () => {
 			const workspaceFolder = URI.file(isWindows ? 'C:\\workspace\\project' : '/workspace/project');
 			const workspace = new Workspace('test', [toWorkspaceFolder(workspaceFolder)]);
