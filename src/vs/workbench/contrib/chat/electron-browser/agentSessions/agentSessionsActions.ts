@@ -10,12 +10,8 @@ import { INativeHostService } from '../../../../../platform/native/common/native
 import { ChatEntitlementContextKeys } from '../../../../services/chat/common/chatEntitlementService.js';
 import { CHAT_CATEGORY } from '../../browser/actions/chatActions.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
-import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
-import { IProductService } from '../../../../../platform/product/common/productService.js';
-import { URI } from '../../../../../base/common/uri.js';
 import { isMacintosh, isWindows } from '../../../../../base/common/platform.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
-import { Schemas } from '../../../../../base/common/network.js';
 import { ProductQualityContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 
 export class OpenAgentsWindowAction extends Action2 {
@@ -36,14 +32,12 @@ export class OpenAgentsWindowAction extends Action2 {
 	}
 
 	async run(accessor: ServicesAccessor, options?: { forceNewWindow?: boolean }) {
-		const openerService = accessor.get(IOpenerService);
-		const productService = accessor.get(IProductService);
 		const environmentService = accessor.get(IWorkbenchEnvironmentService);
+		const nativeHostService = accessor.get(INativeHostService);
 
-		if (environmentService.isBuilt && (isMacintosh || isWindows) && productService.embedded?.urlProtocol) {
-			await openerService.open(URI.from({ scheme: productService.embedded.urlProtocol, authority: Schemas.file }), { openExternal: true });
+		if (environmentService.isBuilt && (isMacintosh || isWindows)) {
+			await nativeHostService.launchSiblingApp();
 		} else {
-			const nativeHostService = accessor.get(INativeHostService);
 			await nativeHostService.openAgentsWindow({ forceNewWindow: options?.forceNewWindow ?? true });
 		}
 	}

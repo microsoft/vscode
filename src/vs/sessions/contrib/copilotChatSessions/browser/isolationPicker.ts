@@ -66,7 +66,8 @@ export class IsolationPicker extends Disposable {
 		this._register(autorun(reader => {
 			const session = this.sessionsManagementService.activeSession.read(reader);
 			const isLoading = session?.loading.read(reader);
-			const providerSession = session ? this.sessionsProvidersService.getProvider<CopilotChatSessionsProvider>(session.providerId)?.getSession(session.sessionId) : undefined;
+			const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
+			const providerSession = provider instanceof CopilotChatSessionsProvider ? provider.getSession(session!.sessionId) : undefined;
 			if (providerSession) {
 				const gitRepo = providerSession.gitRepository;
 				const repoState = gitRepo?.state?.read?.(reader);
@@ -84,7 +85,8 @@ export class IsolationPicker extends Disposable {
 
 	private _getSessionIsolationMode(): IsolationMode {
 		const session = this.sessionsManagementService.activeSession.get();
-		const providerSession = session ? this.sessionsProvidersService.getProvider<CopilotChatSessionsProvider>(session.providerId)?.getSession(session.sessionId) : undefined;
+		const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
+		const providerSession = provider instanceof CopilotChatSessionsProvider ? provider.getSession(session!.sessionId) : undefined;
 		return providerSession?.isolationMode.get() ?? 'worktree';
 	}
 
@@ -165,7 +167,8 @@ export class IsolationPicker extends Disposable {
 
 	private _setModeOnSession(mode: IsolationMode): void {
 		const session = this.sessionsManagementService.activeSession.get();
-		const providerSession = session ? this.sessionsProvidersService.getProvider<CopilotChatSessionsProvider>(session.providerId)?.getSession(session.sessionId) : undefined;
+		const provider = session ? this.sessionsProvidersService.getProvider(session.providerId) : undefined;
+		const providerSession = provider instanceof CopilotChatSessionsProvider ? provider.getSession(session!.sessionId) : undefined;
 		providerSession?.setIsolationMode(mode);
 	}
 
@@ -196,6 +199,8 @@ export class IsolationPicker extends Disposable {
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = modeLabel;
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
+
+		this._triggerElement.ariaLabel = localize('isolationPicker.triggerAriaLabel', "Pick Isolation Mode, {0}", modeLabel);
 
 		const isDisabled = !this._hasGitRepo;
 		this._slotElement?.classList.toggle('disabled', isDisabled);

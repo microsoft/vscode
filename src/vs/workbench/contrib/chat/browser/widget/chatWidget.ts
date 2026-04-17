@@ -995,6 +995,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
+		// The input part may not be rendered yet (or may have been disposed) when this is
+		// called from async flows such as `lockToCodingAgent` / `unlockFromCodingAgent` that
+		// run after `showModel` resolves. Bail out to avoid dereferencing an undefined input.
+		if (!this.inputPartDisposable.value) {
+			return;
+		}
+
 		this._isRenderingWelcome = true;
 		try {
 			if (this.viewOptions.renderStyle === 'compact' || this.viewOptions.renderStyle === 'minimal' || this.lifecycleService.willShutdown) {

@@ -876,46 +876,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		}
 
-		const sorted = this.sortSessions(filtered);
-
-		// Separate pinned and archived sessions (archived always wins over pinned)
-		const pinned: ISession[] = [];
-		const archived: ISession[] = [];
-		const regular: ISession[] = [];
-		for (const session of sorted) {
-			if (session.isArchived.get()) {
-				archived.push(session);
-			} else if (this.isSessionPinned(session)) {
-				pinned.push(session);
-			} else {
-				regular.push(session);
-			}
-		}
-
 		const grouping = this.options.grouping();
-		const sections: ISessionSection[] = [];
-
-		// Group remaining non-archived sessions
-		const grouped = grouping === SessionsGrouping.Workspace
-			? this.groupByWorkspace(regular)
-			: this.groupByDate(regular);
-		sections.push(...grouped);
-
-		// Add archived section at the bottom
-		if (archived.length > 0) {
-			sections.push({ id: 'archived', label: localize('archived', "Done"), sessions: archived });
-		}
+		const sections = groupSessionsForList(filtered, grouping, this.options.sorting(), session => this.isSessionPinned(session));
 
 		const hasTodaySessions = sections.some(s => s.id === 'today' && s.sessions.length > 0);
 
-		// Pinned sessions appear flat at the top (no section header)
-		const children: IObjectTreeElement<SessionListItem>[] = [
-			...pinned.map(session => ({ element: session as SessionListItem })),
-		];
+		const children: IObjectTreeElement<SessionListItem>[] = [];
 
 		children.push(...sections.map(section => {
 			const isWorkspaceGroup = grouping === SessionsGrouping.Workspace
-				&& section.id !== 'archived';
+				&& section.id.startsWith('workspace:');
 			const isCapped = isWorkspaceGroup && this.workspaceGroupCapped
 				&& !this.findOpen
 				&& !this.expandedWorkspaceGroups.has(section.label)
@@ -1239,21 +1209,6 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this.storageService.store(SessionsList.SECTION_COLLAPSE_STATE_KEY, JSON.stringify(state), StorageScope.PROFILE, StorageTarget.USER);
 	}
 
-	// -- Sorting --
-
-	private sortSessions(sessions: ISession[]): ISession[] {
-		return sortSessions(sessions, this.options.sorting());
-	}
-
-	// -- Grouping --
-
-	private groupByWorkspace(sessions: ISession[]): ISessionSection[] {
-		return groupByWorkspace(sessions);
-	}
-
-	private groupByDate(sessions: ISession[]): ISessionSection[] {
-		return groupByDate(sessions, this.options.sorting());
-	}
 }
 
 //#endregion
@@ -1282,6 +1237,44 @@ export function sortSessions(sessions: ISession[], sorting: SessionsSorting): IS
 		}
 		return b.createdAt.getTime() - a.createdAt.getTime();
 	});
+}
+
+export function groupSessionsForList(
+	sessions: ISession[],
+	grouping: SessionsGrouping,
+	sorting: SessionsSorting,
+	isSessionPinned: (session: ISession) => boolean,
+): ISessionSection[] {
+	const sorted = sortSessions(sessions, sorting);
+
+	// Archived always wins over pinned so done sessions stay grouped together.
+	const pinned: ISession[] = [];
+	const archived: ISession[] = [];
+	const regular: ISession[] = [];
+	for (const session of sorted) {
+		if (session.isArchived.get()) {
+			archived.push(session);
+		} else if (isSessionPinned(session)) {
+			pinned.push(session);
+		} else {
+			regular.push(session);
+		}
+	}
+
+	const sections: ISessionSection[] = [];
+	if (pinned.length > 0) {
+		sections.push({ id: 'pinned', label: localize('pinned', "Pinned"), sessions: pinned });
+	}
+
+	sections.push(...(grouping === SessionsGrouping.Workspace
+		? groupByWorkspace(regular)
+		: groupByDate(regular, sorting)));
+
+	if (archived.length > 0) {
+		sections.push({ id: 'archived', label: localize('archived', "Done"), sessions: archived });
+	}
+
+	return sections;
 }
 
 export function groupByWorkspace(sessions: ISession[]): ISessionSection[] {

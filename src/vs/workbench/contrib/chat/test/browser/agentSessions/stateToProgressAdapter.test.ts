@@ -52,7 +52,7 @@ function createTurn(overrides?: Partial<ITurn>): ITurn {
 }
 
 function toolCallStateToInvocation(tc: Parameters<typeof rawToolCallStateToInvocation>[0], subAgentInvocationId?: string) {
-	return rawToolCallStateToInvocation(tc, subAgentInvocationId, URI.file('/'));
+	return rawToolCallStateToInvocation(tc, subAgentInvocationId, URI.file('/'), undefined);
 }
 
 function finalizeToolInvocation(invocation: Parameters<typeof rawFinalizeToolInvocation>[0], tc: Parameters<typeof rawFinalizeToolInvocation>[1]) {
@@ -509,14 +509,14 @@ suite('stateToProgressAdapter', () => {
 		}
 
 		test('empty active turn produces empty progress', () => {
-			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState());
+			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState(), undefined);
 			assert.deepStrictEqual(result, []);
 		});
 
 		test('produces markdown content for streamed text', () => {
 			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([
 				{ kind: ResponsePartKind.Markdown, id: 'md-1', content: 'Hello world' },
-			]));
+			]), undefined);
 			assert.strictEqual(result.length, 1);
 			assert.strictEqual(result[0].kind, 'markdownContent');
 			assert.strictEqual((result[0] as IChatMarkdownContent).content.value, 'Hello world');
@@ -525,7 +525,7 @@ suite('stateToProgressAdapter', () => {
 		test('produces thinking progress for reasoning', () => {
 			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([
 				{ kind: ResponsePartKind.Reasoning, id: 'r-1', content: 'Let me think about this...' },
-			]));
+			]), undefined);
 			assert.strictEqual(result.length, 1);
 			assert.strictEqual(result[0].kind, 'thinking');
 		});
@@ -534,7 +534,7 @@ suite('stateToProgressAdapter', () => {
 			const result = activeTurnToProgress(URI.file('/'), createActiveTurnState([
 				{ kind: ResponsePartKind.Reasoning, id: 'r-1', content: 'Hmm...' },
 				{ kind: ResponsePartKind.Markdown, id: 'md-1', content: 'Result text' },
-			]));
+			]), undefined);
 			assert.strictEqual(result.length, 2);
 			assert.strictEqual(result[0].kind, 'thinking');
 			assert.strictEqual(result[1].kind, 'markdownContent');
@@ -555,7 +555,7 @@ suite('stateToProgressAdapter', () => {
 						pastTenseMessage: 'Ran test tool',
 					} as IToolCallResponsePart['toolCall'],
 				},
-			]));
+			]), undefined);
 			assert.strictEqual(result.length, 1);
 			assert.strictEqual(result[0].kind, 'toolInvocationSerialized');
 		});
@@ -569,7 +569,7 @@ suite('stateToProgressAdapter', () => {
 						status: ToolCallStatus.Running,
 					}),
 				},
-			]));
+			]), undefined);
 			assert.strictEqual(result.length, 1);
 			// Live ChatToolInvocation - check it has the right toolCallId
 			const invocation = result[0] as { toolCallId?: string; kind?: string };
@@ -590,7 +590,7 @@ suite('stateToProgressAdapter', () => {
 						toolInput: 'echo hello',
 					},
 				},
-			]));
+			]), undefined);
 			assert.strictEqual(result.length, 1);
 			// PendingConfirmation tools have input-style specific data (no terminal content yet)
 			const invocation = result[0] as { toolSpecificData?: { kind: string } };
@@ -620,7 +620,7 @@ suite('stateToProgressAdapter', () => {
 						confirmationTitle: 'Confirm',
 					},
 				},
-			]));
+			]), undefined);
 			// reasoning + text + tool call + pending confirmation = 4 items
 			assert.strictEqual(result.length, 4);
 			assert.strictEqual(result[0].kind, 'thinking');

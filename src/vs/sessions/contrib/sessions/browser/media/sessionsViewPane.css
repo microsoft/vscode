@@ -149,9 +149,9 @@
 		font-size: 12px;
 		line-height: 18px;
 		border-radius: var(--vscode-cornerRadius-medium);
-		border: 1px solid var(--vscode-button-border, color-mix(in srgb, var(--vscode-foreground) 20%, transparent));
-		background-color: transparent;
-		color: var(--vscode-foreground);
+		border: 1px solid var(--vscode-agentsNewSessionButton-border, var(--vscode-button-border, color-mix(in srgb, var(--vscode-foreground) 20%, transparent)));
+		background-color: var(--vscode-agentsNewSessionButton-background, transparent);
+		color: var(--vscode-agentsNewSessionButton-foreground, var(--vscode-foreground));
 		width: auto;
 		min-width: 0;
 		height: auto;
@@ -159,7 +159,7 @@
 	}
 
 	.agent-sessions-compact-new-button.monaco-button.default-colors:hover {
-		background-color: var(--vscode-toolbar-hoverBackground);
+		background-color: var(--vscode-agentsNewSessionButton-hoverBackground, var(--vscode-toolbar-hoverBackground));
 	}
 
 	.agent-sessions-compact-new-button.monaco-button:focus {

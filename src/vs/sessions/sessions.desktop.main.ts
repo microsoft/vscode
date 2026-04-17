@@ -178,6 +178,7 @@ import '../workbench/contrib/remoteTunnel/electron-browser/remoteTunnel.contribu
 // Chat
 import '../workbench/contrib/chat/electron-browser/chat.contribution.js';
 import './contrib/agentFeedback/browser/agentFeedback.contribution.js';
+import './contrib/chat/electron-browser/openInVSCode.contribution.js';
 
 // Encryption
 import '../workbench/contrib/encryption/electron-browser/encryption.contribution.js';
@@ -207,6 +208,9 @@ import './contrib/remoteAgentHost/browser/tunnelAgentHost.contribution.js';
 
 // Local Agent Host
 import './contrib/localAgentHost/browser/localAgentHost.contribution.js';
+
+// Tunnel Host (allow remote connections to local agent host)
+import './contrib/tunnelHost/electron-browser/tunnelHost.contribution.js';
 
 //#endregion
 

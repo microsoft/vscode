@@ -315,7 +315,8 @@ class CopilotActiveSessionContribution extends Disposable implements IWorkbenchC
 		this._register(autorun((reader: IReader) => {
 			const session = sessionsManagementService.activeSession.read(reader);
 			if (session?.providerId === COPILOT_PROVIDER_ID) {
-				const providerSession = sessionsProvidersService.getProvider<CopilotChatSessionsProvider>(session.providerId)?.getSession(session.sessionId);
+				const provider = sessionsProvidersService.getProvider(session.providerId);
+				const providerSession = provider instanceof CopilotChatSessionsProvider ? provider.getSession(session.sessionId) : undefined;
 				const isLoading = providerSession?.loading.read(reader);
 				hasRepositoryKey.set(!isLoading && !!providerSession?.gitRepository);
 			} else {

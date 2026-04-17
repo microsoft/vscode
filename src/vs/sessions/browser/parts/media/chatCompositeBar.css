@@ -51,7 +51,7 @@
 /* Active state: background container instead of underline — mirrors auxiliarybar checked */
 .chat-composite-bar-tab.active {
 	color: var(--chat-tab-active-foreground);
-	background-color: var(--vscode-activityBarTop-activeBackground, color-mix(in srgb, var(--vscode-sideBarTitle-foreground) 5%, transparent));
+	background-color: color-mix(in srgb, var(--vscode-agentsPanel-foreground, var(--vscode-foreground)) 5%, transparent);
 }
 
 .chat-composite-bar-tab.untitled {

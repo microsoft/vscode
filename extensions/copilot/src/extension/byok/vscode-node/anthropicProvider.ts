@@ -9,9 +9,10 @@ import { CancellationToken, LanguageModelChatInformation, LanguageModelChatMessa
 import { ChatFetchResponseType, ChatLocation } from '../../../platform/chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { CustomDataPartMimeTypes } from '../../../platform/endpoint/common/endpointTypes';
+import { modelSupportsToolSearch } from '../../../platform/endpoint/common/chatModelCapabilities';
 import { buildToolInputSchema } from '../../../platform/endpoint/node/messagesApi';
 import { ILogService } from '../../../platform/log/common/logService';
-import { ContextManagementResponse, getContextManagementFromConfig, isAnthropicContextEditingEnabled, isAnthropicMemoryToolEnabled, isAnthropicToolSearchEnabled, TOOL_SEARCH_TOOL_NAME, TOOL_SEARCH_TOOL_TYPE, ToolSearchToolResult, ToolSearchToolSearchResult } from '../../../platform/networking/common/anthropic';
+import { ContextManagementResponse, CUSTOM_TOOL_SEARCH_NAME, getContextManagementFromConfig, isAnthropicContextEditingEnabled, isAnthropicMemoryToolEnabled } from '../../../platform/networking/common/anthropic';
 import { IToolDeferralService } from '../../../platform/networking/common/toolDeferralService';
 import { IResponseDelta, OpenAiFunctionTool } from '../../../platform/networking/common/fetch';
 import { APIUsage } from '../../../platform/networking/common/openai';
@@ -146,19 +147,14 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 
 			const memoryToolEnabled = isAnthropicMemoryToolEnabled(model.id, this._configurationService, this._experimentationService);
 
-			const toolSearchEnabled = isAnthropicToolSearchEnabled(model.id.replace(/-/g, '.'), this._configurationService);
+			// Requires the client-side tool_search tool in the request: without it, defer-loaded tools can't be retrieved.
+			// If the user disables tool_search in the tool picker, it won't be present here and tool search is skipped.
+			const toolSearchEnabled = modelSupportsToolSearch(model.id)
+				&& !!options.tools?.some(t => t.name === CUSTOM_TOOL_SEARCH_NAME);
 
 			// Build tools array, handling both standard tools and native Anthropic tools
 			const tools: Anthropic.Beta.BetaToolUnion[] = [];
 
-			// Add tool search tool if enabled (must be first in the array)
-			if (toolSearchEnabled) {
-				tools.push({
-					name: TOOL_SEARCH_TOOL_NAME,
-					type: TOOL_SEARCH_TOOL_TYPE,
-					defer_loading: false
-				} as Anthropic.Beta.BetaToolUnion);
-			}
 			let hasMemoryTool = false;
 			for (const tool of (options.tools ?? [])) {
 				// Handle native Anthropic memory tool (only for models that support it)
@@ -646,33 +642,6 @@ export class AnthropicLMProvider extends AbstractLanguageModelChatProvider {
 						[new LanguageModelTextPart(searchResults)]
 					));
 					pendingServerToolCall = undefined;
-				} else if ('content_block' in chunk && chunk.content_block.type === 'tool_search_tool_result') {
-					const toolSearchResult = chunk.content_block as unknown as ToolSearchToolResult;
-					if (toolSearchResult.content.type === 'tool_search_tool_search_result') {
-						const searchResult = toolSearchResult.content as ToolSearchToolSearchResult;
-						const toolNames = searchResult.tool_references.map(ref => ref.tool_name);
-
-						this._logService.trace(`Tool search discovered ${toolNames.length} tools: ${toolNames.join(', ')}`);
-
-						let query: string | undefined;
-						if (pendingServerToolCall) {
-							try {
-								const parsed = JSON.parse(pendingServerToolCall.jsonInput || '{}');
-								query = parsed.query;
-							} catch {
-								// Ignore parse errors
-							}
-						}
-
-						progress.report(new LanguageModelToolResultPart(
-							toolSearchResult.tool_use_id,
-							[new LanguageModelTextPart(JSON.stringify({ query, discovered_tools: toolNames }))]
-						));
-						pendingServerToolCall = undefined;
-					} else if (toolSearchResult.content.type === 'tool_search_tool_result_error') {
-						this._logService.warn(`Tool search error: ${toolSearchResult.content.error_code}`);
-						pendingServerToolCall = undefined;
-					}
 				}
 				continue;
 			}

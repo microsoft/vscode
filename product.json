@@ -193,50 +193,6 @@
 			"description": "Keyboard mapping from Notepad++"
 		}
 	],
-	"onboardingExtensions": [
-		{
-			"id": "ms-vscode-remote.remote-containers",
-			"name": "Dev Containers",
-			"publisher": "Microsoft",
-			"description": "Develop inside a container with a full-featured editor",
-			"icon": "remote-explorer"
-		},
-		{
-			"id": "ms-azuretools.vscode-docker",
-			"name": "Docker",
-			"publisher": "Microsoft",
-			"description": "Build, manage, and deploy containerized applications",
-			"icon": "package"
-		},
-		{
-			"id": "dbaeumer.vscode-eslint",
-			"name": "ESLint",
-			"publisher": "Microsoft",
-			"description": "Find and fix problems in your JavaScript code",
-			"icon": "lightbulb"
-		},
-		{
-			"id": "GitHub.vscode-pull-request-github",
-			"name": "GitHub Pull Requests",
-			"publisher": "GitHub",
-			"description": "Review and manage GitHub pull requests and issues",
-			"icon": "git-pull-request"
-		},
-		{
-			"id": "ms-python.python",
-			"name": "Python",
-			"publisher": "Microsoft",
-			"description": "Rich Python language support with IntelliSense and debugging",
-			"icon": "symbol-misc"
-		},
-		{
-			"id": "ms-vscode-remote.remote-ssh",
-			"name": "Remote - SSH",
-			"publisher": "Microsoft",
-			"description": "Open folders and files on a remote machine via SSH",
-			"icon": "remote"
-		}
-	],
 	"onboardingThemes": [
 		{
 			"id": "dark-2026",

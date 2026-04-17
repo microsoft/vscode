@@ -31,12 +31,12 @@
 }
 .new-chat-in-session .new-chat-input-area {
 	padding: 0 6px 6px 6px;
-	border: 1px solid var(--vscode-input-border, transparent) !important;
+	border: 1px solid var(--vscode-agentsChatInput-border) !important;
 	border-radius: var(--vscode-cornerRadius-large, 8px);
 }
 
 .new-chat-in-session .new-chat-input-area:focus-within {
-	border-color: var(--vscode-focusBorder) !important;
+	border-color: var(--vscode-agentsChatInput-focusBorder, var(--vscode-focusBorder)) !important;
 }
 
 .new-chat-in-session .sessions-chat-editor {

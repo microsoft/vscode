@@ -34,7 +34,9 @@ import './runNotebookCellTool';
 import './scmChangesTool';
 import './searchSubagentTool';
 import './searchWorkspaceSymbolsTool';
+import './sessionStoreSqlTool';
 import './toolSearchTool';
 import './viewImageTool';
 import './vscodeAPITool';
 import './vscodeCmdTool';
+

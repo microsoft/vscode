@@ -222,6 +222,23 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(sessions[0].summary, 'Auto-generated Title');
 		});
 
+		test('listSessions overlays live state manager title over SDK title', async () => {
+			service.registerProvider(copilotAgent);
+
+			const session = await service.createSession({ provider: 'copilot' });
+
+			// Simulate immediate title change via state manager
+			service.stateManager.dispatchServerAction({
+				type: ActionType.SessionTitleChanged,
+				session: session.toString(),
+				title: 'User first message',
+			});
+
+			const sessions = await service.listSessions();
+			assert.strictEqual(sessions.length, 1);
+			assert.strictEqual(sessions[0].summary, 'User first message');
+		});
+
 		test('createSession stores live session config', async () => {
 			service.registerProvider(copilotAgent);
 
