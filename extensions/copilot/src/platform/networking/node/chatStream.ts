@@ -412,6 +412,7 @@ function sendModelCallTelemetry(telemetryService: ITelemetryService, messageData
 				...(parentToolCallId && { parentToolCallId }), // Link subagent calls to parent tool invocation
 			}, telemetryData.measurements); // Include measurements from original telemetryData
 
+			logService?.info(`[THINKING-TELEMETRY] ${eventName}: ` + JSON.stringify({ properties: modelCallData.properties, measurements: modelCallData.measurements }));
 			telemetryService.sendInternalMSFTTelemetryEvent(eventName, modelCallData.properties, modelCallData.measurements);
 		}
 	}
