@@ -9,18 +9,18 @@ import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
+import type { IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IAgentAttachment, IAgentMessageEvent, IAgentProgressEvent, IAgentSubagentStartedEvent, IAgentToolCompleteEvent, IAgentToolStartEvent } from '../../common/agentService.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
-import { SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolResultContentType, type ISessionInputAnswer, type ISessionInputRequest, type IPendingMessage, type IToolCallResult, type IToolResultContent } from '../../common/state/sessionState.js';
+import type { IToolDefinition } from '../../common/state/protocol/state.js';
+import { SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolResultContentType, type IPendingMessage, type ISessionInputAnswer, type ISessionInputRequest, type IToolCallResult, type IToolResultContent } from '../../common/state/sessionState.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
+import type { ShellManager } from './copilotShellTools.js';
 import { getEditFilePath, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isShellTool, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
 import { FileEditTracker } from './fileEditTracker.js';
 import { mapSessionEvents } from './mapSessionEvents.js';
-import type { ShellManager } from './copilotShellTools.js';
-import type { IToolDefinition } from '../../common/state/protocol/state.js';
-import type { IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
 
 /**
  * Immutable snapshot of the active client's contributions at session creation
@@ -190,10 +190,15 @@ export class CopilotAgentSession extends Disposable {
 			name: def.name,
 			description: def.description ?? '',
 			parameters: def.inputSchema ?? { type: 'object' as const, properties: {} },
-			handler: async (_args: unknown, invocation: { toolCallId: string }) => {
-				const deferred = new DeferredPromise<ToolResultObject>();
-				this._pendingClientToolCalls.set(invocation.toolCallId, deferred);
-				return deferred.p;
+			handler: async (_args: Record<string, unknown>, { toolCallId }) => {
+				let deferred = this._pendingClientToolCalls.get(toolCallId);
+				if (!deferred) {
+					deferred = new DeferredPromise<ToolResultObject>();
+					this._pendingClientToolCalls.set(toolCallId, deferred);
+				}
+				const result = await deferred.p;
+				this._pendingClientToolCalls.delete(toolCallId);
+				return result;
 			},
 		}));
 	}
@@ -202,12 +207,12 @@ export class CopilotAgentSession extends Disposable {
 	 * Resolves a pending client tool call. Returns `true` if the
 	 * toolCallId was found and handled.
 	 */
-	handleClientToolCallComplete(toolCallId: string, result: IToolCallResult): boolean {
-		const deferred = this._pendingClientToolCalls.get(toolCallId);
+	handleClientToolCallComplete(toolCallId: string, result: IToolCallResult) {
+		let deferred = this._pendingClientToolCalls.get(toolCallId);
 		if (!deferred) {
-			return false;
+			deferred = new DeferredPromise<ToolResultObject>();
+			this._pendingClientToolCalls.set(toolCallId, deferred);
 		}
-		this._pendingClientToolCalls.delete(toolCallId);
 
 		const textContent = result.content
 			?.filter(c => c.type === 'text')
@@ -235,7 +240,6 @@ export class CopilotAgentSession extends Disposable {
 				binaryResultsForLlm: binaryResults?.length ? binaryResults : undefined,
 			});
 		}
-		return true;
 	}
 
 	/**

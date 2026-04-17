@@ -9,6 +9,7 @@ import { Parts } from '../../../workbench/services/layout/browser/layoutService.
 
 export class MainEditorPart extends MainEditorPartBase {
 	static readonly MARGIN_TOP = 0;
+	static readonly MARGIN_LEFT = 10;
 	static readonly MARGIN_BOTTOM = 10;
 
 	override layout(width: number, height: number, top: number, left: number): void {
@@ -16,7 +17,13 @@ export class MainEditorPart extends MainEditorPartBase {
 			return;
 		}
 
+		const adjustedMargin = this.layoutService.isVisible(Parts.SIDEBAR_PART) ||
+			this.layoutService.isVisible(Parts.CHATBAR_PART)
+			? 0
+			: MainEditorPart.MARGIN_LEFT;
+		const adjustedWidth = width - adjustedMargin - 2 /* border width */;
 		const adjustedHeight = height - MainEditorPart.MARGIN_TOP - MainEditorPart.MARGIN_BOTTOM - 2 /* border width */;
-		super.layout(width, adjustedHeight, top, left);
+
+		super.layout(adjustedWidth, adjustedHeight, top, left);
 	}
 }
