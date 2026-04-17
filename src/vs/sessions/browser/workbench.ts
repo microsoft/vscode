@@ -824,8 +824,8 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		const rightSectionWidth = Math.max(0, width - sideBarSize);
 		const chatBarWidth = Math.max(0, rightSectionWidth - auxiliaryBarSize - editorSize);
 
-		const contentHeight = height - titleBarHeight;
-		const topRightHeight = contentHeight - panelSize;
+		const contentHeight = Math.max(0, height - titleBarHeight);
+		const topRightHeight = Math.max(0, contentHeight - panelSize);
 
 		const titleBarNode: ISerializedLeafNode = {
 			type: 'leaf',
@@ -876,23 +876,30 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			size: topRightHeight
 		};
 
-		// Right section: Titlebar | Top Right | Panel (vertical)
+		// Right section: Top Right | Panel (vertical)
 		const rightSection: ISerializedNode = {
 			type: 'branch',
-			data: [titleBarNode, topRightSection, panelNode],
+			data: [topRightSection, panelNode],
 			size: rightSectionWidth
+		};
+
+		// Content section: Sidebar | Right section (horizontal)
+		const contentSection: ISerializedNode = {
+			type: 'branch',
+			data: [sideBarNode, rightSection],
+			size: contentHeight
 		};
 
 		const result: ISerializedGrid = {
 			root: {
 				type: 'branch',
-				size: height,
+				size: width,
 				data: [
-					sideBarNode,
-					rightSection
+					titleBarNode,
+					contentSection
 				]
 			},
-			orientation: Orientation.HORIZONTAL,
+			orientation: Orientation.VERTICAL,
 			width,
 			height
 		};

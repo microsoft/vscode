@@ -110,7 +110,7 @@ export class SidebarPart extends AbstractPaneCompositePart {
 	) {
 		super(
 			Parts.SIDEBAR_PART,
-			{ hasTitle: true, trailingSeparator: false, borderWidth: () => 0 },
+			{ hasTitle: false, trailingSeparator: false, borderWidth: () => 0 },
 			SidebarPart.activeViewletSettingsKey,
 			ActiveViewletContext.bindTo(contextKeyService),
 			SidebarFocusContext.bindTo(contextKeyService),
@@ -121,7 +121,6 @@ export class SidebarPart extends AbstractPaneCompositePart {
 			ViewContainerLocation.Sidebar,
 			Extensions.Viewlets,
 			Menus.SidebarTitle,
-			Menus.TitleBarLeftLayout,
 			notificationService,
 			storageService,
 			contextMenuService,

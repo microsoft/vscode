@@ -196,7 +196,7 @@ interface ClaudeFolderInfo {
 
 ### Data Flow
 
-1. **`ClaudeChatSessionContentProvider`** resolves `ClaudeFolderInfo` via `getFolderInfoForSession(sessionId)`
+1. **`ClaudeChatSessionItemController`** resolves `ClaudeFolderInfo` via `getFolderInfoForSession(sessionId)`
 2. The folder info is passed through `ClaudeAgentManager.handleRequest()` to `ClaudeCodeSession`
 3. `ClaudeCodeSession._startSession()` uses `folderInfo.cwd` and `folderInfo.additionalDirectories` when building SDK `Options`
 

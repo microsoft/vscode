@@ -96,7 +96,6 @@ export class ChatBarPart extends AbstractPaneCompositePart { // TODO: should not
 			ViewContainerLocation.ChatBar,
 			Extensions.ChatBar,
 			Menus.ChatBarTitle,
-			undefined,
 			notificationService,
 			storageService,
 			contextMenuService,
