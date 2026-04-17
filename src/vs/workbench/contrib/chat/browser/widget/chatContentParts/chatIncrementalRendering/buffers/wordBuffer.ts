@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { getNWords } from '../../../../../common/model/chatWordCounter.js';
-import { ISmoothStreamingBuffer } from './buffer.js';
+import { IIncrementalRenderingBuffer } from './buffer.js';
 
 /**
  * Minimum reveal rate in words/sec. Ensures content always progresses
@@ -39,7 +39,7 @@ const DEFAULT_RATE = 8;
  * on elapsed time since the last render, so the output speed
  * naturally matches the model's generation speed.
  */
-export class WordBuffer implements ISmoothStreamingBuffer {
+export class WordBuffer implements IIncrementalRenderingBuffer {
 	readonly handlesFlush = true;
 
 	/** The full markdown received so far. */

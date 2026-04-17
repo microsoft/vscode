@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISmoothStreamingBuffer } from './buffer.js';
+import { IIncrementalRenderingBuffer } from './buffer.js';
 
 /**
  * Maximum number of characters that may accumulate beyond the last
@@ -50,7 +50,7 @@ export function lastBlockBoundary(text: string): number {
  * This avoids rendering partially formed blocks — text mid-paragraph,
  * incomplete list groups, or half a code fence.
  */
-export class ParagraphBuffer implements ISmoothStreamingBuffer {
+export class ParagraphBuffer implements IIncrementalRenderingBuffer {
 	readonly handlesFlush = false;
 
 	getRenderable(fullMarkdown: string, lastRendered: string): string {

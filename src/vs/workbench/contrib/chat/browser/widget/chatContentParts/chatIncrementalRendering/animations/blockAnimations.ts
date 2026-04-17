@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISmoothStreamingAnimation } from './animation.js';
+import { IIncrementalRenderingAnimation } from './animation.js';
 
 /** Duration of the animation applied to newly rendered blocks. */
 export const ANIMATION_DURATION_MS = 600;
@@ -20,7 +20,7 @@ const STAGGER_DELAY_MS = 150;
  * and lineFade. Each applies a CSS class and staggered timing
  * variables to new top-level children so they reveal sequentially.
  */
-export class BlockAnimation implements ISmoothStreamingAnimation {
+export class BlockAnimation implements IIncrementalRenderingAnimation {
 
 	constructor(private readonly _style: 'fade' | 'rise' | 'blur' | 'scale' | 'slide' | 'reveal') { }
 

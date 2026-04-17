@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ISmoothStreamingBuffer } from './buffer.js';
+import { IIncrementalRenderingBuffer } from './buffer.js';
 
 /**
  * No buffering — renders everything immediately as tokens arrive.
  * Content is still rAF-coalesced by the orchestrator.
  */
-export class OffBuffer implements ISmoothStreamingBuffer {
+export class OffBuffer implements IIncrementalRenderingBuffer {
 	readonly handlesFlush = false;
 
 	getRenderable(fullMarkdown: string, _lastRendered: string): string {

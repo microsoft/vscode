@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 /**
- * Animation strategy for smooth streaming. Applied as a post-processing
+ * Animation strategy for incremental rendering. Applied as a post-processing
  * decoration after the markdown has been correctly rendered.
  *
  * Animation is separate from buffering — it controls *how* rendered
  * content appears, while buffering controls *when* we render.
  */
-export interface ISmoothStreamingAnimation {
+export interface IIncrementalRenderingAnimation {
 	/**
 	 * Apply entrance animation to newly appeared DOM children.
 	 *

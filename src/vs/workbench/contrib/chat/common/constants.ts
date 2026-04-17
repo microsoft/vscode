@@ -70,9 +70,9 @@ export enum ChatConfiguration {
 	DefaultNewSessionMode = 'chat.newSession.defaultMode',
 	AgentHostClientTools = 'chat.agentHost.clientTools',
 
-	SmoothStreaming = 'chat.experimental.smoothStreaming.enabled',
-	SmoothStreamingStyle = 'chat.experimental.smoothStreaming.animationStyle',
-	SmoothStreamingBuffering = 'chat.experimental.smoothStreaming.buffering',
+	IncrementalRendering = 'chat.experimental.incrementalRendering.enabled',
+	IncrementalRenderingStyle = 'chat.experimental.incrementalRendering.animationStyle',
+	IncrementalRenderingBuffering = 'chat.experimental.incrementalRendering.buffering',
 }
 
 /**

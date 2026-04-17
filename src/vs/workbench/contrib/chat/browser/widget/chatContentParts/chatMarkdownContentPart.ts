@@ -60,7 +60,7 @@ import { IDisposableReference } from './chatCollections.js';
 import { EditorPool } from './chatContentCodePools.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { ChatExtensionsContentPart } from './chatExtensionsContentPart.js';
-import { SmoothStreamingDOMMorpher } from './chatSmoothStreaming/chatSmoothStreaming.js';
+import { IncrementalDOMMorpher } from './chatIncrementalRendering/chatIncrementalRendering.js';
 import './media/chatMarkdownPart.css';
 
 const $ = dom.$;
@@ -109,8 +109,8 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 	private readonly mathLayoutParticipants = new Set<() => void>();
 
-	/** Smooth streaming morpher — only created when the experiment is enabled. */
-	private _smoothMorpher: SmoothStreamingDOMMorpher | undefined;
+	/** Incremental rendering morpher — only created when the experiment is enabled. */
+	private _incrementalMorpher: IncrementalDOMMorpher | undefined;
 
 	constructor(
 		private markdown: IChatMarkdownContent,
@@ -147,14 +147,14 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 		const enableMath = configurationService.getValue<boolean>(ChatConfiguration.EnableMath);
 
-		// Initialize smooth streaming morpher when the experiment is enabled.
+		// Initialize incremental rendering morpher when the experiment is enabled.
 		// Only create for actively streaming responses (!element.isComplete),
 		// not for completed responses loaded from history — even if
 		// fillInIncompleteTokens is true (e.g. canceled or incomplete responses).
-		const smoothStreamingEnabled = configurationService.getValue<boolean>(ChatConfiguration.SmoothStreaming);
-		if (smoothStreamingEnabled && isResponseVM(element) && fillInIncompleteTokens && !element.isComplete) {
-			this._smoothMorpher = this._register(instantiationService.createInstance(SmoothStreamingDOMMorpher, this.domNode));
-			this._smoothMorpher.setRenderCallback((newMd) => {
+		const incrementalRenderingEnabled = configurationService.getValue<boolean>(ChatConfiguration.IncrementalRendering);
+		if (incrementalRenderingEnabled && isResponseVM(element) && fillInIncompleteTokens && !element.isComplete) {
+			this._incrementalMorpher = this._register(instantiationService.createInstance(IncrementalDOMMorpher, this.domNode));
+			this._incrementalMorpher.setRenderCallback((newMd) => {
 				// Temporarily swap this.markdown to the buffered content
 				// for doRenderMarkdown(), then restore it. The morpher may
 				// render a subset of the full markdown (word/paragraph
@@ -379,7 +379,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 		// so the initial DOM children receive the entrance animation —
 		// this is important when a markdown part first appears (e.g.
 		// after thinking content) and already contains visible content.
-		this._smoothMorpher?.seed(markdown.content.value, /* animateInitial */ true);
+		this._incrementalMorpher?.seed(markdown.content.value, /* animateInitial */ true);
 
 		if (enableMath && !MarkedKatexSupport.getExtension(dom.getWindow(context.container))) {
 			// KaTeX not yet loaded - load it and re-render when ready
@@ -483,11 +483,11 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	 *          re-render is needed.
 	 */
 	tryIncrementalUpdate(newMarkdown: IChatMarkdownContent): boolean {
-		if (!this._smoothMorpher) {
+		if (!this._incrementalMorpher) {
 			return false;
 		}
 
-		const success = this._smoothMorpher.tryMorph(newMarkdown.content.value);
+		const success = this._incrementalMorpher.tryMorph(newMarkdown.content.value);
 
 		if (success) {
 			// Update the stored markdown so hasSameContent() returns true
@@ -503,7 +503,7 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 	 * Forward the stream's word-rate estimate to the morpher's buffer.
 	 */
 	updateStreamRate(rate: number, isComplete: boolean): void {
-		this._smoothMorpher?.updateStreamRate(rate, isComplete);
+		this._incrementalMorpher?.updateStreamRate(rate, isComplete);
 	}
 
 	layout(width: number): void {

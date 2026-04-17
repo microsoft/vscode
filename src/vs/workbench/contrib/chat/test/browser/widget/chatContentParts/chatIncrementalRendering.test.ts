@@ -10,10 +10,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../../ba
 import { TestConfigurationService } from '../../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { workbenchInstantiationService } from '../../../../../../test/browser/workbenchTestServices.js';
-import { BlockAnimation, ANIMATION_DURATION_MS } from '../../../../browser/widget/chatContentParts/chatSmoothStreaming/animations/blockAnimations.js';
-import { lastBlockBoundary } from '../../../../browser/widget/chatContentParts/chatSmoothStreaming/buffers/paragraphBuffer.js';
-import { WordBuffer } from '../../../../browser/widget/chatContentParts/chatSmoothStreaming/buffers/wordBuffer.js';
-import { SmoothStreamingDOMMorpher } from '../../../../browser/widget/chatContentParts/chatSmoothStreaming/chatSmoothStreaming.js';
+import { BlockAnimation, ANIMATION_DURATION_MS } from '../../../../browser/widget/chatContentParts/chatIncrementalRendering/animations/blockAnimations.js';
+import { lastBlockBoundary } from '../../../../browser/widget/chatContentParts/chatIncrementalRendering/buffers/paragraphBuffer.js';
+import { WordBuffer } from '../../../../browser/widget/chatContentParts/chatIncrementalRendering/buffers/wordBuffer.js';
+import { IncrementalDOMMorpher } from '../../../../browser/widget/chatContentParts/chatIncrementalRendering/chatIncrementalRendering.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
 
 suite('lastBlockBoundary', () => {
@@ -106,7 +106,7 @@ suite('lastBlockBoundary', () => {
 	});
 });
 
-suite('SmoothStreamingDOMMorpher', () => {
+suite('IncrementalDOMMorpher', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let disposables: DisposableStore;
@@ -118,7 +118,7 @@ suite('SmoothStreamingDOMMorpher', () => {
 		instantiationService = workbenchInstantiationService(undefined, disposables);
 
 		configService = new TestConfigurationService();
-		configService.setUserConfiguration(ChatConfiguration.SmoothStreamingStyle, 'fade');
+		configService.setUserConfiguration(ChatConfiguration.IncrementalRenderingStyle, 'fade');
 		instantiationService.stub(IConfigurationService, configService);
 	});
 
@@ -126,9 +126,9 @@ suite('SmoothStreamingDOMMorpher', () => {
 		disposables.dispose();
 	});
 
-	function createMorpher(domNode?: HTMLElement): SmoothStreamingDOMMorpher {
+	function createMorpher(domNode?: HTMLElement): IncrementalDOMMorpher {
 		const node = domNode ?? mainWindow.document.createElement('div');
-		return store.add(instantiationService.createInstance(SmoothStreamingDOMMorpher, node));
+		return store.add(instantiationService.createInstance(IncrementalDOMMorpher, node));
 	}
 
 	suite('tryMorph', () => {
@@ -242,7 +242,7 @@ suite('SmoothStreamingDOMMorpher', () => {
 	suite('animation style', () => {
 
 		test('defaults to fade for invalid config value', () => {
-			configService.setUserConfiguration(ChatConfiguration.SmoothStreamingStyle, 'invalid-style');
+			configService.setUserConfiguration(ChatConfiguration.IncrementalRenderingStyle, 'invalid-style');
 			const domNode = mainWindow.document.createElement('div');
 			domNode.appendChild(mainWindow.document.createElement('p'));
 			const morpher = createMorpher(domNode);
@@ -253,7 +253,7 @@ suite('SmoothStreamingDOMMorpher', () => {
 		});
 
 		test('uses configured animation style', () => {
-			configService.setUserConfiguration(ChatConfiguration.SmoothStreamingStyle, 'rise');
+			configService.setUserConfiguration(ChatConfiguration.IncrementalRenderingStyle, 'rise');
 			const domNode = mainWindow.document.createElement('div');
 			domNode.appendChild(mainWindow.document.createElement('p'));
 			const morpher = createMorpher(domNode);
@@ -265,7 +265,7 @@ suite('SmoothStreamingDOMMorpher', () => {
 
 		for (const style of ['fade', 'rise', 'blur', 'scale', 'slide'] as const) {
 			test(`applies ${style} animation class`, () => {
-				configService.setUserConfiguration(ChatConfiguration.SmoothStreamingStyle, style);
+				configService.setUserConfiguration(ChatConfiguration.IncrementalRenderingStyle, style);
 				const domNode = mainWindow.document.createElement('div');
 				domNode.appendChild(mainWindow.document.createElement('p'));
 				const morpher = createMorpher(domNode);

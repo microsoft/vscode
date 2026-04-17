@@ -3,15 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/chatSmoothStreaming.css';
+import './media/chatIncrementalRendering.css';
 import { getWindow } from '../../../../../../../base/browser/dom.js';
 import { Disposable } from '../../../../../../../base/common/lifecycle.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
 import { ChatConfiguration } from '../../../../common/constants.js';
-import { ISmoothStreamingBuffer } from './buffers/buffer.js';
+import { IIncrementalRenderingBuffer } from './buffers/buffer.js';
 import { WordBuffer } from './buffers/wordBuffer.js';
 import { BUFFER_MODES, BufferModeName } from './buffers/bufferRegistry.js';
-import { ISmoothStreamingAnimation } from './animations/animation.js';
+import { IIncrementalRenderingAnimation } from './animations/animation.js';
 import { ANIMATION_STYLES, AnimationStyleName } from './animations/animationRegistry.js';
 import { ANIMATION_DURATION_MS } from './animations/blockAnimations.js';
 
@@ -19,8 +19,8 @@ import { ANIMATION_DURATION_MS } from './animations/blockAnimations.js';
  * Incremental markdown streaming renderer — rAF-batched, append-only.
  *
  * Orchestrates two independent concerns:
- * - **Buffering** (when to render): controlled by an {@link ISmoothStreamingBuffer}.
- * - **Animation** (how it appears): controlled by an {@link ISmoothStreamingAnimation}.
+ * - **Buffering** (when to render): controlled by an {@link IIncrementalRenderingBuffer}.
+ * - **Animation** (how it appears): controlled by an {@link IIncrementalRenderingAnimation}.
  *
  * The renderer works *with* the existing markdown rendering pipeline.
  * Each update re-renders through the standard `doRenderMarkdown()` path,
@@ -29,7 +29,7 @@ import { ANIMATION_DURATION_MS } from './animations/blockAnimations.js';
  * If the new markdown is NOT a pure append, `tryMorph()` returns `false`
  * and the caller falls back to a full re-render.
  */
-export class SmoothStreamingDOMMorpher extends Disposable {
+export class IncrementalDOMMorpher extends Disposable {
 
 	private _lastMarkdown: string = '';
 
@@ -63,8 +63,8 @@ export class SmoothStreamingDOMMorpher extends Disposable {
 	private _rafHandle: number | undefined;
 	private _renderCallback: ((newMarkdown: string) => void) | undefined;
 
-	private _buffer: ISmoothStreamingBuffer;
-	private _animation: ISmoothStreamingAnimation;
+	private _buffer: IIncrementalRenderingBuffer;
+	private _animation: IIncrementalRenderingAnimation;
 
 	constructor(
 		private readonly _domNode: HTMLElement,
@@ -75,10 +75,10 @@ export class SmoothStreamingDOMMorpher extends Disposable {
 		this._animation = this._createAnimation();
 
 		this._register(this._configService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ChatConfiguration.SmoothStreamingStyle)) {
+			if (e.affectsConfiguration(ChatConfiguration.IncrementalRenderingStyle)) {
 				this._animation = this._createAnimation();
 			}
-			if (e.affectsConfiguration(ChatConfiguration.SmoothStreamingBuffering)) {
+			if (e.affectsConfiguration(ChatConfiguration.IncrementalRenderingBuffering)) {
 				this._buffer.dispose?.();
 				this._buffer = this._createBuffer();
 			}
@@ -87,16 +87,16 @@ export class SmoothStreamingDOMMorpher extends Disposable {
 
 	// ---- strategy factories ----
 
-	private _createBuffer(): ISmoothStreamingBuffer {
-		const raw = this._configService.getValue<string>(ChatConfiguration.SmoothStreamingBuffering);
+	private _createBuffer(): IIncrementalRenderingBuffer {
+		const raw = this._configService.getValue<string>(ChatConfiguration.IncrementalRenderingBuffering);
 		const factory = Object.prototype.hasOwnProperty.call(BUFFER_MODES, raw)
 			? BUFFER_MODES[raw as BufferModeName]
 			: BUFFER_MODES.paragraph;
 		return factory(this._domNode);
 	}
 
-	private _createAnimation(): ISmoothStreamingAnimation {
-		const raw = this._configService.getValue<string>(ChatConfiguration.SmoothStreamingStyle);
+	private _createAnimation(): IIncrementalRenderingAnimation {
+		const raw = this._configService.getValue<string>(ChatConfiguration.IncrementalRenderingStyle);
 		const factory = Object.prototype.hasOwnProperty.call(ANIMATION_STYLES, raw)
 			? ANIMATION_STYLES[raw as AnimationStyleName]
 			: ANIMATION_STYLES.fade;

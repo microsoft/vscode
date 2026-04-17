@@ -10,7 +10,7 @@
  * Buffering is separate from animation — it controls *when* we render,
  * while animation controls *how* rendered content appears.
  */
-export interface ISmoothStreamingBuffer {
+export interface IIncrementalRenderingBuffer {
 	/**
 	 * Given the full markdown string and the markdown that was last
 	 * rendered to the real DOM, return `true` if the buffer should
