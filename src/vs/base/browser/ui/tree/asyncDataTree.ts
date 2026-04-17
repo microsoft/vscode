@@ -1042,7 +1042,20 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	}
 
 	getRelativeTop(element: T): number | null {
-		return this.tree.getRelativeTop(this.getDataNode(element));
+		// During async refresh there is a microtask gap where this.nodes (used
+		// by hasNode) and the underlying tree's node map can be out of sync,
+		// so getDataNode or tree.getRelativeTop may throw TreeError even
+		// though hasNode returned true. Treat that as "not currently visible"
+		// — the existing semantic of returning null already covers callers
+		// that fall back to reveal().
+		try {
+			return this.tree.getRelativeTop(this.getDataNode(element));
+		} catch (err) {
+			if (err instanceof TreeError) {
+				return null;
+			}
+			throw err;
+		}
 	}
 
 	// Tree navigation

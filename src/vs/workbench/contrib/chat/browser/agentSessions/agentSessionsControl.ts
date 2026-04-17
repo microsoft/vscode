@@ -153,38 +153,12 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 
 		const matchingSession = this.agentSessionsService.model.getSession(resource);
 		if (matchingSession && this.sessionsList?.hasNode(matchingSession)) {
-			if (this.tryGetRelativeTop(matchingSession) === null) {
+			if (this.sessionsList.getRelativeTop(matchingSession) === null) {
 				this.sessionsList.reveal(matchingSession, 0.5); // only reveal when not already visible
 			}
 
 			this.sessionsList.setFocus([matchingSession]);
 			this.sessionsList.setSelection([matchingSession]);
-		}
-	}
-
-	/**
-	 * Safely queries the sessions list for the relative top of an element.
-	 *
-	 * `hasNode()` and `getRelativeTop()` consult different internal maps in the
-	 * compressible async data tree. During an async refresh there is a microtask
-	 * gap where the async tree's node map has been updated but the underlying
-	 * compressed object tree model has not (or vice versa). In that window
-	 * `hasNode()` can return `true` while `getRelativeTop()` throws
-	 * `TreeError [AgentSessionsView] Tree element not found` (issue #309891).
-	 *
-	 * Treat such a failure as "not currently visible" so that callers fall back
-	 * to `reveal()`, which is safe to call when the element is in the data
-	 * source even if the view has not caught up yet.
-	 */
-	private tryGetRelativeTop(session: IAgentSession): number | null {
-		if (!this.sessionsList) {
-			return null;
-		}
-
-		try {
-			return this.sessionsList.getRelativeTop(session);
-		} catch {
-			return null;
 		}
 	}
 
@@ -863,7 +837,7 @@ export class AgentSessionsControl extends Disposable implements IAgentSessionsCo
 			return false;
 		}
 
-		if (this.tryGetRelativeTop(session) === null) {
+		if (this.sessionsList.getRelativeTop(session) === null) {
 			this.sessionsList.reveal(session, 0.5); // only reveal when not already visible
 		}
 
