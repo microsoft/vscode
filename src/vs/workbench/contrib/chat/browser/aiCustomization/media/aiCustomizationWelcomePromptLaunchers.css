@@ -67,7 +67,7 @@
 	height: 36px;
 	border-radius: 8px;
 	background: var(--vscode-agentsChatInput-background);
-	border: var(--vscode-agentsChatInput-border) 1px solid;
+	border: 1px solid var(--vscode-agentsChatInput-border, var(--vscode-input-border, transparent));
 	padding: 0 4px 0 12px;
 	margin-top: 6px;
 }
