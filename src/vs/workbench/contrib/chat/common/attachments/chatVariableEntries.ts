@@ -47,6 +47,7 @@ export interface IGenericChatRequestVariableEntry extends IBaseChatRequestVariab
 
 export interface IChatRequestDirectoryEntry extends IBaseChatRequestVariableEntry {
 	kind: 'directory';
+	imageCount?: number;
 }
 
 export interface IChatRequestFileEntry extends IBaseChatRequestVariableEntry {
@@ -67,7 +68,7 @@ const GEMINI_MAX_IMAGES_PER_REQUEST = 10;
  * Returns the image-attachment limit for the selected model.
  *
  * Claude-family models use a max of 20 (Messages API), Gemini-family models use
- * a max of 5. Other models do not have a UI-enforced image count limit.
+ * a max of 10. Other models do not have a UI-enforced image count limit.
  */
 export function getImageAttachmentLimit(model: Pick<ILanguageModelChatMetadata, 'family'> | undefined): number | undefined {
 	if (!model) {

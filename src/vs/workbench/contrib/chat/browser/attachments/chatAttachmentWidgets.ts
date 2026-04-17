@@ -267,6 +267,14 @@ export class FileAttachmentWidget extends AbstractChatAttachmentWidget {
 				fileKind: FileKind.FOLDER,
 				icon: !this.themeService.getFileIconTheme().hasFolderIcons ? FolderThemeIcon : undefined
 			});
+
+			// If this is a folder whose contents would exceed the model's per-request image limit, surface a warning.
+			if (attachment.kind === 'directory' && typeof attachment.imageCount === 'number') {
+				const maxImagesPerRequest = getImageAttachmentLimit(currentLanguageModel?.metadata);
+				if (maxImagesPerRequest !== undefined && attachment.imageCount > maxImagesPerRequest) {
+					this.renderFolderImageLimitWarning(attachment.imageCount, maxImagesPerRequest);
+				}
+			}
 		}
 
 		this.element.ariaLabel = this.appendDeletionHint(ariaLabel);
@@ -288,6 +296,22 @@ export class FileAttachmentWidget extends AbstractChatAttachmentWidget {
 		this.element.classList.add('warning');
 
 		hoverElement.textContent = localize('chat.fileAttachmentHover', "{0} does not support this file type.", this.currentLanguageModel ? this.languageModelsService.lookupLanguageModel(this.currentLanguageModel.identifier)?.name : this.currentLanguageModel ?? 'This model');
+		this._register(this.hoverService.setupDelayedHover(this.element, {
+			...commonHoverOptions,
+			content: hoverElement,
+		}, commonHoverLifecycleOptions));
+	}
+
+	private renderFolderImageLimitWarning(imageCount: number, limit: number) {
+		this.element.classList.add('warning');
+
+		const hoverElement = dom.$('div.chat-attached-context-hover');
+		hoverElement.textContent = localize(
+			'chat.folderImageLimitExceededHover',
+			"This folder contains {0} images, which exceeds the maximum of {1} images per request. Older images will not be sent.",
+			imageCount,
+			limit,
+		);
 		this._register(this.hoverService.setupDelayedHover(this.element, {
 			...commonHoverOptions,
 			content: hoverElement,

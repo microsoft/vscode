@@ -105,7 +105,14 @@ export class ChatAttachmentsContentPart extends Disposable {
 		const imageAttachments = attachments.filter(isImageVariableEntry);
 		const maxImagesPerRequest = this.getImageLimitForCurrentModel();
 
-		if (maxImagesPerRequest === undefined || imageAttachments.length <= maxImagesPerRequest) {
+		// If we can't determine the model's limit (e.g. historical request whose
+		// model is no longer available), leave existing ImageLimitExceeded flags
+		// alone so we don't lose information about images that were actually dropped.
+		if (maxImagesPerRequest === undefined) {
+			return;
+		}
+
+		if (imageAttachments.length <= maxImagesPerRequest) {
 			for (const attachment of imageAttachments) {
 				if (attachment.omittedState === OmittedState.ImageLimitExceeded) {
 					attachment.omittedState = OmittedState.NotOmitted;
