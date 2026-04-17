@@ -13,7 +13,6 @@ import { CachedListVirtualDelegate, IListElementRenderDetails } from '../../../.
 import { ITreeNode, ITreeRenderer } from '../../../../../base/browser/ui/tree/tree.js';
 import { IAction } from '../../../../../base/common/actions.js';
 import { coalesce, distinct } from '../../../../../base/common/arrays.js';
-import { findLast } from '../../../../../base/common/arraysFind.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { toErrorMessage } from '../../../../../base/common/errorMessage.js';
 import { canceledName } from '../../../../../base/common/errors.js';
@@ -1100,6 +1099,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}
 
+		// Find the last meaningful part (skipping empty markdown).
+		let lastPart: IChatRendererContent | undefined;
+		for (let i = partsToRender.length - 1; i >= 0; i--) {
+			const part = partsToRender[i];
+			if (part.kind !== 'markdownContent' || part.content.value.trim().length > 0) {
+				lastPart = part;
+				break;
+			}
+		}
+
 		if (showProgressDetails) {
 			// When the thinking section is actively streaming with its own inline
 			// shimmer (collapsed mode), let it own the progress indicator. In
@@ -1107,6 +1116,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			// active indicator, so the working-progress row should still render.
 			const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
 			if (lastThinking?.getIsActive() && !lastThinking.isFixedScrollingMode) {
+				return undefined;
+			}
+			if (lastPart?.kind === 'progressMessage') {
 				return undefined;
 			}
 			return { kind: 'working', state: workingState };
@@ -1121,9 +1133,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		if (partsToRender.some(part => part.kind === 'toolInvocation' && !IChatToolInvocation.isComplete(part) && isMcpToolInvocation(part))) {
 			return undefined;
 		}
-
-		// Show if no content, only "used references", ends with a complete tool call, or ends with complete text edits and there is no incomplete tool call (edits are still being applied some time after they are all generated)
-		const lastPart = findLast(partsToRender, part => part.kind !== 'markdownContent' || part.content.value.trim().length > 0);
 
 		// never show working progress when there is an active thinking piece
 		const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
