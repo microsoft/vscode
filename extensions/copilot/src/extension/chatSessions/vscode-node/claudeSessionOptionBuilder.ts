@@ -14,10 +14,10 @@ import { URI } from '../../../util/vs/base/common/uri';
 import { IChatFolderMruService } from '../common/folderRepositoryManager';
 import { folderMRUToChatProviderOptions, getSelectedOption, toWorkspaceFolderOptionItem } from './sessionOptionGroupBuilder';
 
-const permissionModes: ReadonlySet<string> = new Set<PermissionMode>(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'dontAsk']);
+const permissionModes: ReadonlySet<PermissionMode> = new Set<PermissionMode>(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'dontAsk']);
 
 export function isPermissionMode(value: string): value is PermissionMode {
-	return permissionModes.has(value);
+	return permissionModes.has(value as PermissionMode);
 }
 
 export const PERMISSION_MODE_OPTION_ID = 'permissionMode';

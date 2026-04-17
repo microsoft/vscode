@@ -388,8 +388,11 @@ export class ClaudeChatSessionItemController extends Disposable {
 	}
 
 	private async _rebuildInputState(state: vscode.ChatSessionInputState): Promise<void> {
-		const newGroups = await this._optionBuilder.buildNewSessionGroups(state);
-		state.groups = newGroups;
+		if (state.sessionResource) {
+			state.groups = await this._buildExistingSessionGroups(state.sessionResource);
+		} else {
+			state.groups = await this._optionBuilder.buildNewSessionGroups(state);
+		}
 	}
 
 	// #endregion
