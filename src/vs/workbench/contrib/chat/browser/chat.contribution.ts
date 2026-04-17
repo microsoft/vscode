@@ -210,6 +210,14 @@ configurationRegistry.registerConfiguration({
 			minimum: 6,
 			maximum: 100
 		},
+		[ChatConfiguration.MaxPersistedSessions]: {
+			type: 'number',
+			scope: ConfigurationScope.APPLICATION,
+			markdownDescription: nls.localize('chat.maxPersistedSessions', "Controls the maximum number of persisted chat sessions to retain locally. Older persisted sessions are removed from the session index when this limit is exceeded."),
+			default: 50,
+			minimum: 1,
+			tags: ['advanced', 'experimental']
+		},
 		'chat.fontFamily': {
 			type: 'string',
 			description: nls.localize('chat.fontFamily', "Controls the font family in chat messages."),
