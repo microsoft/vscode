@@ -105,8 +105,10 @@ export interface ISessionsManagementService {
 	/**
 	 * Create a new session for the given workspace.
 	 * Delegates to the provider identified by providerId.
+	 * Returns `undefined` when the provider's readiness is not `ready`; in that case
+	 * the provider is made active so consumers can observe its readiness, but no session is created.
 	 */
-	createNewSession(providerId: string, workspaceUri: URI, sessionTypeId?: string): ISession;
+	createNewSession(providerId: string, workspaceUri: URI, sessionTypeId?: string): ISession | undefined;
 
 	/**
 	 * Unset the new session

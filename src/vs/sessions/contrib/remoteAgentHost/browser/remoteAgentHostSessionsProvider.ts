@@ -11,7 +11,7 @@ import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlCon
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { basename } from '../../../../base/common/resources.js';
-import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
+import { constObservable, derived, IObservable, ISettableObservable, observableValue, waitForState } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -34,7 +34,7 @@ import { ILanguageModelsService } from '../../../../workbench/contrib/chat/commo
 import { agentHostSessionWorkspaceKey, buildAgentHostSessionWorkspace } from '../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../common/sessionConfig.js';
 import { diffsToChanges, diffsEqual, mapProtocolStatus } from '../../../common/agentHostDiffs.js';
-import { ISessionChangeEvent, ISendRequestOptions } from '../../../services/sessions/common/sessionsProvider.js';
+import { ISessionChangeEvent, ISendRequestOptions, ProviderReadiness } from '../../../services/sessions/common/sessionsProvider.js';
 import { IAgentHostSessionsProvider } from '../../../common/agentHostSessionsProvider.js';
 import { ISession, IChat, IGitHubInfo, ISessionWorkspace, ISessionWorkspaceBrowseAction, SessionStatus, ISessionType, COPILOT_CLI_SESSION_TYPE } from '../../../services/sessions/common/session.js';
 import { remoteAgentHostSessionTypeId } from '../common/remoteAgentHostSessionType.js';
@@ -287,6 +287,12 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements IAgen
 	get sessionTypes(): readonly ISessionType[] { return this._sessionTypes; }
 
 	/**
+	 * Observable mirror of {@link _sessionTypes} length, kept in sync alongside
+	 * the existing emitter so the {@link readiness} derived can react to changes.
+	 */
+	private readonly _sessionTypesCount = observableValue<number>('sessionTypesCount', 0);
+
+	/**
 	 * Maps logical session type id → unique per-connection resource scheme.
 	 * Copilot agents map to `COPILOT_CLI_SESSION_TYPE` as the logical type
 	 * but keep the unique per-connection id as the resource scheme.
@@ -298,6 +304,20 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements IAgen
 
 	private readonly _connectionStatus = observableValue<RemoteAgentHostConnectionStatus>('connectionStatus', RemoteAgentHostConnectionStatus.Disconnected);
 	readonly connectionStatus: IObservable<RemoteAgentHostConnectionStatus> = this._connectionStatus;
+
+	readonly readiness: IObservable<ProviderReadiness> = derived(reader => {
+		const status = this._connectionStatus.read(reader);
+		const typesCount = this._sessionTypesCount.read(reader);
+		if (status === RemoteAgentHostConnectionStatus.Connected && typesCount > 0) {
+			return { state: 'ready' } satisfies ProviderReadiness;
+		}
+		if (status === RemoteAgentHostConnectionStatus.Connecting
+			|| status === RemoteAgentHostConnectionStatus.Connected
+			|| (status === RemoteAgentHostConnectionStatus.Disconnected && this._connectOnDemand)) {
+			return { state: 'preparing', label: localize('connectingTo', "Connecting to {0}…", this.label) } satisfies ProviderReadiness;
+		}
+		return { state: 'unavailable', label: localize('disconnectedFrom', "Disconnected from {0}", this.label) } satisfies ProviderReadiness;
+	});
 
 	private readonly _onDidChangeSessions = this._register(new Emitter<ISessionChangeEvent>());
 	readonly onDidChangeSessions: Event<ISessionChangeEvent> = this._onDidChangeSessions.event;
@@ -382,6 +402,35 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements IAgen
 	 */
 	setOutputChannelId(id: string): void {
 		this._outputChannelId = id;
+	}
+
+	/**
+	 * Trigger any preparation required to move readiness to `ready`:
+	 * kicks off {@link _connectOnDemand} when we are disconnected, then
+	 * waits for readiness to settle before resolving.
+	 */
+	async prepare(_repositoryUri: URI): Promise<void> {
+		if (this.readiness.get().state === 'ready') {
+			return;
+		}
+
+		// For tunnels, `RemoteAgentHostConnectionStatus.Connected` signals
+		// that the tunnel host is online — not that a relay connection is
+		// established. Whenever readiness is not `ready` and a
+		// `_connectOnDemand` hook is available, invoke it; the hook itself
+		// is responsible for de-duplicating pending connect attempts.
+		if (this._connectOnDemand) {
+			await this._connectOnDemand();
+		}
+
+		const cts = new CancellationTokenSource();
+		const timer = setTimeout(() => cts.cancel(), 30_000);
+		try {
+			await waitForState(this.readiness, r => r.state !== 'preparing', undefined, cts.token);
+		} finally {
+			clearTimeout(timer);
+			cts.dispose();
+		}
 	}
 
 	// -- Connection Management --
@@ -475,6 +524,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements IAgen
 			return;
 		}
 		this._sessionTypes = next;
+		this._sessionTypesCount.set(next.length, undefined);
 		this._sessionTypeToResourceScheme.clear();
 		for (const [key, value] of nextMap) {
 			this._sessionTypeToResourceScheme.set(key, value);
@@ -531,6 +581,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements IAgen
 
 		if (this._sessionTypes.length > 0) {
 			this._sessionTypes = [];
+			this._sessionTypesCount.set(0, undefined);
 			this._sessionTypeToResourceScheme.clear();
 			this._onDidChangeSessionTypes.fire();
 		}
@@ -610,6 +661,8 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements IAgen
 	private _currentNewSession: IChatData | undefined;
 
 	createNewSession(workspaceUri: URI, sessionTypeId: string): ISession {
+		// The sessions management service gates creation on readiness, but keep
+		// defensive guards so contract violations surface as explicit errors.
 		if (!this._connection) {
 			throw new Error(localize('notConnectedSession', "Cannot create session: not connected to remote agent host '{0}'.", this.label));
 		}

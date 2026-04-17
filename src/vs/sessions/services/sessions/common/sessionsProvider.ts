@@ -4,10 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../../base/common/event.js';
+import { IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChat, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction } from './session.js';
+
+/**
+ * Readiness of a sessions provider, indicating whether it can currently
+ * create new sessions. Providers that are always ready (e.g. local
+ * providers) do not need to expose this observable.
+ */
+export type ProviderReadiness =
+	| { readonly state: 'ready' }
+	| { readonly state: 'preparing'; readonly label: string }
+	| { readonly state: 'unavailable'; readonly label: string };
+
+/**
+ * Returns the current readiness of a provider, defaulting to `ready` when
+ * the provider does not implement the readiness contract.
+ */
+export function getProviderReadiness(provider: ISessionsProvider): ProviderReadiness {
+	return provider.readiness?.get() ?? { state: 'ready' };
+}
 
 /**
  * Event fired when sessions change within a provider.
@@ -95,6 +114,19 @@ export interface ISessionsProvider {
 	 * @param sessionTypeId The ID of the session type to create.
 	 */
 	createNewSession(repositoryUri: URI, sessionTypeId: string): ISession;
+
+	/**
+	 * Optional observable reporting whether the provider is currently ready to
+	 * create sessions. When absent, the provider is treated as always ready.
+	 */
+	readonly readiness?: IObservable<ProviderReadiness>;
+
+	/**
+	 * Optional hook invoked by consumers to trigger any preparation steps
+	 * required to move readiness to `ready` (e.g. establishing a connection).
+	 * @param repositoryUri The URI of the repository the consumer intends to target.
+	 */
+	prepare?(repositoryUri: URI): Promise<void>;
 
 	/**
 	 * Get the session types supported for a given repository URI.

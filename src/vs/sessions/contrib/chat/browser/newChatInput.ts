@@ -107,6 +107,12 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			sendRequest: (query: string, attachments?: IChatRequestVariableEntry[]) => Promise<void>;
 			canSendRequest: IObservable<boolean>;
 			loading: IObservable<boolean>;
+			/**
+			 * Optional observable reporting a provider-supplied label to display while
+			 * the selected provider is not yet ready to create sessions. When set, the
+			 * input is rendered as disabled with the label as placeholder text.
+			 */
+			preparingLabel?: IObservable<string | undefined>;
 			minEditorHeight?: number;
 			placeholder?: string;
 		},
@@ -130,7 +136,14 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 		this._register(autorun(reader => {
 			this.options.canSendRequest.read(reader);
 			const isLoading = this.options.loading.read(reader);
+			const preparingLabel = this.options.preparingLabel?.read(reader);
 			this._loadingSpinner?.classList.toggle('visible', isLoading);
+			if (this._editor) {
+				this._editor.updateOptions({
+					readOnly: !!preparingLabel,
+					placeholder: preparingLabel ?? this.options.placeholder,
+				});
+			}
 			this._updateSendButtonState();
 		}));
 	}
@@ -451,7 +464,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 	private async _send(): Promise<void> {
 		let query = this._editor.getModel()?.getValue().trim();
-		if (!query || this._sending) {
+		if (!query || this._sending || this.options.preparingLabel?.get()) {
 			return;
 		}
 
@@ -500,7 +513,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			return;
 		}
 		const hasText = !!this._editor?.getModel()?.getValue().trim();
-		this._sendButton.enabled = !this._sending && hasText && this.options.canSendRequest.get();
+		const isPreparing = !!this.options.preparingLabel?.get();
+		this._sendButton.enabled = !this._sending && !isPreparing && hasText && this.options.canSendRequest.get();
 	}
 
 	private _restoreState(): void {

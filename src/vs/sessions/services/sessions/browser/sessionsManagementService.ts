@@ -15,7 +15,7 @@ import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uri
 import { ActiveSessionProviderIdContext, ActiveSessionTypeContext, IsActiveSessionArchivedContext, IsActiveSessionBackgroundProviderContext, IsNewChatInSessionContext, IsNewChatSessionContext } from '../../../common/contextkeys.js';
 import { ActiveSessionSupportsMultiChatContext, IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
 import { ISessionsProvidersChangeEvent, ISessionsProvidersService } from './sessionsProvidersService.js';
-import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../common/sessionsProvider.js';
+import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider, getProviderReadiness } from '../common/sessionsProvider.js';
 import { COPILOT_CLI_SESSION_TYPE, IChat, ISession, SessionStatus, ISessionType } from '../common/session.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 
@@ -251,7 +251,7 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		this.setActiveSession(undefined);
 	}
 
-	createNewSession(providerId: string, repositoryUri: URI, sessionTypeId?: string): ISession {
+	createNewSession(providerId: string, repositoryUri: URI, sessionTypeId?: string): ISession | undefined {
 		if (!this.isNewChatSessionContext.get()) {
 			this.isNewChatSessionContext.set(true);
 		}
@@ -259,6 +259,15 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		const provider = this.sessionsProvidersService.getProviders().find(p => p.id === providerId);
 		if (!provider) {
 			throw new Error(`Sessions provider '${providerId}' not found`);
+		}
+
+		// If the provider isn't ready, don't throw — surface the provider as active so
+		// consumers can bind to its readiness observable, and return undefined.
+		const readiness = getProviderReadiness(provider);
+		if (readiness.state !== 'ready') {
+			this.setActiveProvider(providerId);
+			this.setActiveSession(undefined);
+			return undefined;
 		}
 
 		if (!sessionTypeId) {
