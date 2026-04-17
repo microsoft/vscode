@@ -33,7 +33,7 @@ import { ChatModel, ISerializableChatData, ISerializableChatDataIn, ISerializabl
 import { ChatSessionOperationLog } from './chatSessionOperationLog.js';
 import { LocalChatSessionUri } from './chatUri.js';
 
-const maxPersistedSessions = 50;
+const defaultMaxPersistedSessions = 50;
 
 const ChatIndexStorageKey = 'chat.ChatSessionStore.index';
 const ChatTransferIndexStorageKey = 'ChatSessionStore.transferIndex';
@@ -427,6 +427,12 @@ export class ChatSessionStore extends Disposable {
 			this.reportError('indexWrite', 'Error writing index', e);
 		}
 	}
+	private getMaxPersistedSessions(): number {
+		const configured = this.configurationService.getValue<number>('github.copilot.chat.agentDebugLog.fileLogging.maxRetainedSessionLogs');
+		return Number.isFinite(configured) && configured >= 1
+			? Math.trunc(configured)
+			: defaultMaxPersistedSessions;
+	}
 
 	private getIndexStorageScope(): StorageScope {
 		const workspace = this.workspaceContextService.getWorkspace();
@@ -436,6 +442,7 @@ export class ChatSessionStore extends Disposable {
 
 	private async trimEntries(): Promise<void> {
 		const index = this.internalGetIndex();
+		const maxPersistedSessions = this.getMaxPersistedSessions();
 		const entries = Object.entries(index.entries)
 			.filter(([_id, entry]) => !entry.isExternal)
 			.sort((a, b) => b[1].lastMessageDate - a[1].lastMessageDate)
