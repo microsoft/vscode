@@ -100,7 +100,6 @@ export class PanelPart extends AbstractPaneCompositePart {
 			ViewContainerLocation.Panel,
 			Extensions.Panels,
 			Menus.PanelTitle,
-			undefined,
 			notificationService,
 			storageService,
 			contextMenuService,

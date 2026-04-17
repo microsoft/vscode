@@ -74,17 +74,23 @@ export function buildStandupPrompt(
 		const repo = s.repository ?? 'unknown';
 		const summary = s.summary ?? 'No summary';
 
-		// Include turn summaries for this session (first few user messages)
+		// Include turn summaries for this session (first few user messages + assistant responses)
 		const sessionTurns = turns.filter(t => t.session_id === s.id).slice(0, 5);
 		const turnLines = sessionTurns
-			.filter(t => t.user_message)
-			.map(t => `    - User: ${t.user_message}`);
+			.filter(t => t.user_message || t.assistant_response)
+			.map(t => {
+				const parts: string[] = [];
+				if (t.user_message) { parts.push(`User: ${t.user_message}`); }
+				if (t.assistant_response) { parts.push(`Assistant: ${t.assistant_response}`); }
+				return `    - ${parts.join(' → ')}`;
+			});
 
-		// Include files touched in this session
+		// Include files touched in this session (capped to avoid noise)
 		const sessionFiles = files.filter(f => f.session_id === s.id);
-		const uniqueFiles = [...new Set(sessionFiles.map(f => f.file_path))].slice(0, 10);
-		const fileLines = uniqueFiles.length > 0
-			? [`    - Files: ${uniqueFiles.join(', ')}`]
+		const uniqueFiles = [...new Set(sessionFiles.map(f => f.file_path))];
+		const shownFiles = uniqueFiles.slice(0, 5);
+		const fileLines = shownFiles.length > 0
+			? [`    - Files (${uniqueFiles.length} total): ${shownFiles.join(', ')}${uniqueFiles.length > 5 ? `, +${uniqueFiles.length - 5} more` : ''}`]
 			: [];
 
 		return [
@@ -106,10 +112,12 @@ ${sessionLines.join('\n')}
 ### References (PRs, Issues, Commits)
 ${refLines.length > 0 ? refLines.join('\n') : 'No references found.'}
 
-## Next Steps
+## Instructions
 
-1. For any PR references above, use GitHub tools to check their current status (open, merged, draft, closed).
-2. If you need more detail on any session, ask the user for specifics.
+1. Analyze the turn data (user messages and assistant responses) to understand the actual work done in each session.
+2. Use file paths to identify which components, modules, or areas of the codebase were affected.
+3. For any PR/issue references, mention them with links.
+4. If a session has no turns or summary, note it briefly but don't skip it entirely.
 
 ## Output Format
 
@@ -119,26 +127,28 @@ Standup for <date>:
 
 **✅ Done**
 
-Feature name (\`branch-name\` branch)
-  - Summary of what was accomplished (1-2 sentences based on the user messages and files touched)
+**Feature name** (\`branch-name\` branch, \`repo-name\`)
+  - Summary of what was accomplished (1-2 sentences grounded in the user messages and assistant responses)
   - Key files: list 2-3 most important files changed
-  - Merged: [#123](https://github.com/owner/repo/pull/123) (if applicable)
-  - Session: \`full-session-id\`
+  - Tools used: mention key tools if visible (e.g., apply_patch, run_in_terminal, search)
+  - PR: [#123](link) — merged/closed (if applicable)
+  - Sessions: \`session-id-1\`, \`session-id-2\`
 
 **🚧 In Progress**
 
-Feature name (\`branch-name\` branch)
-  - Summary of current work (1-2 sentences based on user messages and files)
-  - Key files: list 2-3 most important files changed
-  - Draft: [#789](https://github.com/owner/repo/pull/789) (if applicable)
-  - Session: \`full-session-id\`
+**Feature name** (\`branch-name\` branch, \`repo-name\`)
+  - Summary of current work (1-2 sentences based on turn content)
+  - Key files: list 2-3 most important files being worked on
+  - PR: [#789](link) — draft/open (if applicable)
+  - Sessions: \`session-id\`
 
 Formatting rules:
-- Use the turn data (user messages) to understand WHAT was done, not just that something happened
+- Use the turn data (user messages AND assistant responses) to understand WHAT was done, not just that something happened
 - Use file paths to identify which components/areas were affected
 - Group related sessions on the same branch into one entry
 - Link PRs and issues using markdown link syntax
-- Classify as Done if the session has no recent activity, In Progress if it was updated recently`;
+- Classify as Done if the session has no recent activity or the work appears complete, In Progress otherwise
+- If a session has no branch or repo, still include it under an "Other" section`;
 
 	if (extra) {
 		prompt += `\n\nAdditional context: ${extra}`;

@@ -440,6 +440,66 @@ export class ScriptedMockAgent implements IAgent {
 				break;
 			}
 
+			case 'client-tool': {
+				// Fires tool_start with toolClientId to simulate a client-provided tool.
+				// The server waits for the client to dispatch toolCallComplete.
+				(async () => {
+					await timeout(10);
+					this._onDidSessionProgress.fire({
+						type: 'tool_start',
+						session,
+						toolCallId: 'tc-client-1',
+						toolName: 'runTests',
+						displayName: 'Run Tests',
+						invocationMessage: 'Running tests...',
+						toolClientId: 'test-client-tool',
+					});
+				})();
+				// The tool stays pending — the client is responsible for dispatching toolCallComplete.
+				// Once complete, fire a response delta and idle.
+				this._pendingPermissions.set('tc-client-1', () => {
+					this._fireSequence(session, [
+						{ type: 'delta', session, messageId: 'msg-ct', content: 'Client tool done.' },
+						{ type: 'idle', session },
+					]);
+				});
+				break;
+			}
+
+			case 'client-tool-with-permission': {
+				// Fires tool_start with toolClientId followed by a permission request.
+				(async () => {
+					await timeout(10);
+					this._onDidSessionProgress.fire({
+						type: 'tool_start',
+						session,
+						toolCallId: 'tc-client-perm-1',
+						toolName: 'runTests',
+						displayName: 'Run Tests',
+						invocationMessage: 'Running tests...',
+						toolClientId: 'test-client-tool',
+					});
+					await timeout(5);
+					this._onDidSessionProgress.fire({
+						type: 'tool_ready',
+						session,
+						toolCallId: 'tc-client-perm-1',
+						invocationMessage: 'Run tests on project',
+						confirmationTitle: 'Allow Run Tests?',
+					});
+				})();
+				this._pendingPermissions.set('tc-client-perm-1', (approved) => {
+					if (approved) {
+						this._fireSequence(session, [
+							{ type: 'tool_complete', session, toolCallId: 'tc-client-perm-1', result: { pastTenseMessage: 'Ran tests', content: [{ type: ToolResultContentType.Text, text: 'all passed' }], success: true } },
+							{ type: 'delta', session, messageId: 'msg-cp', content: 'Permission granted, tool done.' },
+							{ type: 'idle', session },
+						]);
+					}
+				});
+				break;
+			}
+
 			default:
 				this._fireSequence(session, [
 					{ type: 'delta', session, messageId: 'msg-1', content: 'Unknown prompt: ' + prompt },
@@ -468,7 +528,20 @@ export class ScriptedMockAgent implements IAgent {
 
 	setClientTools(): void { }
 
-	onClientToolCallComplete(): void { }
+	onClientToolCallComplete(session: URI, toolCallId: string, result: IToolCallResult): void {
+		// Fire tool_complete and resolve any pending callback.
+		this._onDidSessionProgress.fire({
+			type: 'tool_complete',
+			session,
+			toolCallId,
+			result,
+		});
+		const callback = this._pendingPermissions.get(toolCallId);
+		if (callback) {
+			this._pendingPermissions.delete(toolCallId);
+			callback(true);
+		}
+	}
 
 	async getSessionMessages(session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]> {
 		if (session.toString() === PRE_EXISTING_SESSION_URI.toString()) {

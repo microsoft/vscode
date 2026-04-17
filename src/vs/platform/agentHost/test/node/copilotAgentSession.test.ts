@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import type { CopilotSession, SessionEvent, SessionEventPayload, SessionEventType, TypedSessionEventHandler } from '@github/copilot-sdk';
+import type { CopilotSession, SessionEvent, SessionEventPayload, SessionEventType, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
 import { Emitter } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
@@ -13,8 +13,8 @@ import { IFileService } from '../../../files/common/files.js';
 import { AgentSession, IAgentProgressEvent, IAgentUserInputRequestEvent } from '../../common/agentService.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
-import { SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind } from '../../common/state/sessionState.js';
-import { CopilotAgentSession, SessionWrapperFactory } from '../../node/copilot/copilotAgentSession.js';
+import { SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolResultContentType } from '../../common/state/sessionState.js';
+import { CopilotAgentSession, IActiveClientSnapshot, SessionWrapperFactory } from '../../node/copilot/copilotAgentSession.js';
 import { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
@@ -63,7 +63,22 @@ class MockCopilotSession {
 
 // ---- Helpers ----------------------------------------------------------------
 
-async function createAgentSession(disposables: DisposableStore): Promise<{
+/**
+ * Invokes a client-SDK tool's handler with the minimal fields the SDK
+ * contract requires, and narrows the `unknown` return type to
+ * {@link ToolResultObject} — which is what {@link CopilotAgentSession}'s
+ * handler implementation actually returns.
+ */
+function invokeClientToolHandler(tool: { name: string; handler: (args: any, invocation: any) => unknown }, toolCallId: string): Promise<ToolResultObject> {
+	return Promise.resolve(tool.handler({}, {
+		sessionId: 'test-session-1',
+		toolCallId,
+		toolName: tool.name,
+		arguments: {},
+	})) as Promise<ToolResultObject>;
+}
+
+async function createAgentSession(disposables: DisposableStore, options?: { clientSnapshot?: IActiveClientSnapshot }): Promise<{
 	session: CopilotAgentSession;
 	mockSession: MockCopilotSession;
 	progressEvents: IAgentProgressEvent[];
@@ -92,6 +107,7 @@ async function createAgentSession(disposables: DisposableStore): Promise<{
 			onDidSessionProgress: progressEmitter,
 			wrapperFactory: factory,
 			shellManager: undefined,
+			clientSnapshot: options?.clientSnapshot,
 		},
 	));
 
@@ -478,6 +494,28 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(session.respondToUserInputRequest('unknown-id', SessionInputResponseKind.Accept), false);
 		});
 
+		test('handleUserInputRequest returns empty answer on skipped question', async () => {
+			const { session, progressEvents } = await createAgentSession(disposables);
+
+			const resultPromise = session.handleUserInputRequest(
+				{ question: 'Skip me' },
+				{ sessionId: 'test-session-1' }
+			);
+
+			const event = progressEvents[0];
+			assertUserInputEvent(event);
+			const questionId = event.request.questions![0].id;
+			session.respondToUserInputRequest(event.request.id, SessionInputResponseKind.Accept, {
+				[questionId]: {
+					state: SessionInputAnswerState.Skipped,
+				}
+			});
+
+			const result = await resultPromise;
+			assert.strictEqual(result.answer, '');
+			assert.strictEqual(result.wasFreeform, true);
+		});
+
 		test('pending user inputs are cancelled on dispose', async () => {
 			const { session } = await createAgentSession(disposables);
 
@@ -490,6 +528,233 @@ suite('CopilotAgentSession', () => {
 			const result = await resultPromise;
 			assert.strictEqual(result.answer, '');
 			assert.strictEqual(result.wasFreeform, true);
+		});
+	});
+
+	// ---- client tool calls ----
+
+	suite('client tool calls', () => {
+
+		const snapshot: IActiveClientSnapshot = {
+			clientId: 'test-client',
+			tools: [{
+				name: 'my_tool',
+				description: 'A test tool',
+				inputSchema: { type: 'object', properties: {} },
+			}],
+			plugins: [],
+		};
+
+		test('tool_start fires immediately for client tools', async () => {
+			const { session, mockSession, progressEvents } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+
+			// SDK emits tool.execution_start — tool_start fires immediately
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-client-1',
+				toolName: 'my_tool',
+				arguments: {},
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			// tool_start fires immediately
+			assert.strictEqual(progressEvents.filter(e => e.type === 'tool_start').length, 1);
+			if (progressEvents[0].type === 'tool_start') {
+				assert.strictEqual(progressEvents[0].toolClientId, 'test-client');
+			}
+
+			// SDK invokes the handler
+			const tools = session.createClientSdkTools();
+			const handlerPromise = invokeClientToolHandler(tools[0], 'tc-client-1');
+
+			// Complete the tool call
+			session.handleClientToolCallComplete('tc-client-1', {
+				success: true,
+				pastTenseMessage: 'did it',
+				content: [{ type: ToolResultContentType.Text, text: 'result text' }],
+			});
+
+			const result = await handlerPromise;
+			assert.strictEqual(result.resultType, 'success');
+			assert.strictEqual(result.textResultForLlm, 'result text');
+		});
+
+		test('permission request consumes pending auto-ready for client tools', async () => {
+			const { session, mockSession, progressEvents } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+
+			// SDK emits tool.execution_start — tool_start fires immediately
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-client-perm',
+				toolName: 'my_tool',
+				arguments: {},
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			// tool_start fired, no tool_ready yet
+			assert.strictEqual(progressEvents.filter(e => e.type === 'tool_start').length, 1);
+			assert.strictEqual(progressEvents.filter(e => e.type === 'tool_ready').length, 0);
+
+			// Permission request fires — tool_ready from permission flow
+			// (with confirmationTitle) replaces the auto-ready
+			const resultPromise = session.handlePermissionRequest({
+				kind: 'custom-tool',
+				toolCallId: 'tc-client-perm',
+				toolName: 'my_tool',
+			});
+
+			// tool_ready from permission flow should have fired (with confirmationTitle)
+			const toolReadys = progressEvents.filter(e => e.type === 'tool_ready');
+			assert.strictEqual(toolReadys.length, 1);
+			if (toolReadys[0].type === 'tool_ready') {
+				assert.strictEqual(toolReadys[0].toolCallId, 'tc-client-perm');
+				assert.ok(toolReadys[0].confirmationTitle);
+			}
+
+			// Approve and clean up
+			session.respondToPermissionRequest('tc-client-perm', true);
+			const permResult = await resultPromise;
+			assert.strictEqual(permResult.kind, 'approved');
+		});
+
+		test('handleClientToolCallComplete pre-completes when no handler is waiting yet', async () => {
+			const { session } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+
+			// Completion arrives before handler — pre-creates deferred
+			session.handleClientToolCallComplete('tc-unknown', {
+				success: true,
+				pastTenseMessage: 'done',
+			});
+
+			// Handler picks up the pre-completed result
+			const tools = session.createClientSdkTools();
+			const result = await invokeClientToolHandler(tools[0], 'tc-unknown');
+			assert.strictEqual(result.resultType, 'success');
+		});
+
+		test('handleClientToolCallComplete with failure result', async () => {
+			const { session } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+
+			const tools = session.createClientSdkTools();
+			const handlerPromise = invokeClientToolHandler(tools[0], 'tc-client-3');
+
+			session.handleClientToolCallComplete('tc-client-3', {
+				success: false,
+				pastTenseMessage: 'failed',
+				error: { message: 'something broke' },
+			});
+
+			const result = await handlerPromise;
+			assert.strictEqual(result.resultType, 'failure');
+			assert.strictEqual(result.error, 'something broke');
+		});
+
+		test('pending client tool calls are cancelled on dispose', async () => {
+			const { session } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+
+			const tools = session.createClientSdkTools();
+			const handlerPromise = invokeClientToolHandler(tools[0], 'tc-client-4');
+
+			session.dispose();
+			const result = await handlerPromise;
+			assert.strictEqual(result.resultType, 'failure');
+			assert.ok(result.error);
+		});
+
+		test('multiple concurrent client tool calls resolve independently', async () => {
+			const { session } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+
+			const tools = session.createClientSdkTools();
+			const promise1 = invokeClientToolHandler(tools[0], 'tc-multi-1');
+			const promise2 = invokeClientToolHandler(tools[0], 'tc-multi-2');
+
+			// Complete in reverse order
+			session.handleClientToolCallComplete('tc-multi-2', {
+				success: true,
+				pastTenseMessage: 'second done',
+				content: [{ type: ToolResultContentType.Text, text: 'result-2' }],
+			});
+			session.handleClientToolCallComplete('tc-multi-1', {
+				success: true,
+				pastTenseMessage: 'first done',
+				content: [{ type: ToolResultContentType.Text, text: 'result-1' }],
+			});
+
+			const [result1, result2] = await Promise.all([promise1, promise2]);
+			assert.strictEqual(result1.textResultForLlm, 'result-1');
+			assert.strictEqual(result2.textResultForLlm, 'result-2');
+		});
+
+		test('handler cleans up deferred after consuming result', async () => {
+			const { session } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+
+			const tools = session.createClientSdkTools();
+			const handlerPromise = invokeClientToolHandler(tools[0], 'tc-cleanup');
+
+			session.handleClientToolCallComplete('tc-cleanup', {
+				success: true,
+				pastTenseMessage: 'done',
+				content: [{ type: ToolResultContentType.Text, text: 'ok' }],
+			});
+
+			await handlerPromise;
+
+			// A second complete for the same toolCallId should create a new
+			// deferred (not fail). This tests the cleanup path.
+			session.handleClientToolCallComplete('tc-cleanup', {
+				success: true,
+				pastTenseMessage: 'done again',
+			});
+		});
+
+		test('tool_start stores pending auto-ready data for client tools', async () => {
+			const { session, mockSession, progressEvents } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+
+			mockSession.fire('tool.execution_start', {
+				toolCallId: 'tc-ready-data',
+				toolName: 'my_tool',
+				arguments: { file: 'test.ts' },
+			} as SessionEventPayload<'tool.execution_start'>['data']);
+
+			// tool_start should have fired
+			assert.strictEqual(progressEvents.filter(e => e.type === 'tool_start').length, 1);
+
+			// The session should have stored pending auto-ready data.
+			// We verify this indirectly: if we now fire a permission request
+			// for the same toolCallId, the pending auto-ready is consumed
+			// (tested by the permission request test above), and we get
+			// tool_ready with confirmationTitle instead.
+			const resultPromise = session.handlePermissionRequest({
+				kind: 'custom-tool',
+				toolCallId: 'tc-ready-data',
+				toolName: 'my_tool',
+			});
+
+			const toolReadys = progressEvents.filter(e => e.type === 'tool_ready');
+			assert.strictEqual(toolReadys.length, 1);
+			if (toolReadys[0].type === 'tool_ready') {
+				assert.ok(toolReadys[0].confirmationTitle);
+			}
+
+			session.respondToPermissionRequest('tc-ready-data', true);
+			await resultPromise;
+		});
+
+		test('handleClientToolCallComplete with content containing embedded resources', async () => {
+			const { session } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+
+			const tools = session.createClientSdkTools();
+			const handlerPromise = invokeClientToolHandler(tools[0], 'tc-embedded');
+
+			session.handleClientToolCallComplete('tc-embedded', {
+				success: true,
+				pastTenseMessage: 'done',
+				content: [
+					{ type: ToolResultContentType.Text, text: 'text part' },
+					{ type: ToolResultContentType.EmbeddedResource, data: 'base64data', contentType: 'image/png' },
+				],
+			});
+
+			const result = await handlerPromise;
+			assert.strictEqual(result.resultType, 'success');
+			// Text content should be extracted
+			assert.strictEqual(result.textResultForLlm, 'text part');
 		});
 	});
 });
