@@ -13,7 +13,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { IChatRequestVariableEntry } from '../attachments/chatVariableEntries.js';
-import { ChatAgentVoteDirection, ChatRequestQueueKind, IChatCodeCitation, IChatContentReference, IChatDisabledClaudeHooksPart, IChatFollowup, IChatMcpServersStarting, IChatProgressMessage, IChatQuestionCarousel, IChatResponseErrorDetails, IChatTask, IChatUsedContext } from '../chatService/chatService.js';
+import { ChatAgentVoteDirection, ChatRequestQueueKind, IChatCodeCitation, IChatContentReference, IChatDisabledClaudeHooksPart, IChatFollowup, IChatMcpServersStarting, IChatProgressMessage, IChatQuestionCarousel, IChatResponseErrorDetails, IChatTask, IChatUsage, IChatUsedContext } from '../chatService/chatService.js';
 import { getFullyQualifiedId, IChatAgentCommand, IChatAgentData, IChatAgentNameService, IChatAgentResult } from '../participants/chatAgents.js';
 import { IParsedChatRequest } from '../requestParser/chatParserTypes.js';
 import { IChatModel, IChatProgressRenderableResponseContent, IChatRequestDisablement, IChatRequestModel, IChatResponseModel, IChatTextEditGroup, IResponse } from './chatModel.js';
@@ -160,6 +160,23 @@ export interface IChatReferences {
 export interface IChatWorkingProgress {
 	kind: 'working';
 	content?: IMarkdownString;
+	/**
+	 * When present, the working progress will show elapsed time and token usage.
+	 */
+	state?: IChatWorkingProgressState;
+}
+
+export interface IChatWorkingProgressState {
+	/** The confirmation-adjusted timestamp observable for computing elapsed time */
+	readonly confirmationAdjustedTimestamp: IObservable<number>;
+	/** Observable for tracking completion token count as it arrives */
+	readonly completionTokenCountObs: IObservable<number | undefined>;
+	/** Whether the response is complete (for past-tense display) */
+	readonly isComplete: boolean;
+	/** The completedAt timestamp for completed responses */
+	readonly completedAt?: number;
+	/** Pre-computed elapsed generation time in ms (reliable for restored sessions) */
+	readonly elapsedMs?: number;
 }
 
 
@@ -214,6 +231,9 @@ export interface IChatResponseViewModel {
 	readonly errorDetails?: IChatResponseErrorDetails;
 	readonly result?: IChatAgentResult;
 	readonly contentUpdateTimings?: IChatStreamStats;
+	readonly confirmationAdjustedTimestamp: IObservable<number>;
+	readonly usageObs: IObservable<IChatUsage | undefined>;
+	readonly completionTokenCountObs: IObservable<number | undefined>;
 	readonly shouldBeRemovedOnSend: IChatRequestDisablement | undefined;
 	readonly isCompleteAddedRequest: boolean;
 	renderData?: IChatResponseRenderData;
@@ -648,6 +668,18 @@ export class ChatResponseViewModel extends Disposable implements IChatResponseVi
 
 	get contentUpdateTimings(): IChatStreamStats | undefined {
 		return this.liveUpdateTracker?.data;
+	}
+
+	get confirmationAdjustedTimestamp(): IObservable<number> {
+		return this._model.confirmationAdjustedTimestamp;
+	}
+
+	get usageObs(): IObservable<IChatUsage | undefined> {
+		return this._model.usageObs;
+	}
+
+	get completionTokenCountObs(): IObservable<number | undefined> {
+		return this._model.completionTokenCountObs;
 	}
 
 	constructor(
