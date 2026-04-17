@@ -284,6 +284,7 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 	}
 
 	private tryShowOnboarding(): void {
+		return; // test-workbench_change - disable initialization wizard
 		if (this.environmentService.skipWelcome) {
 			return; // skip welcome flag is set
 		}
