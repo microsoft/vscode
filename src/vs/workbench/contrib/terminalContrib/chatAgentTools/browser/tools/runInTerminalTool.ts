@@ -874,15 +874,17 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		// If forceConfirmationReason is set, always show confirmation regardless of auto-approval
 		const shouldShowConfirmation = (!isFinalAutoApproved && !isSessionAutoApproved) || context.forceConfirmationReason !== undefined;
 		(toolSpecificData as IRunInTerminalToolInvocationData).requiresConfirmationForRetry = (!isAutoApprovedByRules && !isSessionAutoApproved) || context.forceConfirmationReason !== undefined;
+		const explanation = args.explanation || localize('runInTerminal.defaultExplanation', "No explanation provided");
+		const goal = args.goal || localize('runInTerminal.defaultGoal', "No goal provided");
 		const confirmationMessage = requiresUnsandboxConfirmation
 			? new MarkdownString(localize(
 				'runInTerminal.unsandboxed.confirmationMessage',
 				"Explanation: {0}\n\nGoal: {1}\n\nReason for leaving the sandbox: {2}",
-				args.explanation,
-				args.goal,
+				explanation,
+				goal,
 				requestUnsandboxedExecutionReason || localize('runInTerminal.unsandboxed.confirmationMessage.defaultReason', "The model indicated that this command needs unsandboxed access.")
 			))
-			: new MarkdownString(localize('runInTerminal.confirmationMessage', "Explanation: {0}\n\nGoal: {1}", args.explanation, args.goal));
+			: new MarkdownString(localize('runInTerminal.confirmationMessage', "Explanation: {0}\n\nGoal: {1}", explanation, goal));
 		const confirmationMessages = shouldShowConfirmation ? {
 			title: confirmationTitle,
 			message: confirmationMessage,
