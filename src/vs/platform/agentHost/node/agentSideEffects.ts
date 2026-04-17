@@ -912,7 +912,7 @@ export class AgentSideEffects extends Disposable {
 				}
 			}
 
-			const diffs = await computeSessionDiffs(ref.object, this._diffComputeService, incremental);
+			const diffs = await computeSessionDiffs(session, ref.object, this._diffComputeService, incremental);
 			this._stateManager.dispatchServerAction({
 				type: ActionType.SessionDiffsChanged,
 				session,

@@ -7,11 +7,13 @@ import { IMarkdownString, MarkdownString } from '../../../../../../base/common/h
 import { URI } from '../../../../../../base/common/uri.js';
 import { ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, getToolSubagentContent, type IActiveTurn, type ICompletedToolCall, type IToolCallState, type ITurn, FileEditKind, ToolResultContentType, type IToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
-import { type IChatProgress, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
+import { toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
+import { StringOrMarkdown, type IFileEdit } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
 import { type IToolConfirmationMessages, type IToolData, ToolDataSource, ToolInvocationPresentation } from '../../../common/tools/languageModelToolsService.js';
-import { isEqual } from '../../../../../../base/common/resources.js';
+import { basename, isEqual } from '../../../../../../base/common/resources.js';
 import { hasKey } from '../../../../../../base/common/types.js';
 import { localize } from '../../../../../../nls.js';
 
@@ -143,7 +145,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly ITurn[], par
  * reasoning, completed tool calls) and live {@link ChatToolInvocation}
  * objects for running tool calls and pending confirmations.
  */
-export function activeTurnToProgress(sessionResource: URI, activeTurn: IActiveTurn): IChatProgress[] {
+export function activeTurnToProgress(sessionResource: URI, activeTurn: IActiveTurn, connectionAuthority: string | undefined): IChatProgress[] {
 	const parts: IChatProgress[] = [];
 
 	for (const rp of activeTurn.responseParts) {
@@ -163,7 +165,7 @@ export function activeTurnToProgress(sessionResource: URI, activeTurn: IActiveTu
 				if (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled) {
 					parts.push(completedToolCallToSerialized(tc as ICompletedToolCall, undefined, sessionResource));
 				} else if (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.Streaming || tc.status === ToolCallStatus.PendingConfirmation) {
-					parts.push(toolCallStateToInvocation(tc, undefined, sessionResource));
+					parts.push(toolCallStateToInvocation(tc, undefined, sessionResource, connectionAuthority));
 				}
 				break;
 			}
@@ -322,7 +324,9 @@ export function completedToolCallToEditParts(tc: ICompletedToolCall): IChatProgr
 /**
  * Converts a protocol `StringOrMarkdown` value to a chat-layer `IMarkdownString`.
  */
-function stringOrMarkdownToString(value: string | { readonly markdown: string } | undefined): string | IMarkdownString | undefined {
+function stringOrMarkdownToString(value: StringOrMarkdown | undefined): string | IMarkdownString | undefined;
+function stringOrMarkdownToString(value: StringOrMarkdown): string | IMarkdownString;
+function stringOrMarkdownToString(value: StringOrMarkdown | undefined): string | IMarkdownString | undefined {
 	if (value === undefined) {
 		return undefined;
 	}
@@ -332,8 +336,12 @@ function stringOrMarkdownToString(value: string | { readonly markdown: string } 
 /**
  * Creates a live {@link ChatToolInvocation} from the protocol's tool-call
  * state. Used during active turns to represent running tool calls in the UI.
+ *
+ * @param connectionAuthority Sanitized connection identifier used when
+ *   wrapping remote file URIs into `vscode-agent-host:` URIs. Omit to skip
+ *   URI wrapping (e.g. in tests that don't exercise the confirmation UI).
  */
-export function toolCallStateToInvocation(tc: IToolCallState, subAgentInvocationId: string | undefined, sessionResource: URI): ChatToolInvocation {
+export function toolCallStateToInvocation(tc: IToolCallState, subAgentInvocationId: string | undefined, sessionResource: URI, connectionAuthority: string | undefined): ChatToolInvocation {
 	const toolData: IToolData = {
 		id: tc.toolName,
 		source: ToolDataSource.Internal,
@@ -343,15 +351,37 @@ export function toolCallStateToInvocation(tc: IToolCallState, subAgentInvocation
 
 	if (tc.status === ToolCallStatus.PendingConfirmation) {
 		// Tool needs confirmation — create with confirmation messages
-		const titleText = stringOrMarkdownToString(tc.confirmationTitle) ?? stringOrMarkdownToString(tc.invocationMessage) ?? tc.displayName;
-		const titleStr = typeof titleText === 'string' ? titleText : titleText?.value ?? '';
 		const confirmationMessages: IToolConfirmationMessages = {
-			title: typeof titleText === 'string' ? new MarkdownString(titleText) : (titleText ?? new MarkdownString('')),
-			message: new MarkdownString(''),
+			title: stringOrMarkdownToString(tc.confirmationTitle) ?? tc.displayName,
+			message: stringOrMarkdownToString(tc.invocationMessage),
 		};
 
-		let toolSpecificData: IChatTerminalToolInvocationData | IChatToolInputInvocationData | undefined;
-		if (getToolKind(tc) === 'terminal' && tc.toolInput) {
+		let toolSpecificData: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatModifiedFilesConfirmationData | undefined;
+		const pendingEdits = tc.edits?.items;
+		if (pendingEdits && pendingEdits.length > 0) {
+			const wrap = (uri: URI) => connectionAuthority ? toAgentHostUri(uri, connectionAuthority) : uri;
+			const mapped = mapFileEdits(pendingEdits, tc.toolCallId);
+			toolSpecificData = {
+				kind: 'modifiedFilesConfirmation',
+				options: ['Allow'],
+				modifiedFiles: mapped.map(edit => {
+					const resource = wrap(edit.resource);
+					const originalResource = edit.originalResource ? wrap(edit.originalResource) : undefined;
+					const modifiedContent = edit.afterContentUri ? wrap(edit.afterContentUri) : undefined;
+					const originalContent = edit.beforeContentUri ? wrap(edit.beforeContentUri) : undefined;
+					return {
+						uri: resource,
+						originalUri: originalResource,
+						modifiedContentUri: modifiedContent,
+						originalContentUri: originalContent,
+						insertions: edit.diff?.added,
+						deletions: edit.diff?.removed,
+						title: basename(edit.resource),
+						description: edit.resource.path,
+					};
+				}),
+			};
+		} else if (getToolKind(tc) === 'terminal' && tc.toolInput) {
 			toolSpecificData = {
 				kind: 'terminal',
 				commandLine: { original: getTerminalInput(tc) || '' },
@@ -365,7 +395,7 @@ export function toolCallStateToInvocation(tc: IToolCallState, subAgentInvocation
 
 		return new ChatToolInvocation(
 			{
-				invocationMessage: typeof titleText === 'string' ? new MarkdownString(titleStr) : (titleText ?? new MarkdownString('')),
+				invocationMessage: stringOrMarkdownToString(tc.invocationMessage),
 				confirmationMessages,
 				presentation: ToolInvocationPresentation.HiddenAfterComplete,
 				toolSpecificData,
@@ -539,8 +569,18 @@ export function fileEditsToExternalEdits(tc: IToolCallState): IToolCallFileEdit[
 	if (edits.length === 0) {
 		return [];
 	}
+	return mapFileEdits(edits, tc.toolCallId);
+}
+
+/**
+ * Translates a list of {@link IFileEdit} records into {@link IToolCallFileEdit}
+ * entries suitable for the external edits pipeline or the chat modified-files
+ * confirmation UI. Shared between completed tool edits and pending write
+ * confirmations.
+ */
+function mapFileEdits(items: readonly IFileEdit[], undoStopId: string): IToolCallFileEdit[] {
 	const result: IToolCallFileEdit[] = [];
-	for (const edit of edits) {
+	for (const edit of items) {
 		const isCreate = !edit.before && !!edit.after;
 		const isDelete = !!edit.before && !edit.after;
 		const isRename = !!edit.before && !!edit.after && !isEqual(URI.parse(edit.before.uri), URI.parse(edit.after.uri));
@@ -567,7 +607,7 @@ export function fileEditsToExternalEdits(tc: IToolCallState): IToolCallFileEdit[
 			originalResource: isRename ? URI.parse(edit.before!.uri) : undefined,
 			beforeContentUri: edit.before?.content.uri ? URI.parse(edit.before.content.uri) : undefined,
 			afterContentUri: edit.after?.content.uri ? URI.parse(edit.after.content.uri) : undefined,
-			undoStopId: tc.toolCallId,
+			undoStopId,
 			diff: edit.diff,
 		});
 	}

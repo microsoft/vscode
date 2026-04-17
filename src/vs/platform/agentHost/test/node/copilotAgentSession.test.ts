@@ -3,21 +3,22 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import assert from 'assert';
 import type { CopilotSession, SessionEvent, SessionEventPayload, SessionEventType, ToolResultObject, TypedSessionEventHandler } from '@github/copilot-sdk';
+import assert from 'assert';
+import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { NullLogService, ILogService } from '../../../log/common/log.js';
 import { IFileService } from '../../../files/common/files.js';
+import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
+import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
+import { ILogService, NullLogService } from '../../../log/common/log.js';
 import { AgentSession, IAgentProgressEvent, IAgentUserInputRequestEvent } from '../../common/agentService.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolResultContentType } from '../../common/state/sessionState.js';
 import { CopilotAgentSession, IActiveClientSnapshot, SessionWrapperFactory } from '../../node/copilot/copilotAgentSession.js';
 import { CopilotSessionWrapper } from '../../node/copilot/copilotSessionWrapper.js';
-import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
-import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { createSessionDataService, createZeroDiffComputeService } from '../common/sessionTestHelpers.js';
 
 // ---- Mock CopilotSession (SDK level) ----------------------------------------
@@ -82,10 +83,31 @@ async function createAgentSession(disposables: DisposableStore, options?: { clie
 	session: CopilotAgentSession;
 	mockSession: MockCopilotSession;
 	progressEvents: IAgentProgressEvent[];
+	waitForProgress: (predicate: (event: IAgentProgressEvent) => boolean) => Promise<IAgentProgressEvent>;
 }> {
 	const progressEmitter = disposables.add(new Emitter<IAgentProgressEvent>());
 	const progressEvents: IAgentProgressEvent[] = [];
-	disposables.add(progressEmitter.event(e => progressEvents.push(e)));
+	const waiters: { predicate: (event: IAgentProgressEvent) => boolean; deferred: DeferredPromise<IAgentProgressEvent> }[] = [];
+	disposables.add(progressEmitter.event(e => {
+		progressEvents.push(e);
+		for (let i = waiters.length - 1; i >= 0; i--) {
+			if (waiters[i].predicate(e)) {
+				const { deferred } = waiters[i];
+				waiters.splice(i, 1);
+				deferred.complete(e);
+			}
+		}
+	}));
+
+	const waitForProgress = (predicate: (event: IAgentProgressEvent) => boolean): Promise<IAgentProgressEvent> => {
+		const existing = progressEvents.find(predicate);
+		if (existing) {
+			return Promise.resolve(existing);
+		}
+		const deferred = new DeferredPromise<IAgentProgressEvent>();
+		waiters.push({ predicate, deferred });
+		return deferred.p;
+	};
 
 	const sessionUri = AgentSession.uri('copilot', 'test-session-1');
 	const mockSession = new MockCopilotSession();
@@ -113,7 +135,7 @@ async function createAgentSession(disposables: DisposableStore, options?: { clie
 
 	await session.initializeSession();
 
-	return { session, mockSession, progressEvents };
+	return { session, mockSession, progressEvents, waitForProgress };
 }
 
 // ---- Tests ------------------------------------------------------------------
@@ -130,15 +152,15 @@ suite('CopilotAgentSession', () => {
 	suite('permission handling', () => {
 
 		test('read permission fires tool_ready (deferred to side effects)', async () => {
-			const { session, progressEvents } = await createAgentSession(disposables);
+			const { session, progressEvents, waitForProgress } = await createAgentSession(disposables);
 			const resultPromise = session.handlePermissionRequest({
 				kind: 'read',
 				path: '/workspace/src/file.ts',
 				toolCallId: 'tc-1',
 			});
 
+			await waitForProgress(e => e.type === 'tool_ready');
 			assert.strictEqual(progressEvents.length, 1);
-			assert.strictEqual(progressEvents[0].type, 'tool_ready');
 
 			assert.ok(session.respondToPermissionRequest('tc-1', true));
 			const result = await resultPromise;
@@ -146,15 +168,15 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('write permission fires tool_ready (deferred to side effects)', async () => {
-			const { session, progressEvents } = await createAgentSession(disposables);
+			const { session, progressEvents, waitForProgress } = await createAgentSession(disposables);
 			const resultPromise = session.handlePermissionRequest({
 				kind: 'write',
 				fileName: '/workspace/src/file.ts',
 				toolCallId: 'tc-1',
 			});
 
+			await waitForProgress(e => e.type === 'tool_ready');
 			assert.strictEqual(progressEvents.length, 1);
-			assert.strictEqual(progressEvents[0].type, 'tool_ready');
 
 			assert.ok(session.respondToPermissionRequest('tc-1', true));
 			const result = await resultPromise;
@@ -162,7 +184,7 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('write permission outside working directory fires tool_ready', async () => {
-			const { session, progressEvents } = await createAgentSession(disposables);
+			const { session, progressEvents, waitForProgress } = await createAgentSession(disposables);
 
 			const resultPromise = session.handlePermissionRequest({
 				kind: 'write',
@@ -170,8 +192,8 @@ suite('CopilotAgentSession', () => {
 				toolCallId: 'tc-write-outside',
 			});
 
+			await waitForProgress(e => e.type === 'tool_ready');
 			assert.strictEqual(progressEvents.length, 1);
-			assert.strictEqual(progressEvents[0].type, 'tool_ready');
 
 			assert.ok(session.respondToPermissionRequest('tc-write-outside', true));
 			const result = await resultPromise;
@@ -179,7 +201,7 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('read permission outside working directory fires tool_ready', async () => {
-			const { session, progressEvents } = await createAgentSession(disposables);
+			const { session, progressEvents, waitForProgress } = await createAgentSession(disposables);
 
 			// Kick off permission request but don't await — it will block
 			const resultPromise = session.handlePermissionRequest({
@@ -189,8 +211,8 @@ suite('CopilotAgentSession', () => {
 			});
 
 			// Should have fired a tool_ready event
+			await waitForProgress(e => e.type === 'tool_ready');
 			assert.strictEqual(progressEvents.length, 1);
-			assert.strictEqual(progressEvents[0].type, 'tool_ready');
 
 			// Respond to it
 			assert.ok(session.respondToPermissionRequest('tc-2', true));
@@ -205,12 +227,13 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('denied-interactively when user denies', async () => {
-			const { session, progressEvents } = await createAgentSession(disposables);
+			const { session, progressEvents, waitForProgress } = await createAgentSession(disposables);
 			const resultPromise = session.handlePermissionRequest({
 				kind: 'shell',
 				toolCallId: 'tc-3',
 			});
 
+			await waitForProgress(e => e.type === 'tool_ready');
 			assert.strictEqual(progressEvents.length, 1);
 			session.respondToPermissionRequest('tc-3', false);
 			const result = await resultPromise;
@@ -578,7 +601,7 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('permission request consumes pending auto-ready for client tools', async () => {
-			const { session, mockSession, progressEvents } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+			const { session, mockSession, progressEvents, waitForProgress } = await createAgentSession(disposables, { clientSnapshot: snapshot });
 
 			// SDK emits tool.execution_start — tool_start fires immediately
 			mockSession.fire('tool.execution_start', {
@@ -600,6 +623,7 @@ suite('CopilotAgentSession', () => {
 			});
 
 			// tool_ready from permission flow should have fired (with confirmationTitle)
+			await waitForProgress(e => e.type === 'tool_ready');
 			const toolReadys = progressEvents.filter(e => e.type === 'tool_ready');
 			assert.strictEqual(toolReadys.length, 1);
 			if (toolReadys[0].type === 'tool_ready') {
@@ -704,7 +728,7 @@ suite('CopilotAgentSession', () => {
 		});
 
 		test('tool_start stores pending auto-ready data for client tools', async () => {
-			const { session, mockSession, progressEvents } = await createAgentSession(disposables, { clientSnapshot: snapshot });
+			const { session, mockSession, progressEvents, waitForProgress } = await createAgentSession(disposables, { clientSnapshot: snapshot });
 
 			mockSession.fire('tool.execution_start', {
 				toolCallId: 'tc-ready-data',
@@ -726,6 +750,7 @@ suite('CopilotAgentSession', () => {
 				toolName: 'my_tool',
 			});
 
+			await waitForProgress(e => e.type === 'tool_ready');
 			const toolReadys = progressEvents.filter(e => e.type === 'tool_ready');
 			assert.strictEqual(toolReadys.length, 1);
 			if (toolReadys[0].type === 'tool_ready') {

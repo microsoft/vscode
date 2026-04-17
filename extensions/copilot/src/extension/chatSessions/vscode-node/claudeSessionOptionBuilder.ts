@@ -42,7 +42,7 @@ export class ClaudeSessionOptionBuilder {
 		private readonly _workspaceService: IWorkspaceService,
 	) { }
 
-	async buildNewSessionGroups(previousInputState: vscode.ChatSessionInputState | undefined): Promise<vscode.ChatSessionProviderOptionGroup[]> {
+	async buildNewSessionGroups(previousInputState?: vscode.ChatSessionInputState): Promise<vscode.ChatSessionProviderOptionGroup[]> {
 		const groups: vscode.ChatSessionProviderOptionGroup[] = [];
 
 		const folderGroup = await this.buildNewFolderGroup(previousInputState);

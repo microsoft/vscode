@@ -155,6 +155,7 @@ export class AgentEventMapper {
 					invocationMessage: e.invocationMessage,
 					toolInput: e.toolInput,
 					confirmationTitle: e.confirmationTitle,
+					edits: e.edits,
 					...(!e.confirmationTitle ? { confirmed: ToolCallConfirmationReason.NotNeeded } : {}),
 				} satisfies IToolCallReadyAction;
 			}

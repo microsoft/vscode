@@ -100,6 +100,7 @@ import { ChatCodeBlockContentProvider, CodeBlockPart } from './chatContentParts/
 import { autorun, observableValue } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ChatHookContentPart } from './chatContentParts/chatHookContentPart.js';
 import { ChatPendingDragController } from './chatPendingDragAndDrop.js';
 import { HookType } from '../../common/promptSyntax/hookTypes.js';
@@ -235,6 +236,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private readonly _inlineTextModels: InlineTextModelCollection;
 
+	/** Whether we have already logged the incremental-rendering telemetry event for this renderer instance. */
+	private _incrementalRenderingTelemetryLogged = false;
+
 	/**
 	 * Prevents re-announcement of already rendered chat progress
 	 * by screen readers
@@ -260,6 +264,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -857,25 +862,41 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// - And it has some content
 		// - And the response is not complete
 		//   - Or, we previously started a progressive rendering of this element (if the element is complete, we will finish progressive rendering with a very fast rate)
+		const incrementalRendering = this.configService.getValue<boolean>(ChatConfiguration.IncrementalRendering);
 		if (isResponseVM(element) && index === this.delegate.getListLength() - 1 && (!element.isComplete || element.renderData)) {
 			this.traceLayout('renderElement', `start progressive render, index=${index}`);
 
-			const timer = templateData.elementDisposables.add(new dom.WindowIntervalTimer());
-			const runProgressiveRender = (initial?: boolean) => {
-				try {
-					if (this.doNextProgressiveRender(element, index, templateData, !!initial)) {
+			if (incrementalRendering && !element.renderData) {
+				// Incremental rendering: event-driven flow, no timer.
+				// renderElement is called each time the model changes, so
+				// this method runs on every content update.
+				this.logIncrementalRenderingTelemetry();
+				this.doIncrementalRender(element, index, templateData);
+			} else {
+				const timer = templateData.elementDisposables.add(new dom.WindowIntervalTimer());
+				const runProgressiveRender = (initial?: boolean) => {
+					try {
+						if (this.doNextProgressiveRender(element, index, templateData, !!initial)) {
+							timer.cancel();
+						}
+					} catch (err) {
+						// Kill the timer if anything went wrong, avoid getting stuck in a nasty rendering loop.
 						timer.cancel();
+						this.logService.error(err);
 					}
-				} catch (err) {
-					// Kill the timer if anything went wrong, avoid getting stuck in a nasty rendering loop.
-					timer.cancel();
-					this.logService.error(err);
-				}
-			};
-			timer.cancelAndSet(runProgressiveRender, 50, dom.getWindow(templateData.rowContainer));
-			runProgressiveRender(true);
+				};
+				timer.cancelAndSet(runProgressiveRender, 50, dom.getWindow(templateData.rowContainer));
+				runProgressiveRender(true);
+			}
 		} else {
 			if (isResponseVM(element)) {
+				// When incremental rendering was active during this response,
+				// notify any active morpher that the stream is complete
+				// so it switches to a fast drain rate before we render.
+				if (incrementalRendering) {
+					const rate = this.getProgressiveRenderRate(element);
+					this._updateMorpherRate(templateData, rate, true);
+				}
 				this.renderChatResponseBasic(element, index, templateData);
 			} else if (isRequestVM(element)) {
 				this.renderChatRequest(element, index, templateData);
@@ -1405,6 +1426,90 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	/**
+	 * Smooth streaming render path — event-driven, rAF-batched.
+	 *
+	 * Does a render pass that feeds the full content through
+	 * `getNextProgressiveRenderContent` → `diff` → `renderChatContentDiff`,
+	 * where the morpher intercepts markdown appends and schedules
+	 * rAF-batched re-renders through the standard markdown pipeline.
+	 *
+	 * Called on every `renderElement` invocation (which fires each time
+	 * the model changes). On completion/cancellation the morpher's
+	 * content is already correctly rendered, so we do a final diff pass
+	 * (not a destructive re-render) to finalize non-markdown parts like
+	 * thinking indicators, error details, and code citations.
+	 */
+	private doIncrementalRender(element: IChatResponseViewModel, index: number, templateData: IChatListItemTemplate): void {
+		if (!this._isVisible) {
+			return;
+		}
+
+		// Always update the word buffer's reveal rate, including on the
+		// completion pass so the buffer switches to a fast drain rate.
+		const rate = this.getProgressiveRenderRate(element);
+		this._updateMorpherRate(templateData, rate, element.isComplete || element.isCanceled);
+
+		if (element.isCanceled || element.isComplete) {
+			// The morpher has already rendered the markdown content
+			// correctly through the standard pipeline. Clear renderData
+			// and do a final diff pass to pick up non-markdown parts
+			// (error details, code citations, thinking finalization)
+			// without tearing down what the morpher built.
+			element.renderData = undefined;
+			templateData.rowContainer.classList.toggle('chat-response-loading', false);
+			this.renderChatResponseBasic(element, index, templateData);
+			return;
+		}
+
+		templateData.rowContainer.classList.toggle('chat-response-loading', true);
+
+		const contentForThisTurn = this.getNextProgressiveRenderContent(element, templateData);
+		const partsToRender = this.diff(templateData.renderedParts ?? [], contentForThisTurn.content, element);
+		const contentIsAlreadyRendered = partsToRender.every(part => part === null);
+		if (!contentIsAlreadyRendered) {
+			this.renderChatContentDiff(partsToRender, contentForThisTurn.content, element, index, templateData);
+		}
+	}
+
+	/**
+	 * Propagate the stream's word-rate estimate to any active morpher's
+	 * word buffer so it reveals content at the model's speed.
+	 */
+	private _updateMorpherRate(templateData: IChatListItemTemplate, rate: number, isComplete: boolean): void {
+		const renderedParts = templateData.renderedParts;
+		if (!renderedParts) {
+			return;
+		}
+		for (const part of renderedParts) {
+			if (part instanceof ChatMarkdownContentPart) {
+				part.updateStreamRate(rate, isComplete);
+			}
+		}
+	}
+
+	private logIncrementalRenderingTelemetry(): void {
+		if (this._incrementalRenderingTelemetryLogged) {
+			return;
+		}
+		this._incrementalRenderingTelemetryLogged = true;
+
+		type IncrementalRenderingSettingsEvent = {
+			animationStyle: string;
+			buffering: string;
+		};
+		type IncrementalRenderingSettingsClassification = {
+			animationStyle: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The animation style selected for incremental rendering.' };
+			buffering: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The buffering mode selected for incremental rendering.' };
+			owner: 'pwang347';
+			comment: 'Tracks which incremental rendering settings are in use.';
+		};
+		this.telemetryService.publicLog2<IncrementalRenderingSettingsEvent, IncrementalRenderingSettingsClassification>('chatIncrementalRenderingSettings', {
+			animationStyle: this.configService.getValue<string>(ChatConfiguration.IncrementalRenderingStyle) ?? 'none',
+			buffering: this.configService.getValue<string>(ChatConfiguration.IncrementalRenderingBuffering) ?? 'word',
+		});
+	}
+
+	/**
 	 *	@returns true if progressive rendering should be considered complete- the element's data is fully rendered or the view is not visible
 	 */
 	private doNextProgressiveRender(element: IChatResponseViewModel, index: number, templateData: IChatListItemTemplate, isInRenderElement: boolean): boolean {
@@ -1489,6 +1594,18 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 					// keep existing thinking part if we are pinning it (combining tool calls into it)
 					renderedParts[contentIndex] = alreadyRenderedPart;
 					return;
+				}
+
+				// Incremental rendering: try an incremental DOM morph instead of
+				// tearing down and rebuilding the entire markdown part.
+				if (partToRender.kind === 'markdownContent'
+					&& alreadyRenderedPart instanceof ChatMarkdownContentPart
+					&& this.configService.getValue<boolean>(ChatConfiguration.IncrementalRendering)
+				) {
+					if (alreadyRenderedPart.tryIncrementalUpdate(partToRender)) {
+						renderedParts[contentIndex] = alreadyRenderedPart;
+						return;
+					}
 				}
 
 				alreadyRenderedPart.dispose();
@@ -1577,6 +1694,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// An unregistered setting for development- skip the word counting and smoothing, just render content as it comes in
 		const renderImmediately = this.configService.getValue<boolean>('chat.experimental.renderMarkdownImmediately') === true;
 
+		// When incremental rendering is enabled, skip word-counting for markdown.
+		// The morpher's own buffer + rAF loop is the sole rate limiter.
+		const incrementalRendering = this.configService.getValue<boolean>(ChatConfiguration.IncrementalRendering) === true;
+
 		const renderableResponse = annotateSpecialMarkdownContent(element.response.value);
 
 		this.traceLayout('getNextProgressiveRenderContent', `Want to render ${data.numWordsToRender} at ${data.rate} words/s, counting...`);
@@ -1590,7 +1711,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		let moreContentAvailable = false;
 		for (let i = 0; i < renderableResponse.length; i++) {
 			const part = renderableResponse[i];
-			if (part.kind === 'markdownContent' && !renderImmediately) {
+			if (part.kind === 'markdownContent' && !renderImmediately && !incrementalRendering) {
 				const wordCountResult = getNWords(part.content.value, numNeededWords);
 				this.traceLayout('getNextProgressiveRenderContent', `  Chunk ${i}: Want to render ${numNeededWords} words and found ${wordCountResult.returnedWordCount} words. Total words in chunk: ${wordCountResult.totalWordCount}`);
 				numNeededWords -= wordCountResult.returnedWordCount;

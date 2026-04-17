@@ -94,17 +94,6 @@ function buildMutableConfigSchema(config: Record<string, string>): Record<string
 	return properties;
 }
 
-function toSessionFileDiffs(diffs: readonly IFileEdit[]): { readonly uri: string; readonly added?: number; readonly removed?: number }[] {
-	const result: { readonly uri: string; readonly added?: number; readonly removed?: number }[] = [];
-	for (const diff of diffs) {
-		const uri = diff.after?.uri ?? diff.before?.uri;
-		if (uri) {
-			result.push({ uri, added: diff.diff?.added, removed: diff.diff?.removed });
-		}
-	}
-	return result;
-}
-
 function toLocalProjectUri(uri: URI, connectionAuthority: string): URI {
 	return uri.scheme === Schemas.file ? toAgentHostUri(uri, connectionAuthority) : uri;
 }
@@ -1185,7 +1174,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements IAgen
 		const cached = this._sessionCache.get(rawId);
 		if (cached) {
 			const mapUri = toLocalDiffUri(this._connectionAuthority);
-			cached.changes.set(diffsToChanges(toSessionFileDiffs(diffs), mapUri), undefined);
+			cached.changes.set(diffsToChanges(diffs, mapUri), undefined);
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._chatToSession(cached)] });
 		}
 	}
@@ -1214,9 +1203,8 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements IAgen
 
 		if (changes.diffs !== undefined) {
 			const mapUri = toLocalDiffUri(this._connectionAuthority);
-			const diffs = toSessionFileDiffs(changes.diffs);
-			if (!diffsEqual(cached.changes.get(), diffs, mapUri)) {
-				cached.changes.set(diffsToChanges(diffs, mapUri), undefined);
+			if (!diffsEqual(cached.changes.get(), changes.diffs, mapUri)) {
+				cached.changes.set(diffsToChanges(changes.diffs, mapUri), undefined);
 				didChange = true;
 			}
 		}

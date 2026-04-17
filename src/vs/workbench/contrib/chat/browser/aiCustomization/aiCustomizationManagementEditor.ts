@@ -780,6 +780,24 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.welcomePage.rebuildCards(new Set(this.sections.map(s => s.id)));
 	}
 
+	private createBackArrowButton(): HTMLButtonElement {
+		const button = $('button.section-back-arrow-button') as HTMLButtonElement;
+		button.type = 'button';
+		button.setAttribute('aria-label', localize('backToOverview', "Back to overview"));
+		this.editorDisposables.add(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), button, localize('backToOverviewTooltip', "Back to overview")));
+		const icon = DOM.append(button, $('span.section-back-arrow-icon'));
+		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.arrowLeft));
+		icon.setAttribute('aria-hidden', 'true');
+		this.editorDisposables.add(DOM.addDisposableListener(button, 'click', () => {
+			this.showWelcomePage();
+		}));
+		return button;
+	}
+
+	private injectBackArrowIntoSearchRow(widget: { prependToSearchRow(el: HTMLElement): void }): void {
+		widget.prependToSearchRow(this.createBackArrowButton());
+	}
+
 	private createContent(): void {
 		const contentInner = DOM.append(this.contentContainer, $('.content-inner'));
 
@@ -790,6 +808,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.promptsContentContainer = DOM.append(contentInner, $('.prompts-content-container'));
 		this.listWidget = this.editorDisposables.add(this.instantiationService.createInstance(AICustomizationListWidget));
 		this.promptsContentContainer.appendChild(this.listWidget.element);
+		this.injectBackArrowIntoSearchRow(this.listWidget);
 
 		// Handle item selection
 		this.editorDisposables.add(this.listWidget.onDidSelectItem(item => {
@@ -818,6 +837,8 @@ export class AICustomizationManagementEditor extends EditorPane {
 		const hasSections = new Set(this.workspaceService.managementSections);
 		if (hasSections.has(AICustomizationManagementSection.Models)) {
 			this.modelsContentContainer = DOM.append(contentInner, $('.models-content-container'));
+			const modelsBackBar = DOM.append(this.modelsContentContainer, $('.section-back-bar'));
+			modelsBackBar.appendChild(this.createBackArrowButton());
 			this.modelsWidget = this.editorDisposables.add(this.instantiationService.createInstance(ChatModelsWidget));
 			this.modelsContentContainer.appendChild(this.modelsWidget.element);
 
@@ -838,6 +859,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.mcpContentContainer = DOM.append(contentInner, $('.mcp-content-container'));
 			this.mcpListWidget = this.editorDisposables.add(this.instantiationService.createInstance(McpListWidget));
 			this.mcpContentContainer.appendChild(this.mcpListWidget.element);
+			this.injectBackArrowIntoSearchRow(this.mcpListWidget);
 
 			// Embedded MCP server detail view
 			this.mcpDetailContainer = DOM.append(contentInner, $('.mcp-detail-container'));
@@ -857,6 +879,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.pluginContentContainer = DOM.append(contentInner, $('.plugin-content-container'));
 			this.pluginListWidget = this.editorDisposables.add(this.instantiationService.createInstance(PluginListWidget));
 			this.pluginContentContainer.appendChild(this.pluginListWidget.element);
+			this.injectBackArrowIntoSearchRow(this.pluginListWidget);
 
 			// Embedded plugin detail view
 			this.pluginDetailContainer = DOM.append(contentInner, $('.plugin-detail-container'));

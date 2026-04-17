@@ -349,6 +349,40 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize('chat.experimental.detectParticipant.enabled', "Enables chat participant autodetection for panel chat."),
 			default: null
 		},
+		[ChatConfiguration.IncrementalRendering]: {
+			type: 'boolean',
+			description: nls.localize('chat.experimental.incrementalRendering.enabled', "Enables incremental rendering with optional block-level animation when streaming chat responses."),
+			default: false,
+			tags: ['experimental'],
+		},
+		[ChatConfiguration.IncrementalRenderingStyle]: {
+			type: 'string',
+			enum: ['none', 'fade', 'rise', 'blur', 'scale', 'slide', 'reveal'],
+			enumDescriptions: [
+				nls.localize('chat.experimental.incrementalRendering.animationStyle.none', "No animation. Content appears instantly."),
+				nls.localize('chat.experimental.incrementalRendering.animationStyle.fade', "Simple opacity fade from 0 to 1."),
+				nls.localize('chat.experimental.incrementalRendering.animationStyle.rise', "Content fades in while rising upward."),
+				nls.localize('chat.experimental.incrementalRendering.animationStyle.blur', "Content fades in from a blurred state."),
+				nls.localize('chat.experimental.incrementalRendering.animationStyle.scale', "Content scales up from slightly smaller."),
+				nls.localize('chat.experimental.incrementalRendering.animationStyle.slide', "Content slides in from the left."),
+				nls.localize('chat.experimental.incrementalRendering.animationStyle.reveal', "Content reveals top-to-bottom with a soft gradient edge."),
+			],
+			description: nls.localize('chat.experimental.incrementalRendering.animationStyle', "Controls the animation style for incremental rendering."),
+			default: 'fade',
+			tags: ['experimental'],
+		},
+		[ChatConfiguration.IncrementalRenderingBuffering]: {
+			type: 'string',
+			enum: ['off', 'word', 'paragraph'],
+			enumDescriptions: [
+				nls.localize('chat.experimental.incrementalRendering.buffering.off', "Renders content immediately as tokens arrive."),
+				nls.localize('chat.experimental.incrementalRendering.buffering.word', "Reveals content word by word."),
+				nls.localize('chat.experimental.incrementalRendering.buffering.paragraph', "Buffers content until a paragraph break before rendering."),
+			],
+			description: nls.localize('chat.experimental.incrementalRendering.buffering', "Controls how content is buffered before rendering during incremental rendering. Lower buffering levels render faster but may show incomplete sentences or partially formed markdown."),
+			default: 'word',
+			tags: ['experimental'],
+		},
 		'chat.detectParticipant.enabled': {
 			type: 'boolean',
 			description: nls.localize('chat.detectParticipant.enabled', "Enables chat participant autodetection for panel chat."),

@@ -5,22 +5,25 @@
 
 import type { PermissionRequestResult, SessionConfig, Tool, ToolResultObject } from '@github/copilot-sdk';
 import { DeferredPromise } from '../../../../base/common/async.js';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import type { IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
+import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IAgentAttachment, IAgentMessageEvent, IAgentProgressEvent, IAgentSubagentStartedEvent, IAgentToolCompleteEvent, IAgentToolStartEvent } from '../../common/agentService.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
-import type { IToolDefinition } from '../../common/state/protocol/state.js';
+import type { IFileEdit, IToolDefinition } from '../../common/state/protocol/state.js';
 import { SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolResultContentType, type IPendingMessage, type ISessionInputAnswer, type ISessionInputRequest, type IToolCallResult, type IToolResultContent } from '../../common/state/sessionState.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import type { ShellManager } from './copilotShellTools.js';
 import { getEditFilePath, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isShellTool, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
 import { FileEditTracker } from './fileEditTracker.js';
 import { mapSessionEvents } from './mapSessionEvents.js';
+import { buildPendingEditContentUri } from './pendingEditContentStore.js';
 
 /**
  * Immutable snapshot of the active client's contributions at session creation
@@ -110,6 +113,10 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _clientToolNames: ReadonlySet<string>;
 	/** Deferred promises for pending client tool calls, keyed by toolCallId. */
 	private readonly _pendingClientToolCalls = new Map<string, DeferredPromise<ToolResultObject>>();
+	/** `pending-edit-content:` URIs written during permission requests, keyed
+	 *  by toolCallId. Cleaned up when the permission resolves or the session
+	 *  is disposed. */
+	private readonly _pendingEditContentUris = new Map<string, URI>();
 
 	private readonly _onDidSessionProgress: Emitter<IAgentProgressEvent>;
 	private readonly _wrapperFactory: SessionWrapperFactory;
@@ -120,6 +127,7 @@ export class CopilotAgentSession extends Disposable {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 		@ISessionDataService sessionDataService: ISessionDataService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super();
 		this.sessionId = options.rawSessionId;
@@ -373,6 +381,21 @@ export class CopilotAgentSession extends Disposable {
 		// Derive display information from the permission request kind
 		const { confirmationTitle, invocationMessage, toolInput, permissionKind, permissionPath } = getPermissionDisplay(request);
 
+		// For write permission requests, build an IFileEdit preview so the
+		// client can show a diff before the user approves or denies. This
+		// awaits async filesystem operations; the SDK already calls
+		// `handlePermissionRequest` from an arbitrary async context, so the
+		// extra await here is fine.
+		const edits = await this._buildEditsForPermission(request, toolCallId);
+
+		// If the session was aborted/disposed while we were building the
+		// preview, the deferred has already been resolved and the
+		// `pending-edit-content:` entry has been cleaned up. Bail without
+		// firing tool_ready.
+		if (!this._pendingPermissions.has(toolCallId)) {
+			return { kind: 'denied-interactively-by-user' };
+		}
+
 		// Fire a tool_ready event to transition the tool to PendingConfirmation
 		this._onDidSessionProgress.fire({
 			session: this.sessionUri,
@@ -383,6 +406,7 @@ export class CopilotAgentSession extends Disposable {
 			confirmationTitle,
 			permissionKind,
 			permissionPath,
+			edits,
 		});
 
 		const approved = await deferred.p;
@@ -390,10 +414,73 @@ export class CopilotAgentSession extends Disposable {
 		return { kind: approved ? 'approved' : 'denied-interactively-by-user' };
 	}
 
+	/**
+	 * Builds an {@link IFileEdit} preview for a write permission request.
+	 *
+	 * The `before` side references the existing file on disk directly (if it
+	 * exists); the `after` side is written to the `pending-edit-content:`
+	 * in-memory filesystem so the client can fetch it via `resourceRead`.
+	 *
+	 * Returns `undefined` for permission kinds that don't describe file
+	 * edits or when the request is missing the fields needed to build a
+	 * preview. If the permission request is no longer pending by the time
+	 * the in-memory write completes (e.g. the session was aborted), the
+	 * just-written entry is deleted so it cannot leak.
+	 */
+	private async _buildEditsForPermission(request: ITypedPermissionRequest, toolCallId: string): Promise<{ items: IFileEdit[] } | undefined> {
+		if (request.kind !== 'write') {
+			return undefined;
+		}
+		const filePath = typeof request.fileName === 'string' ? request.fileName : undefined;
+		const newFileContents = typeof request.newFileContents === 'string' ? request.newFileContents : undefined;
+		if (!filePath || newFileContents === undefined) {
+			return undefined;
+		}
+
+		const fileUri = URI.file(filePath);
+		const fileUriStr = fileUri.toString();
+
+		let beforeExists = false;
+		try {
+			beforeExists = await this._fileService.exists(fileUri);
+		} catch (err) {
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to check file for edit preview: ${filePath}`, err);
+		}
+
+		const afterUri = buildPendingEditContentUri(this.sessionUri.toString(), toolCallId, filePath);
+		try {
+			await this._fileService.writeFile(afterUri, VSBuffer.fromString(newFileContents));
+		} catch (err) {
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to write pending edit content for ${filePath}`, err);
+			return undefined;
+		}
+
+		// If the request was already resolved (aborted/disposed) while we
+		// were awaiting the write, drop the in-memory entry immediately;
+		// `_deletePendingEditContent` has already run and won't run again.
+		if (!this._pendingPermissions.has(toolCallId)) {
+			this._fileService.del(afterUri).catch(err => {
+				this._logService.warn(`[Copilot:${this.sessionId}] Failed to delete orphaned pending edit content: ${afterUri.toString()}`, err);
+			});
+			return undefined;
+		}
+		this._pendingEditContentUris.set(toolCallId, afterUri);
+
+		const diffCounts = typeof request.diff === 'string' ? countUnifiedDiffLines(request.diff) : undefined;
+
+		const edit: IFileEdit = {
+			...(beforeExists ? { before: { uri: fileUriStr, content: { uri: fileUriStr } } } : {}),
+			after: { uri: fileUriStr, content: { uri: afterUri.toString() } },
+			...(diffCounts ? { diff: diffCounts } : {}),
+		};
+		return { items: [edit] };
+	}
+
 	respondToPermissionRequest(requestId: string, approved: boolean): boolean {
 		const deferred = this._pendingPermissions.get(requestId);
 		if (deferred) {
 			this._pendingPermissions.delete(requestId);
+			this._deletePendingEditContent(requestId);
 			deferred.complete(approved);
 			return true;
 		}
@@ -839,10 +926,26 @@ export class CopilotAgentSession extends Disposable {
 	// ---- cleanup ------------------------------------------------------------
 
 	private _denyPendingPermissions(): void {
-		for (const [, deferred] of this._pendingPermissions) {
+		for (const [toolCallId, deferred] of this._pendingPermissions) {
+			this._deletePendingEditContent(toolCallId);
 			deferred.complete(false);
 		}
 		this._pendingPermissions.clear();
+	}
+
+	/**
+	 * Removes any `pending-edit-content:` entries associated with a resolved
+	 * (approved, denied, or cancelled) permission request.
+	 */
+	private _deletePendingEditContent(toolCallId: string): void {
+		const uri = this._pendingEditContentUris.get(toolCallId);
+		if (!uri) {
+			return;
+		}
+		this._pendingEditContentUris.delete(toolCallId);
+		this._fileService.del(uri).catch(err => {
+			this._logService.warn(`[Copilot:${this.sessionId}] Failed to delete pending edit content: ${uri.toString()}`, err);
+		});
 	}
 
 	private _cancelPendingUserInputs(): void {
@@ -858,4 +961,27 @@ export class CopilotAgentSession extends Disposable {
 		}
 		this._pendingClientToolCalls.clear();
 	}
+}
+
+/**
+ * Counts added/removed lines in a unified diff string. Ignores the `+++` and
+ * `---` header rows and any non-hunk context.
+ */
+function countUnifiedDiffLines(diff: string): { added: number; removed: number } | undefined {
+	let added = 0;
+	let removed = 0;
+	for (const line of diff.split('\n')) {
+		if (line.startsWith('+++') || line.startsWith('---')) {
+			continue;
+		}
+		if (line.startsWith('+')) {
+			added++;
+		} else if (line.startsWith('-')) {
+			removed++;
+		}
+	}
+	if (added === 0 && removed === 0) {
+		return undefined;
+	}
+	return { added, removed };
 }
