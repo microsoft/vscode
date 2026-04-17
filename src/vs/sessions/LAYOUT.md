@@ -85,6 +85,7 @@ The widget:
 - Extends `BaseActionViewItem` and renders a clickable label showing the active session title
 - Shows kind icon (provider type icon), session title, repository folder name, and the active git branch/worktree name in parentheses when available, plus the changes summary (+insertions -deletions)
 - Truncates the repository/worktree metadata with ellipsis before truncating the primary AI-generated session title when command center space is constrained
+- Keeps the divider before adjacent command-center icon actions outside the action item's hover anchor so tooltips stay centered under icon-only buttons such as "Add Chat"
 - On click, opens the `AgentSessionsPicker` quick pick to switch between sessions
 - Gets the active session label from `IActiveSessionService.getActiveSession()` and the live model title from `IChatService`, falling back to "New Session" if no active session is found
 - Re-renders automatically when the active session changes via `autorun` on `IActiveSessionService.activeSession`, and when session data changes via `IAgentSessionsService.model.onDidChangeSessions`
@@ -658,6 +659,7 @@ interface IPartVisibilityState {
 
 | Date | Change |
 |------|--------|
+| 2026-04-17 | Moved the command-center divider for sessions titlebar icon actions outside the action item's box so icon-button hovers such as "Add Chat" stay centered under the visible button. |
 | 2026-04-17 | Added a subtle 1px titlebar-token border around the sessions account widget's GitHub profile image, including the inactive-window variant, and documented the avatar chrome in the layout spec. |
 | 2026-04-16 | Softened the experimental sessions shell gradient by reducing the accent tint mix strength across the shared default, light-theme, and dark-theme variants so the primary color reads more subtly behind the workbench chrome. |
 | 2026-04-16 | Updated the layout visual representation to show the editor part in the top-right row and mark it as hidden by default. |
