@@ -14,7 +14,7 @@ import { localize } from '../../../../../../nls.js';
 import { MenuItemAction } from '../../../../../../platform/actions/common/actions.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction, IActionWidgetDropdownActionProvider, IActionWidgetDropdownOptions } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
-import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { IKeybindingService } from '../../../../../../platform/keybinding/common/keybinding.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
@@ -114,13 +114,41 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 		if (this.delegate.setActiveSessionProvider) {
 			// Use provided setter (for welcome view)
 			this.delegate.setActiveSessionProvider(sessionTypeItem.type);
-		} else {
-			// Execute command to create new session
+		} else if (CommandsRegistry.getCommand(sessionTypeItem.commandId)) {
+			// Execute command to create new session, but only if it is actually
+			// registered. The External command for a well-known session type is
+			// only registered when the contributing extension adds menu items to
+			// AgentSessionsCreateSubMenu — avoid throwing 'command not found'
+			// when that registration is absent (see issue #306924).
 			this.commandService.executeCommand(sessionTypeItem.commandId, this.chatSessionPosition);
 		}
 		if (this.element) {
 			this.renderLabel(this.element);
 		}
+	}
+
+	/**
+	 * Picks the command ID for a well-known session type contribution.
+	 *
+	 * Well-known types with `canDelegate=false` normally route through the
+	 * `openNewChatSessionExternal.{type}` command, which is registered by
+	 * {@link _registerMenuItems} only when the contributing extension adds
+	 * entries to `AgentSessionsCreateSubMenu`. If those menu items are
+	 * unavailable (e.g. extension activation timing, missing contribution),
+	 * the command is never registered and `executeCommand` would throw
+	 * (see issue #306924). Fall back to the in-place command when the
+	 * external command is absent.
+	 */
+	private _getSessionCommandId(type: string, canDelegate: boolean): string {
+		const inPlaceCommandId = `workbench.action.chat.openNewChatSessionInPlace.${type}`;
+		if (canDelegate) {
+			return inPlaceCommandId;
+		}
+		const externalCommandId = `workbench.action.chat.openNewChatSessionExternal.${type}`;
+		if (CommandsRegistry.getCommand(externalCommandId)) {
+			return externalCommandId;
+		}
+		return inPlaceCommandId;
 	}
 
 	protected _getSelectedSessionType(): AgentSessionTarget | undefined {
@@ -165,9 +193,7 @@ export class SessionTypePickerActionItem extends ChatInputPickerActionViewItem {
 					type: agentSessionType,
 					label: getAgentSessionProviderName(agentSessionType),
 					hoverDescription: getAgentSessionProviderDescription(agentSessionType),
-					commandId: contribution.canDelegate ?
-						`workbench.action.chat.openNewChatSessionInPlace.${contribution.type}` :
-						`workbench.action.chat.openNewChatSessionExternal.${contribution.type}`,
+					commandId: this._getSessionCommandId(contribution.type, contribution.canDelegate),
 				});
 			} else {
 				// Extension-contributed session type — always use in-place
