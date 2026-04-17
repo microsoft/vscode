@@ -186,12 +186,21 @@ export interface ISession {
 	readonly lastTurnEnd: IObservable<Date | undefined>;
 	/** GitHub information associated with this session, if any. */
 	readonly gitHubInfo: IObservable<IGitHubInfo | undefined>;
-	/** Whether the session is ready to accept requests. */
-	readonly ready: IObservable<boolean>;
 	/** The chats belonging to this session group. */
 	readonly chats: IObservable<readonly IChat[]>;
 	/** The main (first) chat of this session. */
 	readonly mainChat: IChat;
+	/** Capabilities of this session. */
+	readonly capabilities: ISessionCapabilities;
+}
+
+/**
+ * Capabilities declared per session.
+ * Consumers check these before surfacing session-specific features in the UI.
+ */
+export interface ISessionCapabilities {
+	/** Whether this session supports multiple chats. */
+	readonly supportsMultipleChats: boolean;
 }
 
 export interface ISessionWorkspaceBrowseAction {

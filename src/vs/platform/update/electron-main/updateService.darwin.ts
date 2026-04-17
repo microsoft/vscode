@@ -20,7 +20,6 @@ import { ITelemetryService } from '../../telemetry/common/telemetry.js';
 import { AvailableForDownload, IUpdate, State, StateType, UpdateType } from '../common/update.js';
 import { IMeteredConnectionService } from '../../meteredConnection/common/meteredConnection.js';
 import { AbstractUpdateService, createUpdateURL, getUpdateRequestHeaders, IUpdateURLOptions, UpdateErrorClassification } from './abstractUpdateService.js';
-import { INodeProcess } from '../../../base/common/platform.js';
 
 export class DarwinUpdateService extends AbstractUpdateService implements IRelaunchHandler {
 
@@ -72,13 +71,6 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 	protected override async initialize(): Promise<void> {
 		await super.initialize();
 
-		// In the embedded app we still want to detect available updates via HTTP,
-		// but we must not wire up Electron's autoUpdater (which auto-downloads).
-		if ((process as INodeProcess).isEmbeddedApp) {
-			this.logService.info('update#ctor - embedded app: checking for updates without auto-download');
-			return;
-		}
-
 		this.onRawError(this.onError, this, this.disposables);
 		this.onRawCheckingForUpdate(this.onCheckingForUpdate, this, this.disposables);
 		this.onRawUpdateAvailable(this.onUpdateAvailable, this, this.disposables);
@@ -126,13 +118,7 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 		const url = this.buildUpdateFeedUrl(this.quality, pendingCommit ?? this.productService.commit!, { background, internalOrg });
 
 		if (!url) {
-			return;
-		}
-
-		// In the embedded app, always check without triggering Electron's auto-download.
-		if ((process as INodeProcess).isEmbeddedApp) {
-			this.logService.info('update#doCheckForUpdates - embedded app: checking for update without auto-download');
-			this.checkForUpdateNoDownload(url, /* canInstall */ false);
+			this.setState(State.Idle(UpdateType.Archive));
 			return;
 		}
 
@@ -179,6 +165,11 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 	private onUpdateAvailable(): void {
 		this.logService.trace('update#onUpdateAvailable - Electron autoUpdater reported update available');
 
+		if (this._suspended) {
+			this.logService.trace('update#onUpdateAvailable - suspended, ignoring');
+			return;
+		}
+
 		if (this.state.type !== StateType.CheckingForUpdates && this.state.type !== StateType.Overwriting) {
 			return;
 		}
@@ -187,7 +178,7 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 	}
 
 	private onUpdateDownloaded(update: IUpdate): void {
-		if (this.state.type !== StateType.Downloading) {
+		if (this._suspended || this.state.type !== StateType.Downloading) {
 			return;
 		}
 
@@ -199,6 +190,11 @@ export class DarwinUpdateService extends AbstractUpdateService implements IRelau
 
 	private onUpdateNotAvailable(): void {
 		this.logService.trace('update#onUpdateNotAvailable - Electron autoUpdater reported no update available');
+
+		if (this._suspended) {
+			this.logService.trace('update#onUpdateNotAvailable - suspended, ignoring');
+			return;
+		}
 
 		if (this.state.type !== StateType.CheckingForUpdates) {
 			return;

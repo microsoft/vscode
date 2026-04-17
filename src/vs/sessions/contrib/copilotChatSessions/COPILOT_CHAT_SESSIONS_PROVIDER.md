@@ -81,6 +81,6 @@ The provider maintains a `Map<string, AgentSessionAdapter>` cache keyed by resou
    e. Add temp session to cache and fire `onDidChangeSessions`
    f. Wait for session commit (untitled → real URI)
    g. Replace via `onDidReplaceSession` event with the committed session
-3. For subsequent chats (if `multipleChatsPerSession` enabled), call `_sendSubsequentChat()`
+3. For subsequent chats (if `capabilities.supportsMultipleChats` enabled on the session), call `_sendSubsequentChat()`
 4. Wrap the new agent session as `AgentSessionAdapter` and return it
 5. Clear the current new session reference

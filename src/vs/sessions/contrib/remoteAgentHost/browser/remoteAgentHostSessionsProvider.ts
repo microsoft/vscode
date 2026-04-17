@@ -21,8 +21,9 @@ import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../../
 import { AgentSession, type IAgentConnection, type IAgentSessionMetadata } from '../../../../platform/agentHost/common/agentService.js';
 import { RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ActionType, isSessionAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
+import { NotificationType } from '../../../../platform/agentHost/common/state/protocol/notifications.js';
 import type { IResolveSessionConfigResult, ISessionConfigValueItem } from '../../../../platform/agentHost/common/state/protocol/commands.js';
-import type { IRootState } from '../../../../platform/agentHost/common/state/protocol/state.js';
+import type { IFileEdit, IModelSelection, IRootState, ISessionSummary } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
@@ -31,6 +32,8 @@ import { IChatSessionFileChange, IChatSessionsService } from '../../../../workbe
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { agentHostSessionWorkspaceKey, buildAgentHostSessionWorkspace } from '../../../common/agentHostSessionWorkspace.js';
+import { isSessionConfigComplete } from '../../../common/sessionConfig.js';
+import { diffsToChanges, diffsEqual, mapProtocolStatus } from '../../../common/agentHostDiffs.js';
 import { ISessionChangeEvent, ISendRequestOptions } from '../../../services/sessions/common/sessionsProvider.js';
 import { IAgentHostSessionsProvider } from '../../../common/agentHostSessionsProvider.js';
 import { ISession, IChat, IGitHubInfo, ISessionWorkspace, ISessionWorkspaceBrowseAction, SessionStatus, ISessionType, COPILOT_CLI_SESSION_TYPE } from '../../../services/sessions/common/session.js';
@@ -91,8 +94,23 @@ function buildMutableConfigSchema(config: Record<string, string>): Record<string
 	return properties;
 }
 
+function toSessionFileDiffs(diffs: readonly IFileEdit[]): { readonly uri: string; readonly added?: number; readonly removed?: number }[] {
+	const result: { readonly uri: string; readonly added?: number; readonly removed?: number }[] = [];
+	for (const diff of diffs) {
+		const uri = diff.after?.uri ?? diff.before?.uri;
+		if (uri) {
+			result.push({ uri, added: diff.diff?.added, removed: diff.diff?.removed });
+		}
+	}
+	return result;
+}
+
 function toLocalProjectUri(uri: URI, connectionAuthority: string): URI {
 	return uri.scheme === Schemas.file ? toAgentHostUri(uri, connectionAuthority) : uri;
+}
+
+function toLocalDiffUri(connectionAuthority: string): (uri: URI) => URI {
+	return uri => toAgentHostUri(uri, connectionAuthority);
 }
 
 interface IChatData {
@@ -126,7 +144,7 @@ interface IChatData {
 	/** Currently selected mode identifier and kind. */
 	readonly mode: IObservable<{ readonly id: string; readonly kind: string } | undefined>;
 	/** Whether the session is still initializing (e.g., resolving git repository). */
-	readonly loading: IObservable<boolean>;
+	readonly loading: ISettableObservable<boolean>;
 	/** Whether the session is archived. */
 	readonly isArchived: IObservable<boolean>;
 	/** Whether the session has been read. */
@@ -137,8 +155,6 @@ interface IChatData {
 	readonly lastTurnEnd: IObservable<Date | undefined>;
 	/** GitHub information associated with this session, if any. */
 	readonly gitHubInfo: IObservable<IGitHubInfo | undefined>;
-	/** Whether the session is ready to accept messages. */
-	readonly ready: ISettableObservable<boolean>;
 }
 
 export interface IRemoteAgentHostSessionsProviderConfig {
@@ -162,9 +178,10 @@ class RemoteSessionAdapter implements IChatData {
 	readonly workspace: ISettableObservable<ISessionWorkspace | undefined>;
 	readonly title: ISettableObservable<string>;
 	readonly updatedAt: ISettableObservable<Date>;
-	readonly status = observableValue<SessionStatus>('status', SessionStatus.Completed);
+	readonly status: ISettableObservable<SessionStatus>;
 	readonly changes = observableValue<readonly IChatSessionFileChange[]>('changes', []);
 	readonly modelId: ISettableObservable<string | undefined>;
+	modelSelection: IModelSelection | undefined;
 	readonly mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>('mode', undefined);
 	readonly loading = observableValue('loading', false);
 	readonly isArchived = observableValue('isArchived', false);
@@ -172,7 +189,6 @@ class RemoteSessionAdapter implements IChatData {
 	readonly description: ISettableObservable<IMarkdownString | undefined>;
 	readonly lastTurnEnd: ISettableObservable<Date | undefined>;
 	readonly gitHubInfo = observableValue<IGitHubInfo | undefined>('gitHubInfo', undefined);
-	readonly ready = observableValue('ready', true);
 
 	/** The agent provider name (e.g. 'copilot') for constructing backend URIs. */
 	readonly agentProvider: string;
@@ -183,6 +199,7 @@ class RemoteSessionAdapter implements IChatData {
 		resourceScheme: string,
 		logicalSessionType: string,
 		private readonly _providerLabel: string,
+		private readonly _mapUri: (uri: URI) => URI,
 	) {
 		const rawId = AgentSession.id(metadata.session);
 		this.agentProvider = AgentSession.provider(metadata.session) ?? DEFAULT_AGENT_HOST_PROVIDER;
@@ -191,9 +208,11 @@ class RemoteSessionAdapter implements IChatData {
 		this.providerId = providerId;
 		this.sessionType = logicalSessionType;
 		this.createdAt = new Date(metadata.startTime);
-		this.title = observableValue('title', metadata.summary ?? `Session ${rawId.substring(0, 8)}`);
+		this.title = observableValue('title', metadata.summary || `Session ${rawId.substring(0, 8)}`);
 		this.updatedAt = observableValue('updatedAt', new Date(metadata.modifiedTime));
-		this.modelId = observableValue<string | undefined>('modelId', metadata.model ? `${resourceScheme}:${metadata.model}` : undefined);
+		this.modelSelection = metadata.model;
+		this.status = observableValue<SessionStatus>('status', metadata.status !== undefined ? mapProtocolStatus(metadata.status) : SessionStatus.Completed);
+		this.modelId = observableValue<string | undefined>('modelId', metadata.model ? `${resourceScheme}:${metadata.model.id}` : undefined);
 		this.lastTurnEnd = observableValue('lastTurnEnd', metadata.modifiedTime ? new Date(metadata.modifiedTime) : undefined);
 		this.description = observableValue('description', new MarkdownString().appendText(this._providerLabel));
 		this.workspace = observableValue('workspace', RemoteAgentHostSessionsProvider.buildWorkspace(metadata.project, metadata.workingDirectory, this._providerLabel));
@@ -204,22 +223,35 @@ class RemoteSessionAdapter implements IChatData {
 		if (metadata.isDone) {
 			this.isArchived.set(true, undefined);
 		}
+		if (metadata.diffs && metadata.diffs.length > 0) {
+			this.changes.set(diffsToChanges(metadata.diffs, this._mapUri), undefined);
+		}
 	}
 
 	update(metadata: IAgentSessionMetadata): void {
-		this.title.set(metadata.summary ?? this.title.get(), undefined);
+		this.title.set(metadata.summary || this.title.get(), undefined);
 		this.updatedAt.set(new Date(metadata.modifiedTime), undefined);
 		this.lastTurnEnd.set(metadata.modifiedTime ? new Date(metadata.modifiedTime) : undefined, undefined);
+		if (metadata.status !== undefined) {
+			const uiStatus = mapProtocolStatus(metadata.status);
+			if (uiStatus !== this.status.get()) {
+				this.status.set(uiStatus, undefined);
+			}
+		}
 		if (metadata.isRead !== undefined) {
 			this.isRead.set(metadata.isRead, undefined);
 		}
 		if (metadata.isDone !== undefined) {
 			this.isArchived.set(metadata.isDone, undefined);
 		}
-		this.modelId.set(metadata.model ? `${this.resource.scheme}:${metadata.model}` : undefined, undefined);
+		this.modelSelection = metadata.model;
+		this.modelId.set(metadata.model ? `${this.resource.scheme}:${metadata.model.id}` : undefined, undefined);
 		const workspace = RemoteAgentHostSessionsProvider.buildWorkspace(metadata.project, metadata.workingDirectory, this._providerLabel);
 		if (agentHostSessionWorkspaceKey(workspace) !== agentHostSessionWorkspaceKey(this.workspace.get())) {
 			this.workspace.set(workspace, undefined);
+		}
+		if (metadata.diffs && !diffsEqual(this.changes.get(), metadata.diffs, this._mapUri)) {
+			this.changes.set(diffsToChanges(metadata.diffs, this._mapUri), undefined);
 		}
 	}
 }
@@ -250,8 +282,6 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements IAgen
 	readonly id: string;
 	readonly label: string;
 	readonly icon: ThemeIcon = Codicon.remote;
-	readonly onDidChangeCapabilities = Event.None;
-	readonly capabilities = { multipleChatsPerSession: false };
 	readonly remoteAddress: string;
 	private _outputChannelId: string | undefined;
 	get outputChannelId(): string | undefined { return this._outputChannelId; }
@@ -392,10 +422,12 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements IAgen
 		}));
 
 		this._connectionListeners.add(connection.onDidNotification(n => {
-			if (n.type === 'notify/sessionAdded') {
+			if (n.type === NotificationType.SessionAdded) {
 				this._handleSessionAdded(n.summary);
-			} else if (n.type === 'notify/sessionRemoved') {
+			} else if (n.type === NotificationType.SessionRemoved) {
 				this._handleSessionRemoved(n.session);
+			} else if (n.type === NotificationType.SessionSummaryChanged) {
+				this._handleSessionSummaryChanged(n.session, n.changes);
 			}
 		}));
 
@@ -414,6 +446,8 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements IAgen
 				this._handleIsDoneChanged(e.action.session, e.action.isDone);
 			} else if (e.action.type === ActionType.SessionConfigChanged && isSessionAction(e.action)) {
 				this._handleConfigChanged(e.action.session, e.action.config);
+			} else if (e.action.type === ActionType.SessionDiffsChanged && isSessionAction(e.action)) {
+				this._handleDiffsChanged(e.action.session, e.action.diffs);
 			}
 		}));
 
@@ -633,7 +667,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements IAgen
 		const resource = URI.from({ scheme: resourceScheme, path: `/untitled-${generateUuid()}` });
 		const status = observableValue<SessionStatus>(this, SessionStatus.Untitled);
 		const modelId = observableValue<string | undefined>(this, undefined);
-		const ready = observableValue(this, false);
+		const loading = observableValue(this, true);
 		const data: IChatData = {
 			id: `${this.id}:${resource.toString()}`,
 			resource,
@@ -648,19 +682,17 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements IAgen
 			changes: observableValue<readonly IChatSessionFileChange[]>(this, []),
 			modelId,
 			mode: observableValue(this, undefined),
-			loading: observableValue(this, false),
+			loading,
 			isArchived: observableValue(this, false),
 			isRead: observableValue(this, true),
 			description: observableValue(this, undefined),
 			lastTurnEnd: observableValue(this, undefined),
 			gitHubInfo: observableValue(this, undefined),
-			ready,
 		};
 		const agentProvider = this._agentProviderFromSessionType(sessionType.id);
 		this._newSessionWorkspaces.set(data.id, workspaceUri);
 		this._newSessionAgentProviders.set(data.id, agentProvider);
-		this._newSessionConfigs.set(data.id, { ready: false, schema: { type: 'object', properties: {} }, values: {} });
-		this._updateSessionReady(data.id);
+		this._newSessionConfigs.set(data.id, { schema: { type: 'object', properties: {} }, values: {} });
 		this._onDidChangeSessionConfig.fire(data.id);
 		this._resolveSessionConfig(data.id, agentProvider, workspaceUri, undefined);
 		return { data, status, modelId };
@@ -675,8 +707,8 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements IAgen
 		const workingDirectory = this._newSessionWorkspaces.get(sessionId);
 		if (workingDirectory) {
 			const current = this._newSessionConfigs.get(sessionId)?.values ?? {};
-			this._newSessionConfigs.set(sessionId, { ready: false, schema: { type: 'object', properties: {} }, values: { ...current, [property]: value } });
-			this._updateSessionReady(sessionId);
+			this._newSessionConfigs.set(sessionId, { schema: { type: 'object', properties: {} }, values: { ...current, [property]: value } });
+			this._setNewSessionLoading(sessionId, true);
 			this._onDidChangeSessionConfig.fire(sessionId);
 			await this._resolveSessionConfig(sessionId, this._getAgentProviderForSession(sessionId), workingDirectory, { ...current, [property]: value });
 			return;
@@ -697,7 +729,6 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements IAgen
 			...runningConfig,
 			values: { ...runningConfig.values, [property]: value },
 		});
-		this._updateSessionReady(sessionId);
 		this._onDidChangeSessionConfig.fire(sessionId);
 
 		// Dispatch to the agent host connection
@@ -747,7 +778,8 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements IAgen
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._chatToSession(cached)] });
 			const resourceScheme = cached.resource.scheme;
 			const rawModelId = modelId.startsWith(`${resourceScheme}:`) ? modelId.substring(resourceScheme.length + 1) : modelId;
-			const action = { type: ActionType.SessionModelChanged as const, session: AgentSession.uri(cached.agentProvider, rawId).toString(), model: rawModelId };
+			const model = cached.modelSelection?.id === rawModelId ? cached.modelSelection : { id: rawModelId };
+			const action = { type: ActionType.SessionModelChanged as const, session: AgentSession.uri(cached.agentProvider, rawId).toString(), model };
 			this._connection.dispatch(action);
 		}
 	}
@@ -905,8 +937,17 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements IAgen
 		return newSession;
 	}
 
+	addChat(_sessionId: string): IChat {
+		throw new Error('Multiple chats per session is not supported for remote agent host sessions');
+	}
+
+	async sendRequest(_sessionId: string, _chatResource: URI, _options: ISendRequestOptions): Promise<ISession> {
+		throw new Error('Multiple chats per session is not supported for remote agent host sessions');
+	}
+
 	private async _resolveSessionConfig(sessionId: string, agentProvider: string, workingDirectory: URI, config: Record<string, string> | undefined): Promise<void> {
 		if (!this._connection) {
+			this._setNewSessionLoading(sessionId, false);
 			return;
 		}
 		const request = (this._newSessionConfigRequests.get(sessionId) ?? 0) + 1;
@@ -921,13 +962,14 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements IAgen
 				return;
 			}
 			this._newSessionConfigs.set(sessionId, result);
+			this._setNewSessionLoading(sessionId, !isSessionConfigComplete(result));
 		} catch {
 			if (this._newSessionConfigRequests.get(sessionId) !== request) {
 				return;
 			}
 			this._newSessionConfigs.delete(sessionId);
+			this._setNewSessionLoading(sessionId, false);
 		}
-		this._updateSessionReady(sessionId);
 		this._onDidChangeSessionConfig.fire(sessionId);
 	}
 
@@ -961,7 +1003,6 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements IAgen
 		}
 		if (Object.keys(mutableProperties).length > 0) {
 			this._runningSessionConfigs.set(newSessionId, {
-				ready: true,
 				schema: { type: 'object', properties: mutableProperties },
 				values: mutableValues,
 			});
@@ -1002,7 +1043,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements IAgen
 				} else {
 					const resourceScheme = this._resourceSchemeForMetadata(meta);
 					const logicalType = this._logicalSessionTypeForMetadata(meta);
-					const cached = new RemoteSessionAdapter(meta, this.id, resourceScheme, logicalType, this.label);
+					const cached = new RemoteSessionAdapter(meta, this.id, resourceScheme, logicalType, this.label, toLocalDiffUri(this._connectionAuthority));
 					this._sessionCache.set(rawId, cached);
 					added.push(this._chatToSession(cached));
 				}
@@ -1061,7 +1102,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements IAgen
 		}
 	}
 
-	private _handleSessionAdded(summary: { resource: string; provider: string; title: string; createdAt: number; modifiedAt: number; project?: { uri: string; displayName: string }; model?: string; workingDirectory?: string; isRead?: boolean; isDone?: boolean }): void {
+	private _handleSessionAdded(summary: ISessionSummary): void {
 		const sessionUri = URI.parse(summary.resource);
 		const rawId = AgentSession.id(sessionUri);
 		if (this._sessionCache.has(rawId)) {
@@ -1084,7 +1125,7 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements IAgen
 		};
 		const resourceScheme = this._resourceSchemeForMetadata(meta);
 		const logicalType = this._logicalSessionTypeForMetadata(meta);
-		const cached = new RemoteSessionAdapter(meta, this.id, resourceScheme, logicalType, this.label);
+		const cached = new RemoteSessionAdapter(meta, this.id, resourceScheme, logicalType, this.label, toLocalDiffUri(this._connectionAuthority));
 		this._sessionCache.set(rawId, cached);
 		this._onDidChangeSessions.fire({ added: [this._chatToSession(cached)], removed: [], changed: [] });
 	}
@@ -1108,10 +1149,13 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements IAgen
 		}
 	}
 
-	private _handleModelChanged(session: string, model: string): void {
+	private _handleModelChanged(session: string, model: IModelSelection): void {
 		const rawId = AgentSession.id(session);
 		const cached = this._sessionCache.get(rawId);
-		const modelId = cached ? `${cached.resource.scheme}:${model}` : undefined;
+		if (cached) {
+			cached.modelSelection = model;
+		}
+		const modelId = cached ? `${cached.resource.scheme}:${model.id}` : undefined;
 		if (cached && cached.modelId.get() !== modelId) {
 			cached.modelId.set(modelId, undefined);
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._chatToSession(cached)] });
@@ -1136,6 +1180,52 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements IAgen
 		}
 	}
 
+	private _handleDiffsChanged(session: string, diffs: IFileEdit[]): void {
+		const rawId = AgentSession.id(session);
+		const cached = this._sessionCache.get(rawId);
+		if (cached) {
+			const mapUri = toLocalDiffUri(this._connectionAuthority);
+			cached.changes.set(diffsToChanges(toSessionFileDiffs(diffs), mapUri), undefined);
+			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._chatToSession(cached)] });
+		}
+	}
+
+	private _handleSessionSummaryChanged(session: string, changes: Partial<ISessionSummary>): void {
+		const rawId = AgentSession.id(session);
+		const cached = this._sessionCache.get(rawId);
+		if (!cached) {
+			return;
+		}
+
+		let didChange = false;
+
+		if (changes.status !== undefined) {
+			const uiStatus = mapProtocolStatus(changes.status);
+			if (uiStatus !== cached.status.get()) {
+				cached.status.set(uiStatus, undefined);
+				didChange = true;
+			}
+		}
+
+		if (changes.title !== undefined && changes.title !== cached.title.get()) {
+			cached.title.set(changes.title, undefined);
+			didChange = true;
+		}
+
+		if (changes.diffs !== undefined) {
+			const mapUri = toLocalDiffUri(this._connectionAuthority);
+			const diffs = toSessionFileDiffs(changes.diffs);
+			if (!diffsEqual(cached.changes.get(), diffs, mapUri)) {
+				cached.changes.set(diffsToChanges(diffs, mapUri), undefined);
+				didChange = true;
+			}
+		}
+
+		if (didChange) {
+			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [this._chatToSession(cached)] });
+		}
+	}
+
 	private _handleConfigChanged(session: string, config: Record<string, string>): void {
 		const rawId = AgentSession.id(session);
 		const cached = this._sessionCache.get(rawId);
@@ -1153,12 +1243,10 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements IAgen
 			// Session was restored (e.g. after reconnect) — create a minimal
 			// config entry from the changed values so the picker can render.
 			this._runningSessionConfigs.set(sessionId, {
-				ready: true,
 				schema: { type: 'object', properties: buildMutableConfigSchema(config) },
 				values: config,
 			});
 		}
-		this._updateSessionReady(sessionId);
 		this._onDidChangeSessionConfig.fire(sessionId);
 	}
 
@@ -1172,17 +1260,10 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements IAgen
 		}
 	}
 
-	private _updateSessionReady(sessionId: string): void {
-		const configReady = this.getSessionConfig(sessionId)?.ready ?? true;
-		// New (untitled) session
+	private _setNewSessionLoading(sessionId: string, loading: boolean): void {
 		if (this._currentNewSession?.id === sessionId) {
-			this._currentNewSession.ready.set(configReady, undefined);
-			return;
+			this._currentNewSession.loading.set(loading, undefined);
 		}
-		// Running session
-		const rawId = this._rawIdFromChatId(sessionId);
-		const cached = rawId ? this._sessionCache.get(rawId) : undefined;
-		cached?.ready.set(configReady, undefined);
 	}
 
 	private _agentProviderFromSessionType(sessionType: string): string {
@@ -1260,9 +1341,9 @@ export class RemoteAgentHostSessionsProvider extends Disposable implements IAgen
 			description: chat.description,
 			lastTurnEnd: chat.lastTurnEnd,
 			gitHubInfo: chat.gitHubInfo,
-			ready: chat.ready,
 			chats: constObservable([mainChat]),
 			mainChat,
+			capabilities: { supportsMultipleChats: false },
 		};
 		return session;
 	}

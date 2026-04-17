@@ -143,7 +143,7 @@ export async function getCustomizationTotalCount(
 	workspaceContextService: IWorkspaceContextService,
 	agentPluginService?: IAgentPluginService,
 ): Promise<number> {
-	const types: PromptsType[] = [PromptsType.agent, PromptsType.skill, PromptsType.instructions, PromptsType.prompt, PromptsType.hook];
+	const types: PromptsType[] = [PromptsType.agent, PromptsType.skill, PromptsType.instructions, PromptsType.hook];
 	const results = await Promise.all(types.map(type => {
 		const filter = workspaceService.getStorageSourceFilter(type);
 		return getSourceCounts(promptsService, type, filter, workspaceContextService, workspaceService)

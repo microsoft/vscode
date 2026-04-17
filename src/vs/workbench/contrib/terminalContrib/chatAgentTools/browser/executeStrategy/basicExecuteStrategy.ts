@@ -60,6 +60,9 @@ export class BasicExecuteStrategy extends Disposable implements ITerminalExecute
 
 	async execute(commandLine: string, token: CancellationToken, commandId?: string, _commandLineForMetadata?: string): Promise<ITerminalExecuteStrategyResult> {
 		const store = new DisposableStore();
+		// Register with strategy lifetime so listeners are cleaned up if
+		// the strategy is disposed while execute() is still running.
+		this._register(store);
 
 		try {
 			const idlePollInterval = this._configurationService.getValue<number>(TerminalChatAgentToolsSettingId.IdlePollInterval) ?? 1000;

@@ -39,7 +39,7 @@ class MockAgentConnection implements IAgentConnection {
 
 	private _terminalState: ITerminalState = {
 		title: 'Test Terminal',
-		content: '',
+		content: [],
 		claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
 	};
 
@@ -70,7 +70,7 @@ class MockAgentConnection implements IAgentConnection {
 	async authenticate(_params: IAuthenticateParams): Promise<IAuthenticateResult> { return { authenticated: true }; }
 	async listSessions(): Promise<IAgentSessionMetadata[]> { return []; }
 	async createSession(_config?: IAgentCreateSessionConfig): Promise<URI> { return URI.parse('copilot:///test'); }
-	async resolveSessionConfig(_params: IAgentResolveSessionConfigParams): Promise<IResolveSessionConfigResult> { return { ready: true, schema: { type: 'object', properties: {} }, values: {} }; }
+	async resolveSessionConfig(_params: IAgentResolveSessionConfigParams): Promise<IResolveSessionConfigResult> { return { schema: { type: 'object', properties: {} }, values: {} }; }
 	async sessionConfigCompletions(_params: IAgentSessionConfigCompletionsParams): Promise<ISessionConfigCompletionsResult> { return { items: [] }; }
 	async disposeSession(_session: URI): Promise<void> { }
 	async shutdown(): Promise<void> { }
@@ -169,7 +169,7 @@ suite('AgentHostPty', () => {
 	});
 
 	test('replays existing content from snapshot', async () => {
-		const conn = new MockAgentConnection({ content: 'existing output\n' });
+		const conn = new MockAgentConnection({ content: [{ type: 'unclassified', value: 'existing output\n' }] });
 		disposables.add(conn);
 		const pty = disposables.add(new AgentHostPty(1, conn, terminalUri));
 

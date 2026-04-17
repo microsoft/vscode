@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { RequestMetadata, RequestType } from '@vscode/copilot-api';
-import * as l10n from '@vscode/l10n';
 import { OpenAI, Raw } from '@vscode/prompt-tsx';
 import type { CancellationToken } from 'vscode';
 import { ITokenizer, TokenizerType } from '../../../util/common/tokenizer';
@@ -17,7 +16,7 @@ import { ChatFetchResponseType, ChatLocation, ChatResponse } from '../../chat/co
 import { getTextPart } from '../../chat/common/globalStringUtils';
 import { CHAT_MODEL, ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
 import { ILogService } from '../../log/common/logService';
-import { isAnthropicContextEditingEnabled, isAnthropicToolSearchEnabled } from '../../networking/common/anthropic';
+import { isAnthropicContextEditingEnabled } from '../../networking/common/anthropic';
 import { FinishedCallback, getRequestId, ICopilotToolCall, OptionalChatRequestParams } from '../../networking/common/fetch';
 import { IFetcherService, Response } from '../../networking/common/fetcherService';
 import { createCapiRequestBody, IChatEndpoint, ICreateEndpointBodyOptions, IEndpointBody, IMakeChatRequestOptions } from '../../networking/common/networking';
@@ -30,11 +29,12 @@ import { ITelemetryService, TelemetryProperties } from '../../telemetry/common/t
 import { TelemetryData } from '../../telemetry/common/telemetryData';
 import { ITokenizerProvider } from '../../tokenizer/node/tokenizer';
 import { ICAPIClientService } from '../common/capiClient';
-import { isGeminiFamily, modelSupportsContextEditing, modelSupportsToolSearch } from '../common/chatModelCapabilities';
+import { isAnthropicFamily, isGeminiFamily, modelSupportsContextEditing, modelSupportsToolSearch } from '../common/chatModelCapabilities';
 import { IDomainService } from '../common/domainService';
 import { CustomModel, IChatModelInformation, ModelSupportedEndpoint } from '../common/endpointProvider';
 import { createMessagesRequestBody, processResponseFromMessagesEndpoint } from './messagesApi';
 import { createResponsesRequestBody, getResponsesApiCompactionThreshold, processResponseFromChatEndpoint } from './responsesApi';
+import { filterHistoryImages } from './imageLimits';
 
 /**
  * The default processor for the stream format from CAPI
@@ -199,7 +199,7 @@ export class ChatEndpoint implements IChatEndpoint {
 			if (!this.supportsAdaptiveThinking) {
 				betas.push('interleaved-thinking-2025-05-14');
 			}
-			if (isAnthropicToolSearchEnabled(this, this._configurationService)) {
+			if (this.supportsToolSearch) {
 				betas.push('advanced-tool-use-2025-11-20');
 			}
 			if (isAnthropicContextEditingEnabled(this, this._configurationService, this._expService)) {
@@ -288,13 +288,10 @@ export class ChatEndpoint implements IChatEndpoint {
 	}
 
 	createRequestBody(options: ICreateEndpointBodyOptions): IEndpointBody {
-		// Validate image count if endpoint has max_prompt_images limit (Gemini only for now)
-		if (isGeminiFamily(this) && this.maxPromptImages !== undefined) {
-			const imageCount = this.countImages(options.messages, this.maxPromptImages);
-			if (imageCount > this.maxPromptImages) {
-				const errorMsg = l10n.t('Too many images in request: {0} images provided, but the model supports a maximum of {1} images.', imageCount, this.maxPromptImages);
-				throw new Error(errorMsg);
-			}
+		// Determine per-model image limit for APIs with known restrictions
+		const imageLimit = this.getImageLimit();
+		if (imageLimit !== undefined) {
+			options = { ...options, messages: this.validateAndFilterImages(options.messages, imageLimit) };
 		}
 
 		if (this.useResponsesApi) {
@@ -309,22 +306,27 @@ export class ChatEndpoint implements IChatEndpoint {
 		}
 	}
 
-	private countImages(messages: Raw.ChatMessage[], maxAllowed?: number): number {
-		let imageCount = 0;
-		for (const message of messages) {
-			if (Array.isArray(message.content)) {
-				for (const part of message.content) {
-					if (part.type === Raw.ChatCompletionContentPartKind.Image) {
-						imageCount++;
-						// Early exit if we've already exceeded the limit
-						if (maxAllowed !== undefined && imageCount > maxAllowed) {
-							return imageCount;
-						}
-					}
-				}
-			}
+	/**
+	 * Returns the model-specific image limit, or `undefined` if no limit applies.
+	 * Anthropic Messages API allows up to 20 images per request; Gemini allows up to 10.
+	 * These are hardcoded based on API documentation rather than model metadata to
+	 * avoid being clamped by unreliable server-provided values.
+	 */
+	private getImageLimit(): number | undefined {
+		if (this.useMessagesApi && isAnthropicFamily(this)) {
+			return 20;
 		}
-		return imageCount;
+		if (isGeminiFamily(this)) {
+			return 10;
+		}
+		return undefined;
+	}
+
+	/**
+	 * Thin wrapper around {@link filterHistoryImages} retained for test ergonomics.
+	 */
+	private validateAndFilterImages(messages: Raw.ChatMessage[], maxImages: number): Raw.ChatMessage[] {
+		return filterHistoryImages(messages, maxImages);
 	}
 
 	protected getCompletionsCallback(): RawMessageConversionCallback | undefined {

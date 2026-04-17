@@ -17,6 +17,7 @@ import { IEditorConstructionOptions } from '../../../../editor/browser/config/ed
 import { IModelService } from '../../../../editor/common/services/model.js';
 import { SuggestController } from '../../../../editor/contrib/suggest/browser/suggestController.js';
 import { SnippetController2 } from '../../../../editor/contrib/snippet/browser/snippetController2.js';
+import { PlaceholderTextContribution } from '../../../../editor/contrib/placeholderText/browser/placeholderTextContribution.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
@@ -106,6 +107,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			sendRequest: (query: string, attachments?: IChatRequestVariableEntry[]) => Promise<void>;
 			canSendRequest: IObservable<boolean>;
 			loading: IObservable<boolean>;
+			minEditorHeight?: number;
+			placeholder?: string;
 		},
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IModelService private readonly modelService: IModelService,
@@ -210,7 +213,8 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 
 	private _createEditor(container: HTMLElement, overflowWidgetsDomNode: HTMLElement): void {
 		const editorContainer = this._editorContainer = dom.append(container, dom.$('.sessions-chat-editor'));
-		editorContainer.style.height = `${MIN_EDITOR_HEIGHT}px`;
+		const minHeight = this.options.minEditorHeight ?? MIN_EDITOR_HEIGHT;
+		editorContainer.style.height = `${minHeight}px`;
 
 		// Create scoped context key service and register history navigation
 		// BEFORE creating the editor, so the editor's context key scope is a child
@@ -228,7 +232,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 			...getSimpleEditorOptions(this.configurationService),
 			readOnly: false,
 			ariaLabel: this._getAriaLabel(),
-			placeholder: localize('chatPlaceholder', "Run tasks in the background, type '#' for adding context"),
+			placeholder: this.options.placeholder,
 			fontFamily: 'system-ui, -apple-system, sans-serif',
 			fontSize: 13,
 			lineHeight: 20,
@@ -253,6 +257,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				ContextMenuController.ID,
 				SuggestController.ID,
 				SnippetController2.ID,
+				PlaceholderTextContribution.ID,
 			]),
 		};
 
@@ -316,7 +321,7 @@ export class NewChatInputWidget extends Disposable implements IHistoryNavigation
 				return;
 			}
 			const contentHeight = this._editor.getContentHeight();
-			const clampedHeight = Math.min(MAX_EDITOR_HEIGHT, Math.max(MIN_EDITOR_HEIGHT, contentHeight));
+			const clampedHeight = Math.min(MAX_EDITOR_HEIGHT, Math.max(this.options.minEditorHeight ?? MIN_EDITOR_HEIGHT, contentHeight));
 			if (clampedHeight === previousHeight) {
 				return;
 			}

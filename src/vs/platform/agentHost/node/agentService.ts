@@ -17,6 +17,7 @@ import { ActionType, IActionEnvelope, INotification, ISessionAction, ITerminalAc
 import type { ICreateTerminalParams, IResolveSessionConfigResult, ISessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import { AhpErrorCodes, AHP_SESSION_NOT_FOUND, ContentEncoding, JSON_RPC_INTERNAL_ERROR, ProtocolError, type IDirectoryEntry, type IResourceCopyParams, type IResourceCopyResult, type IResourceDeleteParams, type IResourceDeleteResult, type IResourceListResult, type IResourceMoveParams, type IResourceMoveResult, type IResourceReadResult, type IResourceWriteParams, type IResourceWriteResult, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { ResponsePartKind, SessionStatus, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, parseSubagentSessionUri, type IResponsePart, type ISessionConfigState, type ISessionFileDiff, type ISessionSummary, type IToolCallCompletedState, type IToolResultSubagentContent, type ITurn } from '../common/state/sessionState.js';
+import { IProductService } from '../../product/common/productService.js';
 import { AgentSideEffects } from './agentSideEffects.js';
 import { AgentHostTerminalManager, type IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { ISessionDbUriFields, parseSessionDbUri } from './copilot/fileEditTracker.js';
@@ -85,6 +86,7 @@ export class AgentService extends Disposable implements IAgentService {
 		private readonly _logService: ILogService,
 		private readonly _fileService: IFileService,
 		private readonly _sessionDataService: ISessionDataService,
+		private readonly _productService: IProductService,
 	) {
 		super();
 		this._logService.info('AgentService initialized');
@@ -99,7 +101,7 @@ export class AgentService extends Disposable implements IAgentService {
 
 		// Terminal management — the terminal manager listens to the state
 		// manager's action stream and dispatches PTY output back through it.
-		this._terminalManager = this._register(new AgentHostTerminalManager(this._stateManager, this._logService));
+		this._terminalManager = this._register(new AgentHostTerminalManager(this._stateManager, this._logService, this._productService));
 	}
 
 	// ---- provider registration ----------------------------------------------
@@ -176,11 +178,19 @@ export class AgentService extends Disposable implements IAgentService {
 			return s;
 		}));
 
-		// Overlay live session status from the state manager
+		// Overlay live session state from the state manager.
+		// For the title, prefer the state manager's value when it is
+		// non-empty, so SDK-sourced titles are not overwritten by the
+		// initial empty placeholder.
 		const withStatus = result.map(s => {
 			const liveState = this._stateManager.getSessionState(s.session.toString());
 			if (liveState) {
-				return { ...s, status: liveState.summary.status, model: liveState.summary.model ?? s.model };
+				return {
+					...s,
+					summary: liveState.summary.title || s.summary,
+					status: liveState.summary.status,
+					model: liveState.summary.model ?? s.model,
+				};
 			}
 			return s;
 		});
@@ -225,7 +235,7 @@ export class AgentService extends Disposable implements IAgentService {
 		const session = created.session;
 		this._logService.trace(`[AgentService] createSession: initialization complete`);
 
-		this._logService.trace(`[AgentService] createSession: provider=${provider.id} model=${config?.model ?? '(default)'}`);
+		this._logService.trace(`[AgentService] createSession: provider=${provider.id} model=${config?.model?.id ?? '(default)'}`);
 		this._sessionToProvider.set(session.toString(), provider.id);
 		this._logService.trace(`[AgentService] createSession returned: ${session.toString()}`);
 
@@ -250,7 +260,7 @@ export class AgentService extends Disposable implements IAgentService {
 				modifiedAt: Date.now(),
 				...(created.project ? { project: { uri: created.project.uri.toString(), displayName: created.project.displayName } } : {}),
 				model: config?.model,
-				workingDirectory: config.workingDirectory?.toString(),
+				workingDirectory: (created.workingDirectory ?? config.workingDirectory)?.toString(),
 			};
 			const state = this._stateManager.createSession(summary);
 			state.config = sessionConfig;
@@ -260,13 +270,13 @@ export class AgentService extends Disposable implements IAgentService {
 			const summary: ISessionSummary = {
 				resource: session.toString(),
 				provider: provider.id,
-				title: 'New Session',
+				title: '',
 				status: SessionStatus.Idle,
 				createdAt: Date.now(),
 				modifiedAt: Date.now(),
 				...(created.project ? { project: { uri: created.project.uri.toString(), displayName: created.project.displayName } } : {}),
 				model: config?.model,
-				workingDirectory: config?.workingDirectory?.toString(),
+				workingDirectory: (created.workingDirectory ?? config?.workingDirectory)?.toString(),
 			};
 			const state = this._stateManager.createSession(summary);
 			state.config = sessionConfig;
@@ -703,7 +713,7 @@ export class AgentService extends Disposable implements IAgentService {
 						toolCallId: msg.toolCallId,
 						toolName: start?.toolName ?? 'unknown',
 						displayName: start?.displayName ?? 'Unknown Tool',
-						invocationMessage: start?.invocationMessage ?? '',
+						invocationMessage: start?.invocationMessage ?? 'Unknown tool',
 						toolInput: start?.toolInput,
 						success: msg.result.success,
 						pastTenseMessage: msg.result.pastTenseMessage,
@@ -803,7 +813,7 @@ export class AgentService extends Disposable implements IAgentService {
 					toolCallId: msg.toolCallId,
 					toolName: start?.toolName ?? 'unknown',
 					displayName: start?.displayName ?? 'Unknown Tool',
-					invocationMessage: start?.invocationMessage ?? '',
+					invocationMessage: start?.invocationMessage ?? 'Unknown tool',
 					toolInput: start?.toolInput,
 					success: msg.result.success,
 					pastTenseMessage: msg.result.pastTenseMessage,

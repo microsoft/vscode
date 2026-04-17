@@ -143,6 +143,7 @@ import { McpGatewayChannel } from '../../platform/mcp/node/mcpGatewayChannel.js'
 import { IWebContentExtractorService } from '../../platform/webContentExtractor/common/webContentExtractor.js';
 import { NativeWebContentExtractorService } from '../../platform/webContentExtractor/electron-main/webContentExtractorService.js';
 import { AgentNetworkFilterService, IAgentNetworkFilterService } from '../../platform/networkFilter/common/networkFilterService.js';
+import { CrossAppIPCService, ICrossAppIPCService } from '../../platform/crossAppIpc/electron-main/crossAppIpcService.js';
 import ErrorTelemetry from '../../platform/telemetry/electron-main/errorTelemetry.js';
 
 /**
@@ -1090,6 +1091,9 @@ export class CodeApplication extends Disposable {
 		// Encryption
 		services.set(IEncryptionMainService, new SyncDescriptor(EncryptionMainService));
 
+		// Cross-app IPC
+		services.set(ICrossAppIPCService, new SyncDescriptor(CrossAppIPCService));
+
 		// Browser View
 		services.set(IBrowserViewMainService, new SyncDescriptor(BrowserViewMainService, undefined, false /* proxied to other processes */));
 		services.set(IBrowserViewGroupMainService, new SyncDescriptor(BrowserViewGroupMainService, undefined, false /* proxied to other processes */));
@@ -1236,17 +1240,24 @@ export class CodeApplication extends Disposable {
 		mainProcessElectronServer.registerChannel('userDataProfiles', userDataProfilesService);
 		sharedProcessClient.then(client => client.registerChannel('userDataProfiles', userDataProfilesService));
 
+		// Initialize cross-app IPC on supported platforms so all consumers
+		// (update coordination, secret sharing, etc.) share one connection.
+		const crossAppIPCService = accessor.get(ICrossAppIPCService);
+		if (isMacintosh || isWindows) {
+			crossAppIPCService.initialize();
+		}
+
 		// Update (with cross-app coordination on macOS/Windows where crossAppIPC is available)
 		const localUpdateService = accessor.get(IUpdateService);
 		let effectiveUpdateService: IUpdateService = localUpdateService;
 		const isInsiderOrExploration = this.productService.quality === 'insider' || this.productService.quality === 'exploration';
-		if (isWindows && isInsiderOrExploration) {
+		if ((isMacintosh || isWindows) && isInsiderOrExploration) {
 			const updateCoordinator = this._register(new CrossAppUpdateCoordinator(
 				localUpdateService as AbstractUpdateService,
 				this.logService,
 				this.lifecycleMainService,
+				crossAppIPCService,
 			));
-			updateCoordinator.initialize();
 			effectiveUpdateService = updateCoordinator;
 		}
 		const updateChannel = new UpdateChannel(effectiveUpdateService);
@@ -1262,6 +1273,7 @@ export class CodeApplication extends Disposable {
 				this.environmentMainService,
 				accessor.get(ILaunchMainService),
 				this.lifecycleMainService,
+				crossAppIPCService,
 			));
 		}
 

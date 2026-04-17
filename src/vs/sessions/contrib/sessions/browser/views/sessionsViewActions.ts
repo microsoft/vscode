@@ -277,6 +277,22 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 
 const ConfirmArchiveStorageKey = 'sessions.confirmArchive';
 
+function getArchiveSectionConfirmationMessage(context: ISessionSection): string {
+	if (context.id === 'pinned') {
+		if (context.sessions.length === 1) {
+			return localize('archivePinnedSectionSessions.confirmSingle', "Are you sure you want to mark 1 pinned session as done?");
+		}
+
+		return localize('archivePinnedSectionSessions.confirm', "Are you sure you want to mark {0} pinned sessions as done?", context.sessions.length);
+	}
+
+	if (context.sessions.length === 1) {
+		return localize('archiveSectionSessions.confirmSingle', "Are you sure you want to mark 1 session from '{0}' as done?", context.label);
+	}
+
+	return localize('archiveSectionSessions.confirm', "Are you sure you want to mark {0} sessions from '{1}' as done?", context.sessions.length, context.label);
+}
+
 registerAction2(class ArchiveSectionAction extends Action2 {
 	constructor() {
 		super({
@@ -303,9 +319,7 @@ registerAction2(class ArchiveSectionAction extends Action2 {
 		const skipConfirmation = storageService.getBoolean(ConfirmArchiveStorageKey, StorageScope.PROFILE, false);
 		if (!skipConfirmation) {
 			const confirmed = await dialogService.confirm({
-				message: context.sessions.length === 1
-					? localize('archiveSectionSessions.confirmSingle', "Are you sure you want to mark 1 session from '{0}' as done?", context.label)
-					: localize('archiveSectionSessions.confirm', "Are you sure you want to mark {0} sessions from '{1}' as done?", context.sessions.length, context.label),
+				message: getArchiveSectionConfirmationMessage(context),
 				detail: localize('archiveSectionSessions.detail', "You can restore sessions later if needed from the sessions view."),
 				primaryButton: localize('archiveSectionSessions.archive', "Mark All as Done"),
 				checkbox: {
@@ -752,20 +766,12 @@ registerAction2(class AddChatAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const quickInputService = accessor.get(IQuickInputService);
 
 		const activeSession = sessionsManagementService.activeSession.get();
 		if (!activeSession || activeSession.status.get() === SessionStatus.Untitled) {
 			return;
 		}
 
-		const query = await quickInputService.input({
-			placeHolder: localize('addChat.placeholder', "Enter a prompt for the new chat"),
-			prompt: localize('addChat.prompt', "Add a new chat to the active session"),
-		});
-
-		if (query) {
-			await sessionsManagementService.sendAndCreateChat(activeSession, { query });
-		}
+		sessionsManagementService.openNewChatInSession(activeSession);
 	}
 });

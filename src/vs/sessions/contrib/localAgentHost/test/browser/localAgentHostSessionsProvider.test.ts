@@ -16,7 +16,7 @@ import type { IAgentSubscription } from '../../../../../platform/agentHost/commo
 import type { ISessionAction, ITerminalAction } from '../../../../../platform/agentHost/common/state/protocol/action-origin.generated.js';
 import type { IResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { NotificationType } from '../../../../../platform/agentHost/common/state/protocol/notifications.js';
-import type { IAgentInfo, IRootState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import type { IAgentInfo, IModelSelection, IRootState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { SessionStatus as ProtocolSessionStatus } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import { ActionType, type IActionEnvelope, type INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -47,6 +47,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	public disposedSessions: URI[] = [];
 	public dispatchedActions: { action: ISessionAction | ITerminalAction; clientId: string; clientSeq: number }[] = [];
 	public failResolveSessionConfig = false;
+	public resolveSessionConfigResult: IResolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } };
 
 	private _nextSeq = 0;
 
@@ -81,7 +82,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		if (this.failResolveSessionConfig) {
 			throw new Error('resolveSessionConfig unavailable');
 		}
-		return { ready: true, schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } };
+		return this.resolveSessionConfigResult;
 	}
 
 	dispatchAction(action: ISessionAction | ITerminalAction, clientId: string, clientSeq: number): void {
@@ -133,7 +134,7 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 		startTime: opts?.startTime ?? 1000,
 		modifiedTime: opts?.modifiedTime ?? 2000,
 		summary: opts?.summary,
-		model: opts?.model,
+		model: opts?.model ? { id: opts.model } : undefined,
 		project: opts?.project,
 		workingDirectory: opts?.workingDirectory,
 	};
@@ -165,7 +166,22 @@ function createProvider(disposables: DisposableStore, agentHostService: MockAgen
 	return disposables.add(instantiationService.createInstance(LocalAgentHostSessionsProvider));
 }
 
-function fireSessionAdded(agentHost: MockAgentHostService, rawId: string, opts?: { provider?: string; title?: string; model?: string; project?: { uri: string; displayName: string }; workingDirectory?: string }): void {
+async function waitForSessionConfig(provider: LocalAgentHostSessionsProvider, sessionId: string, predicate: (config: IResolveSessionConfigResult | undefined) => boolean): Promise<void> {
+	if (predicate(provider.getSessionConfig(sessionId))) {
+		return;
+	}
+
+	await new Promise<void>(resolve => {
+		const disposable = provider.onDidChangeSessionConfig(changedSessionId => {
+			if (changedSessionId === sessionId && predicate(provider.getSessionConfig(sessionId))) {
+				disposable.dispose();
+				resolve();
+			}
+		});
+	});
+}
+
+function fireSessionAdded(agentHost: MockAgentHostService, rawId: string, opts?: { provider?: string; title?: string; model?: string; modelConfig?: Record<string, string>; project?: { uri: string; displayName: string }; workingDirectory?: string }): void {
 	const provider = opts?.provider ?? 'copilot';
 	const sessionUri = AgentSession.uri(provider, rawId);
 	agentHost.fireNotification({
@@ -177,7 +193,7 @@ function fireSessionAdded(agentHost: MockAgentHostService, rawId: string, opts?:
 			status: ProtocolSessionStatus.Idle,
 			createdAt: Date.now(),
 			modifiedAt: Date.now(),
-			model: opts?.model,
+			model: opts?.model ? { id: opts.model, ...(opts.modelConfig ? { config: opts.modelConfig } : {}) } : undefined,
 			project: opts?.project,
 			workingDirectory: opts?.workingDirectory,
 		},
@@ -432,7 +448,23 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(agentHost.dispatchedActions.at(-1)?.action, {
 			type: ActionType.SessionModelChanged,
 			session: AgentSession.uri('copilot', 'set-model').toString(),
-			model: 'new-model',
+			model: { id: 'new-model' },
+		});
+	});
+
+	test('setModel preserves current model config when model id is unchanged', () => {
+		const provider = createProvider(disposables, agentHost);
+		fireSessionAdded(agentHost, 'set-model-config', { title: 'Set Model Config Session', model: 'configured-model', modelConfig: { thinkingLevel: 'high' } });
+
+		const session = provider.getSessions().find(s => s.title.get() === 'Set Model Config Session');
+		assert.ok(session);
+
+		provider.setModel(session!.sessionId, 'agent-host-copilot:configured-model');
+
+		assert.deepStrictEqual(agentHost.dispatchedActions.at(-1)?.action, {
+			type: ActionType.SessionModelChanged,
+			session: AgentSession.uri('copilot', 'set-model-config').toString(),
+			model: { id: 'configured-model', config: { thinkingLevel: 'high' } },
 		});
 	});
 
@@ -448,14 +480,14 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.ok(session.workspace.get());
 		assert.strictEqual(session.workspace.get()?.label, 'my-project');
 		assert.strictEqual(session.sessionType, provider.sessionTypes[0].id);
-		assert.deepStrictEqual(provider.getSessionConfig(session.sessionId), { ready: false, schema: { type: 'object', properties: {} }, values: {} });
+		assert.deepStrictEqual(provider.getSessionConfig(session.sessionId), { schema: { type: 'object', properties: {} }, values: {} });
 	});
 
 	test('createNewSession clears session config when resolving config is unavailable', async () => {
 		agentHost.failResolveSessionConfig = true;
 		const provider = createProvider(disposables, agentHost);
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
-		await timeout(0);
+		await waitForSessionConfig(provider, session.sessionId, config => config === undefined);
 
 		assert.strictEqual(provider.getSessionConfig(session.sessionId), undefined);
 	});
@@ -579,7 +611,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			action: {
 				type: ActionType.SessionModelChanged,
 				session: AgentSession.uri('copilot', 'model-change').toString(),
-				model: 'new-model',
+				model: { id: 'new-model' } satisfies IModelSelection,
 			},
 			serverSeq: 1,
 			origin: undefined,
@@ -665,6 +697,18 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(session.title.get(), 'Session abcdef12');
 	}));
 
+	test('new session stays loading when required config is missing', async () => {
+		agentHost.resolveSessionConfigResult = {
+			schema: { type: 'object', required: ['branch'], properties: { branch: { type: 'string', title: 'Branch', enum: ['main'] } } },
+			values: {},
+		};
+		const provider = createProvider(disposables, agentHost);
+		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.schema.required?.includes('branch') === true);
+
+		assert.strictEqual(session.loading.get(), true);
+	});
+
 	// ---- sendAndCreateChat -------
 
 	test('sendAndCreateChat throws for unknown session', async () => {
@@ -688,7 +732,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 			},
 		});
 		const session = provider.createNewSession(URI.parse('file:///home/user/project'), provider.sessionTypes[0].id);
-		await timeout(0);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.values.isolation === 'worktree');
 
 		await provider.sendAndCreateChat(session.sessionId, { query: 'hello' });
 

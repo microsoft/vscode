@@ -12,6 +12,7 @@ import type {
 	IAgentReasoningEvent,
 	IAgentTitleChangedEvent,
 	IAgentToolCompleteEvent,
+	IAgentToolContentChangedEvent,
 	IAgentToolStartEvent,
 	IAgentUsageEvent,
 	IAgentUserInputRequestEvent
@@ -25,6 +26,7 @@ import {
 	type IToolCallCompleteAction,
 	type IToolCallReadyAction,
 	type IToolCallStartAction,
+	type ISessionToolCallContentChangedAction,
 	type ITurnCompleteAction,
 	type IUsageAction
 } from '../common/state/sessionActions.js';
@@ -155,6 +157,17 @@ export class AgentEventMapper {
 					toolCallId: e.toolCallId,
 					result: e.result,
 				} satisfies IToolCallCompleteAction;
+			}
+
+			case 'tool_content_changed': {
+				const e = event as IAgentToolContentChangedEvent;
+				return {
+					type: ActionType.SessionToolCallContentChanged,
+					session,
+					turnId,
+					toolCallId: e.toolCallId,
+					content: e.content,
+				} satisfies ISessionToolCallContentChangedAction;
 			}
 
 			case 'idle':
