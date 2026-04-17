@@ -6,14 +6,14 @@
 import { PromptElement, PromptSizing } from '@vscode/prompt-tsx';
 import { isHiddenModelB } from '../../../../../platform/endpoint/common/chatModelCapabilities';
 import { IChatEndpoint } from '../../../../../platform/networking/common/networking';
+import { ToolName } from '../../../../tools/common/toolNames';
 import { HiddenModelBCopilotIdentityRule } from '../../base/copilotIdentity';
 import { InstructionMessage } from '../../base/instructionMessage';
 import { ResponseTranslationRules } from '../../base/responseTranslationRules';
 import { Gpt5SafetyRule } from '../../base/safetyRules';
 import { Tag } from '../../base/tag';
 import { DefaultAgentPromptProps, detectToolCapabilities, getEditingReminder, ReminderInstructionsProps } from '../defaultAgentInstructions';
-
-import { ToolName } from '../../../../tools/common/toolNames';
+import { FileLinkificationInstructionsOptimized } from '../fileLinkificationInstructions';
 import { CopilotIdentityRulesConstructor, IAgentPrompt, PromptRegistry, ReminderInstructionsConstructor, SafetyRulesConstructor, SystemPrompt } from '../promptRegistry';
 
 class HiddenModelBPrompt extends PromptElement<DefaultAgentPromptProps> {
@@ -114,8 +114,6 @@ class HiddenModelBPrompt extends PromptElement<DefaultAgentPromptProps> {
 				- You use monospace commands/paths/env vars/code ids, inline examples, and literal keyword bullets by wrapping them in backticks.<br />
 				- Code samples or multi-line snippets should be wrapped in fenced code blocks. Include an info string as often as possible.<br />
 				- When referencing a real local file, prefer a clickable markdown link.<br />
-				* Clickable file links should look like [app.py](/abs/path/app.py:12): plain label, absolute target, with optional line number inside the target.<br />
-				* If a file path has spaces, wrap the target in angle brackets: [My Report.md](&lt;/abs/path/My Project/My Report.md:3&gt;).<br />
 				* Do not wrap markdown links in backticks, or put backticks inside the label or target. This confuses the markdown renderer.<br />
 				* Do not use URIs like file://, vscode://, or https:// for file links.<br />
 				* Do not provide ranges of lines.<br />
@@ -173,6 +171,7 @@ class HiddenModelBPrompt extends PromptElement<DefaultAgentPromptProps> {
 				- NEVER output inline citations like "【F:README.md†L5-L14】" in your outputs. The UI is not able to render these so they will just be broken in the UI. Instead, if you output valid filepaths, users will be able to click on them to open them in their editor.<br />
 				- You have access to many tools. If a tool exists to perform a specific task, you MUST use that tool instead of running a terminal command to perform that task.<br />
 			</Tag>
+			<FileLinkificationInstructionsOptimized />
 			<ResponseTranslationRules />
 		</InstructionMessage >;
 	}
