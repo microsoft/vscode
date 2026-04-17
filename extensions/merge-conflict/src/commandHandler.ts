@@ -34,6 +34,7 @@ export default class CommandHandler implements vscode.Disposable {
 			this.registerTextEditorCommand('merge-conflict.accept.all-current', this.acceptAllCurrent, this.acceptAllCurrentResources),
 			this.registerTextEditorCommand('merge-conflict.accept.all-incoming', this.acceptAllIncoming, this.acceptAllIncomingResources),
 			this.registerTextEditorCommand('merge-conflict.accept.all-both', this.acceptAllBoth),
+			this.registerTextEditorCommand('merge-conflict.accept.all-identical', this.acceptAllIdentical),
 			this.registerTextEditorCommand('merge-conflict.next', this.navigateNext),
 			this.registerTextEditorCommand('merge-conflict.previous', this.navigatePrevious),
 			this.registerTextEditorCommand('merge-conflict.compare', this.compare)
@@ -80,6 +81,28 @@ export default class CommandHandler implements vscode.Disposable {
 
 	acceptAllBoth(editor: vscode.TextEditor): Promise<void> {
 		return this.acceptAll(interfaces.CommitType.Both, editor);
+	}
+
+	async acceptAllIdentical(editor: vscode.TextEditor): Promise<void> {
+		const conflicts = await this.tracker.getConflicts(editor.document);
+
+		if (!conflicts || conflicts.length === 0) {
+			vscode.window.showWarningMessage(vscode.l10n.t("No merge conflicts found in this file"));
+			return;
+		}
+
+		const identical = conflicts.filter(c => c.isIdentical(editor.document));
+
+		if (identical.length === 0) {
+			vscode.window.showInformationMessage(vscode.l10n.t("No conflicts with identical content found in this file"));
+			return;
+		}
+
+		this.tracker.forget(editor.document);
+
+		await editor.edit((edit) => identical.forEach(conflict => {
+			conflict.applyEdit(interfaces.CommitType.Current, editor.document, edit);
+		}));
 	}
 
 	async compare(editor: vscode.TextEditor, conflict: interfaces.IDocumentMergeConflict | null) {

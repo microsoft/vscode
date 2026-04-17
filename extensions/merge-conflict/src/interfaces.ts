@@ -26,6 +26,7 @@ export interface IExtensionConfiguration {
 export interface IDocumentMergeConflict extends IDocumentMergeConflictDescriptor {
 	commitEdit(type: CommitType, editor: vscode.TextEditor, edit?: vscode.TextEditorEdit): Thenable<boolean>;
 	applyEdit(type: CommitType, document: vscode.TextDocument, edit: { replace(range: vscode.Range, newText: string): void }): void;
+	isIdentical(document: vscode.TextDocument): boolean;
 }
 
 export interface IDocumentMergeConflictDescriptor {
