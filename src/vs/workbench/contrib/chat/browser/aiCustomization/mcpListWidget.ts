@@ -5,7 +5,7 @@
 
 import './media/aiCustomizationManagement.css';
 import * as DOM from '../../../../../base/browser/dom.js';
-import { Disposable, DisposableStore, isDisposable } from '../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, isDisposable, MutableDisposable } from '../../../../../base/common/lifecycle.js';
 import { Emitter } from '../../../../../base/common/event.js';
 import { localize } from '../../../../../nls.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -16,6 +16,8 @@ import { Codicon } from '../../../../../base/common/codicons.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles, defaultInputBoxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, McpConnectionState, McpServerInstallState, IMcpService, IMcpServer } from '../../../../contrib/mcp/common/mcpTypes.js';
 import { IMcpRegistry } from '../../../mcp/common/mcpRegistryTypes.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
@@ -371,6 +373,10 @@ export class McpListWidget extends Disposable {
 	private emptyContainer!: HTMLElement;
 	private emptyText!: HTMLElement;
 	private emptySubtext!: HTMLElement;
+	private disabledContainer!: HTMLElement;
+	private disabledIcon!: HTMLElement;
+	private disabledMessage!: HTMLElement;
+	private readonly disabledLinkListener = this._register(new MutableDisposable());
 	private browseButton!: Button;
 	private addButton!: Button;
 	private backLink!: HTMLElement;
@@ -400,10 +406,17 @@ export class McpListWidget extends Disposable {
 		@IHoverService private readonly hoverService: IHoverService,
 		@IAgentPluginService private readonly agentPluginService: IAgentPluginService,
 		@IDialogService private readonly dialogService: IDialogService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) {
 		super();
 		this.element = $('.mcp-list-widget');
 		this.create();
+		this.updateAccessState();
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(mcpAccessConfig)) {
+				this.updateAccessState();
+			}
+		}));
 		this._register({
 			dispose: () => {
 				this.galleryCts?.dispose();
@@ -484,6 +497,15 @@ export class McpListWidget extends Disposable {
 		emptyIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.server));
 		this.emptyText = DOM.append(emptyHeader, $('.empty-text'));
 		this.emptySubtext = DOM.append(this.emptyContainer, $('.empty-subtext'));
+
+		// Disabled (access blocked) state — shown when chat.mcp.access is set to none,
+		// either by user setting or by enterprise policy.
+		this.disabledContainer = DOM.append(this.element, $('.mcp-disabled-state'));
+		const disabledHeader = DOM.append(this.disabledContainer, $('.empty-state-header'));
+		this.disabledIcon = DOM.append(disabledHeader, $('.empty-icon'));
+		const disabledText = DOM.append(disabledHeader, $('.empty-text'));
+		disabledText.textContent = localize('mcpAccessDisabledTitle', "MCP servers are disabled");
+		this.disabledMessage = DOM.append(this.disabledContainer, $('.empty-subtext'));
 
 		// List container
 		this.listContainer = DOM.append(this.element, $('.mcp-list-container'));
@@ -584,6 +606,36 @@ export class McpListWidget extends Disposable {
 			await this.queryGallery();
 		} else {
 			this.filterServers();
+		}
+	}
+
+	private updateAccessState(): void {
+		const inspect = this.configurationService.inspect<string>(mcpAccessConfig);
+		const value = inspect.value ?? inspect.defaultValue;
+		const disabled = value === McpAccessValue.None;
+		const policyLocked = inspect.policyValue === McpAccessValue.None;
+
+		this.element.classList.toggle('access-disabled', disabled);
+
+		if (disabled) {
+			this.disabledIcon.className = 'empty-icon';
+			this.disabledIcon.classList.add(...ThemeIcon.asClassNameArray(policyLocked ? Codicon.shield : mcpServerIcon));
+
+			DOM.clearNode(this.disabledMessage);
+			this.disabledLinkListener.clear();
+			if (policyLocked) {
+				this.disabledMessage.textContent = localize('mcpAccessDisabledByPolicy', "Access to MCP servers is disabled by your organization. Contact your organization administrator for more information.");
+			} else {
+				this.disabledMessage.appendChild(document.createTextNode(localize('mcpAccessDisabledBySettingPrefix', "MCP servers are disabled in settings. ")));
+				const link = DOM.append(this.disabledMessage, $('a.mcp-disabled-settings-link')) as HTMLAnchorElement;
+				link.textContent = localize('mcpAccessDisabledSettingLink', "Configure in settings.");
+				link.href = '#';
+				link.setAttribute('role', 'button');
+				this.disabledLinkListener.value = DOM.addDisposableListener(link, 'click', (e) => {
+					e.preventDefault();
+					this.commandService.executeCommand('workbench.action.openSettings', `@id:${mcpAccessConfig}`);
+				});
+			}
 		}
 	}
 

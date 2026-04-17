@@ -795,6 +795,73 @@
 	margin-top: 16px;
 }
 
+/* MCP Disabled (access blocked) state */
+.mcp-list-widget .mcp-disabled-state {
+	display: none;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	padding: 48px 24px;
+	gap: 8px;
+	text-align: center;
+	flex: 1;
+}
+
+.mcp-list-widget .mcp-disabled-state .empty-state-header {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 8px;
+}
+
+.mcp-list-widget .mcp-disabled-state .empty-icon.codicon::before {
+	font-size: 48px;
+}
+
+.mcp-list-widget .mcp-disabled-state .empty-icon {
+	opacity: 0.5;
+	margin-bottom: 8px;
+	height: 48px;
+	width: 48px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.mcp-list-widget .mcp-disabled-state .empty-text {
+	font-size: 16px;
+	font-weight: 500;
+	color: var(--vscode-foreground);
+}
+
+.mcp-list-widget .mcp-disabled-state .empty-subtext {
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+	max-width: 420px;
+	line-height: 1.5;
+}
+
+.mcp-list-widget .mcp-disabled-state .mcp-disabled-settings-link {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+	text-decoration: none;
+}
+
+.mcp-list-widget .mcp-disabled-state .mcp-disabled-settings-link:hover,
+.mcp-list-widget .mcp-disabled-state .mcp-disabled-settings-link:focus {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+	outline: none;
+}
+
+.mcp-list-widget.access-disabled > *:not(.mcp-disabled-state) {
+	display: none !important;
+}
+
+.mcp-list-widget.access-disabled .mcp-disabled-state {
+	display: flex;
+}
+
 /* MCP Server Item */
 .mcp-server-item {
 	display: flex;
