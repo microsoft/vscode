@@ -928,6 +928,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		}
 
 		if (!this.isMobileWebLayout() || !this.partVisibility.sidebar) {
+			sidebarContainer.classList.remove('mobile-overlay-sidebar');
 			sidebarContainer.style.position = '';
 			sidebarContainer.style.top = '';
 			sidebarContainer.style.left = '';
@@ -940,6 +941,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		const titleBarHeight = this.workbenchGrid.getViewSize(this.titleBarPartView).height;
 		const mobileWidth = this._mainContainerDimension.width;
 		const mobileHeight = Math.max(0, this._mainContainerDimension.height - titleBarHeight);
+		sidebarContainer.classList.add('mobile-overlay-sidebar');
 		sidebarContainer.style.position = 'fixed';
 		sidebarContainer.style.top = `${titleBarHeight}px`;
 		sidebarContainer.style.left = '0';

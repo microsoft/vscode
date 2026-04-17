@@ -1952,6 +1952,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			clippingContainer = this.layoutService.getContainer(DOM.getWindow(this.getDomNode()), Parts.EDITOR_PART);
 		}
 
+		this._overlayContainer.style.visibility = 'visible';
+		this._overlayContainer.style.left = ''; // Clear hide offset
 		this._overlayLayout.layoutOverAnchorElement(shadowElement, { clippingContainer, fallbackDimension: dimension, fallbackPosition: position });
 	}
 

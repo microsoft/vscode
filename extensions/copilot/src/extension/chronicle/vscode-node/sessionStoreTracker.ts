@@ -97,6 +97,7 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 "owner": "vijayu",
 "comment": "Tracks local session store operations (init, write, flush errors)",
 "operation": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The operation performed." },
+"sessionSource": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The agent name/source for the session, or unknown if unavailable." },
 "success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the operation succeeded." },
 "error": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "comment": "Truncated error message if failed." },
 "opsCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Number of buffered operations in a failed flush." }
@@ -154,7 +155,7 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 				if (operationName !== GenAiOperationName.INVOKE_AGENT) {
 					return;
 				}
-				this._initSession(sessionId);
+				this._initSession(sessionId, span);
 			}
 
 			// Extract metadata from any span that carries workspace/user info
@@ -183,13 +184,20 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 			?? (span.attributes[CopilotChatAttr.SESSION_ID] as string | undefined);
 	}
 
-	private _initSession(sessionId: string): void {
+	private _initSession(sessionId: string, span: ICompletedSpanData): void {
 		this._initializedSessions.add(sessionId);
 		this._bufferSessionUpsert({ id: sessionId, host_type: 'vscode' });
 
+		const sessionSource = (span.attributes[GenAiAttr.AGENT_NAME] as string | undefined) ?? 'unknown';
+
+		// Track the source of the very first session for firstWrite telemetry
+		if (!this._firstWriteSessionSource) {
+			this._firstWriteSessionSource = sessionSource;
+		}
 
 		this._telemetryService.sendMSFTTelemetryEvent('chronicle.localStore', {
 			operation: 'sessionInit',
+			sessionSource,
 		}, {});
 	}
 
@@ -362,6 +370,9 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 	/** Whether we've already sent a successful-write telemetry event. */
 	private _firstWriteLogged = false;
 
+	/** The session source of the first initialized session (for firstWrite telemetry). */
+	private _firstWriteSessionSource: string | undefined;
+
 	// ── Flush: batch all buffered writes into one transaction ────────────
 
 	private _flush(): void {
@@ -402,6 +413,7 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 
 				this._telemetryService.sendMSFTTelemetryEvent('chronicle.localStore', {
 					operation: 'firstWrite',
+					sessionSource: this._firstWriteSessionSource ?? 'unknown',
 				}, {});
 			}
 		} catch (err) {

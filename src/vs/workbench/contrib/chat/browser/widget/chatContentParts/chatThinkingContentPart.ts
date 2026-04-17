@@ -152,12 +152,13 @@ const enum WorkingMessageCategory {
 	Tool = 'tool'
 }
 
-const defaultThinkingMessages = [
+export const defaultThinkingMessages = [
 	localize('chat.thinking.thinking.1', 'Thinking'),
 	localize('chat.thinking.thinking.2', 'Reasoning'),
 	localize('chat.thinking.thinking.3', 'Considering'),
 	localize('chat.thinking.thinking.4', 'Analyzing'),
 	localize('chat.thinking.thinking.5', 'Evaluating'),
+	localize('chat.thinking.thinking.6', 'Working'),
 ];
 
 const terminalMessages = [
@@ -247,6 +248,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 	private isUpdatingDimensions: boolean = false;
 	private lastKnownContentHeight: number = 0;
 	private lastKnownScrollTop: number = 0;
+	private readonly showProgressDetails: boolean;
 	private titleShimmerSpan: HTMLElement | undefined;
 	private titleDetailContainer: HTMLElement | undefined;
 	private readonly _externalResourceWidget: ChatThinkingExternalResourceWidget;
@@ -302,6 +304,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.id = content.id;
 		this.content = content;
 		this.allThinkingParts.push(content);
+		this.showProgressDetails = this.configurationService.getValue<boolean>(ChatConfiguration.ChatPersistentProgressEnabled) !== false;
 		const configuredMode = this.configurationService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle') ?? ThinkingDisplayMode.Collapsed;
 
 		this.fixedScrollingMode = configuredMode === ThinkingDisplayMode.FixedScrolling;
@@ -457,8 +460,13 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.renderMarkdown(this.currentThinkingValue);
 		}
 
-		// Create the persistent working spinner element only if still streaming
-		if (!this.streamingCompleted && !this.element.isComplete) {
+		// Show the in-thinking spinner while streaming. When collapsed, the CSS
+		// clipping hides it (the title shimmer is the visible indicator). When
+		// expanded, the title shimmer is less prominent so this spinner at the
+		// bottom of the section serves as the active indicator. In fixed-scrolling
+		// mode with progress details enabled, the working-progress row owns the
+		// active indicator instead, so skip creating the in-thinking spinner.
+		if (!this.streamingCompleted && !this.element.isComplete && !(this.fixedScrollingMode && this.showProgressDetails)) {
 			this.workingSpinnerElement = $('.chat-thinking-item.chat-thinking-spinner-item');
 			const spinnerIcon = createThinkingIcon(Codicon.circleFilled);
 			this.workingSpinnerElement.appendChild(spinnerIcon);
@@ -477,6 +485,28 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 				alwaysConsumeMouseWheel: false
 			}));
 			this._register(this.scrollableElement.onScroll(e => this.handleScroll(e.scrollTop)));
+
+			let pendingMutationRefresh: IDisposable | undefined;
+			const mutationObserver = new MutationObserver(() => {
+				if (pendingMutationRefresh) {
+					return;
+				}
+				pendingMutationRefresh = scheduleAtNextAnimationFrame(getWindow(this.wrapper), () => {
+					pendingMutationRefresh = undefined;
+					if (this.streamingCompleted || !this.domNode.classList.contains('chat-used-context-collapsed')) {
+						return;
+					}
+					this.refreshContentHeight();
+					this.updateScrollDimensionsFromCache();
+				});
+			});
+			mutationObserver.observe(this.wrapper, { childList: true, subtree: true });
+			this._register({
+				dispose: () => {
+					mutationObserver.disconnect();
+					pendingMutationRefresh?.dispose();
+				}
+			});
 
 			// Observe child elements for resizes (e.g. terminal output growing)
 			// so we can update scroll dimensions when the wrapper box is pinned at max-height.
@@ -868,6 +898,10 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 	public getIsActive(): boolean {
 		return this.isActive;
+	}
+
+	public get isFixedScrollingMode(): boolean {
+		return this.fixedScrollingMode;
 	}
 
 	/**

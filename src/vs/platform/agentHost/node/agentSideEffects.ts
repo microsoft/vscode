@@ -6,7 +6,8 @@
 import { disposableTimeout, SequencerByKey } from '../../../base/common/async.js';
 import { match as globMatch } from '../../../base/common/glob.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
-import { autorun, IObservable } from '../../../base/common/observable.js';
+import { equals } from '../../../base/common/objects.js';
+import { autorun, IObservable, IReader } from '../../../base/common/observable.js';
 import { extUriBiasedIgnorePathCase, normalizePath } from '../../../base/common/resources.js';
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
@@ -15,6 +16,7 @@ import { ILogService } from '../../log/common/log.js';
 import { IAgent, IAgentAttachment, IAgentProgressEvent, type IAgentToolCompleteEvent, type IAgentToolReadyEvent } from '../common/agentService.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
+import type { IAgentInfo } from '../common/state/protocol/state.js';
 import { ActionType, ISessionAction } from '../common/state/sessionActions.js';
 import {
 	CustomizationStatus,
@@ -26,7 +28,6 @@ import {
 	buildSubagentSessionUri,
 	getToolFileEdits,
 	type ISessionCustomization,
-	type ISessionModelInfo,
 	type ISessionState,
 	type IToolResultContent,
 	type URI as ProtocolURI,
@@ -71,6 +72,7 @@ export class AgentSideEffects extends Disposable {
 	private readonly _diffComputeService: IDiffComputeService;
 	/** Serializes per-session diff computations to avoid races with stale previousDiffs. */
 	private readonly _diffComputationSequencer = new SequencerByKey<string>();
+	private _lastAgentInfos: readonly IAgentInfo[] = [];
 	/** Per-session debounce timers for mid-turn diff computation. */
 	private readonly _debouncedDiffTimers = this._register(new DisposableMap<string>());
 	private static readonly _DIFF_DEBOUNCE_MS = 5000;
@@ -93,34 +95,34 @@ export class AgentSideEffects extends Disposable {
 		// Whenever the agents observable changes, publish to root state.
 		this._register(autorun(reader => {
 			const agents = this._options.agents.read(reader);
-			this._publishAgentInfos(agents);
+			this._publishAgentInfos(agents, reader);
 		}));
 	}
 
 	/**
-	 * Fetches models from all agents and dispatches `root/agentsChanged`.
+	 * Publishes agent descriptors using the last known model lists.
 	 */
-	private async _publishAgentInfos(agents: readonly IAgent[]): Promise<void> {
-		const infos = await Promise.all(agents.map(async a => {
+	private _publishAgentInfos(agents: readonly IAgent[], reader: IReader): void {
+		const infos: IAgentInfo[] = agents.map(a => {
 			const d = a.getDescriptor();
-			let models: ISessionModelInfo[];
-			try {
-				const rawModels = await a.listModels();
-				models = rawModels.map(m => ({
-					id: m.id, provider: m.provider, name: m.name,
-					maxContextWindow: m.maxContextWindow, supportsVision: m.supportsVision,
-					policyState: m.policyState,
-				}));
-			} catch (err) {
-				this._logService.error(err, `[AgentSideEffects] Failed to list models for agent '${a.id}'`);
-				models = [];
-			}
 			const protectedResources = a.getProtectedResources();
 			return {
-				provider: d.provider, displayName: d.displayName, description: d.description, models,
+				provider: d.provider, displayName: d.displayName, description: d.description, models: a.models.read(reader).map(m => ({
+					id: m.id,
+					provider: m.provider,
+					name: m.name,
+					maxContextWindow: m.maxContextWindow,
+					supportsVision: m.supportsVision,
+					policyState: m.policyState,
+					configSchema: m.configSchema,
+				})),
 				protectedResources: protectedResources.length > 0 ? protectedResources : undefined,
 			};
-		}));
+		});
+		if (equals(this._lastAgentInfos, infos)) {
+			return;
+		}
+		this._lastAgentInfos = infos;
 		this._stateManager.dispatchServerAction({ type: ActionType.RootAgentsChanged, agents: infos });
 	}
 
