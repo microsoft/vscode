@@ -1011,6 +1011,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			content.push(fileChangesSummaryPart);
 		}
 
+		const workingProgress = this.shouldShowWorkingProgress(element, content, false, templateData);
+		if (workingProgress) {
+			content.push(workingProgress);
+		}
+
 		const diff = this.diff(templateData.renderedParts ?? [], content, element);
 		this.renderChatContentDiff(diff, content, element, index, templateData);
 		this.finalizeCompletedResponseParts(element, templateData);
@@ -1030,7 +1035,24 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	}
 
 	private shouldShowWorkingProgress(element: IChatResponseViewModel, partsToRender: IChatRendererContent[], moreContentAvailable: boolean, templateData: IChatListItemTemplate): IChatWorkingProgress | undefined {
-		if (element.agentOrSlashCommandDetected || this.rendererOptions.renderStyle === 'minimal' || element.isComplete || !checkModeOption(this.delegate.currentChatMode(), this.rendererOptions.progressMessageAtBottomOfResponse)) {
+		if (element.agentOrSlashCommandDetected || this.rendererOptions.renderStyle === 'minimal') {
+			return undefined;
+		}
+
+		const showProgressDetails = this.configService.getValue<boolean>(ChatConfiguration.ChatPersistentProgressEnabled) !== false;
+		if (element.isComplete) {
+			return undefined;
+		}
+
+		const workingState = {
+			confirmationAdjustedTimestamp: element.confirmationAdjustedTimestamp,
+			completionTokenCountObs: element.completionTokenCountObs,
+			isComplete: element.isComplete,
+			completedAt: element.model.completedAt,
+			elapsedMs: element.model.elapsedMs,
+		};
+
+		if (!checkModeOption(this.delegate.currentChatMode(), this.rendererOptions.progressMessageAtBottomOfResponse)) {
 			return undefined;
 		}
 
@@ -1057,6 +1079,18 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		}
 
+		if (showProgressDetails) {
+			// When the thinking section is actively streaming with its own inline
+			// shimmer (collapsed mode), let it own the progress indicator. In
+			// fixed-scrolling mode the thinking section does not show its own
+			// active indicator, so the working-progress row should still render.
+			const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
+			if (lastThinking?.getIsActive() && !lastThinking.isFixedScrollingMode) {
+				return undefined;
+			}
+			return { kind: 'working', state: workingState };
+		}
+
 		// Don't show working if a streaming tool invocation is already present
 		if (partsToRender.some(part => part.kind === 'toolInvocation' && IChatToolInvocation.isStreaming(part))) {
 			return undefined;
@@ -1069,7 +1103,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		// Show if no content, only "used references", ends with a complete tool call, or ends with complete text edits and there is no incomplete tool call (edits are still being applied some time after they are all generated)
 		const lastPart = findLast(partsToRender, part => part.kind !== 'markdownContent' || part.content.value.trim().length > 0);
-
 
 		// never show working progress when there is an active thinking piece
 		const lastThinking = this.getLastThinkingPart(templateData.renderedParts);
@@ -1088,7 +1121,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return undefined;
 			}
 		}
-
 
 		const hasRenderedThinkingPart = (templateData.renderedParts ?? []).some(part => part instanceof ChatThinkingContentPart);
 		const hasEditPillMarkdown = partsToRender.some(part => part.kind === 'markdownContent' && this.hasEditCodeblockUri(part));
@@ -1163,6 +1195,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return;
 		}
 
+		if (element.isComplete && this.configService.getValue<boolean>(ChatConfiguration.ChatPersistentProgressEnabled) !== false) {
+			return;
+		}
+
 		const pendingConfirmationCount = this.getPendingToolConfirmationCount(element.response.value, false);
 		if (pendingConfirmationCount === 0) {
 			this.removeWorkingProgressContentPart(templateData);
@@ -1215,9 +1251,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		});
 	}
 
-	/**
-	 *  Adds a debounce on when to show "working" shimmer.
-	 */
 	private hasBeenCaughtUpLongEnough(element: IChatResponseViewModel): boolean {
 		const lastRenderTime = element.renderData?.lastRenderTime;
 		if (typeof lastRenderTime !== 'number' || lastRenderTime === 0) {
@@ -1225,7 +1258,6 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 		return (Date.now() - lastRenderTime) >= WORKING_CAUGHT_UP_DEBOUNCE_MS;
 	}
-
 
 	private getChatFileChangesSummaryPart(element: IChatResponseViewModel): IChatChangesSummaryPart | undefined {
 		if (!this.shouldShowFileChangesSummary(element)) {
