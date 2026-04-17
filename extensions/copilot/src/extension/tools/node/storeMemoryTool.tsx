@@ -56,8 +56,8 @@ export class StoreMemoryTool implements ICopilotModelSpecificTool<StoreMemoryPar
 				return new LanguageModelToolResult([new LanguageModelTextPart('Failed to store memory. Copilot Memory may not be enabled for this repository.')]);
 			}
 		} catch (error) {
-			this.logService.error('[StoreMemoryTool] Error storing memory:', error);
-			return new LanguageModelToolResult([new LanguageModelTextPart(`Error storing memory: ${error}`)]);
+			this.logService.error(error instanceof Error ? error : String(error), '[StoreMemoryTool] Error storing memory');
+			return new LanguageModelToolResult([new LanguageModelTextPart('Failed to store memory. Please try again later.')]);
 		}
 	}
 }
