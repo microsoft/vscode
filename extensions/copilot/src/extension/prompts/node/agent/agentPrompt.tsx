@@ -71,7 +71,10 @@ export interface AgentPromptProps extends GenericBasePromptElementProps {
 	 */
 	readonly customizations?: AgentPromptCustomizations;
 
-	/** Skip Full mode and go straight to Simple mode for summarization. */
+	/**
+	 * Prefer Simple mode for summarization, typically for the budget-exceeded recovery path.
+	 * An explicit summarization mode configuration can still force Full mode.
+	 */
 	readonly forceSimpleSummary?: boolean;
 }
 
