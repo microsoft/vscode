@@ -32,7 +32,7 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 
 	private readonly activeCodeEditorListener = this._register(new MutableDisposable());
 
-	private runningSessionsCount: number = 0; // test-workbench_change
+	private runningSessionsCount: number;
 
 	constructor(
 		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
@@ -44,8 +44,6 @@ export class ChatStatusBarEntry extends Disposable implements IWorkbenchContribu
 		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
 	) {
 		super();
-
-		return; // test-workbench_change - hide chat UI
 
 		this.runningSessionsCount = this.chatSessionsService.getInProgress().reduce((total, item) => total + item.count, 0);
 
