@@ -1612,7 +1612,10 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 	}
 
 	async openSearch(searchValue: string, preserveFoucs?: boolean): Promise<void> {
-		const viewPaneContainer = (await this.viewsService.openViewContainer(VIEWLET_ID, true))?.getViewPaneContainer() as IExtensionsViewPaneContainer;
+		const viewPaneContainer = (await this.viewsService.openViewContainer(VIEWLET_ID, true))?.getViewPaneContainer() as IExtensionsViewPaneContainer | undefined;
+		if (!viewPaneContainer) {
+			return;
+		}
 		viewPaneContainer.search(searchValue);
 		if (!preserveFoucs) {
 			viewPaneContainer.focus();
