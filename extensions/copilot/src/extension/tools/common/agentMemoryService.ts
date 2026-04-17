@@ -125,7 +125,7 @@ export interface IAgentMemoryService {
 
 	/**
 	 * Fetch the unified memory prompt from the /prompt endpoint.
-	 * Returns the full MemoryPromptResponse including storeToolDefinition and voteToolDefinition,
+	 * Returns the full MemoryPromptResponse including storeToolDefinition,
 	 * or undefined on failure.
 	 */
 	getMemoryPrompt(repoNwo?: string): Promise<MemoryPromptResponse | undefined>;
