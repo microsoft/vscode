@@ -31,6 +31,7 @@ import { IChatRequestViewModel, IChatResponseViewModel, IChatViewModel, isReques
 import { ChatAccessibilityProvider } from '../accessibility/chatAccessibilityProvider.js';
 import { ChatTreeItem, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions } from '../chat.js';
 import { CodeBlockPart } from './chatContentParts/codeBlockPart.js';
+import { ChatCollapsibleContentPart } from './chatContentParts/chatCollapsibleContentPart.js';
 import { ChatListDelegate, ChatListItemRenderer, IChatListItemTemplate, IChatRendererDelegate } from './chatListRenderer.js';
 import { ChatEditorOptions } from './chatOptions.js';
 import { ChatPendingDragController } from './chatPendingDragAndDrop.js';
@@ -186,6 +187,16 @@ export class ChatListWidget extends Disposable {
 	private _suppressAutoScroll: boolean = false;
 	private _settingChangeCounter: number = 0;
 	private _visibleChangeCount: number = 0;
+
+	/**
+	 * Timestamp (performance.now()) of the last user-initiated collapsible
+	 * toggle inside this list. Height changes that happen shortly after a user
+	 * toggle are treated as user-driven layout growth and should preserve the
+	 * user's scroll anchor instead of snapping the viewport to the bottom.
+	 * See issue #274731.
+	 */
+	private _lastUserToggleTime: number = 0;
+	private static readonly USER_TOGGLE_SUPPRESS_WINDOW_MS = 250;
 
 	private readonly _container: HTMLElement;
 	private readonly _scrollDownButton: Button;
@@ -453,6 +464,14 @@ export class ChatListWidget extends Disposable {
 		// Set initial at-bottom state (scrollLock defaults to true)
 		this.updateScrollDownButtonVisibility();
 
+		// Observe user-initiated collapsible toggles (thinking section, tool
+		// wrappers, etc.). When the user expands/collapses a section, we want
+		// the resulting height change to preserve their scroll position rather
+		// than auto-scrolling to the bottom (issue #274731).
+		this._register(dom.addDisposableListener(this._container, ChatCollapsibleContentPart.USER_TOGGLE_EVENT, () => {
+			this._lastUserToggleTime = performance.now();
+		}));
+
 		// Handle context menu internally
 		this._register(this._tree.onContextMenu(e => {
 			this.handleContextMenu(e);
@@ -654,10 +673,28 @@ export class ChatListWidget extends Disposable {
 	 */
 	private _updateElementHeight(element: ChatTreeItem, height?: number): void {
 		if (this._tree.hasElement(element) && this._visible) {
+			// If the user just clicked to expand/collapse a section inside this
+			// list, treat the incoming height change as user-driven and skip
+			// auto-scroll so the expanded content grows downward from its
+			// current position instead of pushing visible content upward
+			// (issue #274731).
+			if (this._isWithinUserToggleWindow()) {
+				this._tree.updateElementHeight(element, height);
+				return;
+			}
 			this._withPersistedAutoScroll(() => {
 				this._tree.updateElementHeight(element, height);
 			});
 		}
+	}
+
+	/**
+	 * Returns true if a user-initiated collapsible toggle happened recently
+	 * enough that the resulting height change should not trigger auto-scroll.
+	 */
+	private _isWithinUserToggleWindow(): boolean {
+		return this._lastUserToggleTime !== 0
+			&& performance.now() - this._lastUserToggleTime <= ChatListWidget.USER_TOGGLE_SUPPRESS_WINDOW_MS;
 	}
 
 	/**
