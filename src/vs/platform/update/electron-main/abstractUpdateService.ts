@@ -392,6 +392,10 @@ export abstract class AbstractUpdateService implements IUpdateService {
 
 		const pendingUpdateCommit = this._state.update.version;
 
+		if (!pendingUpdateCommit || pendingUpdateCommit === 'unknown') {
+			return false;
+		}
+
 		let isLatest: boolean | undefined;
 
 		try {

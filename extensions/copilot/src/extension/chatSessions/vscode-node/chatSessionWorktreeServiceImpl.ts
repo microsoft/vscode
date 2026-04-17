@@ -131,6 +131,7 @@ export class ChatSessionWorktreeService extends Disposable implements IChatSessi
 					upstreamBranchName: activeRepository.upstreamRemote && activeRepository.upstreamBranchName
 						? `${activeRepository.upstreamRemote}/${activeRepository.upstreamBranchName}`
 						: undefined,
+					mergeBaseCommit: baseCommit ?? activeRepository.headCommitHash,
 					hasGitHubRemote: gitHubRemote !== undefined,
 					incomingChanges,
 					outgoingChanges,
@@ -688,6 +689,7 @@ export class ChatSessionWorktreeService extends Disposable implements IChatSessi
 
 	private async _getWorktreeChanges(sessionId: string, worktreeProperties: ChatSessionWorktreeProperties): Promise<{
 		readonly changes: readonly ChatSessionWorktreeFile[];
+		readonly mergeBaseCommit?: string;
 		readonly hasGitHubRemote?: boolean;
 		readonly upstreamBranchName?: string;
 		readonly incomingChanges?: number;
@@ -769,6 +771,16 @@ export class ChatSessionWorktreeService extends Disposable implements IChatSessi
 			}
 		}
 
+		// Since the diff is being computed using the merge base commit of the worktree
+		// branch and the base branch, we need to compute it as well so that we can use
+		// it as the originalRef (left-hand side) of the diff editor
+		let mergeBaseCommit: string | undefined;
+		try {
+			mergeBaseCommit = await this.gitService.getMergeBase(worktreePath, worktreeProperties.branchName, worktreeProperties.baseBranchName);
+		} catch (error) {
+			this.logService.error(`[ChatSessionWorktreeService][_getWorktreeChanges] Error while getting merge base (${worktreeProperties.branchName}, ${worktreeProperties.baseBranchName}) for session ${sessionId}: ${error}`);
+		}
+
 		const changes = diffChanges.map(change => ({
 			filePath: change.uri.fsPath,
 			originalFilePath: change.status !== 1 /* INDEX_ADDED */
@@ -784,6 +796,7 @@ export class ChatSessionWorktreeService extends Disposable implements IChatSessi
 		} satisfies ChatSessionWorktreeFile));
 
 		const repositoryState = {
+			mergeBaseCommit,
 			hasGitHubRemote: getGitHubRepoInfoFromContext(worktreeRepository) !== undefined,
 			upstreamBranchName: worktreeRepository.upstreamRemote && worktreeRepository.upstreamBranchName
 				? `${worktreeRepository.upstreamRemote}/${worktreeRepository.upstreamBranchName}`
@@ -805,7 +818,7 @@ export class ChatSessionWorktreeService extends Disposable implements IChatSessi
 		if (worktreeProperties.version === 2) {
 			// Commit | Working tree
 			originalFileRef = vscode.workspace.isAgentSessionsWorkspace
-				? worktreeProperties.baseBranchName
+				? worktreeProperties.mergeBaseCommit ?? worktreeProperties.baseCommit
 				: worktreeProperties.baseCommit;
 			modifiedFileRef = vscode.workspace.isAgentSessionsWorkspace
 				? undefined

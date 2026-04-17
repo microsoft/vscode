@@ -201,6 +201,43 @@ export class ChatRemovePendingRequestAction extends Action2 {
 	}
 }
 
+export class ChatEditPendingRequestAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.editPendingRequest';
+
+	constructor() {
+		super({
+			id: ChatEditPendingRequestAction.ID,
+			title: localize2('chat.editPendingRequest', "Edit"),
+			icon: Codicon.edit,
+			f1: false,
+			category: CHAT_CATEGORY,
+			menu: [{
+				id: MenuId.ChatMessageTitle,
+				group: 'navigation',
+				order: 2,
+				when: ContextKeyExpr.and(
+					ChatContextKeys.isRequest,
+					ChatContextKeys.isPendingRequest,
+					ContextKeyExpr.notEquals(`config.${ChatConfiguration.EditRequests}`, 'hover'),
+					ContextKeyExpr.notEquals(`config.${ChatConfiguration.EditRequests}`, 'input')
+				)
+			}]
+		});
+	}
+
+	override run(accessor: ServicesAccessor, ...args: unknown[]): void {
+		const widgetService = accessor.get(IChatWidgetService);
+		const [context] = args;
+
+		if (!isRequestVM(context) || !context.pendingKind) {
+			return;
+		}
+
+		const widget = widgetService.getWidgetBySessionResource(context.sessionResource);
+		widget?.startEditing(context.id);
+	}
+}
+
 export class ChatSendPendingImmediatelyAction extends Action2 {
 	static readonly ID = 'workbench.action.chat.sendPendingImmediately';
 
@@ -299,6 +336,7 @@ export function registerChatQueueActions(): void {
 	registerAction2(ChatQueueMessageAction);
 	registerAction2(ChatSteerWithMessageAction);
 	registerAction2(ChatRemovePendingRequestAction);
+	registerAction2(ChatEditPendingRequestAction);
 	registerAction2(ChatSendPendingImmediatelyAction);
 	registerAction2(ChatRemoveAllPendingRequestsAction);
 

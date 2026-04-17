@@ -11,7 +11,7 @@ import { Action2, registerAction2, MenuId, MenuRegistry, isIMenuItem } from '../
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
 import { MarshalledId } from '../../../../base/common/marshallingIds.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { BaseActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { ILanguageModelChatMetadataAndIdentifier, ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
@@ -315,7 +315,8 @@ class CopilotActiveSessionContribution extends Disposable implements IWorkbenchC
 		this._register(autorun((reader: IReader) => {
 			const session = sessionsManagementService.activeSession.read(reader);
 			if (session?.providerId === COPILOT_PROVIDER_ID) {
-				const providerSession = sessionsProvidersService.getProvider<CopilotChatSessionsProvider>(session.providerId)?.getSession(session.sessionId);
+				const provider = sessionsProvidersService.getProvider(session.providerId);
+				const providerSession = provider instanceof CopilotChatSessionsProvider ? provider.getSession(session.sessionId) : undefined;
 				const isLoading = providerSession?.loading.read(reader);
 				hasRepositoryKey.set(!isLoading && !!providerSession?.gitRepository);
 			} else {
@@ -359,6 +360,9 @@ class CopilotSessionContextMenuBridge extends Disposable implements IWorkbenchCo
 			if (!commandId.startsWith('github.copilot.')) {
 				continue;
 			}
+			if (commandId === 'github.copilot.cli.sessions.delete') {
+				continue; // Delete is handled natively via sessionsManagementService
+			}
 			if (this._bridgedIds.has(commandId)) {
 				continue;
 			}
@@ -393,3 +397,28 @@ class CopilotSessionContextMenuBridge extends Disposable implements IWorkbenchCo
 }
 
 registerWorkbenchContribution2(CopilotSessionContextMenuBridge.ID, CopilotSessionContextMenuBridge, WorkbenchPhase.AfterRestored);
+
+registerAction2(class DeleteSessionAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsViewPane.copilot.deleteSession',
+			title: localize2('deleteSession', "Delete..."),
+			menu: [{
+				id: SessionItemContextMenuId,
+				group: '1_edit',
+				order: 4,
+				when: ContextKeyExpr.equals(ChatSessionProviderIdContext.key, COPILOT_PROVIDER_ID),
+			}]
+		});
+	}
+	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
+		if (!context) {
+			return;
+		}
+		const sessions = Array.isArray(context) ? context : [context];
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		for (const session of sessions) {
+			await sessionsManagementService.deleteSession(session);
+		}
+	}
+});

@@ -12,10 +12,10 @@ import { TERMINAL_BACKGROUND_COLOR } from '../workbench/contrib/terminal/common/
 
 import '../workbench/api/browser/extensionHost.contribution.js';
 import '../workbench/browser/workbench.contribution.js';
-import { sessionsPanelBackground } from './common/theme.js';
+import { agentsPanelBackground } from './common/theme.js';
 
-getColorRegistry().updateDefaultColor(PANEL_BACKGROUND, sessionsPanelBackground);
-getColorRegistry().updateDefaultColor(TERMINAL_BACKGROUND_COLOR, sessionsPanelBackground);
+getColorRegistry().updateDefaultColor(PANEL_BACKGROUND, agentsPanelBackground);
+getColorRegistry().updateDefaultColor(TERMINAL_BACKGROUND_COLOR, agentsPanelBackground);
 
 //#endregion
 
@@ -474,6 +474,7 @@ import './contrib/github/browser/github.contribution.js';
 import './contrib/applyCommitsToParentRepo/browser/applyChangesToParentRepo.js';
 import './contrib/fileTreeView/browser/fileTreeView.contribution.js'; // view registration disabled; filesystem provider still needed
 import './contrib/configuration/browser/configuration.contribution.js';
+import './contrib/workingSet/browser/workingSet.contribution.js';
 
 import './contrib/terminal/browser/sessionsTerminalContribution.js';
 import './contrib/logs/browser/logs.contribution.js';

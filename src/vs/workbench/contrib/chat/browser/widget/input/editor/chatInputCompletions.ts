@@ -54,7 +54,7 @@ import { IDynamicVariable } from '../../../../common/attachments/chatVariables.j
 import { ChatAgentLocation, ChatModeKind, isSupportedChatFileScheme } from '../../../../common/constants.js';
 import { isToolSet } from '../../../../common/tools/languageModelToolsService.js';
 import { IChatSessionsService } from '../../../../common/chatSessionsService.js';
-import { IPromptsService } from '../../../../common/promptSyntax/service/promptsService.js';
+import { IPromptsService, matchesSessionType } from '../../../../common/promptSyntax/service/promptsService.js';
 import {
 	PromptsType,
 	Target
@@ -250,6 +250,8 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
+				const currentSessionType = widget.viewModel.model.sessionResource ? getChatSessionType(widget.viewModel.model.sessionResource) : undefined;
+
 				// Filter out commands that are not user-invocable (hidden from / menu)
 				const userInvocableCommands = promptCommands
 					.filter(c => {
@@ -267,7 +269,7 @@ class SlashCommandCompletions extends Disposable {
 						return true;
 					})
 					.filter(c => c.userInvocable)
-					.filter(c => !c.when || widget.scopedContextKeyService.contextMatchesRules(c.when));
+					.filter(c => matchesSessionType(c.sessionTypes, currentSessionType));
 				if (userInvocableCommands.length === 0) {
 					return null;
 				}

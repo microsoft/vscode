@@ -146,7 +146,7 @@ export class SendToTerminalTool extends Disposable implements IToolImpl {
 			: localize('send.confirm.message', "Run {0} in terminal {1}", toMarkdownInlineCode(buildCommandDisplayText(args.command)), safeTerminalLabel);
 		if (instanceId !== undefined) {
 			const focusUri = createCommandUri(FocusTerminalByIdCommandId, instanceId);
-			confirmationMessage.appendMarkdown(`${baseMessage} — [$(terminal) ${localize('focusTerminal', "Focus Terminal")}](${focusUri})`);
+			confirmationMessage.appendMarkdown(`${baseMessage} — [${localize('focusTerminal', "Focus Terminal")}](${focusUri})`);
 		} else {
 			confirmationMessage.appendMarkdown(baseMessage);
 		}

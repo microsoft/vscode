@@ -40,6 +40,10 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'chat.tools.terminal.enableAutoApprove': true,
 
 		'diffEditor.hideUnchangedRegions.enabled': true,
+		'diffEditor.renderGutterMenu': false,
+		'diffEditor.renderMarginRevertIcon': false,
+		'diffEditor.renderSideBySide': true,
+		'diffEditor.useInlineViewWhenSpaceIsLimited': true,
 
 		'extensions.ignoreRecommendations': true,
 
@@ -79,7 +83,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'workbench.startupEditor': 'none',
 		'workbench.tips.enabled': false,
 		'workbench.layoutControl.type': 'toggles',
-		'workbench.editor.useModal': 'all',
+		'workbench.editor.useModal': 'some',
 		'workbench.panel.showLabels': false,
 		'workbench.colorTheme': ThemeSettingDefaults.COLOR_THEME_DARK,
 

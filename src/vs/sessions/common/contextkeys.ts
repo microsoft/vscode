@@ -32,3 +32,9 @@ export const ChatBarVisibleContext = new RawContextKey<boolean>('chatBarVisible'
 export const SessionsWelcomeVisibleContext = new RawContextKey<boolean>('sessionsWelcomeVisible', false, localize('sessionsWelcomeVisible', "Whether the sessions welcome overlay is visible"));
 
 //#endregion
+
+//#region < --- Editor --- >
+
+export const EditorMaximizedContext = new RawContextKey<boolean>('editorMaximized', false, localize('editorMaximized', "Whether the editor area is maximized"));
+
+//#endregion

@@ -29,12 +29,12 @@
 .agent-sessions-workbench .part.panel > .title {
 	padding-left: 6px;
 	padding-right: 6px;
-	background-color: var(--vscode-sessionsPanel-background);
+	background-color: var(--vscode-agentsPanel-background);
 }
 
 /* Active/checked state: background container instead of underline */
 .agent-sessions-workbench .part.panel > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked {
-	background-color: var(--vscode-activityBarTop-activeBackground, color-mix(in srgb, var(--vscode-sideBarTitle-foreground) 5%, transparent)) !important;
+	background-color: color-mix(in srgb, var(--vscode-agentsPanel-foreground, var(--vscode-foreground)) 5%, transparent) !important;
 	border-radius: 4px;
 }
 
@@ -42,7 +42,7 @@
 .agent-sessions-workbench .part.panel > .content .monaco-editor,
 .agent-sessions-workbench .part.panel > .content .monaco-editor .margin,
 .agent-sessions-workbench .part.panel > .content .monaco-editor .monaco-editor-background {
-	background-color: var(--vscode-sessionsPanel-background);
+	background-color: var(--vscode-agentsPanel-background);
 }
 
 .agent-sessions-workbench .part.panel > .content .pane-body,
@@ -51,18 +51,18 @@
 .agent-sessions-workbench .part.panel > .content .chat-debug-home-content,
 .agent-sessions-workbench .part.panel > .content .chat-debug-overview,
 .agent-sessions-workbench .part.panel > .content .chat-debug-overview-content {
-	background-color: var(--vscode-sessionsPanel-background);
+	background-color: var(--vscode-agentsPanel-background);
 }
 
 .monaco-workbench.vs.agent-sessions-workbench .part.panel > .content #workbench\.sessions\.panel\.chatDebugContainer {
-	--vscode-panel-background: var(--vscode-sessionsPanel-background);
+	--vscode-panel-background: var(--vscode-agentsPanel-background);
 }
 
 .monaco-workbench.vs.agent-sessions-workbench .part.panel > .content #workbench\.sessions\.panel\.chatDebugContainer .monaco-list-rows {
-	background: var(--vscode-sessionsPanel-background) !important;
+	background: var(--vscode-agentsPanel-background) !important;
 }
 
 /* Terminal body background */
 .agent-sessions-workbench .part.panel .terminal-wrapper {
-	background-color: var(--vscode-sessionsPanel-background);
+	background-color: var(--vscode-agentsPanel-background);
 }

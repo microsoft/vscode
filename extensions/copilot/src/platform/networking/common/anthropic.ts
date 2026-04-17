@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ConfigKey, IConfigurationService } from '../../configuration/common/configurationService';
-import { modelSupportsContextEditing, modelSupportsToolSearch } from '../../endpoint/common/chatModelCapabilities';
+import { modelSupportsContextEditing } from '../../endpoint/common/chatModelCapabilities';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
 import { IChatEndpoint } from './networking';
 
@@ -28,50 +28,6 @@ export interface AnthropicMessagesTool {
 	defer_loading?: boolean;
 	cache_control?: { type: 'ephemeral' };
 }
-
-export interface ToolReference {
-	type: 'tool_reference';
-	tool_name: string;
-}
-
-export interface ToolSearchToolSearchResult {
-	type: 'tool_search_tool_search_result';
-	tool_references: ToolReference[];
-}
-
-export interface ToolSearchToolResultError {
-	type: 'tool_search_tool_result_error';
-	error_code: 'too_many_requests' | 'invalid_pattern' | 'pattern_too_long' | 'unavailable';
-}
-
-export interface ServerToolUse {
-	type: 'server_tool_use';
-	id: string;
-	name: string;
-	input: {
-		query: string;
-	};
-}
-
-export interface ToolSearchToolResult {
-	type: 'tool_search_tool_result';
-	tool_use_id: string;
-	content: ToolSearchToolSearchResult | ToolSearchToolResultError;
-}
-
-export interface ToolSearchUsage {
-	tool_search_requests: number;
-}
-
-/**
- * Tools that should not use deferred loading when tool search is enabled.
- * These are frequently used tools that benefit from being immediately available.
- *
- * TODO: @bhavyaus Replace these hardcoded strings with constants from ToolName enum
- */
-
-export const TOOL_SEARCH_TOOL_NAME = 'tool_search_tool_regex';
-export const TOOL_SEARCH_TOOL_TYPE = 'tool_search_tool_regex_20251119';
 
 /** Name for the custom client-side embeddings-based tool search tool. Must not use copilot_/vscode_ prefix — those are reserved for static package.json declarations and will be rejected by vscode.lm.registerToolDefinition. */
 export const CUSTOM_TOOL_SEARCH_NAME = 'tool_search';
@@ -166,36 +122,6 @@ export function modelSupportsMemory(modelId: string): boolean {
 		normalized.startsWith('claude-opus-4-5') ||
 		normalized.startsWith('claude-opus-4-1') ||
 		normalized.startsWith('claude-opus-4');
-}
-
-export function isAnthropicToolSearchEnabled(
-	endpoint: IChatEndpoint | string,
-	configurationService: IConfigurationService
-): boolean {
-	const supportsIt = typeof endpoint === 'string'
-		? modelSupportsToolSearch(endpoint)
-		: endpoint.supportsToolSearch ?? modelSupportsToolSearch(endpoint.model);
-	if (!supportsIt) {
-		return false;
-	}
-
-	return configurationService.getConfig(ConfigKey.AnthropicToolSearchEnabled);
-}
-
-/**
- * Returns true when custom client-side embeddings-based tool search should be used
- * instead of the server-side regex tool search.
- */
-export function isAnthropicCustomToolSearchEnabled(
-	endpoint: IChatEndpoint | string,
-	configurationService: IConfigurationService,
-	experimentationService: IExperimentationService,
-): boolean {
-	if (!isAnthropicToolSearchEnabled(endpoint, configurationService)) {
-		return false;
-	}
-
-	return configurationService.getExperimentBasedConfig(ConfigKey.AnthropicToolSearchMode, experimentationService) === 'client';
 }
 
 export function isAnthropicContextEditingEnabled(
