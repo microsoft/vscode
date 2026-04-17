@@ -66,14 +66,14 @@
 	min-height: 36px;
 	height: 36px;
 	border-radius: 8px;
-	background: var(--vscode-input-background);
-	border: var(--vscode-input-border, transparent) 1px solid;
+	background: var(--vscode-agentsChatInput-background);
+	border: var(--vscode-agentsChatInput-border) 1px solid;
 	padding: 0 4px 0 12px;
 	margin-top: 6px;
 }
 
 .ai-customization-management-editor .welcome-prompts-input-row:focus-within {
-	border-color: var(--vscode-focusBorder);
+	border-color: var(--vscode-agentsChatInput-focusBorder, var(--vscode-focusBorder));
 }
 
 .ai-customization-management-editor .welcome-prompts-input {
@@ -87,7 +87,7 @@
 	outline: none;
 	box-shadow: none;
 	background: transparent;
-	color: var(--vscode-input-foreground);
+	color: var(--vscode-agentsChatInput-foreground);
 	-webkit-appearance: none;
 	appearance: none;
 }
@@ -105,7 +105,7 @@
 }
 
 .ai-customization-management-editor .welcome-prompts-input::placeholder {
-	color: var(--vscode-input-placeholderForeground);
+	color: var(--vscode-agentsChatInput-placeholderForeground);
 }
 
 .ai-customization-management-editor .welcome-prompts-input-submit {
