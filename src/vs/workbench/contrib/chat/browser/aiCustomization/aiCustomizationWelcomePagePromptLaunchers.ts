@@ -15,6 +15,8 @@ import { agentIcon, instructionsIcon, pluginIcon, skillIcon, hookIcon } from './
 import { IAICustomizationWorkspaceService, IWelcomePageFeatures } from '../../common/aiCustomizationWorkspaceService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import type { IAICustomizationWelcomePageImplementation, IWelcomePageCallbacks } from './aiCustomizationWelcomePage.js';
+import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
+import { getDefaultHoverDelegate } from '../../../../../base/browser/ui/hover/hoverDelegateFactory.js';
 
 const $ = DOM.$;
 
@@ -33,6 +35,10 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 	readonly container: HTMLElement;
 	private cardsContainer: HTMLElement | undefined;
 	private inputElement: HTMLInputElement | undefined;
+
+	private sentLabel: HTMLElement | undefined;
+	private submitBtn: HTMLElement | undefined;
+	private inputRow: HTMLElement | undefined;
 
 	private readonly categoryDescriptions: IPromptLaunchersCategoryDescription[] = [
 		{
@@ -83,6 +89,7 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 		private readonly callbacks: IWelcomePageCallbacks,
 		_commandService: ICommandService,
 		private readonly workspaceService: IAICustomizationWorkspaceService,
+		private readonly hoverService: IHoverService,
 	) {
 		super();
 
@@ -101,43 +108,93 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 			const icon = DOM.append(header, $('span.welcome-prompts-section-label-icon.codicon.codicon-sparkle'));
 			icon.setAttribute('aria-hidden', 'true');
 			const title = DOM.append(header, $('span'));
-			title.textContent = localize('gettingStartedTitle', "Generate Workflow");
+			title.textContent = localize('gettingStartedTitle', "Customize Your Agent");
 
 			const description = DOM.append(gettingStarted, $('p.welcome-prompts-input-helper'));
-			description.textContent = localize('gettingStartedDesc', "Describe your stack, conventions, and workflow to draft agents, skills, and instructions.");
+			description.textContent = localize('gettingStartedDesc', "Describe your preferences and conventions to draft agents, skills, and instructions.");
 
 			const inputRow = DOM.append(gettingStarted, $('.welcome-prompts-input-row'));
+			this.inputRow = inputRow;
 			this.inputElement = DOM.append(inputRow, $('input.welcome-prompts-input')) as HTMLInputElement;
 			this.inputElement.type = 'text';
-			this.inputElement.placeholder = localize('workflowInputPlaceholder', "I'm building a React app with TypeScript and Tailwind...");
-			this.inputElement.setAttribute('aria-label', localize('workflowInputAriaLabel', "Describe your project to generate a workflow"));
+			this.inputElement.placeholder = localize('workflowInputPlaceholder', "Prefer concise commits, thorough reviews, and tested code...");
+			this.inputElement.setAttribute('aria-label', localize('workflowInputAriaLabel', "Describe your preferences to customize your agent"));
 
 			const submitBtn = DOM.append(inputRow, $('button.welcome-prompts-input-submit'));
-			submitBtn.setAttribute('aria-label', localize('workflowSubmitAriaLabel', "Generate workflow"));
+			this.submitBtn = submitBtn;
+			submitBtn.setAttribute('aria-label', localize('workflowSubmitAriaLabel', "Customize agent"));
+			this._register(this.hoverService.setupManagedHover(getDefaultHoverDelegate('element'), submitBtn, localize('workflowSubmitTooltip', "Open in Chat")));
 			const chevron = DOM.append(submitBtn, $('span.codicon.codicon-arrow-up'));
 			chevron.setAttribute('aria-hidden', 'true');
 
+			const updateSubmitState = () => {
+				const hasValue = !!(this.inputElement?.value?.trim());
+				(submitBtn as HTMLButtonElement).disabled = !hasValue;
+				submitBtn.classList.toggle('welcome-prompts-input-submit-disabled', !hasValue);
+			};
+
 			const submit = () => {
 				const value = this.inputElement?.value?.trim();
-				this.callbacks.closeEditor();
+				if (!value) {
+					return;
+				}
 				let query: string;
 				if (this.workspaceService.isSessionsWindow) {
-					query = value ? `Generate agent customizations. ${value}` : 'Generate agent customizations. ';
+					query = `Generate agent customizations. ${value}`;
 				} else {
-					query = value ? `/init ${value}` : '/init ';
+					query = `/init ${value}`;
 				}
-				this.callbacks.prefillChat(query, { isPartialQuery: !value });
+
+				// Show confirmation immediately — before prefillChat so it's visible
+				// even if prefillChat navigates focus away from this editor
+				if (this.inputElement) {
+					this.inputElement.value = '';
+				}
+				updateSubmitState();
+				inputRow.classList.add('sent');
+				submitBtn.style.display = 'none';
+				if (this.sentLabel) {
+					this.sentLabel.remove();
+				}
+				this.sentLabel = DOM.append(inputRow, $('span.welcome-prompts-sent-label'));
+				this.sentLabel.textContent = localize('sentToChat', "Sent to chat \u2713");
+
+				this.callbacks.prefillChat(query, { isPartialQuery: false, newChat: true });
 			};
-			this._register(DOM.addDisposableListener(submitBtn, 'click', submit));
+
+			this._register(DOM.addDisposableListener(submitBtn, 'click', e => { e.stopPropagation(); submit(); }));
 			this._register(DOM.addDisposableListener(this.inputElement, 'keydown', (e: KeyboardEvent) => {
 				if (e.key === 'Enter') {
 					e.preventDefault();
 					submit();
 				}
 			}));
+			this._register(DOM.addDisposableListener(this.inputElement, 'input', () => {
+				updateSubmitState();
+				// Typing restores the input row from sent state
+				this._clearSentState();
+			}));
+			updateSubmitState();
 		}
 
 		this.cardsContainer = DOM.append(welcomeInner, $('.welcome-prompts-cards'));
+	}
+
+	private _clearSentState(): void {
+		if (this.sentLabel) {
+			this.sentLabel.remove();
+			this.sentLabel = undefined;
+		}
+		if (this.submitBtn) {
+			this.submitBtn.style.display = '';
+		}
+		if (this.inputRow) {
+			this.inputRow.classList.remove('sent');
+		}
+	}
+
+	reset(): void {
+		this._clearSentState();
 	}
 
 	rebuildCards(visibleSectionIds: ReadonlySet<AICustomizationManagementSection>): void {
@@ -175,7 +232,7 @@ export class PromptLaunchersAICustomizationWelcomePage extends Disposable implem
 					this.callbacks.closeEditor();
 					if (this.workspaceService.isSessionsWindow) {
 						const typeLabel = category.label.toLowerCase().replace(/s$/, '');
-						this.callbacks.prefillChat(`Create me a custom ${typeLabel} that `, { isPartialQuery: true });
+						this.callbacks.prefillChat(`Create me a custom ${typeLabel} that `, { isPartialQuery: true, newChat: true });
 					} else {
 						this.workspaceService.generateCustomization(category.promptType!);
 					}

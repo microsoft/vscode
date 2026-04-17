@@ -1,0 +1,15 @@
+<!DOCTYPE html>
+<html>
+<head><title>Test Page</title></head>
+<body>
+<script>
+const worker = new Worker("worker.js");
+function sendMessage(text) {
+	return new Promise(resolve => {
+		worker.onmessage = e => resolve(e.data);
+		worker.postMessage(text);
+	});
+}
+</script>
+</body>
+</html>

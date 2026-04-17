@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ChildProcess, spawn, SpawnOptions, StdioOptions } from 'child_process';
-import { chmodSync, existsSync, readFileSync, statSync, truncateSync, unlinkSync, promises } from 'fs';
+import { chmodSync, existsSync, readFileSync, statSync, truncateSync, unlinkSync } from 'fs';
 import { homedir, tmpdir } from 'os';
 import type { ProfilingSession, Target } from 'v8-inspect-profiler';
 import { Event } from '../../base/common/event.js';
@@ -20,6 +20,7 @@ import { addArg, parseCLIProcessArgv } from '../../platform/environment/node/arg
 import { getStdinFilePath, hasStdinWithoutTty, readFromStdin, stdinDataListener } from '../../platform/environment/node/stdin.js';
 import { createWaitMarkerFileSync } from '../../platform/environment/node/wait.js';
 import product from '../../platform/product/common/product.js';
+import { resolveSiblingWindowsExePath } from '../../platform/native/node/siblingApp.js';
 import { CancellationTokenSource } from '../../base/common/cancellation.js';
 import { isUNC, randomPath } from '../../base/common/extpath.js';
 import { Utils } from '../../platform/profiling/common/profiling.js';
@@ -385,9 +386,9 @@ export async function main(argv: string[]): Promise<void> {
 
 			const filenamePrefix = randomPath(homedir(), 'prof');
 
-			addArg(argv, `--inspect-brk=${profileHost}:${portMain}`);
-			addArg(argv, `--remote-debugging-port=${profileHost}:${portRenderer}`);
-			addArg(argv, `--inspect-brk-extensions=${profileHost}:${portExthost}`);
+			addArg(argv, `--inspect-brk=${portMain}`);
+			addArg(argv, `--remote-debugging-port=${portRenderer}`);
+			addArg(argv, `--inspect-brk-extensions=${portExthost}`);
 			addArg(argv, `--prof-startup-prefix`, filenamePrefix);
 			addArg(argv, `--no-cached-data`);
 
@@ -487,15 +488,11 @@ export async function main(argv: string[]): Promise<void> {
 
 			// Figure out the app to launch: with --agents we try to launch the embedded app on Windows
 			let execToLaunch = process.execPath;
-			if (isWindows && args.agents && product.embedded?.win32SiblingExeBasename) {
-				const siblingExe = join(dirname(process.execPath), `${product.embedded.win32SiblingExeBasename}.exe`);
-				try {
-					if (existsSync(siblingExe) && statSync(siblingExe).isFile()) {
-						execToLaunch = siblingExe;
-						argv = argv.filter(arg => arg !== '--agents');
-					}
-				} catch (error) {
-					/* may not exist on disk */
+			if (isWindows && args.agents) {
+				const siblingExe = resolveSiblingWindowsExePath(product);
+				if (siblingExe) {
+					execToLaunch = siblingExe;
+					argv = argv.filter(arg => arg !== '--agents');
 				}
 			}
 
@@ -516,24 +513,12 @@ export async function main(argv: string[]): Promise<void> {
 			const spawnArgs = ['-n', '-g'];
 
 			// Figure out the app to launch: with --agents we try to launch the embedded app
-			let appToLaunch = process.execPath;
-			if (args.agents) {
-				// process.execPath is e.g. /Applications/Code.app/Contents/MacOS/Electron
-				// Embedded app is at /Applications/Code.app/Contents/Applications/<EmbeddedApp>.app
-				const contentsPath = dirname(dirname(process.execPath));
-				const applicationsPath = join(contentsPath, 'Applications');
-				try {
-					const files = await promises.readdir(applicationsPath);
-					const embeddedApp = files.find(file => file.endsWith('.app'));
-					if (embeddedApp) {
-						appToLaunch = join(applicationsPath, embeddedApp);
-						argv = argv.filter(arg => arg !== '--agents');
-					}
-				} catch (error) {
-					/* may not exist on disk */
-				}
+			if (args.agents && product.darwinSiblingBundleIdentifier) {
+				spawnArgs.push('-b', product.darwinSiblingBundleIdentifier);
+				argv = argv.filter(arg => arg !== '--agents');
+			} else {
+				spawnArgs.push('-a', process.execPath); // -a opens the given application.
 			}
-			spawnArgs.push('-a', appToLaunch); // -a opens the given application.
 
 			if (args.verbose || args.status) {
 				spawnArgs.push('--wait-apps'); // `open --wait-apps`: blocks until the launched app is closed (even if they were already running)

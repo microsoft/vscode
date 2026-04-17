@@ -1,0 +1,68 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.post-update-widget {
+	display: flex;
+	flex-direction: column;
+	gap: 12px;
+	padding: 6px 6px;
+	min-width: 300px;
+	max-width: 550px;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-bodyFontSize-small);
+}
+
+/* Header */
+.post-update-widget .header {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+}
+
+.post-update-widget .header .title {
+	font-weight: 600;
+	font-size: var(--vscode-bodyFontSize);
+	color: var(--vscode-foreground);
+}
+
+/* Button bar */
+.post-update-widget .button-bar {
+	display: flex;
+	justify-content: flex-end;
+	align-items: center;
+	gap: 8px;
+}
+
+.post-update-widget .button-bar button {
+	padding: 4px 12px;
+	border-radius: var(--vscode-cornerRadius-small);
+	font-size: var(--vscode-bodyFontSize-small);
+	cursor: pointer;
+	white-space: nowrap;
+}
+
+.post-update-widget .update-button-secondary {
+	background-color: var(--vscode-button-secondaryBackground);
+	color: var(--vscode-button-secondaryForeground);
+	border: 1px solid var(--vscode-button-border, transparent);
+}
+
+.post-update-widget .update-button-secondary:hover {
+	background-color: var(--vscode-button-secondaryHoverBackground);
+}
+
+.post-update-widget .update-button-leading-secondary {
+	margin-right: auto;
+}
+
+.post-update-widget .update-button-primary {
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border: 1px solid var(--vscode-button-border, transparent);
+}
+
+.post-update-widget .update-button-primary:hover {
+	background-color: var(--vscode-button-hoverBackground);
+}

@@ -5,7 +5,7 @@
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
-import { IElementData, IElementAncestor } from '../../browserElements/common/browserElements.js';
+import { IElementData, IElementAncestor } from '../common/browserView.js';
 import { ICDPConnection } from '../common/cdp/types.js';
 import type { BrowserView } from './browserView.js';
 
@@ -85,7 +85,7 @@ export class BrowserViewElementInspector extends Disposable {
 	constructor(private readonly browser: BrowserView) {
 		super();
 
-		this._connectionPromise = browser.attach().then(
+		this._connectionPromise = browser.debugger.attach().then(
 			async conn => {
 				try {
 					// Important: don't use `Runtime.*` commands so we can support inspection during debugging.

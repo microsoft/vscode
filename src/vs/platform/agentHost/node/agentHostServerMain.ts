@@ -47,6 +47,8 @@ import { AGENT_CLIENT_SCHEME } from '../common/agentClientUri.js';
 import { resolveServerUrls } from './serverUrls.js';
 import { AgentPluginManager } from './agentPluginManager.js';
 import { IAgentPluginManager } from '../common/agentPluginManager.js';
+import { registerPendingEditContentProvider } from './copilot/pendingEditContentStore.js';
+import { AgentHostGitService, IAgentHostGitService } from './agentHostGitService.js';
 
 /** Log to stderr so messages appear in the terminal alongside the process. */
 function log(msg: string): void {
@@ -152,12 +154,15 @@ async function main(): Promise<void> {
 	// File service
 	const fileService = disposables.add(new FileService(logService));
 	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new DiskFileSystemProvider(logService))));
+	// In-memory filesystem backing transient file-edit previews shown during
+	// tool-call confirmations.
+	disposables.add(registerPendingEditContentProvider(fileService));
 
 	// Session data service
 	const sessionDataService = new SessionDataService(URI.file(environmentService.userDataPath), fileService, logService);
 
 	// Create the agent service (owns AgentHostStateManager + AgentSideEffects internally)
-	const agentService = new AgentService(logService, fileService, sessionDataService);
+	const agentService = new AgentService(logService, fileService, sessionDataService, productService);
 	disposables.add(agentService);
 
 	// Register agents
@@ -174,6 +179,7 @@ async function main(): Promise<void> {
 		diServices.set(IDiffComputeService, disposables.add(new NodeWorkerDiffComputeService(logService)));
 		diServices.set(IAgentHostTerminalManager, agentService.terminalManager);
 		const instantiationService = new InstantiationService(diServices);
+		diServices.set(IAgentHostGitService, instantiationService.createInstance(AgentHostGitService));
 		const copilotAgent = disposables.add(instantiationService.createInstance(CopilotAgent));
 		agentService.registerProvider(copilotAgent);
 		log('CopilotAgent registered');

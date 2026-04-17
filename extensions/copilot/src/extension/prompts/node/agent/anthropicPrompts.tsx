@@ -6,12 +6,12 @@
 import { BasePromptElementProps, PromptElement, PromptElementProps, PromptPiece, PromptSizing } from '@vscode/prompt-tsx';
 import type { LanguageModelToolInformation } from 'vscode';
 import { IConfigurationService } from '../../../../platform/configuration/common/configurationService';
-import { isHiddenModelG } from '../../../../platform/endpoint/common/chatModelCapabilities';
-import { CUSTOM_TOOL_SEARCH_NAME, isAnthropicContextEditingEnabled, isAnthropicCustomToolSearchEnabled, isAnthropicToolSearchEnabled, TOOL_SEARCH_TOOL_NAME } from '../../../../platform/networking/common/anthropic';
+import { isHiddenModelG, modelSupportsToolSearch } from '../../../../platform/endpoint/common/chatModelCapabilities';
+import { CUSTOM_TOOL_SEARCH_NAME, isAnthropicContextEditingEnabled } from '../../../../platform/networking/common/anthropic';
 import { IToolDeferralService } from '../../../../platform/networking/common/toolDeferralService';
 import { IChatEndpoint } from '../../../../platform/networking/common/networking';
 import { IExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
-import { ToolName } from '../../../tools/common/toolNames';
+import { agenticBrowserTools, ToolName } from '../../../tools/common/toolNames';
 import { InstructionMessage } from '../base/instructionMessage';
 import { ResponseTranslationRules } from '../base/responseTranslationRules';
 import { Tag } from '../base/tag';
@@ -33,8 +33,6 @@ interface ToolSearchToolPromptProps extends BasePromptElementProps {
 class ToolSearchToolPrompt extends PromptElement<ToolSearchToolPromptProps> {
 	constructor(
 		props: PromptElementProps<ToolSearchToolPromptProps>,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
-		@IExperimentationService private readonly experimentationService: IExperimentationService,
 		@IToolDeferralService private readonly toolDeferralService: IToolDeferralService,
 	) {
 		super(props);
@@ -45,8 +43,8 @@ class ToolSearchToolPrompt extends PromptElement<ToolSearchToolPromptProps> {
 
 		// Check if tool search is enabled for this model
 		const toolSearchEnabled = endpoint
-			? isAnthropicToolSearchEnabled(endpoint, this.configurationService)
-			: isAnthropicToolSearchEnabled(this.props.modelFamily ?? '', this.configurationService);
+			? !!endpoint.supportsToolSearch
+			: modelSupportsToolSearch(this.props.modelFamily ?? '');
 
 		if (!toolSearchEnabled || !this.props.availableTools) {
 			return;
@@ -62,12 +60,7 @@ class ToolSearchToolPrompt extends PromptElement<ToolSearchToolPromptProps> {
 			return;
 		}
 
-		// Determine if custom (embeddings-based) tool search is being used
-		const customToolSearch = endpoint
-			? isAnthropicCustomToolSearchEnabled(endpoint, this.configurationService, this.experimentationService)
-			: false;
-
-		const searchToolName = customToolSearch ? CUSTOM_TOOL_SEARCH_NAME : TOOL_SEARCH_TOOL_NAME;
+		const searchToolName = CUSTOM_TOOL_SEARCH_NAME;
 
 		return <Tag name='toolSearchInstructions'>
 			Use the {searchToolName} tool to search for deferred tools before calling them.<br />
@@ -81,10 +74,18 @@ class ToolSearchToolPrompt extends PromptElement<ToolSearchToolPromptProps> {
 				- Calling a deferred tool without first loading it will fail<br />
 			</Tag>
 			<br />
-			{customToolSearch
-				? this.renderCustomSearchInstructions(searchToolName)
-				: this.renderRegexSearchInstructions(searchToolName)
-			}
+			<Tag name='searchQueryGuidance'>
+				Describe what capability you need in natural language. The search uses semantic similarity to find the most relevant tools.<br />
+				<br />
+				Examples:<br />
+				- "create a new file" - finds file creation tools<br />
+				- "run jupyter notebook cell" - finds notebook execution tools<br />
+				- "fetch a web page" - finds web fetching tools<br />
+				- "github pull request" - finds GitHub PR tools<br />
+				<br />
+				Prefer broad queries that cover all related tools in a single search. For example, search "github" to find all GitHub tools at once rather than making separate searches for issues and pull requests. Check the availableDeferredTools list below and use it to inform your query.<br />
+			</Tag>
+			<br />
 			<Tag name='incorrectUsagePatterns'>
 				NEVER do these:<br />
 				- Calling a deferred tool directly without loading it first with {searchToolName}<br />
@@ -101,38 +102,6 @@ class ToolSearchToolPrompt extends PromptElement<ToolSearchToolPromptProps> {
 				{deferredTools.join('\n')}
 			</Tag>
 		</Tag>;
-	}
-
-	private renderRegexSearchInstructions(searchToolName: string) {
-		return <>
-			<Tag name='regexPatternSyntax'>
-				Construct regex patterns using Python's re.search() syntax. Common patterns:<br />
-				- `^mcp_github_` - matches tools starting with "mcp_github_"<br />
-				- `issue|pull_request` - matches tools containing "issue" OR "pull_request"<br />
-				- `create.*branch` - matches tools with "create" followed by "branch"<br />
-				- `mcp_.*list` - matches MCP tools with "list" in it.<br />
-				<br />
-				The pattern is matched case-insensitively against tool names, descriptions, argument names and argument descriptions.<br />
-			</Tag>
-			<br />
-		</>;
-	}
-
-	private renderCustomSearchInstructions(searchToolName: string) {
-		return <>
-			<Tag name='searchQueryGuidance'>
-				Describe what capability you need in natural language. The search uses semantic similarity to find the most relevant tools.<br />
-				<br />
-				Examples:<br />
-				- "create a new file" - finds file creation tools<br />
-				- "run jupyter notebook cell" - finds notebook execution tools<br />
-				- "fetch a web page" - finds web fetching tools<br />
-				- "github pull request" - finds GitHub PR tools<br />
-				<br />
-				Prefer broad queries that cover all related tools in a single search. For example, search "github" to find all GitHub tools at once rather than making separate searches for issues and pull requests. Check the availableDeferredTools list below and use it to inform your query.<br />
-			</Tag>
-			<br />
-		</>;
 	}
 }
 
@@ -174,6 +143,7 @@ class DefaultAnthropicAgentPrompt extends PromptElement<DefaultAgentPromptProps>
 				{tools[ToolName.CoreRunInTerminal] && <>NEVER try to edit a file by running terminal commands unless the user specifically asks for it.<br /></>}
 				{!tools.hasSomeEditTool && <>You don't currently have any tools available for editing files. If the user asks you to edit a file, you can ask the user to enable editing tools or print a codeblock with the suggested changes.<br /></>}
 				{!tools[ToolName.CoreRunInTerminal] && <>You don't currently have any tools available for running terminal commands. If the user asks you to run a terminal command, you can ask the user to enable terminal tools or print a codeblock with the suggested command.<br /></>}
+				{tools[ToolName.CoreOpenBrowserPage] && tools.hasAgenticBrowserTools && <>Use the browser tools ({ToolName.CoreOpenBrowserPage}, {agenticBrowserTools.find(k => tools[k])}, etc.) when beneficial for front-end tasks, such as when visualizing or validating UI changes.<br /></>}
 				Tools can be disabled by the user. You may see tools used previously in the conversation that are not currently available. Be careful to only use the tools that are currently available to you.
 			</Tag>
 			{this.props.codesearchMode && <CodesearchModeInstructions {...this.props} />}
@@ -306,6 +276,7 @@ class Claude45DefaultPrompt extends PromptElement<DefaultAgentPromptProps> {
 				{tools[ToolName.CoreRunInTerminal] && <>NEVER try to edit a file by running terminal commands unless the user specifically asks for it.<br /></>}
 				{!tools.hasSomeEditTool && <>You don't currently have any tools available for editing files. If the user asks you to edit a file, you can ask the user to enable editing tools or print a codeblock with the suggested changes.<br /></>}
 				{!tools[ToolName.CoreRunInTerminal] && <>You don't currently have any tools available for running terminal commands. If the user asks you to run a terminal command, you can ask the user to enable terminal tools or print a codeblock with the suggested command.<br /></>}
+				{tools[ToolName.CoreOpenBrowserPage] && tools.hasAgenticBrowserTools && <>Use the browser tools ({ToolName.CoreOpenBrowserPage}, {agenticBrowserTools.find(k => tools[k])}, etc.) when beneficial for front-end tasks, such as when visualizing or validating UI changes.<br /></>}
 				Tools can be disabled by the user. You may see tools used previously in the conversation that are not currently available. Be careful to only use the tools that are currently available to you.<br />
 				<ToolSearchToolPrompt availableTools={this.props.availableTools} modelFamily={this.props.modelFamily} />
 			</Tag>
@@ -354,7 +325,6 @@ class Claude45DefaultPrompt extends PromptElement<DefaultAgentPromptProps> {
 class ToolSearchToolPromptOptimized extends PromptElement<ToolSearchToolPromptProps> {
 	constructor(
 		props: PromptElementProps<ToolSearchToolPromptProps>,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IToolDeferralService private readonly toolDeferralService: IToolDeferralService,
 	) {
 		super(props);
@@ -364,8 +334,8 @@ class ToolSearchToolPromptOptimized extends PromptElement<ToolSearchToolPromptPr
 		const endpoint = sizing.endpoint as IChatEndpoint | undefined;
 
 		const toolSearchEnabled = endpoint
-			? isAnthropicToolSearchEnabled(endpoint, this.configurationService)
-			: isAnthropicToolSearchEnabled(this.props.modelFamily ?? '', this.configurationService);
+			? !!endpoint.supportsToolSearch
+			: modelSupportsToolSearch(this.props.modelFamily ?? '');
 
 		if (!toolSearchEnabled || !this.props.availableTools) {
 			return;
@@ -381,16 +351,11 @@ class ToolSearchToolPromptOptimized extends PromptElement<ToolSearchToolPromptPr
 		}
 
 		return <Tag name='toolSearchInstructions'>
-			You MUST use {TOOL_SEARCH_TOOL_NAME} to load deferred tools BEFORE calling them. Calling a deferred tool without loading it first will fail.<br />
+			You MUST use {CUSTOM_TOOL_SEARCH_NAME} to load deferred tools BEFORE calling them. Calling a deferred tool without loading it first will fail.<br />
 			<br />
-			Construct regex patterns using Python re.search() syntax:<br />
-			- `^mcp_github_` matches tools starting with "mcp_github_"<br />
-			- `issue|pull_request` matches tools containing "issue" OR "pull_request"<br />
-			- `create.*branch` matches tools with "create" followed by "branch"<br />
+			Describe what capability you need in natural language. The search uses semantic similarity to find the most relevant tools.<br />
 			<br />
-			The pattern matches case-insensitively against tool names, descriptions, argument names, and argument descriptions.<br />
-			<br />
-			Do NOT call {TOOL_SEARCH_TOOL_NAME} again for a tool already returned by a previous search. If a search returns no matching tools, the tool is not available. Do not retry with different patterns.<br />
+			Do NOT call {CUSTOM_TOOL_SEARCH_NAME} again for a tool already returned by a previous search. If a search returns no matching tools, the tool is not available. Do not retry with different patterns.<br />
 			<br />
 			Available deferred tools (must be loaded before use):<br />
 			{deferredTools.join('\n')}
@@ -484,6 +449,7 @@ class Claude46OptimizedBasePrompt extends PromptElement<DefaultAgentPromptProps>
 				{tools[ToolName.CoreRunInTerminal] && <>Do not call {ToolName.CoreRunInTerminal} multiple times in parallel. Run one command and wait for output before running the next.<br /></>}
 				{tools[ToolName.ExecutionSubagent] && <>Don't call {ToolName.ExecutionSubagent} multiple times in parallel. Instead, invoke one subagent and wait for its response before running the next command.<br /></>}
 				When invoking a tool that takes a file path, always use the absolute file path. If the file has a scheme like untitled: or vscode-userdata:, use a URI with the scheme.<br />
+				{tools[ToolName.CoreOpenBrowserPage] && tools.hasAgenticBrowserTools && <>Use the browser tools ({ToolName.CoreOpenBrowserPage}, {agenticBrowserTools.find(k => tools[k])}, etc.) when beneficial for front-end tasks, such as when visualizing or validating UI changes.<br /></>}
 				Tools can be disabled by the user. Only use tools that are currently available.<br />
 				<ToolSearchToolPromptOptimized availableTools={this.props.availableTools} modelFamily={this.props.modelFamily} />
 			</Tag>
@@ -626,7 +592,7 @@ class AnthropicReminderInstructions extends PromptElement<ReminderInstructionsPr
 	}
 
 	async render(state: void, sizing: PromptSizing) {
-		const toolSearchEnabled = isAnthropicToolSearchEnabled(this.props.endpoint, this.configurationService);
+		const toolSearchEnabled = !!this.props.endpoint.supportsToolSearch;
 		const contextEditingEnabled = isAnthropicContextEditingEnabled(this.props.endpoint, this.configurationService, this.experimentationService);
 
 		return <>
@@ -638,7 +604,7 @@ class AnthropicReminderInstructions extends PromptElement<ReminderInstructionsPr
 			</>}
 			{toolSearchEnabled && <>
 				<br />
-				IMPORTANT: Before calling any deferred tool that was not previously returned by {TOOL_SEARCH_TOOL_NAME}, you MUST first use {TOOL_SEARCH_TOOL_NAME} to load it. Calling a deferred tool without first loading it will fail. Tools returned by {TOOL_SEARCH_TOOL_NAME} are automatically expanded and immediately available - do not search for them again.<br />
+				IMPORTANT: Before calling any deferred tool that was not previously returned by {CUSTOM_TOOL_SEARCH_NAME}, you MUST first use {CUSTOM_TOOL_SEARCH_NAME} to load it. Calling a deferred tool without first loading it will fail. Tools returned by {CUSTOM_TOOL_SEARCH_NAME} are automatically expanded and immediately available - do not search for them again.<br />
 			</>}
 		</>;
 	}

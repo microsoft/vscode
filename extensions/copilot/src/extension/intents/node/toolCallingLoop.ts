@@ -24,7 +24,8 @@ import { IMakeChatRequestOptions } from '../../../platform/networking/common/net
 import { OpenAIContextManagementResponse } from '../../../platform/networking/common/openai';
 import { CopilotChatAttr, emitAgentTurnEvent, emitSessionStartEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, GenAiProviderName, resolveWorkspaceOTelMetadata, StdAttr, truncateForOTel, workspaceMetadataToOTelAttributes } from '../../../platform/otel/common/index';
 import { IOTelService, ISpanHandle, SpanKind, SpanStatusCode } from '../../../platform/otel/common/otelService';
-import { getCurrentCapturingToken, IRequestLogger } from '../../../platform/requestLogger/node/requestLogger';
+import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
+import { getCurrentCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { computePromptTokenDetails } from '../../../platform/tokenizer/node/promptTokenDetails';
@@ -38,7 +39,7 @@ import { Mutable } from '../../../util/vs/base/common/types';
 import { URI } from '../../../util/vs/base/common/uri';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
-import { ChatResponsePullRequestPart, LanguageModelDataPart2, LanguageModelPartAudience, LanguageModelTextPart, LanguageModelToolResult2, MarkdownString } from '../../../vscodeTypes';
+import { ChatResponsePullRequestPart, LanguageModelDataPart2, LanguageModelPartAudience, LanguageModelToolResult2, MarkdownString } from '../../../vscodeTypes';
 import { InteractionOutcomeComputer } from '../../inlineChat/node/promptCraftingTypes';
 import { ChatVariablesCollection } from '../../prompt/common/chatVariablesCollection';
 import { AnthropicTokenUsageMetadata, Conversation, IResultMetadata, ResponseStreamParticipant, TurnStatus } from '../../prompt/common/conversation';
@@ -753,17 +754,30 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 				// log entries are routed to a dedicated child JSONL file.
 				// parentChatSessionId is only set on subagent requests
 				// (see CapturingToken setup in defaultIntentRequestHandler).
-				if (parentChatSessionId && chatSessionId) {
-					const childLabel = debugLogLabel ?? `runSubagent-${agentName}`;
+				if (chatSessionId) {
 					const fileLogger = this._instantiationService.invokeFunction(accessor =>
 						accessor.get(IChatDebugFileLoggerService));
-					fileLogger.startChildSession(
-						chatSessionId, parentChatSessionId, childLabel, parentTraceContext?.spanId);
-					// Also register the invoke_agent span's ID so that hook spans
-					// (whose parentSpanId is this span) are routed to the child session.
-					const invokeSpanId = span.getSpanContext()?.spanId;
-					if (invokeSpanId) {
-						fileLogger.registerSpanSession(invokeSpanId, chatSessionId);
+
+					// Register this session as a child of its parent so that debug
+					// log entries are routed to a dedicated child JSONL file.
+					// parentChatSessionId is only set on subagent requests
+					// (see CapturingToken setup in defaultIntentRequestHandler).
+					if (parentChatSessionId) {
+						const childLabel = debugLogLabel ?? `runSubagent-${agentName}`;
+						fileLogger.startChildSession(
+							chatSessionId, parentChatSessionId, childLabel, parentTraceContext?.spanId);
+						// Also register the invoke_agent span's ID so that hook spans
+						// (whose parentSpanId is this span) are routed to the child session.
+						const invokeSpanId = span.getSpanContext()?.spanId;
+						if (invokeSpanId) {
+							fileLogger.registerSpanSession(invokeSpanId, chatSessionId);
+						}
+					} else {
+						// For top-level agent invocations (not subagents), start a debug
+						// file logging session so entries are flushed to JSONL on disk.
+						// This is idempotent — calling startSession on an already-started
+						// session just promotes it if needed.
+						fileLogger.startSession(chatSessionId).catch(() => { /* best effort */ });
 					}
 				}
 
@@ -790,6 +804,10 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 					span.setAttribute(GenAiAttr.INPUT_MESSAGES, truncateForOTel(JSON.stringify([
 						{ role: 'user', parts: [{ type: 'text', content: userMessage }] }
 					])));
+					// Set USER_REQUEST so event translator can emit user.message
+					if (userMessage) {
+						span.setAttribute(CopilotChatAttr.USER_REQUEST, truncateForOTel(userMessage));
+					}
 					// Emit user_message span event for real-time debug panel streaming
 					if (userMessage) {
 						span.addEvent('user_message', { content: userMessage, ...(chatSessionId ? { [CopilotChatAttr.CHAT_SESSION_ID]: chatSessionId } : {}) });
@@ -1303,14 +1321,6 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 						id: this.createInternalToolCallId(call.id),
 						arguments: call.arguments === '' ? '{}' : call.arguments
 					})));
-				}
-				if (delta.serverToolCalls) {
-					for (const serverCall of delta.serverToolCalls) {
-						const result: LanguageModelToolResult2 = {
-							content: [new LanguageModelTextPart(JSON.stringify(serverCall.result, undefined, 2))]
-						};
-						this._requestLogger.logServerToolCall(serverCall.id, serverCall.name, serverCall.args, result);
-					}
 				}
 				if (delta.statefulMarker) {
 					statefulMarker = delta.statefulMarker;

@@ -660,7 +660,19 @@ export function buildChatHistoryFromEvents(sessionId: string, modelId: string | 
 						isBuiltin: defaultModeInstructionsForLastRequest.isBuiltin,
 					};
 				}
-				turns.push(new ChatRequestTurn2(prompt, undefined, references, '', [], undefined, details?.requestId ?? event.id, modelId, modeInstructions2));
+				let commandPrefix = '';
+				switch (event.data.agentMode) {
+					case 'autopilot': {
+						commandPrefix = '/autopilot ';
+						break;
+					}
+					case 'plan': {
+						commandPrefix = '/plan ';
+						break;
+					}
+				}
+
+				turns.push(new ChatRequestTurn2(`${commandPrefix}${prompt}`, undefined, references, '', [], undefined, details?.requestId ?? event.id, modelId, modeInstructions2));
 				break;
 			}
 			case 'assistant.message_delta': {
@@ -1533,30 +1545,56 @@ function formatUpdateTodoInvocationCompleted(invocation: ChatToolInvocationPart,
 }
 
 
-export async function updateTodoList(
-	event: ToolExecutionStartEvent,
+/**
+ * Check whether a SQL query writes to the `todos` or `todo_deps` table.
+ * Pure reads (SELECT) are ignored to avoid unnecessary widget refreshes.
+ */
+export function isTodoRelatedSqlQuery(query: string): boolean {
+	const normalized = query.replace(/\s+/g, ' ').toLowerCase();
+	const targetsTodoTable = /\btodos\b/.test(normalized) || /\btodo_deps\b/.test(normalized);
+	if (!targetsTodoTable) {
+		return false;
+	}
+	return /\b(insert|update|delete|create|drop|alter)\b/.test(normalized);
+}
+
+interface SqlTodoItem {
+	readonly id: string;
+	readonly title: string;
+	readonly description: string;
+	readonly status: 'pending' | 'in_progress' | 'done' | 'blocked';
+}
+
+function mapSqlStatusToTodoStatus(status: string): 'not-started' | 'in-progress' | 'completed' {
+	switch (status) {
+		case 'done':
+			return 'completed';
+		case 'in_progress':
+			return 'in-progress';
+		case 'pending':
+		case 'blocked':
+		default:
+			return 'not-started';
+	}
+}
+
+/**
+ * Update the todo list widget from SQL todo items queried from the session database.
+ */
+export async function updateTodoListFromSqlItems(
+	items: readonly SqlTodoItem[],
 	toolsService: IToolsService,
 	toolInvocationToken: ChatParticipantToolToken,
 	token: CancellationToken
-) {
-	const toolData = event.data as ToolCall;
-
-	if (toolData.toolName !== 'update_todo' || !toolData.arguments.todos) {
-		return;
-	}
-	const { todoList } = parseTodoMarkdown(toolData.arguments.todos);
-	if (!todoList.length) {
-		return;
-	}
-
+): Promise<void> {
 	await toolsService.invokeTool(ToolName.CoreManageTodoList, {
 		input: {
 			operation: 'write',
-			todoList: todoList.map((item, i) => ({
+			todoList: items.map((item, i) => ({
 				id: i,
 				title: item.title,
-				description: '',
-				status: item.status
+				description: item.description || '',
+				status: mapSqlStatusToTodoStatus(item.status)
 			} satisfies IManageTodoListToolInputParams['todoList'][number])),
 		} satisfies IManageTodoListToolInputParams,
 		toolInvocationToken,

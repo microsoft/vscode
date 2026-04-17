@@ -18,6 +18,7 @@ import { AddFirstParameterToFunctions } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { virtualMachineHint } from '../../../base/node/id.js';
 import { Promises, SymlinkSupport } from '../../../base/node/pfs.js';
+import { launchSiblingApp } from '../node/siblingApp.js';
 import { findFreePort, isPortFree } from '../../../base/node/ports.js';
 import { localize } from '../../../nls.js';
 import { ISerializableCommandAction } from '../../action/common/action.js';
@@ -304,12 +305,22 @@ export class NativeHostMainService extends Disposable implements INativeHostMain
 		}, options);
 	}
 
-	async openAgentsWindow(windowId: number | undefined): Promise<void> {
+	async openAgentsWindow(windowId: number | undefined, options?: { readonly forceNewWindow?: boolean }): Promise<void> {
 		await this.windowsMainService.openAgentsWindow({
 			context: OpenContext.API,
 			contextWindowId: windowId,
-			cli: this.environmentMainService.args
+			cli: this.environmentMainService.args,
+			forceNewWindow: options?.forceNewWindow,
 		});
+	}
+
+	async launchSiblingApp(_windowId: number | undefined, args?: string[]): Promise<void> {
+		const result = launchSiblingApp(this.productService, args, err => {
+			this.logService.error('[launchSiblingApp] Failed to spawn sibling app:', err.message);
+		});
+		if (!result) {
+			this.logService.warn('[launchSiblingApp] Could not resolve sibling app on this platform');
+		}
 	}
 
 	async isFullScreen(windowId: number | undefined, options?: INativeHostOptions): Promise<boolean> {

@@ -21,11 +21,11 @@ import { IGitService } from '../../../platform/git/common/gitService';
 import { IOctoKitService } from '../../../platform/github/common/githubService';
 import { HAS_IGNORED_FILES_MESSAGE } from '../../../platform/ignore/common/ignoreService';
 import { ILogService } from '../../../platform/log/common/logService';
-import { isAnthropicContextEditingEnabled, isAnthropicToolSearchEnabled } from '../../../platform/networking/common/anthropic';
+import { isAnthropicContextEditingEnabled } from '../../../platform/networking/common/anthropic';
 import { FilterReason } from '../../../platform/networking/common/openai';
 import { IOTelService } from '../../../platform/otel/common/otelService';
 import { CapturingToken } from '../../../platform/requestLogger/common/capturingToken';
-import { IRequestLogger } from '../../../platform/requestLogger/node/requestLogger';
+import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
 import { ISurveyService } from '../../../platform/survey/common/surveyService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
@@ -701,7 +701,7 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 				...opts.modelCapabilities,
 				enableThinking: isThinkingLocation && opts.modelCapabilities?.enableThinking,
 				reasoningEffort,
-				enableToolSearch: !isSubagent && isAnthropicToolSearchEnabled(this.options.invocation.endpoint, this._configurationService),
+				enableToolSearch: !isSubagent && !!this.options.invocation.endpoint.supportsToolSearch,
 				enableContextEditing: !isSubagent && isAnthropicContextEditingEnabled(this.options.invocation.endpoint, this._configurationService, this._experimentationService),
 			},
 			debugName,
@@ -741,7 +741,7 @@ class DefaultToolCallingLoop extends ToolCallingLoop<IDefaultToolLoopOptions> {
 		const tools = await this.options.invocation.getAvailableTools?.() ?? [];
 
 		// Skip tool grouping when Anthropic tool search is enabled
-		if (isAnthropicFamily(this.options.invocation.endpoint) && isAnthropicToolSearchEnabled(this.options.invocation.endpoint, this._configurationService)) {
+		if (isAnthropicFamily(this.options.invocation.endpoint) && this.options.invocation.endpoint.supportsToolSearch) {
 			return tools;
 		}
 

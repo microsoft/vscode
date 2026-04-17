@@ -29,7 +29,7 @@ import { config } from './lib/electron.ts';
 import { createAsar } from './lib/asar.ts';
 import minimist from 'minimist';
 import { compileBuildWithoutManglingTask, compileBuildWithManglingTask } from './gulpfile.compile.ts';
-import { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileAllExtensionsBuildTask, compileExtensionMediaBuildTask, cleanExtensionsBuildTask } from './gulpfile.extensions.ts';
+import { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileAllExtensionsBuildTask, compileExtensionMediaBuildTask, cleanExtensionsBuildTask, compileCopilotExtensionBuildTask } from './gulpfile.extensions.ts';
 import { copyCodiconsTask } from './lib/compilation.ts';
 import { getCopilotExcludeFilter, copyCopilotNativeDeps, prepareBuiltInCopilotExtensionShims } from './lib/copilot.ts';
 import type { EmbeddedProductInfo } from './lib/embeddedType.ts';
@@ -97,6 +97,7 @@ const vscodeResourceIncludes = [
 
 	// Welcome
 	'out-build/vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.{svg,png}',
+	'out-build/vs/workbench/contrib/welcomeOnboarding/browser/media/*.svg',
 
 	// Sessions
 	'out-build/vs/sessions/contrib/chat/browser/media/*.svg',
@@ -371,6 +372,10 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 
 		const name = product.nameShort;
 		const packageJsonUpdates: Record<string, unknown> = { name, version };
+		const isInsiderOrExploration = quality === 'insider' || quality === 'exploration';
+		const embedded = isInsiderOrExploration
+			? (product as typeof product & { embedded?: EmbeddedProductInfo }).embedded
+			: undefined;
 
 		if (platform === 'linux') {
 			packageJsonUpdates.desktopName = `${product.applicationName}.desktop`;
@@ -386,16 +391,22 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 
 		let productJsonContents: string;
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
-			.pipe(jsonEditor({ commit, date: readISODate(out), checksums, version }))
+			.pipe(jsonEditor((json: Record<string, unknown>) => {
+				json.commit = commit;
+				json.date = readISODate(out);
+				json.checksums = checksums;
+				json.version = version;
+				if (embedded) {
+					json['darwinSiblingBundleIdentifier'] = embedded.darwinBundleIdentifier;
+					const embeddedObj = json['embedded'] as EmbeddedProductInfo;
+					embeddedObj['darwinSiblingBundleIdentifier'] = json['darwinBundleIdentifier'] as string;
+				}
+				return json;
+			}))
 			.pipe(es.through(function (file) {
 				productJsonContents = file.contents.toString();
 				this.emit('data', file);
 			}));
-
-
-		const embedded = quality
-			? (product as typeof product & { embedded?: EmbeddedProductInfo }).embedded
-			: undefined;
 
 		const packageSubJsonStream = embedded
 			? gulp.src(['package.json'], { base: '.' })
@@ -539,6 +550,7 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			ffmpegChromium: false,
 			...(embedded ? {
 				darwinMiniAppName: embedded.nameShort,
+				darwinMiniAppDisplayName: embedded.nameLong,
 				darwinMiniAppBundleIdentifier: embedded.darwinBundleIdentifier,
 				darwinMiniAppIcon: 'resources/darwin/agents.icns',
 				darwinMiniAppAssetsCar: 'resources/darwin/agents.car',
@@ -561,8 +573,8 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 				'**',
 				'!LICENSE',
 				'!version',
-				...(platform === 'darwin' && !quality ? ['!**/Contents/Applications', '!**/Contents/Applications/**'] : []),
-				...(platform === 'win32' && !quality ? ['!**/electron_proxy.exe'] : []),
+				...(platform === 'darwin' && !isInsiderOrExploration ? ['!**/Contents/Applications', '!**/Contents/Applications/**'] : []),
+				...(platform === 'win32' && !isInsiderOrExploration ? ['!**/electron_proxy.exe'] : []),
 			], { dot: true }));
 
 		if (platform === 'linux') {
@@ -757,6 +769,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 				copyCodiconsTask,
 				cleanExtensionsBuildTask,
 				compileNonNativeExtensionsBuildTask,
+				compileCopilotExtensionBuildTask,
 				compileExtensionMediaBuildTask,
 				writeISODate('out-build'),
 				esbuildBundleTask,
@@ -767,6 +780,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 				minified ? compileBuildWithManglingTask : compileBuildWithoutManglingTask,
 				cleanExtensionsBuildTask,
 				compileNonNativeExtensionsBuildTask,
+				compileCopilotExtensionBuildTask,
 				compileExtensionMediaBuildTask,
 				minified ? minifyVSCodeTask : bundleVSCodeTask,
 				vscodeTaskCI

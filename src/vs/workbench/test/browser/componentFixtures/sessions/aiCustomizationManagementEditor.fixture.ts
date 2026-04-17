@@ -14,7 +14,7 @@ import { constObservable, observableValue } from '../../../../../base/common/obs
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
-import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
+import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IListService, ListService } from '../../../../../platform/list/browser/listService.js';
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
@@ -23,6 +23,8 @@ import { IMarkdownRendererService } from '../../../../../platform/markdown/brows
 import { IWorkspace, IWorkspaceContextService, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
+import { IViewsService } from '../../../../services/views/common/viewsService.js';
+import { IChatWidgetService } from '../../../../contrib/chat/browser/chat.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { IPathService } from '../../../../services/path/common/pathService.js';
@@ -41,6 +43,9 @@ import { IPluginInstallService } from '../../../../contrib/chat/common/plugins/p
 import { AICustomizationManagementEditor } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
 import { ContributionEnablementState } from '../../../../contrib/chat/common/enablement.js';
 import { AICustomizationManagementEditorInput } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
+import { IConfigurationService, IConfigurationValue } from '../../../../../platform/configuration/common/configuration.js';
+import { mcpAccessConfig, McpAccessValue } from '../../../../../platform/mcp/common/mcpManagement.js';
+import { ChatConfiguration } from '../../../../contrib/chat/common/constants.js';
 import { IMcpWorkbenchService, IWorkbenchMcpServer, IMcpService, McpServerInstallState } from '../../../../contrib/mcp/common/mcpTypes.js';
 import { IMcpRegistry } from '../../../../contrib/mcp/common/mcpRegistryTypes.js';
 import { IWorkbenchLocalMcpServer, LocalMcpServerScope } from '../../../../services/mcp/common/mcpWorkbenchManagementService.js';
@@ -350,6 +355,8 @@ interface IRenderEditorOptions {
 	readonly width?: number;
 	readonly height?: number;
 	readonly skillUIIntegrations?: ReadonlyMap<string, string>;
+	/** When true, simulates clicking the first list row to enter the embedded editor / detail view. */
+	readonly openFirstItem?: boolean;
 }
 
 async function waitForAnimationFrames(count: number): Promise<void> {
@@ -497,9 +504,15 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 			reg.defineInstance(IWorkingCopyService, new class extends mock<IWorkingCopyService>() {
 				override readonly onDidChangeDirty = Event.None;
 			}());
-			reg.defineInstance(IFileDialogService, new class extends mock<IFileDialogService>() { }());
 			reg.defineInstance(IExtensionService, new class extends mock<IExtensionService>() { }());
 			reg.defineInstance(IQuickInputService, new class extends mock<IQuickInputService>() { }());
+			reg.defineInstance(IViewsService, new class extends mock<IViewsService>() {
+				override async openView<T extends {}>(_id: string, _focus?: boolean) { return null as T | null; }
+			}());
+			reg.defineInstance(IChatWidgetService, new class extends mock<IChatWidgetService>() {
+				override get lastFocusedWidget() { return undefined; }
+				override async reveal() { return false; }
+			}());
 			reg.defineInstance(IRequestService, new class extends mock<IRequestService>() { }());
 			reg.defineInstance(IMarkdownRendererService, new class extends mock<IMarkdownRendererService>() {
 				override render() {
@@ -562,6 +575,21 @@ async function renderEditor(ctx: ComponentFixtureContext, options: IRenderEditor
 		await waitForAnimationFrames(2);
 		await new Promise(resolve => setTimeout(resolve, 2400));
 		await waitForVisibleScrollbarsToFade(ctx.container);
+	}
+
+	if (options.openFirstItem) {
+		const visibleContent = [...ctx.container.querySelectorAll('.prompts-content-container, .mcp-content-container, .plugin-content-container')]
+			.find(node => node instanceof HTMLElement && node.style.display !== 'none') as HTMLElement | undefined;
+		const firstRow = visibleContent?.querySelector('.monaco-list-row') as HTMLElement | undefined;
+		if (firstRow) {
+			firstRow.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }));
+			firstRow.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+			firstRow.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0 }));
+			firstRow.dispatchEvent(new MouseEvent('click', { bubbles: true, button: 0 }));
+			// Allow any async setInput to settle.
+			await waitForAnimationFrames(2);
+			await new Promise(resolve => setTimeout(resolve, 250));
+		}
 	}
 }
 
@@ -800,6 +828,117 @@ async function renderPluginBrowseMode(ctx: ComponentFixtureContext): Promise<voi
 }
 
 // ============================================================================
+// MCP / Plugin Disabled (access blocked) splash
+// ============================================================================
+
+function createDisabledConfigService(key: string, disabledValue: unknown, byPolicy: boolean): IConfigurationService {
+	return new class extends mock<IConfigurationService>() {
+		override readonly onDidChangeConfiguration = Event.None;
+		override getValue<T>(arg1?: string | object, _arg2?: object): T {
+			const k = typeof arg1 === 'string' ? arg1 : undefined;
+			return (k === key ? disabledValue : undefined) as T;
+		}
+		override inspect<T>(k: string): IConfigurationValue<T> {
+			if (k !== key) {
+				return { value: undefined, defaultValue: undefined };
+			}
+			return {
+				value: disabledValue as T,
+				defaultValue: disabledValue as T,
+				policyValue: byPolicy ? (disabledValue as T) : undefined,
+			};
+		}
+	}();
+}
+
+function renderMcpDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): void {
+	const width = 650;
+	const height = 500;
+	ctx.container.style.width = `${width}px`;
+	ctx.container.style.height = `${height}px`;
+
+	const instantiationService = createEditorServices(ctx.disposableStore, {
+		colorTheme: ctx.theme,
+		additionalServices: (reg) => {
+			registerWorkbenchServices(reg);
+			reg.define(IListService, ListService);
+			reg.defineInstance(IConfigurationService, createDisabledConfigService(mcpAccessConfig, McpAccessValue.None, byPolicy));
+			reg.defineInstance(IMcpWorkbenchService, new class extends mock<IMcpWorkbenchService>() {
+				override readonly onChange = Event.None;
+				override readonly onReset = Event.None;
+				override readonly local: IWorkbenchMcpServer[] = [];
+			}());
+			reg.defineInstance(IMcpService, new class extends mock<IMcpService>() {
+				override readonly servers = constObservable([] as never[]);
+			}());
+			reg.defineInstance(IMcpRegistry, new class extends mock<IMcpRegistry>() {
+				override readonly collections = constObservable([]);
+				override readonly delegates = constObservable([]);
+				override readonly onDidChangeInputs = Event.None;
+			}());
+			reg.defineInstance(IAgentPluginService, new class extends mock<IAgentPluginService>() {
+				override readonly plugins = constObservable([]);
+			}());
+			reg.defineInstance(IDialogService, new class extends mock<IDialogService>() { }());
+			reg.defineInstance(IAICustomizationWorkspaceService, new class extends mock<IAICustomizationWorkspaceService>() {
+				override readonly isSessionsWindow = false;
+				override readonly welcomePageFeatures = { showGettingStartedBanner: true };
+				override readonly activeProjectRoot = observableValue('root', URI.file('/workspace'));
+				override readonly hasOverrideProjectRoot = observableValue('hasOverride', false);
+				override getActiveProjectRoot() { return URI.file('/workspace'); }
+				override getStorageSourceFilter() {
+					return { sources: [PromptsStorage.local, PromptsStorage.user, PromptsStorage.extension, PromptsStorage.plugin] };
+				}
+			}());
+			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
+				override readonly activeHarness = observableValue<string>('activeHarness', CustomizationHarness.VSCode);
+				override getActiveDescriptor() { return createVSCodeHarnessDescriptor([PromptsStorage.extension, BUILTIN_STORAGE]); }
+				override registerExternalHarness() { return { dispose() { } }; }
+			}());
+		},
+	});
+
+	const widget = ctx.disposableStore.add(instantiationService.createInstance(McpListWidget));
+	ctx.container.appendChild(widget.element);
+	widget.layout(height, width);
+}
+
+function renderPluginDisabled(ctx: ComponentFixtureContext, byPolicy: boolean): void {
+	const width = 650;
+	const height = 500;
+	ctx.container.style.width = `${width}px`;
+	ctx.container.style.height = `${height}px`;
+
+	const instantiationService = createEditorServices(ctx.disposableStore, {
+		colorTheme: ctx.theme,
+		additionalServices: (reg) => {
+			registerWorkbenchServices(reg);
+			reg.define(IListService, ListService);
+			reg.defineInstance(IConfigurationService, createDisabledConfigService(ChatConfiguration.PluginsEnabled, false, byPolicy));
+			reg.defineInstance(ICustomizationHarnessService, new class extends mock<ICustomizationHarnessService>() {
+				override readonly activeHarness = observableValue<string>('activeHarness', CustomizationHarness.VSCode);
+				override getActiveDescriptor() { return createVSCodeHarnessDescriptor([PromptsStorage.extension, BUILTIN_STORAGE]); }
+				override registerExternalHarness() { return { dispose() { } }; }
+			}());
+			reg.defineInstance(IAgentPluginService, new class extends mock<IAgentPluginService>() {
+				override readonly plugins = constObservable([]);
+				override readonly enablementModel = undefined!;
+			}());
+			reg.defineInstance(IPluginMarketplaceService, new class extends mock<IPluginMarketplaceService>() {
+				override readonly installedPlugins = constObservable([]);
+				override readonly onDidChangeMarketplaces = Event.None;
+				override async fetchMarketplacePlugins() { return []; }
+			}());
+			reg.defineInstance(IPluginInstallService, new class extends mock<IPluginInstallService>() { }());
+		},
+	});
+
+	const widget = ctx.disposableStore.add(instantiationService.createInstance(PluginListWidget));
+	ctx.container.appendChild(widget.element);
+	widget.layout(height, width);
+}
+
+// ============================================================================
 // Fixtures
 // ============================================================================
 
@@ -950,6 +1089,30 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 		render: renderPluginBrowseMode,
 	}),
 
+	// MCP disabled splash — chat.mcp.access set to 'none' by user
+	McpDisabledByUser: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderMcpDisabled(ctx, false),
+	}),
+
+	// MCP disabled splash — chat.mcp.access locked to 'none' by enterprise policy
+	McpDisabledByPolicy: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderMcpDisabled(ctx, true),
+	}),
+
+	// Plugins disabled splash — chat.plugins.enabled=false by user
+	PluginsDisabledByUser: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderPluginDisabled(ctx, false),
+	}),
+
+	// Plugins disabled splash — chat.plugins.enabled locked to false by enterprise policy
+	PluginsDisabledByPolicy: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderPluginDisabled(ctx, true),
+	}),
+
 	// Scrolled-to-bottom variants — verify last items are fully visible above footer
 	PromptsTabScrolled: defineComponentFixture({
 		labels: { kind: 'screenshot' },
@@ -996,6 +1159,37 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			selectedSection: AICustomizationManagementSection.Agents,
 			width: 550,
 			height: 400,
+		}),
+	}),
+
+	// Item-editor view (after clicking an agent) — verifies the editor header back
+	// button aligns with the section back arrow at exactly the same x/y position.
+	AgentsItemEditor: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			harness: CustomizationHarness.VSCode,
+			selectedSection: AICustomizationManagementSection.Agents,
+			openFirstItem: true,
+		}),
+	}),
+
+	// MCP server detail view — same alignment check for the detail back button.
+	McpServerDetail: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			harness: CustomizationHarness.VSCode,
+			selectedSection: AICustomizationManagementSection.McpServers,
+			openFirstItem: true,
+		}),
+	}),
+
+	// Plugin detail view — same alignment check for the detail back button.
+	PluginDetail: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: ctx => renderEditor(ctx, {
+			harness: CustomizationHarness.VSCode,
+			selectedSection: AICustomizationManagementSection.Plugins,
+			openFirstItem: true,
 		}),
 	}),
 });

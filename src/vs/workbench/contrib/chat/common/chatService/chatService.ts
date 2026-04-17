@@ -132,6 +132,8 @@ export interface IChatContentReference {
 		status?: { description: string; kind: ChatResponseReferencePartStatusKind };
 		diffMeta?: { added: number; removed: number };
 		originalUri?: URI;
+		/** Overrides the reference URI when opening the modified side of a diff. */
+		modifiedUri?: URI;
 		isDeletion?: boolean;
 	};
 	kind: 'reference';
@@ -422,6 +424,8 @@ export interface IChatQuestionCarousel {
 	message?: string | IMarkdownString;
 	/** Source attribution (e.g. MCP server) */
 	source?: ToolDataSource;
+	/** Terminal ID when the carousel was triggered by a terminal needing input */
+	terminalId?: string;
 	kind: 'questionCarousel';
 }
 
@@ -979,6 +983,16 @@ export interface IChatModifiedFilesConfirmationData {
 	readonly modifiedFiles: readonly {
 		readonly uri: UriComponents;
 		readonly originalUri?: UriComponents;
+		/**
+		 * Optional URI to read the modified (after) content from for the diff
+		 * view. When absent, {@link uri} is used as the modified side.
+		 */
+		readonly modifiedContentUri?: UriComponents;
+		/**
+		 * Optional URI to read the original (before) content from for the diff
+		 * view. When absent, {@link originalUri} is used as the original side.
+		 */
+		readonly originalContentUri?: UriComponents;
 		readonly insertions?: number;
 		readonly deletions?: number;
 		readonly title?: string;
@@ -1389,6 +1403,7 @@ export interface IChatSendRequestOptions {
 	rejectedConfirmationData?: any[];
 	attachedContext?: IChatRequestVariableEntry[];
 	resolvedVariables?: IChatRequestVariableEntry[];
+	agentHostSessionConfig?: Record<string, string>;
 
 	/** The target agent ID can be specified with this property instead of using @ in 'message' */
 	agentId?: string;
@@ -1425,6 +1440,13 @@ export interface IChatSendRequestOptions {
 	 * this label as a compact progress-style message instead of the full request text.
 	 */
 	systemInitiatedLabel?: string;
+
+	/**
+	 * Structured terminal execution ID for system-initiated terminal notifications.
+	 * This avoids parsing IDs from request text when tools need to correlate
+	 * terminal prompts with follow-up actions.
+	 */
+	terminalExecutionId?: string;
 
 	/**
 	 * When set, the chat service will collect automatic instructions

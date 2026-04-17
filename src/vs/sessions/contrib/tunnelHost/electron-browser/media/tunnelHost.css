@@ -1,0 +1,66 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.tunnel-host-toggle {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	height: 16px;
+	padding: 3px 6px;
+	cursor: pointer;
+	color: var(--vscode-icon-foreground);
+	border-radius: 4px;
+}
+
+.tunnel-host-toggle:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.tunnel-host-toggle:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.tunnel-host-toggle .tunnel-host-icon {
+	display: flex;
+	align-items: center;
+}
+
+.tunnel-host-toggle.sharing .tunnel-host-icon .codicon {
+	color: var(--vscode-problemsWarningIcon-foreground) !important;
+}
+
+.tunnel-host-toggle.connecting .tunnel-host-icon .codicon {
+	animation: tunnel-host-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes tunnel-host-pulse {
+	0%, 100% {
+		opacity: 1;
+	}
+	50% {
+		opacity: 0.3;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.tunnel-host-toggle.connecting .tunnel-host-icon .codicon {
+		animation: none;
+	}
+}
+
+.tunnel-host-toast {
+	max-width: 0;
+	overflow: hidden;
+	white-space: nowrap;
+	opacity: 0;
+	font-size: 11px;
+	transition: max-width 0.3s ease-out, opacity 0.3s ease-out;
+}
+
+.tunnel-host-toast.visible {
+	max-width: 300px;
+	opacity: 1;
+}

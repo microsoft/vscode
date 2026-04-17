@@ -68,7 +68,7 @@
 		.session-title-toolbar {
 			display: block;
 
-			.action-item:not(:first-child) {
+			.action-item:not(:last-child) {
 				display: none;
 			}
 		}
@@ -315,17 +315,23 @@
 	padding: 0 10px;
 
 	.session-section-label {
-		flex: 0 1 auto;
+		flex: 1 1 auto;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	.session-section-count {
+		flex-shrink: 0;
 		opacity: 0.7;
-		margin-left: auto;
+		margin-left: 4px;
 		margin-right: 4px;
 	}
 
 	.session-section-toolbar {
-		margin-left: auto;
+		flex-shrink: 0;
+		margin-left: 4px;
 		display: none;
 	}
 }
@@ -356,5 +362,44 @@
 
 	50% {
 		opacity: 0.4;
+	}
+}
+
+/* Shimmer effect for in-progress session titles when not selected */
+
+.monaco-list-row:not(.selected) .session-item.in-progress .session-title {
+	background: linear-gradient(
+		90deg,
+		var(--vscode-foreground) 0%,
+		var(--vscode-foreground) 30%,
+		var(--vscode-chat-thinkingShimmer) 50%,
+		var(--vscode-foreground) 70%,
+		var(--vscode-foreground) 100%
+	);
+	background-size: 400% 100%;
+	background-clip: text;
+	-webkit-background-clip: text;
+	-webkit-text-fill-color: transparent;
+	animation: session-title-shimmer 3s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.monaco-list-row:not(.selected) .session-item.in-progress .session-title {
+		animation: none;
+		background: none;
+		background-clip: border-box;
+		-webkit-background-clip: border-box;
+		color: var(--vscode-foreground);
+		-webkit-text-fill-color: var(--vscode-foreground);
+	}
+}
+
+@keyframes session-title-shimmer {
+	0% {
+		background-position: 120% 0;
+	}
+
+	100% {
+		background-position: -120% 0;
 	}
 }

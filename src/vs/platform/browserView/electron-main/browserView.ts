@@ -8,8 +8,7 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageRequest, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, BrowserNewPageLocation, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex } from '../common/browserView.js';
-import { IElementData } from '../../browserElements/common/browserElements.js';
+import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageRequest, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, BrowserNewPageLocation, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IElementData } from '../common/browserView.js';
 import { BrowserViewElementInspector } from './browserViewElementInspector.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { ICodeWindow } from '../../window/electron-main/window.js';
@@ -17,7 +16,6 @@ import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-mai
 import { BrowserViewUri } from '../common/browserViewUri.js';
 import { BrowserViewDebugger } from './browserViewDebugger.js';
 import { ILogService } from '../../log/common/log.js';
-import { ICDPTarget, ICDPConnection, CDPTargetInfo } from '../common/cdp/types.js';
 import { BrowserSession } from './browserSession.js';
 import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
 import { hasKey } from '../../../base/common/types.js';
@@ -27,7 +25,7 @@ import { SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.j
  * Represents a single browser view instance with its WebContentsView and all associated logic.
  * This class encapsulates all operations and events for a single browser view.
  */
-export class BrowserView extends Disposable implements ICDPTarget {
+export class BrowserView extends Disposable {
 	private readonly _view: WebContentsView;
 	private readonly _faviconRequestCache = new Map<string, Promise<string>>();
 
@@ -37,7 +35,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 	private _lastUserGestureTimestamp: number = -Infinity;
 	private _browserZoomIndex: number = browserZoomDefaultIndex;
 
-	private readonly _debugger: BrowserViewDebugger;
+	readonly debugger: BrowserViewDebugger;
 	private readonly _inspector: BrowserViewElementInspector;
 	private _window: ICodeWindow | IAuxiliaryWindow | undefined;
 	private _isDisposed = false;
@@ -156,7 +154,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 			this.dispose();
 		});
 
-		this._debugger = new BrowserViewDebugger(this, this.logService);
+		this.debugger = new BrowserViewDebugger(this, this.logService);
 		this._inspector = this._register(new BrowserViewElementInspector(this));
 
 		this.setupEventListeners();
@@ -323,7 +321,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 
 			const pageIsAvailable = this._view.getVisible()
 				&& !webContents.isCrashed()
-				&& !this._debugger.isPaused;
+				&& !this.debugger.isPaused;
 			if (pageIsAvailable) {
 				return;
 			}
@@ -596,7 +594,11 @@ export class BrowserView extends Disposable implements ICDPTarget {
 	/**
 	 * Focus this view
 	 */
-	async focus(): Promise<void> {
+	async focus(force?: boolean): Promise<void> {
+		// By default, only focus the view if its window is already focused.
+		if (!force && !this._window?.win?.isFocused()) {
+			return;
+		}
 		this._view.webContents.focus();
 	}
 
@@ -685,23 +687,6 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		return this._window && hasKey(this._window, { parentId: true }) ? this._codeWindowById(this._window.parentId) : undefined;
 	}
 
-	// ============ ICDPTarget implementation ============
-
-	/**
-	 * Get CDP target info using Electron's real targetId.
-	 */
-	getTargetInfo(): Promise<CDPTargetInfo> {
-		return this._debugger.getTargetInfo();
-	}
-
-	/**
-	 * Attach to receive debugger events.
-	 * @returns A connection that can be disposed to detach
-	 */
-	attach(): Promise<ICDPConnection> {
-		return this._debugger.attach();
-	}
-
 	override dispose(): void {
 		if (this._isDisposed) {
 			return;
@@ -709,7 +694,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		this._isDisposed = true;
 
 		// Dispose debugger. This detaches debug sessions first.
-		this._debugger.dispose();
+		this.debugger.dispose();
 
 		// Remove from parent window
 		this._window?.win?.contentView.removeChildView(this._view);

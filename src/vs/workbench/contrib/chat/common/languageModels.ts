@@ -827,10 +827,16 @@ export class LanguageModelsService implements ILanguageModelsService {
 			return;
 		}
 
-		// Activate extensions before requesting to resolve the models
-		await this._extensionService.activateByEvent(`onLanguageModelChatProvider:${vendorId}`);
-
-		const provider = this._providers.get(vendorId);
+		// If a provider is already registered (e.g. a renderer-side provider
+		// such as the agent host), skip the activation wait — there's nothing
+		// more for an extension to contribute, and waiting would block on
+		// extension host startup unnecessarily.
+		let provider = this._providers.get(vendorId);
+		if (!provider) {
+			// Activate extensions before requesting to resolve the models
+			await this._extensionService.activateByEvent(`onLanguageModelChatProvider:${vendorId}`);
+			provider = this._providers.get(vendorId);
+		}
 		if (!provider) {
 			this._logService.warn(`[LM] No provider registered for vendor ${vendorId}`);
 			return;
@@ -1156,7 +1162,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		const currentConfig = this._modelConfigurations.get(modelId) ?? {};
 
 		for (const [key, propSchema] of Object.entries(schema.properties)) {
-			if (!propSchema.enum || !Array.isArray(propSchema.enum)) {
+			if (!propSchema.enum || !Array.isArray(propSchema.enum) || propSchema.enum.length < 2) {
 				continue;
 			}
 			const currentValue = currentConfig[key] ?? propSchema.default;

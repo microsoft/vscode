@@ -24,8 +24,7 @@ import { IPromptsService } from '../../../../workbench/contrib/chat/common/promp
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { AICustomizationManagementEditorInput } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
-import { AICustomizationManagementEditor } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditor.js';
-import { agentIcon, instructionsIcon, mcpServerIcon, pluginIcon, promptIcon, skillIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
+import { agentIcon, instructionsIcon, mcpServerIcon, pluginIcon, skillIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
@@ -80,7 +79,6 @@ export class AICustomizationOverviewView extends ViewPane {
 			{ id: AICustomizationManagementSection.Agents, label: localize('agents', "Agents"), icon: agentIcon, count: 0 },
 			{ id: AICustomizationManagementSection.Skills, label: localize('skills', "Skills"), icon: skillIcon, count: 0 },
 			{ id: AICustomizationManagementSection.Instructions, label: localize('instructions', "Instructions"), icon: instructionsIcon, count: 0 },
-			{ id: AICustomizationManagementSection.Prompts, label: localize('prompts', "Prompts"), icon: promptIcon, count: 0 },
 			{ id: AICustomizationManagementSection.McpServers, label: localize('mcpServers', "MCP Servers"), icon: mcpServerIcon, count: 0 },
 			{ id: AICustomizationManagementSection.Plugins, label: localize('plugins', "Plugins"), icon: pluginIcon, count: 0 },
 		);
@@ -133,22 +131,22 @@ export class AICustomizationOverviewView extends ViewPane {
 			countElement.textContent = `${section.count}`;
 			this.countElements.set(section.id, countElement);
 
-			// Click handler to open management editor at section
+			// Click handler to open the management editor overview
 			this._register(DOM.addDisposableListener(sectionElement, 'click', () => {
-				this.openSection(section.id);
+				this.openOverview();
 			}));
 
 			// Keyboard support
 			this._register(DOM.addDisposableListener(sectionElement, 'keydown', (e: KeyboardEvent) => {
 				if (e.key === 'Enter' || e.key === ' ') {
 					e.preventDefault();
-					this.openSection(section.id);
+					this.openOverview();
 				}
 			}));
 
 			// Hover tooltip
 			this._register(this.hoverService.setupDelayedHoverAtMouse(sectionElement, () => ({
-				content: localize('openSection', "Open {0} in Chat Customizations editor", section.label),
+				content: localize('openOverview', "Open Chat Customizations editor"),
 				appearance: { compact: true, skipFadeInAnimation: true }
 			})));
 		}
@@ -159,7 +157,6 @@ export class AICustomizationOverviewView extends ViewPane {
 			{ section: AICustomizationManagementSection.Agents, type: PromptsType.agent },
 			{ section: AICustomizationManagementSection.Skills, type: PromptsType.skill },
 			{ section: AICustomizationManagementSection.Instructions, type: PromptsType.instructions },
-			{ section: AICustomizationManagementSection.Prompts, type: PromptsType.prompt },
 		];
 
 		await Promise.all(sectionPromptTypes.map(async ({ section, type }) => {
@@ -223,14 +220,9 @@ export class AICustomizationOverviewView extends ViewPane {
 		}
 	}
 
-	private async openSection(sectionId: AICustomizationManagementSection): Promise<void> {
+	private async openOverview(): Promise<void> {
 		const input = AICustomizationManagementEditorInput.getOrCreate();
-		const editor = await this.editorService.openEditor(input, { pinned: true });
-
-		// Deep-link to the section
-		if (editor instanceof AICustomizationManagementEditor) {
-			editor.selectSectionById(sectionId);
-		}
+		await this.editorService.openEditor(input, { pinned: true });
 	}
 
 	protected override layoutBody(height: number, width: number): void {

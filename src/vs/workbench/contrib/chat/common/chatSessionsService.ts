@@ -34,6 +34,7 @@ export interface IChatSessionProviderOptionItem {
 	readonly id: string;
 	readonly name: string;
 	readonly description?: string;
+	readonly detail?: string;
 	readonly locked?: boolean;
 	readonly icon?: ThemeIcon;
 	readonly default?: boolean;
@@ -51,6 +52,7 @@ export interface IChatSessionProviderOptionGroup {
 	readonly id: string;
 	readonly name: string;
 	readonly description?: string;
+	readonly detail?: string;
 	readonly selected?: IChatSessionProviderOptionItem;
 	readonly items: readonly IChatSessionProviderOptionItem[];
 	/**
@@ -234,7 +236,7 @@ export interface IChatSessionItemController {
 
 	newChatSessionItem?(request: IChatNewSessionRequest, token: CancellationToken): Promise<IChatSessionItem | undefined>;
 
-	getNewChatSessionInputState?(token: CancellationToken): Promise<readonly IChatSessionProviderOptionGroup[] | undefined>;
+	getNewChatSessionInputState?(sessionResource: URI, token: CancellationToken): Promise<readonly IChatSessionProviderOptionGroup[] | undefined>;
 }
 
 export interface IChatSessionOptionsChangeEvent {
@@ -436,7 +438,7 @@ export interface IChatSessionsService {
 	 * Get the default options for new sessions of this type, derived from option groups'
 	 * `selected` or `default` items.
 	 */
-	getNewChatSessionInputState(chatSessionType: string): Promise<readonly IChatSessionProviderOptionGroup[] | undefined>;
+	getNewChatSessionInputState(chatSessionType: string, sessionResource: URI): Promise<readonly IChatSessionProviderOptionGroup[] | undefined>;
 
 	/**
 	 * Creates a new chat session item using the controller's newChatSessionItemHandler.

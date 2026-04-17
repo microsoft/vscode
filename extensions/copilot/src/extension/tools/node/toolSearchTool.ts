@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type * as vscode from 'vscode';
-import { TOOL_SEARCH_SUPPORTED_MODELS } from '../../../platform/endpoint/common/chatModelCapabilities';
 import { ILogService } from '../../../platform/log/common/logService';
 import { CUSTOM_TOOL_SEARCH_NAME } from '../../../platform/networking/common/anthropic';
 import { LanguageModelTextPart, LanguageModelToolResult } from '../../../vscodeTypes';
@@ -71,7 +70,12 @@ ToolRegistry.registerModelSpecificTool(
 			},
 			required: ['query'],
 		},
-		models: TOOL_SEARCH_SUPPORTED_MODELS.map(prefix => ({ id: prefix })),
+		models: [
+			{ family: 'claude-sonnet-4.5' },
+			{ family: 'claude-sonnet-4.6' },
+			{ family: 'claude-opus-4.5' },
+			{ family: 'claude-opus-4.6' },
+		],
 	},
 	ToolSearchTool,
 );

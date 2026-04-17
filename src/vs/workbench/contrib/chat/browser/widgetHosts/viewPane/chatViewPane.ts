@@ -231,6 +231,20 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 		// Agent changes
 		this._register(this.chatAgentService.onDidChangeAgents(() => this.onDidChangeAgents()));
 
+		// Session changes
+		this._register(this.chatSessionsService.onDidCommitSession(async (e) => {
+			if (!this.modelRef.value) {
+				return;
+			}
+
+			if (!isEqual(e.original, this.modelRef.value.object.sessionResource)) {
+				return;
+			}
+
+			const modelRef = await this.chatService.acquireOrLoadSession(e.committed, ChatAgentLocation.Chat, CancellationToken.None, 'ChatViewPane#onDidCommitSession');
+			await this.showModel(CancellationToken.None, modelRef);
+		}));
+
 		// Layout changes
 		this._register(Event.any(
 			Event.filter(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration('workbench.sideBar.location')),
@@ -337,6 +351,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 	private sessionsNewButtonContainer: HTMLElement | undefined;
 	private sessionsControlContainer: HTMLElement | undefined;
 	private sessionsControl: AgentSessionsControl | undefined;
+
+	get agentSessionsControl(): AgentSessionsControl | undefined { return this.sessionsControl; }
+
 	private sessionsViewerVisible: boolean;
 	private sessionsViewerOrientation = AgentSessionsViewerOrientation.Stacked;
 	private sessionsViewerOrientationConfiguration: 'stacked' | 'sideBySide' = 'sideBySide';
@@ -597,6 +614,9 @@ export class ChatViewPane extends ViewPane implements IViewWelcomeDelegate {
 
 		// Track the active chat model and reveal it in the sessions control if side-by-side
 		this._register(chatWidget.onDidChangeViewModel(() => {
+			const model = chatWidget.viewModel?.model;
+			this.titleControl?.update(model);
+
 			if (this.sessionsViewerOrientation === AgentSessionsViewerOrientation.Stacked) {
 				return; // only reveal in side-by-side mode
 			}

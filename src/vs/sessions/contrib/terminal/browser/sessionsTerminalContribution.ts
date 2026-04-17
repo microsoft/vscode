@@ -5,46 +5,59 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { autorun, derived } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IWorkbenchContribution, getWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
+import { IAgentHostTerminalService } from '../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
 import { ITerminalInstance, ITerminalService } from '../../../../workbench/contrib/terminal/browser/terminal.js';
 import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { Menus } from '../../../browser/menus.js';
+import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { CopilotCLISessionType, ISession } from '../../../services/sessions/common/session.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ContextKeyExpr, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { logSessionsInteraction } from '../../../common/sessionsTelemetry.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
-import { TERMINAL_VIEW_ID } from '../../../../workbench/contrib/terminal/common/terminal.js';
+import { ITerminalProfileService, TERMINAL_VIEW_ID } from '../../../../workbench/contrib/terminal/common/terminal.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { AGENT_HOST_SCHEME } from '../../../../platform/agentHost/common/agentHostUri.js';
 
 const SessionsTerminalViewVisibleContext = new RawContextKey<boolean>('sessionsTerminalViewVisible', false);
 
+interface ISessionTerminalInfo {
+	/** The cwd to use for terminal matching/creation. For agent host sessions this is the unwrapped file URI. */
+	readonly cwd: URI;
+	/** When set, the terminal should be created on the agent host rather than locally. */
+	readonly agentHostCwd?: URI;
+}
+
 /**
- * Returns the cwd URI for the given session: worktree or repository path for
+ * Returns terminal info for the given session: worktree or repository path for
  * background sessions only. Returns `undefined` for non-background sessions
  * (Cloud, Local, etc.) which have no local worktree, or when no path is available.
  */
-function getSessionCwd(session: ISession | undefined): URI | undefined {
+function getSessionTerminalInfo(session: ISession | undefined): ISessionTerminalInfo | undefined {
 	if (session?.sessionType !== CopilotCLISessionType.id) {
 		return undefined;
 	}
 	const repo = session.workspace.get()?.repositories[0];
 	const cwd = repo?.workingDirectory ?? repo?.uri;
-	if (cwd?.scheme === AGENT_HOST_SCHEME) {
+	if (!cwd) {
 		return undefined;
 	}
-	return cwd;
+	if (cwd.scheme === AGENT_HOST_SCHEME) {
+		return { cwd: fromAgentHostUri(cwd), agentHostCwd: cwd };
+	}
+	return { cwd };
 }
 
 /**
@@ -61,13 +74,45 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 
 	constructor(
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
+		@IAgentHostTerminalService private readonly _agentHostTerminalService: IAgentHostTerminalService,
 		@ILogService private readonly _logService: ILogService,
 		@IPathService private readonly _pathService: IPathService,
+		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService,
 		@IViewsService viewsService: IViewsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
+
+		const profileOverride = derived(reader => {
+			const profiles = this._agentHostTerminalService.profiles.read(reader);
+			const session = this._sessionsManagementService.activeSession.read(reader);
+			const address = this._getSessionAgentHostAddress(session);
+			if (!address) {
+				return;
+			}
+
+			return profiles.find(p => p.address === address) ?? this._agentHostTerminalService.getProfileForConnection(address);
+		});
+
+		this._register(autorun(reader => {
+			const profile = profileOverride.read(reader);
+			if (profile) {
+				reader.store.add(this._terminalProfileService.overrideDefaultProfile(
+					profile.extensionIdentifier, profile.profileId,
+				));
+			}
+		}));
+
+		// Keep the default cwd in sync with the active session's working directory
+		// so that "New Terminal" uses it automatically.
+		// This is a little hacky but I don't see any better approach.
+		this._register(autorun(reader => {
+			const session = this._sessionsManagementService.activeSession.read(reader);
+			const info = getSessionTerminalInfo(session);
+			this._agentHostTerminalService.setDefaultCwd(info?.cwd);
+		}));
 
 		// Track whether the terminal view is visible so the titlebar toggle
 		// button shows the correct checked state.
@@ -118,14 +163,18 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 	 * Ensures a terminal exists for the given cwd by scanning all terminal
 	 * instances for a matching initial cwd. If none is found, creates a new
 	 * one. Sets it as active and optionally focuses it.
+	 *
+	 * When {@link session} is provided and the session is backed by an agent
+	 * host, the terminal is created on the agent host instead of locally.
 	 */
-	async ensureTerminal(cwd: URI, focus: boolean): Promise<ITerminalInstance[]> {
+	async ensureTerminal(cwd: URI, focus: boolean, session?: ISession): Promise<ITerminalInstance[]> {
 		const key = cwd.fsPath.toLowerCase();
 		let existing = await this._findTerminalsForKey(key);
 
 		if (existing.length === 0) {
 			try {
-				const createdInstance = this._getAvailableTerminal(await this._terminalService.createTerminal({ config: { cwd } }), `activate created terminal for ${cwd.fsPath}`);
+				const instance = await this._createTerminalForSession(cwd, session);
+				const createdInstance = this._getAvailableTerminal(instance, `activate created terminal for ${cwd.fsPath}`);
 				if (!createdInstance) {
 					return [];
 				}
@@ -145,21 +194,50 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		return existing;
 	}
 
+	/**
+	 * Creates a terminal for the given cwd. If the session is backed by an
+	 * agent host, creates an agent host terminal; otherwise creates a local one.
+	 */
+	private async _createTerminalForSession(cwd: URI, session: ISession | undefined): Promise<ITerminalInstance> {
+		const address = session && this._getSessionAgentHostAddress(session);
+		if (address) {
+			const instance = await this._agentHostTerminalService.createTerminalForEntry(address, { cwd });
+			if (instance) {
+				return instance;
+			}
+		}
+		return this._terminalService.createTerminal({ config: { cwd } });
+	}
+
+	/**
+	 * Returns the agent host address for the given session's provider,
+	 * or `undefined` if the session is not backed by an agent host.
+	 */
+	private _getSessionAgentHostAddress(session: ISession | undefined): string | undefined {
+		if (!session) {
+			return undefined;
+		}
+		const provider = this._sessionsProvidersService.getProvider(session.providerId);
+		if (!provider || !isAgentHostProvider(provider)) {
+			return undefined;
+		}
+		return provider.remoteAddress ?? '__local__';
+	}
+
 	private async _onActiveSessionChanged(session: ISession | undefined): Promise<void> {
 		if (!session) {
 			return;
 		}
 
-		const sessionCwd = getSessionCwd(session);
-
-		const targetPath = sessionCwd ?? await this._pathService.userHome();
+		const info = getSessionTerminalInfo(session);
+		const targetPath = info?.cwd ?? await this._pathService.userHome();
 		const targetKey = targetPath.fsPath.toLowerCase();
 		if (this._activeKey === targetKey) {
 			return;
 		}
 		this._activeKey = targetKey;
 
-		const instances = await this.ensureTerminal(targetPath, false);
+		const instances = await this.ensureTerminal(targetPath, false, info?.agentHostCwd ? session : undefined);
 
 		// If the active key changed while we were awaiting, a newer call has
 		// taken over — skip the visibility update to avoid flicker.
@@ -340,8 +418,9 @@ class OpenSessionInTerminalAction extends Action2 {
 		const pathService = _accessor.get(IPathService);
 
 		const activeSession = sessionsManagementService.activeSession.get();
-		const cwd = getSessionCwd(activeSession) ?? await pathService.userHome();
-		await contribution.ensureTerminal(cwd, true);
+		const info = getSessionTerminalInfo(activeSession);
+		const cwd = info?.cwd ?? await pathService.userHome();
+		await contribution.ensureTerminal(cwd, true, info?.agentHostCwd ? activeSession : undefined);
 		viewsService.openView(TERMINAL_VIEW_ID);
 	}
 }

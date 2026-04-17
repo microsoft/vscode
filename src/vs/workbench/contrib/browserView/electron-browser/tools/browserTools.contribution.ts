@@ -9,6 +9,7 @@ import { localize } from '../../../../../nls.js';
 import { IPlaywrightService } from '../../../../../platform/browserView/common/playwrightService.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
+import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
 import { registerWorkbenchContribution2, WorkbenchPhase, type IWorkbenchContribution } from '../../../../common/contributions.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IChatContextService } from '../../../chat/browser/contextContrib/chatContextService.js';
@@ -44,6 +45,7 @@ class BrowserChatAgentToolsContribution extends Disposable implements IWorkbench
 		@IPlaywrightService private readonly playwrightService: IPlaywrightService,
 		@IChatContextService private readonly chatContextService: IChatContextService,
 		@IEditorService private readonly editorService: IEditorService,
+		@IAgentNetworkFilterService private readonly agentNetworkFilterService: IAgentNetworkFilterService,
 	) {
 		super();
 
@@ -110,6 +112,7 @@ class BrowserChatAgentToolsContribution extends Disposable implements IWorkbench
 			this._updateBrowserContext();
 		}));
 		this._toolsStore.add(this.editorService.onDidEditorsChange(() => this._updateBrowserContext()));
+		this._toolsStore.add(this.agentNetworkFilterService.onDidChange(() => this._updateBrowserContext()));
 	}
 
 	private _updateBrowserContext(): void {
@@ -125,7 +128,7 @@ class BrowserChatAgentToolsContribution extends Disposable implements IWorkbench
 			return;
 		}
 
-		const list = formatBrowserEditorList(this.editorService, trackedEditors);
+		const list = formatBrowserEditorList(this.editorService, trackedEditors, { agentNetworkFilterService: this.agentNetworkFilterService });
 		this.chatContextService.updateWorkspaceContextItems(BrowserChatAgentToolsContribution.CONTEXT_ID, [{
 			handle: 0,
 			label: localize('browserContext.label', "Browser Pages"),
