@@ -47,6 +47,61 @@ import { quickInputButtonsToActionArrays } from './quickInputUtils.js';
 
 const $ = dom.$;
 
+/**
+ * Maximum number of characters to display for a quick-open item description
+ * (typically a file path). Paths longer than this are left-truncated so that
+ * the distinguishing end of the path remains visible, matching the behaviour
+ * of editors such as Sublime Text.
+ */
+const DESCRIPTION_DISPLAY_MAX_LENGTH = 80;
+
+/**
+ * Left-truncate `description` at a path-separator boundary so that the tail
+ * fits within {@link DESCRIPTION_DISPLAY_MAX_LENGTH} characters.
+ *
+ * Also adjusts `matches` (fuzzy-highlight ranges) so they still point to the
+ * correct positions in the truncated string. Match ranges that fall entirely
+ * before the cut point are dropped; ranges that straddle the cut are clamped.
+ *
+ * The full path is preserved in the tooltip/descriptionTitle so hover still
+ * shows the complete path.
+ */
+function leftTruncateDescription(
+	description: string,
+	matches: readonly IMatch[] | undefined
+): { description: string; matches: IMatch[] } {
+	if (description.length <= DESCRIPTION_DISPLAY_MAX_LENGTH) {
+		return { description, matches: matches ? [...matches] : [] };
+	}
+
+	// Find the first path separator in the tail portion so we don't cut mid-segment.
+	const tail = description.slice(description.length - DESCRIPTION_DISPLAY_MAX_LENGTH);
+	const firstSepIdx = tail.search(/[/\\]/);
+	const truncateAt = firstSepIdx >= 0
+		? description.length - DESCRIPTION_DISPLAY_MAX_LENGTH + firstSepIdx
+		: description.length - DESCRIPTION_DISPLAY_MAX_LENGTH;
+
+	const truncated = '\u2026' + description.slice(truncateAt);
+	// After truncation: index 0 = '\u2026', index 1 = description[truncateAt], ...
+	// Original index P  →  new index P - truncateAt + 1
+	const shift = truncateAt - 1;
+
+	const adjustedMatches: IMatch[] = [];
+	if (matches) {
+		for (const m of matches) {
+			if (m.end <= truncateAt) {
+				continue; // entirely before the cut
+			}
+			adjustedMatches.push({
+				start: Math.max(1, m.start - shift),
+				end: m.end - shift,
+			});
+		}
+	}
+
+	return { description: truncated, matches: adjustedMatches };
+}
+
 interface IQuickInputItemLazyParts {
 	readonly saneLabel: string;
 	readonly saneSortLabel: string;
@@ -501,18 +556,26 @@ class QuickPickItemElementRenderer extends BaseQuickInputListRenderer<QuickPickI
 				markdownNotSupportedFallback: element.saneDescription
 			};
 		}
+		// Left-truncate long descriptions (e.g. file paths) so the distinctive
+		// end of the path is always visible. The full path is still shown in the
+		// tooltip (descriptionTitle) set above.
+		const { description: displayDescription, matches: displayDescriptionMatches } =
+			element.saneDescription
+				? leftTruncateDescription(element.saneDescription, descriptionHighlights)
+				: { description: element.saneDescription, matches: [] };
+
 		const options: IIconLabelValueOptions = {
 			matches: labelHighlights || [],
 			// If we have a tooltip, we want that to be shown and not any other hover
 			descriptionTitle,
-			descriptionMatches: descriptionHighlights || [],
+			descriptionMatches: displayDescriptionMatches,
 			labelEscapeNewLines: true
 		};
 		options.extraClasses = mainItem.iconClasses;
 		options.italic = mainItem.italic;
 		options.strikethrough = mainItem.strikethrough;
 		data.entry.classList.remove('quick-input-list-separator-as-item');
-		data.label.setLabel(element.saneLabel, element.saneDescription, options);
+		data.label.setLabel(element.saneLabel, displayDescription, options);
 
 		// Keybinding
 		data.keybinding.set(mainItem.keybinding);
