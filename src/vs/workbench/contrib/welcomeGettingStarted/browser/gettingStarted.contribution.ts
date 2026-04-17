@@ -100,17 +100,17 @@ registerAction2(class extends Action2 {
 					options = { selectedCategory, selectedStep, showWelcome: false, preserveFocus: toSide ?? false, inactive };
 				} else {
 					// Open Welcome page
-					options = { selectedCategory, selectedStep, showWelcome: true, preserveFocus: toSide ?? false, inactive };
+					options = { override: TscodeWelcomeInput.ID, selectedCategory, selectedStep, showWelcome: true, preserveFocus: toSide ?? false, inactive };
 				}
 				editorService.openEditor({
-					resource: GettingStartedInput.RESOURCE,
+					resource: TscodeWelcomeInput.RESOURCE,
 					options
 				}, toSide ? SIDE_GROUP : undefined);
 
 			} else {
 				editorService.openEditor({
-					resource: GettingStartedInput.RESOURCE,
-					options: { preserveFocus: toSide ?? false, inactive }
+					resource: TscodeWelcomeInput.RESOURCE,
+					options: { override: TscodeWelcomeInput.ID, preserveFocus: toSide ?? false, inactive }
 				}, toSide ? SIDE_GROUP : undefined);
 			}
 		}

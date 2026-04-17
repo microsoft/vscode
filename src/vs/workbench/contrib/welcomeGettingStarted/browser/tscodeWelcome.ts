@@ -37,6 +37,7 @@ import { IWebviewService } from '../../webview/browser/webview.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IMarkdownRendererService } from '../../../../platform/markdown/browser/markdownRenderer.js';
+import { ITsCodeTokenStore } from '../../tsCodeAuth/common/tsCodeAuth.js'; // test-workbench_change
 
 interface TscodeWelcomeMemento {
 	hasShownAnimation?: boolean;
@@ -51,6 +52,7 @@ export class TscodeWelcomePage extends GettingStartedPage {
 	private tscodeMemento!: Memento<TscodeWelcomeMemento>; // test-workbench_change - Use different name to avoid conflict with parent
 	private tscodeMementoData!: Partial<TscodeWelcomeMemento>; // test-workbench_change
 	private readonly tscodeStorageService: IStorageService; // test-workbench_change
+	private readonly tscodeTokenStore: ITsCodeTokenStore; // test-workbench_change
 
 	// test-workbench_change start - Constructor to inject storage service
 	constructor(
@@ -79,6 +81,7 @@ export class TscodeWelcomePage extends GettingStartedPage {
 		@IWorkspaceContextService workspaceContextService: any,
 		@IAccessibilityService accessibilityService: any,
 		@IMarkdownRendererService markdownRendererService: any,
+		@ITsCodeTokenStore tokenStore: ITsCodeTokenStore,
 	) {
 		super(
 			group, commandService, productService, keybindingService, gettingStartedService,
@@ -88,6 +91,7 @@ export class TscodeWelcomePage extends GettingStartedPage {
 			hostService, webviewService, workspaceContextService, accessibilityService, markdownRendererService
 		);
 		this.tscodeStorageService = storageService;
+		this.tscodeTokenStore = tokenStore; // test-workbench_change
 	}
 	// test-workbench_change end
 
@@ -136,12 +140,19 @@ export class TscodeWelcomePage extends GettingStartedPage {
 	}
 
 	// test-workbench_change start - Opening animation
-	private showOpeningAnimation(parent: HTMLElement): void {
+	private async showOpeningAnimation(parent: HTMLElement): Promise<void> {
 		// test-workbench_change start - Check if animation has been shown before
 		if (this.tscodeMementoData.hasShownAnimation) {
 			// Skip animation if it has been shown before
 			return;
 		}
+
+		// test-workbench_change start - Skip animation if user has no token (not logged in)
+		const storedToken = await this.tscodeTokenStore.getToken();
+		if (!storedToken) {
+			return;
+		}
+		// test-workbench_change end
 
 		if (this.animationShown) {
 			return;

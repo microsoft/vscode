@@ -214,11 +214,11 @@ import '../workbench/contrib/notebook/browser/notebook.contribution.js';
 import '../workbench/contrib/speech/browser/speech.contribution.js';
 
 // Chat
-import '../workbench/contrib/chat/browser/chat.contribution.js';
+//import '../workbench/contrib/chat/browser/chat.contribution.js'; // test-workbench_change
 //import '../workbench/contrib/inlineChat/browser/inlineChat.contribution.js';
 import '../workbench/contrib/mcp/browser/mcp.contribution.js';
-import '../workbench/contrib/chat/browser/chatSessions/chatSessions.contribution.js';
-import '../workbench/contrib/chat/browser/contextContrib/chatContext.contribution.js';
+//import '../workbench/contrib/chat/browser/chatSessions/chatSessions.contribution.js'; // test-workbench_change
+//import '../workbench/contrib/chat/browser/contextContrib/chatContext.contribution.js'; // test-workbench_change
 import '../workbench/contrib/imageCarousel/browser/imageCarousel.contribution.js';
 
 // Interactive
@@ -458,9 +458,9 @@ import './browser/layoutActions.js';
 
 import './contrib/accountMenu/browser/account.contribution.js';
 import './contrib/aiCustomizationTreeView/browser/aiCustomizationTreeView.contribution.js';
-import './contrib/chat/browser/chat.contribution.js';
+//import './contrib/chat/browser/chat.contribution.js'; // test-workbench_change
 import './contrib/chat/browser/customizationsDebugLog.contribution.js';
-import './contrib/copilotChatSessions/browser/copilotChatSessions.contribution.js';
+//import './contrib/copilotChatSessions/browser/copilotChatSessions.contribution.js'; // test-workbench_change
 import './contrib/sessions/browser/sessions.contribution.js';
 import './contrib/sessions/browser/customizationsToolbar.contribution.js';
 import './contrib/changes/browser/changesView.contribution.js';

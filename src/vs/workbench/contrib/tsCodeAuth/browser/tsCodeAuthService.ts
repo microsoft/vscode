@@ -9,6 +9,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js'; // test-workbench_change
+import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js'; // test-workbench_change
 import {
 	ITsCodeAuthService,
 	ITsCodeTokenStore,
@@ -50,6 +51,7 @@ export class TsCodeAuthService extends Disposable implements ITsCodeAuthService 
 		@IOpenerService private readonly openerService: IOpenerService,
 		@ILogService private readonly logService: ILogService,
 		@IProductService private readonly productService: IProductService, // test-workbench_change
+		@ITelemetryService private readonly telemetryService: ITelemetryService, // test-workbench_change
 	) {
 		super();
 	}
@@ -119,6 +121,7 @@ export class TsCodeAuthService extends Disposable implements ITsCodeAuthService 
 							pathName: data.body.pathName,
 						};
 						await this.tokenStore.saveToken(storedToken);
+						this._sendLoginTelemetry(storedToken.employeeId, storedToken.userName); // test-workbench_change
 						this._onDidLogin.fire();
 						return;
 					}
@@ -137,6 +140,27 @@ export class TsCodeAuthService extends Disposable implements ITsCodeAuthService 
 			clearTimeout(this._pollingTimer);
 			this._pollingTimer = undefined;
 		}
+	}
+
+	// test-workbench_change start
+	private _sendLoginTelemetry(userId?: string, userName?: string): void {
+		type TsCodeLoginCompletedClassification = {
+			owner: 'tsCodeTeam';
+			comment: 'Tracks when TsCode authentication login completes successfully';
+			userId: { classification: 'EndUserPseudonymizedInformation'; purpose: 'FeatureInsight'; comment: 'The employee id of the logged-in user' };
+			userName: { classification: 'EndUserPseudonymizedInformation'; purpose: 'FeatureInsight'; comment: 'The username of the logged-in user' };
+		};
+		type TsCodeLoginCompletedEvent = {
+			userId: string;
+			userName: string;
+		};
+		this.telemetryService.publicLog2<TsCodeLoginCompletedEvent, TsCodeLoginCompletedClassification>(
+			'tsCodeAuth.loginCompleted',
+			{
+				userId: userId ?? '',
+				userName: userName ?? '',
+			}
+		);
 	}
 	// test-workbench_change end
 
