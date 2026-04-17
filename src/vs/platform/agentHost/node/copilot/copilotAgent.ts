@@ -11,6 +11,7 @@ import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { FileAccess } from '../../../../base/common/network.js';
+import { observableValue } from '../../../../base/common/observable.js';
 import { equals } from '../../../../base/common/objects.js';
 import { basename, delimiter, dirname } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -25,6 +26,7 @@ import { AgentHostSessionConfigBranchNameHintKey, AgentSession, IAgent, IAgentAt
 import { ISessionDataService, SESSION_DB_FILENAME } from '../../common/sessionDataService.js';
 import type { IResolveSessionConfigResult, ISessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { IProtectedResourceMetadata, type IToolDefinition } from '../../common/state/protocol/state.js';
+import { AHP_AUTH_REQUIRED, ProtocolError } from '../../common/state/sessionProtocol.js';
 import { CustomizationStatus, ICustomizationRef, SessionInputResponseKind, type IPendingMessage, type ISessionInputAnswer, type IToolCallResult, type PolicyState } from '../../common/state/sessionState.js';
 import { IAgentHostGitService } from '../agentHostGitService.js';
 import { IAgentHostTerminalManager } from '../agentHostTerminalManager.js';
@@ -60,6 +62,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private readonly _onDidSessionProgress = this._register(new Emitter<IAgentProgressEvent>());
 	readonly onDidSessionProgress = this._onDidSessionProgress.event;
+	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, []);
+	readonly models = this._models;
 
 	private _client: CopilotClient | undefined;
 	private _clientStarting: Promise<CopilotClient> | undefined;
@@ -113,25 +117,55 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._logService.info(`[Copilot] Auth token ${tokenChanged ? 'updated' : 'unchanged'}`);
 		if (tokenChanged && this._client && this._sessions.size === 0) {
 			this._logService.info('[Copilot] Restarting CopilotClient with new token');
-			const client = this._client;
-			this._client = undefined;
-			this._clientStarting = undefined;
-			await client.stop();
+			await this._stopClient();
+		}
+		if (tokenChanged) {
+			void this._refreshModels();
 		}
 		return true;
+	}
+
+	private async _refreshModels(): Promise<void> {
+		const tokenAtRefreshStart = this._githubToken;
+		if (!tokenAtRefreshStart) {
+			this._models.set([], undefined);
+			return;
+		}
+		try {
+			const models = await this._listModels();
+			if (this._githubToken === tokenAtRefreshStart) {
+				this._models.set(models, undefined);
+			}
+		} catch (err) {
+			this._logService.error(err, '[Copilot] Failed to refresh models');
+			if (this._githubToken === tokenAtRefreshStart) {
+				this._models.set([], undefined);
+			}
+		}
+	}
+
+	private async _stopClient(): Promise<void> {
+		const client = this._client;
+		this._client = undefined;
+		this._clientStarting = undefined;
+		await client?.stop();
 	}
 
 	// ---- client lifecycle ---------------------------------------------------
 
 	private async _ensureClient(): Promise<CopilotClient> {
+		const tokenAtStartup = this._githubToken;
+		if (!tokenAtStartup) {
+			throw new ProtocolError(AHP_AUTH_REQUIRED, 'Authentication is required to use Copilot');
+		}
 		if (this._client) {
 			return this._client;
 		}
 		if (this._clientStarting) {
 			return this._clientStarting;
 		}
-		this._clientStarting = (async () => {
-			this._logService.info(`[Copilot] Starting CopilotClient... ${this._githubToken ? '(with token)' : '(no token)'}`);
+		const clientStarting = (async () => {
+			this._logService.info('[Copilot] Starting CopilotClient... (with token)');
 
 			// Build a clean env for the CLI subprocess, stripping Electron/VS Code vars
 			// that can interfere with the Node.js process the SDK spawns.
@@ -168,26 +202,38 @@ export class CopilotAgent extends Disposable implements IAgent {
 			this._logService.info(`[Copilot] Resolved CLI path: ${cliPath}`);
 
 			const client = new CopilotClient({
-				githubToken: this._githubToken,
-				useLoggedInUser: !this._githubToken,
+				githubToken: tokenAtStartup,
+				useLoggedInUser: false,
 				useStdio: true,
 				autoStart: true,
 				env,
 				cliPath,
 			});
 			await client.start();
+			if (this._githubToken !== tokenAtStartup) {
+				await client.stop();
+				throw new Error('Copilot authentication changed while the client was starting');
+			}
 			this._logService.info('[Copilot] CopilotClient started successfully');
 			this._client = client;
 			this._clientStarting = undefined;
 			return client;
 		})();
-		return this._clientStarting;
+		this._clientStarting = clientStarting;
+		void clientStarting.catch(() => {
+			this._clientStarting = undefined;
+		});
+		return clientStarting;
 	}
 
 	// ---- session management -------------------------------------------------
 
 	async listSessions(): Promise<IAgentSessionMetadata[]> {
 		this._logService.info('[Copilot] Listing sessions...');
+		if (!this._githubToken) {
+			this._logService.trace('[Copilot] No auth token; returning no sessions');
+			return [];
+		}
 		const client = await this._ensureClient();
 		const sessions = await client.listSessions();
 		const projectLimiter = new Limiter<IAgentSessionProjectInfo | undefined>(4);
@@ -214,8 +260,12 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return result;
 	}
 
-	async listModels(): Promise<IAgentModelInfo[]> {
+	private async _listModels(): Promise<IAgentModelInfo[]> {
 		this._logService.info('[Copilot] Listing models...');
+		if (!this._githubToken) {
+			this._logService.trace('[Copilot] No auth token; returning no models');
+			return [];
+		}
 		const client = await this._ensureClient();
 		const models = await client.listModels();
 		const result = models.map(m => ({
@@ -467,7 +517,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	async getSessionMessages(session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent | IAgentSubagentStartedEvent)[]> {
 		const sessionId = AgentSession.id(session);
-		const entry = this._sessions.get(sessionId) ?? await this._resumeSession(sessionId).catch(() => undefined);
+		const entry = this._sessions.get(sessionId) ?? await this._resumeSession(sessionId).catch(err => {
+			this._logService.warn(`[Copilot:${sessionId}] Failed to resume session for message lookup`, err);
+			return undefined;
+		});
 		if (!entry) {
 			return [];
 		}
@@ -846,7 +899,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	override dispose(): void {
-		this.shutdown().catch(() => { /* best-effort */ }).finally(() => super.dispose());
+		this.shutdown().catch(err => {
+			this._logService.warn('[Copilot] Shutdown failed during dispose', err);
+		}).finally(() => super.dispose());
 	}
 }
 
@@ -874,7 +929,9 @@ class PluginController {
 
 	public sync(clientId: string, customizations: ICustomizationRef[], progress?: (results: ISyncedCustomization[]) => void) {
 		const prev = this._lastSynced;
-		const promise = this._lastSynced = prev.catch(() => []).then(async () => {
+		const promise = this._lastSynced = prev.catch(err => {
+			this._logService.warn('[Copilot:PluginController] Previous customization sync failed', err);
+		}).then(async () => {
 			const result = await this._pluginManager.syncCustomizations(clientId, customizations, status => {
 				progress?.(status.map(c => ({ customization: c })));
 			});

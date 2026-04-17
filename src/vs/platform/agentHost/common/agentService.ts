@@ -6,6 +6,7 @@
 import { Event } from '../../../base/common/event.js';
 import { IReference } from '../../../base/common/lifecycle.js';
 import { IAuthorizationProtectedResourceMetadata } from '../../../base/common/oauth.js';
+import type { IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { ISyncedCustomization } from './agentPluginManager.js';
@@ -226,7 +227,7 @@ export interface IAgentToolStartEvent extends IAgentProgressEventBase {
 	/** Human-readable display name for this tool. */
 	readonly displayName: string;
 	/** Message describing the tool invocation in progress (e.g., "Running `echo hello`"). */
-	readonly invocationMessage: string;
+	readonly invocationMessage: StringOrMarkdown;
 	/** A representative input string for display in the UI (e.g., the shell command). */
 	readonly toolInput?: string;
 	/** Hint for the renderer about how to display this tool (e.g., 'terminal' for shell commands, 'subagent' for subagent-spawning tools). */
@@ -438,8 +439,8 @@ export interface IAgent {
 	/** Return the descriptor for this agent. */
 	getDescriptor(): IAgentDescriptor;
 
-	/** List available models from this provider. */
-	listModels(): Promise<IAgentModelInfo[]>;
+	/** Available models from this provider. */
+	readonly models: IObservable<readonly IAgentModelInfo[]>;
 
 	/** List persisted sessions from this provider. */
 	listSessions(): Promise<IAgentSessionMetadata[]>;

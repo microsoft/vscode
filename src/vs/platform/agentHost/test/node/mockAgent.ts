@@ -5,6 +5,7 @@
 
 import { timeout } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
+import { observableValue } from '../../../../base/common/observable.js';
 import type { IAuthorizationProtectedResourceMetadata } from '../../../../base/common/oauth.js';
 import { URI } from '../../../../base/common/uri.js';
 import { type ISyncedCustomization } from '../../common/agentPluginManager.js';
@@ -27,6 +28,8 @@ function mockProject(provider: AgentProvider) {
 export class MockAgent implements IAgent {
 	private readonly _onDidSessionProgress = new Emitter<IAgentProgressEvent>();
 	readonly onDidSessionProgress = this._onDidSessionProgress.event;
+	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, []);
+	readonly models = this._models;
 
 	private readonly _sessions = new Map<string, URI>();
 	private _nextId = 1;
@@ -41,7 +44,6 @@ export class MockAgent implements IAgent {
 	readonly authenticateCalls: { resource: string; token: string }[] = [];
 	readonly setClientCustomizationsCalls: { clientId: string; customizations: ICustomizationRef[] }[] = [];
 	readonly setCustomizationEnabledCalls: { uri: string; enabled: boolean }[] = [];
-
 	/** Configurable return value for getCustomizations. */
 	customizations: ICustomizationRef[] = [];
 
@@ -64,8 +66,8 @@ export class MockAgent implements IAgent {
 		return [];
 	}
 
-	async listModels(): Promise<IAgentModelInfo[]> {
-		return [{ provider: this.id, id: `${this.id}-model`, name: `${this.id} Model`, maxContextWindow: 128000, supportsVision: false, supportsReasoningEffort: false }];
+	setModels(models: readonly IAgentModelInfo[]): void {
+		this._models.set(models, undefined);
 	}
 
 	async listSessions(): Promise<IAgentSessionMetadata[]> {
@@ -178,6 +180,8 @@ export class ScriptedMockAgent implements IAgent {
 
 	private readonly _onDidSessionProgress = new Emitter<IAgentProgressEvent>();
 	readonly onDidSessionProgress = this._onDidSessionProgress.event;
+	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, [{ provider: 'mock', id: 'mock-model', name: 'Mock Model', maxContextWindow: 128000, supportsVision: false, supportsReasoningEffort: false }]);
+	readonly models = this._models;
 
 	private readonly _sessions = new Map<string, URI>();
 	private _nextId = 1;
@@ -209,10 +213,6 @@ export class ScriptedMockAgent implements IAgent {
 
 	getProtectedResources(): IAuthorizationProtectedResourceMetadata[] {
 		return [];
-	}
-
-	async listModels(): Promise<IAgentModelInfo[]> {
-		return [{ provider: 'mock', id: 'mock-model', name: 'Mock Model', maxContextWindow: 128000, supportsVision: false, supportsReasoningEffort: false }];
 	}
 
 	async listSessions(): Promise<IAgentSessionMetadata[]> {

@@ -27,7 +27,7 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../browser/editor.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
-import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from '../../../../common/editor.js';
+import { EditorExtensions, EditorsOrder, IEditorFactoryRegistry, IEditorSerializer } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
@@ -272,14 +272,23 @@ registerAction2(class extends Action2 {
 	}
 	async run(accessor: ServicesAccessor, context: AICustomizationContext): Promise<void> {
 		const commandService = accessor.get(ICommandService);
+		const editorService = accessor.get(IEditorService);
 		const rawName = extractName(context);
 		const displayName = rawName?.replace(/\.md$/i, '');
 		const query = displayName
-			? `/troubleshoot ${displayName} `
-			: '/troubleshoot ';
+			? `/troubleshoot ${displayName}`
+			: '/troubleshoot';
+
+		// Close any open Agent Customizations editors before sending the chat.
+		const customizationEditors = editorService.getEditors(EditorsOrder.SEQUENTIAL)
+			.filter(({ editor }) => editor instanceof AICustomizationManagementEditorInput);
+		if (customizationEditors.length) {
+			await editorService.closeEditors(customizationEditors);
+		}
+
 		await commandService.executeCommand('workbench.action.chat.open', {
 			query,
-			isPartialQuery: true,
+			isPartialQuery: false,
 		});
 	}
 });

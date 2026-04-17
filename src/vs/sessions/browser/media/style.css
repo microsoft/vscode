@@ -100,6 +100,10 @@
 	background: transparent !important;
 }
 
+.agent-sessions-workbench .part.sidebar.mobile-overlay-sidebar {
+	background: var(--vscode-agents-background) !important;
+}
+
 .agent-sessions-workbench .part.chatbar {
 	margin: 0 10px 0px 10px;
 	background: var(--part-background);

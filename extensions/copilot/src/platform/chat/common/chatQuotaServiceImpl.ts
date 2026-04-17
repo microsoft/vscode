@@ -6,14 +6,20 @@
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { IAuthenticationService } from '../../authentication/common/authentication';
 import { IHeaders } from '../../networking/common/fetcherService';
-import { CopilotUserQuotaInfo, IChatQuota, IChatQuotaService, QuotaSnapshots } from './chatQuotaService';
+import { CopilotUserQuotaInfo, IChatQuota, IChatQuotaService, IRateLimitWarning, QuotaSnapshots } from './chatQuotaService';
 
 export class ChatQuotaService extends Disposable implements IChatQuotaService {
 	declare readonly _serviceBrand: undefined;
+	private static readonly _RATE_LIMIT_THRESHOLDS = [50, 75, 90, 95];
 	private _quotaInfo: IChatQuota | undefined;
+	private _rateLimitInfo: { session: IChatQuota | undefined; weekly: IChatQuota | undefined };
+	private readonly _shownSessionThresholds = new Set<number>();
+	private readonly _shownWeeklyThresholds = new Set<number>();
+	private _pendingRateLimitWarning: IRateLimitWarning | undefined;
 
 	constructor(@IAuthenticationService private readonly _authService: IAuthenticationService) {
 		super();
+		this._rateLimitInfo = { session: undefined, weekly: undefined };
 		this._register(this._authService.onDidAuthenticationChange(() => {
 			this.processUserInfoQuotaSnapshot(this._authService.copilotToken?.quotaInfo);
 		}));
@@ -23,7 +29,7 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 		if (!this._quotaInfo) {
 			return false;
 		}
-		return this._quotaInfo.used >= this._quotaInfo.quota && !this._quotaInfo.overageEnabled && !this._quotaInfo.unlimited;
+		return this._quotaInfo.percentRemaining <= 0 && !this._quotaInfo.overageEnabled && !this._quotaInfo.unlimited;
 	}
 
 	get overagesEnabled(): boolean {
@@ -37,15 +43,10 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 		this._quotaInfo = undefined;
 	}
 
-	processQuotaHeaders(headers: IHeaders): void {
-		const quotaHeader = this._authService.copilotToken?.isFreeUser ? headers.get('x-quota-snapshot-chat') : headers.get('x-quota-snapshot-premium_models') || headers.get('x-quota-snapshot-premium_interactions');
-		if (!quotaHeader) {
-			return;
-		}
-
+	private _processHeaderValue(header: string): IChatQuota | undefined {
 		try {
 			// Parse URL encoded string into key-value pairs
-			const params = new URLSearchParams(quotaHeader);
+			const params = new URLSearchParams(header);
 
 			// Extract values with fallbacks to ensure type safety
 			const entitlement = parseInt(params.get('ent') || '0', 10);
@@ -63,21 +64,38 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 				resetDate.setMonth(resetDate.getMonth() + 1);
 			}
 
-			// Calculate used based on entitlement and remaining
-			const used = Math.max(0, entitlement * (1 - percentRemaining / 100));
-
-			// Update quota info
-			this._quotaInfo = {
+			return {
 				quota: entitlement,
 				unlimited: entitlement === -1,
-				used,
+				percentRemaining,
 				overageUsed,
 				overageEnabled,
 				resetDate
 			};
 		} catch (error) {
 			console.error('Failed to parse quota header', error);
+			return undefined;
 		}
+	}
+
+
+	processQuotaHeaders(headers: IHeaders): void {
+		const quotaHeader = this._authService.copilotToken?.isFreeUser ? headers.get('x-quota-snapshot-chat') : headers.get('x-quota-snapshot-premium_models') || headers.get('x-quota-snapshot-premium_interactions');
+		if (!quotaHeader) {
+			return;
+		}
+		const quotaInfo = this._processHeaderValue(quotaHeader);
+		if (!quotaInfo) {
+			return;
+		}
+		this._quotaInfo = quotaInfo;
+		const sessionRateLimitHeader = headers.get('x-usage-ratelimit-session');
+		const weeklyRateLimitHeader = headers.get('x-usage-ratelimit-weekly');
+		this._rateLimitInfo.session = sessionRateLimitHeader ? this._processHeaderValue(sessionRateLimitHeader) : undefined;
+		this._rateLimitInfo.weekly = weeklyRateLimitHeader ? this._processHeaderValue(weeklyRateLimitHeader) : undefined;
+		this._clearStaleThresholds(this._rateLimitInfo.session, this._shownSessionThresholds);
+		this._clearStaleThresholds(this._rateLimitInfo.weekly, this._shownWeeklyThresholds);
+		this._pendingRateLimitWarning = this._computeRateLimitWarning() ?? this._pendingRateLimitWarning;
 	}
 
 	processQuotaSnapshots(snapshots: QuotaSnapshots): void {
@@ -91,12 +109,11 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 		try {
 			const entitlement = parseInt(snapshot.entitlement, 10);
 			const resetDate = snapshot.reset_date ? new Date(snapshot.reset_date) : (() => { const d = new Date(); d.setMonth(d.getMonth() + 1); return d; })();
-			const used = Math.max(0, entitlement * (1 - snapshot.percent_remaining / 100));
 
 			this._quotaInfo = {
 				quota: entitlement,
 				unlimited: entitlement === -1,
-				used,
+				percentRemaining: snapshot.percent_remaining,
 				overageUsed: snapshot.overage_count,
 				overageEnabled: snapshot.overage_permitted,
 				resetDate
@@ -104,6 +121,53 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 		} catch (error) {
 			console.error('Failed to process quota snapshots', error);
 		}
+	}
+
+	consumeRateLimitWarning(): IRateLimitWarning | undefined {
+		const warning = this._pendingRateLimitWarning;
+		this._pendingRateLimitWarning = undefined;
+		return warning;
+	}
+
+	private _computeRateLimitWarning(): IRateLimitWarning | undefined {
+		// Session rate limit takes priority over weekly
+		const sessionWarning = this._checkThreshold(this._rateLimitInfo.session, this._shownSessionThresholds, 'session');
+		if (sessionWarning) {
+			return sessionWarning;
+		}
+		return this._checkThreshold(this._rateLimitInfo.weekly, this._shownWeeklyThresholds, 'weekly');
+	}
+
+	private _clearStaleThresholds(info: IChatQuota | undefined, shownThresholds: Set<number>): void {
+		if (!info) {
+			shownThresholds.clear();
+			return;
+		}
+		const percentUsed = 100 - info.percentRemaining;
+		for (const threshold of shownThresholds) {
+			if (percentUsed < threshold) {
+				shownThresholds.delete(threshold);
+			}
+		}
+	}
+
+	private _checkThreshold(info: IChatQuota | undefined, shownThresholds: Set<number>, type: 'session' | 'weekly'): IRateLimitWarning | undefined {
+		if (!info || info.unlimited) {
+			return undefined;
+		}
+		const percentUsed = 100 - info.percentRemaining;
+		// Walk thresholds highest-first so we report the most severe crossed threshold
+		for (let i = ChatQuotaService._RATE_LIMIT_THRESHOLDS.length - 1; i >= 0; i--) {
+			const threshold = ChatQuotaService._RATE_LIMIT_THRESHOLDS[i];
+			if (percentUsed >= threshold && !shownThresholds.has(threshold)) {
+				// Mark this and all lower thresholds as shown
+				for (let j = 0; j <= i; j++) {
+					shownThresholds.add(ChatQuotaService._RATE_LIMIT_THRESHOLDS[j]);
+				}
+				return { percentUsed: Math.round(percentUsed), type, resetDate: info.resetDate };
+			}
+		}
+		return undefined;
 	}
 
 	private processUserInfoQuotaSnapshot(quotaInfo: CopilotUserQuotaInfo | undefined) {
@@ -116,7 +180,7 @@ export class ChatQuotaService extends Disposable implements IChatQuotaService {
 			overageUsed: quotaInfo.quota_snapshots.premium_interactions.overage_count,
 			quota: quotaInfo.quota_snapshots.premium_interactions.entitlement,
 			resetDate: new Date(quotaInfo.quota_reset_date),
-			used: Math.max(0, quotaInfo.quota_snapshots.premium_interactions.entitlement * (1 - quotaInfo.quota_snapshots.premium_interactions.percent_remaining / 100)),
+			percentRemaining: quotaInfo.quota_snapshots.premium_interactions.percent_remaining,
 		};
 	}
 }
