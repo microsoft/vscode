@@ -172,6 +172,13 @@ export class BaseIssueReporterService extends Disposable {
 			show(this.getElementById('english'));
 		}
 
+		// Prompt stable users to verify the issue exists in VS Code Insiders before reporting,
+		// since many stable bugs are already fixed in the Insiders build.
+		if (product.quality === 'stable') {
+			// eslint-disable-next-line no-restricted-syntax
+			show(this.getElementById('insiders-banner'));
+		}
+
 		const codiconStyleSheet = createStyleSheet();
 		codiconStyleSheet.id = 'codiconStyles';
 
