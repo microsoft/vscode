@@ -287,12 +287,12 @@ suite('AgentSideEffects', () => {
 			sideEffects.handleAction({
 				type: ActionType.SessionModelChanged,
 				session: sessionUri.toString(),
-				model: 'gpt-5',
+				model: { id: 'gpt-5' },
 			});
 
 			await new Promise(r => setTimeout(r, 10));
 
-			assert.deepStrictEqual(agent.changeModelCalls, [{ session: URI.parse(sessionUri.toString()), model: 'gpt-5' }]);
+			assert.deepStrictEqual(agent.changeModelCalls, [{ session: URI.parse(sessionUri.toString()), model: { id: 'gpt-5' } }]);
 		});
 	});
 
@@ -360,7 +360,7 @@ suite('AgentSideEffects', () => {
 				}
 				return e.action.agents[0]?.models.length === 1;
 			}));
-			agent.setModels([{ provider: 'mock', id: 'mock-model', name: 'mock Model', maxContextWindow: 128000, supportsVision: false, supportsReasoningEffort: false }]);
+			agent.setModels([{ provider: 'mock', id: 'mock-model', name: 'mock Model', maxContextWindow: 128000, supportsVision: false }]);
 			await envelope;
 
 			const actions = envelopes.map(e => e.action).filter(action => action.type === ActionType.RootAgentsChanged);
@@ -373,13 +373,14 @@ suite('AgentSideEffects', () => {
 				maxContextWindow: 128000,
 				supportsVision: false,
 				policyState: undefined,
+				configSchema: undefined,
 			}]);
 		});
 
 		test('unchanged model observable update does not dispatch unchanged agent infos', async () => {
 			const envelopes: IActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
-			const models = [{ provider: 'mock' as const, id: 'mock-model', name: 'mock Model', maxContextWindow: 128000, supportsVision: false, supportsReasoningEffort: false }];
+			const models = [{ provider: 'mock' as const, id: 'mock-model', name: 'mock Model', maxContextWindow: 128000, supportsVision: false }];
 
 			const envelope = Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope, e => {
 				if (e.action.type !== ActionType.RootAgentsChanged) {

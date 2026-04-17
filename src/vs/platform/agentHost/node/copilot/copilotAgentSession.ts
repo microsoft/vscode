@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { PermissionRequestResult, Tool, ToolResultObject } from '@github/copilot-sdk';
+import type { PermissionRequestResult, SessionConfig, Tool, ToolResultObject } from '@github/copilot-sdk';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
@@ -337,9 +337,9 @@ export class CopilotAgentSession extends Disposable {
 		await this._wrapper.session.destroy();
 	}
 
-	async setModel(model: string): Promise<void> {
+	async setModel(model: string, reasoningEffort?: SessionConfig['reasoningEffort']): Promise<void> {
 		this._logService.info(`[Copilot:${this.sessionId}] Changing model to: ${model}`);
-		await this._wrapper.session.setModel(model);
+		await this._wrapper.session.setModel(model, { reasoningEffort });
 	}
 
 	// ---- permission handling ------------------------------------------------

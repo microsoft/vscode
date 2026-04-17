@@ -15,7 +15,7 @@ import { AgentSession, type IAgentConnection, type IAgentSessionMetadata } from 
 import type { ISessionAction, ITerminalAction } from '../../../../../platform/agentHost/common/state/protocol/action-origin.generated.js';
 import type { IResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { NotificationType } from '../../../../../platform/agentHost/common/state/protocol/notifications.js';
-import type { IAgentInfo, IRootState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import type { IAgentInfo, IModelSelection, IRootState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, type IActionEnvelope, type INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
 import { SessionStatus as ProtocolSessionStatus } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -130,7 +130,7 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 		startTime: opts?.startTime ?? 1000,
 		modifiedTime: opts?.modifiedTime ?? 2000,
 		summary: opts?.summary,
-		model: opts?.model,
+		model: opts?.model ? { id: opts.model } : undefined,
 		project: opts?.project,
 		workingDirectory: opts?.workingDirectory,
 	};
@@ -182,7 +182,7 @@ async function waitForSessionConfig(provider: RemoteAgentHostSessionsProvider, s
 	});
 }
 
-function fireSessionAdded(connection: MockAgentConnection, rawId: string, opts?: { provider?: string; title?: string; model?: string; project?: { uri: string; displayName: string }; workingDirectory?: string }): void {
+function fireSessionAdded(connection: MockAgentConnection, rawId: string, opts?: { provider?: string; title?: string; model?: string; modelConfig?: Record<string, string>; project?: { uri: string; displayName: string }; workingDirectory?: string }): void {
 	const provider = opts?.provider ?? 'copilot';
 	const sessionUri = AgentSession.uri(provider, rawId);
 	connection.fireNotification({
@@ -194,7 +194,7 @@ function fireSessionAdded(connection: MockAgentConnection, rawId: string, opts?:
 			status: ProtocolSessionStatus.Idle,
 			createdAt: Date.now(),
 			modifiedAt: Date.now(),
-			model: opts?.model,
+			model: opts?.model ? { id: opts.model, ...(opts.modelConfig ? { config: opts.modelConfig } : {}) } : undefined,
 			project: opts?.project,
 			workingDirectory: opts?.workingDirectory,
 		},
@@ -451,7 +451,23 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(connection.dispatchedActions.at(-1)?.action, {
 			type: ActionType.SessionModelChanged,
 			session: AgentSession.uri('copilot', 'set-model').toString(),
-			model: 'new-model',
+			model: { id: 'new-model' },
+		});
+	});
+
+	test('setModel preserves current model config when model id is unchanged', () => {
+		const provider = createProvider(disposables, connection);
+		fireSessionAdded(connection, 'set-model-config', { title: 'Set Model Config Session', model: 'configured-model', modelConfig: { thinkingLevel: 'high' } });
+
+		const session = provider.getSessions().find(s => s.title.get() === 'Set Model Config Session');
+		assert.ok(session);
+
+		provider.setModel(session!.sessionId, 'remote-localhost__4321-copilot:configured-model');
+
+		assert.deepStrictEqual(connection.dispatchedActions.at(-1)?.action, {
+			type: ActionType.SessionModelChanged,
+			session: AgentSession.uri('copilot', 'set-model-config').toString(),
+			model: { id: 'configured-model', config: { thinkingLevel: 'high' } },
 		});
 	});
 
@@ -628,7 +644,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			action: {
 				type: ActionType.SessionModelChanged,
 				session: AgentSession.uri('copilot', 'model-change').toString(),
-				model: 'new-model',
+				model: { id: 'new-model' } satisfies IModelSelection,
 			},
 			serverSeq: 1,
 			origin: undefined,

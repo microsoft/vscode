@@ -158,6 +158,15 @@ export class PromptsService extends Disposable implements IPromptsService {
 	private readonly _onDidPluginHooksChange = this._register(new Emitter<void>());
 	private _pluginPromptFilesByType = new Map<PromptsType, readonly IPluginPromptPath[]>();
 
+	/**
+	 * Pending URIs to mark as readonly, flushed on the next microtask.
+	 * This batches multiple `registerContributedFile` calls (which happen
+	 * synchronously in the extension point handler) into a single
+	 * `updateReadonly` call to avoid firing `onDidChangeReadonly` per file.
+	 */
+	private _pendingReadonlyUris: URI[] = [];
+	private _pendingReadonlyFlush = false;
+
 	constructor(
 		@ILogService public readonly logger: ILogService,
 		@ILabelService private readonly labelService: ILabelService,
@@ -449,6 +458,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 */
 	private async listFromProviders(type: PromptsType, activationEvent: string, token: CancellationToken): Promise<IExtensionPromptPath[]> {
 		const result: IExtensionPromptPath[] = [];
+		const readonlyUris: URI[] = [];
 
 		// Activate extensions that might provide files for this type
 		await this.extensionService.activateByEvent(activationEvent);
@@ -467,12 +477,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 				}
 
 				for (const file of files) {
-					try {
-						await this.filesConfigService.updateReadonly(file.uri, true);
-					} catch (e) {
-						const msg = e instanceof Error ? e.message : String(e);
-						this.logger.error(`[listFromProviders] Failed to make file readonly: ${file.uri}`, msg);
-					}
+					readonlyUris.push(file.uri);
 					result.push({
 						uri: file.uri,
 						storage: PromptsStorage.extension,
@@ -488,6 +493,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 				this.logger.error(`[listFromProviders] Failed to get ${type} files from provider`, e instanceof Error ? e.message : String(e));
 			}
 		}
+
+		// Mark all collected files as readonly in a single batch to avoid
+		// firing onDidChangeReadonly once per file (which causes a cascade
+		// of event handlers and can freeze the renderer).
+		void this.filesConfigService.updateReadonly(readonlyUris, true);
 
 		return result;
 	}
@@ -890,15 +900,14 @@ export class PromptsService extends Disposable implements IPromptsService {
 				}
 			}
 
-			try {
-				await this.filesConfigService.updateReadonly(uri, true);
-			} catch (e) {
-				const msg = e instanceof Error ? e.message : String(e);
-				this.logger.error(`[registerContributedFile] Failed to make prompt file readonly: ${uri}`, msg);
-			}
 			return { uri, name, description, when, sessionTypes, storage: PromptsStorage.extension, type, extension, source: PromptFileSource.ExtensionContribution } satisfies IExtensionPromptPath;
 		})();
 		bucket.set(uri, entryPromise);
+
+		// Enqueue the URI for a batched readonly update instead of calling
+		// updateReadonly per file, which would fire onDidChangeReadonly each time.
+		this._enqueueReadonlyUpdate(uri);
+
 		if (when) {
 			this._contributedWhenClauses.set(`${type}/${uri.toString()}`, when);
 		}
@@ -927,6 +936,19 @@ export class PromptsService extends Disposable implements IPromptsService {
 				flushCachesIfRequired();
 			}
 		};
+	}
+
+	private _enqueueReadonlyUpdate(uri: URI): void {
+		this._pendingReadonlyUris.push(uri);
+		if (!this._pendingReadonlyFlush) {
+			this._pendingReadonlyFlush = true;
+			queueMicrotask(() => {
+				const uris = this._pendingReadonlyUris;
+				this._pendingReadonlyUris = [];
+				this._pendingReadonlyFlush = false;
+				void this.filesConfigService.updateReadonly(uris, true);
+			});
+		}
 	}
 
 	private _updateContributedWhenKeys(): void {
