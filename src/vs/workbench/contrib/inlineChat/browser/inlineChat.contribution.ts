@@ -27,12 +27,15 @@ import { InlineChatAccessibilityHelp } from './inlineChatAccessibilityHelp.js';
 
 registerEditorContribution(InlineChatController.ID, InlineChatController, EditorContributionInstantiation.Eager); // EAGER because of notebook dispose/create of editors
 
+// test-workbench_change start - hide chat UI
+if (false as boolean) {
 registerAction2(InlineChatActions.KeepSessionAction2);
 registerAction2(InlineChatActions.UndoSessionAction2);
 registerAction2(InlineChatActions.UndoAndCloseSessionAction2);
 registerAction2(InlineChatActions.CancelSessionAction);
 registerAction2(InlineChatActions.ContinueInlineChatInChatViewAction);
 registerAction2(InlineChatActions.RephraseInlineChatSessionAction);
+} // test-workbench_change end
 
 // --- browser
 
@@ -71,8 +74,11 @@ const generateActionMenuItem: IMenuItem = {
 	),
 };
 
+// test-workbench_change start - hide chat UI
+if (false as boolean) {
 MenuRegistry.appendMenuItem(MENU_INLINE_CHAT_WIDGET_STATUS, editActionMenuItem);
 MenuRegistry.appendMenuItem(MENU_INLINE_CHAT_WIDGET_STATUS, generateActionMenuItem);
+} // test-workbench_change end
 
 const cancelActionMenuItem: IMenuItem = {
 	group: '0_main',
@@ -87,12 +93,17 @@ const cancelActionMenuItem: IMenuItem = {
 	),
 };
 
+// test-workbench_change start - hide chat UI
+if (false as boolean) {
 MenuRegistry.appendMenuItem(MENU_INLINE_CHAT_WIDGET_STATUS, cancelActionMenuItem);
+} // test-workbench_change end
 
 
 
 // --- actions ---
 
+// test-workbench_change start - hide chat UI
+if (false as boolean) {
 registerAction2(InlineChatActions.StartSessionAction);
 registerAction2(InlineChatActions.AskInChatAction);
 registerAction2(InlineChatActions.FocusInlineChat);
@@ -109,3 +120,4 @@ workbenchContributionsRegistry.registerWorkbenchContribution(InlineChatNotebookC
 registerWorkbenchContribution2(InlineChatEnabler.Id, InlineChatEnabler, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(InlineChatEscapeToolContribution.Id, InlineChatEscapeToolContribution, WorkbenchPhase.AfterRestored);
 AccessibleViewRegistry.register(new InlineChatAccessibilityHelp());
+} // test-workbench_change end

@@ -86,6 +86,8 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 	) {
 		super();
 
+		return; // test-workbench_change - hide chat UI
+
 		const context = chatEntitlementService.context?.value;
 		const requests = chatEntitlementService.requests?.value;
 		if (!context || !requests) {
