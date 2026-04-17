@@ -22,7 +22,7 @@ import { ISessionTruncatedAction } from '../../../../../../platform/agentHost/co
 import { ICustomizationRef, TerminalClaimKind, ToolResultContentType, type IProtectedResourceMetadata, type IToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, ISessionTurnStartedAction, type ISessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
-import { AttachmentType, buildSubagentSessionUri, getToolFileEdits, getToolSubagentContent, PendingMessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, type ICompletedToolCall, type IMessageAttachment, type IRootState, type IResponsePart, type ISessionInputAnswer, type ISessionInputRequest, type ISessionState, type IToolCallRunningState, type IToolCallState, type ITurn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { AttachmentType, buildSubagentSessionUri, getToolFileEdits, getToolSubagentContent, PendingMessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, type ICompletedToolCall, type IMessageAttachment, type IModelSelection, type IRootState, type IResponsePart, type ISessionInputAnswer, type ISessionInputRequest, type ISessionState, type IToolCallRunningState, type IToolCallState, type ITurn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { ExtensionIdentifier } from '../../../../../../platform/extensions/common/extensions.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -42,7 +42,7 @@ import { getAgentHostIcon } from '../agentSessions.js';
 import { AgentHostEditingSession } from './agentHostEditingSession.js';
 import { IAgentHostSessionWorkingDirectoryResolver } from './agentHostSessionWorkingDirectoryResolver.js';
 import { IAgentHostTerminalService } from '../../../../terminal/browser/agentHostTerminalService.js';
-import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, getTerminalContentUri, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, type IToolCallFileEdit } from './stateToProgressAdapter.js';
+import { activeTurnToProgress, completedToolCallToEditParts, completedToolCallToSerialized, finalizeToolInvocation, getTerminalContentUri, makeAhpTerminalToolSessionId, parseAhpTerminalToolSessionId, toolCallStateToInvocation, turnsToHistory, updateRunningToolSpecificData, type IToolCallFileEdit } from './stateToProgressAdapter.js';
 import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 
 // =============================================================================
@@ -69,20 +69,6 @@ interface ITurnProcessingContext {
 	readonly cancellationToken: CancellationToken;
 	/** Called when a completed tool produces file edits. */
 	readonly onFileEdits?: (tc: IToolCallState, fileEdits: IToolCallFileEdit[]) => void;
-}
-
-function makeAhpTerminalToolSessionId(terminalUri: string, session: URI): string {
-	return JSON.stringify({ terminal: terminalUri, session: session.toString() });
-}
-
-function parseAhpTerminalToolSessionId(id: string): { terminal: string; session: string } | undefined {
-	try {
-		const parsed = JSON.parse(id);
-		if (typeof parsed?.terminal === 'string' && typeof parsed?.session === 'string') {
-			return parsed;
-		}
-	} catch { /* not an AHP terminal session ID */ }
-	return undefined;
 }
 
 /**
@@ -415,8 +401,8 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				}
 				const sessionState = this._getSessionState(resolvedSession.toString());
 				if (sessionState) {
-					const modelId = this._toLanguageModelId(sessionResource, sessionState.summary.model);
-					history.push(...turnsToHistory(sessionState.turns, this._config.agentId, modelId));
+					const modelId = this._toLanguageModelId(sessionResource, sessionState.summary.model?.id);
+					history.push(...turnsToHistory(resolvedSession, sessionState.turns, this._config.agentId, modelId));
 
 					// Enrich history with inner tool calls from subagent
 					// child sessions. Subscribes to each child session so
@@ -450,7 +436,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 							parts: [],
 							participant: this._config.agentId,
 						});
-						initialProgress = activeTurnToProgress(sessionState.activeTurn);
+						initialProgress = activeTurnToProgress(resolvedSession, sessionState.activeTurn);
 						this._logService.info(`[AgentHost] Reconnecting to active turn ${activeTurnId} for session ${resolvedSession.toString()}`);
 					}
 				}
@@ -555,7 +541,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// Resolve or create backend session
 		let resolvedSession = this._sessionToBackend.get(request.sessionResource);
 		if (!resolvedSession) {
-			resolvedSession = await this._createAndSubscribe(request.sessionResource, request.userSelectedModelId, undefined, request.agentHostSessionConfig, getAgentHostBranchNameHint(request.message));
+			resolvedSession = await this._createAndSubscribe(request.sessionResource, this._createModelSelection(request.userSelectedModelId, request.modelConfiguration), undefined, request.agentHostSessionConfig, getAgentHostBranchNameHint(request.message));
 			this._sessionToBackend.set(request.sessionResource, resolvedSession);
 		}
 
@@ -870,14 +856,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		// If the user selected a different model since the session was created
 		// (or since the last turn), dispatch a model change action first so the
 		// agent backend picks up the new model before processing the turn.
-		const rawModelId = this._extractRawModelId(request.userSelectedModelId);
-		if (rawModelId) {
+		const selectedModel = this._createModelSelection(request.userSelectedModelId, request.modelConfiguration);
+		if (selectedModel) {
 			const currentModel = this._getSessionState(session.toString())?.summary.model;
-			if (currentModel !== rawModelId) {
+			if (!this._modelSelectionsEqual(currentModel, selectedModel)) {
 				this._config.connection.dispatch({
 					type: ActionType.SessionModelChanged,
 					session: session.toString(),
-					model: rawModelId,
+					model: selectedModel,
 				});
 			}
 		}
@@ -1082,7 +1068,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const existingState = existing.state.get();
 			if (existingState.type !== IChatToolInvocation.StateKind.WaitingForConfirmation) {
 				existing.didExecuteTool(undefined);
-				const confirmInvocation = toolCallStateToInvocation(tc);
+				const confirmInvocation = toolCallStateToInvocation(tc, undefined, ctx.backendSession);
 				ctx.activeToolInvocations.set(toolCallId, confirmInvocation);
 				ctx.progress([confirmInvocation]);
 				this._awaitToolConfirmation(confirmInvocation, toolCallId, ctx.backendSession, ctx.turnId, ctx.cancellationToken);
@@ -1109,7 +1095,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			// Running was skipped due to throttling and terminal content
 			// only appears at Completed time.
 			this._reviveTerminalIfNeeded(existing, tc, ctx.backendSession);
-			fileEdits = finalizeToolInvocation(existing, tc);
+			fileEdits = finalizeToolInvocation(existing, tc, ctx.backendSession);
 		}
 
 		return { invocation: existing, fileEdits };
@@ -1238,6 +1224,18 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			const existing = invocation.toolSpecificData?.kind === 'terminal'
 				? invocation.toolSpecificData as IChatTerminalToolInvocationData
 				: undefined;
+
+			// Resolve the terminalCommandId from the AHP command source
+			let terminalCommandId = existing?.terminalCommandId;
+			if (!terminalCommandId) {
+				const source = this._terminalChatService.getAhpCommandSource(sessionId);
+				if (source) {
+					// Use the executing command or the most recent completed command
+					const cmd = source.executingCommandObject ?? source.commands[source.commands.length - 1];
+					terminalCommandId = cmd?.id;
+				}
+			}
+
 			invocation.toolSpecificData = {
 				...existing,
 				kind: 'terminal',
@@ -1245,6 +1243,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				language: 'shellscript',
 				terminalToolSessionId: sessionId,
 				terminalCommandUri: URI.parse(terminalUri),
+				terminalCommandId,
 			};
 		});
 	}
@@ -1299,7 +1298,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						let existing = ctx.activeToolInvocations.get(tc.toolCallId);
 
 						if (!existing) {
-							existing = toolCallStateToInvocation(tc);
+							existing = toolCallStateToInvocation(tc, undefined, ctx.backendSession);
 							ctx.activeToolInvocations.set(tc.toolCallId, existing);
 							ctx.progress([existing]);
 
@@ -1563,7 +1562,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 									if (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled) {
 										const completedTc = tc as ICompletedToolCall;
 										const fileEditParts = completedToolCallToEditParts(completedTc);
-										const serialized = completedToolCallToSerialized(completedTc, toolCallId);
+										const serialized = completedToolCallToSerialized(completedTc, toolCallId, URI.parse(childSessionUri));
 										if (fileEditParts.length > 0) {
 											serialized.presentation = ToolInvocationPresentation.Hidden;
 										}
@@ -1614,7 +1613,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					let existing = activeChildToolInvocations.get(tc.toolCallId);
 
 					if (!existing) {
-						existing = toolCallStateToInvocation(tc, parentToolCallId);
+						existing = toolCallStateToInvocation(tc, parentToolCallId, URI.parse(childSessionUri));
 						activeChildToolInvocations.set(tc.toolCallId, existing);
 						emitProgress([existing]);
 
@@ -1625,7 +1624,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						const existingState = existing.state.get();
 						if (existingState.type !== IChatToolInvocation.StateKind.WaitingForConfirmation) {
 							existing.didExecuteTool(undefined);
-							const confirmInvocation = toolCallStateToInvocation(tc, parentToolCallId);
+							const confirmInvocation = toolCallStateToInvocation(tc, parentToolCallId, URI.parse(childSessionUri));
 							activeChildToolInvocations.set(tc.toolCallId, confirmInvocation);
 							emitProgress([confirmInvocation]);
 							this._awaitToolConfirmation(confirmInvocation, tc.toolCallId, URI.parse(childSessionUri), turnId, childCts.token);
@@ -1635,7 +1634,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					}
 
 					if (existing && (tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Cancelled) && !IChatToolInvocation.isComplete(existing)) {
-						finalizeToolInvocation(existing, tc);
+						finalizeToolInvocation(existing, tc, URI.parse(childSessionUri));
 					}
 				}
 			}
@@ -1867,11 +1866,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	 */
 	private async _ensureTerminalInstance(terminalUri: string, backendSession: URI): Promise<string> {
 		const terminalToolSessionId = makeAhpTerminalToolSessionId(terminalUri, backendSession);
-		const instance = await this._agentHostTerminalService.reviveTerminal(
+		const parsedUri = URI.parse(terminalUri);
+		await this._agentHostTerminalService.reviveTerminal(
 			this._config.connection,
-			URI.parse(terminalUri),
+			parsedUri,
+			terminalToolSessionId
 		);
-		this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, instance);
+
 		return terminalToolSessionId;
 	}
 
@@ -1945,14 +1946,13 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	/** Creates a new backend session and subscribes to its state. */
-	private async _createAndSubscribe(sessionResource: URI, modelId?: string, fork?: { session: URI; turnIndex: number; turnId: string }, sessionConfig?: Record<string, string>, branchNameHint?: string): Promise<URI> {
-		const rawModelId = this._extractRawModelId(modelId);
+	private async _createAndSubscribe(sessionResource: URI, model: IModelSelection | undefined, fork?: { session: URI; turnIndex: number; turnId: string }, sessionConfig?: Record<string, string>, branchNameHint?: string): Promise<URI> {
 		const config = branchNameHint ? { ...sessionConfig, [AgentHostSessionConfigBranchNameHintKey]: branchNameHint } : sessionConfig;
 		const workingDirectory = this._config.resolveWorkingDirectory?.(sessionResource)
 			?? this._workingDirectoryResolver.resolve(sessionResource)
 			?? this._workspaceContextService.getWorkspace().folders[0]?.uri;
 
-		this._logService.trace(`[AgentHost] Creating new session, model=${rawModelId ?? '(default)'}, provider=${this._config.provider}${fork ? `, fork from ${fork.session.toString()} at index ${fork.turnIndex}` : ''}`);
+		this._logService.trace(`[AgentHost] Creating new session, model=${model?.id ?? '(default)'}, provider=${this._config.provider}${fork ? `, fork from ${fork.session.toString()} at index ${fork.turnIndex}` : ''}`);
 
 		// Eagerly authenticate before creating the session if the agent
 		// declares required protected resources. This avoids a wasted
@@ -1970,7 +1970,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		let session: URI;
 		try {
 			session = await this._config.connection.createSession({
-				model: rawModelId,
+				model,
 				provider: this._config.provider,
 				workingDirectory,
 				fork,
@@ -1983,7 +1983,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				const authenticated = await this._config.resolveAuthentication(protectedResources);
 				if (authenticated) {
 					session = await this._config.connection.createSession({
-						model: rawModelId,
+						model,
 						provider: this._config.provider,
 						workingDirectory,
 						fork,
@@ -2051,6 +2051,34 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			return true;
 		}
 		return false;
+	}
+
+	private _createModelSelection(languageModelIdentifier: string | undefined, modelConfiguration: Record<string, unknown> | undefined): IModelSelection | undefined {
+		const rawModelId = this._extractRawModelId(languageModelIdentifier);
+		if (!rawModelId) {
+			return undefined;
+		}
+
+		const config: Record<string, string> = {};
+		for (const [key, value] of Object.entries(modelConfiguration ?? {})) {
+			if (typeof value === 'string') {
+				config[key] = value;
+			}
+		}
+
+		return Object.keys(config).length > 0 ? { id: rawModelId, config } : { id: rawModelId };
+	}
+
+	private _modelSelectionsEqual(a: IModelSelection | undefined, b: IModelSelection | undefined): boolean {
+		if (a?.id !== b?.id) {
+			return false;
+		}
+
+		const aConfig = a?.config ?? {};
+		const bConfig = b?.config ?? {};
+		const aKeys = Object.keys(aConfig);
+		const bKeys = Object.keys(bConfig);
+		return aKeys.length === bKeys.length && aKeys.every(key => aConfig[key] === bConfig[key]);
 	}
 
 	/**

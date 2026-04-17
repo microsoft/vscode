@@ -27,7 +27,7 @@ import { IClaudeSessionStateService } from '../claude/common/claudeSessionStateS
 import { IClaudeCodeSessionService } from '../claude/node/sessionParser/claudeCodeSessionService';
 import { IClaudeCodeSessionInfo } from '../claude/node/sessionParser/claudeSessionSchema';
 import { IClaudeSlashCommandService } from '../claude/vscode-node/claudeSlashCommandService';
-import { FolderRepositoryMRUEntry, IFolderRepositoryManager } from '../common/folderRepositoryManager';
+import { FolderRepositoryMRUEntry, IChatFolderMruService } from '../common/folderRepositoryManager';
 import { buildChatHistory } from './chatHistoryBuilder';
 
 const permissionModes: ReadonlySet<string> = new Set<PermissionMode>(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'dontAsk']);
@@ -63,7 +63,7 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 		@IClaudeSessionStateService private readonly sessionStateService: IClaudeSessionStateService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IClaudeSlashCommandService private readonly slashCommandService: IClaudeSlashCommandService,
-		@IFolderRepositoryManager private readonly folderRepositoryManager: IFolderRepositoryManager,
+		@IChatFolderMruService private readonly folderMruService: IChatFolderMruService,
 		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
 		@INativeEnvService private readonly envService: INativeEnvService,
 		@IGitService gitService: IGitService,
@@ -144,7 +144,7 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 		}
 
 		// Fallback for empty workspace with no selection: try MRU
-		const mru = await this.folderRepositoryManager.getFolderMRU();
+		const mru = await this.folderMruService.getRecentlyUsedFolders(CancellationToken.None);
 		if (mru.length > 0) {
 			return {
 				cwd: mru[0].folder.fsPath,
@@ -169,7 +169,7 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 		const workspaceFolders = this.workspaceService.getWorkspaceFolders();
 
 		if (this._isEmptyWorkspace()) {
-			const mruEntries = await this.folderRepositoryManager.getFolderMRU();
+			const mruEntries = await this.folderMruService.getRecentlyUsedFolders(CancellationToken.None);
 			return mruToFolderOptionItems(mruEntries).slice(0, MAX_MRU_ENTRIES);
 		}
 
@@ -200,7 +200,7 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 			return workspaceFolders[0];
 		}
 
-		const mru = await this.folderRepositoryManager.getFolderMRU();
+		const mru = await this.folderMruService.getRecentlyUsedFolders(CancellationToken.None);
 		if (mru.length > 0) {
 			return mru[0].folder;
 		}

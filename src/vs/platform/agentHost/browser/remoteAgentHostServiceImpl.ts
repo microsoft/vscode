@@ -382,7 +382,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 			this._reconnectAttempts.delete(address);
 			this._resolvePendingConnectionWait(address);
 			this._onDidChangeConnections.fire();
-		}).catch(err => {
+		}).catch((err: unknown) => {
 			if (!isCurrentEntry()) {
 				return;
 			}

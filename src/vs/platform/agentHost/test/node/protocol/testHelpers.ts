@@ -217,6 +217,48 @@ export async function startServer(options?: { readonly quiet?: boolean }): Promi
 	});
 }
 
+/**
+ * Start the agent host server with the real Copilot SDK agent (no mock agent).
+ * The server is started with logging enabled so the CopilotAgent is registered.
+ */
+export async function startRealServer(): Promise<IServerHandle> {
+	return new Promise((resolve, reject) => {
+		const serverPath = fileURLToPath(new URL('../../../node/agentHostServerMain.js', import.meta.url));
+		const args = ['--port', '0', '--without-connection-token'];
+		const child = fork(serverPath, args, {
+			stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
+		});
+
+		const timer = setTimeout(() => {
+			child.kill();
+			reject(new Error('Real server startup timed out'));
+		}, 30_000);
+
+		child.stdout!.on('data', (data: Buffer) => {
+			const text = data.toString();
+			const match = text.match(/READY:(\d+)/);
+			if (match) {
+				clearTimeout(timer);
+				resolve({ process: child, port: parseInt(match[1], 10) });
+			}
+		});
+
+		child.stderr!.on('data', () => {
+			// Intentionally swallowed - the test runner fails if console.error is used.
+		});
+
+		child.on('error', err => {
+			clearTimeout(timer);
+			reject(err);
+		});
+
+		child.on('exit', code => {
+			clearTimeout(timer);
+			reject(new Error(`Real server exited prematurely with code ${code}`));
+		});
+	});
+}
+
 // ---- Helpers ----------------------------------------------------------------
 
 let sessionCounter = 0;

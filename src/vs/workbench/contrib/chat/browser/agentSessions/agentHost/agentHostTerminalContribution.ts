@@ -3,21 +3,20 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { URI } from '../../../../base/common/uri.js';
-import { localize } from '../../../../nls.js';
-import { IAgentConnection, IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
-import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IQuickInputService, IQuickPickItem } from '../../../../platform/quickinput/common/quickInput.js';
-import { IWorkbenchContribution } from '../../../common/contributions.js';
-import { LoggingAgentConnection } from '../../../contrib/chat/browser/agentSessions/agentHost/loggingAgentConnection.js';
-import { ITerminalProfileProvider, ITerminalProfileService } from '../common/terminal.js';
-import { IAgentHostTerminalService } from './agentHostTerminalService.js';
+import { Disposable, DisposableMap, DisposableStore } from '../../../../../../base/common/lifecycle.js';
+import { URI } from '../../../../../../base/common/uri.js';
+import { localize } from '../../../../../../nls.js';
+import { IAgentConnection, IAgentHostService } from '../../../../../../platform/agentHost/common/agentService.js';
+import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
+import { IQuickInputService, IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
+import { IWorkbenchContribution } from '../../../../../../workbench/common/contributions.js';
+import { LoggingAgentConnection } from '../../../../../../workbench/contrib/chat/browser/agentSessions/agentHost/loggingAgentConnection.js';
+import { IAgentHostTerminalService } from '../../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
+import { ITerminalProfileProvider, ITerminalProfileService } from '../../../../../../workbench/contrib/terminal/common/terminal.js';
 
 const AGENT_HOST_PROFILE_EXT_ID = 'vscode.agent-host-terminal';
 
-interface IAgentHostEntry {
+export interface IAgentHostEntry {
 	/** Display name for the profile */
 	readonly name: string;
 	/** Address or identifier for the host */
@@ -38,17 +37,13 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 	private readonly _usedHosts = new Set<string>();
 
 	constructor(
-		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@ITerminalProfileService private readonly _terminalProfileService: ITerminalProfileService,
 		@IQuickInputService private readonly _quickInputService: IQuickInputService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
 		@IAgentHostTerminalService private readonly _agentHostTerminalService: IAgentHostTerminalService,
 	) {
 		super();
-
-		// React to connection changes
-		this._register(this._remoteAgentHostService.onDidChangeConnections(() => this._reconcile()));
 
 		// React to local agent host lifecycle
 		this._register(this._agentHostService.onAgentHostStart(() => this._reconcile()));
@@ -58,7 +53,7 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 		this._reconcile();
 	}
 
-	private _reconcile(): void {
+	protected _reconcile(): void {
 		const entries = this._collectEntries();
 
 		// Determine which profiles to show
@@ -109,30 +104,8 @@ export class AgentHostTerminalContribution extends Disposable implements IWorkbe
 		}
 	}
 
-	private _collectEntries(): IAgentHostEntry[] {
+	protected _collectEntries(): IAgentHostEntry[] {
 		const entries: IAgentHostEntry[] = [];
-
-		// Remote connections
-		for (const info of this._remoteAgentHostService.connections) {
-			if (info.status !== RemoteAgentHostConnectionStatus.Connected) {
-				continue;
-			}
-			const connection = this._remoteAgentHostService.getConnection(info.address);
-			if (!connection) {
-				continue;
-			}
-
-			entries.push({
-				name: info.name || info.address,
-				address: info.address,
-				getConnection: () => this._instantiationService.createInstance(
-					LoggingAgentConnection,
-					connection,
-					`agenthost.${connection.clientId}`,
-					localize('agentHostTerminal.channelRemote', "Agent Host Terminal ({0})", info.address),
-				),
-			});
-		}
 
 		// Local agent host
 		try {

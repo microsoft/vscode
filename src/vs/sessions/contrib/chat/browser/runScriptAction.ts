@@ -583,7 +583,9 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 
 	override setFocusable(focusable: boolean): void {
 		this._primaryAction.setFocusable(focusable);
-		this._dropdown.setFocusable(focusable);
+		if (!focusable) {
+			this._dropdown.setFocusable(false);
+		}
 	}
 
 	private _getPrimaryActionTooltip(state: IRunScriptActionContext | undefined): string {

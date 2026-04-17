@@ -566,6 +566,9 @@ export class ActionListWidget<T> extends Disposable {
 						if (element.disabled) {
 							label = localize({ key: 'customQuickFixWidget.labels', comment: [`Action widget labels for accessibility.`] }, "{0}, Disabled Reason: {1}", label, element.disabled);
 						}
+						if (element.submenuActions?.length) {
+							label = localize('actionList.submenuHint', "{0}, use right arrow to access options", label);
+						}
 						return label;
 					}
 					return null;
