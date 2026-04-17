@@ -128,7 +128,7 @@ You can also configure ToolPipe directly in your `.vscode/mcp.json`:
     "servers": {
       "toolpipe": {
         "type": "http",
-        "url": "https://troops-submission-what-stays.trycloudflare.com/mcp"
+        "url": "https://example.com/mcp"
       }
     }
   }
