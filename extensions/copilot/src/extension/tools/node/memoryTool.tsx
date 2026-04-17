@@ -337,7 +337,7 @@ export class MemoryTool implements ICopilotTool<MemoryToolParams> {
 
 			const success = await this.agentMemoryService.storeRepoMemory(entry);
 			if (success) {
-				return { text: 'User memory stored successfully.', outcome: 'success'};
+				return { text: 'Repository memory stored successfully.', outcome: 'success'};
 			} else {
 				return { text: 'Error: Failed to store repository memory entry.', outcome: 'error' };
 			}
@@ -654,7 +654,7 @@ export class MemoryTool implements ICopilotTool<MemoryToolParams> {
 				this.memoryCleanupService.markAccessed(uri);
 			}
 			this.logService.debug(`[MemoryTool] Created memory file: ${params.path}`);
-			return { text: 'User memory stored successfully.', outcome: 'success'};
+			return { text: `File created successfully at: ${params.path}`, outcome: 'success'};
 		} catch (error) {
 			this.logService.error(`[MemoryTool] Failed to create file ${params.path}:`, error);
 			throw error;

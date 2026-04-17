@@ -16,7 +16,7 @@ import { URI } from '../../../../util/vs/base/common/uri';
 import { SyncDescriptor } from '../../../../util/vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { MarkdownString } from '../../../../vscodeTypes';
-import type { MemoryPromptResponse, MemoryResponse, StoreMemoryRequest, VoteMemoryRequest } from '@github/copilot-agentic-tools/memory';
+import type { MemoryPromptResponse, MemoryResponse, StoreMemoryRequest } from '@github/copilot-agentic-tools/memory';
 import { IAgentMemoryService } from '../../common/agentMemoryService';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
 
@@ -50,6 +50,10 @@ class MockAgentMemoryService implements IAgentMemoryService {
 	storedMemories: RepoMemoryEntry[] = [];
 	storedUserMemories: StoreMemoryRequest[] = [];
 
+	async getRepoNwo(): Promise<string | undefined> {
+		return undefined;
+	}
+
 	async checkMemoryEnabled(): Promise<boolean> {
 		return true;
 	}
@@ -65,10 +69,6 @@ class MockAgentMemoryService implements IAgentMemoryService {
 
 	async storeUserMemory(memory: StoreMemoryRequest): Promise<boolean> {
 		this.storedUserMemories.push(memory);
-		return true;
-	}
-
-	async voteOnMemory(_vote: VoteMemoryRequest, _scope: 'repository' | 'user'): Promise<boolean> {
 		return true;
 	}
 
@@ -88,6 +88,10 @@ class MockAgentMemoryService implements IAgentMemoryService {
 class DisabledMockAgentMemoryService implements IAgentMemoryService {
 	declare readonly _serviceBrand: undefined;
 
+	async getRepoNwo(): Promise<string | undefined> {
+		return undefined;
+	}
+
 	async checkMemoryEnabled(): Promise<boolean> {
 		return false;
 	}
@@ -101,10 +105,6 @@ class DisabledMockAgentMemoryService implements IAgentMemoryService {
 	}
 
 	async storeUserMemory(_memory: StoreMemoryRequest): Promise<boolean> {
-		return false;
-	}
-
-	async voteOnMemory(_vote: VoteMemoryRequest, _scope: 'repository' | 'user'): Promise<boolean> {
 		return false;
 	}
 
@@ -500,7 +500,7 @@ suite('MemoryTool', () => {
 				}),
 			});
 			const text = getResultText(result as never);
-			expect(text).toContain('File created successfully');
+			expect(text).toContain('Repository memory stored successfully.');
 		});
 	});
 
