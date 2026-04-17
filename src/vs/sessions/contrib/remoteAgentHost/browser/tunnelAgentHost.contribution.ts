@@ -4,13 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
+import { isWeb } from '../../../../base/common/platform.js';
 import * as nls from '../../../../nls.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ITunnelAgentHostService, TUNNEL_ADDRESS_PREFIX, type ITunnelInfo } from '../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
+import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
 
@@ -33,6 +36,8 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@INotificationService private readonly _notificationService: INotificationService,
+		@ILogService private readonly _logService: ILogService,
+		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 	) {
 		super();
 
@@ -48,6 +53,15 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		// Reconcile providers when the tunnel cache changes
 		this._register(this._tunnelService.onDidChangeTunnels(() => {
 			this._reconcileProviders();
+		}));
+
+		// Re-run discovery when a GitHub session becomes available
+		// (e.g. after the walkthrough completes sign-in).
+		this._register(this._authenticationService.onDidChangeSessions(e => {
+			if (e.providerId === 'github') {
+				this._logService.info('[TunnelAgentHost] GitHub sessions changed, retrying discovery...');
+				this._silentStatusCheck();
+			}
 		}));
 
 		// Silently check status of cached tunnels on startup
@@ -219,6 +233,15 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 				}
 			}
 
+			// Auto-cache online tunnels that aren't cached yet so they
+			// appear in the UI on first discovery (e.g. fresh web session).
+			const cachedIds = new Set(cached.map(t => t.tunnelId));
+			for (const tunnel of onlineTunnels) {
+				if (!cachedIds.has(tunnel.tunnelId) && tunnel.hostConnectionCount > 0) {
+					this._tunnelService.cacheTunnel(tunnel);
+				}
+			}
+
 			// Update online/offline status based on hostConnectionCount.
 			// For tunnels, Connected means "host is online" (clickable to connect),
 			// Disconnected means "host is offline". Actual relay connection
@@ -239,6 +262,23 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 					provider.setConnectionStatus(RemoteAgentHostConnectionStatus.Connected);
 				} else {
 					provider.setConnectionStatus(RemoteAgentHostConnectionStatus.Disconnected);
+				}
+			}
+
+			// Auto-connect online tunnels that aren't connected yet.
+			// On web there is no workspace picker to trigger manual connection,
+			// so we connect eagerly when a tunnel is discovered and online.
+			if (isWeb) {
+				for (const tunnel of onlineTunnels) {
+					if (tunnel.hostConnectionCount > 0) {
+						const address = `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`;
+						const alreadyConnected = this._remoteAgentHostService.connections.some(
+							c => c.address === address && c.status === RemoteAgentHostConnectionStatus.Connected
+						);
+						if (!alreadyConnected) {
+							this._connectTunnel(address);
+						}
+					}
 				}
 			}
 		}

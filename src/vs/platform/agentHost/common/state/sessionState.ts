@@ -34,6 +34,8 @@ import {
 export {
 	type IActiveTurn,
 	type IAgentInfo,
+	type IConfigPropertySchema,
+	type IConfigSchema,
 	type IContentRef,
 	type IErrorInfo,
 	type IProjectInfo,
@@ -44,7 +46,8 @@ export {
 	type IRootState,
 	type ISessionActiveClient,
 	type ISessionConfigState,
-	type ISessionFileDiff,
+	type IFileEdit as ISessionFileDiff,
+	type IModelSelection,
 	type ISessionModelInfo,
 	type ISessionState,
 	type ISessionSummary,

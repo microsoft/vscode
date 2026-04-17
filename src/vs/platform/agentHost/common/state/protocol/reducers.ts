@@ -394,6 +394,8 @@ export function sessionReducer(state: ISessionState, action: ISessionAction, log
 					invocationMessage: action.invocationMessage,
 					toolInput: action.toolInput,
 					confirmationTitle: action.confirmationTitle,
+					edits: action.edits,
+					editable: action.editable,
 				};
 			}));
 
@@ -408,7 +410,7 @@ export function sessionReducer(state: ISessionState, action: ISessionAction, log
 						status: ToolCallStatus.Running,
 						...base,
 						invocationMessage: tc.invocationMessage,
-						toolInput: tc.toolInput,
+						toolInput: action.editedToolInput ?? tc.toolInput,
 						confirmed: action.confirmed,
 					};
 				}

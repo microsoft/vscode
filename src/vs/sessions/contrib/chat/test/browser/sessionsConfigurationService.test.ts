@@ -72,6 +72,7 @@ function makeSession(opts: { repository?: URI; worktree?: URI } = {}): ISession 
 		gitHubInfo: observableValue('gitHubInfo', undefined),
 		chats: observableValue('chats', [chat]),
 		mainChat: chat,
+		capabilities: { supportsMultipleChats: false },
 	};
 	return session;
 }

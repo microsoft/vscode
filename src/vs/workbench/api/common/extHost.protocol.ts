@@ -1692,6 +1692,7 @@ export interface IChatResourceDto {
 	readonly source: IChatResourceSourceDto;
 	readonly extensionId?: string;
 	readonly pluginUri?: UriComponents;
+	readonly sessionTypes?: readonly string[];
 }
 
 export interface ICustomAgentDto extends IChatResourceDto {
@@ -1716,11 +1717,12 @@ export interface ISlashCommandDto extends IChatResourceDto {
 }
 
 export interface IHookDto {
-	uri: UriComponents;
+	readonly uri: UriComponents;
+	readonly sessionTypes?: readonly string[];
 }
 
 export interface IPluginDto {
-	uri: UriComponents;
+	readonly uri: UriComponents;
 }
 
 export interface IChatSessionCustomizationProviderMetadataDto {

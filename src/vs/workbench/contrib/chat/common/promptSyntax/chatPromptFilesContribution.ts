@@ -25,6 +25,7 @@ interface IRawChatFileContribution {
 	readonly name?: string;
 	readonly description?: string;
 	readonly when?: string;
+	readonly sessionTypes?: readonly string[];
 }
 
 enum ChatContributionPoint {
@@ -71,6 +72,11 @@ function registerChatFilesExtensionPoint(point: ChatContributionPoint) {
 					when: {
 						description: localize('chatContribution.property.when', '(Optional) A condition which must be true to enable this entry.'),
 						type: 'string'
+					},
+					sessionTypes: {
+						description: localize('chatContribution.property.sessionTypes', '(Optional) The chat session types where this entry should be offered.'),
+						type: 'array',
+						items: { type: 'string' }
 					}
 				}
 			}
@@ -133,7 +139,7 @@ export class ChatPromptFilesExtensionPointHandler implements IWorkbenchContribut
 						continue;
 					}
 					try {
-						const d = this.promptsService.registerContributedFile(type, fileUri, ext.description, raw.name, raw.description, raw.when);
+						const d = this.promptsService.registerContributedFile(type, fileUri, ext.description, raw.name, raw.description, raw.when, raw.sessionTypes);
 						this.registrations.set(key(ext.description.identifier, type, raw.path), d);
 					} catch (e) {
 						const msg = e instanceof Error ? e.message : String(e);

@@ -103,6 +103,8 @@ import { IRemoteAgentHostService } from '../platform/agentHost/common/remoteAgen
 import { RemoteAgentHostService } from '../platform/agentHost/browser/remoteAgentHostServiceImpl.js';
 import { ISSHRemoteAgentHostService } from '../platform/agentHost/common/sshRemoteAgentHost.js';
 import { NullSSHRemoteAgentHostService } from '../platform/agentHost/browser/nullSshRemoteAgentHostService.js';
+import { IAgentHostService } from '../platform/agentHost/common/agentService.js';
+import { NullAgentHostService } from '../platform/agentHost/browser/nullAgentHostService.js';
 
 registerSingleton(IWorkbenchExtensionManagementService, ExtensionManagementService, InstantiationType.Delayed);
 registerSingleton(IAccessibilityService, AccessibilityService, InstantiationType.Delayed);
@@ -124,6 +126,7 @@ registerSingleton(ISharedWebContentExtractorService, NullSharedWebContentExtract
 registerSingleton(IMcpGalleryManifestService, WorkbenchMcpGalleryManifestService, InstantiationType.Delayed);
 registerSingleton(IRemoteAgentHostService, RemoteAgentHostService, InstantiationType.Delayed);
 registerSingleton(ISSHRemoteAgentHostService, NullSSHRemoteAgentHostService, InstantiationType.Delayed);
+registerSingleton(IAgentHostService, NullAgentHostService, InstantiationType.Delayed);
 
 //#endregion
 
@@ -140,12 +143,21 @@ import '../workbench/contrib/welcomeBanner/browser/welcomeBanner.contribution.js
 // Web tunnel agent host — discovers tunnels via Dev Tunnels REST API and connects via relay
 import './contrib/remoteAgentHost/browser/webTunnelAgentHostService.contribution.js';
 
+// Open in VS Code — web uses protocol handler; desktop overrides in electron-browser
+import './contrib/chat/browser/openInVSCode.contribution.js';
+
 // Tunnel agent host — reconciles discovered tunnels into session providers
 import './contrib/remoteAgentHost/browser/tunnelAgentHost.contribution.js';
+
+// Remote agent host terminal profiles — registers terminal profiles for connected agent hosts
+import './contrib/remoteAgentHost/browser/remoteAgentHostTerminal.contribution.js';
 
 // Remote agent host session provider — discovers agents and registers sessions
 import './contrib/remoteAgentHost/browser/remoteAgentHost.contribution.js';
 import './contrib/remoteAgentHost/browser/remoteAgentHostActions.js';
+
+// TODO: support agent feedback in web
+import './contrib/agentFeedback/browser/nullAgentFeedbackService.contribution.js';
 import '../workbench/contrib/webview/browser/webview.web.contribution.js';
 import '../workbench/contrib/extensions/browser/extensions.web.contribution.js';
 import '../workbench/contrib/terminal/browser/terminal.web.contribution.js';

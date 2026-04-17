@@ -12,7 +12,7 @@ import { RawContextKey } from '../../../../platform/contextkey/common/contextkey
 import { IChat, ISession, ISessionType } from './session.js';
 import { ISendRequestOptions } from './sessionsProvider.js';
 
-export const ActiveSessionSupportsMultiChatContext = new RawContextKey<boolean>('activeSessionSupportsMultiChat', false, localize('activeSessionSupportsMultiChat', "Whether the active session's provider supports multiple chats per session"));
+export const ActiveSessionSupportsMultiChatContext = new RawContextKey<boolean>('activeSessionSupportsMultiChat', false, localize('activeSessionSupportsMultiChat', "Whether the active session supports multiple chats"));
 
 /**
  * Event fired when sessions change within a provider.

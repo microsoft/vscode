@@ -25,12 +25,13 @@ import assert from 'assert';
 import { execSync } from 'child_process';
 import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
+import { removeAnsiEscapeCodes } from '../../../../../base/common/strings.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ISubscribeResult } from '../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../common/state/sessionCapabilities.js';
 import type { ISessionAddedNotification } from '../../../common/state/sessionActions.js';
 import type { INotificationBroadcastParams } from '../../../common/state/sessionProtocol.js';
-import type { ISessionState } from '../../../common/state/sessionState.js';
+import { ToolResultContentType, type ISessionState, type ITerminalState, type IToolResultContent } from '../../../common/state/sessionState.js';
 import {
 	getActionEnvelope,
 	isActionNotification,
@@ -101,6 +102,15 @@ function dispatchTurn(c: TestProtocolClient, session: string, turnId: string, te
 			userMessage: { text },
 		},
 	});
+}
+
+function terminalResourceFromContent(content: readonly IToolResultContent[]): string | undefined {
+	const terminalContent = content.find(c => c.type === ToolResultContentType.Terminal);
+	return terminalContent?.resource;
+}
+
+function terminalText(state: ITerminalState): string {
+	return removeAnsiEscapeCodes(state.content.map(part => part.type === 'command' ? `${part.commandLine}\n${part.output}` : part.value).join(''));
 }
 
 (REAL_SDK_ENABLED ? suite : suite.skip)('Protocol WebSocket — Real Copilot SDK', function () {
@@ -321,6 +331,7 @@ function dispatchTurn(c: TestProtocolClient, session: string, turnId: string, te
 			addedSummary.workingDirectory!.includes('.worktrees'),
 			`workingDirectory should be under the .worktrees folder, got: ${addedSummary.workingDirectory}`,
 		);
+		const resolvedWorkingDirectoryPath = URI.parse(addedSummary.workingDirectory!).fsPath;
 
 		// Set the active client with tools (matching real VS Code flow where
 		// activeClientChanged is dispatched AFTER createSession). When the next
@@ -373,5 +384,52 @@ function dispatchTurn(c: TestProtocolClient, session: string, turnId: string, te
 		// Verify the turn got a response (the session resumed successfully)
 		const responseParts = client.receivedNotifications(n => isActionNotification(n, 'session/responsePart'));
 		assert.ok(responseParts.length > 0, 'should have received at least one response part after session refresh');
+
+		client.clearReceived();
+		dispatchTurn(client, addedSummary.resource, 'turn-wt-terminal', 'Run the shell command: pwd', 3);
+
+		const toolStartNotif = await client.waitForNotification(
+			n => isActionNotification(n, 'session/toolCallStart'),
+			60_000,
+		);
+		const toolStartAction = getActionEnvelope(toolStartNotif).action as { toolCallId: string };
+
+		const toolReadyNotif = await client.waitForNotification(
+			n => isActionNotification(n, 'session/toolCallReady'),
+			30_000,
+		);
+		const toolReadyAction = getActionEnvelope(toolReadyNotif).action as { confirmed?: string };
+		if (!toolReadyAction.confirmed) {
+			client.notify('dispatchAction', {
+				clientSeq: 4,
+				action: {
+					type: 'session/toolCallConfirmed',
+					session: addedSummary.resource,
+					turnId: 'turn-wt-terminal',
+					toolCallId: toolStartAction.toolCallId,
+					approved: true,
+				},
+			});
+		}
+
+		const terminalContentNotif = await client.waitForNotification(n => {
+			if (!isActionNotification(n, 'session/toolCallContentChanged')) {
+				return false;
+			}
+			const action = getActionEnvelope(n).action as { toolCallId: string; content: readonly IToolResultContent[] };
+			return action.toolCallId === toolStartAction.toolCallId && terminalResourceFromContent(action.content) !== undefined;
+		}, 30_000);
+		const terminalContentAction = getActionEnvelope(terminalContentNotif).action as { content: readonly IToolResultContent[] };
+		const terminalUri = terminalResourceFromContent(terminalContentAction.content);
+		assert.ok(terminalUri, 'shell tool should expose its terminal resource');
+
+		const terminalSubscribeResult = await client.call<ISubscribeResult>('subscribe', { resource: terminalUri });
+		const initialTerminalState = terminalSubscribeResult.snapshot.state as ITerminalState;
+		assert.strictEqual(initialTerminalState.cwd, resolvedWorkingDirectoryPath, 'terminal should be created in the resolved worktree directory');
+
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'), 90_000);
+		const terminalSnapshot = await client.call<ISubscribeResult>('subscribe', { resource: terminalUri });
+		const terminalState = terminalSnapshot.snapshot.state as ITerminalState;
+		assert.ok(terminalText(terminalState).includes(resolvedWorkingDirectoryPath), `pwd output should include the resolved worktree path ${resolvedWorkingDirectoryPath}`);
 	});
 });

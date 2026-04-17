@@ -72,6 +72,12 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 		const worktree = repo?.workingDirectory;
 		const branchName = repo?.detail;
 
+		// Remote agent host sessions use a read-only FS provider that
+		// should not be added as a workspace folder.
+		if (worktree?.scheme === AGENT_HOST_SCHEME || repository?.scheme === AGENT_HOST_SCHEME) {
+			return undefined;
+		}
+
 		if (worktree) {
 			return {
 				uri: worktree,
@@ -80,11 +86,6 @@ export class WorkspaceFolderManagementContribution extends Disposable implements
 		}
 
 		if (repository) {
-			// Remote agent host sessions use a read-only FS provider that
-			// should not be added as a workspace folder.
-			if (repository.scheme === AGENT_HOST_SCHEME) {
-				return undefined;
-			}
 			return {
 				uri: repository,
 				name: workspace?.label,

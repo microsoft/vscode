@@ -159,41 +159,41 @@ suite('Protocol WebSocket — Session Features', function () {
 		await client.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-model-summary' });
 
 		const sessionUri = nextSessionUri();
-		await client.call('createSession', { session: sessionUri, provider: 'mock', model: 'mock-model' });
+		await client.call('createSession', { session: sessionUri, provider: 'mock', model: { id: 'mock-model' } });
 
 		const addedNotif = await client.waitForNotification(n =>
 			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded'
 		);
 		const addedSession = (addedNotif.params as INotificationBroadcastParams).notification as ISessionAddedNotification;
-		assert.strictEqual(addedSession.summary.model, 'mock-model');
+		assert.deepStrictEqual(addedSession.summary.model, { id: 'mock-model' });
 		const createdSessionUri = addedSession.summary.resource;
 
 		const initialSnapshot = await client.call<ISubscribeResult>('subscribe', { resource: createdSessionUri });
 		const initialState = initialSnapshot.snapshot.state as ISessionState;
-		assert.strictEqual(initialState.summary.model, 'mock-model');
+		assert.deepStrictEqual(initialState.summary.model, { id: 'mock-model' });
 
 		const initialList = await client.call<IListSessionsResult>('listSessions');
-		assert.strictEqual(initialList.items.find(s => s.resource === createdSessionUri)?.model, 'mock-model');
+		assert.deepStrictEqual(initialList.items.find(s => s.resource === createdSessionUri)?.model, { id: 'mock-model' });
 
 		client.notify('dispatchAction', {
 			clientSeq: 1,
 			action: {
 				type: 'session/modelChanged',
 				session: createdSessionUri,
-				model: 'mock-model-2',
+				model: { id: 'mock-model-2' },
 			},
 		});
 
 		const modelNotif = await client.waitForNotification(n => isActionNotification(n, 'session/modelChanged'));
 		const modelAction = getActionEnvelope(modelNotif).action as IModelChangedAction;
-		assert.strictEqual(modelAction.model, 'mock-model-2');
+		assert.deepStrictEqual(modelAction.model, { id: 'mock-model-2' });
 
 		const updatedSnapshot = await client.call<ISubscribeResult>('subscribe', { resource: createdSessionUri });
 		const updatedState = updatedSnapshot.snapshot.state as ISessionState;
-		assert.strictEqual(updatedState.summary.model, 'mock-model-2');
+		assert.deepStrictEqual(updatedState.summary.model, { id: 'mock-model-2' });
 
 		const updatedList = await client.call<IListSessionsResult>('listSessions');
-		assert.strictEqual(updatedList.items.find(s => s.resource === createdSessionUri)?.model, 'mock-model-2');
+		assert.deepStrictEqual(updatedList.items.find(s => s.resource === createdSessionUri)?.model, { id: 'mock-model-2' });
 	});
 
 	// ---- Reasoning events ------------------------------------------------------

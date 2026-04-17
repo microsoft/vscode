@@ -13,6 +13,7 @@ assets/walkthroughs/**
 !dist/worker2.js
 !dist/tikTokenizerWorker.js
 !dist/diffWorker.js
+!dist/copilotCLITodoWorker.js
 !dist/webview.js
 !dist/copilotDebugCommand.js
 !dist/copilotCLIShim.js

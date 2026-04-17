@@ -166,13 +166,13 @@
 .ai-customization-management-editor .welcome-prompts-cards {
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-	gap: 8px;
+	gap: 10px;
 }
 
 .ai-customization-management-editor .welcome-prompts-card {
 	display: flex;
 	flex-direction: column;
-	padding: 13px 14px;
+	padding: 10px 12px 12px;
 	border: 1px solid var(--vscode-widget-border);
 	border-radius: 6px;
 	background: var(--vscode-sideBar-background);
@@ -224,16 +224,16 @@
 }
 
 .ai-customization-management-editor .welcome-prompts-card-action {
-	font-size: 10px;
-	color: var(--vscode-foreground);
+	font-size: 11px;
+	color: var(--vscode-button-secondaryForeground);
 	cursor: pointer;
 	display: flex;
 	align-items: center;
 	gap: 4px;
-	padding: 2px 7px;
+	padding: 4px 6px;
 	border-radius: 4px;
 	background: var(--vscode-button-secondaryBackground);
-	border: none;
+	border: 1px solid var(--vscode-button-border, var(--vscode-contrastBorder, transparent));
 }
 
 .ai-customization-management-editor .welcome-prompts-card-action:hover {

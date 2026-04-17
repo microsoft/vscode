@@ -922,6 +922,36 @@ class PolicyDiagnosticsAction extends Action2 {
 	}
 }
 
+class SyncAccountPolicyAction extends Action2 {
+
+	constructor() {
+		super({
+			id: 'workbench.action.syncAccountPolicy',
+			title: localize2('syncAccountPolicy', 'Sync Account Policy'),
+			category: Categories.Developer,
+			f1: true
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const defaultAccountService = accessor.get(IDefaultAccountService);
+		const dialogService = accessor.get(IDialogService);
+		const logService = accessor.get(ILogService);
+
+		try {
+			logService.info('[DefaultAccount] Manually syncing account policy');
+			await defaultAccountService.refresh({ forceRefresh: true });
+			await dialogService.info(localize('syncAccountPolicy.success', "Account policy has been synced."));
+		} catch (error) {
+			logService.error('[DefaultAccount] Failed to sync account policy', error);
+			await dialogService.error(
+				localize('syncAccountPolicy.error', "Failed to sync account policy."),
+				error instanceof Error ? error.message : String(error)
+			);
+		}
+	}
+}
+
 // --- Actions Registration
 registerAction2(InspectContextKeysAction);
 registerAction2(ToggleScreencastModeAction);
@@ -929,6 +959,7 @@ registerAction2(LogStorageAction);
 registerAction2(LogWorkingCopiesAction);
 registerAction2(RemoveLargeStorageEntriesAction);
 registerAction2(PolicyDiagnosticsAction);
+registerAction2(SyncAccountPolicyAction);
 if (!product.commit) {
 	registerAction2(StartTrackDisposables);
 	registerAction2(SnapshotTrackedDisposables);

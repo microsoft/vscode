@@ -1283,13 +1283,22 @@ suite('AgentSessionsSorter', () => {
 		assert.deepStrictEqual(sorted.map(s => s.label), ['Session active', 'Session archived']);
 	});
 
-	test('prioritizeActive: uses lastRequestStarted for time sorting', () => {
-		const sorter = new AgentSessionsSorter();
+	test('prioritizeActive: uses lastRequestStarted for time sorting when sorted by updated', () => {
+		const sorter = new AgentSessionsSorter(() => AgentSessionsSorting.Updated);
 		const recentlyActive = createSession({ id: 'recent-active', created: 1000, lastRequestStarted: 5000 });
 		const recentlyCreated = createSession({ id: 'recent-created', created: 3000 });
 
 		const sorted = [recentlyCreated, recentlyActive].sort((a, b) => sorter.compare(a, b, true));
 		assert.deepStrictEqual(sorted.map(s => s.label), ['Session recent-active', 'Session recent-created']);
+	});
+
+	test('prioritizeActive: uses created time when sorted by created', () => {
+		const sorter = new AgentSessionsSorter(() => AgentSessionsSorting.Created);
+		const recentlyActive = createSession({ id: 'recent-active', created: 1000, lastRequestStarted: 5000 });
+		const recentlyCreated = createSession({ id: 'recent-created', created: 3000 });
+
+		const sorted = [recentlyCreated, recentlyActive].sort((a, b) => sorter.compare(a, b, true));
+		assert.deepStrictEqual(sorted.map(s => s.label), ['Session recent-created', 'Session recent-active']);
 	});
 
 	test('pinned sessions come before non-pinned sessions', () => {

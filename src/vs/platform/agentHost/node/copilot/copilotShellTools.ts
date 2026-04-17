@@ -70,6 +70,7 @@ export class ShellManager {
 
 	constructor(
 		private readonly _sessionUri: URI,
+		private readonly _workingDirectory: URI | undefined,
 		@IAgentHostTerminalManager private readonly _terminalManager: IAgentHostTerminalManager,
 		@ILogService private readonly _logService: ILogService,
 	) { }
@@ -107,7 +108,7 @@ export class ShellManager {
 			terminal: terminalUri,
 			claim,
 			name: shellDisplayName,
-			cwd,
+			cwd: cwd ?? this._workingDirectory?.fsPath,
 		}, { shell: getShellExecutable(shellType) });
 
 		const shell: IManagedShell = { id, terminalUri, shellType };

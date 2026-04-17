@@ -114,15 +114,22 @@ export class RebaseFailureInfo implements MarkdownLoggable {
 
 		lines.push(`\tconst currentSelection = [${this.currentSelection.map(s => `new OffsetRange(${s.start}, ${s.endExclusive})`).join(', ')}];`);
 
-		if (this.nesRebaseConfigs.absorbSubsequenceTyping) {
-			lines.push(`\tconst nesConfigs = { absorbSubsequenceTyping: ${this.nesRebaseConfigs.absorbSubsequenceTyping} };`);
+		if (this.nesRebaseConfigs.absorbSubsequenceTyping || this.nesRebaseConfigs.reverseAgreement) {
+			const configEntries: string[] = [];
+			if (this.nesRebaseConfigs.absorbSubsequenceTyping) {
+				configEntries.push(`absorbSubsequenceTyping: ${this.nesRebaseConfigs.absorbSubsequenceTyping}`);
+			}
+			if (this.nesRebaseConfigs.reverseAgreement) {
+				configEntries.push(`reverseAgreement: ${this.nesRebaseConfigs.reverseAgreement}`);
+			}
+			lines.push(`\tconst nesConfigs = { ${configEntries.join(', ')} };`);
 		}
 
 		lines.push('');
 		lines.push('\tconst logger = new TestLogService();');
 		lines.push('\texpect(userEditSince.apply(originalDocument)).toBe(currentDocumentContent);');
 
-		const configsArg = this.nesRebaseConfigs.absorbSubsequenceTyping ? ', nesConfigs' : '';
+		const configsArg = (this.nesRebaseConfigs.absorbSubsequenceTyping || this.nesRebaseConfigs.reverseAgreement) ? ', nesConfigs' : '';
 		lines.push(`\texpect(tryRebase(originalDocument, editWindow, originalEdits, [], userEditSince, currentDocumentContent, currentSelection, 'strict', logger${configsArg})).toMatchInlineSnapshot();`);
 
 		lines.push('});');

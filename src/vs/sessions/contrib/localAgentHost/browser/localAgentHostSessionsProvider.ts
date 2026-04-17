@@ -16,7 +16,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { AgentSession, IAgentHostService, type IAgentSessionMetadata } from '../../../../platform/agentHost/common/agentService.js';
-import type { IRootState, ISessionFileDiff } from '../../../../platform/agentHost/common/state/protocol/state.js';
+import type { IFileEdit, IModelSelection, IRootState, ISessionSummary } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isSessionAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IResolveSessionConfigResult, ISessionConfigValueItem } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
@@ -27,7 +27,8 @@ import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/c
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
 import { agentHostSessionWorkspaceKey, buildAgentHostSessionWorkspace } from '../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../common/sessionConfig.js';
-import { diffsToChanges, diffsEqual } from '../../../common/agentHostDiffs.js';
+import { diffsToChanges, diffsEqual, mapProtocolStatus } from '../../../common/agentHostDiffs.js';
+import { NotificationType } from '../../../../platform/agentHost/common/state/protocol/notifications.js';
 import { ISendRequestOptions, ISessionChangeEvent } from '../../../services/sessions/common/sessionsProvider.js';
 import { IAgentHostSessionsProvider } from '../../../common/agentHostSessionsProvider.js';
 import { IChat, ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SessionStatus, type IGitHubInfo, ISessionType } from '../../../services/sessions/common/session.js';
@@ -58,6 +59,17 @@ function buildMutableConfigSchema(config: Record<string, string>): Record<string
 	return properties;
 }
 
+function toSessionFileDiffs(diffs: readonly IFileEdit[]): { readonly uri: string; readonly added?: number; readonly removed?: number }[] {
+	const result: { readonly uri: string; readonly added?: number; readonly removed?: number }[] = [];
+	for (const diff of diffs) {
+		const uri = diff.after?.uri ?? diff.before?.uri;
+		if (uri) {
+			result.push({ uri, added: diff.diff?.added, removed: diff.diff?.removed });
+		}
+	}
+	return result;
+}
+
 /**
  * Derives the session type / URI scheme from an agent provider name.
  * Must match the type string registered by AgentHostContribution
@@ -83,9 +95,10 @@ class LocalSessionAdapter implements ISession {
 	readonly workspace: ISettableObservable<ISessionWorkspace | undefined>;
 	readonly title: ISettableObservable<string>;
 	readonly updatedAt: ISettableObservable<Date>;
-	readonly status = observableValue<SessionStatus>('status', SessionStatus.Completed);
+	readonly status: ISettableObservable<SessionStatus>;
 	readonly changes = observableValue<readonly IChatSessionFileChange[]>('changes', []);
 	readonly modelId: ISettableObservable<string | undefined>;
+	modelSelection: IModelSelection | undefined;
 	readonly mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>('mode', undefined);
 	readonly loading = observableValue(this, false);
 	readonly isArchived = observableValue('isArchived', false);
@@ -96,6 +109,7 @@ class LocalSessionAdapter implements ISession {
 
 	readonly mainChat: IChat;
 	readonly chats: IObservable<readonly IChat[]>;
+	readonly capabilities = { supportsMultipleChats: false };
 
 	readonly agentProvider: string;
 
@@ -114,7 +128,9 @@ class LocalSessionAdapter implements ISession {
 		this.createdAt = new Date(metadata.startTime);
 		this.title = observableValue('title', metadata.summary || `Session ${rawId.substring(0, 8)}`);
 		this.updatedAt = observableValue('updatedAt', new Date(metadata.modifiedTime));
-		this.modelId = observableValue<string | undefined>('modelId', metadata.model ? `${logicalSessionType}:${metadata.model}` : undefined);
+		this.modelSelection = metadata.model;
+		this.status = observableValue<SessionStatus>('status', metadata.status !== undefined ? mapProtocolStatus(metadata.status) : SessionStatus.Completed);
+		this.modelId = observableValue<string | undefined>('modelId', metadata.model ? `${logicalSessionType}:${metadata.model.id}` : undefined);
 		this.lastTurnEnd = observableValue('lastTurnEnd', metadata.modifiedTime ? new Date(metadata.modifiedTime) : undefined);
 		this.description = observableValue('description', new MarkdownString().appendText(localize('localAgentHostDescription', "Local")));
 		this.workspace = observableValue('workspace', LocalAgentHostSessionsProvider.buildWorkspace(metadata.project, metadata.workingDirectory));
@@ -155,6 +171,14 @@ class LocalSessionAdapter implements ISession {
 			didChange = true;
 		}
 
+		if (metadata.status !== undefined) {
+			const uiStatus = mapProtocolStatus(metadata.status);
+			if (uiStatus !== this.status.get()) {
+				this.status.set(uiStatus, undefined);
+				didChange = true;
+			}
+		}
+
 		const modifiedTime = metadata.modifiedTime;
 		if (this.updatedAt.get().getTime() !== modifiedTime) {
 			this.updatedAt.set(new Date(modifiedTime), undefined);
@@ -184,7 +208,8 @@ class LocalSessionAdapter implements ISession {
 			didChange = true;
 		}
 
-		const modelId = metadata.model ? `${this.sessionType}:${metadata.model}` : undefined;
+		this.modelSelection = metadata.model;
+		const modelId = metadata.model ? `${this.sessionType}:${metadata.model.id}` : undefined;
 		if (modelId !== this.modelId.get()) {
 			this.modelId.set(modelId, undefined);
 			didChange = true;
@@ -222,8 +247,6 @@ export class LocalAgentHostSessionsProvider extends Disposable implements IAgent
 	readonly id = LOCAL_PROVIDER_ID;
 	readonly label: string;
 	readonly icon: ThemeIcon = Codicon.vm;
-	readonly onDidChangeCapabilities = Event.None;
-	readonly capabilities = { multipleChatsPerSession: false };
 	private readonly _localLabel = localize('localAgentHostSessionTypeLocation', "Local");
 	private _hasRootStateSnapshot = false;
 	private _sessionTypes: ISessionType[] = [];
@@ -285,10 +308,12 @@ export class LocalAgentHostSessionsProvider extends Disposable implements IAgent
 
 		// Listen for notifications from the agent host to update the session list
 		this._register(this._agentHostService.onDidNotification(n => {
-			if (n.type === 'notify/sessionAdded') {
+			if (n.type === NotificationType.SessionAdded) {
 				this._handleSessionAdded(n.summary);
-			} else if (n.type === 'notify/sessionRemoved') {
+			} else if (n.type === NotificationType.SessionRemoved) {
 				this._handleSessionRemoved(n.session);
+			} else if (n.type === NotificationType.SessionSummaryChanged) {
+				this._handleSessionSummaryChanged(n.session, n.changes);
 			}
 		}));
 
@@ -474,6 +499,7 @@ export class LocalAgentHostSessionsProvider extends Disposable implements IAgent
 			gitHubInfo: observableValue(this, undefined),
 			mainChat,
 			chats: constObservable([mainChat]),
+			capabilities: { supportsMultipleChats: false },
 		};
 		this._currentNewSession = session;
 		this._currentNewSessionStatus = status;
@@ -566,7 +592,8 @@ export class LocalAgentHostSessionsProvider extends Disposable implements IAgent
 			cached.modelId.set(modelId, undefined);
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 			const rawModelId = modelId.startsWith(`${cached.sessionType}:`) ? modelId.substring(cached.sessionType.length + 1) : modelId;
-			const action = { type: ActionType.SessionModelChanged as const, session: AgentSession.uri(cached.agentProvider, rawId).toString(), model: rawModelId };
+			const model = cached.modelSelection?.id === rawModelId ? cached.modelSelection : { id: rawModelId };
+			const action = { type: ActionType.SessionModelChanged as const, session: AgentSession.uri(cached.agentProvider, rawId).toString(), model };
 			this._agentHostService.dispatch(action);
 		}
 	}
@@ -864,7 +891,7 @@ export class LocalAgentHostSessionsProvider extends Disposable implements IAgent
 		}
 	}
 
-	private _handleSessionAdded(summary: { resource: string; provider: string; title: string; createdAt: number; modifiedAt: number; project?: { uri: string; displayName: string }; model?: string; workingDirectory?: string; isRead?: boolean; isDone?: boolean }): void {
+	private _handleSessionAdded(summary: ISessionSummary): void {
 		const sessionUri = URI.parse(summary.resource);
 		const rawId = AgentSession.id(sessionUri);
 		if (this._sessionCache.has(rawId)) {
@@ -915,10 +942,13 @@ export class LocalAgentHostSessionsProvider extends Disposable implements IAgent
 		}
 	}
 
-	private _handleModelChanged(session: string, model: string): void {
+	private _handleModelChanged(session: string, model: IModelSelection): void {
 		const rawId = AgentSession.id(session);
 		const cached = this._sessionCache.get(rawId);
-		const modelId = cached ? `${cached.sessionType}:${model}` : undefined;
+		if (cached) {
+			cached.modelSelection = model;
+		}
+		const modelId = cached ? `${cached.sessionType}:${model.id}` : undefined;
 		if (cached && cached.modelId.get() !== modelId) {
 			cached.modelId.set(modelId, undefined);
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
@@ -943,11 +973,46 @@ export class LocalAgentHostSessionsProvider extends Disposable implements IAgent
 		}
 	}
 
-	private _handleDiffsChanged(session: string, diffs: ISessionFileDiff[]): void {
+	private _handleDiffsChanged(session: string, diffs: IFileEdit[]): void {
 		const rawId = AgentSession.id(session);
 		const cached = this._sessionCache.get(rawId);
 		if (cached) {
-			cached.changes.set(diffsToChanges(diffs), undefined);
+			cached.changes.set(diffsToChanges(toSessionFileDiffs(diffs)), undefined);
+			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
+		}
+	}
+
+	private _handleSessionSummaryChanged(session: string, changes: Partial<ISessionSummary>): void {
+		const rawId = AgentSession.id(session);
+		const cached = this._sessionCache.get(rawId);
+		if (!cached) {
+			return;
+		}
+
+		let didChange = false;
+
+		if (changes.status !== undefined) {
+			const uiStatus = mapProtocolStatus(changes.status);
+			if (uiStatus !== cached.status.get()) {
+				cached.status.set(uiStatus, undefined);
+				didChange = true;
+			}
+		}
+
+		if (changes.title !== undefined && changes.title !== cached.title.get()) {
+			cached.title.set(changes.title, undefined);
+			didChange = true;
+		}
+
+		if (changes.diffs !== undefined) {
+			const diffs = toSessionFileDiffs(changes.diffs);
+			if (!diffsEqual(cached.changes.get(), diffs)) {
+				cached.changes.set(diffsToChanges(diffs), undefined);
+				didChange = true;
+			}
+		}
+
+		if (didChange) {
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 		}
 	}

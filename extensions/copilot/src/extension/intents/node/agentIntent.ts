@@ -539,6 +539,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 					endpoint: this.endpoint,
 					promptContext: renderProps.promptContext,
 					triggerSummarize: true,
+					forceSimpleSummary: true,
 				});
 				return await renderer.render(progress, token);
 			} catch (e) {
@@ -862,7 +863,6 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 							"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The success state." },
 							"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model ID." },
 							"summarizationMode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The summarization mode." },
-							"source": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether background or foreground." },
 							"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Session id." },
 							"chatRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat request ID." },
 							"lastUsedTool": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The last tool used before summarization." },
@@ -881,7 +881,6 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 						outcome: 'success',
 						model: this.endpoint.model,
 						summarizationMode: 'inline',
-						source: 'background',
 						conversationId,
 						chatRequestId: associatedRequestId,
 						lastUsedTool,
@@ -925,7 +924,6 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 						endpoint: this.endpoint,
 						promptContext: snapshotProps.promptContext,
 						triggerSummarize: true,
-						summarizationSource: 'background',
 					});
 					const bgProgress: vscode.Progress<vscode.ChatResponseReferencePart | vscode.ChatResponseProgressPart> = { report: () => { } };
 					const bgRenderResult = await bgRenderer.render(bgProgress, bgToken);
@@ -960,7 +958,6 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 							"detailedOutcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Detailed failure reason." },
 							"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model ID." },
 							"summarizationMode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The summarization mode." },
-							"source": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether background or foreground." },
 							"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Session id." },
 							"chatRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat request ID." },
 							"duration": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Duration in ms." }
@@ -971,7 +968,6 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 						detailedOutcome: err instanceof Error ? err.message : String(err),
 						model: this.endpoint.model,
 						summarizationMode: 'inline',
-						source: 'background',
 						conversationId,
 						chatRequestId: associatedRequestId,
 					}, {

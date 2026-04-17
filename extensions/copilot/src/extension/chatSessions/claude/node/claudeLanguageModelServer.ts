@@ -452,17 +452,7 @@ class ClaudeStreamingPassThroughEndpoint implements IChatEndpoint {
 		if (typeof this.requestHeaders['anthropic-beta'] === 'string') {
 			const filtered = filterSupportedBetas(this.requestHeaders['anthropic-beta']);
 			if (filtered) {
-				if (headers['anthropic-beta']) {
-					// Merge SDK's filtered betas with base endpoint's betas (e.g. config-driven
-					// context-management) instead of overwriting, deduplicating exact matches.
-					const allBetas = new Set([
-						...headers['anthropic-beta'].split(',').map(b => b.trim()),
-						...filtered.split(',').map(b => b.trim()),
-					]);
-					headers['anthropic-beta'] = [...allBetas].join(',');
-				} else {
-					headers['anthropic-beta'] = filtered;
-				}
+				headers['anthropic-beta'] = filtered;
 			}
 		}
 		return headers;

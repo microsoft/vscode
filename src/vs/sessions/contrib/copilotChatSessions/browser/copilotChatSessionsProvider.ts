@@ -1049,13 +1049,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	readonly sessionTypes: readonly ISessionType[] = [CopilotCLISessionType, CopilotCloudSessionType];
 	readonly onDidChangeSessionTypes = Event.None;
 
-	get capabilities() {
-		return {
-			multipleChatsPerSession: this._isMultiChatEnabled(),
-		};
-	}
-	readonly onDidChangeCapabilities = Event.None;
-
 	private readonly _onDidChangeSessions = this._register(new Emitter<ISessionChangeEvent>());
 	readonly onDidChangeSessions: Event<ISessionChangeEvent> = this._onDidChangeSessions.event;
 
@@ -1071,6 +1064,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	/** Group model tracking which chats belong to which session. */
 	private readonly _groupModel: SessionsGroupModel;
 
+	private readonly _multiChatEnabled: boolean;
+
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
 
 	constructor(
@@ -1085,13 +1080,14 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
 		@ILanguageModelToolsService private readonly toolsService: ILanguageModelToolsService,
 		@IStorageService storageService: IStorageService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IConfigurationService configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
 		@IGitHubService private readonly gitHubService: IGitHubService,
 	) {
 		super();
 
 		this._groupModel = this._register(new SessionsGroupModel(storageService));
+		this._multiChatEnabled = configurationService.getValue<boolean>(COPILOT_MULTI_CHAT_SETTING) ?? true;
 
 		this.browseActions = [
 			{
@@ -1225,10 +1221,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	async deleteSession(sessionId: string): Promise<void> {
-		// Collect all chat IDs in this session group
-		const chatIds = this._isMultiChatEnabled()
-			? this._groupModel.getChatIds(sessionId)
-			: [];
+		const chatIds = this._groupModel.getChatIds(sessionId);
 
 		// Collect all agent sessions to delete (primary + group members)
 		const allChatIds = new Set([sessionId, ...chatIds]);
@@ -1260,12 +1253,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 		await this._deleteAgentSessions(agentSessions);
 
-		// Clean up group model
-		if (this._isMultiChatEnabled()) {
-			this._groupModel.deleteSession(sessionId);
-			this._sessionGroupCache.delete(sessionId);
-		}
-
+		this._groupModel.deleteSession(sessionId);
+		this._sessionGroupCache.delete(sessionId);
 		this._refreshSessionCache();
 	}
 
@@ -1279,7 +1268,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	async deleteChat(sessionId: string, chatUri: URI): Promise<void> {
-		if (!this._isMultiChatEnabled()) {
+		const session = this._findSession(sessionId);
+
+		if (!session?.capabilities.supportsMultipleChats) {
 			throw new Error('Deleting individual chats is not supported when multi-chat is disabled');
 		}
 
@@ -1369,7 +1360,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	addChat(sessionId: string): IChat {
-		if (!this._isMultiChatEnabled()) {
+		const session = this._findSession(sessionId);
+		if (!session?.capabilities.supportsMultipleChats) {
 			throw new Error('Multiple chats per session is not supported');
 		}
 
@@ -2070,6 +2062,10 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		return this.agentSessionsService.getSession(adapter.resource);
 	}
 
+	private _findSession(sessionId: string): ISession | undefined {
+		return this._sessionGroupCache.get(sessionId);
+	}
+
 	private _localIdFromchatId(chatId: string): string {
 		const prefix = `${this.id}:`;
 		return chatId.startsWith(prefix) ? chatId.substring(prefix.length) : chatId;
@@ -2144,6 +2140,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			gitHubInfo: primaryChat.gitHubInfo,
 			chats: chatsObs,
 			mainChat,
+			capabilities: { supportsMultipleChats: primaryChat.sessionType === CopilotCLISessionType.id && this._isMultiChatEnabled() },
 		};
 		this._sessionGroupCache.set(sessionId, session);
 		return session;
@@ -2173,6 +2170,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			gitHubInfo: chat.gitHubInfo,
 			chats: constObservable([mainChat]),
 			mainChat,
+			capabilities: { supportsMultipleChats: false },
 		};
 	}
 
@@ -2219,6 +2217,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	}
 
 	private _isMultiChatEnabled(): boolean {
-		return this.configurationService.getValue<boolean>(COPILOT_MULTI_CHAT_SETTING) ?? false;
+		return this._multiChatEnabled;
 	}
 }

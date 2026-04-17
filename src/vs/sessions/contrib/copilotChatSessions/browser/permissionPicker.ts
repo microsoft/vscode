@@ -290,6 +290,8 @@ export class PermissionPicker extends Disposable {
 		labelSpan.textContent = label;
 		dom.append(trigger, renderIcon(Codicon.chevronDown));
 
+		trigger.ariaLabel = localize('permissionPicker.triggerAriaLabel', "Pick Permission Level, {0}", label);
+
 		trigger.classList.toggle('warning', this._currentLevel === ChatPermissionLevel.Autopilot);
 		trigger.classList.toggle('info', this._currentLevel === ChatPermissionLevel.AutoApprove);
 	}

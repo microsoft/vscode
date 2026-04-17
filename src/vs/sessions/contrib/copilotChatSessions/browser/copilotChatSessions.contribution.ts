@@ -20,7 +20,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	properties: {
 		[COPILOT_MULTI_CHAT_SETTING]: {
 			type: 'boolean',
-			default: false,
+			default: true,
 			tags: ['preview'],
 			description: localize('sessions.github.copilot.multiChatSessions', "Whether to enable multiple chats within a single session in the Copilot Chat sessions provider."),
 		},

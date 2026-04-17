@@ -96,17 +96,13 @@
 }
 
 /* Selected section - using list selection */
-.ai-customization-management-editor .monaco-list .monaco-list-row.selected .section-list-item {
-	background-color: var(--vscode-list-activeSelectionBackground);
-	color: var(--vscode-list-activeSelectionForeground);
+.ai-customization-management-editor .monaco-list .monaco-list-row.section-list-item.selected .section-icon {
+	color: inherit;
+	opacity: 1;
 }
 
-.ai-customization-management-editor .monaco-list .monaco-list-row.selected .section-list-item .section-icon {
-	color: var(--vscode-list-activeSelectionIconForeground, var(--vscode-list-activeSelectionForeground));
-}
-
-.ai-customization-management-editor .monaco-list .monaco-list-row.selected .section-list-item .section-label {
-	color: var(--vscode-list-activeSelectionForeground);
+.ai-customization-management-editor .monaco-list .monaco-list-row.section-list-item.selected .section-count {
+	color: inherit;
 }
 
 .ai-customization-management-editor .section-icon {

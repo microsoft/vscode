@@ -894,7 +894,7 @@ export class ChatService extends Disposable implements IChatService {
 						this.chatSessionService.updateSessionOptions(model.sessionResource, initialSessionOptions);
 					}
 
-					this.chatSessionService.fireSessionCommitted(sessionResource, newItem.resource);
+					// this.chatSessionService.fireSessionCommitted(sessionResource, newItem.resource);
 
 					sessionResource = newItem.resource;
 					newSessionResource = newItem.resource;
@@ -946,7 +946,7 @@ export class ChatService extends Disposable implements IChatService {
 				},
 			};
 		} finally {
-			tempRef?.dispose();
+			// tempRef?.dispose();
 		}
 	}
 

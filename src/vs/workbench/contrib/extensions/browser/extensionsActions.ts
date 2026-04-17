@@ -26,7 +26,7 @@ import { IHostService } from '../../../services/host/browser/host.js';
 import { IExtensionService, toExtension, toExtensionDescription } from '../../../services/extensions/common/extensions.js';
 import { URI } from '../../../../base/common/uri.js';
 import { CommandsRegistry, ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { registerThemingParticipant, IColorTheme, ICssStyleCollector } from '../../../../platform/theme/common/themeService.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { buttonBackground, buttonForeground, buttonHoverBackground, buttonSecondaryBackground, buttonSecondaryForeground, buttonSecondaryHoverBackground, registerColor, editorWarningForeground, editorInfoForeground, editorErrorForeground, buttonSeparator, buttonBorder, contrastBorder } from '../../../../platform/theme/common/colorRegistry.js';
@@ -1816,10 +1816,23 @@ class EnableAIFeaturesGloballyAction extends ExtensionAction {
 
 	update(): void {
 		this.enabled = false;
-		if (this.extension && ExtensionIdentifier.equals(this.extension.identifier.id, this.productService.defaultChatAgent?.chatExtensionId)) {
-			this.enabled = this.configurationService.getValue<boolean>(CHAT_AI_DISABLED_SETTING) === true
-				&& this.extension.enablementState !== EnablementState.DisabledWorkspace;
+		if (!this.extension?.local) {
+			return;
 		}
+		if (!ExtensionIdentifier.equals(this.extension.identifier.id, this.productService.defaultChatAgent?.chatExtensionId)) {
+			return;
+		}
+		if (this.extension.enablementState === EnablementState.DisabledWorkspace) {
+			return;
+		}
+		if (this.extension.enablementState === EnablementState.EnabledWorkspace) {
+			return;
+		}
+		const inspect = this.configurationService.inspect(CHAT_AI_DISABLED_SETTING);
+		if (inspect?.workspaceValue === true) {
+			return;
+		}
+		this.enabled = inspect.value === true;
 	}
 
 	override async run(): Promise<void> {
@@ -1835,24 +1848,53 @@ class EnableAIFeaturesInWorkspaceAction extends ExtensionAction {
 	constructor(
 		@IProductService private readonly productService: IProductService,
 		@IExtensionsWorkbenchService private readonly extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IWorkbenchExtensionEnablementService private readonly extensionEnablementService: IWorkbenchExtensionEnablementService,
 	) {
 		super(EnableAIFeaturesInWorkspaceAction.ID, EnableAIFeaturesInWorkspaceAction.LABEL, ExtensionAction.LABEL_ACTION_CLASS);
 		this.tooltip = localize('enableAIInWorkspaceActionToolTip', "Enable AI features in this workspace");
 		this.update();
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(CHAT_AI_DISABLED_SETTING)) {
+				this.update();
+			}
+		}));
 	}
 
 	update(): void {
 		this.enabled = false;
-		if (this.extension && this.extension.local && ExtensionIdentifier.equals(this.extension.identifier.id, this.productService.defaultChatAgent?.chatExtensionId)) {
-			this.enabled = this.extension.enablementState === EnablementState.DisabledWorkspace;
+		if (!this.extension?.local) {
+			return;
 		}
+		if (!ExtensionIdentifier.equals(this.extension.identifier.id, this.productService.defaultChatAgent?.chatExtensionId)) {
+			return;
+		}
+		if (!this.extensionEnablementService.canChangeWorkspaceEnablement(this.extension.local)) {
+			return;
+		}
+		const inspect = this.configurationService.inspect(CHAT_AI_DISABLED_SETTING);
+		if (inspect.value === false) {
+			return;
+		}
+		if (inspect?.workspaceValue === true) {
+			this.enabled = true;
+			return;
+		}
+		if (this.extension.enablementState === EnablementState.EnabledWorkspace) {
+			return;
+		}
+		this.enabled = true;
+		return;
 	}
 
 	override async run(): Promise<void> {
 		if (!this.extension) {
 			return;
 		}
-		return this.extensionsWorkbenchService.setEnablement(this.extension, EnablementState.EnabledWorkspace);
+		await this.extensionsWorkbenchService.setEnablement(this.extension, EnablementState.EnabledWorkspace);
+		if (this.configurationService.inspect(CHAT_AI_DISABLED_SETTING).workspaceValue === true) {
+			await this.configurationService.updateValue(CHAT_AI_DISABLED_SETTING, false, ConfigurationTarget.WORKSPACE);
+		}
 	}
 }
 

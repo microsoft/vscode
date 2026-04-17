@@ -4,6 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { URI } from '../../base/common/uri.js';
+import { SessionStatus as ProtocolSessionStatus } from '../../platform/agentHost/common/state/protocol/state.js';
+import { SessionStatus } from '../services/sessions/common/session.js';
+
+/**
+ * Maps the protocol-layer session status bitset to the UI-layer
+ * {@link SessionStatus} enum used by session adapters.
+ */
+export function mapProtocolStatus(protocol: ProtocolSessionStatus): SessionStatus {
+	if ((protocol & ProtocolSessionStatus.InputNeeded) === ProtocolSessionStatus.InputNeeded) {
+		return SessionStatus.NeedsInput;
+	}
+	if (protocol & ProtocolSessionStatus.InProgress) {
+		return SessionStatus.InProgress;
+	}
+	if (protocol & ProtocolSessionStatus.Error) {
+		return SessionStatus.Error;
+	}
+	return SessionStatus.Completed;
+}
 
 export interface IFileChange {
 	readonly modifiedUri: URI;

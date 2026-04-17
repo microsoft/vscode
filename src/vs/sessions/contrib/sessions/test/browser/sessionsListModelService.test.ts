@@ -39,6 +39,7 @@ function createSession(id: string): ISession {
 		gitHubInfo: observableValue(`gitHubInfo-${id}`, undefined),
 		chats: observableValue<readonly IChat[]>(`chats-${id}`, []),
 		mainChat: undefined!,
+		capabilities: { supportsMultipleChats: false },
 	};
 }
 

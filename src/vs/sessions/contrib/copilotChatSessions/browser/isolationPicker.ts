@@ -200,6 +200,8 @@ export class IsolationPicker extends Disposable {
 		labelSpan.textContent = modeLabel;
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
 
+		this._triggerElement.ariaLabel = localize('isolationPicker.triggerAriaLabel', "Pick Isolation Mode, {0}", modeLabel);
+
 		const isDisabled = !this._hasGitRepo;
 		this._slotElement?.classList.toggle('disabled', isDisabled);
 		this._triggerElement.setAttribute('aria-disabled', String(isDisabled));

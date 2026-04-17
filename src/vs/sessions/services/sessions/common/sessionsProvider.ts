@@ -29,15 +29,6 @@ export interface ISendRequestOptions {
 }
 
 /**
- * Capabilities declared by a sessions provider.
- * Consumers check these before surfacing provider-specific features in the UI.
- */
-export interface ISessionsProviderCapabilities {
-	/** Whether the provider supports multiple chats within a single session. */
-	readonly multipleChatsPerSession: boolean;
-}
-
-/**
  * A sessions provider encapsulates a compute environment.
  * It owns workspace discovery, session creation, session listing, and picker contributions.
  *
@@ -68,15 +59,6 @@ export interface ISessionsProvider {
 	 * Event that fires when the list of session types changes. Consumers should refresh any session type pickers when this occurs.
 	 */
 	readonly onDidChangeSessionTypes: Event<void>;
-
-	/**
-	 * Capabilities of the provider, which may affect how sessions from this provider are surfaced in the UI. The provider is expected to update capabilities and fire `onDidChangeCapabilities` when they change.
-	 */
-	readonly capabilities: ISessionsProviderCapabilities;
-	/**
-	 * Event that fires when capabilities change. Consumers should refresh any UI affected by capabilities when this occurs.
-	 */
-	readonly onDidChangeCapabilities: Event<ISessionsProviderCapabilities>;
 
 	/**
 	 * List of all sessions currently known to the provider. Consumers should not cache this list, but should listen to `onDidChangeSessions` and update their cached list accordingly.

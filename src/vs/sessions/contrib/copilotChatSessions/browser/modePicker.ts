@@ -90,7 +90,6 @@ export class ModePicker extends Disposable {
 		const trigger = dom.append(slot, dom.$('a.action-label'));
 		trigger.tabIndex = 0;
 		trigger.role = 'button';
-		trigger.setAttribute('aria-label', localize('sessions.modePicker.ariaLabel', "Select chat mode"));
 		this._triggerElement = trigger;
 
 		this._updateTriggerLabel();
@@ -239,5 +238,7 @@ export class ModePicker extends Disposable {
 		const labelSpan = dom.append(this._triggerElement, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = this._selectedMode.label.get();
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
+
+		this._triggerElement.ariaLabel = localize('modePicker.triggerAriaLabel', "Pick Mode, {0}", this._selectedMode.label.get());
 	}
 }

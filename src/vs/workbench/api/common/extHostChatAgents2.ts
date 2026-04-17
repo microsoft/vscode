@@ -531,6 +531,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			source: dto.source,
 			extensionId: dto.extensionId,
 			pluginUri: dto.pluginUri ? URI.revive(dto.pluginUri) : undefined,
+			sessionTypes: dto.sessionTypes,
 			argumentHint: dto.argumentHint,
 			tools: dto.tools,
 			model: dto.model,
@@ -547,6 +548,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			source: dto.source,
 			extensionId: dto.extensionId,
 			pluginUri: dto.pluginUri ? URI.revive(dto.pluginUri) : undefined,
+			sessionTypes: dto.sessionTypes,
 			pattern: dto.pattern,
 		});
 	}
@@ -559,6 +561,7 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			source: dto.source,
 			extensionId: dto.extensionId,
 			pluginUri: dto.pluginUri ? URI.revive(dto.pluginUri) : undefined,
+			sessionTypes: dto.sessionTypes,
 			userInvocable: dto.userInvocable,
 		});
 	}
@@ -571,13 +574,14 @@ export class ExtHostChatAgents2 extends Disposable implements ExtHostChatAgentsS
 			source: dto.source,
 			extensionId: dto.extensionId,
 			pluginUri: dto.pluginUri ? URI.revive(dto.pluginUri) : undefined,
+			sessionTypes: dto.sessionTypes,
 			argumentHint: dto.argumentHint,
 			userInvocable: dto.userInvocable,
 		});
 	}
 
 	private toHook(dto: IHookDto): vscode.ChatHook {
-		return Object.freeze({ uri: URI.revive(dto.uri) });
+		return Object.freeze({ uri: URI.revive(dto.uri), sessionTypes: dto.sessionTypes });
 	}
 
 	private toPlugin(dto: IPluginDto): vscode.ChatPlugin {

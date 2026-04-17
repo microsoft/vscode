@@ -736,11 +736,17 @@ class BreakpointRenderer implements ITableRenderer<IDisassembledInstructionEntry
 					// click show hint while waiting for BP to resolve.
 					icon.classList.add(this._breakpointHintIcon);
 					const reference = currentElement.element.instructionReference;
-					const offset = Number(currentElement.element.address - this._disassemblyView.getReferenceAddress(reference)!);
+					const address = currentElement.element.address;
+					const offset = Number(address - this._disassemblyView.getReferenceAddress(reference)!);
 					if (currentElement.element.isBreakpointSet) {
-						this._debugService.removeInstructionBreakpoints(reference, offset);
+						// Identify the breakpoint by its resolved memory address:
+						// the debug adapter may hand out a new `instructionReference`
+						// for the same location after symbol reloads / certain steps,
+						// so a reference+offset lookup would otherwise fail to remove
+						// the breakpoint (microsoft/vscode#289678).
+						this._debugService.removeInstructionBreakpoints(reference, offset, address);
 					} else if (currentElement.element.allowBreakpoint && !currentElement.element.isBreakpointSet) {
-						this._debugService.addInstructionBreakpoint({ instructionReference: reference, offset, address: currentElement.element.address, canPersist: false });
+						this._debugService.addInstructionBreakpoint({ instructionReference: reference, offset, address, canPersist: false });
 					}
 				}
 			})

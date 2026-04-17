@@ -37,7 +37,7 @@ import { IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { ChatPermissionLevel } from '../../../../chat/common/constants.js';
 import { LocalChatSessionUri } from '../../../../chat/common/model/chatUri.js';
 import { ITerminalSandboxService, TerminalSandboxPrerequisiteCheck, type ITerminalSandboxPrerequisiteCheckResult } from '../../common/terminalSandboxService.js';
-import { ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, ToolDataSource, ToolSet, type ToolConfirmationAction } from '../../../../chat/common/tools/languageModelToolsService.js';
+import { ILanguageModelToolsService, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocationPreparationContext, ToolDataSource, ToolSet, type ToolConfirmationAction } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { ITerminalProfileResolverService } from '../../../../terminal/common/terminal.js';
 import type { ICommandLinePresenter } from '../../browser/tools/commandLinePresenter/commandLinePresenter.js';
@@ -2216,24 +2216,6 @@ suite('RunInTerminalTool', () => {
 	});
 
 	suite('ConfirmTerminalCommandTool', () => {
-		async function invokeConfirmTool(tool: RunInTerminalTool, original: string, userEdited?: string) {
-			const invocation = {
-				callId: 'test-call-id',
-				toolId: 'confirmTerminalCommand',
-				parameters: {},
-				context: undefined,
-				toolSpecificData: {
-					kind: 'terminal',
-					commandLine: {
-						original,
-						userEdited,
-					},
-					language: 'bash',
-				} as IChatTerminalToolInvocationData
-			} as IToolInvocation;
-			return tool.invoke(invocation, () => Promise.resolve(0), { report: () => { } }, CancellationToken.None);
-		}
-
 		test('should require confirmation when sandbox is enabled but sandbox rewriting is disabled', async () => {
 			sandboxEnabled = true;
 
@@ -2273,36 +2255,6 @@ suite('RunInTerminalTool', () => {
 
 			const result = await confirmTool.prepareToolInvocation(context, CancellationToken.None);
 			assertConfirmationRequired(result);
-		});
-
-		test('invoke should return approved message when user does not edit command', async () => {
-			const { ConfirmTerminalCommandTool } = await import('../../browser/tools/runInTerminalConfirmationTool.js');
-			const confirmTool = store.add(instantiationService.createInstance(ConfirmTerminalCommandTool));
-
-			const result = await invokeConfirmTool(confirmTool, 'echo hello');
-			strictEqual(result.content[0].kind, 'text');
-			strictEqual((result.content[0] as { kind: 'text'; value: string }).value, 'The user approved the command.');
-		});
-
-		test('invoke should return edited command when user edits the command', async () => {
-			const { ConfirmTerminalCommandTool } = await import('../../browser/tools/runInTerminalConfirmationTool.js');
-			const confirmTool = store.add(instantiationService.createInstance(ConfirmTerminalCommandTool));
-
-			const result = await invokeConfirmTool(confirmTool, 'echo hello', 'echo stop');
-			strictEqual(result.content[0].kind, 'text');
-			const textValue = (result.content[0] as { kind: 'text'; value: string }).value;
-			ok(textValue.includes('<editedCommand>'), 'Result should contain editedCommand tags');
-			ok(textValue.includes('echo stop'), 'Result should contain the edited command');
-			ok(textValue.includes('edited'), 'Result should indicate the command was edited');
-		});
-
-		test('invoke should return approved message when userEdited equals original', async () => {
-			const { ConfirmTerminalCommandTool } = await import('../../browser/tools/runInTerminalConfirmationTool.js');
-			const confirmTool = store.add(instantiationService.createInstance(ConfirmTerminalCommandTool));
-
-			const result = await invokeConfirmTool(confirmTool, 'echo hello', 'echo hello');
-			strictEqual(result.content[0].kind, 'text');
-			strictEqual((result.content[0] as { kind: 'text'; value: string }).value, 'The user approved the command.');
 		});
 	});
 });

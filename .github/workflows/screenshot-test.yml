@@ -160,7 +160,7 @@ jobs:
 
       - name: Post PR comment
         if: github.event_name == 'pull_request' && (steps.diff.outputs.has_changes == 'true' || steps.blocks-ci.outputs.match == 'false')
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const marker = '<!-- screenshot-diff-report -->';

@@ -147,7 +147,7 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 				this.logService.info(`update#doCheckForUpdates - application was updating to version ${updatingVersion}`);
 				const updatePackagePath = await this.getUpdatePackagePath(updatingVersion);
 				if (await pfs.Promises.exists(updatePackagePath)) {
-					await this._applySpecificUpdate(updatePackagePath);
+					await this._applySpecificUpdate(updatePackagePath, updatingVersion);
 					this.logService.info(`update#doCheckForUpdates - successfully applied update to version ${updatingVersion}`);
 				}
 			} catch (e) {
@@ -532,13 +532,13 @@ export class Win32UpdateService extends AbstractUpdateService implements IRelaun
 		return getUpdateType();
 	}
 
-	override async _applySpecificUpdate(packagePath: string): Promise<void> {
+	override async _applySpecificUpdate(packagePath: string, commit?: string): Promise<void> {
 		if (this.state.type !== StateType.Idle) {
 			return;
 		}
 
 		const fastUpdatesEnabled = this.configurationService.getValue('update.enableWindowsBackgroundUpdates');
-		const update: IUpdate = await this.loadUpdateMetadata() ?? { version: 'unknown', productVersion: 'unknown' };
+		const update: IUpdate = await this.loadUpdateMetadata() ?? { version: commit ?? 'unknown', productVersion: 'unknown' };
 
 		this.setState(State.Downloading(update, true, false));
 		this.availableUpdate = { packagePath };

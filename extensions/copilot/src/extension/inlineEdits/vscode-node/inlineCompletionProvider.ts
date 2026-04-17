@@ -354,6 +354,7 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 				const positionToJumpOneBased = suggestionInfo.suggestion.result.jumpToPosition;
 				const jumpToPosition = new Position(positionToJumpOneBased.lineNumber - 1, positionToJumpOneBased.column - 1);
 				const targetDocumentId = suggestionInfo.suggestion.result.targetDocumentId;
+				telemetryBuilder.setIsNESForOtherEditor(!!targetDocumentId && targetDocumentId !== doc.id);
 				const jumpToPositionCompletionItem: NesCompletionItem = {
 					insertText: undefined as unknown as string,
 					info: suggestionInfo,
@@ -388,6 +389,8 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 					resolveDoc = targetObsDoc;
 				} else {
 					logger.trace('no next edit suggestion: cross-file target document not found in workspace');
+					telemetryBuilder.setIsNESForOtherEditor(true);
+					telemetryBuilder.setStatus('noEdit:crossFileTargetNotFound');
 					this.telemetrySender.scheduleSendingEnhancedTelemetry(suggestionInfo.suggestion, telemetryBuilder);
 					return emptyList;
 				}
@@ -396,6 +399,7 @@ export class InlineCompletionProviderImpl extends Disposable implements InlineCo
 			const [targetDocument, range] = documents.length ? documents[0] : [undefined, undefined];
 
 			addNotebookTelemetry(document, position, result.edit.newText, documents, telemetryBuilder);
+			telemetryBuilder.setIsNESForOtherEditor(targetDocument !== undefined && targetDocument !== document);
 			telemetryBuilder.setIsActiveDocument(window.activeTextEditor?.document === targetDocument);
 
 			if (!targetDocument) {
@@ -769,6 +773,5 @@ function addNotebookTelemetry(document: TextDocument, position: Position, newTex
 		.setIsNextEditorVisible(!!nextEditor)
 		.setIsNextEditorRangeVisible(!!isNextEditorRangeVisible)
 		.setNotebookCellLines(lineCounts)
-		.setNotebookId(notebookId)
-		.setIsNESForOtherEditor(documents[0][0] !== document);
+		.setNotebookId(notebookId);
 }

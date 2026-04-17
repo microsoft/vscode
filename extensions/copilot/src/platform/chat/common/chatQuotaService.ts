@@ -45,7 +45,7 @@ export interface CopilotUserQuotaInfo {
 
 export interface IChatQuota {
 	quota: number;
-	used: number;
+	percentRemaining: number;
 	unlimited: boolean;
 	overageUsed: number;
 	overageEnabled: boolean;
@@ -67,6 +67,12 @@ export interface QuotaSnapshot {
 
 export type QuotaSnapshots = Record<string, QuotaSnapshot>;
 
+export interface IRateLimitWarning {
+	percentUsed: number;
+	type: 'session' | 'weekly';
+	resetDate: Date;
+}
+
 export interface IChatQuotaService {
 	readonly _serviceBrand: undefined;
 	quotaExhausted: boolean;
@@ -74,6 +80,7 @@ export interface IChatQuotaService {
 	processQuotaHeaders(headers: IHeaders): void;
 	processQuotaSnapshots(snapshots: QuotaSnapshots): void;
 	clearQuota(): void;
+	consumeRateLimitWarning(): IRateLimitWarning | undefined;
 }
 
 export const IChatQuotaService = createServiceIdentifier<IChatQuotaService>('IChatQuotaService');
