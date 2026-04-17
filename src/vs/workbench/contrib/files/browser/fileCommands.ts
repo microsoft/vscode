@@ -706,17 +706,37 @@ CommandsRegistry.registerCommand({
 		const editorService = accessor.get(IEditorService);
 		const dialogService = accessor.get(IFileDialogService);
 		const fileService = accessor.get(IFileService);
+		const notificationService = accessor.get(INotificationService);
+		const uriIdentityService = accessor.get(IUriIdentityService);
 
 		const createFileLocalized = nls.localize('newFileCommand.saveLabel', "Create File");
-		const defaultFileUri = joinPath(await dialogService.defaultFilePath(), args?.fileName ?? 'Untitled.txt');
+		const defaultFilePath = await dialogService.defaultFilePath();
+		const providedFileName = args?.fileName?.trim();
+		const providedFileUri = providedFileName ? joinPath(defaultFilePath, providedFileName) : undefined;
+		const useProvidedFileUri = !!providedFileUri && uriIdentityService.extUri.isEqualOrParent(providedFileUri, defaultFilePath);
 
-		const saveUri = await dialogService.showSaveDialog({ saveLabel: createFileLocalized, title: createFileLocalized, defaultUri: defaultFileUri });
+		if (providedFileName && !useProvidedFileUri) {
+			notificationService.warn(nls.localize('newFileCommand.invalidFileName', "Invalid file name '{0}'.", providedFileName));
+			return;
+		}
+
+		const defaultFileUri = useProvidedFileUri ? providedFileUri : joinPath(defaultFilePath, 'Untitled.txt');
+
+		// If a trusted fileName is provided in args (from quick pick), use it directly without showing dialog.
+		const saveUri = useProvidedFileUri
+			? defaultFileUri
+			: await dialogService.showSaveDialog({ saveLabel: createFileLocalized, title: createFileLocalized, defaultUri: defaultFileUri });
 
 		if (!saveUri) {
 			return;
 		}
 
-		await fileService.createFile(saveUri, undefined, { overwrite: true });
+		if (useProvidedFileUri && await fileService.exists(saveUri)) {
+			notificationService.warn(nls.localize('newFileCommand.fileExists', "File '{0}' already exists.", providedFileName ?? basename(saveUri)));
+			return;
+		}
+
+		await fileService.createFile(saveUri, undefined, { overwrite: !useProvidedFileUri });
 
 		await editorService.openEditor({
 			resource: saveUri,
