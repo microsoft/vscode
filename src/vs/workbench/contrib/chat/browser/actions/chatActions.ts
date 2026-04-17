@@ -1060,6 +1060,100 @@ export function registerChatActions() {
 		}
 	});
 
+	registerAction2(class PreviousPlanningPhaseAction extends Action2 {
+		static readonly ID = 'workbench.action.chat.previousPlanningPhase';
+
+		constructor() {
+			super({
+				id: PreviousPlanningPhaseAction.ID,
+				title: localize2('interactiveSession.previousPlanningPhase.label', "Chat: Previous Planning Phase"),
+				tooltip: localize('previousPlanningPhase', "Previous Phase"),
+				icon: Codicon.arrowLeft,
+				category: CHAT_CATEGORY,
+				f1: true,
+				precondition: ContextKeyExpr.and(
+					ChatContextKeys.inChatSession,
+					ContextKeyExpr.or(
+						ChatContextKeys.chatModeName.isEqualTo('Plan'),
+						ChatContextKeys.chatModeName.isEqualTo('Planner'),
+						ChatContextKeys.chatModeName.isEqualTo('planner')
+					)
+				),
+				menu: {
+					id: MenuId.ChatInputSecondary,
+					order: 11.1,
+					group: 'navigation',
+					when: ContextKeyExpr.and(
+						ChatContextKeys.enabled,
+						ChatContextKeys.inChatSession,
+						ContextKeyExpr.or(
+							ChatContextKeys.chatModeName.isEqualTo('Plan'),
+							ChatContextKeys.chatModeName.isEqualTo('Planner'),
+							ChatContextKeys.chatModeName.isEqualTo('planner')
+						),
+						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
+						ChatContextKeys.inQuickChat.negate()
+					)
+				}
+			});
+		}
+
+		override async run(accessor: ServicesAccessor): Promise<void> {
+			const widgetService = accessor.get(IChatWidgetService);
+			const widget = widgetService.lastFocusedWidget;
+			if (!widget || !(await widget.retreatPlanPhase())) {
+				alert(localize('chat.previousPlanningPhase.unavailable', "There is no earlier planning phase available."));
+			}
+		}
+	});
+
+	registerAction2(class NextPlanningPhaseAction extends Action2 {
+		static readonly ID = 'workbench.action.chat.nextPlanningPhase';
+
+		constructor() {
+			super({
+				id: NextPlanningPhaseAction.ID,
+				title: localize2('interactiveSession.nextPlanningPhase.label', "Chat: Next Planning Phase"),
+				tooltip: localize('nextPlanningPhase', "Next Phase"),
+				icon: Codicon.arrowRight,
+				category: CHAT_CATEGORY,
+				f1: true,
+				precondition: ContextKeyExpr.and(
+					ChatContextKeys.inChatSession,
+					ContextKeyExpr.or(
+						ChatContextKeys.chatModeName.isEqualTo('Plan'),
+						ChatContextKeys.chatModeName.isEqualTo('Planner'),
+						ChatContextKeys.chatModeName.isEqualTo('planner')
+					)
+				),
+				menu: {
+					id: MenuId.ChatInputSecondary,
+					order: 11.2,
+					group: 'navigation',
+					when: ContextKeyExpr.and(
+						ChatContextKeys.enabled,
+						ChatContextKeys.inChatSession,
+						ContextKeyExpr.or(
+							ChatContextKeys.chatModeName.isEqualTo('Plan'),
+							ChatContextKeys.chatModeName.isEqualTo('Planner'),
+							ChatContextKeys.chatModeName.isEqualTo('planner')
+						),
+						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
+						ChatContextKeys.inQuickChat.negate()
+					)
+				}
+			});
+		}
+
+		override async run(accessor: ServicesAccessor): Promise<void> {
+			const widgetService = accessor.get(IChatWidgetService);
+			const widget = widgetService.lastFocusedWidget;
+			if (!widget || !(await widget.advancePlanPhase())) {
+				alert(localize('chat.nextPlanningPhase.unavailable', "There is no later planning phase available."));
+			}
+		}
+	});
+
 	registerAction2(class FocusTipAction extends Action2 {
 		static readonly ID = 'workbench.action.chat.focusTip';
 

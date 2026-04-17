@@ -15,6 +15,7 @@ import { IContextKeyService } from '../../../../platform/contextkey/common/conte
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { PreferredGroup } from '../../../services/editor/common/editorService.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData } from '../common/participants/chatAgents.js';
+import { IChatRequestVariableEntry } from '../common/attachments/chatVariableEntries.js';
 import { IChatResponseModel, IChatModelInputState } from '../common/model/chatModel.js';
 import { IChatMode } from '../common/chatModes.js';
 import { IParsedChatRequest } from '../common/requestParser/chatParserTypes.js';
@@ -322,6 +323,7 @@ export interface IChatAcceptInputOptions {
 	noCommandDetection?: boolean;
 	isVoiceInput?: boolean;
 	enableImplicitContext?: boolean; // defaults to true
+	extraAttachedContext?: readonly IChatRequestVariableEntry[];
 	// Whether to store the input to history. This defaults to 'true' if the input
 	// box's current content is being accepted, or 'false' if a specific input
 	// is being submitted to the widget.
@@ -422,6 +424,16 @@ export interface IChatWidget {
 	 * @returns Whether the operation succeeded (i.e., a planning request was available and the carousel was shown or focused).
 	 */
 	refinePlan(): Promise<boolean>;
+	/**
+	 * Moves planning to the previous explicit phase and regenerates the planning questions.
+	 * @returns Whether the operation succeeded.
+	 */
+	retreatPlanPhase(): Promise<boolean>;
+	/**
+	 * Moves planning to the next explicit phase and regenerates the planning questions.
+	 * @returns Whether the operation succeeded.
+	 */
+	advancePlanPhase(): Promise<boolean>;
 	/**
 	 * Toggles focus between the tip widget and the chat input.
 	 * Returns false if no tip is visible.

@@ -5,6 +5,8 @@
 
 export namespace inputLatency {
 
+	const perf = globalThis.performance;
+
 	// Measurements are recorded as totals, the average is calculated when the final measurements
 	// are created.
 	interface ICumulativeMeasurement {
@@ -39,8 +41,8 @@ export namespace inputLatency {
 	export function onKeyDown() {
 		/** Direct Check C. See explanation in {@link recordIfFinished} */
 		recordIfFinished();
-		performance.mark('inputlatency/start');
-		performance.mark('keydown/start');
+		safeMark('inputlatency/start');
+		safeMark('keydown/start');
 		state.keydown = EventPhase.InProgress;
 		queueMicrotask(markKeyDownEnd);
 	}
@@ -50,7 +52,7 @@ export namespace inputLatency {
 	 */
 	function markKeyDownEnd() {
 		if (state.keydown === EventPhase.InProgress) {
-			performance.mark('keydown/end');
+			safeMark('keydown/end');
 			state.keydown = EventPhase.Finished;
 		}
 	}
@@ -59,7 +61,7 @@ export namespace inputLatency {
 	 * Record the start of the beforeinput event.
 	 */
 	export function onBeforeInput() {
-		performance.mark('input/start');
+		safeMark('input/start');
 		state.input = EventPhase.InProgress;
 		/** Schedule Task A. See explanation in {@link recordIfFinished} */
 		scheduleRecordIfFinishedTask();
@@ -78,7 +80,7 @@ export namespace inputLatency {
 
 	function markInputEnd() {
 		if (state.input === EventPhase.InProgress) {
-			performance.mark('input/end');
+			safeMark('input/end');
 			state.input = EventPhase.Finished;
 		}
 	}
@@ -106,7 +108,7 @@ export namespace inputLatency {
 		// Render may be triggered during input, but we only measure the following animation frame
 		if (state.keydown === EventPhase.Finished && state.input === EventPhase.Finished && state.render === EventPhase.Before) {
 			// Only measure the first render after keyboard input
-			performance.mark('render/start');
+			safeMark('render/start');
 			state.render = EventPhase.InProgress;
 			queueMicrotask(markRenderEnd);
 			/** Schedule Task B. See explanation in {@link recordIfFinished} */
@@ -119,7 +121,7 @@ export namespace inputLatency {
 	 */
 	function markRenderEnd() {
 		if (state.render === EventPhase.InProgress) {
-			performance.mark('render/end');
+			safeMark('render/end');
 			state.render = EventPhase.Finished;
 		}
 	}
@@ -157,17 +159,22 @@ export namespace inputLatency {
 	 */
 	function recordIfFinished() {
 		if (state.keydown === EventPhase.Finished && state.input === EventPhase.Finished && state.render === EventPhase.Finished) {
-			performance.mark('inputlatency/end');
+			if (!canMeasureInputLatency()) {
+				reset();
+				return;
+			}
 
-			performance.measure('keydown', 'keydown/start', 'keydown/end');
-			performance.measure('input', 'input/start', 'input/end');
-			performance.measure('render', 'render/start', 'render/end');
-			performance.measure('inputlatency', 'inputlatency/start', 'inputlatency/end');
+			safeMark('inputlatency/end');
+			safeMeasure('keydown', 'keydown/start', 'keydown/end');
+			safeMeasure('input', 'input/start', 'input/end');
+			safeMeasure('render', 'render/start', 'render/end');
+			safeMeasure('inputlatency', 'inputlatency/start', 'inputlatency/end');
 
-			addMeasure('keydown', totalKeydownTime);
-			addMeasure('input', totalInputTime);
-			addMeasure('render', totalRenderTime);
-			addMeasure('inputlatency', totalInputLatencyTime);
+			const hasValidMeasures =
+				addMeasure('keydown', totalKeydownTime) &&
+				addMeasure('input', totalInputTime) &&
+				addMeasure('render', totalRenderTime) &&
+				addMeasure('inputlatency', totalInputLatencyTime);
 
 			// console.info(
 			// 	`input latency=${performance.getEntriesByName('inputlatency')[0].duration.toFixed(1)} [` +
@@ -177,36 +184,43 @@ export namespace inputLatency {
 			// 	`]`
 			// );
 
-			measurementsCount++;
+			if (hasValidMeasures) {
+				measurementsCount++;
+			}
 
 			reset();
 		}
 	}
 
-	function addMeasure(entryName: string, cumulativeMeasurement: ICumulativeMeasurement): void {
-		const duration = performance.getEntriesByName(entryName)[0].duration;
+	function addMeasure(entryName: string, cumulativeMeasurement: ICumulativeMeasurement): boolean {
+		const duration = getMeasureDuration(entryName);
+		if (duration === undefined) {
+			return false;
+		}
+
 		cumulativeMeasurement.total += duration;
 		cumulativeMeasurement.min = Math.min(cumulativeMeasurement.min, duration);
 		cumulativeMeasurement.max = Math.max(cumulativeMeasurement.max, duration);
+		return true;
 	}
 
 	/**
 	 * Clear the current sample.
 	 */
 	function reset() {
-		performance.clearMarks('keydown/start');
-		performance.clearMarks('keydown/end');
-		performance.clearMarks('input/start');
-		performance.clearMarks('input/end');
-		performance.clearMarks('render/start');
-		performance.clearMarks('render/end');
-		performance.clearMarks('inputlatency/start');
-		performance.clearMarks('inputlatency/end');
+		safeClearMarks('keydown/start');
+		safeClearMarks('keydown/end');
+		safeClearMarks('input/start');
+		safeClearMarks('input/end');
+		safeClearMarks('render/start');
+		safeClearMarks('render/end');
+		safeClearMarks('inputlatency/start');
+		safeClearMarks('inputlatency/end');
 
-		performance.clearMeasures('keydown');
-		performance.clearMeasures('input');
-		performance.clearMeasures('render');
-		performance.clearMeasures('inputlatency');
+		safeClearMeasures('keydown');
+		safeClearMeasures('input');
+		safeClearMeasures('render');
+		safeClearMeasures('inputlatency');
 
 		state.keydown = EventPhase.Before;
 		state.input = EventPhase.Before;
@@ -267,6 +281,45 @@ export namespace inputLatency {
 		cumulative.total = 0;
 		cumulative.min = Number.MAX_VALUE;
 		cumulative.max = 0;
+	}
+
+	function canMeasureInputLatency(): boolean {
+		return typeof perf?.mark === 'function'
+			&& typeof perf?.measure === 'function'
+			&& typeof perf?.getEntriesByName === 'function';
+	}
+
+	function getMeasureDuration(entryName: string): number | undefined {
+		if (typeof perf?.getEntriesByName !== 'function') {
+			return undefined;
+		}
+
+		const duration = perf.getEntriesByName(entryName)[0]?.duration;
+		return typeof duration === 'number' ? duration : undefined;
+	}
+
+	function safeMark(name: string): void {
+		if (typeof perf?.mark === 'function') {
+			perf.mark(name);
+		}
+	}
+
+	function safeMeasure(name: string, startMark: string, endMark: string): void {
+		if (typeof perf?.measure === 'function') {
+			perf.measure(name, startMark, endMark);
+		}
+	}
+
+	function safeClearMarks(name: string): void {
+		if (typeof perf?.clearMarks === 'function') {
+			perf.clearMarks(name);
+		}
+	}
+
+	function safeClearMeasures(name: string): void {
+		if (typeof perf?.clearMeasures === 'function') {
+			perf.clearMeasures(name);
+		}
 	}
 
 }

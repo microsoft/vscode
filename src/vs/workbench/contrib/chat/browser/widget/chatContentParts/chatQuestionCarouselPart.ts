@@ -23,6 +23,7 @@ import { DomScrollableElement } from '../../../../../../base/browser/ui/scrollba
 import { Checkbox } from '../../../../../../base/browser/ui/toggle/toggle.js';
 import { IChatQuestion, IChatQuestionCarousel, IChatQuestionAnswerValue, IChatQuestionValidation, IChatSingleSelectAnswer, IChatMultiSelectAnswer } from '../../../common/chatService/chatService.js';
 import { ChatQuestionCarouselData } from '../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
+import { getPlanningMiddlewareQuestionStage, isPlanningMiddlewareQuestionCarousel } from '../../../common/planning/chatPlanningTransition.js';
 import { IChatContentPart, IChatContentPartRenderContext } from './chatContentParts.js';
 import { IChatRendererContent, isResponseVM } from '../../../common/model/chatViewModel.js';
 import { ChatTreeItem } from '../../chat.js';
@@ -97,6 +98,11 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		this.domNode = dom.$('.chat-question-carousel-container');
 		this.domNode.id = generateUuid();
+		const planningMiddlewareStage = getPlanningMiddlewareQuestionStage(carousel.resolveId);
+		if (planningMiddlewareStage) {
+			this.domNode.classList.add('chat-question-carousel-middleware', `chat-question-carousel-middleware-${planningMiddlewareStage}`);
+			this.domNode.dataset.planningMiddlewareStage = planningMiddlewareStage;
+		}
 		this._inChatQuestionCarouselContextKey = ChatContextKeys.inChatQuestionCarousel.bindTo(this._contextKeyService);
 		const focusTracker = this._register(dom.trackFocus(this.domNode));
 		this._register(focusTracker.onDidFocus(() => this._inChatQuestionCarouselContextKey.set(true)));
@@ -135,7 +141,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		// If carousel was already used OR the response is complete, show summary of answers
 		// When response is complete, the carousel can no longer be interacted with
-		const responseIsComplete = isResponseVM(context.element) && context.element.isComplete;
+		const responseIsComplete = isResponseVM(context.element) && context.element.isComplete && !isPlanningMiddlewareQuestionCarousel(carousel.resolveId);
 		if (carousel.isUsed || responseIsComplete) {
 			this._isSkipped = true;
 			this.domNode.classList.add('chat-question-carousel-used');

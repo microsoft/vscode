@@ -30,6 +30,7 @@ suite('ChatPlanningTransition', () => {
 
 		const context = buildPlanningTransitionContext(carousel);
 		assert.deepStrictEqual(context, {
+			phase: 'broad-scan',
 			answers: [
 				{ question: 'Goal', answer: 'Clarify the transition into implementation' },
 				{ question: 'Scope', answer: 'Narrow' },
@@ -40,6 +41,7 @@ suite('ChatPlanningTransition', () => {
 
 	test('augments the base handoff prompt with planning context', () => {
 		const prompt = augmentPromptWithPlanningContext('Implement the approved plan.', {
+			phase: 'focused-slice',
 			answers: [
 				{ question: 'Goal', answer: 'Improve goal clarity before coding' },
 				{ question: 'Constraints', answer: 'Keep changes localized to chat planning' }
@@ -55,12 +57,14 @@ suite('ChatPlanningTransition', () => {
 	test('merges planning contexts without duplicating the same question', () => {
 		const merged = mergePlanningTransitionContexts(
 			{
+				phase: 'broad-scan',
 				answers: [
 					{ question: 'Goal', answer: 'Clarify scope before editing files' },
 					{ question: 'Constraints', answer: 'Touch chat planning only' }
 				]
 			},
 			{
+				phase: 'detailed-inspection',
 				answers: [
 					{ question: 'Constraints', answer: 'This later duplicate should be ignored' },
 					{ question: 'Task Breakdown', answer: 'Audit existing flow, then wire the transition' }
@@ -69,6 +73,7 @@ suite('ChatPlanningTransition', () => {
 		);
 
 		assert.deepStrictEqual(merged, {
+			phase: 'detailed-inspection',
 			answers: [
 				{ question: 'Goal', answer: 'Clarify scope before editing files' },
 				{ question: 'Constraints', answer: 'Touch chat planning only' },

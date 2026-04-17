@@ -22,6 +22,7 @@ import { IProgressService, ProgressLocation } from '../../../../../platform/prog
 import { IQuickInputService } from '../../../../../platform/quickinput/common/quickInput.js';
 import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
+import { IExtensionGalleryService } from '../../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IActivityService, ProgressBadge } from '../../../../services/activity/common/activity.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { IExtensionsWorkbenchService } from '../../../extensions/common/extensions.js';
@@ -70,6 +71,7 @@ export class ChatSetupController extends Disposable {
 		@ILifecycleService private readonly lifecycleService: ILifecycleService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
 		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
+		@IExtensionGalleryService private readonly extensionGalleryService: IExtensionGalleryService,
 	) {
 		super();
 
@@ -235,6 +237,11 @@ export class ChatSetupController extends Disposable {
 	}
 
 	private async doInstallWithRetry(): Promise<void> {
+		if (!this.extensionGalleryService.isEnabled()) {
+			this.logService.warn('[chat setup] install skipped: no extension gallery service configured');
+			return;
+		}
+
 		let error: Error | undefined;
 		try {
 			await this.doInstall();

@@ -31,6 +31,19 @@
 	position: relative;
 }
 
+.interactive-session .chat-question-carousel-container.chat-question-carousel-middleware {
+	border-style: dashed;
+	border-color: var(--vscode-inputOption-activeBorder, var(--vscode-chat-requestBorder));
+	background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+	box-shadow: none;
+}
+
+.interactive-session .interactive-input-part > .chat-question-carousel-widget-container .chat-question-carousel-container.chat-question-carousel-middleware,
+.interactive-session .interactive-input-part .interactive-input-and-edit-session > .chat-question-carousel-widget-container .chat-question-carousel-container.chat-question-carousel-middleware {
+	border-color: var(--vscode-inputOption-activeBorder, var(--vscode-input-border, transparent));
+	background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
+}
+
 /* input part wrapper */
 .interactive-session .interactive-input-part > .chat-question-carousel-widget-container,
 .interactive-session .interactive-input-part .interactive-input-and-edit-session > .chat-question-carousel-widget-container {
@@ -140,6 +153,12 @@
 			background: var(--vscode-toolbar-hoverBackground) !important;
 		}
 	}
+}
+
+.interactive-session .chat-question-carousel-container.chat-question-carousel-middleware .chat-question-carousel-content .chat-question-header-row .chat-question-title-row {
+	border-bottom-style: dashed;
+	border-bottom-color: var(--vscode-inputOption-activeBorder, var(--vscode-chat-requestBorder));
+	background: var(--vscode-sideBar-background, transparent);
 }
 
 .interactive-session .chat-question-carousel-container.chat-question-carousel-collapsed {
@@ -455,6 +474,22 @@
 	.rendered-markdown p {
 		margin: 0;
 	}
+}
+
+.interactive-session .chat-question-carousel-container.chat-question-carousel-middleware .chat-question-carousel-message {
+	padding: 12px 16px;
+	margin: 0 0 4px;
+	background: var(--vscode-textBlockQuote-background, transparent);
+	border-bottom: 1px dashed var(--vscode-inputOption-activeBorder, var(--vscode-chat-requestBorder));
+	color: var(--vscode-descriptionForeground);
+}
+
+.interactive-session .chat-question-carousel-container.chat-question-carousel-middleware-goal-clarity .chat-question-carousel-message {
+	background: var(--vscode-editorInfo-background, var(--vscode-textBlockQuote-background, transparent));
+}
+
+.interactive-session .chat-question-carousel-container.chat-question-carousel-middleware-task-decomposition .chat-question-carousel-message {
+	background: var(--vscode-inputOption-hoverBackground, var(--vscode-textBlockQuote-background, transparent));
 }
 
 /* field description below question title */
