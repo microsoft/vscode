@@ -3367,6 +3367,31 @@ describe('XtabProvider integration', () => {
 				expect(msg).not.toBe('cursorLineDiverged');
 			});
 		});
+
+		it('does not cancel when user continues typing what the model predicted (class Poin → class Point vs class Point {)', async () => {
+			const provider = createProvider();
+
+			//  Request created with document: `class Poin`
+			//  User typed `t` after request → document becomes `class Point`
+			//  Model replies `class Point {`
+			//  → "t" starts "t {" → compatible, no cancel
+			const request = createDivergenceRequest(
+				['class Poin'],
+				{ insertionOffset: 9, insertedText: 'n' },
+			);
+			request.intermediateUserEdit = StringEdit.single(
+				new StringReplacement(OffsetRange.emptyAt(10), 't')
+			);
+
+			streamingFetcher.setStreamingLines(['class Point {']);
+
+			const gen = provider.provideNextEdit(request, createMockLogger(), createLogContext(), CancellationToken.None);
+			const { finalReason } = await collectEdits(gen);
+
+			if (finalReason.v instanceof NoNextEditReason.GotCancelled) {
+				expect(finalReason.v.message).not.toBe('cursorLineDiverged');
+			}
+		});
 	});
 });
 suite('filterOutEditsWithSubstrings', () => {

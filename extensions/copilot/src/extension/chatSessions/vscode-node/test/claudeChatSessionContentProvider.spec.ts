@@ -29,7 +29,7 @@ import { IClaudeSessionStateService } from '../../claude/common/claudeSessionSta
 import { IClaudeCodeSessionService } from '../../claude/node/sessionParser/claudeCodeSessionService';
 import { IClaudeCodeSessionInfo } from '../../claude/node/sessionParser/claudeSessionSchema';
 import { IClaudeSlashCommandService } from '../../claude/vscode-node/claudeSlashCommandService';
-import { FolderRepositoryMRUEntry, IFolderRepositoryManager } from '../../common/folderRepositoryManager';
+import { FolderRepositoryMRUEntry, IChatFolderMruService } from '../../common/folderRepositoryManager';
 import { ClaudeChatSessionContentProvider, ClaudeChatSessionItemController } from '../claudeChatSessionContentProvider';
 
 // Expose the most recently created items map so tests can inspect controller items.
@@ -86,46 +86,20 @@ interface MockClaudeSession {
 	subagents: Array<unknown>;
 }
 
-class MockFolderRepositoryManager implements IFolderRepositoryManager {
+class MockChatFolderMruService implements IChatFolderMruService {
 	declare _serviceBrand: undefined;
 
-	private readonly _untitledFolders = new Map<string, vscode.Uri>();
 	private _mruEntries: FolderRepositoryMRUEntry[] = [];
 
 	setMRUEntries(entries: FolderRepositoryMRUEntry[]): void {
 		this._mruEntries = entries;
 	}
 
-	setLastUsedFolderIdInUntitledWorkspace(id: string | undefined): void {
-	}
-
-	setNewSessionFolder(sessionId: string, folderUri: vscode.Uri): void {
-		this._untitledFolders.set(sessionId, folderUri);
-	}
-
-	deleteNewSessionFolder(sessionId: string): void {
-		this._untitledFolders.delete(sessionId);
-	}
-
-	async getFolderRepository(): Promise<{ folder: undefined; repository: undefined; worktree: undefined; worktreeProperties: undefined; trusted: undefined }> {
-		return { folder: undefined, repository: undefined, worktree: undefined, worktreeProperties: undefined, trusted: undefined };
-	}
-
-	async initializeFolderRepository(): Promise<{ folder: undefined; repository: undefined; worktree: undefined; worktreeProperties: undefined; trusted: undefined }> {
-		return { folder: undefined, repository: undefined, worktree: undefined, worktreeProperties: undefined, trusted: undefined };
-	}
-
-	async initializeMultiRootFolderRepositories(): Promise<{ primary: { folder: undefined; repository: undefined; worktree: undefined; worktreeProperties: undefined; trusted: undefined }; additional: never[] }> {
-		return { primary: { folder: undefined, repository: undefined, worktree: undefined, worktreeProperties: undefined, trusted: undefined }, additional: [] };
-	}
-
-	async getRepositoryInfo(): Promise<{ repository: undefined; headBranchName: undefined }> {
-		return { repository: undefined, headBranchName: undefined };
-	}
-
-	async getFolderMRU(): Promise<FolderRepositoryMRUEntry[]> {
+	async getRecentlyUsedFolders(): Promise<FolderRepositoryMRUEntry[]> {
 		return this._mruEntries;
 	}
+
+	async deleteRecentlyUsedFolder(): Promise<void> { }
 }
 
 function createDefaultMocks() {
@@ -133,9 +107,9 @@ function createDefaultMocks() {
 		getSession: vi.fn()
 	} as any;
 
-	const mockFolderRepositoryManager = new MockFolderRepositoryManager();
+	const mockFolderMruService = new MockChatFolderMruService();
 
-	return { mockSessionService, mockFolderRepositoryManager };
+	return { mockSessionService, mockFolderMruService };
 }
 
 function createMockAgentManager(): ClaudeAgentManager {
@@ -178,7 +152,7 @@ function createProviderWithServices(
 	serviceCollection.set(IGitService, new MockGitService());
 
 	serviceCollection.define(IClaudeCodeSessionService, mocks.mockSessionService);
-	serviceCollection.define(IFolderRepositoryManager, mocks.mockFolderRepositoryManager);
+	serviceCollection.define(IChatFolderMruService, mocks.mockFolderMruService);
 	serviceCollection.define(IClaudeSlashCommandService, {
 		_serviceBrand: undefined,
 		tryHandleCommand: vi.fn().mockResolvedValue({ handled: false }),
@@ -204,7 +178,7 @@ function createProviderWithServices(
 
 describe('ChatSessionContentProvider', () => {
 	let mockSessionService: IClaudeCodeSessionService;
-	let mockFolderRepositoryManager: MockFolderRepositoryManager;
+	let mockFolderMruService: MockChatFolderMruService;
 	let provider: ClaudeChatSessionContentProvider;
 	const store = new DisposableStore();
 	let accessor: ITestingServicesAccessor;
@@ -213,7 +187,7 @@ describe('ChatSessionContentProvider', () => {
 	beforeEach(() => {
 		const mocks = createDefaultMocks();
 		mockSessionService = mocks.mockSessionService;
-		mockFolderRepositoryManager = mocks.mockFolderRepositoryManager;
+		mockFolderMruService = mocks.mockFolderMruService;
 
 		const result = createProviderWithServices(store, [workspaceFolderUri], mocks);
 		provider = result.provider;
@@ -323,7 +297,7 @@ describe('ChatSessionContentProvider', () => {
 			const mocks = createDefaultMocks();
 			mockSessionService = mocks.mockSessionService;
 
-			mockFolderRepositoryManager = mocks.mockFolderRepositoryManager;
+			mockFolderMruService = mocks.mockFolderMruService;
 
 			const result = createProviderWithServices(store, [folderA, folderB, folderC], mocks);
 			multiRootProvider = result.provider;
@@ -433,7 +407,7 @@ describe('ChatSessionContentProvider', () => {
 		beforeEach(() => {
 			emptyMocks = createDefaultMocks();
 			mockSessionService = emptyMocks.mockSessionService;
-			mockFolderRepositoryManager = emptyMocks.mockFolderRepositoryManager;
+			mockFolderMruService = emptyMocks.mockFolderMruService;
 
 			const result = createProviderWithServices(store, [], emptyMocks);
 			emptyWorkspaceProvider = result.provider;
@@ -442,7 +416,7 @@ describe('ChatSessionContentProvider', () => {
 		it('includes folder option group with MRU entries', async () => {
 			const mruFolder = URI.file('/recent/project');
 			const mruRepo = URI.file('/recent/repo');
-			mockFolderRepositoryManager.setMRUEntries([
+			mockFolderMruService.setMRUEntries([
 				{ folder: mruFolder, repository: undefined, lastAccessed: Date.now() },
 				{ folder: mruRepo, repository: mruRepo, lastAccessed: Date.now() - 1000 },
 			]);
@@ -466,7 +440,7 @@ describe('ChatSessionContentProvider', () => {
 
 		it('getFolderInfoForSession uses MRU fallback when no selection', async () => {
 			const mruFolder = URI.file('/recent/project');
-			mockFolderRepositoryManager.setMRUEntries([
+			mockFolderMruService.setMRUEntries([
 				{ folder: mruFolder, repository: undefined, lastAccessed: Date.now() },
 			]);
 
@@ -484,7 +458,7 @@ describe('ChatSessionContentProvider', () => {
 		it('getFolderInfoForSession uses selected folder over MRU', async () => {
 			const mruFolder = URI.file('/recent/project');
 			const selectedFolder = URI.file('/selected/project');
-			mockFolderRepositoryManager.setMRUEntries([
+			mockFolderMruService.setMRUEntries([
 				{ folder: mruFolder, repository: undefined, lastAccessed: Date.now() },
 			]);
 
@@ -663,7 +637,7 @@ describe('ChatSessionContentProvider', () => {
 			const mocks = createDefaultMocks();
 			mockSessionService = mocks.mockSessionService;
 
-			mockFolderRepositoryManager = mocks.mockFolderRepositoryManager;
+			mockFolderMruService = mocks.mockFolderMruService;
 			mockAgentManager = createMockAgentManager();
 
 			const result = createProviderWithServices(store, [workspaceFolderUri], mocks, mockAgentManager);
@@ -844,7 +818,7 @@ describe('ChatSessionContentProvider', () => {
 			const mocks = createDefaultMocks();
 			mockSessionService = mocks.mockSessionService;
 
-			mockFolderRepositoryManager = mocks.mockFolderRepositoryManager;
+			mockFolderMruService = mocks.mockFolderMruService;
 			mockAgentManager = createMockAgentManager();
 
 			const result = createProviderWithServices(store, [workspaceFolderUri], mocks, mockAgentManager);
@@ -944,7 +918,7 @@ describe('ChatSessionContentProvider', () => {
 			const mocks = createDefaultMocks();
 			mockSessionService = mocks.mockSessionService;
 
-			mockFolderRepositoryManager = mocks.mockFolderRepositoryManager;
+			mockFolderMruService = mocks.mockFolderMruService;
 			mockAgentManager = createMockAgentManager();
 
 			const result = createProviderWithServices(store, [workspaceFolderUri], mocks, mockAgentManager);

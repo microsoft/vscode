@@ -39,7 +39,7 @@ class MockAgentConnection implements IAgentConnection {
 
 	private _terminalState: ITerminalState = {
 		title: 'Test Terminal',
-		content: '',
+		content: [],
 		claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
 	};
 
@@ -169,7 +169,7 @@ suite('AgentHostPty', () => {
 	});
 
 	test('replays existing content from snapshot', async () => {
-		const conn = new MockAgentConnection({ content: 'existing output\n' });
+		const conn = new MockAgentConnection({ content: [{ type: 'unclassified', value: 'existing output\n' }] });
 		disposables.add(conn);
 		const pty = disposables.add(new AgentHostPty(1, conn, terminalUri));
 

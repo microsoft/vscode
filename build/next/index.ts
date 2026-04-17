@@ -119,6 +119,11 @@ const webEntryPoints = [
 	'vs/code/browser/workbench/workbench',
 ];
 
+// Additional web-only entry points (CDN build only, not in server-web)
+const webOnlyEntryPoints = [
+	'vs/sessions/sessions.web.main.internal',
+];
+
 const keyboardMapEntryPoints = [
 	'vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.linux',
 	'vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.darwin',
@@ -173,6 +178,7 @@ function getEntryPointsForTarget(target: BuildTarget): string[] {
 		case 'web':
 			return [
 				...workerEntryPoints,
+				...webOnlyEntryPoints,
 				'vs/workbench/workbench.web.main.internal', // web workbench only (no browser shell)
 				...keyboardMapEntryPoints,
 			];
@@ -220,6 +226,7 @@ function getCssBundleEntryPointsForTarget(target: BuildTarget): Set<string> {
 		case 'web':
 			return new Set([
 				'vs/workbench/workbench.web.main.internal',
+				'vs/sessions/sessions.web.main.internal',
 			]);
 		default:
 			throw new Error(`Unknown target: ${target}`);

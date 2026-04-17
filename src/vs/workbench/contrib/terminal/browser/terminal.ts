@@ -103,6 +103,19 @@ export interface ITerminalInstanceService {
 }
 
 /**
+ * A lightweight command detection source for terminals connected via the Agent Host Protocol.
+ * Provides a subset of {@link ICommandDetectionCapability} driven by AHP protocol actions
+ * (`terminal/commandExecuted`, `terminal/commandFinished`) rather than local shell integration.
+ */
+export interface IAhpTerminalCommandSource extends IDisposable {
+	readonly commands: readonly ITerminalCommand[];
+	readonly executingCommandObject: ITerminalCommand | undefined;
+	readonly onCommandExecuted: Event<ITerminalCommand>;
+	readonly onCommandFinished: Event<ITerminalCommand>;
+	getCommandById(id: string): ITerminalCommand | undefined;
+}
+
+/**
  * Service enabling communication between the chat tool implementation in terminal contrib and workbench contribs.
  * Acts as a communication mechanism for chat-related terminal features.
  */
@@ -246,6 +259,22 @@ export interface ITerminalChatService {
 	 * Event fired when a terminal tool invocation should continue in the background.
 	 */
 	readonly onDidContinueInBackground: Event<string>;
+
+	/**
+	 * Register an AHP command source for a tool session. The source provides command detection
+	 * events for terminals connected via the Agent Host Protocol.
+	 * @param terminalToolSessionId The tool session ID to associate with the source
+	 * @param source The AHP command source
+	 * @returns A disposable that unregisters the source when disposed
+	 */
+	registerAhpCommandSource(terminalToolSessionId: string, source: IAhpTerminalCommandSource): IDisposable;
+
+	/**
+	 * Retrieve the AHP command source for a given tool session.
+	 * @param terminalToolSessionId The tool session ID to look up
+	 * @returns The AHP command source if registered, undefined otherwise
+	 */
+	getAhpCommandSource(terminalToolSessionId: string): IAhpTerminalCommandSource | undefined;
 }
 
 /**

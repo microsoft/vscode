@@ -102,9 +102,6 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 			if (provider.onDidReplaceSession) {
 				disposables.add(provider.onDidReplaceSession(e => this.onDidReplaceSession(e.from, e.to)));
 			}
-			if (provider.onDidReplaceChat) {
-				disposables.add(provider.onDidReplaceChat(e => this._onDidReplaceChat(e.from, e.to)));
-			}
 			if (provider.onDidChangeSessionTypes) {
 				disposables.add(provider.onDidChangeSessionTypes(() => this._updateSessionTypes()));
 			}
@@ -148,12 +145,6 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 				removed: [from],
 				changed: [to],
 			});
-		}
-	}
-
-	private _onDidReplaceChat(from: IChat, to: IChat): void {
-		if (this._activeChatObservable && this.uriIdentityService.extUri.isEqual(this._activeChatObservable.get()?.resource, from.resource)) {
-			this._activeChatObservable.set(to, undefined);
 		}
 	}
 
@@ -383,8 +374,7 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		this._activeSessionType.set(session?.sessionType ?? '');
 		this._isBackgroundProvider.set(session?.sessionType === COPILOT_CLI_SESSION_TYPE);
 		this._isActiveSessionArchived.set(session?.isArchived.get() ?? false);
-		const provider = session ? this.sessionsProvidersService.getProviders().find(p => p.id === session.providerId) : undefined;
-		this._supportsMultiChat.set(provider?.capabilities.multipleChatsPerSession ?? false);
+		this._supportsMultiChat.set(session?.capabilities.supportsMultipleChats ?? false);
 
 		if (session && session.status.get() !== SessionStatus.Untitled) {
 			this.lastSelectedSession = session.resource;
@@ -427,7 +417,7 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 				if (activeChat && !chats.some(c => this.uriIdentityService.extUri.isEqual(c.resource, activeChat.resource))) {
 					const fallback = chats[chats.length - 1] ?? session.mainChat;
 					if (fallback) {
-						activeChatObs.set(fallback, undefined);
+						this.openChat(session, fallback.resource);
 					}
 				}
 			}));

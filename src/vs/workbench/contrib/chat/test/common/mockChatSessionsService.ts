@@ -169,7 +169,7 @@ export class MockChatSessionsService implements IChatSessionsService {
 		}
 	}
 
-	async getNewChatSessionInputState(_chatSessionType: string): Promise<readonly IChatSessionProviderOptionGroup[] | undefined> {
+	async getNewChatSessionInputState(_chatSessionType: string, _sessionResource: URI): Promise<readonly IChatSessionProviderOptionGroup[] | undefined> {
 		return undefined;
 	}
 

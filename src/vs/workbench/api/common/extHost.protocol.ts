@@ -1692,6 +1692,7 @@ export interface IChatResourceDto {
 	readonly source: IChatResourceSourceDto;
 	readonly extensionId?: string;
 	readonly pluginUri?: UriComponents;
+	readonly sessionTypes?: readonly string[];
 }
 
 export interface ICustomAgentDto extends IChatResourceDto {
@@ -1716,11 +1717,12 @@ export interface ISlashCommandDto extends IChatResourceDto {
 }
 
 export interface IHookDto {
-	uri: UriComponents;
+	readonly uri: UriComponents;
+	readonly sessionTypes?: readonly string[];
 }
 
 export interface IPluginDto {
-	uri: UriComponents;
+	readonly uri: UriComponents;
 }
 
 export interface IChatSessionCustomizationProviderMetadataDto {
@@ -3706,7 +3708,7 @@ export interface MainThreadChatSessionsShape extends IDisposable {
 	$onDidChangeChatSessionOptions(handle: number, sessionResource: UriComponents, updates: Record<string, string | IChatSessionProviderOptionItem>): void;
 	$onDidChangeChatSessionProviderOptions(handle: number): void;
 
-	$updateChatSessionInputState(controllerHandle: number, optionGroups: readonly IChatSessionProviderOptionGroup[]): void;
+	$updateChatSessionInputState(controllerHandle: number, sessionResource: UriComponents, optionGroups: readonly IChatSessionProviderOptionGroup[]): void;
 
 	$handleProgressChunk(handle: number, sessionResource: UriComponents, requestId: string, chunks: (IChatProgressDto | [IChatProgressDto, number])[]): Promise<void>;
 	$handleAnchorResolve(handle: number, sessionResource: UriComponents, requestId: string, requestHandle: string, anchor: Dto<IChatContentInlineReference>): void;

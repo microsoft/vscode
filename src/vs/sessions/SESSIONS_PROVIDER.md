@@ -124,7 +124,6 @@ A sessions provider encapsulates a compute environment. It owns workspace discov
 | `icon` | `ThemeIcon` | Provider icon |
 | `sessionTypes` | `readonly ISessionType[]` | Session types this provider supports |
 | `onDidChangeSessionTypes?` | `Event<void>` | Optional; fires when session types change dynamically (e.g., a remote host advertises a new agent) |
-| `capabilities` | `ISessionsProviderCapabilities` | Provider capabilities (e.g., `multipleChatsPerSession`) |
 
 #### Workspace Discovery
 
@@ -181,9 +180,6 @@ A sessions provider encapsulates a compute environment. It owns workspace discov
 **`ISendRequestOptions`** — Send request options:
 - `query: string` — Query text
 - `attachedContext?: IChatRequestVariableEntry[]` — Optional attached context entries
-
-**`ISessionsProviderCapabilities`** — Provider capabilities:
-- `multipleChatsPerSession: boolean` — Whether the provider supports multiple chats within a single session
 
 ---
 
@@ -258,13 +254,13 @@ The management service binds and updates these context keys:
 | `activeSessionType` | `string` | Session type of the active session |
 | `isActiveSessionBackgroundProvider` | `boolean` | Whether the active session uses the background agent provider |
 | `isActiveSessionArchived` | `boolean` | Whether the active session is archived |
-| `activeSessionSupportsMultiChat` | `boolean` | Whether the active session's provider supports multiple chats |
+| `activeSessionSupportsMultiChat` | `boolean` | Whether the active session supports multiple chats |
 
 ---
 
 ## Multi-Chat Sessions
 
-A session can contain **multiple chats** (conversations), controlled by the provider's `capabilities.multipleChatsPerSession` flag. When enabled, users can start additional conversations within the same session, sharing its workspace context.
+A session can contain **multiple chats** (conversations), controlled by the session's `capabilities.supportsMultipleChats` property. When enabled, users can start additional conversations within the same session, sharing its workspace context.
 
 ### Session–Chat Relationship
 
@@ -274,6 +270,8 @@ A session can contain **multiple chats** (conversations), controlled by the prov
 ISession
 ├── mainChat: IChat              ← primary (first) chat
 ├── chats: IObservable<IChat[]>  ← all chats in creation order
+├── capabilities                 ← session capabilities
+│   └── supportsMultipleChats    ← whether this session supports multi-chat
 └── session-level properties     ← derived from chats
 ```
 
@@ -284,17 +282,9 @@ ISession
 - `isRead` — `true` only when **all** chats are read
 - `lastTurnEnd` — latest `lastTurnEnd` across all chats
 
-### Capabilities & Context Keys
+### Context Keys
 
-Providers declare multi-chat support via `ISessionsProviderCapabilities`:
-
-```typescript
-interface ISessionsProviderCapabilities {
-    readonly multipleChatsPerSession: boolean;
-}
-```
-
-When the active session's provider supports multi-chat, the context key `activeSessionSupportsMultiChat` is set to `true`, enabling multi-chat UI elements (e.g., "New Chat" button).
+When the active session supports multi-chat (`capabilities.supportsMultipleChats` is `true`), the context key `activeSessionSupportsMultiChat` is set to `true`, enabling multi-chat UI elements (e.g., "New Chat" button).
 
 ### Active Chat Tracking
 

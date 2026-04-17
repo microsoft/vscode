@@ -11,7 +11,6 @@ import { CopilotToken } from '../../../platform/authentication/common/copilotTok
 import { IBlockedExtensionService } from '../../../platform/chat/common/blockedExtensionService';
 import { ChatFetchResponseType, ChatLocation, getErrorDetailsFromChatFetchError } from '../../../platform/chat/common/commonTypes';
 import { getTextPart } from '../../../platform/chat/common/globalStringUtils';
-import { IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { EmbeddingType, getWellKnownEmbeddingTypeInfo, IEmbeddingsComputer } from '../../../platform/embeddings/common/embeddingsComputer';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
 import { CustomDataPartMimeTypes } from '../../../platform/endpoint/common/endpointTypes';
@@ -23,7 +22,6 @@ import { IEnvService, isScenarioAutomation } from '../../../platform/env/common/
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { IOctoKitService } from '../../../platform/github/common/githubService';
 import { ILogService } from '../../../platform/log/common/logService';
-import { isAnthropicToolSearchEnabled } from '../../../platform/networking/common/anthropic';
 import { FinishedCallback, OpenAiFunctionTool, OptionalChatRequestParams } from '../../../platform/networking/common/fetch';
 import { IChatEndpoint, IEndpoint } from '../../../platform/networking/common/networking';
 import { IOTelService, type OTelModelOptions } from '../../../platform/otel/common/otelService';
@@ -495,7 +493,6 @@ export class CopilotLanguageModelWrapper extends Disposable {
 		@ILogService private readonly _logService: ILogService,
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
 		@IEnvService private readonly _envService: IEnvService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IOTelService private readonly _otelService: IOTelService,
 		@IOctoKitService private readonly _octoKitService: IOctoKitService,
 	) {
@@ -561,7 +558,7 @@ export class CopilotLanguageModelWrapper extends Disposable {
 			throw new Error('Message exceeds token limit.');
 		}
 
-		if (_options.tools && _options.tools.length > 128 && !isAnthropicToolSearchEnabled(_endpoint, this._configurationService)) {
+		if (_options.tools && _options.tools.length > 128 && !_endpoint.supportsToolSearch) {
 			throw new Error('Cannot have more than 128 tools per request.');
 		}
 

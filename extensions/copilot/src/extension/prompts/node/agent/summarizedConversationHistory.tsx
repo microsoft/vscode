@@ -405,8 +405,8 @@ export interface SummarizedAgentHistoryProps extends BasePromptElementProps, Age
 	readonly maxSummaryTokens?: number;
 	/** Optional custom instructions to include in the summarization prompt */
 	readonly summarizationInstructions?: string;
-	/** Whether this summarization was triggered as a background or foreground operation. Defaults to 'foreground'. */
-	readonly summarizationSource?: 'background' | 'foreground';
+	/** Skip Full mode and go straight to Simple mode for foreground budget-exceeded recovery. */
+	readonly forceSimpleSummary?: boolean;
 }
 
 /**
@@ -604,6 +604,10 @@ class ConversationHistorySummarizer {
 
 	private async getSummaryWithFallback(propsInfo: ISummarizedConversationHistoryInfo): Promise<SummarizationResult> {
 		const forceMode = this.configurationService.getConfig<string | undefined>(ConfigKey.Advanced.AgentHistorySummarizationMode);
+		if (this.props.forceSimpleSummary && forceMode !== SummaryMode.Full) {
+			// Foreground budget-exceeded recovery — go straight to Simple.
+			return await this.getSummary(SummaryMode.Simple, propsInfo);
+		}
 		if (forceMode === SummaryMode.Simple) {
 			return await this.getSummary(SummaryMode.Simple, propsInfo);
 		} else {
@@ -874,8 +878,7 @@ class ConversationHistorySummarizer {
 				"duration": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The duration of the summarization attempt in ms." },
 				"promptTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of prompt tokens, server side counted", "isMeasurement": true },
 				"promptCacheTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of prompt tokens hitting cache as reported by server", "isMeasurement": true },
-				"responseTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of generated tokens", "isMeasurement": true },
-				"source": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the summarization was triggered as a background or foreground operation." }
+				"responseTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of generated tokens", "isMeasurement": true }
 			}
 		*/
 		this.telemetryService.sendMSFTTelemetryEvent('summarizedConversationHistory', {
@@ -889,7 +892,6 @@ class ConversationHistorySummarizer {
 			conversationId,
 			mode,
 			summarizationMode: mode, // Try to unstick GDPR
-			source: this.props.summarizationSource ?? 'foreground',
 		}, {
 			numRounds,
 			numRoundsSinceLastSummarization,

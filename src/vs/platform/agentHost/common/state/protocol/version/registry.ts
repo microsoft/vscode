@@ -70,6 +70,9 @@ export const ACTION_INTRODUCED_IN: { readonly [K in IStateAction['type']]: numbe
 	[ActionType.TerminalCwdChanged]: 1,
 	[ActionType.TerminalExited]: 1,
 	[ActionType.TerminalCleared]: 1,
+	[ActionType.TerminalCommandDetectionAvailable]: 1,
+	[ActionType.TerminalCommandExecuted]: 1,
+	[ActionType.TerminalCommandFinished]: 1,
 };
 
 /**

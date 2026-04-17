@@ -190,6 +190,17 @@ export interface ISession {
 	readonly chats: IObservable<readonly IChat[]>;
 	/** The main (first) chat of this session. */
 	readonly mainChat: IChat;
+	/** Capabilities of this session. */
+	readonly capabilities: ISessionCapabilities;
+}
+
+/**
+ * Capabilities declared per session.
+ * Consumers check these before surfacing session-specific features in the UI.
+ */
+export interface ISessionCapabilities {
+	/** Whether this session supports multiple chats. */
+	readonly supportsMultipleChats: boolean;
 }
 
 export interface ISessionWorkspaceBrowseAction {

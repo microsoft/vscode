@@ -20,6 +20,7 @@ import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataS
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, IActionEnvelope } from '../../common/state/sessionActions.js';
 import { ResponsePartKind, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type IMarkdownResponsePart, type IToolCallCompletedState, type IToolCallResponsePart } from '../../common/state/sessionState.js';
+import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
 import { MockAgent } from './mockAgent.js';
 import { mapSessionEvents, type ISessionEvent } from '../../node/copilot/mapSessionEvents.js';
@@ -71,7 +72,7 @@ suite('AgentService (node dispatcher)', () => {
 		await fileService.createFolder(URI.from({ scheme: Schemas.inMemory, path: '/testDir' }));
 		await fileService.writeFile(URI.from({ scheme: Schemas.inMemory, path: '/testDir/file.txt' }), VSBuffer.fromString('hello'));
 
-		service = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService));
+		service = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService));
 		copilotAgent = new MockAgent('copilot');
 		disposables.add(toDisposable(() => copilotAgent.dispose()));
 	});
@@ -202,7 +203,7 @@ suite('AgentService (node dispatcher)', () => {
 			// Manually add the session to the mock
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
 
-			const svc = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService));
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService));
 			svc.registerProvider(agent);
 
 			const sessions = await svc.listSessions();
@@ -219,6 +220,23 @@ suite('AgentService (node dispatcher)', () => {
 			const sessions = await service.listSessions();
 			assert.strictEqual(sessions.length, 1);
 			assert.strictEqual(sessions[0].summary, 'Auto-generated Title');
+		});
+
+		test('listSessions overlays live state manager title over SDK title', async () => {
+			service.registerProvider(copilotAgent);
+
+			const session = await service.createSession({ provider: 'copilot' });
+
+			// Simulate immediate title change via state manager
+			service.stateManager.dispatchServerAction({
+				type: ActionType.SessionTitleChanged,
+				session: session.toString(),
+				title: 'User first message',
+			});
+
+			const sessions = await service.listSessions();
+			assert.strictEqual(sessions.length, 1);
+			assert.strictEqual(sessions[0].summary, 'User first message');
 		});
 
 		test('createSession stores live session config', async () => {
@@ -482,6 +500,56 @@ suite('AgentService (node dispatcher)', () => {
 				() => service.resourceList(URI.from({ scheme: Schemas.inMemory, path: '/testDir/file.txt' })),
 				/Not a directory/,
 			);
+		});
+	});
+
+	// ---- worktree working directory -------------------------------------
+
+	suite('worktree working directory', () => {
+
+		test('createSession uses agent-resolved working directory in state', async () => {
+			// Simulate an agent that resolves a worktree path different from the input
+			const worktreeDir = URI.file('/source/repo.worktrees/agents-xyz');
+			copilotAgent.resolvedWorkingDirectory = worktreeDir;
+			service.registerProvider(copilotAgent);
+
+			const sourceDir = URI.file('/source/repo');
+			const session = await service.createSession({ provider: 'copilot', workingDirectory: sourceDir });
+
+			// The state manager should have the worktree path, not the source path
+			const state = service.stateManager.getSessionState(session.toString());
+			assert.strictEqual(state?.summary.workingDirectory, worktreeDir.toString());
+		});
+
+		test('createSession falls back to config working directory when agent does not resolve', async () => {
+			// Agent does not override the working directory (e.g. folder isolation)
+			copilotAgent.resolvedWorkingDirectory = undefined;
+			service.registerProvider(copilotAgent);
+
+			const sourceDir = URI.file('/source/repo');
+			const session = await service.createSession({ provider: 'copilot', workingDirectory: sourceDir });
+
+			const state = service.stateManager.getSessionState(session.toString());
+			assert.strictEqual(state?.summary.workingDirectory, sourceDir.toString());
+		});
+
+		test('restoreSession uses agent working directory in state', async () => {
+			// Agent returns the worktree path through listSessions
+			const worktreeDir = URI.file('/source/repo.worktrees/agents-xyz');
+			copilotAgent.sessionMetadataOverrides = { workingDirectory: worktreeDir };
+			service.registerProvider(copilotAgent);
+
+			const session = await service.createSession({ provider: 'copilot' });
+
+			// Delete from state to simulate a server restart
+			service.stateManager.deleteSession(session.toString());
+			assert.strictEqual(service.stateManager.getSessionState(session.toString()), undefined);
+
+			// Restore the session (simulates a client subscribing after restart)
+			await service.restoreSession(session);
+
+			const state = service.stateManager.getSessionState(session.toString());
+			assert.strictEqual(state?.summary.workingDirectory, worktreeDir.toString());
 		});
 	});
 });

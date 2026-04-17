@@ -707,6 +707,10 @@
 		{
 			"name": "vs/sessions/contrib/chatDebug",
 			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/tunnelHost",
+			"project": "vscode-sessions"
 		}
 	]
 }

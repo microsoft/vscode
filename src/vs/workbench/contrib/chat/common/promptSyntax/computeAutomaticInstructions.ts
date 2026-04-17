@@ -457,7 +457,6 @@ export class ComputeAutomaticInstructions {
 		if (runSubagentTool) {
 			const generalPurposeAgentEnabled = !!this._configurationService.getValue<boolean>(ChatConfiguration.GeneralPurposeAgentEnabled);
 
-			const customAgentsEnabled = !!this._configurationService.getValue(ChatConfiguration.SubagentToolCustomAgents);
 			const canUseAgent = (() => {
 				if (!this._enabledSubagents || this._enabledSubagents.includes('*')) {
 					return (agent: ICustomAgent) => agent.visibility.agentInvocable && (!agent.when || this._contextKeyService.contextMatchesRules(agent.when));
@@ -466,7 +465,7 @@ export class ComputeAutomaticInstructions {
 					return (agent: ICustomAgent) => subagents.includes(agent.name) && (!agent.when || this._contextKeyService.contextMatchesRules(agent.when));
 				}
 			})();
-			const agents = customAgentsEnabled ? await this._promptsService.getCustomAgents(token) : [];
+			const agents = await this._promptsService.getCustomAgents(token);
 
 			if (generalPurposeAgentEnabled || agents.length > 0) {
 				entries.push('<agents>');

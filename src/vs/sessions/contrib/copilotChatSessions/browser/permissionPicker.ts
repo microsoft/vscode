@@ -67,7 +67,10 @@ export class PermissionPicker extends Disposable {
 			if (!session) {
 				return;
 			}
-			this.sessionsProvidersService.getProvider<CopilotChatSessionsProvider>(session.providerId)?.getSession(session.sessionId)?.setPermissionLevel(level);
+			const provider = this.sessionsProvidersService.getProvider(session.providerId);
+			if (provider instanceof CopilotChatSessionsProvider) {
+				provider.getSession(session.sessionId)?.setPermissionLevel(level);
+			}
 		}));
 	}
 
@@ -193,7 +196,6 @@ export class PermissionPicker extends Disposable {
 			undefined,
 			[],
 			{
-				getAriaLabel: (item) => item.label ?? '',
 				getWidgetAriaLabel: () => localize('permissionPicker.ariaLabel', "Permission Picker"),
 			},
 			listOptions,
@@ -287,6 +289,8 @@ export class PermissionPicker extends Disposable {
 		const labelSpan = dom.append(trigger, dom.$('span.sessions-chat-dropdown-label'));
 		labelSpan.textContent = label;
 		dom.append(trigger, renderIcon(Codicon.chevronDown));
+
+		trigger.ariaLabel = localize('permissionPicker.triggerAriaLabel', "Pick Permission Level, {0}", label);
 
 		trigger.classList.toggle('warning', this._currentLevel === ChatPermissionLevel.Autopilot);
 		trigger.classList.toggle('info', this._currentLevel === ChatPermissionLevel.AutoApprove);

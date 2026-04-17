@@ -9,7 +9,7 @@ import { IEditorGroupsService } from '../../../workbench/services/editor/common/
 import { MainEditorPart } from './editorPart.js';
 
 export class EditorParts extends EditorPartsBase {
-	override createMainEditorPart(): MainEditorPart {
+	protected override createMainEditorPart(): MainEditorPart {
 		return this.instantiationService.createInstance(MainEditorPart, this);
 	}
 }
