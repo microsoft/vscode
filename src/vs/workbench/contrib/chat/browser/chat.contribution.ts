@@ -368,7 +368,7 @@ configurationRegistry.registerConfiguration({
 				nls.localize('chat.experimental.smoothStreaming.animationStyle.reveal', "Content reveals top-to-bottom with a soft gradient edge."),
 			],
 			description: nls.localize('chat.experimental.smoothStreaming.animationStyle', "Controls the animation style for smooth streaming."),
-			default: 'none',
+			default: 'fade',
 			tags: ['experimental'],
 		},
 		[ChatConfiguration.SmoothStreamingBuffering]: {

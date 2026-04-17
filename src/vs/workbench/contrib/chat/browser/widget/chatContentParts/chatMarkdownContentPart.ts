@@ -147,16 +147,33 @@ export class ChatMarkdownContentPart extends Disposable implements IChatContentP
 
 		const enableMath = configurationService.getValue<boolean>(ChatConfiguration.EnableMath);
 
-		// Initialize smooth streaming morpher when the experiment is enabled
+		// Initialize smooth streaming morpher when the experiment is enabled.
+		// Only create for actively streaming responses (!element.isComplete),
+		// not for completed responses loaded from history — even if
+		// fillInIncompleteTokens is true (e.g. canceled or incomplete responses).
 		const smoothStreamingEnabled = configurationService.getValue<boolean>(ChatConfiguration.SmoothStreaming);
-		if (smoothStreamingEnabled && isResponseVM(element) && fillInIncompleteTokens) {
+		if (smoothStreamingEnabled && isResponseVM(element) && fillInIncompleteTokens && !element.isComplete) {
 			this._smoothMorpher = this._register(instantiationService.createInstance(SmoothStreamingDOMMorpher, this.domNode));
 			this._smoothMorpher.setRenderCallback((newMd) => {
+				// Temporarily swap this.markdown to the buffered content
+				// for doRenderMarkdown(), then restore it. The morpher may
+				// render a subset of the full markdown (word/paragraph
+				// buffering), but this.markdown must always reflect the
+				// latest full content from tryIncrementalUpdate so that
+				// hasSameContent() returns true and avoids unnecessary
+				// re-diffs on the next renderElement call.
+				const savedMarkdown = this.markdown;
 				const content = new MarkdownString(newMd, this.markdown.content);
 				content.baseUri = URI.revive(this.markdown.content.baseUri);
 				content.uris = this.markdown.content.uris;
 				this.markdown = { ...this.markdown, content };
 				doRenderMarkdown();
+				this.markdown = savedMarkdown;
+				// Notify the list that our height changed so it can
+				// update scroll position. The morpher renders via rAF,
+				// outside the normal renderElement flow, so the list
+				// won't pick this up without an explicit notification.
+				this._onDidChangeHeight.fire();
 			});
 		}
 

@@ -100,6 +100,7 @@ import { ChatCodeBlockContentProvider, CodeBlockPart } from './chatContentParts/
 import { autorun, observableValue } from '../../../../../base/common/observable.js';
 import { isEqual } from '../../../../../base/common/resources.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
+import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ChatHookContentPart } from './chatContentParts/chatHookContentPart.js';
 import { ChatPendingDragController } from './chatPendingDragAndDrop.js';
 import { HookType } from '../../common/promptSyntax/hookTypes.js';
@@ -235,6 +236,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	private readonly _inlineTextModels: InlineTextModelCollection;
 
+	/** Whether we have already logged the smooth-streaming telemetry event for this renderer instance. */
+	private _smoothStreamingTelemetryLogged = false;
+
 	/**
 	 * Prevents re-announcement of already rendered chat progress
 	 * by screen readers
@@ -260,6 +264,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		@IAccessibilitySignalService private readonly accessibilitySignalService: IAccessibilitySignalService,
 		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super();
 
@@ -858,13 +863,14 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// - And the response is not complete
 		//   - Or, we previously started a progressive rendering of this element (if the element is complete, we will finish progressive rendering with a very fast rate)
 		const smoothStreaming = this.configService.getValue<boolean>(ChatConfiguration.SmoothStreaming);
-		if (isResponseVM(element) && index === this.delegate.getListLength() - 1 && (!element.isComplete || element.renderData || smoothStreaming)) {
+		if (isResponseVM(element) && index === this.delegate.getListLength() - 1 && (!element.isComplete || element.renderData)) {
 			this.traceLayout('renderElement', `start progressive render, index=${index}`);
 
 			if (smoothStreaming && !element.renderData) {
 				// Smooth streaming: event-driven flow, no timer.
 				// renderElement is called each time the model changes, so
 				// this method runs on every content update.
+				this.logSmoothStreamingTelemetry();
 				this.doSmoothStreamingRender(element, index, templateData);
 			} else {
 				const timer = templateData.elementDisposables.add(new dom.WindowIntervalTimer());
@@ -884,6 +890,13 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			}
 		} else {
 			if (isResponseVM(element)) {
+				// When smooth streaming was active during this response,
+				// notify any active morpher that the stream is complete
+				// so it switches to a fast drain rate before we render.
+				if (smoothStreaming) {
+					const rate = this.getProgressiveRenderRate(element);
+					this._updateMorpherRate(templateData, rate, true);
+				}
 				this.renderChatResponseBasic(element, index, templateData);
 			} else if (isRequestVM(element)) {
 				this.renderChatRequest(element, index, templateData);
@@ -1394,17 +1407,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return;
 		}
 
-		// Always update the word buffer's reveal rate, including on the
-		// completion pass so the buffer switches to a fast drain rate.
-		const rate = this.getProgressiveRenderRate(element);
-		this._updateMorpherRate(templateData, rate, element.isComplete || element.isCanceled);
-
-		if (element.isCanceled || element.isComplete) {
-			// The morpher has already rendered the markdown content
-			// correctly through the standard pipeline. Clear renderData
-			// and do a final diff pass to pick up non-markdown parts
-			// (error details, code citations, thinking finalization)
-			// without tearing down what the morpher built.
+		if (element.isCanceled) {
 			element.renderData = undefined;
 			templateData.rowContainer.classList.toggle('chat-response-loading', false);
 			this.renderChatResponseBasic(element, index, templateData);
@@ -1412,6 +1415,11 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		templateData.rowContainer.classList.toggle('chat-response-loading', true);
+
+		// Update the word buffer's reveal rate from the model's stream stats,
+		// so it matches the model's token production speed.
+		const rate = this.getProgressiveRenderRate(element);
+		this._updateMorpherRate(templateData, rate, false);
 
 		const contentForThisTurn = this.getNextProgressiveRenderContent(element, templateData);
 		const partsToRender = this.diff(templateData.renderedParts ?? [], contentForThisTurn.content, element);
@@ -1435,6 +1443,28 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				part.updateStreamRate(rate, isComplete);
 			}
 		}
+	}
+
+	private logSmoothStreamingTelemetry(): void {
+		if (this._smoothStreamingTelemetryLogged) {
+			return;
+		}
+		this._smoothStreamingTelemetryLogged = true;
+
+		type SmoothStreamingSettingsEvent = {
+			animationStyle: string;
+			buffering: string;
+		};
+		type SmoothStreamingSettingsClassification = {
+			animationStyle: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The animation style selected for smooth streaming.' };
+			buffering: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The buffering mode selected for smooth streaming.' };
+			owner: 'pwang347';
+			comment: 'Tracks which smooth streaming settings are in use.';
+		};
+		this.telemetryService.publicLog2<SmoothStreamingSettingsEvent, SmoothStreamingSettingsClassification>('chatSmoothStreamingSettings', {
+			animationStyle: this.configService.getValue<string>(ChatConfiguration.SmoothStreamingStyle) ?? 'none',
+			buffering: this.configService.getValue<string>(ChatConfiguration.SmoothStreamingBuffering) ?? 'word',
+		});
 	}
 
 	/**
