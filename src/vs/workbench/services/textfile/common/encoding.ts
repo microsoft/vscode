@@ -772,6 +772,11 @@ export const SUPPORTED_ENCODINGS: EncodingsMap = {
 		labelLong: 'Western European DOS (CP 850)',
 		labelShort: 'CP 850',
 		order: 48
+	},
+	cp857: {
+		labelLong: 'Turkish DOS (CP 857)',
+		labelShort: 'CP 857',
+		order: 49
 	}
 };
 
