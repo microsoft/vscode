@@ -180,7 +180,7 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 	}
 
 	private getBaseUrl(): string {
-		// Strip the trailing /_ping path segment to get the API base URL
+		// Strip the last path segment from the ping URL to get the API base URL.
 		const pingUrl = this.capiClientService.capiPingURL;
 		const lastSlash = pingUrl.lastIndexOf('/');
 		return lastSlash > 0 ? pingUrl.slice(0, lastSlash) : pingUrl;
