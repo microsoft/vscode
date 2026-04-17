@@ -12,6 +12,15 @@ import { computeSessionDiffs } from '../../node/sessionDiffAggregator.js';
 
 const createTestDiffService = () => new TestDiffComputeService();
 
+function fileDiff(path: string, added: number, removed: number): ISessionFileDiff {
+	const uri = URI.file(path).toString();
+	return { after: { uri, content: { uri } }, diff: { added, removed } };
+}
+
+function getDiffUri(diff: ISessionFileDiff): string | undefined {
+	return diff.after?.uri ?? diff.before?.uri;
+}
+
 suite('computeSessionDiffs', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -36,11 +45,7 @@ suite('computeSessionDiffs', () => {
 		const diffService = createTestDiffService();
 		const result = await computeSessionDiffs(db, diffService);
 
-		assert.deepStrictEqual(result, [{
-			uri: URI.file('/a.txt').toString(),
-			added: 1,
-			removed: 0,
-		}]);
+		assert.deepStrictEqual(result, [fileDiff('/a.txt', 1, 0)]);
 		assert.strictEqual(diffService.callCount, 1);
 	});
 
@@ -82,7 +87,7 @@ suite('computeSessionDiffs', () => {
 		const result = await computeSessionDiffs(db, diffService);
 
 		assert.strictEqual(result.length, 1);
-		assert.strictEqual(result[0].uri, URI.file('/b.txt').toString(), 'uses terminal path after rename');
+		assert.strictEqual(getDiffUri(result[0]), URI.file('/b.txt').toString(), 'uses terminal path after rename');
 	});
 
 	// ---- Incremental-mode tests ---------------------------------------------
@@ -103,7 +108,7 @@ suite('computeSessionDiffs', () => {
 		});
 
 		const previousDiffs: ISessionFileDiff[] = [
-			{ uri: URI.file('/a.txt').toString(), added: 42, removed: 7 },
+			fileDiff('/a.txt', 42, 7),
 		];
 
 		const diffService = createTestDiffService();
@@ -114,11 +119,11 @@ suite('computeSessionDiffs', () => {
 		);
 
 		// Sort to ensure stable comparison
-		result.sort((a, b) => a.uri.localeCompare(b.uri));
+		result.sort((a, b) => (getDiffUri(a) ?? '').localeCompare(getDiffUri(b) ?? ''));
 
 		assert.deepStrictEqual(result, [
-			{ uri: URI.file('/a.txt').toString(), added: 42, removed: 7 }, // carried over
-			{ uri: URI.file('/b.txt').toString(), added: 1, removed: 0 },  // recomputed
+			fileDiff('/a.txt', 42, 7), // carried over
+			fileDiff('/b.txt', 1, 0),  // recomputed
 		]);
 		// Only file B should have triggered a diff computation
 		assert.strictEqual(diffService.callCount, 1, 'only touched file should be diffed');
@@ -139,7 +144,7 @@ suite('computeSessionDiffs', () => {
 		});
 
 		const previousDiffs: ISessionFileDiff[] = [
-			{ uri: URI.file('/a.txt').toString(), added: 100, removed: 100 }, // stale
+			fileDiff('/a.txt', 100, 100), // stale
 		];
 
 		const diffService = createTestDiffService();
@@ -150,11 +155,7 @@ suite('computeSessionDiffs', () => {
 		);
 
 		// Should compare tc1.before='original' vs tc2.after='after-turn2\nextra'
-		assert.deepStrictEqual(result, [{
-			uri: URI.file('/a.txt').toString(),
-			added: 1,
-			removed: 0,
-		}]);
+		assert.deepStrictEqual(result, [fileDiff('/a.txt', 1, 0)]);
 		assert.strictEqual(diffService.callCount, 1);
 	});
 
@@ -175,7 +176,7 @@ suite('computeSessionDiffs', () => {
 		});
 
 		const previousDiffs: ISessionFileDiff[] = [
-			{ uri: URI.file('/old.txt').toString(), added: 5, removed: 0 },
+			fileDiff('/old.txt', 5, 0),
 		];
 
 		const diffService = createTestDiffService();
@@ -187,7 +188,7 @@ suite('computeSessionDiffs', () => {
 
 		// Create → Rename with same content: before='' (create), after='content' (rename)
 		assert.strictEqual(result.length, 1);
-		assert.strictEqual(result[0].uri, URI.file('/new.txt').toString(), 'uses new URI after rename');
+		assert.strictEqual(getDiffUri(result[0]), URI.file('/new.txt').toString(), 'uses new URI after rename');
 	});
 
 	test('incremental: file with zero net change in current turn is excluded even if in previousDiffs', async () => {
@@ -205,7 +206,7 @@ suite('computeSessionDiffs', () => {
 		});
 
 		const previousDiffs: ISessionFileDiff[] = [
-			{ uri: URI.file('/a.txt').toString(), added: 10, removed: 5 },
+			fileDiff('/a.txt', 10, 5),
 		];
 
 		const diffService = createTestDiffService();
@@ -235,8 +236,8 @@ suite('computeSessionDiffs', () => {
 		});
 
 		const previousDiffs: ISessionFileDiff[] = [
-			{ uri: URI.file('/a.txt').toString(), added: 1, removed: 0 },
-			{ uri: URI.file('/orphan.txt').toString(), added: 99, removed: 99 }, // no longer in DB
+			fileDiff('/a.txt', 1, 0),
+			fileDiff('/orphan.txt', 99, 99), // no longer in DB
 		];
 
 		const diffService = createTestDiffService();
@@ -248,7 +249,7 @@ suite('computeSessionDiffs', () => {
 
 		// Slow path: orphan is dropped because it has no identity in the full graph
 		assert.strictEqual(result.length, 1);
-		assert.strictEqual(result[0].uri, URI.file('/a.txt').toString());
+		assert.strictEqual(getDiffUri(result[0]), URI.file('/a.txt').toString());
 	});
 
 	test('full mode recomputes all files (no incremental options)', async () => {
@@ -289,7 +290,7 @@ suite('computeSessionDiffs', () => {
 		});
 
 		const previousDiffs: ISessionFileDiff[] = [
-			{ uri: URI.file('/old.txt').toString(), added: 3, removed: 1 },
+			fileDiff('/old.txt', 3, 1),
 		];
 
 		const diffService = createTestDiffService();
@@ -303,10 +304,10 @@ suite('computeSessionDiffs', () => {
 		assert.strictEqual(db.getFileEditsByTurnCalls, 1);
 		assert.strictEqual(db.getAllFileEditsCalls, 0, 'fast path should not call getAllFileEdits');
 
-		result.sort((a, b) => a.uri.localeCompare(b.uri));
+		result.sort((a, b) => (getDiffUri(a) ?? '').localeCompare(getDiffUri(b) ?? ''));
 		assert.deepStrictEqual(result, [
-			{ uri: URI.file('/new.txt').toString(), added: 1, removed: 0 },
-			{ uri: URI.file('/old.txt').toString(), added: 3, removed: 1 }, // carried over
+			fileDiff('/new.txt', 1, 0),
+			fileDiff('/old.txt', 3, 1), // carried over
 		]);
 	});
 
@@ -326,7 +327,7 @@ suite('computeSessionDiffs', () => {
 		});
 
 		const previousDiffs: ISessionFileDiff[] = [
-			{ uri: URI.file('/a.txt').toString(), added: 5, removed: 0 },
+			fileDiff('/a.txt', 5, 0),
 		];
 
 		const diffService = createTestDiffService();
@@ -341,11 +342,7 @@ suite('computeSessionDiffs', () => {
 		assert.strictEqual(db.getAllFileEditsCalls, 1, 'should fall back to getAllFileEdits');
 
 		// Cumulative diff: original → turn2\nextra
-		assert.deepStrictEqual(result, [{
-			uri: URI.file('/a.txt').toString(),
-			added: 1,
-			removed: 0,
-		}]);
+		assert.deepStrictEqual(result, [fileDiff('/a.txt', 1, 0)]);
 	});
 
 	test('incremental slow path: rename in current turn falls back to getAllFileEdits', async () => {
@@ -363,7 +360,7 @@ suite('computeSessionDiffs', () => {
 		});
 
 		const previousDiffs: ISessionFileDiff[] = [
-			{ uri: URI.file('/a.txt').toString(), added: 1, removed: 0 },
+			fileDiff('/a.txt', 1, 0),
 		];
 
 		const diffService = createTestDiffService();
@@ -385,7 +382,7 @@ suite('computeSessionDiffs', () => {
 		});
 
 		const previousDiffs: ISessionFileDiff[] = [
-			{ uri: URI.file('/a.txt').toString(), added: 5, removed: 2 },
+			fileDiff('/a.txt', 5, 2),
 		];
 
 		const diffService = createTestDiffService();

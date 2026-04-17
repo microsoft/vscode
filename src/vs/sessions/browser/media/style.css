@@ -34,9 +34,9 @@
 			linear-gradient(
 				to bottom right,
 				transparent 0%,
-				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 7%, transparent) 58%,
-				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 10%, transparent) 82%,
-				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 12%, transparent) 100%
+				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 5%, transparent) 58%,
+				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 7%, transparent) 82%,
+				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 9%, transparent) 100%
 			),
 			var(--vscode-agents-background);
 	}
@@ -46,9 +46,9 @@
 			linear-gradient(
 				to bottom right,
 				transparent 0%,
-				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 2%, transparent) 45%,
-				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 10%, transparent) 75%,
-				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 20%, transparent) 100%
+				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 1%, transparent) 45%,
+				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 6%, transparent) 75%,
+				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 12%, transparent) 100%
 			),
 			var(--vscode-agents-background);
 	}
@@ -57,9 +57,9 @@
 		background: linear-gradient(
 			to bottom right,
 			var(--vscode-agents-background) 0%,
-			color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 10%, var(--vscode-agents-background)) 56%,
-			color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 14%, var(--vscode-agents-background)) 82%,
-			color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 18%, var(--vscode-agents-background)) 100%
+			color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 7%, var(--vscode-agents-background)) 56%,
+			color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 10%, var(--vscode-agents-background)) 82%,
+			color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 13%, var(--vscode-agents-background)) 100%
 		);
 	}
 }
