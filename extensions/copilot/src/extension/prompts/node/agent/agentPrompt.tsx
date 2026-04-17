@@ -71,8 +71,8 @@ export interface AgentPromptProps extends GenericBasePromptElementProps {
 	 */
 	readonly customizations?: AgentPromptCustomizations;
 
-	/** Whether this summarization was triggered as a background or foreground operation. */
-	readonly summarizationSource?: 'background' | 'foreground';
+	/** Skip Full mode and go straight to Simple mode for summarization. */
+	readonly forceSimpleSummary?: boolean;
 }
 
 /** Proportion of the prompt token budget any singular textual tool result is allowed to use. */
@@ -143,6 +143,7 @@ export class AgentPrompt extends PromptElement<AgentPromptProps> {
 				<SummarizedConversationHistory
 					flexGrow={1}
 					triggerSummarize={this.props.triggerSummarize}
+					forceSimpleSummary={this.props.forceSimpleSummary}
 					priority={900}
 					promptContext={this.props.promptContext}
 					location={this.props.location}
@@ -150,7 +151,6 @@ export class AgentPrompt extends PromptElement<AgentPromptProps> {
 					endpoint={this.props.endpoint}
 					tools={this.props.promptContext.tools?.availableTools}
 					enableCacheBreakpoints={this.props.enableCacheBreakpoints}
-					summarizationSource={this.props.summarizationSource}
 					userQueryTagName={userQueryTagName}
 					ReminderInstructionsClass={ReminderInstructionsClass}
 					ToolReferencesHintClass={ToolReferencesHintClass}
