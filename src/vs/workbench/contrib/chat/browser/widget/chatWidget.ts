@@ -203,6 +203,35 @@ const supportsAllAttachments: Required<IChatAgentAttachmentCapabilities> = {
 
 const DISCLAIMER = localize('chatDisclaimer', "AI responses may be inaccurate");
 
+/**
+ * Decide what (if anything) to place in the chat input when a handoff runs.
+ * If the user has a non-empty draft, that draft is preserved — this is the
+ * fix for the "Plan -> Start Implementation loses input" bug (#288114).
+ *
+ * - For regular agent handoffs (no `agentId`): returns `shouldSetValue: false`
+ *   when the user has already typed something, so the draft is left untouched.
+ * - For chat-session delegations (`agentId` provided): always returns a value
+ *   to set, prefixing with `@<agentId>`, using the user's draft if present
+ *   and otherwise falling back to the handoff's canned prompt.
+ *
+ * Exported for unit testing.
+ */
+export function computeHandoffInputUpdate(
+	handoff: Pick<IHandOff, 'prompt'>,
+	currentDraft: string,
+	agentId?: string,
+): { shouldSetValue: boolean; value?: string } {
+	const hasUserDraft = currentDraft.trim().length > 0;
+	if (agentId) {
+		const body = hasUserDraft ? currentDraft : handoff.prompt;
+		return { shouldSetValue: true, value: `@${agentId} ${body}` };
+	}
+	if (hasUserDraft) {
+		return { shouldSetValue: false };
+	}
+	return { shouldSetValue: true, value: handoff.prompt };
+}
+
 export class ChatWidget extends Disposable implements IChatWidget {
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1299,13 +1328,18 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	async executeHandoff(handoff: IHandOff, agentId?: string): Promise<void> {
 		this.chatSuggestNextWidget.hide();
 
-		const promptToUse = handoff.prompt;
+		// Preserve any text the user has already typed so switching modes via a
+		// handoff (e.g. plan mode's "Start Implementation") does not discard
+		// their draft answers. When the user has typed something, prefer their
+		// text over the handoff's canned prompt.
+		const userDraft = this.input.inputEditor.getValue();
 
 		// If agentId is provided (from chevron dropdown), delegate to that chat session
 		// Otherwise, switch to the handoff agent
 		if (agentId) {
 			// Delegate to chat session (e.g., @background or @cloud)
-			this.input.setValue(`@${agentId} ${promptToUse}`, false);
+			const { value } = computeHandoffInputUpdate(handoff, userDraft, agentId);
+			this.input.setValue(value!, false);
 			this.input.focus();
 			// Auto-submit for delegated chat sessions
 			this.acceptInput().catch(e => this.logService.error(`[Handoff] Failed to submit delegated handoff to '@${agentId}'`, e));
@@ -1316,8 +1350,12 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			if (handoff.model) {
 				this.input.switchModelByQualifiedName([handoff.model]);
 			}
-			// Insert the handoff prompt into the input
-			this.input.setValue(promptToUse, false);
+			// Insert the handoff prompt into the input, unless the user has
+			// already typed something — in that case keep their draft.
+			const { shouldSetValue, value } = computeHandoffInputUpdate(handoff, userDraft);
+			if (shouldSetValue) {
+				this.input.setValue(value!, false);
+			}
 			this.input.focus();
 
 			// Auto-submit if send flag is true
