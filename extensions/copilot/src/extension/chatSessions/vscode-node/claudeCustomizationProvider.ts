@@ -114,7 +114,7 @@ export class ClaudeCustomizationProvider extends Disposable implements vscode.Ch
 
 		// File-based agents from .claude/ paths — shown pre-session, deduplicated with SDK
 		for (const agent of await this.promptsService.getCustomAgents(token)) {
-			if (this.isClaudePath(agent.uri)) {
+			if (isEnabledForClaudeCode(agent) && this.isClaudePath(agent.uri)) {
 				const name = agent.name;
 				if (!sdkAgentNames.has(name.toLowerCase())) {
 					items.push({
@@ -275,3 +275,7 @@ export class ClaudeCustomizationProvider extends Disposable implements vscode.Ch
 	}
 }
 
+export function isEnabledForClaudeCode(customization: { sessionTypes?: readonly string[] }): boolean {
+	const sessionTypes = customization.sessionTypes;
+	return sessionTypes === undefined || sessionTypes.includes('claude-code') || false;
+}

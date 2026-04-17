@@ -16,7 +16,7 @@ import { Emitter } from '../../../util/vs/base/common/event';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { basename } from '../../../util/vs/base/common/resources';
 import { URI } from '../../../util/vs/base/common/uri';
-import { ICopilotCLIAgents } from '../copilotcli/node/copilotCli';
+import { ICopilotCLIAgents, isEnabledForCopilotCLI } from '../copilotcli/node/copilotCli';
 
 export class CopilotCLICustomizationProvider extends Disposable implements vscode.ChatSessionCustomizationProvider {
 
@@ -139,6 +139,9 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 
 		for (const instruction of await this.promptsService.getInstructions(token)) {
 			const uri = instruction.uri;
+			if (!isEnabledForCopilotCLI(instruction)) {
+				continue; // only include instructions that are relevant for copilotcli
+			}
 
 			if (seenUris.has(uri.toString())) {
 				continue; // already emitted as agent instruction
@@ -182,7 +185,7 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 	 * Collects all skill items from the prompt file service.
 	 */
 	private async getSkillItems(token: vscode.CancellationToken): Promise<vscode.ChatSessionCustomizationItem[]> {
-		return (await this.promptsService.getSkills(token)).map(s => ({
+		return (await this.promptsService.getSkills(token)).filter(isEnabledForCopilotCLI).map(s => ({
 			uri: s.uri,
 			type: vscode.ChatSessionCustomizationType.Skill,
 			name: s.name,
@@ -194,7 +197,7 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 	 * Each item is a hook configuration file (JSON).
 	 */
 	private async getHookItems(token: vscode.CancellationToken): Promise<vscode.ChatSessionCustomizationItem[]> {
-		return (await this.promptsService.getHooks(token)).map(h => ({
+		return (await this.promptsService.getHooks(token)).filter(isEnabledForCopilotCLI).map(h => ({
 			uri: h.uri,
 			type: vscode.ChatSessionCustomizationType.Hook,
 			name: basename(h.uri).replace(/\.json$/i, ''),
@@ -205,7 +208,7 @@ export class CopilotCLICustomizationProvider extends Disposable implements vscod
 	 * Collects all plugin items from the prompt file service.
 	 */
 	private async getPluginItems(token: vscode.CancellationToken): Promise<vscode.ChatSessionCustomizationItem[]> {
-		return (await this.promptsService.getPlugins(token)).map(p => ({
+		return (await this.promptsService.getPlugins(token)).filter(isEnabledForCopilotCLI).map(p => ({
 			uri: p.uri,
 			type: vscode.ChatSessionCustomizationType.Plugins,
 			name: basename(p.uri),

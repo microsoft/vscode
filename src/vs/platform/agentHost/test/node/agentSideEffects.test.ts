@@ -5,6 +5,7 @@
 
 import assert from 'assert';
 import { VSBuffer } from '../../../../base/common/buffer.js';
+import { Event } from '../../../../base/common/event.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
 import { observableValue } from '../../../../base/common/observable.js';
@@ -286,12 +287,12 @@ suite('AgentSideEffects', () => {
 			sideEffects.handleAction({
 				type: ActionType.SessionModelChanged,
 				session: sessionUri.toString(),
-				model: 'gpt-5',
+				model: { id: 'gpt-5' },
 			});
 
 			await new Promise(r => setTimeout(r, 10));
 
-			assert.deepStrictEqual(agent.changeModelCalls, [{ session: URI.parse(sessionUri.toString()), model: 'gpt-5' }]);
+			assert.deepStrictEqual(agent.changeModelCalls, [{ session: URI.parse(sessionUri.toString()), model: { id: 'gpt-5' } }]);
 		});
 	});
 
@@ -334,17 +335,67 @@ suite('AgentSideEffects', () => {
 
 	suite('agents observable', () => {
 
-		test('dispatches root/agentsChanged when observable changes', async () => {
+		test('dispatches root/agentsChanged without fetching models when observable changes', async () => {
+			agentList.set([], undefined);
+			const envelope = Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope, e => {
+				if (e.action.type !== ActionType.RootAgentsChanged) {
+					return false;
+				}
+				return e.action.agents.length === 1;
+			}));
+			agentList.set([agent], undefined);
+			const { action } = await envelope;
+			assert.strictEqual(action.type, ActionType.RootAgentsChanged);
+
+			assert.deepStrictEqual(action.agents[0].models, []);
+		});
+
+		test('model observable update publishes models', async () => {
 			const envelopes: IActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 
-			agentList.set([agent], undefined);
+			const envelope = Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope, e => {
+				if (e.action.type !== ActionType.RootAgentsChanged) {
+					return false;
+				}
+				return e.action.agents[0]?.models.length === 1;
+			}));
+			agent.setModels([{ provider: 'mock', id: 'mock-model', name: 'mock Model', maxContextWindow: 128000, supportsVision: false }]);
+			await envelope;
 
-			// Model fetch is async — wait for it
-			await new Promise(r => setTimeout(r, 50));
-
-			const action = envelopes.find(e => e.action.type === ActionType.RootAgentsChanged);
+			const actions = envelopes.map(e => e.action).filter(action => action.type === ActionType.RootAgentsChanged);
+			const action = actions[actions.length - 1];
 			assert.ok(action, 'should dispatch root/agentsChanged');
+			assert.deepStrictEqual(action.agents[0].models, [{
+				id: 'mock-model',
+				provider: 'mock',
+				name: 'mock Model',
+				maxContextWindow: 128000,
+				supportsVision: false,
+				policyState: undefined,
+				configSchema: undefined,
+			}]);
+		});
+
+		test('unchanged model observable update does not dispatch unchanged agent infos', async () => {
+			const envelopes: IActionEnvelope[] = [];
+			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
+			const models = [{ provider: 'mock' as const, id: 'mock-model', name: 'mock Model', maxContextWindow: 128000, supportsVision: false }];
+
+			const envelope = Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope, e => {
+				if (e.action.type !== ActionType.RootAgentsChanged) {
+					return false;
+				}
+				return e.action.agents[0]?.models.length === 1;
+			}));
+			agent.setModels(models);
+			await envelope;
+			envelopes.length = 0;
+			agent.setModels([...models]);
+			await Promise.resolve();
+			await Promise.resolve();
+
+			assert.strictEqual(envelopes.filter(e => e.action.type === ActionType.RootAgentsChanged).length, 0);
 		});
 	});
 

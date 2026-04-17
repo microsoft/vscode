@@ -12,7 +12,7 @@ import { DeferredPromise, RunOnceScheduler } from '../../base/common/async.js';
 import { isFullscreen, onDidChangeFullscreen, isChrome, isFirefox, isSafari } from '../../base/browser/browser.js';
 import { mark } from '../../base/common/performance.js';
 import { onUnexpectedError, setUnexpectedErrorHandler } from '../../base/common/errors.js';
-import { isWindows, isLinux, isWeb, isNative, isMacintosh } from '../../base/common/platform.js';
+import { isWindows, isLinux, isWeb, isNative, isMacintosh, isMobile } from '../../base/common/platform.js';
 import { Parts, Position, PanelAlignment, IWorkbenchLayoutService, SINGLE_WINDOW_PARTS, MULTI_WINDOW_PARTS, IPartVisibilityChangeEvent, positionToString } from '../../workbench/services/layout/browser/layoutService.js';
 import { ILayoutOffsetInfo } from '../../platform/layout/browser/layoutService.js';
 import { Part } from '../../workbench/browser/part.js';
@@ -22,7 +22,7 @@ import { IEditorService } from '../../workbench/services/editor/common/editorSer
 import { IPaneCompositePartService } from '../../workbench/services/panecomposite/browser/panecomposite.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../workbench/common/views.js';
 import { ILogService } from '../../platform/log/common/log.js';
-import { IInstantiationService, ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
+import { IInstantiationService, refineServiceDecorator, ServicesAccessor } from '../../platform/instantiation/common/instantiation.js';
 import { ITitleService } from '../../workbench/services/title/browser/titleService.js';
 import { mainWindow, CodeWindow } from '../../base/browser/window.js';
 import { coalesce } from '../../base/common/arrays.js';
@@ -62,6 +62,8 @@ import { EditorMarkdownCodeBlockRenderer } from '../../editor/browser/widget/mar
 import { SyncDescriptor } from '../../platform/instantiation/common/descriptors.js';
 import { TitleService } from './parts/titlebarPart.js';
 import { SessionsExperimentalShellGradientBackgroundSettingId } from '../common/configuration.js';
+import { IContextKeyService } from '../../platform/contextkey/common/contextkey.js';
+import { EditorMaximizedContext } from '../common/contextkeys.js';
 
 //#region Workbench Options
 
@@ -102,7 +104,16 @@ interface IPartVisibilityState {
 
 //#endregion
 
-export class Workbench extends Disposable implements IWorkbenchLayoutService {
+export interface IAgentWorkbenchLayoutService extends IWorkbenchLayoutService {
+	isEditorMaximized(): boolean;
+	setEditorMaximized(maximized: boolean): void;
+
+	readonly onDidChangeEditorMaximized: Event<void>;
+}
+
+export const IAgentWorkbenchLayoutService = refineServiceDecorator<IWorkbenchLayoutService, IAgentWorkbenchLayoutService>(IWorkbenchLayoutService);
+
+export class Workbench extends Disposable implements IAgentWorkbenchLayoutService {
 
 	declare readonly _serviceBrand: undefined;
 
@@ -141,6 +152,9 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 	private readonly _onDidChangeAuxiliaryBarMaximized = this._register(new Emitter<void>());
 	readonly onDidChangeAuxiliaryBarMaximized = this._onDidChangeAuxiliaryBarMaximized.event;
+
+	private readonly _onDidChangeEditorMaximized = this._register(new Emitter<void>());
+	readonly onDidChangeEditorMaximized = this._onDidChangeEditorMaximized.event;
 
 	private readonly _onDidLayoutMainContainer = this._register(new Emitter<IDimension>());
 	readonly onDidLayoutMainContainer = this._onDidLayoutMainContainer.event;
@@ -244,6 +258,9 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 	private mainWindowFullscreen = false;
 	private readonly maximized = new Set<number>();
+
+	private _editorMaximized = false;
+	private _editorLastNonMaximizedVisibility: IPartVisibilityState | undefined;
 
 	private readonly restoredPromise = new DeferredPromise<void>();
 	readonly whenRestored = this.restoredPromise.p;
@@ -363,6 +380,12 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 				// Context Keys
 				this._register(instantiationService.createInstance(WorkbenchContextKeysHandler));
 
+				// Editor Maximized Context Key
+				const editorMaximizedContext = EditorMaximizedContext.bindTo(accessor.get(IContextKeyService));
+				this._register(this.onDidChangeEditorMaximized(() => {
+					editorMaximizedContext.set(this.isEditorMaximized());
+				}));
+
 				// Register Listeners
 				this.registerListeners(lifecycleService, storageService, configurationService, hostService, dialogService);
 
@@ -392,7 +415,7 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 	private initServices(serviceCollection: ServiceCollection): IInstantiationService {
 		// Layout Service
-		serviceCollection.set(IWorkbenchLayoutService, this);
+		serviceCollection.set(IAgentWorkbenchLayoutService, this);
 
 		// Title Service - agent sessions titlebar with dedicated part overrides
 		serviceCollection.set(ITitleService, new SyncDescriptor(TitleService, []));
@@ -694,6 +717,16 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 		// Initialize layout state (must be done before createWorkbenchLayout)
 		this._mainContainerDimension = getClientArea(this.parent, new Dimension(800, 600));
+
+		// Default to list-detail on mobile web only. Desktop behavior stays unchanged,
+		// regardless of how narrow the window is resized.
+		if (isWeb && isMobile) {
+			this.partVisibility.sidebar = false;
+		}
+	}
+
+	private isMobileWebLayout(): boolean {
+		return isWeb && isMobile;
 	}
 
 	private areAllGroupsEmpty(): boolean {
@@ -814,8 +847,8 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 		const rightSectionWidth = Math.max(0, width - sideBarSize);
 		const chatBarWidth = Math.max(0, rightSectionWidth - auxiliaryBarSize - editorSize);
 
-		const contentHeight = height - titleBarHeight;
-		const topRightHeight = contentHeight - panelSize;
+		const contentHeight = Math.max(0, height - titleBarHeight);
+		const topRightHeight = Math.max(0, contentHeight - panelSize);
 
 		const titleBarNode: ISerializedLeafNode = {
 			type: 'leaf',
@@ -866,23 +899,30 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 			size: topRightHeight
 		};
 
-		// Right section: Titlebar | Top Right | Panel (vertical)
+		// Right section: Top Right | Panel (vertical)
 		const rightSection: ISerializedNode = {
 			type: 'branch',
-			data: [titleBarNode, topRightSection, panelNode],
+			data: [topRightSection, panelNode],
 			size: rightSectionWidth
+		};
+
+		// Content section: Sidebar | Right section (horizontal)
+		const contentSection: ISerializedNode = {
+			type: 'branch',
+			data: [sideBarNode, rightSection],
+			size: contentHeight
 		};
 
 		const result: ISerializedGrid = {
 			root: {
 				type: 'branch',
-				size: height,
+				size: width,
 				data: [
-					sideBarNode,
-					rightSection
+					titleBarNode,
+					contentSection
 				]
 			},
-			orientation: Orientation.HORIZONTAL,
+			orientation: Orientation.VERTICAL,
 			width,
 			height
 		};
@@ -904,9 +944,41 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 		// Layout the grid widget
 		this.workbenchGrid.layout(this._mainContainerDimension.width, this._mainContainerDimension.height);
+		this.layoutMobileSidebar();
 
 		// Emit as event
 		this.handleContainerDidLayout(this.mainContainer, this._mainContainerDimension);
+	}
+
+	private layoutMobileSidebar(): void {
+		const sidebarContainer = this.getContainer(mainWindow, Parts.SIDEBAR_PART);
+		const sidebarPart = this.getPart(Parts.SIDEBAR_PART);
+		if (!sidebarContainer) {
+			return;
+		}
+
+		if (!this.isMobileWebLayout() || !this.partVisibility.sidebar) {
+			sidebarContainer.classList.remove('mobile-overlay-sidebar');
+			sidebarContainer.style.position = '';
+			sidebarContainer.style.top = '';
+			sidebarContainer.style.left = '';
+			sidebarContainer.style.width = '';
+			sidebarContainer.style.height = '';
+			sidebarContainer.style.zIndex = '';
+			return;
+		}
+
+		const titleBarHeight = this.workbenchGrid.getViewSize(this.titleBarPartView).height;
+		const mobileWidth = this._mainContainerDimension.width;
+		const mobileHeight = Math.max(0, this._mainContainerDimension.height - titleBarHeight);
+		sidebarContainer.classList.add('mobile-overlay-sidebar');
+		sidebarContainer.style.position = 'fixed';
+		sidebarContainer.style.top = `${titleBarHeight}px`;
+		sidebarContainer.style.left = '0';
+		sidebarContainer.style.width = `${mobileWidth}px`;
+		sidebarContainer.style.height = `${mobileHeight}px`;
+		sidebarContainer.style.zIndex = '30';
+		sidebarPart.layout(mobileWidth, mobileHeight, titleBarHeight, 0);
 	}
 
 	private handleContainerDidLayout(container: HTMLElement, dimension: IDimension): void {
@@ -1103,6 +1175,8 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 				this.paneCompositeService.openPaneComposite(viewletToOpen, ViewContainerLocation.Sidebar);
 			}
 		}
+
+		this.layoutMobileSidebar();
 	}
 
 	private setAuxiliaryBarHidden(hidden: boolean): void {
@@ -1137,6 +1211,11 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 	private setEditorHidden(hidden: boolean): void {
 		if (this.partVisibility.editor === !hidden) {
 			return;
+		}
+
+		// If hiding the editor while maximized
+		if (hidden && this._editorMaximized) {
+			this.setEditorMaximized(false);
 		}
 
 		this.partVisibility.editor = !hidden;
@@ -1340,6 +1419,52 @@ export class Workbench extends Disposable implements IWorkbenchLayoutService {
 
 	isAuxiliaryBarMaximized(): boolean {
 		return false; // Maximize not supported
+	}
+
+	isEditorMaximized(): boolean {
+		return this._editorMaximized;
+	}
+
+	setEditorMaximized(maximized: boolean): void {
+		if (maximized === this._editorMaximized) {
+			return;
+		}
+
+		if (maximized) {
+			// Save current visibility state
+			this._editorLastNonMaximizedVisibility = {
+				sidebar: this.partVisibility.sidebar,
+				auxiliaryBar: this.partVisibility.auxiliaryBar,
+				editor: this.partVisibility.editor,
+				panel: this.partVisibility.panel,
+				chatBar: this.partVisibility.chatBar,
+			};
+
+			// Ensure editor is visible
+			if (!this.partVisibility.editor) {
+				this.setEditorHidden(false);
+			}
+
+			// Hide all other content parts
+			if (this.partVisibility.sidebar) {
+				this.setSideBarHidden(true);
+			}
+			if (this.partVisibility.chatBar) {
+				this.setChatBarHidden(true);
+			}
+
+			this._editorMaximized = true;
+		} else {
+			const state = this._editorLastNonMaximizedVisibility;
+
+			// Restore previous visibility state
+			this.setSideBarHidden(!state?.sidebar);
+			this.setChatBarHidden(!state?.chatBar);
+
+			this._editorMaximized = false;
+		}
+
+		this._onDidChangeEditorMaximized.fire();
 	}
 
 	toggleZenMode(): void {
