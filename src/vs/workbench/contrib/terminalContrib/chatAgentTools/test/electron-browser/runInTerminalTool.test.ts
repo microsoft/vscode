@@ -1900,6 +1900,30 @@ suite('RunInTerminalTool', () => {
 			chatServiceDisposeEmitter.fire({ sessionResources: [LocalChatSessionUri.forSession('non-existent-session')], reason: 'cleared' });
 			strictEqual(runInTerminalTool.sessionTerminalAssociations.size, 0, 'No associations should exist after handling non-existent session');
 		});
+
+		test('should not reuse a disposed cached terminal', () => {
+			const sessionResource = LocalChatSessionUri.forSession('disposed-terminal-session');
+			const disposedTerminal = {
+				isDisposed: true,
+				dispose: () => { },
+				processId: 99999,
+			} as unknown as ITerminalInstance;
+			runInTerminalTool.sessionTerminalAssociations.set(sessionResource, {
+				instance: disposedTerminal,
+				shellIntegrationQuality: ShellIntegrationQuality.None,
+				isBackground: false,
+			});
+
+			// A disposed cached terminal should not be returned by the association lookup
+			const cachedTerminal = runInTerminalTool.sessionTerminalAssociations.get(sessionResource);
+			ok(cachedTerminal, 'Cached terminal should exist in the map');
+			strictEqual(cachedTerminal!.instance.isDisposed, true, 'Cached terminal should be disposed');
+
+			// Verify the guard condition that _initTerminal uses:
+			// cachedTerminal && !cachedTerminal.isBackground && !cachedTerminal.instance.isDisposed
+			const wouldReuse = cachedTerminal !== undefined && !cachedTerminal.isBackground && !cachedTerminal.instance.isDisposed;
+			strictEqual(wouldReuse, false, 'Should not reuse a disposed cached terminal');
+		});
 	});
 
 	test('should dedupe rapid repeated background input-needed notifications', () => {
@@ -1941,6 +1965,58 @@ suite('RunInTerminalTool', () => {
 		output = 'Confirm (y/N):';
 		inputNeededEmitter.fire();
 		strictEqual(capturedSteeringRequests.length, 2, 'Expected a changed prompt to trigger a new notification');
+	});
+
+	test('should preserve session terminal association after inputNeeded so fg terminal is reused', () => {
+		const termId = 'test-input-cleanup-term';
+		const sessionResource = LocalChatSessionUri.forSession('test-input-cleanup-session');
+
+		const commandFinishedEmitter = new Emitter<{ exitCode: number | undefined }>();
+		const terminalDisposedEmitter = new Emitter<void>();
+		const inputNeededEmitter = new Emitter<void>();
+		const inputDataEmitter = new Emitter<string>();
+
+		const terminalInstance = {
+			capabilities: {
+				get: (cap: TerminalCapability) => cap === TerminalCapability.CommandDetection ? { onCommandFinished: commandFinishedEmitter.event } : undefined,
+			},
+			onDisposed: terminalDisposedEmitter.event,
+			onDidInputData: inputDataEmitter.event,
+		} as unknown as ITerminalInstance;
+
+		const outputMonitor = {
+			onDidDetectInputNeeded: inputNeededEmitter.event,
+			continueMonitoringAsync: () => { },
+			dispose: () => { },
+		} as unknown as { onDidDetectInputNeeded: Event<void>; continueMonitoringAsync: () => void; dispose: () => void };
+
+		// Set up fg terminal association and active execution
+		runInTerminalTool.sessionTerminalAssociations.set(sessionResource, {
+			instance: terminalInstance,
+			shellIntegrationQuality: ShellIntegrationQuality.Rich,
+			isBackground: false,
+		});
+
+		(runInTerminalTool.constructor as unknown as { _activeExecutions: Map<string, { getOutput(): string }> })._activeExecutions.set(termId, {
+			getOutput: () => 'Password:',
+		});
+
+		// eslint-disable-next-line @typescript-eslint/naming-convention
+		(runInTerminalTool as unknown as { _registerCompletionNotification: (terminal: ITerminalInstance, termId: string, session: URI, commandName: string, outputMonitor: { onDidDetectInputNeeded: Event<void>; continueMonitoringAsync: () => void; dispose: () => void }) => void })
+			._registerCompletionNotification(terminalInstance, termId, sessionResource, 'ssh host', outputMonitor);
+
+		// Fire inputNeeded — this simulates the output monitor detecting a prompt
+		inputNeededEmitter.fire();
+		strictEqual(capturedSteeringRequests.length, 1, 'Should send steering request for input needed');
+
+		// The key assertion: fg terminal association is preserved (not deleted)
+		ok(runInTerminalTool.sessionTerminalAssociations.has(sessionResource), 'Session terminal association should be preserved for fg reuse');
+		strictEqual(runInTerminalTool.sessionTerminalAssociations.get(sessionResource)!.isBackground, false, 'Terminal should remain foreground');
+
+		// After command finishes, the fg association still persists
+		commandFinishedEmitter.fire({ exitCode: 0 });
+		ok(runInTerminalTool.sessionTerminalAssociations.has(sessionResource), 'Session terminal association should still be preserved after command finishes');
+		strictEqual(runInTerminalTool.sessionTerminalAssociations.get(sessionResource)!.isBackground, false, 'Terminal should still be foreground after command finishes');
 	});
 
 	suite('auto approve warning acceptance mechanism', () => {

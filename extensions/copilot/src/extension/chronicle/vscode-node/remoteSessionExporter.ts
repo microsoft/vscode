@@ -167,11 +167,10 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 	private _handleSpan(span: ICompletedSpanData): void {
 		try {
 			const sessionId = this._getSessionId(span);
+			const operationName = span.attributes[GenAiAttr.OPERATION_NAME] as string | undefined;
 			if (!sessionId || this._disabledSessions.has(sessionId)) {
 				return;
 			}
-
-			const operationName = span.attributes[GenAiAttr.OPERATION_NAME] as string | undefined;
 
 			// Only start tracking on invoke_agent (real user interaction)
 			if (!this._cloudSessions.has(sessionId) && !this._initializingSessions.has(sessionId)) {

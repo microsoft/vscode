@@ -11,10 +11,11 @@ import { IRunCommandExecutionService } from '../../../../platform/commands/commo
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { GenAiMetrics } from '../../../../platform/otel/common/genAiMetrics';
-import { CopilotChatAttr, GenAiAttr, GenAiOperationName, IOTelService, ISpanHandle, SpanKind, SpanStatusCode, truncateForOTel } from '../../../../platform/otel/common/index';
+import { CopilotChatAttr, GenAiAttr, GenAiOperationName, IOTelService, ISpanHandle, SpanKind, SpanStatusCode, truncateForOTel, resolveWorkspaceOTelMetadata, workspaceMetadataToOTelAttributes } from '../../../../platform/otel/common/index';
 import { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
 import { IRequestLogger, LoggedRequestKind } from '../../../../platform/requestLogger/common/requestLogger';
 import { PromptTokenCategory, PromptTokenLabel } from '../../../../platform/tokenizer/node/promptTokenDetails';
+import { IGitService } from '../../../../platform/git/common/gitService';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { raceCancellation } from '../../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
@@ -29,12 +30,14 @@ import { IToolsService } from '../../../tools/common/toolsService';
 import { IChatSessionMetadataStore } from '../../common/chatSessionMetadataStore';
 import { ExternalEditTracker } from '../../common/externalEditTracker';
 import { getWorkingDirectory, isIsolationEnabled, IWorkspaceInfo } from '../../common/workspaceInfo';
-import { enrichToolInvocationWithSubagentMetadata, isCopilotCliEditToolCall, isCopilotCLIToolThatCouldRequirePermissions, processToolExecutionComplete, processToolExecutionStart, ToolCall, updateTodoList } from '../common/copilotCLITools';
+import { enrichToolInvocationWithSubagentMetadata, isCopilotCliEditToolCall, isCopilotCLIToolThatCouldRequirePermissions, isTodoRelatedSqlQuery, processToolExecutionComplete, processToolExecutionStart, ToolCall, updateTodoListFromSqlItems } from '../common/copilotCLITools';
 import { SessionIdForCLI } from '../common/utils';
+import { getCopilotCLISessionDir } from './cliHelpers';
 import type { CopilotCliBridgeSpanProcessor } from './copilotCliBridgeSpanProcessor';
 import { ICopilotCLIImageSupport } from './copilotCLIImageSupport';
 import { handleExitPlanMode } from './exitPlanModeHandler';
 import { handleMcpPermission, handleReadPermission, handleShellPermission, handleWritePermission, type PermissionRequest, type PermissionRequestResult, showInteractivePermissionPrompt } from './permissionHelpers';
+import { TodoSqlQuery } from './todoSqlQuery';
 import { IQuestion, IUserQuestionHandler } from './userInputHelpers';
 
 /**
@@ -142,6 +145,8 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	private _permissionLevel: string | undefined;
 	private _pendingPrompt: string | undefined;
 	private _bridgeProcessor: CopilotCliBridgeSpanProcessor | undefined;
+	private readonly _todoSqlQuery = new TodoSqlQuery();
+
 	/** Callback to propagate trace context to the SDK's OtelLifecycle. */
 	private _updateSdkTraceContext: ((traceparent?: string, tracestate?: string) => void) | undefined;
 	public get pendingPrompt(): string | undefined {
@@ -173,9 +178,11 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IOTelService private readonly _otelService: IOTelService,
 		@IRunCommandExecutionService private readonly _commandExecutionService: IRunCommandExecutionService,
+		@IGitService private readonly _gitService: IGitService,
 	) {
 		super();
 		this.sessionId = _sdkSession.sessionId;
+		this.add(toDisposable(() => this._todoSqlQuery.dispose()));
 		this._sessionResource = SessionIdForCLI.getResource(this.sessionId);
 	}
 
@@ -316,6 +323,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		token: vscode.CancellationToken
 	): Promise<void> {
 		const modelId = model?.model;
+		const promptLabel = getPromptLabel(input);
 		return this._otelService.startActiveSpan(
 			'invoke_agent copilotcli',
 			{
@@ -328,9 +336,14 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					[CopilotChatAttr.SESSION_ID]: this.sessionId,
 					[CopilotChatAttr.CHAT_SESSION_ID]: this.sessionId,
 					...(modelId ? { [GenAiAttr.REQUEST_MODEL]: modelId } : {}),
+					[CopilotChatAttr.USER_REQUEST]: truncateForOTel(promptLabel),
+					...workspaceMetadataToOTelAttributes(resolveWorkspaceOTelMetadata(this._gitService)),
 				},
 			},
 			async span => {
+				// Emit user_message event so chronicle can extract turns and summary
+				span.addEvent('user_message', { content: truncateForOTel(promptLabel) });
+
 				// Register the trace context so the bridge processor can inject CHAT_SESSION_ID
 				const traceCtx = span.getSpanContext();
 				if (traceCtx && this._bridgeProcessor) {
@@ -646,12 +659,6 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 							flushPendingInvocationMessages();
 							this._stream?.push(responsePart);
 						}
-
-						if ((event.data as ToolCall).toolName === 'update_todo') {
-							updateTodoList(event, this._toolsService, request.toolInvocationToken, token).catch(error => {
-								this.logService.error(`[CopilotCLISession] Failed to invoke todo tool for toolCallId ${event.data.toolCallId}`, error);
-							});
-						}
 					}
 				}
 				this.logService.trace(`[CopilotCLISession] Start Tool ${event.data.toolName || '<unknown>'}`);
@@ -692,6 +699,28 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				const error = event.data.error ? `error: ${event.data.error.code},${event.data.error.message}` : '';
 				const result = event.data.result ? `result: ${event.data.result?.content}` : '';
 				const parts = [success, error, result].filter(part => part.length > 0).join(', ');
+
+				// When a sql tool execution completes that modifies the todos table,
+				// query the session database and update the todo list widget.
+				if (toolName === 'sql' && event.data.success) {
+					const toolCallData = toolCalls.get(event.data.toolCallId);
+					try {
+						const query = (toolCallData?.arguments as { query?: string } | undefined)?.query ?? '';
+						if (isTodoRelatedSqlQuery(query)) {
+							const sessionDir = getCopilotCLISessionDir(this.sessionId);
+							this._todoSqlQuery.queryTodos(sessionDir).then(items => {
+								if (token.isCancellationRequested) {
+									return;
+								}
+								return updateTodoListFromSqlItems(items, this._toolsService, request.toolInvocationToken, token);
+							}).catch(err => {
+								this.logService.error(err, '[CopilotCLISession] Failed to query todos from session database');
+							});
+						}
+					} catch (ex) {
+						this.logService.error(ex, `[CopilotCLISession] Failed to process completed sql tool call for todos`);
+					}
+				}
 
 				this.logService.trace(`[CopilotCLISession]Complete Tool ${toolName}, ${parts}`);
 			})));

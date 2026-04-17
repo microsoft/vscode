@@ -27,24 +27,21 @@
 .ai-customization-management-editor .welcome-prompts-subtitle {
 	font-size: 13px;
 	color: var(--vscode-descriptionForeground);
-	margin: 0 0 40px;
+	margin: 0 0 36px;
 	line-height: 1.6;
 }
 
 .ai-customization-management-editor .welcome-prompts-primary {
 	display: flex;
 	flex-direction: column;
-	gap: 10px;
+	gap: 6px;
 	/* Match card grid width — no extra horizontal margin */
 	width: 100%;
 	box-sizing: border-box;
-	padding: 16px;
+	padding: 12px 8px 8px;
 	margin: 12px 0 24px;
-	border: 1px solid color-mix(in srgb, var(--vscode-widget-border) 85%, transparent);
-	border-radius: 14px;
-	background:
-		linear-gradient(180deg, color-mix(in srgb, var(--vscode-editorWidget-background, var(--vscode-editor-background)) 84%, var(--vscode-list-hoverBackground) 16%) 0%, color-mix(in srgb, var(--vscode-editorWidget-background, var(--vscode-editor-background)) 94%, var(--vscode-editor-background) 6%) 100%);
-	box-shadow: 0 1px 2px rgb(0 0 0 / 4%);
+	border: 1px solid color-mix(in srgb, var(--vscode-editorWidget-border) 85%, transparent);
+	border-radius: 16px;
 }
 
 .ai-customization-management-editor .welcome-prompts-section-label {
@@ -52,6 +49,7 @@
 	align-items: center;
 	gap: 8px;
 	margin: 0;
+	padding: 0 4px;
 	font-size: 13px;
 	font-weight: 600;
 	color: var(--vscode-foreground);
@@ -65,17 +63,23 @@
 .ai-customization-management-editor .welcome-prompts-input-row {
 	display: flex;
 	align-items: center;
-	min-height: 44px;
-	border: none;
-	border-radius: 14px;
-	background: var(--vscode-input-background);
-	padding: 0 6px 0 16px;
+	min-height: 36px;
+	height: 36px;
+	border-radius: 8px;
+	background: var(--vscode-agentsChatInput-background);
+	border: 1px solid var(--vscode-agentsChatInput-border, var(--vscode-input-border, transparent));
+	padding: 0 4px 0 12px;
+	margin-top: 6px;
+}
+
+.ai-customization-management-editor .welcome-prompts-input-row:focus-within {
+	border-color: var(--vscode-agentsChatInput-focusBorder, var(--vscode-focusBorder));
 }
 
 .ai-customization-management-editor .welcome-prompts-input {
 	flex: 1;
 	min-width: 0;
-	height: 42px;
+	height: 36px;
 	padding: 0;
 	font-size: 13px;
 	font-family: inherit;
@@ -83,7 +87,7 @@
 	outline: none;
 	box-shadow: none;
 	background: transparent;
-	color: var(--vscode-input-foreground);
+	color: var(--vscode-agentsChatInput-foreground);
 	-webkit-appearance: none;
 	appearance: none;
 }
@@ -101,18 +105,18 @@
 }
 
 .ai-customization-management-editor .welcome-prompts-input::placeholder {
-	color: var(--vscode-input-placeholderForeground);
+	color: var(--vscode-agentsChatInput-placeholderForeground);
 }
 
 .ai-customization-management-editor .welcome-prompts-input-submit {
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 32px;
-	height: 32px;
+	width: 28px;
+	height: 28px;
 	flex-shrink: 0;
 	border: none;
-	border-radius: 10px;
+	border-radius: 4px;
 	background: transparent;
 	color: var(--vscode-descriptionForeground);
 	cursor: pointer;
@@ -161,6 +165,7 @@
 	line-height: 1.5;
 	color: var(--vscode-descriptionForeground);
 	margin: 0;
+	padding: 0 4px;
 }
 
 .ai-customization-management-editor .welcome-prompts-cards {

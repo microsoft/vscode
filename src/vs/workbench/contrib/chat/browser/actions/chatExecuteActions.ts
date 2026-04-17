@@ -5,6 +5,7 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { basename } from '../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { assertType } from '../../../../../base/common/types.js';
@@ -1161,24 +1162,26 @@ class ExecuteHandoffAction extends Action2 {
 }
 
 
-export function registerChatExecuteActions() {
-	registerAction2(ChatSubmitAction);
-	registerAction2(ChatEditingSessionSubmitAction);
-	registerAction2(SubmitWithoutDispatchingAction);
-	registerAction2(CancelAction);
-	registerAction2(SendToNewChatAction);
-	registerAction2(ChatSubmitWithCodebaseAction);
-	registerAction2(ToggleChatModeAction);
-	registerAction2(SwitchToNextModelAction);
-	registerAction2(OpenModelPickerAction);
-	registerAction2(OpenPermissionPickerAction);
-	registerAction2(OpenModePickerAction);
-	registerAction2(OpenSessionTargetPickerAction);
-	registerAction2(OpenDelegationPickerAction);
-	registerAction2(OpenWorkspacePickerAction);
-	registerAction2(ChatSessionPrimaryPickerAction);
-	registerAction2(ChangeChatModelAction);
-	registerAction2(CancelEdit);
-	registerAction2(GetHandoffsAction);
-	registerAction2(ExecuteHandoffAction);
+export function registerChatExecuteActions(): DisposableStore {
+	const store = new DisposableStore();
+	store.add(registerAction2(ChatSubmitAction));
+	store.add(registerAction2(ChatEditingSessionSubmitAction));
+	store.add(registerAction2(SubmitWithoutDispatchingAction));
+	store.add(registerAction2(CancelAction));
+	store.add(registerAction2(SendToNewChatAction));
+	store.add(registerAction2(ChatSubmitWithCodebaseAction));
+	store.add(registerAction2(ToggleChatModeAction));
+	store.add(registerAction2(SwitchToNextModelAction));
+	store.add(registerAction2(OpenModelPickerAction));
+	store.add(registerAction2(OpenPermissionPickerAction));
+	store.add(registerAction2(OpenModePickerAction));
+	store.add(registerAction2(OpenSessionTargetPickerAction));
+	store.add(registerAction2(OpenDelegationPickerAction));
+	store.add(registerAction2(OpenWorkspacePickerAction));
+	store.add(registerAction2(ChatSessionPrimaryPickerAction));
+	store.add(registerAction2(ChangeChatModelAction));
+	store.add(registerAction2(CancelEdit));
+	store.add(registerAction2(GetHandoffsAction));
+	store.add(registerAction2(ExecuteHandoffAction));
+	return store;
 }

@@ -3071,6 +3071,34 @@ suite('LanguageModelToolsService', () => {
 		assert.strictEqual(invocation, undefined, 'beginToolCall should return undefined for unknown tools');
 	});
 
+	test('beginToolCall returns undefined for tool without handleToolStream', () => {
+		const tool = registerToolForTest(service, store, 'noStreamTool', {
+			invoke: async () => ({ content: [{ kind: 'text', value: 'result' }] }),
+		});
+
+		const invocation = service.beginToolCall({
+			toolCallId: 'call-no-stream',
+			toolId: tool.id,
+		});
+
+		assert.strictEqual(invocation, undefined, 'beginToolCall should return undefined when tool lacks handleToolStream');
+	});
+
+	test('beginToolCall with force creates invocation even without handleToolStream', () => {
+		const tool = registerToolForTest(service, store, 'forceStreamTool', {
+			invoke: async () => ({ content: [{ kind: 'text', value: 'result' }] }),
+		});
+
+		const invocation = service.beginToolCall({
+			toolCallId: 'call-force',
+			toolId: tool.id,
+			force: true,
+		});
+
+		assert.ok(invocation, 'beginToolCall with force should return an invocation');
+		assert.strictEqual(invocation.toolId, tool.id);
+	});
+
 	test('updateToolStream calls handleToolStream on tool implementation', async () => {
 		let handleToolStreamCalled = false;
 		let receivedRawInput: unknown;

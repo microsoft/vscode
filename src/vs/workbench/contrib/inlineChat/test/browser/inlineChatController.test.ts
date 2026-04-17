@@ -35,6 +35,8 @@ import { CursorState } from '../../../../../editor/common/cursorCommon.js';
 import { IUserInteractionService, MockUserInteractionService } from '../../../../../platform/userInteraction/browser/userInteractionService.js';
 import { INotebookEditorService } from '../../../notebook/browser/services/notebookEditorService.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
+import { IMarkerDecorationsService } from '../../../../../editor/common/services/markerDecorations.js';
+import { IMarker, MarkerSeverity } from '../../../../../platform/markers/common/markers.js';
 
 suite('InlineChatController - Request Parity', () => {
 
@@ -294,5 +296,41 @@ suite('InlineChatController - Request Parity', () => {
 		await runPromise;
 
 		assert.strictEqual(sendRequestCalls.length, 0, 'should not call sendRequest when message is missing');
+	}));
+
+	test('hover mode sends request with diagnostics when attachDiagnostics is true', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+		setExplicitSelection(new Selection(1, 1, 1, 6));
+
+		// Stub IMarkerDecorationsService to return a marker in the selection range
+		const testMarker: IMarker = {
+			owner: 'testOwner',
+			resource: model.uri,
+			severity: MarkerSeverity.Error,
+			message: 'test error',
+			startLineNumber: 1,
+			startColumn: 1,
+			endLineNumber: 1,
+			endColumn: 6,
+		};
+		instantiationService.stub(IMarkerDecorationsService, new class extends mock<IMarkerDecorationsService>() {
+			override getLiveMarkers(uri: URI): [Range, IMarker][] {
+				if (uri.toString() === model.uri.toString()) {
+					return [[new Range(1, 1, 1, 6), testMarker]];
+				}
+				return [];
+			}
+		});
+
+		const controller = store.add(instantiationService.createInstance(InlineChatController, editor));
+
+		const runPromise = controller.run({ autoSend: true, attachDiagnostics: true });
+		await timeout(0);
+		sessionDisposedEmitter.fire();
+		await runPromise;
+
+		assert.strictEqual(sendRequestCalls.length, 1, 'should call sendRequest when attachDiagnostics is true and diagnostics exist');
+		assert.ok(sendRequestCalls[0].message, 'should have a message');
+		assert.ok(sendRequestCalls[0].options?.attachedContext, 'should have attached context with diagnostics');
+		assert.strictEqual(sendRequestCalls[0].options!.attachedContext!.length, 1, 'should have exactly one diagnostic entry');
 	}));
 });
