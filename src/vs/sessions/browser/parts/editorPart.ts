@@ -17,7 +17,11 @@ export class MainEditorPart extends MainEditorPartBase {
 			return;
 		}
 
-		const adjustedWidth = width - (this.layoutService.isVisible(Parts.SIDEBAR_PART) ? 0 : MainEditorPart.MARGIN_LEFT) - 2 /* border width */;
+		const adjustedMargin = this.layoutService.isVisible(Parts.SIDEBAR_PART) ||
+			this.layoutService.isVisible(Parts.CHATBAR_PART)
+			? 0
+			: MainEditorPart.MARGIN_LEFT;
+		const adjustedWidth = width - adjustedMargin - 2 /* border width */;
 		const adjustedHeight = height - MainEditorPart.MARGIN_TOP - MainEditorPart.MARGIN_BOTTOM - 2 /* border width */;
 
 		super.layout(adjustedWidth, adjustedHeight, top, left);
