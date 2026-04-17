@@ -251,6 +251,13 @@ export const ToggleAgentModeActionId = 'workbench.action.chat.toggleAgentMode';
 export interface IToggleChatModeArgs {
 	modeId: ChatModeKind | string;
 	sessionResource: URI | undefined;
+	/**
+	 * Unique input URI of the chat widget that initiated the mode change. Used to
+	 * disambiguate when multiple chat widgets are showing the same session (e.g.
+	 * a chat view and a chat editor in an editor group). When provided, the widget
+	 * is resolved by input URI first, falling back to session resource.
+	 */
+	inputUri?: URI;
 }
 
 type ChatModeChangeClassification = {
@@ -302,9 +309,16 @@ class ToggleChatModeAction extends Action2 {
 
 		const arg = args.at(0) as IToggleChatModeArgs | undefined;
 		let widget: IChatWidget | undefined;
-		if (arg?.sessionResource) {
+		// Prefer input URI over session resource: multiple chat widgets can share a
+		// session resource (e.g. chat view + chat editor), but each widget's input URI
+		// is unique. This ensures the mode picker targets the widget it is hosted in.
+		if (arg?.inputUri) {
+			widget = chatWidgetService.getWidgetByInputUri(arg.inputUri);
+		}
+		if (!widget && arg?.sessionResource) {
 			widget = chatWidgetService.getWidgetBySessionResource(arg.sessionResource);
-		} else {
+		}
+		if (!widget) {
 			widget = getEditingSessionContext(accessor, args)?.chatWidget;
 		}
 

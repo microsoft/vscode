@@ -8,10 +8,12 @@ import { DisposableStore } from '../../../../../../base/common/lifecycle.js';
 import { constObservable, observableValue } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry, ICommandService } from '../../../../../../platform/commands/common/commands.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
+import { NullTelemetryService } from '../../../../../../platform/telemetry/common/telemetryUtils.js';
 import { IChatWidget, IChatWidgetService } from '../../../browser/chat.js';
-import { GetHandoffsActionId, ExecuteHandoffActionId, registerChatExecuteActions } from '../../../browser/actions/chatExecuteActions.js';
+import { GetHandoffsActionId, ExecuteHandoffActionId, IToggleChatModeArgs, ToggleAgentModeActionId, registerChatExecuteActions } from '../../../browser/actions/chatExecuteActions.js';
 import { IChatMode, IChatModeService, ICustomAgentInfo } from '../../../common/chatModes.js';
 import { ChatModeKind } from '../../../common/constants.js';
 import { IHandOff } from '../../../common/promptSyntax/promptFileParser.js';
@@ -331,5 +333,141 @@ suite('ExecuteHandoffAction', () => {
 		const result = await runCommandAsync<IExecuteHandoffResult>(handler, instantiationService, { id: 'implement:start-implementation' });
 		assert.strictEqual(result.success, false);
 		assert.ok(result.error?.includes('No handoffs available'));
+	});
+});
+
+suite('ToggleChatModeAction', () => {
+	const store = new DisposableStore();
+	let instantiationService: TestInstantiationService;
+
+	let chatExecuteActions: DisposableStore;
+	suiteSetup(() => {
+		chatExecuteActions = registerChatExecuteActions();
+	});
+
+	suiteTeardown(() => {
+		chatExecuteActions.dispose();
+	});
+
+	setup(() => {
+		instantiationService = store.add(new TestInstantiationService());
+		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationService.stub(ICommandService, { executeCommand: async () => undefined } as unknown as ICommandService);
+	});
+
+	teardown(() => {
+		store.clear();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	/**
+	 * Build a minimal chat widget whose input records setChatMode calls. The
+	 * viewModel's model has no editingSession so handleModeSwitch short-circuits.
+	 */
+	function createMockWidget(currentMode: IChatMode, sessionResource: URI, inputUri: URI): {
+		widget: IChatWidget;
+		setChatModeCalls: string[];
+	} {
+		const setChatModeCalls: string[] = [];
+		const widget = {
+			input: {
+				currentModeObs: constObservable(currentMode),
+				currentModeKind: currentMode.kind,
+				inputUri,
+				setChatMode: (id: string) => {
+					setChatModeCalls.push(id);
+				},
+			},
+			viewModel: {
+				sessionResource,
+				model: {
+					sessionResource,
+					getRequests: () => [],
+					editingSession: undefined,
+				},
+			},
+		} as unknown as IChatWidget;
+		return { widget, setChatModeCalls };
+	}
+
+	test('resolves widget by inputUri when multiple widgets share a session resource (issue #275200)', async () => {
+		const askMode = createMockMode({ id: 'ask', kind: ChatModeKind.Ask, isBuiltin: true });
+		const agentMode = createMockMode({ id: 'agent', kind: ChatModeKind.Agent, isBuiltin: true });
+
+		const sharedSession = URI.parse('chat-session://shared/1');
+		const panelInputUri = URI.parse('vscode-chat-input:input-panel');
+		const editorInputUri = URI.parse('vscode-chat-input:input-editor');
+
+		// Two widgets with the SAME session resource but DIFFERENT input URIs.
+		// Simulates a chat panel and chat editor both showing the same session.
+		const panel = createMockWidget(askMode, sharedSession, panelInputUri);
+		const editor = createMockWidget(askMode, sharedSession, editorInputUri);
+
+		const mockWidgetService = new class extends MockChatWidgetService {
+			// find-by-session returns the FIRST widget (the bug path) — here, the panel.
+			override getWidgetBySessionResource(resource: URI) {
+				return resource.toString() === sharedSession.toString() ? panel.widget : undefined;
+			}
+			override getWidgetByInputUri(uri: URI) {
+				if (uri.toString() === panelInputUri.toString()) {
+					return panel.widget;
+				}
+				if (uri.toString() === editorInputUri.toString()) {
+					return editor.widget;
+				}
+				return undefined;
+			}
+		};
+
+		instantiationService.set(IChatWidgetService, mockWidgetService);
+		instantiationService.set(IChatModeService, new MockChatModeService({ builtin: [askMode, agentMode], custom: [] }));
+
+		const handler = CommandsRegistry.getCommand(ToggleAgentModeActionId)?.handler;
+		assert.ok(handler);
+
+		// User clicks the mode picker in the EDITOR widget, which passes its inputUri.
+		const args: IToggleChatModeArgs = {
+			modeId: 'agent',
+			sessionResource: sharedSession,
+			inputUri: editorInputUri,
+		};
+		await runCommandAsync<void>(handler, instantiationService, args);
+
+		// The editor widget (the one the user clicked in) should have its mode changed.
+		// Before the fix, the panel would incorrectly receive the mode change because
+		// getWidgetBySessionResource returned the first match.
+		assert.deepStrictEqual(editor.setChatModeCalls, ['agent'], 'editor widget should receive setChatMode');
+		assert.deepStrictEqual(panel.setChatModeCalls, [], 'panel widget should NOT receive setChatMode');
+	});
+
+	test('falls back to sessionResource when inputUri is not provided (back-compat)', async () => {
+		const askMode = createMockMode({ id: 'ask', kind: ChatModeKind.Ask, isBuiltin: true });
+		const agentMode = createMockMode({ id: 'agent', kind: ChatModeKind.Agent, isBuiltin: true });
+
+		const sessionResource = URI.parse('chat-session://only/1');
+		const inputUri = URI.parse('vscode-chat-input:input-only');
+		const { widget, setChatModeCalls } = createMockWidget(askMode, sessionResource, inputUri);
+
+		const mockWidgetService = new class extends MockChatWidgetService {
+			override getWidgetBySessionResource(resource: URI) {
+				return resource.toString() === sessionResource.toString() ? widget : undefined;
+			}
+		};
+
+		instantiationService.set(IChatWidgetService, mockWidgetService);
+		instantiationService.set(IChatModeService, new MockChatModeService({ builtin: [askMode, agentMode], custom: [] }));
+
+		const handler = CommandsRegistry.getCommand(ToggleAgentModeActionId)?.handler;
+		assert.ok(handler);
+
+		// Legacy callers that don't pass inputUri should still work via sessionResource.
+		const args: IToggleChatModeArgs = {
+			modeId: 'agent',
+			sessionResource,
+		};
+		await runCommandAsync<void>(handler, instantiationService, args);
+
+		assert.deepStrictEqual(setChatModeCalls, ['agent']);
 	});
 });
