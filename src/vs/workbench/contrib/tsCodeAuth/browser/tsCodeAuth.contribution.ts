@@ -47,9 +47,6 @@ export class TsCodeAuthContribution implements IWorkbenchContribution {
 			const mementoRaw = storageService.get('tscodeWelcome', StorageScope.APPLICATION);
 			const memento = mementoRaw ? JSON.parse(mementoRaw) : {};
 			if (!memento.hasShownAnimation) {
-				// Mark user as logged in
-				memento.hasLoggedIn = true;
-				storageService.store('tscodeWelcome', JSON.stringify(memento), StorageScope.APPLICATION, 0);
 				editorService.openEditor({
 					resource: TscodeWelcomeInput.RESOURCE,
 					options: {
