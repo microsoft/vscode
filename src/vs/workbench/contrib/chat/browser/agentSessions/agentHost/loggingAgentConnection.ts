@@ -4,12 +4,15 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI, UriComponents } from '../../../../../../base/common/uri.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
-import { IAgentConnection, IAgentCreateSessionConfig, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult, AgentHostIpcLoggingSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
-import type { IActionEnvelope, INotification, ISessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
-import type { IResourceCopyParams, IResourceCopyResult, IResourceDeleteParams, IResourceDeleteResult, IResourceListResult, IResourceMoveParams, IResourceMoveResult, IResourceReadResult, IResourceWriteParams, IResourceWriteResult, IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { IAgentConnection, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult, AgentHostIpcLoggingSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
+import type { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
+import { StateComponents, type ComponentToState, type IRootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import type { IActionEnvelope, INotification, ISessionAction, ITerminalAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
+import type { ICreateTerminalParams, IResolveSessionConfigResult, ISessionConfigCompletionsResult } from '../../../../../../platform/agentHost/common/state/protocol/commands.js';
+import type { IResourceCopyParams, IResourceCopyResult, IResourceDeleteParams, IResourceDeleteResult, IResourceListResult, IResourceMoveParams, IResourceMoveResult, IResourceReadResult, IResourceWriteParams, IResourceWriteResult } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { Extensions, IOutputChannel, IOutputChannelRegistry, IOutputService } from '../../../../../services/output/common/output.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 
@@ -35,6 +38,44 @@ function formatPayload(data: unknown): string {
 	}
 }
 
+class LoggingAgentSubscription<T> extends Disposable implements IAgentSubscription<T> {
+
+	private readonly _onDidChange = this._register(new Emitter<T>());
+	readonly onDidChange: Event<T> = this._onDidChange.event;
+
+	readonly onWillApplyAction: Event<IActionEnvelope>;
+	readonly onDidApplyAction: Event<IActionEnvelope>;
+
+	constructor(
+		private readonly _label: string,
+		private readonly _inner: IAgentSubscription<T>,
+		logCurrentValue: boolean,
+		private readonly _log: (arrow: string, method: string, data?: unknown) => void,
+	) {
+		super();
+
+		this.onWillApplyAction = _inner.onWillApplyAction;
+		this.onDidApplyAction = _inner.onDidApplyAction;
+
+		if (logCurrentValue && _inner.value !== undefined) {
+			this._log('**', `${this._label}.current`, _inner.value);
+		}
+
+		this._register(_inner.onDidChange(value => {
+			this._log('**', `${this._label}.onDidChange`, value);
+			this._onDidChange.fire(value);
+		}));
+	}
+
+	get value(): T | Error | undefined {
+		return this._inner.value;
+	}
+
+	get verifiedValue(): T | undefined {
+		return this._inner.verifiedValue;
+	}
+}
+
 /**
  * A logging wrapper around an {@link IAgentConnection} that writes all IPC
  * traffic to a dedicated output channel. Used by both local and remote agent
@@ -56,6 +97,7 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 
 	/** Ref-count per channel ID so the output channel survives reconnections. */
 	private static readonly _channelRefCounts = new Map<string, number>();
+	private static readonly _currentRootStateLogKeys = new Set<string>();
 
 	private _outputChannel: IOutputChannel | undefined;
 	private readonly _enabled: boolean;
@@ -63,10 +105,11 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 	readonly clientId: string;
 	readonly onDidAction: Event<IActionEnvelope>;
 	readonly onDidNotification: Event<INotification>;
+	private readonly _rootState: IAgentSubscription<IRootState>;
 
 	constructor(
 		private readonly _inner: IAgentConnection,
-		private readonly _channelId: string,
+		public readonly channelId: string,
 		private readonly _channelLabel: string,
 		@IOutputService private readonly _outputService: IOutputService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -74,26 +117,33 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 		super();
 		this.clientId = _inner.clientId;
 		this._enabled = !!configurationService.getValue<boolean>(AgentHostIpcLoggingSettingId);
+		const currentRootStateLogKey = `${this.channelId}:rootState.current`;
+		let logCurrentRootState = false;
 
 		if (this._enabled) {
 			const registry = Registry.as<IOutputChannelRegistry>(Extensions.OutputChannels);
-			const refs = LoggingAgentConnection._channelRefCounts.get(this._channelId) ?? 0;
+			const refs = LoggingAgentConnection._channelRefCounts.get(this.channelId) ?? 0;
 			if (refs === 0) {
 				registry.registerChannel({
-					id: this._channelId,
+					id: this.channelId,
 					label: this._channelLabel,
 					log: false,
 					languageId: 'log',
 				});
 			}
-			LoggingAgentConnection._channelRefCounts.set(this._channelId, refs + 1);
+			LoggingAgentConnection._channelRefCounts.set(this.channelId, refs + 1);
+			logCurrentRootState = !LoggingAgentConnection._currentRootStateLogKeys.has(currentRootStateLogKey);
+			if (logCurrentRootState) {
+				LoggingAgentConnection._currentRootStateLogKeys.add(currentRootStateLogKey);
+			}
 			this._register(toDisposable(() => {
-				const current = LoggingAgentConnection._channelRefCounts.get(this._channelId)! - 1;
+				const current = LoggingAgentConnection._channelRefCounts.get(this.channelId)! - 1;
 				if (current <= 0) {
-					LoggingAgentConnection._channelRefCounts.delete(this._channelId);
-					registry.removeChannel(this._channelId);
+					LoggingAgentConnection._channelRefCounts.delete(this.channelId);
+					LoggingAgentConnection._currentRootStateLogKeys.delete(currentRootStateLogKey);
+					registry.removeChannel(this.channelId);
 				} else {
-					LoggingAgentConnection._channelRefCounts.set(this._channelId, current);
+					LoggingAgentConnection._channelRefCounts.set(this.channelId, current);
 				}
 			}));
 		}
@@ -112,6 +162,8 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 			onDidNotificationEmitter.fire(e);
 		}));
 		this.onDidNotification = onDidNotificationEmitter.event;
+
+		this._rootState = this._register(new LoggingAgentSubscription('rootState', _inner.rootState, logCurrentRootState, (arrow, method, data) => this._log(arrow, method, data)));
 	}
 
 	// ---- IAgentConnection method proxies with logging -----------------------
@@ -128,30 +180,41 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 		return this._logCall('createSession', config, () => this._inner.createSession(config));
 	}
 
+	async resolveSessionConfig(params: IAgentResolveSessionConfigParams): Promise<IResolveSessionConfigResult> {
+		return this._logCall('resolveSessionConfig', params, () => this._inner.resolveSessionConfig(params));
+	}
+
+	async sessionConfigCompletions(params: IAgentSessionConfigCompletionsParams): Promise<ISessionConfigCompletionsResult> {
+		return this._logCall('sessionConfigCompletions', params, () => this._inner.sessionConfigCompletions(params));
+	}
+
 	async disposeSession(session: URI): Promise<void> {
 		return this._logCall('disposeSession', session, () => this._inner.disposeSession(session));
 	}
 
-	async shutdown(): Promise<void> {
-		return this._logCall('shutdown', undefined, () => this._inner.shutdown());
+	async createTerminal(params: ICreateTerminalParams): Promise<void> {
+		return this._logCall('createTerminal', params, () => this._inner.createTerminal(params));
 	}
 
-	async subscribe(resource: URI): Promise<IStateSnapshot> {
-		return this._logCall('subscribe', resource, () => this._inner.subscribe(resource));
+	async disposeTerminal(terminal: URI): Promise<void> {
+		return this._logCall('disposeTerminal', terminal, () => this._inner.disposeTerminal(terminal));
 	}
 
-	unsubscribe(resource: URI): void {
-		this._log('>>', 'unsubscribe', resource);
-		this._inner.unsubscribe(resource);
+	get rootState(): IAgentSubscription<IRootState> {
+		return this._rootState;
 	}
 
-	dispatchAction(action: ISessionAction, clientId: string, clientSeq: number): void {
-		this._log('>>', 'dispatchAction', { action, clientId, clientSeq });
-		this._inner.dispatchAction(action, clientId, clientSeq);
+	getSubscription<T extends StateComponents>(kind: T, resource: URI): IReference<IAgentSubscription<ComponentToState[T]>> {
+		return this._inner.getSubscription(kind, resource);
 	}
 
-	nextClientSeq(): number {
-		return this._inner.nextClientSeq();
+	getSubscriptionUnmanaged<T extends StateComponents>(kind: T, resource: URI): IAgentSubscription<ComponentToState[T]> | undefined {
+		return this._inner.getSubscriptionUnmanaged(kind, resource);
+	}
+
+	dispatch(action: ISessionAction | ITerminalAction): void {
+		this._log('>>', 'dispatch', action);
+		this._inner.dispatch(action);
 	}
 
 	async resourceList(uri: URI): Promise<IResourceListResult> {
@@ -208,7 +271,7 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 		}
 
 		if (!this._outputChannel) {
-			this._outputChannel = this._outputService.getChannel(this._channelId);
+			this._outputChannel = this._outputService.getChannel(this.channelId);
 			if (!this._outputChannel) {
 				return;
 			}

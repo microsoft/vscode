@@ -25,6 +25,20 @@ export interface MarkdownLoggable {
 	toMarkdown(): string;
 }
 
+/**
+ * The outcome of a log context request. Determines the icon shown in the log tree.
+ * - `pending`: no outcome yet (shows spinner or check depending on completion)
+ * - `succeeded`: model returned suggestions
+ * - `noSuggestions`: model returned no suggestions
+ * - `cached`: result is from NES cache
+ * - `cachedFromGhostText`: result is from ghost text cache
+ * - `skipped`: request was skipped or fetch-cancelled
+ * - `cancelled`: request was cancelled via CancellationToken (shown as skipped)
+ * - `errored`: an error occurred
+ * - `previouslyRejected`: result matches a suggestion that was previously rejected
+ */
+type LogContextOutcome = 'pending' | 'succeeded' | 'noSuggestions' | 'cached' | 'cachedFromGhostText' | 'skipped' | 'cancelled' | 'errored' | 'previouslyRejected';
+
 export class InlineEditRequestLogContext {
 
 	private static _id = 0;
@@ -44,6 +58,9 @@ export class InlineEditRequestLogContext {
 
 	/** Mark this request as completed (no longer in progress). */
 	markCompleted(): void {
+		if (this._isCompleted) {
+			console.warn(`[InlineEditRequestLogContext] markCompleted called twice (request #${this.requestId})`);
+		}
 		this._isCompleted = true;
 		this.fireDidChange();
 	}
@@ -269,47 +286,29 @@ export class InlineEditRequestLogContext {
 	private _logContextOfCachedEdit: InlineEditRequestLogContext | undefined = undefined;
 
 	setIsCachedResult(logContextOfCachedEdit: InlineEditRequestLogContext): void {
-
 		this._logContextOfCachedEdit = logContextOfCachedEdit;
 
-		{ // inherit stateless provider state from cached log context
-			this.recordingBookmark = logContextOfCachedEdit.recordingBookmark;
-
-			if (logContextOfCachedEdit._nextEditRequest) {
-				this._nextEditRequest = logContextOfCachedEdit._nextEditRequest;
-
-			}
-			if (logContextOfCachedEdit._resultEdit) {
-				this.setResult(logContextOfCachedEdit._resultEdit);
-			}
-			if (logContextOfCachedEdit._diagnosticsResultEdit) {
-				this.setDiagnosticsResult(logContextOfCachedEdit._diagnosticsResultEdit);
-			}
-			if (logContextOfCachedEdit._endpointInfo) {
-				this.setEndpointInfo(logContextOfCachedEdit._endpointInfo.url, logContextOfCachedEdit._endpointInfo.modelName);
-			}
-			if (logContextOfCachedEdit.headerRequestId) {
-				this.setHeaderRequestId(logContextOfCachedEdit.headerRequestId);
-			}
-			if (logContextOfCachedEdit.prompt) {
-				this.setPrompt(logContextOfCachedEdit.prompt);
-			}
-			if (logContextOfCachedEdit.response) {
-				this.setResponse(logContextOfCachedEdit.response);
-			}
-			if (logContextOfCachedEdit.responseResults) {
-				this.setResponseResults(logContextOfCachedEdit.responseResults);
-			}
-			if (logContextOfCachedEdit.fullResponsePromise) {
-				this.setFullResponse(logContextOfCachedEdit.fullResponsePromise);
-			}
-			if (logContextOfCachedEdit.error) {
-				this.setError(logContextOfCachedEdit.error);
-			}
+		// Direct field copy — avoids triggering outcome transitions from the
+		// public setters (e.g. setResponseResults -> succeeded, setError -> errored).
+		// The final outcome is always 'cached'.
+		this.recordingBookmark = logContextOfCachedEdit.recordingBookmark;
+		this._nextEditRequest = logContextOfCachedEdit._nextEditRequest ?? this._nextEditRequest;
+		this._resultEdit = logContextOfCachedEdit._resultEdit ?? this._resultEdit;
+		this._diagnosticsResultEdit = logContextOfCachedEdit._diagnosticsResultEdit ?? this._diagnosticsResultEdit;
+		this._endpointInfo = logContextOfCachedEdit._endpointInfo ?? this._endpointInfo;
+		this._headerRequestId = logContextOfCachedEdit._headerRequestId ?? this._headerRequestId;
+		if (logContextOfCachedEdit._prompt) {
+			this._prompt = logContextOfCachedEdit._prompt;
 		}
+		this.response = logContextOfCachedEdit.response ?? this.response;
+		this._responseResults = logContextOfCachedEdit._responseResults ?? this._responseResults;
+		if (logContextOfCachedEdit.fullResponsePromise) {
+			this.setFullResponse(logContextOfCachedEdit.fullResponsePromise);
+		}
+		this._error = logContextOfCachedEdit._error ?? this._error;
 
 		this._isVisible = true;
-		this._icon = Icon.database;
+		this._outcome = 'cached';
 		this.fireDidChange();
 	}
 
@@ -355,41 +354,81 @@ export class InlineEditRequestLogContext {
 		this.fireDidChange();
 	}
 
-	private _icon: Icon.t | undefined;
+	private _outcome: LogContextOutcome = 'pending';
 
-	getIcon(): ThemeIcon | undefined {
-		return this._icon?.themeIcon;
+	/**
+	 * Sets the outcome, warning if already set (i.e., not `pending`).
+	 * Use direct `this._outcome = ...` assignment to bypass the guard
+	 * (e.g., in `setIsCachedResult` which intentionally overrides any inherited outcome).
+	 */
+	private _setOutcome(outcome: LogContextOutcome): void {
+		if (this._outcome !== 'pending') {
+			console.warn(`[InlineEditRequestLogContext] outcome transition from '${this._outcome}' to '${outcome}' (request #${this.requestId})`);
+		}
+		this._outcome = outcome;
+	}
+
+	private _resolveIcon(): Icon.t {
+		switch (this._outcome) {
+			case 'pending': return this._isCompleted ? Icon.check : Icon.loading;
+			case 'succeeded': return Icon.lightbulbFull;
+			case 'noSuggestions': return Icon.circleSlash;
+			case 'cached':
+			case 'cachedFromGhostText': return Icon.database;
+			case 'skipped':
+			case 'cancelled': return Icon.skipped;
+			case 'errored': return Icon.error;
+			case 'previouslyRejected': return Icon.thumbsdown;
+		}
+	}
+
+	getIcon(): ThemeIcon {
+		return this._resolveIcon().themeIcon;
 	}
 
 	public setIsSkipped() {
+		this._setOutcome('skipped');
 		this._isVisible = false;
-		this._icon = Icon.skipped;
 		this.fireDidChange();
 	}
 
 	public markAsFromCache() {
+		this._setOutcome('cachedFromGhostText');
 		this._isVisible = true;
-		this._icon = Icon.database;
 		this.fireDidChange();
 	}
 
 	public markAsNoSuggestions() {
+		this._setOutcome('noSuggestions');
 		this._isVisible = true;
-		this._icon = Icon.circleSlash;
 		this.fireDidChange();
 	}
 
-	private error: unknown | undefined = undefined;
+	public markAsPreviouslyRejected() {
+		// Direct assignment — bypasses _setOutcome guard because this transition
+		// legitimately overrides 'succeeded' when a fetched edit turns out to be rejected.
+		this._outcome = 'previouslyRejected';
+		this._isVisible = true;
+		this.fireDidChange();
+	}
+
+	private _error: unknown | undefined = undefined;
+
+	get error(): unknown | undefined {
+		return this._error;
+	}
+
 	setError(e: unknown): void {
 		this._isVisible = true;
-		this.error = e;
+		this._error = e;
 
-		if (this.error instanceof FetchCancellationError) {
-			this._icon = Icon.skipped;
-		} else if (isCancellationError(this.error)) {
+		if (this._error instanceof FetchCancellationError) {
+			this._setOutcome('skipped');
+		} else if (isCancellationError(this._error)) {
+			this._setOutcome('cancelled');
 			this._isVisible = false;
 		} else {
-			this._icon = Icon.error;
+			this._setOutcome('errored');
 		}
 		this.fireDidChange();
 	}
@@ -451,7 +490,9 @@ export class InlineEditRequestLogContext {
 	setResponseResults(v: readonly unknown[]): void {
 		this._isVisible = true;
 		this._responseResults = v;
-		this._icon ??= Icon.lightbulbFull;
+		if (this._outcome === 'pending') {
+			this._outcome = 'succeeded';
+		}
 		this.fireDidChange();
 	}
 
@@ -460,8 +501,8 @@ export class InlineEditRequestLogContext {
 	}
 
 	getMarkdownTitle(): string {
-		const icon: string = this._icon ? `${this._icon.svg} ` : '';
-		return (icon) + this.getDebugName();
+		const icon = this._resolveIcon();
+		return `${icon.svg} ` + this.getDebugName();
 	}
 
 	protected _recentEdit: HistoryContext | undefined = undefined;

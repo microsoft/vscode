@@ -13,7 +13,7 @@ import * as vscode from 'vscode';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { outputChannel } from '../../../platform/log/vscode/outputChannelLogTarget';
 import { CapturingToken } from '../../../platform/requestLogger/common/capturingToken';
-import { ChatRequestScheme, ILoggedElementInfo, ILoggedRequestInfo, ILoggedToolCall, IRequestLogger, LoggedInfo, LoggedInfoKind, LoggedRequestKind, resolveMarkdownIcon } from '../../../platform/requestLogger/node/requestLogger';
+import { ChatRequestScheme, ILoggedElementInfo, ILoggedRequestInfo, ILoggedToolCall, IRequestLogger, LoggedInfo, LoggedInfoKind, LoggedRequestKind, resolveMarkdownIcon } from '../../../platform/requestLogger/common/requestLogger';
 import { filterMap } from '../../../util/common/arrays';
 import { assert, assertNever } from '../../../util/vs/base/common/assert';
 import { Disposable, toDisposable } from '../../../util/vs/base/common/lifecycle';
@@ -619,16 +619,12 @@ class ChatRequestProvider extends Disposable implements vscode.TreeDataProvider<
 				// whose debugName matches the token label), associate it directly with the
 				// parent ChatPromptItem — don't add it as a child. The entry stays in the
 				// request logger for virtual document serving; only tree nesting changes.
-				// Only wire the main entry if it is visible — for live NES/Ghost entries,
-				// isVisible() can be false (e.g. skipped/cancelled); wiring a hidden entry
-				// would make it visible again via the parent's icon and click command.
+				// Always wire the main entry so the parent node is clickable and shows the
+				// current icon (e.g. loading, lightbulb, skipped, circleSlash, etc.).
 				if (currReq.kind === LoggedInfoKind.Request &&
 					currReq.entry.type === LoggedRequestKind.MarkdownContentRequest &&
 					currReq.entry.debugName === currReq.token.label) {
-					const isHidden = currReq.entry.isVisible && !currReq.entry.isVisible();
-					if (!isHidden) {
-						prompt.setMainEntry(currReq);
-					}
+					prompt.setMainEntry(currReq);
 					continue;
 				}
 
@@ -702,6 +698,13 @@ class ChatPromptItem extends vscode.TreeItem {
 	}
 
 	/**
+	 * The main entry associated with this parent node. Stored so that
+	 * `withFilteredChildren` can re-resolve the icon freshly from the entry
+	 * rather than copying a potentially stale `iconPath` snapshot.
+	 */
+	private _mainEntryRef: ILoggedRequestInfo | undefined;
+
+	/**
 	 * Associate a main entry directly with this parent item.
 	 * The main entry's icon and click command are shown on the parent node.
 	 * The entry is NOT added as a child — it stays in the request logger
@@ -711,10 +714,9 @@ class ChatPromptItem extends vscode.TreeItem {
 		if (info.entry.type !== LoggedRequestKind.MarkdownContentRequest) {
 			return;
 		}
+		this._mainEntryRef = info;
 		const resolvedIcon = resolveMarkdownIcon(info.entry);
-		if (resolvedIcon !== undefined) {
-			this.iconPath = new vscode.ThemeIcon(resolvedIcon.id);
-		}
+		this.iconPath = resolvedIcon !== undefined ? new vscode.ThemeIcon(resolvedIcon.id) : undefined;
 		this.command = {
 			command: 'vscode.open',
 			title: '',
@@ -726,8 +728,12 @@ class ChatPromptItem extends vscode.TreeItem {
 		const item = new ChatPromptItem(this.token);
 		item.children = this.children.filter(filter);
 		item.id = this.id;
-		item.iconPath = this.iconPath;
-		item.command = this.command;
+		if (this._mainEntryRef) {
+			item.setMainEntry(this._mainEntryRef);
+		} else {
+			item.iconPath = this.iconPath;
+			item.command = this.command;
+		}
 		item.collapsibleState = item.children.length > 0
 			? vscode.TreeItemCollapsibleState.Expanded
 			: vscode.TreeItemCollapsibleState.None;

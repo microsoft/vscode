@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type { ForkSessionOptions, ForkSessionResult, Options, Query, SDKSessionInfo, SDKUserMessage, SessionMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { ForkSessionOptions, ForkSessionResult, GetSubagentMessagesOptions, ListSubagentsOptions, Options, Query, SDKSessionInfo, SDKUserMessage, SessionMessage } from '@anthropic-ai/claude-agent-sdk';
 import { createServiceIdentifier } from '../../../../util/common/services';
 
 export interface IClaudeCodeSdkService {
@@ -55,6 +55,23 @@ export interface IClaudeCodeSdkService {
 	 * @param options Fork session options
 	 */
 	forkSession(sessionId: string, options?: ForkSessionOptions): Promise<ForkSessionResult>;
+
+	/**
+	 * Lists subagent IDs for a given session
+	 * @param sessionId Session ID
+	 * @param options Optional dir to narrow the project search
+	 * @returns Array of subagent ID strings
+	 */
+	listSubagents(sessionId: string, options?: ListSubagentsOptions): Promise<string[]>;
+
+	/**
+	 * Gets messages for a specific subagent in a session
+	 * @param sessionId Parent session ID
+	 * @param agentId Subagent ID
+	 * @param options Optional dir, limit, and offset
+	 * @returns Array of session messages
+	 */
+	getSubagentMessages(sessionId: string, agentId: string, options?: GetSubagentMessagesOptions): Promise<SessionMessage[]>;
 }
 
 
@@ -104,5 +121,15 @@ export class ClaudeCodeSdkService implements IClaudeCodeSdkService {
 	public async forkSession(sessionId: string, options?: ForkSessionOptions): Promise<ForkSessionResult> {
 		const { forkSession } = await this._loadSdk();
 		return forkSession(sessionId, options);
+	}
+
+	public async listSubagents(sessionId: string, options?: ListSubagentsOptions): Promise<string[]> {
+		const { listSubagents } = await this._loadSdk();
+		return listSubagents(sessionId, options);
+	}
+
+	public async getSubagentMessages(sessionId: string, agentId: string, options?: GetSubagentMessagesOptions): Promise<SessionMessage[]> {
+		const { getSubagentMessages } = await this._loadSdk();
+		return getSubagentMessages(sessionId, agentId, options);
 	}
 }

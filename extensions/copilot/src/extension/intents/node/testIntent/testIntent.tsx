@@ -16,7 +16,7 @@ import { IEndpointProvider } from '../../../../platform/endpoint/common/endpoint
 import { IOctoKitService } from '../../../../platform/github/common/githubService';
 import { IIgnoreService } from '../../../../platform/ignore/common/ignoreService';
 import { ILogService } from '../../../../platform/log/common/logService';
-import { IRequestLogger } from '../../../../platform/requestLogger/node/requestLogger';
+import { IRequestLogger } from '../../../../platform/requestLogger/common/requestLogger';
 import { ISurveyService } from '../../../../platform/survey/common/surveyService';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry';
 import { ISetupTestsDetector, isStartSetupTestConfirmation, SetupTestActionType } from '../../../../platform/testing/node/setupTestDetector';

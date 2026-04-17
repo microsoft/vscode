@@ -7,6 +7,7 @@ import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../.
 import { DeferredPromise, disposableTimeout, raceTimeout } from '../../../base/common/async.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { ILogService } from '../../log/common/log.js';
+import { IAgentNetworkFilterService } from '../../networkFilter/common/networkFilterService.js';
 import { IInvokeFunctionResult, IPlaywrightService } from '../common/playwrightService.js';
 import { IBrowserViewGroupRemoteService } from '../node/browserViewGroupRemoteService.js';
 import { IBrowserViewGroup } from '../common/browserViewGroup.js';
@@ -58,9 +59,10 @@ export class PlaywrightService extends Disposable implements IPlaywrightService 
 		private readonly windowId: number,
 		private readonly browserViewGroupRemoteService: IBrowserViewGroupRemoteService,
 		private readonly logService: ILogService,
+		agentNetworkFilterService: IAgentNetworkFilterService,
 	) {
 		super();
-		this._pages = this._register(new PlaywrightPageManager(logService));
+		this._pages = this._register(new PlaywrightPageManager(logService, agentNetworkFilterService));
 		this.onDidChangeTrackedPages = this._pages.onDidChangeTrackedPages;
 	}
 
@@ -325,6 +327,7 @@ class PlaywrightPageManager extends Disposable {
 
 	constructor(
 		private readonly logService: ILogService,
+		private readonly agentNetworkFilterService: IAgentNetworkFilterService,
 	) {
 		super();
 	}
@@ -382,6 +385,7 @@ class PlaywrightPageManager extends Disposable {
 		}
 
 		const page = await this._openContext.newPage();
+
 		const viewId = await this.onPageAdded(page);
 
 		this._trackedPages.add(viewId);
@@ -582,7 +586,7 @@ class PlaywrightPageManager extends Disposable {
 		this.onContextAdded(page.context());
 		page.once('close', () => this.onPageRemoved(page));
 		page.setDefaultTimeout(10000);
-		this._tabs.set(page, new PlaywrightTab(page));
+		this._tabs.set(page, new PlaywrightTab(page, this.agentNetworkFilterService));
 
 		const deferred = new DeferredPromise<string>();
 		const timeout = setTimeout(() => deferred.error(new Error(`Timed out waiting for browser view`)), timeoutMs);

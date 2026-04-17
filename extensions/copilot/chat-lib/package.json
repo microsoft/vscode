@@ -31,10 +31,9 @@
 		"yaml": "^2.8.0"
 	},
 	"devDependencies": {
-		"@anthropic-ai/sdk": "^0.81.0",
+		"@anthropic-ai/sdk": "^0.82.0",
 		"@octokit/types": "^14.1.0",
 		"@types/node": "^22.16.3",
-		"@types/vscode": "^1.109.0",
 		"copyfiles": "^2.4.1",
 		"dotenv": "^17.2.0",
 		"npm-run-all": "^4.1.5",

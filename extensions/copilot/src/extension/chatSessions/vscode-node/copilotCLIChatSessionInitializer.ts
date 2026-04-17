@@ -6,6 +6,7 @@
 import type { SweCustomAgent } from '@github/copilot/sdk';
 import * as l10n from '@vscode/l10n';
 import * as vscode from 'vscode';
+import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IPromptsService, ParsedPromptFile } from '../../../platform/promptFiles/common/promptsService';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
@@ -13,21 +14,24 @@ import { createServiceIdentifier } from '../../../util/common/services';
 import { DisposableStore, IReference } from '../../../util/vs/base/common/lifecycle';
 import { URI } from '../../../util/vs/base/common/uri';
 import { ChatVariablesCollection, extractDebugTargetSessionIds, isPromptFile } from '../../prompt/common/chatVariablesCollection';
-import { IChatSessionMetadataStore, StoredModeInstructions } from '../common/chatSessionMetadataStore';
-import { IChatSessionWorkspaceFolderService } from '../common/chatSessionWorkspaceFolderService';
-import { IChatSessionWorktreeService } from '../common/chatSessionWorktreeService';
 import { FolderRepositoryInfo, IFolderRepositoryManager, IsolationMode } from '../common/folderRepositoryManager';
-import { SessionIdForCLI } from '../copilotcli/common/utils';
 import { emptyWorkspaceInfo, getWorkingDirectory, isIsolationEnabled, IWorkspaceInfo } from '../common/workspaceInfo';
+import { SessionIdForCLI } from '../copilotcli/common/utils';
 import { COPILOT_CLI_REASONING_EFFORT_PROPERTY, ICopilotCLIAgents, ICopilotCLIModels } from '../copilotcli/node/copilotCli';
 import { ICopilotCLISession } from '../copilotcli/node/copilotcliSession';
 import { ICopilotCLISessionService } from '../copilotcli/node/copilotcliSessionService';
 import { buildMcpServerMappings, McpServerMappings } from '../copilotcli/node/mcpHandler';
-import { BRANCH_OPTION_ID, ISOLATION_OPTION_ID, REPOSITORY_OPTION_ID } from './sessionOptionGroupBuilder';
-import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 
 function isReasoningEffortFeatureEnabled(configurationService: IConfigurationService): boolean {
 	return configurationService.getConfig(ConfigKey.Advanced.CLIThinkingEffortEnabled);
+}
+
+export interface SessionInitOptions {
+	isolation?: IsolationMode;
+	branch?: string;
+	folder?: vscode.Uri;
+	newBranch?: Promise<string | undefined>;
+	stream: vscode.ChatResponseStream;
 }
 
 export interface ICopilotCLIChatSessionInitializer {
@@ -41,9 +45,8 @@ export interface ICopilotCLIChatSessionInitializer {
 	 */
 	getOrCreateSession(
 		request: vscode.ChatRequest,
-		chatSessionContext: vscode.ChatSessionContext,
-		stream: vscode.ChatResponseStream,
-		options: { branchName: Promise<string | undefined> },
+		chatResource: vscode.Uri,
+		options: SessionInitOptions,
 		disposables: DisposableStore,
 		token: vscode.CancellationToken
 	): Promise<{ session: IReference<ICopilotCLISession> | undefined; isNewSession: boolean; model: { model: string; reasoningEffort?: string } | undefined; agent: SweCustomAgent | undefined; trusted: boolean }>;
@@ -53,10 +56,8 @@ export interface ICopilotCLIChatSessionInitializer {
 	 * Used for both normal requests and delegation flows.
 	 */
 	initializeWorkingDirectory(
-		chatSessionContext: vscode.ChatSessionContext | undefined,
-		isolation: IsolationMode | undefined,
-		branchName: Promise<string | undefined> | undefined,
-		stream: vscode.ChatResponseStream,
+		chatResource: vscode.Uri | undefined,
+		options: SessionInitOptions,
 		toolInvocationToken: vscode.ChatParticipantToolToken,
 		token: vscode.CancellationToken
 	): Promise<{ workspaceInfo: IWorkspaceInfo; cancelled: boolean; trusted: boolean }>;
@@ -70,44 +71,42 @@ export interface ICopilotCLIChatSessionInitializer {
 		workspace: IWorkspaceInfo,
 		options: { mcpServerMappings: McpServerMappings },
 		token: vscode.CancellationToken
-	): Promise<{ session: IReference<ICopilotCLISession>; model: { model: string; reasoningEffort?: string } | undefined; agent: SweCustomAgent | undefined }>;
+	): Promise<IReference<ICopilotCLISession>>;
 }
 
 export const ICopilotCLIChatSessionInitializer = createServiceIdentifier<ICopilotCLIChatSessionInitializer>('ICopilotCLIChatSessionInitializer');
 
 export class CopilotCLIChatSessionInitializer implements ICopilotCLIChatSessionInitializer {
 	declare readonly _serviceBrand: undefined;
+	private readonly delegatedSessionContext = new Map<string, { model: { model: string; reasoningEffort?: string } | undefined; agent: SweCustomAgent | undefined }>();
 
 	constructor(
 		@ICopilotCLISessionService private readonly sessionService: ICopilotCLISessionService,
 		@IFolderRepositoryManager private readonly folderRepositoryManager: IFolderRepositoryManager,
-		@IChatSessionWorktreeService private readonly worktreeService: IChatSessionWorktreeService,
-		@IChatSessionWorkspaceFolderService private readonly workspaceFolderService: IChatSessionWorkspaceFolderService,
 		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
 		@ICopilotCLIModels private readonly copilotCLIModels: ICopilotCLIModels,
 		@ICopilotCLIAgents private readonly copilotCLIAgents: ICopilotCLIAgents,
 		@IPromptsService private readonly promptsService: IPromptsService,
-		@IChatSessionMetadataStore private readonly chatSessionMetadataStore: IChatSessionMetadataStore,
 		@ILogService private readonly logService: ILogService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 	) { }
 
 	async getOrCreateSession(
 		request: vscode.ChatRequest,
-		chatSessionContext: vscode.ChatSessionContext,
-		stream: vscode.ChatResponseStream,
-		options: { branchName: Promise<string | undefined> },
+		chatResource: vscode.Uri,
+		options: SessionInitOptions,
 		disposables: DisposableStore,
 		token: vscode.CancellationToken
 	): Promise<{ session: IReference<ICopilotCLISession> | undefined; isNewSession: boolean; model: { model: string; reasoningEffort?: string } | undefined; agent: SweCustomAgent | undefined; trusted: boolean }> {
-		const { resource } = chatSessionContext.chatSessionItem;
-		const sessionId = SessionIdForCLI.parse(resource);
+		const sessionId = SessionIdForCLI.parse(chatResource);
 		const isNewSession = this.sessionService.isNewSessionId(sessionId);
-
+		const { stream } = options;
+		const delegatedSessionContext = this.delegatedSessionContext.get(sessionId);
+		this.delegatedSessionContext.delete(sessionId);
 		const [{ workspaceInfo, cancelled, trusted }, model, agent] = await Promise.all([
-			this.initializeWorkingDirectory(chatSessionContext, undefined, options.branchName, stream, request.toolInvocationToken, token),
-			this.resolveModel(request, token),
-			this.resolveAgent(request, token),
+			this.initializeWorkingDirectory(chatResource, options, request.toolInvocationToken, token),
+			delegatedSessionContext?.model ? Promise.resolve(delegatedSessionContext.model) : this.resolveModel(request, token),
+			delegatedSessionContext?.agent ? Promise.resolve(delegatedSessionContext.agent) : this.resolveAgent(request, token),
 		]);
 		const workingDirectory = getWorkingDirectory(workspaceInfo);
 		const worktreeProperties = workspaceInfo.worktreeProperties;
@@ -126,15 +125,6 @@ export class CopilotCLIChatSessionInitializer implements ICopilotCLIChatSessionI
 			return { session: undefined, isNewSession, model, agent, trusted };
 		}
 		this.logService.info(`Using Copilot CLI session: ${session.object.sessionId} (isNewSession: ${isNewSession}, isolationEnabled: ${isIsolationEnabled(workspaceInfo)}, workingDirectory: ${workingDirectory}, worktreePath: ${worktreeProperties?.worktreePath})`);
-		if (isNewSession) {
-			if (worktreeProperties) {
-				void this.worktreeService.setWorktreeProperties(session.object.sessionId, worktreeProperties);
-			}
-			this.finalizeSessionCreation(session.object.sessionId, session.object.workspace);
-		}
-
-		const modeInstructions = this.createModeInstructions(request);
-		this.chatSessionMetadataStore.updateRequestDetails(sessionId, [{ vscodeRequestId: request.id, agentId: agent?.name ?? '', modeInstructions }]).catch(ex => this.logService.error(ex, 'Failed to update request details'));
 
 		disposables.add(session);
 		disposables.add(session.object.attachStream(stream));
@@ -144,46 +134,35 @@ export class CopilotCLIChatSessionInitializer implements ICopilotCLIChatSessionI
 	}
 
 	async initializeWorkingDirectory(
-		chatSessionContext: vscode.ChatSessionContext | undefined,
-		isolation: IsolationMode | undefined,
-		branchName: Promise<string | undefined> | undefined,
-		stream: vscode.ChatResponseStream,
+		chatResource: vscode.Uri | undefined,
+		options: SessionInitOptions,
 		toolInvocationToken: vscode.ChatParticipantToolToken,
 		token: vscode.CancellationToken
 	): Promise<{ workspaceInfo: IWorkspaceInfo; cancelled: boolean; trusted: boolean }> {
 		let folderInfo: FolderRepositoryInfo;
-		let folder: undefined | vscode.Uri = undefined;
+		const { stream } = options;
+		let folder: undefined | vscode.Uri = options?.folder;
 		const workspaceFolders = this.workspaceService.getWorkspaceFolders();
-		if (workspaceFolders.length === 1) {
+		if (workspaceFolders.length === 1 && !folder) {
 			folder = workspaceFolders[0];
 		}
-		if (chatSessionContext) {
-			const sessionId = SessionIdForCLI.parse(chatSessionContext.chatSessionItem.resource);
+		if (chatResource) {
+			const sessionId = SessionIdForCLI.parse(chatResource);
 			const isNewSession = this.sessionService.isNewSessionId(sessionId);
 
 			if (isNewSession) {
-				let isolation = IsolationMode.Workspace;
-				let branch: string | undefined = undefined;
-				for (const opt of (chatSessionContext.initialSessionOptions || [])) {
-					const value = typeof opt.value === 'string' ? opt.value : opt.value.id;
-					if (opt.optionId === REPOSITORY_OPTION_ID && value) {
-						folder = vscode.Uri.file(value);
-					} else if (opt.optionId === BRANCH_OPTION_ID && value) {
-						branch = value;
-					} else if (opt.optionId === ISOLATION_OPTION_ID && value) {
-						isolation = value as IsolationMode;
-					}
-				}
+				const isolation = options?.isolation ?? IsolationMode.Workspace;
+				const branch = options?.branch;
 
 				// Use FolderRepositoryManager to initialize folder/repository with worktree creation
-				folderInfo = await this.folderRepositoryManager.initializeFolderRepository(sessionId, { stream, toolInvocationToken, branch, isolation, folder, newBranch: branchName }, token);
+				folderInfo = await this.folderRepositoryManager.initializeFolderRepository(sessionId, { stream, toolInvocationToken, branch, isolation, folder, newBranch: options?.newBranch }, token);
 			} else {
 				// Existing session - use getFolderRepository for resolution with trust check
 				folderInfo = await this.folderRepositoryManager.getFolderRepository(sessionId, { promptForTrust: true, stream }, token);
 			}
 		} else {
 			// No chat session context (e.g., delegation) - initialize with active repository
-			folderInfo = await this.folderRepositoryManager.initializeFolderRepository(undefined, { stream, toolInvocationToken, isolation, folder }, token);
+			folderInfo = await this.folderRepositoryManager.initializeFolderRepository(undefined, { stream, toolInvocationToken, isolation: options?.isolation, folder, newBranch: options?.newBranch }, token);
 		}
 
 		if (folderInfo.trusted === false || folderInfo.cancelled) {
@@ -199,23 +178,15 @@ export class CopilotCLIChatSessionInitializer implements ICopilotCLIChatSessionI
 		workspace: IWorkspaceInfo,
 		options: { mcpServerMappings: McpServerMappings },
 		token: vscode.CancellationToken
-	): Promise<{ session: IReference<ICopilotCLISession>; model: { model: string; reasoningEffort?: string } | undefined; agent: SweCustomAgent | undefined }> {
+	): Promise<IReference<ICopilotCLISession>> {
 		const [model, agent] = await Promise.all([
 			this.resolveModel(request, token),
 			this.resolveAgent(request, token),
 		]);
 
 		const session = await this.sessionService.createSession({ workspace, agent, model: model?.model, reasoningEffort: model?.reasoningEffort, mcpServerMappings: options.mcpServerMappings }, token);
-		const worktreeProperties = workspace.worktreeProperties;
-		if (worktreeProperties) {
-			void this.worktreeService.setWorktreeProperties(session.object.sessionId, worktreeProperties);
-		}
-		this.finalizeSessionCreation(session.object.sessionId, workspace);
-
-		const modeInstructions = this.createModeInstructions(request);
-		this.chatSessionMetadataStore.updateRequestDetails(session.object.sessionId, [{ vscodeRequestId: request.id, agentId: agent?.name ?? '', modeInstructions }]).catch(ex => this.logService.error(ex, 'Failed to update request details'));
-
-		return { session, model, agent };
+		this.delegatedSessionContext.set(session.object.sessionId, { model, agent });
+		return session;
 	}
 
 	/**
@@ -261,23 +232,6 @@ export class CopilotCLIChatSessionInitializer implements ICopilotCLIChatSessionI
 			}
 		}
 		return undefined;
-	}
-
-	private finalizeSessionCreation(sessionId: string, workspace: IWorkspaceInfo): void {
-		const workingDirectory = getWorkingDirectory(workspace);
-		if (workingDirectory && !isIsolationEnabled(workspace)) {
-			void this.workspaceFolderService.trackSessionWorkspaceFolder(sessionId, workingDirectory.fsPath, workspace.repositoryProperties);
-		}
-	}
-
-	private createModeInstructions(request: vscode.ChatRequest): StoredModeInstructions | undefined {
-		return request.modeInstructions2 ? {
-			uri: request.modeInstructions2.uri?.toString(),
-			name: request.modeInstructions2.name,
-			content: request.modeInstructions2.content,
-			metadata: request.modeInstructions2.metadata,
-			isBuiltin: request.modeInstructions2.isBuiltin,
-		} : undefined;
 	}
 
 	private async getPromptInfoFromRequest(request: vscode.ChatRequest, token: vscode.CancellationToken): Promise<ParsedPromptFile | undefined> {

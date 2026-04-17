@@ -5,6 +5,8 @@
 
 import './media/changesView.css';
 import * as dom from '../../../../base/browser/dom.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { isWeb } from '../../../../base/common/platform.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IObjectTreeElement, ITreeSorter } from '../../../../base/browser/ui/tree/tree.js';
@@ -57,7 +59,7 @@ import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/b
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { CIStatusWidget } from './checksWidget.js';
-import { COPILOT_CLOUD_SESSION_TYPE, GITHUB_PR_FILE_SCHEME, GITHUB_REMOTE_FILE_SCHEME, SessionStatus } from '../../../services/sessions/common/session.js';
+import { COPILOT_CLOUD_SESSION_TYPE, GITHUB_REMOTE_FILE_SCHEME, SessionStatus } from '../../../services/sessions/common/session.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
 import { IView, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';
 import { Color } from '../../../../base/common/color.js';
@@ -71,6 +73,7 @@ import { ChangesViewModel } from './changesViewModel.js';
 import { ResourceTree } from '../../../../base/common/resourceTree.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { compareFileNames, comparePaths } from '../../../../base/common/comparers.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
 
 const $ = dom.$;
 
@@ -236,10 +239,12 @@ export class ChangesViewPane extends ViewPane {
 	private readonly isMergeBaseBranchProtectedContextKey: IContextKey<boolean>;
 	private readonly isolationModeContextKey: IContextKey<IsolationMode>;
 	private readonly hasGitRepositoryContextKey: IContextKey<boolean>;
+	private readonly hasUpstreamContextKey: IContextKey<boolean>;
 	private readonly hasIncomingChangesContextKey: IContextKey<boolean>;
 	private readonly hasOpenPullRequestContextKey: IContextKey<boolean>;
 	private readonly hasOutgoingChangesContextKey: IContextKey<boolean>;
 	private readonly hasPullRequestContextKey: IContextKey<boolean>;
+	private readonly hasGitHubRemoteContextKey: IContextKey<boolean>;
 	private readonly hasUncommittedChangesContextKey: IContextKey<boolean>;
 
 	private readonly renderDisposables = this._register(new DisposableStore());
@@ -261,9 +266,11 @@ export class ChangesViewPane extends ViewPane {
 		@IOpenerService openerService: IOpenerService,
 		@IThemeService themeService: IThemeService,
 		@IHoverService hoverService: IHoverService,
+		@ICommandService private readonly commandService: ICommandService,
 		@IEditorService private readonly editorService: IEditorService,
 		@ISessionsManagementService private readonly sessionManagementService: ISessionsManagementService,
 		@ILabelService private readonly labelService: ILabelService,
+		@ILogService private readonly logService: ILogService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
 		super({ ...options, titleMenuId: MenuId.ChatEditingSessionTitleToolbar }, keybindingService, contextMenuService, configurationService, contextKeyService, viewDescriptorService, instantiationService, openerService, themeService, hoverService);
@@ -275,9 +282,11 @@ export class ChangesViewPane extends ViewPane {
 		this.isMergeBaseBranchProtectedContextKey = ActiveSessionContextKeys.IsMergeBaseBranchProtected.bindTo(this.scopedContextKeyService);
 		this.isolationModeContextKey = ActiveSessionContextKeys.IsolationMode.bindTo(this.scopedContextKeyService);
 		this.hasGitRepositoryContextKey = ActiveSessionContextKeys.HasGitRepository.bindTo(this.scopedContextKeyService);
+		this.hasUpstreamContextKey = ActiveSessionContextKeys.HasUpstream.bindTo(this.scopedContextKeyService);
 		this.hasIncomingChangesContextKey = ActiveSessionContextKeys.HasIncomingChanges.bindTo(this.scopedContextKeyService);
 		this.hasOutgoingChangesContextKey = ActiveSessionContextKeys.HasOutgoingChanges.bindTo(this.scopedContextKeyService);
 		this.hasUncommittedChangesContextKey = ActiveSessionContextKeys.HasUncommittedChanges.bindTo(this.scopedContextKeyService);
+		this.hasGitHubRemoteContextKey = ActiveSessionContextKeys.HasGitHubRemote.bindTo(this.scopedContextKeyService);
 		this.hasPullRequestContextKey = ActiveSessionContextKeys.HasPullRequest.bindTo(this.scopedContextKeyService);
 		this.hasOpenPullRequestContextKey = ActiveSessionContextKeys.HasOpenPullRequest.bindTo(this.scopedContextKeyService);
 
@@ -296,12 +305,6 @@ export class ChangesViewPane extends ViewPane {
 		// changes.
 		this._register(bindContextKey(ChatContextKeys.agentSessionType, this.scopedContextKeyService, reader => {
 			return this.viewModel.activeSessionTypeObs.read(reader) ?? '';
-		}));
-
-		// Title actions
-		this._register(autorun(reader => {
-			this.viewModel.activeSessionResourceObs.read(reader);
-			this.updateActions();
 		}));
 	}
 
@@ -471,6 +474,13 @@ export class ChangesViewPane extends ViewPane {
 	private onVisible(): void {
 		this.renderDisposables.clear();
 
+		// Title actions
+		this.renderDisposables.add(autorun(reader => {
+			this.viewModel.activeSessionResourceObs.read(reader);
+			this.updateActions();
+		}));
+
+		// Loading
 		this.renderDisposables.add(autorun(reader => {
 			const isLoading = this.viewModel.activeSessionIsLoadingObs.read(reader);
 			if (isLoading) {
@@ -515,10 +525,21 @@ export class ChangesViewPane extends ViewPane {
 				ChangesButtonBarWidget, this.actionsContainer, this.viewModel));
 		}
 
+		const activeSessionStatusObs = derived(reader => {
+			const activeSession = this.sessionManagementService.activeSession.read(reader);
+			return activeSession?.status.read(reader);
+		});
+
 		// Update visibility and file count badge based on entries
 		this.renderDisposables.add(autorun(reader => {
 			if (this.viewModel.activeSessionIsLoadingObs.read(reader)) {
 				return;
+			}
+
+			// Hide the actions toolbar for untitled sessions.
+			const activeSessionStatus = activeSessionStatusObs.read(reader);
+			if (this.actionsContainer) {
+				dom.setVisibility(activeSessionStatus !== undefined && activeSessionStatus !== SessionStatus.Untitled, this.actionsContainer);
 			}
 
 			const hasGitRepository = this.viewModel.activeSessionHasGitRepositoryObs.read(reader);
@@ -534,6 +555,8 @@ export class ChangesViewPane extends ViewPane {
 				this.filesCountBadge.textContent = `${files}`;
 				this.filesCountBadge.style.display = '';
 			}
+
+			this.layoutSplitView();
 		}));
 
 		// Update summary text (line counts only, file count is shown in badge)
@@ -577,8 +600,15 @@ export class ChangesViewPane extends ViewPane {
 
 				logChangesViewFileSelect(this.telemetryService, e.element.changeType);
 
-				const items = changesObs.get();
-				this._openFileItem(e.element, items, e.sideBySide, !!e.editorOptions?.preserveFocus, !!e.editorOptions?.pinned, items.length > 1);
+				const modalEditorMode = this.configurationService.getValue<string>('workbench.editor.useModal');
+				if (modalEditorMode === 'all') {
+					const items = changesObs.get();
+					this._openFileItem(e.element, items, e.sideBySide, !!e.editorOptions?.preserveFocus, !!e.editorOptions?.pinned, items.length > 1);
+					return;
+				}
+
+				// Open multi-file diff editor
+				void this._openMultiFileDiffEditor(e.element.uri);
 			}));
 		}
 
@@ -641,12 +671,16 @@ export class ChangesViewPane extends ViewPane {
 				return;
 			}
 
+			this.logService.info(`[ChangesViewPane][_bindContextKeys] Context keys: ${JSON.stringify(state)}`);
+
 			this.scopedContextKeyService.bufferChangeEvents(() => {
 				this.isolationModeContextKey.set(state.isolationMode);
 				this.hasGitRepositoryContextKey.set(state.hasGitRepository);
 				this.isMergeBaseBranchProtectedContextKey.set(state.isMergeBaseBranchProtected === true);
+				this.hasGitHubRemoteContextKey.set(state.hasGitHubRemote === true);
 				this.hasPullRequestContextKey.set(state.hasPullRequest === true);
 				this.hasOpenPullRequestContextKey.set(state.hasOpenPullRequest === true);
+				this.hasUpstreamContextKey.set(state.upstreamBranchName !== undefined);
 				this.hasIncomingChangesContextKey.set(state.incomingChanges !== undefined && state.incomingChanges > 0);
 				this.hasOutgoingChangesContextKey.set(state.outgoingChanges !== undefined && state.outgoingChanges > 0);
 				this.hasUncommittedChangesContextKey.set(state.uncommittedChanges !== undefined && state.uncommittedChanges > 0);
@@ -709,7 +743,7 @@ export class ChangesViewPane extends ViewPane {
 
 		if (workspaceFolderUri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
 			// Cloud session
-			resourceTreeRootUri = URI.from({ scheme: GITHUB_PR_FILE_SCHEME, path: '/' });
+			resourceTreeRootUri = URI.from({ scheme: Schemas.copilotPr, path: '/' });
 			const segments = workspaceFolderUri.path.split('/').filter(Boolean);
 			name = `${segments.slice(0, 2).join('/')} (${decodeURIComponent(segments[2])})`;
 		} else {
@@ -734,6 +768,10 @@ export class ChangesViewPane extends ViewPane {
 		const versionMode = this.viewModel.versionModeObs.get();
 		const firstCheckpointRef = this.viewModel.activeSessionFirstCheckpointRefObs.get();
 		const lastCheckpointRef = this.viewModel.activeSessionLastCheckpointRefObs.get();
+
+		if (versionMode === ChangesVersionMode.UncommittedChanges) {
+			return 'HEAD';
+		}
 
 		return versionMode === ChangesVersionMode.LastTurn
 			? lastCheckpointRef
@@ -852,7 +890,7 @@ export class ChangesViewPane extends ViewPane {
 					const activeSession = this.sessionManagementService.activeSession.get();
 					const repository = activeSession?.workspace.get()?.repositories[0];
 					return repository?.uri.scheme === GITHUB_REMOTE_FILE_SCHEME
-						? URI.from({ scheme: GITHUB_PR_FILE_SCHEME, path: '/' })
+						? URI.from({ scheme: Schemas.copilotPr, path: '/' })
 						: repository?.workingDirectory ?? repository?.uri;
 				})],
 			{
@@ -904,8 +942,15 @@ export class ChangesViewPane extends ViewPane {
 			return;
 		}
 
-		const changes = toIChangesFileItem(items);
-		await this._openFileItem(changes[0], changes, false, false, false, changes.length > 1);
+		const modalEditorMode = this.configurationService.getValue<string>('workbench.editor.useModal');
+		if (modalEditorMode === 'all') {
+			const changes = toIChangesFileItem(items);
+			await this._openFileItem(changes[0], changes, false, false, false, changes.length > 1);
+			return;
+		}
+
+		// Open multi-file diff editor
+		await this._openMultiFileDiffEditor();
 	}
 
 	private async _openFileItem(item: IChangesFileItem, items: IChangesFileItem[], sideBySide: boolean, preserveFocus: boolean, pinned: boolean, includeSidebar: boolean): Promise<void> {
@@ -952,6 +997,28 @@ export class ChangesViewPane extends ViewPane {
 			resource: modifiedFileUri,
 			options: { preserveFocus, pinned, modal: { sidebar, navigation } }
 		}, group);
+	}
+
+	private async _openMultiFileDiffEditor(reveal?: URI): Promise<void> {
+		const sessionResource = this.viewModel.activeSessionResourceObs.get();
+		const changes = this.viewModel.activeSessionChangesObs.get();
+
+		if (!sessionResource || changes.length === 0) {
+			return;
+		}
+
+		// Open multi-file diff editor
+		await this.commandService.executeCommand('_workbench.openMultiDiffEditor', {
+			multiDiffSourceUri: sessionResource.with({ scheme: sessionResource.scheme + '-session-changes' }),
+			title: localize('sessions.changes.title', 'Session Changes'),
+			resources: changes.map(d => ({
+				originalUri: d.originalUri,
+				modifiedUri: d.modifiedUri
+			})),
+			reveal: reveal
+				? { modifiedUri: reveal }
+				: undefined
+		});
 	}
 
 	override dispose(): void {
@@ -1153,7 +1220,7 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 				const branchName = state?.branchName;
 				const baseBranchName = state?.baseBranchName;
 
-				return [
+				const actions = [
 					{
 						...action,
 						id: 'chatEditing.versionsBranchChanges',
@@ -1171,13 +1238,32 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 							}
 						},
 					},
-					{
+				];
+
+				if (!isWeb) {
+					actions.push({
+						...action,
+						id: 'chatEditing.versionsUncommittedChanges',
+						label: localize('chatEditing.versionsUncommittedChanges', 'Uncommitted Changes'),
+						description: localize('chatEditing.versionsUncommittedChanges.description', 'Show uncommitted changes in this session'),
+						checked: viewModel.versionModeObs.get() === ChangesVersionMode.UncommittedChanges,
+						category: { label: 'changes', order: 2, showHeader: false },
+						enabled: viewModel.activeSessionTypeObs.get() !== COPILOT_CLOUD_SESSION_TYPE,
+						run: async () => {
+							viewModel.setVersionMode(ChangesVersionMode.UncommittedChanges);
+							logChangesViewVersionModeChange(this.telemetryService, ChangesVersionMode.UncommittedChanges);
+							if (this.element) {
+								this.renderLabel(this.element);
+							}
+						},
+					});
+					actions.push({
 						...action,
 						id: 'chatEditing.versionsAllChanges',
 						label: localize('chatEditing.versionsAllChanges', 'All Changes'),
 						description: localize('chatEditing.versionsAllChanges.description', 'Show all changes made in this session'),
 						checked: viewModel.versionModeObs.get() === ChangesVersionMode.AllChanges,
-						category: { label: 'checkpoints', order: 2, showHeader: false },
+						category: { label: 'checkpoints', order: 3, showHeader: false },
 						enabled: viewModel.activeSessionTypeObs.get() === COPILOT_CLOUD_SESSION_TYPE ||
 							(viewModel.activeSessionFirstCheckpointRefObs.get() !== undefined &&
 								viewModel.activeSessionLastCheckpointRefObs.get() !== undefined),
@@ -1188,14 +1274,14 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 								this.renderLabel(this.element);
 							}
 						},
-					},
-					{
+					});
+					actions.push({
 						...action,
 						id: 'chatEditing.versionsLastTurnChanges',
 						label: localize('chatEditing.versionsLastTurnChanges', "Last Turn's Changes"),
 						description: localize('chatEditing.versionsLastTurnChanges.description', 'Show only changes from the last turn'),
 						checked: viewModel.versionModeObs.get() === ChangesVersionMode.LastTurn,
-						category: { label: 'checkpoints', order: 3, showHeader: false },
+						category: { label: 'checkpoints', order: 4, showHeader: false },
 						enabled: viewModel.activeSessionTypeObs.get() === COPILOT_CLOUD_SESSION_TYPE ||
 							(viewModel.activeSessionFirstCheckpointRefObs.get() !== undefined &&
 								viewModel.activeSessionLastCheckpointRefObs.get() !== undefined),
@@ -1206,8 +1292,10 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 								this.renderLabel(this.element);
 							}
 						},
-					},
-				];
+					});
+				}
+
+				return actions;
 			},
 		};
 
@@ -1226,9 +1314,11 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 		const mode = this.viewModel.versionModeObs.get();
 		const label = mode === ChangesVersionMode.BranchChanges
 			? localize('sessionsChanges.versionsBranchChanges', "Branch Changes")
-			: mode === ChangesVersionMode.AllChanges
-				? localize('sessionsChanges.versionsAllChanges', "All Changes")
-				: localize('sessionsChanges.versionsLastTurn', "Last Turn's Changes");
+			: mode === ChangesVersionMode.UncommittedChanges
+				? localize('sessionsChanges.versionsUncommittedChanges', 'Uncommitted Changes')
+				: mode === ChangesVersionMode.AllChanges
+					? localize('sessionsChanges.versionsAllChanges', "All Changes")
+					: localize('sessionsChanges.versionsLastTurn', "Last Turn's Changes");
 
 		dom.reset(element, dom.$('span', undefined, label), ...renderLabelWithIcons('$(chevron-down)'));
 		this.updateAriaLabel();

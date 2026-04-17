@@ -141,14 +141,8 @@ function makeStream(): vscode.ChatResponseStream {
 	} as unknown as vscode.ChatResponseStream;
 }
 
-function makeChatSessionContext(sessionId: string = 'untitled:new-session', initialOptions?: { optionId: string; value: string }[]): vscode.ChatSessionContext {
-	return {
-		chatSessionItem: {
-			resource: URI.from({ scheme: 'copilotcli', path: `/${sessionId}` }) as unknown as vscode.Uri,
-			label: 'Test',
-		},
-		initialSessionOptions: initialOptions ?? [],
-	} as unknown as vscode.ChatSessionContext;
+function makeChatResource(sessionId: string = 'untitled:new-session'): vscode.Uri {
+	return URI.from({ scheme: 'copilotcli', path: `/${sessionId}` }) as unknown as vscode.Uri;
 }
 
 function createInitializer(overrides?: {
@@ -179,13 +173,10 @@ function createInitializer(overrides?: {
 	const initializer = new CopilotCLIChatSessionInitializer(
 		sessionService,
 		folderRepoManager,
-		worktreeService,
-		workspaceFolderService,
 		workspaceService,
 		models,
 		agents,
 		promptsService,
-		metadataStore,
 		logService,
 		configurationService,
 	);
@@ -326,10 +317,9 @@ describe('ChatSessionInitializer', () => {
 			const sessionService = new TestSessionService();
 			sessionService.isNewSessionId.mockReturnValue(true);
 			const { initializer, folderRepoManager } = createInitializer({ sessionService });
-			const context = makeChatSessionContext('untitled:new');
 
 			const result = await initializer.initializeWorkingDirectory(
-				context, undefined, undefined, makeStream(),
+				makeChatResource('untitled:new'), { stream: makeStream() },
 				{} as vscode.ChatParticipantToolToken, CancellationToken.None
 			);
 
@@ -343,10 +333,9 @@ describe('ChatSessionInitializer', () => {
 			const sessionService = new TestSessionService();
 			sessionService.isNewSessionId.mockReturnValue(false);
 			const { initializer, folderRepoManager } = createInitializer({ sessionService });
-			const context = makeChatSessionContext('existing-session');
 
 			const result = await initializer.initializeWorkingDirectory(
-				context, undefined, undefined, makeStream(),
+				makeChatResource('existing-session'), { stream: makeStream() },
 				{} as vscode.ChatParticipantToolToken, CancellationToken.None
 			);
 
@@ -358,7 +347,7 @@ describe('ChatSessionInitializer', () => {
 			const { initializer, folderRepoManager } = createInitializer();
 
 			const result = await initializer.initializeWorkingDirectory(
-				undefined, undefined, undefined, makeStream(),
+				undefined, { stream: makeStream() },
 				{} as vscode.ChatParticipantToolToken, CancellationToken.None
 			);
 
@@ -381,7 +370,7 @@ describe('ChatSessionInitializer', () => {
 			const { initializer } = createInitializer({ folderRepoManager });
 
 			const result = await initializer.initializeWorkingDirectory(
-				undefined, undefined, undefined, makeStream(),
+				undefined, { stream: makeStream() },
 				{} as vscode.ChatParticipantToolToken, CancellationToken.None
 			);
 
@@ -403,7 +392,7 @@ describe('ChatSessionInitializer', () => {
 			const { initializer } = createInitializer({ folderRepoManager });
 
 			const result = await initializer.initializeWorkingDirectory(
-				undefined, undefined, undefined, makeStream(),
+				undefined, { stream: makeStream() },
 				{} as vscode.ChatParticipantToolToken, CancellationToken.None
 			);
 
@@ -416,15 +405,14 @@ describe('ChatSessionInitializer', () => {
 			sessionService.isNewSessionId.mockReturnValue(true);
 			const { initializer, folderRepoManager } = createInitializer({ sessionService });
 
-			const options = [
-				{ optionId: 'repository', value: '/selected-repo' },
-				{ optionId: 'branch', value: 'feature-branch' },
-				{ optionId: 'isolation', value: IsolationMode.Worktree },
-			];
-			const context = makeChatSessionContext('untitled:new', options);
-
 			await initializer.initializeWorkingDirectory(
-				context, undefined, undefined, makeStream(),
+				makeChatResource('untitled:new'),
+				{
+					folder: URI.file('/selected-repo') as unknown as vscode.Uri,
+					branch: 'feature-branch',
+					isolation: IsolationMode.Worktree,
+					stream: makeStream(),
+				},
 				{} as vscode.ChatParticipantToolToken, CancellationToken.None
 			);
 
@@ -447,8 +435,7 @@ describe('ChatSessionInitializer', () => {
 			const stream = makeStream();
 
 			const result = await initializer.getOrCreateSession(
-				makeRequest(), makeChatSessionContext(), stream,
-				{ branchName: Promise.resolve(undefined) },
+				makeRequest(), makeChatResource(), { stream },
 				disposables, CancellationToken.None
 			);
 
@@ -468,8 +455,7 @@ describe('ChatSessionInitializer', () => {
 			const disposables = new DisposableStore();
 
 			const result = await initializer.getOrCreateSession(
-				makeRequest(), makeChatSessionContext('existing-session'), makeStream(),
-				{ branchName: Promise.resolve(undefined) },
+				makeRequest(), makeChatResource('existing-session'), { stream: makeStream() },
 				disposables, CancellationToken.None
 			);
 
@@ -491,8 +477,7 @@ describe('ChatSessionInitializer', () => {
 			const disposables = new DisposableStore();
 
 			const result = await initializer.getOrCreateSession(
-				makeRequest(), makeChatSessionContext(), makeStream(),
-				{ branchName: Promise.resolve(undefined) },
+				makeRequest(), makeChatResource(), { stream: makeStream() },
 				disposables, CancellationToken.None
 			);
 
@@ -510,8 +495,7 @@ describe('ChatSessionInitializer', () => {
 			const stream = makeStream();
 
 			const result = await initializer.getOrCreateSession(
-				makeRequest(), makeChatSessionContext('missing'), stream,
-				{ branchName: Promise.resolve(undefined) },
+				makeRequest(), makeChatResource('missing'), { stream },
 				disposables, CancellationToken.None
 			);
 
@@ -520,7 +504,7 @@ describe('ChatSessionInitializer', () => {
 			disposables.dispose();
 		});
 
-		it('sets worktree properties for new session with worktree', async () => {
+		it('does not set worktree properties (moved to startRequest)', async () => {
 			const sessionService = new TestSessionService();
 			sessionService.isNewSessionId.mockReturnValue(true);
 			const folderRepoManager = new TestFolderRepositoryManager();
@@ -543,57 +527,46 @@ describe('ChatSessionInitializer', () => {
 			const disposables = new DisposableStore();
 
 			await initializer.getOrCreateSession(
-				makeRequest(), makeChatSessionContext(), makeStream(),
-				{ branchName: Promise.resolve(undefined) },
+				makeRequest(), makeChatResource(), { stream: makeStream() },
 				disposables, CancellationToken.None
 			);
 
-			expect(worktreeService.setWorktreeProperties).toHaveBeenCalledWith(
-				'test-session-id',
-				expect.objectContaining({ branchName: 'copilot/test' })
-			);
+			expect(worktreeService.setWorktreeProperties).not.toHaveBeenCalled();
 			disposables.dispose();
 		});
 
-		it('tracks workspace folder for new non-isolated session', async () => {
+		it('does not track workspace folder (moved to startRequest)', async () => {
 			const sessionService = new TestSessionService();
 			sessionService.isNewSessionId.mockReturnValue(true);
 			const { initializer, workspaceFolderService } = createInitializer({ sessionService });
 			const disposables = new DisposableStore();
 
 			await initializer.getOrCreateSession(
-				makeRequest(), makeChatSessionContext(), makeStream(),
-				{ branchName: Promise.resolve(undefined) },
+				makeRequest(), makeChatResource(), { stream: makeStream() },
 				disposables, CancellationToken.None
 			);
 
-			expect(workspaceFolderService.trackSessionWorkspaceFolder).toHaveBeenCalled();
+			expect(workspaceFolderService.trackSessionWorkspaceFolder).not.toHaveBeenCalled();
 			disposables.dispose();
 		});
 
-		it('records request metadata', async () => {
+		it('does not record request metadata (moved to startRequest)', async () => {
 			const { initializer, metadataStore } = createInitializer();
 			const disposables = new DisposableStore();
 
 			await initializer.getOrCreateSession(
-				makeRequest(), makeChatSessionContext(), makeStream(),
-				{ branchName: Promise.resolve(undefined) },
+				makeRequest(), makeChatResource(), { stream: makeStream() },
 				disposables, CancellationToken.None
 			);
 
-			expect(metadataStore.updateRequestDetails).toHaveBeenCalledWith(
-				expect.any(String),
-				expect.arrayContaining([
-					expect.objectContaining({ vscodeRequestId: 'request-1' })
-				])
-			);
+			expect(metadataStore.updateRequestDetails).not.toHaveBeenCalled();
 			disposables.dispose();
 		});
 	});
 
 	describe('createDelegatedSession', () => {
-		it('creates session and finalizes', async () => {
-			const { initializer, sessionService, workspaceFolderService, metadataStore } = createInitializer();
+		it('creates session and resolves model', async () => {
+			const { initializer, sessionService } = createInitializer();
 			const workspace: IWorkspaceInfo = {
 				folder: URI.file('/workspace') as unknown as vscode.Uri,
 				repository: undefined,
@@ -602,20 +575,17 @@ describe('ChatSessionInitializer', () => {
 				worktreeProperties: undefined,
 			};
 
-			const result = await initializer.createDelegatedSession(
+			const session = await initializer.createDelegatedSession(
 				makeRequest(), workspace, { mcpServerMappings: new Map() },
 				CancellationToken.None
 			);
 
-			expect(result.session).toBeDefined();
-			expect(result.model).toEqual(expect.objectContaining({ model: 'resolved-model' }));
+			expect(session).toBeDefined();
 			expect(sessionService.createSession).toHaveBeenCalled();
-			expect(workspaceFolderService.trackSessionWorkspaceFolder).toHaveBeenCalled();
-			expect(metadataStore.updateRequestDetails).toHaveBeenCalled();
 		});
 
-		it('sets worktree properties when workspace has worktree', async () => {
-			const { initializer, worktreeService } = createInitializer();
+		it('does not set worktree properties or track workspace folder (moved to startRequest)', async () => {
+			const { initializer, worktreeService, workspaceFolderService, metadataStore } = createInitializer();
 			const workspace: IWorkspaceInfo = {
 				folder: URI.file('/workspace') as unknown as vscode.Uri,
 				repository: URI.file('/repo') as unknown as vscode.Uri,
@@ -636,36 +606,9 @@ describe('ChatSessionInitializer', () => {
 				CancellationToken.None
 			);
 
-			expect(worktreeService.setWorktreeProperties).toHaveBeenCalledWith(
-				'test-session-id',
-				expect.objectContaining({ branchName: 'copilot/test' })
-			);
-		});
-
-		it('does not track workspace folder for isolated session', async () => {
-			const { initializer, workspaceFolderService } = createInitializer();
-			const workspace: IWorkspaceInfo = {
-				folder: URI.file('/workspace') as unknown as vscode.Uri,
-				repository: URI.file('/repo') as unknown as vscode.Uri,
-				repositoryProperties: undefined,
-				worktree: URI.file('/worktree') as unknown as vscode.Uri,
-				worktreeProperties: {
-					version: 2,
-					baseCommit: 'abc',
-					baseBranchName: 'main',
-					branchName: 'copilot/test',
-					repositoryPath: '/repo',
-					worktreePath: '/worktree',
-				},
-			};
-
-			await initializer.createDelegatedSession(
-				makeRequest(), workspace, { mcpServerMappings: new Map() },
-				CancellationToken.None
-			);
-
-			// Isolated session (has worktreeProperties) should NOT track workspace folder
+			expect(worktreeService.setWorktreeProperties).not.toHaveBeenCalled();
 			expect(workspaceFolderService.trackSessionWorkspaceFolder).not.toHaveBeenCalled();
+			expect(metadataStore.updateRequestDetails).not.toHaveBeenCalled();
 		});
 	});
 });

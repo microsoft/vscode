@@ -38,6 +38,7 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 	private _availableProfiles: ITerminalProfile[] | undefined;
 	private _automationProfile: unknown;
 	private _contributedProfiles: IExtensionTerminalProfile[] = [];
+	private readonly _internalContributedProfiles: IExtensionTerminalProfile[] = [];
 	private _defaultProfileName?: string;
 	private _platformConfigJustRefreshed = false;
 	private readonly _refreshTerminalActionsDisposable = this._register(new MutableDisposable());
@@ -175,7 +176,10 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 				excludedContributedProfiles.push(profileName);
 			}
 		}
-		const filteredContributedProfiles = Array.from(this._terminalContributionService.terminalProfiles.filter(p => !excludedContributedProfiles.includes(p.title)));
+		const filteredContributedProfiles = [
+			...Array.from(this._terminalContributionService.terminalProfiles.filter(p => !excludedContributedProfiles.includes(p.title))),
+			...this._internalContributedProfiles.filter(p => !excludedContributedProfiles.includes(p.title)),
+		];
 		const contributedProfilesChanged = !arrays.equals(filteredContributedProfiles, this._contributedProfiles, contributedProfilesEqual);
 		this._contributedProfiles = filteredContributedProfiles;
 		return contributedProfilesChanged;
@@ -187,6 +191,14 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 	}
 
 	private async _detectProfiles(includeDetectedProfiles?: boolean): Promise<ITerminalProfile[]> {
+		// On web without a pty host, getBackend() waits forever for a backend
+		// that will never register. Check synchronously first to avoid hanging.
+		if (isWeb && !this._environmentService.remoteAuthority) {
+			const hasAnyBackend = [...this._terminalInstanceService.getRegisteredBackends()].length > 0;
+			if (!hasAnyBackend) {
+				return this._availableProfiles || [];
+			}
+		}
 		const primaryBackend = await this._terminalInstanceService.getBackend(this._environmentService.remoteAuthority);
 		if (!primaryBackend) {
 			return this._availableProfiles || [];
@@ -241,6 +253,18 @@ export class TerminalProfileService extends Disposable implements ITerminalProfi
 		}
 		await this._configurationService.updateValue(`${TerminalSettingPrefix.Profiles}${platformKey}`, profilesConfig, ConfigurationTarget.USER);
 		return;
+	}
+
+	registerInternalContributedProfile(profile: IExtensionTerminalProfile): IDisposable {
+		this._internalContributedProfiles.push(profile);
+		this.refreshAvailableProfiles();
+		return toDisposable(() => {
+			const idx = this._internalContributedProfiles.indexOf(profile);
+			if (idx >= 0) {
+				this._internalContributedProfiles.splice(idx, 1);
+				this.refreshAvailableProfiles();
+			}
+		});
 	}
 
 	async getContributedDefaultProfile(shellLaunchConfig: IShellLaunchConfig): Promise<IExtensionTerminalProfile | undefined> {

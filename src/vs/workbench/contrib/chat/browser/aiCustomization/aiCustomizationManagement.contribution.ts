@@ -27,15 +27,19 @@ import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { EditorPaneDescriptor, IEditorPaneRegistry } from '../../../../browser/editor.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../common/contributions.js';
-import { EditorExtensions, IEditorFactoryRegistry, IEditorSerializer } from '../../../../common/editor.js';
+import { EditorExtensions, EditorsOrder, IEditorFactoryRegistry, IEditorSerializer } from '../../../../common/editor.js';
 import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IAICustomizationWorkspaceService } from '../../common/aiCustomizationWorkspaceService.js';
+import { localChatSessionType } from '../../common/chatSessionsService.js';
+import { CustomizationHarness, ICustomizationHarnessService } from '../../common/customizationHarnessService.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IAgentPluginService } from '../../common/plugins/agentPluginService.js';
 import { PromptsType } from '../../common/promptSyntax/promptTypes.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
+import { IChatWidgetService } from '../chat.js';
 import { AgentPluginItemKind } from '../agentPluginEditor/agentPluginItems.js';
 import {
 	AI_CUSTOMIZATION_ITEM_DISABLED_KEY,
@@ -44,6 +48,7 @@ import {
 	AI_CUSTOMIZATION_ITEM_URI_KEY,
 	AI_CUSTOMIZATION_MANAGEMENT_EDITOR_ID,
 	AI_CUSTOMIZATION_MANAGEMENT_EDITOR_INPUT_ID,
+	AI_CUSTOMIZATION_SUPPORTS_TROUBLESHOOT_KEY,
 	AICustomizationManagementCommands,
 	AICustomizationManagementItemMenuId,
 	AICustomizationManagementSection,
@@ -63,7 +68,7 @@ type CustomizationEditorDeleteItemClassification = {
 	promptType: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The type of customization being deleted.' };
 	storage: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; comment: 'The storage location of the deleted item.' };
 	owner: 'joshspicer';
-	comment: 'Tracks item deletion in the Chat Customizations editor.';
+	comment: 'Tracks item deletion in the Agent Customizations editor.';
 };
 
 //#endregion
@@ -74,7 +79,7 @@ Registry.as<IEditorPaneRegistry>(EditorExtensions.EditorPane).registerEditorPane
 	EditorPaneDescriptor.create(
 		AICustomizationManagementEditor,
 		AI_CUSTOMIZATION_MANAGEMENT_EDITOR_ID,
-		localize('aiCustomizationManagementEditor', "Chat Customizations Editor")
+		localize('aiCustomizationManagementEditor', "Agent Customizations Editor")
 	),
 	[
 		// Note: Using the class directly since we use a singleton pattern
@@ -173,6 +178,16 @@ function extractPluginUri(context: AICustomizationContext): URI | undefined {
 }
 
 /**
+ * Extracts the item name from context.
+ */
+function extractName(context: AICustomizationContext): string | undefined {
+	if (URI.isUri(context) || typeof context === 'string') {
+		return undefined;
+	}
+	return typeof context.name === 'string' ? context.name : undefined;
+}
+
+/**
  * Extracts the item ID from context (used for identifying individual hooks within a file).
  */
 function extractItemId(context: AICustomizationContext): string | undefined {
@@ -242,6 +257,39 @@ registerAction2(class extends Action2 {
 	async run(accessor: ServicesAccessor, context: AICustomizationContext): Promise<void> {
 		const commandService = accessor.get(ICommandService);
 		await commandService.executeCommand('workbench.action.chat.run.prompt.current', extractURI(context));
+	}
+});
+
+// Troubleshoot customization action
+const TROUBLESHOOT_AI_CUSTOMIZATION_ID = 'aiCustomizationManagement.troubleshoot';
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: TROUBLESHOOT_AI_CUSTOMIZATION_ID,
+			title: localize2('troubleshoot', "Troubleshoot"),
+			icon: Codicon.bug,
+		});
+	}
+	async run(accessor: ServicesAccessor, context: AICustomizationContext): Promise<void> {
+		const commandService = accessor.get(ICommandService);
+		const editorService = accessor.get(IEditorService);
+		const rawName = extractName(context);
+		const displayName = rawName?.replace(/\.md$/i, '');
+		const query = displayName
+			? `/troubleshoot ${displayName}`
+			: '/troubleshoot';
+
+		// Close any open Agent Customizations editors before sending the chat.
+		const customizationEditors = editorService.getEditors(EditorsOrder.SEQUENTIAL)
+			.filter(({ editor }) => editor instanceof AICustomizationManagementEditorInput);
+		if (customizationEditors.length) {
+			await editorService.closeEditors(customizationEditors);
+		}
+
+		await commandService.executeCommand('workbench.action.chat.open', {
+			query,
+			isPartialQuery: false,
+		});
 	}
 });
 
@@ -445,6 +493,13 @@ MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	when: WHEN_ITEM_IS_DELETABLE,
 });
 
+MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
+	command: { id: TROUBLESHOOT_AI_CUSTOMIZATION_ID, title: localize('troubleshootInline', "Troubleshoot"), icon: Codicon.bug },
+	group: 'inline',
+	order: 2,
+	when: ContextKeyExpr.equals(AI_CUSTOMIZATION_SUPPORTS_TROUBLESHOOT_KEY, true),
+});
+
 // Context menu items (shown on right-click)
 MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	command: { id: OPEN_AI_CUSTOMIZATION_MGMT_FILE_ID, title: localize('open', "Open") },
@@ -457,6 +512,13 @@ MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
 	group: '2_run',
 	order: 1,
 	when: ContextKeyExpr.equals(AI_CUSTOMIZATION_ITEM_TYPE_KEY, PromptsType.prompt),
+});
+
+MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
+	command: { id: TROUBLESHOOT_AI_CUSTOMIZATION_ID, title: localize('troubleshootItem', "Troubleshoot") },
+	group: '2_run',
+	order: 2,
+	when: ContextKeyExpr.equals(AI_CUSTOMIZATION_SUPPORTS_TROUBLESHOOT_KEY, true),
 });
 
 MenuRegistry.appendMenuItem(AICustomizationManagementItemMenuId, {
@@ -693,10 +755,49 @@ class AICustomizationManagementActionsContribution extends Disposable implements
 
 			async run(accessor: ServicesAccessor, section?: AICustomizationManagementSection): Promise<void> {
 				const editorService = accessor.get(IEditorService);
+				const chatWidgetService = accessor.get(IChatWidgetService);
+				const harnessService = accessor.get(ICustomizationHarnessService);
+
+				// Detect the active chat session type and switch the harness
+				// so the customization editor opens in the matching context.
+				const sessionResource = chatWidgetService.lastFocusedWidget?.viewModel?.sessionResource;
+				if (sessionResource) {
+					const sessionType = getChatSessionType(sessionResource);
+					const harnessId = sessionType === localChatSessionType
+						? CustomizationHarness.VSCode
+						: sessionType;
+					const available = harnessService.availableHarnesses.get();
+					if (available.some(h => h.id === harnessId)) {
+						harnessService.setActiveHarness(harnessId);
+					}
+				}
+
 				const input = AICustomizationManagementEditorInput.getOrCreate();
 				const pane = await editorService.openEditor(input, { pinned: true });
 				if (section && pane instanceof AICustomizationManagementEditor) {
 					pane.selectSectionById(section);
+				}
+			}
+		}));
+
+		// Open Marketplace (hidden command for deep-linking into browse mode)
+		this._register(registerAction2(class extends Action2 {
+			constructor() {
+				super({
+					id: AICustomizationManagementCommands.OpenMarketplace,
+					title: localize2('openMarketplace', "Open Marketplace"),
+					category: CHAT_CATEGORY,
+					precondition: ChatContextKeys.enabled,
+				});
+			}
+
+			async run(accessor: ServicesAccessor, section?: AICustomizationManagementSection): Promise<void> {
+				const editorService = accessor.get(IEditorService);
+				const input = AICustomizationManagementEditorInput.getOrCreate();
+				const pane = await editorService.openEditor(input, { pinned: true });
+				if (pane instanceof AICustomizationManagementEditor) {
+					const targetSection = section ?? AICustomizationManagementSection.McpServers;
+					pane.selectSectionById(targetSection, { showMarketplace: true });
 				}
 			}
 		}));

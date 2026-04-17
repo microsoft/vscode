@@ -92,6 +92,7 @@ function makeAgentSession(opts: {
 		chats: observableValue('test.chats', [chat]),
 		activeChat: observableValue('test.activeChat', chat),
 		mainChat: chat,
+		capabilities: { supportsMultipleChats: false },
 	};
 	return session;
 }
@@ -140,6 +141,7 @@ function makeNonAgentSession(opts: { repository?: URI; worktree?: URI; providerT
 		gitHubInfo: observableValue('test.gitHubInfo', undefined),
 		chats: observableValue('test.chats', [chat]),
 		mainChat: chat,
+		capabilities: { supportsMultipleChats: false },
 	};
 	return session;
 }

@@ -4,6 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CopilotNamedAnnotationList } from '../../../../../../platform/completions-core/common/openai/copilotAnnotations';
+import { Completions, ICompletionsFetchService } from '../../../../../../platform/nesFetch/common/completionsFetchService';
+import { ResponseStream } from '../../../../../../platform/nesFetch/common/responseStream';
+import { jsonlStreamToCompletions } from '../../../../../../platform/nesFetch/node/streamTransformer';
+import { HeadersImpl } from '../../../../../../platform/networking/common/fetcherService';
+import { Result } from '../../../../../../util/common/result';
+import { CancellationToken } from '../../../../../../util/vs/base/common/cancellation';
 import { FetchOptions, IAbortController, ICompletionsFetcherService, IHeaders, Response } from '../networking';
 
 type HeadersParameter = { [key: string]: string };
@@ -165,4 +171,61 @@ export class FakeAbortController implements IAbortController {
 	abort(): void {
 		this.signal.aborted = true;
 	}
+}
+
+/**
+ * Adapts a `StaticFetcher` (which returns raw SSE `Response` objects) into an
+ * `ICompletionsFetchService` for tests that use `LiveOpenAIFetcher` (v2).
+ */
+export class StaticCompletionsFetchService implements ICompletionsFetchService {
+	declare _serviceBrand: undefined;
+	constructor(private readonly fetcher: FakeFetcher) { }
+	async fetch(
+		url: string,
+		_secretKey: string,
+		params: Completions.ModelParams,
+		requestId: string,
+		ct: CancellationToken,
+		headerOverrides?: Record<string, string>
+	): Promise<Result<ResponseStream, Completions.CompletionsFetchFailure>> {
+		if (ct.isCancellationRequested) {
+			return Result.error(new Completions.RequestCancelled());
+		}
+		const options: FetchOptions = {
+			callSite: 'test',
+			method: 'POST',
+			headers: headerOverrides ?? {},
+			json: { ...params, stream: true },
+		};
+		let rawResponse: Response;
+		try {
+			rawResponse = await this.fetcher.fetch(url, options);
+		} catch (err) {
+			return Result.error(new Completions.Unexpected(err instanceof Error ? err : new Error(String(err))));
+		}
+		if (rawResponse.status !== 200) {
+			return Result.error(new Completions.UnsuccessfulResponse(
+				rawResponse.status,
+				'error',
+				rawResponse.headers,
+				() => rawResponse.text(),
+			));
+		}
+		const bodyText = await rawResponse.text();
+		const lines = bodyText.split('\n').filter(l => l.length > 0);
+		async function* lineStream() { for (const l of lines) { yield l; } }
+		const completionsStream = jsonlStreamToCompletions(lineStream());
+		const headers = rawResponse.headers instanceof HeadersImpl ? rawResponse.headers : new HeadersImpl({});
+		const mockResponse = Response.fromText(200, 'OK', headers, '', 'test-stub');
+		const stream = new ResponseStream(mockResponse, completionsStream, {
+			headerRequestId: requestId,
+			serverExperiments: '',
+			deploymentId: '',
+			gitHubRequestId: '',
+			completionId: '',
+			created: 0
+		}, headers);
+		return Result.ok(stream);
+	}
+	async disconnectAll() { }
 }

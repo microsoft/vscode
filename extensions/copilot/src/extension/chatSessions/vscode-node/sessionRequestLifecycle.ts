@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import { ILogService } from '../../../platform/log/common/logService';
 import { createServiceIdentifier } from '../../../util/common/services';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
+import { IChatSessionMetadataStore, StoredModeInstructions } from '../common/chatSessionMetadataStore';
 import { IChatSessionWorkspaceFolderService } from '../common/chatSessionWorkspaceFolderService';
 import { IChatSessionWorktreeCheckpointService } from '../common/chatSessionWorktreeCheckpointService';
 import { IChatSessionWorktreeService } from '../common/chatSessionWorktreeService';
@@ -17,9 +19,10 @@ export interface ISessionRequestLifecycle {
 
 	/**
 	 * Begin tracking a request for a session. Creates a baseline checkpoint
-	 * if this is the first request in the session.
+	 * if this is the first request in the session. Records request details
+	 * (agent, mode instructions) in the metadata store.
 	 */
-	startRequest(sessionId: string, request: vscode.ChatRequest, isFirstRequest: boolean): Promise<void>;
+	startRequest(sessionId: string, request: vscode.ChatRequest, isFirstRequest: boolean, workspace: IWorkspaceInfo, agentName?: string): Promise<void>;
 
 	/**
 	 * Finalize a request: commit worktree changes, create checkpoints, detect
@@ -59,18 +62,39 @@ export class SessionRequestLifecycle extends Disposable implements ISessionReque
 		@IChatSessionWorktreeCheckpointService private readonly checkpointService: IChatSessionWorktreeCheckpointService,
 		@IChatSessionWorkspaceFolderService private readonly workspaceFolderService: IChatSessionWorkspaceFolderService,
 		@IPullRequestDetectionService private readonly prDetectionService: IPullRequestDetectionService,
+		@IChatSessionMetadataStore private readonly metadataStore: IChatSessionMetadataStore,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 	}
 
-	async startRequest(sessionId: string, request: vscode.ChatRequest, isFirstRequest: boolean): Promise<void> {
+	async startRequest(sessionId: string, request: vscode.ChatRequest, isFirstRequest: boolean, workspace: IWorkspaceInfo, agentName?: string): Promise<void> {
 		if (isFirstRequest) {
-			await this.checkpointService.handleRequest(sessionId);
+			if (workspace.worktreeProperties) {
+				void this.worktreeService.setWorktreeProperties(sessionId, workspace.worktreeProperties);
+			}
+			const workingDirectory = getWorkingDirectory(workspace);
+			if (workingDirectory && !isIsolationEnabled(workspace)) {
+				void this.workspaceFolderService.trackSessionWorkspaceFolder(sessionId, workingDirectory.fsPath, workspace.repositoryProperties);
+			}
 		}
+
+		const modeInstructions: StoredModeInstructions | undefined = request.modeInstructions2 ? {
+			uri: request.modeInstructions2.uri?.toString(),
+			name: request.modeInstructions2.name,
+			content: request.modeInstructions2.content,
+			metadata: request.modeInstructions2.metadata,
+			isBuiltin: request.modeInstructions2.isBuiltin,
+		} : undefined;
+		this.metadataStore.updateRequestDetails(sessionId, [{ vscodeRequestId: request.id, agentId: agentName ?? '', modeInstructions }]).catch(ex => this.logService.error(ex, 'Failed to update request details'));
 
 		const requests = this.pendingRequestBySession.get(sessionId) ?? new Set<vscode.ChatRequest>();
 		requests.add(request);
 		this.pendingRequestBySession.set(sessionId, requests);
+
+		if (isFirstRequest) {
+			await this.checkpointService.handleRequest(sessionId);
+		}
 	}
 
 	async endRequest(sessionId: string, request: vscode.ChatRequest, session: SessionCompletionInfo, token: vscode.CancellationToken): Promise<void> {

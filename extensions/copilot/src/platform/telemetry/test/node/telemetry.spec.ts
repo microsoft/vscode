@@ -126,7 +126,7 @@ suite('GitHub Telemetry Sender', function () {
 	const commonTelemetryData = {
 		properties: {
 			copilot_build: new TelemetryTrustedValue('1'),
-			copilot_buildType: new TelemetryTrustedValue('dev'),
+			copilot_buildType: new TelemetryTrustedValue(!!process.env.BUILD_SOURCEVERSION ? 'prod' : 'dev'),
 			copilot_trackingId: new TelemetryTrustedValue('testId'),
 			editor_plugin_version: new TelemetryTrustedValue('simulation-tests-plugin/2'),
 			client_machineid: new TelemetryTrustedValue('test-machine'),

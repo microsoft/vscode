@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PreToolUseHookInput } from '@anthropic-ai/claude-agent-sdk';
 import {
 	AgentInput,
 	AskUserQuestionInput,
@@ -95,15 +94,15 @@ export interface ClaudeToolInputMap {
 
 export const claudeEditTools: readonly string[] = [ClaudeToolNames.Edit, ClaudeToolNames.MultiEdit, ClaudeToolNames.Write, ClaudeToolNames.NotebookEdit];
 
-export function getAffectedUrisForEditTool(input: PreToolUseHookInput): URI[] {
-	switch (input.tool_name) {
+export function getAffectedUrisForEditTool(toolName: string, toolInput: unknown): URI[] {
+	switch (toolName) {
 		case ClaudeToolNames.Edit:
 		case ClaudeToolNames.MultiEdit:
-			return [URI.file((input.tool_input as FileEditInput).file_path)];
+			return [URI.file((toolInput as FileEditInput).file_path)];
 		case ClaudeToolNames.Write:
-			return [URI.file((input.tool_input as FileWriteInput).file_path)];
+			return [URI.file((toolInput as FileWriteInput).file_path)];
 		case ClaudeToolNames.NotebookEdit:
-			return [URI.file((input.tool_input as NotebookEditInput).notebook_path)];
+			return [URI.file((toolInput as NotebookEditInput).notebook_path)];
 		default:
 			return [];
 	}

@@ -103,6 +103,9 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 	private readonly _onDidClearProviderEvents = this._register(new Emitter<URI>());
 	readonly onDidClearProviderEvents: Event<URI> = this._onDidClearProviderEvents.event;
 
+	private readonly _onDidChangeAvailableSessionResources = this._register(new Emitter<void>());
+	readonly onDidChangeAvailableSessionResources: Event<void> = this._onDidChangeAvailableSessionResources.event;
+
 	private readonly _providers = new Set<IChatDebugLogProvider>();
 	private readonly _invocationCts = new ResourceMap<CancellationTokenSource>();
 
@@ -111,6 +114,13 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 
 	/** Session URIs created via import. */
 	private readonly _importedSessions = new ResourceMap<boolean>();
+
+	/** Session URIs reported by providers as available on disk (historical sessions). */
+	private readonly _availableSessionResources: URI[] = [];
+	private readonly _availableSessionResourceSet = new Set<string>();
+
+	/** Titles for historical sessions discovered from disk. */
+	private readonly _historicalSessionTitles = new ResourceMap<string>();
 
 	/** Human-readable titles for imported sessions. */
 	private readonly _importedSessionTitles = new ResourceMap<string>();
@@ -291,6 +301,9 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 		this._seenEventIds.clear();
 		this._importedSessions.clear();
 		this._importedSessionTitles.clear();
+		this._availableSessionResources.length = 0;
+		this._availableSessionResourceSet.clear();
+		this._historicalSessionTitles.clear();
 	}
 
 	/** Remove all ancillary state for an evicted session. */
@@ -442,6 +455,70 @@ export class ChatDebugServiceImpl extends Disposable implements IChatDebugServic
 
 	getImportedSessionTitle(sessionResource: URI): string | undefined {
 		return this._importedSessionTitles.get(sessionResource);
+	}
+
+	addAvailableSessionResources(resources: readonly { uri: URI; title?: string }[]): void {
+		let added = false;
+		for (const { uri, title } of resources) {
+			const key = uri.toString();
+			if (!this._availableSessionResourceSet.has(key)) {
+				this._availableSessionResourceSet.add(key);
+				this._availableSessionResources.push(uri);
+				added = true;
+			}
+			if (title) {
+				this._historicalSessionTitles.set(uri, title);
+			}
+		}
+		if (added) {
+			this._onDidChangeAvailableSessionResources.fire();
+		}
+	}
+
+	/** Lazy fetcher for available sessions from the extension. */
+	private _availableSessionsFetcher: ((token: CancellationToken) => Promise<{ uri: URI; title?: string }[]>) | undefined;
+	private _availableSessionsFetchStarted = false;
+	private _availableSessionsRequested = false;
+
+	getAvailableSessionResources(): readonly URI[] {
+		// Trigger lazy fetch when both a fetcher is registered and this getter is called.
+		this._availableSessionsRequested = true;
+		this._tryFetchAvailableSessions();
+
+		const known = new Set(this._sessionOrder.map(u => u.toString()));
+		const result = [...this._sessionOrder];
+		for (const uri of this._availableSessionResources) {
+			if (!known.has(uri.toString())) {
+				known.add(uri.toString());
+				result.push(uri);
+			}
+		}
+		return result;
+	}
+
+	registerAvailableSessionsFetcher(fetcher: (token: CancellationToken) => Promise<{ uri: URI; title?: string }[]>): void {
+		this._availableSessionsFetcher = fetcher;
+		this._availableSessionsFetchStarted = false;
+		// If the UI already requested sessions before the fetcher was registered, fetch now.
+		this._tryFetchAvailableSessions();
+	}
+
+	private _tryFetchAvailableSessions(): void {
+		if (!this._availableSessionsFetcher || !this._availableSessionsRequested || this._availableSessionsFetchStarted) {
+			return;
+		}
+		this._availableSessionsFetchStarted = true;
+		// Fire-and-forget: don't block the caller.
+		const fetcher = this._availableSessionsFetcher;
+		fetcher(CancellationToken.None).then(entries => {
+			if (entries.length > 0) {
+				this.addAvailableSessionResources(entries);
+			}
+		}).catch(onUnexpectedError);
+	}
+
+	getHistoricalSessionTitle(sessionResource: URI): string | undefined {
+		return this._historicalSessionTitles.get(sessionResource);
 	}
 
 	async exportLog(sessionResource: URI): Promise<Uint8Array | undefined> {

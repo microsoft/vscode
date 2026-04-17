@@ -10,9 +10,9 @@ import type OpenAI from 'openai';
 import { IChatMLFetcher, Source } from '../../../platform/chat/common/chatMLFetcher';
 import { ChatLocation, ChatResponse } from '../../../platform/chat/common/commonTypes';
 import { CustomModel, EndpointEditToolName, IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
-import { OpenAIResponsesProcessor, responseApiInputToRawMessagesForLogging } from '../../../platform/endpoint/node/responsesApi';
+import { getResponsesApiCompactionThresholdFromBody, OpenAIResponsesProcessor, responseApiInputToRawMessagesForLogging } from '../../../platform/endpoint/node/responsesApi';
 import { ILogService } from '../../../platform/log/common/logService';
-import { FinishedCallback, OptionalChatRequestParams } from '../../../platform/networking/common/fetch';
+import { FinishedCallback, getRequestId, OptionalChatRequestParams } from '../../../platform/networking/common/fetch';
 import { Response } from '../../../platform/networking/common/fetcherService';
 import { IChatEndpoint, ICreateEndpointBodyOptions, IEndpointBody, IEndpointFetchOptions, IMakeChatRequestOptions } from '../../../platform/networking/common/networking';
 import { ChatCompletion } from '../../../platform/networking/common/openai';
@@ -455,7 +455,8 @@ class StreamingPassThroughEndpoint implements IChatEndpoint {
 			// We parse the stream just to return a correct ChatCompletion for logging the response and token usage details.
 			const requestId = response.headers.get('X-Request-ID') ?? generateUuid();
 			const ghRequestId = response.headers.get('x-github-request-id') ?? '';
-			const processor = this.instantiationService.createInstance(OpenAIResponsesProcessor, telemetryData, requestId, ghRequestId);
+			const { serverExperiments } = getRequestId(response.headers);
+			const processor = this.instantiationService.createInstance(OpenAIResponsesProcessor, telemetryData, telemetryService, requestId, ghRequestId, serverExperiments, getResponsesApiCompactionThresholdFromBody(this.requestBody));
 			const parser = new SSEParser((ev) => {
 				try {
 					logService.trace(`[StreamingPassThroughEndpoint] SSE: ${ev.data}`);

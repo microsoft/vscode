@@ -212,7 +212,7 @@ export class ChatModelStore extends Disposable {
 		ownerEntries.set(ownerId, debugOwner ?? 'unspecified');
 
 		let isDisposed = false;
-		return {
+		const wrapped: IReference<ChatModel> = {
 			object: reference.object,
 			dispose: () => {
 				if (isDisposed) {
@@ -226,8 +226,13 @@ export class ChatModelStore extends Disposable {
 					this._referenceOwners.delete(key);
 				}
 				reference.dispose();
+
+				// Break the reference from this wrapper to the ChatModel so that
+				// stale holders of this IChatModelReference cannot retain the model.
+				(wrapped as { object: ChatModel | null }).object = null;
 			}
 		};
+		return wrapped;
 	}
 
 	/**
