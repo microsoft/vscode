@@ -309,7 +309,7 @@ export class GithubPushErrorHandler implements PushErrorHandler {
 			await window.showTextDocument(doc);
 		}
 		finally {
-			this.commandErrors.set(uri, stderr);
+			this.commandErrors.delete(uri);
 		}
 
 		// Show dialog
