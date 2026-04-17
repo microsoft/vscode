@@ -14,7 +14,14 @@ type IsExecutableFile = (candidate: string) => boolean;
 
 function defaultIsExecutableFile(candidate: string): boolean {
 	try {
-		return fs.existsSync(candidate) && !fs.lstatSync(candidate).isDirectory();
+		const stat = fs.lstatSync(candidate);
+		if (!stat.isFile()) {
+			return false;
+		}
+		if (process.platform !== 'win32') {
+			fs.accessSync(candidate, fs.constants.X_OK);
+		}
+		return true;
 	} catch {
 		return false;
 	}
@@ -32,15 +39,12 @@ export function resolveNodeExecutableFromPath(
 	platform: NodeJS.Platform = process.platform,
 ): string | null {
 	const pathLib = platform === 'win32' ? path.win32 : path.posix;
-	const pathValue = getCaseInsensitiveEnvValue(env, 'PATH');
-	if (!pathValue) {
-		return null;
-	}
-
-	const searchPaths = pathValue.split(pathLib.delimiter).filter(Boolean);
 	const windowsExecutableSuffixes = platform === 'win32'
 		? (getCaseInsensitiveEnvValue(env, 'PATHEXT') || '.COM;.EXE;.BAT;.CMD').split(';').filter(Boolean)
 		: [];
+
+	const pathValue = getCaseInsensitiveEnvValue(env, 'PATH');
+	const searchPaths = pathValue ? pathValue.split(pathLib.delimiter).filter(Boolean) : [];
 
 	for (const pathEntry of searchPaths) {
 		const baseDir = pathLib.isAbsolute(pathEntry) ? pathEntry : pathLib.join(cwd, pathEntry);
@@ -58,6 +62,21 @@ export function resolveNodeExecutableFromPath(
 		if (isExecutableFile(candidate)) {
 			return candidate;
 		}
+	}
+
+	// Fallback: check cwd directly when node is not found via PATH
+	if (platform === 'win32') {
+		for (const ext of windowsExecutableSuffixes) {
+			const candidate = pathLib.join(cwd, `node${ext}`);
+			if (isExecutableFile(candidate)) {
+				return candidate;
+			}
+		}
+	}
+
+	const cwdCandidate = pathLib.join(cwd, 'node');
+	if (isExecutableFile(cwdCandidate)) {
+		return cwdCandidate;
 	}
 
 	return null;

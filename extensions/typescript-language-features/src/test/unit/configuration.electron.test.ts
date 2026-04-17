@@ -40,4 +40,37 @@ suite('typescript.configuration.electron', () => {
 
 		assert.strictEqual(found, null);
 	});
+
+	test('falls back to cwd when PATH is missing on non-win32', () => {
+		const found = resolveNodeExecutableFromPath(
+			{},
+			'/workspace',
+			candidate => candidate === '/workspace/node',
+			'linux',
+		);
+
+		assert.strictEqual(found, '/workspace/node');
+	});
+
+	test('falls back to cwd with PATHEXT when PATH is missing on win32', () => {
+		const found = resolveNodeExecutableFromPath(
+			{ PATHEXT: '.COM;.EXE;.BAT;.CMD' },
+			'C:\\workspace',
+			candidate => candidate.toLowerCase() === 'c:\\workspace\\node.exe',
+			'win32',
+		);
+
+		assert.strictEqual(found, 'C:\\workspace\\node.EXE');
+	});
+
+	test('returns null when node is not found in PATH or cwd', () => {
+		const found = resolveNodeExecutableFromPath(
+			{},
+			'/workspace',
+			() => false,
+			'linux',
+		);
+
+		assert.strictEqual(found, null);
+	});
 });
