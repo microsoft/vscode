@@ -14,7 +14,8 @@ type IsExecutableFile = (candidate: string) => boolean;
 
 function defaultIsExecutableFile(candidate: string): boolean {
 	try {
-		return fs.existsSync(candidate) && !fs.lstatSync(candidate).isDirectory();
+		const stat = fs.lstatSync(candidate);
+		return !stat.isDirectory();
 	} catch {
 		return false;
 	}
