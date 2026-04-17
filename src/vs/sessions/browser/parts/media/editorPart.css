@@ -16,6 +16,6 @@
 	overflow: hidden;
 }
 
-.agent-sessions-workbench.nochatbar .part.editor {
+.agent-sessions-workbench.nochatbar .part.editor:not(.modal-editor-part) {
 	margin-left: 10px;
 }
