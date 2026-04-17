@@ -60,6 +60,16 @@ export class NativeEditContext extends AbstractEditContext {
 	private _previousEditContextSelection: OffsetRange = new OffsetRange(0, 0);
 	private _previousEditContextText: string = '';
 	private _editContextPrimarySelection: Selection = new Selection(1, 1, 1, 1);
+	/**
+	 * Marks the native EditContext as needing a refresh of its text / selection.
+	 *
+	 * We defer the actual update until render time so that a single large edit
+	 * (e.g. "Transform to Uppercase" over a many-MB selection) does not
+	 * synchronously hand a huge string to the native EditContext from inside
+	 * the model's content-change / view's cursor-state event handlers — which
+	 * used to freeze the editor for seconds. See issue #262473.
+	 */
+	private _editContextNeedsRefresh: boolean = false;
 
 	// Overflow guard container
 	private readonly _parent: HTMLElement;
@@ -258,7 +268,14 @@ export class NativeEditContext extends AbstractEditContext {
 				}
 			}
 			if (doChange) {
-				this._updateEditContext();
+				// Defer updating the native EditContext to render time. Running the update
+				// synchronously here can freeze the editor for large selections (see #262473),
+				// because `_updateEditContext` reads the whole primary-selection text out of
+				// the model and hands a megabyte-scale string to the native EditContext for
+				// each content-change event fired during a bulk edit (e.g. Transform to
+				// Upper/Lowercase over a multi-MB file).
+				this._editContextNeedsRefresh = true;
+				this.setShouldRender();
 			}
 		}));
 	}
@@ -292,6 +309,15 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	public override prepareRender(ctx: RenderingContext): void {
+		if (this._editContextNeedsRefresh) {
+			// Flush any deferred EditContext update that was scheduled from a
+			// model content change or a view cursor-state change. Doing this
+			// here (rather than synchronously from the event handlers) avoids
+			// freezing the UI while a megabyte-scale selection is written into
+			// the native EditContext — see #262473. `_updateEditContext` also
+			// clears the flag.
+			this._updateEditContext();
+		}
 		this._screenReaderSupport.prepareRender(ctx);
 		this._updateSelectionAndControlBoundsData(ctx);
 	}
@@ -304,7 +330,11 @@ export class NativeEditContext extends AbstractEditContext {
 	public override onCursorStateChanged(e: ViewCursorStateChangedEvent): boolean {
 		this._primarySelection = e.modelSelections[0] ?? new Selection(1, 1, 1, 1);
 		this._screenReaderSupport.onCursorStateChanged(e);
-		this._updateEditContext();
+		// Defer pushing the updated text/selection into the native EditContext
+		// to render time; running it synchronously in the cursor-state event
+		// handler can freeze the UI when the primary selection covers a very
+		// large range (see #262473).
+		this._editContextNeedsRefresh = true;
 		return true;
 	}
 
@@ -412,6 +442,8 @@ export class NativeEditContext extends AbstractEditContext {
 	}
 
 	private _updateEditContext(): void {
+		// Any direct update satisfies a pending deferred update (see #262473).
+		this._editContextNeedsRefresh = false;
 		const editContextState = this._getNewEditContextState();
 		if (!editContextState) {
 			return;
