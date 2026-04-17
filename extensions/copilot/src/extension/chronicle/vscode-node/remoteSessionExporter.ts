@@ -277,7 +277,7 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 "owner": "vijayu",
 "comment": "Tracks cloud sync operations (session init, creation, flush, errors)",
 "operation": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The operation performed." },
-"sessionSource": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The type of session: copilot-cli, vscode-agent, or unknown." },
+"sessionSource": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The agent name/source for the session, or unknown if unavailable." },
 "success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the operation succeeded." },
 "error": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "comment": "Truncated error message if failed." },
 "indexingLevel": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The indexing level for the session." },

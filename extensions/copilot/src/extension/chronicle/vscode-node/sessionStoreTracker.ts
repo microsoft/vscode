@@ -97,7 +97,7 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 "owner": "vijayu",
 "comment": "Tracks local session store operations (init, write, flush errors)",
 "operation": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The operation performed." },
-"sessionSource": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The type of session: copilot-cli, vscode-agent or unknown." },
+"sessionSource": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "The agent name/source for the session, or unknown if unavailable." },
 "success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the operation succeeded." },
 "error": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth", "comment": "Truncated error message if failed." },
 "opsCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "Number of buffered operations in a failed flush." }
