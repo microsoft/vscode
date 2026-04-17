@@ -53,7 +53,10 @@ export class StoreMemoryTool implements ICopilotModelSpecificTool<StoreMemoryPar
 				this.logService.info(`[StoreMemoryTool] Stored memory: ${input.subject}`);
 				return new LanguageModelToolResult([new LanguageModelTextPart('Memory stored successfully.')]);
 			} else {
-				return new LanguageModelToolResult([new LanguageModelTextPart('Failed to store memory. Copilot Memory may not be enabled for this repository.')]);
+				const msg = scope === 'user'
+					? 'Failed to store memory. Copilot Memory may not be enabled.'
+					: 'Failed to store memory. Copilot Memory may not be enabled for this repository.';
+				return new LanguageModelToolResult([new LanguageModelTextPart(msg)]);
 			}
 		} catch (error) {
 			this.logService.error(error instanceof Error ? error : String(error), '[StoreMemoryTool] Error storing memory');
