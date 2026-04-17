@@ -5,9 +5,9 @@
   "version": "1.0.0",
   "publisher": "vscode",
   "license": "MIT",
-	"engines": {
-		"vscode": "^1.97.0"
-	},
+  "engines": {
+    "vscode": "^1.97.0"
+  },
   "categories": [
     "Other",
     "Developer Tools"
@@ -57,11 +57,11 @@
             "default": "remote",
             "description": "%configuration.mode.description%"
           },
-  				"toolpipeMcpServer.remoteUrl": {
-					"type": "string",
-					"default": "",
-					"description": "%configuration.remoteUrl.description%"
-				},
+          "toolpipeMcpServer.remoteUrl": {
+            "type": "string",
+            "default": "",
+            "description": "%configuration.remoteUrl.description%"
+          },
           "toolpipeMcpServer.localCommand": {
             "type": "string",
             "default": "npx",
