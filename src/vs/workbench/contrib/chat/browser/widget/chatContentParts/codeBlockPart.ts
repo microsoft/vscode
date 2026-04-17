@@ -380,6 +380,16 @@ export class CodeBlockPart extends Disposable {
 	}
 
 	private getEditorOptionsFromConfig(): IEditorOptions {
+		const renderOptions = this.currentCodeBlockData?.renderOptions;
+		// When the code block is height-capped via `maxHeightInLines`, content can
+		// exceed the visible area. In that case the default hidden vertical
+		// scrollbar leaves users unable to reach the clipped content (see #283242).
+		// Enable a visible scrollbar and let the editor consume wheel events so
+		// scrolling works inside confirmation widgets. Callers can still override
+		// via `renderOptions.editorOptions.scrollbar`.
+		const scrollbar: IEditorOptions['scrollbar'] | undefined = renderOptions?.maxHeightInLines
+			? { vertical: 'auto', alwaysConsumeMouseWheel: true, ...renderOptions?.editorOptions?.scrollbar }
+			: undefined;
 		return {
 			wordWrap: this.editorOptions.configuration.resultEditor.wordWrap,
 			fontLigatures: this.editorOptions.configuration.resultEditor.fontLigatures,
@@ -390,7 +400,8 @@ export class CodeBlockPart extends Disposable {
 			fontSize: this.editorOptions.configuration.resultEditor.fontSize,
 			fontWeight: this.editorOptions.configuration.resultEditor.fontWeight,
 			lineHeight: this.editorOptions.configuration.resultEditor.lineHeight,
-			...this.currentCodeBlockData?.renderOptions?.editorOptions,
+			...renderOptions?.editorOptions,
+			...(scrollbar ? { scrollbar } : {}),
 		};
 	}
 
