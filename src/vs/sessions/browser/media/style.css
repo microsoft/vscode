@@ -174,8 +174,8 @@
 /* Thinner, rounded scrollbar sliders scoped to the agents app.
  * The scrollbar widget sets the slider's size inline to match the full
  * track. We hide that default background and paint a narrower, rounded
- * slider via an inset box-shadow so all four corners round consistently
- * and the full hit area is preserved. */
+ * slider with an inset ::before pseudo-element so all four corners round
+ * consistently and the full hit area is preserved. */
 .agent-sessions-workbench .monaco-scrollable-element > .scrollbar > .slider {
 	background: transparent !important;
 }
