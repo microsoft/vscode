@@ -63,6 +63,19 @@ export interface IRunSubagentToolInputParams {
 
 export const RUN_SUBAGENT_MAX_NESTING_DEPTH = 5;
 
+interface IResolvedSubagentModel {
+	modeModelId: string | undefined;
+	resolvedModelName: string | undefined;
+	exceedsCostTier?: {
+		reason: string;
+		modelName: string;
+		modelMultiplier: number;
+		mainMultiplier: number;
+		fallbackModelId: string | undefined;
+		fallbackModelName: string | undefined;
+	};
+}
+
 export class RunSubagentTool extends Disposable implements IToolImpl {
 
 	static readonly Id = 'runSubagent';
@@ -71,7 +84,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 	readonly onDidUpdateToolData: Event<void> = this._onDidUpdateToolData.event;
 
 	/** Hack to port data between prepare/invoke */
-	private readonly _resolvedModels = new Map<string, { modeModelId: string | undefined; resolvedModelName: string | undefined }>();
+	private readonly _resolvedModels = new Map<string, IResolvedSubagentModel>();
 
 	/** Tracks the current subagent nesting depth per session to detect and limit recursion. */
 	private readonly _sessionDepth = new Map<string, number>();
@@ -188,13 +201,11 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 					const cached = this._resolvedModels.get(invocation.callId);
 					if (cached) {
 						this._resolvedModels.delete(invocation.callId);
-						modeModelId = cached.modeModelId;
-						resolvedModelName = cached.resolvedModelName;
+						this.applyResolvedModel(cached, invocation, r => { modeModelId = r.modeModelId; resolvedModelName = r.resolvedModelName; });
 					} else {
 						// Fallback: resolve the model here if prepare didn't cache it
 						const resolved = this.resolveSubagentModel(subagent, invocation.modelId, args.model);
-						modeModelId = resolved.modeModelId;
-						resolvedModelName = resolved.resolvedModelName;
+						this.applyResolvedModel(resolved, invocation, r => { modeModelId = r.modeModelId; resolvedModelName = r.resolvedModelName; });
 					}
 
 					// Use mode-specific tools if available
@@ -230,12 +241,10 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				const cached = this._resolvedModels.get(invocation.callId);
 				if (cached) {
 					this._resolvedModels.delete(invocation.callId);
-					modeModelId = cached.modeModelId;
-					resolvedModelName = cached.resolvedModelName;
+					this.applyResolvedModel(cached, invocation, r => { modeModelId = r.modeModelId; resolvedModelName = r.resolvedModelName; });
 				} else {
 					const resolved = this.resolveSubagentModel(undefined, invocation.modelId, args.model);
-					modeModelId = resolved.modeModelId;
-					resolvedModelName = resolved.resolvedModelName;
+					this.applyResolvedModel(resolved, invocation, r => { modeModelId = r.modeModelId; resolvedModelName = r.resolvedModelName; });
 				}
 			}
 
@@ -418,10 +427,24 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 	}
 
 	/**
+	 * Applies a resolved model to the invocation, falling back to the main model
+	 * if the resolved model exceeds the cost tier and the user did not approve.
+	 */
+	private applyResolvedModel(resolved: IResolvedSubagentModel, invocation: IToolInvocation, apply: (result: { modeModelId: string | undefined; resolvedModelName: string | undefined }) => void): void {
+		if (resolved.exceedsCostTier && invocation.selectedCustomButton !== localize('subagent.expensiveModel.allow', "Allow")) {
+			// User chose "Use Current Model" or didn't approve — fall back to the main model
+			const fallback = resolved.exceedsCostTier;
+			apply({ modeModelId: fallback.fallbackModelId, resolvedModelName: fallback.fallbackModelName });
+		} else {
+			apply({ modeModelId: resolved.modeModelId, resolvedModelName: resolved.resolvedModelName });
+		}
+	}
+
+	/**
 	 * Checks if a model exceeds the main model's cost tier based on multiplier.
 	 * @returns An object with `exceeds: true` and a reason string if blocked, or `exceeds: false` if allowed.
 	 */
-	private checkMultiplierConstraint(modelId: string, mainModelId: string | undefined): { exceeds: false } | { exceeds: true; reason: string } {
+	private checkMultiplierConstraint(modelId: string, mainModelId: string | undefined): { exceeds: false } | { exceeds: true; reason: string; modelMultiplier: number; mainMultiplier: number } {
 		if (!mainModelId || modelId === mainModelId) {
 			return { exceeds: false };
 		}
@@ -434,7 +457,9 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		if (mainMultiplier !== undefined && modelMultiplier !== undefined && modelMultiplier > mainMultiplier) {
 			return {
 				exceeds: true,
-				reason: `exceeds the current model's cost tier (${modelMultiplier}x vs ${mainMultiplier}x)`
+				reason: `exceeds the current model's cost tier (${modelMultiplier}x vs ${mainMultiplier}x)`,
+				modelMultiplier,
+				mainMultiplier,
 			};
 		}
 
@@ -443,7 +468,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 
 	/**
 	 * Returns information about available models for error messages.
-	 * Includes which models are unavailable due to multiplier restrictions.
+	 * Models exceeding the cost tier are listed separately as requiring approval.
 	 */
 	private getAvailableModelsInfo(mainModelId: string | undefined): string {
 		const models = this.languageModelsService.getLanguageModelIds()
@@ -460,14 +485,14 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		}
 
 		const available: string[] = [];
-		const unavailableDueToMultiplier: string[] = [];
+		const requiresApproval: string[] = [];
 
 		for (const { id, metadata } of models) {
 			const qualifiedName = ILanguageModelChatMetadata.asQualifiedName(metadata);
 			const check = this.checkMultiplierConstraint(id, mainModelId);
 
 			if (check.exceeds) {
-				unavailableDueToMultiplier.push(qualifiedName);
+				requiresApproval.push(qualifiedName);
 			} else {
 				available.push(qualifiedName);
 			}
@@ -477,8 +502,8 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		if (available.length > 0) {
 			parts.push(`Available models: ${available.join(', ')}`);
 		}
-		if (unavailableDueToMultiplier.length > 0) {
-			parts.push(`Unavailable (exceeds current model's cost tier): ${unavailableDueToMultiplier.join(', ')}`);
+		if (requiresApproval.length > 0) {
+			parts.push(`Available (requires approval, exceeds current model's cost tier): ${requiresApproval.join(', ')}`);
 		}
 
 		return parts.join('. ') || 'No models available.';
@@ -487,10 +512,11 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 	/**
 	 * Resolves the model to be used by a subagent.
 	 * @param explicitModelQualifiedName Optional explicit model specified by the caller.
-	 *        If provided and not found or not allowed, throws an error with available models.
-	 * @throws Error if the requested model is not found or exceeds the main model's cost tier.
+	 *        If provided and not found, throws an error with available models.
+	 * When the resolved model exceeds the main model's cost tier, returns
+	 * `exceedsCostTier` info so the caller can prompt for user approval.
 	 */
-	private resolveSubagentModel(subagent: ICustomAgent | undefined, mainModelId: string | undefined, explicitModelQualifiedName?: string): { modeModelId: string | undefined; resolvedModelName: string | undefined } {
+	private resolveSubagentModel(subagent: ICustomAgent | undefined, mainModelId: string | undefined, explicitModelQualifiedName?: string): IResolvedSubagentModel {
 		let modeModelId = mainModelId;
 		let explicitModelResolved = false;
 
@@ -520,17 +546,27 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 			}
 		}
 
-		// Check multiplier constraint - throw error if requested model exceeds main model's cost tier
+		// Check multiplier constraint — if the model exceeds the main model's cost tier,
+		// return the info so the caller can prompt for user approval instead of blocking.
+		let exceedsCostTier: IResolvedSubagentModel['exceedsCostTier'];
 		if (modeModelId) {
 			const check = this.checkMultiplierConstraint(modeModelId, mainModelId);
 			if (check.exceeds) {
 				const modelMetadata = this.languageModelsService.lookupLanguageModel(modeModelId);
-				throw new Error(`Requested model '${modelMetadata?.name}' ${check.reason}. ${this.getAvailableModelsInfo(mainModelId)}`);
+				const fallbackMetadata = mainModelId ? this.languageModelsService.lookupLanguageModel(mainModelId) : undefined;
+				exceedsCostTier = {
+					reason: check.reason,
+					modelName: modelMetadata?.name ?? 'unknown',
+					modelMultiplier: check.modelMultiplier,
+					mainMultiplier: check.mainMultiplier,
+					fallbackModelId: mainModelId,
+					fallbackModelName: fallbackMetadata?.name,
+				};
 			}
 		}
 
 		const resolvedModelMetadata = modeModelId ? this.languageModelsService.lookupLanguageModel(modeModelId) : undefined;
-		return { modeModelId, resolvedModelName: resolvedModelMetadata?.name };
+		return { modeModelId, resolvedModelName: resolvedModelMetadata?.name, exceedsCostTier };
 	}
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, _token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
@@ -545,7 +581,7 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 		const resolved = this.resolveSubagentModel(subagent, context.modelId, args.model);
 		this._resolvedModels.set(context.toolCallId, resolved);
 
-		return {
+		const result: IPreparedToolInvocation = {
 			invocationMessage: args.description,
 			toolSpecificData: {
 				kind: 'subagent',
@@ -555,5 +591,25 @@ export class RunSubagentTool extends Disposable implements IToolImpl {
 				modelName: resolved.resolvedModelName,
 			},
 		};
+
+		// If the resolved model exceeds the main model's cost tier, ask for user approval
+		if (resolved.exceedsCostTier) {
+			const { modelName, modelMultiplier, mainMultiplier, fallbackModelName } = resolved.exceedsCostTier;
+			result.confirmationMessages = {
+				title: localize('subagent.expensiveModel.title', "Subagent wants to use a more expensive model"),
+				message: localize(
+					'subagent.expensiveModel.message',
+					"The subagent requests '{0}' ({1}x premium) which exceeds the current model's cost tier ({2}x). Allow the expensive model, or continue with '{3}'?",
+					modelName, modelMultiplier, mainMultiplier, fallbackModelName ?? 'current model'
+				),
+				allowAutoConfirm: false,
+				customButtons: [
+					localize('subagent.expensiveModel.allow', "Allow"),
+					localize('subagent.expensiveModel.useCurrent', "Use Current Model"),
+				],
+			};
+		}
+
+		return result;
 	}
 }

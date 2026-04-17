@@ -399,7 +399,7 @@ suite('RunSubagentTool', () => {
 			};
 		}
 
-		test('throws error when subagent model has higher multiplier', async () => {
+		test('returns confirmation when subagent model has higher multiplier', async () => {
 			const mainMeta = createMetadata('GPT-4o', 1);
 			const expensiveMeta = createMetadata('O3 Pro', 50);
 			const models = new Map([
@@ -413,21 +413,26 @@ suite('RunSubagentTool', () => {
 			const agent = createAgent('ExpensiveAgent', ['O3 Pro (TestVendor)']);
 			const tool = createTool({ models, qualifiedNameMap, customAgents: [agent] });
 
-			await assert.rejects(
-				() => tool.prepareToolInvocation({
-					parameters: { prompt: 'test', description: 'test task', agentName: 'ExpensiveAgent' },
-					toolCallId: 'call-1',
-					modelId: 'main-model-id',
-					chatSessionResource: URI.parse('test://session'),
-				}, CancellationToken.None),
-				(err: Error) => {
-					assert.ok(err.message.includes('O3 Pro'));
-					assert.ok(err.message.includes('exceeds'));
-					assert.ok(err.message.includes('cost tier'));
-					assert.ok(err.message.includes('Unavailable'));
-					return true;
-				}
-			);
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test task', agentName: 'ExpensiveAgent' },
+				toolCallId: 'call-1',
+				modelId: 'main-model-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.ok(result);
+			assert.ok(result.confirmationMessages?.title, 'Should show confirmation for expensive model');
+			assert.ok(result.confirmationMessages?.customButtons, 'Should have custom buttons');
+			assert.strictEqual(result.confirmationMessages?.customButtons?.length, 2);
+			assert.strictEqual(result.confirmationMessages?.allowAutoConfirm, false);
+			// The resolved model name should still be the expensive one (user can approve)
+			assert.deepStrictEqual(result.toolSpecificData, {
+				kind: 'subagent',
+				description: 'test task',
+				agentName: 'ExpensiveAgent',
+				prompt: 'test',
+				modelName: 'O3 Pro',
+			});
 		});
 
 		test('uses subagent model when it has equal multiplier', async () => {
@@ -754,7 +759,7 @@ suite('RunSubagentTool', () => {
 			});
 		});
 
-		test('throws error when explicit model has higher multiplier', async () => {
+		test('returns confirmation when explicit model has higher multiplier', async () => {
 			const mainMeta = createMetadata('GPT-4o', 1);
 			const expensiveMeta = createMetadata('O3 Pro', 50);
 			const models = new Map([
@@ -767,21 +772,25 @@ suite('RunSubagentTool', () => {
 
 			const tool = createTool({ models, qualifiedNameMap });
 
-			await assert.rejects(
-				() => tool.prepareToolInvocation({
-					parameters: { prompt: 'test', description: 'test task', model: 'O3 Pro (TestVendor)' },
-					toolCallId: 'model-call-3',
-					modelId: 'main-model-id',
-					chatSessionResource: URI.parse('test://session'),
-				}, CancellationToken.None),
-				(err: Error) => {
-					assert.ok(err.message.includes('O3 Pro'));
-					assert.ok(err.message.includes('exceeds'));
-					assert.ok(err.message.includes('cost tier'));
-					assert.ok(err.message.includes('Unavailable'));
-					return true;
-				}
-			);
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test task', model: 'O3 Pro (TestVendor)' },
+				toolCallId: 'model-call-3',
+				modelId: 'main-model-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.ok(result);
+			assert.ok(result.confirmationMessages?.title, 'Should show confirmation for expensive model');
+			assert.ok(result.confirmationMessages?.customButtons, 'Should have custom buttons');
+			assert.strictEqual(result.confirmationMessages?.customButtons?.length, 2);
+			assert.strictEqual(result.confirmationMessages?.allowAutoConfirm, false);
+			assert.deepStrictEqual(result.toolSpecificData, {
+				kind: 'subagent',
+				description: 'test task',
+				agentName: undefined,
+				prompt: 'test',
+				modelName: 'O3 Pro',
+			});
 		});
 
 		test('throws error with available models when explicit model is not found', async () => {
@@ -968,6 +977,175 @@ suite('RunSubagentTool', () => {
 			// Both should have runSubagent enabled since depth resets after each invoke
 			assert.strictEqual(capturedRequests[0].userSelectedTools?.['runSubagent'], true);
 			assert.strictEqual(capturedRequests[1].userSelectedTools?.['runSubagent'], true);
+		});
+	});
+
+	suite('expensive model approval in invoke', () => {
+		function createMetadata(name: string, multiplierNumeric?: number): ILanguageModelChatMetadata {
+			return {
+				extension: new ExtensionIdentifier('test.extension'),
+				name,
+				id: name.toLowerCase().replace(/\s+/g, '-'),
+				vendor: 'TestVendor',
+				version: '1.0',
+				family: 'test',
+				maxInputTokens: 128000,
+				maxOutputTokens: 8192,
+				isDefaultForLocation: {},
+				modelPickerCategory: undefined,
+				multiplierNumeric,
+				capabilities: { toolCalling: true },
+			};
+		}
+
+		let callIdCounter = 0;
+
+		function createInvokableToolWithModels(opts: {
+			models: Map<string, ILanguageModelChatMetadata>;
+			qualifiedNameMap?: Map<string, ILanguageModelChatMetadataAndIdentifier>;
+			customAgents?: ICustomAgent[];
+			capturedRequests: IChatAgentRequest[];
+		}) {
+			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
+			const configService = new TestConfigurationService();
+			const promptsService = new MockPromptsService();
+			if (opts.customAgents) {
+				promptsService.setCustomModes(opts.customAgents);
+			}
+
+			const mockLanguageModelsService: Partial<ILanguageModelsService> = {
+				getLanguageModelIds() { return Array.from(opts.models.keys()); },
+				lookupLanguageModel(modelId: string) { return opts.models.get(modelId); },
+				lookupLanguageModelByQualifiedName(qualifiedName: string) { return opts.qualifiedNameMap?.get(qualifiedName); },
+				getModelConfiguration() { return undefined; },
+			};
+
+			const mockChatAgentService: Pick<IChatAgentService, 'getDefaultAgent' | 'invokeAgent'> = {
+				getDefaultAgent() {
+					return { id: 'default-agent' } as IChatAgentService extends { getDefaultAgent(...args: infer _A): infer R } ? NonNullable<R> : never;
+				},
+				async invokeAgent(_id: string, request: IChatAgentRequest, _progress: (parts: IChatProgress[]) => void, _history: IChatAgentHistoryEntry[], _token: CancellationToken): Promise<IChatAgentResult> {
+					opts.capturedRequests.push(request);
+					return {};
+				},
+			};
+
+			const mockChatService: Pick<IChatService, 'getSession'> = {
+				getSession() {
+					return {
+						getRequests: () => [{ id: 'req-1' }],
+						acceptResponseProgress: () => { },
+					} as unknown as IChatModel;
+				},
+			};
+
+			const mockInstantiationService: Pick<IInstantiationService, 'createInstance'> = {
+				createInstance(..._args: never[]): { collect: () => Promise<void> } {
+					return { collect: async () => { } };
+				},
+			};
+
+			const tool = testDisposables.add(new RunSubagentTool(
+				mockChatAgentService as IChatAgentService,
+				mockChatService as IChatService,
+				mockToolsService,
+				mockLanguageModelsService as ILanguageModelsService,
+				new NullLogService(),
+				configService,
+				promptsService,
+				mockInstantiationService as IInstantiationService,
+				{} as IProductService,
+			));
+
+			return tool;
+		}
+
+		function createAgent(name: string, modelQualifiedNames?: string[]): ICustomAgent {
+			return {
+				uri: URI.parse(`file:///test/${name}.md`),
+				name,
+				description: `Agent ${name}`,
+				model: modelQualifiedNames,
+				source: { storage: PromptsStorage.local },
+				target: Target.Undefined,
+				visibility: { userInvocable: true, agentInvocable: true }
+			};
+		}
+
+		test('uses expensive model when user approves via Allow button', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1);
+			const expensiveMeta = createMetadata('O3 Pro', 50);
+			const models = new Map([
+				['main-model-id', mainMeta],
+				['expensive-model-id', expensiveMeta],
+			]);
+			const qualifiedNameMap = new Map([
+				['O3 Pro (TestVendor)', { metadata: expensiveMeta, identifier: 'expensive-model-id' }],
+			]);
+			const agent = createAgent('ExpensiveAgent', ['O3 Pro (TestVendor)']);
+
+			const capturedRequests: IChatAgentRequest[] = [];
+			const tool = createInvokableToolWithModels({ models, qualifiedNameMap, customAgents: [agent], capturedRequests });
+
+			// First, prepare to cache the resolved model
+			const callId = `call-approve-${++callIdCounter}`;
+			await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test task', agentName: 'ExpensiveAgent' },
+				toolCallId: callId,
+				modelId: 'main-model-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			// Invoke with "Allow" selected
+			await tool.invoke({
+				callId,
+				toolId: 'runSubagent',
+				parameters: { prompt: 'test', description: 'test task', agentName: 'ExpensiveAgent' },
+				context: { sessionResource: URI.parse('test://session') },
+				modelId: 'main-model-id',
+				selectedCustomButton: 'Allow',
+			} as IToolInvocation, async () => 0, { report() { } }, CancellationToken.None);
+
+			assert.strictEqual(capturedRequests.length, 1);
+			assert.strictEqual(capturedRequests[0].userSelectedModelId, 'expensive-model-id');
+		});
+
+		test('falls back to main model when user selects Use Current Model', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1);
+			const expensiveMeta = createMetadata('O3 Pro', 50);
+			const models = new Map([
+				['main-model-id', mainMeta],
+				['expensive-model-id', expensiveMeta],
+			]);
+			const qualifiedNameMap = new Map([
+				['O3 Pro (TestVendor)', { metadata: expensiveMeta, identifier: 'expensive-model-id' }],
+			]);
+			const agent = createAgent('ExpensiveAgent', ['O3 Pro (TestVendor)']);
+
+			const capturedRequests: IChatAgentRequest[] = [];
+			const tool = createInvokableToolWithModels({ models, qualifiedNameMap, customAgents: [agent], capturedRequests });
+
+			// First, prepare to cache the resolved model
+			const callId = `call-fallback-${++callIdCounter}`;
+			await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test task', agentName: 'ExpensiveAgent' },
+				toolCallId: callId,
+				modelId: 'main-model-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			// Invoke with "Use Current Model" selected
+			await tool.invoke({
+				callId,
+				toolId: 'runSubagent',
+				parameters: { prompt: 'test', description: 'test task', agentName: 'ExpensiveAgent' },
+				context: { sessionResource: URI.parse('test://session') },
+				modelId: 'main-model-id',
+				selectedCustomButton: 'Use Current Model',
+			} as IToolInvocation, async () => 0, { report() { } }, CancellationToken.None);
+
+			assert.strictEqual(capturedRequests.length, 1);
+			assert.strictEqual(capturedRequests[0].userSelectedModelId, 'main-model-id');
 		});
 	});
 });
