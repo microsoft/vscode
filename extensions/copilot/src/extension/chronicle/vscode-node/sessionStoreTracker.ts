@@ -143,11 +143,10 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 	private _handleSpan(span: ICompletedSpanData): void {
 		try {
 			const sessionId = this._getSessionId(span);
+			const operationName = span.attributes[GenAiAttr.OPERATION_NAME] as string | undefined;
 			if (!sessionId) {
 				return;
 			}
-
-			const operationName = span.attributes[GenAiAttr.OPERATION_NAME] as string | undefined;
 
 			// Only track sessions that have an invoke_agent span (real user interactions).
 			// Skip internal LLM calls (title generation, progress messages, etc.)
@@ -282,6 +281,16 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 
 		if (userMessages.length === 0 && userRequest) {
 			userMessages.push({ turnIndex: 0, content: userRequest });
+		}
+
+		// Use the first user message as the session summary if one hasn't been set yet
+		const existingSession = this._buffer.sessions.get(sessionId);
+		if (!existingSession?.summary) {
+			const firstMessage = userMessages[0]?.content ?? userRequest;
+			if (firstMessage) {
+				const summary = firstMessage.length > 100 ? firstMessage.slice(0, 100).trim() + '...' : firstMessage;
+				this._bufferSessionUpsert({ id: sessionId, summary });
+			}
 		}
 
 		// Extract assistant response from OUTPUT_MESSAGES attribute

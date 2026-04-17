@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.monaco-workbench .part.titlebar > .sessions-titlebar-container {
+	justify-content: initial;
+}
+
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left {
 	display: flex;
 	height: 100%;
@@ -108,11 +112,6 @@
 
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left > .left-toolbar-container .monaco-action-bar .action-item {
 	display: flex;
-}
-
-/* Hide the entire titlebar left when the sidebar is visible */
-.agent-sessions-workbench:not(.nosidebar) .part.titlebar > .sessions-titlebar-container > .titlebar-left {
-	display: none !important;
 }
 
 /* Remove the titlebar shadow in agent sessions */

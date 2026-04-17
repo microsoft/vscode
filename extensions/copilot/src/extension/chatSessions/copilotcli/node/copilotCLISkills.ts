@@ -22,6 +22,7 @@ import { URI } from '../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { IPromptsService } from '../../../../platform/promptFiles/common/promptsService';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
+import { isEnabledForCopilotCLI } from './copilotCli';
 
 export interface ICopilotCLISkills {
 	readonly _serviceBrand: undefined;
@@ -70,6 +71,7 @@ export class CopilotCLISkills extends Disposable implements ICopilotCLISkills {
 			}
 		}
 		(await this.promptsService.getSkills(token))
+			.filter(isEnabledForCopilotCLI)
 			.filter(s => s.uri.scheme === Schemas.file)
 			.map(s => s.uri)
 			.map(uri => dirname(dirname(uri)))
