@@ -48,7 +48,7 @@ function makeToolCallSpan(sessionId: string, toolName: string): ICompletedSpanDa
 	});
 }
 
-function makeChatSpan(sessionId: string, model: string, inputTokens: number, outputTokens: number): ICompletedSpanData {
+function makeChatSpan(sessionId: string, model: string, inputTokens: number, outputTokens: number, cachedTokens?: number): ICompletedSpanData {
 	return makeSpan({
 		name: 'chat',
 		attributes: {
@@ -56,6 +56,7 @@ function makeChatSpan(sessionId: string, model: string, inputTokens: number, out
 			[GenAiAttr.REQUEST_MODEL]: model,
 			[GenAiAttr.USAGE_INPUT_TOKENS]: inputTokens,
 			[GenAiAttr.USAGE_OUTPUT_TOKENS]: outputTokens,
+			...(cachedTokens !== undefined ? { [GenAiAttr.USAGE_CACHE_READ_INPUT_TOKENS]: cachedTokens } : {}),
 			[CopilotChatAttr.CHAT_SESSION_ID]: sessionId,
 		},
 	});
@@ -224,7 +225,7 @@ describe('ChatDebugFileLoggerService', () => {
 
 	it('writes LLM request with token counts', async () => {
 		await service.startSession('session-1');
-		const span = makeChatSpan('session-1', 'gpt-4o', 1000, 500);
+		const span = makeChatSpan('session-1', 'gpt-4o', 1000, 500, 250);
 		otelService.fireSpan(span);
 
 		await service.flush('session-1');
@@ -237,7 +238,7 @@ describe('ChatDebugFileLoggerService', () => {
 		expect(attrs.model).toBe('gpt-4o');
 		expect(attrs.inputTokens).toBe(1000);
 		expect(attrs.outputTokens).toBe(500);
-		expect(attrs.cachedTokens).toBeUndefined();
+		expect(attrs.cachedTokens).toBe(250);
 	});
 
 	it('records error status from failed spans', async () => {
