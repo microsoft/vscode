@@ -247,6 +247,8 @@ export class ChangesViewPane extends ViewPane {
 	private readonly hasGitHubRemoteContextKey: IContextKey<boolean>;
 	private readonly hasUncommittedChangesContextKey: IContextKey<boolean>;
 
+	private readonly scopedInstantiationService: IInstantiationService;
+
 	private readonly renderDisposables = this._register(new DisposableStore());
 
 	// Track current body dimensions for list layout
@@ -306,6 +308,10 @@ export class ChangesViewPane extends ViewPane {
 		this._register(bindContextKey(ChatContextKeys.agentSessionType, this.scopedContextKeyService, reader => {
 			return this.viewModel.activeSessionTypeObs.read(reader) ?? '';
 		}));
+
+		const scopedServiceCollection = new ServiceCollection([IContextKeyService, this.scopedContextKeyService]);
+		this.scopedInstantiationService = this.instantiationService.createChild(scopedServiceCollection);
+		this._register(this.scopedInstantiationService);
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -334,11 +340,11 @@ export class ChangesViewPane extends ViewPane {
 		this.filesHeaderNode = dom.append(this.contentContainer, $('.changes-files-header'));
 
 		const filesHeaderToolbarContainer = dom.append(this.filesHeaderNode, $('.changes-files-header-toolbar'));
-		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, filesHeaderToolbarContainer, MenuId.ChatEditingSessionChangesFileHeaderToolbar, {
+		this._register(this.scopedInstantiationService.createInstance(MenuWorkbenchToolBar, filesHeaderToolbarContainer, MenuId.ChatEditingSessionChangesFileHeaderToolbar, {
 			menuOptions: { shouldForwardArgs: true },
 			actionViewItemProvider: (action) => {
 				if (action.id === 'chatEditing.versionsPicker' && action instanceof MenuItemAction) {
-					return this.instantiationService.createInstance(ChangesPickerActionItem, action, this.viewModel);
+					return this.scopedInstantiationService.createInstance(ChangesPickerActionItem, action, this.viewModel);
 				}
 				return undefined;
 			},
@@ -517,11 +523,7 @@ export class ChangesViewPane extends ViewPane {
 			// Bind context keys
 			this._bindContextKeys(topLevelStats);
 
-			const scopedServiceCollection = new ServiceCollection([IContextKeyService, this.scopedContextKeyService]);
-			const scopedInstantiationService = this.instantiationService.createChild(scopedServiceCollection);
-			this.renderDisposables.add(scopedInstantiationService);
-
-			this.renderDisposables.add(scopedInstantiationService.createInstance(
+			this.renderDisposables.add(this.scopedInstantiationService.createInstance(
 				ChangesButtonBarWidget, this.actionsContainer, this.viewModel));
 		}
 
