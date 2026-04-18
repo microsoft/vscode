@@ -2775,6 +2775,10 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		const top = !!webviewTop ? (0 - webviewTop) : 0;
 
 		const cellTop = this._list.getCellViewScrollTop(cell);
+		// Force re-render when the cell was explicitly executed so that resources
+		// like images are refreshed even when the markdown content hasn't changed.
+		const executeSources = new Set(['notebook.cell.executeAndSelectBelow', 'notebook.cell.executeAndInsertBelow']);
+		const forceRender = executeSources.has(cell.editStateSource);
 		await this._webview.showMarkupPreview({
 			mime: cell.mime,
 			cellHandle: cell.handle,
@@ -2783,7 +2787,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 			offset: cellTop + top,
 			visible: true,
 			metadata: cell.metadata,
-		});
+		}, forceRender);
 	}
 
 	private cellIsHidden(cell: ICellViewModel): boolean {

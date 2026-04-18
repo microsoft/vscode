@@ -1344,7 +1344,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 		});
 	}
 
-	async showMarkupPreview(newContent: IMarkupCellInitialization) {
+	async showMarkupPreview(newContent: IMarkupCellInitialization, forceRender = false) {
 		if (this._disposed) {
 			return;
 		}
@@ -1354,7 +1354,7 @@ export class BackLayerWebView<T extends ICommonCellInfo> extends Themable {
 			return this.createMarkupPreview(newContent);
 		}
 
-		const sameContent = newContent.content === entry.content;
+		const sameContent = !forceRender && newContent.content === entry.content;
 		const sameMetadata = (equals(newContent.metadata, entry.metadata));
 		if (!sameContent || !sameMetadata || !entry.visible) {
 			this._sendMessageToWebview({
