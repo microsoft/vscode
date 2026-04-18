@@ -24,6 +24,7 @@ import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
 import { MockAgent } from './mockAgent.js';
 import { mapSessionEvents, type ISessionEvent } from '../../node/copilot/mapSessionEvents.js';
+import { createSessionDataService } from '../common/sessionTestHelpers.js';
 
 /**
  * Loads a JSONL fixture of raw Copilot SDK events, runs them through
@@ -481,6 +482,135 @@ suite('AgentService (node dispatcher)', () => {
 			// Should have the final markdown
 			const mdParts = state!.turns[0].responseParts.filter((p): p is IMarkdownResponsePart => p.kind === ResponsePartKind.Markdown);
 			assert.ok(mdParts.length > 0, 'Should have markdown content');
+		});
+	});
+
+	// ---- session config persistence -------------------------------------
+
+	suite('session config persistence', () => {
+
+		test('createSession persists initial config values to the session DB', async () => {
+			const sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
+			const sessionDataService = createSessionDataService(sessionDb);
+			const localAgent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => localAgent.dispose()));
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService));
+			localService.registerProvider(localAgent);
+
+			await localService.createSession({ provider: 'copilot', config: { autoApprove: 'autoApprove' } });
+
+			// Persistence is fire-and-forget; wait for it to flush
+			await new Promise(r => setTimeout(r, 50));
+
+			const persisted = await sessionDb.getMetadata('configValues');
+			assert.ok(persisted, 'configValues should be persisted');
+			assert.deepStrictEqual(JSON.parse(persisted!), { autoApprove: 'autoApprove' });
+		});
+
+		test('createSession does not write configValues when there are no values', async () => {
+			const sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
+			const sessionDataService = createSessionDataService(sessionDb);
+			const localAgent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => localAgent.dispose()));
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService));
+			localService.registerProvider(localAgent);
+
+			await localService.createSession({ provider: 'copilot' });
+
+			await new Promise(r => setTimeout(r, 50));
+
+			const persisted = await sessionDb.getMetadata('configValues');
+			assert.strictEqual(persisted, undefined);
+		});
+
+		test('restoreSession overlays persisted config values onto the resolved config', async () => {
+			const sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
+			const sessionDataService = createSessionDataService(sessionDb);
+			const localAgent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => localAgent.dispose()));
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService));
+			localService.registerProvider(localAgent);
+
+			// Create a session on the agent backend (no config) so listSessions can find it
+			const { session } = await localAgent.createSession();
+			const sessions = await localAgent.listSessions();
+			const sessionResource = sessions[0].session;
+
+			// Pre-seed persisted config values
+			await sessionDb.setMetadata('configValues', JSON.stringify({ autoApprove: 'autoApprove' }));
+
+			localAgent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'Hi', toolRequests: [] },
+			];
+
+			await localService.restoreSession(sessionResource);
+
+			const state = localService.stateManager.getSessionState(sessionResource.toString());
+			assert.ok(state);
+			// MockAgent.resolveSessionConfig echoes params.config back as values, so the
+			// persisted values are forwarded through and end up on state.config.values.
+			assert.deepStrictEqual(state!.config?.values, { autoApprove: 'autoApprove' });
+		});
+
+		test('createSession + restoreSession round-trip restores initial config without any mid-session changes', async () => {
+			// Regression test: when a session is created with initial config but no
+			// mid-session SessionConfigChanged actions are dispatched, restoring it
+			// must still rehydrate the initial values.
+			const sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
+			const sessionDataService = createSessionDataService(sessionDb);
+			const localAgent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => localAgent.dispose()));
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService));
+			localService.registerProvider(localAgent);
+
+			const session = await localService.createSession({ provider: 'copilot', config: { autoApprove: 'autoApprove' } });
+
+			// Wait for the fire-and-forget persistence to flush
+			await new Promise(r => setTimeout(r, 50));
+
+			// Simulate a server restart: drop the in-memory state
+			localService.stateManager.removeSession(session.toString());
+
+			localAgent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'Hi', toolRequests: [] },
+			];
+			await localService.restoreSession(session);
+
+			const state = localService.stateManager.getSessionState(session.toString());
+			assert.ok(state);
+			assert.deepStrictEqual(state!.config?.values, { autoApprove: 'autoApprove' });
+		});
+
+		test('restoreSession ignores malformed persisted configValues', async () => {
+			const sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
+			const sessionDataService = createSessionDataService(sessionDb);
+			const localAgent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => localAgent.dispose()));
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService));
+			localService.registerProvider(localAgent);
+
+			const { session } = await localAgent.createSession();
+			const sessions = await localAgent.listSessions();
+			const sessionResource = sessions[0].session;
+
+			await sessionDb.setMetadata('configValues', '{not json');
+
+			localAgent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'Hi', toolRequests: [] },
+			];
+
+			// Should not throw despite the malformed JSON
+			await localService.restoreSession(sessionResource);
+
+			const state = localService.stateManager.getSessionState(sessionResource.toString());
+			assert.ok(state);
+			// MockAgent has a workingDirectory? No — but the metadata supplies it as undefined.
+			// _resolveCreatedSessionConfig bails when both .config and .workingDirectory are
+			// missing, so state.config is undefined here. The key point is: no throw.
+			assert.strictEqual(state!.config, undefined);
 		});
 	});
 

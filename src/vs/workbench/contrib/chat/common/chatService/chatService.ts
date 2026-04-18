@@ -132,6 +132,8 @@ export interface IChatContentReference {
 		status?: { description: string; kind: ChatResponseReferencePartStatusKind };
 		diffMeta?: { added: number; removed: number };
 		originalUri?: URI;
+		/** Overrides the reference URI when opening the modified side of a diff. */
+		modifiedUri?: URI;
 		isDeletion?: boolean;
 	};
 	kind: 'reference';
@@ -981,6 +983,16 @@ export interface IChatModifiedFilesConfirmationData {
 	readonly modifiedFiles: readonly {
 		readonly uri: UriComponents;
 		readonly originalUri?: UriComponents;
+		/**
+		 * Optional URI to read the modified (after) content from for the diff
+		 * view. When absent, {@link uri} is used as the modified side.
+		 */
+		readonly modifiedContentUri?: UriComponents;
+		/**
+		 * Optional URI to read the original (before) content from for the diff
+		 * view. When absent, {@link originalUri} is used as the original side.
+		 */
+		readonly originalContentUri?: UriComponents;
 		readonly insertions?: number;
 		readonly deletions?: number;
 		readonly title?: string;

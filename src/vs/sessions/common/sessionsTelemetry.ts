@@ -111,3 +111,64 @@ type ChangesViewReviewCommentAddedClassification = {
 export function logChangesViewReviewCommentAdded(telemetryService: ITelemetryService, data: { hasExistingFeedback: boolean; hasSuggestion: boolean; isFromPRReview: boolean }): void {
 	telemetryService.publicLog2<ChangesViewReviewCommentAddedEvent, ChangesViewReviewCommentAddedClassification>('vscodeAgents.changesView/reviewCommentAdded', data);
 }
+
+// --- Tunnel agent host connect ---
+
+export type TunnelConnectErrorCategory = 'relayConnectionFailed' | 'auth' | 'network' | 'other';
+export type TunnelConnectFailureReason = 'hostOffline' | 'maxAttemptsReached';
+
+type TunnelConnectAttemptEvent = {
+	isReconnect: boolean;
+	attempt: number;
+	durationMs: number;
+	success: boolean;
+	errorCategory: string;
+};
+
+type TunnelConnectAttemptClassification = {
+	owner: 'osortega';
+	comment: 'Tracks individual agent-host tunnel connect attempts for performance and reliability.';
+	isReconnect: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether this attempt was part of a reconnect cycle (true) or an initial connect (false).' };
+	attempt: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Attempt number within the current connect session (1-based).' };
+	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Duration of this individual attempt in milliseconds.' };
+	success: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether this individual attempt succeeded.' };
+	errorCategory: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Category of error when the attempt failed (relayConnectionFailed, auth, network, other); empty on success.' };
+};
+
+export function logTunnelConnectAttempt(telemetryService: ITelemetryService, data: { isReconnect: boolean; attempt: number; durationMs: number; success: boolean; errorCategory?: TunnelConnectErrorCategory }): void {
+	telemetryService.publicLog2<TunnelConnectAttemptEvent, TunnelConnectAttemptClassification>('vscodeAgents.tunnelConnect/attempt', {
+		isReconnect: data.isReconnect,
+		attempt: data.attempt,
+		durationMs: data.durationMs,
+		success: data.success,
+		errorCategory: data.errorCategory ?? '',
+	});
+}
+
+type TunnelConnectResolvedEvent = {
+	isReconnect: boolean;
+	totalAttempts: number;
+	totalDurationMs: number;
+	success: boolean;
+	failureReason: string;
+};
+
+type TunnelConnectResolvedClassification = {
+	owner: 'osortega';
+	comment: 'Tracks overall agent-host tunnel connect session outcomes for reliability.';
+	isReconnect: { classification: 'SystemMetaData'; purpose: 'FeatureInsight'; isMeasurement: true; comment: 'Whether the resolved session was a reconnect cycle (true) or an initial connect (false).' };
+	totalAttempts: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total number of attempts made before resolution.' };
+	totalDurationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total elapsed time from session start to resolution in milliseconds.' };
+	success: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the connect session ultimately succeeded.' };
+	failureReason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Reason the session terminated without connecting (hostOffline, maxAttemptsReached); empty on success.' };
+};
+
+export function logTunnelConnectResolved(telemetryService: ITelemetryService, data: { isReconnect: boolean; totalAttempts: number; totalDurationMs: number; success: boolean; failureReason?: TunnelConnectFailureReason }): void {
+	telemetryService.publicLog2<TunnelConnectResolvedEvent, TunnelConnectResolvedClassification>('vscodeAgents.tunnelConnect/resolved', {
+		isReconnect: data.isReconnect,
+		totalAttempts: data.totalAttempts,
+		totalDurationMs: data.totalDurationMs,
+		success: data.success,
+		failureReason: data.failureReason ?? '',
+	});
+}

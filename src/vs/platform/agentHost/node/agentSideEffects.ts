@@ -746,6 +746,16 @@ export class AgentSideEffects extends Disposable {
 				this._persistSessionFlag(action.session, 'isDone', action.isDone ? 'true' : '');
 				break;
 			}
+			case ActionType.SessionConfigChanged: {
+				// Persist merged values so a future `restoreSession` can re-hydrate
+				// the user's previous selections (e.g. autoApprove).
+				const sessionState = this._stateManager.getSessionState(action.session);
+				const values = sessionState?.config?.values;
+				if (values) {
+					this._persistSessionFlag(action.session, 'configValues', JSON.stringify(values));
+				}
+				break;
+			}
 			case ActionType.SessionToolCallComplete: {
 				const agent = this._options.getAgent(action.session);
 				agent?.onClientToolCallComplete(URI.parse(action.session), action.toolCallId, action.result);
@@ -912,7 +922,7 @@ export class AgentSideEffects extends Disposable {
 				}
 			}
 
-			const diffs = await computeSessionDiffs(ref.object, this._diffComputeService, incremental);
+			const diffs = await computeSessionDiffs(session, ref.object, this._diffComputeService, incremental);
 			this._stateManager.dispatchServerAction({
 				type: ActionType.SessionDiffsChanged,
 				session,

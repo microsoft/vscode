@@ -670,7 +670,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 
 		telemetryBuilder.setRequest(nextEditRequest);
 		logContext.setRequestInput(nextEditRequest);
-		logContext.setIsCachedResult(nextEditRequest.logContext);
+		logContext.setIsReusedInFlightResult(nextEditRequest.logContext);
 
 		const disp = this._hookupCancellation(nextEditRequest, cancellationToken);
 		try {

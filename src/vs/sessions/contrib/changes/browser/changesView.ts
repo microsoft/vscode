@@ -543,10 +543,14 @@ export class ChangesViewPane extends ViewPane {
 			}
 
 			const hasGitRepository = this.viewModel.activeSessionHasGitRepositoryObs.read(reader);
-			dom.setVisibility(hasGitRepository, this.filesHeaderNode!);
 
 			const { files } = topLevelStats.read(reader);
 			const hasEntries = files > 0;
+
+			// Show the files header whenever the session is git-backed (so users
+			// can switch version modes) or there are session-provided entries to
+			// count (for non-git sessions like the local agent host).
+			dom.setVisibility(hasGitRepository || hasEntries, this.filesHeaderNode!);
 
 			dom.setVisibility(hasEntries, this.listContainer!);
 			dom.setVisibility(!hasEntries, this.welcomeContainer!);
@@ -1196,6 +1200,7 @@ class VersionsPickerAction extends Action2 {
 				id: MenuId.ChatEditingSessionChangesFileHeaderToolbar,
 				group: 'navigation',
 				order: 9,
+				when: ActiveSessionContextKeys.HasGitRepository,
 			}],
 		});
 	}

@@ -41,10 +41,7 @@ export const RunPlaywrightCodeToolData: IToolData = {
 			},
 		},
 		required: ['pageId'],
-		oneOf: [
-			{ required: ['code'] },
-			{ required: ['deferredResultId'] },
-		]
+		$comment: 'Either "code" or "deferredResultId" must be provided.',
 	},
 };
 

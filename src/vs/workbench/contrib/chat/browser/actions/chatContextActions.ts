@@ -53,15 +53,17 @@ import { registerPromptActions } from '../promptSyntax/promptFileActions.js';
 import { CHAT_CATEGORY } from './chatActions.js';
 import { registerCreatePluginAction } from './createPluginAction.js';
 
-export function registerChatContextActions() {
-	registerAction2(AttachContextAction);
-	registerAction2(AttachFileToChatAction);
-	registerAction2(AttachFolderToChatAction);
-	registerAction2(AttachSelectionToChatAction);
-	registerAction2(AttachSearchResultAction);
-	registerAction2(AttachPinnedEditorsToChatAction);
-	registerPromptActions();
-	registerCreatePluginAction();
+export function registerChatContextActions(): DisposableStore {
+	const store = new DisposableStore();
+	store.add(registerAction2(AttachContextAction));
+	store.add(registerAction2(AttachFileToChatAction));
+	store.add(registerAction2(AttachFolderToChatAction));
+	store.add(registerAction2(AttachSelectionToChatAction));
+	store.add(registerAction2(AttachSearchResultAction));
+	store.add(registerAction2(AttachPinnedEditorsToChatAction));
+	store.add(registerCreatePluginAction());
+	registerPromptActions(); // TODO@jrieken: should also return a DisposableStore
+	return store;
 }
 
 async function withChatView(accessor: ServicesAccessor): Promise<IChatWidget | undefined> {

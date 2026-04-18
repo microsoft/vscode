@@ -8,17 +8,18 @@ import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
-import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { constObservable, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
+import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
+import { constObservable, derived, IObservable, ISettableObservable, observableValue } from '../../../../base/common/observable.js';
 import { basename } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { AgentSession, IAgentHostService, type IAgentSessionMetadata } from '../../../../platform/agentHost/common/agentService.js';
-import type { IFileEdit, IModelSelection, IRootState, ISessionSummary } from '../../../../platform/agentHost/common/state/protocol/state.js';
+import type { IFileEdit, IModelSelection, IRootState, ISessionConfigPropertySchema, ISessionState, ISessionSummary } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isSessionAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IResolveSessionConfigResult, ISessionConfigValueItem } from '../../../../platform/agentHost/common/state/protocol/commands.js';
+import { StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatSendRequestOptions, IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
@@ -30,7 +31,7 @@ import { isSessionConfigComplete } from '../../../common/sessionConfig.js';
 import { diffsToChanges, diffsEqual, mapProtocolStatus } from '../../../common/agentHostDiffs.js';
 import { NotificationType } from '../../../../platform/agentHost/common/state/protocol/notifications.js';
 import { ISendRequestOptions, ISessionChangeEvent } from '../../../services/sessions/common/sessionsProvider.js';
-import { IAgentHostSessionsProvider } from '../../../common/agentHostSessionsProvider.js';
+import { IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../common/agentHostSessionsProvider.js';
 import { IChat, ISession, ISessionWorkspace, ISessionWorkspaceBrowseAction, SessionStatus, type IGitHubInfo, ISessionType } from '../../../services/sessions/common/session.js';
 
 const LOCAL_PROVIDER_ID = 'local-agent-host';
@@ -57,17 +58,6 @@ function buildMutableConfigSchema(config: Record<string, string>): Record<string
 		};
 	}
 	return properties;
-}
-
-function toSessionFileDiffs(diffs: readonly IFileEdit[]): { readonly uri: string; readonly added?: number; readonly removed?: number }[] {
-	const result: { readonly uri: string; readonly added?: number; readonly removed?: number }[] = [];
-	for (const diff of diffs) {
-		const uri = diff.after?.uri ?? diff.before?.uri;
-		if (uri) {
-			result.push({ uri, added: diff.diff?.added, removed: diff.diff?.removed });
-		}
-	}
-	return result;
 }
 
 /**
@@ -100,7 +90,7 @@ class LocalSessionAdapter implements ISession {
 	readonly modelId: ISettableObservable<string | undefined>;
 	modelSelection: IModelSelection | undefined;
 	readonly mode = observableValue<{ readonly id: string; readonly kind: string } | undefined>('mode', undefined);
-	readonly loading = observableValue(this, false);
+	readonly loading: IObservable<boolean>;
 	readonly isArchived = observableValue('isArchived', false);
 	readonly isRead = observableValue('isRead', true);
 	readonly description: ISettableObservable<IMarkdownString | undefined>;
@@ -118,6 +108,7 @@ class LocalSessionAdapter implements ISession {
 		providerId: string,
 		resourceScheme: string,
 		logicalSessionType: string,
+		authenticationPending: IObservable<boolean>,
 	) {
 		const rawId = AgentSession.id(metadata.session);
 		this.agentProvider = AgentSession.provider(metadata.session) ?? DEFAULT_AGENT_PROVIDER;
@@ -134,6 +125,9 @@ class LocalSessionAdapter implements ISession {
 		this.lastTurnEnd = observableValue('lastTurnEnd', metadata.modifiedTime ? new Date(metadata.modifiedTime) : undefined);
 		this.description = observableValue('description', new MarkdownString().appendText(localize('localAgentHostDescription', "Local")));
 		this.workspace = observableValue('workspace', LocalAgentHostSessionsProvider.buildWorkspace(metadata.project, metadata.workingDirectory));
+		// Cached sessions surface as loading while the local agent host is still
+		// authenticating. They have no per-session loading state of their own.
+		this.loading = authenticationPending;
 
 		if (metadata.isRead === false) {
 			this.isRead.set(false, undefined);
@@ -284,6 +278,17 @@ export class LocalAgentHostSessionsProvider extends Disposable implements IAgent
 
 	/** Config for running sessions (session-mutable properties only), keyed by session ID. */
 	private readonly _runningSessionConfigs = new Map<string, IResolveSessionConfigResult>();
+
+	/**
+	 * Lazy session-state subscriptions used to seed {@link _runningSessionConfigs}
+	 * for sessions that already exist on the agent host (e.g. created in a prior
+	 * window). The underlying wire subscription is reference-counted by
+	 * {@link IAgentConnection.getSubscription}, so when the session handler is
+	 * also subscribed (i.e. chat content is loaded) no extra wire subscribe is
+	 * issued. Keyed by session ID. Each entry owns the subscription `IReference`
+	 * plus the `onDidChange` listener.
+	 */
+	private readonly _sessionStateSubscriptions = this._register(new DisposableMap<string, DisposableStore>());
 
 	private _cacheInitialized = false;
 
@@ -491,7 +496,7 @@ export class LocalAgentHostSessionsProvider extends Disposable implements IAgent
 			changes,
 			modelId,
 			mode,
-			loading,
+			loading: derived(reader => loading.read(reader) || this._agentHostService.authenticationPending.read(reader)),
 			isArchived,
 			isRead,
 			description,
@@ -515,7 +520,16 @@ export class LocalAgentHostSessionsProvider extends Disposable implements IAgent
 	}
 
 	getSessionConfig(sessionId: string): IResolveSessionConfigResult | undefined {
-		return this._newSessionConfigs.get(sessionId) ?? this._runningSessionConfigs.get(sessionId);
+		// New-session config wins (during pre-creation flow). Otherwise lazily
+		// subscribe to the session's state so the running picker can seed its
+		// schema/values from the AHP `ISessionState.config` snapshot for sessions
+		// that weren't created in this window.
+		const newSessionConfig = this._newSessionConfigs.get(sessionId);
+		if (newSessionConfig) {
+			return newSessionConfig;
+		}
+		this._ensureSessionStateSubscription(sessionId);
+		return this._runningSessionConfigs.get(sessionId);
 	}
 
 	async setSessionConfigValue(sessionId: string, property: string, value: string): Promise<void> {
@@ -841,7 +855,7 @@ export class LocalAgentHostSessionsProvider extends Disposable implements IAgent
 					}
 				} else {
 					const sessionType = this._sessionTypeForMetadata(meta);
-					const cached = new LocalSessionAdapter(meta, this.id, sessionType, sessionType);
+					const cached = new LocalSessionAdapter(meta, this.id, sessionType, sessionType, this._agentHostService.authenticationPending);
 					this._sessionCache.set(rawId, cached);
 					added.push(cached);
 				}
@@ -913,7 +927,7 @@ export class LocalAgentHostSessionsProvider extends Disposable implements IAgent
 			isDone: summary.isDone,
 		};
 		const sessionType = this._sessionTypeForMetadata(meta);
-		const cached = new LocalSessionAdapter(meta, this.id, sessionType, sessionType);
+		const cached = new LocalSessionAdapter(meta, this.id, sessionType, sessionType, this._agentHostService.authenticationPending);
 		this._sessionCache.set(rawId, cached);
 		this._onDidChangeSessions.fire({ added: [cached], removed: [], changed: [] });
 	}
@@ -929,6 +943,7 @@ export class LocalAgentHostSessionsProvider extends Disposable implements IAgent
 		if (cached) {
 			this._sessionCache.delete(rawId);
 			this._runningSessionConfigs.delete(cached.sessionId);
+			this._sessionStateSubscriptions.deleteAndDispose(cached.sessionId);
 			this._onDidChangeSessions.fire({ added: [], removed: [cached], changed: [] });
 		}
 	}
@@ -977,7 +992,7 @@ export class LocalAgentHostSessionsProvider extends Disposable implements IAgent
 		const rawId = AgentSession.id(session);
 		const cached = this._sessionCache.get(rawId);
 		if (cached) {
-			cached.changes.set(diffsToChanges(toSessionFileDiffs(diffs)), undefined);
+			cached.changes.set(diffsToChanges(diffs), undefined);
 			this._onDidChangeSessions.fire({ added: [], removed: [], changed: [cached] });
 		}
 	}
@@ -1005,9 +1020,8 @@ export class LocalAgentHostSessionsProvider extends Disposable implements IAgent
 		}
 
 		if (changes.diffs !== undefined) {
-			const diffs = toSessionFileDiffs(changes.diffs);
-			if (!diffsEqual(cached.changes.get(), diffs)) {
-				cached.changes.set(diffsToChanges(diffs), undefined);
+			if (!diffsEqual(cached.changes.get(), changes.diffs)) {
+				cached.changes.set(diffsToChanges(changes.diffs), undefined);
 				didChange = true;
 			}
 		}
@@ -1038,6 +1052,78 @@ export class LocalAgentHostSessionsProvider extends Disposable implements IAgent
 				values: config,
 			});
 		}
+		this._onDidChangeSessionConfig.fire(sessionId);
+	}
+
+	/**
+	 * Lazily acquire a session-state subscription for `sessionId` so that
+	 * `_runningSessionConfigs` is seeded from the AHP `ISessionState.config`
+	 * snapshot. Safe to call repeatedly — no-op once a subscription exists.
+	 *
+	 * The subscription is reference-counted by {@link IAgentConnection.getSubscription},
+	 * so when the session handler is also subscribed (chat content open) this
+	 * shares the existing wire subscription rather than opening a new one.
+	 */
+	private _ensureSessionStateSubscription(sessionId: string): void {
+		if (this._sessionStateSubscriptions.has(sessionId)) {
+			return;
+		}
+		const rawId = this._rawIdFromChatId(sessionId);
+		if (!rawId) {
+			return;
+		}
+		const cached = this._sessionCache.get(rawId);
+		if (!cached) {
+			return;
+		}
+		const sessionUri = AgentSession.uri(cached.agentProvider, rawId);
+		const ref = this._agentHostService.getSubscription(StateComponents.Session, sessionUri);
+		const store = new DisposableStore();
+		store.add(ref);
+		store.add(ref.object.onDidChange(state => this._seedRunningConfigFromState(sessionId, state)));
+		this._sessionStateSubscriptions.set(sessionId, store);
+
+		// Seed from the current snapshot if it has already arrived.
+		const value = ref.object.value;
+		if (value && !(value instanceof Error)) {
+			this._seedRunningConfigFromState(sessionId, value);
+		}
+	}
+
+	/**
+	 * Filter `state.config` to session-mutable properties and update
+	 * {@link _runningSessionConfigs} if changed. No-op if the seeded value is
+	 * structurally equal to the existing entry to avoid spurious
+	 * `onDidChangeSessionConfig` fires.
+	 */
+	private _seedRunningConfigFromState(sessionId: string, state: ISessionState): void {
+		const stateConfig = state.config;
+		if (!stateConfig) {
+			return;
+		}
+		const properties: Record<string, ISessionConfigPropertySchema> = {};
+		const values: Record<string, string> = {};
+		for (const [key, propSchema] of Object.entries(stateConfig.schema.properties)) {
+			if (!propSchema.sessionMutable) {
+				continue;
+			}
+			properties[key] = propSchema;
+			if (Object.hasOwn(stateConfig.values, key)) {
+				values[key] = stateConfig.values[key];
+			}
+		}
+		if (Object.keys(properties).length === 0) {
+			return;
+		}
+		const seeded: IResolveSessionConfigResult = {
+			schema: { type: 'object', properties },
+			values,
+		};
+		const existing = this._runningSessionConfigs.get(sessionId);
+		if (existing && resolvedConfigsEqual(existing, seeded)) {
+			return;
+		}
+		this._runningSessionConfigs.set(sessionId, seeded);
 		this._onDidChangeSessionConfig.fire(sessionId);
 	}
 

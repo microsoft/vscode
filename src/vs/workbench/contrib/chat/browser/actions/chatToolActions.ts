@@ -7,6 +7,7 @@ import { CancellationTokenSource } from '../../../../../base/common/cancellation
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { Iterable } from '../../../../../base/common/iterator.js';
 import { KeyCode, KeyMod } from '../../../../../base/common/keyCodes.js';
+import { DisposableStore } from '../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../base/common/observable.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
@@ -234,8 +235,10 @@ export class ConfigureToolsAction extends Action2 {
 	}
 }
 
-export function registerChatToolActions() {
-	registerAction2(AcceptToolConfirmation);
-	registerAction2(SkipToolConfirmation);
-	registerAction2(ConfigureToolsAction);
+export function registerChatToolActions(): DisposableStore {
+	const store = new DisposableStore();
+	store.add(registerAction2(AcceptToolConfirmation));
+	store.add(registerAction2(SkipToolConfirmation));
+	store.add(registerAction2(ConfigureToolsAction));
+	return store;
 }

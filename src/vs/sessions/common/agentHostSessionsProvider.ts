@@ -48,3 +48,35 @@ const REMOTE_AGENT_HOST_PROVIDER_PREFIX = 'agenthost-';
 export function isAgentHostProvider(provider: ISessionsProvider): provider is IAgentHostSessionsProvider {
 	return provider.id === LOCAL_AGENT_HOST_PROVIDER_ID || provider.id.startsWith(REMOTE_AGENT_HOST_PROVIDER_PREFIX);
 }
+
+/**
+ * Shallow structural equality for resolved session configs. Returns true when
+ * both inputs have the same value-key set with identical string values and
+ * the same set of schema property keys with identical (by-identity) property
+ * objects. Schema property objects are compared by identity since they
+ * originate from the same protocol snapshot in the providers that use this
+ * helper.
+ */
+export function resolvedConfigsEqual(a: IResolveSessionConfigResult, b: IResolveSessionConfigResult): boolean {
+	const aValueKeys = Object.keys(a.values);
+	const bValueKeys = Object.keys(b.values);
+	if (aValueKeys.length !== bValueKeys.length) {
+		return false;
+	}
+	for (const key of aValueKeys) {
+		if (a.values[key] !== b.values[key]) {
+			return false;
+		}
+	}
+	const aPropKeys = Object.keys(a.schema.properties);
+	const bPropKeys = Object.keys(b.schema.properties);
+	if (aPropKeys.length !== bPropKeys.length) {
+		return false;
+	}
+	for (const key of aPropKeys) {
+		if (a.schema.properties[key] !== b.schema.properties[key]) {
+			return false;
+		}
+	}
+	return true;
+}

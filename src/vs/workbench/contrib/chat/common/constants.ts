@@ -71,6 +71,10 @@ export enum ChatConfiguration {
 	DefaultNewSessionMode = 'chat.newSession.defaultMode',
 	AgentHostClientTools = 'chat.agentHost.clientTools',
 	MaxPersistedSessions = 'chat.maxPersistedSessions',
+
+	IncrementalRendering = 'chat.experimental.incrementalRendering.enabled',
+	IncrementalRenderingStyle = 'chat.experimental.incrementalRendering.animationStyle',
+	IncrementalRenderingBuffering = 'chat.experimental.incrementalRendering.buffering',
 }
 
 /**

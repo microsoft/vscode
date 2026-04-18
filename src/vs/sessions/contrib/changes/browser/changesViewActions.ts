@@ -26,6 +26,8 @@ import { ViewContainerLocation } from '../../../../workbench/common/views.js';
 import { ChangesViewPane } from './changesView.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../files/browser/files.contribution.js';
 import { SESSIONS_FILES_VIEW_ID } from '../../files/browser/filesView.js';
+import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
+import { EditorMaximizedContext } from '../../../common/contextkeys.js';
 
 const openChangesViewActionOptions: IAction2Options = {
 	id: 'workbench.action.agentSessions.openChangesView',
@@ -140,10 +142,7 @@ export class ViewAllSessionChangesAction extends Action2 {
 			title: localize2('chatEditing.viewAllSessionChanges', 'View All Changes'),
 			icon: Codicon.diffMultiple,
 			f1: false,
-			precondition: ContextKeyExpr.and(
-				ContextKeyExpr.equals('sessions.hasGitRepository', true),
-				ChatContextKeys.hasAgentSessionChanges,
-			),
+			precondition: ChatContextKeys.hasAgentSessionChanges,
 			menu: [
 				{
 					id: MenuId.ChatEditingSessionChangesToolbar,
@@ -201,3 +200,59 @@ class OpenPullRequestAction extends Action2 {
 }
 
 registerAction2(OpenPullRequestAction);
+
+class MaximizeMainEditorPartAction extends Action2 {
+	static readonly ID = 'workbench.action.agentSessions.maximizeMainEditorPart';
+
+	constructor() {
+		super({
+			id: MaximizeMainEditorPartAction.ID,
+			title: localize2('maximizeMainEditorPart', "Maximize Editor"),
+			icon: Codicon.screenFull,
+			f1: false,
+			menu: {
+				id: MenuId.EditorTitle,
+				group: 'navigation',
+				order: 100001,
+				when: ContextKeyExpr.and(
+					IsSessionsWindowContext,
+					EditorMaximizedContext.negate())
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
+		layoutService.setEditorMaximized(true);
+	}
+}
+
+registerAction2(MaximizeMainEditorPartAction);
+
+class RestoreMainEditorPartAction extends Action2 {
+	static readonly ID = 'workbench.action.agentSessions.restoreMainEditorPart';
+
+	constructor() {
+		super({
+			id: RestoreMainEditorPartAction.ID,
+			title: localize2('restoreMainEditorPart', "Restore Editor"),
+			icon: Codicon.screenNormal,
+			f1: false,
+			menu: {
+				id: MenuId.EditorTitle,
+				group: 'navigation',
+				order: 100001,
+				when: ContextKeyExpr.and(
+					IsSessionsWindowContext,
+					EditorMaximizedContext)
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
+		layoutService.setEditorMaximized(false);
+	}
+}
+
+registerAction2(RestoreMainEditorPartAction);

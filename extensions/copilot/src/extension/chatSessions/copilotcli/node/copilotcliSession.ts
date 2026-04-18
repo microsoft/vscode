@@ -11,10 +11,11 @@ import { IRunCommandExecutionService } from '../../../../platform/commands/commo
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { GenAiMetrics } from '../../../../platform/otel/common/genAiMetrics';
-import { CopilotChatAttr, GenAiAttr, GenAiOperationName, IOTelService, ISpanHandle, SpanKind, SpanStatusCode, truncateForOTel } from '../../../../platform/otel/common/index';
+import { CopilotChatAttr, GenAiAttr, GenAiOperationName, IOTelService, ISpanHandle, SpanKind, SpanStatusCode, truncateForOTel, resolveWorkspaceOTelMetadata, workspaceMetadataToOTelAttributes } from '../../../../platform/otel/common/index';
 import { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
 import { IRequestLogger, LoggedRequestKind } from '../../../../platform/requestLogger/common/requestLogger';
 import { PromptTokenCategory, PromptTokenLabel } from '../../../../platform/tokenizer/node/promptTokenDetails';
+import { IGitService } from '../../../../platform/git/common/gitService';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { raceCancellation } from '../../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
@@ -177,6 +178,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IOTelService private readonly _otelService: IOTelService,
 		@IRunCommandExecutionService private readonly _commandExecutionService: IRunCommandExecutionService,
+		@IGitService private readonly _gitService: IGitService,
 	) {
 		super();
 		this.sessionId = _sdkSession.sessionId;
@@ -321,6 +323,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		token: vscode.CancellationToken
 	): Promise<void> {
 		const modelId = model?.model;
+		const promptLabel = getPromptLabel(input);
 		return this._otelService.startActiveSpan(
 			'invoke_agent copilotcli',
 			{
@@ -333,9 +336,14 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					[CopilotChatAttr.SESSION_ID]: this.sessionId,
 					[CopilotChatAttr.CHAT_SESSION_ID]: this.sessionId,
 					...(modelId ? { [GenAiAttr.REQUEST_MODEL]: modelId } : {}),
+					[CopilotChatAttr.USER_REQUEST]: truncateForOTel(promptLabel),
+					...workspaceMetadataToOTelAttributes(resolveWorkspaceOTelMetadata(this._gitService)),
 				},
 			},
 			async span => {
+				// Emit user_message event so chronicle can extract turns and summary
+				span.addEvent('user_message', { content: truncateForOTel(promptLabel) });
+
 				// Register the trace context so the bridge processor can inject CHAT_SESSION_ID
 				const traceCtx = span.getSpanContext();
 				if (traceCtx && this._bridgeProcessor) {
