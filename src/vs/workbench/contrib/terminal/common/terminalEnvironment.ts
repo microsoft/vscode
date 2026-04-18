@@ -276,7 +276,7 @@ export async function createTerminalEnvironment(
 		// can still inherit these variables.
 		// We are not bypassing the restrictions implied in https://github.com/electron/electron/pull/40770
 		// since this only affects integrated terminal and not the application itself.
-		if (isMacintosh) {
+		if (isMacintosh || isWindows) {
 			// Restore NODE_OPTIONS if it was set
 			if (env['VSCODE_NODE_OPTIONS']) {
 				env['NODE_OPTIONS'] = env['VSCODE_NODE_OPTIONS'];
