@@ -237,6 +237,7 @@ describe('ChatDebugFileLoggerService', () => {
 		expect(attrs.model).toBe('gpt-4o');
 		expect(attrs.inputTokens).toBe(1000);
 		expect(attrs.outputTokens).toBe(500);
+		expect(attrs.cachedTokens).toBeUndefined();
 	});
 
 	it('records error status from failed spans', async () => {
