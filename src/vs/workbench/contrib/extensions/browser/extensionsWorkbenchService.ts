@@ -1783,7 +1783,7 @@ export class ExtensionsWorkbenchService extends Disposable implements IExtension
 					}
 					return undefined;
 				} else {
-					if (isSameExtensionRunning) {
+					if (isSameExtensionRunning && !runningExtension.isUnderDevelopment) {
 						return { action: reloadAction, reason: nls.localize('postDisableTooltip', "Please {0} to disable this extension.", reloadActionLabel) };
 					}
 				}
