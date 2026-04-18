@@ -7,19 +7,21 @@ import type { Attachment, SendOptions, Session, SessionOptions } from '@github/c
 import * as l10n from '@vscode/l10n';
 import type * as vscode from 'vscode';
 import type { ChatParticipantToolToken } from 'vscode';
+import { IRunCommandExecutionService } from '../../../../platform/commands/common/runCommandExecutionService';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { GenAiMetrics } from '../../../../platform/otel/common/genAiMetrics';
-import { CopilotChatAttr, GenAiAttr, GenAiOperationName, IOTelService, ISpanHandle, SpanKind, SpanStatusCode, truncateForOTel } from '../../../../platform/otel/common/index';
+import { CopilotChatAttr, GenAiAttr, GenAiOperationName, IOTelService, ISpanHandle, SpanKind, SpanStatusCode, truncateForOTel, resolveWorkspaceOTelMetadata, workspaceMetadataToOTelAttributes } from '../../../../platform/otel/common/index';
 import { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
 import { IRequestLogger, LoggedRequestKind } from '../../../../platform/requestLogger/common/requestLogger';
+import { PromptTokenCategory, PromptTokenLabel } from '../../../../platform/tokenizer/node/promptTokenDetails';
+import { IGitService } from '../../../../platform/git/common/gitService';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { raceCancellation } from '../../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { Codicon } from '../../../../util/vs/base/common/codicons';
 import { Emitter } from '../../../../util/vs/base/common/event';
 import { DisposableStore, IDisposable, toDisposable } from '../../../../util/vs/base/common/lifecycle';
-import { extUriBiasedIgnorePathCase, isEqual } from '../../../../util/vs/base/common/resources';
 import { truncate } from '../../../../util/vs/base/common/strings';
 import { ThemeIcon } from '../../../../util/vs/base/common/themables';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
@@ -28,11 +30,14 @@ import { IToolsService } from '../../../tools/common/toolsService';
 import { IChatSessionMetadataStore } from '../../common/chatSessionMetadataStore';
 import { ExternalEditTracker } from '../../common/externalEditTracker';
 import { getWorkingDirectory, isIsolationEnabled, IWorkspaceInfo } from '../../common/workspaceInfo';
-import { enrichToolInvocationWithSubagentMetadata, getAffectedUrisForEditTool, isCopilotCliEditToolCall, isCopilotCLIToolThatCouldRequirePermissions, processToolExecutionComplete, processToolExecutionStart, ToolCall, updateTodoList } from '../common/copilotCLITools';
-import { getCopilotCLISessionStateDir } from './cliHelpers';
+import { enrichToolInvocationWithSubagentMetadata, isCopilotCliEditToolCall, isCopilotCLIToolThatCouldRequirePermissions, isTodoRelatedSqlQuery, processToolExecutionComplete, processToolExecutionStart, ToolCall, updateTodoListFromSqlItems } from '../common/copilotCLITools';
+import { SessionIdForCLI } from '../common/utils';
+import { getCopilotCLISessionDir } from './cliHelpers';
 import type { CopilotCliBridgeSpanProcessor } from './copilotCliBridgeSpanProcessor';
 import { ICopilotCLIImageSupport } from './copilotCLIImageSupport';
-import { PermissionRequest, requestPermission, requiresFileEditconfirmation } from './permissionHelpers';
+import { handleExitPlanMode } from './exitPlanModeHandler';
+import { handleMcpPermission, handleReadPermission, handleShellPermission, handleWritePermission, type PermissionRequest, type PermissionRequestResult, showInteractivePermissionPrompt } from './permissionHelpers';
+import { TodoSqlQuery } from './todoSqlQuery';
 import { IQuestion, IUserQuestionHandler } from './userInputHelpers';
 
 /**
@@ -93,6 +98,12 @@ export interface ICopilotCLISession extends IDisposable {
 	addUserMessage(content: string): void;
 	addUserAssistantMessage(content: string): void;
 	getSelectedModelId(): Promise<string | undefined>;
+	/**
+	 * Temporarily sets the session resource.
+	 * Only for non-controller code paths.
+	 * @deprecated
+	 */
+	setSessionResource(resource: vscode.Uri): IDisposable;
 }
 
 export class CopilotCLISession extends DisposableStore implements ICopilotCLISession {
@@ -134,6 +145,8 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	private _permissionLevel: string | undefined;
 	private _pendingPrompt: string | undefined;
 	private _bridgeProcessor: CopilotCliBridgeSpanProcessor | undefined;
+	private readonly _todoSqlQuery = new TodoSqlQuery();
+
 	/** Callback to propagate trace context to the SDK's OtelLifecycle. */
 	private _updateSdkTraceContext: ((traceparent?: string, tracestate?: string) => void) | undefined;
 	public get pendingPrompt(): string | undefined {
@@ -147,6 +160,8 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	setSdkTraceContextUpdater(updater: ((traceparent?: string, tracestate?: string) => void) | undefined): void {
 		this._updateSdkTraceContext = updater;
 	}
+	private _sessionResource: Uri;
+
 	constructor(
 		private readonly _workspaceInfo: IWorkspaceInfo,
 		private readonly _agentName: string | undefined,
@@ -162,11 +177,21 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		@IUserQuestionHandler private readonly _userQuestionHandler: IUserQuestionHandler,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IOTelService private readonly _otelService: IOTelService,
+		@IRunCommandExecutionService private readonly _commandExecutionService: IRunCommandExecutionService,
+		@IGitService private readonly _gitService: IGitService,
 	) {
 		super();
 		this.sessionId = _sdkSession.sessionId;
+		this.add(toDisposable(() => this._todoSqlQuery.dispose()));
+		this._sessionResource = SessionIdForCLI.getResource(this.sessionId);
 	}
 
+	setSessionResource(resource: vscode.Uri): IDisposable {
+		this._sessionResource = resource;
+		return this.add(toDisposable(() => {
+			this._sessionResource = SessionIdForCLI.getResource(this.sessionId);
+		}));
+	}
 	attachStream(stream: vscode.ChatResponseStream): IDisposable {
 		this._stream = stream;
 		return toDisposable(() => {
@@ -298,6 +323,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		token: vscode.CancellationToken
 	): Promise<void> {
 		const modelId = model?.model;
+		const promptLabel = getPromptLabel(input);
 		return this._otelService.startActiveSpan(
 			'invoke_agent copilotcli',
 			{
@@ -310,9 +336,14 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					[CopilotChatAttr.SESSION_ID]: this.sessionId,
 					[CopilotChatAttr.CHAT_SESSION_ID]: this.sessionId,
 					...(modelId ? { [GenAiAttr.REQUEST_MODEL]: modelId } : {}),
+					[CopilotChatAttr.USER_REQUEST]: truncateForOTel(promptLabel),
+					...workspaceMetadataToOTelAttributes(resolveWorkspaceOTelMetadata(this._gitService)),
 				},
 			},
 			async span => {
+				// Emit user_message event so chronicle can extract turns and summary
+				span.addEvent('user_message', { content: truncateForOTel(promptLabel) });
+
 				// Register the trace context so the bridge processor can inject CHAT_SESSION_ID
 				const traceCtx = span.getSpanContext();
 				if (traceCtx && this._bridgeProcessor) {
@@ -403,6 +434,22 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 
 		const chunkMessageIds = new Set<string>();
 		const assistantMessageChunks: string[] = [];
+		let lastUsageInfo: UsageInfoData | undefined;
+		const reportUsage = (promptTokens: number, completionTokens: number) => {
+			if (token.isCancellationRequested || !this._stream) {
+				return;
+			}
+			this._stream.usage({
+				promptTokens,
+				completionTokens,
+				promptTokenDetails: buildPromptTokenDetails(lastUsageInfo),
+			});
+		};
+		const updateUsageInfo = (async () => {
+			const metrics = await this._sdkSession.usage.getMetrics();
+			const promptTokens = lastUsageInfo?.currentTokens || metrics.lastCallInputTokens;
+			reportUsage(promptTokens, metrics.lastCallOutputTokens);
+		})();
 		try {
 			const shouldHandleExitPlanModeRequests = this.configurationService.getConfig(ConfigKey.Advanced.CLIPlanExitModeEnabled);
 			disposables.add(toDisposable(this._sdkSession.on('*', (event) => {
@@ -411,123 +458,116 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			disposables.add(toDisposable(this._sdkSession.on('permission.requested', async (event) => {
 				const permissionRequest = event.data.permissionRequest;
 				const requestId = event.data.requestId;
-				const response = await this.requestPermission(permissionRequest, editTracker,
-					(toolCallId: string) => {
-						const toolData = toolCalls.get(toolCallId);
-						if (!toolData) {
-							return undefined;
-						}
-						const data = pendingToolInvocations.get(toolCallId);
-						if (data) {
-							return [toolData, data[2]] as const;
-						}
-						return [toolData, undefined] as const;
-					},
-					token
-				);
-				flushPendingInvocationMessageForToolCallId(permissionRequest.toolCallId);
 
-				this._requestLogger.addEntry({
-					type: LoggedRequestKind.MarkdownContentRequest,
-					debugName: `Permission Request`,
-					startTimeMs: Date.now(),
-					icon: Codicon.question,
-					markdownContent: this._renderPermissionToMarkdown(permissionRequest, response.kind),
-					isConversationRequest: true
-				});
+				// Auto-approve all requests when the permission level allows it.
+				if (this._permissionLevel === 'autoApprove' || this._permissionLevel === 'autopilot') {
+					this.logService.trace(`[CopilotCLISession] Auto Approving ${permissionRequest.kind} request (permission level: ${this._permissionLevel})`);
+					this._sdkSession.respondToPermission(requestId, { kind: 'approved' });
+					return;
+				}
 
-				this._sdkSession.respondToPermission(requestId, response);
+				// Resolve tool call data for the permission request.
+				const toolData = permissionRequest.toolCallId ? toolCalls.get(permissionRequest.toolCallId) : undefined;
+				const pendingData = permissionRequest.toolCallId ? pendingToolInvocations.get(permissionRequest.toolCallId) : undefined;
+				const toolParentCallId = pendingData ? pendingData[2] : undefined;
+				const toolInvocationToken = this._toolInvocationToken as unknown as never;
+
+				try {
+					let response: PermissionRequestResult;
+					if (this._permissionLevel === 'autoApprove' || this._permissionLevel === 'autopilot') {
+						this.logService.trace(`[CopilotCLISession] Auto Approving ${permissionRequest.kind} request (permission level: ${this._permissionLevel})`);
+						response = { kind: 'approved' };
+					} else {
+						switch (permissionRequest.kind) {
+							case 'read':
+								response = await handleReadPermission(
+									this.sessionId, permissionRequest, toolParentCallId,
+									this.attachments, this._imageSupport, this.workspace, this.workspaceService,
+									this._toolsService, toolInvocationToken, this.logService, token,
+								);
+								break;
+							case 'write':
+								response = await handleWritePermission(
+									this.sessionId, permissionRequest, toolData, toolParentCallId,
+									this._stream, editTracker, this.workspace, this.workspaceService,
+									this.instantiationService, this._toolsService, toolInvocationToken, this.logService, token,
+								);
+								break;
+							case 'shell':
+								response = await handleShellPermission(
+									permissionRequest, toolParentCallId,
+									this.workspace, this._toolsService, toolInvocationToken, this.logService, token,
+								);
+								break;
+							case 'mcp':
+								response = await handleMcpPermission(
+									permissionRequest, toolParentCallId,
+									this._toolsService, toolInvocationToken, this.logService, token,
+								);
+								break;
+							default:
+								response = await showInteractivePermissionPrompt(
+									permissionRequest, toolParentCallId,
+									this._toolsService, toolInvocationToken, this.logService, token,
+								);
+								break;
+						}
+					}
+
+					flushPendingInvocationMessageForToolCallId(permissionRequest.toolCallId);
+
+					this._requestLogger.addEntry({
+						type: LoggedRequestKind.MarkdownContentRequest,
+						debugName: `Permission Request`,
+						startTimeMs: Date.now(),
+						icon: Codicon.question,
+						markdownContent: this._renderPermissionToMarkdown(permissionRequest, response.kind),
+						isConversationRequest: true
+					});
+
+					this._sdkSession.respondToPermission(requestId, response);
+				}
+				catch (error) {
+					this.logService.error(error, `[CopilotCLISession] Error handling permission request of kind ${permissionRequest.kind}`);
+					flushPendingInvocationMessageForToolCallId(permissionRequest.toolCallId);
+					this._sdkSession.respondToPermission(requestId, { kind: 'denied-interactively-by-user' });
+				}
 			})));
 			if (shouldHandleExitPlanModeRequests) {
 				disposables.add(toDisposable(this._sdkSession.on('exit_plan_mode.requested', async (event) => {
 					this.updateArtifacts();
-					type ActionType = Parameters<NonNullable<SessionOptions['onExitPlanMode']>>[0]['actions'][number];
-					if (this._permissionLevel === 'autopilot') {
-						this.logService.trace('[CopilotCLISession] Auto-approving exit plan mode in autopilot');
-						const choices: ActionType[] = (event.data.actions as ActionType[]) ?? [];
-						if (event.data.recommendedAction && choices.includes(event.data.recommendedAction as ActionType)) {
-							this._sdkSession.respondToExitPlanMode(event.data.requestId, { approved: true, selectedAction: event.data.recommendedAction as ActionType, autoApproveEdits: true });
-							return;
-						}
-						if (choices.includes('autopilot')) {
-							this._sdkSession.respondToExitPlanMode(event.data.requestId, { approved: true, selectedAction: 'autopilot', autoApproveEdits: true });
-							return;
-						}
-						if (choices.includes('autopilot_fleet')) {
-							this._sdkSession.respondToExitPlanMode(event.data.requestId, { approved: true, selectedAction: 'autopilot_fleet', autoApproveEdits: true });
-							return;
-						}
-						if (choices.includes('interactive')) {
-							this._sdkSession.respondToExitPlanMode(event.data.requestId, { approved: true, selectedAction: 'interactive' });
-							return;
-						}
-						if (choices.includes('exit_only')) {
-							this._sdkSession.respondToExitPlanMode(event.data.requestId, { approved: true, selectedAction: 'exit_only' });
-							return;
-						}
-						this._sdkSession.respondToExitPlanMode(event.data.requestId, { approved: true, autoApproveEdits: true });
-						return;
-					}
-					if (!(this._toolInvocationToken as unknown)) {
-						this.logService.warn('[ConfirmationTool] No toolInvocationToken available, cannot request exit plan mode approval');
-						this._sdkSession.respondToExitPlanMode(event.data.requestId, { approved: false });
-						return;
-					}
-					const actionDescriptions: Record<string, { label: string; description: string }> = {
-						'autopilot': { label: 'Autopilot', description: l10n.t('Auto-approve all tool calls and continue until the task is done') },
-						'interactive': { label: 'Interactive', description: l10n.t('Let the agent continue in interactive mode, asking for input and approval for each action.') },
-						'exit_only': { label: 'Approve and exit', description: l10n.t('Exit planning, but do not execute the plan. I will execute the plan myself.') },
-						'autopilot_fleet': { label: 'Autopilot Fleet', description: l10n.t('Auto-approve all tool calls, including fleet management actions, and continue until the task is done.') },
-					} satisfies Record<ActionType, { label: string; description: string }>;
-
-					const approved = true;
 					try {
-						const planPath = this._sdkSession.getPlanPath();
-
-						const userInputRequest: IQuestion = {
-							question: planPath ? l10n.t('Approve this plan {0}?', `[Plan.md](${Uri.file(planPath).toString()})`) : l10n.t('Approve this plan?'),
-							header: l10n.t('Approve this plan?'),
-							options: event.data.actions.map(a => ({
-								label: actionDescriptions[a]?.label ?? a,
-								recommended: a === event.data.recommendedAction,
-								description: actionDescriptions[a]?.description ?? '',
-							})),
-							allowFreeformInput: true,
-						};
-						const answer = await this._userQuestionHandler.askUserQuestion(userInputRequest, this._toolInvocationToken as unknown as never, token);
+						const response = await handleExitPlanMode(
+							event.data,
+							this._sdkSession,
+							this._permissionLevel,
+							this._toolInvocationToken,
+							this.workspaceService,
+							this.logService,
+							this._userQuestionHandler,
+							token,
+						);
 						flushPendingInvocationMessages();
-						if (!answer) {
-							this._sdkSession.respondToExitPlanMode(event.data.requestId, { approved: false });
-							return;
-						}
-						if (answer.freeText) {
-							this._sdkSession.respondToExitPlanMode(event.data.requestId, { approved: false, feedback: answer.freeText });
-						} else {
-							let selectedAction: ActionType = answer.selected[0] as ActionType;
-							Object.entries(actionDescriptions).forEach(([action, item]) => {
-								if (item.label === selectedAction) {
-									selectedAction = action as ActionType;
-								}
-							});
-							const autoApproveEdits = approved && this._permissionLevel === 'autoApprove' ? true : undefined;
-							this._sdkSession.respondToExitPlanMode(event.data.requestId, { approved: true, selectedAction, autoApproveEdits });
-						}
-					} catch (error) {
-						this.logService.error(error, '[ConfirmationTool] Error showing confirmation tool for exit plan mode');
-					}
-					this._sdkSession.respondToExitPlanMode(event.data.requestId, { approved: false });
 
+						// Update the permission picker dropdown based on the selected action
+						if (response.approved && response.selectedAction !== 'exit_only') {
+							const autopilotSelected = response.selectedAction === 'autopilot' || response.selectedAction === 'autopilot_fleet';
+							const commandId = 'workbench.action.chat.copilotcli.approval';
+							this._commandExecutionService.executeCommand(commandId, this._sessionResource, autopilotSelected).catch(error => {
+								this.logService.error(error, '[CopilotCLISession] Failed to update permission picker');
+							});
+						}
+
+						this._sdkSession.respondToExitPlanMode(event.data.requestId, response);
+					} catch (error) {
+						this.logService.error(error, '[CopilotCLISession] Error handling exit plan mode');
+						this._sdkSession.respondToExitPlanMode(event.data.requestId, { approved: false });
+					}
 				})));
 			}
 			disposables.add(toDisposable(this._sdkSession.on('user_input.requested', async (event) => {
-				// auto approve user input
-				if (this._permissionLevel === 'autopilot') {
-					this.logService.trace('[CopilotCLISession] Auto-responding to user input in autopilot');
-					this._sdkSession.respondToUserInput(event.data.requestId, { answer: 'The user is not available to respond and will review your work later. Work autonomously and make good decisions.', wasFreeform: true });
-					return;
-				}
 				if (!(this._toolInvocationToken as unknown)) {
-					this.logService.warn('[AskQuestionsTool] No stream available, cannot show question carousel');
+					this.logService.warn('[AskQuestionsTool] No tool invocation token available, cannot show question carousel');
 					this._sdkSession.respondToUserInput(event.data.requestId, { answer: '', wasFreeform: false });
 					return;
 				}
@@ -558,11 +598,18 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('assistant.usage', (event) => {
 				if (this._stream && typeof event.data.outputTokens === 'number' && typeof event.data.inputTokens === 'number') {
-					this._stream.usage({
-						completionTokens: event.data.outputTokens,
-						promptTokens: event.data.inputTokens,
-					});
+					reportUsage(event.data.inputTokens, event.data.outputTokens);
 				}
+			})));
+			disposables.add(toDisposable(this._sdkSession.on('session.usage_info', (event) => {
+				lastUsageInfo = {
+					currentTokens: event.data.currentTokens,
+					systemTokens: event.data.systemTokens,
+					conversationTokens: event.data.conversationTokens,
+					toolDefinitionsTokens: event.data.toolDefinitionsTokens,
+					tokenLimit: event.data.tokenLimit,
+				};
+				reportUsage(lastUsageInfo.currentTokens, 0);
 			})));
 			disposables.add(toDisposable(this._sdkSession.on('assistant.message_delta', (event) => {
 				// Support for streaming delta messages.
@@ -612,12 +659,6 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 							flushPendingInvocationMessages();
 							this._stream?.push(responsePart);
 						}
-
-						if ((event.data as ToolCall).toolName === 'update_todo') {
-							updateTodoList(event, this._toolsService, request.toolInvocationToken, token).catch(error => {
-								this.logService.error(`[CopilotCLISession] Failed to invoke todo tool for toolCallId ${event.data.toolCallId}`, error);
-							});
-						}
 					}
 				}
 				this.logService.trace(`[CopilotCLISession] Start Tool ${event.data.toolName || '<unknown>'}`);
@@ -658,6 +699,28 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				const error = event.data.error ? `error: ${event.data.error.code},${event.data.error.message}` : '';
 				const result = event.data.result ? `result: ${event.data.result?.content}` : '';
 				const parts = [success, error, result].filter(part => part.length > 0).join(', ');
+
+				// When a sql tool execution completes that modifies the todos table,
+				// query the session database and update the todo list widget.
+				if (toolName === 'sql' && event.data.success) {
+					const toolCallData = toolCalls.get(event.data.toolCallId);
+					try {
+						const query = (toolCallData?.arguments as { query?: string } | undefined)?.query ?? '';
+						if (isTodoRelatedSqlQuery(query)) {
+							const sessionDir = getCopilotCLISessionDir(this.sessionId);
+							this._todoSqlQuery.queryTodos(sessionDir).then(items => {
+								if (token.isCancellationRequested) {
+									return;
+								}
+								return updateTodoListFromSqlItems(items, this._toolsService, request.toolInvocationToken, token);
+							}).catch(err => {
+								this.logService.error(err, '[CopilotCLISession] Failed to query todos from session database');
+							});
+						}
+					} catch (ex) {
+						this.logService.error(ex, `[CopilotCLISession] Failed to process completed sql tool call for todos`);
+					}
+				}
 
 				this.logService.trace(`[CopilotCLISession]Complete Tool ${toolName}, ${parts}`);
 			})));
@@ -723,7 +786,6 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				await this.sendRequestInternal(input, attachments, false, logStartTime);
 			}
 			this.logService.trace(`[CopilotCLISession] Invoking session (completed) ${this.sessionId}`);
-
 			const resolvedToolIdEditMap: Record<string, string> = {};
 			await Promise.all(Array.from(toolIdEditMap.entries()).map(async ([toolId, editFilePromise]) => {
 				const editId = await editFilePromise.catch(() => undefined);
@@ -741,6 +803,9 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					this.logService.error(`[CopilotCLISession] Failed to update chat session metadata store for request ${request.id}`, error);
 				});
 			}
+			await updateUsageInfo.catch(error => {
+				this.logService.error(`[CopilotCLISession] Failed to update usage info after request ${request.id}`, error);
+			});
 			this._status = ChatSessionStatus.Completed;
 			this._statusChange.fire(this._status);
 
@@ -904,132 +969,6 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 
 	public getSelectedModelId() {
 		return this._sdkSession.getSelectedModel();
-	}
-
-	private isFileFromSessionWorkspace(file: Uri): boolean {
-		const workingDirectory = getWorkingDirectory(this.workspace);
-		if (workingDirectory && extUriBiasedIgnorePathCase.isEqualOrParent(file, workingDirectory)) {
-			return true;
-		}
-		if (this.workspace.folder && extUriBiasedIgnorePathCase.isEqualOrParent(file, this.workspace.folder)) {
-			return true;
-		}
-		// Only if we have a worktree should we check the repository.
-		// As this means the user created a worktree and we have a repository.
-		// & if the worktree is automatically trusted, then so is the repository as we created the worktree from that.
-		if (this.workspace.worktree && this.workspace.repository && extUriBiasedIgnorePathCase.isEqualOrParent(file, this.workspace.repository)) {
-			return true;
-		}
-
-		return false;
-	}
-	private async requestPermission(
-		permissionRequest: PermissionRequest,
-		editTracker: ExternalEditTracker,
-		getToolCall: (toolCallId: string) => undefined | [ToolCall, parentToolCallId: string | undefined],
-		token: vscode.CancellationToken
-	): Promise<{ kind: 'approved' } | { kind: 'denied-interactively-by-user' }> {
-		if (this._permissionLevel === 'autoApprove' || this._permissionLevel === 'autopilot') {
-			this.logService.trace(`[CopilotCLISession] Auto Approving ${permissionRequest.kind} request (permission level: ${this._permissionLevel})`);
-			return { kind: 'approved' };
-		}
-
-		const workingDirectory = getWorkingDirectory(this.workspace);
-
-		if (permissionRequest.kind === 'read') {
-			// If user is reading a file in the working directory or workspace, auto-approve
-			// read requests. Outside workspace reads (e.g., /etc/passwd) will still require
-			// approval.
-			const data = Uri.file(permissionRequest.path);
-
-			if (this._imageSupport.isTrustedImage(data)) {
-				return { kind: 'approved' };
-			}
-
-			if (this.isFileFromSessionWorkspace(data)) {
-				this.logService.trace(`[CopilotCLISession] Auto Approving request to read file in session workspace ${permissionRequest.path}`);
-				return { kind: 'approved' };
-			}
-
-			if (this.workspaceService.getWorkspaceFolder(data)) {
-				this.logService.trace(`[CopilotCLISession] Auto Approving request to read workspace file ${permissionRequest.path}`);
-				return { kind: 'approved' };
-			}
-
-			// If reading a file from session directory, e.g. plan.md, then auto approve it, this is internal file to Cli.
-			const sessionDir = Uri.joinPath(Uri.file(getCopilotCLISessionStateDir()), this.sessionId);
-			if (extUriBiasedIgnorePathCase.isEqualOrParent(data, sessionDir)) {
-				this.logService.trace(`[CopilotCLISession] Auto Approving request to read Copilot CLI session resource ${permissionRequest.path}`);
-				return { kind: 'approved' };
-			}
-
-			// If model is trying to read the contents of a file thats attached, then auto-approve it, as this is an explicit action by the user to share the file with the model.
-			if (this.attachments.some(attachment => attachment.type === 'file' && isEqual(Uri.file(attachment.path), data))) {
-				this.logService.trace(`[CopilotCLISession] Auto Approving request to read attached file ${permissionRequest.path}`);
-				return { kind: 'approved' };
-			}
-		}
-
-		// Get hold of file thats being edited if this is a edit tool call (requiring write permissions).
-		const toolData = permissionRequest.toolCallId ? getToolCall(permissionRequest.toolCallId) : undefined;
-		const toolCall = toolData ? toolData[0] : undefined;
-		const toolParentCallId = toolData ? toolData[1] : undefined;
-		const editFiles = toolCall ? getAffectedUrisForEditTool(toolCall) : undefined;
-		// Sometimes we don't get a tool call id for the edit permission request
-		const editFile = permissionRequest.kind === 'write' ? (editFiles && editFiles.length ? editFiles[0] : (permissionRequest.fileName ? Uri.file(permissionRequest.fileName) : undefined)) : undefined;
-		if (workingDirectory && permissionRequest.kind === 'write' && editFile) {
-			const isWorkspaceFile = this.workspaceService.getWorkspaceFolder(editFile);
-			const isWorkingDirectoryFile = !this.workspaceService.getWorkspaceFolder(workingDirectory) && extUriBiasedIgnorePathCase.isEqualOrParent(editFile, workingDirectory);
-
-			let autoApprove = false;
-			// If isolation is enabled, we only auto-approve writes within the working directory.
-			if (isIsolationEnabled(this.workspace) && isWorkingDirectoryFile) {
-				autoApprove = true;
-			}
-			// If its a workspace file, and not editing protected files, we auto-approve.
-			if (!autoApprove && isWorkspaceFile && !(await requiresFileEditconfirmation(this.instantiationService, permissionRequest, toolCall))) {
-				autoApprove = true;
-			}
-			// If we're working in the working directory (non-isolation), and not editing protected files, we auto-approve.
-			if (!autoApprove && isWorkingDirectoryFile && !(await requiresFileEditconfirmation(this.instantiationService, permissionRequest, toolCall, workingDirectory))) {
-				autoApprove = true;
-			}
-
-			if (autoApprove) {
-				this.logService.trace(`[CopilotCLISession] Auto Approving request ${editFile.fsPath}`);
-
-				// If we're editing a file, start tracking the edit & wait for core to acknowledge it.
-				if (toolCall && this._stream) {
-					this.logService.trace(`[CopilotCLISession] Starting to track edit for toolCallId ${toolCall.toolCallId} & file ${editFile.fsPath}`);
-					await editTracker.trackEdit(toolCall.toolCallId, [editFile], this._stream);
-				}
-
-				return { kind: 'approved' };
-			}
-		}
-		// If reading a file from session directory, e.g. plan.md, then auto approve it, this is internal file to Cli.
-		const sessionDir = Uri.joinPath(Uri.file(getCopilotCLISessionStateDir()), this.sessionId);
-		if (permissionRequest.kind === 'write' && editFile && extUriBiasedIgnorePathCase.isEqualOrParent(editFile, sessionDir)) {
-			this.logService.trace(`[CopilotCLISession] Auto Approving request to write to Copilot CLI session resource ${editFile.fsPath}`);
-			return { kind: 'approved' };
-		}
-
-		try {
-			if (await requestPermission(this.instantiationService, permissionRequest, toolCall, getWorkingDirectory(this.workspace), this._toolsService, this._toolInvocationToken as unknown as never, toolParentCallId, token)) {
-				// If we're editing a file, start tracking the edit & wait for core to acknowledge it.
-				if (editFile && toolCall && this._stream) {
-					this.logService.trace(`[CopilotCLISession] Starting to track edit for toolCallId ${toolCall.toolCallId} & file ${editFile.fsPath}`);
-					await editTracker.trackEdit(toolCall.toolCallId, [editFile], this._stream);
-				}
-				return { kind: 'approved' };
-			}
-		} catch (error) {
-			this.logService.error(`[CopilotCLISession] Permission request error: ${error}`);
-		} finally {
-			this._permissionRequested = undefined;
-		}
-
-		return { kind: 'denied-interactively-by-user' };
 	}
 
 	private _logRequest(userPrompt: string, modelId: string, attachments: Attachment[], startTimeMs: number): void {
@@ -1268,5 +1207,43 @@ function isHttpUrl(value: string): boolean {
 	} catch {
 		return false;
 	}
+}
+
+interface UsageInfoData {
+	readonly currentTokens: number;
+	readonly systemTokens?: number;
+	readonly conversationTokens?: number;
+	readonly toolDefinitionsTokens?: number;
+	readonly tokenLimit?: number;
+}
+
+function buildPromptTokenDetails(usageInfo: UsageInfoData | undefined): { category: string; label: string; percentageOfPrompt: number }[] | undefined {
+	if (!usageInfo || usageInfo.currentTokens <= 0) {
+		return undefined;
+	}
+	const details: { category: string; label: string; percentageOfPrompt: number }[] = [];
+	const total = usageInfo.currentTokens;
+	if (usageInfo.systemTokens && usageInfo.systemTokens > 0) {
+		details.push({
+			category: PromptTokenCategory.System,
+			label: PromptTokenLabel.SystemInstructions,
+			percentageOfPrompt: Math.round((usageInfo.systemTokens / total) * 100),
+		});
+	}
+	if (usageInfo.toolDefinitionsTokens && usageInfo.toolDefinitionsTokens > 0) {
+		details.push({
+			category: PromptTokenCategory.System,
+			label: PromptTokenLabel.Tools,
+			percentageOfPrompt: Math.round((usageInfo.toolDefinitionsTokens / total) * 100),
+		});
+	}
+	if (usageInfo.conversationTokens && usageInfo.conversationTokens > 0) {
+		details.push({
+			category: PromptTokenCategory.UserContext,
+			label: PromptTokenLabel.Messages,
+			percentageOfPrompt: Math.round((usageInfo.conversationTokens / total) * 100),
+		});
+	}
+	return details.length > 0 ? details : undefined;
 }
 

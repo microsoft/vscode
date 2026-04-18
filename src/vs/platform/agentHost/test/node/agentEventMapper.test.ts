@@ -14,6 +14,7 @@ import type {
 	IAgentReasoningEvent,
 	IAgentTitleChangedEvent,
 	IAgentToolCompleteEvent,
+	IAgentToolReadyEvent,
 	IAgentToolStartEvent,
 	IAgentUsageEvent,
 	IAgentUserInputRequestEvent,
@@ -32,7 +33,7 @@ import type {
 	ITurnCompleteAction,
 	IUsageAction,
 } from '../../common/state/sessionActions.js';
-import { SessionInputQuestionKind, ToolResultContentType, type IMarkdownResponsePart, type IReasoningResponsePart, type ISessionInputRequest } from '../../common/state/sessionState.js';
+import { SessionInputQuestionKind, ToolCallConfirmationReason, ToolResultContentType, type IMarkdownResponsePart, type IReasoningResponsePart, type ISessionInputRequest } from '../../common/state/sessionState.js';
 import { AgentEventMapper } from '../../node/agentEventMapper.js';
 
 /** Helper: flatten the result of mapProgressEventToActions into an array. */
@@ -338,6 +339,65 @@ suite('AgentEventMapper', () => {
 		assert.strictEqual(action.type, 'session/inputRequested');
 		assert.strictEqual(action.session, session.toString());
 		assert.strictEqual(action.request, request);
+	});
+
+	test('tool_start with toolClientId returns only startAction (no auto-ready)', () => {
+		const event: IAgentToolStartEvent = {
+			session,
+			type: 'tool_start',
+			toolCallId: 'tc-client-1',
+			toolName: 'runTests',
+			displayName: 'Run Tests',
+			invocationMessage: 'Running tests...',
+			toolInput: '{"files":["test.ts"]}',
+			toolClientId: 'test-client',
+		};
+
+		const actions = mapToArray(mapper.mapProgressEventToActions(event, session.toString(), turnId));
+		assert.strictEqual(actions.length, 1);
+
+		const startAction = actions[0] as IToolCallStartAction;
+		assert.strictEqual(startAction.type, 'session/toolCallStart');
+		assert.strictEqual(startAction.toolCallId, 'tc-client-1');
+		assert.strictEqual(startAction.toolClientId, 'test-client');
+	});
+
+	test('tool_ready without confirmationTitle auto-confirms with NotNeeded', () => {
+		const event: IAgentToolReadyEvent = {
+			session,
+			type: 'tool_ready',
+			toolCallId: 'tc-client-ready',
+			invocationMessage: 'Running tests...',
+			toolInput: '{"files":["test.ts"]}',
+		};
+
+		const actions = mapToArray(mapper.mapProgressEventToActions(event, session.toString(), turnId));
+		assert.strictEqual(actions.length, 1);
+
+		const readyAction = actions[0] as IToolCallReadyAction;
+		assert.strictEqual(readyAction.type, 'session/toolCallReady');
+		assert.strictEqual(readyAction.toolCallId, 'tc-client-ready');
+		assert.strictEqual(readyAction.confirmed, ToolCallConfirmationReason.NotNeeded);
+	});
+
+	test('tool_ready with confirmationTitle omits confirmed (permission flow)', () => {
+		const event: IAgentToolReadyEvent = {
+			session,
+			type: 'tool_ready',
+			toolCallId: 'tc-perm-ready',
+			invocationMessage: 'Running tests...',
+			toolInput: '{"files":["test.ts"]}',
+			confirmationTitle: 'Allow runTests?',
+		};
+
+		const actions = mapToArray(mapper.mapProgressEventToActions(event, session.toString(), turnId));
+		assert.strictEqual(actions.length, 1);
+
+		const readyAction = actions[0] as IToolCallReadyAction;
+		assert.strictEqual(readyAction.type, 'session/toolCallReady');
+		assert.strictEqual(readyAction.toolCallId, 'tc-perm-ready');
+		assert.strictEqual(readyAction.confirmationTitle, 'Allow runTests?');
+		assert.strictEqual(readyAction.confirmed, undefined);
 	});
 
 	test('tool_start with subagent toolKind extracts agent metadata from toolArguments', () => {

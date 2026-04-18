@@ -176,11 +176,19 @@ export interface IServerHandle {
 	port: number;
 }
 
-export async function startServer(): Promise<IServerHandle> {
+export async function startServer(options?: { readonly quiet?: boolean; readonly userDataDir?: string; readonly env?: NodeJS.ProcessEnv }): Promise<IServerHandle> {
 	return new Promise((resolve, reject) => {
 		const serverPath = fileURLToPath(new URL('../../../node/agentHostServerMain.js', import.meta.url));
-		const child = fork(serverPath, ['--enable-mock-agent', '--quiet', '--port', '0', '--without-connection-token'], {
+		const args = ['--enable-mock-agent', '--port', '0', '--without-connection-token'];
+		if (options?.quiet ?? true) {
+			args.push('--quiet');
+		}
+		if (options?.userDataDir) {
+			args.push('--user-data-dir', options.userDataDir);
+		}
+		const child = fork(serverPath, args, {
 			stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
+			env: options?.env ? { ...process.env, ...options.env } : process.env,
 		});
 
 		const timer = setTimeout(() => {
@@ -209,6 +217,48 @@ export async function startServer(): Promise<IServerHandle> {
 		child.on('exit', code => {
 			clearTimeout(timer);
 			reject(new Error(`Server exited prematurely with code ${code}`));
+		});
+	});
+}
+
+/**
+ * Start the agent host server with the real Copilot SDK agent (no mock agent).
+ * The server is started with logging enabled so the CopilotAgent is registered.
+ */
+export async function startRealServer(): Promise<IServerHandle> {
+	return new Promise((resolve, reject) => {
+		const serverPath = fileURLToPath(new URL('../../../node/agentHostServerMain.js', import.meta.url));
+		const args = ['--port', '0', '--without-connection-token'];
+		const child = fork(serverPath, args, {
+			stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
+		});
+
+		const timer = setTimeout(() => {
+			child.kill();
+			reject(new Error('Real server startup timed out'));
+		}, 30_000);
+
+		child.stdout!.on('data', (data: Buffer) => {
+			const text = data.toString();
+			const match = text.match(/READY:(\d+)/);
+			if (match) {
+				clearTimeout(timer);
+				resolve({ process: child, port: parseInt(match[1], 10) });
+			}
+		});
+
+		child.stderr!.on('data', () => {
+			// Intentionally swallowed - the test runner fails if console.error is used.
+		});
+
+		child.on('error', err => {
+			clearTimeout(timer);
+			reject(err);
+		});
+
+		child.on('exit', code => {
+			clearTimeout(timer);
+			reject(new Error(`Real server exited prematurely with code ${code}`));
 		});
 	});
 }

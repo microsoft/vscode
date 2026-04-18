@@ -359,7 +359,7 @@ export class URI implements UriComponents {
 	 */
 	static joinPath(uri: URI, ...pathFragment: string[]): URI {
 		if (!uri.path) {
-			throw new Error(`[UriError]: cannot call joinPath on URI without path`);
+			throw new Error(`[UriError]: cannot call joinPath on URI without path: ${uri.toString()}`);
 		}
 		let newPath: string;
 		if (isWindows && uri.scheme === 'file') {

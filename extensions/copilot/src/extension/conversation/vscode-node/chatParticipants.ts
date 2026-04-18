@@ -252,6 +252,7 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 					defaultIntentId;
 
 				const handler = this.instantiationService.createInstance(ChatParticipantRequestHandler, context.history, request, stream, token, { agentName: name, agentId: id, intentId }, () => context.yieldRequested, telemetryMessageId);
+
 				let result = await handler.getResult();
 
 				// Auto-retry with Auto model when the setting is enabled and the handler signals it
@@ -268,6 +269,29 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 
 				return result;
 			} finally {
+				const rateLimitWarning = this._chatQuotaService.consumeRateLimitWarning();
+				if (rateLimitWarning) {
+					const resetDate = rateLimitWarning.resetDate;
+					const now = new Date();
+					const includeYear = resetDate.getFullYear() !== now.getFullYear();
+					const dateStr = new Intl.DateTimeFormat(undefined, includeYear
+						? { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }
+						: { month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' }
+					).format(resetDate);
+					stream.warning(new vscode.MarkdownString(
+						rateLimitWarning.type === 'session'
+							? vscode.l10n.t({
+								message: "You've used {0}% of your session rate limit. Your session rate limit will reset on {1}. [Learn More]({2})",
+								args: [rateLimitWarning.percentUsed, dateStr, 'https://aka.ms/github-copilot-rate-limit-error'],
+								comment: [`{Locked=']({'}`]
+							})
+							: vscode.l10n.t({
+								message: "You've used {0}% of your weekly rate limit. Your weekly rate limit will reset on {1}. [Learn More]({2})",
+								args: [rateLimitWarning.percentUsed, dateStr, 'https://aka.ms/github-copilot-rate-limit-error'],
+								comment: [`{Locked=']({'}`]
+							})
+					));
+				}
 				markChatExt(request.sessionId, ChatExtPerfMark.DidHandleParticipant);
 				clearChatExtMarks(request.sessionId);
 			}
@@ -320,6 +344,7 @@ Learn more about [GitHub Copilot](https://docs.github.com/copilot/using-github-c
 		stream.warning(new vscode.MarkdownString(vscode.l10n.t('You were rate-limited on the selected model. Switching to Auto and retrying your request.')));
 		return request;
 	}
+
 }
 
 type IntentOrGetter = Intent | ((request: vscode.ChatRequest) => Intent);

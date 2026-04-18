@@ -5,6 +5,76 @@
 
 /* ---- Sidebar & Auxiliary Bar Card Appearance ---- */
 
+.agent-sessions-workbench .part.sidebar {
+	background: var(--vscode-agents-background);
+}
+
+.agent-sessions-workbench > .monaco-grid-view {
+	background-color: var(--vscode-agents-background);
+}
+
+.agent-sessions-workbench.experimental-shell-gradient-background {
+	position: relative;
+	isolation: isolate;
+	background: var(--vscode-agents-background);
+}
+
+.agent-sessions-workbench.experimental-shell-gradient-background::before {
+	content: '';
+	position: absolute;
+	inset: 0;
+	z-index: 0;
+	pointer-events: none;
+	background: var(--vscode-agents-background);
+}
+
+@supports (background: color-mix(in srgb, black 0%, white)) {
+	.agent-sessions-workbench.experimental-shell-gradient-background::before {
+		background:
+			linear-gradient(
+				to bottom right,
+				transparent 0%,
+				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 5%, transparent) 58%,
+				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 7%, transparent) 82%,
+				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 9%, transparent) 100%
+			),
+			var(--vscode-agents-background);
+	}
+
+	.monaco-workbench.vs.agent-sessions-workbench.experimental-shell-gradient-background::before {
+		background:
+			linear-gradient(
+				to bottom right,
+				transparent 0%,
+				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 1%, transparent) 45%,
+				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 6%, transparent) 75%,
+				color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 12%, transparent) 100%
+			),
+			var(--vscode-agents-background);
+	}
+
+	.monaco-workbench.vs-dark.agent-sessions-workbench.experimental-shell-gradient-background::before {
+		background: linear-gradient(
+			to bottom right,
+			var(--vscode-agents-background) 0%,
+			color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 7%, var(--vscode-agents-background)) 56%,
+			color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 10%, var(--vscode-agents-background)) 82%,
+			color-mix(in srgb, var(--vscode-agentsGradient-tintColor) 13%, var(--vscode-agents-background)) 100%
+		);
+	}
+}
+
+.monaco-workbench.hc-black.agent-sessions-workbench.experimental-shell-gradient-background::before,
+.monaco-workbench.hc-light.agent-sessions-workbench.experimental-shell-gradient-background::before {
+	display: none;
+}
+
+.agent-sessions-workbench.experimental-shell-gradient-background > .monaco-grid-view {
+	position: relative;
+	z-index: 1;
+	background: transparent;
+}
+
 /**
  * The auxiliary bar and panel use a card-like appearance with margins and border-radius
  * applied directly on the .part element. The grid allocates full space; CSS margin shrinks
@@ -19,8 +89,19 @@
  *   Panel:          bottom=18, left=16, right=16
  */
 
-.agent-sessions-workbench .part.sidebar {
-	background: var(--vscode-sessionsSidebar-background);
+.agent-sessions-workbench.experimental-shell-gradient-background .part.titlebar,
+.agent-sessions-workbench.experimental-shell-gradient-background .part.sidebar,
+.agent-sessions-workbench.experimental-shell-gradient-background .part.titlebar > .content,
+.agent-sessions-workbench.experimental-shell-gradient-background .part.titlebar > .titlebar-container,
+.agent-sessions-workbench.experimental-shell-gradient-background .part.titlebar > .sessions-titlebar-container,
+.agent-sessions-workbench.experimental-shell-gradient-background .part.sidebar > .composite.title,
+.agent-sessions-workbench.experimental-shell-gradient-background .part.sidebar > .content,
+.agent-sessions-workbench.experimental-shell-gradient-background .part.sidebar > .sidebar-footer {
+	background: transparent !important;
+}
+
+.agent-sessions-workbench .part.sidebar.mobile-overlay-sidebar {
+	background: var(--vscode-agents-background) !important;
 }
 
 .agent-sessions-workbench .part.chatbar {
@@ -31,6 +112,142 @@
 	box-sizing: border-box;
 }
 
+.agent-sessions-workbench .part.editor:not(.modal-editor-part) {
+	margin: 0 0 0 0;
+	background: var(--vscode-editor-background);
+	border: 1px solid var(--vscode-editorWidget-border, var(--vscode-widget-border, transparent));
+	border-right-width: 0;
+	border-top-right-radius: 0;
+	border-bottom-right-radius: 0;
+	border-top-left-radius: 8px;
+	border-bottom-left-radius: 8px;
+	box-sizing: border-box;
+	overflow: hidden;
+}
+
+.agent-sessions-workbench .part.editor:not(.modal-editor-part)::after {
+	box-shadow: none;
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry {
+	padding: 0 8px;
+	box-sizing: border-box;
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header-content {
+	border-radius: 6px;
+	border: none;
+	background: var(--vscode-sideBarSectionHeader-background);
+	margin: 0;
+	align-items: center;
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header:not(.collapsed) .header-content {
+	border-bottom: none;
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .file-path .title {
+	font-size: 13px;
+	line-height: 22px;
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header {
+	cursor: pointer;
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header:focus,
+.agent-sessions-workbench .part.editor .multiDiffEntry .header:focus-visible {
+	outline: none;
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header:focus .header-content,
+.agent-sessions-workbench .part.editor .multiDiffEntry .header:focus-visible .header-content {
+	box-shadow: inset 0 0 0 1px var(--vscode-focusBorder);
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header:hover .header-content {
+	background: color-mix(in srgb, var(--vscode-sideBarSectionHeader-background) 95%, var(--vscode-foreground));
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .actions {
+	opacity: 0;
+	pointer-events: none;
+	padding: 0 0 0 8px;
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header:hover .header-content .actions,
+.agent-sessions-workbench .part.editor .multiDiffEntry .header:focus-within .header-content .actions {
+	opacity: 1;
+	pointer-events: auto;
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .collapse-button a {
+	border-radius: 4px;
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .editorParent {
+	border-bottom: none;
+}
+
+.agent-sessions-workbench .part.editor .diff-hidden-lines .center {
+	box-shadow: none;
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .status {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 16px;
+	min-width: 16px;
+	font-size: 11px;
+	font-weight: 600;
+	opacity: 0.9;
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .status.added {
+	color: var(--vscode-gitDecoration-addedResourceForeground);
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .status.deleted {
+	color: var(--vscode-gitDecoration-deletedResourceForeground);
+}
+
+.agent-sessions-workbench .part.editor .multiDiffEntry .header-content .status.renamed {
+	color: var(--vscode-gitDecoration-modifiedResourceForeground);
+}
+
+.agent-sessions-workbench .part.editor .title.tabs {
+	background-color: transparent !important;
+	--editor-group-tab-height: 26px !important;
+}
+
+/* Editor tabs: match chat composite bar tab style */
+.agent-sessions-workbench .part.editor .tabs-container > .tab {
+	background-color: transparent !important;
+	border-right: none !important;
+	border-radius: 4px;
+	font-size: 12px;
+	font-weight: 500;
+	box-shadow: none !important;
+	padding: 0 0 0 4px !important;
+	--tab-border-top-color: transparent !important;
+}
+
+.agent-sessions-workbench .part.editor .tabs-and-actions-container {
+	--tabs-border-bottom-color: transparent !important;
+	align-items: center;
+	padding: 4px;
+}
+
+.agent-sessions-workbench .part.editor .tabs-container > .tab.active {
+	background-color: color-mix(in srgb, var(--vscode-foreground) 5%, transparent) !important;
+}
+
+.agent-sessions-workbench .part.editor .tabs-container > .tab .tab-border-top-container,
+.agent-sessions-workbench .part.editor .tabs-container > .tab .tab-border-bottom-container {
+	display: none !important;
+}
+
 .agent-sessions-workbench:not(.nosidebar) .part.chatbar {
 	margin-left: 0;
 }
@@ -39,12 +256,20 @@
 	margin: 0 10px 0px 0;
 	background: var(--part-background);
 	border: 1px solid var(--part-border-color, transparent);
-	border-radius: 8px;
+	border-top-left-radius: 0;
+	border-bottom-left-radius: 0;
+	border-top-right-radius: 8px;
+	border-bottom-right-radius: 8px;
 	box-sizing: border-box;
 }
 
+.agent-sessions-workbench.nomaineditorarea .part.auxiliarybar {
+	border-top-left-radius: 8px;
+	border-bottom-left-radius: 8px;
+}
+
 .agent-sessions-workbench .part.auxiliarybar > .content .pane-body {
-	background-color: var(--vscode-sessionsAuxiliaryBar-background);
+	background-color: var(--vscode-agentsPanel-background);
 }
 
 .agent-sessions-workbench .part.panel {
@@ -59,17 +284,40 @@
 	margin-left: 0;
 }
 
-/* Grid background matches the sessions sidebar background */
-.agent-sessions-workbench > .monaco-grid-view {
-	background-color: var(--vscode-sessionsSidebar-background);
-}
-
 .agent-sessions-workbench .monaco-sash:before {
 	border-radius: calc(var(--vscode-sash-hover-size) / 2);
 }
 
 .agent-sessions-workbench .monaco-sash:not(.disabled) > .orthogonal-drag-handle {
 	border-radius: var(--vscode-sash-size);
+}
+
+/* ---- Scrollbars ---- */
+
+/* Thinner, rounded scrollbar sliders scoped to the agents app.
+ * The scrollbar widget sets the slider's size inline to match the full
+ * track. We hide that default background and paint a narrower, rounded
+ * slider with an inset ::before pseudo-element so all four corners round
+ * consistently and the full hit area is preserved. */
+.agent-sessions-workbench .monaco-scrollable-element > .scrollbar > .slider {
+	background: transparent !important;
+}
+
+.agent-sessions-workbench .monaco-scrollable-element > .scrollbar.vertical > .slider::before,
+.agent-sessions-workbench .monaco-scrollable-element > .scrollbar.horizontal > .slider::before {
+	content: '';
+	position: absolute;
+	inset: 1px;
+	border-radius: 999px;
+	background: var(--vscode-scrollbarSlider-background);
+}
+
+.agent-sessions-workbench .monaco-scrollable-element > .scrollbar > .slider:hover::before {
+	background: var(--vscode-scrollbarSlider-hoverBackground);
+}
+
+.agent-sessions-workbench .monaco-scrollable-element > .scrollbar > .slider.active::before {
+	background: var(--vscode-scrollbarSlider-activeBackground);
 }
 
 .monaco-workbench.vs.agent-sessions-workbench .part.chatbar,
@@ -136,19 +384,28 @@
 
 .agent-sessions-workbench .interactive-session .chat-input-container {
 	border-radius: var(--vscode-cornerRadius-large);
-	border-color: var(--vscode-editorWidget-border, var(--vscode-widget-border)) !important;
+	border-color: var(--vscode-agentsChatInput-border) !important;
+	background-color: var(--vscode-agentsChatInput-background);
+	color: var(--vscode-agentsChatInput-foreground);
 }
 
 .agent-sessions-workbench .interactive-session .chat-input-container.focused {
-	border-color: var(--vscode-focusBorder) !important;
+	border-color: var(--vscode-agentsChatInput-focusBorder, var(--vscode-focusBorder)) !important;
 }
+
+/* Make the Monaco editor inside the chat input transparent so it inherits the chatInput.background */
+.agent-sessions-workbench .interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor,
+.agent-sessions-workbench .interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor .monaco-editor-background {
+	background-color: transparent !important;
+}
+
 .agent-sessions-workbench .interactive-session .interactive-input-part {
 	width: 100%;
 	max-width: 950px;
 	margin: 0 auto !important;
 	display: inherit !important;
 	/* Align with panel (terminal) card margin */
-	padding: 4px 10px 10px 10px !important;
+	padding: 4px 10px !important;
 	box-sizing: border-box;
 }
 
@@ -162,30 +419,34 @@
 /* ---- Sessions Action Widget Pickers ---- */
 
 .agent-sessions-workbench .action-widget {
-	background-color: var(--vscode-sessionsPanel-background);
+	background-color: var(--vscode-agentsPanel-background);
 }
 
 .agent-sessions-workbench .action-widget .action-widget-action-bar,
 .agent-sessions-workbench .action-widget .action-list-filter {
-	background-color: var(--vscode-sessionsPanel-background);
+	background-color: var(--vscode-agentsPanel-background);
 }
 
 .agent-sessions-workbench .action-widget .monaco-scrollable-element > .monaco-list-rows {
-	background-color: var(--vscode-sessionsPanel-background) !important;
+	background-color: var(--vscode-agentsPanel-background) !important;
 }
 
 /* ---- Sessions Quick Picks ---- */
 
 .agent-sessions-workbench .quick-input-widget,
 .agent-sessions-workbench .quick-input-titlebar {
-	background-color: var(--vscode-sessionsPanel-background) !important;
+	background-color: var(--vscode-agentsPanel-background) !important;
 }
 
 .agent-sessions-workbench .quick-input-header,
 .agent-sessions-workbench .quick-input-html-widget,
 .agent-sessions-workbench .quick-input-list .monaco-scrollable-element > .monaco-list-rows,
 .agent-sessions-workbench .quick-input-tree .monaco-scrollable-element > .monaco-list-rows {
-	background-color: var(--vscode-sessionsPanel-background) !important;
+	background-color: var(--vscode-agentsPanel-background) !important;
+}
+
+.agent-sessions-workbench .quick-input-header {
+	border-radius: var(--vscode-cornerRadius-xLarge);
 }
 
 /* ---- Sessions Context Menus ---- */
@@ -193,7 +454,7 @@
 .agent-sessions-workbench .context-view.monaco-menu-container,
 .agent-sessions-workbench .context-view.monaco-menu-container .monaco-menu,
 .agent-sessions-workbench .context-view.monaco-menu-container .monaco-scrollable-element {
-	background-color: var(--vscode-sessionsPanel-background) !important;
+	background-color: var(--vscode-agentsPanel-background) !important;
 }
 
 /* Keep code block backgrounds stable across themes; add separation in older light themes via border only */
@@ -267,18 +528,14 @@
 		opacity 250ms ease-out,
 		margin-top 250ms ease-out,
 		margin-right 250ms ease-out,
-		margin-bottom 250ms ease-out,
-		border-color 250ms ease-out,
-		background 250ms ease-out;
+		margin-bottom 250ms ease-out;
 }
 
 /* Auxiliary bar also transitions horizontal margin */
 .agent-sessions-workbench .part.auxiliarybar {
 	transition:
 		opacity 250ms ease-out,
-		margin 250ms ease-out,
-		border-color 250ms ease-out,
-		background 250ms ease-out;
+		margin 250ms ease-out;
 }
 
 .agent-sessions-workbench .part.sidebar > .content {

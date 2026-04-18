@@ -9,8 +9,8 @@ import type { ChatParticipantToolToken } from 'vscode';
 import { ConfigKey, IConfigurationService } from '../../../../../platform/configuration/common/configurationService';
 import { ILogService } from '../../../../../platform/log/common/logService';
 import { NoopOTelService, resolveOTelConfig } from '../../../../../platform/otel/common/index';
-import { NullRequestLogger } from '../../../../../platform/requestLogger/node/nullRequestLogger';
 import { IRequestLogger } from '../../../../../platform/requestLogger/common/requestLogger';
+import { NullRequestLogger } from '../../../../../platform/requestLogger/node/nullRequestLogger';
 import { TestWorkspaceService } from '../../../../../platform/test/node/testWorkspaceService';
 import { IWorkspaceService } from '../../../../../platform/workspace/common/workspaceService';
 import { CancellationToken } from '../../../../../util/vs/base/common/cancellation';
@@ -29,6 +29,8 @@ import { CopilotCLISession } from '../copilotcliSession';
 import { PermissionRequest } from '../permissionHelpers';
 import { IQuestion, IQuestionAnswer, IUserQuestionHandler } from '../userInputHelpers';
 import { NullICopilotCLIImageSupport } from './testHelpers';
+import { MockRunCommandExecutionService } from '../../../../../platform/commands/common/mockRunCommandExecutionService';
+import { MockGitService } from '../../../../../platform/ignore/node/test/mockGitService';
 
 vi.mock('../cliHelpers', async (importOriginal) => ({
 	...(await importOriginal<typeof import('../cliHelpers')>()),
@@ -133,6 +135,20 @@ class MockSdkSession {
 	async setSelectedModel(model: string, _reasoningEffort?: string) { this._selectedModel = model; }
 	async getEvents() { return []; }
 	getPlanPath(): string | null { return null; }
+
+	usage = {
+		getMetrics: async () => ({
+			lastCallInputTokens: 100,
+			lastCallOutputTokens: 50,
+			totalPremiumRequestCost: 0,
+			totalUserRequests: 1,
+			totalApiDurationMs: 1000,
+			sessionStartTime: Date.now(),
+			codeChanges: { linesAdded: 0, linesRemoved: 0, filesModifiedCount: 0 },
+			modelMetrics: {},
+			currentModel: this._selectedModel,
+		}),
+	};
 }
 
 function createWorkspaceService(root: string): IWorkspaceService {
@@ -158,6 +174,15 @@ function workspaceInfoFor(workingDirectory: Uri | undefined): IWorkspaceInfo {
 	};
 }
 
+class UsageCapturingStream extends MockChatResponseStream {
+	public readonly usages: import('vscode').ChatResultUsage[] = [];
+	constructor() {
+		super();
+	}
+	override usage(u: import('vscode').ChatResultUsage): void {
+		this.usages.push(u);
+	}
+}
 
 describe('CopilotCLISession', () => {
 	const disposables = new DisposableStore();
@@ -223,6 +248,8 @@ describe('CopilotCLISession', () => {
 			new FakeUserQuestionHandler(),
 			configurationService,
 			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })),
+			new MockRunCommandExecutionService(),
+			new MockGitService()
 		));
 	}
 
@@ -326,7 +353,7 @@ describe('CopilotCLISession', () => {
 		sdkSession.send = async ({ prompt }: any) => {
 			sdkSession.emit('assistant.turn_start', {});
 			sdkSession.emit('assistant.message', { content: `Echo: ${prompt}` });
-			result = await sdkSession.emitPermissionRequest({ kind: 'write', fileName: sessionFilePath, intention: 'Write plan', diff: '' });
+			result = await sdkSession.emitPermissionRequest({ kind: 'write', fileName: sessionFilePath, intention: 'Write plan', diff: '', canOfferSessionApproval: false });
 			sdkSession.emit('assistant.turn_end', {});
 		};
 		const session = await createSession();
@@ -477,7 +504,7 @@ describe('CopilotCLISession', () => {
 			sdkSession.emit('assistant.turn_start', {});
 			sdkSession.emit('assistant.message', { content: `Echo: ${prompt}` });
 			// Mid way through, make it look like the sdk requested permission while emitting other messages.
-			result = await sdkSession.emitPermissionRequest({ kind: 'write', fileName: 'a.ts', intention: 'Update file', diff: '' });
+			result = await sdkSession.emitPermissionRequest({ kind: 'write', fileName: 'a.ts', intention: 'Update file', diff: '', canOfferSessionApproval: false });
 			sdkSession.emit('assistant.turn_end', {});
 		};
 		const stream = new MockChatResponseStream();
@@ -496,7 +523,7 @@ describe('CopilotCLISession', () => {
 			sdkSession.emit('assistant.turn_start', {});
 			sdkSession.emit('assistant.message', { content: `Echo: ${prompt}` });
 			// Mid way through, make it look like the sdk requested permission while emitting other messages.
-			result = await sdkSession.emitPermissionRequest({ kind: 'write', fileName: 'b.ts', intention: 'Update file', diff: '' });
+			result = await sdkSession.emitPermissionRequest({ kind: 'write', fileName: 'b.ts', intention: 'Update file', diff: '', canOfferSessionApproval: false });
 			sdkSession.emit('assistant.turn_end', {});
 		};
 		const stream = new MockChatResponseStream();
@@ -516,7 +543,7 @@ describe('CopilotCLISession', () => {
 			sdkSession.emit('assistant.turn_start', {});
 			sdkSession.emit('assistant.message', { content: `Echo: ${prompt}` });
 			// Mid way through, make it look like the sdk requested permission while emitting other messages.
-			result = await sdkSession.emitPermissionRequest({ kind: 'write', fileName: 'err.ts', intention: 'Update file', diff: '' });
+			result = await sdkSession.emitPermissionRequest({ kind: 'write', fileName: 'err.ts', intention: 'Update file', diff: '', canOfferSessionApproval: false });
 			sdkSession.emit('assistant.turn_end', {});
 		};
 		const stream = new MockChatResponseStream();
@@ -568,7 +595,8 @@ describe('CopilotCLISession', () => {
 				fileName: filePath,
 				intention: 'Apply edit',
 				diff: '',
-				toolCallId: String(i)
+				toolCallId: String(i),
+				canOfferSessionApproval: false
 			});
 			permissionResults.push(result);
 			// Complete the edit so the tracker (if it were real) would finish; emit completion event
@@ -1225,6 +1253,167 @@ describe('CopilotCLISession', () => {
 			await session.handleRequest({ id: '', toolInvocationToken: mockToken }, { prompt: 'Plan' }, [], undefined, authInfo, CancellationToken.None);
 
 			expect(result.value).toEqual({ approved: false });
+		});
+	});
+
+	describe('usage reporting', () => {
+		it('reports usage from assistant.usage event with per-call tokens', async () => {
+			sdkSession.send = async (options: any) => {
+				sdkSession.emit('user.message', { content: options.prompt });
+				sdkSession.emit('assistant.usage', { inputTokens: 200, outputTokens: 80 });
+				sdkSession.emit('assistant.turn_end', {});
+			};
+
+			const session = await createSession();
+			const stream = new UsageCapturingStream();
+			session.attachStream(stream);
+
+			await session.handleRequest({ id: 'req-1', toolInvocationToken: undefined as never }, { prompt: 'Hello' }, [], undefined, authInfo, CancellationToken.None);
+
+			const usageFromEvent = stream.usages.find(u => u.promptTokens === 200 && u.completionTokens === 80);
+			expect(usageFromEvent).toBeDefined();
+		});
+
+		it('reports usage from session.usage_info event immediately', async () => {
+			sdkSession.send = async (options: any) => {
+				sdkSession.emit('user.message', { content: options.prompt });
+				sdkSession.emit('session.usage_info', {
+					currentTokens: 500,
+					tokenLimit: 8000,
+					messagesLength: 5,
+					systemTokens: 100,
+					conversationTokens: 350,
+					toolDefinitionsTokens: 50,
+				});
+				sdkSession.emit('assistant.turn_end', {});
+			};
+
+			const session = await createSession();
+			const stream = new UsageCapturingStream();
+			session.attachStream(stream);
+
+			await session.handleRequest({ id: 'req-1', toolInvocationToken: undefined as never }, { prompt: 'Hello' }, [], undefined, authInfo, CancellationToken.None);
+
+			const usageFromInfo = stream.usages.find(u => u.promptTokens === 500);
+			expect(usageFromInfo).toBeDefined();
+			expect(usageFromInfo!.completionTokens).toBe(0);
+		});
+
+		it('includes promptTokenDetails breakdown in usage from session.usage_info', async () => {
+			sdkSession.send = async (options: any) => {
+				sdkSession.emit('user.message', { content: options.prompt });
+				sdkSession.emit('session.usage_info', {
+					currentTokens: 500,
+					tokenLimit: 8000,
+					messagesLength: 5,
+					systemTokens: 100,
+					conversationTokens: 350,
+					toolDefinitionsTokens: 50,
+				});
+				sdkSession.emit('assistant.turn_end', {});
+			};
+
+			const session = await createSession();
+			const stream = new UsageCapturingStream();
+			session.attachStream(stream);
+
+			await session.handleRequest({ id: 'req-1', toolInvocationToken: undefined as never }, { prompt: 'Hello' }, [], undefined, authInfo, CancellationToken.None);
+
+			const usageFromInfo = stream.usages.find(u => u.promptTokens === 500);
+			expect(usageFromInfo?.promptTokenDetails).toBeDefined();
+			expect(usageFromInfo!.promptTokenDetails).toEqual([
+				{ category: 'System', label: 'System Instructions', percentageOfPrompt: 20 },
+				{ category: 'System', label: 'Tool Definitions', percentageOfPrompt: 10 },
+				{ category: 'User Context', label: 'Messages', percentageOfPrompt: 70 },
+			]);
+		});
+
+		it('populates promptTokenDetails in assistant.usage event when usage_info was previously received', async () => {
+			sdkSession.send = async (options: any) => {
+				sdkSession.emit('user.message', { content: options.prompt });
+				sdkSession.emit('session.usage_info', {
+					currentTokens: 400,
+					tokenLimit: 8000,
+					messagesLength: 4,
+					systemTokens: 80,
+					conversationTokens: 280,
+					toolDefinitionsTokens: 40,
+				});
+				sdkSession.emit('assistant.usage', { inputTokens: 400, outputTokens: 60 });
+				sdkSession.emit('assistant.turn_end', {});
+			};
+
+			const session = await createSession();
+			const stream = new UsageCapturingStream();
+			session.attachStream(stream);
+
+			await session.handleRequest({ id: 'req-1', toolInvocationToken: undefined as never }, { prompt: 'Hello' }, [], undefined, authInfo, CancellationToken.None);
+
+			const assistantUsage = stream.usages.find(u => u.promptTokens === 400 && u.completionTokens === 60);
+			expect(assistantUsage).toBeDefined();
+			expect(assistantUsage!.promptTokenDetails).toBeDefined();
+			expect(assistantUsage!.promptTokenDetails!.length).toBeGreaterThan(0);
+		});
+
+		it('reports final usage from getMetrics() after session completes', async () => {
+			sdkSession.usage.getMetrics = async () => ({
+				lastCallInputTokens: 350,
+				lastCallOutputTokens: 90,
+				totalPremiumRequestCost: 0,
+				totalUserRequests: 1,
+				totalApiDurationMs: 500,
+				sessionStartTime: Date.now(),
+				codeChanges: { linesAdded: 0, linesRemoved: 0, filesModifiedCount: 0 },
+				modelMetrics: {},
+				currentModel: 'modelA',
+			});
+
+			const session = await createSession();
+			const stream = new UsageCapturingStream();
+			session.attachStream(stream);
+
+			await session.handleRequest({ id: 'req-1', toolInvocationToken: undefined as never }, { prompt: 'Hello' }, [], undefined, authInfo, CancellationToken.None);
+
+			const finalUsage = stream.usages.at(-1);
+			expect(finalUsage).toBeDefined();
+			expect(finalUsage!.completionTokens).toBe(90);
+		});
+
+		it('uses currentTokens from session.usage_info as promptTokens in final usage report (non-zero after compaction)', async () => {
+			sdkSession.send = async (options: any) => {
+				sdkSession.emit('user.message', { content: options.prompt });
+				// Simulate post-compaction: usage_info fires with reduced token count, no assistant.usage follows
+				sdkSession.emit('session.usage_info', {
+					currentTokens: 120,
+					tokenLimit: 8000,
+					messagesLength: 2,
+					systemTokens: 80,
+					conversationTokens: 40,
+					toolDefinitionsTokens: 0,
+				});
+				sdkSession.emit('assistant.turn_end', {});
+			};
+			sdkSession.usage.getMetrics = async () => ({
+				lastCallInputTokens: 0,  // stale / no new call made
+				lastCallOutputTokens: 0,
+				totalPremiumRequestCost: 0,
+				totalUserRequests: 1,
+				totalApiDurationMs: 0,
+				sessionStartTime: Date.now(),
+				codeChanges: { linesAdded: 0, linesRemoved: 0, filesModifiedCount: 0 },
+				modelMetrics: {},
+				currentModel: 'modelA',
+			});
+
+			const session = await createSession();
+			const stream = new UsageCapturingStream();
+			session.attachStream(stream);
+
+			await session.handleRequest({ id: 'req-1', toolInvocationToken: undefined as never }, { prompt: 'Hello' }, [], undefined, authInfo, CancellationToken.None);
+
+			// Final usage should use currentTokens (120) not the stale lastCallInputTokens (0)
+			const finalUsage = stream.usages.at(-1);
+			expect(finalUsage!.promptTokens).toBe(120);
 		});
 	});
 });

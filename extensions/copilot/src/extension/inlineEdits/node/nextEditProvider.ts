@@ -333,6 +333,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			logger.trace('cached edit was previously rejected');
 			telemetryBuilder.setStatus('previouslyRejectedCache');
 			telemetryBuilder.setWasPreviouslyRejected();
+			logContext.markAsPreviouslyRejected();
 			const rejectedEdit = cachedEdit.rebasedEdit ?? cachedEdit.edit;
 			if (rejectedEdit) {
 				this._rejectionCollector.reject(docId, rejectedEdit);
@@ -446,6 +447,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 			logger.trace('edit was previously rejected');
 			telemetryBuilder.setStatus('previouslyRejected');
 			telemetryBuilder.setWasPreviouslyRejected();
+			logContext.markAsPreviouslyRejected();
 			return emptyResult;
 		}
 
@@ -668,7 +670,7 @@ export class NextEditProvider extends Disposable implements INextEditProvider<Ne
 
 		telemetryBuilder.setRequest(nextEditRequest);
 		logContext.setRequestInput(nextEditRequest);
-		logContext.setIsCachedResult(nextEditRequest.logContext);
+		logContext.setIsReusedInFlightResult(nextEditRequest.logContext);
 
 		const disp = this._hookupCancellation(nextEditRequest, cancellationToken);
 		try {

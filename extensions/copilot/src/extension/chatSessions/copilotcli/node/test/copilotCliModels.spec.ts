@@ -6,6 +6,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AuthenticationSession } from 'vscode';
 import { IAuthenticationService } from '../../../../../platform/authentication/common/authentication';
+import { DefaultsOnlyConfigurationService } from '../../../../../platform/configuration/common/defaultsOnlyConfigurationService';
+import { InMemoryConfigurationService } from '../../../../../platform/configuration/test/common/inMemoryConfigurationService';
 import { IVSCodeExtensionContext } from '../../../../../platform/extContext/common/extensionContext';
 import { ILogService } from '../../../../../platform/log/common/logService';
 import { Emitter } from '../../../../../util/vs/base/common/event';
@@ -13,8 +15,6 @@ import { DisposableStore } from '../../../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../../../util/vs/platform/instantiation/common/instantiation';
 import { createExtensionUnitTestingServices } from '../../../../test/node/services';
 import { CopilotCLIModels, type CopilotCLIModelInfo, type ICopilotCLISDK } from '../copilotCli';
-import { DefaultsOnlyConfigurationService } from '../../../../../platform/configuration/common/defaultsOnlyConfigurationService';
-import { InMemoryConfigurationService } from '../../../../../platform/configuration/test/common/inMemoryConfigurationService';
 
 function createMockExtensionContext(): IVSCodeExtensionContext {
 	const state = new Map<string, unknown>();
@@ -275,6 +275,68 @@ describe('CopilotCLIModels', () => {
 			auth.setSession({ id: 'test', accessToken: 'token', scopes: [], account: { id: 'user', label: 'User' } });
 			const result = await models.getModels();
 			expect(result.length).toBe(2);
+		});
+
+		it('invalidates model cache on auth change', async () => {
+			const sdk = createMockSDK();
+			const { models, auth } = createModels({ hasSession: true, sdk });
+
+			// Initial fetch
+			await models.getModels();
+			const initialCallCount = (sdk.getPackage as ReturnType<typeof vi.fn>).mock.calls.length;
+
+			// Fire auth change to invalidate the cache
+			auth.fireAuthenticationChange();
+
+			// Next getModels() call should re-fetch from the SDK
+			await models.getModels();
+			expect((sdk.getPackage as ReturnType<typeof vi.fn>).mock.calls.length).toBe(initialCallCount + 1);
+		});
+
+		it('returns fresh models after auth change', async () => {
+			const updatedModels: CopilotCLIModelInfo[] = [
+				{ id: 'claude-4', name: 'Claude 4', maxContextWindowTokens: 200000, supportsVision: true },
+			];
+			let callCount = 0;
+			const sdk = {
+				_serviceBrand: undefined,
+				getPackage: vi.fn(async () => ({
+					getAvailableModels: vi.fn(async () => {
+						const source = callCount++ === 0 ? FAKE_MODELS : updatedModels;
+						return source.map(m => ({
+							id: m.id,
+							name: m.name,
+							billing: m.multiplier !== undefined ? { multiplier: m.multiplier } : undefined,
+							capabilities: {
+								limits: {
+									max_prompt_tokens: m.maxInputTokens,
+									max_output_tokens: m.maxOutputTokens,
+									max_context_window_tokens: m.maxContextWindowTokens,
+								},
+								supports: { vision: m.supportsVision }
+							},
+						}));
+					}),
+				})),
+				getAuthInfo: vi.fn(async () => ({ type: 'token' as const, token: 'test-token', host: 'https://github.com' })),
+				getRequestId: vi.fn(() => undefined),
+				setRequestId: vi.fn(),
+			} as unknown as ICopilotCLISDK;
+
+			const { models, auth } = createModels({ hasSession: true, sdk });
+
+			// First fetch returns FAKE_MODELS
+			const first = await models.getModels();
+			expect(first.length).toBe(2);
+			expect(first[0].id).toBe('gpt-4o');
+
+			// Auth change invalidates cache
+			auth.fireAuthenticationChange();
+
+			// Next fetch returns updated models
+			const second = await models.getModels();
+			expect(second.length).toBe(1);
+			expect(second[0].id).toBe('claude-4');
 		});
 	});
 

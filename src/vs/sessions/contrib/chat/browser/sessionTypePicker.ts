@@ -14,10 +14,14 @@ import { ISessionsManagementService } from '../../../services/sessions/common/se
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { ISession, ISessionType } from '../../../services/sessions/common/session.js';
+import { Emitter } from '../../../../base/common/event.js';
 
 export class SessionTypePicker extends Disposable {
 
 	private _sessionType: string | undefined;
+	private readonly _onDidSelectSessionType = this._register(new Emitter<string | undefined>());
+	readonly onDidSelectSessionType = this._onDidSelectSessionType.event;
+
 	private _supportedSessionTypes: ISessionType[] = [];
 	private _allProviderSessionTypes: ISessionType[] = [];
 
@@ -33,8 +37,8 @@ export class SessionTypePicker extends Disposable {
 
 		const refresh = (session: ISession | undefined) => {
 			if (session) {
-				this._supportedSessionTypes = this.sessionsManagementService.getSessionTypes(session);
 				const provider = this.sessionsProvidersService.getProvider(session.providerId);
+				this._supportedSessionTypes = provider?.getSessionTypes(session.resource) ?? [];
 				const providerTypes = provider ? [...provider.sessionTypes] : [];
 				const providerTypeIds = new Set(providerTypes.map(t => t.id));
 				this._allProviderSessionTypes = [
@@ -59,6 +63,10 @@ export class SessionTypePicker extends Disposable {
 		this._register(this.sessionsManagementService.onDidChangeSessionTypes(() => {
 			refresh(this.sessionsManagementService.activeSession.get());
 		}));
+	}
+
+	get selectedType(): string | undefined {
+		return this._sessionType;
 	}
 
 	render(container: HTMLElement): void {
@@ -114,7 +122,9 @@ export class SessionTypePicker extends Disposable {
 		const delegate: IActionListDelegate<ISessionType> = {
 			onSelect: (type) => {
 				this.actionWidgetService.hide();
-				this.sessionsManagementService.setSessionType(session, type);
+				if (type.id !== this._sessionType) {
+					this._onDidSelectSessionType.fire(type.id);
+				}
 			},
 			onHide: () => { triggerElement.focus(); },
 		};
@@ -156,5 +166,7 @@ export class SessionTypePicker extends Disposable {
 		labelSpan.textContent = modeLabel;
 
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
+
+		this._triggerElement.ariaLabel = localize('sessionTypePicker.triggerAriaLabel', "Pick Session Type, {0}", modeLabel);
 	}
 }

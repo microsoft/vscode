@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.116.0",
-  "distro": "21295cb9c61fb628376d109be52cb7c6e5e396bd",
+  "version": "1.117.0",
+  "distro": "cccc9754dda0a01ea6eaa276472ad5e169f80d31",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -79,6 +79,8 @@
     "extensions-ci": "npm run gulp extensions-ci",
     "extensions-ci-pr": "npm run gulp extensions-ci-pr",
     "perf": "node scripts/code-perf.js",
+    "perf:chat": "node scripts/chat-simulation/test-chat-perf-regression.js",
+    "perf:chat-leak": "node scripts/chat-simulation/test-chat-mem-leaks.js",
     "copilot:setup": "npm --prefix extensions/copilot run setup",
     "copilot:get_token": "npm --prefix extensions/copilot run get_token",
     "update-build-ts-version": "npm install -D typescript@next && npm install -D @typescript/native-preview && (cd build && npm run typecheck)",
@@ -99,7 +101,7 @@
     "@microsoft/dev-tunnels-ssh-tcp": "^3.12.22",
     "@parcel/watcher": "^2.5.6",
     "@types/semver": "^7.5.8",
-    "@vscode/codicons": "^0.0.46-1",
+    "@vscode/codicons": "^0.0.46-5",
     "@vscode/deviceid": "^0.1.1",
     "@vscode/iconv-lite-umd": "0.7.1",
     "@vscode/native-watchdog": "^1.4.6",
@@ -172,8 +174,8 @@
     "@types/yazl": "^2.4.2",
     "@typescript-eslint/utils": "^8.45.0",
     "@typescript/native-preview": "^7.0.0-dev.20260408",
-    "@vscode/component-explorer": "^0.2.1-8",
-    "@vscode/component-explorer-cli": "^0.2.1-7",
+    "@vscode/component-explorer": "^0.2.1-17",
+    "@vscode/component-explorer-cli": "^0.2.1-16",
     "@vscode/gulp-electron": "1.41.2",
     "@vscode/l10n-dev": "0.0.35",
     "@vscode/telemetry-extractor": "^1.20.2",

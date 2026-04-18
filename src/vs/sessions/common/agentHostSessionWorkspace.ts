@@ -29,9 +29,9 @@ export function buildAgentHostSessionWorkspace(project: IAgentHostSessionProject
 	if (project) {
 		const repositoryWorkingDirectory = extUri.isEqual(workingDirectory, project.uri) ? undefined : workingDirectory;
 		return {
-			label: project.displayName,
+			label: options.providerLabel ? `${project.displayName} [${options.providerLabel}]` : project.displayName,
 			icon: Codicon.repo,
-			repositories: [{ uri: project.uri, workingDirectory: repositoryWorkingDirectory, detail: options.providerLabel, baseBranchName: undefined, baseBranchProtected: undefined }],
+			repositories: [{ uri: project.uri, workingDirectory: repositoryWorkingDirectory, detail: undefined, baseBranchName: undefined, baseBranchProtected: undefined }],
 			requiresWorkspaceTrust: options.requiresWorkspaceTrust,
 		};
 	}
@@ -44,7 +44,7 @@ export function buildAgentHostSessionWorkspace(project: IAgentHostSessionProject
 	return {
 		label: options.providerLabel ? `${folderName} [${options.providerLabel}]` : folderName,
 		icon: options.fallbackIcon,
-		repositories: [{ uri: workingDirectory, workingDirectory: undefined, detail: options.providerLabel, baseBranchName: undefined, baseBranchProtected: undefined }],
+		repositories: [{ uri: workingDirectory, workingDirectory: undefined, detail: undefined, baseBranchName: undefined, baseBranchProtected: undefined }],
 		requiresWorkspaceTrust: options.requiresWorkspaceTrust,
 	};
 }

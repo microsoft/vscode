@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { ISubscribeResult } from '../../../common/state/protocol/commands.js';
-import type { IResponsePartAction, ISessionAddedNotification, ITitleChangedAction } from '../../../common/state/sessionActions.js';
+import type { IModelChangedAction, IResponsePartAction, ISessionAddedNotification, ITitleChangedAction } from '../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../common/state/sessionCapabilities.js';
 import type { IListSessionsResult, INotificationBroadcastParams } from '../../../common/state/sessionProtocol.js';
 import { PendingMessageKind, ResponsePartKind, type ISessionState } from '../../../common/state/sessionState.js';
@@ -77,7 +77,15 @@ suite('Protocol WebSocket — Session Features', function () {
 		const sessionUri = await createAndSubscribeSession(client, 'test-agent-title');
 		dispatchTurnStarted(client, sessionUri, 'turn-title', 'with-title', 1);
 
-		const titleNotif = await client.waitForNotification(n => isActionNotification(n, 'session/titleChanged'));
+		// The first titleChanged is the immediate fallback (user message text).
+		// Wait for the agent-generated title which arrives second.
+		const titleNotif = await client.waitForNotification(n => {
+			if (!isActionNotification(n, 'session/titleChanged')) {
+				return false;
+			}
+			const action = getActionEnvelope(n).action as ITitleChangedAction;
+			return action.title === MOCK_AUTO_TITLE;
+		});
 		const titleAction = getActionEnvelope(titleNotif).action as ITitleChangedAction;
 		assert.strictEqual(titleAction.title, MOCK_AUTO_TITLE);
 
@@ -86,6 +94,31 @@ suite('Protocol WebSocket — Session Features', function () {
 		const snapshot = await client.call<ISubscribeResult>('subscribe', { resource: sessionUri });
 		const state = snapshot.snapshot.state as ISessionState;
 		assert.strictEqual(state.summary.title, MOCK_AUTO_TITLE);
+	});
+
+	test('first turn immediately sets title to user message', async function () {
+		this.timeout(10_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-immediate-title');
+
+		// Verify the session starts with the default placeholder title
+		const before = await client.call<ISubscribeResult>('subscribe', { resource: sessionUri });
+		assert.strictEqual((before.snapshot.state as ISessionState).summary.title, '');
+
+		// Send first turn — side effects should dispatch an immediate titleChanged
+		// with the user's message text before the agent produces its own title.
+		dispatchTurnStarted(client, sessionUri, 'turn-immediate', 'Fix the login bug', 1);
+
+		// The first titleChanged should carry the user message text
+		const titleNotif = await client.waitForNotification(n => isActionNotification(n, 'session/titleChanged'));
+		const titleAction = getActionEnvelope(titleNotif).action as ITitleChangedAction;
+		assert.strictEqual(titleAction.title, 'Fix the login bug');
+
+		// listSessions should also reflect the updated title
+		const result = await client.call<IListSessionsResult>('listSessions');
+		const session = result.items.find(s => s.resource === sessionUri);
+		assert.ok(session, 'session should appear in listSessions');
+		assert.strictEqual(session.title, 'Fix the login bug');
 	});
 
 	test('renamed session title persists across listSessions', async function () {
@@ -116,6 +149,51 @@ suite('Protocol WebSocket — Session Features', function () {
 		}
 		assert.ok(session, 'session should appear in listSessions');
 		assert.strictEqual(session.title, 'Persisted Title');
+	});
+
+	// ---- Session model --------------------------------------------------------
+
+	test('session model flows through create, subscribe, listSessions, and modelChanged', async function () {
+		this.timeout(10_000);
+
+		await client.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-model-summary' });
+
+		const sessionUri = nextSessionUri();
+		await client.call('createSession', { session: sessionUri, provider: 'mock', model: { id: 'mock-model' } });
+
+		const addedNotif = await client.waitForNotification(n =>
+			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded'
+		);
+		const addedSession = (addedNotif.params as INotificationBroadcastParams).notification as ISessionAddedNotification;
+		assert.deepStrictEqual(addedSession.summary.model, { id: 'mock-model' });
+		const createdSessionUri = addedSession.summary.resource;
+
+		const initialSnapshot = await client.call<ISubscribeResult>('subscribe', { resource: createdSessionUri });
+		const initialState = initialSnapshot.snapshot.state as ISessionState;
+		assert.deepStrictEqual(initialState.summary.model, { id: 'mock-model' });
+
+		const initialList = await client.call<IListSessionsResult>('listSessions');
+		assert.deepStrictEqual(initialList.items.find(s => s.resource === createdSessionUri)?.model, { id: 'mock-model' });
+
+		client.notify('dispatchAction', {
+			clientSeq: 1,
+			action: {
+				type: 'session/modelChanged',
+				session: createdSessionUri,
+				model: { id: 'mock-model-2' },
+			},
+		});
+
+		const modelNotif = await client.waitForNotification(n => isActionNotification(n, 'session/modelChanged'));
+		const modelAction = getActionEnvelope(modelNotif).action as IModelChangedAction;
+		assert.deepStrictEqual(modelAction.model, { id: 'mock-model-2' });
+
+		const updatedSnapshot = await client.call<ISubscribeResult>('subscribe', { resource: createdSessionUri });
+		const updatedState = updatedSnapshot.snapshot.state as ISessionState;
+		assert.deepStrictEqual(updatedState.summary.model, { id: 'mock-model-2' });
+
+		const updatedList = await client.call<IListSessionsResult>('listSessions');
+		assert.deepStrictEqual(updatedList.items.find(s => s.resource === createdSessionUri)?.model, { id: 'mock-model-2' });
 	});
 
 	// ---- Reasoning events ------------------------------------------------------

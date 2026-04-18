@@ -26,6 +26,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          # Depth 2 gives us the test-merge commit plus its parents, which is
+          # enough for the merge-base lookup below (the target-branch tip is a
+          # direct parent). Full clone would be wasteful for this large repo.
+          fetch-depth: 2
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -59,6 +64,28 @@ jobs:
       - name: Capture screenshots
         run: ./node_modules/.bin/component-explorer render --project ./test/componentFixtures/component-explorer.json
 
+      - name: Log fixture errors
+        if: always()
+        run: |
+          MANIFEST="test/componentFixtures/.screenshots/current/manifest.json"
+          if [ ! -f "$MANIFEST" ]; then
+            echo "::warning::No manifest found — render may have failed entirely"
+            exit 0
+          fi
+          ERRORS=$(node -e "
+            const m = require('./$MANIFEST');
+            const errs = m.fixtures.filter(f => f.hasError);
+            if (!errs.length) { console.log('No fixture errors.'); process.exit(0); }
+            console.log(errs.length + ' fixture(s) with errors:');
+            for (const f of errs) {
+              console.log('::error::' + f.fixtureId + ': ' + (f.error || 'unknown error'));
+              if (f.events?.length) {
+                for (const e of f.events) { console.log('  event: ' + JSON.stringify(e)); }
+              }
+            }
+          ")
+          echo "$ERRORS"
+
       - name: Check blocks-ci screenshots
         id: blocks-ci
         run: |
@@ -83,8 +110,13 @@ jobs:
           name: screenshots
           path: test/componentFixtures/.screenshots/current/
 
+      - name: Skip notice (fork PR)
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+        run: echo "::notice::Skipping screenshot upload and diff — OIDC is not available for fork PRs"
+
       - name: Get OIDC token
         id: oidc
+        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
         run: |
           TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
             "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https://hediet-screenshots.azurewebsites.net" \
@@ -93,6 +125,7 @@ jobs:
           echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
 
       - name: Upload screenshots to service
+        if: steps.oidc.outputs.token
         run: |
           cd test/componentFixtures/.screenshots/current
           zip -qr "$GITHUB_WORKSPACE/screenshots.zip" .
@@ -105,13 +138,22 @@ jobs:
 
       - name: Diff screenshots against merge base
         id: diff
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && steps.oidc.outputs.token
         run: |
+          # We diff screenshots(checked-out commit) vs screenshots(merge-base of
+          # that commit with the target branch). This isolates the visual effect
+          # of just this PR's divergence from target. Using pull_request.base.sha
+          # would be wrong: it's the target-branch tip at PR creation time and can
+          # be stale, causing unrelated target-branch commits to show up as diffs.
+          TARGET_REF="origin/${{ github.event.pull_request.base.ref }}"
+          git fetch --no-tags --depth=1 origin "${{ github.event.pull_request.base.ref }}"
+          BASE_SHA=$(git merge-base "${{ github.sha }}" "$TARGET_REF")
+          echo "Using base SHA: $BASE_SHA (merge-base of ${{ github.sha }} and $TARGET_REF)"
           BODY=$(node build/lib/screenshotDiffReport.ts \
             https://hediet-screenshots.azurewebsites.net \
             ${{ github.repository_owner }} \
             ${{ github.event.repository.name }} \
-            ${{ github.event.pull_request.base.sha }} \
+            "$BASE_SHA" \
             ${{ github.sha }})
           if [ -n "$BODY" ]; then
             echo "has_changes=true" >> "$GITHUB_OUTPUT"
@@ -132,7 +174,7 @@ jobs:
 
       - name: Post PR comment
         if: github.event_name == 'pull_request' && (steps.diff.outputs.has_changes == 'true' || steps.blocks-ci.outputs.match == 'false')
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const marker = '<!-- screenshot-diff-report -->';

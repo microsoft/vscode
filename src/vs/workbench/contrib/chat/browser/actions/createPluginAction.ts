@@ -583,6 +583,8 @@ export async function updateMarketplaceIfNeeded(fileService: IFileService, targe
 	}
 }
 
-export function registerCreatePluginAction(): void {
-	registerAction2(CreatePluginAction);
+export function registerCreatePluginAction(): DisposableStore {
+	const store = new DisposableStore();
+	store.add(registerAction2(CreatePluginAction));
+	return store;
 }

@@ -28,7 +28,7 @@
 .agent-sessions-workbench .part.auxiliarybar > .title {
 	padding-left: 4px;
 	padding-right: 2px;
-	background-color: var(--vscode-sessionsAuxiliaryBar-background);
+	background-color: var(--vscode-agentsPanel-background);
 }
 
 /* Hide the underline indicator for non-focused items, but keep it for keyboard focus */
@@ -41,7 +41,7 @@
 
 /* Active/checked state: background container instead of underline */
 .agent-sessions-workbench .part.auxiliarybar > .title > .composite-bar-container > .composite-bar > .monaco-action-bar .action-item.checked {
-	background-color: var(--vscode-activityBarTop-activeBackground, color-mix(in srgb, var(--vscode-sideBarTitle-foreground) 5%, transparent)) !important;
+	background-color: color-mix(in srgb, var(--vscode-agentsPanel-foreground, var(--vscode-foreground)) 5%, transparent) !important;
 	border-radius: 4px;
 }
 
@@ -49,5 +49,5 @@
 .agent-sessions-workbench .part.auxiliarybar > .content .monaco-editor,
 .agent-sessions-workbench .part.auxiliarybar > .content .monaco-editor .margin,
 .agent-sessions-workbench .part.auxiliarybar > .content .monaco-editor .monaco-editor-background {
-	background-color: var(--vscode-sessionsAuxiliaryBar-background);
+	background-color: var(--vscode-agentsPanel-background);
 }

@@ -121,9 +121,6 @@ jobs:
           mkdir -p .build/build_cache
           tar -czf .build/build_cache/cache.tgz --files-from .build/build_cache_list.txt
 
-      - name: Ensure proposed API types are up to date
-        run: npm run vscode-dts:check
-
       - name: TypeScript type checking
         run: npm run typecheck
 

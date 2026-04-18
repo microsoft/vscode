@@ -20,18 +20,19 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IWorkbenchThemeService } from '../../../services/themes/common/workbenchThemeService.js';
-import { EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, IGalleryExtension, IExtensionGalleryService, IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, IExtensionGalleryService, IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ConfigurationTarget, IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import product from '../../../../platform/product/common/product.js';
 import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { InstallChatEvent, InstallChatClassification } from '../../chat/browser/chatSetup/chatSetup.js';
+import { InstallChatEvent, InstallChatClassification, ChatSetupStrategy } from '../../chat/browser/chatSetup/chatSetup.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import {
 	OnboardingStepId,
 	ONBOARDING_STEPS,
@@ -120,7 +121,6 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 	private selectedThemeId = 'dark-2026';
 	private selectedKeymapId = 'vscode';
 	private _detectedEditorIds: Set<string> | undefined;
-	private _galleryExtensions: Map<string, IGalleryExtension> | undefined;
 	private _userSignedIn = false;
 	private selectedAiMode: AiCollaborationMode = AiCollaborationMode.Balanced;
 
@@ -137,6 +137,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		@IPathService private readonly pathService: IPathService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
 		super();
 
@@ -150,9 +151,6 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 
 		// Start detecting installed editors early so results are ready by the Personalize step
 		this._detectInstalledEditors().then(ids => { this._detectedEditorIds = ids; });
-
-		// Pre-fetch gallery data so extension icons are ready by the Extensions step
-		this._prefetchGalleryExtensions();
 	}
 
 	get isShowing(): boolean {
@@ -226,6 +224,9 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 			if (this._isLastStep()) {
 				this._logAction('complete');
 				this._dismiss('complete');
+			} else if (this.currentStepIndex === 0) {
+				this._logAction('continueWithoutSignIn');
+				this._nextStep();
 			} else {
 				this._logAction('next');
 				this._nextStep();
@@ -241,9 +242,11 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		this.disposables.add(addDisposableListener(this.overlay, EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 
+			// Prevent all keyboard shortcuts from reaching the keybinding service
+			e.stopPropagation();
+
 			if (event.keyCode === KeyCode.Escape) {
 				e.preventDefault();
-				e.stopPropagation();
 				this._dismiss('skip');
 				return;
 			}
@@ -375,9 +378,6 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 			case OnboardingStepId.Personalize:
 				this._renderPersonalizeStep(this.contentEl);
 				break;
-			case OnboardingStepId.Extensions:
-				this._renderExtensionsStep(this.contentEl);
-				break;
 			case OnboardingStepId.AiPreference:
 				this._renderAiPreferenceStep(this.contentEl);
 				break;
@@ -400,11 +400,25 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 			this.backButton.style.display = this.currentStepIndex === 0 ? 'none' : '';
 		}
 		if (this.nextButton) {
-			this.nextButton.textContent = this._isLastStep()
-				? localize('onboarding.getStarted', "Get Started")
-				: localize('onboarding.next', "Continue");
+			if (this.currentStepIndex === 0) {
+				// Sign-in step: secondary "Continue without Signing In"
+				this.nextButton.className = 'onboarding-a-btn onboarding-a-btn-secondary';
+				this.nextButton.textContent = localize('onboarding.continueWithoutSignIn', "Continue without Signing In");
+			} else if (this._isLastStep()) {
+				this.nextButton.className = 'onboarding-a-btn onboarding-a-btn-primary';
+				this.nextButton.textContent = localize('onboarding.getStarted', "Get Started");
+			} else {
+				this.nextButton.className = 'onboarding-a-btn onboarding-a-btn-primary';
+				this.nextButton.textContent = localize('onboarding.next', "Continue");
+			}
 		}
 		if (this.skipButton && this.footerLeft) {
+			if (this.currentStepIndex === 0) {
+				// Sign-in step: ghost Skip button
+				this.skipButton.className = 'onboarding-a-btn onboarding-a-btn-ghost';
+			} else {
+				this.skipButton.className = 'onboarding-a-btn onboarding-a-btn-ghost';
+			}
 			if (this._isLastStep()) {
 				this.skipButton.style.display = 'none';
 				// Show sign-in nudge in footer
@@ -491,30 +505,8 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 
 		const disclaimerCol = append(footer, $('.onboarding-a-signin-disclaimer-col'));
 
-		// VS Code telemetry disclaimer
-		const telemetryDisclaimer = append(disclaimerCol, $('.onboarding-a-signin-disclaimer'));
-		const telemetryTitle = append(telemetryDisclaimer, $('strong'));
-		telemetryTitle.textContent = localize('onboarding.signIn.disclaimer.telemetryTitle', "VS Code: ");
-		telemetryDisclaimer.append(localize('onboarding.signIn.telemetry', "{0} collects usage data. Read our ", product.nameShort));
-		if (product.privacyStatementUrl) {
-			this._createInlineLink(telemetryDisclaimer, localize('onboarding.signIn.telemetry.privacy', "privacy statement"), product.privacyStatementUrl);
-		} else {
-			telemetryDisclaimer.append(localize('onboarding.signIn.telemetry.privacyPlain', "privacy statement"));
-		}
-		telemetryDisclaimer.append(localize('onboarding.signIn.telemetry.optOut', " and learn how to "));
-		const optOutLink = this._registerStepFocusable(append(telemetryDisclaimer, $<HTMLAnchorElement>('a.onboarding-a-inline-link')));
-		optOutLink.textContent = localize('onboarding.signIn.telemetry.optOutLink', "opt out");
-		optOutLink.href = '#';
-		this.stepDisposables.add(addDisposableListener(optOutLink, EventType.CLICK, (e) => {
-			e.preventDefault();
-			this.commandService.executeCommand('settings.filterByTelemetry');
-		}));
-		telemetryDisclaimer.append('.');
-
 		// GitHub Copilot disclaimer
 		const copilotDisclaimer = append(disclaimerCol, $('.onboarding-a-signin-disclaimer'));
-		const copilotTitle = append(copilotDisclaimer, $('strong'));
-		copilotTitle.textContent = localize('onboarding.signIn.disclaimer.copilotTitle', "GitHub Copilot: ");
 		copilotDisclaimer.append(localize('onboarding.signIn.disclaimer.prefix', "By signing in, you agree to {0}'s ", defaultChat.provider.default.name));
 		this._createInlineLink(copilotDisclaimer, localize('onboarding.signIn.disclaimer.terms', "Terms"), defaultChat.termsStatementUrl);
 		copilotDisclaimer.append(localize('onboarding.signIn.disclaimer.middle', " and "));
@@ -566,6 +558,11 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 			if (account) {
 				this._userSignedIn = true;
 				this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'installed', installDuration: watch.elapsed(), signUpErrorCode: undefined, provider });
+				// Run chat setup in the background (sign-up, extension install, entitlement resolution)
+				this.commandService.executeCommand('workbench.action.chat.triggerSetup', undefined, {
+					disableChatViewReveal: true,
+					setupStrategy: ChatSetupStrategy.DefaultSetup,
+				});
 				this._nextStep();
 			}
 		} catch (error) {
@@ -597,6 +594,10 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 			if (account) {
 				this._userSignedIn = true;
 				this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'installed', installDuration: watch.elapsed(), signUpErrorCode: undefined, provider });
+				this.commandService.executeCommand('workbench.action.chat.triggerSetup', undefined, {
+					disableChatViewReveal: true,
+					setupStrategy: ChatSetupStrategy.DefaultSetup,
+				});
 				this._nextStep();
 			}
 		} catch (error) {
@@ -701,8 +702,10 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		for (const theme of themes) {
 			this._createThemeCard(themeGrid, theme, themeCards);
 		}
-		const selectedThemeIndex = themes.findIndex(t => t.id === this.selectedThemeId);
-		this._setupRadioGroupNavigation(themeCards, Math.max(0, selectedThemeIndex));
+		// Make all theme cards individually tabbable
+		for (const card of themeCards) {
+			card.setAttribute('tabindex', '0');
+		}
 
 		// Keyboard Mapping section — only shown when another editor is detected
 		const keymapOptions = this._detectedEditorIds
@@ -746,6 +749,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 					}
 					pill.classList.add('selected');
 					pill.setAttribute('aria-checked', 'true');
+					this.accessibilityService.alert(localize('onboarding.keymap.selected.alert', "{0} keyboard mapping selected", keymap.label));
 				}));
 			}
 			const selectedKeymapIndex = keymapOptions.findIndex(k => k.id === this.selectedKeymapId);
@@ -798,6 +802,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 			}
 			card.classList.add('selected');
 			card.setAttribute('aria-checked', 'true');
+			this.accessibilityService.alert(localize('onboarding.theme.selected.alert', "{0} theme selected", theme.label));
 		}));
 
 		this.stepDisposables.add(addDisposableListener(card, EventType.KEY_DOWN, (e: KeyboardEvent) => {
@@ -809,118 +814,8 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 	}
 
 	// =====================================================================
-	// Step: Extensions
+	// Theme / Keymap helpers
 	// =====================================================================
-
-	private _renderExtensionsStep(container: HTMLElement): void {
-		const wrapper = append(container, $('div.onboarding-a-extensions'));
-
-		const extList = append(wrapper, $('div.onboarding-a-ext-list'));
-		extList.setAttribute('role', 'list');
-		extList.setAttribute('aria-label', localize('onboarding.ext.listLabel', "Recommended extensions"));
-
-		// Build a map of icon elements so we can update them once gallery data arrives
-		const iconElements = new Map<string, HTMLElement>();
-
-		for (const ext of (product.onboardingExtensions ?? [])) {
-			const row = append(extList, $('div.onboarding-a-ext-row'));
-			row.setAttribute('role', 'listitem');
-			row.setAttribute('aria-label', localize('onboarding.ext.row.aria', "{0} by {1}: {2}", ext.name, ext.publisher, ext.description));
-
-			const iconEl = append(row, $('div.onboarding-a-ext-icon'));
-			// Start with a codicon placeholder
-			iconEl.appendChild(renderIcon(this._getExtIcon(ext.icon)));
-			iconElements.set(ext.id.toLowerCase(), iconEl);
-
-			const info = append(row, $('div.onboarding-a-ext-info'));
-			const nameRow = append(info, $('div.onboarding-a-ext-name-row'));
-			const name = append(nameRow, $('span.onboarding-a-ext-name'));
-			name.textContent = ext.name;
-			const publisher = append(nameRow, $('span.onboarding-a-ext-publisher'));
-			publisher.textContent = ext.publisher;
-			const desc = append(info, $('div.onboarding-a-ext-desc'));
-			desc.textContent = ext.description;
-
-			const installBtn = this._registerStepFocusable(append(row, $<HTMLButtonElement>('button.onboarding-a-ext-install')));
-			installBtn.type = 'button';
-			installBtn.textContent = localize('onboarding.ext.install', "Install");
-
-			this.stepDisposables.add(addDisposableListener(installBtn, EventType.CLICK, () => {
-				this._logAction('installExtension', undefined, ext.id);
-				installBtn.textContent = localize('onboarding.ext.installing', "Installing...");
-				installBtn.disabled = true;
-				this._installExtension(ext.id).then(
-					() => {
-						installBtn.textContent = localize('onboarding.ext.installed', "Installed");
-						installBtn.classList.add('installed');
-					},
-					() => {
-						installBtn.textContent = localize('onboarding.ext.install', "Install");
-						installBtn.disabled = false;
-					}
-				);
-			}));
-		}
-
-		// Apply gallery icons — if prefetch finished, icons render immediately; otherwise they swap in once ready
-		this._applyExtensionIcons(iconElements);
-	}
-
-	private async _prefetchGalleryExtensions(): Promise<void> {
-		try {
-			const ids = (product.onboardingExtensions ?? []).map(ext => ({ id: ext.id }));
-			const extensions = await this.extensionGalleryService.getExtensions(ids, CancellationToken.None);
-			const map = new Map<string, IGalleryExtension>();
-			for (const ext of extensions) {
-				map.set(ext.identifier.id.toLowerCase(), ext);
-			}
-			this._galleryExtensions = map;
-		} catch {
-			// Gallery unavailable — icons will stay as codicon placeholders
-		}
-	}
-
-	private async _applyExtensionIcons(iconElements: Map<string, HTMLElement>): Promise<void> {
-		// Wait for prefetch if it hasn't completed yet
-		if (!this._galleryExtensions) {
-			await this._prefetchGalleryExtensions();
-		}
-		if (!this._galleryExtensions) {
-			return;
-		}
-		for (const [id, galleryExt] of this._galleryExtensions) {
-			const iconAsset = galleryExt.assets.icon;
-			if (!iconAsset) {
-				continue;
-			}
-			const iconEl = iconElements.get(id);
-			if (!iconEl) {
-				continue;
-			}
-			const img = $<HTMLImageElement>('img.onboarding-a-ext-icon-img');
-			img.alt = '';
-			img.src = iconAsset.uri;
-			this.stepDisposables.add(addDisposableListener(img, EventType.ERROR, () => {
-				if (iconAsset.fallbackUri) {
-					img.src = iconAsset.fallbackUri;
-				}
-			}, { once: true }));
-			this.stepDisposables.add(addDisposableListener(img, EventType.LOAD, () => {
-				clearNode(iconEl);
-				iconEl.appendChild(img);
-			}, { once: true }));
-		}
-	}
-
-	private _getExtIcon(iconName: string): ThemeIcon {
-		switch (iconName) {
-			case 'wand': return Codicon.wand;
-			case 'lightbulb': return Codicon.lightbulb;
-			case 'symbol-misc': return Codicon.symbolMisc;
-			case 'git-pull-request': return Codicon.gitPullRequest;
-			default: return Codicon.extensions;
-		}
-	}
 
 	private async _selectTheme(theme: IOnboardingThemeOption): Promise<void> {
 		this.selectedThemeId = theme.id;
@@ -928,21 +823,6 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		const match = allThemes.find(t => t.settingsId === theme.themeId);
 		if (match) {
 			this.themeService.setColorTheme(match.id, ConfigurationTarget.USER);
-		}
-	}
-
-	private async _installExtension(extensionId: string): Promise<void> {
-		try {
-			const gallery = await this.extensionGalleryService.getExtensions([{ id: extensionId }], CancellationToken.None);
-			if (gallery.length > 0) {
-				await this.extensionManagementService.installFromGallery(gallery[0], { context: { [EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT]: true } });
-			}
-		} catch (err) {
-			this.notificationService.notify({
-				severity: Severity.Warning,
-				message: localize('onboarding.ext.installError', "Could not install extension. You can install it later from the Extensions view."),
-			});
-			throw err;
 		}
 	}
 
@@ -1071,6 +951,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 					c.setAttribute('aria-checked', c.dataset.id === option.id ? 'true' : 'false');
 				}
 				this._applyAiPreference(option.id);
+				this.accessibilityService.alert(localize('onboarding.aiPref.selected.alert', "{0} selected", option.label));
 			}));
 		}
 		const selectedAiIndex = ONBOARDING_AI_PREFERENCE_OPTIONS.findIndex(o => o.id === this.selectedAiMode);
@@ -1124,12 +1005,12 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		const features = append(wrapper, $('.onboarding-a-sessions-features'));
 
 		this._createFeatureCard(features, Codicon.deviceDesktop,
-			localize('onboarding.sessions.local', "Local Sessions"),
+			localize('onboarding.sessions.local', "Local"),
 			localize('onboarding.sessions.local.desc', "Run agents interactively in the editor with full access to your workspace, tools, and terminal. Best for hands-on work where you want to review changes as they happen."));
 
 		this._createFeatureCard(features, Codicon.cloud,
-			localize('onboarding.sessions.cloud', "Cloud Sessions"),
-			localize('onboarding.sessions.cloud.desc', "Delegate tasks to a cloud agent that creates a branch, implements changes, and opens a pull request — even after you close VS Code."));
+			localize('onboarding.sessions.cloud', "Cloud"),
+			localize('onboarding.sessions.cloud.desc', "Delegate tasks to a cloud agent that creates a branch, implements changes, and opens a pull request. The agent continues working even if you close VS Code."));
 
 		this._createFeatureCard(features, Codicon.worktree,
 			localize('onboarding.sessions.worktree', "Copilot CLI"),
@@ -1147,11 +1028,14 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 
 		// Tutorial link at bottom of content, above footer
 		const docsRow = append(wrapper, $('.onboarding-a-sessions-docs'));
-		this._createDocLink(docsRow, localize('onboarding.sessions.videoTutorials', "Watch video tutorials"), 'https://aka.ms/vscode-getting-started-video', 'videoTutorials');
+		this._createDocLink(docsRow, localize('onboarding.sessions.agentsTutorial', "Agents tutorial"), 'https://code.visualstudio.com/docs/copilot/agents/agents-tutorial', 'agentsTutorial');
 	}
 
 	private _createFeatureCard(parent: HTMLElement, icon: ThemeIcon, title: string, description?: string): HTMLElement {
-		const card = append(parent, $('div.onboarding-a-feature-card'));
+		const card = this._registerStepFocusable(append(parent, $('div.onboarding-a-feature-card')));
+		card.setAttribute('tabindex', '0');
+		card.setAttribute('role', 'group');
+		card.setAttribute('aria-label', title);
 		const iconCol = append(card, $('div.onboarding-a-feature-icon'));
 		iconCol.appendChild(renderIcon(icon));
 		const textCol = append(card, $('div.onboarding-a-feature-text'));

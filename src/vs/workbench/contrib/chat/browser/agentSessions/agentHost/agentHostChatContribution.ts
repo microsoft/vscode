@@ -34,7 +34,7 @@ import { AgentHostSessionListController } from './agentHostSessionListController
 import { LoggingAgentConnection } from './loggingAgentConnection.js';
 import { SyncedCustomizationBundler } from './syncedCustomizationBundler.js';
 
-export { AgentHostSessionHandler } from './agentHostSessionHandler.js';
+export { AgentHostSessionHandler, getAgentHostBranchNameHint } from './agentHostSessionHandler.js';
 export { AgentHostSessionListController } from './agentHostSessionListController.js';
 
 /**
@@ -256,6 +256,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	 * Resolves tokens via the standard VS Code authentication service.
 	 */
 	private async _authenticateWithServer(agents: readonly IAgentInfo[]): Promise<void> {
+		this._agentHostService.setAuthenticationPending(true);
 		try {
 			for (const agent of agents) {
 				for (const resource of agent.protectedResources ?? []) {
@@ -272,6 +273,8 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		} catch (err) {
 			this._logService.error('[AgentHost] Failed to authenticate with server', err);
 			this._loggedConnection!.logError('authenticateWithServer', err);
+		} finally {
+			this._agentHostService.setAuthenticationPending(false);
 		}
 	}
 

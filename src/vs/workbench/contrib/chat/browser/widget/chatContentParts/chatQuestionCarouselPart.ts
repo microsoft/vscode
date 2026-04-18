@@ -687,6 +687,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			const title = dom.$('.chat-question-title');
 			const messageContent = this.getQuestionText(questionText);
 			title.setAttribute('aria-label', messageContent);
+			questionRenderStore.add(this._hoverService.setupDelayedHover(title, { content: messageContent }));
 
 			const titleText = question.required
 				? new MarkdownString(`${isMarkdownString(questionText) ? questionText.value : questionText} *`)

@@ -109,6 +109,16 @@ jobs:
         displayName: "Pull image"
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
 
+      - task: Docker@1
+        inputs:
+          azureSubscriptionEndpoint: vscode
+          azureContainerRegistry: vscodehub.azurecr.io
+          command: "Run an image"
+          imageName: "multiarch/qemu-user-static@sha256:fe60359c92e86a43cc87b3d906006245f77bfc0565676b80004cc666e4feb9f0"
+          containerCommand: uname
+        displayName: "Pull qemu-user-static image"
+        condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'), eq(variables['NPM_ARCH'], 'arm64'))
+
       - script: sudo apt-get update && sudo apt-get install -y libkrb5-dev
         displayName: Install build dependencies
         condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
