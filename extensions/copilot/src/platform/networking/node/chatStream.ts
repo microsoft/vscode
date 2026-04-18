@@ -274,6 +274,7 @@ function sendNewRequestAddedTelemetry(telemetryService: ITelemetryService, telem
 	// Create telemetry data for the request
 	const requestData = TelemetryData.createAndMarkAsIssued(filteredProperties, telemetryData.measurements);
 
+	logService?.info(`[THINKING-TELEMETRY] model.request.added: ` + JSON.stringify({ properties: requestData.properties, measurements: requestData.measurements }));
 	telemetryService.sendInternalMSFTTelemetryEvent('model.request.added', requestData.properties, requestData.measurements);
 }
 
