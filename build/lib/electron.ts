@@ -16,10 +16,9 @@ type DarwinDocumentSuffix = 'document' | 'script' | 'file' | 'source code';
 type DarwinDocumentType = {
 	name: string;
 	role: string;
-	ostypes: string[];
 	extensions: string[];
 	iconFile: string;
-	utis?: string[];
+	utis: string[];
 };
 
 function isDocumentSuffix(str?: string): str is DarwinDocumentSuffix {
@@ -70,10 +69,9 @@ function darwinBundleDocumentType(extensions: string[], icon: string, nameOrSuff
 	return {
 		name: nameOrSuffix,
 		role: 'Editor',
-		ostypes: ['TEXT', 'utxt', 'TUTX', '****'],
 		extensions,
 		iconFile: 'resources/darwin/' + icon.toLowerCase() + '.icns',
-		utis
+		utis: utis ?? ['public.plain-text']
 	};
 }
 
@@ -94,9 +92,9 @@ function darwinBundleDocumentTypes(types: { [name: string]: string | string[] },
 		return {
 			name,
 			role: 'Editor',
-			ostypes: ['TEXT', 'utxt', 'TUTX', '****'],
 			extensions: Array.isArray(extensions) ? extensions : [extensions],
-			iconFile: 'resources/darwin/' + icon + '.icns'
+			iconFile: 'resources/darwin/' + icon + '.icns',
+			utis: ['public.plain-text']
 		};
 	});
 }
