@@ -9,6 +9,7 @@ import { Event } from '../../../../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { generateDynamicPlanningQuestions } from '../../../browser/planning/chatPlanningQuestionGenerator.js';
 import { ChatMessageRole, IChatMessage, ILanguageModelsService } from '../../../common/languageModels.js';
+import { planningTargetConfirmationQuestionId } from '../../../common/planning/chatPlanningTransition.js';
 
 suite('ChatPlanningQuestionGenerator', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -82,6 +83,9 @@ suite('ChatPlanningQuestionGenerator', () => {
 			modelId: undefined,
 			planningPhase: 'focused-slice',
 			questionStage: 'goal-clarity',
+			questionCount: 3,
+			missingDimensions: ['constraints'],
+			partialDimensions: ['repo-target'],
 			activeFilePath: 'file:///workspace/src/vs/workbench/contrib/chat/browser/widget/chatWidget.ts',
 			selectedText: 'private async _acceptInput(...)',
 			plannerNotes: 'Keep the changes inside the chat planning flow.',
@@ -90,8 +94,12 @@ suite('ChatPlanningQuestionGenerator', () => {
 			repositoryContext: {
 				scope: 'focused',
 				workspaceRoot: 'file:///workspace',
+				planningTarget: { kind: 'file', label: 'src/vs/workbench/contrib/chat/browser/widget/chatWidget.ts', confidence: 'high' },
 				focusSummary: 'Focused slice around chat planning state.',
 				focusQueries: ['planning', 'chatWidget'],
+				workspaceFolders: ['vscode'],
+				workspaceTopLevelEntries: ['src', 'extensions'],
+				workingSetFiles: ['src/vs/workbench/contrib/chat/browser/widget/chatWidget.ts'],
 				activeDocumentSymbols: [{ name: '_acceptInput', kind: 'Method', file: 'file:///workspace/src/vs/workbench/contrib/chat/browser/widget/chatWidget.ts' }],
 				workspaceSymbolMatches: [{ name: 'refinePlan', kind: 'Method', file: 'file:///workspace/src/vs/workbench/contrib/chat/browser/widget/chatWidget.ts' }],
 				nearbyFiles: ['src/vs/workbench/contrib/chat/browser/actions/chatActions.ts'],
@@ -127,11 +135,99 @@ suite('ChatPlanningQuestionGenerator', () => {
 		assert.ok(promptPart.value.includes('User request:\nAdd a planning scaffold before implementation starts'));
 		assert.ok(promptPart.value.includes('Planning phase:\nfocused-slice (Focused Slice)'));
 		assert.ok(promptPart.value.includes('Question stage:\ngoal-clarity'));
+		assert.ok(promptPart.value.includes('Requested question count:\n3'));
 		assert.ok(promptPart.value.includes('Active file:\nfile:///workspace/src/vs/workbench/contrib/chat/browser/widget/chatWidget.ts'));
 		assert.ok(promptPart.value.includes('Selected code or text:\nprivate async _acceptInput(...)'));
 		assert.ok(promptPart.value.includes('Planner notes:\nKeep the changes inside the chat planning flow.'));
 		assert.ok(promptPart.value.includes('Recent planning conversation:\n- User: add richer planning context'));
 		assert.ok(promptPart.value.includes('Repository context:'));
+		assert.ok(promptPart.value.includes('Planning target: src/vs/workbench/contrib/chat/browser/widget/chatWidget.ts (file, high confidence)'));
+		assert.ok(promptPart.value.includes('Missing planning dimensions:\nconstraints'));
+	});
+
+	test('adds a planning-target confirmation question before the model questions', async () => {
+		let capturedMessages: IChatMessage[] | undefined;
+		const service = {
+			_serviceBrand: undefined,
+			onDidChangeLanguageModelVendors: Event.None,
+			onDidChangeLanguageModels: Event.None,
+			updateModelPickerPreference: () => { },
+			getLanguageModelIds: () => ['plan-model'],
+			getVendors: () => [],
+			lookupLanguageModel: () => ({ capabilities: { toolCalling: true } }),
+			lookupLanguageModelByQualifiedName: () => undefined,
+			getLanguageModelGroups: () => [],
+			selectLanguageModels: async () => [],
+			registerLanguageModelProvider: () => ({ dispose: () => { } }),
+			deltaLanguageModelChatProviderDescriptors: () => { },
+			sendChatRequest: async (_modelId: string, _from: unknown, messages: IChatMessage[]) => {
+				capturedMessages = messages;
+				return {
+					stream: (async function* () {
+						yield {
+							type: 'text' as const,
+							value: JSON.stringify({
+								questions: [
+									{ title: 'Desired outcome', message: 'What should the user notice first?', type: 'text' },
+									{
+										title: 'Scope boundary',
+										message: 'Which boundary matters most?',
+										type: 'singleSelect',
+										options: [
+											{ label: 'Keep changes in chat planning', value: 'Keep changes in chat planning' },
+											{ label: 'Allow follow-up UI work', value: 'Allow follow-up UI work' }
+										]
+									},
+									{ title: 'Definition of done', message: 'What must be settled before the planner runs?', type: 'text' }
+								]
+							})
+						};
+					})(),
+					result: Promise.resolve({})
+				};
+			},
+			computeTokenLength: async () => 0,
+			getModelConfiguration: () => undefined,
+			setModelConfiguration: async () => { },
+			getModelConfigurationActions: () => [],
+			addLanguageModelsProviderGroup: async () => { },
+			removeLanguageModelsProviderGroup: async () => { },
+			configureLanguageModelsProviderGroup: async () => { },
+		} as unknown as ILanguageModelsService;
+
+		const questions = await generateDynamicPlanningQuestions(service, {
+			userRequest: 'Refine planning mode around the right repo target.',
+			modelId: undefined,
+			planningPhase: 'broad-scan',
+			questionStage: 'goal-clarity',
+			questionCount: 4,
+			shouldConfirmPlanningTarget: true,
+			recentConversation: [],
+			planningAnswers: [],
+			repositoryContext: {
+				scope: 'broad',
+				workspaceRoot: 'file:///workspace',
+				planningTarget: { kind: 'workspace', label: 'vscode', confidence: 'low' },
+				focusQueries: ['planning'],
+				workspaceFolders: ['vscode'],
+				workspaceTopLevelEntries: ['src', 'extensions'],
+				workingSetFiles: ['src/vs/workbench/contrib/chat/browser/widget/chatWidget.ts'],
+				activeDocumentSymbols: [],
+				workspaceSymbolMatches: [],
+				nearbyFiles: [],
+				relevantSnippets: [],
+			}
+		}, CancellationToken.None);
+
+		assert.strictEqual(questions.length, 4);
+		assert.strictEqual(questions[0].id, planningTargetConfirmationQuestionId);
+		assert.strictEqual(questions[0].type, 'singleSelect');
+		assert.ok(capturedMessages, 'Expected a language-model request to be issued');
+		const promptPart = capturedMessages[1].content[0];
+		if (promptPart.type !== 'text') {
+			throw new Error('Expected prompt text part');
+		}
+		assert.ok(promptPart.value.includes('Requested question count:\n3'));
 	});
 
 	test('falls back when no language model is available', async () => {
@@ -278,5 +374,66 @@ suite('ChatPlanningQuestionGenerator', () => {
 		assert.strictEqual(questions.length, 3);
 		assert.ok(questions.some(question => question.title === 'Approved implementation target'));
 		assert.ok(questions.some(question => question.title === 'Primary work split'));
+	});
+
+	test('skips session-targeted models when choosing a fallback model', async () => {
+		let capturedModelId: string | undefined;
+		const service = {
+			_serviceBrand: undefined,
+			onDidChangeLanguageModelVendors: Event.None,
+			onDidChangeLanguageModels: Event.None,
+			updateModelPickerPreference: () => { },
+			getLanguageModelIds: () => ['session-model', 'plan-model'],
+			getVendors: () => [],
+			lookupLanguageModel: (modelId: string) => modelId === 'session-model'
+				? { capabilities: { toolCalling: true }, targetChatSessionType: 'agent-host' }
+				: { capabilities: { toolCalling: true } },
+			lookupLanguageModelByQualifiedName: () => undefined,
+			getLanguageModelGroups: () => [],
+			selectLanguageModels: async () => [],
+			registerLanguageModelProvider: () => ({ dispose: () => { } }),
+			deltaLanguageModelChatProviderDescriptors: () => { },
+			sendChatRequest: async (modelId: string) => {
+				capturedModelId = modelId;
+				return {
+					stream: (async function* () {
+						yield {
+							type: 'text' as const,
+							value: JSON.stringify({
+								questions: [
+									{ title: 'Goal', message: 'What should happen?', type: 'text' },
+									{
+										title: 'Constraint',
+										message: 'What should the planner optimize for?',
+										type: 'singleSelect',
+										options: [{ label: 'Minimal surface area', value: 'Minimal surface area' }]
+									},
+									{ title: 'Definition of done', message: 'What must be clarified?', type: 'text' }
+								]
+							})
+						};
+					})(),
+					result: Promise.resolve({})
+				};
+			},
+			computeTokenLength: async () => 0,
+			getModelConfiguration: () => undefined,
+			setModelConfiguration: async () => { },
+			getModelConfigurationActions: () => [],
+			addLanguageModelsProviderGroup: async () => { },
+			removeLanguageModelsProviderGroup: async () => { },
+			configureLanguageModelsProviderGroup: async () => { },
+		} as unknown as ILanguageModelsService;
+
+		await generateDynamicPlanningQuestions(service, {
+			userRequest: 'Plan a change',
+			modelId: undefined,
+			planningPhase: 'broad-scan',
+			questionStage: 'goal-clarity',
+			recentConversation: [],
+			planningAnswers: [],
+		}, CancellationToken.None);
+
+		assert.strictEqual(capturedModelId, 'plan-model');
 	});
 });

@@ -163,6 +163,16 @@ suite('ChatQuestionCarouselPart', () => {
 			assert.ok(collapseButton, 'collapse button should be rendered even when skip is disabled');
 		});
 
+		test('renders goal clarity with the standard carousel chrome', () => {
+			const carousel = new ChatQuestionCarouselData([
+				{ id: 'q1', type: 'text', title: 'Question 1' }
+			], true, 'dynamic-plan-goal-clarity-123');
+			createWidget(carousel);
+
+			assert.strictEqual(widget.domNode.dataset.planningMiddlewareStage, 'goal-clarity');
+			assert.strictEqual(widget.domNode.classList.contains('chat-question-carousel-middleware'), false);
+		});
+
 		test('renders collapse button to the right of close button', () => {
 			const carousel = createMockCarousel([
 				{ id: 'q1', type: 'text', title: 'Question 1' },

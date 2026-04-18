@@ -15,9 +15,9 @@ import { OutlineModel } from '../../../../../editor/contrib/documentSymbols/brow
 import { IFileService, IFileStat } from '../../../../../platform/files/common/files.js';
 import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { getWorkspaceSymbols } from '../../../search/common/search.js';
-import { IPlanningFileSnippet, IPlanningRepositoryContext, IPlanningSymbolReference, PlanningPhase, PlanningQuestionStage, PlanningRepositoryScope } from '../../common/planning/chatPlanningTransition.js';
+import { IPlanningFileSnippet, IPlanningRepositoryContext, IPlanningSymbolReference, IPlanningTarget, PlanningPhase, PlanningQuestionStage, PlanningRepositoryScope } from '../../common/planning/chatPlanningTransition.js';
 
-const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.json', '.css', '.scss', '.html', '.md']);
+const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.jsx', '.json', '.css', '.scss', '.html', '.md', '.txt', '.csv', '.tsv', '.yaml', '.yml', '.sql']);
 const STOP_WORDS = new Set([
 	'about',
 	'after',
@@ -50,16 +50,24 @@ export interface IPlanningContextCollectionInput {
 	readonly plannerNotes?: string;
 	readonly recentConversation: readonly string[];
 	readonly planningAnswers: readonly string[];
+	readonly confirmedPlanningTarget?: IPlanningTarget;
 	readonly activeEditor: ICodeEditor | undefined;
+	readonly contextEditors?: readonly ICodeEditor[];
 }
 
 interface IPlanningFocusState {
 	readonly phase: PlanningPhase;
 	readonly questionStage: PlanningQuestionStage;
 	readonly scope: PlanningRepositoryScope;
+	readonly planningTarget?: IPlanningTarget;
 	readonly queries: readonly string[];
 	readonly terms: readonly string[];
 	readonly summary: string;
+}
+
+interface IWorkspaceFolderInfo {
+	readonly name: string;
+	readonly uri: URI;
 }
 
 export async function collectPlanningRepositoryContext(
@@ -71,44 +79,198 @@ export async function collectPlanningRepositoryContext(
 		readonly languageFeaturesService: ILanguageFeaturesService;
 	}
 ): Promise<IPlanningRepositoryContext | undefined> {
-	const model = input.activeEditor?.getModel();
-	if (!model) {
+	const workspaceFolders = getWorkspaceFolders(services.workspaceContextService);
+	const contextEditors = getContextEditors(input);
+	const primaryEditor = getPrimaryContextEditor(input.activeEditor, contextEditors);
+	const model = primaryEditor?.getModel();
+	if (!model && workspaceFolders.length === 0) {
 		return undefined;
 	}
 
-	const activeResource = model.uri;
-	const workspaceFolder = services.workspaceContextService.getWorkspaceFolder(activeResource);
-	const workspaceRoot = workspaceFolder?.uri;
-	const selection = input.activeEditor?.getSelection();
-	const selectedText = selection && !selection.isEmpty() ? model.getValueInRange(selection) : undefined;
-	const activeDocumentSymbols = await getActiveDocumentSymbols(services.languageFeaturesService, model);
-	const focus = buildFocusState(input, selectedText, activeResource, activeDocumentSymbols);
+	const activeResource = model?.uri;
+	const workspaceFolder = activeResource ? services.workspaceContextService.getWorkspaceFolder(activeResource) : undefined;
+	const workspaceRoot = workspaceFolder?.uri ?? workspaceFolders[0]?.uri;
+	const selection = primaryEditor?.getSelection();
+	const selectedText = model && selection && !selection.isEmpty() ? model.getValueInRange(selection) : undefined;
+	const activeDocumentSymbols = model ? await getActiveDocumentSymbols(services.languageFeaturesService, model) : [];
+	const workingSetFiles = getWorkingSetFiles(contextEditors, workspaceFolders);
+	const workspaceFolderLabels = workspaceFolders.map(folder => folder.name);
+	const workspaceTopLevelEntries = workspaceFolders.length > 0
+		? await getWorkspaceTopLevelEntries(services.fileService, workspaceFolders)
+		: undefined;
+	const planningTarget = inferPlanningTarget(
+		input.confirmedPlanningTarget,
+		activeResource,
+		selectedText,
+		workingSetFiles,
+		workspaceFolder?.name,
+		workspaceFolderLabels,
+		workspaceRoot,
+	);
+	const focus = buildFocusState(input, selectedText, activeResource, activeDocumentSymbols, planningTarget, workingSetFiles, workspaceFolderLabels, workspaceTopLevelEntries);
 	const workspaceSymbolMatches = workspaceRoot
 		? await getWorkspaceSymbolMatches(focus)
 		: [];
-	const nearbyFiles = workspaceRoot
-		? await getNearbyFiles(services.fileService, workspaceRoot, activeResource, focus)
+	const nearbyFiles = workspaceRoot && activeResource
+		? await getNearbyFiles(services.fileService, workspaceRoot, activeResource, focus, workspaceFolders)
 		: [];
-	const relevantSnippets = await getRelevantSnippets(
+	const relevantSnippets = activeResource ? await getRelevantSnippets(
 		services.textModelService,
-		workspaceRoot,
+		workspaceFolders,
 		activeResource,
 		workspaceSymbolMatches,
 		nearbyFiles,
 		selection && !selection.isEmpty() ? selection : undefined,
 		focus
-	);
+	) : [];
 
 	return {
 		workspaceRoot: workspaceRoot?.toString(),
 		scope: focus.scope,
+		planningTarget,
 		focusSummary: focus.summary,
 		focusQueries: focus.queries,
+		workspaceFolders: workspaceFolderLabels.length > 0 ? workspaceFolderLabels : undefined,
+		workspaceTopLevelEntries,
+		workingSetFiles: workingSetFiles.length > 0 ? workingSetFiles : undefined,
 		activeDocumentSymbols,
 		workspaceSymbolMatches,
 		nearbyFiles,
 		relevantSnippets,
 	};
+}
+
+function getWorkspaceFolders(workspaceContextService: IWorkspaceContextService): IWorkspaceFolderInfo[] {
+	return workspaceContextService.getWorkspace().folders.map(folder => ({
+		name: folder.name,
+		uri: folder.uri,
+	}));
+}
+
+function getContextEditors(input: IPlanningContextCollectionInput): ICodeEditor[] {
+	const editors = input.contextEditors?.length ? input.contextEditors : (input.activeEditor ? [input.activeEditor] : []);
+	const seen = new Set<string>();
+	const result: ICodeEditor[] = [];
+
+	for (const editor of editors) {
+		const resource = editor.getModel()?.uri;
+		if (!resource) {
+			continue;
+		}
+
+		const key = resource.toString();
+		if (seen.has(key)) {
+			continue;
+		}
+
+		seen.add(key);
+		result.push(editor);
+	}
+
+	return result;
+}
+
+function getPrimaryContextEditor(activeEditor: ICodeEditor | undefined, contextEditors: readonly ICodeEditor[]): ICodeEditor | undefined {
+	if (activeEditor?.getModel()) {
+		return activeEditor;
+	}
+
+	return contextEditors[0];
+}
+
+async function getWorkspaceTopLevelEntries(fileService: IFileService, workspaceFolders: readonly IWorkspaceFolderInfo[]): Promise<string[] | undefined> {
+	const entries: string[] = [];
+	for (const folder of workspaceFolders) {
+		const stat = await fileService.resolve(folder.uri);
+		for (const child of stat.children ?? []) {
+			const label = workspaceFolders.length > 1 ? `${folder.name}/${basename(child.resource)}` : basename(child.resource);
+			entries.push(label);
+			if (entries.length >= 12) {
+				return entries;
+			}
+		}
+	}
+
+	return entries.length > 0 ? entries : undefined;
+}
+
+function getWorkingSetFiles(contextEditors: readonly ICodeEditor[], workspaceFolders: readonly IWorkspaceFolderInfo[]): string[] {
+	return contextEditors
+		.map(editor => editor.getModel()?.uri)
+		.filter((resource): resource is URI => !!resource)
+		.map(resource => toWorkspaceLabel(resource, workspaceFolders, resource.toString()))
+		.filter((value, index, values) => values.indexOf(value) === index)
+		.slice(0, 8);
+}
+
+function inferPlanningTarget(
+	confirmedPlanningTarget: IPlanningTarget | undefined,
+	activeResource: URI | undefined,
+	selectedText: string | undefined,
+	workingSetFiles: readonly string[],
+	workspaceFolderName: string | undefined,
+	workspaceFolders: readonly string[],
+	workspaceRoot: URI | undefined,
+): IPlanningTarget | undefined {
+	if (confirmedPlanningTarget) {
+		return {
+			...confirmedPlanningTarget,
+			confidence: 'high',
+		};
+	}
+
+	if (selectedText?.trim() && activeResource) {
+		return {
+			kind: 'selection',
+			label: `${basename(activeResource)}: ${truncate(getSelectionAnchor(selectedText) ?? 'Selected code', 96)}`,
+			resource: activeResource.toString(),
+			confidence: 'high',
+		};
+	}
+
+	if (activeResource) {
+		return {
+			kind: 'file',
+			label: toWorkspaceLabel(activeResource, workspaceRoot ? [{ name: workspaceFolderName ?? basename(workspaceRoot), uri: workspaceRoot }] : [], activeResource.toString()),
+			resource: activeResource.toString(),
+			confidence: 'medium',
+		};
+	}
+
+	if (workingSetFiles.length > 1) {
+		return {
+			kind: 'working-set',
+			label: `${workingSetFiles[0]} +${workingSetFiles.length - 1} more`,
+			confidence: 'medium',
+		};
+	}
+
+	if (workingSetFiles.length === 1) {
+		return {
+			kind: 'file',
+			label: workingSetFiles[0],
+			confidence: 'medium',
+		};
+	}
+
+	if (workspaceFolderName) {
+		return {
+			kind: 'folder',
+			label: workspaceFolderName,
+			resource: workspaceRoot?.toString(),
+			confidence: 'low',
+		};
+	}
+
+	if (workspaceFolders.length > 0) {
+		return {
+			kind: 'workspace',
+			label: workspaceFolders.length === 1 ? workspaceFolders[0] : `${workspaceFolders.length} workspace folders`,
+			confidence: 'low',
+		};
+	}
+
+	return undefined;
 }
 
 async function getActiveDocumentSymbols(languageFeaturesService: ILanguageFeaturesService, model: ITextModel): Promise<IPlanningSymbolReference[]> {
@@ -124,19 +286,24 @@ async function getActiveDocumentSymbols(languageFeaturesService: ILanguageFeatur
 function buildFocusState(
 	input: IPlanningContextCollectionInput,
 	selectedText: string | undefined,
-	activeResource: URI,
+	activeResource: URI | undefined,
 	activeSymbols: readonly IPlanningSymbolReference[],
+	planningTarget: IPlanningTarget | undefined,
+	workingSetFiles: readonly string[],
+	workspaceFolders: readonly string[],
+	workspaceTopLevelEntries: readonly string[] | undefined,
 ): IPlanningFocusState {
 	const scope = mapPhaseToScope(input.phase, input.questionStage);
-	const queries = extractQueries(getStageOrderedInputs(input, selectedText, activeResource, activeSymbols), getQueryLimitForScope(scope, input.questionStage));
+	const queries = extractQueries(getStageOrderedInputs(input, selectedText, activeResource, activeSymbols, planningTarget, workingSetFiles, workspaceFolders, workspaceTopLevelEntries), getQueryLimitForScope(scope, input.questionStage));
 
 	return {
 		phase: input.phase,
 		questionStage: input.questionStage,
 		scope,
+		planningTarget,
 		queries,
 		terms: queries.map(query => query.toLowerCase()),
-		summary: buildFocusSummary(input.phase, input.questionStage, input.planningAnswers, input.userRequest, input.plannerNotes, input.recentConversation, activeResource, selectedText),
+		summary: buildFocusSummary(input.phase, input.questionStage, input.planningAnswers, input.userRequest, input.plannerNotes, input.recentConversation, activeResource, selectedText, planningTarget),
 	};
 }
 
@@ -172,7 +339,7 @@ async function getWorkspaceSymbolMatches(focus: IPlanningFocusState): Promise<IP
 		.map(({ score: _score, ...symbol }) => symbol);
 }
 
-async function getNearbyFiles(fileService: IFileService, workspaceRoot: URI, activeResource: URI, focus: IPlanningFocusState): Promise<string[]> {
+async function getNearbyFiles(fileService: IFileService, workspaceRoot: URI, activeResource: URI, focus: IPlanningFocusState, workspaceFolders: readonly IWorkspaceFolderInfo[]): Promise<string[]> {
 	const maxFiles = focus.scope === 'detailed' ? 4 : focus.scope === 'focused' ? 6 : 12;
 	const directoryStat = await fileService.resolve(extUri.dirname(activeResource));
 	const children = directoryStat.children ?? [];
@@ -180,7 +347,7 @@ async function getNearbyFiles(fileService: IFileService, workspaceRoot: URI, act
 	return children
 		.filter((child: IFileStat) => child.isFile)
 		.filter((child: IFileStat) => SOURCE_EXTENSIONS.has(extUri.extname(child.resource)))
-		.map((child: IFileStat) => extUri.relativePath(workspaceRoot, child.resource) ?? child.resource.toString())
+		.map((child: IFileStat) => toWorkspaceLabel(child.resource, workspaceFolders, extUri.relativePath(workspaceRoot, child.resource) ?? child.resource.toString()))
 		.sort((left: string, right: string) => {
 			const rightScore = scoreCandidate([right, basenameLabel(right)], focus.terms);
 			const leftScore = scoreCandidate([left, basenameLabel(left)], focus.terms);
@@ -191,7 +358,7 @@ async function getNearbyFiles(fileService: IFileService, workspaceRoot: URI, act
 
 async function getRelevantSnippets(
 	textModelService: ITextModelService,
-	workspaceRoot: URI | undefined,
+	workspaceFolders: readonly IWorkspaceFolderInfo[],
 	activeResource: URI,
 	workspaceSymbols: readonly IPlanningSymbolReference[],
 	nearbyFiles: readonly string[],
@@ -202,17 +369,17 @@ async function getRelevantSnippets(
 	const seen = new Set<string>();
 	const maxSnippets = focus.scope === 'detailed' ? 5 : focus.scope === 'focused' ? 4 : 3;
 
-	const activeSnippet = await createSnippet(textModelService, activeResource, workspaceRoot, selection, focus, activeResource.toString(), focus.scope === 'detailed'
-		? focus.questionStage === 'task-decomposition'
-			? 'Decomposition anchor from the active selection and narrowed implementation slice.'
-			: 'Goal-clarity anchor from the active selection and narrowed context.'
+	const activeSnippet = await createSnippet(textModelService, activeResource, workspaceFolders, selection, focus, activeResource.toString(), focus.scope === 'detailed'
+		? focus.questionStage === 'goal-clarity'
+			? 'Goal-clarity anchor from the active selection and narrowed context.'
+			: 'Implementation anchor from the active selection and narrowed plan context.'
 		: focus.scope === 'focused'
-			? focus.questionStage === 'task-decomposition'
-				? 'Focused around the active selection and the strongest decomposition signals.'
-				: 'Focused around the active selection and the strongest goal-clarity signals.'
-			: focus.questionStage === 'task-decomposition'
-				? 'Early decomposition anchor from the active editor.'
-				: 'Broad goal-clarity anchor from the active editor.');
+			? focus.questionStage === 'goal-clarity'
+				? 'Focused around the active selection and the strongest goal-clarity signals.'
+				: 'Focused around the active selection and the strongest plan-refinement signals.'
+			: focus.questionStage === 'goal-clarity'
+				? 'Broad goal-clarity anchor from the active editor.'
+				: 'Early refinement anchor from the active editor.');
 	if (activeSnippet) {
 		snippets.push(activeSnippet);
 		seen.add(activeResource.toString());
@@ -223,17 +390,17 @@ async function getRelevantSnippets(
 			continue;
 		}
 
-		const snippet = await createSnippet(textModelService, URI.parse(symbol.file), workspaceRoot, undefined, focus, symbol.file, focus.scope === 'detailed'
-			? focus.questionStage === 'task-decomposition'
-				? `Deep dive candidate because ${symbol.name} remains central to the narrowed implementation breakdown.`
-				: `Deep dive candidate because ${symbol.name} remains central to clarifying the goal and scope.`
+		const snippet = await createSnippet(textModelService, URI.parse(symbol.file), workspaceFolders, undefined, focus, symbol.file, focus.scope === 'detailed'
+			? focus.questionStage === 'goal-clarity'
+				? `Deep dive candidate because ${symbol.name} remains central to clarifying the goal and scope.`
+				: `Deep dive candidate because ${symbol.name} remains central to the narrowed plan refinement.`
 			: focus.scope === 'focused'
-				? focus.questionStage === 'task-decomposition'
-					? `Expanded because ${symbol.name} aligns with the current breakdown and insertion-point signals.`
-					: `Expanded because ${symbol.name} aligns with the current goal-clarity answers.`
-				: focus.questionStage === 'task-decomposition'
-					? `Included because ${symbol.name} looks relevant to the initial decomposition pass.`
-					: `Included because ${symbol.name} looks relevant to the initial goal-clarity pass.`);
+				? focus.questionStage === 'goal-clarity'
+					? `Expanded because ${symbol.name} aligns with the current goal-clarity answers.`
+					: `Expanded because ${symbol.name} aligns with the current refinement answers and insertion-point signals.`
+				: focus.questionStage === 'goal-clarity'
+					? `Included because ${symbol.name} looks relevant to the initial goal-clarity pass.`
+					: `Included because ${symbol.name} looks relevant to the current refinement pass.`);
 		if (!snippet) {
 			continue;
 		}
@@ -246,26 +413,25 @@ async function getRelevantSnippets(
 	}
 
 	for (const relativePath of nearbyFiles) {
-		if (!workspaceRoot) {
-			break;
+		const candidate = resolveWorkspaceLabel(relativePath, workspaceFolders);
+		if (!candidate) {
+			continue;
 		}
-
-		const candidate = extUri.joinPath(workspaceRoot, relativePath);
 		if (seen.has(candidate.toString())) {
 			continue;
 		}
 
-		const snippet = await createSnippet(textModelService, candidate, workspaceRoot, undefined, focus, relativePath, focus.scope === 'detailed'
-			? focus.questionStage === 'task-decomposition'
-				? 'Retained for the detailed implementation breakdown.'
-				: 'Retained because it still informs the final clarified scope.'
+		const snippet = await createSnippet(textModelService, candidate, workspaceFolders, undefined, focus, relativePath, focus.scope === 'detailed'
+			? focus.questionStage === 'goal-clarity'
+				? 'Retained because it still informs the final clarified scope.'
+				: 'Retained for the detailed refinement pass.'
 			: focus.scope === 'focused'
-				? focus.questionStage === 'task-decomposition'
-					? 'Expanded because the file remains in the narrowed implementation working set.'
-					: 'Expanded because the file still informs the narrowed goal-clarity slice.'
-				: focus.questionStage === 'task-decomposition'
-					? 'Nearby file from the early decomposition pass.'
-					: 'Nearby file from the broad goal-clarity pass.');
+				? focus.questionStage === 'goal-clarity'
+					? 'Expanded because the file still informs the narrowed goal-clarity slice.'
+					: 'Expanded because the file remains in the narrowed refinement working set.'
+				: focus.questionStage === 'goal-clarity'
+					? 'Nearby file from the broad goal-clarity pass.'
+					: 'Nearby file from the early refinement pass.');
 		if (!snippet) {
 			continue;
 		}
@@ -283,7 +449,7 @@ async function getRelevantSnippets(
 async function createSnippet(
 	textModelService: ITextModelService,
 	resource: URI,
-	workspaceRoot: URI | undefined,
+	workspaceFolders: readonly IWorkspaceFolderInfo[],
 	selection: { readonly startLineNumber: number; readonly endLineNumber: number } | undefined,
 	focus: IPlanningFocusState,
 	pathLabel: string,
@@ -299,7 +465,7 @@ async function createSnippet(
 			}
 
 			return {
-				path: workspaceRoot ? extUri.relativePath(workspaceRoot, resource) ?? pathLabel : pathLabel,
+				path: toWorkspaceLabel(resource, workspaceFolders, pathLabel),
 				preview,
 				detailLevel: focus.scope,
 				reason,
@@ -315,18 +481,29 @@ async function createSnippet(
 function getStageOrderedInputs(
 	input: IPlanningContextCollectionInput,
 	selectedText: string | undefined,
-	activeResource: URI,
+	activeResource: URI | undefined,
 	activeSymbols: readonly IPlanningSymbolReference[],
+	planningTarget: IPlanningTarget | undefined,
+	workingSetFiles: readonly string[],
+	workspaceFolders: readonly string[],
+	workspaceTopLevelEntries: readonly string[] | undefined,
 ): string[] {
-	const activeFileName = basename(activeResource);
-	if (input.questionStage === 'task-decomposition') {
+	const activeFileName = activeResource ? basename(activeResource) : '';
+	const planningTargetLabel = planningTarget?.label ?? '';
+	const workingSetPreview = workingSetFiles.slice(0, 4).join(' ');
+	const workspaceFolderPreview = workspaceFolders.slice(0, 3).join(' ');
+	const topLevelPreview = workspaceTopLevelEntries?.slice(0, 4).join(' ') ?? '';
+	if (input.questionStage !== 'goal-clarity') {
 		switch (input.phase) {
 			case 'detailed-inspection':
 				return [
 					...input.planningAnswers,
+					planningTargetLabel,
 					selectedText ?? '',
 					...activeSymbols.map(symbol => `${symbol.name} ${symbol.containerName ?? ''}`),
+					workingSetPreview,
 					activeFileName,
+					topLevelPreview,
 					input.userRequest,
 					input.plannerNotes ?? '',
 					...input.recentConversation,
@@ -334,9 +511,11 @@ function getStageOrderedInputs(
 			case 'focused-slice':
 				return [
 					...input.planningAnswers,
+					planningTargetLabel,
 					selectedText ?? '',
 					activeFileName,
 					...activeSymbols.map(symbol => `${symbol.name} ${symbol.containerName ?? ''}`),
+					workingSetPreview,
 					input.userRequest,
 					input.plannerNotes ?? '',
 					...input.recentConversation,
@@ -344,10 +523,13 @@ function getStageOrderedInputs(
 			default:
 				return [
 					...input.planningAnswers,
+					planningTargetLabel,
 					input.userRequest,
 					selectedText ?? '',
 					activeFileName,
 					...activeSymbols.map(symbol => symbol.name),
+					workingSetPreview,
+					topLevelPreview,
 					input.plannerNotes ?? '',
 					...input.recentConversation,
 				];
@@ -358,31 +540,38 @@ function getStageOrderedInputs(
 		case 'focused-slice':
 			return [
 				input.userRequest,
+				planningTargetLabel,
 				input.plannerNotes ?? '',
 				...input.planningAnswers,
 				selectedText ?? '',
 				...input.recentConversation,
 				...activeSymbols.map(symbol => `${symbol.name} ${symbol.containerName ?? ''}`),
 				activeFileName,
+				workingSetPreview,
 			];
 		case 'detailed-inspection':
 			return [
 				input.userRequest,
+				planningTargetLabel,
 				...input.planningAnswers,
 				input.plannerNotes ?? '',
 				selectedText ?? '',
 				...activeSymbols.map(symbol => `${symbol.name} ${symbol.containerName ?? ''}`),
 				activeFileName,
+				workingSetPreview,
 				...input.recentConversation,
 			];
 		default:
 			return [
 				input.userRequest,
+				planningTargetLabel,
 				input.plannerNotes ?? '',
 				selectedText ?? '',
 				...input.recentConversation,
 				...activeSymbols.map(symbol => symbol.name),
 				activeFileName,
+				workspaceFolderPreview,
+				topLevelPreview,
 				...input.planningAnswers,
 			];
 	}
@@ -395,14 +584,25 @@ function buildFocusSummary(
 	userRequest: string,
 	plannerNotes: string | undefined,
 	recentConversation: readonly string[],
-	activeResource: URI,
+	activeResource: URI | undefined,
 	selectedText: string | undefined,
+	planningTarget: IPlanningTarget | undefined,
 ): string {
-	const stageLabel = questionStage === 'goal-clarity' ? 'Goal clarity' : 'Task decomposition';
+	const stageLabel = questionStage === 'goal-clarity'
+		? 'Goal clarity'
+		: questionStage === 'task-decomposition'
+			? 'Task decomposition'
+			: 'Plan focus';
 	const selected = planningAnswers.slice(0, questionStage === 'goal-clarity' ? 3 : 4).join(', ');
 	const anchors = [selected, plannerNotes?.trim() || '', userRequest.trim(), recentConversation[0] || ''].filter(value => value.length > 0);
 	const selectionAnchor = getSelectionAnchor(selectedText);
-	const fileAnchor = basename(activeResource);
+	const fileAnchor = planningTarget?.label || (activeResource ? basename(activeResource) : 'the current workspace');
+
+	if (questionStage === 'plan-focus') {
+		return anchors.length > 0
+			? `Plan focus around ${anchors[0]}. Tighten the revised plan in ${fileAnchor}${selectionAnchor ? ` near ${selectionAnchor}` : ''}.`
+			: `Plan focus in ${fileAnchor}.`;
+	}
 
 	if (phase === 'focused-slice') {
 		return anchors.length > 0
@@ -446,11 +646,16 @@ function extractQueries(inputs: readonly string[], limit: number): string[] {
 
 function extractQueryCandidates(input: string): string[] {
 	const candidates = [
+		...extractFileLikeQueries(input),
 		...extractPhraseQueries(input),
 		...tokenize(input),
 	];
 
 	return candidates;
+}
+
+function extractFileLikeQueries(input: string): string[] {
+	return input.match(/(?:[A-Za-z0-9_.-]+[\\/])*[A-Za-z0-9_.-]+\.[A-Za-z0-9]+/g) ?? [];
 }
 
 function extractPhraseQueries(input: string): string[] {
@@ -479,6 +684,43 @@ function basenameLabel(value: string): string {
 	const normalized = value.replace(/\\/g, '/');
 	const segments = normalized.split('/');
 	return segments[segments.length - 1] || normalized;
+}
+
+function toWorkspaceLabel(resource: URI, workspaceFolders: readonly IWorkspaceFolderInfo[], fallback: string): string {
+	for (const folder of workspaceFolders) {
+		if (!extUri.isEqualOrParent(resource, folder.uri)) {
+			continue;
+		}
+
+		const relativePath = extUri.relativePath(folder.uri, resource);
+		if (!relativePath) {
+			return workspaceFolders.length > 1 ? folder.name : fallback;
+		}
+
+		return workspaceFolders.length > 1 ? `${folder.name}/${relativePath}` : relativePath;
+	}
+
+	return fallback;
+}
+
+function resolveWorkspaceLabel(label: string, workspaceFolders: readonly IWorkspaceFolderInfo[]): URI | undefined {
+	const normalized = label.replace(/\\/g, '/');
+	for (const folder of workspaceFolders) {
+		if (workspaceFolders.length > 1) {
+			const prefix = `${folder.name}/`;
+			if (normalized.startsWith(prefix)) {
+				return extUri.joinPath(folder.uri, normalized.slice(prefix.length));
+			}
+			if (normalized === folder.name) {
+				return folder.uri;
+			}
+			continue;
+		}
+
+		return extUri.joinPath(folder.uri, normalized);
+	}
+
+	return undefined;
 }
 
 function describeSymbolKind(kind: SymbolKind): string {
@@ -520,6 +762,10 @@ function mapPhaseToScope(phase: PlanningPhase, questionStage: PlanningQuestionSt
 			? 'detailed'
 			: 'broad';
 
+	if (questionStage === 'plan-focus') {
+		return 'detailed';
+	}
+
 	if (questionStage !== 'task-decomposition') {
 		return baseScope;
 	}
@@ -535,6 +781,10 @@ function mapPhaseToScope(phase: PlanningPhase, questionStage: PlanningQuestionSt
 }
 
 function getQueryLimitForScope(scope: PlanningRepositoryScope, questionStage: PlanningQuestionStage): number {
+	if (questionStage === 'plan-focus') {
+		return scope === 'detailed' ? 3 : 4;
+	}
+
 	switch (scope) {
 		case 'focused':
 			return questionStage === 'task-decomposition' ? 4 : 5;

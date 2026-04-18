@@ -100,8 +100,10 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		this.domNode.id = generateUuid();
 		const planningMiddlewareStage = getPlanningMiddlewareQuestionStage(carousel.resolveId);
 		if (planningMiddlewareStage) {
-			this.domNode.classList.add('chat-question-carousel-middleware', `chat-question-carousel-middleware-${planningMiddlewareStage}`);
 			this.domNode.dataset.planningMiddlewareStage = planningMiddlewareStage;
+			if (planningMiddlewareStage !== 'goal-clarity') {
+				this.domNode.classList.add('chat-question-carousel-middleware', `chat-question-carousel-middleware-${planningMiddlewareStage}`);
+			}
 		}
 		this._inChatQuestionCarouselContextKey = ChatContextKeys.inChatQuestionCarousel.bindTo(this._contextKeyService);
 		const focusTracker = this._register(dom.trackFocus(this.domNode));
