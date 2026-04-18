@@ -51,12 +51,18 @@
 	flex: 0 0 auto;
 	width: 16px;
 	height: 16px;
+	border: 1px solid var(--vscode-commandCenter-border, transparent);
 	border-radius: 50%;
+	box-sizing: border-box;
 	object-fit: cover;
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-widget-avatar.visible {
 	display: block;
+}
+
+.monaco-workbench .part.titlebar.inactive .sessions-account-titlebar-widget-avatar {
+	border-color: var(--vscode-commandCenter-inactiveBorder, var(--vscode-commandCenter-border, transparent));
 }
 
 .agent-sessions-workbench .sessions-account-titlebar-widget-label {

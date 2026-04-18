@@ -1241,6 +1241,47 @@ suite('AgentSideEffects', () => {
 			assert.ok(state);
 			assert.strictEqual(state!.summary.title, 'Restored Title');
 		});
+
+		test('SessionConfigChanged persists merged config values to the database', async () => {
+			const sessionDataService = createSessionDataService(sessionDb);
+			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const localAgent = new MockAgent();
+			disposables.add(toDisposable(() => localAgent.dispose()));
+			const localSideEffects = disposables.add(new AgentSideEffects(localStateManager, {
+				getAgent: () => localAgent,
+				agents: observableValue<readonly IAgent[]>('agents', [localAgent]),
+				sessionDataService,
+			}, new NullLogService()));
+
+			const session = localStateManager.createSession({
+				resource: sessionUri.toString(),
+				provider: 'mock',
+				title: 'Initial',
+				status: SessionStatus.Idle,
+				createdAt: Date.now(),
+				modifiedAt: Date.now(),
+				project: { uri: 'file:///test-project', displayName: 'Test Project' },
+			});
+			session.config = { schema: { type: 'object', properties: {} }, values: { autoApprove: 'default' } };
+
+			// Mid-session change merges new values into existing.
+			localStateManager.dispatchClientAction({
+				type: ActionType.SessionConfigChanged,
+				session: sessionUri.toString(),
+				config: { autoApprove: 'autoApprove' },
+			}, { clientId: 'test-client', clientSeq: 1 });
+			localSideEffects.handleAction({
+				type: ActionType.SessionConfigChanged,
+				session: sessionUri.toString(),
+				config: { autoApprove: 'autoApprove' },
+			});
+
+			await new Promise(r => setTimeout(r, 50));
+
+			const persisted = await sessionDb.getMetadata('configValues');
+			assert.ok(persisted);
+			assert.deepStrictEqual(JSON.parse(persisted!), { autoApprove: 'autoApprove' });
+		});
 	});
 
 	// ---- Subagent sessions ----------------------------------------------

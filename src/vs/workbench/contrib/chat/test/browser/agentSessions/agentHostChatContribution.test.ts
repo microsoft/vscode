@@ -8,7 +8,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../ba
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { ISettableObservable, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
@@ -61,6 +61,12 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	override readonly onDidNotification = this._onDidNotification.event;
 	override readonly onAgentHostExit = Event.None;
 	override readonly onAgentHostStart = Event.None;
+
+	private readonly _authenticationPending: ISettableObservable<boolean> = observableValue('authenticationPending', false);
+	override readonly authenticationPending: IObservable<boolean> = this._authenticationPending;
+	override setAuthenticationPending(pending: boolean): void {
+		this._authenticationPending.set(pending, undefined);
+	}
 
 	// Track live subscriptions so fireAction can route to them
 	private readonly _liveSubscriptions = new Map<string, { state: ISessionState; emitter: Emitter<ISessionState> }>();
@@ -324,6 +330,10 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	});
 	instantiationService.stub(IAgentHostTerminalService, {
 		reviveTerminal: async () => undefined!,
+		createTerminalForEntry: async () => undefined,
+		profiles: observableValue('test', []),
+		getProfileForConnection: () => undefined,
+		registerEntry: () => ({ dispose() { } }),
 	});
 	instantiationService.stub(IAgentHostSessionWorkingDirectoryResolver, {
 		registerResolver: () => toDisposable(() => { }),

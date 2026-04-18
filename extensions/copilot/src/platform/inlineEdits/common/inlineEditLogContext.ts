@@ -37,7 +37,7 @@ export interface MarkdownLoggable {
  * - `errored`: an error occurred
  * - `previouslyRejected`: result matches a suggestion that was previously rejected
  */
-type LogContextOutcome = 'pending' | 'succeeded' | 'noSuggestions' | 'cached' | 'cachedFromGhostText' | 'skipped' | 'cancelled' | 'errored' | 'previouslyRejected';
+type LogContextOutcome = 'pending' | 'succeeded' | 'noSuggestions' | 'cached' | 'cachedFromGhostText' | 'reusedInFlight' | 'skipped' | 'cancelled' | 'errored' | 'previouslyRejected';
 
 export class InlineEditRequestLogContext {
 
@@ -95,6 +95,7 @@ export class InlineEditRequestLogContext {
 		lines.push(`- ${Icon.lightbulbFull.svg} - model had suggestions\n`);
 		lines.push(`- ${Icon.circleSlash.svg} - model had NO suggestions\n`);
 		lines.push(`- ${Icon.database.svg} - response is from cache\n`);
+		lines.push(`- ${Icon.gitMerge.svg} - joined an in-flight request (async or speculative reuse)\n`);
 		lines.push(`- ${Icon.error.svg} - error happened\n`);
 		lines.push(`- ${Icon.skipped.svg} - fetching started but got cancelled\n`);
 		lines.push('</details>\n');
@@ -312,6 +313,35 @@ export class InlineEditRequestLogContext {
 		this.fireDidChange();
 	}
 
+	/**
+	 * Marks this log context as having joined an already in-flight request
+	 * (async pending or speculative). The icon shows git-merge to distinguish
+	 * from a true cache hit.
+	 */
+	setIsReusedInFlightResult(logContextOfReusedRequest: InlineEditRequestLogContext): void {
+		this._logContextOfCachedEdit = logContextOfReusedRequest;
+
+		this.recordingBookmark = logContextOfReusedRequest.recordingBookmark;
+		this._nextEditRequest = logContextOfReusedRequest._nextEditRequest ?? this._nextEditRequest;
+		this._resultEdit = logContextOfReusedRequest._resultEdit ?? this._resultEdit;
+		this._diagnosticsResultEdit = logContextOfReusedRequest._diagnosticsResultEdit ?? this._diagnosticsResultEdit;
+		this._endpointInfo = logContextOfReusedRequest._endpointInfo ?? this._endpointInfo;
+		this._headerRequestId = logContextOfReusedRequest._headerRequestId ?? this._headerRequestId;
+		if (logContextOfReusedRequest._prompt) {
+			this._prompt = logContextOfReusedRequest._prompt;
+		}
+		this.response = logContextOfReusedRequest.response ?? this.response;
+		this._responseResults = logContextOfReusedRequest._responseResults ?? this._responseResults;
+		if (logContextOfReusedRequest.fullResponsePromise) {
+			this.setFullResponse(logContextOfReusedRequest.fullResponsePromise);
+		}
+		this._error = logContextOfReusedRequest._error ?? this._error;
+
+		this._isVisible = true;
+		this._outcome = 'reusedInFlight';
+		this.fireDidChange();
+	}
+
 	private _endpointInfo: { url: string; modelName: string } | undefined;
 
 	public setEndpointInfo(url: string, modelName: string): void {
@@ -375,6 +405,7 @@ export class InlineEditRequestLogContext {
 			case 'noSuggestions': return Icon.circleSlash;
 			case 'cached':
 			case 'cachedFromGhostText': return Icon.database;
+			case 'reusedInFlight': return Icon.gitMerge;
 			case 'skipped':
 			case 'cancelled': return Icon.skipped;
 			case 'errored': return Icon.error;

@@ -23,7 +23,7 @@ use crate::util::http::{self, BoxedHttp};
 use crate::util::io::SilentCopyProgress;
 use crate::util::machine::process_exists;
 use crate::util::prereqs::skip_requirements_check;
-use crate::{debug, info, log, spanf, trace, warning};
+use crate::log;
 use lazy_static::lazy_static;
 use opentelemetry::KeyValue;
 use regex::Regex;

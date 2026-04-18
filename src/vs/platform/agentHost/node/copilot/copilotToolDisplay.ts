@@ -9,6 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import type { IAgentToolReadyEvent } from '../../common/agentService.js';
 import { StringOrMarkdown } from '../../common/state/protocol/state.js';
+import { basename } from '../../../../base/common/resources.js';
 
 // =============================================================================
 // Copilot CLI built-in tool interfaces
@@ -160,7 +161,8 @@ function truncate(text: string, maxLength: number): string {
  * as a clickable file widget in the chat UI.
  */
 function formatPathAsMarkdownLink(path: string): string {
-	return `[](${URI.file(path).toString()})`;
+	const uri = URI.file(path);
+	return `[${basename(uri)}](${uri})`;
 }
 
 /**
@@ -201,7 +203,7 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 		const args = parameters as ICopilotShellToolArgs | undefined;
 		if (args?.command) {
 			const firstLine = args.command.split('\n')[0];
-			return localize('toolInvoke.shellCmd', "Running `{0}`", truncate(firstLine, 80));
+			return md(localize('toolInvoke.shellCmd', "Running `{0}`", truncate(firstLine, 80)));
 		}
 		return localize('toolInvoke.shell', "Running {0} command", displayName);
 	}
@@ -400,6 +402,10 @@ export interface ITypedPermissionRequest extends PermissionRequest {
 	toolName?: string;
 	/** Tool arguments — set for `custom-tool` permission requests. */
 	args?: Record<string, unknown>;
+	/** Unified diff of the proposed change — set for `write` permission requests. */
+	diff?: string;
+	/** New file contents that will be written — set for `write` permission requests. */
+	newFileContents?: string;
 }
 
 /** Safely extract a string value from an SDK field that may be `unknown` at runtime. */

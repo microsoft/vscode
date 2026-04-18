@@ -3,23 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import * as fs from 'fs';
+import { DeferredPromise, raceCancellablePromises, timeout } from '../../../base/common/async.js';
 import { Emitter } from '../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { dirname } from '../../../base/common/path.js';
 import * as platform from '../../../base/common/platform.js';
+import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
-import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { getShellIntegrationInjection } from '../../terminal/node/terminalEnvironment.js';
 import { ActionType } from '../common/state/protocol/actions.js';
 import type { ICreateTerminalParams } from '../common/state/protocol/commands.js';
 import { ITerminalClaim, ITerminalContentPart, ITerminalInfo, ITerminalState, TerminalClaimKind } from '../common/state/protocol/state.js';
 import { isTerminalAction } from '../common/state/sessionActions.js';
-import { getShellIntegrationInjection } from '../../terminal/node/terminalEnvironment.js';
-import { Osc633Event, Osc633EventType, Osc633Parser } from './osc633Parser.js';
 import type { AgentHostStateManager } from './agentHostStateManager.js';
-import * as fs from 'fs';
-import { dirname } from '../../../base/common/path.js';
-import { DeferredPromise, raceCancellablePromises, timeout } from '../../../base/common/async.js';
+import { Osc633Event, Osc633EventType, Osc633Parser } from './osc633Parser.js';
 
 const WAIT_FOR_PROMPT_TIMEOUT = 10_000;
 
@@ -179,7 +180,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 
 		const nodePty = await getNodePty();
 
-		const cwd = params.cwd ?? process.cwd();
+		const cwd = await this._resolveCwd(params.cwd, uri);
 		const cols = params.cols ?? 80;
 		const rows = params.rows ?? 24;
 
@@ -644,6 +645,39 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			return process.env['COMSPEC'] || 'cmd.exe';
 		}
 		return process.env['SHELL'] || '/bin/sh';
+	}
+
+	/**
+	 * Resolves the cwd string from {@link ICreateTerminalParams} to an
+	 * accessible filesystem path, falling back to $HOME if the requested
+	 * directory is missing (otherwise node-pty exits silently with code 1).
+	 * Accepts either a `file://` URI string or a raw absolute filesystem path.
+	 */
+	private async _resolveCwd(cwd: string | undefined, terminalURI: string): Promise<string> {
+		let resolved = cwd;
+		if (cwd) {
+			const parsed = URI.parse(cwd);
+			if (parsed.scheme === 'file' && parsed.fsPath && parsed.fsPath !== '/') {
+				resolved = parsed.fsPath;
+			} else {
+				this._logService.warn(`[TerminalManager] Ignoring non-file cwd for ${terminalURI}: ${cwd}`);
+			}
+		}
+
+		try {
+			if (resolved) {
+				const stat = await fs.promises.stat(resolved);
+				if (stat.isDirectory()) {
+					return resolved;
+				}
+			}
+		} catch {
+			// fall through to fallback
+		}
+
+		const fallback = process.env['HOME'] || process.env['USERPROFILE'] || process.cwd();
+		this._logService.warn(`[TerminalManager] cwd '${resolved}' is not accessible, falling back to ${fallback}`);
+		return fallback;
 	}
 
 	/** Dispatch root/terminalsChanged with the current terminal list. */

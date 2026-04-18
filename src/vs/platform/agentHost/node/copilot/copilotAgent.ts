@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CopilotClient, type SessionConfig } from '@github/copilot-sdk';
+import { CopilotClient, ResumeSessionConfig, type CopilotClientOptions, type SessionConfig } from '@github/copilot-sdk';
 import { rgPath } from '@vscode/ripgrep';
 import * as fs from 'fs/promises';
 import { Limiter, SequencerByKey } from '../../../../base/common/async.js';
@@ -11,8 +11,8 @@ import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { FileAccess } from '../../../../base/common/network.js';
-import { observableValue } from '../../../../base/common/observable.js';
 import { equals } from '../../../../base/common/objects.js';
+import { observableValue } from '../../../../base/common/observable.js';
 import { basename, delimiter, dirname } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
@@ -50,6 +50,21 @@ interface ISerializedModelSelection {
 	config?: unknown;
 }
 
+/**
+ * Narrow surface of {@link CopilotClient} used by this provider. The SDK class
+ * has private members, so tests use this structural type to inject a fake.
+ */
+export interface ICopilotClient {
+	start(): Promise<void>;
+	stop: CopilotClient['stop'];
+	listSessions: CopilotClient['listSessions'];
+	listModels: CopilotClient['listModels'];
+	createSession: CopilotClient['createSession'];
+	resumeSession: CopilotClient['resumeSession'];
+	getSessionMetadata: CopilotClient['getSessionMetadata'];
+	readonly rpc: { readonly sessions: { readonly fork: CopilotClient['rpc']['sessions']['fork'] } };
+}
+
 function isReasoningEffort(value: string | undefined): value is ReasoningEffort {
 	return ReasoningEfforts.some(reasoningEffort => reasoningEffort === value);
 }
@@ -78,8 +93,8 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private readonly _models = observableValue<readonly IAgentModelInfo[]>(this, []);
 	readonly models = this._models;
 
-	private _client: CopilotClient | undefined;
-	private _clientStarting: Promise<CopilotClient> | undefined;
+	private _client: ICopilotClient | undefined;
+	private _clientStarting: Promise<ICopilotClient> | undefined;
 	private _githubToken: string | undefined;
 	private readonly _sessions = this._register(new DisposableMap<string, CopilotAgentSession>());
 	private readonly _createdWorktrees = new Map<string, ICreatedWorktree>();
@@ -101,12 +116,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 		this._plugins = this._instantiationService.createInstance(PluginController);
 	}
 
+	protected _createCopilotClient(options: CopilotClientOptions): ICopilotClient {
+		return new CopilotClient(options);
+	}
+
 	// ---- auth ---------------------------------------------------------------
 
 	getDescriptor(): IAgentDescriptor {
 		return {
 			provider: 'copilot',
-			displayName: 'Copilot',
+			displayName: 'Copilot CLI',
 			description: 'Copilot SDK agent running in a dedicated process',
 		};
 	}
@@ -166,7 +185,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	// ---- client lifecycle ---------------------------------------------------
 
-	private async _ensureClient(): Promise<CopilotClient> {
+	private async _ensureClient(): Promise<ICopilotClient> {
 		const tokenAtStartup = this._githubToken;
 		if (!tokenAtStartup) {
 			throw new ProtocolError(AHP_AUTH_REQUIRED, 'Authentication is required to use Copilot');
@@ -214,7 +233,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 			env[pathKey] = currentPath ? `${currentPath}${delimiter}${rgDir}` : rgDir;
 			this._logService.info(`[Copilot] Resolved CLI path: ${cliPath}`);
 
-			const client = new CopilotClient({
+			const client = this._createCopilotClient({
 				githubToken: tokenAtStartup,
 				useLoggedInUser: false,
 				useStdio: true,
@@ -319,24 +338,30 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const sessions = await client.listSessions();
 		const projectLimiter = new Limiter<IAgentSessionProjectInfo | undefined>(4);
 		const projectByContext = new Map<string, Promise<IAgentSessionProjectInfo | undefined>>();
-		const result: IAgentSessionMetadata[] = await Promise.all(sessions.map(async s => {
+		const mapped = await Promise.all(sessions.map(async s => {
 			const session = AgentSession.uri(this.id, s.sessionId);
 			const metadata = await this._readStoredSessionMetadata(session);
+			if (!metadata) {
+				return undefined;
+			}
 			let { project, resolved } = metadata;
 			if (!resolved) {
 				project = await this._resolveSessionProject(s.context, projectLimiter, projectByContext);
 				void this._storeSessionProjectResolution(session, project);
 			}
-			return {
+			const workingDirectory = metadata.workingDirectory ?? (typeof s.context?.cwd === 'string' ? URI.file(s.context.cwd) : undefined);
+			const result: IAgentSessionMetadata = {
 				session,
 				startTime: s.startTime.getTime(),
 				modifiedTime: s.modifiedTime.getTime(),
-				...(project ? { project } : {}),
+				project,
 				summary: s.summary,
 				model: metadata.model,
-				workingDirectory: metadata.workingDirectory ?? (typeof s.context?.cwd === 'string' ? URI.file(s.context.cwd) : undefined),
+				workingDirectory,
 			};
+			return result;
 		}));
+		const result = mapped.filter((s): s is IAgentSessionMetadata => s !== undefined);
 		this._logService.info(`[Copilot] Found ${result.length} sessions`);
 		return result;
 	}
@@ -754,7 +779,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	 * session's permission/hook callbacks, so it can be called lazily
 	 * inside the {@link SessionWrapperFactory}.
 	 */
-	private _buildSessionConfig(snapshot: IActiveClientSnapshot | undefined, shellManager: ShellManager) {
+	private _buildSessionConfig(snapshot: IActiveClientSnapshot | undefined, shellManager: ShellManager): (args: Parameters<SessionWrapperFactory>[0]) => Promise<ResumeSessionConfig> {
 		const shellTools = createShellTools(shellManager, this._terminalManager, this._logService);
 		const plugins = snapshot?.plugins ?? [];
 
@@ -927,10 +952,10 @@ export class CopilotAgent extends Disposable implements IAgent {
 		}
 	}
 
-	private async _readStoredSessionMetadata(session: URI): Promise<{ model?: IModelSelection; workingDirectory?: URI; project?: IAgentSessionProjectInfo; resolved: boolean }> {
+	private async _readStoredSessionMetadata(session: URI): Promise<{ model?: IModelSelection; workingDirectory?: URI; project?: IAgentSessionProjectInfo; resolved: boolean } | undefined> {
 		const ref = await this._sessionDataService.tryOpenDatabase(session);
 		if (!ref) {
-			return { resolved: false };
+			return undefined;
 		}
 		try {
 			const [model, cwd, resolved, uri, displayName] = await Promise.all([
@@ -940,8 +965,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 				ref.object.getMetadata(CopilotAgent._META_PROJECT_URI),
 				ref.object.getMetadata(CopilotAgent._META_PROJECT_DISPLAY_NAME),
 			]);
+			const workingDirectory = cwd ? URI.parse(cwd) : undefined;
 			const project = uri && displayName ? { uri: URI.parse(uri), displayName } : undefined;
-			return { model: this._parseModelSelection(model), workingDirectory: cwd ? URI.parse(cwd) : undefined, project, resolved: resolved === 'true' || project !== undefined };
+			return { model: this._parseModelSelection(model), workingDirectory, project, resolved: resolved === 'true' || project !== undefined };
 		} finally {
 			ref.dispose();
 		}

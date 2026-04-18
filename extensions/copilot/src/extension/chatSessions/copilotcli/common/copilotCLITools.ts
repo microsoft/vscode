@@ -1684,6 +1684,15 @@ export class FakeToolsService implements IToolsService {
 			};
 		}
 
+		if (name === 'vscode_reviewPlan') {
+			if (this._confirmationResult === 'no') {
+				return { content: [new LanguageModelTextPart(JSON.stringify({ rejected: true }))] };
+			}
+			const input = options.input as { actions?: Array<{ label: string }> } | undefined;
+			const firstAction = input?.actions?.[0]?.label;
+			return { content: [new LanguageModelTextPart(JSON.stringify({ action: firstAction, rejected: false }))] };
+		}
+
 		return { content: [] };
 	}
 

@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PermissionMode } from '@anthropic-ai/claude-agent-sdk';
 import * as vscode from 'vscode';
 import { ChatExtendedRequestHandler } from 'vscode';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
@@ -12,7 +11,7 @@ import { IGitService } from '../../../platform/git/common/gitService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
-import { Disposable, IDisposable } from '../../../util/vs/base/common/lifecycle';
+import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { URI } from '../../../util/vs/base/common/uri';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { ClaudeFolderInfo } from '../claude/common/claudeFolderInfo';
@@ -27,7 +26,6 @@ import { IClaudeSlashCommandService } from '../claude/vscode-node/claudeSlashCom
 import { IChatFolderMruService } from '../common/folderRepositoryManager';
 import { buildChatHistory } from './chatHistoryBuilder';
 import { ClaudeSessionOptionBuilder, FOLDER_OPTION_ID, isPermissionMode, PERMISSION_MODE_OPTION_ID } from './claudeSessionOptionBuilder';
-import { getSelectedOption } from './sessionOptionGroupBuilder';
 
 // Import the tool permission handlers
 import '../claude/vscode-node/toolPermissionHandlers/index';
@@ -103,8 +101,14 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 			}
 
 			const modelId = parseClaudeModelId(request.model.id);
-			const permissionMode = this._controller.getPermissionModeForSession(effectiveSessionId);
-			const folderInfo = await this._controller.getFolderInfoForSession(effectiveSessionId);
+			const selectedPermissionId = chatSessionContext.inputState.groups.find(group => group.id === PERMISSION_MODE_OPTION_ID)?.selected?.id;
+			if (!selectedPermissionId || !isPermissionMode(selectedPermissionId)) {
+				throw new Error(`Permission mode not set for session ${effectiveSessionId}`);
+			}
+			const permissionMode = selectedPermissionId;
+			const selectedFolderId = chatSessionContext.inputState.groups.find(group => group.id === FOLDER_OPTION_ID)?.selected?.id;
+			const selectedFolderUri = selectedFolderId ? URI.file(selectedFolderId) : undefined;
+			const folderInfo = await this._controller.getFolderInfoForSession(effectiveSessionId, selectedFolderUri);
 
 			// Commit UI state to session state service before invoking agent manager
 			this.sessionStateService.setModelIdForSession(effectiveSessionId, modelId);
@@ -163,9 +167,8 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
  * Reads sessions from ~/.claude/projects/<folder-slug>/, where each file name is a session id (GUID).
  *
  * Owns the input state (getChatSessionInputState) lifecycle: wiring external
- * state listeners, persisting selections to metadata, and resolving permission
- * mode / folder info for sessions.  Group construction is delegated to
- * {@link ClaudeSessionOptionBuilder}.
+ * state listeners and resolving folder info for sessions.  Group construction
+ * is delegated to {@link ClaudeSessionOptionBuilder}.
  */
 export class ClaudeChatSessionItemController extends Disposable {
 	private readonly _controller: vscode.ChatSessionItemController;
@@ -200,16 +203,6 @@ export class ClaudeChatSessionItemController extends Disposable {
 			);
 			item.iconPath = new vscode.ThemeIcon('claude');
 			item.timing = { created: Date.now() };
-
-			const permissionModeSelection = getSelectedOption(context.inputState.groups, PERMISSION_MODE_OPTION_ID);
-			const permissionMode = permissionModeSelection?.id;
-			const folderSelection = getSelectedOption(context.inputState.groups, FOLDER_OPTION_ID);
-			const folder = folderSelection?.id ? URI.file(folderSelection.id) : undefined;
-
-			item.metadata = {
-				permissionMode,
-				cwd: folder,
-			};
 			this._inProgressItems.set(newSessionId, item);
 			return item;
 		};
@@ -248,7 +241,19 @@ export class ClaudeChatSessionItemController extends Disposable {
 			const newItem = this._controller.createChatSessionItem(ClaudeSessionUri.forSessionId(result.sessionId), title);
 			newItem.iconPath = new vscode.ThemeIcon('claude');
 			newItem.timing = { created: Date.now() };
-			newItem.metadata = item?.metadata ? { ...item.metadata } : undefined;
+
+			// Copy parent session state to the forked session
+			const parentSessionId = ClaudeSessionUri.getSessionId(sessionResource);
+			const parentPermission = this._sessionStateService.getPermissionModeForSession(parentSessionId);
+			const parentFolder = this._sessionStateService.getFolderInfoForSession(parentSessionId);
+			this._sessionStateService.setPermissionModeForSession(result.sessionId, parentPermission);
+			if (parentFolder) {
+				this._sessionStateService.setFolderInfoForSession(result.sessionId, {
+					...parentFolder,
+					additionalDirectories: [...(parentFolder.additionalDirectories ?? [])],
+				});
+			}
+
 			this._controller.items.add(newItem);
 			return newItem;
 		};
@@ -273,44 +278,30 @@ export class ClaudeChatSessionItemController extends Disposable {
 	// #region Input State
 
 	private _setupInputState(): void {
-		const trackedStates: { ref: WeakRef<vscode.ChatSessionInputState>; subscription: IDisposable }[] = [];
+		const trackedStates: { ref: WeakRef<vscode.ChatSessionInputState> }[] = [];
 
 		const sweepStaleEntries = () => {
 			for (let i = trackedStates.length - 1; i >= 0; i--) {
 				if (!trackedStates[i].ref.deref()) {
-					trackedStates[i].subscription.dispose();
 					trackedStates.splice(i, 1);
 				}
 			}
 		};
 
-		// Dispose all subscriptions when the content provider is disposed
-		this._register({
-			dispose: () => {
-				for (const entry of trackedStates) {
-					entry.subscription.dispose();
-				}
-				trackedStates.length = 0;
-			}
-		});
-
 		this._controller.getChatSessionInputState = async (sessionResource, context, token) => {
+			if (context.previousInputState) {
+				const state = this._controller.createChatSessionInputState([...context.previousInputState.groups]);
+				trackedStates.push({ ref: new WeakRef(state) });
+				return state;
+			}
+
 			const isExistingSession = sessionResource && await this._claudeCodeSessionService.getSession(sessionResource, token) !== undefined;
 
 			const groups = isExistingSession
 				? await this._buildExistingSessionGroups(sessionResource)
-				: await this._optionBuilder.buildNewSessionGroups(context.previousInputState);
+				: await this._optionBuilder.buildNewSessionGroups();
 			const state = this._controller.createChatSessionInputState(groups);
-
-			const ref = new WeakRef(state);
-			const subscription = state.onDidChange(() => {
-				const s = ref.deref();
-				if (s) {
-					this._handleInputStateChange(s);
-				}
-			});
-			trackedStates.push({ ref, subscription });
-
+			trackedStates.push({ ref: new WeakRef(state) });
 			return state;
 		};
 
@@ -342,11 +333,6 @@ export class ClaudeChatSessionItemController extends Disposable {
 			if (e.permissionMode === undefined) {
 				return;
 			}
-			const existingMode = this.getMetadata(e.sessionId)?.permissionMode;
-			if (e.permissionMode === existingMode) {
-				return;
-			}
-			this.setMetadata(e.sessionId, { permissionMode: e.permissionMode });
 			for (const entry of trackedStates) {
 				const state = entry.ref.deref();
 				if (state?.sessionResource) {
@@ -368,23 +354,24 @@ export class ClaudeChatSessionItemController extends Disposable {
 
 	private async _buildExistingSessionGroups(sessionResource: vscode.Uri): Promise<vscode.ChatSessionProviderOptionGroup[]> {
 		const sessionId = ClaudeSessionUri.getSessionId(sessionResource);
-		const permissionMode = this.getPermissionModeForSession(sessionId);
-		const workspaceFolders = this._workspaceService.getWorkspaceFolders();
-		const folderUri = workspaceFolders.length !== 1 ? await this._getDefaultFolderForSession(sessionId) : undefined;
-		return this._optionBuilder.buildExistingSessionGroups(permissionMode, folderUri);
-	}
+		const permissionMode = this._sessionStateService.getPermissionModeForSession(sessionId);
 
-	private _handleInputStateChange(state: vscode.ChatSessionInputState): void {
-		const { permissionMode, folderUri } = this._optionBuilder.getSelections(state.groups);
-		const sessionId = state.sessionResource ? ClaudeSessionUri.getSessionId(state.sessionResource) : undefined;
-		if (sessionId) {
-			if (permissionMode) {
-				this.setMetadata(sessionId, { permissionMode });
-			}
-			if (folderUri) {
-				this.setMetadata(sessionId, { cwd: folderUri });
+		const workspaceFolders = this._workspaceService.getWorkspaceFolders();
+		let folderUri: URI | undefined;
+		if (workspaceFolders.length !== 1) {
+			const stateFolder = this._sessionStateService.getFolderInfoForSession(sessionId);
+			if (stateFolder) {
+				folderUri = URI.file(stateFolder.cwd);
+			} else {
+				const session = await this._claudeCodeSessionService.getSession(sessionResource, CancellationToken.None);
+				if (session?.cwd) {
+					folderUri = URI.file(session.cwd);
+				} else {
+					folderUri = await this._optionBuilder.getDefaultFolder();
+				}
 			}
 		}
+		return this._optionBuilder.buildExistingSessionGroups(permissionMode, folderUri);
 	}
 
 	private async _rebuildInputState(state: vscode.ChatSessionInputState): Promise<void> {
@@ -397,26 +384,9 @@ export class ClaudeChatSessionItemController extends Disposable {
 
 	// #endregion
 
-	// #region Permission Mode & Folder Resolution
+	// #region Folder Resolution
 
-	private async _getDefaultFolderForSession(sessionId: string): Promise<URI | undefined> {
-		const selected = this.getMetadata(sessionId)?.cwd;
-		if (selected) {
-			return selected;
-		}
-
-		const defaultFolder = await this._optionBuilder.getDefaultFolder();
-		if (defaultFolder) {
-			this.setMetadata(sessionId, { cwd: defaultFolder });
-		}
-		return defaultFolder;
-	}
-
-	getPermissionModeForSession(sessionId: string): PermissionMode {
-		return this.getMetadata(sessionId)?.permissionMode ?? this._sessionStateService.getPermissionModeForSession(sessionId);
-	}
-
-	async getFolderInfoForSession(sessionId: string): Promise<ClaudeFolderInfo> {
+	async getFolderInfoForSession(sessionId: string, selectedFolderUri?: URI): Promise<ClaudeFolderInfo> {
 		const workspaceFolders = this._workspaceService.getWorkspaceFolders();
 
 		if (workspaceFolders.length === 1) {
@@ -426,11 +396,11 @@ export class ClaudeChatSessionItemController extends Disposable {
 			};
 		}
 
-		// Multi-root or empty workspace: use the selected folder
-		const selectedFolder = this.getMetadata(sessionId)?.cwd;
+		// Multi-root or empty workspace: resolve selected folder from inputState, sessionStateService, or session file
+		const folderUri = selectedFolderUri ?? await this._resolveSessionFolder(sessionId);
 
 		if (workspaceFolders.length > 1) {
-			const cwd = selectedFolder?.fsPath ?? workspaceFolders[0].fsPath;
+			const cwd = folderUri?.fsPath ?? workspaceFolders[0].fsPath;
 			const additionalDirectories = workspaceFolders
 				.map(f => f.fsPath)
 				.filter(p => p !== cwd);
@@ -438,9 +408,9 @@ export class ClaudeChatSessionItemController extends Disposable {
 		}
 
 		// Empty workspace
-		if (selectedFolder) {
+		if (folderUri) {
 			return {
-				cwd: selectedFolder.fsPath,
+				cwd: folderUri.fsPath,
 				additionalDirectories: [],
 			};
 		}
@@ -461,44 +431,22 @@ export class ClaudeChatSessionItemController extends Disposable {
 		};
 	}
 
+	private async _resolveSessionFolder(sessionId: string): Promise<URI | undefined> {
+		const stateFolder = this._sessionStateService.getFolderInfoForSession(sessionId);
+		if (stateFolder) {
+			return URI.file(stateFolder.cwd);
+		}
+
+		const sessionResource = ClaudeSessionUri.forSessionId(sessionId);
+		const session = await this._claudeCodeSessionService.getSession(sessionResource, CancellationToken.None);
+		if (session?.cwd) {
+			return URI.file(session.cwd);
+		}
+
+		return this._optionBuilder.getDefaultFolder();
+	}
+
 	// #endregion
-
-	// #region Metadata
-
-	setMetadata(sessionId: string, metadata: Partial<{ permissionMode: PermissionMode; cwd?: URI }>): void {
-		const item = this._controller.items.get(ClaudeSessionUri.forSessionId(sessionId));
-		if (item) {
-			item.metadata = {
-				...item.metadata,
-				permissionMode: metadata.permissionMode ?? item.metadata?.permissionMode,
-				cwd: metadata.cwd ?? item.metadata?.cwd,
-			};
-		}
-	}
-
-	getMetadata(sessionId: string): { permissionMode?: PermissionMode; cwd?: URI } | undefined {
-		const candidate = this._controller.items.get(ClaudeSessionUri.forSessionId(sessionId));
-		if (candidate) {
-			if (candidate.metadata?.permissionMode !== undefined && !isPermissionMode(candidate.metadata.permissionMode)) {
-				this._logService.warn(`Invalid permission mode "${candidate.metadata?.permissionMode}" found in metadata for session ${sessionId}. Falling back to default.`);
-				candidate.metadata = {
-					permissionMode: 'acceptEdits',
-					cwd: candidate.metadata?.cwd,
-				};
-			}
-			if (candidate.metadata?.cwd && !(URI.isUri(candidate.metadata.cwd))) {
-				this._logService.warn(`Invalid cwd "${candidate.metadata.cwd}" found in metadata for session ${sessionId}. Ignoring.`);
-				candidate.metadata = {
-					permissionMode: candidate.metadata.permissionMode,
-					cwd: undefined,
-				};
-			}
-			return {
-				permissionMode: candidate.metadata?.permissionMode,
-				cwd: candidate.metadata?.cwd,
-			};
-		}
-	}
 
 	updateItemLabel(sessionId: string, label: string): void {
 		const resource = ClaudeSessionUri.forSessionId(sessionId);
@@ -575,11 +523,6 @@ export class ClaudeChatSessionItemController extends Disposable {
 			lastRequestEnded: session.lastRequestEnded,
 		};
 		item.iconPath = new vscode.ThemeIcon('claude');
-		item.metadata = {
-			// Allow it to be set when opened
-			permissionMode: undefined,
-			cwd: session.cwd ? URI.file(session.cwd) : undefined
-		};
 		return item;
 	}
 
