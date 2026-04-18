@@ -713,6 +713,8 @@ export namespace ConfigKey {
 
 		/** Internal: override reasoning/thinking effort sent to model APIs (e.g. Responses API, Messages API). Used by evals. */
 		export const ReasoningEffortOverride = defineSetting<string | null>('chat.reasoningEffortOverride', ConfigType.Simple, null);
+
+		export const SessionSearchCloudSync = defineAndMigrateSetting<boolean>('chat.advanced.sessionSearch.cloudSync.enabled', 'chat.sessionSearch.cloudSync.enabled', false);
 	}
 
 	/**

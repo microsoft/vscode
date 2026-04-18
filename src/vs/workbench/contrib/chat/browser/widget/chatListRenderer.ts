@@ -51,7 +51,8 @@ import { IChatAgentMetadata } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatProgressResponseContent, IChatTextEditGroup } from '../../common/model/chatModel.js';
 import { chatSubcommandLeader } from '../../common/requestParser/chatParserTypes.js';
-import { ChatAgentVoteDirection, ChatErrorLevel, ChatRequestQueueKind, IChatConfirmation, IChatContentReference, IChatDisabledClaudeHooksPart, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatFollowup, IChatHookPart, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatPullRequestContent, IChatQuestionAnswerValue, IChatQuestionAnswers, IChatQuestionCarousel, IChatService, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, isChatFollowup } from '../../common/chatService/chatService.js';
+import { ChatAgentVoteDirection, ChatErrorLevel, ChatRequestQueueKind, IChatConfirmation, IChatContentReference, IChatDisabledClaudeHooksPart, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatFollowup, IChatHookPart, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatPlanReview, IChatPlanReviewResult, IChatPullRequestContent, IChatQuestionAnswerValue, IChatQuestionAnswers, IChatQuestionCarousel, IChatService, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, isChatFollowup } from '../../common/chatService/chatService.js';
+import { ChatPlanReviewData } from '../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ChatQuestionCarouselData } from '../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 import { localChatSessionType } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
@@ -76,6 +77,7 @@ import { IChatContentPart, IChatContentPartRenderContext, InlineTextModelCollect
 import { ChatElicitationContentPart } from './chatContentParts/chatElicitationContentPart.js';
 import { ChatErrorConfirmationContentPart } from './chatContentParts/chatErrorConfirmationPart.js';
 import { ChatErrorContentPart } from './chatContentParts/chatErrorContentPart.js';
+import { ChatPlanReviewPart } from './chatContentParts/chatPlanReviewPart.js';
 import { ChatQuestionCarouselPart } from './chatContentParts/chatQuestionCarouselPart.js';
 import { ChatExtensionsContentPart } from './chatContentParts/chatExtensionsContentPart.js';
 import { ChatMarkdownContentPart, codeblockHasClosingBackticks } from './chatContentParts/chatMarkdownContentPart.js';
@@ -2218,6 +2220,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return this.renderElicitation(context, content, templateData);
 			} else if (content.kind === 'questionCarousel') {
 				return this.renderQuestionCarousel(context, content, templateData);
+			} else if (content.kind === 'planReview') {
+				return this.renderPlanReview(context, content);
 			} else if (content.kind === 'changesSummary') {
 				return this.renderChangesSummary(content, context, templateData);
 			} else if (content.kind === 'mcpServersStarting') {
@@ -2875,6 +2879,69 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		this.accessibilitySignalService.playSignal(AccessibilitySignal.chatUserActionRequired, { allowManyInParallel: true, customAlertMessage: signalMessage });
 
 		// OS toast notification is handled by ChatWindowNotifier
+	}
+
+	private renderPlanReview(context: IChatContentPartRenderContext, review: IChatPlanReview): IChatContentPart {
+		const widget = isResponseVM(context.element) ? this.chatWidgetService.getWidgetBySessionResource(context.element.sessionResource) : undefined;
+		const responseId = isResponseVM(context.element) ? context.element.requestId : undefined;
+		const reviewKey = review.resolveId ?? `${responseId ?? ''}_${context.contentIndex}`;
+
+		const handleSubmit = (result: IChatPlanReviewResult) => {
+			review.data = result;
+			review.isUsed = true;
+			if (review instanceof ChatPlanReviewData) {
+				review.completion.complete(result);
+			}
+			widget?.input.clearPlanReview(undefined, reviewKey);
+		};
+
+		// Once the review has been answered (or the response is complete),
+		// render nothing in the chat stream. The docked widget was already
+		// removed from the input part when the user submitted, and we don't
+		// want a lingering summary in the response (parity with
+		// ChatToolConfirmationCarouselPart behaviour).
+		const responseIsComplete = isResponseVM(context.element) && context.element.isComplete;
+		if (review.isUsed || responseIsComplete) {
+			if (responseIsComplete && !review.isUsed) {
+				review.isUsed = true;
+				if (review instanceof ChatPlanReviewData) {
+					review.completion.complete(undefined);
+				}
+				if (responseId) {
+					widget?.input.clearPlanReview(responseId);
+				}
+			}
+			return this.renderNoContent(other => other.kind === 'planReview');
+		}
+
+		// Dock the active review above the chat input (not while editing).
+		const isEditing = !!this.viewModel?.editing;
+		const dockedPart = isEditing ? undefined : widget?.input.renderPlanReview(review, context, {
+			onSubmit: handleSubmit,
+		});
+
+		// If we couldn't dock (no widget, editing, etc.), fall back to inline rendering.
+		if (!dockedPart) {
+			const fallbackPart = this.instantiationService.createInstance(ChatPlanReviewPart, review, context, {
+				onSubmit: handleSubmit,
+			});
+			return fallbackPart;
+		}
+
+		// Return a placeholder. Re-render when the review is used/complete so
+		// we can transition to the no-content path above and drop the widget.
+		return this.renderNoContent((other, _followingContent, element) => {
+			if (review.isUsed || (isResponseVM(element) && element.isComplete)) {
+				return false;
+			}
+			if (other.kind === 'planReview') {
+				if (review.resolveId && other.resolveId) {
+					return review.resolveId === other.resolveId;
+				}
+				return other === review;
+			}
+			return false;
+		});
 	}
 
 	private removeCarouselFromTracking(context: IChatContentPartRenderContext, part: ChatQuestionCarouselPart): void {
