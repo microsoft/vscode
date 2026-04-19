@@ -157,6 +157,15 @@ function truncate(text: string, maxLength: number): string {
 }
 
 /**
+ * Escapes backticks in a value that will be embedded inside an inline-code
+ * span (`` `...` ``) in a markdown string, so the value can't break out of
+ * the code span.
+ */
+function escapeMdInlineCode(value: string): string {
+	return value.replace(/`/g, '\\`');
+}
+
+/**
  * Formats a file path as a markdown link `[](file-uri)` so it renders
  * as a clickable file widget in the chat UI.
  */
@@ -203,7 +212,7 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 		const args = parameters as ICopilotShellToolArgs | undefined;
 		if (args?.command) {
 			const firstLine = args.command.split('\n')[0];
-			return md(localize('toolInvoke.shellCmd', "Running `{0}`", truncate(firstLine, 80)));
+			return md(localize('toolInvoke.shellCmd', "Running {0}", '`' + escapeMdInlineCode(truncate(firstLine, 80)) + '`'));
 		}
 		return localize('toolInvoke.shell', "Running {0} command", displayName);
 	}
@@ -233,14 +242,14 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 		case CopilotToolName.Grep: {
 			const args = parameters as ICopilotGrepToolArgs | undefined;
 			if (args?.pattern) {
-				return md(localize('toolInvoke.grepPattern', "Searching for `{0}`", truncate(args.pattern, 80)));
+				return md(localize('toolInvoke.grepPattern', "Searching for {0}", '`' + escapeMdInlineCode(truncate(args.pattern, 80)) + '`'));
 			}
 			return localize('toolInvoke.grep', "Searching files");
 		}
 		case CopilotToolName.Glob: {
 			const args = parameters as ICopilotGlobToolArgs | undefined;
 			if (args?.pattern) {
-				return md(localize('toolInvoke.globPattern', "Finding files matching `{0}`", truncate(args.pattern, 80)));
+				return md(localize('toolInvoke.globPattern', "Finding files matching {0}", '`' + escapeMdInlineCode(truncate(args.pattern, 80)) + '`'));
 			}
 			return localize('toolInvoke.glob', "Finding files");
 		}
@@ -258,7 +267,7 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 		const args = parameters as ICopilotShellToolArgs | undefined;
 		if (args?.command) {
 			const firstLine = args.command.split('\n')[0];
-			return md(localize('toolComplete.shellCmd', "Ran `{0}`", truncate(firstLine, 80)));
+			return md(localize('toolComplete.shellCmd', "Ran {0}", '`' + escapeMdInlineCode(truncate(firstLine, 80)) + '`'));
 		}
 		return localize('toolComplete.shell', "Ran {0} command", displayName);
 	}
@@ -288,14 +297,14 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 		case CopilotToolName.Grep: {
 			const args = parameters as ICopilotGrepToolArgs | undefined;
 			if (args?.pattern) {
-				return md(localize('toolComplete.grepPattern', "Searched for `{0}`", truncate(args.pattern, 80)));
+				return md(localize('toolComplete.grepPattern', "Searched for {0}", '`' + escapeMdInlineCode(truncate(args.pattern, 80)) + '`'));
 			}
 			return localize('toolComplete.grep', "Searched files");
 		}
 		case CopilotToolName.Glob: {
 			const args = parameters as ICopilotGlobToolArgs | undefined;
 			if (args?.pattern) {
-				return md(localize('toolComplete.globPattern', "Found files matching `{0}`", truncate(args.pattern, 80)));
+				return md(localize('toolComplete.globPattern', "Found files matching {0}", '`' + escapeMdInlineCode(truncate(args.pattern, 80)) + '`'));
 			}
 			return localize('toolComplete.glob', "Found files");
 		}
