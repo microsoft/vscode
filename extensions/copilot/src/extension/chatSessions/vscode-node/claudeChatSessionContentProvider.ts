@@ -14,7 +14,7 @@ import { IWorkspaceService } from '../../../platform/workspace/common/workspaceS
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { Emitter, Event } from '../../../util/vs/base/common/event';
 import { Disposable, DisposableStore } from '../../../util/vs/base/common/lifecycle';
-import { autorun, derived, ISettableObservable, observableFromEvent, observableValue } from '../../../util/vs/base/common/observable';
+import { autorun, derived, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../util/vs/base/common/observable';
 import { basename } from '../../../util/vs/base/common/resources';
 import { URI } from '../../../util/vs/base/common/uri';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
@@ -182,10 +182,10 @@ export class ClaudeChatSessionItemController extends Disposable {
 	// #region Shared Observable State
 
 	/** Whether the "bypass permissions" config is enabled — controls permission mode items. */
-	private readonly _bypassPermissionsEnabled;
+	private readonly _bypassPermissionsEnabled: IObservable<boolean>;
 
 	/** Current workspace folders — controls folder group items and visibility. */
-	private readonly _workspaceFolders;
+	private readonly _workspaceFolders: IObservable<URI[]>;
 
 	/** Disposes per-state autoruns when the state object is garbage collected. */
 	private readonly _stateAutorunRegistry = new FinalizationRegistry<DisposableStore>(
