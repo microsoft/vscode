@@ -1125,7 +1125,7 @@ describe('ChatSessionMetadataStore', () => {
 			const fileUri = sessionMetadataFileUri('session-no-file');
 			const rawContent = await mockFs.readFile(fileUri);
 			const written = JSON.parse(new TextDecoder().decode(rawContent));
-			expect(written).toEqual({});
+			expect(written).toEqual({ origin: 'other' });
 			store.dispose();
 		});
 	});

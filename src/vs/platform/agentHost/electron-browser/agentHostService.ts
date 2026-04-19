@@ -6,6 +6,7 @@
 import { DeferredPromise } from '../../../base/common/async.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IReference } from '../../../base/common/lifecycle.js';
+import { IObservable, ISettableObservable, observableValue } from '../../../base/common/observable.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { getDelayedChannel, ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { Client as MessagePortClient } from '../../../base/parts/ipc/common/ipc.mp.js';
@@ -13,7 +14,7 @@ import { acquirePort } from '../../../base/parts/ipc/electron-browser/ipc.mp.js'
 import { InstantiationType, registerSingleton } from '../../instantiation/common/extensions.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { ILogService } from '../../log/common/log.js';
-import { AgentHostEnabledSettingId, AgentHostIpcChannels, IAgentCreateSessionConfig, IAgentHostService, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult } from '../common/agentService.js';
+import { AgentHostEnabledSettingId, AgentHostIpcChannels, IAgentCreateSessionConfig, IAgentHostService, IAgentResolveSessionConfigParams, IAgentService, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult, IAgentHostSocketInfo, IConnectionTrackerService } from '../common/agentService.js';
 import { AgentSubscriptionManager, type IAgentSubscription } from '../common/state/agentSubscription.js';
 import type { ICreateTerminalParams, IResolveSessionConfigResult, ISessionConfigCompletionsResult } from '../common/state/protocol/commands.js';
 import type { IActionEnvelope, INotification, ISessionAction, ITerminalAction } from '../common/state/sessionActions.js';
@@ -36,6 +37,7 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 
 	private readonly _clientEventually = new DeferredPromise<MessagePortClient>();
 	private readonly _proxy: IAgentService;
+	private readonly _connectionTracker: IConnectionTrackerService;
 	private readonly _subscriptionManager: AgentSubscriptionManager;
 
 	private readonly _onAgentHostExit = this._register(new Emitter<number>());
@@ -49,6 +51,23 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 	private readonly _onDidNotification = this._register(new Emitter<INotification>());
 	readonly onDidNotification = this._onDidNotification.event;
 
+	private readonly _authenticationPending: ISettableObservable<boolean> = observableValue('authenticationPending', true);
+	readonly authenticationPending: IObservable<boolean> = this._authenticationPending;
+	private _authenticationSettled = false;
+
+	setAuthenticationPending(pending: boolean): void {
+		// Sticky: once the first authentication pass settles, never surface
+		// pending again. Subsequent re-auths (account/session changes, reconnect)
+		// happen silently in the background and should not flicker the UI.
+		if (this._authenticationSettled) {
+			return;
+		}
+		if (!pending) {
+			this._authenticationSettled = true;
+		}
+		this._authenticationPending.set(pending, undefined);
+	}
+
 	constructor(
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService configurationService: IConfigurationService,
@@ -59,6 +78,10 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 		// calls queue until the MessagePort connection is established.
 		this._proxy = ProxyChannel.toService<IAgentService>(
 			getDelayedChannel(this._clientEventually.p.then(client => client.getChannel(AgentHostIpcChannels.AgentHost)))
+		);
+
+		this._connectionTracker = ProxyChannel.toService<IConnectionTrackerService>(
+			getDelayedChannel(this._clientEventually.p.then(client => client.getChannel(AgentHostIpcChannels.ConnectionTracker)))
 		);
 
 		this._subscriptionManager = this._register(new AgentSubscriptionManager(
@@ -182,6 +205,10 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 	}
 	async restartAgentHost(): Promise<void> {
 		// Restart is handled by the main process side
+	}
+
+	startWebSocketServer(): Promise<IAgentHostSocketInfo> {
+		return this._connectionTracker.startWebSocketServer();
 	}
 }
 

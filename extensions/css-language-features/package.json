@@ -12,8 +12,7 @@
   "activationEvents": [
     "onLanguage:css",
     "onLanguage:less",
-    "onLanguage:scss",
-    "onCommand:_css.applyCodeAction"
+    "onLanguage:scss"
   ],
   "main": "./client/out/node/cssClientMain",
   "browser": "./client/dist/browser/cssClientMain",

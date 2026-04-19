@@ -9,6 +9,7 @@ import { BudgetExceededError } from '@vscode/prompt-tsx/dist/base/materialized';
 import type * as vscode from 'vscode';
 import { IChatSessionService } from '../../../platform/chat/common/chatSessionService';
 import { ChatFetchResponseType, ChatLocation, ChatResponse } from '../../../platform/chat/common/commonTypes';
+import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { isAnthropicFamily, isGptFamily, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelSupportsApplyPatch, modelSupportsMultiReplaceString, modelSupportsReplaceString, modelSupportsSimplifiedApplyPatchInstructions } from '../../../platform/endpoint/common/chatModelCapabilities';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
@@ -16,7 +17,7 @@ import { IAutomodeService } from '../../../platform/endpoint/node/automodeServic
 import { IEnvService } from '../../../platform/env/common/envService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IEditLogService } from '../../../platform/multiFileEdit/common/editLogService';
-import { CUSTOM_TOOL_SEARCH_NAME, isAnthropicCustomToolSearchEnabled, isAnthropicContextEditingEnabled, isAnthropicToolSearchEnabled } from '../../../platform/networking/common/anthropic';
+import { CUSTOM_TOOL_SEARCH_NAME, isAnthropicContextEditingEnabled } from '../../../platform/networking/common/anthropic';
 import { IChatEndpoint } from '../../../platform/networking/common/networking';
 import { modelsWithoutResponsesContextManagement } from '../../../platform/networking/common/openai';
 import { INotebookService } from '../../../platform/notebook/common/notebookService';
@@ -45,9 +46,9 @@ import { IDefaultIntentRequestHandlerOptions } from '../../prompt/node/defaultIn
 import { IDocumentContext } from '../../prompt/node/documentContext';
 import { IBuildPromptResult, IIntent, IIntentInvocation } from '../../prompt/node/intents';
 import { AgentPrompt, AgentPromptProps } from '../../prompts/node/agent/agentPrompt';
-import { BackgroundSummarizationState, BackgroundSummarizer, IBackgroundSummarizationResult } from '../../prompts/node/agent/backgroundSummarizer';
+import { BackgroundSummarizationState, BackgroundSummarizer, IBackgroundSummarizationResult, shouldKickOffBackgroundSummarization } from '../../prompts/node/agent/backgroundSummarizer';
 import { AgentPromptCustomizations, PromptRegistry } from '../../prompts/node/agent/promptRegistry';
-import { extractInlineSummary, InlineSummarizationUserMessage, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder } from '../../prompts/node/agent/summarizedConversationHistory';
+import { extractInlineSummary, InlineSummarizationUserMessage, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder, appendTranscriptHintToSummary, computeSummarizationRoundCounts } from '../../prompts/node/agent/summarizedConversationHistory';
 import { PromptRenderer, renderPromptElement } from '../../prompts/node/base/promptRenderer';
 import { ICodeMapperService } from '../../prompts/node/codeMapper/codeMapperService';
 import { EditCodePrompt2 } from '../../prompts/node/panel/editCodePrompt2';
@@ -127,6 +128,7 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	allowTools['task_complete'] = request.permissionLevel === 'autopilot';
 
 	allowTools[ToolName.EditFilesPlaceholder] = false;
+	allowTools[ToolName.SessionStoreSql] = false; // Only available via /chronicle
 	// todo@connor4312: string check here is for back-compat for 1.109 Insiders
 	if (Iterable.some(request.tools, ([t, enabled]) => (typeof t === 'string' ? t : t.name) === ContributedToolName.EditFilesPlaceholder && enabled === false)) {
 		allowTools[ToolName.ApplyPatch] = false;
@@ -139,7 +141,7 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 		allowTools[ToolName.MultiReplaceString] = true;
 	}
 
-	allowTools[CUSTOM_TOOL_SEARCH_NAME] = isAnthropicCustomToolSearchEnabled(model, configurationService, experimentationService);
+	allowTools[CUSTOM_TOOL_SEARCH_NAME] = !!model.supportsToolSearch;
 
 	const tools = toolsService.getEnabledTools(request, model, tool => {
 		if (typeof allowTools[tool.name] === 'boolean') {
@@ -359,6 +361,12 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 	/** Cached model capabilities from the most recent main agent render, reused by the background summarizer. */
 	private _lastModelCapabilities: { enableThinking: boolean; reasoningEffort: string | undefined; enableToolSearch: boolean; enableContextEditing: boolean } | undefined;
 
+	/**
+	 * RNG used to jitter the inline-summarization trigger threshold around 0.80.
+	 * Tests may overwrite this directly (e.g. `(invocation as any)._thresholdRng = () => 0.5`).
+	 */
+	private _thresholdRng: () => number = Math.random;
+
 	constructor(
 		intent: IIntent,
 		location: ChatLocation,
@@ -381,6 +389,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		@IExperimentationService private readonly expService: IExperimentationService,
 		@IAutomodeService private readonly automodeService: IAutomodeService,
 		@IOTelService override readonly otelService: IOTelService,
+		@ISessionTranscriptService private readonly sessionTranscriptService: ISessionTranscriptService,
 	) {
 		super(intent, location, endpoint, request, intentOptions, instantiationService, codeMapperService, envService, promptPathRepresentationService, endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, otelService);
 	}
@@ -406,7 +415,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		}
 
 		const tools = promptContext.tools?.availableTools;
-		const toolSearchEnabled = isAnthropicToolSearchEnabled(this.endpoint, this.configurationService);
+		const toolSearchEnabled = !!this.endpoint.supportsToolSearch;
 		const toolTokens = tools?.length ? await this.endpoint.acquireTokenizer().countToolTokens(tools) : 0;
 
 		const summarizeThresholdOverride = this.configurationService.getConfig<number | undefined>(ConfigKey.Advanced.SummarizeAgentConversationHistoryThreshold);
@@ -538,6 +547,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 					endpoint: this.endpoint,
 					promptContext: renderProps.promptContext,
 					triggerSummarize: true,
+					forceSimpleSummary: true,
 				});
 				return await renderer.render(progress, token);
 			} catch (e) {
@@ -658,13 +668,26 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 			));
 		}
 
-		// Post-render: kick off background compaction at ≥ 80% if idle.
+		// Post-render: kick off background compaction if idle and over the
+		// threshold. For the inline-summarization path we care about prompt
+		// cache parity with the main agent fetch — so we gate kick-off on a
+		// completed tool call (cache has been warmed) and jitter the threshold
+		// around 0.80 to avoid firing at the same exact boundary every time.
+		// The non-inline path forks its own prompt and sees no cache benefit,
+		// so it keeps the simple >= 0.80 behavior.
 		if (summarizationEnabled && backgroundSummarizer && !didSummarizeThisIteration) {
 			const postRenderRatio = baseBudget > 0
 				? (result.tokenCount + toolTokens) / baseBudget
 				: 0;
 
-			if (postRenderRatio >= 0.80 && (backgroundSummarizer.state === BackgroundSummarizationState.Idle || backgroundSummarizer.state === BackgroundSummarizationState.Failed)) {
+			const idleOrFailed = backgroundSummarizer.state === BackgroundSummarizationState.Idle
+				|| backgroundSummarizer.state === BackgroundSummarizationState.Failed;
+
+			const cacheWarm = (promptContext.toolCallRounds?.length ?? 0) > 0;
+
+			const kickOff = shouldKickOffBackgroundSummarization(postRenderRatio, useInlineSummarization, cacheWarm, this._thresholdRng);
+
+			if (kickOff && idleOrFailed) {
 				if (useInlineSummarization) {
 					// Compute and cache model capabilities from the current render's
 					// messages. These must match the main agent fetch for cache parity.
@@ -674,7 +697,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 					this._lastModelCapabilities = {
 						enableThinking: !isAnthropicFamily(this.endpoint) || ToolCallingLoop.messagesContainThinking(strippedMessages),
 						reasoningEffort: typeof rawEffort === 'string' ? rawEffort : undefined,
-						enableToolSearch: !isSubagent && isAnthropicToolSearchEnabled(this.endpoint, this.configurationService),
+						enableToolSearch: !isSubagent && !!this.endpoint.supportsToolSearch,
 						enableContextEditing: !isSubagent && isAnthropicContextEditingEnabled(this.endpoint, this.configurationService, this.expService),
 					};
 				}
@@ -839,18 +862,27 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 					if (response.type !== ChatFetchResponseType.Success) {
 						throw new Error(`Background inline summarization request failed: ${response.type}`);
 					}
-					const summaryText = extractInlineSummary(response.value);
-					if (!summaryText) {
+					const rawSummaryText = extractInlineSummary(response.value);
+					if (!rawSummaryText) {
 						throw new Error('Background inline summarization: no <summary> tags found in response');
 					}
 					if (!toolCallRoundId) {
 						throw new Error('Background inline summarization: no round ID to apply summary to');
 					}
+					// Flush the transcript before snapshotting the line count so
+					// the baked "N lines" hint matches the on-disk file at this
+					// moment (mirrors the full/simple path in SummarizedConversationHistory.render).
+					if (conversationId && this.sessionTranscriptService.getTranscriptPath(conversationId)) {
+						await this.sessionTranscriptService.flush(conversationId);
+					}
+					const summaryText = conversationId
+						? appendTranscriptHintToSummary(rawSummaryText, conversationId, this.sessionTranscriptService)
+						: rawSummaryText;
 					this.logService.debug(`[ConversationHistorySummarizer] background inline compaction completed (${summaryText.length} chars, roundId=${toolCallRoundId})`);
 
 					// Send summarizedConversationHistory telemetry for parity
 					// with the standard ConversationHistorySummarizer path.
-					const numRoundsInHistory = history.reduce((sum, t) => sum + t.rounds.length, 0);
+					const { numRounds, numRoundsSinceLastSummarization } = computeSummarizationRoundCounts(history, rounds);
 					const numRoundsInCurrentTurn = rounds.length;
 					const lastUsedTool = rounds.at(-1)?.toolCalls?.at(-1)?.name
 						?? history.at(-1)?.rounds.at(-1)?.toolCalls?.at(-1)?.name ?? 'none';
@@ -861,7 +893,6 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 							"outcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The success state." },
 							"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model ID." },
 							"summarizationMode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The summarization mode." },
-							"source": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether background or foreground." },
 							"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Session id." },
 							"chatRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat request ID." },
 							"lastUsedTool": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The last tool used before summarization." },
@@ -880,13 +911,12 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 						outcome: 'success',
 						model: this.endpoint.model,
 						summarizationMode: 'inline',
-						source: 'background',
 						conversationId,
 						chatRequestId: associatedRequestId,
 						lastUsedTool,
 						requestId: response.requestId,
 					}, {
-						numRounds: numRoundsInHistory + numRoundsInCurrentTurn,
+						numRounds,
 						turnIndex: history.length,
 						curTurnRoundIndex: numRoundsInCurrentTurn,
 						isDuringToolCalling: numRoundsInCurrentTurn > 0 ? 1 : 0,
@@ -905,8 +935,8 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 						durationMs: Date.now() - bgStartTime,
 						model: this.endpoint.model,
 						summarizationMode: 'inline',
-						numRounds: undefined,
-						numRoundsSinceLastSummarization: undefined,
+						numRounds,
+						numRoundsSinceLastSummarization,
 					};
 				} else {
 					// Standard mode: use triggerSummarize which makes a separate
@@ -924,7 +954,6 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 						endpoint: this.endpoint,
 						promptContext: snapshotProps.promptContext,
 						triggerSummarize: true,
-						summarizationSource: 'background',
 					});
 					const bgProgress: vscode.Progress<vscode.ChatResponseReferencePart | vscode.ChatResponseProgressPart> = { report: () => { } };
 					const bgRenderResult = await bgRenderer.render(bgProgress, bgToken);
@@ -959,7 +988,6 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 							"detailedOutcome": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Detailed failure reason." },
 							"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model ID." },
 							"summarizationMode": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The summarization mode." },
-							"source": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether background or foreground." },
 							"conversationId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Session id." },
 							"chatRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat request ID." },
 							"duration": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Duration in ms." }
@@ -970,7 +998,6 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 						detailedOutcome: err instanceof Error ? err.message : String(err),
 						model: this.endpoint.model,
 						summarizationMode: 'inline',
-						source: 'background',
 						conversationId,
 						chatRequestId: associatedRequestId,
 					}, {

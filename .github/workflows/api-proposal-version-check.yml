@@ -35,7 +35,7 @@ jobs:
     steps:
       - name: Get PR info
         id: pr_info
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             let prNumber, headSha, baseSha;
@@ -62,7 +62,7 @@ jobs:
 
       - name: Check for override comment
         id: check_override
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const prNumber = ${{ steps.pr_info.outputs.number }};
@@ -130,7 +130,7 @@ jobs:
           (github.event.comment.author_association == 'OWNER' ||
            github.event.comment.author_association == 'MEMBER' ||
            github.event.comment.author_association == 'COLLABORATOR')
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const headSha = '${{ steps.pr_info.outputs.head_sha }}';
@@ -241,7 +241,7 @@ jobs:
 
       - name: Post warning comment
         if: steps.check_override.outputs.override_found != 'true' && steps.version_check.outputs.version_changed == 'true'
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         with:
           script: |
             const prNumber = ${{ steps.pr_info.outputs.number }};

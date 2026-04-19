@@ -49,7 +49,7 @@ class NewChatWidget extends Disposable {
 			if (!session) {
 				return false;
 			}
-			return !session.loading.read(reader) && session.ready.read(reader);
+			return !session.loading.read(reader);
 		});
 
 		const loading = derived(reader => {
@@ -82,7 +82,7 @@ class NewChatWidget extends Disposable {
 		const chatWidgetContent = dom.append(chatWidgetContainer, dom.$('.new-chat-widget-content'));
 
 		const workspacePickerContainer = dom.append(chatWidgetContent, dom.$('.new-session-workspace-picker-container'));
-		this._renderWorkspacePicker(workspacePickerContainer);
+		this._register(this._renderWorkspacePicker(workspacePickerContainer));
 
 		this._newChatInput.render(chatWidgetContent, parent);
 

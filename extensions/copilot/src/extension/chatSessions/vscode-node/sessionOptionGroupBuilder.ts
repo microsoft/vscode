@@ -549,7 +549,7 @@ export class SessionOptionGroupBuilder implements ISessionOptionGroupBuilder {
 	 */
 	async rebuildInputState(state: vscode.ChatSessionInputState, selectedFolderUri?: vscode.Uri): Promise<void> {
 		const newGroups = await this._buildGroupsOnce(state, selectedFolderUri);
-		if (!optionGroupsEqual(state.groups, newGroups)) {
+		if (!optionGroupsEqual(state.groups, newGroups) || selectedFolderUri) {
 			state.groups = newGroups;
 		}
 		if (selectedFolderUri) {
@@ -730,11 +730,7 @@ export class SessionOptionGroupBuilder implements ISessionOptionGroupBuilder {
 	}
 
 	lockInputStateGroups(state: vscode.ChatSessionInputState): void {
-		state.groups = state.groups.map(group => ({
-			...group,
-			items: group.items.map(item => ({ ...item, locked: true })),
-			selected: group.selected ? { ...group.selected, locked: true } : undefined,
-		}));
+		lockInputStateGroups(state);
 	}
 
 	updateBranchInInputState(state: vscode.ChatSessionInputState, branchName: string): void {
@@ -759,4 +755,12 @@ export class SessionOptionGroupBuilder implements ISessionOptionGroupBuilder {
 		updatedGroups[existingIdx] = branchGroup;
 		state.groups = updatedGroups;
 	}
+}
+
+export function lockInputStateGroups(state: vscode.ChatSessionInputState): void {
+	state.groups = state.groups.map(group => ({
+		...group,
+		items: group.items.map(item => ({ ...item, locked: true })),
+		selected: group.selected ? { ...group.selected, locked: true } : undefined,
+	}));
 }

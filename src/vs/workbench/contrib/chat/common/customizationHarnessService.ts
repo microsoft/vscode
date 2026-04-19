@@ -15,7 +15,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { AICustomizationManagementSection, IStorageSourceFilter } from './aiCustomizationWorkspaceService.js';
 import { PromptsType } from './promptSyntax/promptTypes.js';
 import { AGENT_MD_FILENAME } from './promptSyntax/config/promptFileLocations.js';
-import { PromptsStorage } from './promptSyntax/service/promptsService.js';
+import { IChatPromptSlashCommand, IPromptsService, PromptsStorage } from './promptSyntax/service/promptsService.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 
 export const ICustomizationHarnessService = createDecorator<ICustomizationHarnessService>('customizationHarnessService');
@@ -125,7 +125,13 @@ export interface IHarnessDescriptor {
 	 * that can supply customization items directly (bypassing promptsService
 	 * discovery and filtering).
 	 */
-	readonly itemProvider?: IExternalCustomizationItemProvider;
+	readonly itemProvider?: ICustomizationItemProvider;
+	/**
+	 * When `true`, the "Troubleshoot" action is available in item context
+	 * menus. This opens chat with the `/troubleshoot` command pre-filled
+	 * for the selected customization.
+	 */
+	readonly supportsTroubleshoot?: boolean;
 	/**
 	 * When set, this harness supports syncing local customizations to a
 	 * remote target. The UI shows local items with sync checkboxes when
@@ -135,13 +141,17 @@ export interface IHarnessDescriptor {
 }
 
 /**
- * Represents a customization item provided by an external extension.
+ * Represents a customization item provided by any source.
  */
-export interface IExternalCustomizationItem {
+export interface ICustomizationItem {
 	readonly uri: URI;
 	readonly type: string;
 	readonly name: string;
 	readonly description?: string;
+	/** Storage origin (local, user, extension, plugin). Set by providers that know the source. */
+	readonly storage?: PromptsStorage;
+	/** Display name of the contributing extension (e.g. "GitHub Copilot Chat"). */
+	readonly extensionLabel?: string;
 	/** Server-reported loading status for this customization. */
 	readonly status?: 'loading' | 'loaded' | 'degraded' | 'error';
 	/** Human-readable status detail (e.g. error message or warning). */
@@ -160,7 +170,7 @@ export interface IExternalCustomizationItem {
  * Provider interface for extension-contributed harnesses that supply
  * customization items directly from their SDK.
  */
-export interface IExternalCustomizationItemProvider {
+export interface ICustomizationItemProvider {
 	/**
 	 * Event that fires when the provider's customizations change.
 	 */
@@ -168,7 +178,7 @@ export interface IExternalCustomizationItemProvider {
 	/**
 	 * Provide the customization items this harness supports.
 	 */
-	provideChatSessionCustomizations(token: CancellationToken): Promise<IExternalCustomizationItem[] | undefined>;
+	provideChatSessionCustomizations(token: CancellationToken): Promise<ICustomizationItem[] | undefined>;
 }
 
 /**
@@ -250,7 +260,73 @@ export interface ICustomizationHarnessService {
 	registerExternalHarness(descriptor: IHarnessDescriptor): IDisposable;
 }
 
+/**
+ * Minimal slash-command metadata resolved from the active harness.
+ */
+export interface ICustomizationSlashCommand {
+	readonly uri: URI;
+	readonly type: PromptsType.prompt | PromptsType.skill;
+	readonly name: string;
+	readonly description?: string;
+	readonly userInvocable: boolean;
+	readonly sessionTypes?: readonly string[];
+}
+
+/**
+ * Returns the prompt and skill slash commands for the currently active harness.
+ * Provider-backed harnesses contribute their own items directly; the default
+ * VS Code harness falls back to the core prompts service.
+ */
+export async function getActiveHarnessSlashCommands(
+	harnessService: ICustomizationHarnessService,
+	promptsService: Pick<IPromptsService, 'getPromptSlashCommands' | 'isValidSlashCommandName'>,
+	token: CancellationToken,
+): Promise<readonly IChatPromptSlashCommand[]> {
+	const itemProvider = harnessService.getActiveDescriptor().itemProvider;
+	if (!itemProvider) {
+		return await promptsService.getPromptSlashCommands(token);
+	}
+
+	const items = await itemProvider.provideChatSessionCustomizations(token);
+	if (!items) {
+		return [];
+	}
+	const result = [];
+	for (const item of items) {
+		if ((item.enabled !== false) && (item.type === PromptsType.prompt || item.type === PromptsType.skill)) {
+			result.push({
+				uri: item.uri,
+				type: item.type as PromptsType.prompt | PromptsType.skill,
+				name: item.name,
+				description: item.description,
+				userInvocable: true,
+				storage: item.storage ?? PromptsStorage.local,
+				when: undefined
+			});
+		}
+	}
+	return result;
+}
+
 // #region Shared filter constants
+
+/**
+ * Empty filter returned when no harness is registered yet.
+ */
+const EMPTY_FILTER: IStorageSourceFilter = {
+	sources: [],
+};
+
+/**
+ * Empty descriptor returned when no harness is registered yet.
+ */
+const EMPTY_DESCRIPTOR: IHarnessDescriptor = {
+	id: '',
+	label: '',
+	icon: Codicon.sparkle,
+	getStorageSourceFilter: () => ({ sources: [] }),
+};
+
 
 /**
  * Hooks filter — local, user, and plugin sources.
@@ -299,6 +375,7 @@ export function createVSCodeHarnessDescriptor(extras: readonly string[]): IHarne
 		id: CustomizationHarness.VSCode,
 		label: localize('harness.local', "Local"),
 		icon: ThemeIcon.fromId(Codicon.vm.id),
+		supportsTroubleshoot: true,
 		sectionOverrides: new Map([
 			[AICustomizationManagementSection.Instructions, {
 				rootFileShortcuts: [AGENT_MD_FILENAME],
@@ -484,13 +561,19 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 	getStorageSourceFilter(type: PromptsType): IStorageSourceFilter {
 		const activeId = this._activeHarness.get();
 		const all = this._getAllHarnesses();
-		const descriptor = all.find(h => h.id === activeId);
-		return descriptor?.getStorageSourceFilter(type) ?? all[0].getStorageSourceFilter(type);
+		if (all.length === 0) {
+			return EMPTY_FILTER;
+		}
+		const descriptor = all.find(h => h.id === activeId) ?? all[0];
+		return descriptor?.getStorageSourceFilter(type) ?? EMPTY_FILTER;
 	}
 
 	getActiveDescriptor(): IHarnessDescriptor {
 		const activeId = this._activeHarness.get();
 		const all = this._getAllHarnesses();
+		if (all.length === 0) {
+			return EMPTY_DESCRIPTOR;
+		}
 		return all.find(h => h.id === activeId) ?? all[0];
 	}
 }

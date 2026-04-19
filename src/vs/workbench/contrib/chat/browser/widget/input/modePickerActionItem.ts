@@ -28,8 +28,9 @@ import { IChatAgentService } from '../../../common/participants/chatAgents.js';
 import { ChatMode, IChatMode, IChatModeService } from '../../../common/chatModes.js';
 import { isOrganizationPromptFile } from '../../../common/promptSyntax/utils/promptsServiceUtils.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../../common/constants.js';
-import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { matchesSessionType, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { Target } from '../../../common/promptSyntax/promptTypes.js';
+import { getChatSessionType } from '../../../common/model/chatUri.js';
 import { getOpenChatActionIdForMode } from '../../actions/chatActions.js';
 import { IToggleChatModeArgs, ToggleAgentModeActionId } from '../../actions/chatExecuteActions.js';
 import { ChatInputPickerActionViewItem, IChatInputPickerOptions } from './chatInputPickerActionItem.js';
@@ -131,7 +132,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 				enabled: !isDisabledViaPolicy,
 				checked: !isDisabledViaPolicy && currentMode.id === mode.id,
 				tooltip: '',
-				hover: { content: tooltip, position: this.pickerOptions.hoverPosition },
+				hover: { content: tooltip },
 				toolbarActions,
 				run: async () => {
 					if (isDisabledViaPolicy) {
@@ -154,7 +155,7 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 			return {
 				...makeAction(mode, currentMode),
 				tooltip: '',
-				hover: { content: mode.description.get() ?? chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip, position: this.pickerOptions.hoverPosition },
+				hover: { content: mode.description.get() ?? chatAgentService.getDefaultAgent(ChatAgentLocation.Chat, mode.kind)?.description ?? action.tooltip },
 				icon: mode.icon.get() ?? (isModeConsideredBuiltIn(mode, this._productService) ? builtinDefaultIcon(mode) : undefined),
 				category: agentModeDisabledViaPolicy ? policyDisabledCategory : customCategory
 			};
@@ -163,12 +164,14 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 		const getActionsForCustomAgentTarget = (currentTarget: Target): IActionWidgetDropdownAction[] => {
 			const modes = chatModeService.getModes();
 			const currentMode = delegate.currentMode.get();
+			const sessionResource = delegate.sessionResource();
+			const currentSessionType = sessionResource ? getChatSessionType(sessionResource) : undefined;
 			const filteredCustomModes = modes.custom.filter(mode => {
 				const target = mode.target.get();
 				if (target !== currentTarget && target !== Target.Undefined) {
 					return false;
 				}
-				if (mode.when && !this.contextKeyService.contextMatchesRules(mode.when)) {
+				if (!matchesSessionType(mode.sessionTypes, currentSessionType)) {
 					return false;
 				}
 				return true;
@@ -195,12 +198,14 @@ export class ModePickerActionItem extends ChatInputPickerActionViewItem {
 				const modes = chatModeService.getModes();
 				const currentMode = delegate.currentMode.get();
 				const agentMode = modes.builtin.find(mode => mode.id === ChatMode.Agent.id);
+				const sessionResource = delegate.sessionResource();
+				const currentSessionType = sessionResource ? getChatSessionType(sessionResource) : undefined;
 
 				const otherBuiltinModes = modes.builtin.filter(mode => {
 					return mode.id !== ChatMode.Agent.id && shouldShowBuiltInMode(mode, assignments.get(), agentModeDisabledViaPolicy);
 				});
 				const filteredCustomModes = modes.custom.filter(mode => {
-					if (mode.when && !this.contextKeyService.contextMatchesRules(mode.when)) {
+					if (!matchesSessionType(mode.sessionTypes, currentSessionType)) {
 						return false;
 					}
 					if (isModeConsideredBuiltIn(mode, this._productService)) {

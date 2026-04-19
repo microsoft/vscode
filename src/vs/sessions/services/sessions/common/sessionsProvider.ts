@@ -7,7 +7,7 @@ import { Event } from '../../../../base/common/event.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
-import { ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction } from './session.js';
+import { IChat, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction } from './session.js';
 
 /**
  * Event fired when sessions change within a provider.
@@ -26,15 +26,6 @@ export interface ISendRequestOptions {
 	readonly query: string;
 	/** Optional attached context entries. */
 	readonly attachedContext?: IChatRequestVariableEntry[];
-}
-
-/**
- * Capabilities declared by a sessions provider.
- * Consumers check these before surfacing provider-specific features in the UI.
- */
-export interface ISessionsProviderCapabilities {
-	/** Whether the provider supports multiple chats within a single session. */
-	readonly multipleChatsPerSession: boolean;
 }
 
 /**
@@ -68,15 +59,6 @@ export interface ISessionsProvider {
 	 * Event that fires when the list of session types changes. Consumers should refresh any session type pickers when this occurs.
 	 */
 	readonly onDidChangeSessionTypes: Event<void>;
-
-	/**
-	 * Capabilities of the provider, which may affect how sessions from this provider are surfaced in the UI. The provider is expected to update capabilities and fire `onDidChangeCapabilities` when they change.
-	 */
-	readonly capabilities: ISessionsProviderCapabilities;
-	/**
-	 * Event that fires when capabilities change. Consumers should refresh any UI affected by capabilities when this occurs.
-	 */
-	readonly onDidChangeCapabilities: Event<ISessionsProviderCapabilities>;
 
 	/**
 	 * List of all sessions currently known to the provider. Consumers should not cache this list, but should listen to `onDidChangeSessions` and update their cached list accordingly.
@@ -166,4 +148,21 @@ export interface ISessionsProvider {
 	 * @param options Options for the request, including the query and any attached context entries.
 	 */
 	sendAndCreateChat(sessionId: string, options: ISendRequestOptions): Promise<ISession>;
+
+	/**
+	 * Add a new empty chat to an existing session without sending a request.
+	 * The new chat is registered in the group model and can be used to compose
+	 * a message before sending.
+	 * @param sessionId The ID of the session to add a chat to.
+	 * @returns The newly created chat.
+	 */
+	addChat(sessionId: string): IChat;
+
+	/**
+	 * Send a request for an existing chat within a session.
+	 * @param sessionId The ID of the session containing the chat.
+	 * @param chatResource The resource URI of the chat to send the request for.
+	 * @param options Options for the request, including the query and any attached context entries.
+	 */
+	sendRequest(sessionId: string, chatResource: URI, options: ISendRequestOptions): Promise<ISession>;
 }

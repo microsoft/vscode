@@ -405,8 +405,8 @@ export interface SummarizedAgentHistoryProps extends BasePromptElementProps, Age
 	readonly maxSummaryTokens?: number;
 	/** Optional custom instructions to include in the summarization prompt */
 	readonly summarizationInstructions?: string;
-	/** Whether this summarization was triggered as a background or foreground operation. Defaults to 'foreground'. */
-	readonly summarizationSource?: 'background' | 'foreground';
+	/** Skip Full mode and go straight to Simple mode for foreground budget-exceeded recovery. */
+	readonly forceSimpleSummary?: boolean;
 }
 
 /**
@@ -424,8 +424,6 @@ export class SummarizedConversationHistory extends PromptElement<SummarizedAgent
 	override async render(state: void, sizing: PromptSizing, progress: Progress<ChatResponsePart> | undefined, token: CancellationToken | undefined) {
 		const promptContext = { ...this.props.promptContext };
 		let historyMetadata: SummarizedConversationHistoryMetadata | undefined;
-		// Resolve transcript path and flush to disk so the model can read the up-to-date file
-		let transcriptPath: string | undefined;
 		const sessionId = this.props.promptContext.conversation?.sessionId;
 		if (sessionId) {
 			// Lazily start the transcript session now (before summarization) so it
@@ -433,10 +431,8 @@ export class SummarizedConversationHistory extends PromptElement<SummarizedAgent
 			// idempotent — if hooks already started it, this is a no-op.
 			await this.ensureTranscriptSession();
 
-			const transcriptUri = this.sessionTranscriptService.getTranscriptPath(sessionId);
-			if (transcriptUri) {
+			if (this.sessionTranscriptService.getTranscriptPath(sessionId)) {
 				await this.sessionTranscriptService.flush(sessionId);
-				transcriptPath = transcriptUri.fsPath;
 			}
 		}
 
@@ -445,20 +441,7 @@ export class SummarizedConversationHistory extends PromptElement<SummarizedAgent
 			const summarizer = this.instantiationService.createInstance(ConversationHistorySummarizer, this.props, sizing, progress, token);
 			const summResult = await summarizer.summarizeHistory();
 			if (summResult) {
-				// Bake the transcript hint into the summary text so it is
-				// frozen at compaction time and never changes on subsequent renders
-				// (preserving Anthropic prompt cache stability).
-				let summary = summResult.summary;
-				if (transcriptPath) {
-					const lineCount = this.sessionTranscriptService.getLineCount(sessionId!);
-					summary += `\nIf you need specific details from before compaction (such as exact code snippets, error messages, tool results, or content you previously generated), use the ${ToolName.ReadFile} tool to look up the full uncompacted conversation transcript at: "${transcriptPath}"`;
-					if (lineCount !== undefined) {
-						summary += `\nAt the time of this request, the transcript has ${lineCount} lines.`;
-					}
-					summary += `\nExample usage: ${ToolName.ReadFile}(filePath: "${transcriptPath}")`;
-				}
-
-				historyMetadata = new SummarizedConversationHistoryMetadata(summResult.toolCallRoundId, summary, {
+				historyMetadata = new SummarizedConversationHistoryMetadata(summResult.toolCallRoundId, summResult.summary, {
 					thinking: summResult.thinking,
 					usage: summResult.usage,
 					promptTokenDetails: summResult.promptTokenDetails,
@@ -468,7 +451,7 @@ export class SummarizedConversationHistory extends PromptElement<SummarizedAgent
 					numRoundsSinceLastSummarization: summResult.numRoundsSinceLastSummarization,
 					durationMs: summResult.durationMs,
 				});
-				this.addSummaryToHistory(summary, summResult.toolCallRoundId, summResult.thinking);
+				this.addSummaryToHistory(summResult.summary, summResult.toolCallRoundId, summResult.thinking);
 			}
 		}
 
@@ -569,6 +552,7 @@ class ConversationHistorySummarizer {
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IChatHookService private readonly chatHookService: IChatHookService,
+		@ISessionTranscriptService private readonly sessionTranscriptService: ISessionTranscriptService,
 	) { }
 
 	async summarizeHistory(): Promise<{ summary: string; toolCallRoundId: string; thinking?: ThinkingData; usage?: APIUsage; promptTokenDetails?: readonly ChatResultPromptTokenDetail[]; model?: string; summarizationMode?: string; numRounds?: number; numRoundsSinceLastSummarization?: number; durationMs?: number }> {
@@ -587,9 +571,9 @@ class ConversationHistorySummarizer {
 		}));
 
 		const summary = await summaryPromise;
-		const { numRounds, numRoundsSinceLastSummarization } = this.computeRoundCounts();
+		const { numRounds, numRoundsSinceLastSummarization } = computeSummarizationRoundCounts(this.props.promptContext.history, this.props.promptContext.toolCallRounds);
 		return {
-			summary: summary.result.value,
+			summary: this.appendTranscriptHint(summary.result.value),
 			toolCallRoundId: propsInfo.summarizedToolCallRoundId,
 			thinking: propsInfo.summarizedThinking,
 			usage: summary.result.usage,
@@ -602,8 +586,20 @@ class ConversationHistorySummarizer {
 		};
 	}
 
+	private appendTranscriptHint(summary: string): string {
+		const sessionId = this.props.promptContext.conversation?.sessionId;
+		if (!sessionId) {
+			return summary;
+		}
+		return appendTranscriptHintToSummary(summary, sessionId, this.sessionTranscriptService);
+	}
+
 	private async getSummaryWithFallback(propsInfo: ISummarizedConversationHistoryInfo): Promise<SummarizationResult> {
 		const forceMode = this.configurationService.getConfig<string | undefined>(ConfigKey.Advanced.AgentHistorySummarizationMode);
+		if (this.props.forceSimpleSummary && forceMode !== SummaryMode.Full) {
+			// Foreground budget-exceeded recovery — go straight to Simple.
+			return await this.getSummary(SummaryMode.Simple, propsInfo);
+		}
 		if (forceMode === SummaryMode.Simple) {
 			return await this.getSummary(SummaryMode.Simple, propsInfo);
 		} else {
@@ -804,30 +800,6 @@ class ConversationHistorySummarizer {
 		return response;
 	}
 
-	private computeRoundCounts(): { numRounds: number; numRoundsSinceLastSummarization: number } {
-		const numRoundsInHistory = this.props.promptContext.history
-			.map(turn => turn.rounds.length)
-			.reduce((a, b) => a + b, 0);
-		const numRoundsInCurrentTurn = this.props.promptContext.toolCallRounds?.length ?? 0;
-		const numRounds = numRoundsInHistory + numRoundsInCurrentTurn;
-
-		const reversedCurrentRounds = [...(this.props.promptContext.toolCallRounds ?? [])].reverse();
-		let numRoundsSinceLastSummarization = reversedCurrentRounds.findIndex(round => round.summary) ?? -1;
-		if (numRoundsSinceLastSummarization === -1) {
-			let count = numRoundsInCurrentTurn;
-			outer: for (const turn of Iterable.reverse(Array.from(this.props.promptContext.history))) {
-				for (const round of Iterable.reverse(Array.from(turn.rounds ?? []))) {
-					if (round.summary) {
-						numRoundsSinceLastSummarization = count;
-						break outer;
-					}
-					count++;
-				}
-			}
-		}
-		return { numRounds, numRoundsSinceLastSummarization };
-	}
-
 	/**
 	 * Send telemetry for conversation summarization.
 	 * @param outcome High-level result of the summarization (for example, 'success', 'too_large', or the ChatFetchResponseType value)
@@ -839,7 +811,7 @@ class ConversationHistorySummarizer {
 	 * @param detailedOutcome Optional detailed reason for non-success outcomes (for example, error or cancellation reason)
 	 */
 	private sendSummarizationTelemetry(outcome: string, requestId: string, model: string, mode: SummaryMode, elapsedTime: number, usage: APIUsage | undefined, detailedOutcome?: string): void {
-		const { numRounds, numRoundsSinceLastSummarization } = this.computeRoundCounts();
+		const { numRounds, numRoundsSinceLastSummarization } = computeSummarizationRoundCounts(this.props.promptContext.history, this.props.promptContext.toolCallRounds);
 
 		const turnIndex = this.props.promptContext.history.length;
 		const curTurnRoundIndex = this.props.promptContext.toolCallRounds?.length ?? 0;
@@ -874,8 +846,7 @@ class ConversationHistorySummarizer {
 				"duration": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The duration of the summarization attempt in ms." },
 				"promptTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of prompt tokens, server side counted", "isMeasurement": true },
 				"promptCacheTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of prompt tokens hitting cache as reported by server", "isMeasurement": true },
-				"responseTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of generated tokens", "isMeasurement": true },
-				"source": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the summarization was triggered as a background or foreground operation." }
+				"responseTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of generated tokens", "isMeasurement": true }
 			}
 		*/
 		this.telemetryService.sendMSFTTelemetryEvent('summarizedConversationHistory', {
@@ -889,7 +860,6 @@ class ConversationHistorySummarizer {
 			conversationId,
 			mode,
 			summarizationMode: mode, // Try to unstick GDPR
-			source: this.props.summarizationSource ?? 'foreground',
 		}, {
 			numRounds,
 			numRoundsSinceLastSummarization,
@@ -922,6 +892,60 @@ function replaceImageContentWithPlaceholders(messages: ChatMessage[]): void {
 			return part;
 		});
 	});
+}
+
+/**
+ * Bake a stable transcript pointer into a freshly-produced summary text.
+ *
+ * Shared by both the full/simple summarization path
+ * ({@link ConversationHistorySummarizer}) and the inline background
+ * summarization path in `agentIntent.ts`. The hint is appended exactly once,
+ * at summary creation time, so the resulting string is frozen from then on
+ * and replayed verbatim — preserving Anthropic prompt cache hits across
+ * subsequent renders.
+ *
+ * Returns the input unchanged when there is no transcript on disk for the
+ * session.
+ */
+export function appendTranscriptHintToSummary(summary: string, sessionId: string, sessionTranscriptService: ISessionTranscriptService): string {
+	const transcriptUri = sessionTranscriptService.getTranscriptPath(sessionId);
+	if (!transcriptUri) {
+		return summary;
+	}
+	const transcriptPath = transcriptUri.fsPath;
+	const lineCount = sessionTranscriptService.getLineCount(sessionId);
+	let out = summary;
+	out += `\nIf you need specific details from before compaction (such as exact code snippets, error messages, tool results, or content you previously generated), use the ${ToolName.ReadFile} tool to look up the full uncompacted conversation transcript at: "${transcriptPath}"`;
+	if (lineCount !== undefined) {
+		out += `\nAt the time this summary was created, the transcript had ${lineCount} lines.`;
+	}
+	out += `\nExample usage: ${ToolName.ReadFile}(filePath: "${transcriptPath}")`;
+	return out;
+}
+
+export function computeSummarizationRoundCounts(
+	history: IBuildPromptContext['history'],
+	currentRounds: readonly IToolCallRound[] | undefined,
+): { numRounds: number; numRoundsSinceLastSummarization: number } {
+	const numRoundsInHistory = history.reduce((sum, turn) => sum + turn.rounds.length, 0);
+	const numRoundsInCurrentTurn = currentRounds?.length ?? 0;
+	const numRounds = numRoundsInHistory + numRoundsInCurrentTurn;
+
+	const reversedCurrentRounds = [...(currentRounds ?? [])].reverse();
+	let numRoundsSinceLastSummarization = reversedCurrentRounds.findIndex(round => round.summary);
+	if (numRoundsSinceLastSummarization === -1) {
+		let count = numRoundsInCurrentTurn;
+		outer: for (const turn of Iterable.reverse(Array.from(history))) {
+			for (const round of Iterable.reverse(Array.from(turn.rounds ?? []))) {
+				if (round.summary) {
+					numRoundsSinceLastSummarization = count;
+					break outer;
+				}
+				count++;
+			}
+		}
+	}
+	return { numRounds, numRoundsSinceLastSummarization };
 }
 
 /**

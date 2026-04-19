@@ -11,9 +11,8 @@ import { IKeybindingService } from '../../../platform/keybinding/common/keybindi
 import { INotificationService } from '../../../platform/notification/common/notification.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
-import { ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_BORDER, PANEL_DRAG_AND_DROP_BORDER, PANEL_INACTIVE_TITLE_FOREGROUND, SIDE_BAR_TITLE_BORDER, SIDE_BAR_FOREGROUND } from '../../../workbench/common/theme.js';
-import { contrastBorder } from '../../../platform/theme/common/colorRegistry.js';
-import { chatBarBackground } from '../../common/theme.js';
+import { PANEL_ACTIVE_TITLE_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_DRAG_AND_DROP_BORDER, PANEL_INACTIVE_TITLE_FOREGROUND, SIDE_BAR_TITLE_BORDER } from '../../../workbench/common/theme.js';
+import { agentsPanelBackground, agentsPanelBorder, agentsPanelForeground, agentsBadgeBackground, agentsBadgeForeground } from '../../common/theme.js';
 import { IViewDescriptorService, ViewContainerLocation } from '../../../workbench/common/views.js';
 import { IExtensionService } from '../../../workbench/services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
@@ -43,6 +42,7 @@ export class ChatBarPart extends AbstractPaneCompositePart { // TODO: should not
 	override readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 	override readonly minimumHeight: number = 0;
 	override readonly maximumHeight: number = Number.POSITIVE_INFINITY;
+	override get snap(): boolean { return false; }
 
 	/** Visual margin values for the card-like appearance */
 	static readonly MARGIN_TOP = 10;
@@ -97,7 +97,6 @@ export class ChatBarPart extends AbstractPaneCompositePart { // TODO: should not
 			ViewContainerLocation.ChatBar,
 			Extensions.ChatBar,
 			Menus.ChatBarTitle,
-			undefined,
 			notificationService,
 			storageService,
 			contextMenuService,
@@ -134,10 +133,10 @@ export class ChatBarPart extends AbstractPaneCompositePart { // TODO: should not
 		const container = assertReturnsDefined(this.getContainer());
 
 		// Store background and border as CSS variables for the card styling on .part
-		container.style.setProperty('--part-background', this.getColor(chatBarBackground) || '');
-		container.style.setProperty('--part-border-color', this.getColor(PANEL_BORDER) || this.getColor(contrastBorder) || 'transparent');
-		container.style.backgroundColor = this.getColor(chatBarBackground) || '';
-		container.style.color = this.getColor(SIDE_BAR_FOREGROUND) || '';
+		container.style.setProperty('--part-background', this.getColor(agentsPanelBackground) || '');
+		container.style.setProperty('--part-border-color', this.getColor(agentsPanelBorder) || 'transparent');
+		container.style.setProperty('--part-foreground', this.getColor(agentsPanelForeground) || '');
+		container.style.backgroundColor = this.getColor(agentsPanelBackground) || '';
 	}
 
 	override layout(width: number, height: number, top: number, left: number): void {
@@ -180,13 +179,13 @@ export class ChatBarPart extends AbstractPaneCompositePart { // TODO: should not
 			iconSize: 16,
 			overflowActionSize: 30,
 			colors: theme => ({
-				activeBackgroundColor: theme.getColor(chatBarBackground),
-				inactiveBackgroundColor: theme.getColor(chatBarBackground),
+				activeBackgroundColor: theme.getColor(agentsPanelBackground),
+				inactiveBackgroundColor: theme.getColor(agentsPanelBackground),
 				activeBorderBottomColor: theme.getColor(PANEL_ACTIVE_TITLE_BORDER),
 				activeForegroundColor: theme.getColor(PANEL_ACTIVE_TITLE_FOREGROUND),
 				inactiveForegroundColor: theme.getColor(PANEL_INACTIVE_TITLE_FOREGROUND),
-				badgeBackground: theme.getColor(ACTIVITY_BAR_BADGE_BACKGROUND),
-				badgeForeground: theme.getColor(ACTIVITY_BAR_BADGE_FOREGROUND),
+				badgeBackground: theme.getColor(agentsBadgeBackground),
+				badgeForeground: theme.getColor(agentsBadgeForeground),
 				dragAndDropBorder: theme.getColor(PANEL_DRAG_AND_DROP_BORDER)
 			}),
 			compact: true

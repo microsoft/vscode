@@ -8,7 +8,7 @@ import { ICAPIClientService } from '../../../platform/endpoint/common/capiClient
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IFetcherService } from '../../../platform/networking/common/fetcherService';
-import { Disposable } from '../../../util/vs/base/common/lifecycle';
+import { Disposable, DisposableStore } from '../../../util/vs/base/common/lifecycle';
 import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { BYOKKnownModels, isBYOKEnabled } from '../../byok/common/byokProvider';
 import { IExtensionContribution } from '../../common/contributions';
@@ -26,6 +26,7 @@ export class BYOKContrib extends Disposable implements IExtensionContribution {
 	public readonly id: string = 'byok-contribution';
 	private readonly _byokStorageService: IBYOKStorageService;
 	private readonly _providers: Map<string, LanguageModelChatProvider<LanguageModelChatInformation>> = new Map();
+	private readonly _byokRegistrations = this._register(new DisposableStore());
 	private _byokProvidersRegistered = false;
 
 	constructor(
@@ -46,7 +47,17 @@ export class BYOKContrib extends Disposable implements IExtensionContribution {
 	}
 
 	private async _authChange(authService: IAuthenticationService, instantiationService: IInstantiationService) {
-		if (authService.copilotToken && isBYOKEnabled(authService.copilotToken, this._capiClientService) && !this._byokProvidersRegistered) {
+		const byokEnabled = authService.copilotToken && isBYOKEnabled(authService.copilotToken, this._capiClientService);
+
+		if (!byokEnabled && this._byokProvidersRegistered) {
+			this._logService.info('BYOK: Disabling BYOK providers due to account change.');
+			this._byokRegistrations.clear();
+			this._providers.clear();
+			this._byokProvidersRegistered = false;
+			return;
+		}
+
+		if (byokEnabled && !this._byokProvidersRegistered) {
 			this._byokProvidersRegistered = true;
 			// Update known models list from CDN so all providers have the same list
 			const knownModels = await this.fetchKnownModelList(this._fetcherService);
@@ -63,7 +74,7 @@ export class BYOKContrib extends Disposable implements IExtensionContribution {
 			this._providers.set(CustomOAIBYOKModelProvider.providerName.toLowerCase(), instantiationService.createInstance(CustomOAIBYOKModelProvider, this._byokStorageService));
 
 			for (const [providerName, provider] of this._providers) {
-				this._store.add(lm.registerLanguageModelChatProvider(providerName, provider));
+				this._byokRegistrations.add(lm.registerLanguageModelChatProvider(providerName, provider));
 			}
 		}
 	}

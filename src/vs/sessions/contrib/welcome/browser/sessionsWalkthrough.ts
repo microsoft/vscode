@@ -6,17 +6,19 @@
 import './media/sessionsWalkthrough.css';
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { $, append, EventType, addDisposableListener, getActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
+import { $, addDisposableGenericMouseDownListener, append, EventType, addDisposableListener, getActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
-import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
+import { isWeb } from '../../../../base/common/platform.js';
 import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
+import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
+import { URI } from '../../../../base/common/uri.js';
 import { CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { ChatSetupStrategy } from '../../../../workbench/contrib/chat/browser/chatSetup/chatSetup.js';
-import { URI } from '../../../../base/common/uri.js';
+import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 
 export type WalkthroughOutcome = 'completed' | 'dismissed';
 
@@ -54,6 +56,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 	constructor(
 		container: HTMLElement,
 		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
+		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IExtensionService private readonly extensionService: IExtensionService,
 		@IOpenerService private readonly openerService: IOpenerService,
@@ -81,7 +84,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 				this._trapFocus(e);
 			}
 		}));
-		this._register(addDisposableListener(this.overlay, EventType.MOUSE_DOWN, e => {
+		this._register(addDisposableGenericMouseDownListener(this.overlay, e => {
 			if (e.target === this.overlay) {
 				e.preventDefault();
 				e.stopPropagation();
@@ -133,19 +136,27 @@ export class SessionsWalkthroughOverlay extends Disposable {
 		const githubBtn = append(providerRow, $('button.sessions-walkthrough-provider-btn.sessions-walkthrough-provider-primary.provider-github')) as HTMLButtonElement;
 		append(githubBtn, $('span.sessions-walkthrough-provider-label', undefined, localize('walkthrough.signin.github', "Continue with GitHub")));
 
-		const googleBtn = append(providerRow, $('button.sessions-walkthrough-provider-btn.sessions-walkthrough-provider-icon-only.provider-google')) as HTMLButtonElement;
-		googleBtn.setAttribute('aria-label', localize('walkthrough.signin.google', "Continue with Google"));
-		googleBtn.title = localize('walkthrough.signin.google', "Continue with Google");
+		// Desktop-only provider buttons
+		let providerButtons: HTMLButtonElement[];
+		if (isWeb) {
+			providerButtons = [githubBtn];
+		} else {
+			const googleBtn = append(providerRow, $('button.sessions-walkthrough-provider-btn.sessions-walkthrough-provider-icon-only.provider-google')) as HTMLButtonElement;
+			googleBtn.setAttribute('aria-label', localize('walkthrough.signin.google', "Continue with Google"));
+			googleBtn.title = localize('walkthrough.signin.google', "Continue with Google");
 
-		const appleBtn = append(providerRow, $('button.sessions-walkthrough-provider-btn.sessions-walkthrough-provider-icon-only.provider-apple')) as HTMLButtonElement;
-		appleBtn.setAttribute('aria-label', localize('walkthrough.signin.apple', "Continue with Apple"));
-		appleBtn.title = localize('walkthrough.signin.apple', "Continue with Apple");
+			const appleBtn = append(providerRow, $('button.sessions-walkthrough-provider-btn.sessions-walkthrough-provider-icon-only.provider-apple')) as HTMLButtonElement;
+			appleBtn.setAttribute('aria-label', localize('walkthrough.signin.apple', "Continue with Apple"));
+			appleBtn.title = localize('walkthrough.signin.apple', "Continue with Apple");
 
-		const enterpriseProviderName = this.productService.defaultChatAgent?.provider?.enterprise?.name || 'GHE';
-		const enterpriseBtn = append(providerRow, $('button.sessions-walkthrough-provider-btn.sessions-walkthrough-provider-compact.provider-enterprise')) as HTMLButtonElement;
-		enterpriseBtn.setAttribute('aria-label', localize('walkthrough.signin.enterprise', "Continue with {0}", enterpriseProviderName));
-		enterpriseBtn.title = localize('walkthrough.signin.enterprise', "Continue with {0}", enterpriseProviderName);
-		append(enterpriseBtn, $('span.sessions-walkthrough-provider-label', undefined, enterpriseProviderName));
+			const enterpriseProviderName = this.productService.defaultChatAgent?.provider?.enterprise?.name || 'GHE';
+			const enterpriseBtn = append(providerRow, $('button.sessions-walkthrough-provider-btn.sessions-walkthrough-provider-compact.provider-enterprise')) as HTMLButtonElement;
+			enterpriseBtn.setAttribute('aria-label', localize('walkthrough.signin.enterprise', "Continue with {0}", enterpriseProviderName));
+			enterpriseBtn.title = localize('walkthrough.signin.enterprise', "Continue with {0}", enterpriseProviderName);
+			append(enterpriseBtn, $('span.sessions-walkthrough-provider-label', undefined, enterpriseProviderName));
+
+			providerButtons = [githubBtn, googleBtn, appleBtn, enterpriseBtn];
+		}
 
 		// Error feedback below providers
 		const errorContainer = append(this.footerContainer, $('p.sessions-walkthrough-error'));
@@ -158,24 +169,36 @@ export class SessionsWalkthroughOverlay extends Disposable {
 			}
 		}, 0, stepDisposables);
 
-		const providerButtons = [githubBtn, googleBtn, appleBtn, enterpriseBtn];
 		this.currentFocusableElements = [...providerButtons, ...this.disclaimerLinks];
-		const providerStrategies = [
-			ChatSetupStrategy.SetupWithoutEnterpriseProvider,
-			ChatSetupStrategy.SetupWithGoogleProvider,
-			ChatSetupStrategy.SetupWithAppleProvider,
-			ChatSetupStrategy.SetupWithEnterpriseProvider,
-		];
-		for (let i = 0; i < providerButtons.length; i++) {
-			const strategy = providerStrategies[i];
-			stepDisposables.add(addDisposableListener(providerButtons[i], EventType.CLICK, () => this._runSignIn(
+
+		if (isWeb) {
+			// Web: GitHub button uses IAuthenticationService directly
+			stepDisposables.add(addDisposableListener(githubBtn, EventType.CLICK, () => this._runSignInWeb(
 				providerButtons,
 				errorContainer,
-				strategy,
 				titleEl,
 				subtitleEl,
 				signInActions
 			)));
+		} else {
+			// Desktop: each button uses a different ChatSetupStrategy
+			const providerStrategies = [
+				ChatSetupStrategy.SetupWithoutEnterpriseProvider,
+				ChatSetupStrategy.SetupWithGoogleProvider,
+				ChatSetupStrategy.SetupWithAppleProvider,
+				ChatSetupStrategy.SetupWithEnterpriseProvider,
+			];
+			for (let i = 0; i < providerButtons.length; i++) {
+				const strategy = providerStrategies[i];
+				stepDisposables.add(addDisposableListener(providerButtons[i], EventType.CLICK, () => this._runSignIn(
+					providerButtons,
+					errorContainer,
+					strategy,
+					titleEl,
+					subtitleEl,
+					signInActions
+				)));
+			}
 		}
 	}
 
@@ -190,6 +213,69 @@ export class SessionsWalkthroughOverlay extends Disposable {
 	}
 
 	private async _runSignIn(providerButtons: HTMLButtonElement[], error: HTMLElement, strategy: ChatSetupStrategy, titleEl: HTMLElement, subtitleEl: HTMLElement, signInActions: HTMLElement): Promise<void> {
+		await this._fadeToProgress(providerButtons, error, titleEl, subtitleEl, signInActions);
+		if (this._shouldAbortUpdate(titleEl, subtitleEl)) {
+			return;
+		}
+
+		try {
+			const success = await this.commandService.executeCommand<boolean>(CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID, {
+				setupStrategy: strategy
+			});
+
+			if (this._shouldAbortUpdate(titleEl, subtitleEl)) {
+				return;
+			}
+
+			if (success) {
+				titleEl.textContent = localize('walkthrough.signingIn', "Finishing setup\u2026");
+				subtitleEl.textContent = localize('walkthrough.finishingSubtitle', "Getting everything ready for you.");
+
+				this.logService.info('[sessions walkthrough] Restarting extension host after setup');
+				const stopped = await this.extensionService.stopExtensionHosts(
+					localize('walkthrough.restart', "Completing Agents setup")
+				);
+				if (this._shouldAbortUpdate(titleEl, subtitleEl)) {
+					return;
+				}
+				if (stopped) {
+					await this.extensionService.startExtensionHosts();
+					if (this._shouldAbortUpdate(titleEl, subtitleEl)) {
+						return;
+					}
+				}
+				this.complete();
+			} else {
+				await this._showErrorAndReset(error, localize('walkthrough.canceledError', "Sign-in was canceled. Please try again."));
+			}
+		} catch (err) {
+			this.logService.error('[sessions walkthrough] Sign-in failed:', err);
+			await this._showErrorAndReset(error, localize('walkthrough.signInError', "Something went wrong. Please try again."));
+		}
+	}
+
+	/**
+	 * Web sign-in: uses IAuthenticationService to create a GitHub session.
+	 * On production vscode.dev this triggers an OAuth popup. On localhost
+	 * the embedder's env-contributed auth provider handles the flow
+	 * (e.g. device code).
+	 */
+	private async _runSignInWeb(providerButtons: HTMLButtonElement[], error: HTMLElement, titleEl: HTMLElement, subtitleEl: HTMLElement, signInActions: HTMLElement): Promise<void> {
+		await this._fadeToProgress(providerButtons, error, titleEl, subtitleEl, signInActions);
+		if (this._shouldAbortUpdate(titleEl, subtitleEl)) {
+			return;
+		}
+
+		try {
+			await this.authenticationService.createSession('github', ['repo', 'user:email', 'read:user'], { activateImmediate: true });
+			this.complete();
+		} catch (err) {
+			this.logService.error('[sessions walkthrough] Web sign-in failed:', err);
+			await this._showErrorAndReset(error, localize('walkthrough.signInError', "Something went wrong. Please try again."));
+		}
+	}
+
+	private async _fadeToProgress(providerButtons: HTMLButtonElement[], error: HTMLElement, titleEl: HTMLElement, subtitleEl: HTMLElement, signInActions: HTMLElement): Promise<void> {
 		// Disable all provider buttons
 		for (const btn of providerButtons) {
 			btn.disabled = true;
@@ -220,73 +306,24 @@ export class SessionsWalkthroughOverlay extends Disposable {
 
 		// Fade back in
 		this.contentContainer.classList.remove('sessions-walkthrough-fade-out');
+	}
 
-		try {
-			const success = await this.commandService.executeCommand<boolean>(CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID, {
-				setupStrategy: strategy
-			});
-			if (this._shouldAbortUpdate(titleEl, subtitleEl)) {
-				return;
-			}
-
-			if (success) {
-				// Update title and subtitle for the finishing phase
-				titleEl.textContent = localize('walkthrough.signingIn', "Finishing setup\u2026");
-				subtitleEl.textContent = localize('walkthrough.finishingSubtitle', "Getting everything ready for you.");
-
-				this.logService.info('[sessions walkthrough] Restarting extension host after setup');
-				const stopped = await this.extensionService.stopExtensionHosts(
-					localize('walkthrough.restart', "Completing Agents setup")
-				);
-				if (this._shouldAbortUpdate(titleEl, subtitleEl)) {
-					return;
-				}
-				if (stopped) {
-					await this.extensionService.startExtensionHosts();
-					if (this._shouldAbortUpdate(titleEl, subtitleEl)) {
-						return;
-					}
-				}
-
-				this.complete();
-			} else {
-				// Show cancellation feedback, then reset to sign-in
-				error.textContent = localize('walkthrough.canceledError', "Sign-in was canceled. Please try again.");
-				error.style.display = '';
-				await this._wait(resetMessageDuration);
-				if (this._shouldAbortUpdate(error)) {
-					return;
-				}
-				error.style.display = 'none';
-
-				this.contentContainer.classList.add('sessions-walkthrough-fade-out');
-				await this._wait(fadeDuration);
-				if (!this.overlay.isConnected) {
-					return;
-				}
-				this.contentContainer.classList.remove('sessions-walkthrough-fade-out');
-				this._renderSignIn();
-			}
-		} catch (err) {
-			this.logService.error('[sessions walkthrough] Sign-in failed:', err);
-
-			// Show error feedback, then reset to sign-in
-			error.textContent = localize('walkthrough.signInError', "Something went wrong. Please try again.");
-			error.style.display = '';
-			await this._wait(resetMessageDuration);
-			if (this._shouldAbortUpdate(error)) {
-				return;
-			}
-			error.style.display = 'none';
-
-			this.contentContainer.classList.add('sessions-walkthrough-fade-out');
-			await this._wait(fadeDuration);
-			if (!this.overlay.isConnected) {
-				return;
-			}
-			this.contentContainer.classList.remove('sessions-walkthrough-fade-out');
-			this._renderSignIn();
+	private async _showErrorAndReset(error: HTMLElement, message: string): Promise<void> {
+		error.textContent = message;
+		error.style.display = '';
+		await this._wait(resetMessageDuration);
+		if (this._shouldAbortUpdate(error)) {
+			return;
 		}
+		error.style.display = 'none';
+
+		this.contentContainer.classList.add('sessions-walkthrough-fade-out');
+		await this._wait(fadeDuration);
+		if (!this.overlay.isConnected) {
+			return;
+		}
+		this.contentContainer.classList.remove('sessions-walkthrough-fade-out');
+		this._renderSignIn();
 	}
 
 	// ------------------------------------------------------------------

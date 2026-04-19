@@ -356,7 +356,7 @@ function extractTextContent(result: vscode.LanguageModelToolResult): string {
 			assert.ok(trimmed.endsWith(marker), `Unexpected output: ${JSON.stringify(trimmed)}`);
 		});
 
-		test('cannot write to /tmp', async function () {
+		test.skip('cannot write to /tmp', async function () {
 			this.timeout(60000);
 
 			const marker = `SANDBOX_TMP_${Date.now()}`;

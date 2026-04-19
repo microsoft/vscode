@@ -1556,16 +1556,16 @@ export class AgentSessionsSorter implements ITreeSorter<IAgentSession> {
 
 		// Sort by time
 		const sortBy = this.getSortBy();
-		const timeA = prioritizeActiveSessions
-			? sessionA.timing.lastRequestStarted ?? sessionA.timing.created
-			: sortBy === AgentSessionsSorting.Updated
-				? sessionA.timing.lastRequestEnded ?? sessionA.timing.created
-				: sessionA.timing.created;
-		const timeB = prioritizeActiveSessions
-			? sessionB.timing.lastRequestStarted ?? sessionB.timing.created
-			: sortBy === AgentSessionsSorting.Updated
-				? sessionB.timing.lastRequestEnded ?? sessionB.timing.created
-				: sessionB.timing.created;
+		const timeA = sortBy === AgentSessionsSorting.Updated
+			? (prioritizeActiveSessions
+				? sessionA.timing.lastRequestStarted ?? sessionA.timing.created
+				: sessionA.timing.lastRequestEnded ?? sessionA.timing.created)
+			: sessionA.timing.created;
+		const timeB = sortBy === AgentSessionsSorting.Updated
+			? (prioritizeActiveSessions
+				? sessionB.timing.lastRequestStarted ?? sessionB.timing.created
+				: sessionB.timing.lastRequestEnded ?? sessionB.timing.created)
+			: sessionB.timing.created;
 		return timeB - timeA;
 	}
 }
