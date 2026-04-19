@@ -34,9 +34,9 @@ describe('PromptPathRepresentationService', () => {
 			expect(service.getFilePath(uri)).toBe(uri.fsPath);
 		});
 
-		it('returns fsPath for vscode-remote scheme URIs', () => {
+		it('returns posix path (uri.path) for vscode-remote scheme URIs', () => {
 			const uri = URI.from({ scheme: Schemas.vscodeRemote, path: '/home/user/project/file.ts', authority: 'ssh-remote+myhost' });
-			expect(service.getFilePath(uri)).toBe(uri.fsPath);
+			expect(service.getFilePath(uri)).toBe(uri.path);
 		});
 
 		it('returns toString for other schemes', () => {
@@ -103,6 +103,106 @@ describe('PromptPathRepresentationService', () => {
 			const resolved = service.resolveFilePath(filepath);
 			expect(resolved).toBeDefined();
 			expect(resolved!.path).toBe(original.path);
+		});
+
+		it('resolves vscode-remote paths back to vscode-remote URIs via workspace folder match', () => {
+			const folderUri = URI.from({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+myhost', path: '/home/user/project' });
+			workspaceService = new TestWorkspaceService([folderUri]);
+			service = new PromptPathRepresentationService(workspaceService);
+
+			const result = service.resolveFilePath('/home/user/project/src/file.ts');
+			expect(result).toBeDefined();
+			expect(result!.scheme).toBe(Schemas.vscodeRemote);
+			expect(result!.authority).toBe('ssh-remote+myhost');
+			expect(result!.path).toBe('/home/user/project/src/file.ts');
+		});
+
+		it('roundtrips vscode-remote URIs through getFilePath and resolveFilePath', () => {
+			const folderUri = URI.from({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+myhost', path: '/home/user/project' });
+			workspaceService = new TestWorkspaceService([folderUri]);
+			service = new PromptPathRepresentationService(workspaceService);
+
+			const original = URI.from({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+myhost', path: '/home/user/project/src/file.ts' });
+			const filepath = service.getFilePath(original);
+			const resolved = service.resolveFilePath(filepath);
+			expect(resolved).toBeDefined();
+			expect(resolved!.scheme).toBe(Schemas.vscodeRemote);
+			expect(resolved!.authority).toBe('ssh-remote+myhost');
+			expect(resolved!.path).toBe(original.path);
+		});
+
+		it('resolves vscode-remote workspace folder root path', () => {
+			const folderUri = URI.from({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+myhost', path: '/home/user/project' });
+			workspaceService = new TestWorkspaceService([folderUri]);
+			service = new PromptPathRepresentationService(workspaceService);
+
+			const result = service.resolveFilePath('/home/user/project');
+			expect(result).toBeDefined();
+			expect(result!.scheme).toBe(Schemas.vscodeRemote);
+			expect(result!.authority).toBe('ssh-remote+myhost');
+			expect(result!.path).toBe('/home/user/project');
+		});
+
+		it('matches correct folder in multi-root vscode-remote workspace', () => {
+			const folder1 = URI.from({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+myhost', path: '/home/user/project-a' });
+			const folder2 = URI.from({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+myhost', path: '/home/user/project-b' });
+			workspaceService = new TestWorkspaceService([folder1, folder2]);
+			service = new PromptPathRepresentationService(workspaceService);
+
+			const result = service.resolveFilePath('/home/user/project-b/src/main.ts');
+			expect(result).toBeDefined();
+			expect(result!.scheme).toBe(Schemas.vscodeRemote);
+			expect(result!.path).toBe('/home/user/project-b/src/main.ts');
+		});
+
+		it('resolves paths under a vscode-remote workspace folder at filesystem root', () => {
+			const folderUri = URI.from({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+myhost', path: '/' });
+			workspaceService = new TestWorkspaceService([folderUri]);
+			service = new PromptPathRepresentationService(workspaceService);
+
+			const result = service.resolveFilePath('/home/user/file.ts');
+			expect(result).toBeDefined();
+			expect(result!.scheme).toBe(Schemas.vscodeRemote);
+			expect(result!.authority).toBe('ssh-remote+myhost');
+			expect(result!.path).toBe('/home/user/file.ts');
+		});
+
+		it('resolves root path itself when a workspace folder is at filesystem root', () => {
+			const folderUri = URI.from({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+myhost', path: '/' });
+			workspaceService = new TestWorkspaceService([folderUri]);
+			service = new PromptPathRepresentationService(workspaceService);
+
+			const result = service.resolveFilePath('/');
+			expect(result).toBeDefined();
+			expect(result!.scheme).toBe(Schemas.vscodeRemote);
+			expect(result!.authority).toBe('ssh-remote+myhost');
+			expect(result!.path).toBe('/');
+		});
+
+		it('picks the longest matching folder when workspace folders are nested', () => {
+			const outer = URI.from({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+myhost', path: '/home/user/project' });
+			const inner = URI.from({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+otherhost', path: '/home/user/project/sub' });
+			workspaceService = new TestWorkspaceService([outer, inner]);
+			service = new PromptPathRepresentationService(workspaceService);
+
+			const result = service.resolveFilePath('/home/user/project/sub/file.ts');
+			expect(result).toBeDefined();
+			expect(result!.scheme).toBe(Schemas.vscodeRemote);
+			// longest-match must select the inner folder (distinct authority proves it)
+			expect(result!.authority).toBe('ssh-remote+otherhost');
+			expect(result!.path).toBe('/home/user/project/sub/file.ts');
+		});
+
+		it('picks the longest matching folder regardless of workspace folder order', () => {
+			const outer = URI.from({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+myhost', path: '/home/user/project' });
+			const inner = URI.from({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+otherhost', path: '/home/user/project/sub' });
+			// reversed registration order
+			workspaceService = new TestWorkspaceService([inner, outer]);
+			service = new PromptPathRepresentationService(workspaceService);
+
+			const result = service.resolveFilePath('/home/user/project/sub/file.ts');
+			expect(result).toBeDefined();
+			expect(result!.authority).toBe('ssh-remote+otherhost');
 		});
 	});
 

@@ -36,7 +36,9 @@ export interface IPromptPathRepresentationService {
  * When readong a LLM response, use `resolveFilePath` to get the URI from from a `filepath`
  *
  * Do not use this service for other usages than prompts.
- * We currently use the fsPath for local and remote filesystems, and URI.toString() for other schemes.
+ * For `file` URIs we use `fsPath`, for `vscode-remote` URIs we use `path`
+ * (always POSIX, to avoid local-OS separator corruption), and for other
+ * schemes we use `URI.toString()`.
  */
 export class PromptPathRepresentationService implements IPromptPathRepresentationService {
 
@@ -49,7 +51,12 @@ export class PromptPathRepresentationService implements IPromptPathRepresentatio
 	constructor(@IWorkspaceService private readonly workspaceService: IWorkspaceService) { }
 
 	getFilePath(uri: Uri): string {
-		if (uri.scheme === Schemas.file || uri.scheme === Schemas.vscodeRemote) {
+		if (uri.scheme === Schemas.vscodeRemote) {
+			// Use uri.path (always POSIX) instead of uri.fsPath which applies
+			// local OS separators — corrupting remote Linux paths on Windows.
+			return uri.path;
+		}
+		if (uri.scheme === Schemas.file) {
 			return uri.fsPath;
 		}
 		return uri.toString();
@@ -64,6 +71,14 @@ export class PromptPathRepresentationService implements IPromptPathRepresentatio
 	 * @returns The resolved URI or undefined if filepath does not look like a file path or URI.
 	 */
 	resolveFilePath(filepath: string, predominantScheme = Schemas.file): Uri | undefined {
+		// Match against workspace folders first — this preserves scheme and
+		// authority for remote workspaces where a plain path string cannot
+		// encode the full URI (e.g. vscode-remote://ssh-remote+host/...).
+		const folderMatch = this._matchWorkspaceFolder(filepath);
+		if (folderMatch) {
+			return folderMatch;
+		}
+
 		// Always check for posix-like absolute paths, and also for platform-like
 		// (i.e. Windows) absolute paths in case the model generates them.
 		const isPosixPath = filepath.startsWith('/');
@@ -103,6 +118,45 @@ export class PromptPathRepresentationService implements IPromptPathRepresentatio
 			}
 		}
 		return undefined;
+	}
+
+	/**
+	 * Matches a filepath string against known workspace folders and reconstructs
+	 * the full URI (preserving scheme and authority) from the folder.
+	 *
+	 * When multiple folders match as prefixes, the longest (most specific) one
+	 * wins so nested workspace folders resolve correctly.
+	 */
+	private _matchWorkspaceFolder(filepath: string): Uri | undefined {
+		let best: { folder: Uri; folderPath: string } | undefined;
+		for (const folder of this.workspaceService.getWorkspaceFolders()) {
+			const raw = this.getFilePath(folder);
+			// Normalize trailing separators so root folders (e.g. "/" or "C:\")
+			// match correctly — the separator check below needs folderPath to
+			// NOT end with a separator.
+			const folderPath = raw.length > 1 ? raw.replace(/[\/\\]+$/, '') : raw;
+			if (!filepath.startsWith(folderPath)) {
+				continue;
+			}
+			// Filesystem roots ("/" or "\") have no separator following them;
+			// any absolute path under them matches without the next-char check.
+			const isRoot = folderPath === '/' || folderPath === '\\';
+			if (filepath.length > folderPath.length && !isRoot) {
+				const sep = filepath[folderPath.length];
+				if (sep !== '/' && sep !== '\\') {
+					continue;
+				}
+			}
+			if (!best || folderPath.length > best.folderPath.length) {
+				best = { folder, folderPath };
+			}
+		}
+		if (!best) {
+			return undefined;
+		}
+		const relative = filepath.substring(best.folderPath.length);
+		const segments = relative.split(/[\/\\]/).filter(Boolean);
+		return segments.length > 0 ? URI.joinPath(best.folder, ...segments) : best.folder;
 	}
 
 	getExampleFilePath(absolutePosixFilePath: string): string {
