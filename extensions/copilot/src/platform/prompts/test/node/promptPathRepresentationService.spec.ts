@@ -34,9 +34,9 @@ describe('PromptPathRepresentationService', () => {
 			expect(service.getFilePath(uri)).toBe(uri.fsPath);
 		});
 
-		it('returns fsPath for vscode-remote scheme URIs', () => {
+		it('returns posix path (uri.path) for vscode-remote scheme URIs', () => {
 			const uri = URI.from({ scheme: Schemas.vscodeRemote, path: '/home/user/project/file.ts', authority: 'ssh-remote+myhost' });
-			expect(service.getFilePath(uri)).toBe(uri.fsPath);
+			expect(service.getFilePath(uri)).toBe(uri.path);
 		});
 
 		it('returns toString for other schemes', () => {
@@ -103,6 +103,56 @@ describe('PromptPathRepresentationService', () => {
 			const resolved = service.resolveFilePath(filepath);
 			expect(resolved).toBeDefined();
 			expect(resolved!.path).toBe(original.path);
+		});
+
+		it('resolves vscode-remote paths back to vscode-remote URIs via workspace folder match', () => {
+			const folderUri = URI.from({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+myhost', path: '/home/user/project' });
+			workspaceService = new TestWorkspaceService([folderUri]);
+			service = new PromptPathRepresentationService(workspaceService);
+
+			const result = service.resolveFilePath('/home/user/project/src/file.ts');
+			expect(result).toBeDefined();
+			expect(result!.scheme).toBe(Schemas.vscodeRemote);
+			expect(result!.authority).toBe('ssh-remote+myhost');
+			expect(result!.path).toBe('/home/user/project/src/file.ts');
+		});
+
+		it('roundtrips vscode-remote URIs through getFilePath and resolveFilePath', () => {
+			const folderUri = URI.from({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+myhost', path: '/home/user/project' });
+			workspaceService = new TestWorkspaceService([folderUri]);
+			service = new PromptPathRepresentationService(workspaceService);
+
+			const original = URI.from({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+myhost', path: '/home/user/project/src/file.ts' });
+			const filepath = service.getFilePath(original);
+			const resolved = service.resolveFilePath(filepath);
+			expect(resolved).toBeDefined();
+			expect(resolved!.scheme).toBe(Schemas.vscodeRemote);
+			expect(resolved!.authority).toBe('ssh-remote+myhost');
+			expect(resolved!.path).toBe(original.path);
+		});
+
+		it('resolves vscode-remote workspace folder root path', () => {
+			const folderUri = URI.from({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+myhost', path: '/home/user/project' });
+			workspaceService = new TestWorkspaceService([folderUri]);
+			service = new PromptPathRepresentationService(workspaceService);
+
+			const result = service.resolveFilePath('/home/user/project');
+			expect(result).toBeDefined();
+			expect(result!.scheme).toBe(Schemas.vscodeRemote);
+			expect(result!.authority).toBe('ssh-remote+myhost');
+			expect(result!.path).toBe('/home/user/project');
+		});
+
+		it('matches correct folder in multi-root vscode-remote workspace', () => {
+			const folder1 = URI.from({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+myhost', path: '/home/user/project-a' });
+			const folder2 = URI.from({ scheme: Schemas.vscodeRemote, authority: 'ssh-remote+myhost', path: '/home/user/project-b' });
+			workspaceService = new TestWorkspaceService([folder1, folder2]);
+			service = new PromptPathRepresentationService(workspaceService);
+
+			const result = service.resolveFilePath('/home/user/project-b/src/main.ts');
+			expect(result).toBeDefined();
+			expect(result!.scheme).toBe(Schemas.vscodeRemote);
+			expect(result!.path).toBe('/home/user/project-b/src/main.ts');
 		});
 	});
 
