@@ -8,11 +8,9 @@ import * as l10n from '@vscode/l10n';
 import * as vscode from 'vscode';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
-import { CancellationToken } from '../../../util/vs/base/common/cancellation';
-import { basename } from '../../../util/vs/base/common/resources';
 import { URI } from '../../../util/vs/base/common/uri';
 import { IChatFolderMruService } from '../common/folderRepositoryManager';
-import { folderMRUToChatProviderOptions, getSelectedOption, toWorkspaceFolderOptionItem } from './sessionOptionGroupBuilder';
+import { ClaudeFolderOptionBuilder } from './claudeFolderOptionBuilder';
 
 const permissionModes: ReadonlySet<PermissionMode> = new Set<PermissionMode>(['default', 'acceptEdits', 'bypassPermissions', 'plan', 'dontAsk']);
 
@@ -21,62 +19,73 @@ export function isPermissionMode(value: string): value is PermissionMode {
 }
 
 export const PERMISSION_MODE_OPTION_ID = 'permissionMode';
-export const FOLDER_OPTION_ID = 'folder';
-const MAX_MRU_ENTRIES = 10;
 
 /**
- * Builds and reads chat session option groups (permission mode, folder picker).
- * Pure construction logic with no metadata or session-state dependencies — the
- * controller resolves session-specific values and delegates here.
+ * Orchestrates chat session option groups by combining permission mode
+ * (managed directly) with folder groups (delegated to
+ * {@link ClaudeFolderOptionBuilder} via a proxy state pattern).
+ *
+ * The folder builder freely owns `state.groups` in its mutation methods,
+ * so this class creates a proxy state that filters out the permission
+ * mode group before delegating, then reassembles the full set of groups
+ * from both sources.
+ *
+ * ## Migration plan
+ *
+ * The {@link ClaudeFolderOptionBuilder} is shaped to match
+ * {@link ISessionOptionGroupBuilder} (used by the Copilot CLI provider).
+ * The next step is to replace it with the CLI's
+ * {@link SessionOptionGroupBuilder}, which manages three groups
+ * (isolation, repository, branch) instead of one. The proxy pattern
+ * here ensures that builder can freely own `state.groups` without
+ * conflicting with the permission mode group that this orchestrator
+ * manages separately.
  */
 export class ClaudeSessionOptionBuilder {
-	private _lastUsedPermissionMode: PermissionMode = 'acceptEdits';
-
-	get lastUsedPermissionMode(): PermissionMode {
-		return this._lastUsedPermissionMode;
-	}
+	private readonly _folderOptionBuilder: ClaudeFolderOptionBuilder;
 
 	constructor(
 		private readonly _configurationService: IConfigurationService,
-		private readonly _folderMruService: IChatFolderMruService,
-		private readonly _workspaceService: IWorkspaceService,
-	) { }
+		folderMruService: IChatFolderMruService,
+		workspaceService: IWorkspaceService,
+	) {
+		this._folderOptionBuilder = new ClaudeFolderOptionBuilder(folderMruService, workspaceService);
+	}
 
 	async buildNewSessionGroups(previousInputState?: vscode.ChatSessionInputState): Promise<vscode.ChatSessionProviderOptionGroup[]> {
-		const groups: vscode.ChatSessionProviderOptionGroup[] = [];
+		// Build folder groups via proxy — the folder builder sees only its own groups
+		const folderProxyState = previousInputState
+			? this._createFolderProxy(previousInputState)
+			: undefined;
+		const folderGroups = await this._folderOptionBuilder.provideChatSessionProviderOptionGroups(folderProxyState);
 
-		const folderGroup = await this.buildNewFolderGroup(previousInputState);
-		if (folderGroup) {
-			groups.push(folderGroup);
-		}
-
+		// Build permission mode group with selection
 		const permissionGroup = this.buildPermissionModeGroup();
-		const previousPermission = previousInputState ? getSelectedOption(previousInputState.groups, PERMISSION_MODE_OPTION_ID) : undefined;
-		const selectedPermissionId = previousPermission?.id ?? this._lastUsedPermissionMode;
+		const previousPermissionId = previousInputState?.groups
+			.find(g => g.id === PERMISSION_MODE_OPTION_ID)?.selected?.id;
+		const selectedPermissionId = previousPermissionId ?? 'acceptEdits';
 		const selectedPermission = permissionGroup.items.find(i => i.id === selectedPermissionId);
-		groups.push({
-			...permissionGroup,
-			selected: selectedPermission ?? permissionGroup.items[0],
-		});
 
-		return groups;
+		return [
+			...folderGroups,
+			{ ...permissionGroup, selected: selectedPermission ?? permissionGroup.items[0] },
+		];
 	}
 
 	async buildExistingSessionGroups(permissionMode: PermissionMode, folderUri: URI | undefined): Promise<vscode.ChatSessionProviderOptionGroup[]> {
-		const groups: vscode.ChatSessionProviderOptionGroup[] = [];
+		// Build folder groups (no proxy needed — no previous state to filter)
+		const folderGroups = folderUri
+			? this._folderOptionBuilder.buildExistingSessionGroups(folderUri)
+			: [];
 
-		if (folderUri) {
-			groups.push(this.buildExistingFolderGroup(folderUri));
-		}
-
+		// Build permission mode group with selection
 		const permissionGroup = this.buildPermissionModeGroup();
 		const selectedItem = permissionGroup.items.find(i => i.id === permissionMode) ?? permissionGroup.items[0];
-		groups.push({
-			...permissionGroup,
-			selected: selectedItem,
-		});
 
-		return groups;
+		return [
+			...folderGroups,
+			{ ...permissionGroup, selected: selectedItem },
+		];
 	}
 
 	buildPermissionModeGroup(): vscode.ChatSessionProviderOptionGroup {
@@ -98,81 +107,26 @@ export class ClaudeSessionOptionBuilder {
 		};
 	}
 
-	async buildNewFolderGroup(previousInputState: vscode.ChatSessionInputState | undefined): Promise<vscode.ChatSessionProviderOptionGroup | undefined> {
-		const workspaceFolders = this._workspaceService.getWorkspaceFolders();
-		if (workspaceFolders.length === 1) {
-			return undefined;
-		}
-
-		const folderItems = await this.getFolderOptionItems();
-		const previousFolder = previousInputState ? getSelectedOption(previousInputState.groups, FOLDER_OPTION_ID) : undefined;
-		const defaultFolderId = previousFolder?.id ?? folderItems[0]?.id;
-		const selectedItem = defaultFolderId ? folderItems.find(i => i.id === defaultFolderId) : undefined;
-		return {
-			id: FOLDER_OPTION_ID,
-			name: l10n.t('Folder'),
-			description: l10n.t('Pick Folder'),
-			items: folderItems,
-			selected: selectedItem ?? folderItems[0],
-		};
-	}
-
-	buildExistingFolderGroup(folderUri: URI): vscode.ChatSessionProviderOptionGroup {
-		const folderItem: vscode.ChatSessionProviderOptionItem = {
-			...toWorkspaceFolderOptionItem(folderUri, this._workspaceService.getWorkspaceFolderName(folderUri) || basename(folderUri)),
-			locked: true,
-		};
-		return {
-			id: FOLDER_OPTION_ID,
-			name: l10n.t('Folder'),
-			description: l10n.t('Pick Folder'),
-			items: [folderItem],
-			selected: folderItem,
-		};
-	}
-
-	async getFolderOptionItems(): Promise<vscode.ChatSessionProviderOptionItem[]> {
-		const workspaceFolders = this._workspaceService.getWorkspaceFolders();
-
-		if (workspaceFolders.length === 0) {
-			const mruEntries = await this._folderMruService.getRecentlyUsedFolders(CancellationToken.None);
-			return folderMRUToChatProviderOptions(mruEntries).slice(0, MAX_MRU_ENTRIES);
-		}
-
-		return workspaceFolders.map(folder =>
-			toWorkspaceFolderOptionItem(folder, this._workspaceService.getWorkspaceFolderName(folder))
-		);
-	}
-
 	async getDefaultFolder(): Promise<URI | undefined> {
-		const workspaceFolders = this._workspaceService.getWorkspaceFolders();
-		if (workspaceFolders.length > 0) {
-			return workspaceFolders[0];
-		}
-
-		const mru = await this._folderMruService.getRecentlyUsedFolders(CancellationToken.None);
-		if (mru.length > 0) {
-			return mru[0].folder;
-		}
-
-		return undefined;
+		return this._folderOptionBuilder.getDefaultFolder();
 	}
+
+	// #region Proxy
 
 	/**
-	 * Reads the current selections from option groups and updates
-	 * {@link lastUsedPermissionMode} as a side-effect.
+	 * Creates a proxy input state that only contains the groups managed by
+	 * the folder option builder (i.e. everything except the permission mode
+	 * group). The folder builder can freely operate on `state.groups` in
+	 * this proxy without affecting the permission mode group.
 	 */
-	getSelections(groups: readonly vscode.ChatSessionProviderOptionGroup[]): { permissionMode?: PermissionMode; folderUri?: URI } {
-		const selectedPermission = getSelectedOption(groups, PERMISSION_MODE_OPTION_ID);
-		let permissionMode: PermissionMode | undefined;
-		if (selectedPermission && isPermissionMode(selectedPermission.id)) {
-			this._lastUsedPermissionMode = selectedPermission.id;
-			permissionMode = selectedPermission.id;
-		}
-
-		const selectedFolder = getSelectedOption(groups, FOLDER_OPTION_ID);
-		const folderUri = selectedFolder ? URI.file(selectedFolder.id) : undefined;
-
-		return { permissionMode, folderUri };
+	private _createFolderProxy(
+		realState: vscode.ChatSessionInputState,
+	): vscode.ChatSessionInputState {
+		return {
+			...realState,
+			groups: realState.groups.filter(g => g.id !== PERMISSION_MODE_OPTION_ID),
+		};
 	}
+
+	// #endregion
 }

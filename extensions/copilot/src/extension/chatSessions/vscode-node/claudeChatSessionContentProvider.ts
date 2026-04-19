@@ -25,7 +25,8 @@ import { IClaudeCodeSessionInfo } from '../claude/node/sessionParser/claudeSessi
 import { IClaudeSlashCommandService } from '../claude/vscode-node/claudeSlashCommandService';
 import { IChatFolderMruService } from '../common/folderRepositoryManager';
 import { buildChatHistory } from './chatHistoryBuilder';
-import { ClaudeSessionOptionBuilder, FOLDER_OPTION_ID, isPermissionMode, PERMISSION_MODE_OPTION_ID } from './claudeSessionOptionBuilder';
+import { ClaudeSessionOptionBuilder, isPermissionMode, PERMISSION_MODE_OPTION_ID } from './claudeSessionOptionBuilder';
+import { FOLDER_OPTION_ID } from './claudeFolderOptionBuilder';
 
 // Import the tool permission handlers
 import '../claude/vscode-node/toolPermissionHandlers/index';

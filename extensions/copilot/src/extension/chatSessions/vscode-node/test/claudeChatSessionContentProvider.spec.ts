@@ -1006,6 +1006,7 @@ describe('ClaudeChatSessionItemController', () => {
 	let mockSessionService: IClaudeCodeSessionService;
 	let mockSdkService: IClaudeCodeSdkService;
 	let controller: ClaudeChatSessionItemController;
+	let lastControllerAccessor: ITestingServicesAccessor;
 
 	function getItem(sessionId: string): vscode.ChatSessionItem | undefined {
 		return lastCreatedItemsMap.get(ClaudeSessionUri.forSessionId(sessionId).toString());
@@ -1031,6 +1032,7 @@ describe('ClaudeChatSessionItemController', () => {
 		};
 		serviceCollection.define(IClaudeCodeSdkService, mockSdkService);
 		const accessor = serviceCollection.createTestingAccessor();
+		lastControllerAccessor = accessor;
 		const ctrl = accessor.get(IInstantiationService).createInstance(ClaudeChatSessionItemController);
 		store.add(ctrl);
 		return ctrl;
@@ -1504,12 +1506,24 @@ describe('ClaudeChatSessionItemController', () => {
 				label: 'Original',
 			});
 
-			const result = await lastForkHandler!(sessionResource, undefined, CancellationToken.None);
+			// Seed the parent session with non-default state
+			const sessionStateService = lastControllerAccessor.get(IClaudeSessionStateService);
+			sessionStateService.setPermissionModeForSession('sess-1', 'plan');
+			sessionStateService.setFolderInfoForSession('sess-1', {
+				cwd: '/custom/folder',
+				additionalDirectories: ['/extra'],
+			});
 
-			// The forked item should be properly structured
-			expect(result.resource.toString()).toContain('forked-session-id');
-			expect(result.iconPath).toBeDefined();
-			expect(result.timing).toBeDefined();
+			const setPermissionSpy = vi.spyOn(sessionStateService, 'setPermissionModeForSession');
+			const setFolderInfoSpy = vi.spyOn(sessionStateService, 'setFolderInfoForSession');
+
+			await lastForkHandler!(sessionResource, undefined, CancellationToken.None);
+
+			expect(setPermissionSpy).toHaveBeenCalledWith('forked-session-id', 'plan');
+			expect(setFolderInfoSpy).toHaveBeenCalledWith('forked-session-id', {
+				cwd: '/custom/folder',
+				additionalDirectories: ['/extra'],
+			});
 		});
 
 		it('forks at the message before the specified request', async () => {
