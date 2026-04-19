@@ -218,7 +218,11 @@ export class ConfigurationModel implements IConfigurationModel {
 
 	private mergeContents(source: IStringDictionary<unknown>, target: IStringDictionary<unknown>): void {
 		for (const key of Object.keys(target)) {
-			if (key in source) {
+			if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+				// Prevent prototype pollution
+				continue;
+			}
+			if (Object.prototype.hasOwnProperty.call(source, key)) {
 				if (types.isObject(source[key]) && types.isObject(target[key])) {
 					this.mergeContents(source[key] as IStringDictionary<unknown>, target[key] as IStringDictionary<unknown>);
 					continue;

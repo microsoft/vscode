@@ -93,6 +93,10 @@ export function mixin(destination: any, source: any, overwrite: boolean = true):
 
 	if (isObject(source)) {
 		Object.keys(source).forEach(key => {
+			if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+				// Prevent prototype pollution
+				return;
+			}
 			if (key in destination) {
 				if (overwrite) {
 					if (isObject(destination[key]) && isObject(source[key])) {

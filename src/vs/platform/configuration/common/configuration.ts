@@ -336,16 +336,18 @@ export function getConfigurationValue<T>(config: IStringDictionary<unknown>, set
 
 export function merge(base: IStringDictionary<unknown>, add: IStringDictionary<unknown>, overwrite: boolean): void {
 	Object.keys(add).forEach(key => {
-		if (key !== '__proto__') {
-			if (key in base) {
-				if (types.isObject(base[key]) && types.isObject(add[key])) {
-					merge(base[key] as IStringDictionary<unknown>, add[key] as IStringDictionary<unknown>, overwrite);
-				} else if (overwrite) {
-					base[key] = add[key];
-				}
-			} else {
+		if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+			// Prevent prototype pollution
+			return;
+		}
+		if (key in base) {
+			if (types.isObject(base[key]) && types.isObject(add[key])) {
+				merge(base[key] as IStringDictionary<unknown>, add[key] as IStringDictionary<unknown>, overwrite);
+			} else if (overwrite) {
 				base[key] = add[key];
 			}
+		} else {
+			base[key] = add[key];
 		}
 	});
 }
