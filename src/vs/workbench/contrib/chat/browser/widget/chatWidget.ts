@@ -52,7 +52,7 @@ import { IWorkspaceContextService } from '../../../../../platform/workspace/comm
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { checkModeOption } from '../../common/chat.js';
-import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../common/participants/chatAgents.js';
+import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData, IChatAgentService, UserSelectedTools } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { IChatLayoutService } from '../../common/widget/chatLayoutService.js';
@@ -67,7 +67,7 @@ import { IChatSlashCommandService } from '../../common/participants/chatSlashCom
 import { IChatArtifactsService } from '../../common/tools/chatArtifactsService.js';
 import { IChatTodoListService } from '../../common/tools/chatTodoListService.js';
 import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isWorkspaceVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry, toPromptTextVariableEntry } from '../../common/attachments/chatVariableEntries.js';
-import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
+import { ChatViewModel, IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { CodeBlockModelCollection } from '../../common/widget/codeBlockModelCollection.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, ThinkingDisplayMode } from '../../common/constants.js';
 import { ILanguageModelToolsService, isToolSet } from '../../common/tools/languageModelToolsService.js';
@@ -76,7 +76,7 @@ import { ComputeAutomaticInstructions } from '../../common/promptSyntax/computeA
 import { IHandOff, PromptHeader } from '../../common/promptSyntax/promptFileParser.js';
 import { assessPlanningReadiness } from '../../common/planning/chatPlanningReadiness.js';
 import { shouldRegeneratePlanningQuestions } from '../../common/planning/chatPlanningQuestionHeuristics.js';
-import { augmentPromptWithPlanningContext, buildPlanningTransitionContext, getNextPlanningPhase, getPreviousPlanningPhase, IPlanningTransitionContext, isPlanningMiddlewareQuestionCarousel, isPlanningModeName, mergePlanningTransitionContexts, PlanningPhase, PlanningQuestionStage, planningMiddlewareQuestionCarouselResolveIdPrefix } from '../../common/planning/chatPlanningTransition.js';
+import { augmentPromptWithPlanningContext, buildPlanningTransitionContext, getNextPlanningPhase, getPreviousPlanningPhase, IPlanningTransitionContext, isConcretePlanningArtifactReference, isPlanningMiddlewareQuestionCarousel, isPlanningModeName, mergePlanningTransitionContexts, PlanningPhase, PlanningQuestionStage, planningMiddlewareQuestionCarouselResolveIdPrefix } from '../../common/planning/chatPlanningTransition.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID, handleModeSwitch } from '../actions/chatActions.js';
 import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions, isIChatResourceViewContext, isIChatViewViewContext } from '../chat.js';
@@ -1984,7 +1984,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			// Tools agent loads -> welcome content changes
 			this.renderWelcomeViewContentIfNeeded();
 		}));
+		let wasPlanningMode = this.isInPlanningMode();
 		this._register(this.input.onDidChangeCurrentChatMode(() => {
+			const isPlanningMode = this.isInPlanningMode();
+			if (isPlanningMode !== wasPlanningMode) {
+				this.resetPlanningMiddlewareState();
+			}
+			wasPlanningMode = isPlanningMode;
 			this.renderWelcomeViewContentIfNeeded();
 			this.refreshParsedInput();
 			this.renderFollowups();
@@ -2385,6 +2391,22 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this.triggerDynamicPlanningQuestions(input, options);
 	}
 
+	private resetPlanningMiddlewareState(): void {
+		if (isPlanningMiddlewareQuestionCarousel(this._pendingPlanningQuestionResolveId)) {
+			this.input.clearQuestionCarousel(undefined, this._pendingPlanningQuestionResolveId);
+		}
+		void this.clearPendingPlanningPlaceholder();
+
+		this._planningPhase = 'broad-scan';
+		this._planningTransitionContext = undefined;
+		this._lastPlanningQuestionSourceInput = undefined;
+		this._pendingPlanningQuestionResolveId = undefined;
+		this._pendingPlanningPlaceholderRequestId = undefined;
+		this._pendingPlanningQuestionAnswersListener.clear();
+		this._pendingPlanningResponseListener.clear();
+		this._skipDynamicPlanningQuestionsOnce = false;
+	}
+
 	private async triggerDynamicPlanningQuestions(
 		input: string,
 		options: IChatAcceptInputOptions,
@@ -2413,34 +2435,39 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const useSubmittedPlaceholder = planningOptions?.useSubmittedPlaceholder ?? (questionStage === 'goal-clarity' && (options.storeToHistory ?? true));
 		const recentConversation = this.getRecentPlanningConversation();
 
-		if (useSubmittedPlaceholder && this.canShowSubmittedPlanningPlaceholder()) {
-			await this.showSubmittedPlanningPlaceholder(input, options, questionStage);
-		}
-
-		const generationContext = await this.getPlanningQuestionGenerationContext(
-			input,
-			planningPhase,
-			questionStage,
-			recentConversation
-		);
-		const questions = await generateDynamicPlanningQuestions(this.languageModelsService, generationContext, CancellationToken.None);
-		if (!questions.length) {
-			if (this._pendingPlanningPlaceholderRequestId && this.viewModel) {
-				await this.chatService.removeRequest(this.viewModel.sessionResource, this._pendingPlanningPlaceholderRequestId);
-				this._pendingPlanningPlaceholderRequestId = undefined;
+		try {
+			if (useSubmittedPlaceholder && this.canShowSubmittedPlanningPlaceholder()) {
+				await this.showSubmittedPlanningPlaceholder(input, options, questionStage);
 			}
-			return false;
-		}
 
-		this._planningPhase = generationContext.planningPhase;
-		this.showDynamicPlanningQuestionCarousel(
-			input,
-			questions,
-			options,
-			generationContext,
-			useSubmittedPlaceholder
-		);
-		return true;
+			const generationContext = await this.getPlanningQuestionGenerationContext(
+				input,
+				planningPhase,
+				questionStage,
+				recentConversation
+			);
+			const questions = await generateDynamicPlanningQuestions(this.languageModelsService, generationContext, CancellationToken.None);
+			if (!questions.length) {
+				await this.showPlanningQuestionGenerationError(questionStage, new Error(localize(
+					'chat.dynamicPlanning.emptyQuestions',
+					'Planning question generation did not return any usable questions.'
+				)));
+				return true;
+			}
+
+			this._planningPhase = generationContext.planningPhase;
+			this.showDynamicPlanningQuestionCarousel(
+				input,
+				questions,
+				options,
+				generationContext,
+				useSubmittedPlaceholder
+			);
+			return true;
+		} catch (error) {
+			await this.showPlanningQuestionGenerationError(questionStage, error);
+			return true;
+		}
 	}
 
 	private shouldRunDynamicPlanningQuestions(input: string): boolean {
@@ -2480,8 +2507,22 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return this._lastPlanningQuestionSourceInput;
 		}
 
-		const lastRequest = [...(this.viewModel?.getItems() ?? [])].reverse().find(isRequestVM);
-		return lastRequest?.messageText;
+		const lastPlanningRequestId = [...(this.viewModel?.model.getRequests() ?? [])]
+			.reverse()
+			.find(request => this.isPlanningModeInfo(request.modeInfo))
+			?.id;
+		if (!lastPlanningRequestId) {
+			return undefined;
+		}
+
+		return [...(this.viewModel?.getItems() ?? [])]
+			.reverse()
+			.find((item): item is IChatRequestViewModel => isRequestVM(item) && item.id === lastPlanningRequestId)
+			?.messageText;
+	}
+
+	private isPlanningModeInfo(modeInfo: { readonly modeInstructions?: { readonly name?: string }; readonly modeId?: string } | undefined): boolean {
+		return isPlanningModeName(modeInfo?.modeInstructions?.name) || isPlanningModeName(modeInfo?.modeId);
 	}
 
 	private async getPlanningQuestionGenerationContext(
@@ -2510,6 +2551,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			plannerNotes: mergedPlanningContext?.plannerNotes,
 			recentConversation,
 			planningAnswers: mergedPlanningContext?.answers.map(answer => answer.answer) ?? [],
+			currentPlan,
+			focusHint: overrides?.focusHint,
+			previousRepositoryContext: mergedPlanningContext?.repositoryContext,
 			confirmedPlanningTarget: mergedPlanningContext?.repositoryContext?.planningTarget,
 			activeEditor: editor,
 			contextEditors,
@@ -2545,6 +2589,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			planningAnswers: mergedPlanningContext?.answers ?? [],
 			repositoryContext,
 			currentPlan,
+			focusAreaLabel: overrides?.focusHint?.trim(),
 			focusHint: this.buildPlanningFocusHint(questionStage, repositoryContext, currentPlan, overrides?.focusHint),
 		};
 	}
@@ -2629,7 +2674,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		if (questionStage === 'plan-focus') {
 			return {
 				...readiness.taskDecomposition,
-				questionCount: focusHint?.trim() ? Math.min(Math.max(readiness.taskDecomposition.questionCount - 1, 1), 3) : 1,
+				questionCount: focusHint?.trim() ? Math.min(Math.max(readiness.taskDecomposition.questionCount + 2, 3), 4) : 1,
 				shouldConfirmPlanningTarget: false,
 			};
 		}
@@ -2645,13 +2690,39 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	): string | undefined {
 		const hints: string[] = [];
 		const normalizedFocusHint = focusHint?.trim();
+		const taskLens = repositoryContext?.taskLens;
 
 		if (normalizedFocusHint) {
 			hints.push(`Focus especially on ${normalizedFocusHint}.`);
 		}
 
+		if (taskLens?.taskSummary) {
+			hints.push(`Use this task lens as the current job summary: ${taskLens.taskSummary}`);
+		}
+
 		if (repositoryContext?.planningTarget) {
 			hints.push(`Keep the repo focus anchored on ${repositoryContext.planningTarget.label}.`);
+		}
+
+		if (taskLens?.primaryArtifact ?? repositoryContext?.primaryArtifactHint) {
+			hints.push(`Treat ${taskLens?.primaryArtifact ?? repositoryContext?.primaryArtifactHint} as the primary artifact unless the user redirects you.`);
+		}
+
+		const relatedArtifacts = taskLens?.secondaryArtifacts ?? repositoryContext?.relatedArtifactHints;
+		if (relatedArtifacts?.length) {
+			hints.push(`Keep ${relatedArtifacts.slice(0, 3).join(', ')} in view as related context.`);
+		}
+
+		if (taskLens?.validationTargets?.length) {
+			hints.push(`Make the validation path explicit around ${taskLens.validationTargets.slice(0, 3).join(', ')}.`);
+		}
+
+		if (taskLens?.riskAreas?.length) {
+			hints.push(`Respect these guardrails: ${taskLens.riskAreas.slice(0, 3).join('; ')}.`);
+		}
+
+		if (taskLens?.unknowns?.length) {
+			hints.push(`Prefer questions that settle these open decisions: ${taskLens.unknowns.slice(0, 3).join('; ')}.`);
 		}
 
 		if (currentPlan && questionStage === 'task-decomposition') {
@@ -2722,26 +2793,71 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		))(runCallback);
 	}
 
+	private async clearPendingPlanningPlaceholder(): Promise<void> {
+		if (!this._pendingPlanningPlaceholderRequestId || !this.viewModel) {
+			return;
+		}
+
+		await this.chatService.removeRequest(this.viewModel.sessionResource, this._pendingPlanningPlaceholderRequestId);
+		this._pendingPlanningPlaceholderRequestId = undefined;
+	}
+
+	private async showPlanningGenerationPlaceholder(
+		originalQuery: string,
+		questionStage: PlanningQuestionStage,
+	): Promise<void> {
+		if (!this.viewModel || !this.isInPlanningMode()) {
+			return;
+		}
+
+		await this.clearPendingPlanningPlaceholder();
+		await this.chatService.addCompleteRequest(this.viewModel.sessionResource, originalQuery, undefined, 0, {
+			message: [this.createPlanningMiddlewareIntroContent(questionStage, 'generating')],
+			result: {},
+		});
+
+		this._pendingPlanningPlaceholderRequestId = this.chatService.getSession(this.viewModel.sessionResource)?.getRequests().at(-1)?.id;
+	}
+
+	private async showPlanningQuestionGenerationError(questionStage: PlanningQuestionStage, error: unknown): Promise<void> {
+		this.logService.error('[Planning] Failed to generate planning questions', error);
+		this._pendingPlanningQuestionAnswersListener.clear();
+		this._pendingPlanningQuestionResolveId = undefined;
+		await this.clearPendingPlanningPlaceholder();
+		const stageLabel = questionStage === 'goal-clarity'
+			? localize('chat.dynamicPlanning.goalClarityStageLabel', 'Goal Clarity')
+			: questionStage === 'task-decomposition'
+				? localize('chat.dynamicPlanning.taskDecompositionStageLabel', 'Task Decomposition')
+				: localize('chat.dynamicPlanning.planFocusStageLabel', 'Focused Follow-up');
+		await this.dialogService.error(
+			localize(
+				'chat.dynamicPlanning.questionGenerationErrorTitle',
+				'Unable to Generate {0} Questions',
+				stageLabel
+			),
+			toErrorMessage(error)
+		);
+	}
+
 	private async submitPlanningRequestWithContext(
 		originalQuery: string,
 		options: IChatAcceptInputOptions,
 		planningContext: IPlanningTransitionContext | undefined,
+		allowPlannerFollowupQuestions: boolean,
 		onResponseComplete?: () => Promise<void>,
 	): Promise<void> {
 		this._skipDynamicPlanningQuestionsOnce = true;
 		this._pendingPlanningQuestionAnswersListener.clear();
 
 		const extraAttachedContext = planningContext ? [this.createPlanningContextAttachment(planningContext)] : undefined;
+		const userSelectedToolsOverride = this.getPlanningSubmissionToolOverrides(options.userSelectedToolsOverride, allowPlannerFollowupQuestions);
 
 		try {
-			if (this._pendingPlanningPlaceholderRequestId) {
-				await this.chatService.removeRequest(this.viewModel!.sessionResource, this._pendingPlanningPlaceholderRequestId);
-				this._pendingPlanningPlaceholderRequestId = undefined;
-			}
+			await this.clearPendingPlanningPlaceholder();
 
 			const response = await this._acceptInput(
 				{ query: originalQuery },
-				{ ...options, extraAttachedContext, storeToHistory: false }
+				{ ...options, extraAttachedContext, storeToHistory: false, userSelectedToolsOverride }
 			);
 
 			if (onResponseComplete) {
@@ -2762,21 +2878,153 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
-		const { planningContext: refreshedPlanningContext, generationContext } = await this.refreshPlanningTransitionContextForStage(
-			originalQuery,
-			planningPhase,
-			'task-decomposition',
-			planningContext,
-			{ currentPlan: this.getCurrentPlanningResponseText() }
-		);
-		this._planningTransitionContext = refreshedPlanningContext;
+		await this.showPlanningGenerationPlaceholder(originalQuery, 'task-decomposition');
+		try {
+			const { planningContext: refreshedPlanningContext, generationContext } = await this.refreshPlanningTransitionContextForStage(
+				originalQuery,
+				planningPhase,
+				'task-decomposition',
+				planningContext,
+				{ currentPlan: this.getCurrentPlanningResponseText() }
+			);
+			this._planningTransitionContext = refreshedPlanningContext;
 
-		const questions = await generateDynamicPlanningQuestions(this.languageModelsService, generationContext, CancellationToken.None);
-		if (!questions.length) {
-			return;
+			const questions = await generateDynamicPlanningQuestions(this.languageModelsService, generationContext, CancellationToken.None);
+			await this.clearPendingPlanningPlaceholder();
+			if (!questions.length) {
+				await this.showPlanningQuestionGenerationError('task-decomposition', new Error(localize(
+					'chat.dynamicPlanning.emptyTaskDecompositionQuestions',
+					'Task decomposition generation did not return any usable questions.'
+				)));
+				return;
+			}
+
+			this.showDynamicPlanningQuestionCarousel(originalQuery, questions, options, generationContext, false);
+		} catch (error) {
+			await this.showPlanningQuestionGenerationError('task-decomposition', error);
+		}
+	}
+
+	private buildPlanFocusPromptOptions(currentPlan: string | undefined, planningContext: IPlanningTransitionContext | undefined): NonNullable<IChatQuestion['options']> {
+		const planAreas = this.extractPlanFocusAreas(currentPlan, planningContext);
+		return [
+			...planAreas.map((area, index) => ({
+				id: `focus-area-${index}`,
+				label: this.summarizePlanFocusOptionLabel(area),
+				value: area,
+			})),
+			{
+				id: 'start-implementation',
+				label: localize('chat.planFocusPrompt.startImplementation', 'Start Implementation'),
+				value: 'start-implementation',
+			},
+		];
+	}
+
+	private buildPlanFocusPromptDescription(options: NonNullable<IChatQuestion['options']>, planningContext: IPlanningTransitionContext | undefined): string {
+		const primaryArtifact = this.getUserFacingPlanningArtifactLabel(planningContext?.repositoryContext);
+		const focusableAreas = options
+			.filter(option => option.value !== 'start-implementation')
+			.map(option => option.label)
+			.slice(0, 3);
+
+		if (focusableAreas.length === 0) {
+			return localize(
+				'chat.planFocusPrompt.description.generic',
+				primaryArtifact
+					? 'Type a custom focus if you want another refinement pass for {0}, or choose Start Implementation.'
+					: 'Type a custom focus if you want another refinement pass, or choose Start Implementation.',
+				primaryArtifact ?? ''
+			);
 		}
 
-		this.showDynamicPlanningQuestionCarousel(originalQuery, questions, options, generationContext, false);
+		if (primaryArtifact) {
+			return localize(
+				'chat.planFocusPrompt.description.areasWithArtifact',
+				'Current plan areas for {0}: {1}. Choose one or type a custom focus.',
+				primaryArtifact,
+				focusableAreas.join('; ')
+			);
+		}
+
+		return localize(
+			'chat.planFocusPrompt.description.areas',
+			'Current plan areas: {0}. Choose one or type a custom focus.',
+			focusableAreas.join('; ')
+		);
+	}
+
+	private extractPlanFocusAreas(currentPlan: string | undefined, planningContext: IPlanningTransitionContext | undefined): string[] {
+		const seen = new Set<string>();
+		const areas: string[] = [];
+		const pushArea = (value: string | undefined) => {
+			const normalized = value?.trim().replace(/^(?:[-*]|\d+\.)\s*/, '');
+			if (!normalized) {
+				return;
+			}
+
+			const key = normalized.toLowerCase();
+			if (seen.has(key)) {
+				return;
+			}
+
+			seen.add(key);
+			areas.push(normalized);
+		};
+		const taskLens = planningContext?.repositoryContext?.taskLens;
+		for (const area of [
+			...(taskLens?.planAreas ?? []),
+			...(taskLens?.validationTargets ?? []).map(target => localize('chat.planFocusPrompt.validationArea', 'Validation: {0}', target)),
+			...(taskLens?.riskAreas ?? []).map(risk => localize('chat.planFocusPrompt.guardrailArea', 'Guardrail: {0}', risk)),
+		]) {
+			pushArea(area);
+			if (areas.length >= 4) {
+				return areas;
+			}
+		}
+
+		for (const line of currentPlan?.split(/\r?\n/g) ?? []) {
+			pushArea(line);
+			if (areas.length >= 4) {
+				break;
+			}
+		}
+
+		return areas;
+	}
+
+	private summarizePlanFocusOptionLabel(area: string): string {
+		const normalized = area.replace(/\s+/g, ' ').trim();
+		if (normalized.length <= 88) {
+			return normalized;
+		}
+
+		const firstClause = normalized.split(/;|,| and | then /i)[0]?.trim();
+		return firstClause && firstClause.length >= 24 ? firstClause : normalized;
+	}
+
+	private getPlanFocusPromptChoice(answersRecord: IChatQuestionAnswers | undefined): { action: 'start-implementation' | 'sharpen'; focusHint?: string } {
+		const answer = answersRecord?.['plan-focus-next'];
+		if (!answer) {
+			return { action: 'start-implementation' };
+		}
+
+		if (typeof answer === 'string') {
+			const normalized = answer.trim();
+			return normalized === 'start-implementation'
+				? { action: 'start-implementation' }
+				: { action: 'sharpen', focusHint: normalized || undefined };
+		}
+
+		const freeformValue = 'freeformValue' in answer && typeof answer.freeformValue === 'string' ? answer.freeformValue.trim() : '';
+		if (freeformValue) {
+			return { action: 'sharpen', focusHint: freeformValue };
+		}
+
+		const selectedValue = 'selectedValue' in answer && typeof answer.selectedValue === 'string' ? answer.selectedValue.trim() : '';
+		return selectedValue === 'start-implementation'
+			? { action: 'start-implementation' }
+			: { action: 'sharpen', focusHint: selectedValue || undefined };
 	}
 
 	private showPlanFocusPromptCarousel(
@@ -2784,14 +3032,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		options: IChatAcceptInputOptions,
 		planningPhase: PlanningPhase,
 	): void {
+		const promptOptions = this.buildPlanFocusPromptOptions(this.getCurrentPlanningResponseText(), this._planningTransitionContext);
 		const carousel = new ChatQuestionCarouselData(
 			[{
-				id: 'plan-focus-intake',
-				type: 'text',
-				title: localize('chat.planFocusPrompt.title', 'Optional Plan Focus'),
-				message: localize('chat.planFocusPrompt.message', 'Name one part of the revised plan to zoom in on, or leave this blank to keep the current plan.'),
-				description: localize('chat.planFocusPrompt.description', 'Use this if you want a tighter follow-up on one subsystem, risk, validation path, or step.'),
-				required: false,
+				id: 'plan-focus-next',
+				type: 'singleSelect',
+				title: localize('chat.planFocusPrompt.title', 'What Should Happen Next?'),
+				message: localize('chat.planFocusPrompt.message', 'Choose a part of the current plan to sharpen again, or select Start Implementation when the plan is ready.'),
+				description: this.buildPlanFocusPromptDescription(promptOptions, this._planningTransitionContext),
+				required: true,
+				allowFreeformInput: true,
+				options: promptOptions,
 			}],
 			true,
 			`${planningMiddlewareQuestionCarouselResolveIdPrefix}plan-focus-intake-${Date.now()}`,
@@ -2834,7 +3085,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			inlineTextModels: undefined as never,
 		};
 		this.input.renderQuestionCarousel(carousel, context, {
-			shouldAutoFocus: true,
+			shouldAutoFocus: false,
 			onSubmit: async answers => {
 				await this.submitPlanFocusPromptAnswer(
 					originalQuery,
@@ -2845,8 +3096,6 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				);
 			}
 		});
-
-		this.input.focusQuestionCarousel();
 	}
 
 	private async submitPlanFocusPromptAnswer(
@@ -2870,29 +3119,43 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const planningContext = mergePlanningTransitionContexts(this._planningTransitionContext, stageContext);
 		this._planningTransitionContext = planningContext;
 
-		const focusHint = typeof answersRecord?.['plan-focus-intake'] === 'string' ? answersRecord['plan-focus-intake'].trim() : '';
-		if (!focusHint || !planningContext) {
+		const planFocusChoice = this.getPlanFocusPromptChoice(answersRecord);
+		if (planFocusChoice.action === 'start-implementation' || !planningContext) {
 			return;
 		}
 
-		const { planningContext: refreshedPlanningContext, generationContext } = await this.refreshPlanningTransitionContextForStage(
-			originalQuery,
-			planningPhase,
-			'plan-focus',
-			planningContext,
-			{
-				currentPlan: this.getCurrentPlanningResponseText(),
-				focusHint,
+		if (!planFocusChoice.focusHint) {
+			return;
+		}
+
+		await this.showPlanningGenerationPlaceholder(originalQuery, 'plan-focus');
+		try {
+			const { planningContext: refreshedPlanningContext, generationContext } = await this.refreshPlanningTransitionContextForStage(
+				originalQuery,
+				planningPhase,
+				'plan-focus',
+				planningContext,
+				{
+					currentPlan: this.getCurrentPlanningResponseText(),
+					focusHint: planFocusChoice.focusHint,
+				}
+			);
+			this._planningTransitionContext = refreshedPlanningContext;
+
+			const questions = await generateDynamicPlanningQuestions(this.languageModelsService, generationContext, CancellationToken.None);
+			await this.clearPendingPlanningPlaceholder();
+			if (!questions.length) {
+				await this.showPlanningQuestionGenerationError('plan-focus', new Error(localize(
+					'chat.dynamicPlanning.emptyPlanFocusQuestions',
+					'Focused follow-up generation did not return any usable questions.'
+				)));
+				return;
 			}
-		);
-		this._planningTransitionContext = refreshedPlanningContext;
 
-		const questions = await generateDynamicPlanningQuestions(this.languageModelsService, generationContext, CancellationToken.None);
-		if (!questions.length) {
-			return;
+			this.showDynamicPlanningQuestionCarousel(originalQuery, questions, options, generationContext, false);
+		} catch (error) {
+			await this.showPlanningQuestionGenerationError('plan-focus', error);
 		}
-
-		this.showDynamicPlanningQuestionCarousel(originalQuery, questions, options, generationContext, false);
 	}
 
 	private isChatInternalEditor(uri: URI | undefined): boolean {
@@ -2961,7 +3224,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			inlineTextModels: undefined as never,
 		};
 		this.input.renderQuestionCarousel(carousel, context, {
-			shouldAutoFocus: true,
+			shouldAutoFocus: generationContext.questionStage === 'goal-clarity',
 			onSubmit: async answers => {
 				await this.submitDynamicPlanningQuestionAnswers(
 					originalQuery,
@@ -2974,7 +3237,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 		});
 
-		this.input.focusQuestionCarousel();
+		if (generationContext.questionStage === 'goal-clarity') {
+			this.input.focusQuestionCarousel();
+		}
 	}
 
 	private canShowSubmittedPlanningPlaceholder(): boolean {
@@ -3064,10 +3329,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	): Promise<void> {
 		if (!this.isInPlanningMode()) {
 			this._pendingPlanningQuestionAnswersListener.clear();
-			if (this._pendingPlanningPlaceholderRequestId && this.viewModel) {
-				await this.chatService.removeRequest(this.viewModel.sessionResource, this._pendingPlanningPlaceholderRequestId);
-				this._pendingPlanningPlaceholderRequestId = undefined;
-			}
+			await this.clearPendingPlanningPlaceholder();
 			if (isPlanningMiddlewareQuestionCarousel(carousel.resolveId)) {
 				this.input.clearQuestionCarousel(undefined, carousel.resolveId);
 			}
@@ -3110,6 +3372,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				originalQuery,
 				options,
 				refreshedPlanningContext,
+				true,
 				async () => this.showTaskDecompositionPlanningQuestions(originalQuery, options, generationContext.planningPhase)
 			);
 			return;
@@ -3120,12 +3383,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				originalQuery,
 				options,
 				refreshedPlanningContext,
+				false,
 				async () => this.showPlanFocusPromptCarousel(originalQuery, options, generationContext.planningPhase)
 			);
 			return;
 		}
 
-		await this.submitPlanningRequestWithContext(originalQuery, options, refreshedPlanningContext);
+		await this.submitPlanningRequestWithContext(
+			originalQuery,
+			options,
+			refreshedPlanningContext,
+			false,
+			async () => this.showPlanFocusPromptCarousel(originalQuery, options, generationContext.planningPhase)
+		);
 	}
 
 	private createPlanningContextAttachment(context: IPlanningTransitionContext): IChatRequestVariableEntry {
@@ -3142,33 +3412,88 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const questionStage = typeof generationContext === 'string' ? generationContext : generationContext.questionStage;
 
 		if (questionStage === 'goal-clarity') {
+			const artifactHint = typeof generationContext === 'string' ? undefined : this.getUserFacingPlanningArtifactLabel(generationContext.repositoryContext);
 			markdown.appendMarkdown(localize(
 				'chat.dynamicPlanning.goalClarityMessage',
-				'{0} **Goal clarity**\n\nAnswer a few quick questions so I can build the first plan around the right goal, scope, and repo slice.',
-				'$(sparkle)'
+				artifactHint
+					? '{0} **Goal clarity**\n\nA few quick answers help me aim the first plan at **{1}** and the right outcome, constraints, and related code area.'
+					: '{0} **Goal clarity**\n\nA few quick answers help me aim the first plan at the right outcome, constraints, and code area.',
+				'$(sparkle)',
+				artifactHint ?? ''
 			));
 		} else if (questionStage === 'task-decomposition') {
+			const artifactHint = typeof generationContext === 'string' ? undefined : this.getUserFacingPlanningArtifactLabel(generationContext.repositoryContext);
 			markdown.appendMarkdown(localize(
 				'chat.dynamicPlanning.taskDecompositionMessage',
-				'{0} **Task decomposition**\n\nTighten the first plan into a sharper breakdown, implementation focus, and validation path before I rebuild it.',
-				'$(list-unordered)'
+				artifactHint
+					? '{0} **Task decomposition**\n\nTighten the first draft so the rebuilt plan has a cleaner breakdown, clearer starting point, and better validation around **{1}**.'
+					: '{0} **Task decomposition**\n\nTighten the first draft so the rebuilt plan has a cleaner breakdown, clearer starting point, and better validation.',
+				'$(list-unordered)',
+				artifactHint ?? ''
 			));
 		} else {
+			const focusArea = typeof generationContext === 'string' ? undefined : this.describePlanFocusArea(generationContext);
 			markdown.appendMarkdown(localize(
 				'chat.dynamicPlanning.planFocusMessage',
-				'{0} **Plan focus**\n\nPick one part of the revised plan to sharpen further, or skip to keep the current plan.',
-				'$(target)'
+				focusArea
+					? '{0} **Plan focus**\n\nSharpen **{1}** with another focused follow-up, or skip to keep the current plan.'
+					: '{0} **Plan focus**\n\nZoom in on one part of the revised plan for a sharper follow-up, or skip to keep the current plan.',
+				'$(target)',
+				focusArea ?? ''
 			));
 		}
 
 		return markdown;
 	}
 
-	private createPlanningMiddlewareIntroContent(questionStage: PlanningQuestionStage) {
+	private getUserFacingPlanningArtifactLabel(repositoryContext: IPlanningTransitionContext['repositoryContext'] | IPlanningQuestionGenerationContext['repositoryContext']): string | undefined {
+		const taskLensArtifact = repositoryContext?.taskLens?.primaryArtifact;
+		if (isConcretePlanningArtifactReference(taskLensArtifact)) {
+			return taskLensArtifact;
+		}
+
+		const primaryArtifactHint = repositoryContext?.primaryArtifactHint;
+		if (isConcretePlanningArtifactReference(primaryArtifactHint)) {
+			return primaryArtifactHint;
+		}
+
+		const planningTargetLabel = repositoryContext?.planningTarget?.label;
+		if (isConcretePlanningArtifactReference(planningTargetLabel)) {
+			return planningTargetLabel;
+		}
+
+		return undefined;
+	}
+
+	private describePlanFocusArea(generationContext: IPlanningQuestionGenerationContext): string | undefined {
+		const focusAreaLabel = generationContext.focusAreaLabel?.trim();
+		if (focusAreaLabel) {
+			return focusAreaLabel;
+		}
+
+		return generationContext.repositoryContext?.taskLens?.planAreas?.[0]
+			?? this.getUserFacingPlanningArtifactLabel(generationContext.repositoryContext);
+	}
+
+	private getPlanningSubmissionToolOverrides(baseTools?: UserSelectedTools, allowPlannerFollowupQuestions = false): UserSelectedTools {
+		return {
+			...(baseTools ?? this.input.selectedToolsModel.userSelectedTools.get()),
+			vscode_askQuestions: allowPlannerFollowupQuestions,
+			copilot_askQuestions: allowPlannerFollowupQuestions,
+		};
+	}
+
+	private createPlanningMiddlewareIntroContent(questionStage: PlanningQuestionStage, mode: 'captured' | 'generating' = 'captured') {
 		const content = new MarkdownString(undefined, { supportThemeIcons: true });
-		content.appendMarkdown(questionStage === 'goal-clarity'
-			? localize('chat.dynamicPlanning.prePlanningIntro', '{0} **Captured.** I am asking a few quick questions before I build the first plan.', '$(sync~spin)')
-			: localize('chat.dynamicPlanning.prePlanningIntroDecomposition', '{0} **Captured.** I am preparing the next planning step.', '$(sync~spin)'));
+		if (mode === 'captured') {
+			content.appendMarkdown(questionStage === 'goal-clarity'
+				? localize('chat.dynamicPlanning.prePlanningIntro', '{0} **Captured.** I am asking a few quick questions before I build the first plan.', '$(sync~spin)')
+				: localize('chat.dynamicPlanning.prePlanningIntroDecomposition', '{0} **Captured.** I am preparing the next planning step.', '$(sync~spin)'));
+		} else {
+			content.appendMarkdown(questionStage === 'task-decomposition'
+				? localize('chat.dynamicPlanning.generatingTaskDecompositionIntro', '{0} **Generating task decomposition questions.** I am tightening the next planning pass around the current draft.', '$(sync~spin)')
+				: localize('chat.dynamicPlanning.generatingPlanFocusIntro', '{0} **Generating focused follow-up questions.** I am sharpening the next planning pass around your selected plan area.', '$(sync~spin)'));
+		}
 		return {
 			kind: 'markdownContent' as const,
 			content,
@@ -3306,6 +3631,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const resolvedImageVariables = await this._resolveDirectoryImageAttachments(requestInputs.attachedContext.asArray());
 		const submittedSessionResource = this.viewModel.sessionResource;
 
+		const modeRequestOptions = this.getModeRequestOptions();
 		const result = await this.chatService.sendRequest(this.viewModel.sessionResource, requestInputs.input, {
 			userSelectedModelId: this.input.currentLanguageModel,
 			location: this.location,
@@ -3314,7 +3640,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			attachedContext: requestInputs.attachedContext.asArray(),
 			resolvedVariables: resolvedImageVariables,
 			noCommandDetection: options?.noCommandDetection,
-			...this.getModeRequestOptions(),
+			...modeRequestOptions,
+			userSelectedTools: options?.userSelectedToolsOverride ? constObservable(options.userSelectedToolsOverride) : modeRequestOptions.userSelectedTools,
 			modeInfo: this.input.currentModeInfo,
 			agentIdSilent: this._lockedAgent?.id,
 			queue: options?.queue,

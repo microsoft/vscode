@@ -19,6 +19,10 @@ export type PlanningPhase = 'broad-scan' | 'focused-slice' | 'detailed-inspectio
 export type PlanningRepositoryScope = 'broad' | 'focused' | 'detailed';
 export type PlanningTargetKind = 'selection' | 'file' | 'working-set' | 'folder' | 'workspace';
 export type PlanningTargetConfidence = 'high' | 'medium' | 'low';
+export type PlanningRequestIntent = 'data-analysis' | 'script-work' | 'bug-fix' | 'refactor' | 'feature-work' | 'test-work' | 'investigation' | 'generic';
+export type PlanningTaskKind = PlanningRequestIntent;
+export type PlanningArtifactType = 'file' | 'folder' | 'symbol' | 'dataset' | 'test' | 'api-surface' | 'subsystem' | 'workspace';
+export type PlanningDeliverableType = 'plan' | 'analysis' | 'code-change' | 'refactor' | 'validation' | 'explanation';
 
 export interface IPlanningTarget {
 	readonly kind: PlanningTargetKind;
@@ -46,10 +50,28 @@ export interface IPlanningFileSnippet {
 	readonly reason?: string;
 }
 
+export interface IPlanningTaskLens {
+	readonly taskKind: PlanningTaskKind;
+	readonly taskSummary?: string;
+	readonly primaryArtifact?: string;
+	readonly secondaryArtifacts?: readonly string[];
+	readonly artifactType?: PlanningArtifactType;
+	readonly desiredOutcome?: string;
+	readonly deliverableType?: PlanningDeliverableType;
+	readonly riskAreas?: readonly string[];
+	readonly unknowns?: readonly string[];
+	readonly validationTargets?: readonly string[];
+	readonly planAreas?: readonly string[];
+}
+
 export interface IPlanningRepositoryContext {
 	readonly workspaceRoot?: string;
 	readonly scope: PlanningRepositoryScope;
 	readonly planningTarget?: IPlanningTarget;
+	readonly requestIntent?: PlanningRequestIntent;
+	readonly taskLens?: IPlanningTaskLens;
+	readonly primaryArtifactHint?: string;
+	readonly relatedArtifactHints?: readonly string[];
 	readonly focusSummary?: string;
 	readonly focusQueries: readonly string[];
 	readonly workspaceFolders?: readonly string[];
@@ -59,6 +81,29 @@ export interface IPlanningRepositoryContext {
 	readonly workspaceSymbolMatches: readonly IPlanningSymbolReference[];
 	readonly nearbyFiles: readonly string[];
 	readonly relevantSnippets: readonly IPlanningFileSnippet[];
+}
+
+const genericPlanningArtifactHintPattern = /^(?:requested\s+)?(?:data file|script|tests?|notebook|shell script|python file|csv file|tsv file|json file|yaml file|sql file|typescript file|javascript file|markdown file)\b/i;
+
+export function isConcretePlanningArtifactReference(value: string | undefined): boolean {
+	const normalized = normalizeOptional(value);
+	if (!normalized) {
+		return false;
+	}
+
+	if (/^[a-z][a-z0-9+.-]*:/i.test(normalized) || /[\\/]/.test(normalized) || /\.[a-z0-9]+(?:$|[?#])/i.test(normalized)) {
+		return true;
+	}
+
+	if (genericPlanningArtifactHintPattern.test(normalized)) {
+		return false;
+	}
+
+	if (/\b(current workspace|workspace|repository|repo)\b/i.test(normalized)) {
+		return false;
+	}
+
+	return true;
 }
 
 export interface IPlanningTransitionContext {
@@ -143,7 +188,7 @@ export function buildPlanningTransitionContext(
 			}
 
 			normalizedAnswers.push({
-				question: normalizeWhitespace(question.title),
+				question: normalizeWhitespace(typeof question.message === 'string' ? question.message : question.title),
 				answer: formattedAnswer,
 			});
 		}
@@ -193,6 +238,7 @@ export function augmentPromptWithPlanningContext(basePrompt: string, context: IP
 	}
 
 	planningSections.push('Use this planning context as the source of truth for implementation unless the codebase forces a concrete adjustment.');
+	planningSections.push('Do not ignore the planning answers. Use them to shape scope, task selection, sequencing, and validation in the next plan.');
 	const planningBlock = ['Planning context from the previous planning step:', ...planningSections].join('\n');
 
 	return prompt ? `${prompt}\n\n${planningBlock}` : planningBlock;
@@ -325,6 +371,10 @@ function normalizeRepositoryContext(context: IPlanningRepositoryContext | undefi
 		workspaceRoot: normalizeOptional(context.workspaceRoot),
 		scope: context.scope,
 		planningTarget: normalizePlanningTarget(confirmedPlanningTarget ?? context.planningTarget),
+		requestIntent: isPlanningRequestIntent(context.requestIntent) ? context.requestIntent : undefined,
+		taskLens: normalizePlanningTaskLens(context.taskLens),
+		primaryArtifactHint: normalizeOptional(context.primaryArtifactHint),
+		relatedArtifactHints: normalizeStringArray(context.relatedArtifactHints),
 		focusSummary: normalizeOptional(context.focusSummary),
 		focusQueries: normalizeStringArray(context.focusQueries) ?? [],
 		workspaceFolders: normalizeStringArray(context.workspaceFolders),
@@ -353,6 +403,33 @@ function normalizeOptional(value: string | undefined): string | undefined {
 	return value ? normalizeWhitespace(value) : undefined;
 }
 
+function normalizePlanningTaskLens(lens: IPlanningTaskLens | undefined): IPlanningTaskLens | undefined {
+	if (!lens) {
+		return undefined;
+	}
+
+	const secondaryArtifacts = normalizeStringArray(lens.secondaryArtifacts);
+	const riskAreas = normalizeStringArray(lens.riskAreas);
+	const unknowns = normalizeStringArray(lens.unknowns);
+	const validationTargets = normalizeStringArray(lens.validationTargets);
+	const planAreas = normalizeStringArray(lens.planAreas);
+	const normalized: IPlanningTaskLens = {
+		taskKind: lens.taskKind,
+		...(normalizeOptional(lens.taskSummary) ? { taskSummary: normalizeOptional(lens.taskSummary) } : {}),
+		...(normalizeOptional(lens.primaryArtifact) ? { primaryArtifact: normalizeOptional(lens.primaryArtifact) } : {}),
+		...(lens.artifactType ? { artifactType: lens.artifactType } : {}),
+		...(normalizeOptional(lens.desiredOutcome) ? { desiredOutcome: normalizeOptional(lens.desiredOutcome) } : {}),
+		...(lens.deliverableType ? { deliverableType: lens.deliverableType } : {}),
+		...(secondaryArtifacts ? { secondaryArtifacts } : {}),
+		...(riskAreas ? { riskAreas } : {}),
+		...(unknowns ? { unknowns } : {}),
+		...(validationTargets ? { validationTargets } : {}),
+		...(planAreas ? { planAreas } : {}),
+	};
+
+	return Object.keys(normalized).length > 1 ? normalized : undefined;
+}
+
 function formatRepositoryContext(context: IPlanningRepositoryContext): string[] {
 	const lines: string[] = [
 		`Repository scope: ${context.scope}`,
@@ -364,6 +441,22 @@ function formatRepositoryContext(context: IPlanningRepositoryContext): string[] 
 
 	if (context.planningTarget) {
 		lines.push(`Planning target: ${formatPlanningTarget(context.planningTarget)}`);
+	}
+
+	if (context.requestIntent) {
+		lines.push(`Request intent: ${formatPlanningRequestIntent(context.requestIntent)}`);
+	}
+
+	if (context.taskLens) {
+		lines.push(...formatPlanningTaskLens(context.taskLens));
+	}
+
+	if (context.primaryArtifactHint) {
+		lines.push(`Primary artifact hint: ${context.primaryArtifactHint}`);
+	}
+
+	if (context.relatedArtifactHints?.length) {
+		lines.push(`Related artifact hints: ${context.relatedArtifactHints.slice(0, 6).join(', ')}`);
 	}
 
 	if (context.focusSummary) {
@@ -530,6 +623,108 @@ function isPlanningTargetConfidence(value: string | undefined): value is Plannin
 	return value === 'high' || value === 'medium' || value === 'low';
 }
 
+function isPlanningRequestIntent(value: string | undefined): value is PlanningRequestIntent {
+	return value === 'data-analysis'
+		|| value === 'script-work'
+		|| value === 'bug-fix'
+		|| value === 'refactor'
+		|| value === 'feature-work'
+		|| value === 'test-work'
+		|| value === 'investigation'
+		|| value === 'generic';
+}
+
+function formatPlanningRequestIntent(intent: PlanningRequestIntent): string {
+	switch (intent) {
+		case 'data-analysis':
+			return 'Data analysis';
+		case 'script-work':
+			return 'Script work';
+		case 'bug-fix':
+			return 'Bug fix';
+		case 'refactor':
+			return 'Refactor';
+		case 'feature-work':
+			return 'Feature work';
+		case 'test-work':
+			return 'Test work';
+		case 'investigation':
+			return 'Investigation';
+	default:
+		return 'General coding work';
+	}
+}
+
+function formatPlanningTaskLens(lens: IPlanningTaskLens): string[] {
+	const lines: string[] = [
+		`Task lens: ${formatPlanningTaskKind(lens.taskKind)}`,
+	];
+
+	if (lens.taskSummary) {
+		lines.push(`Task summary: ${lens.taskSummary}`);
+	}
+
+	if (lens.primaryArtifact) {
+		lines.push(`Primary artifact: ${lens.primaryArtifact}`);
+	}
+
+	if (lens.secondaryArtifacts?.length) {
+		lines.push(`Adjacent artifacts: ${lens.secondaryArtifacts.slice(0, 6).join(', ')}`);
+	}
+
+	if (lens.artifactType) {
+		lines.push(`Artifact type: ${formatPlanningArtifactType(lens.artifactType)}`);
+	}
+
+	if (lens.desiredOutcome) {
+		lines.push(`Desired outcome: ${lens.desiredOutcome}`);
+	}
+
+	if (lens.deliverableType) {
+		lines.push(`Expected deliverable: ${formatPlanningDeliverableType(lens.deliverableType)}`);
+	}
+
+	if (lens.planAreas?.length) {
+		lines.push(`Plan areas: ${lens.planAreas.slice(0, 5).join(', ')}`);
+	}
+
+	if (lens.validationTargets?.length) {
+		lines.push(`Validation targets: ${lens.validationTargets.slice(0, 5).join(', ')}`);
+	}
+
+	if (lens.riskAreas?.length) {
+		lines.push(`Risks or guardrails: ${lens.riskAreas.slice(0, 5).join('; ')}`);
+	}
+
+	if (lens.unknowns?.length) {
+		lines.push(`Open decisions: ${lens.unknowns.slice(0, 5).join('; ')}`);
+	}
+
+	return lines;
+}
+
+function formatPlanningTaskKind(taskKind: PlanningTaskKind): string {
+	return formatPlanningRequestIntent(taskKind);
+}
+
+function formatPlanningArtifactType(artifactType: PlanningArtifactType): string {
+	switch (artifactType) {
+		case 'api-surface':
+			return 'API surface';
+		default:
+			return artifactType.replace(/-/g, ' ');
+	}
+}
+
+function formatPlanningDeliverableType(deliverableType: PlanningDeliverableType): string {
+	switch (deliverableType) {
+		case 'code-change':
+			return 'Code change';
+		default:
+			return deliverableType.replace(/-/g, ' ');
+	}
+}
+
 function mergeRepositoryContexts(
 	base: IPlanningRepositoryContext | undefined,
 	incoming: IPlanningRepositoryContext | undefined,
@@ -546,6 +741,10 @@ function mergeRepositoryContexts(
 		workspaceRoot: incoming.workspaceRoot ?? base.workspaceRoot,
 		scope: incoming.scope,
 		planningTarget: incoming.planningTarget ?? base.planningTarget,
+		requestIntent: incoming.requestIntent ?? base.requestIntent,
+		taskLens: mergePlanningTaskLens(base.taskLens, incoming.taskLens),
+		primaryArtifactHint: incoming.primaryArtifactHint ?? base.primaryArtifactHint,
+		relatedArtifactHints: mergeOptionalStringArrays(base.relatedArtifactHints, incoming.relatedArtifactHints),
 		focusSummary: incoming.focusSummary ?? base.focusSummary,
 		focusQueries: incoming.focusQueries.length > 0
 			? [...incoming.focusQueries]
@@ -570,9 +769,41 @@ function mergeRepositoryContexts(
 	};
 }
 
+function mergePlanningTaskLens(base: IPlanningTaskLens | undefined, incoming: IPlanningTaskLens | undefined): IPlanningTaskLens | undefined {
+	if (!base) {
+		return incoming;
+	}
+
+	if (!incoming) {
+		return base;
+	}
+
+	return {
+		taskKind: incoming.taskKind ?? base.taskKind,
+		taskSummary: incoming.taskSummary ?? base.taskSummary,
+		primaryArtifact: incoming.primaryArtifact ?? base.primaryArtifact,
+		secondaryArtifacts: mergeOptionalStringArrays(base.secondaryArtifacts, incoming.secondaryArtifacts),
+		artifactType: incoming.artifactType ?? base.artifactType,
+		desiredOutcome: incoming.desiredOutcome ?? base.desiredOutcome,
+		deliverableType: incoming.deliverableType ?? base.deliverableType,
+		riskAreas: preferIncomingStringArray(base.riskAreas, incoming.riskAreas),
+		unknowns: preferIncomingStringArray(base.unknowns, incoming.unknowns),
+		validationTargets: preferIncomingStringArray(base.validationTargets, incoming.validationTargets),
+		planAreas: preferIncomingStringArray(base.planAreas, incoming.planAreas),
+	};
+}
+
 function mergeOptionalStringArrays(base: readonly string[] | undefined, incoming: readonly string[] | undefined): string[] | undefined {
 	const merged = mergeStringArrays(base ?? [], incoming ?? []);
 	return merged.length > 0 ? merged : undefined;
+}
+
+function preferIncomingStringArray(base: readonly string[] | undefined, incoming: readonly string[] | undefined): string[] | undefined {
+	if (incoming?.length) {
+		return [...incoming];
+	}
+
+	return base?.length ? [...base] : undefined;
 }
 
 function mergeStringArrays(base: readonly string[], incoming: readonly string[]): string[] {

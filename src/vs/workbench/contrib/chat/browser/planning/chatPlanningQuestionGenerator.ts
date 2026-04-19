@@ -9,7 +9,7 @@ import { localize } from '../../../../../nls.js';
 import { IChatQuestion } from '../../common/chatService/chatService.js';
 import { getTextResponseFromStream, ChatMessageRole, IChatMessage, ILanguageModelsService } from '../../common/languageModels.js';
 import { PlanningReadinessDimension } from '../../common/planning/chatPlanningReadiness.js';
-import { getPlanningPhaseLabel, IPlanningRepositoryContext, IPlanningTarget, IPlanningTransitionAnswer, PlanningPhase, PlanningQuestionStage, planningTargetConfirmationQuestionId, serializePlanningTarget } from '../../common/planning/chatPlanningTransition.js';
+import { getPlanningPhaseLabel, IPlanningRepositoryContext, IPlanningTarget, IPlanningTaskLens, IPlanningTransitionAnswer, isConcretePlanningArtifactReference, PlanningPhase, PlanningQuestionStage } from '../../common/planning/chatPlanningTransition.js';
 
 export interface IPlanningQuestionGenerationContext {
 	readonly userRequest: string;
@@ -27,6 +27,7 @@ export interface IPlanningQuestionGenerationContext {
 	readonly planningAnswers: readonly IPlanningTransitionAnswer[];
 	readonly repositoryContext?: IPlanningRepositoryContext;
 	readonly currentPlan?: string;
+	readonly focusAreaLabel?: string;
 	readonly focusHint?: string;
 }
 
@@ -54,18 +55,15 @@ export async function generateDynamicPlanningQuestions(
 	token: CancellationToken
 ): Promise<IChatQuestion[]> {
 	const requestedQuestionCount = clampRequestedQuestionCount(context.questionCount);
-	const injectedQuestions = createInjectedPlanningQuestions(context);
-	const modelId = context.modelId ?? pickFallbackModelId(languageModelsService);
-	if (!modelId) {
-		const finalizedFallbackQuestions = finalizeGeneratedQuestions([
-			...injectedQuestions,
-			...createFallbackPlanningQuestions(context.planningPhase, context.questionStage)
-		], context);
-		return finalizedFallbackQuestions.length > 0 ? finalizedFallbackQuestions : createFallbackPlanningQuestions(context.planningPhase, context.questionStage);
+	const candidateModelIds = getCandidateModelIds(languageModelsService, context.modelId);
+	if (candidateModelIds.length === 0) {
+		throw new Error(localize(
+			'chat.dynamicPlanning.noLanguageModel',
+			'No language model is available to generate planning questions.'
+		));
 	}
 
-	const requestedModelQuestionCount = Math.max(0, requestedQuestionCount - injectedQuestions.length);
-	const prompt = buildPlanningQuestionPrompt(context, requestedModelQuestionCount);
+	const prompt = buildPlanningQuestionPrompt(context, requestedQuestionCount);
 	const messages: IChatMessage[] = [
 		{
 			role: ChatMessageRole.System,
@@ -75,27 +73,48 @@ export async function generateDynamicPlanningQuestions(
 					'You generate dynamic planning questions for coding work in VS Code.',
 					'You are a dynamic planning prompt middleware that runs before the planning agent receives the actual request.',
 					`The current middleware stage is ${context.questionStage}.`,
+					'Everything in your response must be dynamically generated from the request and the provided context. Never fall back to generic stock questions.',
 					'Respect the current planning phase.',
 					'- broad-scan: clarify the problem space and candidate code areas.',
 					'- focused-slice: narrow to the subsystem, insertion point, and concrete constraints that matter most.',
 					'- detailed-inspection: make the remaining questions concrete enough to drive implementation order, validation, and edit boundaries.',
-					`Ask exactly ${requestedModelQuestionCount} questions.`,
-					`Never return fewer than ${requestedModelQuestionCount} questions.`,
+					`Ask exactly ${requestedQuestionCount} questions.`,
+					`Never return fewer than ${requestedQuestionCount} questions.`,
 					'Use a mix of interaction types when it improves clarity.',
 					'Use text questions for open-ended clarification.',
 					'Use singleSelect or multiSelect whenever a bounded choice would help the user make a sharper planning decision.',
 					'Prefer questions that change implementation scope, success criteria, sequencing, or insertion-point choice.',
+					'Write clean, plain-language UI copy that is easy to scan.',
+					'Keep titles short and concrete.',
+					'Keep messages direct and user-facing.',
+					'Only include a description when it genuinely helps the user answer faster.',
 					'If the stage is goal-clarity, focus on desired outcome, constraints, definition of done, and what should be in or out of scope before the first plan is built.',
 					'If the stage is task-decomposition, assume the first plan already exists and focus on tightening the work breakdown, insertion points, sequencing, validation, and repo slice for the rebuild.',
 					'If the stage is plan-focus, assume a rebuilt plan already exists and focus on sharpening one specific aspect of that plan rather than reopening the whole request.',
 					'If the stage is task-decomposition or plan-focus, treat prior goal-clarity answers as settled inputs, not new question topics.',
 					'Never ask task-decomposition or plan-focus questions that re-open goal, scope, non-goals, or definition-of-done themes.',
-					requestedModelQuestionCount > 1 ? 'For goal-clarity, prefer at least one structured choice question plus one open text question unless the context is genuinely too ambiguous.' : '',
+					'When the current workspace is already clear, do not ask which repository or workspace to use. Ask about the file, directory, subsystem, or related artifacts inside it instead.',
+					'If a primary artifact hint is provided, start from that artifact and only ask a repo-targeting question if the file, folder, or subsystem is still genuinely ambiguous.',
+					!context.repositoryContext?.taskLens?.primaryArtifact && context.repositoryContext?.primaryArtifactHint
+						? 'The exact primary artifact is still unresolved. Your first goal-clarity question should pin down the actual file, directory, symbol, or subsystem inside the current workspace.'
+						: '',
+					'If a task lens is provided, treat it as the best current summary of the work: the task kind, target artifact, adjacent artifacts, desired outcome, expected deliverable, validation targets, risks, and open decisions.',
+					'Ask about unresolved decisions in that task lens rather than asking for generic project metadata.',
+					'For bug-fix work, prefer symptom boundary, likely code path, preserved behavior, and validation questions.',
+					'For feature work, prefer user outcome, surface area, acceptance, and dependency questions.',
+					'For refactor work, prefer preserved behavior, edit boundaries, migration risk, and validation questions.',
+					'For analysis work, prefer target artifact, related inputs, evidence, comparison set, and output questions.',
+					'For test work, prefer failing path, expected assertions, harness, and coverage questions.',
+					'For investigation work, prefer code path, evidence, uncertainty, and next-check questions.',
+					'If the request intent is data analysis, lead with the data file, related schema, output, or directory that matters most.',
+					'If the request intent is data analysis, prefer questions about the data file, related files, desired output, or result validation. Do not ask generic tooling or library questions unless the user or repo context suggests they matter.',
+					'If the request intent is script work, lead with the script, entrypoint, or runtime context that matters most.',
+					requestedQuestionCount > 1 ? 'For goal-clarity, prefer at least one structured choice question plus one open text question unless the context is genuinely too ambiguous.' : '',
 					context.questionStage === 'task-decomposition' ? 'For task-decomposition, prefer a structured work-breakdown or insertion-point question and avoid drifting back into abstract scope questions.' : '',
-					context.questionStage === 'plan-focus' ? 'For plan-focus, prefer follow-up controls that zoom in on a named risk, subsystem, validation path, or sequencing decision from the current plan.' : '',
+					context.questionStage === 'plan-focus' ? 'For plan-focus, return a complementary set of follow-up controls that zoom in on the named focus area using the current plan and narrowed repo context. At least one question should lock the concrete repo slice, file, or subsystem, and at least one should sharpen risk, validation, sequencing, or dependency handling.' : '',
 					'Descriptions should be concise and help the user understand why the question matters.',
 					'Do not repeat the same question theme across both stages.',
-					context.shouldConfirmPlanningTarget ? 'The planning target is being confirmed separately. Do not use one of your questions to ask which file, folder, or workspace slice to target.' : '',
+					context.shouldConfirmPlanningTarget ? 'If the concrete file, folder, or subsystem is still ambiguous, use one sharply-targeted question to pin it down inside the current workspace.' : '',
 					'Return JSON only with the shape {"questions":[...]} and no markdown.'
 				].join(' ')
 			}]
@@ -106,30 +125,63 @@ export async function generateDynamicPlanningQuestions(
 		}
 	];
 
-	try {
-		const normalized = requestedModelQuestionCount > 0
-			? await requestModelPlanningQuestions(languageModelsService, modelId, messages, context, token)
-			: [];
-		const finalized = finalizeGeneratedQuestions([...injectedQuestions, ...normalized], context);
-		return finalized.length > 0 ? finalized : createFallbackPlanningQuestions(context.planningPhase, context.questionStage);
-	} catch {
-		const finalizedFallbackQuestions = finalizeGeneratedQuestions([
-			...injectedQuestions,
-			...createFallbackPlanningQuestions(context.planningPhase, context.questionStage)
-		], context);
-		return finalizedFallbackQuestions.length > 0 ? finalizedFallbackQuestions : createFallbackPlanningQuestions(context.planningPhase, context.questionStage);
-	}
-}
+	let lastError: Error | undefined;
+	for (const modelId of candidateModelIds) {
+		try {
+			const normalized = requestedQuestionCount > 0
+				? await requestModelPlanningQuestions(languageModelsService, modelId, messages, context, token)
+				: [];
+			const finalized = finalizeGeneratedQuestions(normalized, context);
+			if (finalized.length > 0) {
+				return finalized;
+			}
 
-function pickFallbackModelId(languageModelsService: ILanguageModelsService): string | undefined {
-	for (const modelId of languageModelsService.getLanguageModelIds()) {
-		const metadata = languageModelsService.lookupLanguageModel(modelId);
-		if (metadata?.capabilities?.toolCalling && !metadata.targetChatSessionType) {
-			return modelId;
+			lastError = new Error(localize(
+				'chat.dynamicPlanning.noUsableQuestions',
+				'Language model "{0}" did not return enough usable planning questions.',
+				modelId
+			));
+		} catch (error) {
+			lastError = error instanceof Error
+				? error
+				: new Error(localize('chat.dynamicPlanning.unknownGenerationError', 'Planning question generation failed.'));
 		}
 	}
 
-	return languageModelsService.getLanguageModelIds().find(modelId => !languageModelsService.lookupLanguageModel(modelId)?.targetChatSessionType);
+	throw lastError ?? new Error(localize('chat.dynamicPlanning.unknownGenerationError', 'Planning question generation failed.'));
+}
+
+function getCandidateModelIds(languageModelsService: ILanguageModelsService, preferredModelId: string | undefined): string[] {
+	const candidateModelIds: string[] = [];
+	const seen = new Set<string>();
+	const pushCandidate = (modelId: string | undefined) => {
+		if (!modelId || seen.has(modelId)) {
+			return;
+		}
+
+		const metadata = languageModelsService.lookupLanguageModel(modelId);
+		if (metadata?.targetChatSessionType) {
+			return;
+		}
+
+		seen.add(modelId);
+		candidateModelIds.push(modelId);
+	};
+
+	pushCandidate(preferredModelId);
+
+	for (const modelId of languageModelsService.getLanguageModelIds()) {
+		const metadata = languageModelsService.lookupLanguageModel(modelId);
+		if (metadata?.capabilities?.toolCalling && !metadata.targetChatSessionType) {
+			pushCandidate(modelId);
+		}
+	}
+
+	for (const modelId of languageModelsService.getLanguageModelIds()) {
+		pushCandidate(modelId);
+	}
+
+	return candidateModelIds;
 }
 
 async function requestModelPlanningQuestions(
@@ -181,8 +233,20 @@ function buildPlanningQuestionPrompt(context: IPlanningQuestionGenerationContext
 		sections.push(formatRepositoryContext(context.repositoryContext));
 	}
 
+	if (context.repositoryContext?.workspaceFolders?.length === 1 || context.repositoryContext?.workspaceRoot) {
+		sections.push('Workspace grounding:\nThe current repository is already known. Ask about the file, directory, subsystem, or related artifacts inside it instead of asking which repo to use.');
+	}
+
+	if (!context.repositoryContext?.taskLens?.primaryArtifact && context.repositoryContext?.primaryArtifactHint) {
+		sections.push(`Artifact targeting:\nThe request points at ${context.repositoryContext.primaryArtifactHint}, but the exact file, directory, symbol, or subsystem is not pinned down yet. Use the first goal-clarity question to lock that down inside the current workspace.`);
+	}
+
 	if (context.focusHint) {
 		sections.push(`Focus hint:\n${context.focusHint}`);
+	}
+
+	if (context.focusAreaLabel) {
+		sections.push(`User-selected focus area:\n${context.focusAreaLabel}`);
 	}
 
 	if (context.missingDimensions?.length) {
@@ -198,13 +262,14 @@ function buildPlanningQuestionPrompt(context: IPlanningQuestionGenerationContext
 			? `Return exactly ${requestedQuestionCount} questions that clarify the implementation goal, constraints, non-goals, and what success looks like before the first plan is built.`
 			: context.questionStage === 'task-decomposition'
 				? `Return exactly ${requestedQuestionCount} questions that tighten the first plan into a stronger work breakdown, insertion-point choice, repo slice, and validation path.`
-				: `Return exactly ${requestedQuestionCount} questions that zoom in on one specific aspect of the rebuilt plan.`,
+				: `Return exactly ${requestedQuestionCount} questions that zoom in on one specific aspect of the rebuilt plan using the named focus area, the latest plan text, and the narrowed repo context.`,
 		context.questionStage === 'goal-clarity'
 			? 'Prefer a light but engaging pre-planning UX: the questions should feel closer to ask-questions than a heavy middleware banner.'
 			: context.questionStage === 'task-decomposition'
 				? 'Prefer a concrete refinement UX: one question should usually lock in work breakdown, insertion point, or validation.'
-				: 'Prefer a focused refinement UX: the questions should feel like a zoom-in on one part of the plan, not a restart of the whole plan.',
+				: 'Prefer a focused refinement UX: the questions should feel like a zoom-in on one part of the plan, not a restart of the whole plan. When possible, cover the exact repo slice, the key unresolved decision, and the evidence or validation needed for that focused change.',
 		'Avoid generic project-management questions.',
+		'Do not ask for information that is already clear from the repo context, current plan, or earlier answers.',
 		'Use the richer repository context to narrow the work as the phase becomes more specific.',
 		'In broad-scan, keep questions exploratory.',
 		'In focused-slice, prefer subsystem, insertion-point, and constraints questions.',
@@ -234,6 +299,10 @@ function formatRepositoryContext(repositoryContext: IPlanningRepositoryContext):
 		`Scope: ${repositoryContext.scope}`,
 		`Workspace root: ${repositoryContext.workspaceRoot || 'Not provided'}`,
 		`Planning target: ${formatPlanningTarget(repositoryContext.planningTarget)}`,
+		`Request intent: ${repositoryContext.requestIntent || 'Not provided'}`,
+		`Task lens:\n${formatTaskLens(repositoryContext.taskLens)}`,
+		`Primary artifact hint: ${repositoryContext.primaryArtifactHint || 'Not provided'}`,
+		`Related artifact hints: ${repositoryContext.relatedArtifactHints?.join(', ') || 'None'}`,
 		`Focus summary: ${repositoryContext.focusSummary || 'Not provided'}`,
 		`Focus queries: ${repositoryContext.focusQueries.join(', ') || 'None'}`,
 		`Workspace folders: ${repositoryContext.workspaceFolders?.join(', ') || 'None'}`,
@@ -270,7 +339,6 @@ function normalizeGeneratedQuestions(parsed: IGeneratedPlanningQuestionEnvelope 
 	}
 
 	return finalizeGeneratedQuestions(questions
-		.slice(0, 4)
 		.map(normalizeGeneratedQuestion)
 		.filter((question): question is IChatQuestion => !!question), context);
 }
@@ -346,62 +414,86 @@ function finalizeGeneratedQuestions(questions: readonly IChatQuestion[], context
 	const stageFiltered = context.questionStage === 'goal-clarity'
 		? deduped
 		: deduped.filter(question => !isOverlappingGoalClarityQuestion(question, context.planningAnswers));
-	const supplemented = supplementQuestionSet(stageFiltered, context);
-
-	if (supplemented.length < requestedQuestionCount) {
+	if (stageFiltered.length < requestedQuestionCount) {
 		return [];
 	}
 
-	const hasStructuredQuestion = supplemented.some(question => question.type !== 'text');
-	const hasTextQuestion = supplemented.some(question => question.type === 'text');
+	const ranked = rankQuestionsForContext(stageFiltered, context);
+	const trimmed = selectQuestionsWithStageMix(ranked, requestedQuestionCount, context);
+	const hasStructuredQuestion = trimmed.some(question => question.type !== 'text');
+	const hasTextQuestion = trimmed.some(question => question.type === 'text');
 
 	if (context.questionStage === 'goal-clarity') {
 		if (requestedQuestionCount === 1) {
-			return supplemented.slice(0, 1);
+			return trimmed.slice(0, 1);
 		}
 
-		return hasStructuredQuestion && hasTextQuestion ? supplemented.slice(0, requestedQuestionCount) : [];
+		return hasStructuredQuestion && hasTextQuestion ? trimmed : [];
+	}
+
+	if (context.questionStage === 'plan-focus' && requestedQuestionCount > 2) {
+		return hasStructuredQuestion && hasTextQuestion ? trimmed : [];
 	}
 
 	if (requestedQuestionCount === 1) {
-		return supplemented.slice(0, 1);
+		return trimmed.slice(0, 1);
 	}
 
-	return hasStructuredQuestion ? supplemented.slice(0, requestedQuestionCount) : [];
+	return hasStructuredQuestion ? trimmed : [];
 }
 
-function supplementQuestionSet(questions: readonly IChatQuestion[], context: IPlanningQuestionGenerationContext): IChatQuestion[] {
-	const requestedQuestionCount = clampRequestedQuestionCount(context.questionCount);
-	const supplemented = [...questions];
-	if (supplemented.length >= requestedQuestionCount) {
-		return supplemented.slice(0, requestedQuestionCount);
+function rankQuestionsForContext(questions: readonly IChatQuestion[], context: IPlanningQuestionGenerationContext): IChatQuestion[] {
+	return [...questions]
+		.map((question, index) => ({
+			question,
+			index,
+			score: scoreQuestionForContext(question, context),
+		}))
+		.sort((left, right) => right.score - left.score || left.index - right.index)
+		.map(entry => entry.question);
+}
+
+function selectQuestionsWithStageMix(
+	rankedQuestions: readonly IChatQuestion[],
+	requestedQuestionCount: number,
+	context: IPlanningQuestionGenerationContext,
+): IChatQuestion[] {
+	if (requestedQuestionCount <= 1) {
+		return rankedQuestions.slice(0, 1);
 	}
 
-	const fallbackQuestions = createFallbackPlanningQuestions(context.planningPhase, context.questionStage);
-	for (const fallbackQuestion of fallbackQuestions) {
-		const candidate = context.questionStage !== 'goal-clarity' && isOverlappingGoalClarityQuestion(fallbackQuestion, context.planningAnswers)
-			? undefined
-			: fallbackQuestion;
-		if (!candidate) {
+	const requireTextAndStructured = context.questionStage === 'goal-clarity' || (context.questionStage === 'plan-focus' && requestedQuestionCount > 2);
+	if (!requireTextAndStructured) {
+		return rankedQuestions.slice(0, requestedQuestionCount);
+	}
+
+	const hasConcretePrimaryArtifact = isConcretePlanningArtifactReference(context.repositoryContext?.taskLens?.primaryArtifact)
+		|| isConcretePlanningArtifactReference(context.repositoryContext?.primaryArtifactHint);
+	const hasUnresolvedPrimaryArtifact = !hasConcretePrimaryArtifact && !!context.repositoryContext?.primaryArtifactHint;
+	const textQuestion = rankedQuestions.find(question => question.type === 'text');
+	const structuredQuestion = rankedQuestions.find(question => question.type !== 'text');
+	if (!textQuestion || !structuredQuestion) {
+		return rankedQuestions.slice(0, requestedQuestionCount);
+	}
+
+	const selected: IChatQuestion[] = [];
+	const seen = new Set<string>();
+	const prioritizedQuestions = hasUnresolvedPrimaryArtifact && context.questionStage === 'goal-clarity'
+		? [rankedQuestions[0], textQuestion, structuredQuestion, ...rankedQuestions]
+		: [structuredQuestion, textQuestion, ...rankedQuestions];
+	for (const question of prioritizedQuestions) {
+		if (seen.has(question.id)) {
 			continue;
 		}
 
-		const candidateText = normalizeQuestionPrompt(candidate);
-		if (!candidateText) {
-			continue;
-		}
-
-		if (supplemented.some(existing => computeOverlap(normalizeQuestionPrompt(existing), candidateText) >= 0.72)) {
-			continue;
-		}
-
-		supplemented.push(candidate);
-		if (supplemented.length >= requestedQuestionCount) {
+		seen.add(question.id);
+		selected.push(question);
+		if (selected.length >= requestedQuestionCount) {
 			break;
 		}
 	}
 
-	return supplemented;
+	return selected;
 }
 
 function clampRequestedQuestionCount(questionCount: number | undefined): number {
@@ -476,261 +568,82 @@ function computeOverlap(left: string, right: string): number {
 	return matches / Math.max(leftTokens.size, rightTokens.size);
 }
 
-function createFallbackPlanningQuestions(phase: PlanningPhase, questionStage: PlanningQuestionStage = 'goal-clarity'): IChatQuestion[] {
-	if (questionStage === 'plan-focus') {
-		return [
-			{
-				id: generateUuid(),
-				type: 'singleSelect',
-				title: localize('chat.planQuestions.planFocusLensTitle', 'Plan Lens To Tighten'),
-				message: localize('chat.planQuestions.planFocusLensMessage', 'Which part of the current plan should this zoom-in make sharper?'),
-				options: [
-					{ id: 'risky-step', label: localize('chat.planQuestions.planFocusLensRisk', 'Risky step or dependency'), value: 'Risky step or dependency' },
-					{ id: 'edit-boundary', label: localize('chat.planQuestions.planFocusLensBoundary', 'Edit boundary or ownership split'), value: 'Edit boundary or ownership split' },
-					{ id: 'validation-path', label: localize('chat.planQuestions.planFocusLensValidation', 'Validation path'), value: 'Validation path' },
-				],
-				allowFreeformInput: true,
-				required: true
-			},
-			{
-				id: generateUuid(),
-				type: 'text',
-				title: localize('chat.planQuestions.planFocusDetailTitle', 'What Still Feels Underspecified?'),
-				message: localize('chat.planQuestions.planFocusDetailMessage', 'Name the step, risk, or dependency that still needs sharper guidance.'),
-				required: false
-			}
-		];
+function scoreQuestionForContext(question: IChatQuestion, context: IPlanningQuestionGenerationContext): number {
+	const prompt = normalizeQuestionPrompt(question);
+	if (!prompt) {
+		return -Infinity;
 	}
 
-	if (questionStage === 'goal-clarity') {
-		switch (phase) {
-			case 'focused-slice':
-				return [
-					{
-						id: generateUuid(),
-						type: 'singleSelect',
-						title: localize('chat.planQuestions.goalFocusedTitle', 'Decision To Land In This Slice'),
-						message: localize('chat.planQuestions.goalFocusedMessage', 'What should this focused pre-planning pass lock in before planning continues?'),
-						description: localize('chat.planQuestions.goalFocusedDescription', 'Choose the main decision this step should settle.'),
-						options: [
-							{ id: 'owning-subsystem', label: localize('chat.planQuestions.goalFocusedSubsystem', 'Owning subsystem'), value: 'Owning subsystem' },
-							{ id: 'primary-insertion-point', label: localize('chat.planQuestions.goalFocusedInsertion', 'Primary insertion point'), value: 'Primary insertion point' },
-							{ id: 'scope-boundary', label: localize('chat.planQuestions.goalFocusedBoundary', 'Scope boundary'), value: 'Scope boundary' },
-						],
-						allowFreeformInput: true,
-						required: true
-					},
-					{
-						id: generateUuid(),
-						type: 'text',
-						title: localize('chat.planQuestions.constraintsFocusedTitle', 'Critical Constraints'),
-						message: localize('chat.planQuestions.constraintsFocusedMessage', 'What constraints, non-goals, or boundaries should keep this slice narrow?'),
-						description: localize('chat.planQuestions.constraintsFocusedDescription', 'Capture the constraint that should most strongly shape the next plan.'),
-						required: false
-					},
-					{
-						id: generateUuid(),
-						type: 'multiSelect',
-						title: localize('chat.planQuestions.successFocusedTitle', 'Useful Signals To Lock In'),
-						message: localize('chat.planQuestions.successFocusedMessage', 'Which signals would make the next planning step noticeably better?'),
-						options: [
-							{ id: 'affected-subsystem', label: localize('chat.planQuestions.affectedSubsystem', 'Owning subsystem'), value: 'Owning subsystem' },
-							{ id: 'insertion-point', label: localize('chat.planQuestions.insertionPointClarify', 'Likely insertion point'), value: 'Likely insertion point' },
-							{ id: 'scope-boundary', label: localize('chat.planQuestions.scopeBoundaryClarify', 'Out-of-scope boundary'), value: 'Out-of-scope boundary' },
-						],
-						allowFreeformInput: true,
-						required: false
-					}
-				];
-			case 'detailed-inspection':
-				return [
-					{
-						id: generateUuid(),
-						type: 'singleSelect',
-						title: localize('chat.planQuestions.goalDetailedTitle', 'Implementation Outcome'),
-						message: localize('chat.planQuestions.goalDetailedMessage', 'What should this implementation-ready plan make unambiguous?'),
-						options: [
-							{ id: 'edit-sequence', label: localize('chat.planQuestions.goalDetailedSequence', 'Edit sequence'), value: 'Edit sequence' },
-							{ id: 'file-boundaries', label: localize('chat.planQuestions.goalDetailedBoundaries', 'File and responsibility boundaries'), value: 'File and responsibility boundaries' },
-							{ id: 'validation-path', label: localize('chat.planQuestions.goalDetailedValidation', 'Validation path'), value: 'Validation path' },
-						],
-						allowFreeformInput: true,
-						required: true
-					},
-					{
-						id: generateUuid(),
-						type: 'text',
-						title: localize('chat.planQuestions.nonGoalsDetailedTitle', 'Non-Goals'),
-						message: localize('chat.planQuestions.nonGoalsDetailedMessage', 'Which files, behaviors, or responsibilities should explicitly remain untouched?'),
-						description: localize('chat.planQuestions.nonGoalsDetailedDescription', 'This keeps the eventual implementation plan tight.'),
-						required: false
-					},
-					{
-						id: generateUuid(),
-						type: 'multiSelect',
-						title: localize('chat.planQuestions.doneDetailedTitle', 'Definition Of Done'),
-						message: localize('chat.planQuestions.doneDetailedMessage', 'What needs to be settled before this can cleanly hand off to implementation?'),
-						options: [
-							{ id: 'changed-files', label: localize('chat.planQuestions.doneDetailedFiles', 'Likely changed files'), value: 'Likely changed files' },
-							{ id: 'edit-order', label: localize('chat.planQuestions.doneDetailedOrder', 'Edit order'), value: 'Edit order' },
-							{ id: 'checks', label: localize('chat.planQuestions.doneDetailedChecks', 'Validation checks'), value: 'Validation checks' },
-						],
-						allowFreeformInput: true,
-						required: false
-					}
-				];
-			default:
-				return [
-					{
-						id: generateUuid(),
-						type: 'singleSelect',
-						title: localize('chat.planQuestions.goalTitle', 'What Kind Of Planning Outcome Do You Want?'),
-						message: localize('chat.planQuestions.goalMessage', 'Which kind of outcome should this pre-planning step sharpen first?'),
-						description: localize('chat.planQuestions.goalDescription', 'This helps tailor the rest of the questions before the request is sent to Planner.'),
-						options: [
-							{ id: 'refine-existing-behavior', label: localize('chat.planQuestions.goalExistingBehavior', 'Refine existing behavior'), value: 'Refine existing behavior' },
-							{ id: 'design-new-flow', label: localize('chat.planQuestions.goalNewFlow', 'Design a new flow'), value: 'Design a new flow' },
-							{ id: 'sequence-refactor', label: localize('chat.planQuestions.goalRefactor', 'Sequence a refactor'), value: 'Sequence a refactor' },
-							{ id: 'investigate-approach', label: localize('chat.planQuestions.goalInvestigate', 'Investigate the best approach'), value: 'Investigate the best approach' }
-						],
-						allowFreeformInput: true,
-						required: true
-					},
-					{
-						id: generateUuid(),
-						type: 'multiSelect',
-						title: localize('chat.planQuestions.constraintsTitle', 'What Should The Planner Optimize For?'),
-						message: localize('chat.planQuestions.constraintsMessage', 'Pick the factors that should most strongly shape the plan.'),
-						options: [
-							{ id: 'minimal-surface-area', label: localize('chat.planQuestions.constraintsMinimalSurface', 'Minimal surface area'), value: 'Minimal surface area' },
-							{ id: 'clearer-user-experience', label: localize('chat.planQuestions.constraintsUserExperience', 'Clearer user experience'), value: 'Clearer user experience' },
-							{ id: 'safer-rollout', label: localize('chat.planQuestions.constraintsSafety', 'Safer rollout and lower regression risk'), value: 'Safer rollout and lower regression risk' },
-							{ id: 'testability', label: localize('chat.planQuestions.constraintsTests', 'Better testability'), value: 'Better testability' }
-						],
-						allowFreeformInput: true,
-						required: false
-					},
-					{
-						id: generateUuid(),
-						type: 'text',
-						title: localize('chat.planQuestions.successTitle', 'Definition Of Done'),
-						message: localize('chat.planQuestions.successMessage', 'What needs to be clear before the plan can move on to implementation steps?'),
-						description: localize('chat.planQuestions.successDescription', 'Use this to capture the final outcome or boundary the planner should treat as fixed.'),
-						required: false
-					}
-				];
+	const taskLens = context.repositoryContext?.taskLens;
+	const hasConcretePrimaryArtifact = isConcretePlanningArtifactReference(taskLens?.primaryArtifact)
+		|| isConcretePlanningArtifactReference(context.repositoryContext?.primaryArtifactHint);
+	const hasUnresolvedPrimaryArtifact = !hasConcretePrimaryArtifact && !!context.repositoryContext?.primaryArtifactHint;
+	const overlap = (values: readonly string[] | undefined, weight: number) => {
+		if (!values?.length) {
+			return 0;
+		}
+
+		return values.reduce((total, value) => total + computeOverlap(prompt, normalizeWhitespace(value)) * weight, 0);
+	};
+	const keywordOverlap = (value: string | undefined, weight: number) => value ? computeOverlap(prompt, normalizeWhitespace(value)) * weight : 0;
+	let score = overlap(context.missingDimensions, 1.8)
+		+ overlap(context.partialDimensions, 1.1)
+		+ keywordOverlap(taskLens?.taskSummary, 1.8)
+		+ keywordOverlap(taskLens?.desiredOutcome, 2.2)
+		+ keywordOverlap(taskLens?.primaryArtifact ?? context.repositoryContext?.primaryArtifactHint, 2.4)
+		+ overlap(taskLens?.secondaryArtifacts ?? context.repositoryContext?.relatedArtifactHints, 1.5)
+		+ overlap(taskLens?.planAreas, context.questionStage === 'goal-clarity' ? 0.7 : 1.8)
+		+ overlap(taskLens?.validationTargets, 1.6)
+		+ overlap(taskLens?.riskAreas, 1.5)
+		+ overlap(taskLens?.unknowns, 2)
+		+ keywordOverlap(context.focusAreaLabel, context.questionStage === 'plan-focus' ? 2.6 : 0.8)
+		+ keywordOverlap(context.currentPlan, context.questionStage === 'goal-clarity' ? 0.4 : 1.1);
+
+	if (context.questionStage === 'task-decomposition' && question.type !== 'text') {
+		score += 0.35;
+	}
+
+	if (context.questionStage === 'plan-focus' && question.type === 'text') {
+		score += 0.25;
+	}
+
+	if ((context.repositoryContext?.workspaceRoot || context.repositoryContext?.workspaceFolders?.length === 1)
+		&& (taskLens?.primaryArtifact || context.repositoryContext?.primaryArtifactHint)
+		&& /\b(repo|repository|workspace)\b/i.test(prompt)) {
+		score -= 3.5;
+	}
+
+	if (hasUnresolvedPrimaryArtifact && context.questionStage === 'goal-clarity') {
+		if (/\b(file|folder|directory|subsystem|symbol|module|entrypoint|script|csv|tsv|json|yaml|sql|notebook|test)\b/i.test(prompt)) {
+			score += 2.4;
+		}
+
+		if (/\b(which|what)\b.{0,40}\b(file|folder|directory|subsystem|symbol|module|csv|script|test)\b/i.test(prompt)) {
+			score += 1.2;
+		}
+
+		if (/\b(anchor|primary|exact|target)\b/i.test(prompt)) {
+			score += 1.4;
+		}
+
+		if (/\brelated files?\b|\badjacent files?\b|\bother files?\b/i.test(prompt)) {
+			score -= 1.6;
 		}
 	}
 
-	switch (phase) {
-		case 'focused-slice':
-			return [
-				{
-					id: generateUuid(),
-					type: 'singleSelect',
-					title: localize('chat.planQuestions.focusAreaTitle', 'Primary Focus Area'),
-					message: localize('chat.planQuestions.focusAreaMessage', 'Which part of the codebase should this plan narrow onto next?'),
-					options: [
-						{ id: 'entry-point', label: localize('chat.planQuestions.entryPoint', 'Entry point or command path'), value: 'Entry point or command path' },
-						{ id: 'state-model', label: localize('chat.planQuestions.stateModel', 'Planning state and transitions'), value: 'Planning state and transitions' },
-						{ id: 'ui-surface', label: localize('chat.planQuestions.uiSurface', 'UI surface and interaction model'), value: 'UI surface and interaction model' },
-						{ id: 'validation-tests', label: localize('chat.planQuestions.validationTests', 'Validation and tests'), value: 'Validation and tests' }
-					],
-					allowFreeformInput: true,
-					required: true
-				},
-				{
-					id: generateUuid(),
-					type: 'text',
-					title: localize('chat.planQuestions.focusConstraintsTitle', 'Key Constraints'),
-					message: localize('chat.planQuestions.focusConstraintsMessage', 'What constraints or non-goals should keep this phase tightly scoped?'),
-					required: false
-				},
-				{
-					id: generateUuid(),
-					type: 'multiSelect',
-					title: localize('chat.planQuestions.focusBreakdownTitle', 'Focused Breakdown'),
-					message: localize('chat.planQuestions.focusBreakdownMessage', 'Which narrowed steps should this phase lock in?'),
-					options: [
-						{ id: 'pick-files', label: localize('chat.planQuestions.pickFiles', 'Choose likely files and symbols'), value: 'Choose likely files and symbols' },
-						{ id: 'pick-insertion-point', label: localize('chat.planQuestions.pickInsertionPoint', 'Choose insertion point'), value: 'Choose insertion point' },
-						{ id: 'confirm-data-flow', label: localize('chat.planQuestions.confirmDataFlow', 'Confirm data and state flow'), value: 'Confirm data and state flow' },
-						{ id: 'define-success', label: localize('chat.planQuestions.defineSuccess', 'Define success criteria'), value: 'Define success criteria' }
-					],
-					allowFreeformInput: true,
-					required: false
-				}
-			];
-		case 'detailed-inspection':
-			return [
-				{
-					id: generateUuid(),
-					type: 'multiSelect',
-					title: localize('chat.planQuestions.detailSequenceTitle', 'Implementation Sequence'),
-					message: localize('chat.planQuestions.detailSequenceMessage', 'Which concrete implementation steps should happen in this order?'),
-					options: [
-						{ id: 'inspect-existing-flow', label: localize('chat.planQuestions.inspectExistingFlow', 'Inspect the exact existing flow'), value: 'Inspect the exact existing flow' },
-						{ id: 'edit-state', label: localize('chat.planQuestions.editState', 'Edit planning state and transitions'), value: 'Edit planning state and transitions' },
-						{ id: 'wire-ui', label: localize('chat.planQuestions.wireUi', 'Wire the UI or action surface'), value: 'Wire the UI or action surface' },
-						{ id: 'verify-tests', label: localize('chat.planQuestions.verifyTests', 'Verify behavior and tests'), value: 'Verify behavior and tests' }
-					],
-					allowFreeformInput: true,
-					required: true
-				},
-				{
-					id: generateUuid(),
-					type: 'text',
-					title: localize('chat.planQuestions.detailBoundariesTitle', 'Edit Boundaries'),
-					message: localize('chat.planQuestions.detailBoundariesMessage', 'Which files, interfaces, or responsibilities should remain untouched in this pass?'),
-					required: false
-				},
-				{
-					id: generateUuid(),
-					type: 'text',
-					title: localize('chat.planQuestions.detailValidationTitle', 'Validation Plan'),
-					message: localize('chat.planQuestions.detailValidationMessage', 'What checks should confirm the implementation is correct before moving on?'),
-					required: false
-				}
-			];
-		default:
-			return [
-				{
-					id: generateUuid(),
-					type: 'multiSelect',
-					title: localize('chat.planQuestions.breakdownTitle', 'Task Breakdown'),
-					message: localize('chat.planQuestions.breakdownMessage', 'Which broad steps should the implementation cover?'),
-					options: [
-						{ id: 'audit-existing-code', label: localize('chat.planQuestions.audit', 'Audit existing code path'), value: 'Audit existing code path' },
-						{ id: 'pick-insertion-point', label: localize('chat.planQuestions.insertion', 'Choose insertion point'), value: 'Choose insertion point' },
-						{ id: 'implement-core-change', label: localize('chat.planQuestions.implement', 'Implement core change'), value: 'Implement core change' },
-						{ id: 'validate-behavior', label: localize('chat.planQuestions.validate', 'Validate behavior and regressions'), value: 'Validate behavior and regressions' }
-					],
-					allowFreeformInput: true,
-					required: true
-				},
-				{
-					id: generateUuid(),
-					type: 'singleSelect',
-					title: localize('chat.planQuestions.insertionPointTitle', 'Starting Point'),
-					message: localize('chat.planQuestions.insertionPointMessage', 'Where should implementation most likely begin?'),
-					options: [
-						{ id: 'entry-point', label: localize('chat.planQuestions.entryPointStart', 'Entry point or command path'), value: 'Entry point or command path' },
-						{ id: 'state-flow', label: localize('chat.planQuestions.stateFlowStart', 'State and transition logic'), value: 'State and transition logic' },
-						{ id: 'ui-surface', label: localize('chat.planQuestions.uiSurfaceStart', 'UI surface or interaction point'), value: 'UI surface or interaction point' },
-						{ id: 'tests', label: localize('chat.planQuestions.testsStart', 'Tests or validation harness'), value: 'Tests or validation harness' }
-					],
-					allowFreeformInput: true,
-					required: false
-				},
-				{
-					id: generateUuid(),
-					type: 'text',
-					title: localize('chat.planQuestions.validationTitle', 'Validation Strategy'),
-					message: localize('chat.planQuestions.validationMessage', 'What checks should confirm the implementation is correct once those steps are complete?'),
-					required: false
-				}
-			];
+	if (taskLens?.artifactType === 'dataset' && /\b(language|framework|library|plotting|frontend)\b/i.test(prompt)) {
+		score -= 2;
 	}
+
+	if (context.questionStage !== 'goal-clarity' && looksLikeGoalClarityQuestion(prompt)) {
+		score -= 3;
+	}
+
+	if (/\bwhich repo\b|\bwhich workspace\b/i.test(prompt)) {
+		score -= 4;
+	}
+
+	return score;
 }
 
 function formatSymbols(symbols: ReadonlyArray<{ name: string; kind: string; file?: string }>): string {
@@ -760,96 +673,24 @@ function formatSnippets(snippets: ReadonlyArray<{ path: string; preview: string;
 		.join('\n---\n');
 }
 
-function createInjectedPlanningQuestions(context: IPlanningQuestionGenerationContext): IChatQuestion[] {
-	if (!context.shouldConfirmPlanningTarget || context.questionStage !== 'goal-clarity') {
-		return [];
+function formatTaskLens(taskLens: IPlanningTaskLens | undefined): string {
+	if (!taskLens) {
+		return 'Not provided';
 	}
 
-	const confirmationQuestion = createPlanningTargetConfirmationQuestion(context);
-	return confirmationQuestion ? [confirmationQuestion] : [];
-}
-
-function createPlanningTargetConfirmationQuestion(context: IPlanningQuestionGenerationContext): IChatQuestion | undefined {
-	const options = getPlanningTargetCandidates(context)
-		.map(target => ({
-			id: `${target.kind}:${target.label}`,
-			label: target.label,
-			value: serializePlanningTarget(target),
-		}))
-		.filter((option, index, options) => options.findIndex(candidate => candidate.value === option.value) === index)
-		.slice(0, 5);
-
-	if (options.length === 0) {
-		return undefined;
-	}
-
-	return {
-		id: planningTargetConfirmationQuestionId,
-		type: 'singleSelect',
-		title: localize('chat.planQuestions.targetConfirmationTitle', 'Primary Planning Target'),
-		message: localize('chat.planQuestions.targetConfirmationMessage', 'Which repo target should these planning questions focus on first?'),
-		description: localize('chat.planQuestions.targetConfirmationDescription', 'This anchors the remaining pre-planning questions to the right file, folder, or working set.'),
-		options,
-		defaultValue: options[0].label,
-		required: true,
-		allowFreeformInput: true,
-	};
-}
-
-function getPlanningTargetCandidates(context: IPlanningQuestionGenerationContext): IPlanningTarget[] {
-	const candidates: IPlanningTarget[] = [];
-	const repositoryContext = context.repositoryContext;
-
-	if (repositoryContext?.planningTarget) {
-		candidates.push({
-			...repositoryContext.planningTarget,
-			confidence: 'high',
-		});
-	}
-
-	if (context.activeFilePath) {
-		candidates.push({
-			kind: 'file',
-			label: context.activeFilePath.split('/').pop() || context.activeFilePath,
-			resource: context.activeFilePath,
-			confidence: 'high',
-		});
-	}
-
-	for (const file of repositoryContext?.workingSetFiles?.slice(0, 2) ?? []) {
-		candidates.push({
-			kind: 'working-set',
-			label: file,
-			confidence: 'medium',
-		});
-	}
-
-	for (const entry of repositoryContext?.workspaceTopLevelEntries?.slice(0, 2) ?? []) {
-		candidates.push({
-			kind: entry.includes('.') ? 'file' : 'folder',
-			label: entry,
-			confidence: 'medium',
-		});
-	}
-
-	for (const folder of repositoryContext?.workspaceFolders?.slice(0, 2) ?? []) {
-		candidates.push({
-			kind: 'folder',
-			label: folder,
-			confidence: 'medium',
-		});
-	}
-
-	if (repositoryContext?.workspaceRoot) {
-		candidates.push({
-			kind: 'workspace',
-			label: repositoryContext.workspaceFolders?.[0] ?? repositoryContext.workspaceRoot,
-			resource: repositoryContext.workspaceRoot,
-			confidence: 'medium',
-		});
-	}
-
-	return candidates.filter((candidate, index, values) => values.findIndex(other => other.kind === candidate.kind && other.label === candidate.label) === index);
+	return [
+		`Task kind: ${taskLens.taskKind}`,
+		`Task summary: ${taskLens.taskSummary || 'Not provided'}`,
+		`Primary artifact: ${taskLens.primaryArtifact || 'Not provided'}`,
+		`Adjacent artifacts: ${taskLens.secondaryArtifacts?.join(', ') || 'None'}`,
+		`Artifact type: ${taskLens.artifactType || 'Not provided'}`,
+		`Desired outcome: ${taskLens.desiredOutcome || 'Not provided'}`,
+		`Expected deliverable: ${taskLens.deliverableType || 'Not provided'}`,
+		`Plan areas: ${taskLens.planAreas?.join(', ') || 'None'}`,
+		`Validation targets: ${taskLens.validationTargets?.join(', ') || 'None'}`,
+		`Risks or guardrails: ${taskLens.riskAreas?.join('; ') || 'None'}`,
+		`Open decisions: ${taskLens.unknowns?.join('; ') || 'None'}`,
+	].join('\n');
 }
 
 function formatPlanningTarget(target: IPlanningTarget | undefined): string {

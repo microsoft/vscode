@@ -1,6 +1,6 @@
 # Planning Middleware Checkpoint
 
-Date: 2026-04-18
+Date: 2026-04-19
 
 Repository: `C:\Users\t-vkewenig\OneDrive - Microsoft\Desktop\vscode\vscode`
 
@@ -15,11 +15,14 @@ Status: this markdown documents the current planning-mode checkpoint that is int
 - Planning mode uses dynamic pre-planning middleware, but Goal Clarity now renders with the regular ask-questions carousel design instead of the heavier middleware chrome.
 - Goal Clarity is the only question phase before the first plan is built.
 - The first planning request is sent immediately after Goal Clarity answers are captured and narrowed into planning context.
+- Entering planning mode from a normal-mode session now resets planning middleware state correctly, so Goal Clarity still runs on the first planning submission.
+- The first real planning request is allowed to use planner-side follow-up questions again while the plan is being constructed.
 - Task Decomposition is now fully decoupled from Goal Clarity and appears only after the first plan completes.
 - After Task Decomposition answers are captured, the plan is rebuilt with the refined planning context.
 - After the rebuilt plan completes, an optional Plan Focus prompt appears. If the user names a specific aspect to zoom in on, a new dynamic control set is generated for that focus area and a further refinement request is sent.
 - User-facing copy is intentionally lightweight. The UI explains what the step is for, but does not expose internal readiness scoring or confidence jargon.
 - Goal Clarity and Task Decomposition widgets are more scrollable and readable. Taller containers and larger scroll regions make long forms and explanations usable without clipping.
+- User-facing planning banners stay lightweight and no longer leak internal task-lens wording such as synthesized desired outcomes.
 - Planning context narrows between stages. Newer repo context replaces stale broad context rather than unioning everything forever.
 - Context awareness is richer than the original checkpoint:
   - active file and selection
@@ -35,6 +38,7 @@ Status: this markdown documents the current planning-mode checkpoint that is int
   - relevant snippets
 - Context narrowing now works better for file-centric requests, including data files such as `.csv` and `.tsv`, not just source-code files.
 - Filenames mentioned in answers, such as `orders.csv`, `customers.csv`, or `schema.json`, can become explicit narrowing queries for later planning stages.
+- Generic artifact hints like `Requested CSV file` are treated as unresolved hints, not as settled targets. Goal Clarity can now lead with the real file/directory/subsystem question instead of pretending that target is already known.
 - Planning readiness now decides how many questions to ask dynamically instead of always forcing a fixed count.
 - A new `plan-focus` stage exists in the planning stage model and question generator.
 
@@ -49,17 +53,18 @@ Status: this markdown documents the current planning-mode checkpoint that is int
 7. User answers Goal Clarity.
 8. Goal Clarity answers are merged into planning context, and repo context is recollected with the narrowed answers.
 9. The first planning request is sent to the planning agent with the merged planning context attached.
-10. The first plan completes.
-11. Task Decomposition questions appear.
-12. User answers Task Decomposition.
-13. Task Decomposition answers are merged into planning context, and repo context is recollected again for the narrowed plan slice.
-14. The planning request is rebuilt and sent again with the refined planning context attached.
-15. The rebuilt plan completes.
-16. An optional Plan Focus prompt appears.
-17. If the user leaves it blank or skips it, the flow stops and the rebuilt plan remains as-is.
-18. If the user names a focus area, dynamic Plan Focus controls are generated.
-19. User answers the Plan Focus controls.
-20. The planning request is rebuilt again with the focused planning context attached.
+10. While constructing the first plan, the planning agent is allowed to ask further clarifying questions if it still needs them.
+11. The first plan completes.
+12. Task Decomposition questions appear.
+13. User answers Task Decomposition.
+14. Task Decomposition answers are merged into planning context, and repo context is recollected again for the narrowed plan slice.
+15. The planning request is rebuilt and sent again with the refined planning context attached.
+16. The rebuilt plan completes.
+17. An optional Plan Focus prompt appears.
+18. If the user leaves it blank or skips it, the flow stops and the rebuilt plan remains as-is.
+19. If the user names a focus area, dynamic Plan Focus controls are generated.
+20. User answers the Plan Focus controls.
+21. The planning request is rebuilt again with the focused planning context attached.
 
 ## Main files touched for this checkpoint
 
@@ -84,6 +89,7 @@ Status: this markdown documents the current planning-mode checkpoint that is int
 - Goal Clarity now piggy-backs on the ask-questions carousel component and standard chrome rather than the heavier middleware visual treatment.
 - Goal Clarity is the only question phase before the first plan is created.
 - The number of Goal Clarity questions is dynamic and depends on request specificity and planning readiness.
+- Goal Clarity is now more artifact-first. If the request implies a file type or artifact but has not pinned down the exact file, directory, symbol, or subsystem yet, the first question should try to resolve that concrete target inside the current workspace.
 
 ### Task Decomposition
 
@@ -110,6 +116,7 @@ Status: this markdown documents the current planning-mode checkpoint that is int
   - nearby files
   - relevant snippets
 - This makes later stages better at staying anchored to the exact file, directory, or related-file slice the user clarified.
+- Rich task-lens context is still preserved for the planner itself, but user-facing UI text should only surface concrete artifact labels and lightweight step descriptions.
 
 ### Scroll and readability behavior
 
@@ -133,6 +140,13 @@ cd "C:\Users\t-vkewenig\OneDrive - Microsoft\Desktop\vscode\vscode"
 cmd /c npm run transpile-client
 ```
 
+Alternative transpile path used when `out/` was file-locked by Windows / OneDrive:
+
+```powershell
+cd "C:\Users\t-vkewenig\OneDrive - Microsoft\Desktop\vscode\vscode"
+node build/next/index.ts transpile --out out-build
+```
+
 Selfhost launch:
 
 ```cmd
@@ -144,6 +158,7 @@ set VSCODE_SKIP_PRELAUNCH=1 && scripts\code.bat
 
 - The renderer/unit test harness is currently blocked by an unrelated `@parcel/watcher` module-resolution issue in this local environment.
 - Some local test/build flows can also fail because of Windows or OneDrive file locks under `.build` or generated extension output.
+- When `out/` is locked, `out-build/` can still be used for focused transpile + Mocha validation, and the updated planning JS can be copied back into `out/` manually.
 - Those issues are environmental and were not introduced by the planning middleware changes documented here.
 
 ## How to restore this checkpoint later

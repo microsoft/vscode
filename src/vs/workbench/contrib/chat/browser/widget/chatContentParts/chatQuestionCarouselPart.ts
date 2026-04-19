@@ -556,6 +556,10 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 		return !this._accessibilityService.isScreenReaderOptimized();
 	}
 
+	private shouldAutoAdvanceSingleSelect(): boolean {
+		return !isPlanningMiddlewareQuestionCarousel(this.carousel.resolveId);
+	}
+
 	/**
 	 * Updates the aria-label of the carousel container based on the current question.
 	 */
@@ -652,9 +656,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			const messageContent = this.getQuestionText(questionText);
 			title.setAttribute('aria-label', messageContent);
 
-			const titleText = question.required
-				? new MarkdownString(`${isMarkdownString(questionText) ? questionText.value : questionText} *`)
-				: (isMarkdownString(questionText) ? MarkdownString.lift(questionText) : new MarkdownString(questionText));
+			const titleText = isMarkdownString(questionText) ? MarkdownString.lift(questionText) : new MarkdownString(questionText);
 			const renderedTitle = questionRenderStore.add(this._markdownRendererService.render(titleText));
 			title.appendChild(renderedTitle.element);
 			titleRow.appendChild(title);
@@ -1056,7 +1058,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 				listItem.classList.add('selected');
 			}
 
-			// if we select an option, clear text and go to next question
+			// For planning middleware, let users review/select before advancing.
 			this._inputBoxes.add(dom.addDisposableListener(listItem, dom.EventType.CLICK, (e: MouseEvent) => {
 				e.preventDefault();
 				e.stopPropagation();
@@ -1065,7 +1067,9 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 				if (freeform) {
 					freeform.value = '';
 				}
-				this.handleNextOrSubmit();
+				if (this.shouldAutoAdvanceSingleSelect()) {
+					this.handleNextOrSubmit();
+				}
 			}));
 
 			this._inputBoxes.add(this._hoverService.setupDelayedHover(listItem, {

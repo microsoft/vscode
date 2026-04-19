@@ -14,7 +14,7 @@ import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { PreferredGroup } from '../../../services/editor/common/editorService.js';
-import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData } from '../common/participants/chatAgents.js';
+import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData, UserSelectedTools } from '../common/participants/chatAgents.js';
 import { IChatRequestVariableEntry } from '../common/attachments/chatVariableEntries.js';
 import { IChatResponseModel, IChatModelInputState } from '../common/model/chatModel.js';
 import { IChatMode } from '../common/chatModes.js';
@@ -324,6 +324,7 @@ export interface IChatAcceptInputOptions {
 	isVoiceInput?: boolean;
 	enableImplicitContext?: boolean; // defaults to true
 	extraAttachedContext?: readonly IChatRequestVariableEntry[];
+	userSelectedToolsOverride?: UserSelectedTools;
 	// Whether to store the input to history. This defaults to 'true' if the input
 	// box's current content is being accepted, or 'false' if a specific input
 	// is being submitted to the widget.

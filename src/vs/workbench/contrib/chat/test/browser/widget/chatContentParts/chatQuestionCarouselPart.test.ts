@@ -13,11 +13,12 @@ import { IChatQuestionAnswerValue, IChatQuestionCarousel } from '../../../../com
 import { IChatContentPartRenderContext } from '../../../../browser/widget/chatContentParts/chatContentParts.js';
 import { ChatQuestionCarouselData } from '../../../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
 
-function createMockCarousel(questions: IChatQuestionCarousel['questions'], allowSkip: boolean = true): IChatQuestionCarousel {
+function createMockCarousel(questions: IChatQuestionCarousel['questions'], allowSkip: boolean = true, resolveId?: string): IChatQuestionCarousel {
 	return {
 		kind: 'questionCarousel',
 		questions,
 		allowSkip,
+		resolveId,
 	};
 }
 
@@ -447,6 +448,29 @@ suite('ChatQuestionCarouselPart', () => {
 			const submitButton = widget.domNode.querySelector('.chat-question-submit-button') as HTMLButtonElement;
 			assert.ok(submitButton, 'Submit button should exist');
 			assert.notStrictEqual(submitButton.style.display, 'none', 'Submit button should be visible on last question');
+		});
+
+		test('planning middleware single-select clicks do not auto-submit', () => {
+			const carousel = createMockCarousel([
+				{
+					id: 'q1',
+					type: 'singleSelect',
+					title: 'Choose one',
+					options: [
+						{ id: 'a', label: 'Option A', value: 'a' },
+						{ id: 'b', label: 'Option B', value: 'b' }
+					]
+				}
+			], true, 'dynamic-plan-goal-clarity-test');
+			createWidget(carousel);
+
+			const listItems = widget.domNode.querySelectorAll('.chat-question-list-item') as NodeListOf<HTMLElement>;
+			assert.strictEqual(listItems.length, 2);
+
+			listItems[1].dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+			assert.strictEqual(submittedAnswers, null, 'planning middleware should not auto-submit on click');
+			assert.strictEqual(listItems[1].getAttribute('aria-selected'), 'true');
 		});
 	});
 

@@ -395,6 +395,7 @@
 	flex: 1 1 auto;
 	min-height: 0;
 	overscroll-behavior: contain;
+	scroll-padding-block-end: 20px;
 }
 
 /* footer with nav arrows, step indicator, and submit */
@@ -402,9 +403,13 @@
 	display: flex;
 	justify-content: space-between;
 	align-items: center;
-	padding: 4px 8px;
+	padding: 8px 12px;
 	border-top: 1px solid var(--vscode-chat-requestBorder);
 	flex-shrink: 0;
+	position: sticky;
+	bottom: 0;
+	z-index: 1;
+	background: var(--vscode-editorWidget-background, var(--vscode-editor-background));
 
 	.chat-question-footer-left {
 		display: flex;
@@ -504,9 +509,12 @@
 
 /* field description below question title */
 .interactive-session .chat-question-carousel-container .chat-question-description {
-	padding: 4px 16px;
+	padding: 8px 16px 10px;
 	font-size: var(--vscode-chat-font-size-body-s);
 	color: var(--vscode-descriptionForeground);
+	line-height: 1.45;
+	border-bottom: 1px solid color-mix(in srgb, var(--vscode-chat-requestBorder) 70%, transparent);
+	background: color-mix(in srgb, var(--vscode-editorWidget-background, var(--vscode-editor-background)) 85%, transparent);
 }
 
 /* validation error message below input area */
