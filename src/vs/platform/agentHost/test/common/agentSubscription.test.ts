@@ -12,7 +12,7 @@ import { SessionLifecycle, SessionStatus, TerminalClaimKind, type IRootState, ty
 import { StateComponents } from '../../common/state/sessionState.js';
 import { AgentSubscriptionManager, RootStateSubscription, SessionStateSubscription, TerminalStateSubscription } from '../../common/state/agentSubscription.js';
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// Helpers
 
 function makeRootState(overrides?: Partial<IRootState>): IRootState {
 	return {
@@ -32,6 +32,7 @@ function makeSessionState(sessionUri: string, overrides?: Partial<ISessionState>
 			status: SessionStatus.Idle,
 			createdAt: 1,
 			modifiedAt: 1,
+			project: { uri: 'file:///test-project', displayName: 'Test Project' },
 		},
 		lifecycle: SessionLifecycle.Ready,
 		turns: [],
@@ -42,7 +43,7 @@ function makeSessionState(sessionUri: string, overrides?: Partial<ISessionState>
 function makeTerminalState(overrides?: Partial<ITerminalState>): ITerminalState {
 	return {
 		title: 'bash',
-		content: '',
+		content: [],
 		claim: { kind: TerminalClaimKind.Client, clientId: 'c1' },
 		...overrides,
 	};
@@ -56,7 +57,7 @@ const noop = () => { };
 const sessionUri = URI.from({ scheme: 'copilot', path: '/test-session' }).toString();
 const terminalUri = URI.from({ scheme: 'agenthost-terminal', path: '/term1' }).toString();
 
-// ─── RootStateSubscription ───────────────────────────────────────────────────
+// RootStateSubscription
 
 suite('RootStateSubscription', () => {
 
@@ -137,7 +138,7 @@ suite('RootStateSubscription', () => {
 		));
 		assert.strictEqual(sub.value, undefined);
 
-		// Now apply snapshot with fromSeq=1 → envelope at seq 2 should replay
+		// Now apply snapshot with fromSeq=1; envelope at seq 2 should replay
 		sub.handleSnapshot(makeRootState(), 1);
 		assert.strictEqual((sub.value! as IRootState).activeSessions, 7);
 	});
@@ -164,7 +165,7 @@ suite('RootStateSubscription', () => {
 	});
 });
 
-// ─── SessionStateSubscription ────────────────────────────────────────────────
+// SessionStateSubscription
 
 suite('SessionStateSubscription', () => {
 
@@ -235,7 +236,7 @@ suite('SessionStateSubscription', () => {
 
 		// After confirmation, verifiedValue should match
 		assert.strictEqual(sub.verifiedValue!.summary.title, 'Optimistic');
-		// No pending → value falls through to confirmed
+		// No pending, value falls through to confirmed
 		assert.strictEqual((sub.value as ISessionState).summary.title, 'Optimistic');
 	});
 
@@ -259,7 +260,7 @@ suite('SessionStateSubscription', () => {
 
 		// Confirmed state unchanged
 		assert.strictEqual(sub.verifiedValue!.summary.title, 'Test');
-		// No more pending → value = confirmed
+		// No more pending, value = confirmed
 		assert.strictEqual((sub.value as ISessionState).summary.title, 'Test');
 	});
 
@@ -371,7 +372,7 @@ suite('SessionStateSubscription', () => {
 	});
 });
 
-// ─── TerminalStateSubscription ───────────────────────────────────────────────
+// TerminalStateSubscription
 
 suite('TerminalStateSubscription', () => {
 
@@ -396,7 +397,9 @@ suite('TerminalStateSubscription', () => {
 			1,
 		));
 
-		assert.strictEqual((sub.value as ITerminalState).content, 'hello');
+		assert.deepStrictEqual((sub.value as ITerminalState).content, [
+			{ type: 'unclassified', value: 'hello' },
+		]);
 	});
 
 	test('ignores terminal actions for other URIs', () => {
@@ -408,7 +411,7 @@ suite('TerminalStateSubscription', () => {
 			1,
 		));
 
-		assert.strictEqual((sub.value as ITerminalState).content, '');
+		assert.deepStrictEqual((sub.value as ITerminalState).content, []);
 	});
 
 	test('ignores non-terminal actions', () => {
@@ -420,7 +423,7 @@ suite('TerminalStateSubscription', () => {
 			1,
 		));
 
-		assert.strictEqual((sub.value as ITerminalState).content, '');
+		assert.deepStrictEqual((sub.value as ITerminalState).content, []);
 	});
 
 	test('handleSnapshot sets value', () => {
@@ -431,7 +434,7 @@ suite('TerminalStateSubscription', () => {
 	});
 });
 
-// ─── AgentSubscriptionManager ────────────────────────────────────────────────
+// AgentSubscriptionManager
 
 suite('AgentSubscriptionManager', () => {
 
@@ -618,5 +621,32 @@ suite('AgentSubscriptionManager', () => {
 		// Clean up refs (already disposed with manager, but safe to call)
 		ref1.dispose();
 		ref2.dispose();
+	});
+
+	test('getSubscriptionUnmanaged returns undefined when no subscription exists', () => {
+		const mgr = createManager();
+		const result = mgr.getSubscriptionUnmanaged<ISessionState>(URI.parse('copilot:/nonexistent'));
+		assert.strictEqual(result, undefined);
+	});
+
+	test('getSubscriptionUnmanaged returns existing subscription without affecting refcount', async () => {
+		const mgr = createManager();
+		const uri = URI.parse(sessionUri);
+
+		// Create a subscription via getSubscription
+		const ref = mgr.getSubscription<ISessionState>(StateComponents.Session, uri);
+		await new Promise(r => setTimeout(r, 0));
+
+		// Get it unmanaged
+		const unmanaged = mgr.getSubscriptionUnmanaged<ISessionState>(uri);
+		assert.ok(unmanaged);
+		assert.strictEqual(unmanaged, ref.object);
+
+		// Dispose the ref. Subscription should be released (refcount was 1)
+		ref.dispose();
+
+		// Now unmanaged should return undefined since it was released
+		const after = mgr.getSubscriptionUnmanaged<ISessionState>(uri);
+		assert.strictEqual(after, undefined);
 	});
 });

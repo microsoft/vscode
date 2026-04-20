@@ -45,6 +45,7 @@ export const unicodeFilter = Object.freeze<string[]>([
 	'!**/*.{d.ts,json,md}',
 	'!**/*.mp3',
 	'!**/*.tiff',
+	'!**/*.provisionprofile',
 
 	'!build/win32/**',
 	'!extensions/markdown-language-features/notebook-out/*.js',
@@ -162,6 +163,8 @@ export const copyrightFilter = Object.freeze<string[]>([
 	'**',
 	'!**/*.desktop',
 	'!**/*.json',
+	'!**/*.jsonc',
+	'!**/*.jsonl',
 	'!**/*.html',
 	'!**/*.template',
 	'!**/*.md',
@@ -183,6 +186,7 @@ export const copyrightFilter = Object.freeze<string[]>([
 	'!**/*.js.map',
 	'!**/*.wasm',
 	'!**/*.tiff',
+	'!**/*.provisionprofile',
 	'!build/**/*.init',
 	'!build/darwin/patch-dmg.py',
 	'!build/linux/libcxx-fetcher.*',
@@ -200,6 +204,7 @@ export const copyrightFilter = Object.freeze<string[]>([
 	'!extensions/html-language-features/server/src/modes/typescript/*',
 	'!extensions/*/server/bin/*',
 	'!src/vs/workbench/contrib/terminal/common/scripts/psreadline/**',
+	'!extensions/mermaid-chat-features/chat-webview-out/**',
 
 	// extensions/copilot has its own code style
 	'!extensions/copilot/**',

@@ -7,6 +7,7 @@ import type { IStringDictionary } from '../../../../../base/common/collections.j
 import type { IJSONSchema } from '../../../../../base/common/jsonSchema.js';
 import { localize } from '../../../../../nls.js';
 import { type IConfigurationPropertySchema } from '../../../../../platform/configuration/common/configurationRegistry.js';
+import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../platform/sandbox/common/settings.js';
 import { TerminalSettingId } from '../../../../../platform/terminal/common/terminal.js';
 import { terminalProfileBaseProperties } from '../../../../../platform/terminal/common/terminalPlatformConfiguration.js';
 import { PolicyCategory } from '../../../../../base/common/policy.js';
@@ -18,13 +19,10 @@ export const enum TerminalChatAgentToolsSettingId {
 	IgnoreDefaultAutoApproveRules = 'chat.tools.terminal.ignoreDefaultAutoApproveRules',
 	BlockDetectedFileWrites = 'chat.tools.terminal.blockDetectedFileWrites',
 	ShellIntegrationTimeout = 'chat.tools.terminal.shellIntegrationTimeout',
-	AutoReplyToPrompts = 'chat.tools.terminal.autoReplyToPrompts',
 	OutputLocation = 'chat.tools.terminal.outputLocation',
-	AgentSandboxEnabled = 'chat.agent.sandbox.enabled',
-	AgentSandboxNetworkAllowedDomains = 'chat.agent.sandbox.allowedNetworkDomains',
-	AgentSandboxNetworkDeniedDomains = 'chat.agent.sandbox.deniedNetworkDomains',
 	AgentSandboxLinuxFileSystem = 'chat.agent.sandbox.fileSystem.linux',
 	AgentSandboxMacFileSystem = 'chat.agent.sandbox.fileSystem.mac',
+	AgentSandboxAdvancedRuntime = 'chat.agent.sandbox.advanced.runtime',
 	PreventShellHistory = 'chat.tools.terminal.preventShellHistory',
 	EnforceTimeoutFromModel = 'chat.tools.terminal.enforceTimeoutFromModel',
 	DetachBackgroundProcesses = 'chat.tools.terminal.detachBackgroundProcesses',
@@ -35,9 +33,6 @@ export const enum TerminalChatAgentToolsSettingId {
 	TerminalProfileMacOs = 'chat.tools.terminal.terminalProfile.osx',
 	TerminalProfileWindows = 'chat.tools.terminal.terminalProfile.windows',
 
-	DeprecatedAgentSandboxEnabled = 'chat.agent.sandbox',
-	DeprecatedAgentSandboxNetworkAllowedDomains = 'chat.agent.sandboxNetwork.allowedDomains',
-	DeprecatedAgentSandboxNetworkDeniedDomains = 'chat.agent.sandboxNetwork.deniedDomains',
 	DeprecatedAgentSandboxLinuxFileSystem = 'chat.agent.sandboxFileSystem.linux',
 	DeprecatedAgentSandboxMacFileSystem = 'chat.agent.sandboxFileSystem.mac',
 	DeprecatedAutoApproveCompatible = 'chat.agent.terminal.autoApprove',
@@ -45,11 +40,6 @@ export const enum TerminalChatAgentToolsSettingId {
 	DeprecatedAutoApprove2 = 'chat.agent.terminal.denyList',
 	DeprecatedAutoApprove3 = 'github.copilot.chat.agent.terminal.allowList',
 	DeprecatedAutoApprove4 = 'github.copilot.chat.agent.terminal.denyList',
-}
-
-export const enum TerminalChatAgentToolsSandboxEnabledValue {
-	Off = 'off',
-	On = 'on',
 }
 
 export interface ITerminalChatAgentToolsConfiguration {
@@ -514,12 +504,6 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			}
 		]
 	},
-	[TerminalChatAgentToolsSettingId.AutoReplyToPrompts]: {
-		type: 'boolean',
-		default: false,
-		tags: ['experimental'],
-		markdownDescription: localize('autoReplyToPrompts.key', "Whether to automatically respond to prompts in the terminal such as `Confirm? y/n`. This is an experimental feature and may not work in all scenarios.\n\n**This feature is inherently risky to use as you're deferring potentially sensitive decisions to an LLM. Use at your own risk.**"),
-	},
 	[TerminalChatAgentToolsSettingId.OutputLocation]: {
 		markdownDescription: localize('outputLocation.description', "Where to show the output from the run in terminal tool."),
 		type: 'string',
@@ -534,39 +518,44 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			mode: 'auto'
 		}
 	},
-	[TerminalChatAgentToolsSettingId.AgentSandboxEnabled]: {
+	[AgentSandboxSettingId.AgentSandboxEnabled]: {
 		markdownDescription: localize('agentSandbox.enabledSetting', "Controls whether agent mode uses sandboxing to restrict what tools can do. When enabled, tools like the terminal are run in a sandboxed environment to limit access to the system."),
 		type: 'string',
-		enum: [TerminalChatAgentToolsSandboxEnabledValue.Off, TerminalChatAgentToolsSandboxEnabledValue.On],
+		enum: [AgentSandboxEnabledValue.Off, AgentSandboxEnabledValue.On],
 		enumDescriptions: [
 			localize('agentSandbox.enabledSetting.offDescription', 'Disable sandboxing for agent mode tools.'),
 			localize('agentSandbox.enabledSetting.onDescription', 'Enable sandboxing for agent mode tools.'),
 		],
-		default: TerminalChatAgentToolsSandboxEnabledValue.Off,
+		default: AgentSandboxEnabledValue.Off,
 		tags: ['preview'],
 		restricted: true,
 		experiment: {
 			mode: 'auto'
+		},
+		policy: {
+			name: 'ChatAgentSandboxEnabled',
+			category: PolicyCategory.IntegratedTerminal,
+			minimumVersion: '1.116',
+			localization: {
+				description: {
+					key: 'agentSandbox.enabledSetting',
+					value: localize('agentSandbox.enabledSetting', "Controls whether agent mode uses sandboxing to restrict what tools can do. When enabled, tools like the terminal are run in a sandboxed environment to limit access to the system."),
+				},
+				enumDescriptions: [
+					{
+						key: 'agentSandbox.enabledSetting.offDescription',
+						value: localize('agentSandbox.enabledSetting.offDescription', 'Disable sandboxing for agent mode tools.'),
+					},
+					{
+						key: 'agentSandbox.enabledSetting.onDescription',
+						value: localize('agentSandbox.enabledSetting.onDescription', 'Enable sandboxing for agent mode tools.'),
+					},
+				]
+			}
 		}
 	},
-	[TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains]: {
-		markdownDescription: localize('agentSandbox.networkSetting.allowedDomains', "Note: this setting is applicable only when {0} is enabled. Allowed domains for network access in sandbox. Supports wildcards like {1} and an empty list means no network access.", `\`#${TerminalChatAgentToolsSettingId.AgentSandboxEnabled}#\``, '`*.example.com`'),
-		type: 'array',
-		items: { type: 'string' },
-		default: [],
-		tags: ['preview'],
-		restricted: true,
-	},
-	[TerminalChatAgentToolsSettingId.AgentSandboxNetworkDeniedDomains]: {
-		markdownDescription: localize('agentSandbox.networkSetting.deniedDomains', "Note: this setting is applicable only when {0} is enabled. Array of denied domains for network access in sandbox (checked first, takes precedence over {1}).", `\`#${TerminalChatAgentToolsSettingId.AgentSandboxEnabled}#\``, `\`#${TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains}#\``),
-		type: 'array',
-		items: { type: 'string' },
-		default: [],
-		tags: ['preview'],
-		restricted: true,
-	},
 	[TerminalChatAgentToolsSettingId.AgentSandboxLinuxFileSystem]: {
-		markdownDescription: localize('agentSandbox.linuxFileSystemSetting', "Note: this setting is applicable only when {0} is enabled. Controls file system access in sandbox on Linux. Paths do not support glob patterns, only literal paths (ex: ./src/, ~/.ssh, .env). **bubblewrap** and **socat** should be installed for this setting to work.", `\`#${TerminalChatAgentToolsSettingId.AgentSandboxEnabled}#\``),
+		markdownDescription: localize('agentSandbox.linuxFileSystemSetting', "Note: this setting is applicable only when {0} is enabled. Controls file system access in sandbox on Linux. Paths do not support glob patterns, only literal paths (ex: ./src/, ~/.ssh, .env). **bubblewrap** and **socat** should be installed for this setting to work.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
 		type: 'object',
 		properties: {
 			denyRead: {
@@ -597,7 +586,7 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 		restricted: true,
 	},
 	[TerminalChatAgentToolsSettingId.AgentSandboxMacFileSystem]: {
-		markdownDescription: localize('agentSandbox.macFileSystemSetting', "Note: this setting is applicable only when {0} is enabled. Controls file system access in sandbox on macOS. Paths also support git-style glob patterns(ex: *.ts, ./src, ./src/**/*.ts, file?.txt).", `\`#${TerminalChatAgentToolsSettingId.AgentSandboxEnabled}#\``),
+		markdownDescription: localize('agentSandbox.macFileSystemSetting', "Note: this setting is applicable only when {0} is enabled. Controls file system access in sandbox on macOS. Paths also support git-style glob patterns(ex: *.ts, ./src, ./src/**/*.ts, file?.txt).", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
 		type: 'object',
 		properties: {
 			denyRead: {
@@ -624,6 +613,15 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 			allowWrite: ['.'],
 			denyWrite: []
 		},
+		tags: ['preview'],
+		restricted: true,
+	},
+	[TerminalChatAgentToolsSettingId.AgentSandboxAdvancedRuntime]: {
+		included: false,
+		markdownDescription: localize('agentSandbox.runtimeSetting', "Note: this setting is applicable only when {0} is enabled. Key/value pairs are passed through to the root of the sandbox runtime configuration.", `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
+		type: 'object',
+		default: {},
+		additionalProperties: true,
 		tags: ['preview'],
 		restricted: true,
 	},
@@ -659,12 +657,11 @@ export const terminalChatAgentToolsConfiguration: IStringDictionary<IConfigurati
 	[TerminalChatAgentToolsSettingId.BackgroundNotifications]: {
 		restricted: true,
 		type: 'boolean',
-		default: false,
+		default: true,
 		tags: ['experimental'],
-		experiment: {
-			mode: 'auto'
-		},
-		markdownDescription: localize('backgroundNotifications.description', "Whether to automatically notify the agent when a background terminal command completes or needs input. When enabled, a steering message is sent to the chat session with the exit code and terminal output, and the output monitor continues running to detect prompts for input."),
+		deprecated: true,
+		markdownDeprecationMessage: localize('backgroundNotifications.deprecated', "This setting is deprecated. Terminal completion and input-needed notifications are now always enabled."),
+		markdownDescription: localize('backgroundNotifications.description', "This setting is deprecated and no longer has any effect. Terminal completion and input-needed notifications are now always enabled for any command that continues running after the tool returns."),
 	}
 };
 
@@ -681,20 +678,6 @@ for (const id of [
 	};
 }
 
-terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxNetworkAllowedDomains] = {
-	type: 'array',
-	items: { type: 'string' },
-	deprecated: true,
-	markdownDeprecationMessage: localize('agentSandbox.allowedNetworkDomains.deprecated', 'Use {0} instead', `\`#${TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains}#\``),
-};
-
-terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxNetworkDeniedDomains] = {
-	type: 'array',
-	items: { type: 'string' },
-	deprecated: true,
-	markdownDeprecationMessage: localize('agentSandbox.deniedNetworkDomains.deprecated', 'Use {0} instead', `\`#${TerminalChatAgentToolsSettingId.AgentSandboxNetworkDeniedDomains}#\``),
-};
-
 terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxLinuxFileSystem] = {
 	type: 'object',
 	deprecated: true,
@@ -707,9 +690,9 @@ terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.DeprecatedAg
 	markdownDeprecationMessage: localize('agentSandbox.fileSystemMac.deprecated', 'Use {0} instead', `\`#${TerminalChatAgentToolsSettingId.AgentSandboxMacFileSystem}#\``),
 };
 
-terminalChatAgentToolsConfiguration[TerminalChatAgentToolsSettingId.DeprecatedAgentSandboxEnabled] = {
+terminalChatAgentToolsConfiguration[AgentSandboxSettingId.DeprecatedAgentSandboxEnabled] = {
 	type: 'boolean',
 	deprecated: true,
 	included: false,
-	markdownDeprecationMessage: localize('agentSandbox.enabled.deprecated', 'Use {0} instead', `\`#${TerminalChatAgentToolsSettingId.AgentSandboxEnabled}#\``),
+	markdownDeprecationMessage: localize('agentSandbox.enabled.deprecated', 'Use {0} instead', `\`#${AgentSandboxSettingId.AgentSandboxEnabled}#\``),
 };

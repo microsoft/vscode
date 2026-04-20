@@ -300,7 +300,7 @@ export class ChatDebugEditor extends EditorPane {
 		}
 	}
 
-	override setEditorVisible(visible: boolean): void {
+	protected override setEditorVisible(visible: boolean): void {
 		super.setEditorVisible(visible);
 		if (visible) {
 			this.telemetryService.publicLog2<{}, ChatDebugPanelOpenedClassification>('chatDebugPanelOpened');

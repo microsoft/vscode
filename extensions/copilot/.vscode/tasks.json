@@ -5,20 +5,20 @@
 			"label": "Install dependencies",
 			"type": "shell",
 			"command": "npm ci",
-			"inSessions": true,
+			"inAgents": true,
 			"runOptions": { "runOn": "worktreeCreated" }
 		},
 		{
 			"label": "Compile & Launch Extension Host",
 			"type": "shell",
 			"command": "npm run compile && COPILOT_LOG_TELEMETRY=true VSCODE_DEV_DEBUG=1 code-insiders --extensionDevelopmentPath=$(pwd)",
-			"inSessions": true
+			"inAgents": true
 		},
 		{
 			"label": "Typecheck",
 			"type": "shell",
 			"command": "npm run typecheck",
-			"inSessions": true
+			"inAgents": true
 		},
 		{
 			"label": "compile",

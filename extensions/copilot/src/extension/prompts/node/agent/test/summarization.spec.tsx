@@ -30,7 +30,8 @@ import { ToolName } from '../../../../tools/common/toolNames';
 import { PromptRenderer } from '../../base/promptRenderer';
 import { AgentPrompt, AgentPromptProps } from '../agentPrompt';
 import { PromptRegistry } from '../promptRegistry';
-import { ConversationHistorySummarizationPrompt, extractInlineSummary, InlineSummarizationRequestedMetadata, stripToolSearchMessages, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder } from '../summarizedConversationHistory';
+import { ISessionTranscriptService, NullSessionTranscriptService } from '../../../../../platform/chat/common/sessionTranscriptService';
+import { appendTranscriptHintToSummary, ConversationHistorySummarizationPrompt, extractInlineSummary, stripToolSearchMessages, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder } from '../summarizedConversationHistory';
 
 suite('Agent Summarization', () => {
 	let accessor: ITestingServicesAccessor;
@@ -582,162 +583,6 @@ suite('extractInlineSummary', () => {
 	});
 });
 
-suite('Inline Summarization Prompt', () => {
-	let accessor: ITestingServicesAccessor;
-
-	beforeAll(() => {
-		const services = createExtensionUnitTestingServices();
-		services.define(IWorkspaceService, new SyncDescriptor(
-			TestWorkspaceService,
-			[
-				[URI.file('/workspace')],
-				[]
-			]
-		));
-		services.define(IChatMLFetcher, new StaticChatMLFetcher([]));
-		accessor = services.createTestingAccessor();
-	});
-
-	afterAll(() => {
-		accessor.dispose();
-	});
-
-	test('inlineSummarization=true appends summarization user message and metadata', async () => {
-		const instaService = accessor.get(IInstantiationService);
-		const endpoint = instaService.createInstance(MockEndpoint, undefined);
-		const turn = new Turn('turnId', { type: 'user', message: 'hello' });
-		const conversation = new Conversation('sessionId', [turn]);
-
-		const firstTurn = new Turn('id1', { type: 'user', message: 'previous turn message' });
-		firstTurn.setResponse(TurnStatus.Success, { type: 'user', message: 'response' }, 'responseId', {
-			metadata: {
-				toolCallRounds: [
-					new ToolCallRound('ok', [{
-						id: 'tooluse_1',
-						name: ToolName.EditFile,
-						arguments: JSON.stringify({ filePath: '/workspace/file.ts', code: 'test' })
-					}]),
-				]
-			}
-		} as ICopilotChatResultIn);
-
-		const promptContext: IBuildPromptContext = {
-			chatVariables: new ChatVariablesCollection([]),
-			history: [firstTurn],
-			query: 'continue',
-			toolCallRounds: [
-				new ToolCallRound('ok 2', [{
-					id: 'tooluse_2',
-					name: ToolName.EditFile,
-					arguments: JSON.stringify({ filePath: '/workspace/file.ts', code: 'test2' })
-				}]),
-			],
-			toolCallResults: {
-				'tooluse_2': new LanguageModelToolResult([new LanguageModelTextPart('success')]),
-			},
-			tools: {
-				availableTools: [],
-				toolInvocationToken: null as never,
-				toolReferences: [],
-			},
-			conversation,
-		};
-
-		const customizations = await PromptRegistry.resolveAllCustomizations(instaService, endpoint);
-		const props: AgentPromptProps = {
-			priority: 1,
-			endpoint,
-			location: ChatLocation.Panel,
-			promptContext,
-			enableCacheBreakpoints: true,
-			inlineSummarization: true,
-			customizations,
-		};
-
-		const renderer = PromptRenderer.create(instaService, endpoint, AgentPrompt, props);
-		const result = await renderer.render();
-
-		// Should have InlineSummarizationRequestedMetadata set
-		const inlineMeta = result.metadata.get(InlineSummarizationRequestedMetadata);
-		expect(inlineMeta).toBeDefined();
-
-		// The last user message should contain summarization instructions
-		const userMessages = result.messages.filter(m => m.role === Raw.ChatRole.User);
-		const lastUserMessage = userMessages[userMessages.length - 1];
-		const lastMessageText = lastUserMessage.content.map(c => 'text' in c ? c.text : '').join('');
-		expect(lastMessageText).toContain('summary');
-		expect(lastMessageText).toContain('Do NOT call any tools');
-
-		// Should NOT have the separate-call summarization metadata
-		const summaryMeta = result.metadata.get(SummarizedConversationHistoryMetadata);
-		expect(summaryMeta).toBeUndefined();
-	});
-
-	test('inlineSummarization=true sets metadata when triggerSummarize is false', async () => {
-		const instaService = accessor.get(IInstantiationService);
-		const endpoint = instaService.createInstance(MockEndpoint, undefined);
-
-		const firstTurn = new Turn('id1', { type: 'user', message: 'previous turn message' });
-		firstTurn.setResponse(TurnStatus.Success, { type: 'user', message: 'response' }, 'responseId', {
-			metadata: {
-				toolCallRounds: [
-					new ToolCallRound('ok', [{
-						id: 'tooluse_1',
-						name: ToolName.EditFile,
-						arguments: JSON.stringify({ filePath: '/workspace/file.ts', code: 'test' })
-					}]),
-				]
-			}
-		} as ICopilotChatResultIn);
-
-		const promptContext: IBuildPromptContext = {
-			chatVariables: new ChatVariablesCollection([]),
-			history: [firstTurn],
-			query: 'continue',
-			toolCallRounds: [
-				new ToolCallRound('ok 2', [{
-					id: 'tooluse_2',
-					name: ToolName.EditFile,
-					arguments: JSON.stringify({ filePath: '/workspace/file.ts', code: 'test2' })
-				}]),
-			],
-			toolCallResults: {
-				'tooluse_2': new LanguageModelToolResult([new LanguageModelTextPart('success')]),
-			},
-			tools: {
-				availableTools: [],
-				toolInvocationToken: null as never,
-				toolReferences: [],
-			},
-		};
-
-		// When both triggerSummarize and inlineSummarization are true,
-		// triggerSummarize should take precedence (inlineSummarization condition
-		// requires triggerSummarize to be false).
-		// We test this indirectly: inlineSummarization=true with triggerSummarize=false
-		// should set InlineSummarizationRequestedMetadata, but if triggerSummarize were
-		// also true, the inline path would be skipped.
-		const customizations = await PromptRegistry.resolveAllCustomizations(instaService, endpoint);
-		const propsInlineOnly: AgentPromptProps = {
-			priority: 1,
-			endpoint,
-			location: ChatLocation.Panel,
-			promptContext,
-			enableCacheBreakpoints: true,
-			triggerSummarize: false,
-			inlineSummarization: true,
-			customizations,
-		};
-
-		const renderer = PromptRenderer.create(instaService, endpoint, AgentPrompt, propsInlineOnly);
-		const result = await renderer.render();
-
-		// Inline metadata should be set when triggerSummarize is false
-		const inlineMeta = result.metadata.get(InlineSummarizationRequestedMetadata);
-		expect(inlineMeta).toBeDefined();
-	});
-});
-
 suite('stripToolSearchMessages', () => {
 	function makeAssistantMessage(toolCalls: { id: string; name: string }[], text = 'response'): Raw.ChatMessage {
 		return {
@@ -811,16 +656,6 @@ suite('stripToolSearchMessages', () => {
 		}
 	});
 
-	test('does not strip server-side tool_search_tool_regex', () => {
-		const messages = [
-			makeUserMessage(),
-			makeAssistantMessage([{ id: 'tc1', name: 'tool_search_tool_regex' }]),
-			makeToolResult('tc1'),
-		];
-		const result = stripToolSearchMessages(messages);
-		expect(result).toBe(messages);
-	});
-
 	test('preserves non-tool messages', () => {
 		const messages = [
 			makeUserMessage('first'),
@@ -834,5 +669,46 @@ suite('stripToolSearchMessages', () => {
 		expect(result).toHaveLength(5);
 		expect(result[0].content[0]).toEqual({ type: Raw.ChatCompletionContentPartKind.Text, text: 'first' });
 		expect(result[2].content[0]).toEqual({ type: Raw.ChatCompletionContentPartKind.Text, text: 'second' });
+	});
+});
+
+suite('appendTranscriptHintToSummary', () => {
+	class FakeTranscriptService extends NullSessionTranscriptService {
+		constructor(
+			private readonly path: URI | undefined,
+			private readonly lineCount: number | undefined,
+		) {
+			super();
+		}
+		override getTranscriptPath(): URI | undefined { return this.path; }
+		override getLineCount(): number | undefined { return this.lineCount; }
+	}
+
+	function makeService(path: URI | undefined, lineCount: number | undefined): ISessionTranscriptService {
+		return new FakeTranscriptService(path, lineCount);
+	}
+
+	test('returns summary unchanged when no transcript path is available', () => {
+		const svc = makeService(undefined, undefined);
+		const result = appendTranscriptHintToSummary('original summary', 'session-1', svc);
+		expect(result).toBe('original summary');
+	});
+
+	test('appends path-only hint when line count is missing', () => {
+		const transcript = URI.file('/tmp/transcript.jsonl');
+		const svc = makeService(transcript, undefined);
+		const result = appendTranscriptHintToSummary('S', 'session-1', svc);
+		expect(result.startsWith('S\n')).toBe(true);
+		expect(result).toContain(transcript.fsPath);
+		expect(result).toContain(`${ToolName.ReadFile}`);
+		expect(result).not.toContain('the transcript had');
+	});
+
+	test('bakes line count snapshot into hint when available', () => {
+		const transcript = URI.file('/tmp/transcript.jsonl');
+		const svc = makeService(transcript, 42);
+		const result = appendTranscriptHintToSummary('S', 'session-1', svc);
+		expect(result).toContain('At the time this summary was created, the transcript had 42 lines.');
+		expect(result).toContain(transcript.fsPath);
 	});
 });

@@ -13,51 +13,36 @@ import { Registry } from '../../../../platform/registry/common/platform.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IViewContainersRegistry, IViewsRegistry, ViewContainerLocation, Extensions as ViewContainerExtensions, WindowVisibility } from '../../../../workbench/common/views.js';
-import { WorkspaceFolderCountContext } from '../../../../workbench/common/contextkeys.js';
 import { ExplorerView } from '../../../../workbench/contrib/files/browser/views/explorerView.js';
 import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/viewPaneContainer.js';
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
-import type { IViewPaneLocationColors } from '../../../../workbench/browser/parts/views/viewPane.js';
-import { sessionsAuxiliaryBarBackground } from '../../../common/theme.js';
+import { WorkspaceFolderCountContext } from '../../../../workbench/common/contextkeys.js';
+import { SESSIONS_FILES_EMPTY_VIEW_ID, SESSIONS_FILES_VIEW_ID, SessionsExplorerEmptyView, SessionsExplorerView } from './filesView.js';
 
-const SESSIONS_FILES_CONTAINER_ID = 'workbench.sessions.auxiliaryBar.filesContainer';
-const SESSIONS_FILES_VIEW_ID = 'sessions.files.explorer';
+export const SESSIONS_FILES_CONTAINER_ID = 'workbench.sessions.auxiliaryBar.filesContainer';
 
 const filesViewIcon = registerIcon('sessions-files-view-icon', Codicon.files, localize2('sessionsFilesViewIcon', 'View icon of the files view in the sessions window.').value);
 
-class SessionsExplorerView extends ExplorerView {
-	protected override getLocationBasedColors(): IViewPaneLocationColors {
-		const colors = super.getLocationBasedColors();
-		return {
-			...colors,
-			background: sessionsAuxiliaryBarBackground,
-			listOverrideStyles: {
-				...colors.listOverrideStyles,
-				listBackground: sessionsAuxiliaryBarBackground,
-			}
-		};
-	}
-}
+const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
+
+// Files view container
+const filesViewContainer = viewContainerRegistry.registerViewContainer({
+	id: SESSIONS_FILES_CONTAINER_ID,
+	title: localize2('files', "Files"),
+	icon: filesViewIcon,
+	order: 11,
+	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [SESSIONS_FILES_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]),
+	storageId: SESSIONS_FILES_CONTAINER_ID,
+	hideIfEmpty: true,
+	windowVisibility: WindowVisibility.Sessions,
+}, ViewContainerLocation.AuxiliaryBar, { doNotRegisterOpenCommand: true, isDefault: true });
 
 class RegisterFilesViewContribution implements IWorkbenchContribution {
 
 	static readonly ID = 'sessions.registerFilesView';
 
 	constructor() {
-		const viewContainerRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 		const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
-
-		// Register a new Files view container in the auxiliary bar for the sessions window
-		const filesViewContainer = viewContainerRegistry.registerViewContainer({
-			id: SESSIONS_FILES_CONTAINER_ID,
-			title: localize2('files', "Files"),
-			icon: filesViewIcon,
-			order: 11,
-			ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [SESSIONS_FILES_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]),
-			storageId: SESSIONS_FILES_CONTAINER_ID,
-			hideIfEmpty: true,
-			windowVisibility: WindowVisibility.Sessions,
-		}, ViewContainerLocation.AuxiliaryBar, { doNotRegisterOpenCommand: true });
 
 		// Re-register the explorer view inside the new Files container
 		viewsRegistry.registerViews([{
@@ -70,10 +55,22 @@ class RegisterFilesViewContribution implements IWorkbenchContribution {
 			when: WorkspaceFolderCountContext.notEqualsTo('0'),
 			windowVisibility: WindowVisibility.Sessions,
 		}], filesViewContainer);
+
+		// Register an empty view to show when there are no workspace folders
+		viewsRegistry.registerViews([{
+			id: SESSIONS_FILES_EMPTY_VIEW_ID,
+			name: localize2('files', "Files"),
+			containerIcon: filesViewIcon,
+			ctorDescriptor: new SyncDescriptor(SessionsExplorerEmptyView),
+			canToggleVisibility: true,
+			canMoveView: false,
+			when: WorkspaceFolderCountContext.isEqualTo('0'),
+			windowVisibility: WindowVisibility.Sessions,
+		}], filesViewContainer);
 	}
 }
 
-registerWorkbenchContribution2(RegisterFilesViewContribution.ID, RegisterFilesViewContribution, WorkbenchPhase.AfterRestored);
+registerWorkbenchContribution2(RegisterFilesViewContribution.ID, RegisterFilesViewContribution, WorkbenchPhase.BlockStartup);
 
 registerAction2(class extends Action2 {
 	constructor() {

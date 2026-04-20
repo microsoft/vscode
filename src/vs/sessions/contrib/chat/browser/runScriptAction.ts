@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { $, addDisposableListener, append, EventType } from '../../../../base/browser/dom.js';
+import { $, addDisposableGenericMouseDownListener, addDisposableListener, append, EventType } from '../../../../base/browser/dom.js';
 import { StandardKeyboardEvent } from '../../../../base/browser/keyboardEvent.js';
 import { ActionViewItem, BaseActionViewItem, IActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { Action, IAction } from '../../../../base/common/actions.js';
@@ -32,11 +32,11 @@ import { SessionsCategories } from '../../../common/categories.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IsActiveSessionBackgroundProviderContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { ISession } from '../../../services/sessions/common/session.js';
+import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { Menus } from '../../../browser/menus.js';
 import { INonSessionTaskEntry, ISessionsConfigurationService, ISessionTaskWithTarget, ITaskEntry, TaskStorageTarget } from './sessionsConfigurationService.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IRunScriptCustomTaskWidgetResult, RunScriptCustomTaskWidget } from './runScriptCustomTaskWidget.js';
-import { HoverPosition } from '../../../../base/browser/ui/hover/hoverWidget.js';
 
 
 // Menu IDs - exported for use in auxiliary bar part
@@ -123,6 +123,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 		@IActionViewItemService private readonly _actionViewItemService: IActionViewItemService,
 		@IWorkbenchLayoutService private readonly _layoutService: IWorkbenchLayoutService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
+		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 	) {
 		super();
 
@@ -171,6 +172,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 					that._activeRunState,
 					(session: ISession) => that._showConfigureQuickPick(session),
 					(session: ISession, existingTask: INonSessionTaskEntry, mode?: TaskConfigurationMode) => that._showCustomCommandInput(session, existingTask, mode),
+					(session: ISession) => that._generateNewTask(session),
 				);
 			},
 		));
@@ -267,10 +269,22 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 
 				async run(): Promise<void> {
 					logSessionsInteraction(that._telemetryService, 'generateNewTask', 'menu');
-					await that._sessionManagementService.sendAndCreateChat(session, { query: '/generate-run-commands' });
+					await that._generateNewTask(session);
 				}
 			}));
 		}));
+	}
+
+	private async _generateNewTask(session: ISession): Promise<void> {
+		const query = '/generate-run-commands';
+		// Prefer sending to the already-open chat widget for the session;
+		// fall back to sendAndCreateChat for untitled sessions or when no widget is loaded.
+		const widget = this._chatWidgetService.getWidgetBySessionResource(session.mainChat.resource);
+		if (widget) {
+			await widget.acceptInput(query);
+		} else {
+			await this._sessionManagementService.sendAndCreateChat(session, { query });
+		}
 	}
 
 	private async _showConfigureQuickPick(session: ISession): Promise<ITaskEntry | undefined> {
@@ -338,7 +352,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 				let updatedTask: ITaskEntry = {
 					...existingTask.task,
 					label: newLabel,
-					inSessions: true,
+					inAgents: true,
 				};
 
 				if (taskConfiguration.command && existingTask.task.command !== undefined) {
@@ -365,7 +379,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 			await this._sessionsConfigService.addTaskToSessions(existingTask.task, session, existingTask.target, { runOn: taskConfiguration.runOn ?? 'default' });
 			return {
 				...existingTask.task,
-				inSessions: true,
+				inAgents: true,
 				...(taskConfiguration.runOn ? { runOptions: { runOn: taskConfiguration.runOn } } : {}),
 			};
 		}
@@ -418,7 +432,7 @@ export class RunScriptContribution extends Disposable implements IWorkbenchContr
 			quickWidget.widget = widget.domNode;
 			this._layoutService.mainContainer.classList.add(RUN_SCRIPT_ACTION_MODAL_VISIBLE_CLASS);
 			const backdrop = append(this._layoutService.mainContainer, $('.run-script-action-modal-backdrop'));
-			disposables.add(addDisposableListener(backdrop, EventType.MOUSE_DOWN, e => {
+			disposables.add(addDisposableGenericMouseDownListener(backdrop, e => {
 				e.preventDefault();
 				e.stopPropagation();
 				complete(undefined);
@@ -480,13 +494,13 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 		private readonly _activeRunState: IObservable<IRunScriptActionContext | undefined>,
 		private readonly _showConfigureQuickPick: (session: ISession) => Promise<ITaskEntry | undefined>,
 		private readonly _showCustomCommandInput: (session: ISession, existingTask: INonSessionTaskEntry, mode?: TaskConfigurationMode) => Promise<ITaskEntry | undefined>,
+		private readonly _generateNewTask: (session: ISession) => Promise<void>,
 		@ICommandService private readonly _commandService: ICommandService,
 		@ISessionsConfigurationService private readonly _sessionsConfigService: ISessionsConfigurationService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 	) {
 		super(undefined, action);
 
@@ -569,7 +583,9 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 
 	override setFocusable(focusable: boolean): void {
 		this._primaryAction.setFocusable(focusable);
-		this._dropdown.setFocusable(focusable);
+		if (!focusable) {
+			this._dropdown.setFocusable(false);
+		}
 	}
 
 	private _getPrimaryActionTooltip(state: IRunScriptActionContext | undefined): string {
@@ -653,7 +669,6 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 				tooltip: '',
 				hover: {
 					content: localize('runActionTooltip', "Run '{0}' in terminal", getTaskDisplayLabel(task)),
-					position: { hoverPosition: HoverPosition.LEFT }
 				},
 				icon: Codicon.play,
 				enabled: true,
@@ -676,7 +691,6 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 				content: canConfigure
 					? localize('addActionTooltip', "Add a new task")
 					: localize('addActionTooltipDisabled', "Cannot add tasks to this session because workspace storage is unavailable"),
-				position: { hoverPosition: HoverPosition.LEFT }
 			},
 			icon: Codicon.add,
 			enabled: canConfigure,
@@ -698,7 +712,6 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 			tooltip: '',
 			hover: {
 				content: localize('generateRunActionTooltip', "Generate a new workspace task"),
-				position: { hoverPosition: HoverPosition.LEFT },
 			},
 			icon: Codicon.sparkle,
 			enabled: true,
@@ -706,7 +719,7 @@ class RunScriptActionViewItem extends BaseActionViewItem {
 			category: tasksCategory,
 			run: async () => {
 				logSessionsInteraction(this._telemetryService, 'generateNewTask', 'actionWidget');
-				await this._sessionsManagementService.sendAndCreateChat(session, { query: '/generate-run-commands' });
+				await this._generateNewTask(session);
 			},
 		});
 

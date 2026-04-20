@@ -12,7 +12,6 @@ import { basename, dirname } from '../../../../../base/common/resources.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
-import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ILabelService } from '../../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -24,7 +23,7 @@ import { ILanguageModelToolsService, IToolData, VSCodeToolReference } from '../t
 import { PromptsConfig } from './config/config.js';
 import { isInClaudeAgentsFolder, isInClaudeRulesFolder, isPromptOrInstructionsFile } from './config/promptFileLocations.js';
 import { ParsedPromptFile } from './promptFileParser.js';
-import { AgentInstructionFileType, IAgentSkill, ICustomAgent, IInstructionFile, IPromptsService, newInstructionsCollectionEvent, newInstructionsCollectionDebugInfo, type InstructionsCollectionEvent, type InstructionsCollectionDebugInfo } from './service/promptsService.js';
+import { AgentInstructionFileType, IAgentSkill, ICustomAgent, IInstructionFile, IPromptsService, matchesSessionType, newInstructionsCollectionEvent, newInstructionsCollectionDebugInfo, type InstructionsCollectionEvent, type InstructionsCollectionDebugInfo } from './service/promptsService.js';
 export type { InstructionsCollectionEvent, InstructionsCollectionDebugInfo } from './service/promptsService.js';
 export { newInstructionsCollectionEvent, newInstructionsCollectionDebugInfo } from './service/promptsService.js';
 import { AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, TROUBLESHOOT_SKILL_PATH } from './promptTypes.js';
@@ -66,11 +65,11 @@ export class ComputeAutomaticInstructions {
 		private readonly _modeKind: ChatModeKind,
 		private readonly _enabledTools: UserSelectedTools | undefined,
 		private readonly _enabledSubagents: (readonly string[]) | undefined,
+		private readonly _currentSessionType: string,
 		@IPromptsService private readonly _promptsService: IPromptsService,
 		@ILogService public readonly _logService: ILogService,
 		@ILabelService private readonly _labelService: ILabelService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
 		@IFileService private readonly _fileService: IFileService,
 		@IRemoteAgentService private readonly _remoteAgentService: IRemoteAgentService,
@@ -189,15 +188,16 @@ export class ComputeAutomaticInstructions {
 			return;
 		}
 
+		const currentSessionType = this._currentSessionType;
+
 		for (const instructionFile of instructionFiles) {
 			if (token.isCancellationRequested) {
 				return;
 			}
 
-			const { uri, pattern, when } = instructionFile;
+			const { uri, pattern } = instructionFile;
 
-			// If a `when` clause is present, evaluate it; otherwise always include.
-			if (when && !this._contextKeyService.contextMatchesRules(when)) {
+			if (!matchesSessionType(instructionFile.sessionTypes, currentSessionType)) {
 				continue;
 			}
 
@@ -342,6 +342,7 @@ export class ComputeAutomaticInstructions {
 	private async _getCustomizationsIndex(instructionFiles: readonly IInstructionFile[], _existingVariables: ChatRequestVariableSet, telemetryEvent: InstructionsCollectionEvent, debugInfo: InstructionsCollectionDebugInfo, token: CancellationToken): Promise<IPromptTextVariableEntry | undefined> {
 		const readTool = this._getTool('readFile');
 		const runSubagentTool = this._getTool(VSCodeToolReference.runSubagent);
+		const currentSessionType = this._currentSessionType;
 
 		const remoteEnv = await this._remoteAgentService.getEnvironment();
 		const remoteOS = remoteEnv?.os;
@@ -361,7 +362,7 @@ export class ComputeAutomaticInstructions {
 			entries.push('Make sure to acquire the instructions before working with the codebase.');
 			let hasContent = false;
 			for (const instruction of instructionFiles) {
-				if (instruction.when && !this._contextKeyService.contextMatchesRules(instruction.when)) {
+				if (!matchesSessionType(instruction.sessionTypes, currentSessionType)) {
 					continue;
 				}
 				entries.push('<instruction>');
@@ -396,7 +397,7 @@ export class ComputeAutomaticInstructions {
 
 			const agentSkills = await this._promptsService.findAgentSkills(token);
 			// Filter out skills with disableModelInvocation=true (they can only be triggered manually via /name)
-			// Also filter by `when` clause using the scoped context key service
+			// Also filter by session type in consumers outside the prompts service
 			// Also filter out the troubleshoot skill when  agent debug log file logging setting is disabled
 			const isFileLoggingEnabled = this._configurationService.getValue<boolean>(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING);
 			const modelInvocableSkills = agentSkills?.filter(skill => {
@@ -404,8 +405,8 @@ export class ComputeAutomaticInstructions {
 					debugInfo.debugDetails.push({ category: 'skipped', name: skill.name, uri: skill.uri, reason: localize('debugDetail.skillNotModelInvocable', 'model invocation disabled') });
 					return false;
 				}
-				if (skill.when && !this._contextKeyService.contextMatchesRules(skill.when)) {
-					debugInfo.debugDetails.push({ category: 'skipped', name: skill.name, uri: skill.uri, reason: localize('debugDetail.skillWhenClause', "when clause not satisfied") });
+				if (!matchesSessionType(skill.sessionTypes, currentSessionType)) {
+					debugInfo.debugDetails.push({ category: 'skipped', name: skill.name, uri: skill.uri, reason: localize('debugDetail.skillSessionType', 'session type not matched') });
 					return false;
 				}
 				if (!isFileLoggingEnabled && skill.uri.path.includes(TROUBLESHOOT_SKILL_PATH)) {
@@ -457,16 +458,15 @@ export class ComputeAutomaticInstructions {
 		if (runSubagentTool) {
 			const generalPurposeAgentEnabled = !!this._configurationService.getValue<boolean>(ChatConfiguration.GeneralPurposeAgentEnabled);
 
-			const customAgentsEnabled = !!this._configurationService.getValue(ChatConfiguration.SubagentToolCustomAgents);
 			const canUseAgent = (() => {
 				if (!this._enabledSubagents || this._enabledSubagents.includes('*')) {
-					return (agent: ICustomAgent) => agent.visibility.agentInvocable && (!agent.when || this._contextKeyService.contextMatchesRules(agent.when));
+					return (agent: ICustomAgent) => agent.visibility.agentInvocable && matchesSessionType(agent.sessionTypes, currentSessionType);
 				} else {
 					const subagents = this._enabledSubagents;
-					return (agent: ICustomAgent) => subagents.includes(agent.name) && (!agent.when || this._contextKeyService.contextMatchesRules(agent.when));
+					return (agent: ICustomAgent) => subagents.includes(agent.name) && matchesSessionType(agent.sessionTypes, currentSessionType);
 				}
 			})();
-			const agents = customAgentsEnabled ? await this._promptsService.getCustomAgents(token) : [];
+			const agents = await this._promptsService.getCustomAgents(token);
 
 			if (generalPurposeAgentEnabled || agents.length > 0) {
 				entries.push('<agents>');

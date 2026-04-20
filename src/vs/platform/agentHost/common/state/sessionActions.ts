@@ -48,8 +48,11 @@ export {
 	type ISessionPendingMessageSetAction,
 	type ISessionPendingMessageRemovedAction,
 	type ISessionQueuedMessagesReorderedAction,
+	type ISessionInputRequestedAction,
+	type ISessionInputCompletedAction,
 	type ISessionIsReadChangedAction,
 	type ISessionIsDoneChangedAction,
+	type ISessionToolCallContentChangedAction,
 	type IStateAction,
 } from './protocol/actions.js';
 

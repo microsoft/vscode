@@ -8,7 +8,7 @@ import { Codicon } from '../../../util/vs/base/common/codicons';
 import { IAuthenticationService } from '../../authentication/common/authentication';
 import { ILogService } from '../../log/common/logService';
 import { Response } from '../../networking/common/fetcherService';
-import { IRequestLogger, LoggedRequestKind } from '../../requestLogger/node/requestLogger';
+import { IRequestLogger, LoggedRequestKind } from '../../requestLogger/common/requestLogger';
 import { ITelemetryService } from '../../telemetry/common/telemetry';
 import { ICAPIClientService } from '../common/capiClient';
 
@@ -39,6 +39,18 @@ export interface RoutingContextSignals {
 }
 
 /**
+ * Thrown when the router API returns a non-OK HTTP response.
+ * Carries the parsed `errorCode` from the response body (e.g. `no_vision_models`)
+ * so callers can classify the failure without string-matching the message.
+ */
+export class RouterDecisionError extends Error {
+	override readonly name = 'RouterDecisionError';
+	constructor(message: string, public readonly errorCode?: string) {
+		super(message);
+	}
+}
+
+/**
  * Fetches routing decisions from a classification API to determine which model should handle a query.
  *
  * This class sends queries along with available models to a router API endpoint, which uses reasoning
@@ -54,7 +66,7 @@ export class RouterDecisionFetcher {
 	) {
 	}
 
-	async getRouterDecision(query: string, autoModeToken: string, availableModels: string[], stickyThreshold?: number, contextSignals?: RoutingContextSignals, conversationId?: string, vscodeRequestId?: string, routingMethod?: string): Promise<RouterDecisionResponse> {
+	async getRouterDecision(query: string, autoModeToken: string, availableModels: string[], stickyThreshold?: number, contextSignals?: RoutingContextSignals, conversationId?: string, vscodeRequestId?: string, routingMethod?: string, hasImage?: boolean): Promise<RouterDecisionResponse> {
 		const startTime = Date.now();
 		const requestBody: Record<string, unknown> = { prompt: query, available_models: availableModels, ...contextSignals };
 		if (stickyThreshold !== undefined) {
@@ -62,6 +74,9 @@ export class RouterDecisionFetcher {
 		}
 		if (routingMethod) {
 			requestBody.routing_method = routingMethod;
+		}
+		if (hasImage) {
+			requestBody.has_image = true;
 		}
 		const copilotToken = (await this._authService.getCopilotToken()).token;
 		const abortController = new AbortController();
@@ -82,7 +97,15 @@ export class RouterDecisionFetcher {
 		}
 
 		if (!response.ok) {
-			throw new Error(`Router decision request failed with status ${response.status}: ${response.statusText}`);
+			const errorText = await response.text().catch(() => '');
+			let errorCode: string | undefined;
+			try {
+				const parsed = JSON.parse(errorText);
+				if (typeof parsed === 'object' && parsed !== null && 'error' in parsed && typeof parsed.error === 'string') {
+					errorCode = parsed.error;
+				}
+			} catch { /* not JSON */ }
+			throw new RouterDecisionError(`Router decision request failed with status ${response.status}: ${response.statusText}`, errorCode);
 		}
 
 		const text = await response.text();
@@ -124,9 +147,11 @@ export class RouterDecisionFetcher {
 				"routingMethod": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The routing method used for this request (empty=server default, binary, hydra). Identifies the A/B/C experiment path." },
 				"fallback": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Whether the router signaled a fallback to default automod selection." },
 				"fallbackReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The reason provided by the server when fallback is true." },
+				"candidateModel": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The top candidate model recommended by the router before any sticky-provider or vision overrides are applied." },
 				"confidence": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The confidence score of the routing decision" },
 				"latencyMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "The latency of the router API call in milliseconds" },
-				"e2eLatencyMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "The end-to-end latency of the router request in milliseconds, including network overhead" }
+				"e2eLatencyMs": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true, "comment": "The end-to-end latency of the router request in milliseconds, including network overhead" },
+				"stickyOverride": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Whether the router applied a sticky override (1) or not (0)" }
 			}
 		*/
 		this._telemetryService.sendMSFTTelemetryEvent('automode.routerDecision',
@@ -137,11 +162,13 @@ export class RouterDecisionFetcher {
 				routingMethod: result.routing_method ?? '',
 				fallback: String(result.fallback ?? false),
 				fallbackReason: result.fallback_reason ?? '',
+				candidateModel: result.candidate_models?.[0] ?? '',
 			},
 			{
 				confidence: result.confidence,
 				latencyMs: result.latency_ms,
 				e2eLatencyMs: e2eLatencyMs,
+				stickyOverride: result.sticky_override ? 1 : 0,
 			}
 		);
 		return result;

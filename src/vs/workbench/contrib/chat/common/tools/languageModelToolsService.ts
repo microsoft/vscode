@@ -336,6 +336,8 @@ export interface IToolConfirmationMessages {
 		label: string | IMarkdownString;
 		/** Precomputed SHA-256 key for the combination (set during tool preparation) */
 		key: string;
+		/** String representation of the arguments for this combination */
+		arguments?: string;
 	};
 }
 
@@ -493,6 +495,13 @@ export interface IBeginToolCallOptions {
 	chatRequestId?: string;
 	sessionResource?: URI;
 	subagentInvocationId?: string;
+	/**
+	 * Create the streaming invocation even when the tool does not
+	 * implement `handleToolStream`. Used by callers that need a
+	 * `ChatToolInvocation` handle to observe state transitions (e.g.
+	 * confirmation) before invoking the tool.
+	 */
+	force?: boolean;
 }
 
 export interface IToolInvokedEvent {

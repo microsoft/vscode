@@ -237,7 +237,7 @@ suite('RunSubagentTool', () => {
 			assert.ok(toolData.inputSchema);
 			assert.ok(toolData.inputSchema.properties?.prompt);
 			assert.ok(toolData.inputSchema.properties?.description);
-			assert.strictEqual(toolData.inputSchema.properties?.agentName, undefined, 'agentName should not be in schema when neither GP nor custom agents is enabled');
+			assert.ok(toolData.inputSchema.properties?.agentName, 'agentName should be in schema properties');
 			assert.deepStrictEqual(toolData.inputSchema.required, ['prompt', 'description']);
 		});
 
@@ -341,6 +341,7 @@ suite('RunSubagentTool', () => {
 				isDefaultForLocation: {},
 				modelPickerCategory: undefined,
 				multiplierNumeric,
+				capabilities: { toolCalling: true },
 			};
 		}
 
@@ -356,6 +357,9 @@ suite('RunSubagentTool', () => {
 			}
 
 			const mockLanguageModelsService: Partial<ILanguageModelsService> = {
+				getLanguageModelIds() {
+					return Array.from(opts.models.keys());
+				},
 				lookupLanguageModel(modelId: string) {
 					return opts.models.get(modelId);
 				},
@@ -370,7 +374,7 @@ suite('RunSubagentTool', () => {
 				mockToolsService,
 				mockLanguageModelsService as ILanguageModelsService,
 				new NullLogService(),
-				new TestConfigurationService({ [ChatConfiguration.SubagentToolCustomAgents]: true }),
+				new TestConfigurationService(),
 				promptsService,
 				{} as IInstantiationService,
 				{} as IProductService,
@@ -393,7 +397,7 @@ suite('RunSubagentTool', () => {
 			};
 		}
 
-		test('falls back to main model when subagent model has higher multiplier', async () => {
+		test('throws error when subagent model has higher multiplier', async () => {
 			const mainMeta = createMetadata('GPT-4o', 1);
 			const expensiveMeta = createMetadata('O3 Pro', 50);
 			const models = new Map([
@@ -407,22 +411,21 @@ suite('RunSubagentTool', () => {
 			const agent = createAgent('ExpensiveAgent', ['O3 Pro (TestVendor)']);
 			const tool = createTool({ models, qualifiedNameMap, customAgents: [agent] });
 
-			const result = await tool.prepareToolInvocation({
-				parameters: { prompt: 'test', description: 'test task', agentName: 'ExpensiveAgent' },
-				toolCallId: 'call-1',
-				modelId: 'main-model-id',
-				chatSessionResource: URI.parse('test://session'),
-			}, CancellationToken.None);
-
-			assert.ok(result);
-			// Should fall back to the main model's name, not the expensive model
-			assert.deepStrictEqual(result.toolSpecificData, {
-				kind: 'subagent',
-				description: 'test task',
-				agentName: 'ExpensiveAgent',
-				prompt: 'test',
-				modelName: 'GPT-4o',
-			});
+			await assert.rejects(
+				() => tool.prepareToolInvocation({
+					parameters: { prompt: 'test', description: 'test task', agentName: 'ExpensiveAgent' },
+					toolCallId: 'call-1',
+					modelId: 'main-model-id',
+					chatSessionResource: URI.parse('test://session'),
+				}, CancellationToken.None),
+				(err: Error) => {
+					assert.ok(err.message.includes('O3 Pro'));
+					assert.ok(err.message.includes('exceeds'));
+					assert.ok(err.message.includes('cost tier'));
+					assert.ok(err.message.includes('Unavailable'));
+					return true;
+				}
+			);
 		});
 
 		test('uses subagent model when it has equal multiplier', async () => {
@@ -596,6 +599,233 @@ suite('RunSubagentTool', () => {
 				prompt: 'test',
 				modelName: 'GPT-4o',
 			});
+		});
+	});
+
+	suite('explicit model parameter', () => {
+		function createMetadata(name: string, multiplierNumeric?: number): ILanguageModelChatMetadata {
+			return {
+				extension: new ExtensionIdentifier('test.extension'),
+				name,
+				id: name.toLowerCase().replace(/\s+/g, '-'),
+				vendor: 'TestVendor',
+				version: '1.0',
+				family: 'test',
+				maxInputTokens: 128000,
+				maxOutputTokens: 8192,
+				isDefaultForLocation: {},
+				modelPickerCategory: undefined,
+				multiplierNumeric,
+				capabilities: { toolCalling: true },
+			};
+		}
+
+		function createTool(opts: {
+			models: Map<string, ILanguageModelChatMetadata>;
+			qualifiedNameMap?: Map<string, ILanguageModelChatMetadataAndIdentifier>;
+			customAgents?: ICustomAgent[];
+		}) {
+			const mockToolsService = testDisposables.add(new MockLanguageModelToolsService());
+			const promptsService = new MockPromptsService();
+			if (opts.customAgents) {
+				promptsService.setCustomModes(opts.customAgents);
+			}
+
+			const mockLanguageModelsService: Partial<ILanguageModelsService> = {
+				getLanguageModelIds() {
+					return Array.from(opts.models.keys());
+				},
+				lookupLanguageModel(modelId: string) {
+					return opts.models.get(modelId);
+				},
+				lookupLanguageModelByQualifiedName(qualifiedName: string) {
+					return opts.qualifiedNameMap?.get(qualifiedName);
+				},
+			};
+
+			const tool = testDisposables.add(new RunSubagentTool(
+				{} as IChatAgentService,
+				{} as IChatService,
+				mockToolsService,
+				mockLanguageModelsService as ILanguageModelsService,
+				new NullLogService(),
+				new TestConfigurationService(),
+				promptsService,
+				{} as IInstantiationService,
+				{} as IProductService,
+			));
+
+			return tool;
+		}
+
+		function createAgent(name: string, modelQualifiedNames?: string[]): ICustomAgent {
+			return {
+				uri: URI.parse(`file:///test/${name}.md`),
+				name,
+				description: `Agent ${name}`,
+				tools: ['tool1'],
+				model: modelQualifiedNames,
+				agentInstructions: { content: 'test', toolReferences: [] },
+				source: { storage: PromptsStorage.local },
+				target: Target.Undefined,
+				visibility: { userInvocable: true, agentInvocable: true }
+			};
+		}
+
+		test('model property is included in tool schema without enum', () => {
+			const models = new Map([
+				['model-1', createMetadata('GPT-4o')],
+				['model-2', createMetadata('Claude Sonnet')],
+			]);
+
+			const tool = createTool({ models });
+			const toolData = tool.getToolData();
+
+			assert.ok(toolData.inputSchema?.properties?.model, 'model should be in schema');
+			assert.strictEqual(toolData.inputSchema?.properties?.model?.type, 'string');
+			// No enum should be present - validation happens at runtime
+			assert.strictEqual(toolData.inputSchema?.properties?.model?.enum, undefined, 'model should not have an enum');
+		});
+
+		test('resolves explicit model parameter without agentName', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1);
+			const explicitMeta = createMetadata('Claude Sonnet', 1);
+			const models = new Map([
+				['main-model-id', mainMeta],
+				['explicit-model-id', explicitMeta],
+			]);
+			const qualifiedNameMap = new Map([
+				['Claude Sonnet (TestVendor)', { metadata: explicitMeta, identifier: 'explicit-model-id' }],
+			]);
+
+			const tool = createTool({ models, qualifiedNameMap });
+
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test task', model: 'Claude Sonnet (TestVendor)' },
+				toolCallId: 'model-call-1',
+				modelId: 'main-model-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.ok(result);
+			assert.deepStrictEqual(result.toolSpecificData, {
+				kind: 'subagent',
+				description: 'test task',
+				agentName: undefined,
+				prompt: 'test',
+				modelName: 'Claude Sonnet',
+			});
+		});
+
+		test('explicit model overrides agent configured model', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1);
+			const agentMeta = createMetadata('Agent Model', 1);
+			const explicitMeta = createMetadata('Claude Sonnet', 1);
+			const models = new Map([
+				['main-model-id', mainMeta],
+				['agent-model-id', agentMeta],
+				['explicit-model-id', explicitMeta],
+			]);
+			const qualifiedNameMap = new Map([
+				['Agent Model (TestVendor)', { metadata: agentMeta, identifier: 'agent-model-id' }],
+				['Claude Sonnet (TestVendor)', { metadata: explicitMeta, identifier: 'explicit-model-id' }],
+			]);
+
+			const agent = createAgent('MyAgent', ['Agent Model (TestVendor)']);
+			const tool = createTool({ models, qualifiedNameMap, customAgents: [agent] });
+
+			const result = await tool.prepareToolInvocation({
+				parameters: { prompt: 'test', description: 'test task', agentName: 'MyAgent', model: 'Claude Sonnet (TestVendor)' },
+				toolCallId: 'model-call-2',
+				modelId: 'main-model-id',
+				chatSessionResource: URI.parse('test://session'),
+			}, CancellationToken.None);
+
+			assert.ok(result);
+			assert.deepStrictEqual(result.toolSpecificData, {
+				kind: 'subagent',
+				description: 'test task',
+				agentName: 'MyAgent',
+				prompt: 'test',
+				modelName: 'Claude Sonnet',
+			});
+		});
+
+		test('throws error when explicit model has higher multiplier', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1);
+			const expensiveMeta = createMetadata('O3 Pro', 50);
+			const models = new Map([
+				['main-model-id', mainMeta],
+				['expensive-model-id', expensiveMeta],
+			]);
+			const qualifiedNameMap = new Map([
+				['O3 Pro (TestVendor)', { metadata: expensiveMeta, identifier: 'expensive-model-id' }],
+			]);
+
+			const tool = createTool({ models, qualifiedNameMap });
+
+			await assert.rejects(
+				() => tool.prepareToolInvocation({
+					parameters: { prompt: 'test', description: 'test task', model: 'O3 Pro (TestVendor)' },
+					toolCallId: 'model-call-3',
+					modelId: 'main-model-id',
+					chatSessionResource: URI.parse('test://session'),
+				}, CancellationToken.None),
+				(err: Error) => {
+					assert.ok(err.message.includes('O3 Pro'));
+					assert.ok(err.message.includes('exceeds'));
+					assert.ok(err.message.includes('cost tier'));
+					assert.ok(err.message.includes('Unavailable'));
+					return true;
+				}
+			);
+		});
+
+		test('throws error with available models when explicit model is not found', async () => {
+			const mainMeta = createMetadata('GPT-4o', 1);
+			const otherMeta = createMetadata('Claude Sonnet', 1);
+			const models = new Map([
+				['main-model-id', mainMeta],
+				['other-model-id', otherMeta],
+			]);
+
+			const tool = createTool({ models, qualifiedNameMap: new Map() });
+
+			await assert.rejects(
+				() => tool.prepareToolInvocation({
+					parameters: { prompt: 'test', description: 'test task', model: 'Nonexistent Model (Vendor)' },
+					toolCallId: 'model-call-4',
+					modelId: 'main-model-id',
+					chatSessionResource: URI.parse('test://session'),
+				}, CancellationToken.None),
+				(err: Error) => {
+					assert.ok(err.message.includes('Nonexistent Model (Vendor)'));
+					assert.ok(err.message.includes('not found'));
+					assert.ok(err.message.includes('Available models:'));
+					assert.ok(err.message.includes('GPT-4o (TestVendor)'));
+					assert.ok(err.message.includes('Claude Sonnet (TestVendor)'));
+					return true;
+				}
+			);
+		});
+
+		test('throws error with no models message when no models are available', async () => {
+			const tool = createTool({ models: new Map(), qualifiedNameMap: new Map() });
+
+			await assert.rejects(
+				() => tool.prepareToolInvocation({
+					parameters: { prompt: 'test', description: 'test task', model: 'Nonexistent Model (Vendor)' },
+					toolCallId: 'model-call-5',
+					modelId: undefined,
+					chatSessionResource: URI.parse('test://session'),
+				}, CancellationToken.None),
+				(err: Error) => {
+					assert.ok(err.message.includes('Nonexistent Model (Vendor)'));
+					assert.ok(err.message.includes('not found'));
+					assert.ok(err.message.includes('No models available'));
+					return true;
+				}
+			);
 		});
 	});
 

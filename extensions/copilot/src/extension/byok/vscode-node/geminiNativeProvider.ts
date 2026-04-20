@@ -11,7 +11,8 @@ import { IResponseDelta, OpenAiFunctionTool } from '../../../platform/networking
 import { APIUsage } from '../../../platform/networking/common/openai';
 import { CopilotChatAttr, emitInferenceDetailsEvent, GenAiAttr, GenAiMetrics, GenAiOperationName, type OTelModelOptions, StdAttr, truncateForOTel } from '../../../platform/otel/common/index';
 import { IOTelService, SpanKind, SpanStatusCode } from '../../../platform/otel/common/otelService';
-import { IRequestLogger, retrieveCapturingTokenByCorrelation, runWithCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
+import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
+import { retrieveCapturingTokenByCorrelation, runWithCapturingToken } from '../../../platform/requestLogger/node/requestLogger';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { toErrorMessage } from '../../../util/common/errorMessage';
 import { RecordedProgress } from '../../../util/common/progressRecorder';
@@ -343,21 +344,27 @@ export class GeminiNativeBYOKLMProvider extends AbstractLanguageModelChatProvide
 					[StdAttr.SERVER_ADDRESS]: 'generativelanguage.googleapis.com',
 				},
 			});
-			// Opt-in: capture input messages
+			// Opt-in: capture input messages in OTel GenAI format
 			if (this._otelService.config.captureContent) {
 				try {
 					const roleNames: Record<number, string> = { 1: 'user', 2: 'assistant', 3: 'system' };
 					const inputMsgs = messages.map(m => {
 						const msg = m as LanguageModelChatMessage;
 						const role = roleNames[msg.role] ?? String(msg.role);
-						const textParts: string[] = [];
+						const parts: Array<{ type: string; content?: string; id?: string; name?: string; arguments?: unknown }> = [];
 						if (Array.isArray(msg.content)) {
 							for (const p of msg.content) {
-								if (p instanceof LanguageModelTextPart) { textParts.push(p.value); }
+								if (p instanceof LanguageModelTextPart) {
+									parts.push({ type: 'text', content: p.value });
+								} else if (p instanceof LanguageModelToolCallPart) {
+									parts.push({ type: 'tool_call', id: p.callId, name: p.name, arguments: p.input });
+								}
 							}
 						}
-						const content = textParts.length > 0 ? textParts.join('') : '[non-text content]';
-						return { role, parts: [{ type: 'text', content }] };
+						if (parts.length === 0) {
+							parts.push({ type: 'text', content: '[non-text content]' });
+						}
+						return { role, parts };
 					});
 					otelSpan.setAttribute(GenAiAttr.INPUT_MESSAGES, truncateForOTel(JSON.stringify(inputMsgs)));
 				} catch { /* swallow */ }

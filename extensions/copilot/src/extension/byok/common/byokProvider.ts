@@ -147,6 +147,7 @@ export function byokKnownModelToAPIInfo(providerName: string, id: string, capabi
 		family: id,
 		tooltip: `${capabilities.name} is contributed via the ${providerName} provider.`,
 		multiplierNumeric: 0,
+		isUserSelectable: true,
 		capabilities: {
 			toolCalling: capabilities.toolCalling,
 			imageInput: capabilities.vision
@@ -160,7 +161,7 @@ export function isBYOKEnabled(copilotToken: Omit<CopilotToken, 'token'>, capiCli
 	}
 
 	const isGHE = capiClientService.dotcomAPIURL !== 'https://api.github.com';
-	const byokAllowed = (copilotToken.isInternal || copilotToken.isIndividual) && !isGHE;
+	const byokAllowed = (copilotToken.isInternal || copilotToken.isIndividual || copilotToken.isClientBYOKEnabled()) && !isGHE;
 	return byokAllowed;
 }
 
