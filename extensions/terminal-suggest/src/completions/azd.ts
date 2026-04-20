@@ -332,6 +332,15 @@ const completionSpec: Fig.Spec = {
 									],
 								},
 								{
+									name: ['--protocol', '-p'],
+									description: 'Protocol to use: responses (default) or invocations',
+									args: [
+										{
+											name: 'protocol',
+										},
+									],
+								},
+								{
 									name: ['--session-id', '-s'],
 									description: 'Explicit session ID override',
 									args: [
@@ -360,11 +369,11 @@ const completionSpec: Fig.Spec = {
 									description: 'Stream logs in real-time',
 								},
 								{
-									name: ['--session', '-s'],
+									name: ['--session-id', '-s'],
 									description: 'Session ID to stream logs for',
 									args: [
 										{
-											name: 'session',
+											name: 'session-id',
 										},
 									],
 								},
@@ -1202,7 +1211,7 @@ const completionSpec: Fig.Spec = {
 					options: [
 						{
 							name: ['--dst'],
-							description: 'The destination slot name. Use @main for production.',
+							description: 'The destination slot name. Use \'production\' for main app.',
 							args: [
 								{
 									name: 'dst',
@@ -1220,7 +1229,7 @@ const completionSpec: Fig.Spec = {
 						},
 						{
 							name: ['--src'],
-							description: 'The source slot name. Use @main for production.',
+							description: 'The source slot name. Use \'production\' for main app.',
 							args: [
 								{
 									name: 'src',
@@ -3542,4 +3551,3 @@ const completionSpec: Fig.Spec = {
 };
 
 export default completionSpec;
-
