@@ -608,6 +608,36 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('copyPathSeparator', "The path separation character used when copying file paths."),
 			'default': 'auto'
 		},
+		'explorer.copyPathQuoting': {
+			'type': 'string',
+			'enum': [
+				'none',
+				'single',
+				'double'
+			],
+			'enumDescriptions': [
+				nls.localize('copyPathQuoting.none', "Do not wrap the file path with quotes."),
+				nls.localize('copyPathQuoting.single', "Wrap the file path with single quotes."),
+				nls.localize('copyPathQuoting.double', "Wrap the file path with double quotes."),
+			],
+			'description': nls.localize('copyPathQuoting', "The type of quotes used when copying file paths."),
+			'default': 'none'
+		},
+		'explorer.copyRelativePathQuoting': {
+			'type': 'string',
+			'enum': [
+				'none',
+				'single',
+				'double'
+			],
+			'enumDescriptions': [
+				nls.localize('copyRelativePathQuoting.none', "Do not wrap the relative file path with quotes."),
+				nls.localize('copyRelativePathQuoting.single', "Wrap the relative file path with single quotes."),
+				nls.localize('copyRelativePathQuoting.double', "Wrap the relative file path with double quotes."),
+			],
+			'description': nls.localize('copyRelativePathQuoting', "The type of quotes used when copying relative file paths."),
+			'default': 'none'
+		},
 		'explorer.excludeGitIgnore': {
 			type: 'boolean',
 			markdownDescription: nls.localize('excludeGitignore', "Controls whether entries in .gitignore should be parsed and excluded from the Explorer. Similar to {0}.", '`#files.exclude#`'),
