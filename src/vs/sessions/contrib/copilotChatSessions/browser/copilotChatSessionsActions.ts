@@ -23,7 +23,7 @@ import { Menus } from '../../../browser/menus.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { SessionItemContextMenuId } from '../../sessions/browser/views/sessionsList.js';
-import { COPILOT_CLI_SESSION_TYPE, COPILOT_CLOUD_SESSION_TYPE, ISession } from '../../../services/sessions/common/session.js';
+import { CLAUDE_CODE_SESSION_TYPE, COPILOT_CLI_SESSION_TYPE, COPILOT_CLOUD_SESSION_TYPE, ISession } from '../../../services/sessions/common/session.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { COPILOT_PROVIDER_ID, CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
 import { ActiveSessionHasGitRepositoryContext, ActiveSessionProviderIdContext, ActiveSessionTypeContext, ChatSessionProviderIdContext, IsNewChatSessionContext } from '../../../common/contextkeys.js';
@@ -32,12 +32,15 @@ import { BranchPicker } from './branchPicker.js';
 import { ModePicker } from './modePicker.js';
 import { CloudModelPicker } from './modelPicker.js';
 import { CopilotPermissionPickerDelegate, PermissionPicker } from './permissionPicker.js';
+import { ClaudePermissionModePicker } from './claudePermissionModePicker.js';
 
 const IsActiveSessionCopilotCLI = ContextKeyExpr.equals(ActiveSessionTypeContext.key, COPILOT_CLI_SESSION_TYPE);
 const IsActiveSessionCopilotCloud = ContextKeyExpr.equals(ActiveSessionTypeContext.key, COPILOT_CLOUD_SESSION_TYPE);
 const IsActiveCopilotChatSessionProvider = ContextKeyExpr.equals(ActiveSessionProviderIdContext.key, COPILOT_PROVIDER_ID);
 const IsActiveSessionCopilotChatCLI = ContextKeyExpr.and(IsActiveSessionCopilotCLI, IsActiveCopilotChatSessionProvider);
 const IsActiveSessionCopilotChatCloud = ContextKeyExpr.and(IsActiveSessionCopilotCloud, IsActiveCopilotChatSessionProvider);
+const IsActiveSessionClaudeCode = ContextKeyExpr.equals(ActiveSessionTypeContext.key, CLAUDE_CODE_SESSION_TYPE);
+const IsActiveSessionCopilotChatClaudeCode = ContextKeyExpr.and(IsActiveSessionClaudeCode, IsActiveCopilotChatSessionProvider);
 
 // -- Actions --
 
@@ -142,6 +145,23 @@ registerAction2(class extends Action2 {
 				group: 'navigation',
 				order: 1,
 				when: IsActiveSessionCopilotChatCLI,
+			}],
+		});
+	}
+	override async run(): Promise<void> { /* handled by action view item */ }
+});
+
+registerAction2(class extends Action2 {
+	constructor() {
+		super({
+			id: 'sessions.defaultCopilot.claudePermissionModePicker',
+			title: localize2('claudePermissionModePicker', "Permission Mode"),
+			f1: false,
+			menu: [{
+				id: Menus.NewSessionControl,
+				group: 'navigation',
+				order: 1,
+				when: IsActiveSessionCopilotChatClaudeCode,
 			}],
 		});
 	}
@@ -277,6 +297,13 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 				const delegate = instantiationService.createInstance(CopilotPermissionPickerDelegate);
 				const picker = instantiationService.createInstance(PermissionPicker, delegate);
 				return new PickerActionViewItem(picker, delegate);
+			},
+		));
+		this._register(actionViewItemService.register(
+			Menus.NewSessionControl, 'sessions.defaultCopilot.claudePermissionModePicker',
+			() => {
+				const picker = instantiationService.createInstance(ClaudePermissionModePicker);
+				return new PickerActionViewItem(picker);
 			},
 		));
 	}

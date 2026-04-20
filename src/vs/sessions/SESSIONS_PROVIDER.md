@@ -79,6 +79,8 @@ The common session interface exposed by all providers. It is a self-contained fa
 - `repositories: ISessionRepository[]` — One or more repositories
 - `requiresWorkspaceTrust: boolean` — Whether workspace trust is required to operate
 
+**Workspace label and session grouping:** The sessions list groups sessions by `workspace.label`. Sessions whose workspace is `undefined` or whose label is empty appear under "Unknown". For the `CopilotChatSessionsProvider`, the workspace label is derived from session metadata via `getRepositoryName()` (in `agentSessionsViewer.ts`), which checks these metadata keys in priority order: `remoteAgentHost`, `owner`+`name`, `repositoryNwo`, `repository`, `repositoryUrl`, `repositoryPath`, `worktreePath`, `workingDirectoryPath`, then `badge`. Extension-side `ChatSessionContentProvider` implementations must set `item.metadata` with at least `workingDirectoryPath` (for local sessions) so that sessions are grouped correctly.
+
 **`ISessionRepository`** — A repository within a workspace:
 - `uri: URI` — Source repository URI (`file://` or `github-remote-file://`)
 - `workingDirectory: URI | undefined` — Worktree or checkout path
