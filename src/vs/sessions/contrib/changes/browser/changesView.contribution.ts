@@ -28,7 +28,7 @@ const changesViewContainer = viewContainersRegistry.registerViewContainer({
 	order: 10,
 	hideIfEmpty: true,
 	windowVisibility: WindowVisibility.Sessions
-}, ViewContainerLocation.AuxiliaryBar, { doNotRegisterOpenCommand: true, isDefault: true });
+}, ViewContainerLocation.AuxiliaryBar, { doNotRegisterOpenCommand: true });
 
 const viewsRegistry = Registry.as<IViewsRegistry>(ViewContainerExtensions.ViewsRegistry);
 

@@ -205,6 +205,21 @@ export class ScriptedMockAgent implements IAgent {
 	constructor() {
 		// Seed the pre-existing session so it appears in listSessions()
 		this._sessions.set(AgentSession.id(PRE_EXISTING_SESSION_URI), PRE_EXISTING_SESSION_URI);
+
+		// Allow integration tests to seed additional pre-existing sessions across
+		// server restarts via env var. The value is a comma-separated list of
+		// session URIs (e.g. `mock://pre-1,mock://pre-2`).
+		const seeded = process.env['VSCODE_AGENT_HOST_MOCK_SEED_SESSIONS'];
+		if (seeded) {
+			for (const raw of seeded.split(',')) {
+				const trimmed = raw.trim();
+				if (!trimmed) {
+					continue;
+				}
+				const uri = URI.parse(trimmed);
+				this._sessions.set(AgentSession.id(uri), uri);
+			}
+		}
 	}
 
 	getDescriptor(): IAgentDescriptor {
@@ -497,6 +512,59 @@ export class ScriptedMockAgent implements IAgent {
 						]);
 					}
 				});
+				break;
+			}
+
+			case 'subagent': {
+				// Spawns a subagent: parent `task` tool starts (emits start +
+				// auto-ready as a pair), then `subagent_started` creates the
+				// child session, then an inner tool runs in the child session
+				// (routed via `parentToolCallId`).
+				this._fireSequence(session, [
+					{
+						type: 'tool_start',
+						session,
+						toolCallId: 'tc-task-1',
+						toolName: 'task',
+						displayName: 'Task',
+						invocationMessage: 'Spawning subagent',
+						toolKind: 'subagent',
+						subagentAgentName: 'explore',
+						subagentDescription: 'Explore',
+					},
+					{
+						type: 'subagent_started',
+						session,
+						toolCallId: 'tc-task-1',
+						agentName: 'explore',
+						agentDisplayName: 'Explore',
+						agentDescription: 'Exploration helper',
+					},
+					{
+						type: 'tool_start',
+						session,
+						toolCallId: 'tc-inner-1',
+						toolName: 'echo_tool',
+						displayName: 'Echo Tool',
+						invocationMessage: 'Inner tool running...',
+						parentToolCallId: 'tc-task-1',
+					},
+					{
+						type: 'tool_complete',
+						session,
+						toolCallId: 'tc-inner-1',
+						parentToolCallId: 'tc-task-1',
+						result: { pastTenseMessage: 'Ran inner tool', content: [{ type: ToolResultContentType.Text, text: 'inner-ok' }], success: true },
+					},
+					{
+						type: 'tool_complete',
+						session,
+						toolCallId: 'tc-task-1',
+						result: { pastTenseMessage: 'Subagent done', content: [{ type: ToolResultContentType.Text, text: 'task-ok' }], success: true },
+					},
+					{ type: 'delta', session, messageId: 'msg-sa', content: 'Subagent finished.' },
+					{ type: 'idle', session },
+				]);
 				break;
 			}
 

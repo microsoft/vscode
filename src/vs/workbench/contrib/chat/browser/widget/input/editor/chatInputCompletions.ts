@@ -54,17 +54,14 @@ import { IDynamicVariable } from '../../../../common/attachments/chatVariables.j
 import { ChatAgentLocation, ChatModeKind, isSupportedChatFileScheme } from '../../../../common/constants.js';
 import { isToolSet } from '../../../../common/tools/languageModelToolsService.js';
 import { IChatSessionsService } from '../../../../common/chatSessionsService.js';
+import { ICustomizationHarnessService, getActiveHarnessSlashCommands } from '../../../../common/customizationHarnessService.js';
 import { IPromptsService, matchesSessionType } from '../../../../common/promptSyntax/service/promptsService.js';
-import {
-	PromptsType,
-	Target
-} from '../../../../common/promptSyntax/promptTypes.js';
+import { Target } from '../../../../common/promptSyntax/promptTypes.js';
 import { ChatSubmitAction, IChatExecuteActionContext } from '../../../actions/chatExecuteActions.js';
 import { IChatWidget, IChatWidgetService } from '../../../chat.js';
 import { resizeImage } from '../../../chatImageUtils.js';
 import { ChatDynamicVariableModel } from '../../../attachments/chatDynamicVariables.js';
 import { IChatService } from '../../../../common/chatService/chatService.js';
-import { getPromptFileType } from '../../../../common/promptSyntax/config/promptFileLocations.js';
 import { getChatSessionType } from '../../../../common/model/chatUri.js';
 import { computeCompletionRanges, escapeForCharClass, IChatCompletionRangeResult, isEmptyUpToCompletionWord } from './chatInputCompletionUtils.js';
 import { getAgentSessionProviderIcon, AgentSessionProviders } from '../../../agentSessions/agentSessions.js';
@@ -86,6 +83,7 @@ class SlashCommandCompletions extends Disposable {
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
 		@IChatSlashCommandService private readonly chatSlashCommandService: IChatSlashCommandService,
 		@IPromptsService private readonly promptsService: IPromptsService,
+		@ICustomizationHarnessService private readonly harnessService: ICustomizationHarnessService,
 		@IChatService chatService: IChatService,
 		@IChatSessionsService chatSessionsService: IChatSessionsService,
 		@IMcpService mcpService: IMcpService,
@@ -241,7 +239,7 @@ class SlashCommandCompletions extends Disposable {
 					return;
 				}
 
-				const promptCommands = await this.promptsService.getPromptSlashCommands(token);
+				const promptCommands = await getActiveHarnessSlashCommands(this.harnessService, this.promptsService, token);
 				if (promptCommands.length === 0) {
 					return null;
 				}
@@ -251,23 +249,7 @@ class SlashCommandCompletions extends Disposable {
 				}
 
 				const currentSessionType = widget.viewModel.model.sessionResource ? getChatSessionType(widget.viewModel.model.sessionResource) : undefined;
-
-				// Filter out commands that are not user-invocable (hidden from / menu)
 				const userInvocableCommands = promptCommands
-					.filter(c => {
-						if (widget.lockedAgentId) {
-							// Exclude hooks as those don't work in locked agent scenarios.
-							try {
-								const promptType = getPromptFileType(c.uri);
-								if (promptType && promptType === PromptsType.hook) {
-									return false;
-								}
-							} catch {
-
-							}
-						}
-						return true;
-					})
 					.filter(c => c.userInvocable)
 					.filter(c => matchesSessionType(c.sessionTypes, currentSessionType));
 				if (userInvocableCommands.length === 0) {
