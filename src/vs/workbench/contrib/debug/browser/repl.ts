@@ -275,6 +275,15 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 
 							const suggestions: CompletionItem[] = [];
 							const computeRange = (length: number) => Range.fromPositions(position.delta(0, -length), position);
+
+							// When the debug adapter does not provide start/length, compute a default
+							// overlap length based on the word prefix at the cursor position. Without this,
+							// the completion range is zero-width and the suggest widget cannot properly
+							// filter completions as the user continues typing. (#278108)
+							const textBefore = text.substring(0, position.column - 1);
+							const wordMatch = textBefore.match(/[a-zA-Z_$][a-zA-Z0-9_$]*$/);
+							const defaultOverlapLength = wordMatch ? wordMatch[0].length : 0;
+
 							if (response && response.body && response.body.targets) {
 								response.body.targets.forEach(item => {
 									if (item && item.label) {
@@ -288,13 +297,14 @@ export class Repl extends FilterViewPane implements IHistoryNavigationWidget {
 											insertText = insertText.substring(0, item.selectionStart) + placeholder + insertText.substring(item.selectionStart + selectionLength);
 										}
 
+										const hasExplicitRange = typeof item.start === 'number' && typeof item.length === 'number';
 										suggestions.push({
 											label: item.label,
 											insertText,
 											detail: item.detail,
 											kind: CompletionItemKinds.fromString(item.type || 'property'),
-											filterText: (item.start && item.length) ? text.substring(item.start, item.start + item.length).concat(item.label) : undefined,
-											range: computeRange(item.length || 0),
+											filterText: hasExplicitRange ? text.substring(item.start!, item.start! + item.length!).concat(item.label) : undefined,
+											range: computeRange(hasExplicitRange ? item.length! : defaultOverlapLength),
 											sortText: item.sortText,
 											insertTextRules
 										});
