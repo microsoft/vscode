@@ -2,15 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import 'mocha';
-import * as assert from 'assert';
+import { suite, test } from 'node:test';
+import assert from 'node:assert/strict';
 import { URI } from 'vscode-uri';
-import { resolve } from 'path';
+import { resolve } from 'node:path';
 import { TextDocument, DocumentLink } from 'vscode-languageserver-types';
 import { WorkspaceFolder } from 'vscode-languageserver-protocol';
 import { getCSSLanguageService } from 'vscode-css-languageservice';
-import { getDocumentContext } from '../utils/documentContext';
-import { getNodeFSRequestService } from '../node/nodeFs';
+import { getDocumentContext } from '../utils/documentContext.js';
+import { getNodeFSRequestService } from '../node/nodeFs.js';
 
 export interface ItemDescription {
 	offset: number;
@@ -55,7 +55,7 @@ suite('Links', () => {
 	}
 
 	function getTestResource(path: string) {
-		return URI.file(resolve(__dirname, '../../test/linksTestFixtures', path)).toString(true);
+		return URI.file(resolve(import.meta.dirname, '../../test/linksTestFixtures', path)).toString(true);
 	}
 
 	test('url links', async function () {

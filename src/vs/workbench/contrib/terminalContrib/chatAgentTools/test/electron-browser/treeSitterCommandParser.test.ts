@@ -179,6 +179,25 @@ suite('TreeSitterCommandParser', () => {
 				test('nested try-catch-finally', () => t('try { try { Get-Content "file" } catch { throw } } catch { Write-Error "outer" } finally { Write-Host "cleanup" }', ['Get-Content "file"', 'Write-Error "outer"', 'Write-Host "cleanup"']));
 				test('parallel processing', () => t('1..10 | ForEach-Object -Parallel { Start-Sleep 1; Write-Host $_ } ; Get-Date', ['1..10 ', 'ForEach-Object -Parallel { Start-Sleep 1; Write-Host $_ }', 'Start-Sleep 1', 'Write-Host $_', 'Get-Date']));
 			});
+
+			// https://github.com/microsoft/vscode/issues/294010
+			// The upstream tree-sitter-powershell grammar parses POSIX-style
+			// `--flag=value` arguments as assignment expressions and truncates
+			// the surrounding command. The parser masks the `=` before parsing
+			// so these arguments are preserved as part of the sub-command.
+			suite('POSIX-style `--flag=value` arguments', () => {
+				test('double-dash flag with quoted value', () => t('git log --format="abc"', ['git log --format="abc"']));
+				test('double-dash flag with value containing pipe', () => t('git log --format="a|b"', ['git log --format="a|b"']));
+				test('double-dash flag with single-quoted value', () => t(`git log --format='%h|%s'`, [`git log --format='%h|%s'`]));
+				test('multiple flag=value arguments', () => t('git log --format="%h" --date=short HEAD -1', ['git log --format="%h" --date=short HEAD -1']));
+				test('chained git log with format containing pipes', () => t(
+					'git log --format="%h|%s|%an|%ad" --date=short dff523fc450 -1; git log --format="%h|%s|%an|%ad" --date=short 0a541d056d3 -1',
+					[
+						'git log --format="%h|%s|%an|%ad" --date=short dff523fc450 -1',
+						'git log --format="%h|%s|%an|%ad" --date=short 0a541d056d3 -1',
+					]
+				));
+			});
 		});
 
 		suite('all shells', () => {

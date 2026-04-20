@@ -29,9 +29,9 @@ import { config } from './lib/electron.ts';
 import { createAsar } from './lib/asar.ts';
 import minimist from 'minimist';
 import { compileBuildWithoutManglingTask, compileBuildWithManglingTask } from './gulpfile.compile.ts';
-import { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileAllExtensionsBuildTask, compileExtensionMediaBuildTask, cleanExtensionsBuildTask } from './gulpfile.extensions.ts';
+import { compileNonNativeExtensionsBuildTask, compileNativeExtensionsBuildTask, compileAllExtensionsBuildTask, compileExtensionMediaBuildTask, cleanExtensionsBuildTask, compileCopilotExtensionBuildTask } from './gulpfile.extensions.ts';
 import { copyCodiconsTask } from './lib/compilation.ts';
-import { getCopilotExcludeFilter, copyCopilotNativeDeps } from './lib/copilot.ts';
+import { getCopilotExcludeFilter, copyCopilotNativeDeps, prepareBuiltInCopilotExtensionShims } from './lib/copilot.ts';
 import type { EmbeddedProductInfo } from './lib/embeddedType.ts';
 import { useEsbuildTranspile } from './buildConfig.ts';
 import { promisify } from 'util';
@@ -97,9 +97,11 @@ const vscodeResourceIncludes = [
 
 	// Welcome
 	'out-build/vs/workbench/contrib/welcomeGettingStarted/common/media/**/*.{svg,png}',
+	'out-build/vs/workbench/contrib/welcomeOnboarding/browser/media/*.svg',
 
 	// Sessions
 	'out-build/vs/sessions/contrib/chat/browser/media/*.svg',
+	'out-build/vs/sessions/contrib/welcome/browser/media/*.svg',
 	'out-build/vs/sessions/prompts/*.prompt.md',
 	'out-build/vs/sessions/skills/**/SKILL.md',
 
@@ -370,6 +372,10 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 
 		const name = product.nameShort;
 		const packageJsonUpdates: Record<string, unknown> = { name, version };
+		const isInsiderOrExploration = quality === 'insider' || quality === 'exploration';
+		const embedded = isInsiderOrExploration
+			? (product as typeof product & { embedded?: EmbeddedProductInfo }).embedded
+			: undefined;
 
 		if (platform === 'linux') {
 			packageJsonUpdates.desktopName = `${product.applicationName}.desktop`;
@@ -385,22 +391,27 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 
 		let productJsonContents: string;
 		const productJsonStream = gulp.src(['product.json'], { base: '.' })
-			.pipe(jsonEditor({ commit, date: readISODate(out), checksums, version }))
+			.pipe(jsonEditor((json: Record<string, unknown>) => {
+				json.commit = commit;
+				json.date = readISODate(out);
+				json.checksums = checksums;
+				json.version = version;
+				if (embedded) {
+					json['darwinSiblingBundleIdentifier'] = embedded.darwinBundleIdentifier;
+					const embeddedObj = json['embedded'] as EmbeddedProductInfo;
+					embeddedObj['darwinSiblingBundleIdentifier'] = json['darwinBundleIdentifier'] as string;
+				}
+				return json;
+			}))
 			.pipe(es.through(function (file) {
 				productJsonContents = file.contents.toString();
 				this.emit('data', file);
 			}));
 
-
-		const isInsiderOrExploration = quality === 'insider' || quality === 'exploration';
-		const embedded = isInsiderOrExploration
-			? (product as typeof product & { embedded?: EmbeddedProductInfo }).embedded
-			: undefined;
-
-		const packageSubJsonStream = isInsiderOrExploration
+		const packageSubJsonStream = embedded
 			? gulp.src(['package.json'], { base: '.' })
 				.pipe(jsonEditor((json: Record<string, unknown>) => {
-					json.name = `sessions-${quality || 'oss-dev'}`;
+					json.name = embedded.nameShort;
 					return json;
 				}))
 				.pipe(rename('package.sub.json'))
@@ -409,9 +420,15 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 		const productSubJsonStream = embedded
 			? gulp.src(['product.json'], { base: '.' })
 				.pipe(jsonEditor((json: Record<string, unknown>) => {
+					// Preserve the host's mutex name before overlaying embedded properties,
+					// so the embedded app can poll for the correct InnoSetup -ready mutex.
+					const hostMutexName = json['win32MutexName'];
 					Object.keys(embedded).forEach(key => {
 						json[key] = embedded[key as keyof EmbeddedProductInfo];
 					});
+					if (hostMutexName) {
+						json['win32SetupMutexName'] = hostMutexName;
+					}
 					return json;
 				}))
 				.pipe(rename('product.sub.json'))
@@ -533,9 +550,10 @@ function packageTask(platform: string, arch: string, sourceFolderName: string, d
 			ffmpegChromium: false,
 			...(embedded ? {
 				darwinMiniAppName: embedded.nameShort,
+				darwinMiniAppDisplayName: embedded.nameLong,
 				darwinMiniAppBundleIdentifier: embedded.darwinBundleIdentifier,
-				darwinMiniAppIcon: 'resources/darwin/sessions.icns',
-				darwinMiniAppAssetsCar: 'resources/darwin/sessions.car',
+				darwinMiniAppIcon: 'resources/darwin/agents.icns',
+				darwinMiniAppAssetsCar: 'resources/darwin/agents.car',
 				darwinMiniAppBundleURLTypes: [{
 					role: 'Viewer',
 					name: embedded.nameLong,
@@ -692,8 +710,11 @@ function copyCopilotNativeDepsTask(platform: string, arch: string, destinationFo
 		const appBase = platform === 'darwin'
 			? path.join(outputDir, `${product.nameLong}.app`, 'Contents', 'Resources', 'app')
 			: path.join(outputDir, versionedResourcesFolder, 'resources', 'app');
+		const appNodeModulesDir = path.join(appBase, 'node_modules');
+		copyCopilotNativeDeps(platform, arch, appNodeModulesDir);
 
-		copyCopilotNativeDeps(platform, arch, path.join(appBase, 'node_modules'));
+		const builtInCopilotExtensionDir = path.join(appBase, 'extensions', 'copilot');
+		prepareBuiltInCopilotExtensionShims(platform, arch, builtInCopilotExtensionDir, appNodeModulesDir);
 	};
 }
 
@@ -748,6 +769,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 				copyCodiconsTask,
 				cleanExtensionsBuildTask,
 				compileNonNativeExtensionsBuildTask,
+				compileCopilotExtensionBuildTask,
 				compileExtensionMediaBuildTask,
 				writeISODate('out-build'),
 				esbuildBundleTask,
@@ -758,6 +780,7 @@ BUILD_TARGETS.forEach(buildTarget => {
 				minified ? compileBuildWithManglingTask : compileBuildWithoutManglingTask,
 				cleanExtensionsBuildTask,
 				compileNonNativeExtensionsBuildTask,
+				compileCopilotExtensionBuildTask,
 				compileExtensionMediaBuildTask,
 				minified ? minifyVSCodeTask : bundleVSCodeTask,
 				vscodeTaskCI

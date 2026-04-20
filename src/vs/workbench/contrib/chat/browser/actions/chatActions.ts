@@ -205,7 +205,7 @@ abstract class OpenChatGlobalAction extends Action2 {
 			category: CHAT_CATEGORY,
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.Setup.hidden.negate(),
-				ChatContextKeys.Setup.disabled.negate()
+				ChatContextKeys.Setup.disabledInWorkspace.negate(),
 			)
 		});
 	}
@@ -1085,6 +1085,36 @@ export function registerChatActions() {
 		}
 	});
 
+	registerAction2(class ToggleSessionCloudSyncAction extends Action2 {
+		private static readonly _settingKey = 'github.copilot.chat.sessionSearch.cloudSync.enabled';
+		constructor() {
+			super({
+				id: 'workbench.action.chat.toggleSessionCloudSync',
+				title: localize2('chat.toggleSessionCloudSync', "Sync Chat Sessions to Cloud"),
+				category: CHAT_CATEGORY,
+				f1: false,
+				toggled: ContextKeyExpr.equals(`config.${ToggleSessionCloudSyncAction._settingKey}`, true),
+				menu: [{
+					id: CHAT_CONFIG_MENU_ID,
+					when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId), ContextKeyExpr.equals('github.copilot.sessionSearch.enabled', true)),
+					order: 2,
+					group: '4_logs'
+				}, {
+					id: MenuId.ViewTitle,
+					when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId), ContextKeyExpr.equals('github.copilot.sessionSearch.enabled', true)),
+					order: 2,
+					group: '4_logs'
+				}]
+			});
+		}
+
+		async run(accessor: ServicesAccessor): Promise<void> {
+			const configurationService = accessor.get(IConfigurationService);
+			const currentValue = configurationService.getValue<boolean>(ToggleSessionCloudSyncAction._settingKey);
+			await configurationService.updateValue(ToggleSessionCloudSyncAction._settingKey, !currentValue);
+		}
+	});
+
 	const nonEnterpriseCopilotUsers = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.notEquals(`config.${defaultChat.completionsAdvancedSetting}.authProvider`, defaultChat.provider.enterprise.id));
 	registerAction2(class extends Action2 {
 		constructor() {
@@ -1193,7 +1223,7 @@ export function registerChatActions() {
 			}
 
 			const free = chatEntitlementService.entitlement === ChatEntitlement.Free;
-			const upgradeToPro = free ? localize('upgradeToPro', "Upgrade to GitHub Copilot Pro (your first 30 days are free) for:\n- Unlimited inline suggestions\n- Unlimited chat messages\n- Access to premium models") : undefined;
+			const upgradeToPro = free ? localize('upgradeToPro', "Upgrade to GitHub Copilot Pro for:\n- Unlimited inline suggestions\n- Unlimited chat messages\n- Access to premium models") : undefined;
 
 			await dialogService.prompt({
 				type: 'none',
@@ -1440,7 +1470,7 @@ export function registerChatActions() {
 				},
 				{
 					id: MenuId.ViewTitle,
-					when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId), ContextKeyExpr.has(`config.${ChatConfiguration.ChatCustomizationMenuEnabled}`)),
+					when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId)),
 					order: 15,
 					group: '3_configure'
 				}]
@@ -1453,7 +1483,7 @@ export function registerChatActions() {
 		}
 	});
 
-	// When customizations menu is enabled, show a direct gear action to open the Customizations editor
+	// Show a direct gear action to open the Customizations editor
 	MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
 		command: {
 			id: AICustomizationManagementCommands.OpenEditor,
@@ -1465,18 +1495,7 @@ export function registerChatActions() {
 		when: ContextKeyExpr.and(
 			ChatContextKeys.enabled,
 			ContextKeyExpr.equals('view', ChatViewId),
-			ContextKeyExpr.has(`config.${ChatConfiguration.ChatCustomizationMenuEnabled}`)
 		),
-		order: 6
-	});
-
-	// When customizations menu is disabled, show the legacy gear submenu
-	MenuRegistry.appendMenuItem(MenuId.ViewTitle, {
-		submenu: CHAT_CONFIG_MENU_ID,
-		title: localize2('config.label', "Configure Chat"),
-		group: 'navigation',
-		when: ContextKeyExpr.and(ContextKeyExpr.equals('view', ChatViewId), ContextKeyExpr.has(`config.${ChatConfiguration.ChatCustomizationMenuEnabled}`).negate()),
-		icon: Codicon.gear,
 		order: 6
 	});
 }
@@ -1739,7 +1758,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorContext, {
 	title: localize('generateCode', "Generate Code"),
 	when: ContextKeyExpr.and(
 		ChatContextKeys.Setup.hidden.negate(),
-		ChatContextKeys.Setup.disabled.negate()
+		ChatContextKeys.Setup.disabledInWorkspace.negate(),
 	)
 });
 

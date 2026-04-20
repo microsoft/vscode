@@ -9,7 +9,7 @@ import { TestInstantiationService } from '../../../../../../platform/instantiati
 import { TestLifecycleService, workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import { TestProductService } from '../../../../../test/common/workbenchTestServices.js';
 import { TerminalSandboxPrerequisiteCheck, TerminalSandboxService } from '../../common/terminalSandboxService.js';
-import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IEnvironmentService } from '../../../../../../platform/environment/common/environment.js';
 import { ILogService, NullLogService } from '../../../../../../platform/log/common/log.js';
@@ -17,6 +17,8 @@ import { IProductService } from '../../../../../../platform/product/common/produ
 import { IRemoteAgentService } from '../../../../../services/remote/common/remoteAgentService.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
+import { AgentNetworkDomainSettingId } from '../../../../../../platform/networkFilter/common/settings.js';
+import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { Event, Emitter } from '../../../../../../base/common/event.js';
 import { TestConfigurationService } from '../../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { VSBuffer } from '../../../../../../base/common/buffer.js';
@@ -174,9 +176,9 @@ suite('TerminalSandboxService - network domains', () => {
 		workspaceContextService.setWorkspaceFolders([URI.file('/workspace-one')]);
 
 		// Setup default configuration
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxEnabled, true);
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains, []);
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkDeniedDomains, []);
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, []);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, []);
 
 		instantiationService.stub(IConfigurationService, configurationService);
 		instantiationService.stub(IFileService, fileService);
@@ -229,8 +231,8 @@ suite('TerminalSandboxService - network domains', () => {
 	});
 
 	test('should preserve configured network domains', async () => {
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains, ['example.com', '*.github.com']);
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkDeniedDomains, ['blocked.example.com']);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['example.com', '*.github.com']);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['blocked.example.com']);
 
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		deepStrictEqual(sandboxService.getResolvedNetworkDomains(), {
@@ -249,6 +251,126 @@ suite('TerminalSandboxService - network domains', () => {
 			allowedDomains: ['example.com', '*.github.com'],
 			deniedDomains: ['blocked.example.com']
 		});
+	});
+
+	test('should write configured runtime values to sandbox config root', async () => {
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxAdvancedRuntime, {
+			allowUnixSockets: true,
+			networkProxy: {
+				enabled: true,
+				mode: 'strict'
+			}
+		});
+
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const configPath = await sandboxService.getSandboxConfigPath();
+
+		ok(configPath, 'Config path should be defined');
+		const configContent = createdFiles.get(configPath);
+		ok(configContent, 'Config file should be created');
+
+		const config = JSON.parse(configContent);
+		strictEqual(config.allowUnixSockets, true);
+		deepStrictEqual(config.networkProxy, {
+			enabled: true,
+			mode: 'strict'
+		});
+	});
+
+	test('should omit runtime root-level entries when runtime setting is empty', async () => {
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxAdvancedRuntime, {});
+
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const configPath = await sandboxService.getSandboxConfigPath();
+
+		ok(configPath, 'Config path should be defined');
+		const configContent = createdFiles.get(configPath);
+		ok(configContent, 'Config file should be created');
+
+		const config = JSON.parse(configContent);
+		strictEqual(Object.prototype.hasOwnProperty.call(config, 'allowUnixSockets'), false, 'Runtime keys should be omitted when the runtime setting is empty');
+		strictEqual(Object.prototype.hasOwnProperty.call(config, 'networkProxy'), false, 'Nested runtime keys should be omitted when the runtime setting is empty');
+	});
+
+	test('should rewrite sandbox config when runtime setting changes', async () => {
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxAdvancedRuntime, {
+			allowUnixSockets: true,
+		});
+
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const configPath = await sandboxService.getSandboxConfigPath();
+
+		ok(configPath, 'Config path should be defined');
+		const initialConfigContent = createdFiles.get(configPath);
+		ok(initialConfigContent, 'Config file should be created for the initial runtime values');
+		strictEqual(JSON.parse(initialConfigContent).allowUnixSockets, true);
+
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxAdvancedRuntime, {
+			allowUnixSockets: false,
+			networkProxy: {
+				enabled: true
+			}
+		});
+		configurationService.onDidChangeConfigurationEmitter.fire({
+			affectsConfiguration: (key: string) => key === TerminalChatAgentToolsSettingId.AgentSandboxAdvancedRuntime,
+			affectedKeys: new Set([TerminalChatAgentToolsSettingId.AgentSandboxAdvancedRuntime]),
+			source: ConfigurationTarget.USER,
+			change: null!,
+		});
+
+		const refreshedConfigPath = await sandboxService.getSandboxConfigPath();
+		strictEqual(refreshedConfigPath, configPath, 'Config path should stay stable when the config is refreshed');
+
+		const refreshedConfigContent = createdFiles.get(configPath);
+		ok(refreshedConfigContent, 'Config file should be rewritten after runtime setting changes');
+
+		const refreshedConfig = JSON.parse(refreshedConfigContent);
+		strictEqual(refreshedConfig.allowUnixSockets, false);
+		deepStrictEqual(refreshedConfig.networkProxy, {
+			enabled: true
+		});
+	});
+
+	test('should not override schema-defined network and filesystem config with runtime settings', async () => {
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['example.com']);
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxLinuxFileSystem, {
+			allowWrite: ['/configured/path'],
+			denyRead: [],
+			denyWrite: []
+		});
+		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxAdvancedRuntime, {
+			network: {
+				allowedDomains: ['should-not-win.example'],
+				allowUnixSockets: true,
+			},
+			filesystem: {
+				allowWrite: ['/should-not-win'],
+				unixSockets: {
+					enabled: true,
+				}
+			},
+			allowUnixSockets: true,
+		});
+
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		const configPath = await sandboxService.getSandboxConfigPath();
+
+		ok(configPath, 'Config path should be defined');
+		const configContent = createdFiles.get(configPath);
+		ok(configContent, 'Config file should be created');
+
+		const config = JSON.parse(configContent);
+		deepStrictEqual(config.network, {
+			allowedDomains: ['example.com'],
+			deniedDomains: [],
+			allowUnixSockets: true,
+		});
+		ok(config.filesystem.allowWrite.includes('/configured/path'), 'Configured filesystem values should be preserved');
+		ok(!config.filesystem.allowWrite.includes('/should-not-win'), 'Runtime filesystem values should not override schema-defined filesystem config');
+		deepStrictEqual(config.filesystem.unixSockets, {
+			enabled: true,
+		}, 'Additional nested runtime filesystem properties should be merged in');
+		strictEqual(config.allowUnixSockets, true, 'Non-conflicting runtime properties should still be added');
 	});
 
 	test('should refresh allowWrite paths when workspace folders change', async () => {
@@ -322,30 +444,44 @@ suite('TerminalSandboxService - network domains', () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 
-		strictEqual(sandboxService.wrapCommand('echo test', true).command, `(TMPDIR="${sandboxService.getTempDir()?.path}"; export TMPDIR; echo test)`);
+		strictEqual(sandboxService.wrapCommand('echo test', true, 'bash').command, `env TMPDIR="${sandboxService.getTempDir()?.path}" 'bash' -c 'echo test'`);
 	});
 
 	test('should preserve TMPDIR for piped unsandboxed commands', async () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 
-		strictEqual(sandboxService.wrapCommand('echo test | cat', true).command, `(TMPDIR="${sandboxService.getTempDir()?.path}"; export TMPDIR; echo test | cat)`);
+		strictEqual(sandboxService.wrapCommand('echo test | cat', true, 'bash').command, `env TMPDIR="${sandboxService.getTempDir()?.path}" 'bash' -c 'echo test | cat'`);
+	});
+
+	test('should preserve trailing backslashes for unsandboxed commands', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		strictEqual(sandboxService.wrapCommand('echo test \\', true, 'bash').command, `env TMPDIR="${sandboxService.getTempDir()?.path}" 'bash' -c 'echo test \\'`);
+	});
+
+	test('should use fish-compatible wrapping for unsandboxed commands', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		strictEqual(sandboxService.wrapCommand('echo test', true, 'fish').command, `env TMPDIR="${sandboxService.getTempDir()?.path}" 'fish' -c 'echo test'`);
 	});
 
 	test('should switch to unsandboxed execution when a domain is not allowlisted', async () => {
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 
-		const wrapResult = sandboxService.wrapCommand('curl https://example.com');
+		const wrapResult = sandboxService.wrapCommand('curl https://example.com', false, 'bash');
 
 		strictEqual(wrapResult.isSandboxWrapped, false, 'Blocked domains should prevent sandbox wrapping');
 		strictEqual(wrapResult.requiresUnsandboxConfirmation, true, 'Blocked domains should require unsandbox confirmation');
 		deepStrictEqual(wrapResult.blockedDomains, ['example.com']);
-		strictEqual(wrapResult.command, `(TMPDIR="${sandboxService.getTempDir()?.path}"; export TMPDIR; curl https://example.com)`);
+		strictEqual(wrapResult.command, `env TMPDIR="${sandboxService.getTempDir()?.path}" 'bash' -c 'curl https://example.com'`);
 	});
 
 	test('should allow exact allowlisted domains', async () => {
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains, ['example.com']);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['example.com']);
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 
@@ -356,7 +492,7 @@ suite('TerminalSandboxService - network domains', () => {
 	});
 
 	test('should allow wildcard domains', async () => {
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains, ['*.github.com']);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['*.github.com']);
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 
@@ -367,8 +503,8 @@ suite('TerminalSandboxService - network domains', () => {
 	});
 
 	test('should give denied domains precedence over allowlisted domains', async () => {
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains, ['*.github.com']);
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkDeniedDomains, ['api.github.com']);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['*.github.com']);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.DeniedNetworkDomains, ['api.github.com']);
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 
@@ -380,7 +516,7 @@ suite('TerminalSandboxService - network domains', () => {
 	});
 
 	test('should match uppercase hostnames when checking allowlisted domains', async () => {
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxNetworkAllowedDomains, ['*.github.com']);
+		configurationService.setUserConfiguration(AgentNetworkDomainSettingId.AllowedNetworkDomains, ['*.github.com']);
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 		await sandboxService.getSandboxConfigPath();
 
@@ -400,13 +536,106 @@ suite('TerminalSandboxService - network domains', () => {
 		strictEqual(wrapResult.blockedDomains, undefined, 'Malformed URL authorities should be ignored');
 	});
 
+	test('should ignore file-extension suffixes that look like domains', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const javascriptResult = sandboxService.wrapCommand('cat bundle.js', false, 'bash');
+		strictEqual(javascriptResult.isSandboxWrapped, true, 'File extensions such as .js should not trigger blocked-domain prompts');
+		strictEqual(javascriptResult.blockedDomains, undefined, 'File extensions such as .js should not be reported as domains');
+
+		const jsonResult = sandboxService.wrapCommand('cat package.json', false, 'bash');
+		strictEqual(jsonResult.isSandboxWrapped, true, 'File extensions such as .json should not trigger blocked-domain prompts');
+		strictEqual(jsonResult.blockedDomains, undefined, 'File extensions such as .json should not be reported as domains');
+	});
+
+	test('should ignore bare dotted values with unknown domain suffixes', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const commands = [
+			'echo test.invalidtld',
+			'echo test.org.invalidtld',
+			'echo session.completed',
+		];
+
+		for (const command of commands) {
+			const wrapResult = sandboxService.wrapCommand(command, false, 'bash');
+			strictEqual(wrapResult.isSandboxWrapped, true, `Command ${command} should remain sandboxed`);
+			strictEqual(wrapResult.blockedDomains, undefined, `Command ${command} should not report a blocked domain`);
+		}
+	});
+
+	test('should still detect bare hosts with well-known domain suffixes', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const testComResult = sandboxService.wrapCommand('curl test.com', false, 'bash');
+		strictEqual(testComResult.isSandboxWrapped, false, 'Well-known bare domain suffixes should trigger domain checks');
+		deepStrictEqual(testComResult.blockedDomains, ['test.com']);
+
+		const testOrgComResult = sandboxService.wrapCommand('curl test.org.com', false, 'bash');
+		strictEqual(testOrgComResult.isSandboxWrapped, false, 'Well-known bare domain suffixes should trigger domain checks for multi-label hosts');
+		deepStrictEqual(testOrgComResult.blockedDomains, ['test.org.com']);
+	});
+
+	test('should still treat URL authorities with file-like suffixes as domains', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const wrapResult = sandboxService.wrapCommand('curl https://example.zip/path', false, 'bash');
+
+		strictEqual(wrapResult.isSandboxWrapped, false, 'URL authorities should still trigger blocked-domain prompts even when their suffix looks like a file extension');
+		deepStrictEqual(wrapResult.blockedDomains, ['example.zip']);
+	});
+
+	test('should still treat URL authorities with unknown suffixes as domains', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const wrapResult = sandboxService.wrapCommand('curl https://example.bar/path', false, 'bash');
+
+		strictEqual(wrapResult.isSandboxWrapped, false, 'URL authorities should not require a well-known bare-host suffix');
+		deepStrictEqual(wrapResult.blockedDomains, ['example.bar']);
+	});
+
+	test('should still treat ssh remotes with file-like suffixes as domains', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const wrapResult = sandboxService.wrapCommand('git clone git@example.zip:owner/repo.git', false, 'bash');
+
+		strictEqual(wrapResult.isSandboxWrapped, false, 'SSH remotes should still trigger blocked-domain prompts even when their suffix looks like a file extension');
+		deepStrictEqual(wrapResult.blockedDomains, ['example.zip']);
+	});
+
+	test('should not treat filenames in commands as domains', async () => {
+		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
+		await sandboxService.getSandboxConfigPath();
+
+		const commands = [
+			'node server.js',
+			'php index.php',
+			'java -jar app.java',
+			'cat styles.css',
+			'cat README.md',
+			'cat .env',
+		];
+
+		for (const command of commands) {
+			const wrapResult = sandboxService.wrapCommand(command, false, 'bash');
+			strictEqual(wrapResult.isSandboxWrapped, true, `Command ${command} should remain sandboxed`);
+			strictEqual(wrapResult.blockedDomains, undefined, `Command ${command} should not report a blocked domain`);
+		}
+	});
+
 	test('should not fall back to deprecated settings outside user scope', async () => {
 		const originalInspect = configurationService.inspect.bind(configurationService);
 		configurationService.inspect = <T>(key: string) => {
-			if (key === TerminalChatAgentToolsSettingId.AgentSandboxEnabled) {
+			if (key === AgentSandboxSettingId.AgentSandboxEnabled) {
 				return {
 					value: undefined,
-					defaultValue: false,
+					defaultValue: AgentSandboxEnabledValue.Off,
 					userValue: undefined,
 					userLocalValue: undefined,
 					userRemoteValue: undefined,
@@ -416,7 +645,7 @@ suite('TerminalSandboxService - network domains', () => {
 					policyValue: undefined,
 				} as ReturnType<typeof originalInspect<T>>;
 			}
-			if (key === TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxEnabled) {
+			if (key === AgentSandboxSettingId.DeprecatedAgentSandboxEnabled) {
 				return {
 					value: true,
 					defaultValue: false,
@@ -437,13 +666,13 @@ suite('TerminalSandboxService - network domains', () => {
 		strictEqual(await sandboxService.isEnabled(), false, 'Deprecated settings should not be used when only non-user scopes are set');
 	});
 
-	test('should fall back to deprecated settings in user scope', async () => {
+	test('should fall back to deprecated chat.agent.sandbox setting in user scope', async () => {
 		const originalInspect = configurationService.inspect.bind(configurationService);
 		configurationService.inspect = <T>(key: string) => {
-			if (key === TerminalChatAgentToolsSettingId.AgentSandboxEnabled) {
+			if (key === AgentSandboxSettingId.AgentSandboxEnabled) {
 				return {
 					value: undefined,
-					defaultValue: false,
+					defaultValue: AgentSandboxEnabledValue.Off,
 					userValue: undefined,
 					userLocalValue: undefined,
 					userRemoteValue: undefined,
@@ -453,7 +682,7 @@ suite('TerminalSandboxService - network domains', () => {
 					policyValue: undefined,
 				} as ReturnType<typeof originalInspect<T>>;
 			}
-			if (key === TerminalChatAgentToolsSettingId.DeprecatedTerminalSandboxEnabled) {
+			if (key === AgentSandboxSettingId.DeprecatedAgentSandboxEnabled) {
 				return {
 					value: true,
 					defaultValue: false,
@@ -471,7 +700,7 @@ suite('TerminalSandboxService - network domains', () => {
 
 		const sandboxService = store.add(instantiationService.createInstance(TerminalSandboxService));
 
-		strictEqual(await sandboxService.isEnabled(), true, 'Deprecated settings should still be respected when only the user scope is set');
+		strictEqual(await sandboxService.isEnabled(), true, 'Deprecated chat.agent.sandbox should still be respected when only the user scope is set');
 	});
 
 	test('should detect ssh style remotes as domains', async () => {
@@ -523,12 +752,12 @@ suite('TerminalSandboxService - network domains', () => {
 		await sandboxService.getSandboxConfigPath();
 
 		const command = 'echo $HOME $(curl eth0.me) `id`';
-		const wrapResult = sandboxService.wrapCommand(command);
+		const wrapResult = sandboxService.wrapCommand(command, false, 'bash');
 
 		strictEqual(wrapResult.isSandboxWrapped, false, 'Commands with blocked domains inside substitutions should not stay sandboxed');
 		strictEqual(wrapResult.requiresUnsandboxConfirmation, true, 'Blocked domains inside substitutions should require confirmation');
 		deepStrictEqual(wrapResult.blockedDomains, ['eth0.me']);
-		strictEqual(wrapResult.command, `(TMPDIR="${sandboxService.getTempDir()?.path}"; export TMPDIR; ${command})`);
+		strictEqual(wrapResult.command, `env TMPDIR="${sandboxService.getTempDir()?.path}" 'bash' -c 'echo $HOME $(curl eth0.me) \`id\`'`);
 	});
 
 	test('should escape single-quote breakout payloads in wrapped command argument', async () => {

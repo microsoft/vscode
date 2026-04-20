@@ -75,7 +75,6 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 						tooltip: '',
 						hover: {
 							content: localize('permissions.default.description', "Use configured approval settings"),
-							position: pickerOptions.hoverPosition
 						},
 						run: async () => {
 							delegate.setPermissionLevel(ChatPermissionLevel.Default);
@@ -97,7 +96,6 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 							content: policyRestricted
 								? localize('permissions.autoApprove.policyDescription', "Disabled by enterprise policy")
 								: localize('permissions.autoApprove.description', "Auto-approve all tool calls and retry on errors"),
-							position: pickerOptions.hoverPosition
 						},
 						run: async () => {
 							if (!hasShownElevatedWarning(ChatPermissionLevel.AutoApprove)) {
@@ -147,7 +145,6 @@ export class PermissionPickerActionItem extends ChatInputPickerActionViewItem {
 							content: policyRestricted
 								? localize('permissions.autopilot.policyDescription', "Disabled by enterprise policy")
 								: localize('permissions.autopilot.description', "Auto-approve all tool calls and continue until the task is done"),
-							position: pickerOptions.hoverPosition
 						},
 						run: async () => {
 							if (!hasShownElevatedWarning(ChatPermissionLevel.Autopilot)) {

@@ -3,6 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Codicon } from '../../../../base/common/codicons.js';
+import { themeColorFromId, ThemeIcon } from '../../../../base/common/themables.js';
+
 //#region Session Context
 
 /**
@@ -26,6 +29,14 @@ export interface IGitHubRepository {
 	readonly defaultBranch: string;
 	readonly isPrivate: boolean;
 	readonly description: string;
+}
+
+export interface IGitHubChangedFile {
+	readonly filename: string;
+	readonly previous_filename: string | undefined;
+	readonly status: 'added' | 'removed' | 'modified' | 'renamed' | 'copied' | 'changed' | 'unchanged';
+	readonly additions: number;
+	readonly deletions: number;
 }
 
 //#endregion
@@ -77,6 +88,24 @@ export interface IMergeBlocker {
 export interface IGitHubPullRequestMergeability {
 	readonly canMerge: boolean;
 	readonly blockers: readonly IMergeBlocker[];
+}
+
+/**
+ * Compute the PR status icon from a state value.
+ * Accepts both the `GitHubPullRequestState` enum values and the
+ * metadata-only `'draft'` value the extension writes to session metadata.
+ */
+export function computePullRequestIcon(state: GitHubPullRequestState | 'draft'): ThemeIcon {
+	switch (state) {
+		case GitHubPullRequestState.Merged:
+			return { ...Codicon.gitPullRequestDone, color: themeColorFromId('charts.purple') };
+		case GitHubPullRequestState.Closed:
+			return { ...Codicon.gitPullRequestClosed, color: themeColorFromId('charts.red') };
+		case 'draft':
+			return { ...Codicon.gitPullRequestDraft, color: themeColorFromId('descriptionForeground') };
+		case GitHubPullRequestState.Open:
+			return { ...Codicon.gitPullRequest, color: themeColorFromId('charts.green') };
+	}
 }
 
 //#endregion

@@ -413,13 +413,13 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 		excludeWhenToolsInvoked: ['listDebugEvents'],
 	},
 	{
-		id: 'tip.openSessionsWindow',
+		id: 'tip.openAgentsWindow',
 		tier: ChatTipTier.Qol,
 		buildMessage() {
 			return new MarkdownString(
 				localize(
-					'tip.openSessionsWindow',
-					"Try the [Sessions Window](command:workbench.action.openSessionsWindow \"Open Sessions Window\") to run multiple agents simultaneously and manage your coding sessions."
+					'tip.openAgentsWindow',
+					"Try the [Agents Application](command:workbench.action.openAgentsWindow \"Open Agents Application\") to run multiple agents simultaneously and manage your coding sessions."
 				)
 			);
 		},
@@ -428,7 +428,46 @@ export const TIP_CATALOG: readonly ITipDefinition[] = [
 			IsSessionsWindowContext.negate(),
 			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
 		),
-		excludeWhenCommandsExecuted: ['workbench.action.openSessionsWindow'],
-		dismissWhenCommandsClicked: ['workbench.action.openSessionsWindow'],
+		excludeWhenCommandsExecuted: ['workbench.action.openAgentsWindow'],
+		dismissWhenCommandsClicked: ['workbench.action.openAgentsWindow'],
+	},
+	{
+		id: 'tip.copilotCli',
+		tier: ChatTipTier.Qol,
+		buildMessage() {
+			return new MarkdownString(
+				localize(
+					'tip.copilotCli',
+					"Run agents in parallel with [Copilot CLI](command:workbench.action.chat.openNewChatSessionInPlace.copilotcli?%5B%22sidebar%22%5D \"Switch to Copilot CLI\")."
+				)
+			);
+		},
+		when: ContextKeyExpr.and(
+			IsSessionsWindowContext.negate(),
+			ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
+			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
+			ChatContextKeys.hasCanDelegateProviders,
+		),
+		excludeWhenCommandsExecuted: ['workbench.action.chat.openNewChatSessionInPlace.copilotcli'],
+	},
+	{
+		id: 'tip.defaultPermissions',
+		tier: ChatTipTier.Qol,
+		buildMessage() {
+			return new MarkdownString(
+				localize(
+					'tip.defaultPermissions',
+					"Configure [{0}](command:workbench.action.openSettings?%5B%22{1}%22%5D \"Open Settings\") to start new sessions in Bypass Approvals or Autopilot mode.",
+					'default permissions',
+					ChatConfiguration.DefaultPermissionLevel
+				)
+			);
+		},
+		when: ContextKeyExpr.or(
+			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Agent),
+			ChatContextKeys.chatModeKind.isEqualTo(ChatModeKind.Edit),
+		),
+		excludeWhenSettingsChanged: [ChatConfiguration.DefaultPermissionLevel],
+		dismissWhenCommandsClicked: ['workbench.action.openSettings'],
 	},
 ];

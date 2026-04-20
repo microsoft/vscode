@@ -8,8 +8,7 @@ import { Disposable } from '../../../base/common/lifecycle.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { VSBuffer } from '../../../base/common/buffer.js';
 import { CancellationToken } from '../../../base/common/cancellation.js';
-import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageRequest, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, BrowserNewPageLocation, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex } from '../common/browserView.js';
-import { IElementData } from '../../browserElements/common/browserElements.js';
+import { IBrowserViewBounds, IBrowserViewDevToolsStateEvent, IBrowserViewFocusEvent, IBrowserViewKeyDownEvent, IBrowserViewState, IBrowserViewNavigationEvent, IBrowserViewLoadingEvent, IBrowserViewLoadError, IBrowserViewTitleChangeEvent, IBrowserViewFaviconChangeEvent, IBrowserViewNewPageRequest, IBrowserViewCaptureScreenshotOptions, IBrowserViewFindInPageOptions, IBrowserViewFindInPageResult, IBrowserViewVisibilityEvent, BrowserNewPageLocation, browserViewIsolatedWorldId, browserZoomFactors, browserZoomDefaultIndex, IElementData } from '../common/browserView.js';
 import { BrowserViewElementInspector } from './browserViewElementInspector.js';
 import { IWindowsMainService } from '../../windows/electron-main/windows.js';
 import { ICodeWindow } from '../../window/electron-main/window.js';
@@ -17,7 +16,6 @@ import { IAuxiliaryWindowsMainService } from '../../auxiliaryWindow/electron-mai
 import { BrowserViewUri } from '../common/browserViewUri.js';
 import { BrowserViewDebugger } from './browserViewDebugger.js';
 import { ILogService } from '../../log/common/log.js';
-import { ICDPTarget, ICDPConnection, CDPTargetInfo } from '../common/cdp/types.js';
 import { BrowserSession } from './browserSession.js';
 import { IAuxiliaryWindow } from '../../auxiliaryWindow/electron-main/auxiliaryWindow.js';
 import { hasKey } from '../../../base/common/types.js';
@@ -27,7 +25,7 @@ import { SCAN_CODE_STR_TO_EVENT_KEY_CODE } from '../../../base/common/keyCodes.j
  * Represents a single browser view instance with its WebContentsView and all associated logic.
  * This class encapsulates all operations and events for a single browser view.
  */
-export class BrowserView extends Disposable implements ICDPTarget {
+export class BrowserView extends Disposable {
 	private readonly _view: WebContentsView;
 	private readonly _faviconRequestCache = new Map<string, Promise<string>>();
 
@@ -37,7 +35,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 	private _lastUserGestureTimestamp: number = -Infinity;
 	private _browserZoomIndex: number = browserZoomDefaultIndex;
 
-	private readonly _debugger: BrowserViewDebugger;
+	readonly debugger: BrowserViewDebugger;
 	private readonly _inspector: BrowserViewElementInspector;
 	private _window: ICodeWindow | IAuxiliaryWindow | undefined;
 	private _isDisposed = false;
@@ -141,7 +139,10 @@ export class BrowserView extends Disposable implements ICDPTarget {
 
 					// Return the webContents so Electron can complete the window.open() call
 					return childView.webContents;
-				}
+				},
+
+				// We want the standard browser behavior as opposed to Electron's default of closing the new window when the parent is closed
+				outlivesOpener: true
 			};
 		});
 
@@ -153,7 +154,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 			this.dispose();
 		});
 
-		this._debugger = new BrowserViewDebugger(this, this.logService);
+		this.debugger = new BrowserViewDebugger(this, this.logService);
 		this._inspector = this._register(new BrowserViewElementInspector(this));
 
 		this.setupEventListeners();
@@ -236,7 +237,11 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		// Loading state events
 		webContents.on('did-start-loading', () => {
 			this._lastError = undefined;
-			fireLoadingEvent(true);
+
+			// Don't fire loading events for e.g. same-document navigations
+			if (webContents.isLoadingMainFrame()) {
+				fireLoadingEvent(true);
+			}
 		});
 		webContents.on('did-stop-loading', () => fireLoadingEvent(false));
 		webContents.on('did-fail-load', (e, errorCode, errorDescription, validatedURL, isMainFrame) => {
@@ -283,11 +288,16 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		webContents.on('did-navigate', fireNavigationEvent);
 		webContents.on('did-navigate-in-page', fireNavigationEvent);
 
-		// Chromium resets the zoom factor to its per-origin default (100%) when
-		// navigating to a new document. Re-apply our stored zoom to override it.
 		webContents.on('did-navigate', () => {
+			// Chromium resets the zoom factor to its per-origin default (100%) when
+			// navigating to a new document. Re-apply our stored zoom to override it.
 			this._consoleLogs.length = 0; // Clear console logs on navigation since they are per-page
 			this._view.webContents.setZoomFactor(browserZoomFactors[this._browserZoomIndex]);
+
+			// Enable pinch-to-zoom
+			void this._view.webContents.setVisualZoomLevelLimits(1, 3).catch(error => {
+				this.logService.error('Failed to set visual zoom level limits for browser view webContents.', error);
+			});
 		});
 
 		// Focus events
@@ -311,7 +321,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 
 			const pageIsAvailable = this._view.getVisible()
 				&& !webContents.isCrashed()
-				&& !this._debugger.isPaused;
+				&& !this.debugger.isPaused;
 			if (pageIsAvailable) {
 				return;
 			}
@@ -560,11 +570,13 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		const quality = options?.quality ?? 80;
 		if (options?.pageRect) {
 			const zoomFactor = this._view.webContents.getZoomFactor();
+			// The visual viewport scale accounts for pinch-to-zoom magnification, which is separate from the regular zoom factor.
+			const visualViewportScale = await this._inspector.getVisualViewportScale();
 			options.screenRect = {
-				x: options.pageRect.x * zoomFactor,
-				y: options.pageRect.y * zoomFactor,
-				width: options.pageRect.width * zoomFactor,
-				height: options.pageRect.height * zoomFactor
+				x: options.pageRect.x * visualViewportScale * zoomFactor,
+				y: options.pageRect.y * visualViewportScale * zoomFactor,
+				width: options.pageRect.width * visualViewportScale * zoomFactor,
+				height: options.pageRect.height * visualViewportScale * zoomFactor
 			};
 		}
 		const image = await this._view.webContents.capturePage(options?.screenRect, {
@@ -582,7 +594,11 @@ export class BrowserView extends Disposable implements ICDPTarget {
 	/**
 	 * Focus this view
 	 */
-	async focus(): Promise<void> {
+	async focus(force?: boolean): Promise<void> {
+		// By default, only focus the view if its window is already focused.
+		if (!force && !this._window?.win?.isFocused()) {
+			return;
+		}
 		this._view.webContents.focus();
 	}
 
@@ -671,23 +687,6 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		return this._window && hasKey(this._window, { parentId: true }) ? this._codeWindowById(this._window.parentId) : undefined;
 	}
 
-	// ============ ICDPTarget implementation ============
-
-	/**
-	 * Get CDP target info using Electron's real targetId.
-	 */
-	getTargetInfo(): Promise<CDPTargetInfo> {
-		return this._debugger.getTargetInfo();
-	}
-
-	/**
-	 * Attach to receive debugger events.
-	 * @returns A connection that can be disposed to detach
-	 */
-	attach(): Promise<ICDPConnection> {
-		return this._debugger.attach();
-	}
-
 	override dispose(): void {
 		if (this._isDisposed) {
 			return;
@@ -695,7 +694,7 @@ export class BrowserView extends Disposable implements ICDPTarget {
 		this._isDisposed = true;
 
 		// Dispose debugger. This detaches debug sessions first.
-		this._debugger.dispose();
+		this.debugger.dispose();
 
 		// Remove from parent window
 		this._window?.win?.contentView.removeChildView(this._view);

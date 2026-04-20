@@ -17,6 +17,7 @@ import { ISCMHistoryItem } from '../../../scm/common/history.js';
 import { IChatContentReference } from '../chatService/chatService.js';
 import { IChatRequestVariableValue } from './chatVariables.js';
 import { IToolData, IToolSet } from '../tools/languageModelToolsService.js';
+import type { ILanguageModelChatMetadata } from '../languageModels.js';
 import { decodeBase64, encodeBase64, VSBuffer } from '../../../../../base/common/buffer.js';
 import { Mutable } from '../../../../../base/common/types.js';
 
@@ -46,6 +47,7 @@ export interface IGenericChatRequestVariableEntry extends IBaseChatRequestVariab
 
 export interface IChatRequestDirectoryEntry extends IBaseChatRequestVariableEntry {
 	kind: 'directory';
+	imageCount?: number;
 }
 
 export interface IChatRequestFileEntry extends IBaseChatRequestVariableEntry {
@@ -59,11 +61,31 @@ export const enum OmittedState {
 	ImageLimitExceeded,
 }
 
+const CLAUDE_MESSAGES_MAX_IMAGES_PER_REQUEST = 20;
+const GEMINI_MAX_IMAGES_PER_REQUEST = 10;
+
 /**
- * The maximum number of images allowed per request.
- * Claude has an upstream limit where more than 20 images causes issues.
+ * Returns the image-attachment limit for the selected model.
+ *
+ * Claude-family models use a max of 20 (Messages API), Gemini-family models use
+ * a max of 10. Other models do not have a UI-enforced image count limit.
  */
-export const MAX_IMAGES_PER_REQUEST = 20;
+export function getImageAttachmentLimit(model: Pick<ILanguageModelChatMetadata, 'family'> | undefined): number | undefined {
+	if (!model) {
+		return undefined;
+	}
+
+	const family = model.family.toLowerCase();
+	if (family.startsWith('gemini')) {
+		return GEMINI_MAX_IMAGES_PER_REQUEST;
+	}
+
+	if (family.startsWith('claude') || family.startsWith('anthropic')) {
+		return CLAUDE_MESSAGES_MAX_IMAGES_PER_REQUEST;
+	}
+
+	return undefined;
+}
 
 export interface IChatRequestToolEntry extends IBaseChatRequestVariableEntry {
 	readonly kind: 'tool';

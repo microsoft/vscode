@@ -5,6 +5,7 @@
 
 import { app } from 'electron';
 import { coalesce } from '../../../base/common/arrays.js';
+import { Emitter, Event } from '../../../base/common/event.js';
 import { IProcessEnvironment, isMacintosh } from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { whenDeleted } from '../../../base/node/pfs.js';
@@ -35,11 +36,20 @@ export interface ILaunchMainService {
 	start(args: NativeParsedArgs, userEnv: IProcessEnvironment): Promise<void>;
 
 	getMainProcessId(): Promise<number>;
+
+	/**
+	 * Fires when a second instance sends `--share-secrets-with-agents-app`.
+	 * Used for cross-app secret migration.
+	 */
+	readonly onDidRequestShareSecrets: Event<void>;
 }
 
 export class LaunchMainService implements ILaunchMainService {
 
 	declare readonly _serviceBrand: undefined;
+
+	private readonly _onDidRequestShareSecrets = new Emitter<void>();
+	readonly onDidRequestShareSecrets: Event<void> = this._onDidRequestShareSecrets.event;
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -51,6 +61,14 @@ export class LaunchMainService implements ILaunchMainService {
 
 	async start(args: NativeParsedArgs, userEnv: IProcessEnvironment): Promise<void> {
 		this.logService.trace('Received data from other instance: ', args, userEnv);
+
+		// Handle --share-secrets-with-agents-app from a second instance:
+		// trigger the secret sharing handshake without opening any window.
+		if (args['share-secrets-with-agents-app']) {
+			this.logService.info('Received --share-secrets-with-agents-app from second instance');
+			this._onDidRequestShareSecrets.fire();
+			return;
+		}
 
 		// macOS: Electron > 7.x changed its behaviour to not
 		// bring the application to the foreground when a window
@@ -145,9 +163,9 @@ export class LaunchMainService implements ILaunchMainService {
 			await this.windowsMainService.openExtensionDevelopmentHostWindow(args.extensionDevelopmentPath, baseConfig);
 		}
 
-		// Sessions window
-		else if (args['sessions'] && this.productService.quality !== 'stable') {
-			usedWindows = await this.windowsMainService.openSessionsWindow({ context, contextWindowId: undefined });
+		// Agents window
+		else if (args['agents'] && this.productService.quality !== 'stable') {
+			usedWindows = await this.windowsMainService.openAgentsWindow(baseConfig);
 		}
 
 		// Start without file/folder arguments
