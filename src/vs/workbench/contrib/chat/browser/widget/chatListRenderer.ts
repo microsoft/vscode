@@ -1109,6 +1109,17 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 	private renderChatRequest(element: IChatRequestViewModel, index: number, templateData: IChatListItemTemplate) {
 		templateData.rowContainer.classList.toggle('chat-response-loading', false);
 		templateData.rowContainer.classList.toggle('pending-request', !!element.pendingKind);
+		const isHiddenCompleteAddedRequest = element.isCompleteAddedRequest && !element.messageText.trim();
+		templateData.rowContainer.classList.toggle('hidden-complete-added-request', isHiddenCompleteAddedRequest);
+		if (isHiddenCompleteAddedRequest) {
+			dom.clearNode(templateData.value);
+			dom.clearNode(templateData.detail);
+			if (templateData.renderedParts) {
+				dispose(templateData.renderedParts);
+				templateData.renderedParts = undefined;
+			}
+			return;
+		}
 
 		if (element.pendingKind && this._pendingDragController) {
 			templateData.rowContainer.dataset.pendingRequestId = element.id;
