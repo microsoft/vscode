@@ -23,6 +23,7 @@ import {
 	isJsonRpcNotification,
 	isJsonRpcRequest,
 	JSON_RPC_INTERNAL_ERROR,
+	JsonRpcErrorCodes,
 	ProtocolError,
 	type IAhpServerNotification,
 	type IInitializeParams,
@@ -349,6 +350,11 @@ export class ProtocolServerHandler extends Disposable {
 				}
 				fork = { session: URI.parse(params.fork.session), turnIndex, turnId: params.fork.turnId };
 			}
+			// If the client eagerly claimed the active client role, validate
+			// the clientId matches the connection before forwarding.
+			if (params.activeClient && params.activeClient.clientId !== _client.clientId) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `createSession.activeClient.clientId must match the connection's clientId`);
+			}
 			try {
 				createdSession = await this._agentService.createSession({
 					provider: params.provider,
@@ -357,6 +363,7 @@ export class ProtocolServerHandler extends Disposable {
 					session: URI.parse(params.session),
 					fork,
 					config: params.config,
+					activeClient: params.activeClient,
 				});
 			} catch (err) {
 				if (err instanceof ProtocolError) {

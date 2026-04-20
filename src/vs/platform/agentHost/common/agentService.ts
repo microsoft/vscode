@@ -10,12 +10,12 @@ import type { IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { ISyncedCustomization } from './agentPluginManager.js';
-import { IProtectedResourceMetadata, type IConfigSchema, type IModelSelection, type IToolDefinition } from './state/protocol/state.js';
-import type { IActionEnvelope, INotification, ISessionAction, ITerminalAction } from './state/sessionActions.js';
 import type { IAgentSubscription } from './state/agentSubscription.js';
 import type { ICreateTerminalParams, IResolveSessionConfigResult, ISessionConfigCompletionsResult } from './state/protocol/commands.js';
+import { IProtectedResourceMetadata, type IConfigSchema, type IFileEdit, type IModelSelection, type ISessionActiveClient, type IToolDefinition } from './state/protocol/state.js';
+import type { IActionEnvelope, INotification, ISessionAction, ITerminalAction } from './state/sessionActions.js';
 import type { IResourceCopyParams, IResourceCopyResult, IResourceDeleteParams, IResourceDeleteResult, IResourceListResult, IResourceMoveParams, IResourceMoveResult, IResourceReadResult, IResourceWriteParams, IResourceWriteResult, IStateSnapshot } from './state/sessionProtocol.js';
-import { AttachmentType, ComponentToState, SessionStatus, StateComponents, type ICustomizationRef, type IPendingMessage, type IRootState, type ISessionInputAnswer, type ISessionInputRequest, type IToolCallResult, type IToolResultContent, type PolicyState, type StringOrMarkdown, SessionInputResponseKind } from './state/sessionState.js';
+import { AttachmentType, ComponentToState, SessionInputResponseKind, SessionStatus, StateComponents, type ICustomizationRef, type IPendingMessage, type IRootState, type ISessionInputAnswer, type ISessionInputRequest, type IToolCallResult, type IToolResultContent, type PolicyState, type StringOrMarkdown } from './state/sessionState.js';
 
 // IPC contract between the renderer and the agent host utility process.
 // Defines all serializable event types, the IAgent provider interface,
@@ -70,7 +70,7 @@ export interface IAgentSessionMetadata {
 	readonly workingDirectory?: URI;
 	readonly isRead?: boolean;
 	readonly isDone?: boolean;
-	readonly diffs?: readonly { readonly uri: string; readonly added?: number; readonly removed?: number }[];
+	readonly diffs?: readonly IFileEdit[];
 }
 
 export interface IAgentSessionProjectInfo {
@@ -125,6 +125,14 @@ export interface IAgentCreateSessionConfig {
 	readonly session?: URI;
 	readonly workingDirectory?: URI;
 	readonly config?: Record<string, string>;
+	/**
+	 * Eagerly claim the active client role for the new session. When provided,
+	 * the server initializes the session with this client as the active
+	 * client, equivalent to dispatching a `session/activeClientChanged`
+	 * action immediately after creation. The `clientId` MUST match the
+	 * connection's own `clientId`.
+	 */
+	readonly activeClient?: ISessionActiveClient;
 	/** Fork from an existing session at a specific turn. */
 	readonly fork?: {
 		readonly session: URI;
@@ -233,6 +241,18 @@ export interface IAgentToolStartEvent extends IAgentProgressEventBase {
 	readonly language?: string;
 	/** Serialized JSON of the tool arguments, if available. */
 	readonly toolArguments?: string;
+	/**
+	 * For `toolKind === 'subagent'`, the internal name of the agent being
+	 * spawned (e.g. 'explore'). Adapters are responsible for extracting this
+	 * from their SDK-specific tool argument shape.
+	 */
+	readonly subagentAgentName?: string;
+	/**
+	 * For `toolKind === 'subagent'`, a human-readable description of the
+	 * subagent's task. Adapters are responsible for extracting this from
+	 * their SDK-specific tool argument shape.
+	 */
+	readonly subagentDescription?: string;
 	readonly mcpServerName?: string;
 	readonly mcpToolName?: string;
 	readonly parentToolCallId?: string;
@@ -296,6 +316,8 @@ export interface IAgentToolReadyEvent extends IAgentProgressEventBase {
 	readonly permissionKind?: 'shell' | 'write' | 'mcp' | 'read' | 'url' | 'custom-tool';
 	/** File path associated with the permission request. */
 	readonly permissionPath?: string;
+	/** File edits this tool call will perform, for preview before confirmation. */
+	readonly edits?: { items: IFileEdit[] };
 }
 
 /** Streaming reasoning/thinking content from the assistant. */
@@ -669,6 +691,21 @@ export interface IAgentHostService extends IAgentConnection {
 
 	readonly onAgentHostExit: Event<number>;
 	readonly onAgentHostStart: Event<void>;
+
+	/**
+	 * `true` while we are in the middle of authenticating against the local
+	 * agent host (resolving tokens for any advertised `protectedResources` and
+	 * pushing them via {@link authenticate}). Defaults to `true` at startup so
+	 * that the period before the first auth pass is also covered.
+	 *
+	 * Producers (the workbench `AgentHostContribution`) flip this around their
+	 * auth pass; consumers (e.g. the local sessions provider) read it to mark
+	 * sessions as still loading.
+	 */
+	readonly authenticationPending: IObservable<boolean>;
+
+	/** Update {@link authenticationPending}. Internal — only the auth driver should call this. */
+	setAuthenticationPending(pending: boolean): void;
 
 	restartAgentHost(): Promise<void>;
 

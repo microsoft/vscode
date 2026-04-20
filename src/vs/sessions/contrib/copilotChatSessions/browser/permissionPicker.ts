@@ -16,7 +16,7 @@ import { ISessionsManagementService } from '../../../services/sessions/common/se
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { ChatConfiguration, ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
+import { ChatConfiguration, ChatPermissionLevel, isChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
 import Severity from '../../../../base/common/severity.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
@@ -76,6 +76,15 @@ export class PermissionPicker extends Disposable {
 
 	render(container: HTMLElement): HTMLElement {
 		this._renderDisposables.clear();
+
+		// Initialize the picker to reflect the configured default permission level
+		// (`chat.permissions.default`) whenever it is (re-)rendered. If enterprise
+		// policy disables global auto-approval, clamp to Default regardless of the
+		// configured default so we never show an elevated level the user can't pick.
+		const policyRestricted = this.configurationService.inspect<boolean>(ChatConfiguration.GlobalAutoApprove).policyValue === false;
+		const configuredDefault = this.configurationService.getValue<string>(ChatConfiguration.DefaultPermissionLevel);
+		const initialLevel = isChatPermissionLevel(configuredDefault) ? configuredDefault : ChatPermissionLevel.Default;
+		this._currentLevel = policyRestricted ? ChatPermissionLevel.Default : initialLevel;
 
 		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot'));
 		this._renderDisposables.add({ dispose: () => slot.remove() });
@@ -220,7 +229,10 @@ export class PermissionPicker extends Disposable {
 				custom: {
 					icon: Codicon.warning,
 					markdownDetails: [{
-						markdown: new MarkdownString(localize('permissions.autoApprove.warning.detail', "Bypass Approvals will auto-approve all tool calls without asking for confirmation. This includes file edits, terminal commands, and external tool calls.")),
+						markdown: new MarkdownString(
+							localize('permissions.autoApprove.warning.detail', "Bypass Approvals will auto-approve all tool calls without asking for confirmation. This includes file edits, terminal commands, and external tool calls.\n\nTo make this the starting permission level for new chat sessions, change the [{0}](command:workbench.action.openSettings?%5B%22{0}%22%5D) setting.", ChatConfiguration.DefaultPermissionLevel),
+							{ isTrusted: { enabledCommands: ['workbench.action.openSettings'] } },
+						),
 					}],
 				},
 			});
@@ -247,7 +259,10 @@ export class PermissionPicker extends Disposable {
 				custom: {
 					icon: Codicon.rocket,
 					markdownDetails: [{
-						markdown: new MarkdownString(localize('permissions.autopilot.warning.detail', "Autopilot will auto-approve all tool calls and continue working autonomously until the task is complete. The agent will make decisions on your behalf without asking for confirmation.\n\nYou can stop the agent at any time by clicking the stop button. This applies to the current session only.")),
+						markdown: new MarkdownString(
+							localize('permissions.autopilot.warning.detail', "Autopilot will auto-approve all tool calls and continue working autonomously until the task is complete. The agent will make decisions on your behalf without asking for confirmation.\n\nYou can stop the agent at any time by clicking the stop button. This applies to the current session only.\n\nTo make this the starting permission level for new chat sessions, change the [{0}](command:workbench.action.openSettings?%5B%22{0}%22%5D) setting.", ChatConfiguration.DefaultPermissionLevel),
+							{ isTrusted: { enabledCommands: ['workbench.action.openSettings'] } },
+						),
 					}],
 				},
 			});

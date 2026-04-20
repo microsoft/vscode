@@ -188,9 +188,17 @@ async function confirmAutoApproveLevel(value: string, dialogService: IDialogServ
 		custom: {
 			icon: isAutopilot ? Codicon.rocket : Codicon.warning,
 			markdownDetails: [{
-				markdown: new MarkdownString(isAutopilot
-					? localize('agentHostAutoApprove.autopilot.warning.detail', "Autopilot will auto-approve all tool calls and continue working autonomously until the task is complete. This includes terminal commands, file edits, and external tool calls. The agent will make decisions on your behalf without asking for confirmation.\n\nYou can stop the agent at any time by clicking the stop button. This applies to the current session only.")
-					: localize('agentHostAutoApprove.bypass.warning.detail', "Bypass Approvals will auto-approve all tool calls without asking for confirmation. This includes file edits, terminal commands, and external tool calls.")),
+				markdown: new MarkdownString(
+					localize(
+						'agentHostAutoApprove.warning.detailWithDefaultSetting',
+						"{0}\n\nTo make this the starting permission level for new chat sessions, change the [{1}](command:workbench.action.openSettings?%5B%22{1}%22%5D) setting.",
+						isAutopilot
+							? localize('agentHostAutoApprove.autopilot.warning.detail', "Autopilot will auto-approve all tool calls and continue working autonomously until the task is complete. This includes terminal commands, file edits, and external tool calls. The agent will make decisions on your behalf without asking for confirmation.\n\nYou can stop the agent at any time by clicking the stop button. This applies to the current session only.")
+							: localize('agentHostAutoApprove.bypass.warning.detail', "Bypass Approvals will auto-approve all tool calls without asking for confirmation. This includes file edits, terminal commands, and external tool calls."),
+						ChatConfiguration.DefaultPermissionLevel,
+					),
+					{ isTrusted: { enabledCommands: ['workbench.action.openSettings'] } },
+				),
 			}],
 		},
 	});
@@ -520,6 +528,10 @@ class AgentHostNewSessionApprovePicker extends Disposable {
 		const rawProvider = session ? this._sessionsProvidersService.getProvider(session.providerId) : undefined;
 		const provider = rawProvider && isAgentHostProvider(rawProvider) ? rawProvider : undefined;
 		const config = session && provider?.getSessionConfig(session.sessionId);
+		// `getSessionConfig` may return undefined for sessions whose config
+		// hasn't been seeded yet (e.g. opened from list, no in-window create).
+		// The provider lazily acquires a session-state subscription and will fire
+		// `onDidChangeSessionConfig` once the snapshot arrives, re-rendering us.
 		if (!session || !provider || !config) {
 			return;
 		}
@@ -693,6 +705,9 @@ class AgentHostRunningSessionConfigPicker extends Disposable {
 		const rawProvider = session ? this._sessionsProvidersService.getProvider(session.providerId) : undefined;
 		const provider = rawProvider && isAgentHostProvider(rawProvider) ? rawProvider : undefined;
 		const config = session && provider?.getSessionConfig(session.sessionId);
+		// See note in `AgentHostNewSessionApprovePicker._render`: `config` may be
+		// undefined until the lazy session-state subscription hydrates and the
+		// provider fires `onDidChangeSessionConfig`.
 		if (!session || !provider || !config) {
 			return;
 		}

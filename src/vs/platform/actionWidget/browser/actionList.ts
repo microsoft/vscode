@@ -1505,8 +1505,13 @@ export class ActionListWidget<T> extends Disposable {
 			}
 		} else if (element && element.hover?.content && typeof e.index === 'number') {
 			// Show hover for disabled items that have hover content (with delay)
-			this._hideSubmenu();
-			this._scheduleSubmenuShow(element, e.index);
+			if (this._currentSubmenuElement === element) {
+				this._cancelSubmenuHide();
+				this._cancelSubmenuShow();
+			} else {
+				this._hideSubmenu();
+				this._scheduleSubmenuShow(element, e.index);
+			}
 		}
 	}
 

@@ -140,6 +140,7 @@
 	background-color: transparent;
 	color: var(--vscode-foreground);
 	border-radius: 4px;
+	touch-action: manipulation;
 }
 
 .sessions-chat-picker-slot.sessions-chat-workspace-picker .action-label:hover {
@@ -187,6 +188,7 @@
 	color: var(--vscode-icon-foreground);
 	font-size: 13px;
 	cursor: pointer;
+	touch-action: manipulation;
 	white-space: nowrap;
 	border-radius: 4px;
 	min-width: 0;
