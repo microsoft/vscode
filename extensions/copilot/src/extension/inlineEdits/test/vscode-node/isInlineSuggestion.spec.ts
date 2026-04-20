@@ -103,7 +103,7 @@ suite('toInlineSuggestion', () => {
 		assert.deepStrictEqual(result!.range, new Range(1, 15, 1, 15));
 		// Text is prepended with the newline between cursor and original range,
 		// and the trailing newline is dropped so we don't introduce a blank line.
-		assert.strictEqual(result!.newText, '\n' + replaceText.replace(/\n$/, ''));
+		assert.strictEqual(result!.newText, '\n' + replaceText.replace(/\r?\n$/, ''));
 	});
 
 	test('should not use ghost text when inserting on next line when none empty', () => {
@@ -151,7 +151,7 @@ suite('toInlineSuggestion', () => {
 		assert.isDefined(result);
 		assert.deepStrictEqual(result!.range, new Range(0, 13, 0, 13));
 		// Trailing '\n' is dropped to avoid a spurious blank line.
-		assert.strictEqual(result!.newText, '\n' + replaceText.replace(/\n$/, ''));
+		assert.strictEqual(result!.newText, '\n' + replaceText.replace(/\r?\n$/, ''));
 	});
 
 	test('multi-line insertion without trailing newline rejected when target line has content', () => {
@@ -592,5 +592,56 @@ const fieldLabels: Record<keyof FormData, string> = {
 		// Trailing '\n' is dropped because the original line terminator after
 		// the cursor is preserved.
 		assert.strictEqual(result!.newText, '\n    password: "Password",');
+	});
+
+	suite('CRLF', () => {
+
+		function createCRLFDocument(lines: string[], languageId: string = 'typescript') {
+			return createTextDocumentData(
+				Uri.from({ scheme: 'test', path: '/test/file.ts' }),
+				lines.join('\r\n'),
+				languageId,
+				'\r\n',
+			).document;
+		}
+
+		test('next-line insertion: trailing CRLF is dropped (no dangling \\r)', () => {
+			const document = createCRLFDocument(['function foo(', '', 'other']);
+			const cursorPosition = new Position(0, 13); // end of "function foo("
+			const replaceRange = new Range(1, 0, 1, 0); // empty line
+			const replaceText = '  a: string,\r\n  b: number\r\n';
+
+			const result = toInlineSuggestion(cursorPosition, document, replaceRange, replaceText);
+			assert.isDefined(result);
+			assert.deepStrictEqual(result!.range, new Range(0, 13, 0, 13));
+			// The trailing CRLF must be stripped entirely; no dangling '\r'
+			// should leak into the suggestion text.
+			assert.strictEqual(result!.newText, '\r\n  a: string,\r\n  b: number');
+		});
+
+		test('next-line insertion: trailing CRLF on non-empty target line', () => {
+			const document = createCRLFDocument(['function foo(', ')', 'other']);
+			const cursorPosition = new Position(0, 13);
+			const replaceRange = new Range(1, 0, 1, 0);
+			const replaceText = '  a: string,\r\n  b: number\r\n';
+
+			const result = toInlineSuggestion(cursorPosition, document, replaceRange, replaceText);
+			assert.isDefined(result);
+			assert.deepStrictEqual(result!.range, new Range(0, 13, 0, 13));
+			assert.strictEqual(result!.newText, '\r\n  a: string,\r\n  b: number');
+		});
+
+		test('next-line insertion: CRLF-only newText is fully stripped', () => {
+			const document = createCRLFDocument(['line 0', '', 'line 2']);
+			const cursorPosition = new Position(0, 6);
+			const replaceRange = new Range(1, 0, 1, 0);
+			const replaceText = '\r\n';
+
+			const result = toInlineSuggestion(cursorPosition, document, replaceRange, replaceText);
+			assert.isDefined(result);
+			assert.deepStrictEqual(result!.range, new Range(0, 6, 0, 6));
+			// Only the prepended CRLF between cursor and original range remains.
+			assert.strictEqual(result!.newText, '\r\n');
+		});
 	});
 });

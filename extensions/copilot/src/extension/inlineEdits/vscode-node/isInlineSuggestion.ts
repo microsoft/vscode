@@ -28,9 +28,10 @@ export function toInlineSuggestion(cursorPos: Position, doc: TextDocument, range
 		const textBetweenCursorAndRange = doc.getText(new Range(cursorPos, range.start));
 		// The original range is on the next line, so the line terminator that
 		// already separates the cursor's line from range.start is preserved.
-		// Drop a single trailing '\n' from newText (if present) to avoid
-		// inserting an extra blank line after the suggestion.
-		const adjustedNewText = newText.endsWith('\n') ? newText.slice(0, -1) : newText;
+		// Drop a single trailing line ending from newText (if present) to avoid
+		// inserting an extra blank line after the suggestion. Handle CRLF as
+		// well as LF so we don't leave a dangling '\r'.
+		const adjustedNewText = newText.replace(/\r?\n$/, '');
 		return { range: adjustedRange, newText: textBetweenCursorAndRange + adjustedNewText };
 	}
 
