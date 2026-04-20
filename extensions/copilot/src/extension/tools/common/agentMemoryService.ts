@@ -133,7 +133,7 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 			method: (init?.method as 'GET' | 'POST' | 'PUT') ?? 'GET',
 			headers: init?.headers as Record<string, string> | undefined,
 			body: init?.body as string | undefined,
-		}) as unknown as Promise<any>;
+		}) as ReturnType<MemoryFetchFn>;
 	}
 
 	private async getToken(): Promise<string | undefined> {
