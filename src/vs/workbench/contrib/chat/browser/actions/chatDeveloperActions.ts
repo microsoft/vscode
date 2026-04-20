@@ -18,7 +18,7 @@ import { IChatService } from '../../common/chatService/chatService.js';
 import { ILanguageModelsService } from '../../common/languageModels.js';
 import { IChatWidgetService } from '../chat.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
-import { AUTOPILOT_DONT_SHOW_AGAIN_KEY, AUTO_APPROVE_DONT_SHOW_AGAIN_KEY } from '../widget/input/permissionPickerActionItem.js';
+import { AUTOPILOT_DONT_SHOW_AGAIN_KEY, AUTO_APPROVE_DONT_SHOW_AGAIN_KEY } from '../../common/chatPermissionStorageKeys.js';
 
 function uriReplacer(_key: string, value: unknown): unknown {
 	if (URI.isUri(value)) {

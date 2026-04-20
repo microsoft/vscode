@@ -29,10 +29,7 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../../../
 // Track whether warnings have been shown this VS Code session
 const shownWarnings = new Set<ChatPermissionLevel>();
 
-// Storage keys for persisting the user's choice to skip the warning dialog
-// across sessions when "Don't show again" is checked.
-export const AUTOPILOT_DONT_SHOW_AGAIN_KEY = 'chat.permissions.autopilot.dontShowWarningAgain';
-export const AUTO_APPROVE_DONT_SHOW_AGAIN_KEY = 'chat.permissions.autoApprove.dontShowWarningAgain';
+import { AUTOPILOT_DONT_SHOW_AGAIN_KEY, AUTO_APPROVE_DONT_SHOW_AGAIN_KEY } from '../../../common/chatPermissionStorageKeys.js';
 
 function dontShowAgainKey(level: ChatPermissionLevel): string | undefined {
 	if (level === ChatPermissionLevel.Autopilot) {
