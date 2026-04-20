@@ -88,9 +88,20 @@ export interface IPromptFileResource {
 	 */
 	readonly description?: string;
 	/**
+	 * Optional condition that must evaluate to true for this resource to be offered.
+	 */
+	readonly when?: string;
+	/**
 	 * Optional session types that describe when this resource should be offered.
 	 */
 	readonly sessionTypes?: readonly string[];
+}
+
+/**
+ * Returns whether a customization can be used in the provided chat session type.
+ */
+export function matchesSessionType(sessionTypes: readonly string[] | undefined, currentSessionType: string | undefined): boolean {
+	return sessionTypes === undefined || currentSessionType === undefined || sessionTypes.includes(currentSessionType);
 }
 
 /**

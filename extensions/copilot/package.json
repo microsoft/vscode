@@ -3968,6 +3968,15 @@
 			{
 				"id": "advanced",
 				"properties": {
+					"github.copilot.chat.sessionSearch.cloudSync.enabled": {
+						"type": "boolean",
+						"default": false,
+						"markdownDescription": "%github.copilot.config.sessionSearch.cloudSync.enabled%",
+						"tags": [
+							"advanced",
+							"onExp"
+						]
+					},
 					"github.copilot.chat.reasoningEffortOverride": {
 						"type": [
 							"string",
@@ -6171,70 +6180,61 @@
 		"chatPromptFiles": [
 			{
 				"path": "./assets/prompts/plan.prompt.md",
-				"when": "chatSessionType == local",
 				"sessionTypes": ["local"]
 			}
 		],
 		"chatSkills": [
 			{
 				"path": "./assets/prompts/skills/project-setup-info-local/SKILL.md",
-				"when": "chatSessionType == local && config.github.copilot.chat.projectSetupInfoSkill.enabled && !config.github.copilot.chat.newWorkspace.useContext7",
+				"when": "config.github.copilot.chat.projectSetupInfoSkill.enabled && !config.github.copilot.chat.newWorkspace.useContext7",
 				"sessionTypes": ["local"]
 			},
 			{
 				"path": "./assets/prompts/skills/project-setup-info-context7/SKILL.md",
-				"when": "chatSessionType == local && config.github.copilot.chat.projectSetupInfoSkill.enabled && config.github.copilot.chat.newWorkspace.useContext7",
+				"when": "config.github.copilot.chat.projectSetupInfoSkill.enabled && config.github.copilot.chat.newWorkspace.useContext7",
 				"sessionTypes": ["local"]
 			},
 			{
 				"path": "./assets/prompts/skills/install-vscode-extension/SKILL.md",
-				"when": "chatSessionType == local && config.github.copilot.chat.installExtensionSkill.enabled && config.github.copilot.chat.newWorkspaceCreation.enabled",
+				"when": "config.github.copilot.chat.installExtensionSkill.enabled && config.github.copilot.chat.newWorkspaceCreation.enabled",
 				"sessionTypes": ["local"]
 			},
 			{
 				"path": "./assets/prompts/skills/get-search-view-results/SKILL.md",
-				"when": "chatSessionType == local && config.github.copilot.chat.getSearchViewResultsSkill.enabled",
+				"when": "config.github.copilot.chat.getSearchViewResultsSkill.enabled",
 				"sessionTypes": ["local"]
 			},
 			{
 				"path": "./assets/prompts/skills/troubleshoot/SKILL.md",
-				"when": "chatSessionType == local || chatSessionType == copilotcli",
 				"sessionTypes": ["local", "copilotcli"]
 			},
 			{
 				"path": "./assets/prompts/skills/agent-customization/SKILL.md",
-				"when": "chatSessionType == local || chatSessionType == copilotcli",
 				"sessionTypes": ["local", "copilotcli"]
 			},
 			{
 				"path": "./assets/prompts/skills/init/SKILL.md",
-				"when": "chatSessionType == local",
 				"sessionTypes": ["local"]
 			},
 			{
 				"path": "./assets/prompts/skills/create-prompt/SKILL.md",
-				"when": "chatSessionType == local",
 				"sessionTypes": ["local"]
 			},
 			{
 				"path": "./assets/prompts/skills/create-instructions/SKILL.md",
-				"when": "chatSessionType == local",
 				"sessionTypes": ["local"]
 
 			},
 			{
 				"path": "./assets/prompts/skills/create-skill/SKILL.md",
-				"when": "chatSessionType == local",
 				"sessionTypes": ["local"]
 			},
 			{
 				"path": "./assets/prompts/skills/create-agent/SKILL.md",
-				"when": "chatSessionType == local",
 				"sessionTypes": ["local"]
 			},
 			{
 				"path": "./assets/prompts/skills/create-hook/SKILL.md",
-				"when": "chatSessionType == local",
 				"sessionTypes": ["local"]
 			}
 		],
@@ -6256,10 +6256,6 @@
 	},
 	"scripts": {
 		"postinstall": "tsx ./script/postinstall.ts",
-		"vscode-dts:update": "node script/build/vscodeDtsUpdate.js",
-		"vscode-dts:check": "node script/build/vscodeDtsCheck.js",
-		"vscode-dts:dev": "node node_modules/@vscode/dts/index.js dev && node script/build/moveProposedDts.js",
-		"vscode-dts:main": "node node_modules/@vscode/dts/index.js main && node script/build/moveProposedDts.js",
 		"build": "node .esbuild.ts --sourcemaps",
 		"compile": "node .esbuild.ts --dev",
 		"watch": "npm-run-all -lp watch:esbuild watch:tsc",
@@ -6404,12 +6400,12 @@
 		"@modelcontextprotocol/sdk": "^1.25.2",
 		"@opentelemetry/api": "^1.9.0",
 		"@opentelemetry/api-logs": "^0.212.0",
-		"@opentelemetry/exporter-logs-otlp-grpc": "^0.212.0",
-		"@opentelemetry/exporter-logs-otlp-http": "^0.212.0",
-		"@opentelemetry/exporter-metrics-otlp-grpc": "^0.212.0",
-		"@opentelemetry/exporter-metrics-otlp-http": "^0.212.0",
-		"@opentelemetry/exporter-trace-otlp-grpc": "^0.212.0",
-		"@opentelemetry/exporter-trace-otlp-http": "^0.212.0",
+		"@opentelemetry/exporter-logs-otlp-grpc": "^0.214.0",
+		"@opentelemetry/exporter-logs-otlp-http": "^0.214.0",
+		"@opentelemetry/exporter-metrics-otlp-grpc": "^0.214.0",
+		"@opentelemetry/exporter-metrics-otlp-http": "^0.214.0",
+		"@opentelemetry/exporter-trace-otlp-grpc": "^0.214.0",
+		"@opentelemetry/exporter-trace-otlp-http": "^0.214.0",
 		"@opentelemetry/resources": "^2.5.1",
 		"@opentelemetry/sdk-logs": "^0.212.0",
 		"@opentelemetry/sdk-metrics": "^2.5.1",
@@ -6427,7 +6423,7 @@
 		"applicationinsights": "^2.9.7",
 		"best-effort-json-parser": "^1.2.1",
 		"diff": "^8.0.3",
-		"dompurify": "^3.3.2",
+		"dompurify": "^3.4.0",
 		"express": "^5.2.1",
 		"ignore": "^7.0.5",
 		"isbinaryfile": "^5.0.4",

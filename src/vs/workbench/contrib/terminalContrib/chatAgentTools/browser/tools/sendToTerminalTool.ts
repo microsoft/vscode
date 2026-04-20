@@ -6,7 +6,7 @@
 import { timeout } from '../../../../../../base/common/async.js';
 import type { CancellationToken } from '../../../../../../base/common/cancellation.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
-import { createCommandUri, isMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
+import { appendEscapedMarkdownInlineCode, createCommandUri, isMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
 import { localize } from '../../../../../../nls.js';
 import { CommandsRegistry } from '../../../../../../platform/commands/common/commands.js';
@@ -16,7 +16,7 @@ import { IChatWidgetService } from '../../../../chat/browser/chat.js';
 import { IChatService, IChatMultiSelectAnswer, IChatQuestionAnswerValue, IChatQuestionCarousel, IChatSingleSelectAnswer } from '../../../../chat/common/chatService/chatService.js';
 import { ToolDataSource, type CountTokensCallback, type IPreparedToolInvocation, type IToolData, type IToolImpl, type IToolInvocation, type IToolInvocationPreparationContext, type IToolResult, type ToolProgress } from '../../../../chat/common/tools/languageModelToolsService.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { ITerminalService } from '../../../../terminal/browser/terminal.js';
+import { ITerminalChatService, ITerminalService } from '../../../../terminal/browser/terminal.js';
 import { getOutput } from '../outputHelpers.js';
 import { buildCommandDisplayText, normalizeCommandForExecution } from '../runInTerminalHelpers.js';
 import { RunInTerminalTool } from './runInTerminalTool.js';
@@ -81,24 +81,13 @@ CommandsRegistry.registerCommand(FocusTerminalByExecutionIdCommandId, async (acc
 	}
 });
 
-/**
- * Wraps arbitrary text in a markdown inline code span using a backtick fence
- * long enough to safely contain any backtick sequences present in the text.
- */
-function toMarkdownInlineCode(text: string): string {
-	const longestBacktickRun = Math.max(0, ...(text.match(/`+/g) ?? []).map(m => m.length));
-	const fence = '`'.repeat(longestBacktickRun + 1);
-	const needsSpace = text.startsWith('`') || text.endsWith('`');
-	const content = needsSpace ? ` ${text} ` : text;
-	return `${fence}${content}${fence}`;
-}
-
 export class SendToTerminalTool extends Disposable implements IToolImpl {
 
 	constructor(
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IChatService private readonly _chatService: IChatService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
+		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
 	) {
 		super();
@@ -122,7 +111,7 @@ export class SendToTerminalTool extends Disposable implements IToolImpl {
 			pastTenseMessage.appendMarkdown(localize('send.past.enter', "Pressed `Enter` in terminal"));
 		} else {
 			const displayCommand = buildCommandDisplayText(args.command);
-			const safeInlineCode = toMarkdownInlineCode(displayCommand);
+			const safeInlineCode = appendEscapedMarkdownInlineCode(displayCommand);
 			invocationMessage.appendMarkdown(localize('send.progressive', "Sending {0} to terminal", safeInlineCode));
 			pastTenseMessage.appendMarkdown(localize('send.past', "Sent {0} to terminal", safeInlineCode));
 		}
@@ -140,20 +129,23 @@ export class SendToTerminalTool extends Disposable implements IToolImpl {
 		// Build the confirmation message with a "Focus Terminal" command link
 		const instanceId = this._getTerminalInstanceId(args);
 		const confirmationMessage = new MarkdownString('', { isTrusted: { enabledCommands: [FocusTerminalByIdCommandId] } });
-		const safeTerminalLabel = toMarkdownInlineCode(terminalLabel);
+		const safeTerminalLabel = appendEscapedMarkdownInlineCode(terminalLabel);
 		const baseMessage = isEmptyInput
 			? localize('send.confirm.message.enter', "Press `Enter` in terminal {0}", safeTerminalLabel)
-			: localize('send.confirm.message', "Run {0} in terminal {1}", toMarkdownInlineCode(buildCommandDisplayText(args.command)), safeTerminalLabel);
+			: localize('send.confirm.message', "Run {0} in terminal {1}", appendEscapedMarkdownInlineCode(buildCommandDisplayText(args.command)), safeTerminalLabel);
 		if (instanceId !== undefined) {
 			const focusUri = createCommandUri(FocusTerminalByIdCommandId, instanceId);
-			confirmationMessage.appendMarkdown(`${baseMessage} — [$(terminal) ${localize('focusTerminal', "Focus Terminal")}](${focusUri})`);
+			confirmationMessage.appendMarkdown(`${baseMessage} — [${localize('focusTerminal', "Focus Terminal")}](${focusUri})`);
 		} else {
 			confirmationMessage.appendMarkdown(baseMessage);
 		}
 
 		// Determine auto-approval, aligned with runInTerminal
 		const chatSessionResource = context.chatSessionResource;
-		const isSessionAutoApproved = chatSessionResource && isSessionAutoApproveLevel(chatSessionResource, this._configurationService, this._chatWidgetService, this._chatService);
+		const isSessionAutoApproved = chatSessionResource && (
+			isSessionAutoApproveLevel(chatSessionResource, this._configurationService, this._chatWidgetService, this._chatService) ||
+			this._terminalChatService.hasChatSessionAutoApproval(chatSessionResource)
+		);
 
 		// send_to_terminal normally requires confirmation in default approvals mode
 		// because the text may be arbitrary input (passwords, confirmations, etc.)

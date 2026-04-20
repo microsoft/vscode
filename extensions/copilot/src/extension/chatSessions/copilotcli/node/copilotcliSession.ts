@@ -7,14 +7,14 @@ import type { Attachment, SendOptions, Session, SessionOptions } from '@github/c
 import * as l10n from '@vscode/l10n';
 import type * as vscode from 'vscode';
 import type { ChatParticipantToolToken } from 'vscode';
-import { IRunCommandExecutionService } from '../../../../platform/commands/common/runCommandExecutionService';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { GenAiMetrics } from '../../../../platform/otel/common/genAiMetrics';
-import { CopilotChatAttr, GenAiAttr, GenAiOperationName, IOTelService, ISpanHandle, SpanKind, SpanStatusCode, truncateForOTel } from '../../../../platform/otel/common/index';
+import { CopilotChatAttr, GenAiAttr, GenAiOperationName, IOTelService, ISpanHandle, SpanKind, SpanStatusCode, truncateForOTel, resolveWorkspaceOTelMetadata, workspaceMetadataToOTelAttributes } from '../../../../platform/otel/common/index';
 import { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
 import { IRequestLogger, LoggedRequestKind } from '../../../../platform/requestLogger/common/requestLogger';
 import { PromptTokenCategory, PromptTokenLabel } from '../../../../platform/tokenizer/node/promptTokenDetails';
+import { IGitService } from '../../../../platform/git/common/gitService';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { raceCancellation } from '../../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
@@ -29,8 +29,7 @@ import { IToolsService } from '../../../tools/common/toolsService';
 import { IChatSessionMetadataStore } from '../../common/chatSessionMetadataStore';
 import { ExternalEditTracker } from '../../common/externalEditTracker';
 import { getWorkingDirectory, isIsolationEnabled, IWorkspaceInfo } from '../../common/workspaceInfo';
-import { enrichToolInvocationWithSubagentMetadata, isCopilotCliEditToolCall, isCopilotCLIToolThatCouldRequirePermissions, isTodoRelatedSqlQuery, processToolExecutionComplete, processToolExecutionStart, ToolCall, updateTodoListFromSqlItems } from '../common/copilotCLITools';
-import { SessionIdForCLI } from '../common/utils';
+import { enrichToolInvocationWithSubagentMetadata, isCopilotCliEditToolCall, isCopilotCLIToolThatCouldRequirePermissions, isTodoRelatedSqlQuery, processToolExecutionComplete, processToolExecutionStart, ToolCall, updateTodoListFromSqlItems, clearTodoList } from '../common/copilotCLITools';
 import { getCopilotCLISessionDir } from './cliHelpers';
 import type { CopilotCliBridgeSpanProcessor } from './copilotCliBridgeSpanProcessor';
 import { ICopilotCLIImageSupport } from './copilotCLIImageSupport';
@@ -97,12 +96,6 @@ export interface ICopilotCLISession extends IDisposable {
 	addUserMessage(content: string): void;
 	addUserAssistantMessage(content: string): void;
 	getSelectedModelId(): Promise<string | undefined>;
-	/**
-	 * Temporarily sets the session resource.
-	 * Only for non-controller code paths.
-	 * @deprecated
-	 */
-	setSessionResource(resource: vscode.Uri): IDisposable;
 }
 
 export class CopilotCLISession extends DisposableStore implements ICopilotCLISession {
@@ -159,8 +152,6 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	setSdkTraceContextUpdater(updater: ((traceparent?: string, tracestate?: string) => void) | undefined): void {
 		this._updateSdkTraceContext = updater;
 	}
-	private _sessionResource: Uri;
-
 	constructor(
 		private readonly _workspaceInfo: IWorkspaceInfo,
 		private readonly _agentName: string | undefined,
@@ -176,20 +167,13 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		@IUserQuestionHandler private readonly _userQuestionHandler: IUserQuestionHandler,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IOTelService private readonly _otelService: IOTelService,
-		@IRunCommandExecutionService private readonly _commandExecutionService: IRunCommandExecutionService,
+		@IGitService private readonly _gitService: IGitService,
 	) {
 		super();
 		this.sessionId = _sdkSession.sessionId;
 		this.add(toDisposable(() => this._todoSqlQuery.dispose()));
-		this._sessionResource = SessionIdForCLI.getResource(this.sessionId);
 	}
 
-	setSessionResource(resource: vscode.Uri): IDisposable {
-		this._sessionResource = resource;
-		return this.add(toDisposable(() => {
-			this._sessionResource = SessionIdForCLI.getResource(this.sessionId);
-		}));
-	}
 	attachStream(stream: vscode.ChatResponseStream): IDisposable {
 		this._stream = stream;
 		return toDisposable(() => {
@@ -321,6 +305,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		token: vscode.CancellationToken
 	): Promise<void> {
 		const modelId = model?.model;
+		const promptLabel = getPromptLabel(input);
 		return this._otelService.startActiveSpan(
 			'invoke_agent copilotcli',
 			{
@@ -333,9 +318,14 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 					[CopilotChatAttr.SESSION_ID]: this.sessionId,
 					[CopilotChatAttr.CHAT_SESSION_ID]: this.sessionId,
 					...(modelId ? { [GenAiAttr.REQUEST_MODEL]: modelId } : {}),
+					[CopilotChatAttr.USER_REQUEST]: truncateForOTel(promptLabel),
+					...workspaceMetadataToOTelAttributes(resolveWorkspaceOTelMetadata(this._gitService)),
 				},
 			},
 			async span => {
+				// Emit user_message event so chronicle can extract turns and summary
+				span.addEvent('user_message', { content: truncateForOTel(promptLabel) });
+
 				// Register the trace context so the bridge processor can inject CHAT_SESSION_ID
 				const traceCtx = span.getSpanContext();
 				if (traceCtx && this._bridgeProcessor) {
@@ -391,6 +381,9 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		const editTracker = new ExternalEditTracker();
 		let sdkRequestId: string | undefined;
 		const toolIdEditMap = new Map<string, Promise<string | undefined>>();
+		clearTodoList(this._toolsService, request.toolInvocationToken, token).catch(err => {
+			this.logService.error(err, '[CopilotCLISession] Failed to clear todo list at start of session');
+		});
 		/**
 		 * The sequence of events from the SDK is as follows:
 		 * tool.start 			-> About to run a terminal command
@@ -536,19 +529,10 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 							this._toolInvocationToken,
 							this.workspaceService,
 							this.logService,
-							this._userQuestionHandler,
+							this._toolsService,
 							token,
 						);
 						flushPendingInvocationMessages();
-
-						// Update the permission picker dropdown based on the selected action
-						if (response.approved && response.selectedAction !== 'exit_only') {
-							const autopilotSelected = response.selectedAction === 'autopilot' || response.selectedAction === 'autopilot_fleet';
-							const commandId = 'workbench.action.chat.copilotcli.approval';
-							this._commandExecutionService.executeCommand(commandId, this._sessionResource, autopilotSelected).catch(error => {
-								this.logService.error(error, '[CopilotCLISession] Failed to update permission picker');
-							});
-						}
 
 						this._sdkSession.respondToExitPlanMode(event.data.requestId, response);
 					} catch (error) {

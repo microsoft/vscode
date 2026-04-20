@@ -5,6 +5,7 @@
 
 import { Event } from '../../../base/common/event.js';
 import { IReference } from '../../../base/common/lifecycle.js';
+import { constObservable, IObservable } from '../../../base/common/observable.js';
 import { URI } from '../../../base/common/uri.js';
 import type { IAgentCreateSessionConfig, IAgentHostService, IAgentHostSocketInfo, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult } from '../common/agentService.js';
 import type { IAgentSubscription } from '../common/state/agentSubscription.js';
@@ -27,6 +28,9 @@ export class NullAgentHostService implements IAgentHostService {
 	readonly onAgentHostStart = Event.None;
 	readonly onDidNotification: Event<INotification> = Event.None;
 	readonly onDidAction: Event<IActionEnvelope> = Event.None;
+
+	readonly authenticationPending: IObservable<boolean> = constObservable(false);
+	setAuthenticationPending(_pending: boolean): void { /* no-op */ }
 
 	get rootState(): IAgentSubscription<IRootState> { return notSupported(); }
 

@@ -120,12 +120,16 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 
 		// Only set up span listener when both local index and cloud sync are enabled.
 		// Uses autorun to react if settings change at runtime.
+		// Both new and old settings taken into account for backward compatibility
 		const localEnabled = this._configService.getExperimentBasedConfigObservable(ConfigKey.TeamInternal.SessionSearchLocalIndexEnabled, this._expService);
-		const cloudEnabled = this._configService.getConfigObservable(ConfigKey.TeamInternal.SessionSearchCloudSyncEnabled);
+		const cloudEnabledInternal = this._configService.getConfigObservable(ConfigKey.TeamInternal.SessionSearchCloudSyncEnabled);
+		const cloudEnabledPublic = this._configService.getConfigObservable(ConfigKey.Advanced.SessionSearchCloudSync);
 		const spanListenerStore = this._register(new DisposableStore());
 		this._register(autorun(reader => {
 			spanListenerStore.clear();
-			if (!localEnabled.read(reader) || !cloudEnabled.read(reader)) {
+			const publicValue = cloudEnabledPublic.read(reader);
+			const cloudEnabled = this._configService.isConfigured(ConfigKey.Advanced.SessionSearchCloudSync) ? publicValue : cloudEnabledInternal.read(reader);
+			if (!localEnabled.read(reader) || !cloudEnabled) {
 				return;
 			}
 
@@ -167,11 +171,10 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 	private _handleSpan(span: ICompletedSpanData): void {
 		try {
 			const sessionId = this._getSessionId(span);
+			const operationName = span.attributes[GenAiAttr.OPERATION_NAME] as string | undefined;
 			if (!sessionId || this._disabledSessions.has(sessionId)) {
 				return;
 			}
-
-			const operationName = span.attributes[GenAiAttr.OPERATION_NAME] as string | undefined;
 
 			// Only start tracking on invoke_agent (real user interaction)
 			if (!this._cloudSessions.has(sessionId) && !this._initializingSessions.has(sessionId)) {
@@ -265,9 +268,10 @@ export class RemoteSessionExporter extends Disposable implements IExtensionContr
 			}
 
 			// Only export remotely if the user has cloud consent for this repo
+			// Also require localIndex to be enabled (team-internal gate) as defense-in-depth
 			const repoNwo = `${repo.owner}/${repo.repo}`;
 
-			if (!this._indexingPreference.hasCloudConsent(repoNwo)) {
+			if (!this._configService.getExperimentBasedConfig(ConfigKey.TeamInternal.SessionSearchLocalIndexEnabled, this._expService) || !this._indexingPreference.hasCloudConsent(repoNwo)) {
 				this._disabledSessions.add(sessionId);
 				return;
 			}
