@@ -15,7 +15,6 @@ import { Tag } from '../../prompts/node/base/tag';
 import type { MemoryResponse } from '@github/copilot-agentic-tools/memory';
 import { IAgentMemoryService } from '../common/agentMemoryService';
 import { ToolName } from '../common/toolNames';
-import { IAgentMemoryToolRegistrar } from './agentMemoryToolRegistrar';
 import { extractSessionId } from './memoryTool';
 
 const MEMORY_BASE_DIR = 'memory-tool/memories';
@@ -29,7 +28,6 @@ export class MemoryContextPrompt extends PromptElement<MemoryContextPromptProps>
 	constructor(
 		props: any,
 		@IAgentMemoryService private readonly agentMemoryService: IAgentMemoryService,
-		@IAgentMemoryToolRegistrar private readonly agentMemoryToolRegistrar: IAgentMemoryToolRegistrar,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExperimentationService private readonly experimentationService: IExperimentationService,
 		@IVSCodeExtensionContext private readonly extensionContext: IVSCodeExtensionContext,
@@ -56,10 +54,7 @@ export class MemoryContextPrompt extends PromptElement<MemoryContextPromptProps>
 		let repoMemories: MemoryResponse[] | undefined;
 		if (enableCopilotMemory) {
 			const repoNwo = await this.agentMemoryService.getRepoNwo();
-			// Fetch once and pass the response to registerMemoryTools so it can reuse it,
-			// avoiding a redundant /prompt call.
 			const promptResponse = await this.agentMemoryService.getMemoryPrompt(repoNwo);
-			await this.agentMemoryToolRegistrar.registerMemoryTools(promptResponse);
 			memoryPromptText = promptResponse?.memoriesContext.prompt;
 			// Fall back to individual repo memories if /prompt endpoint is unavailable
 			if (!memoryPromptText) {

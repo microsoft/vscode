@@ -57,6 +57,7 @@ import { IEditToolLearningService } from '../../tools/common/editToolLearningSer
 import { normalizeToolSchema } from '../../tools/common/toolSchemaNormalizer';
 import { ContributedToolName, ToolName } from '../../tools/common/toolNames';
 import { IToolsService } from '../../tools/common/toolsService';
+import { IAgentMemoryToolRegistrar } from '../../tools/node/agentMemoryToolRegistrar';
 import { applyPatch5Description } from '../../tools/node/applyPatchTool';
 import { multiReplaceStringPrimaryDescription } from '../../tools/node/multiReplaceStringTool';
 import { replaceStringBatchDescription } from '../../tools/node/replaceStringTool';
@@ -382,6 +383,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		@IExperimentationService private readonly expService: IExperimentationService,
 		@IAutomodeService private readonly automodeService: IAutomodeService,
 		@IOTelService override readonly otelService: IOTelService,
+		@IAgentMemoryToolRegistrar private readonly agentMemoryToolRegistrar: IAgentMemoryToolRegistrar,
 	) {
 		super(intent, location, endpoint, request, intentOptions, instantiationService, codeMapperService, envService, promptPathRepresentationService, endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, otelService);
 	}
@@ -396,6 +398,10 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		token: vscode.CancellationToken
 	): Promise<IBuildPromptResult> {
 		this._resolvedCustomizations = await PromptRegistry.resolveAllCustomizations(this.instantiationService, this.endpoint);
+
+		if (promptContext.history?.length === 0) {
+			void this.agentMemoryToolRegistrar.registerMemoryTools();
+		}
 		// Add any references from the codebase invocation to the request
 		const codebase = await this._getCodebaseReferences(promptContext, token);
 
