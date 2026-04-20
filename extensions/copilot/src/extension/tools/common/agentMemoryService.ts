@@ -28,41 +28,6 @@ import { Disposable } from '../../../util/vs/base/common/lifecycle';
 // Re-export package types that callers depend on
 export type { MemoryPromptResponse };
 
-/**
- * Type guard to validate if an object is a valid RepoMemoryEntry.
- * Accepts both new format (citations: string[]) and legacy format (citations: string).
- */
-export function isRepoMemoryEntry(obj: unknown): obj is MemoryResponse {
-	if (typeof obj !== 'object' || obj === null) {
-		return false;
-	}
-	const entry = obj as Record<string, unknown>;
-
-	// Required fields
-	if (typeof entry.subject !== 'string' || typeof entry.fact !== 'string') {
-		return false;
-	}
-
-	// Optional fields
-	if (entry.citations !== undefined) {
-		const isString = typeof entry.citations === 'string';
-		const isStringArray = Array.isArray(entry.citations) && entry.citations.every(c => typeof c === 'string');
-		if (!isString && !isStringArray) {
-			return false;
-		}
-	}
-
-	if (entry.reason !== undefined && typeof entry.reason !== 'string') {
-		return false;
-	}
-
-	if (entry.category !== undefined && typeof entry.category !== 'string') {
-		return false;
-	}
-
-	return true;
-}
-
 const INTEGRATION_ID = 'vscode-chat';
 
 /**
