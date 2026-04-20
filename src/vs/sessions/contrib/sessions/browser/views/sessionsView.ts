@@ -5,10 +5,11 @@
 
 import '../media/sessionsViewPane.css';
 import * as DOM from '../../../../../base/browser/dom.js';
+import { onUnexpectedError } from '../../../../../base/common/errors.js';
 import { KeybindingLabel } from '../../../../../base/browser/ui/keybindingLabel/keybindingLabel.js';
 import { Event } from '../../../../../base/common/event.js';
 import { autorun } from '../../../../../base/common/observable.js';
-import { OS } from '../../../../../base/common/platform.js';
+import { isMobile, isWeb, OS } from '../../../../../base/common/platform.js';
 import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../../platform/contextview/browser/contextView.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
@@ -18,7 +19,6 @@ import { IOpenerService } from '../../../../../platform/opener/common/opener.js'
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
 import { IViewPaneOptions, IViewPaneLocationColors, ViewPane } from '../../../../../workbench/browser/parts/views/viewPane.js';
 import { IViewDescriptorService } from '../../../../../workbench/common/views.js';
-import { sessionsSidebarBackground } from '../../../../common/theme.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { localize } from '../../../../../nls.js';
@@ -28,9 +28,12 @@ import { AICustomizationShortcutsWidget } from '../aiCustomizationShortcutsWidge
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
+import { asCssVariable } from '../../../../../platform/theme/common/colorRegistry.js';
+import { agentsNewSessionButtonBackground, agentsNewSessionButtonBorder, agentsNewSessionButtonForeground, agentsNewSessionButtonHoverBackground } from '../../../../common/theme.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../../platform/storage/common/storage.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IHostService } from '../../../../../workbench/services/host/browser/host.js';
+import { IWorkbenchLayoutService, Parts } from '../../../../../workbench/services/layout/browser/layoutService.js';
 import { logSessionsInteraction } from '../../../../common/sessionsTelemetry.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../../platform/actions/browser/toolbar.js';
@@ -56,7 +59,6 @@ export class SessionsView extends ViewPane {
 	private headerRow: HTMLElement | undefined;
 	private headerLabel: HTMLElement | undefined;
 	private headerActions: HTMLElement | undefined;
-	private headerLabelWidth = 56;
 	private isFindWidgetOpen = false;
 	sessionsControl: SessionsList | undefined;
 	private _customizationsWidget: AICustomizationShortcutsWidget | undefined;
@@ -80,6 +82,7 @@ export class SessionsView extends ViewPane {
 		@IHoverService hoverService: IHoverService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IHostService private readonly hostService: IHostService,
+		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IStorageService private readonly storageService: IStorageService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 	) {
@@ -120,10 +123,10 @@ export class SessionsView extends ViewPane {
 		const colors = super.getLocationBasedColors();
 		return {
 			...colors,
-			background: sessionsSidebarBackground,
+			background: undefined!,
 			listOverrideStyles: {
 				...colors.listOverrideStyles,
-				listBackground: sessionsSidebarBackground,
+				listBackground: undefined!,
 			}
 		};
 	}
@@ -141,9 +144,11 @@ export class SessionsView extends ViewPane {
 		const headerRow = this.headerRow = DOM.append(sessionsContent, $('.agent-sessions-header-row'));
 		const headerLabel = this.headerLabel = DOM.append(headerRow, $('.agent-sessions-header-label'));
 		headerLabel.textContent = localize('sessionsHeader', "Sessions");
-		this.headerLabelWidth = Math.ceil(headerLabel.getBoundingClientRect().width) || this.headerLabelWidth;
 
 		const headerActions = this.headerActions = DOM.append(headerRow, $('.agent-sessions-header-actions'));
+
+		// Header actions (visual order: New, Filter, Search)
+		this.createNewSessionButton(headerActions);
 
 		const scopedInstantiationService = this._register(this.instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
 		this._register(scopedInstantiationService.createInstance(MenuWorkbenchToolBar, headerActions, Menus.SidebarSessionsHeader, {
@@ -152,72 +157,9 @@ export class SessionsView extends ViewPane {
 			toolbarOptions: { primaryGroup: () => true },
 		}));
 
-		// Container for the tree's find widget (rendered in-place in the header)
+		// Container for the tree's find widget (toggled by the toolbar's Find action)
 		const findWidgetContainer = this.findWidgetContainer = DOM.append(headerRow, $('.agent-sessions-find-widget-container'));
 		findWidgetContainer.style.display = 'none';
-
-		// Compact New Session Button
-		const newSessionButton = this._register(new Button(headerActions, {
-			...defaultButtonStyles,
-			buttonSecondaryBorder: '',
-			secondary: true,
-			supportIcons: true,
-		}));
-		newSessionButton.element.classList.add('agent-sessions-compact-new-button');
-		this._register(newSessionButton.onDidClick(() => {
-			logSessionsInteraction(this.telemetryService, 'newSession');
-			this.sessionsManagementService.openNewSessionView();
-		}));
-
-		newSessionButton.label = localize('newCompact', "New");
-		const buttonLabel = $('span.new-session-button-label', undefined, localize('newCompact', "New"));
-		const keybindingHint = $('span.new-session-keybinding-hint');
-		const keybindingHintLabel = this._register(new KeybindingLabel(keybindingHint, OS, {
-			disableTitle: true,
-			keybindingLabelBackground: 'transparent',
-			keybindingLabelForeground: 'inherit',
-			keybindingLabelBorder: 'transparent',
-			keybindingLabelBottomBorder: undefined,
-			keybindingLabelShadow: undefined,
-		}));
-		DOM.reset(newSessionButton.element, buttonLabel);
-
-		const getNewSessionKeybinding = () => {
-			const primaryKeybinding = this.keybindingService.lookupKeybinding(ACTION_ID_NEW_SESSION, this.scopedContextKeyService, true);
-			const resolvedKeybindings = this.keybindingService.lookupKeybindings(ACTION_ID_NEW_SESSION);
-			return primaryKeybinding ?? resolvedKeybindings[0];
-		};
-
-		let lastRenderedKeybindingLabel: string | undefined | null = null;
-		let lastRenderedKeybindingAriaLabel: string | undefined | null = null;
-		const updateNewSessionButton = () => {
-			const keybinding = getNewSessionKeybinding();
-			const keybindingLabel = keybinding?.getLabel() ?? undefined;
-			const keybindingAriaLabel = keybinding?.getAriaLabel() ?? undefined;
-			if (lastRenderedKeybindingLabel === keybindingLabel && lastRenderedKeybindingAriaLabel === keybindingAriaLabel) {
-				return;
-			}
-
-			lastRenderedKeybindingLabel = keybindingLabel;
-			lastRenderedKeybindingAriaLabel = keybindingAriaLabel;
-
-			keybindingHintLabel.set(keybinding);
-			if (keybinding) {
-				if (keybindingHint.parentElement !== newSessionButton.element) {
-					DOM.append(newSessionButton.element, keybindingHint);
-				}
-			} else {
-				keybindingHint.remove();
-			}
-
-			newSessionButton.element.title = keybindingLabel
-				? localize('newSessionButtonTitle', "New Session ({0})", keybindingLabel)
-				: localize('newSessionButtonTitleWithoutKeybinding', "New Session");
-			newSessionButton.element.setAttribute('aria-label', keybindingAriaLabel
-				? localize('newSessionButtonAriaLabel', "New Session ({0})", keybindingAriaLabel)
-				: localize('newSessionButtonAriaLabelWithoutKeybinding', "New Session"));
-		};
-		this._register(Event.runAndSubscribe(this.keybindingService.onDidUpdateKeybindings, updateNewSessionButton));
 
 		// Sessions List Control
 		this.sessionsControlContainer = DOM.append(sessionsContent, $('.agent-sessions-control-container'));
@@ -226,7 +168,13 @@ export class SessionsView extends ViewPane {
 			grouping: () => this.currentGrouping,
 			sorting: () => this.currentSorting,
 			findWidgetContainer,
-			onSessionOpen: (resource, preserveFocus) => this.sessionsManagementService.openSession(resource, { preserveFocus }),
+			onSessionOpen: (resource, preserveFocus) => {
+				this.sessionsManagementService.openSession(resource, { preserveFocus }).then(() => {
+					if (isWeb && isMobile) {
+						this.layoutService.setPartHidden(true, Parts.SIDEBAR_PART);
+					}
+				}).catch(onUnexpectedError);
+			},
 		}));
 		this._register(this.onDidChangeBodyVisibility(visible => sessionsControl.setVisible(visible)));
 
@@ -292,6 +240,73 @@ export class SessionsView extends ViewPane {
 				}
 			},
 		}));
+	}
+
+	private createNewSessionButton(container: HTMLElement): void {
+		const newSessionButton = this._register(new Button(container, {
+			...defaultButtonStyles,
+			buttonSecondaryBackground: asCssVariable(agentsNewSessionButtonBackground),
+			buttonSecondaryForeground: asCssVariable(agentsNewSessionButtonForeground),
+			buttonSecondaryHoverBackground: asCssVariable(agentsNewSessionButtonHoverBackground),
+			buttonSecondaryBorder: asCssVariable(agentsNewSessionButtonBorder),
+			secondary: true,
+			supportIcons: true,
+		}));
+		newSessionButton.element.classList.add('agent-sessions-compact-new-button');
+		this._register(newSessionButton.onDidClick(() => {
+			logSessionsInteraction(this.telemetryService, 'newSession');
+			this.sessionsManagementService.openNewSessionView();
+		}));
+
+		const newSessionLabel = localize('newCompact', "New");
+		const buttonLabel = $('span.new-session-button-label', undefined, newSessionLabel);
+		const keybindingHint = $('span.new-session-keybinding-hint');
+		const keybindingHintLabel = this._register(new KeybindingLabel(keybindingHint, OS, {
+			disableTitle: true,
+			keybindingLabelBackground: 'transparent',
+			keybindingLabelForeground: 'inherit',
+			keybindingLabelBorder: 'transparent',
+			keybindingLabelBottomBorder: undefined,
+			keybindingLabelShadow: undefined,
+		}));
+		DOM.reset(newSessionButton.element, buttonLabel);
+
+		const getNewSessionKeybinding = () => {
+			const primaryKeybinding = this.keybindingService.lookupKeybinding(ACTION_ID_NEW_SESSION, this.scopedContextKeyService, true);
+			const resolvedKeybindings = this.keybindingService.lookupKeybindings(ACTION_ID_NEW_SESSION);
+			return primaryKeybinding ?? resolvedKeybindings[0];
+		};
+
+		let lastRenderedKeybindingLabel: string | undefined | null = null;
+		let lastRenderedKeybindingAriaLabel: string | undefined | null = null;
+		const updateNewSessionButton = () => {
+			const keybinding = getNewSessionKeybinding();
+			const keybindingLabel = keybinding?.getLabel() ?? undefined;
+			const keybindingAriaLabel = keybinding?.getAriaLabel() ?? undefined;
+			if (lastRenderedKeybindingLabel === keybindingLabel && lastRenderedKeybindingAriaLabel === keybindingAriaLabel) {
+				return;
+			}
+
+			lastRenderedKeybindingLabel = keybindingLabel;
+			lastRenderedKeybindingAriaLabel = keybindingAriaLabel;
+
+			keybindingHintLabel.set(keybinding);
+			if (keybinding) {
+				if (keybindingHint.parentElement !== newSessionButton.element) {
+					DOM.append(newSessionButton.element, keybindingHint);
+				}
+			} else {
+				keybindingHint.remove();
+			}
+
+			newSessionButton.element.title = keybindingLabel
+				? localize('newSessionButtonTitle', "New Session ({0})", keybindingLabel)
+				: localize('newSessionButtonTitleWithoutKeybinding', "New Session");
+			newSessionButton.element.setAttribute('aria-label', keybindingAriaLabel
+				? localize('newSessionButtonAriaLabel', "New Session ({0})", keybindingAriaLabel)
+				: localize('newSessionButtonAriaLabelWithoutKeybinding', "New Session"));
+		};
+		this._register(Event.runAndSubscribe(this.keybindingService.onDidUpdateKeybindings, updateNewSessionButton));
 	}
 
 	focusCustomizations(): void {
@@ -456,7 +471,7 @@ export class SessionsView extends ViewPane {
 	protected override layoutBody(height: number, width: number): void {
 		super.layoutBody(height, width);
 
-		this.updateHeaderLayout(width);
+		this.updateHeaderLayout();
 
 		if (!this.sessionsControl || !this.sessionsControlContainer) {
 			return;
@@ -485,7 +500,7 @@ export class SessionsView extends ViewPane {
 		this.sessionsControl?.openFind();
 	}
 
-	private updateHeaderLayout(width?: number): void {
+	private updateHeaderLayout(): void {
 		if (!this.headerRow || !this.headerLabel || !this.headerActions) {
 			return;
 		}
@@ -496,12 +511,7 @@ export class SessionsView extends ViewPane {
 			return;
 		}
 
-		this.headerActions.style.display = '';
-		const headerWidth = width ?? this.headerRow.offsetWidth;
-		const actionsWidth = Math.ceil(this.headerActions.getBoundingClientRect().width) || this.headerActions.offsetWidth;
-		const shouldHideLabel = headerWidth > 0 && headerWidth < actionsWidth + this.headerLabelWidth + 12;
-
-		this.headerLabel.style.display = shouldHideLabel ? 'none' : '';
+		this.headerLabel.style.display = '';
 		this.headerActions.style.display = '';
 	}
 

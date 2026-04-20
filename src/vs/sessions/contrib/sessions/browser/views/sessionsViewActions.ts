@@ -18,13 +18,14 @@ import { EditorsVisibleContext, IsAuxiliaryWindowContext, IsSessionsWindowContex
 import { IChatWidgetService } from '../../../../../workbench/contrib/chat/browser/chat.js';
 import { AUX_WINDOW_GROUP } from '../../../../../workbench/services/editor/common/editorService.js';
 import { SessionsCategories } from '../../../../common/categories.js';
-import { ChatSessionProviderIdContext, IsNewChatSessionContext, SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
+import { ChatSessionProviderIdContext, IsActiveSessionArchivedContext, IsNewChatSessionContext, SessionsWelcomeVisibleContext } from '../../../../common/contextkeys.js';
 import { SessionItemToolbarMenuId, SessionItemContextMenuId, SessionSectionToolbarMenuId, SessionSectionTypeContext, IsSessionPinnedContext, IsSessionArchivedContext, IsSessionReadContext, SessionsGrouping, SessionsSorting, ISessionSection } from './sessionsList.js';
 import { ISession, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { IsWorkspaceGroupCappedContext, SessionsViewFilterOptionsSubMenu, SessionsViewFilterSubMenu, SessionsViewGroupingContext, SessionsViewId, SessionsView, SessionsViewSortingContext } from './sessionsView.js';
 import { SessionsViewId as NewChatViewId, NewChatViewPane } from '../../../chat/browser/newChatViewPane.js';
 import { Menus } from '../../../../browser/menus.js';
 import { ActiveSessionSupportsMultiChatContext, ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsListModelService } from './sessionsListModelService.js';
 import { ChatContextKeys } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 
 //  Constants
@@ -66,21 +67,21 @@ KeybindingsRegistry.registerKeybindingRule({
 //  View Title Menu
 
 MenuRegistry.appendMenuItem(Menus.SidebarSessionsHeader, {
+	submenu: SessionsViewFilterSubMenu,
+	title: localize2('filterSessions', "Filter Sessions"),
+	icon: Codicon.settings,
+	group: 'navigation',
+	order: 10,
+});
+
+MenuRegistry.appendMenuItem(Menus.SidebarSessionsHeader, {
 	command: {
 		id: 'sessionsViewPane.find',
 		title: localize2('find', "Find Session"),
 		icon: Codicon.search,
 	},
 	group: 'navigation',
-	order: 0,
-});
-
-MenuRegistry.appendMenuItem(Menus.SidebarSessionsHeader, {
-	submenu: SessionsViewFilterSubMenu,
-	title: localize2('filterSessions', "Filter Sessions"),
-	icon: Codicon.settings,
-	group: 'navigation',
-	order: 1,
+	order: 20,
 });
 
 MenuRegistry.appendMenuItem(SessionsViewFilterSubMenu, {
@@ -254,7 +255,7 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 			menu: [{
 				id: SessionSectionToolbarMenuId,
 				group: 'navigation',
-				order: 0,
+				order: 1,
 				when: ContextKeyExpr.equals(SessionSectionTypeContext.key, 'workspace'),
 			}]
 		});
@@ -276,6 +277,22 @@ registerAction2(class NewSessionForWorkspaceAction extends Action2 {
 
 const ConfirmArchiveStorageKey = 'sessions.confirmArchive';
 
+function getArchiveSectionConfirmationMessage(context: ISessionSection): string {
+	if (context.id === 'pinned') {
+		if (context.sessions.length === 1) {
+			return localize('archivePinnedSectionSessions.confirmSingle', "Are you sure you want to mark 1 pinned session as done?");
+		}
+
+		return localize('archivePinnedSectionSessions.confirm', "Are you sure you want to mark {0} pinned sessions as done?", context.sessions.length);
+	}
+
+	if (context.sessions.length === 1) {
+		return localize('archiveSectionSessions.confirmSingle', "Are you sure you want to mark 1 session from '{0}' as done?", context.label);
+	}
+
+	return localize('archiveSectionSessions.confirm', "Are you sure you want to mark {0} sessions from '{1}' as done?", context.sessions.length, context.label);
+}
+
 registerAction2(class ArchiveSectionAction extends Action2 {
 	constructor() {
 		super({
@@ -285,7 +302,7 @@ registerAction2(class ArchiveSectionAction extends Action2 {
 			menu: [{
 				id: SessionSectionToolbarMenuId,
 				group: 'navigation',
-				order: 1,
+				order: 0,
 				when: ContextKeyExpr.notEquals(SessionSectionTypeContext.key, 'archived'),
 			}]
 		});
@@ -302,9 +319,7 @@ registerAction2(class ArchiveSectionAction extends Action2 {
 		const skipConfirmation = storageService.getBoolean(ConfirmArchiveStorageKey, StorageScope.PROFILE, false);
 		if (!skipConfirmation) {
 			const confirmed = await dialogService.confirm({
-				message: context.sessions.length === 1
-					? localize('archiveSectionSessions.confirmSingle', "Are you sure you want to mark 1 session from '{0}' as done?", context.label)
-					: localize('archiveSectionSessions.confirm', "Are you sure you want to mark {0} sessions from '{1}' as done?", context.sessions.length, context.label),
+				message: getArchiveSectionConfirmationMessage(context),
 				detail: localize('archiveSectionSessions.detail', "You can restore sessions later if needed from the sessions view."),
 				primaryButton: localize('archiveSectionSessions.archive', "Mark All as Done"),
 				checkbox: {
@@ -336,7 +351,7 @@ registerAction2(class UnarchiveSectionAction extends Action2 {
 			menu: [{
 				id: SessionSectionToolbarMenuId,
 				group: 'navigation',
-				order: 1,
+				order: 0,
 				when: ContextKeyExpr.equals(SessionSectionTypeContext.key, 'archived'),
 			}]
 		});
@@ -388,7 +403,7 @@ registerAction2(class PinSessionAction extends Action2 {
 			menu: [{
 				id: SessionItemToolbarMenuId,
 				group: 'navigation',
-				order: 1,
+				order: 2,
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals(IsSessionPinnedContext.key, false),
 					ContextKeyExpr.equals(IsSessionArchivedContext.key, false),
@@ -426,7 +441,7 @@ registerAction2(class UnpinSessionAction extends Action2 {
 			menu: [{
 				id: SessionItemToolbarMenuId,
 				group: 'navigation',
-				order: 1,
+				order: 2,
 				when: ContextKeyExpr.and(
 					ContextKeyExpr.equals(IsSessionPinnedContext.key, true),
 					ContextKeyExpr.equals(IsSessionArchivedContext.key, false),
@@ -464,7 +479,7 @@ registerAction2(class ArchiveSessionAction extends Action2 {
 			menu: [{
 				id: SessionItemToolbarMenuId,
 				group: 'navigation',
-				order: 2,
+				order: 1,
 				when: ContextKeyExpr.equals(IsSessionArchivedContext.key, false),
 			}, {
 				id: SessionItemContextMenuId,
@@ -495,22 +510,35 @@ registerAction2(class UnarchiveSessionAction extends Action2 {
 			menu: [{
 				id: SessionItemToolbarMenuId,
 				group: 'navigation',
-				order: 2,
+				order: 1,
 				when: ContextKeyExpr.equals(IsSessionArchivedContext.key, true),
 			}, {
 				id: SessionItemContextMenuId,
 				group: '1_edit',
 				order: 2,
 				when: ContextKeyExpr.equals(IsSessionArchivedContext.key, true),
+			}, {
+				id: Menus.CommandCenter,
+				order: 103,
+				when: ContextKeyExpr.and(
+					IsAuxiliaryWindowContext.negate(),
+					SessionsWelcomeVisibleContext.negate(),
+					IsNewChatSessionContext.negate(),
+					IsActiveSessionArchivedContext
+				)
 			}]
 		});
 	}
 	async run(accessor: ServicesAccessor, context?: ISession | ISession[]): Promise<void> {
+		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		if (!context) {
+			const activeSession = sessionsManagementService.activeSession.get();
+			if (activeSession) {
+				await sessionsManagementService.unarchiveSession(activeSession);
+			}
 			return;
 		}
 		const sessions = Array.isArray(context) ? context : [context];
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
 		for (const session of sessions) {
 			await sessionsManagementService.unarchiveSession(session);
 		}
@@ -577,9 +605,9 @@ registerAction2(class MarkSessionReadAction extends Action2 {
 			return;
 		}
 		const sessions = Array.isArray(context) ? context : [context];
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const sessionsListModelService = accessor.get(ISessionsListModelService);
 		for (const session of sessions) {
-			sessionsManagementService.setRead(session, true);
+			sessionsListModelService.markRead(session);
 		}
 	}
 });
@@ -605,9 +633,9 @@ registerAction2(class MarkSessionUnreadAction extends Action2 {
 			return;
 		}
 		const sessions = Array.isArray(context) ? context : [context];
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
+		const sessionsListModelService = accessor.get(ISessionsListModelService);
 		for (const session of sessions) {
-			sessionsManagementService.setRead(session, false);
+			sessionsListModelService.markUnread(session);
 		}
 	}
 });
@@ -657,12 +685,10 @@ registerAction2(class MarkAllSessionsReadAction extends Action2 {
 	}
 	run(accessor: ServicesAccessor): void {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const sessions = sessionsManagementService.getSessions();
-		for (const session of sessions) {
-			if (!session.isArchived.get() && !session.isRead.get()) {
-				sessionsManagementService.setRead(session, true);
-			}
-		}
+		const sessionsListModelService = accessor.get(ISessionsListModelService);
+		const sessions = sessionsManagementService.getSessions()
+			.filter(s => !s.isArchived.get() && !sessionsListModelService.isSessionRead(s));
+		sessionsListModelService.markAllRead(sessions);
 	}
 });
 
@@ -680,7 +706,8 @@ registerAction2(class MarkSessionAsDoneAction extends Action2 {
 				when: ContextKeyExpr.and(
 					IsAuxiliaryWindowContext.negate(),
 					SessionsWelcomeVisibleContext.negate(),
-					IsNewChatSessionContext.negate()
+					IsNewChatSessionContext.negate(),
+					IsActiveSessionArchivedContext.negate()
 				)
 			},
 			{
@@ -693,6 +720,7 @@ registerAction2(class MarkSessionAsDoneAction extends Action2 {
 						ContextKeyExpr.and(
 							ContextKeyExpr.equals('sessions.hasGitRepository', true),
 							ContextKeyExpr.equals('sessions.hasPullRequest', false),
+							ContextKeyExpr.equals('sessions.hasIncomingChanges', false),
 							ContextKeyExpr.equals('sessions.hasOutgoingChanges', false),
 							ContextKeyExpr.equals('sessions.hasUncommittedChanges', false),
 						),
@@ -709,7 +737,6 @@ registerAction2(class MarkSessionAsDoneAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-
 		const activeSession = sessionsManagementService.activeSession.get();
 		if (!activeSession || activeSession.status.get() === SessionStatus.Untitled) {
 			return;
@@ -740,20 +767,12 @@ registerAction2(class AddChatAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const sessionsManagementService = accessor.get(ISessionsManagementService);
-		const quickInputService = accessor.get(IQuickInputService);
 
 		const activeSession = sessionsManagementService.activeSession.get();
 		if (!activeSession || activeSession.status.get() === SessionStatus.Untitled) {
 			return;
 		}
 
-		const query = await quickInputService.input({
-			placeHolder: localize('addChat.placeholder', "Enter a prompt for the new chat"),
-			prompt: localize('addChat.prompt', "Add a new chat to the active session"),
-		});
-
-		if (query) {
-			await sessionsManagementService.sendAndCreateChat(activeSession, { query });
-		}
+		sessionsManagementService.openNewChatInSession(activeSession);
 	}
 });

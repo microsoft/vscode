@@ -15,8 +15,16 @@ import { Emitter, Event } from '../../../../util/vs/base/common/event';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IClaudeRuntimeDataService } from '../../claude/common/claudeRuntimeDataService';
-import { IChatPromptFileService } from '../../common/chatPromptFileService';
 import { ClaudeCustomizationProvider } from '../claudeCustomizationProvider';
+import { MockPromptsService } from '../../../../platform/promptFiles/test/common/mockPromptsService';
+
+function mockAgent(uri: URI, name: string): vscode.ChatCustomAgent {
+	return { uri, name, source: 'local', userInvocable: true, disableModelInvocation: false } as vscode.ChatCustomAgent;
+}
+
+function mockSkill(uri: URI, name: string): vscode.ChatSkill {
+	return { uri, name, source: 'local' } as vscode.ChatSkill;
+}
 
 class FakeChatSessionCustomizationType {
 	static readonly Agent = new FakeChatSessionCustomizationType('agent');
@@ -36,32 +44,6 @@ class MockRuntimeDataService extends mock<IClaudeRuntimeDataService>() {
 	override getAgents(): readonly AgentInfo[] { return this._agents; }
 	fireChanged() { this._onDidChange.fire(); }
 	dispose() { this._onDidChange.dispose(); }
-}
-
-class MockChatPromptFileService extends mock<IChatPromptFileService>() {
-	private readonly _onDidChangeCustomAgents = new Emitter<void>();
-	override readonly onDidChangeCustomAgents = this._onDidChangeCustomAgents.event;
-	private readonly _onDidChangeInstructions = new Emitter<void>();
-	override readonly onDidChangeInstructions = this._onDidChangeInstructions.event;
-	private readonly _onDidChangeSkills = new Emitter<void>();
-	override readonly onDidChangeSkills = this._onDidChangeSkills.event;
-
-	private _customAgents: vscode.ChatResource[] = [];
-	private _skills: vscode.ChatResource[] = [];
-
-	override get customAgents(): readonly vscode.ChatResource[] { return this._customAgents; }
-	override get skills(): readonly vscode.ChatResource[] { return this._skills; }
-
-	setCustomAgents(agents: vscode.ChatResource[]) { this._customAgents = agents; }
-	setSkills(skills: vscode.ChatResource[]) { this._skills = skills; }
-	fireCustomAgentsChanged() { this._onDidChangeCustomAgents.fire(); }
-	fireSkillsChanged() { this._onDidChangeSkills.fire(); }
-
-	override dispose() {
-		this._onDidChangeCustomAgents.dispose();
-		this._onDidChangeInstructions.dispose();
-		this._onDidChangeSkills.dispose();
-	}
 }
 
 class MockWorkspaceService extends mock<IWorkspaceService>() {
@@ -105,7 +87,7 @@ class TestLogService extends mock<ILogService>() {
 describe('ClaudeCustomizationProvider', () => {
 	let disposables: DisposableStore;
 	let mockRuntimeDataService: MockRuntimeDataService;
-	let mockPromptFileService: MockChatPromptFileService;
+	let mockPromptsService: MockPromptsService;
 	let mockWorkspaceService: MockWorkspaceService;
 	let mockFileSystemService: MockFileSystemService;
 	let provider: ClaudeCustomizationProvider;
@@ -117,11 +99,11 @@ describe('ClaudeCustomizationProvider', () => {
 		(vscode as Record<string, unknown>).ChatSessionCustomizationType = FakeChatSessionCustomizationType;
 		disposables = new DisposableStore();
 		mockRuntimeDataService = disposables.add(new MockRuntimeDataService());
-		mockPromptFileService = disposables.add(new MockChatPromptFileService());
+		mockPromptsService = disposables.add(new MockPromptsService());
 		mockWorkspaceService = new MockWorkspaceService();
 		mockFileSystemService = new MockFileSystemService();
 		provider = disposables.add(new ClaudeCustomizationProvider(
-			mockPromptFileService,
+			mockPromptsService,
 			mockRuntimeDataService,
 			mockWorkspaceService,
 			mockFileSystemService,
@@ -199,8 +181,8 @@ describe('ClaudeCustomizationProvider', () => {
 
 		it('shows file-based agents from .claude/ paths before session starts', async () => {
 			mockWorkspaceService.setFolders([URI.file('/workspace')]);
-			mockPromptFileService.setCustomAgents([
-				{ uri: URI.file('/workspace/.claude/agents/my-agent.agent.md') },
+			mockPromptsService.setCustomAgents([
+				mockAgent(URI.file('/workspace/.claude/agents/my-agent.agent.md'), 'my-agent'),
 			]);
 
 			const items = await provider.provideChatSessionCustomizations(undefined!);
@@ -215,8 +197,8 @@ describe('ClaudeCustomizationProvider', () => {
 			mockRuntimeDataService.setAgents([
 				{ name: 'my-agent', description: 'SDK version' },
 			]);
-			mockPromptFileService.setCustomAgents([
-				{ uri: URI.file('/workspace/.claude/agents/my-agent.agent.md') },
+			mockPromptsService.setCustomAgents([
+				mockAgent(URI.file('/workspace/.claude/agents/my-agent.agent.md'), 'my-agent'),
 			]);
 
 			const items = await provider.provideChatSessionCustomizations(undefined!);
@@ -228,9 +210,9 @@ describe('ClaudeCustomizationProvider', () => {
 
 		it('filters out file agents not under .claude/', async () => {
 			mockWorkspaceService.setFolders([URI.file('/workspace')]);
-			mockPromptFileService.setCustomAgents([
-				{ uri: URI.file('/workspace/.github/my-agent.agent.md') },
-				{ uri: URI.file('/workspace/root.agent.md') },
+			mockPromptsService.setCustomAgents([
+				mockAgent(URI.file('/workspace/.github/my-agent.agent.md'), 'my-agent'),
+				mockAgent(URI.file('/workspace/root.agent.md'), 'root-agent'),
 			]);
 
 			const items = await provider.provideChatSessionCustomizations(undefined!);
@@ -303,7 +285,7 @@ describe('ClaudeCustomizationProvider', () => {
 
 		it('returns skills under .claude/skills/', async () => {
 			const uri = URI.file('/workspace/.claude/skills/my-skill/SKILL.md');
-			mockPromptFileService.setSkills([{ uri }]);
+			mockPromptsService.setSkills([mockSkill(uri, 'my-skill')]);
 
 			const items = await provider.provideChatSessionCustomizations(undefined!);
 			const skillItems = items.filter(i => i.type === FakeChatSessionCustomizationType.Skill);
@@ -313,9 +295,9 @@ describe('ClaudeCustomizationProvider', () => {
 		});
 
 		it('filters out skills not under .claude/', async () => {
-			mockPromptFileService.setSkills([
-				{ uri: URI.file('/workspace/.github/skills/copilot-skill/SKILL.md') },
-				{ uri: URI.file('/workspace/.copilot/skills/other/SKILL.md') },
+			mockPromptsService.setSkills([
+				mockSkill(URI.file('/workspace/.github/skills/copilot-skill/SKILL.md'), 'copilot-skill'),
+				mockSkill(URI.file('/workspace/.copilot/skills/other/SKILL.md'), 'other-skill'),
 			]);
 
 			const items = await provider.provideChatSessionCustomizations(undefined!);
@@ -325,7 +307,7 @@ describe('ClaudeCustomizationProvider', () => {
 
 		it('includes skills from user home .claude/ directory', async () => {
 			const uri = URI.file('/home/user/.claude/skills/global-skill/SKILL.md');
-			mockPromptFileService.setSkills([{ uri }]);
+			mockPromptsService.setSkills([mockSkill(uri, 'global-skill')]);
 
 			const items = await provider.provideChatSessionCustomizations(undefined!);
 			const skillItems = items.filter(i => i.type === FakeChatSessionCustomizationType.Skill);
@@ -338,7 +320,7 @@ describe('ClaudeCustomizationProvider', () => {
 			mockWorkspaceService.setFolders([URI.file('/workspace')]);
 			mockRuntimeDataService.setAgents([{ name: 'Explore', description: 'Agent' }]);
 			mockFileSystemService.setFile(URI.joinPath(URI.file('/workspace'), 'CLAUDE.md'), '# Instructions');
-			mockPromptFileService.setSkills([{ uri: URI.file('/workspace/.claude/skills/s/SKILL.md') }]);
+			mockPromptsService.setSkills([mockSkill(URI.file('/workspace/.claude/skills/s/SKILL.md'), 's')]);
 			mockFileSystemService.setFile(
 				URI.joinPath(URI.file('/workspace'), '.claude', 'settings.json'),
 				JSON.stringify({ hooks: { SessionStart: [{ matcher: '*', hooks: [{ type: 'command', command: './init.sh' }] }] } })
@@ -465,7 +447,7 @@ describe('ClaudeCustomizationProvider', () => {
 			let fired = false;
 			disposables.add(provider.onDidChange(() => { fired = true; }));
 
-			mockPromptFileService.fireCustomAgentsChanged();
+			mockPromptsService.fireCustomAgentsChanged();
 			expect(fired).toBe(true);
 		});
 
@@ -473,7 +455,7 @@ describe('ClaudeCustomizationProvider', () => {
 			let fired = false;
 			disposables.add(provider.onDidChange(() => { fired = true; }));
 
-			mockPromptFileService.fireSkillsChanged();
+			mockPromptsService.fireSkillsChanged();
 			expect(fired).toBe(true);
 		});
 

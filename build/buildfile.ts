@@ -33,6 +33,8 @@ export const workbenchDesktop = [
 
 export const workbenchWeb = createModuleDescription('vs/workbench/workbench.web.main.internal');
 
+export const sessionsWeb = createModuleDescription('vs/sessions/sessions.web.main.internal');
+
 export const keyboardMaps = [
 	createModuleDescription('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.linux'),
 	createModuleDescription('vs/workbench/services/keybinding/browser/keyboardLayouts/layout.contribution.darwin'),
@@ -73,6 +75,7 @@ const buildfile = {
 	workerBackgroundTokenization,
 	workbenchDesktop,
 	workbenchWeb,
+	sessionsWeb,
 	keyboardMaps,
 	code,
 	codeWeb,

@@ -4,34 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/sessionsTitleBarWidget.css';
-import { $, addDisposableListener, append, EventType, getActiveWindow, reset } from '../../../../base/browser/dom.js';
-import { IAction, Separator } from '../../../../base/common/actions.js';
+import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, getActiveWindow, reset } from '../../../../base/browser/dom.js';
+import { Separator } from '../../../../base/common/actions.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
 import { localize } from '../../../../nls.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { getDefaultHoverDelegate } from '../../../../base/browser/ui/hover/hoverDelegateFactory.js';
-import { ActionViewItem, BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
+import { BaseActionViewItem, IBaseActionViewItemOptions } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IMenuService, MenuRegistry, SubmenuItemAction } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { Menus } from '../../../browser/menus.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
-import { autorun, observableSignalFromEvent } from '../../../../base/common/observable.js';
+import { autorun } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { Codicon } from '../../../../base/common/codicons.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ChatSessionProviderIdContext, IsNewChatSessionContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
-import { SessionStatus } from '../../../services/sessions/common/session.js';
+import { ISessionsListModelService } from './views/sessionsListModelService.js';
 import { SHOW_SESSIONS_PICKER_COMMAND_ID } from './sessionsActions.js';
 import { IsSessionArchivedContext, IsSessionPinnedContext, IsSessionReadContext, SessionItemContextMenuId } from './views/sessionsList.js';
-import { SessionsView, SessionsViewId } from './views/sessionsView.js';
-import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { basename } from '../../../../base/common/resources.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
@@ -65,12 +61,12 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		options: IBaseActionViewItemOptions | undefined,
 		@IHoverService private readonly hoverService: IHoverService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsListModelService private readonly sessionsListModelService: ISessionsListModelService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@ICommandService private readonly commandService: ICommandService,
-		@IViewsService private readonly viewsService: IViewsService,
 	) {
 		super(undefined, action, options);
 
@@ -173,19 +169,24 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 
 			// Folder shown next to the title
 			if (repoLabel) {
+				const detailsEl = $('span.agent-sessions-titlebar-details');
+
 				const separator1 = $('span.agent-sessions-titlebar-separator');
 				separator1.textContent = '\u00B7';
-				centerGroup.appendChild(separator1);
+				separator1.setAttribute('aria-hidden', 'true');
+				detailsEl.appendChild(separator1);
 
 				const repoEl = $('span.agent-sessions-titlebar-repo');
 				repoEl.textContent = repoDetailLabel ? `${repoLabel} (${repoDetailLabel})` : repoLabel;
-				centerGroup.appendChild(repoEl);
+				detailsEl.appendChild(repoEl);
+
+				centerGroup.appendChild(detailsEl);
 			}
 
 			sessionPill.appendChild(centerGroup);
 
 			// Click handler on pill
-			this._dynamicDisposables.add(addDisposableListener(sessionPill, EventType.MOUSE_DOWN, (e) => {
+			this._dynamicDisposables.add(addDisposableGenericMouseDownListener(sessionPill, (e) => {
 				e.preventDefault();
 				e.stopPropagation();
 			}));
@@ -297,11 +298,13 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			return;
 		}
 
-		const isPinned = this.viewsService.getViewWithId<SessionsView>(SessionsViewId)?.sessionsControl?.isSessionPinned(sessionData) ?? false;
+		const isPinned = this.sessionsListModelService.isSessionPinned(sessionData);
+		const isArchived = sessionData.isArchived.get();
+		const isRead = this.sessionsListModelService.isSessionRead(sessionData);
 		const contextOverlay: [string, boolean | string][] = [
 			[IsSessionPinnedContext.key, isPinned],
-			[IsSessionArchivedContext.key, sessionData.isArchived.get()],
-			[IsSessionReadContext.key, sessionData.isRead.get()],
+			[IsSessionArchivedContext.key, isArchived],
+			[IsSessionReadContext.key, isRead],
 			['chatSessionType', sessionData.sessionType],
 			[ChatSessionProviderIdContext.key, sessionData.providerId],
 		];
@@ -318,100 +321,6 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 
 	private _showSessionsPicker(): void {
 		this.commandService.executeCommand(SHOW_SESSIONS_PICKER_COMMAND_ID);
-	}
-}
-
-/**
- * Custom action view item for the sidebar toggle button.
- * Renders the tasklist icon with an unread session count badge.
- */
-class SidebarToggleActionViewItem extends ActionViewItem {
-
-	private _countBadge: HTMLElement | undefined;
-
-	constructor(
-		context: unknown,
-		action: IAction,
-		options: IBaseActionViewItemOptions | undefined,
-		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
-	) {
-		super(context, action, { ...options, icon: true, label: false });
-	}
-
-	override render(container: HTMLElement): void {
-		super.render(container);
-
-		container.classList.add('sidebar-toggle-action');
-
-		// Add badge element for unread session count
-		this._countBadge = append(container, $('span.sidebar-toggle-badge'));
-		this._countBadge.setAttribute('aria-hidden', 'true');
-		this._updateBadge();
-
-		// Single autorun that tracks all badge-relevant state:
-		// - session list changes (add/remove) via observableSignalFromEvent
-		// - individual session observable state (status, isRead, isArchived)
-		// - sidebar visibility changes
-		const sessionsChanged = observableSignalFromEvent(this, this.sessionsManagementService.onDidChangeSessions);
-		const sidebarVisibilityChanged = observableSignalFromEvent(this, handler => this.layoutService.onDidChangePartVisibility(e => {
-			if (e.partId === Parts.SIDEBAR_PART) {
-				handler(e);
-			}
-		}));
-		this._register(autorun(reader => {
-			sessionsChanged.read(reader);
-			sidebarVisibilityChanged.read(reader);
-			for (const session of this.sessionsManagementService.getSessions()) {
-				session.isArchived.read(reader);
-				session.status.read(reader);
-				session.isRead.read(reader);
-			}
-			this.updateClass();
-			this._updateBadge();
-		}));
-	}
-
-	protected override getClass(): string | undefined {
-		return this.layoutService.isVisible(Parts.SIDEBAR_PART)
-			? ThemeIcon.asClassName(Codicon.layoutSidebarLeft)
-			: ThemeIcon.asClassName(Codicon.layoutSidebarLeftOff);
-	}
-
-	private _updateBadge(): void {
-		if (!this._countBadge) {
-			return;
-		}
-
-		const unreadCount = this._countUnreadSessions();
-		const sidebarVisible = this.layoutService.isVisible(Parts.SIDEBAR_PART);
-
-		if (unreadCount > 0 && !sidebarVisible) {
-			this._countBadge.textContent = `${unreadCount}`;
-			this._countBadge.style.display = '';
-		} else {
-			this._countBadge.style.display = 'none';
-		}
-
-		// Update accessible label to include unread count for screen readers
-		if (this.label) {
-			const baseLabel = this.action.label || localize('toggleSidebarA11y', "Toggle Primary Side Bar");
-			if (unreadCount > 0 && !sidebarVisible) {
-				this.label.setAttribute('aria-label', localize('toggleSidebarUnread', "{0}, {1} unread session(s)", baseLabel, unreadCount));
-			} else {
-				this.label.setAttribute('aria-label', baseLabel);
-			}
-		}
-	}
-
-	private _countUnreadSessions(): number {
-		let unread = 0;
-		for (const session of this.sessionsManagementService.getSessions()) {
-			if (!session.isArchived.get() && session.status.get() === SessionStatus.Completed && !session.isRead.get()) {
-				unread++;
-			}
-		}
-		return unread;
 	}
 }
 
@@ -454,11 +363,6 @@ export class SessionsTitleBarContribution extends Disposable implements IWorkben
 				return undefined;
 			}
 			return instantiationService.createInstance(SessionsTitleBarWidget, action, options);
-		}, undefined));
-
-		// Register custom view item for sidebar toggle with unread badge
-		this._register(actionViewItemService.register(Menus.TitleBarLeftLayout, 'workbench.action.agentToggleSidebarVisibility', (action, options) => {
-			return instantiationService.createInstance(SidebarToggleActionViewItem, undefined, action, options);
 		}, undefined));
 	}
 }

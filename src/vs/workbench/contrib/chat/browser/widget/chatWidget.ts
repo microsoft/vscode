@@ -995,6 +995,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			return;
 		}
 
+		// The input part may not be rendered yet (or may have been disposed) when this is
+		// called from async flows such as `lockToCodingAgent` / `unlockFromCodingAgent` that
+		// run after `showModel` resolves. Bail out to avoid dereferencing an undefined input.
+		if (!this.inputPartDisposable.value) {
+			return;
+		}
+
 		this._isRenderingWelcome = true;
 		try {
 			if (this.viewOptions.renderStyle === 'compact' || this.viewOptions.renderStyle === 'minimal' || this.lifecycleService.willShutdown) {
@@ -2163,7 +2170,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const agent = this.chatAgentService.getAgent(agentId);
 		this._updateAgentCapabilitiesContextKeys(agent);
 		const supportsCheckpoints = this._attachmentCapabilities.supportsCheckpoints ?? false;
-		this.listWidget?.updateRendererOptions({ restorable: supportsCheckpoints, editable: supportsCheckpoints, noFooter: true, progressMessageAtBottomOfResponse: true });
+		this.listWidget?.updateRendererOptions({ restorable: supportsCheckpoints, editable: supportsCheckpoints, noFooter: false, progressMessageAtBottomOfResponse: true });
 		if (this.visible) {
 			this.listWidget?.rerender();
 		}
@@ -2185,7 +2192,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			this.viewModel.resetInputPlaceholder();
 		}
 		this.inputEditor?.updateOptions({ placeholder: undefined });
-		this.listWidget?.updateRendererOptions({ restorable: true, editable: true, noFooter: false, progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask });
+		this.listWidget?.updateRendererOptions({ restorable: true, editable: true, progressMessageAtBottomOfResponse: mode => mode !== ChatModeKind.Ask });
 		if (this.visible) {
 			this.listWidget?.rerender();
 		}
@@ -2571,6 +2578,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// When the widget has loaded a new session, return a snapshot of the tools for this session.
 		// Only sync with the tools model when this session is shown with the same mode.
 		const scopedTools = derived(reader => {
+			if (this._store.isDisposed) {
+				return lastToolsSnapshot;
+			}
 			const activeSession = this._viewModelObs.read(reader)?.sessionResource;
 			const currentModeId = this.input.currentModeObs.read(reader).id;
 			if (isEqual(activeSession, sessionResource) && currentModeId === capturedModeId) {

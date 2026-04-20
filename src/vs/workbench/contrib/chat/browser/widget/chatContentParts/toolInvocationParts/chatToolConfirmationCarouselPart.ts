@@ -10,13 +10,16 @@ import { Codicon } from '../../../../../../../base/common/codicons.js';
 import { Emitter } from '../../../../../../../base/common/event.js';
 import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
 import { KeyCode } from '../../../../../../../base/common/keyCodes.js';
-import { Disposable, DisposableStore, toDisposable } from '../../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../../../../base/common/observable.js';
 import { localize } from '../../../../../../../nls.js';
 import { defaultButtonStyles } from '../../../../../../../platform/theme/browser/defaultStyles.js';
 import { IChatToolInvocation, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { ChatToolInvocationPart } from './chatToolInvocationPart.js';
 import '../media/chatToolConfirmationCarousel.css';
+
+const COLLAPSED_CAROUSEL_MAX_HEIGHT = 300;
+const MIN_CAROUSEL_MAX_HEIGHT = 80;
 
 export type ToolInvocationPartFactory = (tool: IChatToolInvocation) => ChatToolInvocationPart;
 
@@ -50,8 +53,9 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 	private readonly prevButton: Button;
 	private readonly nextButton: Button;
 	private readonly allowAllButton: Button;
-	private readonly collapseButton: Button;
-	private _isCollapsed = false;
+	private readonly dismissButton: Button;
+	private readonly activeContentDisposables: DisposableStore;
+	private maxHeight: number | undefined;
 
 	constructor(
 		private readonly toolPartFactory: ToolInvocationPartFactory,
@@ -84,17 +88,22 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		this.agentLabel = elements.agentLabel;
 		this.contentContainer = elements.content;
 		this.stepIndicator = elements.stepIndicator;
+		this.activeContentDisposables = this._register(new DisposableStore());
 
 		this.allowAllButton = this._register(new Button(elements.overlayActions, { ...defaultButtonStyles, small: true }));
 		this.allowAllButton.element.classList.add('chat-tool-carousel-allow-all-button');
 		this.allowAllButton.label = localize('allowAll', "Allow All");
 		this._register(this.allowAllButton.onDidClick(() => this.allowAll()));
 
-		this.collapseButton = this._register(new Button(elements.overlayActions, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
-		this.collapseButton.element.classList.add('chat-tool-carousel-header-button');
-		this.collapseButton.label = `$(${Codicon.chevronDown.id})`;
-		this.collapseButton.element.setAttribute('aria-label', localize('collapse', "Collapse"));
-		this._register(this.collapseButton.onDidClick(() => this.toggleCollapse()));
+		this.dismissButton = this._register(new Button(elements.overlayActions, { ...defaultButtonStyles, secondary: true, supportIcons: true }));
+		this.dismissButton.element.classList.add('chat-tool-carousel-dismiss-button');
+		this.dismissButton.label = `$(${Codicon.close.id})`;
+		const dismissButtonLabel = this.items.length === 1
+			? localize('skip', "Skip")
+			: localize('skipAll', "Skip All");
+		this.dismissButton.element.setAttribute('aria-label', dismissButtonLabel);
+		this.dismissButton.element.title = dismissButtonLabel;
+		this._register(this.dismissButton.onDidClick(() => this.skipAll()));
 
 		this.prevButton = this._register(new Button(elements.navArrows, {
 			...defaultButtonStyles,
@@ -132,6 +141,11 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		return this.items.length;
 	}
 
+	setMaxHeight(maxHeight: number | undefined): void {
+		this.maxHeight = maxHeight;
+		this.updateMaxHeightStyle();
+	}
+
 	hasToolInvocation(toolCallId: string): boolean {
 		return this.toolCallIds.has(toolCallId);
 	}
@@ -139,7 +153,7 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 	addToolInvocation(tool: IChatToolInvocation, subAgentInvocationId?: string, agentName?: string, scrollToSubagent?: ScrollToSubagentCallback, toolPart?: ChatToolInvocationPart): void {
 		if (this.toolCallIds.has(tool.toolCallId)) {
 			const existing = this.items.find(item => item.toolCallId === tool.toolCallId);
-			if (existing && toolPart) {
+			if (existing && toolPart && !existing.toolPart) {
 				this.replaceExternalToolPart(existing, toolPart);
 			}
 			return;
@@ -199,7 +213,8 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		let isItemAlive = true;
 		item.disposables.add(toDisposable(() => isItemAlive = false));
 
-		toolPart.addDisposable(toDisposable(() => {
+		const externalPartDisposeWatcher = new MutableDisposable();
+		externalPartDisposeWatcher.value = toDisposable(() => {
 			if (!isItemAlive || item.toolPart !== toolPart) {
 				return;
 			}
@@ -209,7 +224,9 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 			if (this.items[this.activeIndex] === item) {
 				this.renderActiveContent();
 			}
-		}));
+		});
+		toolPart.addDisposable(externalPartDisposeWatcher);
+		item.disposables.add(toDisposable(() => externalPartDisposeWatcher.clear()));
 	}
 
 	override dispose(): void {
@@ -321,29 +338,11 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		this.domNode.focus();
 	}
 
-	private toggleCollapse(): void {
-		this._isCollapsed = !this._isCollapsed;
-		this.domNode.classList.toggle('chat-tool-carousel-collapsed', this._isCollapsed);
-		this.collapseButton.label = this._isCollapsed
-			? `$(${Codicon.chevronUp.id})`
-			: `$(${Codicon.chevronDown.id})`;
-		this.collapseButton.element.setAttribute('aria-label',
-			this._isCollapsed ? localize('expand', "Expand") : localize('collapse', "Collapse")
-		);
-		this.updateUI();
-	}
-
 	private updateUI(): void {
 		const item = this.items[this.activeIndex];
 
-		if (this._isCollapsed) {
-			this.collapsedTitle.textContent = this.items.length === 1
-				? localize('confirmTool', "Confirm tool?")
-				: localize('confirmTools', "Confirm {0} tools?", this.items.length);
-		} else {
-			this.collapsedTitle.textContent = this.getToolTitle(item) ?? '';
-		}
-		dom.setVisibility(this._isCollapsed || !!this.collapsedTitle.textContent, this.collapsedTitle);
+		this.collapsedTitle.textContent = this.getToolTitle(item) ?? '';
+		dom.setVisibility(!!this.collapsedTitle.textContent, this.collapsedTitle);
 
 		if (item?.agentName) {
 			this.agentLabel.textContent = `\u2014 ${item.agentName}`;
@@ -366,7 +365,7 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		dom.setVisibility(multi, this.stepIndicator);
 		dom.setVisibility(multi, this.prevButton.element);
 		dom.setVisibility(multi, this.nextButton.element);
-		dom.setVisibility(this._isCollapsed || multi, this.allowAllButton.element);
+		dom.setVisibility(multi, this.allowAllButton.element);
 
 		this.allowAllButton.label = multi
 			? localize('allowAll', "Allow All")
@@ -375,6 +374,7 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 
 	private renderActiveContent(): void {
 		dom.clearNode(this.contentContainer);
+		this.activeContentDisposables.clear();
 
 		const item = this.items[this.activeIndex];
 		if (!item) {
@@ -391,9 +391,30 @@ export class ChatToolConfirmationCarouselPart extends Disposable {
 		this.contentContainer.appendChild(item.toolPart.domNode);
 	}
 
+	private updateMaxHeightStyle(): void {
+		if (this.maxHeight === undefined) {
+			this.domNode.style.removeProperty('max-height');
+			return;
+		}
+
+		const maxHeight = this.getCollapsedMaxHeight();
+		this.domNode.style.maxHeight = `${Math.floor(maxHeight)}px`;
+	}
+
+	private getCollapsedMaxHeight(): number {
+		const configuredMaxHeight = this.maxHeight === undefined ? Number.POSITIVE_INFINITY : Math.max(MIN_CAROUSEL_MAX_HEIGHT, this.maxHeight);
+		return Math.min(configuredMaxHeight, COLLAPSED_CAROUSEL_MAX_HEIGHT, dom.getWindow(this.domNode).innerHeight * 0.45);
+	}
+
 	allowAll(): void {
 		for (const item of [...this.items]) {
 			IChatToolInvocation.confirmWith(item.tool, { type: ToolConfirmKind.UserAction });
+		}
+	}
+
+	private skipAll(): void {
+		for (const item of [...this.items]) {
+			IChatToolInvocation.confirmWith(item.tool, { type: ToolConfirmKind.Skipped });
 		}
 	}
 

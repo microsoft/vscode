@@ -8,7 +8,7 @@ import type * as vscode from 'vscode';
 import { ChatFetchResponseType } from '../../../platform/chat/common/commonTypes';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { CapturingToken } from '../../../platform/requestLogger/common/capturingToken';
-import { IRequestLogger } from '../../../platform/requestLogger/node/requestLogger';
+import { IRequestLogger } from '../../../platform/requestLogger/common/requestLogger';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ChatResponseStreamImpl } from '../../../util/common/chatResponseStreamImpl';
 import { generateUuid } from '../../../util/vs/base/common/uuid';

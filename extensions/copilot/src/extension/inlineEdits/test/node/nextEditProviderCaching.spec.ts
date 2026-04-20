@@ -17,7 +17,7 @@ import { NesHistoryContextProvider } from '../../../../platform/inlineEdits/comm
 import { NesXtabHistoryTracker } from '../../../../platform/inlineEdits/common/workspaceEditTracker/nesXtabHistoryTracker';
 import { ILogger, ILogService, LogServiceImpl } from '../../../../platform/log/common/logService';
 import { NullRequestLogger } from '../../../../platform/requestLogger/node/nullRequestLogger';
-import { IRequestLogger } from '../../../../platform/requestLogger/node/requestLogger';
+import { IRequestLogger } from '../../../../platform/requestLogger/common/requestLogger';
 import { ISnippyService, NullSnippyService } from '../../../../platform/snippy/common/snippyService';
 import { IExperimentationService, NullExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
 import { mockNotebookService } from '../../../../platform/test/common/testNotebookService';

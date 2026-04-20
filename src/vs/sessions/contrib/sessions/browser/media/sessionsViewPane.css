@@ -85,9 +85,14 @@
 	}
 
 	.agent-sessions-header-label {
+		flex: 1;
+		min-width: 0;
 		font-size: 12px;
 		font-weight: 500;
 		color: var(--vscode-sideBar-foreground, var(--vscode-foreground));
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	.agent-sessions-header-actions {
@@ -95,6 +100,7 @@
 		align-items: center;
 		gap: 4px;
 		margin-left: auto;
+		flex-shrink: 0;
 	}
 
 	/* Inline search input — replaces label + actions when active */
@@ -112,7 +118,7 @@
 		padding: 0;
 		border: none;
 		border-radius: 0;
-		box-shadow: none;
+		box-shadow: none !important;
 		background: transparent;
 		background-color: transparent !important;
 	}
@@ -125,10 +131,22 @@
 	.agent-sessions-find-widget-container > .monaco-tree-type-filter .monaco-tree-type-filter-input > .monaco-findInput > .monaco-inputbox {
 		display: flex;
 		align-items: center;
+		min-height: 24px;
+		box-sizing: border-box;
 	}
 
 	.agent-sessions-find-widget-container > .monaco-tree-type-filter .monaco-tree-type-filter-input > .monaco-findInput > .controls {
 		top: 1.5px;
+	}
+
+	/* Match the find widget's close button size to the header toolbar action buttons (22x22) */
+	.agent-sessions-find-widget-container > .monaco-tree-type-filter > .monaco-tree-type-filter-actionbar .monaco-action-bar .action-label {
+		width: 22px;
+		height: 22px;
+		padding: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
 	}
 
 	/* Compact "New" button in header */
@@ -141,9 +159,9 @@
 		font-size: 12px;
 		line-height: 18px;
 		border-radius: var(--vscode-cornerRadius-medium);
-		border: 1px solid var(--vscode-button-border, color-mix(in srgb, var(--vscode-foreground) 20%, transparent));
-		background-color: transparent;
-		color: var(--vscode-foreground);
+		border: 1px solid var(--vscode-agentsNewSessionButton-border, var(--vscode-button-border, color-mix(in srgb, var(--vscode-foreground) 20%, transparent)));
+		background-color: var(--vscode-agentsNewSessionButton-background, transparent);
+		color: var(--vscode-agentsNewSessionButton-foreground, var(--vscode-foreground));
 		width: auto;
 		min-width: 0;
 		height: auto;
@@ -151,7 +169,7 @@
 	}
 
 	.agent-sessions-compact-new-button.monaco-button.default-colors:hover {
-		background-color: var(--vscode-toolbar-hoverBackground);
+		background-color: var(--vscode-agentsNewSessionButton-hoverBackground, var(--vscode-toolbar-hoverBackground));
 	}
 
 	.agent-sessions-compact-new-button.monaco-button:focus {
@@ -205,6 +223,17 @@
 		flex: 1;
 		overflow: hidden;
 	}
+}
+
+.agent-sessions-workbench.experimental-shell-gradient-background .agent-sessions-viewpane {
+	background: transparent !important;
+}
+
+.agent-sessions-workbench.experimental-shell-gradient-background .part.sidebar > .content .pane-body,
+.agent-sessions-workbench.experimental-shell-gradient-background .part.sidebar > .content .monaco-scrollable-element,
+.agent-sessions-workbench.experimental-shell-gradient-background .part.sidebar > .content .monaco-list,
+.agent-sessions-workbench.experimental-shell-gradient-background .part.sidebar > .content .monaco-list-rows {
+	background: transparent !important;
 }
 
 /* Sessions-app-specific overrides for the agent sessions viewer.

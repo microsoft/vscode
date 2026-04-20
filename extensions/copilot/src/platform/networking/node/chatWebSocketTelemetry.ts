@@ -64,7 +64,11 @@ export interface IChatWebSocketRequestSentTelemetryProperties extends IChatWebSo
 	statefulMarkerMatched: boolean;
 	previousResponseIdUnset: boolean;
 	hasCompactionData: boolean;
+	summarizedAtRoundIdSet: boolean;
+	summarizedAtRoundIdMatched: boolean;
+	compactionThreshold: number | undefined;
 	tokenCountMax: number;
+	modelMaxPromptTokens: number;
 	connectionDurationMs: number;
 	totalSentMessageCount: number;
 	totalReceivedMessageCount: number;
@@ -90,8 +94,12 @@ export interface IChatWebSocketRequestOutcomeTelemetryProperties extends IChatWe
 	statefulMarkerMatched: boolean;
 	previousResponseIdUnset: boolean;
 	hasCompactionData: boolean;
+	summarizedAtRoundIdSet: boolean;
+	summarizedAtRoundIdMatched: boolean;
+	compactionThreshold: number | undefined;
 	promptTokenCount: number;
 	tokenCountMax: number;
+	modelMaxPromptTokens: number;
 	connectionDurationMs: number;
 	requestDurationMs: number;
 	totalSentMessageCount: number;
@@ -306,7 +314,11 @@ export class ChatWebSocketTelemetrySender {
 				"statefulMarkerMatched": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the connection stateful marker matched the previous_response_id sent in the request", "isMeasurement": true },
 				"previousResponseIdUnset": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether previous_response_id was undefined in the request", "isMeasurement": true },
 				"hasCompactionData": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the request input contains compaction data", "isMeasurement": true },
+				"summarizedAtRoundIdSet": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether a summarized round ID was set in the request options", "isMeasurement": true },
+				"summarizedAtRoundIdMatched": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the summarized round ID matches the one stored on the connection", "isMeasurement": true },
+				"compactionThreshold": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Compaction threshold from context_management in the request body", "isMeasurement": true },
 				"tokenCountMax": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Maximum generated tokens", "isMeasurement": true },
+				"modelMaxPromptTokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Maximum prompt tokens for the model", "isMeasurement": true },
 				"totalSentMessageCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of messages sent over this connection", "isMeasurement": true },
 				"totalReceivedMessageCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of messages received over this connection", "isMeasurement": true },
 				"sentMessageCharacters": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Character count of this sent message payload", "isMeasurement": true },
@@ -328,7 +340,11 @@ export class ChatWebSocketTelemetrySender {
 			statefulMarkerMatched: properties.statefulMarkerMatched ? 1 : 0,
 			previousResponseIdUnset: properties.previousResponseIdUnset ? 1 : 0,
 			hasCompactionData: properties.hasCompactionData ? 1 : 0,
+			summarizedAtRoundIdSet: properties.summarizedAtRoundIdSet ? 1 : 0,
+			summarizedAtRoundIdMatched: properties.summarizedAtRoundIdMatched ? 1 : 0,
+			compactionThreshold: properties.compactionThreshold,
 			tokenCountMax: properties.tokenCountMax,
+			modelMaxPromptTokens: properties.modelMaxPromptTokens,
 			totalSentMessageCount: properties.totalSentMessageCount,
 			totalReceivedMessageCount: properties.totalReceivedMessageCount,
 			sentMessageCharacters: properties.sentMessageCharacters,
@@ -403,8 +419,12 @@ export class ChatWebSocketTelemetrySender {
 				"statefulMarkerMatched": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the connection stateful marker matched the previous_response_id sent in the request", "isMeasurement": true },
 				"previousResponseIdUnset": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether previous_response_id was undefined in the request", "isMeasurement": true },
 				"hasCompactionData": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the request input contains compaction data", "isMeasurement": true },
+				"summarizedAtRoundIdSet": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether a summarized round ID was set in the request options", "isMeasurement": true },
+				"summarizedAtRoundIdMatched": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Whether the summarized round ID matches the one stored on the connection", "isMeasurement": true },
+				"compactionThreshold": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Compaction threshold from context_management in the request body", "isMeasurement": true },
 				"promptTokenCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of prompt tokens, locally counted", "isMeasurement": true },
 				"tokenCountMax": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Maximum generated tokens", "isMeasurement": true },
+				"modelMaxPromptTokens": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Maximum prompt tokens for the model", "isMeasurement": true },
 				"totalSentMessageCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of messages sent over this connection", "isMeasurement": true },
 				"totalReceivedMessageCount": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Number of messages received over this connection", "isMeasurement": true },
 				"totalSentCharacters": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "comment": "Total characters sent over this connection", "isMeasurement": true },
@@ -438,8 +458,12 @@ export class ChatWebSocketTelemetrySender {
 			statefulMarkerMatched: properties.statefulMarkerMatched ? 1 : 0,
 			previousResponseIdUnset: properties.previousResponseIdUnset ? 1 : 0,
 			hasCompactionData: properties.hasCompactionData ? 1 : 0,
+			summarizedAtRoundIdSet: properties.summarizedAtRoundIdSet ? 1 : 0,
+			summarizedAtRoundIdMatched: properties.summarizedAtRoundIdMatched ? 1 : 0,
+			compactionThreshold: properties.compactionThreshold,
 			promptTokenCount: properties.promptTokenCount,
 			tokenCountMax: properties.tokenCountMax,
+			modelMaxPromptTokens: properties.modelMaxPromptTokens,
 			totalSentMessageCount: properties.totalSentMessageCount,
 			totalReceivedMessageCount: properties.totalReceivedMessageCount,
 			totalSentCharacters: properties.totalSentCharacters,

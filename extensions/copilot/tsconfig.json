@@ -11,18 +11,18 @@
 			"node",
 			"picomatch",
 			"sinon",
-			"tar",
-			"vscode"
+			"tar"
 		],
 		// Needed for tsx to run test files
 		"paths": {
-			"vscode": ["./src/util/common/test/shims/vscodeTypesShim.ts"]
+			"vscode": [
+				"./src/util/common/test/shims/vscodeTypesShim.ts"
+			]
 		}
 	},
 	"include": [
-		"vscodeTypes.ts",
-		"src",
-		"test",
+		"./src",
+		"./test",
 		".vscode/extensions/test-extension"
 	],
 	"exclude": [

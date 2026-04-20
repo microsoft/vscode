@@ -47,7 +47,6 @@ import { TerminalProfileService } from './terminalProfileService.js';
 import { TerminalService } from './terminalService.js';
 import { TerminalTelemetryContribution } from './terminalTelemetry.js';
 import { TerminalViewPane } from './terminalView.js';
-import { AgentHostTerminalContribution } from './agentHostTerminalContribution.js';
 import { AgentHostTerminalService, IAgentHostTerminalService } from './agentHostTerminalService.js';
 
 // Register services
@@ -66,7 +65,6 @@ registerSingleton(IAgentHostTerminalService, AgentHostTerminalService, Instantia
 registerWorkbenchContribution2(TerminalMainContribution.ID, TerminalMainContribution, WorkbenchPhase.BlockStartup);
 registerWorkbenchContribution2(RemoteTerminalBackendContribution.ID, RemoteTerminalBackendContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(TerminalTelemetryContribution.ID, TerminalTelemetryContribution, WorkbenchPhase.AfterRestored);
-registerWorkbenchContribution2(AgentHostTerminalContribution.ID, AgentHostTerminalContribution, WorkbenchPhase.AfterRestored);
 
 // Register configurations
 registerTerminalPlatformConfiguration();

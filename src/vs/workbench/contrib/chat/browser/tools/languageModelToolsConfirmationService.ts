@@ -722,6 +722,12 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 						continue;
 					}
 
+					// Skip tools with no active approvals, no children, and no approval capabilities.
+					// Tools that can request pre/post approval should always remain visible.
+					if (checked === false && toolChildren.length === 0 && !tool.canRequestPreApproval && !tool.canRequestPostApproval) {
+						continue;
+					}
+
 					serverChildren.push({
 						type: 'tool',
 						toolId: tool.id,
@@ -860,6 +866,12 @@ export class LanguageModelToolsConfirmationService extends Disposable implements
 						// No approval capabilities - shouldn't happen but handle it
 						checked = false;
 					}
+				}
+
+				// Skip tools with no active approvals, no children, and no approval capabilities.
+				// Tools that can request pre/post approval should always remain visible.
+				if (checked === false && toolChildren.length === 0 && !tool.canRequestPreApproval && !tool.canRequestPostApproval && !this._contributions.has(tool.id)) {
+					continue;
 				}
 
 				treeItems.push({

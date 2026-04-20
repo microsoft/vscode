@@ -9,25 +9,19 @@ import { autorun, observableFromEvent, observableValue } from '../../../../base/
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IActiveCodeEditor, isCodeEditor, isCompositeEditor, isDiffEditor } from '../../../../editor/browser/editorBrowser.js';
-import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
-import { localize, localize2 } from '../../../../nls.js';
-import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { ContextKeyExpr, IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
-import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
-import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
+import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { observableConfigValue } from '../../../../platform/observable/common/platformObservableUtils.js';
-import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IEditorService } from '../../../services/editor/common/editorService.js';
 import { IChatAgentService } from '../../chat/common/participants/chatAgents.js';
-import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
 import { ModifiedFileEntryState } from '../../chat/common/editing/chatEditingService.js';
 import { IChatService } from '../../chat/common/chatService/chatService.js';
 import { ChatAgentLocation } from '../../chat/common/constants.js';
 import { ILanguageModelToolsService, IToolData, ToolDataSource } from '../../chat/common/tools/languageModelToolsService.js';
 import { CTX_INLINE_CHAT_HAS_AGENT2, CTX_INLINE_CHAT_HAS_NOTEBOOK_AGENT, CTX_INLINE_CHAT_POSSIBLE, InlineChatConfigKeys } from '../common/inlineChat.js';
-import { continueInPanelChat, IInlineChatSession2, IInlineChatSessionService, InlineChatSessionTerminationState, rephraseInlineChat } from './inlineChatSessionService.js';
+import { IInlineChatSession2, IInlineChatSessionService, InlineChatSessionTerminationState } from './inlineChatSessionService.js';
 
 export class InlineChatError extends Error {
 	static readonly code = 'InlineChatError';
@@ -235,9 +229,6 @@ export class InlineChatEnabler {
 export class InlineChatEscapeToolContribution extends Disposable {
 
 	static readonly Id = 'inlineChat.escapeTool';
-
-	static readonly DONT_ASK_AGAIN_KEY = 'inlineChat.dontAskMoveToPanelChat';
-
 	static readonly #data: IToolData = {
 		id: 'inline_chat_exit',
 		source: ToolDataSource.Internal,
@@ -261,13 +252,7 @@ export class InlineChatEscapeToolContribution extends Disposable {
 	constructor(
 		@ILanguageModelToolsService lmTools: ILanguageModelToolsService,
 		@IInlineChatSessionService inlineChatSessionService: IInlineChatSessionService,
-		@IDialogService dialogService: IDialogService,
-		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IChatService chatService: IChatService,
 		@ILogService logService: ILogService,
-		@IStorageService storageService: IStorageService,
-		@IInstantiationService instaService: IInstantiationService,
 	) {
 
 		super();
@@ -295,66 +280,13 @@ export class InlineChatEscapeToolContribution extends Disposable {
 					return { content: [{ kind: 'text', value: 'Cancel' }], toolResultMessage: localize('tool.cancel', "Cancel") };
 				}
 
-				if (configurationService.getValue<string>(InlineChatConfigKeys.RenderMode) === 'hover') {
+				const response = typeof invocation.parameters?.response === 'string' && invocation.parameters.response.trim().length > 0
+					? invocation.parameters.response.trim()
+					: localize('terminated.message', "Inline chat is designed for making single-file code changes. Continue your request in the Chat view or rephrase it for inline chat.");
 
-					const response = typeof invocation.parameters?.response === 'string' && invocation.parameters.response.trim().length > 0
-						? invocation.parameters.response.trim()
-						: localize('terminated.message', "Inline chat is designed for making single-file code changes. Continue your request in the Chat view or rephrase it for inline chat.");
-
-					session.setTerminationState(response);
-					return { content: [{ kind: 'text', value: 'Success' }] };
-				}
-
-				const dontAskAgain = storageService.getBoolean(InlineChatEscapeToolContribution.DONT_ASK_AGAIN_KEY, StorageScope.PROFILE);
-
-				let result: { confirmed: boolean; checkboxChecked?: boolean };
-				if (dontAskAgain !== undefined) {
-					// Use previously stored user preference: true = 'Continue in Chat view', false = 'Rephrase' (Cancel)
-					result = { confirmed: dontAskAgain, checkboxChecked: false };
-				} else {
-					result = await dialogService.confirm({
-						type: 'question',
-						title: localize('confirm.title', "Do you want to continue in Chat view?"),
-						message: localize('confirm', "Do you want to continue in Chat view?"),
-						detail: localize('confirm.detail', "Inline chat is designed for making single-file code changes. Continue your request in the Chat view or rephrase it for inline chat."),
-						primaryButton: localize('confirm.yes', "Continue in Chat view"),
-						cancelButton: localize('confirm.cancel', "Cancel"),
-						checkbox: { label: localize('chat.remove.confirmation.checkbox', "Don't ask again"), checked: false },
-					});
-				}
-
-				const editor = codeEditorService.getFocusedCodeEditor();
-
-				if (!editor || result.confirmed) {
-					logService.trace('InlineChatEscapeToolContribution: moving session to panel chat');
-					await instaService.invokeFunction(continueInPanelChat, session);
-
-				} else {
-					logService.trace('InlineChatEscapeToolContribution: rephrase prompt');
-					instaService.invokeFunction(rephraseInlineChat, session);
-				}
-
-				if (result.checkboxChecked) {
-					storageService.store(InlineChatEscapeToolContribution.DONT_ASK_AGAIN_KEY, result.confirmed, StorageScope.PROFILE, StorageTarget.USER);
-					logService.trace('InlineChatEscapeToolContribution: stored don\'t ask again preference');
-				}
-
+				session.setTerminationState(response);
 				return { content: [{ kind: 'text', value: 'Success' }] };
 			}
 		}));
 	}
 }
-
-registerAction2(class ResetMoveToPanelChatChoice extends Action2 {
-	constructor() {
-		super({
-			id: 'inlineChat.resetMoveToPanelChatChoice',
-			precondition: ContextKeyExpr.and(ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
-			title: localize2('resetChoice.label', "Reset Choice for 'Move Inline Chat to Panel Chat'"),
-			f1: true
-		});
-	}
-	run(accessor: ServicesAccessor) {
-		accessor.get(IStorageService).remove(InlineChatEscapeToolContribution.DONT_ASK_AGAIN_KEY, StorageScope.PROFILE);
-	}
-});

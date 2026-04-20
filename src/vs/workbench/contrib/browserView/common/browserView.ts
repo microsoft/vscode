@@ -6,13 +6,13 @@
 import { createDecorator } from '../../../../platform/instantiation/common/instantiation.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
+import { URI } from '../../../../base/common/uri.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { CDPEvent, CDPRequest, CDPResponse } from '../../../../platform/browserView/common/cdp/types.js';
 import { IDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { localize } from '../../../../nls.js';
-import { IElementData } from '../../../../platform/browserElements/common/browserElements.js';
 import { IPlaywrightService } from '../../../../platform/browserView/common/playwrightService.js';
 import {
 	IBrowserViewBounds,
@@ -32,6 +32,7 @@ import {
 	IBrowserViewFindInPageResult,
 	IBrowserViewVisibilityEvent,
 	IBrowserViewCertificateError,
+	IElementData,
 	browserZoomDefaultIndex,
 	browserZoomFactors
 } from '../../../../platform/browserView/common/browserView.js';
@@ -40,6 +41,7 @@ import { ITelemetryService } from '../../../../platform/telemetry/common/telemet
 import { isLocalhostAuthority } from '../../../../platform/url/common/trustedDomains.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IWorkspaceTrustManagementService } from '../../../../platform/workspace/common/workspaceTrust.js';
+import { IAgentNetworkFilterService } from '../../../../platform/networkFilter/common/networkFilterService.js';
 import { IBrowserZoomService } from './browserZoomService.js';
 
 /** Extracts the host from a URL string for zoom tracking purposes. */
@@ -201,7 +203,7 @@ export interface IBrowserViewModel extends IDisposable {
 	reload(hard?: boolean): Promise<void>;
 	toggleDevTools(): Promise<void>;
 	captureScreenshot(options?: IBrowserViewCaptureScreenshotOptions): Promise<VSBuffer>;
-	focus(): Promise<void>;
+	focus(force?: boolean): Promise<void>;
 	findInPage(text: string, options?: IBrowserViewFindInPageOptions): Promise<void>;
 	stopFindInPage(keepSelection?: boolean): Promise<void>;
 	getSelectedText(): Promise<string>;
@@ -256,6 +258,7 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		@IDialogService private readonly dialogService: IDialogService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IBrowserZoomService private readonly zoomService: IBrowserZoomService,
+		@IAgentNetworkFilterService private readonly agentNetworkFilterService: IAgentNetworkFilterService,
 	) {
 		super();
 	}
@@ -489,8 +492,8 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 		return result;
 	}
 
-	async focus(): Promise<void> {
-		return this.browserViewService.focus(this.id);
+	async focus(force?: boolean): Promise<void> {
+		return this.browserViewService.focus(this.id, force);
 	}
 
 	async findInPage(text: string, options?: IBrowserViewFindInPageOptions): Promise<void> {
@@ -576,6 +579,20 @@ export class BrowserViewModel extends Disposable implements IBrowserViewModel {
 
 	async setSharedWithAgent(shared: boolean): Promise<void> {
 		if (shared) {
+			// Block sharing when the current page URL is denied by network policy.
+			if (this._url) {
+				try {
+					const uri = URI.parse(this._url);
+					if (!this.agentNetworkFilterService.isUriAllowed(uri)) {
+						await this.dialogService.info(
+							localize('browserView.shareBlocked.title', "Cannot Share with Agent"),
+							this.agentNetworkFilterService.formatError(uri),
+						);
+						return;
+					}
+				} catch { }
+			}
+
 			const storedChoice = this.storageService.getBoolean(BrowserViewModel.SHARE_DONT_ASK_KEY, StorageScope.PROFILE);
 
 			if (!storedChoice) {

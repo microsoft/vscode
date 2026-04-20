@@ -2,11 +2,16 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { addDisposableListener, Dimension } from '../../../../base/browser/dom.js';
+import { addDisposableListener, Dimension, $ } from '../../../../base/browser/dom.js';
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
-import { toDisposable } from '../../../../base/common/lifecycle.js';
+import { renderMarkdown, renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
+import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { ActionRunner, IAction } from '../../../../base/common/actions.js';
+import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
+import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
+import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { assertType } from '../../../../base/common/types.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
 import { StableEditorBottomScrollState } from '../../../../editor/browser/stableEditorScroll.js';
@@ -19,6 +24,8 @@ import { localize } from '../../../../nls.js';
 import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
+import { MenuId } from '../../../../platform/actions/common/actions.js';
 import { IChatWidgetViewOptions } from '../../chat/browser/chat.js';
 import { IChatWidgetLocationOptions } from '../../chat/browser/widget/chatWidget.js';
 import { ChatMode } from '../../chat/common/chatModes.js';
@@ -49,6 +56,13 @@ export class InlineChatZoneWidget extends ZoneWidget {
 
 	readonly #logService: ILogService;
 
+	readonly #terminationCard: HTMLElement;
+	readonly #terminationMarkdownContainer: HTMLElement;
+	readonly #terminationMarkdownMessage: HTMLElement;
+	readonly #terminationMarkdownScrollable: DomScrollableElement;
+	readonly #terminationToolbar: HTMLElement;
+	readonly #terminationStore = new DisposableStore();
+
 	constructor(
 		location: IChatWidgetLocationOptions,
 		options: IChatWidgetViewOptions | undefined,
@@ -63,6 +77,27 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		this.notebookEditor = editors.notebookEditor;
 
 		this.#logService = logService;
+
+		// Build termination card DOM
+		this.#terminationCard = $('div.inline-chat-terminated-card.hidden');
+
+		// Markdown scrollable area
+		this.#terminationMarkdownContainer = $('div.markdown-scroll-container');
+		this.#terminationMarkdownMessage = $('div.markdown-message');
+		this.#terminationMarkdownContainer.appendChild(this.#terminationMarkdownMessage);
+		this.#terminationMarkdownScrollable = this._disposables.add(new DomScrollableElement(this.#terminationMarkdownContainer, {
+			consumeMouseWheelIfScrollbarIsNeeded: true,
+			horizontal: ScrollbarVisibility.Hidden,
+			vertical: ScrollbarVisibility.Auto,
+		}));
+		this.#terminationCard.appendChild(this.#terminationMarkdownScrollable.getDomNode());
+
+		// Toolbar row
+		const contentRow = $('div.content-row');
+		this.#terminationToolbar = $('div.toolbar');
+		contentRow.appendChild(this.#terminationToolbar);
+		this.#terminationCard.appendChild(contentRow);
+		this._disposables.add(this.#terminationStore);
 
 		this.#ctxCursorPosition = CTX_INLINE_CHAT_OUTER_CURSOR_POSITION.bindTo(contextKeyService);
 
@@ -159,6 +194,77 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		container.style.setProperty('--vscode-inlineChat-background', 'var(--vscode-editor-background)');
 
 		container.appendChild(this.widget.domNode);
+		container.appendChild(this.#terminationCard);
+	}
+
+	showTerminationCard(message: string | IMarkdownString, instaService: IInstantiationService): void {
+		this.#terminationStore.clear();
+
+		const markdownMessage = typeof message === 'string'
+			? new MarkdownString(message, { supportThemeIcons: true })
+			: message;
+		const text = renderAsPlaintext(typeof message === 'string' ? new MarkdownString(message) : message);
+
+		// Markdown rendering with $(info) icon prefix in scrollable area
+		this.#terminationMarkdownMessage.replaceChildren();
+		const rendered = this.#terminationStore.add(renderMarkdown(markdownMessage));
+		this.#terminationMarkdownMessage.appendChild(rendered.element);
+		this.#terminationMarkdownScrollable.getDomNode().classList.remove('hidden');
+		this.#terminationMarkdownScrollable.scanDomNode();
+
+		// Toolbar - focus the owning editor before running any action so that
+		// EditorAction2-based actions resolve the correct editor instance.
+		const editor = this.editor;
+		const actionRunner = this.#terminationStore.add(new class extends ActionRunner {
+			protected override async runAction(action: IAction, context?: unknown): Promise<void> {
+				editor.focus();
+				return super.runAction(action, context);
+			}
+		});
+		this.#terminationToolbar.replaceChildren();
+		this.#terminationStore.add(instaService.createInstance(MenuWorkbenchToolBar, this.#terminationToolbar, MenuId.ChatEditorInlineExecute, {
+			telemetrySource: 'inlineChatZone.terminationToolbar',
+			hiddenItemStrategy: HiddenItemStrategy.Ignore,
+			actionRunner,
+			toolbarOptions: {
+				primaryGroup: () => true,
+				useSeparatorsInPrimaryActions: true
+			},
+			menuOptions: { renderShortTitle: true },
+		}));
+
+		// Flip visibility
+		this.widget.domNode.style.display = 'none';
+		this.#terminationCard.classList.remove('hidden');
+
+		// Announce for screen readers
+		aria.status(text);
+
+		// Relayout
+		if (this.position) {
+			const revealFn = this.#createZoneAndScrollRestoreFn(this.position);
+			const height = this.#computeHeight();
+			this._relayout(height.linesValue);
+			revealFn();
+		}
+	}
+
+	hideTerminationCard(): void {
+		this.#terminationStore.clear();
+		this.#terminationCard.classList.add('hidden');
+		this.widget.domNode.style.display = '';
+
+		// Relayout
+		if (this.position) {
+			const revealFn = this.#createZoneAndScrollRestoreFn(this.position);
+			const height = this.#computeHeight();
+			this._relayout(height.linesValue);
+			revealFn();
+		}
+	}
+
+	get isShowingTerminationCard(): boolean {
+		return !this.#terminationCard.classList.contains('hidden');
 	}
 
 	protected override _doLayout(heightInPixel: number): void {
@@ -171,13 +277,28 @@ export class InlineChatZoneWidget extends ZoneWidget {
 
 		this.#dimension = new Dimension(width, heightInPixel);
 		this.widget.layout(this.#dimension);
+
+		if (this.isShowingTerminationCard) {
+			// Set explicit maxHeight on the scrollable and its container so DomScrollableElement
+			// knows it needs to show a scrollbar (same pattern as the overlay widget)
+			const maxHeight = Math.max(50, heightInPixel - 40); // reserve space for toolbar row
+			this.#terminationMarkdownScrollable.getDomNode().style.maxHeight = `${maxHeight}px`;
+			this.#terminationMarkdownContainer.style.maxHeight = `${maxHeight}px`;
+			this.#terminationMarkdownScrollable.scanDomNode();
+		}
 	}
 
 	#computeHeight(): { linesValue: number; pixelsValue: number } {
-		const chatContentHeight = this.widget.contentHeight;
 		const editorHeight = this.notebookEditor?.getLayoutInfo().height ?? this.editor.getLayoutInfo().height;
 
-		const contentHeight = this._decoratingElementsHeight() + Math.min(chatContentHeight, Math.max(this.widget.minHeight, editorHeight * 0.42));
+		let innerHeight: number;
+		if (this.isShowingTerminationCard) {
+			innerHeight = this.#terminationCard.offsetHeight || 80; // fallback before first layout
+		} else {
+			innerHeight = this.widget.contentHeight;
+		}
+
+		const contentHeight = this._decoratingElementsHeight() + Math.min(innerHeight, Math.max(this.widget.minHeight, editorHeight * 0.42));
 		const heightInLines = contentHeight / this.editor.getOption(EditorOption.lineHeight);
 		return { linesValue: heightInLines, pixelsValue: contentHeight };
 	}
@@ -274,6 +395,9 @@ export class InlineChatZoneWidget extends ZoneWidget {
 	override hide(): void {
 		const scrollState = StableEditorBottomScrollState.capture(this.editor);
 		this.#ctxCursorPosition.reset();
+		this.#terminationStore.clear();
+		this.#terminationCard.classList.add('hidden');
+		this.widget.domNode.style.display = '';
 		this.widget.chatWidget.setVisible(false);
 		super.hide();
 		aria.status(localize('inlineChatClosed', 'Closed inline chat widget'));
