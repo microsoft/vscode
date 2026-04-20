@@ -47,12 +47,18 @@ function createMockMode(overrides: Partial<IChatMode> & { id: string; kind: Chat
 	} as IChatMode;
 }
 
-// Register once at module level so disposables are created before suite tracking begins
-registerChatExecuteActions();
-
 suite('GetHandoffsAction', () => {
 	const store = new DisposableStore();
 	let instantiationService: TestInstantiationService;
+
+	let chatExecuteActions: DisposableStore;
+	suiteSetup(() => {
+		chatExecuteActions = registerChatExecuteActions();
+	});
+
+	suiteTeardown(() => {
+		chatExecuteActions.dispose();
+	});
 
 	setup(() => {
 		instantiationService = store.add(new TestInstantiationService());
@@ -124,6 +130,15 @@ suite('GetHandoffsAction', () => {
 suite('ExecuteHandoffAction', () => {
 	const store = new DisposableStore();
 	let instantiationService: TestInstantiationService;
+
+	let chatExecuteActions: DisposableStore;
+	suiteSetup(() => {
+		chatExecuteActions = registerChatExecuteActions();
+	});
+
+	suiteTeardown(() => {
+		chatExecuteActions.dispose();
+	});
 
 	setup(() => {
 		instantiationService = store.add(new TestInstantiationService());

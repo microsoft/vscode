@@ -637,6 +637,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/agentHost",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/aiCustomizationTreeView",
 			"project": "vscode-sessions"
 		},
@@ -682,10 +686,6 @@
 		},
 		{
 			"name": "vs/sessions/contrib/logs",
-			"project": "vscode-sessions"
-		},
-		{
-			"name": "vs/sessions/contrib/localAgentHost",
 			"project": "vscode-sessions"
 		},
 		{

@@ -53,20 +53,7 @@ export const DragElementToolData: IToolData = {
 			},
 		},
 		required: ['pageId', 'fromElement', 'toElement'],
-		allOf: [
-			{
-				oneOf: [
-					{ required: ['fromRef'] },
-					{ required: ['fromSelector'] },
-				]
-			},
-			{
-				oneOf: [
-					{ required: ['toRef'] },
-					{ required: ['toSelector'] },
-				]
-			}
-		]
+		$comment: 'One of "fromRef" or "fromSelector" is required, and one of "toRef" or "toSelector" is required.',
 	},
 };
 

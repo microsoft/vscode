@@ -4,10 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, Disposable } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Emitter } from '../../../../../base/common/event.js';
-import { observableValue } from '../../../../../base/common/observable.js';
+import { constObservable, observableValue } from '../../../../../base/common/observable.js';
+import { IAgentHostTerminalService } from '../../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
+import { ITerminalProfileService } from '../../../../../workbench/contrib/terminal/common/terminal.js';
+import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -271,6 +274,21 @@ suite('SessionsTerminalContribution', () => {
 		});
 
 		instantiationService.stub(IPathService, new TestPathService(HOME_DIR));
+
+		instantiationService.stub(IAgentHostTerminalService, new class extends mock<IAgentHostTerminalService>() {
+			override readonly profiles = constObservable<never[]>([]);
+			override getProfileForConnection() { return undefined; }
+			override setDefaultCwd(): void { /* noop */ }
+			override async createTerminalForEntry() { return undefined; }
+		});
+
+		instantiationService.stub(ITerminalProfileService, new class extends mock<ITerminalProfileService>() {
+			override overrideDefaultProfile() { return Disposable.None; }
+		});
+
+		instantiationService.stub(ISessionsProvidersService, new class extends mock<ISessionsProvidersService>() {
+			override getProvider() { return undefined; }
+		});
 
 		instantiationService.stub(IContextKeyService, store.add(new MockContextKeyService()));
 
@@ -702,14 +720,14 @@ suite('SessionsTerminalContribution', () => {
 
 	// --- Remote agent host sessions ---
 
-	test('falls back to home directory for a background session with a remote agent host repository', async () => {
+	test('uses the unwrapped repository path for a background session with a remote agent host repository', async () => {
 		const remoteRepoUri = toAgentHostUri(URI.file('/Users/user/repo'), 'my-server');
 		const session = makeAgentSession({ repository: remoteRepoUri, providerType: AgentSessionProviders.Background });
 		activeSessionObs.set(session, undefined);
 		await tick();
 
-		assert.strictEqual(createdTerminals.length, 1, 'should create a terminal at the home directory');
-		assert.strictEqual(createdTerminals[0].cwd.fsPath, HOME_DIR.fsPath);
+		assert.strictEqual(createdTerminals.length, 1, 'should create a terminal at the unwrapped repository path');
+		assert.strictEqual(createdTerminals[0].cwd.fsPath, URI.file('/Users/user/repo').fsPath);
 	});
 });
 

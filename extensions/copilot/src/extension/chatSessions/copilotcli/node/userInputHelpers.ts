@@ -28,6 +28,7 @@ export interface IQuestionAnswer {
 export interface IQuestion {
 	readonly header: string;
 	readonly question: string;
+	readonly message?: string;
 	readonly multiSelect?: boolean;
 	readonly options?: IQuestionOption[];
 	readonly allowFreeformInput?: boolean;

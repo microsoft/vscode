@@ -205,6 +205,21 @@ export class ScriptedMockAgent implements IAgent {
 	constructor() {
 		// Seed the pre-existing session so it appears in listSessions()
 		this._sessions.set(AgentSession.id(PRE_EXISTING_SESSION_URI), PRE_EXISTING_SESSION_URI);
+
+		// Allow integration tests to seed additional pre-existing sessions across
+		// server restarts via env var. The value is a comma-separated list of
+		// session URIs (e.g. `mock://pre-1,mock://pre-2`).
+		const seeded = process.env['VSCODE_AGENT_HOST_MOCK_SEED_SESSIONS'];
+		if (seeded) {
+			for (const raw of seeded.split(',')) {
+				const trimmed = raw.trim();
+				if (!trimmed) {
+					continue;
+				}
+				const uri = URI.parse(trimmed);
+				this._sessions.set(AgentSession.id(uri), uri);
+			}
+		}
 	}
 
 	getDescriptor(): IAgentDescriptor {
@@ -440,6 +455,119 @@ export class ScriptedMockAgent implements IAgent {
 				break;
 			}
 
+			case 'client-tool': {
+				// Fires tool_start with toolClientId to simulate a client-provided tool.
+				// The server waits for the client to dispatch toolCallComplete.
+				(async () => {
+					await timeout(10);
+					this._onDidSessionProgress.fire({
+						type: 'tool_start',
+						session,
+						toolCallId: 'tc-client-1',
+						toolName: 'runTests',
+						displayName: 'Run Tests',
+						invocationMessage: 'Running tests...',
+						toolClientId: 'test-client-tool',
+					});
+				})();
+				// The tool stays pending — the client is responsible for dispatching toolCallComplete.
+				// Once complete, fire a response delta and idle.
+				this._pendingPermissions.set('tc-client-1', () => {
+					this._fireSequence(session, [
+						{ type: 'delta', session, messageId: 'msg-ct', content: 'Client tool done.' },
+						{ type: 'idle', session },
+					]);
+				});
+				break;
+			}
+
+			case 'client-tool-with-permission': {
+				// Fires tool_start with toolClientId followed by a permission request.
+				(async () => {
+					await timeout(10);
+					this._onDidSessionProgress.fire({
+						type: 'tool_start',
+						session,
+						toolCallId: 'tc-client-perm-1',
+						toolName: 'runTests',
+						displayName: 'Run Tests',
+						invocationMessage: 'Running tests...',
+						toolClientId: 'test-client-tool',
+					});
+					await timeout(5);
+					this._onDidSessionProgress.fire({
+						type: 'tool_ready',
+						session,
+						toolCallId: 'tc-client-perm-1',
+						invocationMessage: 'Run tests on project',
+						confirmationTitle: 'Allow Run Tests?',
+					});
+				})();
+				this._pendingPermissions.set('tc-client-perm-1', (approved) => {
+					if (approved) {
+						this._fireSequence(session, [
+							{ type: 'tool_complete', session, toolCallId: 'tc-client-perm-1', result: { pastTenseMessage: 'Ran tests', content: [{ type: ToolResultContentType.Text, text: 'all passed' }], success: true } },
+							{ type: 'delta', session, messageId: 'msg-cp', content: 'Permission granted, tool done.' },
+							{ type: 'idle', session },
+						]);
+					}
+				});
+				break;
+			}
+
+			case 'subagent': {
+				// Spawns a subagent: parent `task` tool starts (emits start +
+				// auto-ready as a pair), then `subagent_started` creates the
+				// child session, then an inner tool runs in the child session
+				// (routed via `parentToolCallId`).
+				this._fireSequence(session, [
+					{
+						type: 'tool_start',
+						session,
+						toolCallId: 'tc-task-1',
+						toolName: 'task',
+						displayName: 'Task',
+						invocationMessage: 'Spawning subagent',
+						toolKind: 'subagent',
+						subagentAgentName: 'explore',
+						subagentDescription: 'Explore',
+					},
+					{
+						type: 'subagent_started',
+						session,
+						toolCallId: 'tc-task-1',
+						agentName: 'explore',
+						agentDisplayName: 'Explore',
+						agentDescription: 'Exploration helper',
+					},
+					{
+						type: 'tool_start',
+						session,
+						toolCallId: 'tc-inner-1',
+						toolName: 'echo_tool',
+						displayName: 'Echo Tool',
+						invocationMessage: 'Inner tool running...',
+						parentToolCallId: 'tc-task-1',
+					},
+					{
+						type: 'tool_complete',
+						session,
+						toolCallId: 'tc-inner-1',
+						parentToolCallId: 'tc-task-1',
+						result: { pastTenseMessage: 'Ran inner tool', content: [{ type: ToolResultContentType.Text, text: 'inner-ok' }], success: true },
+					},
+					{
+						type: 'tool_complete',
+						session,
+						toolCallId: 'tc-task-1',
+						result: { pastTenseMessage: 'Subagent done', content: [{ type: ToolResultContentType.Text, text: 'task-ok' }], success: true },
+					},
+					{ type: 'delta', session, messageId: 'msg-sa', content: 'Subagent finished.' },
+					{ type: 'idle', session },
+				]);
+				break;
+			}
+
 			default:
 				this._fireSequence(session, [
 					{ type: 'delta', session, messageId: 'msg-1', content: 'Unknown prompt: ' + prompt },
@@ -468,7 +596,20 @@ export class ScriptedMockAgent implements IAgent {
 
 	setClientTools(): void { }
 
-	onClientToolCallComplete(): void { }
+	onClientToolCallComplete(session: URI, toolCallId: string, result: IToolCallResult): void {
+		// Fire tool_complete and resolve any pending callback.
+		this._onDidSessionProgress.fire({
+			type: 'tool_complete',
+			session,
+			toolCallId,
+			result,
+		});
+		const callback = this._pendingPermissions.get(toolCallId);
+		if (callback) {
+			this._pendingPermissions.delete(toolCallId);
+			callback(true);
+		}
+	}
 
 	async getSessionMessages(session: URI): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent)[]> {
 		if (session.toString() === PRE_EXISTING_SESSION_URI.toString()) {

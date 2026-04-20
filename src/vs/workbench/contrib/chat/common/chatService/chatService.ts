@@ -132,6 +132,8 @@ export interface IChatContentReference {
 		status?: { description: string; kind: ChatResponseReferencePartStatusKind };
 		diffMeta?: { added: number; removed: number };
 		originalUri?: URI;
+		/** Overrides the reference URI when opening the modified side of a diff. */
+		modifiedUri?: URI;
 		isDeletion?: boolean;
 	};
 	kind: 'reference';
@@ -385,6 +387,7 @@ export interface IChatQuestion {
 	allowFreeformInput?: boolean;
 	required?: boolean;
 	validation?: IChatQuestionValidation;
+	detailedMessage?: string | IMarkdownString;
 }
 
 /** Answer shape for a single-select question. */
@@ -981,6 +984,16 @@ export interface IChatModifiedFilesConfirmationData {
 	readonly modifiedFiles: readonly {
 		readonly uri: UriComponents;
 		readonly originalUri?: UriComponents;
+		/**
+		 * Optional URI to read the modified (after) content from for the diff
+		 * view. When absent, {@link uri} is used as the modified side.
+		 */
+		readonly modifiedContentUri?: UriComponents;
+		/**
+		 * Optional URI to read the original (before) content from for the diff
+		 * view. When absent, {@link originalUri} is used as the original side.
+		 */
+		readonly originalContentUri?: UriComponents;
 		readonly insertions?: number;
 		readonly deletions?: number;
 		readonly title?: string;
@@ -1003,6 +1016,49 @@ export interface IChatMcpServersStartingSerialized {
 
 export interface IChatDisabledClaudeHooksPart {
 	readonly kind: 'disabledClaudeHooks';
+}
+
+/** A single approval option shown in the plan review dropdown button. */
+export interface IChatPlanApprovalAction {
+	label: string;
+	description?: string;
+	default?: boolean;
+	/** When set to 'autopilot', a confirmation dialog is shown before proceeding. */
+	permissionLevel?: 'autopilot';
+}
+
+/** The result of reviewing a plan. */
+export interface IChatPlanReviewResult {
+	action?: string;
+	rejected: boolean;
+	feedback?: string;
+}
+
+/**
+ * A plan review widget. Presents a title, markdown plan content, an optional
+ * link to edit the backing plan file, a dropdown of approval actions, a reject
+ * button and an optional feedback textarea.
+ */
+export interface IChatPlanReview {
+	kind: 'planReview';
+	/** Title to display in the widget header. */
+	title: string;
+	/** Markdown content rendered in the body (plan summary or contents). */
+	content: string;
+	/** Selectable approval actions. Displayed as a dropdown primary button. */
+	actions: IChatPlanApprovalAction[];
+	/** Whether to show the additional feedback textarea. */
+	canProvideFeedback: boolean;
+	/** Optional URI to the underlying plan file. An Edit button opens it. */
+	planUri?: UriComponents;
+	/** Unique identifier for resolving the review back to the extension. */
+	resolveId?: string;
+	/** Stored result once the user has responded. */
+	data?: IChatPlanReviewResult;
+	/** Whether the widget has been responded to. */
+	isUsed?: boolean;
+	/** Source attribution. */
+	source?: ToolDataSource;
 }
 
 export class ChatMcpServersStarting implements IChatMcpServersStarting {
@@ -1056,6 +1112,7 @@ export type IChatProgress =
 	| IChatResponseCodeblockUriPart
 	| IChatConfirmation
 	| IChatQuestionCarousel
+	| IChatPlanReview
 	| IChatClearToPreviousToolInvocation
 	| IChatToolInvocation
 	| IChatToolInvocationSerialized

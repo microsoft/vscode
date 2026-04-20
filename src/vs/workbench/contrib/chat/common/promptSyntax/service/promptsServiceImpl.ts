@@ -81,6 +81,13 @@ export class SkillNameMismatchError extends Error {
 	}
 }
 
+type PromptFileProviderEntry = {
+	extension: IExtensionDescription;
+	type: PromptsType;
+	onDidChangePromptFiles?: Event<void>;
+	providePromptFiles: (context: IPromptFileContext, token: CancellationToken) => Promise<IPromptFileResource[] | undefined>;
+};
+
 /**
  * Provides prompt services.
  */
@@ -148,10 +155,11 @@ export class PromptsService extends Disposable implements IPromptsService {
 	};
 
 	/**
-	 * Context keys referenced by contributed file `when` clauses.
+	 * Context keys referenced by contributed and provider-supplied `when` clauses.
 	 */
 	private readonly _contributedWhenKeys = new Set<string>();
 	private readonly _contributedWhenClauses = new Map<string, string>();
+	private readonly _providerWhenClauses = new Map<PromptFileProviderEntry, readonly string[]>();
 	private readonly _onDidContributedWhenChange = this._register(new Emitter<void>());
 	private readonly _onDidChangeInstructions = this._register(new Emitter<void>());
 	private readonly _onDidPluginPromptFilesChange = this._register(new Emitter<void>());
@@ -391,12 +399,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 	 * Registry of prompt file provider instances (custom agents, instructions, prompt files).
 	 * Extensions can register providers via the proposed API.
 	 */
-	private readonly promptFileProviders: Array<{
-		extension: IExtensionDescription;
-		type: PromptsType;
-		onDidChangePromptFiles?: Event<void>;
-		providePromptFiles: (context: IPromptFileContext, token: CancellationToken) => Promise<IPromptFileResource[] | undefined>;
-	}> = [];
+	private readonly promptFileProviders: PromptFileProviderEntry[] = [];
 
 	/**
 	 * Registers a prompt file provider (CustomAgentProvider, InstructionsProvider, or PromptFileProvider).
@@ -428,6 +431,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 				const index = this.promptFileProviders.findIndex((p) => p === providerEntry);
 				if (index >= 0) {
 					this.promptFileProviders.splice(index, 1);
+					this._providerWhenClauses.delete(providerEntry);
+					this._updateContributedWhenKeys();
 					this.invalidatePromptFileCache(type);
 				}
 			}
@@ -472,6 +477,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 		for (const providerEntry of providers) {
 			try {
 				const files = await providerEntry.providePromptFiles({}, token);
+				this._providerWhenClauses.set(providerEntry, files?.flatMap(file => file.when ? [file.when] : []) ?? []);
+				this._updateContributedWhenKeys();
 				if (!files || token.isCancellationRequested) {
 					continue;
 				}
@@ -486,6 +493,7 @@ export class PromptsService extends Disposable implements IPromptsService {
 						source: PromptFileSource.ExtensionAPI,
 						name: file.name,
 						description: file.description,
+						when: file.when,
 						sessionTypes: file.sessionTypes,
 					} satisfies IExtensionPromptPath);
 				}
@@ -504,48 +512,50 @@ export class PromptsService extends Disposable implements IPromptsService {
 
 
 	public async listPromptFilesForStorage(type: PromptsType, storage: PromptsStorage, token: CancellationToken): Promise<readonly IPromptPath[]> {
+		let promptPaths: readonly IPromptPath[];
 		switch (storage) {
 			case PromptsStorage.extension:
-				return this.getExtensionPromptFiles(type, token);
+				promptPaths = await this.getExtensionPromptFiles(type, token);
+				break;
 			case PromptsStorage.local:
-				return this.fileLocator.listFiles(type, PromptsStorage.local, token).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.local, type } satisfies ILocalPromptPath)));
+				promptPaths = await this.fileLocator.listFiles(type, PromptsStorage.local, token).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.local, type } satisfies ILocalPromptPath)));
+				break;
 			case PromptsStorage.user:
-				return this.fileLocator.listFiles(type, PromptsStorage.user, token).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.user, type } satisfies IUserPromptPath)));
+				promptPaths = await this.fileLocator.listFiles(type, PromptsStorage.user, token).then(uris => uris.map(uri => ({ uri, storage: PromptsStorage.user, type } satisfies IUserPromptPath)));
+				break;
 			case PromptsStorage.plugin:
-				return this._pluginPromptFilesByType.get(type) ?? [];
+				promptPaths = this._pluginPromptFilesByType.get(type) ?? [];
+				break;
 			default:
 				throw new Error(`[listPromptFilesForStorage] Unsupported prompt storage type: ${storage}`);
 		}
+
+		return promptPaths;
 	}
 
 	private async getExtensionPromptFiles(type: PromptsType, token: CancellationToken): Promise<IExtensionPromptPath[]> {
 		await this.extensionService.whenInstalledExtensionsRegistered();
 		const settledResults = await Promise.allSettled(this.contributedFiles[type].values());
-		// Note: `when` clauses are intentionally NOT evaluated here (global context).
-		// They are propagated into the model types (IAgentSkill, IChatPromptSlashCommand,
-		// ICustomAgent, IInstructionFile) and evaluated later at session-scoped time:
-		//  - slash commands: per-widget in chatInputCompletions.ts via `c.when`
-		//  - skills: in ComputeAutomaticInstructions using its scoped IContextKeyService
-		//  - instructions: in ComputeAutomaticInstructions using its scoped IContextKeyService
-		//  - agents: in modePickerActionItem.ts and ComputeAutomaticInstructions
 		const contributedFiles = settledResults
 			.filter((result): result is PromiseFulfilledResult<IExtensionPromptPath> => result.status === 'fulfilled')
-			.map(result => result.value)
-			.filter(file => {
-				if (file.when && !ContextKeyExpr.deserialize(file.when)) {
-					this.logger.warn(`[getExtensionPromptFiles] Ignoring contributed prompt file with invalid when clause: ${file.when}`);
-					return false;
-				}
-				return true;
-			});
+			.map(result => result.value);
 
 		const activationEvent = this.getProviderActivationEvent(type);
-		if (!activationEvent) {
-			// No provider activation event for this type (e.g., hooks)
-			return contributedFiles;
-		}
-		const providerFiles = await this.listFromProviders(type, activationEvent, token);
-		return [...contributedFiles, ...providerFiles];
+		const providerFiles = activationEvent ? await this.listFromProviders(type, activationEvent, token) : [];
+
+		return [...contributedFiles, ...providerFiles].filter(file => {
+			if (!file.when) {
+				return true;
+			}
+
+			const when = ContextKeyExpr.deserialize(file.when);
+			if (!when) {
+				this.logger.warn(`[getExtensionPromptFiles] Ignoring contributed prompt file with invalid when clause: ${file.when}`);
+				return false;
+			}
+
+			return this.contextKeyService.contextMatchesRules(when);
+		});
 	}
 
 	private getProviderActivationEvent(type: PromptsType): string | undefined {
@@ -957,6 +967,14 @@ export class PromptsService extends Disposable implements IPromptsService {
 			const expr = ContextKeyExpr.deserialize(whenClause);
 			for (const key of expr?.keys() ?? []) {
 				this._contributedWhenKeys.add(key);
+			}
+		}
+		for (const whenClauses of this._providerWhenClauses.values()) {
+			for (const whenClause of whenClauses) {
+				const expr = ContextKeyExpr.deserialize(whenClause);
+				for (const key of expr?.keys() ?? []) {
+					this._contributedWhenKeys.add(key);
+				}
 			}
 		}
 	}

@@ -140,6 +140,7 @@ The account widget is rendered in the **right side of the titlebar** as a custom
 - Registered in `contrib/accountMenu/browser/account.contribution.ts`
 - Uses the `Menus.TitleBarRightLayout` menu
 - Shows the signed-in GitHub profile image when available, and falls back to the existing account codicon when it is not
+- Gives the GitHub profile image a subtle 1px circular border using the titlebar command center border tokens so the avatar stays legible against nearby chrome in both active and inactive window states
 - Opens a combined account and Copilot status hover panel with sign-in/sign-out, settings, and update actions
 
 ---
@@ -657,6 +658,7 @@ interface IPartVisibilityState {
 
 | Date | Change |
 |------|--------|
+| 2026-04-17 | Added a subtle 1px titlebar-token border around the sessions account widget's GitHub profile image, including the inactive-window variant, and documented the avatar chrome in the layout spec. |
 | 2026-04-16 | Softened the experimental sessions shell gradient by reducing the accent tint mix strength across the shared default, light-theme, and dark-theme variants so the primary color reads more subtly behind the workbench chrome. |
 | 2026-04-16 | Updated the layout visual representation to show the editor part in the top-right row and mark it as hidden by default. |
 | 2026-04-16 | Fixed the sessions workbench so modal editor opens no longer hide an already visible main editor part, and documented that the main editor stays hidden by default but can be revealed by explicit non-modal editor flows. |

@@ -3,8 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { isDefined } from '../../base/common/types.js';
 import { URI } from '../../base/common/uri.js';
 import { SessionStatus as ProtocolSessionStatus } from '../../platform/agentHost/common/state/protocol/state.js';
+import { ISessionFileDiff } from '../../platform/agentHost/common/state/sessionState.js';
 import { SessionStatus } from '../services/sessions/common/session.js';
 
 /**
@@ -30,35 +32,44 @@ export interface IFileChange {
 	readonly deletions: number;
 }
 
-type RawDiff = { readonly uri: string; readonly added?: number; readonly removed?: number };
-
 /**
  * Converts agent host diffs to the chat session file change format.
  *
  * @param mapUri Optional URI mapper applied after parsing. The remote agent
  *   host provider uses this to rewrite `file:` URIs into agent-host URIs.
  */
-export function diffsToChanges(diffs: readonly RawDiff[], mapUri?: (uri: URI) => URI): IFileChange[] {
-	return diffs.map(d => ({
-		modifiedUri: mapUri ? mapUri(URI.parse(d.uri)) : URI.parse(d.uri),
-		insertions: d.added ?? 0,
-		deletions: d.removed ?? 0,
-	}));
+export function diffsToChanges(diffs: readonly ISessionFileDiff[], mapUri?: (uri: URI) => URI): IFileChange[] {
+	return diffs.map(d => {
+		const uri = d.after?.uri || d.before?.uri;
+		if (!uri) {
+			return undefined;
+		}
+		return {
+			modifiedUri: mapUri ? mapUri(URI.parse(uri)) : URI.parse(uri),
+			insertions: d.diff?.added ?? 0,
+			deletions: d.diff?.removed ?? 0,
+		};
+	}).filter(isDefined);
 }
 
 /**
  * Returns `true` when the current file changes already
- * match the incoming raw diffs, avoiding unnecessary observable updates.
+ * match the incoming diffs, avoiding unnecessary observable updates.
  */
-export function diffsEqual(current: readonly IFileChange[], raw: readonly RawDiff[], mapUri?: (uri: URI) => URI): boolean {
-	if (current.length !== raw.length) {
+export function diffsEqual(current: readonly IFileChange[], diffs: readonly ISessionFileDiff[], mapUri?: (uri: URI) => URI): boolean {
+	if (current.length !== diffs.length) {
 		return false;
 	}
 	for (let i = 0; i < current.length; i++) {
 		const c = current[i];
-		const r = raw[i];
-		const rawUri = mapUri ? mapUri(URI.parse(r.uri)) : URI.parse(r.uri);
-		if (c.modifiedUri.toString() !== rawUri.toString() || c.insertions !== (r.added ?? 0) || c.deletions !== (r.removed ?? 0)) {
+		const d = diffs[i];
+		const uri = d.after?.uri || d.before?.uri;
+		if (!uri) {
+			continue;
+		}
+		const parsed = URI.parse(uri);
+		const diffUri = mapUri ? mapUri(parsed) : parsed;
+		if (c.modifiedUri.toString() !== diffUri.toString() || c.insertions !== (d.diff?.added ?? 0) || c.deletions !== (d.diff?.removed ?? 0)) {
 			return false;
 		}
 	}

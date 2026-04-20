@@ -52,19 +52,7 @@ export const TypeBrowserToolData: IToolData = {
 			},
 		},
 		required: ['pageId'],
-		oneOf: [
-			{
-				required: ['ref', 'element'],
-				not: { required: ['selector'] }
-			},
-			{
-				required: ['selector', 'element'],
-				not: { required: ['ref'] }
-			},
-			{
-				not: { anyOf: [{ required: ['ref'] }, { required: ['selector'] }] }
-			}
-		]
+		$comment: 'If "ref" or "selector" is provided, then "element" is required.',
 	},
 };
 

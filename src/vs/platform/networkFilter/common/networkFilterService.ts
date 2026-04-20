@@ -10,6 +10,8 @@ import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
 import { createDecorator } from '../../instantiation/common/instantiation.js';
+import { AgentSandboxSettingId } from '../../sandbox/common/settings.js';
+import { ITerminalSandboxService } from '../../sandbox/common/terminalSandboxService.js';
 import { extractDomainFromUri, isDomainAllowed } from './domainMatcher.js';
 import { AgentNetworkDomainSettingId } from './settings.js';
 
@@ -19,8 +21,9 @@ export const IAgentNetworkFilterService = createDecorator<IAgentNetworkFilterSer
  * Service that filters network requests made by agent tools (fetch tool,
  * integrated browser) based on the configured allowed/denied domain lists.
  *
- * Filtering is only active when the `chat.agent.networkFilter` setting is
- * enabled.  When both domain lists are empty, all domains are denied.
+ * Filtering is active when the `chat.agent.networkFilter` setting is enabled,
+ * or when the terminal sandbox service reports that sandboxing is enabled.
+ * When both domain lists are empty, all domains are denied.
  * When a domain appears on the denied list it is always blocked, even if it
  * also matches an entry on the allowed list.
  */
@@ -52,6 +55,7 @@ export class AgentNetworkFilterService extends Disposable implements IAgentNetwo
 	readonly _serviceBrand: undefined;
 
 	private enabled = false;
+	private terminalSandboxEnabled = false;
 	private allowedPatterns: string[] = [];
 	private deniedPatterns: string[] = [];
 	private readonly domainCache = new LRUCache<string, boolean>(100);
@@ -61,9 +65,11 @@ export class AgentNetworkFilterService extends Disposable implements IAgentNetwo
 
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ITerminalSandboxService private readonly terminalSandboxService: ITerminalSandboxService,
 	) {
 		super();
 		this.readConfiguration();
+		void this.updateTerminalSandboxEnabled();
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (
@@ -73,19 +79,36 @@ export class AgentNetworkFilterService extends Disposable implements IAgentNetwo
 			) {
 				this.readConfiguration();
 				this.onDidChangeEmitter.fire();
+			} else if (
+				e.affectsConfiguration(AgentSandboxSettingId.AgentSandboxEnabled) ||
+				e.affectsConfiguration(AgentSandboxSettingId.DeprecatedAgentSandboxEnabled)
+			) {
+				void this.updateTerminalSandboxEnabled();
 			}
 		}));
 	}
 
 	private readConfiguration(): void {
-		this.enabled = this.configurationService.getValue<boolean>(AgentNetworkDomainSettingId.NetworkFilter) ?? false;
+		const networkFilterEnabled = this.configurationService.getValue<boolean>(AgentNetworkDomainSettingId.NetworkFilter) ?? false;
+
+		this.enabled = networkFilterEnabled || this.terminalSandboxEnabled;
 		this.allowedPatterns = this.configurationService.getValue<string[]>(AgentNetworkDomainSettingId.AllowedNetworkDomains) ?? [];
 		this.deniedPatterns = this.configurationService.getValue<string[]>(AgentNetworkDomainSettingId.DeniedNetworkDomains) ?? [];
 		this.domainCache.clear();
 	}
 
+	private async updateTerminalSandboxEnabled(): Promise<void> {
+		const enabled = await this.terminalSandboxService.isEnabled();
+		if (this.terminalSandboxEnabled === enabled) {
+			return;
+		}
+		this.terminalSandboxEnabled = enabled;
+		this.readConfiguration();
+		this.onDidChangeEmitter.fire();
+	}
+
 	isUriAllowed(uri: URI): boolean {
-		// When the network filter is disabled, allow all requests.
+		// When domain filtering is inactive, allow all requests.
 		if (!this.enabled) {
 			return true;
 		}

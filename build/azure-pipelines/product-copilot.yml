@@ -149,3 +149,23 @@ jobs:
             done
 
             echo "Successfully uploaded $UPLOADED source maps"
+
+            # Upload commit-to-version mapping so the deminify service
+            # can resolve the patched extension version from a VS Code commit hash.
+            COMMIT_HASH="$(Build.SourceVersion)"
+            MAPPING_BLOB="sourcemaps/${EXTENSION_ID}/commits/${COMMIT_HASH}.json"
+            echo "{\"version\":\"${VERSION}\",\"extensionId\":\"${EXTENSION_ID}\"}" > /tmp/commit-version.json
+
+            echo "Uploading commit mapping: $COMMIT_HASH -> $VERSION"
+            az storage blob upload \
+              --account-name "$STORAGE_ACCOUNT" \
+              --container-name '$web' \
+              --name "$MAPPING_BLOB" \
+              --file "/tmp/commit-version.json" \
+              --content-type "application/json" \
+              --content-cache-control "no-cache, no-store, must-revalidate" \
+              --auth-mode login \
+              --overwrite \
+              --only-show-errors
+
+            echo "Commit mapping uploaded: $MAPPING_BLOB"

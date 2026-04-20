@@ -887,7 +887,8 @@ export class LanguageModelToolsService extends Disposable implements ILanguageMo
 
 		// Don't create a streaming invocation for tools that don't implement handleToolStream.
 		// These tools will have their invocation created directly in invokeToolInternal.
-		if (!toolEntry.impl?.handleToolStream) {
+		// Callers that need a handle regardless (e.g. to observe confirmation state) can pass `force`.
+		if (!options.force && !toolEntry.impl?.handleToolStream) {
 			return undefined;
 		}
 

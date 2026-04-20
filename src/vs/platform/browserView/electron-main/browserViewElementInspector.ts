@@ -85,7 +85,7 @@ export class BrowserViewElementInspector extends Disposable {
 	constructor(private readonly browser: BrowserView) {
 		super();
 
-		this._connectionPromise = browser.attach().then(
+		this._connectionPromise = browser.debugger.attach().then(
 			async conn => {
 				try {
 					// Important: don't use `Runtime.*` commands so we can support inspection during debugging.

@@ -114,6 +114,7 @@
 	border-radius: 4px;
 	font-size: 13px;
 	cursor: pointer;
+	touch-action: manipulation;
 	color: var(--vscode-icon-foreground);
 	white-space: nowrap;
 	min-width: 0;

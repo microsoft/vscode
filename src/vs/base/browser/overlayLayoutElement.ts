@@ -53,6 +53,13 @@ export class OverlayLayoutElement implements IDisposable {
 		this.content.style.position = 'absolute';
 		this.content.style.overflow = 'hidden';
 
+		this._root = document.createElement('div');
+		this._root.appendChild(this.content);
+
+		this.reapplyLayoutStyles();
+	}
+
+	public reapplyLayoutStyles(): void {
 		if (supportsAnchorPositioning.value) {
 			this.content.style.position = 'fixed';
 			this.content.style.top = 'anchor(top)';
@@ -62,10 +69,8 @@ export class OverlayLayoutElement implements IDisposable {
 			this.content.style.pointerEvents = 'auto';
 		}
 
-		this._root = document.createElement('div');
 		this._root.style.position = 'absolute';
 		this._root.style.pointerEvents = 'none';
-		this._root.appendChild(this.content);
 	}
 
 	public dispose(): void {

@@ -772,6 +772,7 @@ class ActionsColumnRenderer extends ModelsTableColumnRenderer<IActionsColumnTemp
 						return;
 					}
 					await this.languageModelsService.removeLanguageModelsProviderGroup(vendorEntry.vendor.vendor, vendorEntry.group.name);
+					this.viewModel.refresh();
 				}
 			}));
 		} else if (vendorEntry.vendor.managementCommand) {
@@ -1336,7 +1337,8 @@ export class ChatModelsWidget extends Disposable {
 	}
 
 	private async addModelsForVendor(vendor: ILanguageModelProviderDescriptor): Promise<void> {
-		this.languageModelsService.configureLanguageModelsProviderGroup(vendor.vendor);
+		await this.languageModelsService.configureLanguageModelsProviderGroup(vendor.vendor);
+		await this.viewModel.refresh();
 	}
 
 	public layout(height: number, width: number): void {

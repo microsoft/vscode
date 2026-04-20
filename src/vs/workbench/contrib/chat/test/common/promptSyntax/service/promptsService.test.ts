@@ -6,7 +6,7 @@
 import assert from 'assert';
 import * as sinon from 'sinon';
 import { CancellationToken } from '../../../../../../../base/common/cancellation.js';
-import { Event } from '../../../../../../../base/common/event.js';
+import { Emitter, Event } from '../../../../../../../base/common/event.js';
 import { match } from '../../../../../../../base/common/glob.js';
 import { ResourceSet } from '../../../../../../../base/common/map.js';
 import { Schemas } from '../../../../../../../base/common/network.js';
@@ -51,10 +51,40 @@ import { IExtensionService } from '../../../../../../services/extensions/common/
 import { IRemoteAgentService } from '../../../../../../services/remote/common/remoteAgentService.js';
 import { ChatModeKind } from '../../../../common/constants.js';
 import { HookType } from '../../../../common/promptSyntax/hookTypes.js';
-import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
+import { IContextKeyChangeEvent, IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { MockContextKeyService } from '../../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
 import { IAgentPlugin, IAgentPluginAgent, IAgentPluginCommand, IAgentPluginHook, IAgentPluginInstruction, IAgentPluginMcpServerDefinition, IAgentPluginService, IAgentPluginSkill } from '../../../../common/plugins/agentPluginService.js';
 import { IWorkspaceTrustManagementService } from '../../../../../../../platform/workspace/common/workspaceTrust.js';
+
+class TestPromptContextKeyService extends MockContextKeyService {
+	private readonly _onDidChangeContextEmitter = new Emitter<IContextKeyChangeEvent>();
+	private _rulesMatch = false;
+
+	override get onDidChangeContext(): Event<IContextKeyChangeEvent> {
+		return this._onDidChangeContextEmitter.event;
+	}
+
+	override contextMatchesRules(): boolean {
+		return this._rulesMatch;
+	}
+
+	setRulesMatch(value: boolean): void {
+		this._rulesMatch = value;
+	}
+
+	fireDidChangeContext(keys: string[]): void {
+		const changedKeys = new Set(keys);
+		this._onDidChangeContextEmitter.fire({
+			affectsSome: trackedKeys => keys.some(key => trackedKeys.has(key)),
+			allKeysContainedIn: trackedKeys => Array.from(changedKeys).every(key => trackedKeys.has(key)),
+		});
+	}
+
+	override dispose(): void {
+		this._onDidChangeContextEmitter.dispose();
+		super.dispose();
+	}
+}
 
 suite('PromptsService', () => {
 	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
@@ -492,7 +522,7 @@ suite('PromptsService', () => {
 			]);
 
 			const instructionFiles = await service.getInstructionFiles(CancellationToken.None);
-			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined);
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined, 'local');
 			const context = {
 				files: new ResourceSet([
 					URI.joinPath(rootFolderUri, 'folder1/main.tsx'),
@@ -663,7 +693,7 @@ suite('PromptsService', () => {
 			]);
 
 			const instructionFiles = await service.getInstructionFiles(CancellationToken.None);
-			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined);
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined, 'local');
 			const context = {
 				files: new ResourceSet([
 					URI.joinPath(rootFolderUri, 'folder1/main.tsx'),
@@ -737,7 +767,7 @@ suite('PromptsService', () => {
 			]);
 
 
-			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined);
+			const contextComputer = instaService.createInstance(ComputeAutomaticInstructions, ChatModeKind.Agent, undefined, undefined, 'local');
 			const context = new ChatRequestVariableSet();
 			context.add(toFileVariableEntry(URI.joinPath(rootFolderUri, 'README.md')));
 
@@ -2060,20 +2090,97 @@ suite('PromptsService', () => {
 			registered2.dispose();
 		});
 
-		test('Contributed file with when clause is included at discovery and propagated for later evaluation', async () => {
+		test('Contributed file with when clause is filtered inside PromptsService', async () => {
 			const uri = URI.parse('file://extensions/my-extension/conditional.instructions.md');
 			const extension = {} as IExtensionDescription;
+			const contextKeyService = instaService.get(IContextKeyService) as MockContextKeyService;
+			const contextMatchesRulesStub = sinon.stub(contextKeyService, 'contextMatchesRules').returns(false);
 
 			const registered = service.registerContributedFile(
 				PromptsType.instructions, uri, extension,
 				'Conditional Instructions', 'Only when enabled', 'myFeature.enabled',
 			);
 
-			// `when` is no longer evaluated at discovery time; the file should always be
-			// included so consumers can evaluate it with session-scoped context later.
 			const files = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
-			assert.strictEqual(files.length, 1, 'Should be included regardless of context key match');
-			assert.strictEqual(files[0].uri.toString(), uri.toString());
+			assert.strictEqual(files.length, 0, 'Should be filtered out when the when clause does not match');
+
+			registered.dispose();
+			contextMatchesRulesStub.restore();
+
+			const enabledContextMatchesRulesStub = sinon.stub(contextKeyService, 'contextMatchesRules').returns(true);
+			const enabledRegistration = service.registerContributedFile(
+				PromptsType.instructions, uri, extension,
+				'Conditional Instructions', 'Only when enabled', 'myFeature.enabled',
+			);
+
+			const enabledFiles = await service.listPromptFiles(PromptsType.instructions, CancellationToken.None);
+			assert.strictEqual(enabledFiles.length, 1, 'Should be included when the when clause matches');
+			assert.strictEqual(enabledFiles[0].uri.toString(), uri.toString());
+
+			enabledRegistration.dispose();
+			enabledContextMatchesRulesStub.restore();
+		});
+
+		test('Provider file with when clause is filtered inside PromptsService', async () => {
+			const uri = URI.parse('file://extensions/test/myInstruction.instructions.md');
+			const extension = {
+				identifier: { value: 'test.my-extension' },
+				enabledApiProposals: ['chatParticipantPrivate']
+			} as unknown as IExtensionDescription;
+			const contextKeyService = instaService.get(IContextKeyService) as MockContextKeyService;
+
+			const registered = service.registerPromptFileProvider(extension, PromptsType.instructions, {
+				providePromptFiles: async () => [{ uri, when: 'chatSessionType == local' }]
+			});
+
+			const contextMatchesRulesStub = sinon.stub(contextKeyService, 'contextMatchesRules').returns(false);
+			const files = await service.listPromptFilesForStorage(PromptsType.instructions, PromptsStorage.extension, CancellationToken.None);
+			assert.strictEqual(files.length, 0, 'Should be filtered out when the when clause does not match');
+			contextMatchesRulesStub.restore();
+
+			const enabledContextMatchesRulesStub = sinon.stub(contextKeyService, 'contextMatchesRules').returns(true);
+			const enabledFiles = await service.listPromptFilesForStorage(PromptsType.instructions, PromptsStorage.extension, CancellationToken.None);
+			assert.strictEqual(enabledFiles.length, 1, 'Should be included when the when clause matches');
+			assert.strictEqual(enabledFiles[0].uri.toString(), uri.toString());
+			enabledContextMatchesRulesStub.restore();
+
+			registered.dispose();
+		});
+
+		test('Provider when keys invalidate cached results when context changes', async () => {
+			const contextKeyService = disposables.add(new TestPromptContextKeyService());
+			instaService.stub(IContextKeyService, contextKeyService);
+			const promptsService = disposables.add(instaService.createInstance(PromptsService));
+			instaService.stub(IPromptsService, promptsService);
+
+			const uri = URI.parse('file://extensions/test/conditional.instructions.md');
+			await mockFiles(fileService, [{
+				path: uri.path,
+				contents: [
+					'---',
+					'description: "Conditional Instructions"',
+					'---',
+					'Instruction body',
+				],
+			}]);
+
+			const extension = {
+				identifier: { value: 'test.my-extension' },
+				enabledApiProposals: ['chatParticipantPrivate']
+			} as unknown as IExtensionDescription;
+
+			const registered = promptsService.registerPromptFileProvider(extension, PromptsType.instructions, {
+				providePromptFiles: async () => [{ uri, when: 'myFeature.enabled' }]
+			});
+
+			contextKeyService.setRulesMatch(true);
+			const enabledFiles = await promptsService.getInstructionFiles(CancellationToken.None);
+			assert.strictEqual(enabledFiles.length, 1, 'Should include the provider instruction when the context matches');
+
+			contextKeyService.setRulesMatch(false);
+			contextKeyService.fireDidChangeContext(['myFeature.enabled']);
+			const disabledFiles = await promptsService.getInstructionFiles(CancellationToken.None);
+			assert.strictEqual(disabledFiles.length, 0, 'Should invalidate the cached provider instruction when the tracked key changes');
 
 			registered.dispose();
 		});

@@ -11,15 +11,15 @@ import { IWorkspaceService } from '../../../../platform/workspace/common/workspa
 import { Delayer } from '../../../../util/vs/base/common/async';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
 import { isEqual } from '../../../../util/vs/base/common/resources';
-import { Uri } from '../../../../vscodeTypes';
-import { IQuestion, IUserQuestionHandler } from './userInputHelpers';
+import { LanguageModelTextPart, Uri } from '../../../../vscodeTypes';
+import { IToolsService } from '../../../tools/common/toolsService';
 
 type ExitPlanModeActionType = Parameters<NonNullable<SessionOptions['onExitPlanMode']>>[0]['actions'][number];
 
 const actionDescriptions: Record<ExitPlanModeActionType, { label: string; description: string }> = {
 	'autopilot': { label: 'Autopilot', description: l10n.t('Auto-approve all tool calls and continue until the task is done') },
-	'interactive': { label: 'Interactive', description: l10n.t('Let the agent continue in interactive mode, asking for input and approval for each action.') },
-	'exit_only': { label: 'Approve and exit', description: l10n.t('Exit planning, but do not execute the plan. I will execute the plan myself.') },
+	'interactive': { label: 'Approve and Implement', description: l10n.t('Let the agent continue in interactive mode, asking for input and approval for each action.') },
+	'exit_only': { label: 'Approve', description: l10n.t('Approve plan, but do not execute the plan. I will execute the plan myself.') },
 	'autopilot_fleet': { label: 'Autopilot Fleet', description: l10n.t('Auto-approve all tool calls, including fleet management actions, and continue until the task is done.') },
 };
 
@@ -80,6 +80,7 @@ class PlanFileMonitor extends DisposableStore {
 
 export interface ExitPlanModeEventData {
 	readonly requestId: string;
+	readonly summary: string;
 	readonly actions: string[];
 	readonly recommendedAction: string;
 }
@@ -105,7 +106,7 @@ export function handleExitPlanMode(
 	toolInvocationToken: ChatParticipantToolToken | undefined,
 	workspaceService: IWorkspaceService,
 	logService: ILogService,
-	userQuestionHandler: IUserQuestionHandler,
+	toolService: IToolsService,
 	token: CancellationToken,
 ): Promise<ExitPlanModeResponse> {
 	if (permissionLevel === 'autopilot') {
@@ -117,7 +118,7 @@ export function handleExitPlanMode(
 		return Promise.resolve({ approved: false });
 	}
 
-	return resolveInteractive(event, session, permissionLevel, toolInvocationToken!, workspaceService, logService, userQuestionHandler, token);
+	return resolveInteractive(event, session, permissionLevel, toolInvocationToken!, workspaceService, logService, toolService, token);
 }
 
 function resolveAutopilot(event: ExitPlanModeEventData, logService: ILogService): ExitPlanModeResponse {
@@ -143,7 +144,7 @@ async function resolveInteractive(
 	toolInvocationToken: ChatParticipantToolToken,
 	workspaceService: IWorkspaceService,
 	logService: ILogService,
-	userQuestionHandler: IUserQuestionHandler,
+	toolService: IToolsService,
 	token: CancellationToken,
 ): Promise<ExitPlanModeResponse> {
 	const planPath = session.getPlanPath();
@@ -152,32 +153,49 @@ async function resolveInteractive(
 	const planFileMonitor = planPath ? new PlanFileMonitor(Uri.file(planPath), session, workspaceService, logService) : undefined;
 
 	try {
-		const userInputRequest: IQuestion = {
-			question: planPath ? l10n.t('Approve this plan {0}?', `[Plan.md](${Uri.file(planPath).toString()})`) : l10n.t('Approve this plan?'),
-			header: l10n.t('Approve this plan?'),
-			options: event.actions.map(a => ({
-				label: actionDescriptions[a as ExitPlanModeActionType]?.label ?? a,
-				recommended: a === event.recommendedAction,
-				description: actionDescriptions[a as ExitPlanModeActionType]?.description ?? '',
-			})),
-			allowFreeformInput: true,
+		const actions: { label: string; description: string; default: boolean; permissionLevel?: 'autopilot' }[] = event.actions.map(a => ({
+			label: actionDescriptions[a as ExitPlanModeActionType]?.label ?? a,
+			default: a === event.recommendedAction,
+			description: actionDescriptions[a as ExitPlanModeActionType]?.description ?? '',
+			...(a === 'autopilot' || a === 'autopilot_fleet' ? { permissionLevel: 'autopilot' as const } : {}),
+		}));
+
+		const result = await toolService.invokeTool('vscode_reviewPlan', {
+			input: {
+				title: l10n.t('Review Plan'),
+				plan: planPath ? Uri.file(planPath).toString() : undefined,
+				content: event.summary,
+				actions,
+				canProvideFeedback: true
+			},
+			toolInvocationToken,
+		}, token);
+
+		const firstPart = result?.content.at(0);
+		if (!(firstPart instanceof LanguageModelTextPart) || !firstPart.value) {
+			return { approved: false };
+		}
+
+		const answer = JSON.parse(firstPart.value) as {
+			action?: string;
+			rejected: boolean;
+			feedback?: string;
 		};
 
-		const answer = await userQuestionHandler.askUserQuestion(userInputRequest, toolInvocationToken as unknown as never, token);
 
 		// Ensure any pending plan writes complete before responding to the SDK.
 		await planFileMonitor?.flush();
 
-		if (!answer) {
+		if (answer.rejected) {
 			return { approved: false };
 		}
-		if (answer.freeText) {
-			return { approved: false, feedback: answer.freeText };
+		if (answer.feedback) {
+			return { approved: false, feedback: answer.feedback, selectedAction: answer.action as ExitPlanModeActionType };
 		}
 
-		let selectedAction: ExitPlanModeActionType = answer.selected[0] as ExitPlanModeActionType;
+		let selectedAction: ExitPlanModeActionType | undefined = undefined;
 		for (const [action, desc] of Object.entries(actionDescriptions)) {
-			if (desc.label === selectedAction) {
+			if (desc.label === answer.action) {
 				selectedAction = action as ExitPlanModeActionType;
 				break;
 			}

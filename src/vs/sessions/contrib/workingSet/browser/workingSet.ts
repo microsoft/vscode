@@ -86,17 +86,13 @@ export class SessionWorkingSetController extends Disposable implements IWorkbenc
 
 			// Session changed (save, apply)
 			reader.store.add(runOnChange(activeSession, (session, previousSession) => {
-				if (!session || !previousSession) {
-					return;
-				}
-
 				// Save working set for previous session (skip for untitled sessions)
-				if (previousSession.status.read(undefined) !== SessionStatus.Untitled) {
+				if (previousSession && previousSession.status.read(undefined) !== SessionStatus.Untitled) {
 					this._saveWorkingSet(previousSession.resource);
 				}
 
 				// Apply working set for current session
-				void this._applyWorkingSet(session.resource);
+				void this._applyWorkingSet(session?.resource);
 			}));
 
 			// Session state changed (archive, delete)
@@ -150,9 +146,11 @@ export class SessionWorkingSetController extends Disposable implements IWorkbenc
 		this._storageService.store(SessionWorkingSetController.STORAGE_KEY, JSON.stringify(serializedWorkingSets), StorageScope.WORKSPACE, StorageTarget.MACHINE);
 	}
 
-	private async _applyWorkingSet(sessionResource: URI): Promise<void> {
-		const workingSet: IEditorWorkingSet | 'empty' = this._workingSets.get(sessionResource) ?? 'empty';
+	private async _applyWorkingSet(sessionResource: URI | undefined): Promise<void> {
 		const preserveFocus = this._layoutService.hasFocus(Parts.PANEL_PART);
+		const workingSet: IEditorWorkingSet | 'empty' = sessionResource
+			? (this._workingSets.get(sessionResource) ?? 'empty')
+			: 'empty';
 
 		return this._workingSetSequencer.queue(async () => {
 			if (workingSet === 'empty') {
@@ -179,16 +177,13 @@ export class SessionWorkingSetController extends Disposable implements IWorkbenc
 	}
 
 	private _saveWorkingSet(sessionResource: URI): void {
-		// Delete existing working set for session if any
-		const existingWorkingSet = this._workingSets.get(sessionResource);
-		if (existingWorkingSet) {
-			this._workingSets.delete(sessionResource);
-			this._editorGroupsService.deleteWorkingSet(existingWorkingSet);
-		}
+		// Delete existing working set
+		this._deleteWorkingSet(sessionResource);
 
-		// Create new working set for session
+		// Add new working set
 		if (this._editorService.visibleEditors.length > 0) {
-			const workingSet = this._editorGroupsService.saveWorkingSet(`session-working-set:${sessionResource.toString()}`);
+			const workingSetName = `session-working-set:${sessionResource.toString()}`;
+			const workingSet = this._editorGroupsService.saveWorkingSet(workingSetName);
 			this._workingSets.set(sessionResource, workingSet);
 		}
 	}

@@ -141,6 +141,7 @@ export class ChatSessionWorkspaceFolderService extends Disposable implements ICh
 				if (properties) {
 					await this.metadataStore.storeRepositoryProperties(sessionId, {
 						...repositoryProperties,
+						mergeBaseCommit: properties.mergeBaseCommit,
 						hasGitHubRemote: properties.hasGitHubRemote,
 						upstreamBranchName: properties.upstreamBranchName,
 						incomingChanges: properties.incomingChanges,
@@ -156,6 +157,7 @@ export class ChatSessionWorkspaceFolderService extends Disposable implements ICh
 
 	private async computeWorkspaceChanges(repositoryProperties: RepositoryProperties, sessionId: string): Promise<{
 		readonly changes: ChatSessionWorktreeFile[];
+		readonly mergeBaseCommit?: string;
 		readonly hasGitHubRemote?: boolean;
 		readonly upstreamBranchName?: string;
 		readonly incomingChanges?: number;
@@ -242,6 +244,18 @@ export class ChatSessionWorkspaceFolderService extends Disposable implements ICh
 			}
 		}
 
+		// Since the diff may be computed using the merge base commit of the current
+		// branch and the base branch, we need to compute it as well so that we can use
+		// it as the originalRef (left-hand side) of the diff editor
+		let mergeBaseCommit: string | undefined;
+		try {
+			if (repositoryProperties.branchName && repositoryProperties.baseBranchName) {
+				mergeBaseCommit = await this.gitService.getMergeBase(repository.rootUri, repositoryProperties.branchName, repositoryProperties.baseBranchName);
+			}
+		} catch (error) {
+			this.logService.error(`[ChatSessionWorkspaceFolderService][getWorkspaceChanges] Error while getting merge base (${repositoryProperties.branchName}, ${repositoryProperties.baseBranchName}): ${error}`);
+		}
+
 		const changes = diffChanges.map(change => ({
 			filePath: change.uri.fsPath,
 			originalFilePath: change.status !== 1 /* INDEX_ADDED */
@@ -257,6 +271,7 @@ export class ChatSessionWorkspaceFolderService extends Disposable implements ICh
 		} satisfies ChatSessionWorktreeFile));
 
 		const repositoryState = {
+			mergeBaseCommit,
 			hasGitHubRemote: getGitHubRepoInfoFromContext(repository) !== undefined,
 			upstreamBranchName: repository.upstreamRemote && repository.upstreamBranchName
 				? `${repository.upstreamRemote}/${repository.upstreamBranchName}`

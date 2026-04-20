@@ -7,7 +7,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { IAgentMessageEvent, IAgentSubagentStartedEvent, IAgentToolCompleteEvent, IAgentToolStartEvent } from '../../common/agentService.js';
 import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
 import { ToolResultContentType, type IToolResultContent } from '../../common/state/sessionState.js';
-import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool } from './copilotToolDisplay.js';
+import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool } from './copilotToolDisplay.js';
 import { buildSessionDbUri } from './fileEditTracker.js';
 
 function tryStringify(value: unknown): string | undefined {
@@ -163,6 +163,7 @@ export async function mapSessionEvents(
 			const displayName = getToolDisplayName(d.toolName);
 			const toolKind = getToolKind(d.toolName);
 			const toolArgs = d.arguments !== undefined ? tryStringify(d.arguments) : undefined;
+			const subagentMeta = toolKind === 'subagent' ? getSubagentMetadata(info?.parameters) : undefined;
 			result.push({
 				session,
 				type: 'tool_start',
@@ -174,6 +175,8 @@ export async function mapSessionEvents(
 				toolKind,
 				language: toolKind === 'terminal' ? getShellLanguage(d.toolName) : undefined,
 				toolArguments: toolArgs,
+				subagentAgentName: subagentMeta?.agentName,
+				subagentDescription: subagentMeta?.description,
 				mcpServerName: d.mcpServerName,
 				mcpToolName: d.mcpToolName,
 				parentToolCallId: d.parentToolCallId,

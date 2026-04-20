@@ -72,6 +72,7 @@ export interface IQuestionOption {
 export interface IQuestion {
 	readonly header: string;
 	readonly question: string;
+	readonly message?: string;
 	readonly multiSelect?: boolean;
 	readonly options?: IQuestionOption[];
 	readonly allowFreeformInput?: boolean;
@@ -112,6 +113,10 @@ export function createAskQuestionsToolData(): IToolData {
 			allowFreeformInput: {
 				type: 'boolean',
 				description: 'Allow freeform text answers in addition to option selection. Defaults to true; set to false to restrict to predefined options only.'
+			},
+			message: {
+				type: 'string',
+				description: 'Optional markdown message to display below the question text, providing additional context or details.'
 			},
 			options: {
 				type: 'array',
@@ -391,6 +396,7 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 			type,
 			title: displayTitle,
 			message: question.question,
+			detailedMessage: question.message,
 			options: question.options?.map(opt => ({
 				id: opt.label,
 				label: opt.description ? `${opt.label} - ${opt.description}` : opt.label,

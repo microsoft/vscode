@@ -42,6 +42,7 @@ export class ChatBarPart extends AbstractPaneCompositePart { // TODO: should not
 	override readonly maximumWidth: number = Number.POSITIVE_INFINITY;
 	override readonly minimumHeight: number = 0;
 	override readonly maximumHeight: number = Number.POSITIVE_INFINITY;
+	override get snap(): boolean { return false; }
 
 	/** Visual margin values for the card-like appearance */
 	static readonly MARGIN_TOP = 10;

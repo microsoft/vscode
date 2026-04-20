@@ -1085,6 +1085,36 @@ export function registerChatActions() {
 		}
 	});
 
+	registerAction2(class ToggleSessionCloudSyncAction extends Action2 {
+		private static readonly _settingKey = 'github.copilot.chat.sessionSearch.cloudSync.enabled';
+		constructor() {
+			super({
+				id: 'workbench.action.chat.toggleSessionCloudSync',
+				title: localize2('chat.toggleSessionCloudSync', "Sync Chat Sessions to Cloud"),
+				category: CHAT_CATEGORY,
+				f1: false,
+				toggled: ContextKeyExpr.equals(`config.${ToggleSessionCloudSyncAction._settingKey}`, true),
+				menu: [{
+					id: CHAT_CONFIG_MENU_ID,
+					when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId), ContextKeyExpr.equals('github.copilot.sessionSearch.enabled', true)),
+					order: 2,
+					group: '4_logs'
+				}, {
+					id: MenuId.ViewTitle,
+					when: ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.equals('view', ChatViewId), ContextKeyExpr.equals('github.copilot.sessionSearch.enabled', true)),
+					order: 2,
+					group: '4_logs'
+				}]
+			});
+		}
+
+		async run(accessor: ServicesAccessor): Promise<void> {
+			const configurationService = accessor.get(IConfigurationService);
+			const currentValue = configurationService.getValue<boolean>(ToggleSessionCloudSyncAction._settingKey);
+			await configurationService.updateValue(ToggleSessionCloudSyncAction._settingKey, !currentValue);
+		}
+	});
+
 	const nonEnterpriseCopilotUsers = ContextKeyExpr.and(ChatContextKeys.enabled, ContextKeyExpr.notEquals(`config.${defaultChat.completionsAdvancedSetting}.authProvider`, defaultChat.provider.enterprise.id));
 	registerAction2(class extends Action2 {
 		constructor() {

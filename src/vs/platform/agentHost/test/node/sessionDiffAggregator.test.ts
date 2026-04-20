@@ -9,6 +9,9 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/c
 import { FileEditKind, type ISessionFileDiff } from '../../common/state/sessionState.js';
 import { encodeString, TestDiffComputeService, TestSessionDatabase } from '../common/sessionTestHelpers.js';
 import { computeSessionDiffs } from '../../node/sessionDiffAggregator.js';
+import { parseSessionDbUri } from '../../node/copilot/fileEditTracker.js';
+
+const TEST_SESSION_URI = 'session://test-session';
 
 const createTestDiffService = () => new TestDiffComputeService();
 
@@ -21,6 +24,24 @@ function getDiffUri(diff: ISessionFileDiff): string | undefined {
 	return diff.after?.uri ?? diff.before?.uri;
 }
 
+interface ISimpleDiff {
+	uri: string | undefined;
+	added: number;
+	removed: number;
+}
+
+function simplify(diff: ISessionFileDiff): ISimpleDiff {
+	return {
+		uri: getDiffUri(diff),
+		added: diff.diff?.added ?? 0,
+		removed: diff.diff?.removed ?? 0,
+	};
+}
+
+function simpleDiff(path: string, added: number, removed: number): ISimpleDiff {
+	return { uri: URI.file(path).toString(), added, removed };
+}
+
 suite('computeSessionDiffs', () => {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
@@ -30,7 +51,7 @@ suite('computeSessionDiffs', () => {
 	test('returns empty array for no edits', async () => {
 		const db = new TestSessionDatabase();
 		const diffService = createTestDiffService();
-		const result = await computeSessionDiffs(db, diffService);
+		const result = await computeSessionDiffs(TEST_SESSION_URI, db, diffService);
 		assert.deepStrictEqual(result, []);
 	});
 
@@ -43,10 +64,74 @@ suite('computeSessionDiffs', () => {
 		});
 
 		const diffService = createTestDiffService();
-		const result = await computeSessionDiffs(db, diffService);
+		const result = await computeSessionDiffs(TEST_SESSION_URI, db, diffService);
 
-		assert.deepStrictEqual(result, [fileDiff('/a.txt', 1, 0)]);
+		assert.deepStrictEqual(result.map(simplify), [simpleDiff('/a.txt', 1, 0)]);
 		assert.strictEqual(diffService.callCount, 1);
+	});
+
+	test('populates before/after with session-db content URIs for edits', async () => {
+		const db = new TestSessionDatabase();
+		db.addEdit({
+			turnId: 't1', toolCallId: 'tc1', filePath: '/a.txt', kind: FileEditKind.Edit,
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString('v1'), afterContent: encodeString('v2'),
+		});
+		db.addEdit({
+			turnId: 't2', toolCallId: 'tc2', filePath: '/a.txt', kind: FileEditKind.Edit,
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString('v2'), afterContent: encodeString('v3'),
+		});
+
+		const result = await computeSessionDiffs(TEST_SESSION_URI, db, createTestDiffService());
+
+		assert.strictEqual(result.length, 1);
+		const [diff] = result;
+		const fileUri = URI.file('/a.txt').toString();
+		assert.strictEqual(diff.before?.uri, fileUri);
+		assert.strictEqual(diff.after?.uri, fileUri);
+
+		// before content points to the FIRST snapshot (tc1)
+		const beforeFields = parseSessionDbUri(diff.before!.content.uri);
+		assert.deepStrictEqual(beforeFields, {
+			sessionUri: TEST_SESSION_URI,
+			toolCallId: 'tc1',
+			filePath: '/a.txt',
+			part: 'before',
+		});
+
+		// after content points to the LAST snapshot (tc2)
+		const afterFields = parseSessionDbUri(diff.after!.content.uri);
+		assert.deepStrictEqual(afterFields, {
+			sessionUri: TEST_SESSION_URI,
+			toolCallId: 'tc2',
+			filePath: '/a.txt',
+			part: 'after',
+		});
+	});
+
+	test('omits before for creates and after for deletes', async () => {
+		const db = new TestSessionDatabase();
+		db.addEdit({
+			turnId: 't1', toolCallId: 'tc1', filePath: '/created.txt', kind: FileEditKind.Create,
+			addedLines: undefined, removedLines: undefined,
+			afterContent: encodeString('new'),
+		});
+		db.addEdit({
+			turnId: 't1', toolCallId: 'tc2', filePath: '/deleted.txt', kind: FileEditKind.Delete,
+			addedLines: undefined, removedLines: undefined,
+			beforeContent: encodeString('bye'),
+		});
+
+		const result = await computeSessionDiffs(TEST_SESSION_URI, db, createTestDiffService());
+		result.sort((a, b) => (getDiffUri(a) ?? '').localeCompare(getDiffUri(b) ?? ''));
+
+		assert.strictEqual(result.length, 2);
+		const [created, deleted] = result;
+		assert.strictEqual(created.before, undefined, 'create has no before');
+		assert.ok(created.after, 'create has after');
+		assert.ok(deleted.before, 'delete has before');
+		assert.strictEqual(deleted.after, undefined, 'delete has no after');
 	});
 
 	test('skips files with no net change', async () => {
@@ -63,7 +148,7 @@ suite('computeSessionDiffs', () => {
 		});
 
 		const diffService = createTestDiffService();
-		const result = await computeSessionDiffs(db, diffService);
+		const result = await computeSessionDiffs(TEST_SESSION_URI, db, diffService);
 
 		// Before = tc1.before = 'same', After = tc2.after = 'same' → zero net change
 		assert.deepStrictEqual(result, []);
@@ -84,7 +169,7 @@ suite('computeSessionDiffs', () => {
 		});
 
 		const diffService = createTestDiffService();
-		const result = await computeSessionDiffs(db, diffService);
+		const result = await computeSessionDiffs(TEST_SESSION_URI, db, diffService);
 
 		assert.strictEqual(result.length, 1);
 		assert.strictEqual(getDiffUri(result[0]), URI.file('/b.txt').toString(), 'uses terminal path after rename');
@@ -113,6 +198,7 @@ suite('computeSessionDiffs', () => {
 
 		const diffService = createTestDiffService();
 		const result = await computeSessionDiffs(
+			TEST_SESSION_URI,
 			db,
 			diffService,
 			{ changedTurnId: 't2', previousDiffs },
@@ -121,9 +207,9 @@ suite('computeSessionDiffs', () => {
 		// Sort to ensure stable comparison
 		result.sort((a, b) => (getDiffUri(a) ?? '').localeCompare(getDiffUri(b) ?? ''));
 
-		assert.deepStrictEqual(result, [
-			fileDiff('/a.txt', 42, 7), // carried over
-			fileDiff('/b.txt', 1, 0),  // recomputed
+		assert.deepStrictEqual(result.map(simplify), [
+			simpleDiff('/a.txt', 42, 7), // carried over
+			simpleDiff('/b.txt', 1, 0),  // recomputed
 		]);
 		// Only file B should have triggered a diff computation
 		assert.strictEqual(diffService.callCount, 1, 'only touched file should be diffed');
@@ -149,13 +235,14 @@ suite('computeSessionDiffs', () => {
 
 		const diffService = createTestDiffService();
 		const result = await computeSessionDiffs(
+			TEST_SESSION_URI,
 			db,
 			diffService,
 			{ changedTurnId: 't2', previousDiffs },
 		);
 
 		// Should compare tc1.before='original' vs tc2.after='after-turn2\nextra'
-		assert.deepStrictEqual(result, [fileDiff('/a.txt', 1, 0)]);
+		assert.deepStrictEqual(result.map(simplify), [simpleDiff('/a.txt', 1, 0)]);
 		assert.strictEqual(diffService.callCount, 1);
 	});
 
@@ -181,6 +268,7 @@ suite('computeSessionDiffs', () => {
 
 		const diffService = createTestDiffService();
 		const result = await computeSessionDiffs(
+			TEST_SESSION_URI,
 			db,
 			diffService,
 			{ changedTurnId: 't2', previousDiffs },
@@ -211,6 +299,7 @@ suite('computeSessionDiffs', () => {
 
 		const diffService = createTestDiffService();
 		const result = await computeSessionDiffs(
+			TEST_SESSION_URI,
 			db,
 			diffService,
 			{ changedTurnId: 't2', previousDiffs },
@@ -242,6 +331,7 @@ suite('computeSessionDiffs', () => {
 
 		const diffService = createTestDiffService();
 		const result = await computeSessionDiffs(
+			TEST_SESSION_URI,
 			db,
 			diffService,
 			{ changedTurnId: 't2', previousDiffs },
@@ -266,7 +356,7 @@ suite('computeSessionDiffs', () => {
 		});
 
 		const diffService = createTestDiffService();
-		const result = await computeSessionDiffs(db, diffService);
+		const result = await computeSessionDiffs(TEST_SESSION_URI, db, diffService);
 
 		assert.strictEqual(result.length, 2);
 		assert.strictEqual(diffService.callCount, 2, 'both files should be diffed in full mode');
@@ -295,6 +385,7 @@ suite('computeSessionDiffs', () => {
 
 		const diffService = createTestDiffService();
 		const result = await computeSessionDiffs(
+			TEST_SESSION_URI,
 			db,
 			diffService,
 			{ changedTurnId: 't2', previousDiffs },
@@ -305,9 +396,9 @@ suite('computeSessionDiffs', () => {
 		assert.strictEqual(db.getAllFileEditsCalls, 0, 'fast path should not call getAllFileEdits');
 
 		result.sort((a, b) => (getDiffUri(a) ?? '').localeCompare(getDiffUri(b) ?? ''));
-		assert.deepStrictEqual(result, [
-			fileDiff('/new.txt', 1, 0),
-			fileDiff('/old.txt', 3, 1), // carried over
+		assert.deepStrictEqual(result.map(simplify), [
+			simpleDiff('/new.txt', 1, 0),
+			simpleDiff('/old.txt', 3, 1), // carried over
 		]);
 	});
 
@@ -332,6 +423,7 @@ suite('computeSessionDiffs', () => {
 
 		const diffService = createTestDiffService();
 		const result = await computeSessionDiffs(
+			TEST_SESSION_URI,
 			db,
 			diffService,
 			{ changedTurnId: 't2', previousDiffs },
@@ -342,7 +434,7 @@ suite('computeSessionDiffs', () => {
 		assert.strictEqual(db.getAllFileEditsCalls, 1, 'should fall back to getAllFileEdits');
 
 		// Cumulative diff: original → turn2\nextra
-		assert.deepStrictEqual(result, [fileDiff('/a.txt', 1, 0)]);
+		assert.deepStrictEqual(result.map(simplify), [simpleDiff('/a.txt', 1, 0)]);
 	});
 
 	test('incremental slow path: rename in current turn falls back to getAllFileEdits', async () => {
@@ -365,6 +457,7 @@ suite('computeSessionDiffs', () => {
 
 		const diffService = createTestDiffService();
 		await computeSessionDiffs(
+			TEST_SESSION_URI,
 			db,
 			diffService,
 			{ changedTurnId: 't2', previousDiffs },
@@ -387,6 +480,7 @@ suite('computeSessionDiffs', () => {
 
 		const diffService = createTestDiffService();
 		const result = await computeSessionDiffs(
+			TEST_SESSION_URI,
 			db,
 			diffService,
 			{ changedTurnId: 't2', previousDiffs },

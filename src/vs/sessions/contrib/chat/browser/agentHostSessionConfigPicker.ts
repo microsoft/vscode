@@ -520,6 +520,10 @@ class AgentHostNewSessionApprovePicker extends Disposable {
 		const rawProvider = session ? this._sessionsProvidersService.getProvider(session.providerId) : undefined;
 		const provider = rawProvider && isAgentHostProvider(rawProvider) ? rawProvider : undefined;
 		const config = session && provider?.getSessionConfig(session.sessionId);
+		// `getSessionConfig` may return undefined for sessions whose config
+		// hasn't been seeded yet (e.g. opened from list, no in-window create).
+		// The provider lazily acquires a session-state subscription and will fire
+		// `onDidChangeSessionConfig` once the snapshot arrives, re-rendering us.
 		if (!session || !provider || !config) {
 			return;
 		}
@@ -693,6 +697,9 @@ class AgentHostRunningSessionConfigPicker extends Disposable {
 		const rawProvider = session ? this._sessionsProvidersService.getProvider(session.providerId) : undefined;
 		const provider = rawProvider && isAgentHostProvider(rawProvider) ? rawProvider : undefined;
 		const config = session && provider?.getSessionConfig(session.sessionId);
+		// See note in `AgentHostNewSessionApprovePicker._render`: `config` may be
+		// undefined until the lazy session-state subscription hydrates and the
+		// provider fires `onDidChangeSessionConfig`.
 		if (!session || !provider || !config) {
 			return;
 		}

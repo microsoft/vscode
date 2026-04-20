@@ -29,7 +29,7 @@ import { CopilotCLISession } from '../copilotcliSession';
 import { PermissionRequest } from '../permissionHelpers';
 import { IQuestion, IQuestionAnswer, IUserQuestionHandler } from '../userInputHelpers';
 import { NullICopilotCLIImageSupport } from './testHelpers';
-import { MockRunCommandExecutionService } from '../../../../../platform/commands/common/mockRunCommandExecutionService';
+import { MockGitService } from '../../../../../platform/ignore/node/test/mockGitService';
 
 vi.mock('../cliHelpers', async (importOriginal) => ({
 	...(await importOriginal<typeof import('../cliHelpers')>()),
@@ -247,7 +247,7 @@ describe('CopilotCLISession', () => {
 			new FakeUserQuestionHandler(),
 			configurationService,
 			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })),
-			new MockRunCommandExecutionService()
+			new MockGitService()
 		));
 	}
 
@@ -397,7 +397,7 @@ describe('CopilotCLISession', () => {
 		const attachments = [{ type: 'file' as const, path: attachedFilePath, displayName: 'attached-file.ts' }];
 		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Test' }, attachments as any, undefined, authInfo, CancellationToken.None);
 		expect(result).toEqual({ kind: 'denied-interactively-by-user' });
-		expect(toolsService.invokeToolCalls).toHaveLength(1);
+		expect(toolsService.invokeToolCalls).toHaveLength(2);
 	});
 
 	it('auto-approves read permission inside working directory without external handler', async () => {
@@ -487,8 +487,8 @@ describe('CopilotCLISession', () => {
 		// Path must be absolute within workspace, should auto-approve
 		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Test' }, [], undefined, authInfo, CancellationToken.None);
 		expect(result).toEqual({ kind: 'denied-interactively-by-user' });
-		expect(toolsService.invokeToolCalls).toHaveLength(1);
-		expect(toolsService.invokeToolCalls[0].input).toMatchObject({
+		expect(toolsService.invokeToolCalls).toHaveLength(2);
+		expect(toolsService.invokeToolCalls[1].input).toMatchObject({
 			title: 'Read file(s)',
 			message: 'Read file'
 		});

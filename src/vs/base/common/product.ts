@@ -238,7 +238,6 @@ export interface IProductConfiguration {
 	readonly extensionConfigurationPolicy?: IStringDictionary<IPolicy>;
 
 	readonly onboardingKeymaps?: readonly IProductOnboardingKeymap[];
-	readonly onboardingExtensions?: readonly IProductOnboardingExtension[];
 	readonly onboardingThemes?: readonly IProductOnboardingTheme[];
 
 	readonly embedded?: IEmbeddedProductConfiguration;
@@ -260,14 +259,6 @@ export interface IProductOnboardingKeymap {
 	readonly label: string;
 	readonly extensionId?: string;
 	readonly description: string;
-}
-
-export interface IProductOnboardingExtension {
-	readonly id: string;
-	readonly name: string;
-	readonly publisher: string;
-	readonly description: string;
-	readonly icon: string;
 }
 
 export interface IProductOnboardingTheme {

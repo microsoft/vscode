@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ISubscribeResult } from '../../../common/state/protocol/commands.js';
 import type { IResponsePartAction } from '../../../common/state/sessionActions.js';
 import type { IFetchTurnsResult } from '../../../common/state/sessionProtocol.js';
-import { ResponsePartKind, type IMarkdownResponsePart, type ISessionState } from '../../../common/state/sessionState.js';
+import { ResponsePartKind, buildSubagentSessionUri, type IMarkdownResponsePart, type ISessionState } from '../../../common/state/sessionState.js';
 import {
 	createAndSubscribeSession,
 	dispatchTurnStarted,
@@ -179,5 +179,37 @@ suite('Protocol WebSocket — Turn Execution', function () {
 		const updatedSnapshot = await client.call<ISubscribeResult>('subscribe', { resource: sessionUri });
 		const updatedModifiedAt = (updatedSnapshot.snapshot.state as ISessionState).summary.modifiedAt;
 		assert.ok(updatedModifiedAt >= initialModifiedAt);
+	});
+
+	test('subagent: inner tool calls land in child session, not parent', async function () {
+		this.timeout(15_000);
+
+		const sessionUri = await createAndSubscribeSession(client, 'test-subagent');
+		dispatchTurnStarted(client, sessionUri, 'turn-sa', 'subagent', 1);
+
+		// Wait for the parent turn to complete.
+		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'));
+
+		// Subscribe to the child subagent session — its URI is derived from
+		// the parent session URI + parent toolCallId.
+		const childUri = buildSubagentSessionUri(sessionUri, 'tc-task-1');
+
+		const parentSnapshot = await client.call<ISubscribeResult>('subscribe', { resource: sessionUri });
+		const parentState = parentSnapshot.snapshot.state as ISessionState;
+		const childSnapshot = await client.call<ISubscribeResult>('subscribe', { resource: childUri });
+		const childState = childSnapshot.snapshot.state as ISessionState;
+
+		// Parent turn should contain the `task` tool call but NOT the inner one.
+		const parentTurn = parentState.turns[parentState.turns.length - 1];
+		const parentToolCalls = parentTurn.responseParts.filter(p => p.kind === ResponsePartKind.ToolCall);
+		const parentToolNames = parentToolCalls.map(p => p.toolCall.toolName);
+		assert.deepStrictEqual(parentToolNames, ['task'], 'parent turn should only contain the `task` tool call (inner tool must route to subagent)');
+
+		// Child session should have one turn with the inner `echo_tool` call.
+		assert.ok(childState.turns.length >= 1, 'child subagent session should have at least one turn');
+		const childTurn = childState.turns[childState.turns.length - 1];
+		const childToolCalls = childTurn.responseParts.filter(p => p.kind === ResponsePartKind.ToolCall);
+		const childToolNames = childToolCalls.map(p => p.toolCall.toolName);
+		assert.deepStrictEqual(childToolNames, ['echo_tool'], 'child subagent session should contain the inner `echo_tool` call');
 	});
 });

@@ -818,6 +818,13 @@ export class AICustomizationListWidget extends Disposable {
 	}
 
 	/**
+	 * Prepends an element to the search row (left of the search input).
+	 */
+	prependToSearchRow(element: HTMLElement): void {
+		this.searchAndButtonContainer.insertBefore(element, this.searchAndButtonContainer.firstChild);
+	}
+
+	/**
 	 * Sets the current section and loads items for that section.
 	 */
 	async setSection(section: AICustomizationManagementSection): Promise<void> {

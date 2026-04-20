@@ -23,6 +23,11 @@ declare module 'vscode' {
 		readonly uri: Uri;
 
 		/**
+		 * Optional condition that must evaluate to true for the resource to be offered.
+		 */
+		readonly when?: string;
+
+		/**
 		 * Optional session types that describe when the resource should be offered.
 		 */
 		readonly sessionTypes?: readonly string[];

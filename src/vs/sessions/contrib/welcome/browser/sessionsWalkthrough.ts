@@ -6,7 +6,7 @@
 import './media/sessionsWalkthrough.css';
 import { disposableTimeout } from '../../../../base/common/async.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { $, append, EventType, addDisposableListener, getActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
+import { $, addDisposableGenericMouseDownListener, append, EventType, addDisposableListener, getActiveElement, isHTMLElement } from '../../../../base/browser/dom.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
@@ -84,7 +84,7 @@ export class SessionsWalkthroughOverlay extends Disposable {
 				this._trapFocus(e);
 			}
 		}));
-		this._register(addDisposableListener(this.overlay, EventType.MOUSE_DOWN, e => {
+		this._register(addDisposableGenericMouseDownListener(this.overlay, e => {
 			if (e.target === this.overlay) {
 				e.preventDefault();
 				e.stopPropagation();

@@ -517,6 +517,8 @@ export interface IClaudeCodeSessionInfo {
 	readonly folderName?: string;
 	/** Current working directory of the session */
 	readonly cwd?: string;
+	/** Git branch of the session */
+	readonly gitBranch?: string;
 }
 
 // #endregion

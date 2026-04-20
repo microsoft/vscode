@@ -13,7 +13,6 @@ import { IProductOnboardingTheme } from '../../../../base/common/product.js';
 export const enum OnboardingStepId {
 	SignIn = 'onboarding.signIn',
 	Personalize = 'onboarding.personalize',
-	Extensions = 'onboarding.extensions',
 	AiPreference = 'onboarding.aiPreference',
 	AgentSessions = 'onboarding.agentSessions',
 }
@@ -27,8 +26,6 @@ export function getOnboardingStepTitle(stepId: OnboardingStepId): string {
 			return localize('onboarding.step.signIn', "Sign In");
 		case OnboardingStepId.Personalize:
 			return localize('onboarding.step.personalize', "Make It Yours");
-		case OnboardingStepId.Extensions:
-			return localize('onboarding.step.extensions', "Supercharge Your Editor");
 		case OnboardingStepId.AiPreference:
 			return localize('onboarding.step.aiPreference', "Your AI Style");
 		case OnboardingStepId.AgentSessions:
@@ -45,8 +42,6 @@ export function getOnboardingStepSubtitle(stepId: OnboardingStepId): string {
 			return localize('onboarding.step.signIn.subtitle', "Sync settings, unlock AI features, and connect to GitHub");
 		case OnboardingStepId.Personalize:
 			return localize('onboarding.step.personalize.subtitle', "Choose your theme and keyboard mapping");
-		case OnboardingStepId.Extensions:
-			return localize('onboarding.step.extensions.subtitle', "Install extensions to enhance your workflow");
 		case OnboardingStepId.AiPreference:
 			return localize('onboarding.step.aiPreference.subtitle', "Choose how much AI collaboration fits your workflow");
 		case OnboardingStepId.AgentSessions:
@@ -60,7 +55,6 @@ export function getOnboardingStepSubtitle(stepId: OnboardingStepId): string {
 export const ONBOARDING_STEPS: readonly OnboardingStepId[] = [
 	OnboardingStepId.SignIn,
 	OnboardingStepId.Personalize,
-	OnboardingStepId.Extensions,
 	OnboardingStepId.AgentSessions,
 ];
 

@@ -1601,6 +1601,17 @@ export async function updateTodoListFromSqlItems(
 	}, token);
 }
 
+export async function clearTodoList(toolsService: IToolsService,
+	toolInvocationToken: ChatParticipantToolToken,
+	token: CancellationToken): Promise<void> {
+	await toolsService.invokeTool(ToolName.CoreManageTodoList, {
+		input: {
+			operation: 'write',
+			todoList: []
+		} satisfies IManageTodoListToolInputParams,
+		toolInvocationToken,
+	}, token);
+}
 
 interface IManageTodoListToolInputParams {
 	readonly operation?: 'write' | 'read'; // Optional in write-only mode
@@ -1682,6 +1693,15 @@ export class FakeToolsService implements IToolsService {
 			return {
 				content: [new LanguageModelTextPart(this._confirmationResult)]
 			};
+		}
+
+		if (name === 'vscode_reviewPlan') {
+			if (this._confirmationResult === 'no') {
+				return { content: [new LanguageModelTextPart(JSON.stringify({ rejected: true }))] };
+			}
+			const input = options.input as { actions?: Array<{ label: string }> } | undefined;
+			const firstAction = input?.actions?.[0]?.label;
+			return { content: [new LanguageModelTextPart(JSON.stringify({ action: firstAction, rejected: false }))] };
 		}
 
 		return { content: [] };

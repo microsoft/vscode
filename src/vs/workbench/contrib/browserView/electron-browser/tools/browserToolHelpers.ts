@@ -177,6 +177,16 @@ async function findExistingPagesByHost(
 		) {
 			results.push(editor);
 		}
+		// Check for subdomain matches
+		if (
+			editorUrl?.host && parsed.host &&
+			(
+				editorUrl.host.endsWith('.' + parsed.host) ||
+				parsed.host.endsWith('.' + editorUrl.host)
+			)
+		) {
+			results.push(editor);
+		}
 	}
 	return results;
 }

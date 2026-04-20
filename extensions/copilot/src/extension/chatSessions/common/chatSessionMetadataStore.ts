@@ -18,7 +18,9 @@ export interface RepositoryProperties {
 	readonly repositoryPath: string;
 	readonly branchName?: string;
 	readonly baseBranchName?: string;
+	readonly baseCommit?: string;
 	readonly upstreamBranchName?: string;
+	readonly mergeBaseCommit?: string;
 	readonly hasGitHubRemote?: boolean;
 	readonly incomingChanges?: number;
 	readonly outgoingChanges?: number;

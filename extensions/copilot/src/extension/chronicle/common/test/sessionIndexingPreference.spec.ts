@@ -9,16 +9,25 @@ import { SessionIndexingPreference } from '../sessionIndexingPreference';
 function createMockConfigService(opts: {
 	localIndexEnabled?: boolean;
 	cloudSyncEnabled?: boolean;
+	cloudSyncPublicEnabled?: boolean;
 	excludeRepositories?: string[];
 } = {}) {
 	const configs: Record<string, unknown> = {};
 	// Map by fullyQualifiedId
 	configs['github.copilot.chat.advanced.sessionSearch.localIndex.enabled'] = opts.localIndexEnabled ?? false;
 	configs['github.copilot.chat.advanced.sessionSearch.cloudSync.enabled'] = opts.cloudSyncEnabled ?? false;
+	configs['github.copilot.chat.sessionSearch.cloudSync.enabled'] = opts.cloudSyncPublicEnabled ?? false;
 	configs['github.copilot.chat.advanced.sessionSearch.cloudSync.excludeRepositories'] = opts.excludeRepositories ?? [];
+
+	// Track which keys are explicitly configured (set by the user)
+	const configuredKeys = new Set<string>();
+	if (opts.cloudSyncPublicEnabled !== undefined) {
+		configuredKeys.add('github.copilot.chat.sessionSearch.cloudSync.enabled');
+	}
 
 	return {
 		getConfig: (key: { fullyQualifiedId: string }) => configs[key.fullyQualifiedId],
+		isConfigured: (key: { fullyQualifiedId: string }) => configuredKeys.has(key.fullyQualifiedId),
 	} as unknown as import('../../../../platform/configuration/common/configurationService').IConfigurationService;
 }
 
@@ -80,5 +89,20 @@ describe('SessionIndexingPreference', () => {
 		expect(pref.hasCloudConsent('private-org/repo-a')).toBe(false);
 		expect(pref.hasCloudConsent('private-org/repo-b')).toBe(false);
 		expect(pref.hasCloudConsent('public-org/repo-a')).toBe(true);
+	});
+
+	it('hasCloudConsent uses new public key when explicitly configured', () => {
+		const pref = new SessionIndexingPreference(createMockConfigService({
+			cloudSyncPublicEnabled: true,
+		}));
+		expect(pref.hasCloudConsent()).toBe(true);
+	});
+
+	it('hasCloudConsent new public key overrides old internal key', () => {
+		const pref = new SessionIndexingPreference(createMockConfigService({
+			cloudSyncEnabled: true,
+			cloudSyncPublicEnabled: false,
+		}));
+		expect(pref.hasCloudConsent()).toBe(false);
 	});
 });

@@ -8,6 +8,7 @@
 .chat-status-bar-entry-tooltip {
 	margin-top: 4px;
 	margin-bottom: 4px;
+	max-width: 340px;
 }
 
 .chat-status-bar-entry-tooltip hr {
@@ -181,6 +182,14 @@
 	color: var(--vscode-gauge-warningForeground);
 }
 
+.chat-status-bar-entry-tooltip .quota-indicator.info {
+	border-color: var(--vscode-gauge-foreground);
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.info .quota-percentage .quota-value {
+	color: var(--vscode-gauge-foreground);
+}
+
 .chat-status-bar-entry-tooltip .quota-indicator.error {
 	border-color: var(--vscode-gauge-errorForeground);
 }
@@ -195,6 +204,69 @@
 
 .chat-status-bar-entry-tooltip .quota-indicator.error .quota-percentage .quota-value {
 	color: var(--vscode-gauge-errorForeground);
+}
+
+/* Dimmed state when quota limit is fully exhausted */
+
+.chat-status-bar-entry-tooltip .quota-indicator.dimmed {
+	border-color: var(--vscode-editorWidget-border);
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.dimmed .quota-percentage .quota-value {
+	color: var(--vscode-disabledForeground);
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.dimmed .quota-bar {
+	background-color: var(--vscode-gauge-background);
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.dimmed .quota-bar .quota-bit {
+	background-color: var(--vscode-disabledForeground);
+}
+
+/* Quota Callout */
+
+.chat-status-bar-entry-tooltip .quota-callout {
+	display: flex;
+	align-items: flex-start;
+	gap: 6px;
+	padding: 8px 10px;
+	border-radius: 6px;
+	border: 1px solid;
+	margin-bottom: 8px;
+	font-size: 12px;
+	line-height: 1.4;
+}
+
+.chat-status-bar-entry-tooltip .quota-callout .callout-icon {
+	flex-shrink: 0;
+}
+
+.chat-status-bar-entry-tooltip .quota-callout.warning {
+	border-color: var(--vscode-gauge-warningForeground);
+	color: var(--vscode-foreground);
+}
+
+.chat-status-bar-entry-tooltip .quota-callout.warning .callout-icon {
+	color: var(--vscode-gauge-warningForeground);
+}
+
+.chat-status-bar-entry-tooltip .quota-callout.error {
+	border-color: var(--vscode-gauge-errorForeground);
+	color: var(--vscode-foreground);
+}
+
+.chat-status-bar-entry-tooltip .quota-callout.error .callout-icon {
+	color: var(--vscode-gauge-errorForeground);
+}
+
+.chat-status-bar-entry-tooltip .quota-callout.info {
+	border-color: var(--vscode-editorWidget-border);
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-status-bar-entry-tooltip .quota-callout.info .callout-icon {
+	color: var(--vscode-descriptionForeground);
 }
 
 /* Settings */

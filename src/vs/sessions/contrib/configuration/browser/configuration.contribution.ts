@@ -39,8 +39,11 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'chat.implicitContext.enabled': { 'panel': 'never' },
 		'chat.tools.terminal.enableAutoApprove': true,
 
-		'diffEditor.renderSideBySide': false,
 		'diffEditor.hideUnchangedRegions.enabled': true,
+		'diffEditor.renderGutterMenu': false,
+		'diffEditor.renderMarginRevertIcon': false,
+		'diffEditor.renderSideBySide': true,
+		'diffEditor.useInlineViewWhenSpaceIsLimited': true,
 
 		'extensions.ignoreRecommendations': true,
 

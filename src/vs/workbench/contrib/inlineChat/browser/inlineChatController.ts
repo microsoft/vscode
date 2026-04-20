@@ -628,6 +628,21 @@ export class InlineChatController implements IEditorContribution {
 			}
 		}
 
+		// ADD diagnostics (only when explicitly requested)
+		if (arg?.attachDiagnostics) {
+			for (const [range, marker] of this.#markerDecorationsService.getLiveMarkers(uri)) {
+				if (range.intersectRanges(this.#editor.getSelection())) {
+					const filter = IDiagnosticVariableEntryFilterData.fromMarker(marker);
+					attachedContext.push(IDiagnosticVariableEntryFilterData.toEntry(filter));
+				}
+			}
+			if (attachedContext.length > 0 && !arg.message) {
+				arg.message = attachedContext.length > 1
+					? localize('fixN', "Fix the attached problems")
+					: localize('fix1', "Fix the attached problem");
+			}
+		}
+
 		// Send the request directly
 		if (arg?.message && arg.autoSend) {
 			await this.#chatService.sendRequest(

@@ -254,6 +254,10 @@ export abstract class FolderRepositoryManager extends Disposable implements IFol
 					? await this.gitService.getBranchBase(repoContext.rootUri, repoContext.headBranchName)
 					: undefined;
 
+				const mergeBaseCommit = repoContext?.headBranchName && branchBase?.commit
+					? await this.gitService.getMergeBase(repoContext.rootUri, repoContext.headBranchName, branchBase.commit)
+					: undefined;
+
 				const gitHubRemote = repoContext
 					? getGitHubRepoInfoFromContext(repoContext)
 					: undefined;
@@ -275,6 +279,8 @@ export abstract class FolderRepositoryManager extends Disposable implements IFol
 						upstreamBranchName: repoContext?.upstreamRemote && repoContext?.upstreamBranchName
 							? `${repoContext.upstreamRemote}/${repoContext.upstreamBranchName}`
 							: undefined,
+						baseCommit: repoContext.headCommitHash,
+						mergeBaseCommit,
 						hasGitHubRemote: gitHubRemote !== undefined,
 						incomingChanges,
 						outgoingChanges,
