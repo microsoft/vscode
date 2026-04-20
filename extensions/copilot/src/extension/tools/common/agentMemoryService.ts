@@ -29,17 +29,6 @@ import { Disposable } from '../../../util/vs/base/common/lifecycle';
 export type { MemoryPromptResponse, MemoryResponse as RepoMemoryEntry };
 
 /**
- * User memory entry format for user-scoped memories.
- * @deprecated Use StoreMemoryRequest from @github/copilot-agentic-tools/memory directly.
- */
-export interface UserMemoryEntry {
-	subject: string;
-	fact: string;
-	citations?: string | string[];
-	reason?: string;
-}
-
-/**
  * Normalize citations field to string[] format.
  * Handles backward compatibility for legacy string format.
  */
