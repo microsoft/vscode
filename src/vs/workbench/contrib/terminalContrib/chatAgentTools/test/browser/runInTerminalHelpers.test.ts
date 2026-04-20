@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ok, strictEqual } from 'assert';
-import { generateAutoApproveActions, TRUNCATION_MESSAGE, dedupeRules, isPowerShell, sanitizeTerminalOutput, truncateOutputKeepingTail, extractCdPrefix, normalizeTerminalCommandForDisplay } from '../../browser/runInTerminalHelpers.js';
+import { generateAutoApproveActions, TRUNCATION_MESSAGE, dedupeRules, isPowerShell, truncateOutputKeepingTail, extractCdPrefix, normalizeTerminalCommandForDisplay } from '../../browser/runInTerminalHelpers.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
@@ -280,16 +280,6 @@ suite('truncateOutputKeepingTail', () => {
 	test('gracefully handles tiny limits', () => {
 		const result = truncateOutputKeepingTail('example', 5);
 		strictEqual(result.length, 5);
-	});
-});
-
-suite('sanitizeTerminalOutput', () => {
-	ensureNoDisposablesAreLeakedInTestSuite();
-	test('adds truncation notice when exceeding max length', () => {
-		const longOutput = 'line\n'.repeat(20000);
-		const result = sanitizeTerminalOutput(longOutput);
-		ok(result.startsWith(TRUNCATION_MESSAGE));
-		ok(result.endsWith('line'));
 	});
 });
 

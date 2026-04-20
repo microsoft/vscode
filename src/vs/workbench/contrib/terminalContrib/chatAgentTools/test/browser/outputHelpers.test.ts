@@ -3,10 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { strictEqual } from 'assert';
+import { ok, strictEqual } from 'assert';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { getOutput } from '../../browser/outputHelpers.js';
+import { TRUNCATION_MESSAGE } from '../../browser/runInTerminalHelpers.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 
 suite('outputHelpers', () => {
@@ -59,5 +60,17 @@ suite('outputHelpers', () => {
 		const marker = { line: 1 } as IXtermMarker;
 		const output = getOutput(instance, marker);
 		strictEqual(output, `${line80}X\nafter`);
+	});
+
+	test('caps output at 60KB and prefixes the truncation marker', () => {
+		const line = 'a'.repeat(1000);
+		const instance = createMockInstance(
+			Array.from({ length: 100 }, () => ({ text: line }))
+		);
+
+		const output = getOutput(instance);
+		strictEqual(output.length, 60000);
+		ok(output.startsWith(TRUNCATION_MESSAGE));
+		ok(output.endsWith(line));
 	});
 });
