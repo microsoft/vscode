@@ -47,13 +47,13 @@ export class AgentMemoryToolRegistrar implements IAgentMemoryToolRegistrar {
 			const repoNwo = await this.agentMemoryService.getRepoNwo();
 			promptResponse = await this.agentMemoryService.getMemoryPrompt(repoNwo);
 		}
+		// Dispose any previously registered memory tools before re-registering
+		this._registrations.clear();
+
 		if (!promptResponse) {
 			this.logService.warn('[AgentMemoryToolRegistrar] Could not fetch memory prompt — skipping tool registration');
 			return;
 		}
-
-		// Dispose any previously registered memory tools before re-registering
-		this._registrations.clear();
 
 		// Use storeToolDefinition if present (version >= 1.1.0 includes scope param),
 		// fall back to the legacy toolDefinition for older servers.
