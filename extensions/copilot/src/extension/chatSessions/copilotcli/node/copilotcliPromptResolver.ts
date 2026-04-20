@@ -23,6 +23,7 @@ import { generateUserPrompt } from '../../../prompts/node/agent/copilotCLIPrompt
 import { getWorkingDirectory, isIsolationEnabled, IWorkspaceInfo } from '../../common/workspaceInfo';
 import { ICopilotCLIImageSupport, isImageMimeType } from './copilotCLIImageSupport';
 import { ICopilotCLISkills } from './copilotCLISkills';
+import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { IVSCodeExtensionContext } from '../../../../platform/extContext/common/extensionContext';
 
 export class CopilotCLIPromptResolver {
@@ -77,7 +78,7 @@ export class CopilotCLIPromptResolver {
 		const isolationEnabled = isIsolationEnabled(workspaceInfo) || additionalWorkspaces.some(ws => isIsolationEnabled(ws));
 		const folderToWorktreeMap = this.buildFolderToWorktreeMap(workspaceInfo, additionalWorkspaces);
 		const hasAnyWorkingDirectory = getWorkingDirectory(workspaceInfo) || additionalWorkspaces.some(ws => getWorkingDirectory(ws));
-		const knownSkillLocations = this.skillsService.getSkillsLocations();
+		const knownSkillLocations = await this.skillsService.getSkillsLocations(CancellationToken.None);
 		await Promise.all(Array.from(variables).map(async variable => {
 			// Unsupported references: prompt instructions, instruction files, and the customizations index.
 			if (isInstructionFile(variable) || isCustomizationsIndex(variable)) {

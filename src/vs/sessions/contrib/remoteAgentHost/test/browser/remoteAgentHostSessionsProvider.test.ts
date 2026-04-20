@@ -6,7 +6,7 @@
 import assert from 'assert';
 import { timeout } from '../../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../../base/common/event.js';
-import { DisposableStore, toDisposable } from '../../../../../base/common/lifecycle.js';
+import { DisposableStore, toDisposable, type IReference } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { runWithFakedTimers } from '../../../../../base/test/common/timeTravelScheduler.js';
@@ -15,9 +15,9 @@ import { AgentSession, type IAgentConnection, type IAgentSessionMetadata } from 
 import type { ISessionAction, ITerminalAction } from '../../../../../platform/agentHost/common/state/protocol/action-origin.generated.js';
 import type { IResolveSessionConfigResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { NotificationType } from '../../../../../platform/agentHost/common/state/protocol/notifications.js';
-import type { IAgentInfo, IRootState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import { SessionLifecycle, type IAgentInfo, type IModelSelection, type IRootState, type ISessionConfigState, type ISessionState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, type IActionEnvelope, type INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import { SessionStatus as ProtocolSessionStatus } from '../../../../../platform/agentHost/common/state/sessionState.js';
+import { SessionStatus as ProtocolSessionStatus, StateComponents } from '../../../../../platform/agentHost/common/state/sessionState.js';
 import type { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -51,6 +51,7 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 	public disposedSessions: URI[] = [];
 	public dispatchedActions: { action: ISessionAction | ITerminalAction; clientId: string; clientSeq: number }[] = [];
 	public failResolveSessionConfig = false;
+	public resolveSessionConfigResult: IResolveSessionConfigResult = { schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } };
 
 	private _nextSeq = 0;
 
@@ -85,7 +86,7 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 		if (this.failResolveSessionConfig) {
 			throw new Error('resolveSessionConfig unavailable');
 		}
-		return { ready: true, schema: { type: 'object', properties: {} }, values: { isolation: 'worktree' } };
+		return this.resolveSessionConfigResult;
 	}
 
 	dispatchAction(action: ISessionAction | ITerminalAction, clientId: string, clientSeq: number): void {
@@ -99,6 +100,43 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 	// Test helpers
 	addSession(meta: IAgentSessionMetadata): void {
 		this._sessions.set(AgentSession.id(meta.session), meta);
+	}
+
+	// ---- Session-state subscriptions ---------------------------------------
+
+	private readonly _sessionStateEmitters = new Map<string, Emitter<ISessionState>>();
+	private readonly _sessionStateValues = new Map<string, ISessionState>();
+	public sessionSubscribeCounts = new Map<string, number>();
+	public sessionUnsubscribeCounts = new Map<string, number>();
+
+	override getSubscription<T>(_kind: StateComponents, resource: URI): IReference<IAgentSubscription<T>> {
+		const key = resource.toString();
+		this.sessionSubscribeCounts.set(key, (this.sessionSubscribeCounts.get(key) ?? 0) + 1);
+		let emitter = this._sessionStateEmitters.get(key);
+		if (!emitter) {
+			emitter = new Emitter<ISessionState>();
+			this._sessionStateEmitters.set(key, emitter);
+		}
+		const self = this;
+		const sub: IAgentSubscription<T> = {
+			get value() { return self._sessionStateValues.get(key) as unknown as T | undefined; },
+			get verifiedValue() { return self._sessionStateValues.get(key) as unknown as T | undefined; },
+			onDidChange: emitter.event as unknown as Event<T>,
+			onWillApplyAction: Event.None,
+			onDidApplyAction: Event.None,
+		};
+		return {
+			object: sub,
+			dispose: () => {
+				this.sessionUnsubscribeCounts.set(key, (this.sessionUnsubscribeCounts.get(key) ?? 0) + 1);
+			},
+		};
+	}
+
+	setSessionState(rawId: string, provider: string, state: ISessionState): void {
+		const key = AgentSession.uri(provider, rawId).toString();
+		this._sessionStateValues.set(key, state);
+		this._sessionStateEmitters.get(key)?.fire(state);
 	}
 
 	setAgents(agents: IAgentInfo[]): void {
@@ -118,6 +156,10 @@ class MockAgentConnection extends mock<IAgentConnection>() {
 		this._onDidAction.dispose();
 		this._onDidNotification.dispose();
 		this._onDidRootStateChange.dispose();
+		for (const emitter of this._sessionStateEmitters.values()) {
+			emitter.dispose();
+		}
+		this._sessionStateEmitters.clear();
 	}
 }
 
@@ -129,7 +171,7 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 		startTime: opts?.startTime ?? 1000,
 		modifiedTime: opts?.modifiedTime ?? 2000,
 		summary: opts?.summary,
-		model: opts?.model,
+		model: opts?.model ? { id: opts.model } : undefined,
 		project: opts?.project,
 		workingDirectory: opts?.workingDirectory,
 	};
@@ -166,7 +208,22 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 	return provider;
 }
 
-function fireSessionAdded(connection: MockAgentConnection, rawId: string, opts?: { provider?: string; title?: string; model?: string; project?: { uri: string; displayName: string }; workingDirectory?: string }): void {
+async function waitForSessionConfig(provider: RemoteAgentHostSessionsProvider, sessionId: string, predicate: (config: IResolveSessionConfigResult | undefined) => boolean): Promise<void> {
+	if (predicate(provider.getSessionConfig(sessionId))) {
+		return;
+	}
+
+	await new Promise<void>(resolve => {
+		const disposable = provider.onDidChangeSessionConfig(changedSessionId => {
+			if (changedSessionId === sessionId && predicate(provider.getSessionConfig(sessionId))) {
+				disposable.dispose();
+				resolve();
+			}
+		});
+	});
+}
+
+function fireSessionAdded(connection: MockAgentConnection, rawId: string, opts?: { provider?: string; title?: string; model?: string; modelConfig?: Record<string, string>; project?: { uri: string; displayName: string }; workingDirectory?: string }): void {
 	const provider = opts?.provider ?? 'copilot';
 	const sessionUri = AgentSession.uri(provider, rawId);
 	connection.fireNotification({
@@ -178,7 +235,7 @@ function fireSessionAdded(connection: MockAgentConnection, rawId: string, opts?:
 			status: ProtocolSessionStatus.Idle,
 			createdAt: Date.now(),
 			modifiedAt: Date.now(),
-			model: opts?.model,
+			model: opts?.model ? { id: opts.model, ...(opts.modelConfig ? { config: opts.modelConfig } : {}) } : undefined,
 			project: opts?.project,
 			workingDirectory: opts?.workingDirectory,
 		},
@@ -435,7 +492,23 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.deepStrictEqual(connection.dispatchedActions.at(-1)?.action, {
 			type: ActionType.SessionModelChanged,
 			session: AgentSession.uri('copilot', 'set-model').toString(),
-			model: 'new-model',
+			model: { id: 'new-model' },
+		});
+	});
+
+	test('setModel preserves current model config when model id is unchanged', () => {
+		const provider = createProvider(disposables, connection);
+		fireSessionAdded(connection, 'set-model-config', { title: 'Set Model Config Session', model: 'configured-model', modelConfig: { thinkingLevel: 'high' } });
+
+		const session = provider.getSessions().find(s => s.title.get() === 'Set Model Config Session');
+		assert.ok(session);
+
+		provider.setModel(session!.sessionId, 'remote-localhost__4321-copilot:configured-model');
+
+		assert.deepStrictEqual(connection.dispatchedActions.at(-1)?.action, {
+			type: ActionType.SessionModelChanged,
+			session: AgentSession.uri('copilot', 'set-model-config').toString(),
+			model: { id: 'configured-model', config: { thinkingLevel: 'high' } },
 		});
 	});
 
@@ -451,7 +524,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.strictEqual(session.workspace.get()?.label, 'project [Test Host]');
 		// sessionType should be the logical type, not the resource scheme
 		assert.strictEqual(session.sessionType, provider.sessionTypes[0].id);
-		assert.deepStrictEqual(provider.getSessionConfig(session.sessionId), { ready: false, schema: { type: 'object', properties: {} }, values: {} });
+		assert.deepStrictEqual(provider.getSessionConfig(session.sessionId), { schema: { type: 'object', properties: {} }, values: {} });
 	});
 
 	test('createNewSession clears session config when resolving config is unavailable', async () => {
@@ -612,7 +685,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 			action: {
 				type: ActionType.SessionModelChanged,
 				session: AgentSession.uri('copilot', 'model-change').toString(),
-				model: 'new-model',
+				model: { id: 'new-model' } satisfies IModelSelection,
 			},
 			serverSeq: 1,
 			origin: undefined,
@@ -657,6 +730,36 @@ suite('RemoteAgentHostSessionsProvider', () => {
 	}));
 
 	// ---- Send -------
+
+	test('new session stays loading when required config is missing', async () => {
+		connection.resolveSessionConfigResult = {
+			schema: { type: 'object', required: ['branch'], properties: { branch: { type: 'string', title: 'Branch', enum: ['main'] } } },
+			values: {},
+		};
+		const provider = createProvider(disposables, connection);
+		const session = provider.createNewSession(URI.parse('vscode-agent-host://auth/home/user/project'), provider.sessionTypes[0].id);
+		await waitForSessionConfig(provider, session.sessionId, config => config?.schema.required?.includes('branch') === true);
+
+		assert.strictEqual(session.loading.get(), true);
+	});
+
+	test('cached session loading reflects authenticationPending', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		connection.addSession(createSession('cached-auth', { summary: 'Cached' }));
+		const provider = createProvider(disposables, connection);
+		await timeout(0);
+
+		const session = provider.getSessions().find(s => s.title.get() === 'Cached');
+		assert.ok(session);
+		// Default at construction is `true`; clear it and verify.
+		assert.strictEqual(session!.loading.get(), true);
+
+		provider.setAuthenticationPending(false);
+		assert.strictEqual(session!.loading.get(), false);
+
+		// Sticky: a subsequent re-auth pass must not flicker the UI back to loading.
+		provider.setAuthenticationPending(true);
+		assert.strictEqual(session!.loading.get(), false);
+	}));
 
 	test('sendAndCreateChat throws for unknown session', async () => {
 		const provider = createProvider(disposables, connection);
@@ -760,6 +863,86 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		assert.ok(changes.length > 0);
 		const updatedSession = provider.getSessions().find((s) => s.title.get() === 'After');
 		assert.ok(updatedSession, 'Session should have updated title');
+	}));
+
+	// ---- Running session config seeding (from ISessionState.config) -------
+
+	test('getSessionConfig seeds running config from session state subscription, filtered to sessionMutable properties', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		connection.addSession(createSession('seed-1', { summary: 'Seeded Session' }));
+		const provider = createProvider(disposables, connection);
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(s => s.title.get() === 'Seeded Session');
+		assert.ok(session);
+
+		assert.strictEqual(provider.getSessionConfig(session!.sessionId), undefined);
+
+		const config: ISessionConfigState = {
+			schema: {
+				type: 'object',
+				properties: {
+					autoApprove: { type: 'string', title: 'Auto Approve', enum: ['default', 'autoApprove'], sessionMutable: true },
+					isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'], readOnly: true },
+				},
+			},
+			values: { autoApprove: 'default', isolation: 'worktree' },
+		};
+		const fakeState: ISessionState = {
+			summary: { resource: AgentSession.uri('copilot', 'seed-1').toString(), provider: 'copilot', title: 'Seeded Session', status: ProtocolSessionStatus.Idle, createdAt: 0, modifiedAt: 0 },
+			lifecycle: SessionLifecycle.Ready,
+			turns: [],
+			config,
+		};
+		connection.setSessionState('seed-1', 'copilot', fakeState);
+
+		await waitForSessionConfig(provider, session!.sessionId, c => c?.values.autoApprove === 'default');
+
+		const seeded = provider.getSessionConfig(session!.sessionId);
+		assert.deepStrictEqual({
+			properties: Object.keys(seeded?.schema.properties ?? {}),
+			values: seeded?.values,
+		}, {
+			properties: ['autoApprove'],
+			values: { autoApprove: 'default' },
+		});
+	}));
+
+	test('removing a session disposes its session-state subscription', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		connection.addSession(createSession('seed-2', { summary: 'Sub Session' }));
+		const provider = createProvider(disposables, connection);
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(s => s.title.get() === 'Sub Session');
+		assert.ok(session);
+
+		provider.getSessionConfig(session!.sessionId);
+		const sessionUriStr = AgentSession.uri('copilot', 'seed-2').toString();
+		assert.strictEqual(connection.sessionSubscribeCounts.get(sessionUriStr), 1);
+		assert.strictEqual(connection.sessionUnsubscribeCounts.get(sessionUriStr) ?? 0, 0);
+
+		fireSessionRemoved(connection, 'seed-2');
+
+		assert.strictEqual(connection.sessionUnsubscribeCounts.get(sessionUriStr), 1);
+	}));
+
+	test('replacing the connection disposes all session-state subscriptions', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		connection.addSession(createSession('seed-3', { summary: 'Reconnect Session' }));
+		const provider = createProvider(disposables, connection);
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(s => s.title.get() === 'Reconnect Session');
+		assert.ok(session);
+
+		provider.getSessionConfig(session!.sessionId);
+		const sessionUriStr = AgentSession.uri('copilot', 'seed-3').toString();
+		assert.strictEqual(connection.sessionSubscribeCounts.get(sessionUriStr), 1);
+		assert.strictEqual(connection.sessionUnsubscribeCounts.get(sessionUriStr) ?? 0, 0);
+
+		const newConnection = new MockAgentConnection();
+		disposables.add(toDisposable(() => newConnection.dispose()));
+		provider.setConnection(newConnection);
+
+		assert.strictEqual(connection.sessionUnsubscribeCounts.get(sessionUriStr), 1);
 	}));
 
 });

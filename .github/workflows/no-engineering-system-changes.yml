@@ -30,13 +30,19 @@ jobs:
           #    touches the "distro" or "version" field, OR
           # 2. package.json + package-lock.json are the only changed files and
           #    the package.json diff exclusively touches the "version" field
-          #    (lock file updates are expected from npm install after version bump).
+          #    (lock file updates are expected from npm install after version bump), OR
+          # 3. Same as (2) but also including extensions/copilot/package.json
+          #    and extensions/copilot/package-lock.json, where the copilot
+          #    package.json diff only touches "version" and "vscode" fields.
 
-          ONLY_PKG=$(jq -e '. == ["package.json"]' "$HOME/files.json" > /dev/null 2>&1 && echo true || echo false)
-          PKG_AND_LOCK=$(jq -e '. | sort == ["package-lock.json", "package.json"]' "$HOME/files.json" > /dev/null 2>&1 && echo true || echo false)
+          SORTED_FILES=$(jq -e '. | sort' "$HOME/files.json")
 
-          if [[ "$ONLY_PKG" != "true" && "$PKG_AND_LOCK" != "true" ]]; then
-            echo "Bot modified files beyond package.json (+ package-lock.json) — not allowed"
+          ONLY_PKG=$(echo "$SORTED_FILES" | jq -e '. == ["package.json"]' > /dev/null 2>&1 && echo true || echo false)
+          PKG_AND_LOCK=$(echo "$SORTED_FILES" | jq -e '. == ["package-lock.json", "package.json"]' > /dev/null 2>&1 && echo true || echo false)
+          PKG_LOCK_AND_COPILOT=$(echo "$SORTED_FILES" | jq -e '. == ["extensions/copilot/package-lock.json", "extensions/copilot/package.json", "package-lock.json", "package.json"]' > /dev/null 2>&1 && echo true || echo false)
+
+          if [[ "$ONLY_PKG" != "true" && "$PKG_AND_LOCK" != "true" && "$PKG_LOCK_AND_COPILOT" != "true" ]]; then
+            echo "Bot modified files beyond package.json (+ package-lock.json + extensions/copilot) — not allowed"
             echo "allowed=false" >> $GITHUB_OUTPUT
             exit 0
           fi
@@ -47,7 +53,7 @@ jobs:
             exit 0
           }
 
-          # Extract only the package.json diff section (ignore package-lock.json changes)
+          # Extract only the root package.json diff section (ignore lock file changes)
           PKG_DIFF=$(echo "$DIFF" | awk '/^diff --git a\/package\.json b\/package\.json/{p=1} p && /^diff --git / && !/^diff --git a\/package\.json/{exit} p{print}')
 
           CHANGED_LINES=$(echo "$PKG_DIFF" | grep -E '^[+-]' | grep -vE '^(\+\+\+|---)' | wc -l)
@@ -57,9 +63,25 @@ jobs:
           if [[ "$ONLY_PKG" == "true" && "$CHANGED_LINES" -eq 2 && ("$DISTRO_LINES" -eq 2 || "$VERSION_LINES" -eq 2) ]]; then
             echo "Distro-only or version-only update by bot — allowing"
             echo "allowed=true" >> $GITHUB_OUTPUT
-          elif [[ "$PKG_AND_LOCK" == "true" && "$CHANGED_LINES" -eq 2 && "$VERSION_LINES" -eq 2 ]]; then
-            echo "Version bump with lock file update by bot — allowing"
-            echo "allowed=true" >> $GITHUB_OUTPUT
+          elif [[ ("$PKG_AND_LOCK" == "true" || "$PKG_LOCK_AND_COPILOT" == "true") && "$CHANGED_LINES" -eq 2 && "$VERSION_LINES" -eq 2 ]]; then
+            # Validate extensions/copilot/package.json when present
+            if [[ "$PKG_LOCK_AND_COPILOT" == "true" ]]; then
+              COPILOT_PKG_DIFF=$(echo "$DIFF" | awk '/^diff --git a\/extensions\/copilot\/package\.json b\/extensions\/copilot\/package\.json/{p=1} p && /^diff --git / && !/^diff --git a\/extensions\/copilot\/package\.json/{exit} p{print}')
+              COPILOT_CHANGED=$(echo "$COPILOT_PKG_DIFF" | grep -E '^[+-]' | grep -vE '^(\+\+\+|---)' | wc -l)
+              COPILOT_VERSION=$(echo "$COPILOT_PKG_DIFF" | grep -cE '^[+-][[:space:]]*"version"[[:space:]]*:' || true)
+              COPILOT_VSCODE=$(echo "$COPILOT_PKG_DIFF" | grep -cE '^[+-][[:space:]]*"vscode"[[:space:]]*:' || true)
+
+              if [[ "$COPILOT_CHANGED" -eq 4 && "$COPILOT_VERSION" -eq 2 && "$COPILOT_VSCODE" -eq 2 ]]; then
+                echo "Version bump with lock file and copilot extension update by bot — allowing"
+                echo "allowed=true" >> $GITHUB_OUTPUT
+              else
+                echo "Copilot package.json changed more than version + vscode fields — not allowed"
+                echo "allowed=false" >> $GITHUB_OUTPUT
+              fi
+            else
+              echo "Version bump with lock file update by bot — allowing"
+              echo "allowed=true" >> $GITHUB_OUTPUT
+            fi
           else
             echo "Bot changed more than a single allowed field (distro or version) — not allowed"
             echo "allowed=false" >> $GITHUB_OUTPUT

@@ -7,6 +7,7 @@ import { IAuthenticationService, MinimalModeError } from '../../../platform/auth
 import { ContactSupportError, EnterpriseManagedError, GitHubLoginFailedError, InvalidTokenError, NotSignedUpError, RateLimitedError, SubscriptionExpiredError } from '../../../platform/authentication/vscode-node/copilotTokenManager';
 import { SESSION_LOGIN_MESSAGE } from '../../../platform/authentication/vscode-node/session';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
+import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { IEnvService } from '../../../platform/env/common/envService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
@@ -43,6 +44,8 @@ const missingPermissiveSessionContextKey = 'github.copilot.auth.missingPermissiv
 
 export const prExtensionInstalledContextKey = 'github.copilot.prExtensionInstalled';
 
+const sessionSearchEnabledContextKey = 'github.copilot.sessionSearch.enabled';
+
 export class ContextKeysContribution extends Disposable {
 
 	private _needsOfflineCheck = false;
@@ -55,12 +58,14 @@ export class ContextKeysContribution extends Disposable {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILogService private readonly _logService: ILogService,
 		@IConfigurationService private readonly _configService: IConfigurationService,
-		@IEnvService private readonly _envService: IEnvService
+		@IEnvService private readonly _envService: IEnvService,
+		@IExperimentationService private readonly _expService: IExperimentationService
 	) {
 		super();
 
 		void this._inspectContext().catch(console.error);
 		void this._updatePermissiveSessionContext().catch(console.error);
+		void this._updateClientByokEnabledContext().catch(console.error);
 		this._register(_authenticationService.onDidAuthenticationChange(async () => await this._onAuthenticationChange()));
 		this._register(commands.registerCommand('github.copilot.refreshToken', async () => await this._inspectContext()));
 		this._register(commands.registerCommand('github.copilot.debug.showChatLogView', async () => {
@@ -78,6 +83,11 @@ export class ContextKeysContribution extends Disposable {
 		const debugReportFeedback = this._configService.getConfigObservable(ConfigKey.TeamInternal.DebugReportFeedback);
 		this._register(autorun(reader => {
 			commands.executeCommand('setContext', debugReportFeedbackContextKey, debugReportFeedback.read(reader));
+		}));
+
+		const sessionSearchEnabled = this._configService.getExperimentBasedConfigObservable(ConfigKey.TeamInternal.SessionSearchLocalIndexEnabled, this._expService);
+		this._register(autorun(reader => {
+			commands.executeCommand('setContext', sessionSearchEnabledContextKey, sessionSearchEnabled.read(reader));
 		}));
 
 		// Listen for extension changes to update PR extension installed context

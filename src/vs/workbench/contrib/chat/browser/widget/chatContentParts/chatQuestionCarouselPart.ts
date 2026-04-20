@@ -687,6 +687,7 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 			const title = dom.$('.chat-question-title');
 			const messageContent = this.getQuestionText(questionText);
 			title.setAttribute('aria-label', messageContent);
+			questionRenderStore.add(this._hoverService.setupDelayedHover(title, { content: messageContent }));
 
 			const titleText = question.required
 				? new MarkdownString(`${isMarkdownString(questionText) ? questionText.value : questionText} *`)
@@ -723,6 +724,18 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		// Render input based on question type
 		const inputContainer = dom.$('.chat-question-input-container');
+
+		// Render detailed markdown message inside the scrollable input area
+		if (question.detailedMessage) {
+			const detailedMd = isMarkdownString(question.detailedMessage)
+				? MarkdownString.lift(question.detailedMessage)
+				: new MarkdownString(question.detailedMessage);
+			const detailedMessageEl = dom.$('.chat-question-detailed-message');
+			const renderedDetailedMessage = questionRenderStore.add(this._markdownRendererService.render(detailedMd));
+			detailedMessageEl.appendChild(renderedDetailedMessage.element);
+			inputContainer.appendChild(detailedMessageEl);
+		}
+
 		this.renderInput(inputContainer, question);
 
 		const inputScrollable = questionRenderStore.add(new DomScrollableElement(inputContainer, {

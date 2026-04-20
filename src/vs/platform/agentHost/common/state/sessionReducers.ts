@@ -19,11 +19,3 @@ import type { ICompletedToolCall, IToolCallState } from './sessionState.js';
 export function getToolKind(tc: IToolCallState | ICompletedToolCall): 'terminal' | 'subagent' | undefined {
 	return tc._meta?.toolKind as 'terminal' | 'subagent' | undefined;
 }
-
-/**
- * Extracts the VS Code-specific `language` hint from a tool call's `_meta`
- * bag. Used for syntax-highlighting terminal tool output.
- */
-export function getToolLanguage(tc: IToolCallState | ICompletedToolCall): string | undefined {
-	return tc._meta?.language as string | undefined;
-}

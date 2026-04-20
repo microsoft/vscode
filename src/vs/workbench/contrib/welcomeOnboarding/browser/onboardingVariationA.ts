@@ -20,7 +20,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IWorkbenchThemeService } from '../../../services/themes/common/workbenchThemeService.js';
-import { EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, IGalleryExtension, IExtensionGalleryService, IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, IExtensionGalleryService, IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
@@ -30,7 +30,9 @@ import { IQuickInputService } from '../../../../platform/quickinput/common/quick
 import { IFileService } from '../../../../platform/files/common/files.js';
 import { IPathService } from '../../../services/path/common/pathService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
-import { InstallChatEvent, InstallChatClassification } from '../../chat/browser/chatSetup/chatSetup.js';
+import { InstallChatEvent, InstallChatClassification, ChatSetupStrategy } from '../../chat/browser/chatSetup/chatSetup.js';
+import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import {
 	OnboardingStepId,
 	ONBOARDING_STEPS,
@@ -103,7 +105,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 	private contentEl: HTMLElement | undefined;
 	private backButton: HTMLButtonElement | undefined;
 	private nextButton: HTMLButtonElement | undefined;
-	private skipButton: HTMLButtonElement | undefined;
+	private closeButton: HTMLButtonElement | undefined;
 	private footerLeft: HTMLElement | undefined;
 	private _footerSignInBtn: HTMLButtonElement | undefined;
 
@@ -119,7 +121,6 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 	private selectedThemeId = 'dark-2026';
 	private selectedKeymapId = 'vscode';
 	private _detectedEditorIds: Set<string> | undefined;
-	private _galleryExtensions: Map<string, IGalleryExtension> | undefined;
 	private _userSignedIn = false;
 	private selectedAiMode: AiCollaborationMode = AiCollaborationMode.Balanced;
 
@@ -135,6 +136,8 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		@IFileService private readonly fileService: IFileService,
 		@IPathService private readonly pathService: IPathService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ICommandService private readonly commandService: ICommandService,
+		@IAccessibilityService private readonly accessibilityService: IAccessibilityService,
 	) {
 		super();
 
@@ -148,9 +151,6 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 
 		// Start detecting installed editors early so results are ready by the Personalize step
 		this._detectInstalledEditors().then(ids => { this._detectedEditorIds = ids; });
-
-		// Pre-fetch gallery data so extension icons are ready by the Extensions step
-		this._prefetchGalleryExtensions();
 	}
 
 	get isShowing(): boolean {
@@ -176,6 +176,12 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		// Card
 		this.card = append(this.overlay, $('.onboarding-a-card'));
 
+		// Close button (upper-right corner of card)
+		this.closeButton = append(this.card, $<HTMLButtonElement>('button.onboarding-a-close-btn'));
+		this.closeButton.type = 'button';
+		this.closeButton.setAttribute('aria-label', localize('onboarding.close', "Close"));
+		this.closeButton.appendChild(renderIcon(Codicon.close));
+
 		// Header with progress
 		const header = append(this.card, $('.onboarding-a-header'));
 		this.progressContainer = append(header, $('.onboarding-a-progress'));
@@ -194,10 +200,6 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		const footer = append(this.card, $('.onboarding-a-footer'));
 
 		this.footerLeft = append(footer, $('.onboarding-a-footer-left'));
-		this.skipButton = append(this.footerLeft, $<HTMLButtonElement>('button.onboarding-a-btn.onboarding-a-btn-ghost'));
-		this.skipButton.textContent = localize('onboarding.skip', "Skip");
-		this.skipButton.type = 'button';
-		this.footerFocusableElements.push(this.skipButton);
 
 		const footerRight = append(footer, $('.onboarding-a-footer-right'));
 
@@ -212,7 +214,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		this._updateButtonStates();
 
 		// Event handlers
-		this.disposables.add(addDisposableListener(this.skipButton, EventType.CLICK, () => {
+		this.disposables.add(addDisposableListener(this.closeButton, EventType.CLICK, () => {
 			this._logAction('skip');
 			this._dismiss('skip');
 		}));
@@ -378,9 +380,6 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 			case OnboardingStepId.Personalize:
 				this._renderPersonalizeStep(this.contentEl);
 				break;
-			case OnboardingStepId.Extensions:
-				this._renderExtensionsStep(this.contentEl);
-				break;
 			case OnboardingStepId.AiPreference:
 				this._renderAiPreferenceStep(this.contentEl);
 				break;
@@ -415,15 +414,8 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 				this.nextButton.textContent = localize('onboarding.next', "Continue");
 			}
 		}
-		if (this.skipButton && this.footerLeft) {
-			if (this.currentStepIndex === 0) {
-				// Sign-in step: ghost Skip button
-				this.skipButton.className = 'onboarding-a-btn onboarding-a-btn-ghost';
-			} else {
-				this.skipButton.className = 'onboarding-a-btn onboarding-a-btn-ghost';
-			}
+		if (this.footerLeft) {
 			if (this._isLastStep()) {
-				this.skipButton.style.display = 'none';
 				// Show sign-in nudge in footer
 				if (!this._footerSignInBtn && !this._userSignedIn) {
 					this._footerSignInBtn = append(this.footerLeft, $<HTMLButtonElement>('button.onboarding-a-signin-nudge-btn'));
@@ -438,7 +430,6 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 					}));
 				}
 			} else {
-				this.skipButton.style.display = '';
 				if (this._footerSignInBtn) {
 					this._footerSignInBtn.remove();
 					this._footerSignInBtn = undefined;
@@ -561,6 +552,11 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 			if (account) {
 				this._userSignedIn = true;
 				this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'installed', installDuration: watch.elapsed(), signUpErrorCode: undefined, provider });
+				// Run chat setup in the background (sign-up, extension install, entitlement resolution)
+				this.commandService.executeCommand('workbench.action.chat.triggerSetup', undefined, {
+					disableChatViewReveal: true,
+					setupStrategy: ChatSetupStrategy.DefaultSetup,
+				});
 				this._nextStep();
 			}
 		} catch (error) {
@@ -592,6 +588,10 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 			if (account) {
 				this._userSignedIn = true;
 				this.telemetryService.publicLog2<InstallChatEvent, InstallChatClassification>('commandCenter.chatInstall', { installResult: 'installed', installDuration: watch.elapsed(), signUpErrorCode: undefined, provider });
+				this.commandService.executeCommand('workbench.action.chat.triggerSetup', undefined, {
+					disableChatViewReveal: true,
+					setupStrategy: ChatSetupStrategy.DefaultSetup,
+				});
 				this._nextStep();
 			}
 		} catch (error) {
@@ -743,6 +743,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 					}
 					pill.classList.add('selected');
 					pill.setAttribute('aria-checked', 'true');
+					this.accessibilityService.alert(localize('onboarding.keymap.selected.alert', "{0} keyboard mapping selected", keymap.label));
 				}));
 			}
 			const selectedKeymapIndex = keymapOptions.findIndex(k => k.id === this.selectedKeymapId);
@@ -795,6 +796,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 			}
 			card.classList.add('selected');
 			card.setAttribute('aria-checked', 'true');
+			this.accessibilityService.alert(localize('onboarding.theme.selected.alert', "{0} theme selected", theme.label));
 		}));
 
 		this.stepDisposables.add(addDisposableListener(card, EventType.KEY_DOWN, (e: KeyboardEvent) => {
@@ -806,118 +808,8 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 	}
 
 	// =====================================================================
-	// Step: Extensions
+	// Theme / Keymap helpers
 	// =====================================================================
-
-	private _renderExtensionsStep(container: HTMLElement): void {
-		const wrapper = append(container, $('div.onboarding-a-extensions'));
-
-		const extList = append(wrapper, $('div.onboarding-a-ext-list'));
-		extList.setAttribute('role', 'list');
-		extList.setAttribute('aria-label', localize('onboarding.ext.listLabel', "Recommended extensions"));
-
-		// Build a map of icon elements so we can update them once gallery data arrives
-		const iconElements = new Map<string, HTMLElement>();
-
-		for (const ext of (product.onboardingExtensions ?? [])) {
-			const row = append(extList, $('div.onboarding-a-ext-row'));
-			row.setAttribute('role', 'listitem');
-			row.setAttribute('aria-label', localize('onboarding.ext.row.aria', "{0} by {1}: {2}", ext.name, ext.publisher, ext.description));
-
-			const iconEl = append(row, $('div.onboarding-a-ext-icon'));
-			// Start with a codicon placeholder
-			iconEl.appendChild(renderIcon(this._getExtIcon(ext.icon)));
-			iconElements.set(ext.id.toLowerCase(), iconEl);
-
-			const info = append(row, $('div.onboarding-a-ext-info'));
-			const nameRow = append(info, $('div.onboarding-a-ext-name-row'));
-			const name = append(nameRow, $('span.onboarding-a-ext-name'));
-			name.textContent = ext.name;
-			const publisher = append(nameRow, $('span.onboarding-a-ext-publisher'));
-			publisher.textContent = ext.publisher;
-			const desc = append(info, $('div.onboarding-a-ext-desc'));
-			desc.textContent = ext.description;
-
-			const installBtn = this._registerStepFocusable(append(row, $<HTMLButtonElement>('button.onboarding-a-ext-install')));
-			installBtn.type = 'button';
-			installBtn.textContent = localize('onboarding.ext.install', "Install");
-
-			this.stepDisposables.add(addDisposableListener(installBtn, EventType.CLICK, () => {
-				this._logAction('installExtension', undefined, ext.id);
-				installBtn.textContent = localize('onboarding.ext.installing', "Installing...");
-				installBtn.disabled = true;
-				this._installExtension(ext.id).then(
-					() => {
-						installBtn.textContent = localize('onboarding.ext.installed', "Installed");
-						installBtn.classList.add('installed');
-					},
-					() => {
-						installBtn.textContent = localize('onboarding.ext.install', "Install");
-						installBtn.disabled = false;
-					}
-				);
-			}));
-		}
-
-		// Apply gallery icons — if prefetch finished, icons render immediately; otherwise they swap in once ready
-		this._applyExtensionIcons(iconElements);
-	}
-
-	private async _prefetchGalleryExtensions(): Promise<void> {
-		try {
-			const ids = (product.onboardingExtensions ?? []).map(ext => ({ id: ext.id }));
-			const extensions = await this.extensionGalleryService.getExtensions(ids, CancellationToken.None);
-			const map = new Map<string, IGalleryExtension>();
-			for (const ext of extensions) {
-				map.set(ext.identifier.id.toLowerCase(), ext);
-			}
-			this._galleryExtensions = map;
-		} catch {
-			// Gallery unavailable — icons will stay as codicon placeholders
-		}
-	}
-
-	private async _applyExtensionIcons(iconElements: Map<string, HTMLElement>): Promise<void> {
-		// Wait for prefetch if it hasn't completed yet
-		if (!this._galleryExtensions) {
-			await this._prefetchGalleryExtensions();
-		}
-		if (!this._galleryExtensions) {
-			return;
-		}
-		for (const [id, galleryExt] of this._galleryExtensions) {
-			const iconAsset = galleryExt.assets.icon;
-			if (!iconAsset) {
-				continue;
-			}
-			const iconEl = iconElements.get(id);
-			if (!iconEl) {
-				continue;
-			}
-			const img = $<HTMLImageElement>('img.onboarding-a-ext-icon-img');
-			img.alt = '';
-			img.src = iconAsset.uri;
-			this.stepDisposables.add(addDisposableListener(img, EventType.ERROR, () => {
-				if (iconAsset.fallbackUri) {
-					img.src = iconAsset.fallbackUri;
-				}
-			}, { once: true }));
-			this.stepDisposables.add(addDisposableListener(img, EventType.LOAD, () => {
-				clearNode(iconEl);
-				iconEl.appendChild(img);
-			}, { once: true }));
-		}
-	}
-
-	private _getExtIcon(iconName: string): ThemeIcon {
-		switch (iconName) {
-			case 'wand': return Codicon.wand;
-			case 'lightbulb': return Codicon.lightbulb;
-			case 'symbol-misc': return Codicon.symbolMisc;
-			case 'git-pull-request': return Codicon.gitPullRequest;
-			default: return Codicon.extensions;
-		}
-	}
 
 	private async _selectTheme(theme: IOnboardingThemeOption): Promise<void> {
 		this.selectedThemeId = theme.id;
@@ -925,21 +817,6 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		const match = allThemes.find(t => t.settingsId === theme.themeId);
 		if (match) {
 			this.themeService.setColorTheme(match.id, ConfigurationTarget.USER);
-		}
-	}
-
-	private async _installExtension(extensionId: string): Promise<void> {
-		try {
-			const gallery = await this.extensionGalleryService.getExtensions([{ id: extensionId }], CancellationToken.None);
-			if (gallery.length > 0) {
-				await this.extensionManagementService.installFromGallery(gallery[0], { context: { [EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT]: true } });
-			}
-		} catch (err) {
-			this.notificationService.notify({
-				severity: Severity.Warning,
-				message: localize('onboarding.ext.installError', "Could not install extension. You can install it later from the Extensions view."),
-			});
-			throw err;
 		}
 	}
 
@@ -1068,6 +945,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 					c.setAttribute('aria-checked', c.dataset.id === option.id ? 'true' : 'false');
 				}
 				this._applyAiPreference(option.id);
+				this.accessibilityService.alert(localize('onboarding.aiPref.selected.alert', "{0} selected", option.label));
 			}));
 		}
 		const selectedAiIndex = ONBOARDING_AI_PREFERENCE_OPTIONS.findIndex(o => o.id === this.selectedAiMode);
@@ -1148,7 +1026,10 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 	}
 
 	private _createFeatureCard(parent: HTMLElement, icon: ThemeIcon, title: string, description?: string): HTMLElement {
-		const card = append(parent, $('div.onboarding-a-feature-card'));
+		const card = this._registerStepFocusable(append(parent, $('div.onboarding-a-feature-card')));
+		card.setAttribute('tabindex', '0');
+		card.setAttribute('role', 'group');
+		card.setAttribute('aria-label', title);
 		const iconCol = append(card, $('div.onboarding-a-feature-icon'));
 		iconCol.appendChild(renderIcon(icon));
 		const textCol = append(card, $('div.onboarding-a-feature-text'));
@@ -1262,12 +1143,12 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 	}
 
 	private _getFocusableElements(): HTMLElement[] {
-		return [...this.stepFocusableElements, ...this.footerFocusableElements].filter(element => this._isTabbable(element));
+		return [...(this.closeButton ? [this.closeButton] : []), ...this.stepFocusableElements, ...this.footerFocusableElements].filter(element => this._isTabbable(element));
 	}
 
 	private _focusCurrentStepElement(): void {
 		const stepFocusable = this.stepFocusableElements.find(element => this._isTabbable(element));
-		(stepFocusable ?? this.nextButton ?? this.skipButton)?.focus();
+		(stepFocusable ?? this.nextButton ?? this.closeButton)?.focus();
 	}
 
 	private _registerStepFocusable<T extends HTMLElement>(element: T): T {
@@ -1323,7 +1204,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		this.contentEl = undefined;
 		this.backButton = undefined;
 		this.nextButton = undefined;
-		this.skipButton = undefined;
+		this.closeButton = undefined;
 		this.footerLeft = undefined;
 		this._footerSignInBtn = undefined;
 		this.footerFocusableElements.length = 0;

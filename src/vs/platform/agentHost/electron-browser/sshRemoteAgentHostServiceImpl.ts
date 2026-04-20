@@ -12,7 +12,7 @@ import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { IRemoteAgentHostService, RemoteAgentHostEntryType } from '../common/remoteAgentHostService.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { SSHRelayTransport } from './sshRelayTransport.js';
-import { RemoteAgentHostProtocolClient } from './remoteAgentHostProtocolClient.js';
+import { RemoteAgentHostProtocolClient } from '../browser/remoteAgentHostProtocolClient.js';
 import {
 	ISSHRemoteAgentHostService,
 	SSH_REMOTE_AGENT_HOST_CHANNEL,

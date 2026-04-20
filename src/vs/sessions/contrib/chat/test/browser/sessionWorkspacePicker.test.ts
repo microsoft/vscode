@@ -60,8 +60,8 @@ function createMockProvider(id: string, opts?: {
 		deleteSession: async () => { },
 		deleteChat: async () => { },
 		sendAndCreateChat: async () => { throw new Error('Not implemented'); },
-		capabilities: { multipleChatsPerSession: false },
-		onDidChangeCapabilities: Event.None,
+		addChat: () => { throw new Error('Not implemented'); },
+		sendRequest: async () => { throw new Error('Not implemented'); },
 	};
 	if (opts?.connectionStatus) {
 		return {

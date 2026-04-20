@@ -8,6 +8,7 @@ import { arrayEqualsC, structuralEquals } from '../../../../base/common/equals.j
 import { Iterable } from '../../../../base/common/iterator.js';
 import { Disposable } from '../../../../base/common/lifecycle.js';
 import { derived, derivedOpts, IObservable, IObservableWithChange, ISettableObservable, runOnChange, observableValue, observableSignalFromEvent, constObservable, ObservablePromise, derivedObservableWithCache } from '../../../../base/common/observable.js';
+import { isWeb } from '../../../../base/common/platform.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -319,15 +320,21 @@ export class ChangesViewModel extends Disposable {
 		return derivedOpts({
 			equalsFn: arrayEqualsC<IChatSessionFileChange | IChatSessionFileChange2>()
 		}, reader => {
+			const versionMode = this.versionModeObs.read(reader);
+
+			// BranchChanges reads from the session provider's `changes`
+			// observable directly (e.g. agent-host-tracked diffs), so it
+			// works even for sessions without a git repository.
+			if (versionMode === ChangesVersionMode.BranchChanges) {
+				return activeSessionChangesObs.read(reader);
+			}
+
 			const hasGitRepository = this.activeSessionHasGitRepositoryObs.read(reader);
-			if (!hasGitRepository) {
+			if (!hasGitRepository && !isWeb) {
 				return [];
 			}
 
-			const versionMode = this.versionModeObs.read(reader);
-			if (versionMode === ChangesVersionMode.BranchChanges) {
-				return activeSessionChangesObs.read(reader);
-			} else if (versionMode === ChangesVersionMode.UncommittedChanges) {
+			if (versionMode === ChangesVersionMode.UncommittedChanges) {
 				return this._activeSessionUncommittedChangesPromiseObs.read(reader).read(reader) ?? [];
 			} else if (versionMode === ChangesVersionMode.AllChanges) {
 				return this._activeSessionAllChangesPromiseObs.read(reader).read(reader) ?? [];

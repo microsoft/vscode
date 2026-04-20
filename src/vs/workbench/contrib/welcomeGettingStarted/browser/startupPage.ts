@@ -236,8 +236,8 @@ export class StartupPageRunnerContribution extends Disposable implements IWorkbe
 			return; // skip welcome flag is set
 		}
 
-		if (isWeb && !this.environmentService.remoteAuthority) {
-			return; // not supported on web without remote authority (e.g. github.dev)
+		if (isWeb) {
+			return; // not supported on web (e.g. codespaces, github.dev)
 		}
 
 		if (!this.configurationService.getValue<boolean>('workbench.welcomePage.experimentalOnboarding')) {

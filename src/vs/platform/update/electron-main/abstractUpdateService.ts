@@ -86,7 +86,7 @@ export abstract class AbstractUpdateService implements IUpdateService {
 	private _hasCheckedForOverwriteOnQuit: boolean = false;
 	private readonly overwriteUpdatesCheckInterval = new IntervalTimer();
 	private _internalOrg: string | undefined = undefined;
-	private _suspended = false;
+	protected _suspended = false;
 
 	private readonly _onStateChange = new Emitter<State>();
 	readonly onStateChange: Event<State> = this._onStateChange.event;
@@ -391,6 +391,10 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		}
 
 		const pendingUpdateCommit = this._state.update.version;
+
+		if (!pendingUpdateCommit || pendingUpdateCommit === 'unknown') {
+			return false;
+		}
 
 		let isLatest: boolean | undefined;
 

@@ -492,8 +492,8 @@ class MainThreadChatSessionItemController extends Disposable implements IChatSes
 		}
 	}
 
-	async getNewChatSessionInputState(token: CancellationToken): Promise<readonly IChatSessionProviderOptionGroup[] | undefined> {
-		const optionGroups = await this._proxy.$provideChatSessionInputState(this._handle, undefined, token);
+	async getNewChatSessionInputState(sessionResource: URI, token: CancellationToken): Promise<readonly IChatSessionProviderOptionGroup[] | undefined> {
+		const optionGroups = await this._proxy.$provideChatSessionInputState(this._handle, sessionResource, token);
 		if (!optionGroups?.length) {
 			return undefined;
 		}
@@ -638,13 +638,21 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 	private _refreshControllerInputState(handle: number, chatSessionType: string): void {
 		this._proxy.$provideChatSessionInputState(handle, undefined, CancellationToken.None).then(optionGroups => {
 			if (optionGroups?.length) {
-				this._applyOptionGroups(handle, chatSessionType, optionGroups);
+				this._applyOptionGroups(handle, chatSessionType, undefined, optionGroups);
 			}
 		}).catch(err => this._logService.error('Error fetching chat session input state', err));
 	}
 
-	private _applyOptionGroups(handle: number, chatSessionType: string, optionGroups: readonly IChatSessionProviderOptionGroup[]): void {
+	private _applyOptionGroups(handle: number, chatSessionType: string, sessionResourceComponents: UriComponents | undefined, optionGroups: readonly IChatSessionProviderOptionGroup[]): void {
 		this._chatSessionsService.setOptionGroupsForSessionType(chatSessionType, handle, optionGroups);
+		if (sessionResourceComponents) {
+			const sessionResource = URI.revive(sessionResourceComponents);
+			optionGroups.forEach(group => {
+				if (group.selected) {
+					this._chatSessionsService.setSessionOption(sessionResource, group.id, group.selected);
+				}
+			});
+		}
 	}
 
 	private getController(handle: number): MainThreadChatSessionItemController {
@@ -910,14 +918,14 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		this._refreshProviderOptions(handle, sessionType);
 	}
 
-	$updateChatSessionInputState(controllerHandle: number, optionGroups: readonly IChatSessionProviderOptionGroup[]): void {
+	$updateChatSessionInputState(controllerHandle: number, sessionResource: UriComponents, optionGroups: readonly IChatSessionProviderOptionGroup[]): void {
 		const registration = this._itemControllerRegistrations.get(controllerHandle);
 		if (!registration) {
 			this._logService.warn(`No controller found for handle ${controllerHandle} when updating input state`);
 			return;
 		}
 
-		this._applyOptionGroups(controllerHandle, registration.chatSessionType, optionGroups);
+		this._applyOptionGroups(controllerHandle, registration.chatSessionType, sessionResource, optionGroups);
 	}
 
 	private _refreshProviderOptions(handle: number, chatSessionScheme: string): void {

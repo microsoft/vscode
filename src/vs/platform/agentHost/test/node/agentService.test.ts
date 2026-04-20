@@ -19,10 +19,12 @@ import { AgentSession } from '../../common/agentService.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, IActionEnvelope } from '../../common/state/sessionActions.js';
-import { ResponsePartKind, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type IMarkdownResponsePart, type IToolCallCompletedState, type IToolCallResponsePart } from '../../common/state/sessionState.js';
+import { ISessionActiveClient, ResponsePartKind, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type IMarkdownResponsePart, type IToolCallCompletedState, type IToolCallResponsePart } from '../../common/state/sessionState.js';
+import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
 import { MockAgent } from './mockAgent.js';
 import { mapSessionEvents, type ISessionEvent } from '../../node/copilot/mapSessionEvents.js';
+import { createSessionDataService } from '../common/sessionTestHelpers.js';
 
 /**
  * Loads a JSONL fixture of raw Copilot SDK events, runs them through
@@ -71,7 +73,7 @@ suite('AgentService (node dispatcher)', () => {
 		await fileService.createFolder(URI.from({ scheme: Schemas.inMemory, path: '/testDir' }));
 		await fileService.writeFile(URI.from({ scheme: Schemas.inMemory, path: '/testDir/file.txt' }), VSBuffer.fromString('hello'));
 
-		service = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService));
+		service = disposables.add(new AgentService(new NullLogService(), fileService, nullSessionDataService, { _serviceBrand: undefined } as IProductService));
 		copilotAgent = new MockAgent('copilot');
 		disposables.add(toDisposable(() => copilotAgent.dispose()));
 	});
@@ -202,7 +204,7 @@ suite('AgentService (node dispatcher)', () => {
 			// Manually add the session to the mock
 			(agent as unknown as { _sessions: Map<string, URI> })._sessions.set(sessionId, sessionUri);
 
-			const svc = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService));
+			const svc = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService));
 			svc.registerProvider(agent);
 
 			const sessions = await svc.listSessions();
@@ -221,6 +223,23 @@ suite('AgentService (node dispatcher)', () => {
 			assert.strictEqual(sessions[0].summary, 'Auto-generated Title');
 		});
 
+		test('listSessions overlays live state manager title over SDK title', async () => {
+			service.registerProvider(copilotAgent);
+
+			const session = await service.createSession({ provider: 'copilot' });
+
+			// Simulate immediate title change via state manager
+			service.stateManager.dispatchServerAction({
+				type: ActionType.SessionTitleChanged,
+				session: session.toString(),
+				title: 'User first message',
+			});
+
+			const sessions = await service.listSessions();
+			assert.strictEqual(sessions.length, 1);
+			assert.strictEqual(sessions[0].summary, 'User first message');
+		});
+
 		test('createSession stores live session config', async () => {
 			service.registerProvider(copilotAgent);
 
@@ -228,6 +247,36 @@ suite('AgentService (node dispatcher)', () => {
 			const session = await service.createSession({ provider: 'copilot', config });
 
 			assert.deepStrictEqual(service.stateManager.getSessionState(session.toString())?.config?.values, config);
+		});
+
+		test('seeds activeClient into the initial session state when provided', async () => {
+			service.registerProvider(copilotAgent);
+
+			const envelopes: IActionEnvelope[] = [];
+			disposables.add(service.onDidAction(env => envelopes.push(env)));
+
+			const activeClient: ISessionActiveClient = {
+				clientId: 'client-eager',
+				tools: [{ name: 't1', description: 'd', inputSchema: { type: 'object' } }],
+				customizations: [{ uri: 'file:///plugin-a', displayName: 'A' }],
+			};
+			const session = await service.createSession({ provider: 'copilot', activeClient });
+
+			assert.deepStrictEqual({
+				activeClient: service.stateManager.getSessionState(session.toString())?.activeClient,
+				dispatchedActiveClientChanged: envelopes.some(e => e.action.type === ActionType.SessionActiveClientChanged),
+			}, {
+				activeClient,
+				dispatchedActiveClientChanged: false,
+			});
+		});
+
+		test('omits activeClient from the initial session state when not provided', async () => {
+			service.registerProvider(copilotAgent);
+
+			const session = await service.createSession({ provider: 'copilot' });
+
+			assert.strictEqual(service.stateManager.getSessionState(session.toString())?.activeClient, undefined);
 		});
 	});
 
@@ -362,7 +411,7 @@ suite('AgentService (node dispatcher)', () => {
 			copilotAgent.sessionMessages = [
 				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Review this code', toolRequests: [] },
 				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: '', toolRequests: [{ toolCallId: 'tc-sub', name: 'task' }] },
-				{ type: 'tool_start', session, toolCallId: 'tc-sub', toolName: 'task', displayName: 'Task', invocationMessage: 'Delegating...', toolKind: 'subagent' as const, toolArguments: JSON.stringify({ description: 'Find related files', agentName: 'explore' }) },
+				{ type: 'tool_start', session, toolCallId: 'tc-sub', toolName: 'task', displayName: 'Task', invocationMessage: 'Delegating...', toolKind: 'subagent' as const, subagentDescription: 'Find related files', subagentAgentName: 'explore' },
 				{ type: 'subagent_started', session, toolCallId: 'tc-sub', agentName: 'explore', agentDisplayName: 'Explore', agentDescription: 'Explores the codebase' },
 				// Inner tool calls from the subagent (have parentToolCallId)
 				{ type: 'tool_start', session, toolCallId: 'tc-inner-1', toolName: 'bash', displayName: 'Bash', invocationMessage: 'Running ls...', parentToolCallId: 'tc-sub' },
@@ -466,6 +515,135 @@ suite('AgentService (node dispatcher)', () => {
 		});
 	});
 
+	// ---- session config persistence -------------------------------------
+
+	suite('session config persistence', () => {
+
+		test('createSession persists initial config values to the session DB', async () => {
+			const sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
+			const sessionDataService = createSessionDataService(sessionDb);
+			const localAgent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => localAgent.dispose()));
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService));
+			localService.registerProvider(localAgent);
+
+			await localService.createSession({ provider: 'copilot', config: { autoApprove: 'autoApprove' } });
+
+			// Persistence is fire-and-forget; wait for it to flush
+			await new Promise(r => setTimeout(r, 50));
+
+			const persisted = await sessionDb.getMetadata('configValues');
+			assert.ok(persisted, 'configValues should be persisted');
+			assert.deepStrictEqual(JSON.parse(persisted!), { autoApprove: 'autoApprove' });
+		});
+
+		test('createSession does not write configValues when there are no values', async () => {
+			const sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
+			const sessionDataService = createSessionDataService(sessionDb);
+			const localAgent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => localAgent.dispose()));
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService));
+			localService.registerProvider(localAgent);
+
+			await localService.createSession({ provider: 'copilot' });
+
+			await new Promise(r => setTimeout(r, 50));
+
+			const persisted = await sessionDb.getMetadata('configValues');
+			assert.strictEqual(persisted, undefined);
+		});
+
+		test('restoreSession overlays persisted config values onto the resolved config', async () => {
+			const sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
+			const sessionDataService = createSessionDataService(sessionDb);
+			const localAgent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => localAgent.dispose()));
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService));
+			localService.registerProvider(localAgent);
+
+			// Create a session on the agent backend (no config) so listSessions can find it
+			const { session } = await localAgent.createSession();
+			const sessions = await localAgent.listSessions();
+			const sessionResource = sessions[0].session;
+
+			// Pre-seed persisted config values
+			await sessionDb.setMetadata('configValues', JSON.stringify({ autoApprove: 'autoApprove' }));
+
+			localAgent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'Hi', toolRequests: [] },
+			];
+
+			await localService.restoreSession(sessionResource);
+
+			const state = localService.stateManager.getSessionState(sessionResource.toString());
+			assert.ok(state);
+			// MockAgent.resolveSessionConfig echoes params.config back as values, so the
+			// persisted values are forwarded through and end up on state.config.values.
+			assert.deepStrictEqual(state!.config?.values, { autoApprove: 'autoApprove' });
+		});
+
+		test('createSession + restoreSession round-trip restores initial config without any mid-session changes', async () => {
+			// Regression test: when a session is created with initial config but no
+			// mid-session SessionConfigChanged actions are dispatched, restoring it
+			// must still rehydrate the initial values.
+			const sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
+			const sessionDataService = createSessionDataService(sessionDb);
+			const localAgent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => localAgent.dispose()));
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService));
+			localService.registerProvider(localAgent);
+
+			const session = await localService.createSession({ provider: 'copilot', config: { autoApprove: 'autoApprove' } });
+
+			// Wait for the fire-and-forget persistence to flush
+			await new Promise(r => setTimeout(r, 50));
+
+			// Simulate a server restart: drop the in-memory state
+			localService.stateManager.removeSession(session.toString());
+
+			localAgent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'Hi', toolRequests: [] },
+			];
+			await localService.restoreSession(session);
+
+			const state = localService.stateManager.getSessionState(session.toString());
+			assert.ok(state);
+			assert.deepStrictEqual(state!.config?.values, { autoApprove: 'autoApprove' });
+		});
+
+		test('restoreSession ignores malformed persisted configValues', async () => {
+			const sessionDb = disposables.add(await SessionDatabase.open(':memory:'));
+			const sessionDataService = createSessionDataService(sessionDb);
+			const localAgent = new MockAgent('copilot');
+			disposables.add(toDisposable(() => localAgent.dispose()));
+			const localService = disposables.add(new AgentService(new NullLogService(), fileService, sessionDataService, { _serviceBrand: undefined } as IProductService));
+			localService.registerProvider(localAgent);
+
+			const { session } = await localAgent.createSession();
+			const sessions = await localAgent.listSessions();
+			const sessionResource = sessions[0].session;
+
+			await sessionDb.setMetadata('configValues', '{not json');
+
+			localAgent.sessionMessages = [
+				{ type: 'message', session, role: 'user', messageId: 'msg-1', content: 'Hello', toolRequests: [] },
+				{ type: 'message', session, role: 'assistant', messageId: 'msg-2', content: 'Hi', toolRequests: [] },
+			];
+
+			// Should not throw despite the malformed JSON
+			await localService.restoreSession(sessionResource);
+
+			const state = localService.stateManager.getSessionState(sessionResource.toString());
+			assert.ok(state);
+			// MockAgent has a workingDirectory? No — but the metadata supplies it as undefined.
+			// _resolveCreatedSessionConfig bails when both .config and .workingDirectory are
+			// missing, so state.config is undefined here. The key point is: no throw.
+			assert.strictEqual(state!.config, undefined);
+		});
+	});
+
 	// ---- resourceList ------------------------------------------------
 
 	suite('resourceList', () => {
@@ -482,6 +660,56 @@ suite('AgentService (node dispatcher)', () => {
 				() => service.resourceList(URI.from({ scheme: Schemas.inMemory, path: '/testDir/file.txt' })),
 				/Not a directory/,
 			);
+		});
+	});
+
+	// ---- worktree working directory -------------------------------------
+
+	suite('worktree working directory', () => {
+
+		test('createSession uses agent-resolved working directory in state', async () => {
+			// Simulate an agent that resolves a worktree path different from the input
+			const worktreeDir = URI.file('/source/repo.worktrees/agents-xyz');
+			copilotAgent.resolvedWorkingDirectory = worktreeDir;
+			service.registerProvider(copilotAgent);
+
+			const sourceDir = URI.file('/source/repo');
+			const session = await service.createSession({ provider: 'copilot', workingDirectory: sourceDir });
+
+			// The state manager should have the worktree path, not the source path
+			const state = service.stateManager.getSessionState(session.toString());
+			assert.strictEqual(state?.summary.workingDirectory, worktreeDir.toString());
+		});
+
+		test('createSession falls back to config working directory when agent does not resolve', async () => {
+			// Agent does not override the working directory (e.g. folder isolation)
+			copilotAgent.resolvedWorkingDirectory = undefined;
+			service.registerProvider(copilotAgent);
+
+			const sourceDir = URI.file('/source/repo');
+			const session = await service.createSession({ provider: 'copilot', workingDirectory: sourceDir });
+
+			const state = service.stateManager.getSessionState(session.toString());
+			assert.strictEqual(state?.summary.workingDirectory, sourceDir.toString());
+		});
+
+		test('restoreSession uses agent working directory in state', async () => {
+			// Agent returns the worktree path through listSessions
+			const worktreeDir = URI.file('/source/repo.worktrees/agents-xyz');
+			copilotAgent.sessionMetadataOverrides = { workingDirectory: worktreeDir };
+			service.registerProvider(copilotAgent);
+
+			const session = await service.createSession({ provider: 'copilot' });
+
+			// Delete from state to simulate a server restart
+			service.stateManager.deleteSession(session.toString());
+			assert.strictEqual(service.stateManager.getSessionState(session.toString()), undefined);
+
+			// Restore the session (simulates a client subscribing after restart)
+			await service.restoreSession(session);
+
+			const state = service.stateManager.getSessionState(session.toString());
+			assert.strictEqual(state?.summary.workingDirectory, worktreeDir.toString());
 		});
 	});
 });

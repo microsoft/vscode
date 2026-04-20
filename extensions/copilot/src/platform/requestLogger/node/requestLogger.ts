@@ -77,7 +77,6 @@ export abstract class AbstractRequestLogger extends Disposable implements IReque
 
 	public abstract logModelListCall(id: string, requestMetadata: RequestMetadata, models: IModelAPIResponse[]): void;
 	public abstract logToolCall(id: string, name: string | undefined, args: unknown, response: LanguageModelToolResult2): void;
-	public abstract logServerToolCall(id: string, name: string, args: unknown, result: LanguageModelToolResult2): void;
 
 	public logContentExclusionRules(_repos: string[], _rules: { patterns: string[]; ifAnyMatch: string[]; ifNoneMatch: string[] }[], _durationMs: number): void {
 		// no-op by default; concrete implementations can override

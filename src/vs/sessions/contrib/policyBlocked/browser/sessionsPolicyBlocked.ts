@@ -5,7 +5,7 @@
 
 import './media/sessionsPolicyBlocked.css';
 import { Disposable, toDisposable } from '../../../../base/common/lifecycle.js';
-import { $, append, EventType, addDisposableListener, getWindow } from '../../../../base/browser/dom.js';
+import { $, addDisposableGenericMouseDownListener, append, EventType, addDisposableListener, getWindow } from '../../../../base/browser/dom.js';
 import { localize } from '../../../../nls.js';
 import { Button } from '../../../../base/browser/ui/button/button.js';
 import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
@@ -50,7 +50,7 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 
 		// Block mouse interaction on the overlay background, but allow
 		// clicks through to card children (e.g. the "Open VS Code" button).
-		this._register(addDisposableListener(this.overlay, EventType.MOUSE_DOWN, e => {
+		this._register(addDisposableGenericMouseDownListener(this.overlay, e => {
 			if (e.target === this.overlay) {
 				e.preventDefault();
 				e.stopPropagation();
