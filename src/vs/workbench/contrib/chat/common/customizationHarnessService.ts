@@ -15,7 +15,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { AICustomizationManagementSection, IStorageSourceFilter } from './aiCustomizationWorkspaceService.js';
 import { PromptsType } from './promptSyntax/promptTypes.js';
 import { AGENT_MD_FILENAME } from './promptSyntax/config/promptFileLocations.js';
-import { PromptsStorage } from './promptSyntax/service/promptsService.js';
+import { IChatPromptSlashCommand, IPromptsService, PromptsStorage } from './promptSyntax/service/promptsService.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 
 export const ICustomizationHarnessService = createDecorator<ICustomizationHarnessService>('customizationHarnessService');
@@ -258,6 +258,54 @@ export interface ICustomizationHarnessService {
 	 * Returns a disposable that removes the harness when disposed.
 	 */
 	registerExternalHarness(descriptor: IHarnessDescriptor): IDisposable;
+}
+
+/**
+ * Minimal slash-command metadata resolved from the active harness.
+ */
+export interface ICustomizationSlashCommand {
+	readonly uri: URI;
+	readonly type: PromptsType.prompt | PromptsType.skill;
+	readonly name: string;
+	readonly description?: string;
+	readonly userInvocable: boolean;
+	readonly sessionTypes?: readonly string[];
+}
+
+/**
+ * Returns the prompt and skill slash commands for the currently active harness.
+ * Provider-backed harnesses contribute their own items directly; the default
+ * VS Code harness falls back to the core prompts service.
+ */
+export async function getActiveHarnessSlashCommands(
+	harnessService: ICustomizationHarnessService,
+	promptsService: Pick<IPromptsService, 'getPromptSlashCommands' | 'isValidSlashCommandName'>,
+	token: CancellationToken,
+): Promise<readonly IChatPromptSlashCommand[]> {
+	const itemProvider = harnessService.getActiveDescriptor().itemProvider;
+	if (!itemProvider) {
+		return await promptsService.getPromptSlashCommands(token);
+	}
+
+	const items = await itemProvider.provideChatSessionCustomizations(token);
+	if (!items) {
+		return [];
+	}
+	const result = [];
+	for (const item of items) {
+		if ((item.enabled !== false) && (item.type === PromptsType.prompt || item.type === PromptsType.skill)) {
+			result.push({
+				uri: item.uri,
+				type: item.type as PromptsType.prompt | PromptsType.skill,
+				name: item.name,
+				description: item.description,
+				userInvocable: true,
+				storage: item.storage ?? PromptsStorage.local,
+				when: undefined
+			});
+		}
+	}
+	return result;
 }
 
 // #region Shared filter constants

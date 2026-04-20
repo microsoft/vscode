@@ -200,7 +200,7 @@
             "localization": {
                 "description": {
                     "key": "chat.agent.networkFilter",
-                    "value": "When enabled, network access by agent tools (fetch tool, integrated browser) is restricted according to `#chat.agent.allowedNetworkDomains#` and `#chat.agent.deniedNetworkDomains#`. When disabled, no network filtering is applied."
+                    "value": "When enabled, network access by agent tools (fetch tool, integrated browser) is restricted according to `#chat.agent.allowedNetworkDomains#` and `#chat.agent.deniedNetworkDomains#`. Domain filtering is also applied to those tools when `#chat.agent.sandbox.enabled#` is enabled."
                 }
             },
             "type": "boolean",
@@ -215,7 +215,7 @@
             "localization": {
                 "description": {
                     "key": "chat.agent.allowedNetworkDomains",
-                    "value": "Allowed domains for network access by agent tools (fetch tool, integrated browser). Only takes effect when `#chat.agent.networkFilter#` is enabled. When `#chat.agent.sandbox.enabled#` is enabled, these also apply to the terminal sandbox. Supports wildcards like `*.example.com`. When both allowed and denied lists are empty, all domains are blocked. Denied domains (see `#chat.agent.deniedNetworkDomains#`) take precedence."
+                    "value": "Allowed domains for network access by agent tools (fetch tool, integrated browser). Applies when `#chat.agent.networkFilter#` or `#chat.agent.sandbox.enabled#` is enabled. When `#chat.agent.sandbox.enabled#` is enabled, this also configures terminal sandbox networking. Supports wildcards like `*.example.com`. When both allowed and denied lists are empty, all domains are blocked. Denied domains (see `#chat.agent.deniedNetworkDomains#`) take precedence."
                 }
             },
             "type": "array",
@@ -230,7 +230,7 @@
             "localization": {
                 "description": {
                     "key": "chat.agent.deniedNetworkDomains",
-                    "value": "Denied domains for network access by agent tools (fetch tool, integrated browser). Only takes effect when `#chat.agent.networkFilter#` is enabled. When `#chat.agent.sandbox.enabled#` is enabled, these also apply to the terminal sandbox. Takes precedence over `#chat.agent.allowedNetworkDomains#`. Supports wildcards like `*.example.com`."
+                    "value": "Denied domains for network access by agent tools (fetch tool, integrated browser). Applies when `#chat.agent.networkFilter#` or `#chat.agent.sandbox.enabled#` is enabled. When `#chat.agent.sandbox.enabled#` is enabled, this also configures terminal sandbox networking. Takes precedence over `#chat.agent.allowedNetworkDomains#`. Supports wildcards like `*.example.com`."
                 }
             },
             "type": "array",

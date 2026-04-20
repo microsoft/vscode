@@ -56,6 +56,8 @@
 	border-radius: 4px;
 	min-width: 0;
 	max-width: 600px;
+	cursor: pointer;
+	touch-action: manipulation;
 }
 
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-pill:hover {

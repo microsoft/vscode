@@ -6,6 +6,7 @@
 import { DeferredPromise } from '../../../base/common/async.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore, IReference } from '../../../base/common/lifecycle.js';
+import { IObservable, ISettableObservable, observableValue } from '../../../base/common/observable.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { getDelayedChannel, ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
 import { Client as MessagePortClient } from '../../../base/parts/ipc/common/ipc.mp.js';
@@ -49,6 +50,23 @@ class AgentHostServiceClient extends Disposable implements IAgentHostService {
 
 	private readonly _onDidNotification = this._register(new Emitter<INotification>());
 	readonly onDidNotification = this._onDidNotification.event;
+
+	private readonly _authenticationPending: ISettableObservable<boolean> = observableValue('authenticationPending', true);
+	readonly authenticationPending: IObservable<boolean> = this._authenticationPending;
+	private _authenticationSettled = false;
+
+	setAuthenticationPending(pending: boolean): void {
+		// Sticky: once the first authentication pass settles, never surface
+		// pending again. Subsequent re-auths (account/session changes, reconnect)
+		// happen silently in the background and should not flicker the UI.
+		if (this._authenticationSettled) {
+			return;
+		}
+		if (!pending) {
+			this._authenticationSettled = true;
+		}
+		this._authenticationPending.set(pending, undefined);
+	}
 
 	constructor(
 		@ILogService private readonly _logService: ILogService,

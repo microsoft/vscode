@@ -20,7 +20,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IWorkbenchThemeService } from '../../../services/themes/common/workbenchThemeService.js';
-import { EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, IGalleryExtension, IExtensionGalleryService, IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
+import { EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT, IExtensionGalleryService, IExtensionManagementService } from '../../../../platform/extensionManagement/common/extensionManagement.js';
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
@@ -121,7 +121,6 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 	private selectedThemeId = 'dark-2026';
 	private selectedKeymapId = 'vscode';
 	private _detectedEditorIds: Set<string> | undefined;
-	private _galleryExtensions: Map<string, IGalleryExtension> | undefined;
 	private _userSignedIn = false;
 	private selectedAiMode: AiCollaborationMode = AiCollaborationMode.Balanced;
 
@@ -152,9 +151,6 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 
 		// Start detecting installed editors early so results are ready by the Personalize step
 		this._detectInstalledEditors().then(ids => { this._detectedEditorIds = ids; });
-
-		// Pre-fetch gallery data so extension icons are ready by the Extensions step
-		this._prefetchGalleryExtensions();
 	}
 
 	get isShowing(): boolean {
@@ -369,8 +365,6 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 			this._renderAgentSessionsSubtitle(this.subtitleEl);
 		} else if (stepId === OnboardingStepId.Personalize) {
 			this._renderPersonalizeSubtitle(this.subtitleEl);
-		} else if (stepId === OnboardingStepId.Extensions) {
-			this._renderExtensionsSubtitle(this.subtitleEl);
 		} else {
 			this.subtitleEl.textContent = getOnboardingStepSubtitle(stepId);
 		}
@@ -383,9 +377,6 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 				break;
 			case OnboardingStepId.Personalize:
 				this._renderPersonalizeStep(this.contentEl);
-				break;
-			case OnboardingStepId.Extensions:
-				this._renderExtensionsStep(this.contentEl);
 				break;
 			case OnboardingStepId.AiPreference:
 				this._renderAiPreferenceStep(this.contentEl);
@@ -781,20 +772,6 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		);
 	}
 
-	private _renderExtensionsSubtitle(container: HTMLElement): void {
-		clearNode(container);
-		const modifier = isMacintosh ? 'Cmd' : 'Ctrl';
-		container.append(
-			localize('onboarding.extensions.subtitle.prefix', "Install extensions to enhance your workflow. Press "),
-			this._createKbd(localize({ key: 'onboarding.extensions.subtitle.modifier', comment: ['Keyboard modifier key'] }, "{0}", modifier)),
-			'+',
-			this._createKbd(localize('onboarding.extensions.subtitle.shift', "Shift")),
-			'+',
-			this._createKbd(localize('onboarding.extensions.subtitle.x', "X")),
-			localize('onboarding.extensions.subtitle.suffix', " to browse the Extension Marketplace."),
-		);
-	}
-
 	private _createThemeCard(parent: HTMLElement, theme: IOnboardingThemeOption, allCards: HTMLElement[]): void {
 		const card = this._registerStepFocusable(append(parent, $('div.onboarding-a-theme-card')));
 		allCards.push(card);
@@ -837,121 +814,8 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 	}
 
 	// =====================================================================
-	// Step: Extensions
+	// Theme / Keymap helpers
 	// =====================================================================
-
-	private _renderExtensionsStep(container: HTMLElement): void {
-		const wrapper = append(container, $('div.onboarding-a-extensions'));
-
-		const extList = append(wrapper, $('div.onboarding-a-ext-list'));
-		extList.setAttribute('role', 'list');
-		extList.setAttribute('aria-label', localize('onboarding.ext.listLabel', "Recommended extensions"));
-
-		// Build a map of icon elements so we can update them once gallery data arrives
-		const iconElements = new Map<string, HTMLElement>();
-
-		for (const ext of (product.onboardingExtensions ?? [])) {
-			const row = append(extList, $('div.onboarding-a-ext-row'));
-			row.setAttribute('role', 'listitem');
-			row.setAttribute('aria-label', localize('onboarding.ext.row.aria', "{0} by {1}: {2}", ext.name, ext.publisher, ext.description));
-
-			const iconEl = append(row, $('div.onboarding-a-ext-icon'));
-			// Start with a codicon placeholder
-			iconEl.appendChild(renderIcon(this._getExtIcon(ext.icon)));
-			iconElements.set(ext.id.toLowerCase(), iconEl);
-
-			const info = append(row, $('div.onboarding-a-ext-info'));
-			const nameRow = append(info, $('div.onboarding-a-ext-name-row'));
-			const name = append(nameRow, $('span.onboarding-a-ext-name'));
-			name.textContent = ext.name;
-			const publisher = append(nameRow, $('span.onboarding-a-ext-publisher'));
-			publisher.textContent = ext.publisher;
-			const desc = append(info, $('div.onboarding-a-ext-desc'));
-			desc.textContent = ext.description;
-
-			const installBtn = this._registerStepFocusable(append(row, $<HTMLButtonElement>('button.onboarding-a-ext-install')));
-			installBtn.type = 'button';
-			installBtn.textContent = localize('onboarding.ext.install', "Install");
-			installBtn.setAttribute('aria-label', localize('onboarding.ext.install.aria', "Install {0}", ext.name));
-
-			this.stepDisposables.add(addDisposableListener(installBtn, EventType.CLICK, () => {
-				this._logAction('installExtension', undefined, ext.id);
-				installBtn.textContent = localize('onboarding.ext.installing', "Installing...");
-				installBtn.disabled = true;
-				this._installExtension(ext.id).then(
-					() => {
-						installBtn.textContent = localize('onboarding.ext.installed', "Installed");
-						installBtn.classList.add('installed');
-						installBtn.setAttribute('aria-label', localize('onboarding.ext.installed.aria', "{0} installed", ext.name));
-						this.accessibilityService.alert(localize('onboarding.ext.installed.alert', "{0} has been installed", ext.name));
-					},
-					() => {
-						installBtn.textContent = localize('onboarding.ext.install', "Install");
-						installBtn.disabled = false;
-					}
-				);
-			}));
-		}
-
-		// Apply gallery icons — if prefetch finished, icons render immediately; otherwise they swap in once ready
-		this._applyExtensionIcons(iconElements);
-	}
-
-	private async _prefetchGalleryExtensions(): Promise<void> {
-		try {
-			const ids = (product.onboardingExtensions ?? []).map(ext => ({ id: ext.id }));
-			const extensions = await this.extensionGalleryService.getExtensions(ids, CancellationToken.None);
-			const map = new Map<string, IGalleryExtension>();
-			for (const ext of extensions) {
-				map.set(ext.identifier.id.toLowerCase(), ext);
-			}
-			this._galleryExtensions = map;
-		} catch {
-			// Gallery unavailable — icons will stay as codicon placeholders
-		}
-	}
-
-	private async _applyExtensionIcons(iconElements: Map<string, HTMLElement>): Promise<void> {
-		// Wait for prefetch if it hasn't completed yet
-		if (!this._galleryExtensions) {
-			await this._prefetchGalleryExtensions();
-		}
-		if (!this._galleryExtensions) {
-			return;
-		}
-		for (const [id, galleryExt] of this._galleryExtensions) {
-			const iconAsset = galleryExt.assets.icon;
-			if (!iconAsset) {
-				continue;
-			}
-			const iconEl = iconElements.get(id);
-			if (!iconEl) {
-				continue;
-			}
-			const img = $<HTMLImageElement>('img.onboarding-a-ext-icon-img');
-			img.alt = '';
-			img.src = iconAsset.uri;
-			this.stepDisposables.add(addDisposableListener(img, EventType.ERROR, () => {
-				if (iconAsset.fallbackUri) {
-					img.src = iconAsset.fallbackUri;
-				}
-			}, { once: true }));
-			this.stepDisposables.add(addDisposableListener(img, EventType.LOAD, () => {
-				clearNode(iconEl);
-				iconEl.appendChild(img);
-			}, { once: true }));
-		}
-	}
-
-	private _getExtIcon(iconName: string): ThemeIcon {
-		switch (iconName) {
-			case 'wand': return Codicon.wand;
-			case 'lightbulb': return Codicon.lightbulb;
-			case 'symbol-misc': return Codicon.symbolMisc;
-			case 'git-pull-request': return Codicon.gitPullRequest;
-			default: return Codicon.extensions;
-		}
-	}
 
 	private async _selectTheme(theme: IOnboardingThemeOption): Promise<void> {
 		this.selectedThemeId = theme.id;
@@ -959,21 +823,6 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		const match = allThemes.find(t => t.settingsId === theme.themeId);
 		if (match) {
 			this.themeService.setColorTheme(match.id, ConfigurationTarget.USER);
-		}
-	}
-
-	private async _installExtension(extensionId: string): Promise<void> {
-		try {
-			const gallery = await this.extensionGalleryService.getExtensions([{ id: extensionId }], CancellationToken.None);
-			if (gallery.length > 0) {
-				await this.extensionManagementService.installFromGallery(gallery[0], { context: { [EXTENSION_INSTALL_SKIP_WALKTHROUGH_CONTEXT]: true } });
-			}
-		} catch (err) {
-			this.notificationService.notify({
-				severity: Severity.Warning,
-				message: localize('onboarding.ext.installError', "Could not install extension. You can install it later from the Extensions view."),
-			});
-			throw err;
 		}
 	}
 

@@ -43,8 +43,9 @@ import { ITerminalProfileResolverService } from '../../../../terminal/common/ter
 import type { ICommandLinePresenter } from '../../browser/tools/commandLinePresenter/commandLinePresenter.js';
 import { createRunInTerminalToolData, RunInTerminalTool, shouldAutomaticallyRetryUnsandboxed, type IRunInTerminalInputParams } from '../../browser/tools/runInTerminalTool.js';
 import { ShellIntegrationQuality } from '../../browser/toolTerminalCreator.js';
-import { terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSandboxEnabledValue, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
+import { terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { AgentNetworkDomainSettingId } from '../../../../../../platform/networkFilter/common/settings.js';
+import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { TerminalChatService } from '../../../chat/browser/terminalChatService.js';
 import type { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IAgentSessionsService } from '../../../../chat/browser/agentSessions/agentSessionsService.js';
@@ -2484,10 +2485,10 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 
 		// Enable sandbox and fire config change
 		sandboxEnabled = true;
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxEnabled, TerminalChatAgentToolsSandboxEnabledValue.On);
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
 		configurationService.onDidChangeConfigurationEmitter.fire({
-			affectsConfiguration: (key: string) => key === TerminalChatAgentToolsSettingId.AgentSandboxEnabled,
-			affectedKeys: new Set([TerminalChatAgentToolsSettingId.AgentSandboxEnabled]),
+			affectsConfiguration: (key: string) => key === AgentSandboxSettingId.AgentSandboxEnabled,
+			affectedKeys: new Set([AgentSandboxSettingId.AgentSandboxEnabled]),
 			source: ConfigurationTarget.USER,
 			change: null!,
 		});
