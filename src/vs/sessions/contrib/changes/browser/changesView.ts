@@ -6,6 +6,7 @@
 import './media/changesView.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { Schemas } from '../../../../base/common/network.js';
+import { isWeb } from '../../../../base/common/platform.js';
 import { renderLabelWithIcons } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { IListVirtualDelegate } from '../../../../base/browser/ui/list/list.js';
 import { IObjectTreeElement, ITreeSorter } from '../../../../base/browser/ui/tree/tree.js';
@@ -246,6 +247,8 @@ export class ChangesViewPane extends ViewPane {
 	private readonly hasGitHubRemoteContextKey: IContextKey<boolean>;
 	private readonly hasUncommittedChangesContextKey: IContextKey<boolean>;
 
+	private readonly scopedInstantiationService: IInstantiationService;
+
 	private readonly renderDisposables = this._register(new DisposableStore());
 
 	// Track current body dimensions for list layout
@@ -305,6 +308,10 @@ export class ChangesViewPane extends ViewPane {
 		this._register(bindContextKey(ChatContextKeys.agentSessionType, this.scopedContextKeyService, reader => {
 			return this.viewModel.activeSessionTypeObs.read(reader) ?? '';
 		}));
+
+		const scopedServiceCollection = new ServiceCollection([IContextKeyService, this.scopedContextKeyService]);
+		this.scopedInstantiationService = this.instantiationService.createChild(scopedServiceCollection);
+		this._register(this.scopedInstantiationService);
 	}
 
 	protected override renderBody(container: HTMLElement): void {
@@ -333,11 +340,11 @@ export class ChangesViewPane extends ViewPane {
 		this.filesHeaderNode = dom.append(this.contentContainer, $('.changes-files-header'));
 
 		const filesHeaderToolbarContainer = dom.append(this.filesHeaderNode, $('.changes-files-header-toolbar'));
-		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, filesHeaderToolbarContainer, MenuId.ChatEditingSessionChangesFileHeaderToolbar, {
+		this._register(this.scopedInstantiationService.createInstance(MenuWorkbenchToolBar, filesHeaderToolbarContainer, MenuId.ChatEditingSessionChangesFileHeaderToolbar, {
 			menuOptions: { shouldForwardArgs: true },
 			actionViewItemProvider: (action) => {
 				if (action.id === 'chatEditing.versionsPicker' && action instanceof MenuItemAction) {
-					return this.instantiationService.createInstance(ChangesPickerActionItem, action, this.viewModel);
+					return this.scopedInstantiationService.createInstance(ChangesPickerActionItem, action, this.viewModel);
 				}
 				return undefined;
 			},
@@ -516,11 +523,7 @@ export class ChangesViewPane extends ViewPane {
 			// Bind context keys
 			this._bindContextKeys(topLevelStats);
 
-			const scopedServiceCollection = new ServiceCollection([IContextKeyService, this.scopedContextKeyService]);
-			const scopedInstantiationService = this.instantiationService.createChild(scopedServiceCollection);
-			this.renderDisposables.add(scopedInstantiationService);
-
-			this.renderDisposables.add(scopedInstantiationService.createInstance(
+			this.renderDisposables.add(this.scopedInstantiationService.createInstance(
 				ChangesButtonBarWidget, this.actionsContainer, this.viewModel));
 		}
 
@@ -542,10 +545,14 @@ export class ChangesViewPane extends ViewPane {
 			}
 
 			const hasGitRepository = this.viewModel.activeSessionHasGitRepositoryObs.read(reader);
-			dom.setVisibility(hasGitRepository, this.filesHeaderNode!);
 
 			const { files } = topLevelStats.read(reader);
 			const hasEntries = files > 0;
+
+			// Show the files header whenever the session is git-backed (so users
+			// can switch version modes) or there are session-provided entries to
+			// count (for non-git sessions like the local agent host).
+			dom.setVisibility(hasGitRepository || hasEntries, this.filesHeaderNode!);
 
 			dom.setVisibility(hasEntries, this.listContainer!);
 			dom.setVisibility(!hasEntries, this.welcomeContainer!);
@@ -1195,6 +1202,7 @@ class VersionsPickerAction extends Action2 {
 				id: MenuId.ChatEditingSessionChangesFileHeaderToolbar,
 				group: 'navigation',
 				order: 9,
+				when: ActiveSessionContextKeys.HasGitRepository,
 			}],
 		});
 	}
@@ -1219,7 +1227,7 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 				const branchName = state?.branchName;
 				const baseBranchName = state?.baseBranchName;
 
-				return [
+				const actions = [
 					{
 						...action,
 						id: 'chatEditing.versionsBranchChanges',
@@ -1237,7 +1245,10 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 							}
 						},
 					},
-					{
+				];
+
+				if (!isWeb) {
+					actions.push({
 						...action,
 						id: 'chatEditing.versionsUncommittedChanges',
 						label: localize('chatEditing.versionsUncommittedChanges', 'Uncommitted Changes'),
@@ -1252,8 +1263,8 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 								this.renderLabel(this.element);
 							}
 						},
-					},
-					{
+					});
+					actions.push({
 						...action,
 						id: 'chatEditing.versionsAllChanges',
 						label: localize('chatEditing.versionsAllChanges', 'All Changes'),
@@ -1270,8 +1281,8 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 								this.renderLabel(this.element);
 							}
 						},
-					},
-					{
+					});
+					actions.push({
 						...action,
 						id: 'chatEditing.versionsLastTurnChanges',
 						label: localize('chatEditing.versionsLastTurnChanges', "Last Turn's Changes"),
@@ -1288,8 +1299,10 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 								this.renderLabel(this.element);
 							}
 						},
-					},
-				];
+					});
+				}
+
+				return actions;
 			},
 		};
 

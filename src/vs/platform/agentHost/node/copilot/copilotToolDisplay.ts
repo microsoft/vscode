@@ -3,8 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import type { PermissionRequest } from '@github/copilot-sdk';
 import { hasKey } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
+import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlContent.js';
 import { localize } from '../../../../nls.js';
+import type { IAgentToolReadyEvent } from '../../common/agentService.js';
+import { StringOrMarkdown } from '../../common/state/protocol/state.js';
+import { basename } from '../../../../base/common/resources.js';
 
 // =============================================================================
 // Copilot CLI built-in tool interfaces
@@ -151,6 +157,23 @@ function truncate(text: string, maxLength: number): string {
 	return text.length > maxLength ? text.substring(0, maxLength - 3) + '...' : text;
 }
 
+/**
+ * Formats a file path as a markdown link `[](file-uri)` so it renders
+ * as a clickable file widget in the chat UI.
+ */
+function formatPathAsMarkdownLink(path: string): string {
+	const uri = URI.file(path);
+	return `[${basename(uri)}](${uri})`;
+}
+
+/**
+ * Wraps a localized message containing a markdown file link into a
+ * `StringOrMarkdown` object so the renderer treats it as markdown.
+ */
+function md(value: string): StringOrMarkdown {
+	return { markdown: value };
+}
+
 export function getToolDisplayName(toolName: string): string {
 	switch (toolName) {
 		case CopilotToolName.Bash: return localize('toolName.bash', "Bash");
@@ -176,12 +199,12 @@ export function getToolDisplayName(toolName: string): string {
 	}
 }
 
-export function getInvocationMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined): string {
+export function getInvocationMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined): StringOrMarkdown {
 	if (SHELL_TOOL_NAMES.has(toolName)) {
 		const args = parameters as ICopilotShellToolArgs | undefined;
 		if (args?.command) {
 			const firstLine = args.command.split('\n')[0];
-			return localize('toolInvoke.shellCmd', "Running `{0}`", truncate(firstLine, 80));
+			return md(localize('toolInvoke.shellCmd', "Running {0}", appendEscapedMarkdownInlineCode(truncate(firstLine, 80))));
 		}
 		return localize('toolInvoke.shell', "Running {0} command", displayName);
 	}
@@ -190,35 +213,35 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 		case CopilotToolName.View: {
 			const args = parameters as ICopilotFileToolArgs | undefined;
 			if (args?.path) {
-				return localize('toolInvoke.viewFile', "Reading {0}", args.path);
+				return md(localize('toolInvoke.viewFile', "Reading {0}", formatPathAsMarkdownLink(args.path)));
 			}
 			return localize('toolInvoke.view', "Reading file");
 		}
 		case CopilotToolName.Edit: {
 			const args = parameters as ICopilotFileToolArgs | undefined;
 			if (args?.path) {
-				return localize('toolInvoke.editFile', "Editing {0}", args.path);
+				return md(localize('toolInvoke.editFile', "Editing {0}", formatPathAsMarkdownLink(args.path)));
 			}
 			return localize('toolInvoke.edit', "Editing file");
 		}
 		case CopilotToolName.Create: {
 			const args = parameters as ICopilotFileToolArgs | undefined;
 			if (args?.path) {
-				return localize('toolInvoke.createFile', "Creating {0}", args.path);
+				return md(localize('toolInvoke.createFile', "Creating {0}", formatPathAsMarkdownLink(args.path)));
 			}
 			return localize('toolInvoke.create', "Creating file");
 		}
 		case CopilotToolName.Grep: {
 			const args = parameters as ICopilotGrepToolArgs | undefined;
 			if (args?.pattern) {
-				return localize('toolInvoke.grepPattern', "Searching for `{0}`", truncate(args.pattern, 80));
+				return md(localize('toolInvoke.grepPattern', "Searching for {0}", appendEscapedMarkdownInlineCode(truncate(args.pattern, 80))));
 			}
 			return localize('toolInvoke.grep', "Searching files");
 		}
 		case CopilotToolName.Glob: {
 			const args = parameters as ICopilotGlobToolArgs | undefined;
 			if (args?.pattern) {
-				return localize('toolInvoke.globPattern', "Finding files matching `{0}`", truncate(args.pattern, 80));
+				return md(localize('toolInvoke.globPattern', "Finding files matching {0}", appendEscapedMarkdownInlineCode(truncate(args.pattern, 80))));
 			}
 			return localize('toolInvoke.glob', "Finding files");
 		}
@@ -227,7 +250,7 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 	}
 }
 
-export function getPastTenseMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined, success: boolean): string {
+export function getPastTenseMessage(toolName: string, displayName: string, parameters: Record<string, unknown> | undefined, success: boolean): StringOrMarkdown {
 	if (!success) {
 		return localize('toolComplete.failed', "\"{0}\" failed", displayName);
 	}
@@ -236,7 +259,7 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 		const args = parameters as ICopilotShellToolArgs | undefined;
 		if (args?.command) {
 			const firstLine = args.command.split('\n')[0];
-			return localize('toolComplete.shellCmd', "Ran `{0}`", truncate(firstLine, 80));
+			return md(localize('toolComplete.shellCmd', "Ran {0}", appendEscapedMarkdownInlineCode(truncate(firstLine, 80))));
 		}
 		return localize('toolComplete.shell', "Ran {0} command", displayName);
 	}
@@ -245,35 +268,35 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 		case CopilotToolName.View: {
 			const args = parameters as ICopilotFileToolArgs | undefined;
 			if (args?.path) {
-				return localize('toolComplete.viewFile', "Read {0}", args.path);
+				return md(localize('toolComplete.viewFile', "Read {0}", formatPathAsMarkdownLink(args.path)));
 			}
 			return localize('toolComplete.view', "Read file");
 		}
 		case CopilotToolName.Edit: {
 			const args = parameters as ICopilotFileToolArgs | undefined;
 			if (args?.path) {
-				return localize('toolComplete.editFile', "Edited {0}", args.path);
+				return md(localize('toolComplete.editFile', "Edited {0}", formatPathAsMarkdownLink(args.path)));
 			}
 			return localize('toolComplete.edit', "Edited file");
 		}
 		case CopilotToolName.Create: {
 			const args = parameters as ICopilotFileToolArgs | undefined;
 			if (args?.path) {
-				return localize('toolComplete.createFile', "Created {0}", args.path);
+				return md(localize('toolComplete.createFile', "Created {0}", formatPathAsMarkdownLink(args.path)));
 			}
 			return localize('toolComplete.create', "Created file");
 		}
 		case CopilotToolName.Grep: {
 			const args = parameters as ICopilotGrepToolArgs | undefined;
 			if (args?.pattern) {
-				return localize('toolComplete.grepPattern', "Searched for `{0}`", truncate(args.pattern, 80));
+				return md(localize('toolComplete.grepPattern', "Searched for {0}", appendEscapedMarkdownInlineCode(truncate(args.pattern, 80))));
 			}
 			return localize('toolComplete.grep', "Searched files");
 		}
 		case CopilotToolName.Glob: {
 			const args = parameters as ICopilotGlobToolArgs | undefined;
 			if (args?.pattern) {
-				return localize('toolComplete.globPattern', "Found files matching `{0}`", truncate(args.pattern, 80));
+				return md(localize('toolComplete.globPattern', "Found files matching {0}", appendEscapedMarkdownInlineCode(truncate(args.pattern, 80))));
 			}
 			return localize('toolComplete.glob', "Found files");
 		}
@@ -334,6 +357,28 @@ export function getToolKind(toolName: string): 'terminal' | 'subagent' | undefin
 }
 
 /**
+ * Extracts subagent metadata (agent name, description) from the parsed
+ * arguments of a Copilot SDK subagent tool call. The Copilot `task` tool
+ * uses `agent_type` (snake_case), which this normalizes into the generic
+ * `subagentAgentName` / `subagentDescription` shape used by the rest of the
+ * agent host code.
+ *
+ * Only call this for tools where {@link getToolKind} returned `'subagent'`.
+ */
+export function getSubagentMetadata(parameters: Record<string, unknown> | undefined): { agentName?: string; description?: string } {
+	if (!parameters) {
+		return {};
+	}
+	const agentName = typeof parameters.agent_type === 'string' && parameters.agent_type.length > 0
+		? parameters.agent_type
+		: undefined;
+	const description = typeof parameters.description === 'string' && parameters.description.length > 0
+		? parameters.description
+		: undefined;
+	return { agentName, description };
+}
+
+/**
  * Returns the shell language identifier for syntax highlighting.
  * Used when creating terminal tool-specific data for the renderer.
  */
@@ -341,5 +386,139 @@ export function getShellLanguage(toolName: string): string {
 	switch (toolName) {
 		case CopilotToolName.PowerShell: return 'powershell';
 		default: return 'shellscript';
+	}
+}
+
+// =============================================================================
+// Permission display
+//
+// Derives display fields from SDK permission requests for the tool
+// confirmation UI. Colocated with the tool-start display helpers above so
+// that formatting utilities (formatPathAsMarkdownLink, md, etc.) are shared.
+// =============================================================================
+
+export function tryStringify(value: unknown): string | undefined {
+	try {
+		return JSON.stringify(value);
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * Extends the SDK's {@link PermissionRequest} with the known extra properties
+ * that arrive on the index-signature. The SDK defines these as `[key: string]: unknown`
+ * so this interface adds proper types for the fields we actually use.
+ */
+export interface ITypedPermissionRequest extends PermissionRequest {
+	/** File path — set for `read` permission requests. */
+	path?: string;
+	/** File path — set for `write` permission requests. */
+	fileName?: string;
+	/** Full shell command text — set for `shell` permission requests. */
+	fullCommandText?: string;
+	/** Human-readable intention describing the operation. */
+	intention?: string;
+	/** MCP server name — set for `mcp` permission requests. */
+	serverName?: string;
+	/** Tool name — set for `mcp` and `custom-tool` permission requests. */
+	toolName?: string;
+	/** Tool arguments — set for `custom-tool` permission requests. */
+	args?: Record<string, unknown>;
+	/** Unified diff of the proposed change — set for `write` permission requests. */
+	diff?: string;
+	/** New file contents that will be written — set for `write` permission requests. */
+	newFileContents?: string;
+}
+
+/** Safely extract a string value from an SDK field that may be `unknown` at runtime. */
+function str(value: unknown): string | undefined {
+	return typeof value === 'string' ? value : undefined;
+}
+
+/**
+ * Derives display fields from a permission request for the tool confirmation UI.
+ */
+export function getPermissionDisplay(request: ITypedPermissionRequest): {
+	confirmationTitle: string;
+	invocationMessage: StringOrMarkdown;
+	toolInput?: string;
+	/** Normalized permission kind for auto-approval routing. */
+	permissionKind: IAgentToolReadyEvent['permissionKind'];
+	/** File path extracted from the request. */
+	permissionPath?: string;
+} {
+	const path = str(request.path) ?? str(request.fileName);
+	const fullCommandText = str(request.fullCommandText);
+	const intention = str(request.intention);
+	const serverName = str(request.serverName);
+	const toolName = str(request.toolName);
+
+	switch (request.kind) {
+		case 'shell':
+			return {
+				confirmationTitle: localize('copilot.permission.shell.title', "Run in terminal"),
+				invocationMessage: intention ?? getInvocationMessage(CopilotToolName.Bash, getToolDisplayName(CopilotToolName.Bash), fullCommandText ? { command: fullCommandText } : undefined),
+				toolInput: fullCommandText,
+				permissionKind: 'shell',
+				permissionPath: path,
+			};
+		case 'custom-tool': {
+			// Custom tool overrides (e.g. our shell tool). Extract the actual
+			// tool args from the SDK's wrapper envelope.
+			const args = typeof request.args === 'object' && request.args !== null ? request.args as Record<string, unknown> : undefined;
+			const command = typeof args?.command === 'string' ? args.command : undefined;
+			const sdkToolName = str(request.toolName);
+			if (command && sdkToolName && isShellTool(sdkToolName)) {
+				return {
+					confirmationTitle: localize('copilot.permission.shell.title', "Run in terminal"),
+					invocationMessage: getInvocationMessage(sdkToolName, getToolDisplayName(sdkToolName), { command }),
+					toolInput: command,
+					permissionKind: 'shell',
+					permissionPath: path,
+				};
+			}
+			return {
+				confirmationTitle: toolName ?? localize('copilot.permission.default.title', "Permission request"),
+				invocationMessage: localize('copilot.permission.default.message', "Permission request"),
+				toolInput: args ? tryStringify(args) : tryStringify(request),
+				permissionKind: request.kind,
+				permissionPath: path,
+			};
+		}
+		case 'write':
+			return {
+				confirmationTitle: localize('copilot.permission.write.title', "Write file"),
+				invocationMessage: getInvocationMessage(CopilotToolName.Edit, getToolDisplayName(CopilotToolName.Edit), path ? { path } : undefined),
+				toolInput: tryStringify(path ? { path } : request) ?? undefined,
+				permissionKind: 'write',
+				permissionPath: path,
+			};
+		case 'mcp': {
+			const title = toolName ?? localize('copilot.permission.mcp.defaultTool', "MCP Tool");
+			return {
+				confirmationTitle: serverName ? `${serverName}: ${title}` : title,
+				invocationMessage: serverName ? `${serverName}: ${title}` : title,
+				toolInput: tryStringify({ serverName, toolName }) ?? undefined,
+				permissionKind: 'mcp',
+				permissionPath: path,
+			};
+		}
+		case 'read':
+			return {
+				confirmationTitle: localize('copilot.permission.read.title', "Read file"),
+				invocationMessage: intention ?? getInvocationMessage(CopilotToolName.View, getToolDisplayName(CopilotToolName.View), path ? { path } : undefined),
+				toolInput: tryStringify(path ? { path, intention } : request) ?? undefined,
+				permissionKind: 'read',
+				permissionPath: path,
+			};
+		default:
+			return {
+				confirmationTitle: localize('copilot.permission.default.title', "Permission request"),
+				invocationMessage: localize('copilot.permission.default.message', "Permission request"),
+				toolInput: tryStringify(request) ?? undefined,
+				permissionKind: request.kind,
+				permissionPath: path,
+			};
 	}
 }

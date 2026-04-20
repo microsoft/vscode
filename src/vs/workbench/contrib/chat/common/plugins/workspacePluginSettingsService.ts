@@ -187,7 +187,7 @@ class WorkspaceSettingsReader extends Disposable {
 		const settingsDirs = observableFromEvent(
 			this,
 			workspaceContextService.onDidChangeWorkspaceFolders,
-			() => workspaceContextService.getWorkspace().folders.map(f => joinPath(f.uri, configFolder)),
+			() => workspaceContextService.getWorkspace().folders.map(f => f.uri.path ? joinPath(f.uri, configFolder) : joinPath(f.uri.with({ path: '/' }), configFolder)),
 		);
 
 		const watcherStore = this._register(new DisposableStore());

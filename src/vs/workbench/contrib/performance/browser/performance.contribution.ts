@@ -153,7 +153,6 @@ Registry.as<IConfigurationRegistry>(ConfigExt.Configuration).registerConfigurati
 			minimum: 0,
 			maximum: 1,
 			tags: ['experimental'],
-			included: false,
 			markdownDescription: localize('telemetry.performance.inputLatencySamplingProbability', "Probability (0 to 1) that input latency telemetry is reported for this session. Set to 0 to disable, 1 to always report."),
 			experiment: {
 				mode: 'auto'

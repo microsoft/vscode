@@ -19,6 +19,7 @@ import { ConfigurationScope, Extensions as ConfigurationExtensions, IConfigurati
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
+import product from '../../../../platform/product/common/product.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { IStorageService } from '../../../../platform/storage/common/storage.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
@@ -315,7 +316,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		}
 
 		// Authenticate using protectedResources from agent info
-		this._authenticateWithConnection(loggedConnection, rootState.agents)
+		this._authenticateWithConnection(address, loggedConnection, rootState.agents)
 			.catch(() => { /* best-effort */ });
 
 		// Register new agents, push model updates to existing ones
@@ -484,10 +485,10 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	}
 
 	private _authenticateAllConnections(): void {
-		for (const [, connState] of this._connections) {
+		for (const [address, connState] of this._connections) {
 			const rootState = connState.loggedConnection.rootState.value;
 			if (rootState && !(rootState instanceof Error)) {
-				this._authenticateWithConnection(connState.loggedConnection, rootState.agents).catch(() => { /* best-effort */ });
+				this._authenticateWithConnection(address, connState.loggedConnection, rootState.agents).catch(() => { /* best-effort */ });
 			}
 		}
 	}
@@ -495,8 +496,14 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	/**
 	 * Authenticate using protectedResources from agent info in root state.
 	 * Resolves tokens via the standard VS Code authentication service.
+	 *
+	 * Marks the matching provider's `authenticationPending` observable while
+	 * the auth pass is in flight so that sessions surface as still loading.
 	 */
-	private async _authenticateWithConnection(loggedConnection: LoggingAgentConnection, agents: readonly IAgentInfo[]): Promise<void> {
+	private async _authenticateWithConnection(address: string, loggedConnection: LoggingAgentConnection, agents: readonly IAgentInfo[]): Promise<void> {
+		const providerId = `agenthost-${agentHostAuthority(address)}`;
+		const provider = this._sessionsProvidersService.getProvider<RemoteAgentHostSessionsProvider>(providerId);
+		provider?.setAuthenticationPending(true);
 		try {
 			for (const agent of agents) {
 				for (const resource of agent.protectedResources ?? []) {
@@ -513,6 +520,8 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		} catch (err) {
 			this._logService.error('[RemoteAgentHost] Failed to authenticate with connection', err);
 			loggedConnection.logError('authenticateWithConnection', err);
+		} finally {
+			provider?.setAuthenticationPending(false);
 		}
 	}
 
@@ -577,7 +586,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[RemoteAgentHostsEnabledSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.remoteAgentHosts.enabled', "Enable connecting to remote agent hosts."),
-			default: false,
+			default: product.quality !== 'stable',
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
 		},

@@ -7,7 +7,7 @@ import { ITerminalInstance } from '../../../terminal/browser/terminal.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
 import { truncateOutputKeepingTail } from './runInTerminalHelpers.js';
 
-const MAX_OUTPUT_LENGTH = 16000;
+const MAX_OUTPUT_LENGTH = 60000;
 
 export interface IGetOutputOptions {
 	/** When set, only return the last N non-empty lines from the bottom of the buffer. */

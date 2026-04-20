@@ -804,6 +804,10 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 					span.setAttribute(GenAiAttr.INPUT_MESSAGES, truncateForOTel(JSON.stringify([
 						{ role: 'user', parts: [{ type: 'text', content: userMessage }] }
 					])));
+					// Set USER_REQUEST so event translator can emit user.message
+					if (userMessage) {
+						span.setAttribute(CopilotChatAttr.USER_REQUEST, truncateForOTel(userMessage));
+					}
 					// Emit user_message span event for real-time debug panel streaming
 					if (userMessage) {
 						span.addEvent('user_message', { content: userMessage, ...(chatSessionId ? { [CopilotChatAttr.CHAT_SESSION_ID]: chatSessionId } : {}) });

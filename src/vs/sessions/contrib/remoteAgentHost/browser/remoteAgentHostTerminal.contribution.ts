@@ -3,42 +3,35 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { localize } from '../../../../nls.js';
-import { IAgentHostService } from '../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
-import { IQuickInputService } from '../../../../platform/quickinput/common/quickInput.js';
 import { registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { AgentHostTerminalContribution, IAgentHostEntry } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/agentHostTerminalContribution.js';
 import { LoggingAgentConnection } from '../../../../workbench/contrib/chat/browser/agentSessions/agentHost/loggingAgentConnection.js';
 import { IAgentHostTerminalService } from '../../../../workbench/contrib/terminal/browser/agentHostTerminalService.js';
-import { ITerminalProfileService } from '../../../../workbench/contrib/terminal/common/terminal.js';
 
-export class RemoteAgentHostTerminalContribution extends AgentHostTerminalContribution {
+/**
+ * Registers remote agent host terminal entries with
+ * {@link IAgentHostTerminalService}.
+ */
+class RemoteAgentHostTerminalContribution extends Disposable {
+	private readonly _remoteEntries = this._register(new DisposableMap<string>());
+
 	constructor(
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
-		@IAgentHostService agentHostService: IAgentHostService,
-		@ITerminalProfileService terminalProfileService: ITerminalProfileService,
-		@IQuickInputService quickInputService: IQuickInputService,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IAgentHostTerminalService agentHostTerminalService: IAgentHostTerminalService,
+		@IAgentHostTerminalService private readonly _agentHostTerminalService: IAgentHostTerminalService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
-		super(
-			agentHostService,
-			terminalProfileService,
-			quickInputService,
-			instantiationService,
-			agentHostTerminalService
-		);
+		super();
 
-
-		// React to connection changes
-		this._register(this._remoteAgentHostService.onDidChangeConnections(() => this._reconcile()));
+		this._register(this._remoteAgentHostService.onDidChangeConnections(() => this._reconcileRemote()));
+		this._reconcileRemote();
 	}
 
-	protected override _collectEntries(): IAgentHostEntry[] {
-		const entries: IAgentHostEntry[] = [];
-		// Remote connections
+	private _reconcileRemote(): void {
+		const connectedAddresses = new Set<string>();
+
 		for (const info of this._remoteAgentHostService.connections) {
 			if (info.status !== RemoteAgentHostConnectionStatus.Connected) {
 				continue;
@@ -47,20 +40,28 @@ export class RemoteAgentHostTerminalContribution extends AgentHostTerminalContri
 			if (!connection) {
 				continue;
 			}
-
-			entries.push({
-				name: info.name || info.address,
-				address: info.address,
-				getConnection: () => this._instantiationService.createInstance(
-					LoggingAgentConnection,
-					connection,
-					`agenthost.${connection.clientId}`,
-					localize('agentHostTerminal.channelRemote', "Agent Host Terminal ({0})", info.address),
-				),
-			});
+			connectedAddresses.add(info.address);
+			if (!this._remoteEntries.has(info.address)) {
+				this._remoteEntries.set(info.address, this._agentHostTerminalService.registerEntry({
+					name: info.name || info.address,
+					address: info.address,
+					getConnection: () => this._instantiationService.createInstance(
+						LoggingAgentConnection,
+						connection,
+						`agenthost.${connection.clientId}`,
+						localize('agentHostTerminal.channelRemote', "Agent Host Terminal ({0})", info.address),
+					),
+				}));
+			}
 		}
 
-		return [...entries, ...super._collectEntries()];
+		// Remove entries for disconnected hosts
+		for (const address of this._remoteEntries.keys()) {
+			if (!connectedAddresses.has(address)) {
+				this._remoteEntries.deleteAndDispose(address);
+			}
+		}
 	}
 }
-registerWorkbenchContribution2(AgentHostTerminalContribution.ID, RemoteAgentHostTerminalContribution, WorkbenchPhase.AfterRestored);
+
+registerWorkbenchContribution2('workbench.contrib.remoteAgentHostTerminal', RemoteAgentHostTerminalContribution, WorkbenchPhase.AfterRestored);

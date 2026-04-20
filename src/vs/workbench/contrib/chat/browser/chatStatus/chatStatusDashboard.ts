@@ -155,10 +155,15 @@ export class ChatStatusDashboard extends DomWidget {
 	private render(): void {
 		const token = cancelOnDispose(this._store);
 
-		const hasQuotas = !!(this.chatEntitlementService.quotas.chat || this.chatEntitlementService.quotas.premiumChat);
+		const { chat, premiumChat, completions } = this.chatEntitlementService.quotas;
+		const hasQuotas = !!(chat || premiumChat);
 		const isAnonymousWithSentiment = this.chatEntitlementService.anonymous && this.chatEntitlementService.sentiment.completed;
 		const hasUsageSection = hasQuotas || isAnonymousWithSentiment;
-		const hasInlineSuggestionsSection = !!(this.chatEntitlementService.quotas.completions) ||
+		const hasVisibleUsageContent = !!(chat && !chat.unlimited && chat.total > 0) ||
+			!!(premiumChat && !premiumChat.unlimited && premiumChat.total > 0) ||
+			!!(completions && !completions.unlimited && completions.total > 0) ||
+			isAnonymousWithSentiment;
+		const hasInlineSuggestionsSection =
 			!this.options?.disableInlineSuggestionsSettings ||
 			!this.options?.disableModelSelection ||
 			!this.options?.disableProviderOptions ||
@@ -176,8 +181,11 @@ export class ChatStatusDashboard extends DomWidget {
 			}));
 		}
 
+		// Always trigger a fresh quota fetch when the dashboard opens
+		const updatePromise = this.chatEntitlementService.update(token);
+
 		// Tabbed layout when both Usage and Inline Suggestions sections are available
-		if (hasUsageSection && hasInlineSuggestionsSection) {
+		if (hasVisibleUsageContent && hasInlineSuggestionsSection) {
 			const usageContent = $('div.tab-content.active');
 			usageContent.setAttribute('role', 'tabpanel');
 			usageContent.id = 'chat-status-usage-panel';
@@ -241,13 +249,12 @@ export class ChatStatusDashboard extends DomWidget {
 			tabContentContainer.appendChild(usageContent);
 			tabContentContainer.appendChild(inlineSuggestionsContent);
 
-			const updatePromise = this.chatEntitlementService.update(token);
 			this.renderUsageContent(usageContent, token, updatePromise);
 			this.renderInlineSuggestionsContent(inlineSuggestionsContent, token, updatePromise);
-		} else if (hasUsageSection) {
-			this.renderUsageContent(this.element, token);
+		} else if (hasVisibleUsageContent) {
+			this.renderUsageContent(this.element, token, updatePromise);
 		} else if (hasInlineSuggestionsSection) {
-			this.renderInlineSuggestionsContent(this.element, token);
+			this.renderInlineSuggestionsContent(this.element, token, updatePromise);
 		}
 
 		// New to Chat / Signed out
@@ -308,7 +315,7 @@ export class ChatStatusDashboard extends DomWidget {
 	private renderUsageContent(container: HTMLElement, token: CancellationToken, updatePromise?: Promise<void>): void {
 		const { chat: chatQuota, completions: completionsQuota, premiumChat: premiumChatQuota, resetDate, resetDateHasTime } = this.chatEntitlementService.quotas;
 
-		if (chatQuota || premiumChatQuota) {
+		if (chatQuota || premiumChatQuota || completionsQuota) {
 			const resetLabel = resetDate ? (resetDateHasTime ? localize('quotaResetsAt', "Resets {0} at {1}", this.dateFormatter.value.format(new Date(resetDate)), this.timeFormatter.value.format(new Date(resetDate))) : localize('quotaResets', "Resets {0}", this.dateFormatter.value.format(new Date(resetDate)))) : undefined;
 
 			let chatQuotaIndicator: ((quota: IQuotaSnapshot | string) => void) | undefined;
@@ -320,6 +327,11 @@ export class ChatStatusDashboard extends DomWidget {
 			if (premiumChatQuota && !premiumChatQuota.unlimited && premiumChatQuota.total > 0) {
 				const premiumChatLabel = premiumChatQuota.overageEnabled ? localize('includedPremiumChatsLabel', "Included premium requests") : localize('premiumChatsLabel', "Premium requests");
 				premiumChatQuotaIndicator = this.createQuotaIndicator(container, this._store, premiumChatQuota, premiumChatLabel, true, resetLabel);
+			}
+
+			let completionsQuotaIndicator: ((quota: IQuotaSnapshot | string) => void) | undefined;
+			if (completionsQuota && !completionsQuota.unlimited && completionsQuota.total > 0) {
+				completionsQuotaIndicator = this.createQuotaIndicator(container, this._store, completionsQuota, localize('completionsLabel', "Inline Suggestions"), false, resetLabel);
 			}
 
 			if (this.chatEntitlementService.entitlement === ChatEntitlement.Free && (Number(chatQuota?.percentRemaining) <= 25 || Number(completionsQuota?.percentRemaining) <= 25)) {
@@ -334,12 +346,15 @@ export class ChatStatusDashboard extends DomWidget {
 					return;
 				}
 
-				const { chat: chatQuota, premiumChat: premiumChatQuota } = this.chatEntitlementService.quotas;
+				const { chat: chatQuota, premiumChat: premiumChatQuota, completions: completionsQuota } = this.chatEntitlementService.quotas;
 				if (chatQuota) {
 					chatQuotaIndicator?.(chatQuota);
 				}
 				if (premiumChatQuota) {
 					premiumChatQuotaIndicator?.(premiumChatQuota);
+				}
+				if (completionsQuota) {
+					completionsQuotaIndicator?.(completionsQuota);
 				}
 			})();
 		}
@@ -350,28 +365,7 @@ export class ChatStatusDashboard extends DomWidget {
 		}
 	}
 
-	private renderInlineSuggestionsContent(container: HTMLElement, token: CancellationToken, updatePromise?: Promise<void>): void {
-		// Completions quota
-		{
-			const { completions: completionsQuota, resetDate, resetDateHasTime } = this.chatEntitlementService.quotas;
-			const resetLabel = resetDate ? (resetDateHasTime ? localize('quotaResetsAt', "Resets {0} at {1}", this.dateFormatter.value.format(new Date(resetDate)), this.timeFormatter.value.format(new Date(resetDate))) : localize('quotaResets', "Resets {0}", this.dateFormatter.value.format(new Date(resetDate)))) : undefined;
-			if (completionsQuota && !completionsQuota.unlimited && completionsQuota.total > 0) {
-				const completionsQuotaIndicator = this.createQuotaIndicator(container, this._store, completionsQuota, localize('completionsLabel', "Inline Suggestions"), false, resetLabel);
-				(async () => {
-					await (updatePromise ?? this.chatEntitlementService.update(token));
-					if (token.isCancellationRequested) {
-						return;
-					}
-					const { completions } = this.chatEntitlementService.quotas;
-					if (completions) {
-						completionsQuotaIndicator(completions);
-					}
-				})();
-			} else if (this.chatEntitlementService.anonymous && this.chatEntitlementService.sentiment.completed) {
-				this.createQuotaIndicator(container, this._store, localize('quotaLimited', "Limited"), localize('completionsLabel', "Inline Suggestions"), false);
-			}
-		}
-
+	private renderInlineSuggestionsContent(container: HTMLElement, _token: CancellationToken, _updatePromise?: Promise<void>): void {
 		// Settings (editor-specific)
 		if (!this.options?.disableInlineSuggestionsSettings) {
 			this.createSettings(container, this._store);
@@ -481,7 +475,6 @@ export class ChatStatusDashboard extends DomWidget {
 		const quotaValue = $('span.quota-value');
 		const quotaValueSuffix = $('span.quota-value-suffix');
 		const quotaBit = $('div.quota-bit');
-		const overageLabel = $('span.overage-label');
 		const resetValue = $('span.quota-reset');
 
 		if (resetLabel) {
@@ -502,7 +495,11 @@ export class ChatStatusDashboard extends DomWidget {
 			)
 		));
 
-		container.appendChild($('div.description', undefined, overageLabel));
+		// Callout for quota limit states
+		const calloutIcon = $('span.callout-icon');
+		const calloutText = $('span.callout-text');
+		const quotaCallout = container.appendChild($('div.quota-callout', undefined, calloutIcon, calloutText));
+		quotaCallout.style.display = 'none';
 
 		if (supportsOverage && (this.chatEntitlementService.entitlement === ChatEntitlement.EDU || this.chatEntitlementService.entitlement === ChatEntitlement.Pro || this.chatEntitlementService.entitlement === ChatEntitlement.ProPlus)) {
 			const manageOverageButton = disposables.add(new Button(container, { ...defaultButtonStyles, secondary: true, hoverDelegate: nativeHoverDelegate }));
@@ -510,9 +507,13 @@ export class ChatStatusDashboard extends DomWidget {
 			disposables.add(manageOverageButton.onDidClick(() => this.runCommandAndClose(() => this.openerService.open(URI.parse(defaultChat.manageOverageUrl)))));
 		}
 
+		const isEnterpriseUser = this.chatEntitlementService.entitlement === ChatEntitlement.Enterprise || this.chatEntitlementService.entitlement === ChatEntitlement.Business;
+
 		const update = (quota: IQuotaSnapshot | string) => {
 			quotaIndicator.classList.remove('error');
 			quotaIndicator.classList.remove('warning');
+			quotaIndicator.classList.remove('dimmed');
+			quotaIndicator.classList.remove('info');
 
 			let usedPercentage: number;
 			if (typeof quota === 'string') {
@@ -535,24 +536,41 @@ export class ChatStatusDashboard extends DomWidget {
 			quotaBit.style.width = `${usedPercentage}%`;
 
 			const overageEnabled = supportsOverage && typeof quota !== 'string' && quota?.overageEnabled;
-			if (usedPercentage >= 90 && !overageEnabled) {
-				quotaIndicator.classList.add('error');
-			} else if (usedPercentage >= 75 && !overageEnabled) {
-				quotaIndicator.classList.add('warning');
-			}
 
-			if (supportsOverage) {
-				if (typeof quota !== 'string' && quota?.overageEnabled) {
-					overageLabel.replaceChildren(
-						localize('additionalUsageApprovedLine1', "Additional premium requests approved."),
-						$('br'),
-						localize('additionalUsageApprovedLine2', "You can continue after the included premium requests limit reaches 100%.")
-					);
-				} else {
-					overageLabel.textContent = localize('additionalUsageDisabled', "Additional paid premium requests disabled.");
-				}
+			if (usedPercentage >= 100 && overageEnabled) {
+				// Limit exhausted with overage: dim the indicator, show info callout
+				quotaIndicator.classList.add('dimmed');
+				quotaCallout.style.display = '';
+				quotaCallout.className = 'quota-callout info';
+				calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.info)}`;
+				calloutText.textContent = localize('quotaOverageActive', "Using Overage Budget until limits reset.");
+			} else if (usedPercentage >= 75 && overageEnabled) {
+				// Approaching limit with overage: highlight in blue, show info callout
+				quotaIndicator.classList.add('info');
+				quotaCallout.style.display = '';
+				quotaCallout.className = 'quota-callout info';
+				calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.info)}`;
+				calloutText.textContent = localize('quotaOverageApproaching', "Once the limit is reached, your Overage Budget will be used.");
+			} else if (usedPercentage >= 100 && !overageEnabled) {
+				// Limit reached without overage: dim the indicator and show error callout
+				quotaIndicator.classList.add('dimmed');
+				quotaCallout.style.display = '';
+				quotaCallout.className = 'quota-callout error';
+				calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.error)}`;
+				calloutText.textContent = isEnterpriseUser
+					? localize('quotaPausedEnterprise', "Copilot is paused until the limit resets. Contact your administrator for more information.")
+					: localize('quotaPaused', "Copilot is paused until the limit resets.");
+			} else if (usedPercentage >= 75 && !overageEnabled) {
+				// Approaching limit without overage: warning styling and callout
+				quotaIndicator.classList.add('warning');
+				quotaCallout.style.display = '';
+				quotaCallout.className = 'quota-callout warning';
+				calloutIcon.className = `callout-icon ${ThemeIcon.asClassName(Codicon.warning)}`;
+				calloutText.textContent = isEnterpriseUser
+					? localize('quotaWarningEnterprise', "Copilot will pause when the limit is reached. Contact your administrator for more information.")
+					: localize('quotaWarning', "Copilot will pause when the limit is reached.");
 			} else {
-				overageLabel.textContent = '';
+				quotaCallout.style.display = 'none';
 			}
 		};
 

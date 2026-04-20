@@ -15,7 +15,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { AICustomizationManagementSection, IStorageSourceFilter } from './aiCustomizationWorkspaceService.js';
 import { PromptsType } from './promptSyntax/promptTypes.js';
 import { AGENT_MD_FILENAME } from './promptSyntax/config/promptFileLocations.js';
-import { PromptsStorage } from './promptSyntax/service/promptsService.js';
+import { IChatPromptSlashCommand, IPromptsService, PromptsStorage } from './promptSyntax/service/promptsService.js';
 import { CancellationToken } from '../../../../base/common/cancellation.js';
 
 export const ICustomizationHarnessService = createDecorator<ICustomizationHarnessService>('customizationHarnessService');
@@ -260,6 +260,54 @@ export interface ICustomizationHarnessService {
 	registerExternalHarness(descriptor: IHarnessDescriptor): IDisposable;
 }
 
+/**
+ * Minimal slash-command metadata resolved from the active harness.
+ */
+export interface ICustomizationSlashCommand {
+	readonly uri: URI;
+	readonly type: PromptsType.prompt | PromptsType.skill;
+	readonly name: string;
+	readonly description?: string;
+	readonly userInvocable: boolean;
+	readonly sessionTypes?: readonly string[];
+}
+
+/**
+ * Returns the prompt and skill slash commands for the currently active harness.
+ * Provider-backed harnesses contribute their own items directly; the default
+ * VS Code harness falls back to the core prompts service.
+ */
+export async function getActiveHarnessSlashCommands(
+	harnessService: ICustomizationHarnessService,
+	promptsService: Pick<IPromptsService, 'getPromptSlashCommands' | 'isValidSlashCommandName'>,
+	token: CancellationToken,
+): Promise<readonly IChatPromptSlashCommand[]> {
+	const itemProvider = harnessService.getActiveDescriptor().itemProvider;
+	if (!itemProvider) {
+		return await promptsService.getPromptSlashCommands(token);
+	}
+
+	const items = await itemProvider.provideChatSessionCustomizations(token);
+	if (!items) {
+		return [];
+	}
+	const result = [];
+	for (const item of items) {
+		if ((item.enabled !== false) && (item.type === PromptsType.prompt || item.type === PromptsType.skill)) {
+			result.push({
+				uri: item.uri,
+				type: item.type as PromptsType.prompt | PromptsType.skill,
+				name: item.name,
+				description: item.description,
+				userInvocable: true,
+				storage: item.storage ?? PromptsStorage.local,
+				when: undefined
+			});
+		}
+	}
+	return result;
+}
+
 // #region Shared filter constants
 
 /**
@@ -268,6 +316,17 @@ export interface ICustomizationHarnessService {
 const EMPTY_FILTER: IStorageSourceFilter = {
 	sources: [],
 };
+
+/**
+ * Empty descriptor returned when no harness is registered yet.
+ */
+const EMPTY_DESCRIPTOR: IHarnessDescriptor = {
+	id: '',
+	label: '',
+	icon: Codicon.sparkle,
+	getStorageSourceFilter: () => ({ sources: [] }),
+};
+
 
 /**
  * Hooks filter — local, user, and plugin sources.
@@ -502,6 +561,9 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 	getStorageSourceFilter(type: PromptsType): IStorageSourceFilter {
 		const activeId = this._activeHarness.get();
 		const all = this._getAllHarnesses();
+		if (all.length === 0) {
+			return EMPTY_FILTER;
+		}
 		const descriptor = all.find(h => h.id === activeId) ?? all[0];
 		return descriptor?.getStorageSourceFilter(type) ?? EMPTY_FILTER;
 	}
@@ -509,6 +571,9 @@ export class CustomizationHarnessServiceBase implements ICustomizationHarnessSer
 	getActiveDescriptor(): IHarnessDescriptor {
 		const activeId = this._activeHarness.get();
 		const all = this._getAllHarnesses();
+		if (all.length === 0) {
+			return EMPTY_DESCRIPTOR;
+		}
 		return all.find(h => h.id === activeId) ?? all[0];
 	}
 }

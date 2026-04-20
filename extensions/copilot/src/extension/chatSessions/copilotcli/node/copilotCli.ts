@@ -302,9 +302,9 @@ export class CopilotCLIAgents extends Disposable implements ICopilotCLIAgents {
 	}
 
 	async resolveAgent(agentId: string): Promise<SweCustomAgent | undefined> {
-		for (const promptFile of await this.promptsService.getCustomAgents(CancellationToken.None)) {
-			if (agentId === promptFile.uri.toString()) {
-				return this.toCustomAgent(promptFile)?.agent;
+		for (const customAgent of await this.promptsService.getCustomAgents(CancellationToken.None)) {
+			if (isEnabledForCopilotCLI(customAgent) && agentId === customAgent.uri.toString()) {
+				return this.toCustomAgent(customAgent)?.agent;
 			}
 		}
 		const customAgents = await this.getAgents();
@@ -334,13 +334,16 @@ export class CopilotCLIAgents extends Disposable implements ICopilotCLIAgents {
 				sourceUri: URI.from({ scheme: 'copilotcli', path: `/agents/${agent.name}` }),
 			});
 		}
-		for (const promptFile of await this.promptsService.getCustomAgents(CancellationToken.None)) {
-			// Skip legacy .chatmode.md files — they are a deprecated format
-			// and should not appear in the Copilot CLI agent list.
-			if (promptFile.uri.path.toLowerCase().endsWith('.chatmode.md')) {
+		for (const customAgent of await this.promptsService.getCustomAgents(CancellationToken.None)) {
+			if (!isEnabledForCopilotCLI(customAgent)) {
 				continue;
 			}
-			const info = this.toCustomAgent(promptFile);
+			// Skip legacy .chatmode.md files — they are a deprecated format
+			// and should not appear in the Copilot CLI agent list.
+			if (customAgent.uri.path.toLowerCase().endsWith('.chatmode.md')) {
+				continue;
+			}
+			const info = this.toCustomAgent(customAgent);
 			if (!info) {
 				continue;
 			}
@@ -543,3 +546,9 @@ async function checkFileExists(filePath: string): Promise<boolean> {
 		return false;
 	}
 }
+
+export function isEnabledForCopilotCLI(customization: { sessionTypes?: readonly string[] }): boolean {
+	const sessionTypes = customization.sessionTypes;
+	return sessionTypes === undefined || sessionTypes.includes('copilotcli') || false;
+}
+

@@ -1,0 +1,252 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* When docked in the chat input area, hide the container when it's empty so
+ * we don't reserve space. */
+.interactive-session .interactive-input-part > .chat-plan-review-widget-container:empty,
+.interactive-session .interactive-input-part .interactive-input-and-edit-session > .chat-plan-review-widget-container:empty {
+	display: none;
+}
+
+.interactive-session .interactive-input-part > .chat-plan-review-widget-container,
+.interactive-session .interactive-input-part .interactive-input-and-edit-session > .chat-plan-review-widget-container {
+	width: 100%;
+	position: relative;
+	display: flex;
+	flex-direction: column;
+	gap: 8px;
+}
+
+.interactive-session .interactive-input-part > .chat-plan-review-widget-container:not(:empty),
+.interactive-session .interactive-input-part .interactive-input-and-edit-session > .chat-plan-review-widget-container:not(:empty) {
+	margin-top: 8px;
+}
+
+/* When the part is docked inside the input container, drop our own
+ * margin-bottom so it sits flush against the input. */
+.interactive-session .interactive-input-part .chat-plan-review-container > .chat-confirmation-widget2.chat-plan-review {
+	margin-bottom: 0;
+	border: 1px solid var(--vscode-input-border, transparent);
+	background-color: var(--vscode-panel-background);
+}
+
+/* Root container uses .chat-confirmation-widget2 styles for borders / title /
+ * buttons, plus our own layout overrides for the plan review widget. */
+.interactive-session .chat-plan-review-container {
+	display: flex;
+	flex-direction: column;
+}
+
+.interactive-session .chat-plan-review-container > .chat-confirmation-widget2.chat-plan-review {
+	display: flex;
+	flex-direction: column;
+	max-height: min(420px, 50vh);
+	min-height: 0;
+	overflow: hidden;
+	margin-bottom: 8px;
+}
+
+.interactive-session .chat-plan-review-container.chat-plan-review-expanded > .chat-confirmation-widget2.chat-plan-review {
+	max-height: min(720px, 75vh);
+}
+
+.interactive-session .chat-plan-review-container.chat-plan-review-expanded .chat-confirmation-widget-message.chat-plan-review-body {
+	max-height: min(600px, 65vh);
+}
+/* ---------- Title bar ---------- */
+.interactive-session .chat-plan-review-container .chat-plan-review-title {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 4px 6px 4px 12px;
+	min-width: 0;
+	flex-shrink: 0;
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-title-label {
+	flex: 1;
+	min-width: 0;
+	font-weight: 500;
+	font-size: var(--vscode-chat-font-size-body-s);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-title-actions {
+	display: flex;
+	align-items: center;
+	gap: 2px;
+	flex-shrink: 0;
+}
+
+/* Small, transparent title-bar buttons — matches the question carousel
+ * chat-question-collapse-toggle / chat-question-close styles. */
+.interactive-session .chat-plan-review-container .monaco-button.chat-plan-review-title-button {
+	min-width: 22px;
+	height: 22px;
+	padding: 0 6px;
+	border: none !important;
+	box-shadow: none !important;
+	background: transparent !important;
+	color: var(--vscode-icon-foreground) !important;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.interactive-session .chat-plan-review-container .monaco-button.chat-plan-review-title-button:hover:not(.disabled) {
+	background: var(--vscode-toolbar-hoverBackground) !important;
+}
+
+/* Icon-only square buttons (restore, chevron). Exactly 22x22 with no padding,
+ * matching `.monaco-button.chat-question-collapse-toggle`. */
+.interactive-session .chat-plan-review-container .monaco-button.chat-plan-review-title-icon-button {
+	width: 22px;
+	padding: 0;
+}
+
+.interactive-session .chat-plan-review-container .monaco-button.chat-plan-review-edit {
+	font-size: var(--vscode-chat-font-size-body-s);
+	color: var(--vscode-foreground) !important;
+}
+
+/* Inline slot in the title bar. The action buttons (Approve + Reject) get
+ * re-rendered here when the widget is collapsed so the user can act on the
+ * plan without expanding it. */
+.interactive-session .chat-plan-review-container .chat-plan-review-inline-actions {
+	display: none;
+	align-items: center;
+	gap: 6px;
+	flex-shrink: 0;
+	margin-left: auto;
+	margin-right: 4px;
+}
+
+.interactive-session .chat-plan-review-container.chat-plan-review-collapsed .chat-plan-review-inline-actions {
+	display: flex;
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-inline-actions .monaco-button {
+	width: auto;
+	min-width: auto;
+	padding: 0 10px;
+	height: 22px;
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-inline-actions .monaco-button-dropdown {
+	width: auto;
+}
+
+/* ---------- Scrollable markdown body ----------
+ * Mirrors the flex + max-height chain used by
+ * chatToolConfirmationCarouselPart so the DomScrollableElement has something
+ * to clip and display its scrollbar against. DomScrollableElement sets the
+ * inner element's `overflow: hidden` inline, so we don't set overflow here. */
+.interactive-session .chat-plan-review-container .chat-confirmation-widget-message-scrollable.chat-plan-review-body-scrollable {
+	flex: 1;
+	min-height: 0;
+}
+
+.interactive-session .chat-plan-review-container .chat-confirmation-widget-message.chat-plan-review-body {
+	flex: 1;
+	min-height: 0;
+	max-height: min(300px, 40vh);
+	padding: 6px 12px;
+	background: transparent;
+	border-bottom: none;
+}
+
+.interactive-session .chat-plan-review-container .chat-confirmation-widget-message.chat-plan-review-body .rendered-markdown p:first-child {
+	margin-top: 0;
+}
+
+.interactive-session .chat-plan-review-container .chat-confirmation-widget-message.chat-plan-review-body .rendered-markdown > :last-child {
+	margin-bottom: 0;
+}
+
+/* ---------- Feedback section (fixed; outside scroll) ---------- */
+.interactive-session .chat-plan-review-container .chat-plan-review-feedback {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	padding: 6px 12px;
+	border-top: 1px solid var(--vscode-chat-requestBorder);
+	flex-shrink: 0;
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-feedback-label {
+	font-size: var(--vscode-chat-font-size-body-s);
+	color: var(--vscode-descriptionForeground);
+}
+
+/* Textarea styled the same as the question carousel freeform textarea. */
+.interactive-session .chat-plan-review-container .chat-plan-review-feedback-textarea {
+	width: 100%;
+	min-height: 24px;
+	max-height: 200px;
+	padding: 3px 8px;
+	border: 1px solid var(--vscode-input-border, var(--vscode-chat-requestBorder));
+	background-color: var(--vscode-input-background);
+	color: var(--vscode-input-foreground);
+	border-radius: 4px;
+	resize: none;
+	font-family: var(--vscode-chat-font-family, inherit);
+	font-size: var(--vscode-chat-font-size-body-s);
+	box-sizing: border-box;
+	overflow-y: hidden;
+	align-content: center;
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-feedback-textarea:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	border-color: var(--vscode-focusBorder);
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-feedback-textarea::placeholder {
+	color: var(--vscode-input-placeholderForeground);
+}
+
+/* ---------- Footer buttons ---------- */
+.interactive-session .chat-plan-review-container > .chat-confirmation-widget2.chat-plan-review > .chat-confirmation-widget-buttons.chat-plan-review-footer {
+	justify-content: flex-start;
+	border-top: 1px solid var(--vscode-chat-requestBorder);
+	padding: 6px 8px;
+	flex-shrink: 0;
+}
+
+.interactive-session .chat-plan-review-container > .chat-confirmation-widget2.chat-plan-review > .chat-confirmation-widget-buttons.chat-plan-review-footer .chat-buttons {
+	display: flex;
+	column-gap: 6px;
+	align-items: center;
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-footer .monaco-button {
+	width: auto;
+	min-width: auto;
+	padding: 0 10px;
+	height: 22px;
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-footer .monaco-button-dropdown {
+	width: auto;
+}
+
+/* ---------- Collapsed state ---------- */
+.interactive-session .chat-plan-review-container.chat-plan-review-collapsed > .chat-confirmation-widget2.chat-plan-review > .chat-confirmation-widget-message-scrollable,
+.interactive-session .chat-plan-review-container.chat-plan-review-collapsed > .chat-confirmation-widget2.chat-plan-review > .chat-plan-review-feedback,
+.interactive-session .chat-plan-review-container.chat-plan-review-collapsed > .chat-confirmation-widget2.chat-plan-review > .chat-confirmation-widget-buttons {
+	display: none;
+}
+
+.interactive-session .chat-plan-review-container.chat-plan-review-collapsed > .chat-confirmation-widget2.chat-plan-review > .chat-plan-review-title {
+	border-bottom: none;
+}
+
+/* ---------- Submitted / used state ---------- */
+.interactive-session .chat-plan-review-container.chat-plan-review-used > .chat-confirmation-widget2.chat-plan-review > .chat-plan-review-feedback,
+.interactive-session .chat-plan-review-container.chat-plan-review-used > .chat-confirmation-widget2.chat-plan-review > .chat-confirmation-widget-buttons {
+	display: none;
+}
