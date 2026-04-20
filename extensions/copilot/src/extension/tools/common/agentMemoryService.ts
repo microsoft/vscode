@@ -26,7 +26,7 @@ import { createServiceIdentifier } from '../../../util/common/services';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 
 // Re-export package types that callers depend on
-export type { MemoryPromptResponse, MemoryResponse as RepoMemoryEntry };
+export type { MemoryPromptResponse };
 
 /**
  * Normalize citations field to string[] format.
