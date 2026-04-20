@@ -39,8 +39,12 @@ export function findTokenOffsets(path, tokens = defaultTopLevelTokens, options =
 		while (position < stat.size && found.size < tokens.length) {
 			const toRead = Math.min(chunkSize, stat.size - position);
 			const chunk = Buffer.allocUnsafe(toRead);
-			readSync(fd, chunk, 0, toRead, position);
-			const combined = Buffer.concat([previous, chunk]);
+			const bytesRead = readSync(fd, chunk, 0, toRead, position);
+			if (bytesRead <= 0) {
+				break;
+			}
+
+			const combined = Buffer.concat([previous, chunk.subarray(0, bytesRead)]);
 
 			for (const token of tokens) {
 				if (found.has(token)) {
@@ -54,7 +58,7 @@ export function findTokenOffsets(path, tokens = defaultTopLevelTokens, options =
 			}
 
 			previous = combined.subarray(Math.max(0, combined.length - overlap));
-			position += toRead;
+			position += bytesRead;
 		}
 	} finally {
 		closeSync(fd);
@@ -181,15 +185,23 @@ export function streamNumberArray(path, start, end, onNumber, options = {}) {
 	}
 }
 
+/**
+ * Streams fixed-size tuples from a number array.
+ *
+ * By default, the same mutable tuple array instance is reused for each callback
+ * invocation to avoid per-tuple allocations. Callers must not retain that array
+ * reference after onTuple returns unless options.copyTuple is enabled.
+ */
 export function streamNumberTuples(path, start, end, tupleSize, onTuple, options = {}) {
 	const tuple = new Array(tupleSize);
+	const copyTuple = options.copyTuple === true;
 	let tupleIndex = 0;
 	let fieldIndex = 0;
 
 	const numberCount = streamNumberArray(path, start, end, value => {
 		tuple[fieldIndex++] = value;
 		if (fieldIndex === tupleSize) {
-			onTuple(tuple, tupleIndex++);
+			onTuple(copyTuple ? tuple.slice() : tuple, tupleIndex++);
 			fieldIndex = 0;
 		}
 	}, options);
@@ -201,8 +213,17 @@ export function streamNumberTuples(path, start, end, tupleSize, onTuple, options
 	return { numberCount, tupleCount: tupleIndex };
 }
 
-export function parseStrings(path, stringsTokenOffset, fileSize = statSync(path).size) {
-	const buffer = readRange(path, stringsTokenOffset, fileSize - stringsTokenOffset);
+export function parseStrings(path, stringsTokenOffset, options = {}) {
+	const normalizedOptions = typeof options === 'number' ? { fileSize: options } : options;
+	const fileSize = normalizedOptions.fileSize ?? statSync(path).size;
+	const length = fileSize - stringsTokenOffset;
+	const maxBytes = normalizedOptions.maxBytes ?? 512 * 1024 * 1024;
+
+	if (length > maxBytes) {
+		throw new Error(`Refusing to parse ${formatBytes(length)} strings section into one Buffer. Pass a larger maxBytes value only if this is intentional.`);
+	}
+
+	const buffer = readRange(path, stringsTokenOffset, length);
 	const start = buffer.indexOf(Buffer.from('['));
 	if (start === -1) {
 		throw new Error(`Unable to find strings array near offset ${stringsTokenOffset}`);
