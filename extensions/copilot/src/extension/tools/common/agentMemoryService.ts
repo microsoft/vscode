@@ -154,29 +154,39 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 				return false;
 			}
 
-			const repoNwo = await this.getRepoNwo();
-			if (!repoNwo) {
-				return false;
-			}
-
 			const token = await this.getToken();
 			if (!token) {
 				this.logService.warn('[AgentMemoryService] No GitHub session available for memory enablement check');
 				return false;
 			}
 
-			const [owner, repo] = repoNwo.split('/');
-			const enabled = await checkMemoryEnabled({
-				scope: 'repository',
-				owner,
-				repo,
-				token,
-				integrationId: INTEGRATION_ID,
-				baseUrl: this.getBaseUrl(),
-				fetch: this.makeFetch(),
-				logger: this.makeLogger(),
-			});
-			this.logService.info(`[AgentMemoryService] Copilot Memory enabled for ${repoNwo}: ${enabled}`);
+			const repoNwo = await this.getRepoNwo();
+			let options: MemoryApiOptions;
+			if (repoNwo) {
+				const [owner, repo] = repoNwo.split('/');
+				options = {
+					scope: 'repository',
+					owner,
+					repo,
+					token,
+					integrationId: INTEGRATION_ID,
+					baseUrl: this.getBaseUrl(),
+					fetch: this.makeFetch(),
+					logger: this.makeLogger(),
+				};
+			} else {
+				options = {
+					scope: 'user',
+					token,
+					integrationId: INTEGRATION_ID,
+					baseUrl: this.getBaseUrl(),
+					fetch: this.makeFetch(),
+					logger: this.makeLogger(),
+				};
+			}
+
+			const enabled = await checkMemoryEnabled(options);
+			this.logService.info(`[AgentMemoryService] Copilot Memory enabled (scope: ${options.scope}${repoNwo ? ` for ${repoNwo}` : ''}): ${enabled}`);
 			return enabled;
 		} catch (error) {
 			this.logService.warn(`[AgentMemoryService] Failed to check memory enablement: ${error}`);
