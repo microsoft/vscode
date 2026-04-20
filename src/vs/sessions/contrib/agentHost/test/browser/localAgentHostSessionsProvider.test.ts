@@ -439,6 +439,65 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(sessions.length, 2);
 	}));
 
+	test('eagerly populates and fires onDidChangeSessions after construction without a getSessions() call', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('eager-1', { summary: 'First' }));
+		agentHost.addSession(createSession('eager-2', { summary: 'Second' }));
+
+		const provider = createProvider(disposables, agentHost);
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
+
+		// Wait for the eager listSessions() triggered by the constructor.
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			eventCount: changes.length,
+			added: changes[0]?.added.map(s => s.title.get()).sort(),
+			removed: changes[0]?.removed.length,
+			changed: changes[0]?.changed.length,
+			cachedTitles: provider.getSessions().map(s => s.title.get()).sort(),
+		}, {
+			eventCount: 1,
+			added: ['First', 'Second'],
+			removed: 0,
+			changed: 0,
+			cachedTitles: ['First', 'Second'],
+		});
+	}));
+
+	test('defers eager session list fetch until authentication settles', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// Simulate fresh launch: auth is pending and the agent host has no
+		// sessions yet (returns []), then auth completes and the real session
+		// list becomes available.
+		agentHost.setAuthenticationPending(true);
+
+		const provider = createProvider(disposables, agentHost);
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
+
+		await timeout(0);
+
+		assert.strictEqual(changes.length, 0, 'no event should fire while authentication is pending');
+		assert.strictEqual(provider.getSessions().length, 0, 'no sessions should be cached while authentication is pending');
+
+		// Auth completes; sessions become available on the agent host.
+		agentHost.addSession(createSession('after-auth-1', { summary: 'First' }));
+		agentHost.addSession(createSession('after-auth-2', { summary: 'Second' }));
+		agentHost.setAuthenticationPending(false);
+
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			eventCount: changes.length,
+			added: changes[0]?.added.map(s => s.title.get()).sort(),
+			cachedTitles: provider.getSessions().map(s => s.title.get()).sort(),
+		}, {
+			eventCount: 1,
+			added: ['First', 'Second'],
+			cachedTitles: ['First', 'Second'],
+		});
+	}));
+
 	test('uses project metadata as workspace group source', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const projectUri = URI.file('/home/user/vscode');
 		const workingDirectory = URI.file('/tmp/copilot-worktrees/vscode-feature');

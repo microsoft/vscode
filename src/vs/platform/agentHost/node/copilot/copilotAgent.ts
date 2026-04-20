@@ -384,10 +384,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	async listSessions(): Promise<IAgentSessionMetadata[]> {
 		this._logService.info('[Copilot] Listing sessions...');
-		if (!this._githubToken) {
-			this._logService.trace('[Copilot] No auth token; returning no sessions');
-			return [];
-		}
 		const client = await this._ensureClient();
 		const sessions = await client.listSessions();
 		const projectLimiter = new Limiter<IAgentSessionProjectInfo | undefined>(4);
@@ -422,10 +418,6 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	private async _listModels(): Promise<IAgentModelInfo[]> {
 		this._logService.info('[Copilot] Listing models...');
-		if (!this._githubToken) {
-			this._logService.trace('[Copilot] No auth token; returning no models');
-			return [];
-		}
 		const client = await this._ensureClient();
 		const models = await client.listModels();
 		const result = models.map(m => ({

@@ -1601,6 +1601,17 @@ export async function updateTodoListFromSqlItems(
 	}, token);
 }
 
+export async function clearTodoList(toolsService: IToolsService,
+	toolInvocationToken: ChatParticipantToolToken,
+	token: CancellationToken): Promise<void> {
+	await toolsService.invokeTool(ToolName.CoreManageTodoList, {
+		input: {
+			operation: 'write',
+			todoList: []
+		} satisfies IManageTodoListToolInputParams,
+		toolInvocationToken,
+	}, token);
+}
 
 interface IManageTodoListToolInputParams {
 	readonly operation?: 'write' | 'read'; // Optional in write-only mode

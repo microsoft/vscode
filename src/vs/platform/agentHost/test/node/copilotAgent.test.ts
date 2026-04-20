@@ -279,11 +279,14 @@ suite('CopilotAgent', () => {
 		assert.strictEqual(getCopilotWorktreeBranchName('12345678-aaaa-bbbb-cccc-123456789abc', 'a'.repeat(48)).length, 'agents/'.length + 48 + '-12345678'.length);
 	});
 
-	test('returns empty models and sessions before authentication', async () => {
+	test('returns empty models and throws AuthRequired for sessions before authentication', async () => {
 		const agent = createTestAgent(disposables);
 		try {
 			assert.deepStrictEqual(agent.models.get(), []);
-			assert.deepStrictEqual(await agent.listSessions(), []);
+			await assert.rejects(
+				() => agent.listSessions(),
+				(error: Error) => error instanceof ProtocolError && error.code === AHP_AUTH_REQUIRED,
+			);
 		} finally {
 			await disposeAgent(agent);
 		}
