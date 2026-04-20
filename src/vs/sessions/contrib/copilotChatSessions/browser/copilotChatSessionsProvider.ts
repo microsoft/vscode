@@ -1242,8 +1242,12 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(CLAUDE_CODE_ENABLED_SETTING)) {
-				this._claudeEnabled = this.configurationService.getValue<boolean>(CLAUDE_CODE_ENABLED_SETTING) ?? false;
-				this._onDidChangeSessionTypes.fire();
+				const claudeEnabled = this.configurationService.getValue<boolean>(CLAUDE_CODE_ENABLED_SETTING) ?? false;
+				if (this._claudeEnabled !== claudeEnabled) {
+					this._claudeEnabled = claudeEnabled;
+					this._onDidChangeSessionTypes.fire();
+					this._refreshSessionCache();
+				}
 			}
 		}));
 

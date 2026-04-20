@@ -107,12 +107,12 @@ suite('ClaudePermissionModePicker', () => {
 	});
 
 	test('selecting a mode updates the trigger label', () => {
-		const { picker, onSelect } = createPicker(disposables);
+		const result = createPicker(disposables);
 		const container = document.createElement('div');
-		picker.render(container);
+		result.picker.render(container);
 		showPicker(container);
 
-		onSelect({ id: 'plan', label: 'Plan Mode' } as IPermissionModeItem);
+		result.onSelect({ id: 'plan', label: 'Plan Mode' } as IPermissionModeItem);
 
 		const labelSpan = container.querySelector<HTMLElement>('span.sessions-chat-dropdown-label');
 		assert.ok(labelSpan);
@@ -121,14 +121,14 @@ suite('ClaudePermissionModePicker', () => {
 
 	test('selecting a mode calls setOption on the session', () => {
 		const calls: { optionId: string; value: { id: string; name: string } }[] = [];
-		const { picker, onSelect } = createPicker(disposables, {
+		const result = createPicker(disposables, {
 			setOptionSpy: (optionId, value) => calls.push({ optionId, value }),
 		});
 		const container = document.createElement('div');
-		picker.render(container);
+		result.picker.render(container);
 		showPicker(container);
 
-		onSelect({ id: 'default', label: 'Ask Before Edits' } as IPermissionModeItem);
+		result.onSelect({ id: 'default', label: 'Ask Before Edits' } as IPermissionModeItem);
 
 		assert.deepStrictEqual(calls, [{
 			optionId: 'permissionMode',
@@ -137,12 +137,12 @@ suite('ClaudePermissionModePicker', () => {
 	});
 
 	test('selecting a mode does not throw when no active session', () => {
-		const { picker, onSelect } = createPicker(disposables, { hasActiveSession: false });
+		const result = createPicker(disposables, { hasActiveSession: false });
 		const container = document.createElement('div');
-		picker.render(container);
+		result.picker.render(container);
 		showPicker(container);
 
-		assert.doesNotThrow(() => onSelect({ id: 'plan', label: 'Plan Mode' } as IPermissionModeItem));
+		assert.doesNotThrow(() => result.onSelect({ id: 'plan', label: 'Plan Mode' } as IPermissionModeItem));
 	});
 
 	test('trigger has correct aria label', () => {
