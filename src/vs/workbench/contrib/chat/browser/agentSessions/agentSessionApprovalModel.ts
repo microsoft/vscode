@@ -91,8 +91,8 @@ export class AgentSessionApprovalModel extends Disposable {
 			}
 
 			for (const part of lastResponse.response.value) {
-				if (part.kind !== 'toolInvocation') {
-					continue;
+				if (part.kind !== 'toolInvocation' || part.toolSpecificData?.kind === 'modifiedFilesConfirmation') {
+					continue; // unsupported
 				}
 				const state = part.state.read(reader);
 				if (state.type === IChatToolInvocation.StateKind.WaitingForConfirmation || state.type === IChatToolInvocation.StateKind.WaitingForPostApproval) {

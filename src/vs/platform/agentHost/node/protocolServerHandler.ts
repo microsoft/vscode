@@ -10,11 +10,12 @@ import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js';
-import { AgentSession, type IAgentService, type IAuthenticateParams } from '../common/agentService.js';
+import { AgentSession, type IAgentService } from '../common/agentService.js';
 import type { ICommandMap } from '../common/state/protocol/messages.js';
-import { IActionEnvelope, INotification, isSessionAction, type ISessionAction } from '../common/state/sessionActions.js';
+import { IActionEnvelope, INotification, isSessionAction, isTerminalAction, type ISessionAction } from '../common/state/sessionActions.js';
 import { MIN_PROTOCOL_VERSION, PROTOCOL_VERSION } from '../common/state/sessionCapabilities.js';
 import {
+	AHP_AUTH_REQUIRED,
 	AHP_PROVIDER_NOT_FOUND,
 	AHP_SESSION_NOT_FOUND,
 	AHP_UNSUPPORTED_PROTOCOL_VERSION,
@@ -31,7 +32,7 @@ import {
 } from '../common/state/sessionProtocol.js';
 import { ROOT_STATE_URI, SessionStatus } from '../common/state/sessionState.js';
 import type { IProtocolServer, IProtocolTransport } from '../common/state/sessionTransport.js';
-import { SessionStateManager } from './sessionStateManager.js';
+import { AgentHostStateManager } from './agentHostStateManager.js';
 
 /** Default capacity of the server-side action replay buffer. */
 const REPLAY_BUFFER_CAPACITY = 1000;
@@ -59,7 +60,7 @@ function jsonRpcErrorFrom(id: number, err: unknown): IJsonRpcResponse {
  * Methods handled by the request dispatcher. Excludes `initialize` and
  * `reconnect` which are handled during the handshake phase.
  */
-type RequestMethod = Exclude<keyof ICommandMap, 'initialize' | 'reconnect' | 'authenticate'>;
+type RequestMethod = Exclude<keyof ICommandMap, 'initialize' | 'reconnect'>;
 
 /**
  * Typed handler map: each key is a request method, each value is a handler
@@ -106,7 +107,7 @@ export class ProtocolServerHandler extends Disposable {
 
 	constructor(
 		private readonly _agentService: IAgentService,
-		private readonly _stateManager: SessionStateManager,
+		private readonly _stateManager: AgentHostStateManager,
 		private readonly _server: IProtocolServer,
 		private readonly _config: IProtocolServerConfig,
 		private readonly _clientFileSystemProvider: AHPFileSystemProvider,
@@ -237,8 +238,11 @@ export class ProtocolServerHandler extends Disposable {
 		this._onDidChangeConnectionCount.fire(this._clients.size);
 
 		disposables.add(this._clientFileSystemProvider.registerAuthority(params.clientId, {
-			browseDirectory: (uri) => this._sendReverseRequest(params.clientId, 'browseDirectory', { uri: uri.toString() }),
-			fetchContent: (uri) => this._sendReverseRequest(params.clientId, 'fetchContent', { uri: uri.toString() }),
+			resourceList: (uri) => this._sendReverseRequest(params.clientId, 'resourceList', { uri: uri.toString() }),
+			resourceRead: (uri) => this._sendReverseRequest(params.clientId, 'resourceRead', { uri: uri.toString() }),
+			resourceWrite: (params_) => this._sendReverseRequest(params.clientId, 'resourceWrite', params_),
+			resourceDelete: (params_) => this._sendReverseRequest(params.clientId, 'resourceDelete', params_),
+			resourceMove: (params_) => this._sendReverseRequest(params.clientId, 'resourceMove', params_),
 		}));
 
 
@@ -331,12 +335,28 @@ export class ProtocolServerHandler extends Disposable {
 		},
 		createSession: async (_client, params) => {
 			let createdSession: URI;
+			// Resolve fork turnId to a 0-based index using the source session's
+			// turn list in the state manager.
+			let fork: { session: URI; turnIndex: number; turnId: string } | undefined;
+			if (params.fork) {
+				const sourceState = this._stateManager.getSessionState(params.fork.session);
+				if (!sourceState) {
+					throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Fork source session not found: ${params.fork.session}`);
+				}
+				const turnIndex = sourceState.turns.findIndex(t => t.id === params.fork!.turnId);
+				if (turnIndex < 0) {
+					throw new ProtocolError(AHP_SESSION_NOT_FOUND, `Fork turn ID ${params.fork.turnId} not found in session ${params.fork.session}`);
+				}
+				fork = { session: URI.parse(params.fork.session), turnIndex, turnId: params.fork.turnId };
+			}
 			try {
 				createdSession = await this._agentService.createSession({
 					provider: params.provider,
 					model: params.model,
 					workingDirectory: params.workingDirectory ? URI.parse(params.workingDirectory) : undefined,
 					session: URI.parse(params.session),
+					fork,
+					config: params.config,
 				});
 			} catch (err) {
 				if (err instanceof ProtocolError) {
@@ -354,8 +374,8 @@ export class ProtocolServerHandler extends Disposable {
 			await this._agentService.disposeSession(URI.parse(params.session));
 			return null;
 		},
-		writeFile: async (_client, params) => {
-			return this._agentService.writeFile(params);
+		resourceWrite: async (_client, params) => {
+			return this._agentService.resourceWrite(params);
 		},
 		listSessions: async () => {
 			const sessions = await this._agentService.listSessions();
@@ -363,12 +383,32 @@ export class ProtocolServerHandler extends Disposable {
 				resource: s.session.toString(),
 				provider: AgentSession.provider(s.session) ?? 'copilot',
 				title: s.summary ?? 'Session',
-				status: SessionStatus.Idle,
+				status: s.status ?? SessionStatus.Idle,
 				createdAt: s.startTime,
 				modifiedAt: s.modifiedTime,
+				...(s.project ? { project: { uri: s.project.uri.toString(), displayName: s.project.displayName } } : {}),
+				model: s.model,
 				workingDirectory: s.workingDirectory?.toString(),
+				isRead: s.isRead,
+				isDone: s.isDone,
 			}));
 			return { items };
+		},
+		resolveSessionConfig: async (_client, params) => {
+			return this._agentService.resolveSessionConfig({
+				provider: params.provider,
+				workingDirectory: params.workingDirectory ? URI.parse(params.workingDirectory) : undefined,
+				config: params.config,
+			});
+		},
+		sessionConfigCompletions: async (_client, params) => {
+			return this._agentService.sessionConfigCompletions({
+				provider: params.provider,
+				workingDirectory: params.workingDirectory ? URI.parse(params.workingDirectory) : undefined,
+				config: params.config,
+				property: params.property,
+				query: params.query,
+			});
 		},
 		fetchTurns: async (_client, params) => {
 			const state = this._stateManager.getSessionState(params.session);
@@ -392,11 +432,35 @@ export class ProtocolServerHandler extends Disposable {
 				hasMore: startIndex > 0,
 			};
 		},
-		browseDirectory: async (_client, params) => {
-			return this._agentService.browseDirectory(URI.parse(params.uri));
+		resourceList: async (_client, params) => {
+			return this._agentService.resourceList(URI.parse(params.uri));
 		},
-		fetchContent: async (_client, params) => {
-			return this._agentService.fetchContent(URI.parse(params.uri));
+		resourceRead: async (_client, params) => {
+			return this._agentService.resourceRead(URI.parse(params.uri));
+		},
+		resourceCopy: async (_client, params) => {
+			return this._agentService.resourceCopy(params);
+		},
+		resourceDelete: async (_client, params) => {
+			return this._agentService.resourceDelete(params);
+		},
+		resourceMove: async (_client, params) => {
+			return this._agentService.resourceMove(params);
+		},
+		authenticate: async (_client, params) => {
+			const result = await this._agentService.authenticate(params);
+			if (!result.authenticated) {
+				throw new ProtocolError(AHP_AUTH_REQUIRED, 'Authentication failed for resource: ' + params.resource);
+			}
+			return {};
+		},
+		createTerminal: async (_client, params) => {
+			await this._agentService.createTerminal(params);
+			return null;
+		},
+		disposeTerminal: async (_client, params) => {
+			await this._agentService.disposeTerminal(URI.parse(params.terminal));
+			return null;
 		},
 	};
 
@@ -469,21 +533,8 @@ export class ProtocolServerHandler extends Disposable {
 	 * protocol. Returns a Promise if the method was recognized, undefined
 	 * otherwise.
 	 */
-	private _handleExtensionRequest(method: string, params: unknown): Promise<unknown> | undefined {
+	private _handleExtensionRequest(method: string, _params: unknown): Promise<unknown> | undefined {
 		switch (method) {
-			case 'getResourceMetadata':
-				return this._agentService.getResourceMetadata();
-			case 'authenticate': {
-				const authParams = params as IAuthenticateParams;
-				if (!authParams || typeof authParams.resource !== 'string' || typeof authParams.token !== 'string') {
-					return Promise.reject(new ProtocolError(-32602, 'Invalid authenticate params'));
-				}
-				return this._agentService.authenticate(authParams);
-			}
-			case 'refreshModels':
-				return this._agentService.refreshModels();
-			case 'listAgents':
-				return this._agentService.listAgents();
 			case 'shutdown':
 				return this._agentService.shutdown();
 			default:
@@ -517,6 +568,9 @@ export class ProtocolServerHandler extends Disposable {
 		}
 		if (isSessionAction(action)) {
 			return client.subscriptions.has(action.session);
+		}
+		if (isTerminalAction(action)) {
+			return client.subscriptions.has(action.terminal);
 		}
 		return false;
 	}

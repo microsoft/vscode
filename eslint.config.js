@@ -88,6 +88,7 @@ export default tseslint.config(
 			'local/code-must-use-super-dispose': 'warn',
 			'local/code-declare-service-brand': 'warn',
 			'local/code-no-reader-after-await': 'warn',
+			'local/code-no-accessor-after-await': 'warn',
 			'local/code-no-observable-get-in-reactive-context': 'warn',
 			'local/code-no-localized-model-description': 'warn',
 			'local/code-policy-localization-key-match': 'warn',
@@ -1498,6 +1499,8 @@ export default tseslint.config(
 					'when': 'hasNode',
 					'allow': [
 						'@github/copilot-sdk',
+						'@microsoft/dev-tunnels-contracts',
+						'@microsoft/dev-tunnels-management',
 						'@parcel/watcher',
 						'@vscode/sqlite3',
 						'@vscode/vscode-languagedetection',
@@ -1612,6 +1615,16 @@ export default tseslint.config(
 					'restrictions': [
 						'vs/base/~',
 						'vs/base/parts/*/~'
+					]
+				},
+				{
+					'target': 'src/vs/platform/agentHost/node/diffWorkerMain.ts',
+					'layer': 'node',
+					'restrictions': [
+						'vs/base/~',
+						'vs/base/parts/*/~',
+						'vs/platform/*/~',
+						'vs/editor/common/diff/**', // diffing logic used by the agent host
 					]
 				},
 				{
@@ -1897,7 +1910,8 @@ export default tseslint.config(
 						'vs/workbench/api/~',
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/*/~',
-						'vs/workbench/contrib/terminal/terminal.all.js'
+						'vs/workbench/contrib/terminal/terminal.all.js',
+						'vs/sessions/common/theme.js' // side-effect import for color registry
 					]
 				},
 				{
@@ -2118,7 +2132,8 @@ export default tseslint.config(
 						'vs/workbench/services/*/~',
 						'vs/workbench/contrib/*/~',
 						'vs/sessions/~',
-						'vs/sessions/contrib/*/~'
+						'vs/sessions/contrib/*/~',
+						'vs/sessions/services/*/~',
 					]
 				},
 				{
@@ -2133,6 +2148,7 @@ export default tseslint.config(
 						'vs/workbench/services/*/~',
 						'vs/sessions/~',
 						'vs/sessions/services/*/~',
+						'vs/workbench/contrib/*/~',
 						{
 							'when': 'test',
 							'pattern': 'vs/workbench/contrib/*/~'

@@ -72,10 +72,10 @@ export async function getSourceCounts(
 		// Must match loadItems: uses getPromptSlashCommands() filtering out skills
 		const commands = await promptsService.getPromptSlashCommands(CancellationToken.None);
 		for (const c of commands) {
-			if (c.promptPath.type === PromptsType.skill) {
+			if (c.type === PromptsType.skill) {
 				continue;
 			}
-			items.push({ storage: c.promptPath.storage, uri: c.promptPath.uri });
+			items.push({ storage: c.storage, uri: c.uri });
 		}
 	} else if (promptType === PromptsType.instructions) {
 		// Must match loadItems: uses listPromptFiles + listAgentInstructions
@@ -143,7 +143,7 @@ export async function getCustomizationTotalCount(
 	workspaceContextService: IWorkspaceContextService,
 	agentPluginService?: IAgentPluginService,
 ): Promise<number> {
-	const types: PromptsType[] = [PromptsType.agent, PromptsType.skill, PromptsType.instructions, PromptsType.prompt, PromptsType.hook];
+	const types: PromptsType[] = [PromptsType.agent, PromptsType.skill, PromptsType.instructions, PromptsType.hook];
 	const results = await Promise.all(types.map(type => {
 		const filter = workspaceService.getStorageSourceFilter(type);
 		return getSourceCounts(promptsService, type, filter, workspaceContextService, workspaceService)

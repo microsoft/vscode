@@ -136,7 +136,10 @@ export class GitHubApiClient extends Disposable {
 		if (!sessions || sessions.length === 0) {
 			throw new Error('No GitHub authentication sessions available');
 		}
-		return sessions[0].accessToken ?? '';
+
+		// Prefer a session with 'repo' scope, but fall back to the first available session
+		const repoScopeSession = sessions.find(session => session.scopes.includes('repo'));
+		return repoScopeSession?.accessToken ?? sessions[0].accessToken ?? '';
 	}
 }
 

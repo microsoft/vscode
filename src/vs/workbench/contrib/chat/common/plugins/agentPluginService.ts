@@ -58,7 +58,7 @@ export interface IAgentPluginDiscovery extends IDisposable {
 	start(enablementModel: IEnablementModel): void;
 }
 
-export function getCanonicalPluginCommandId(plugin: IAgentPlugin, commandName: string): string {
+export function getCanonicalPluginCommandId(plugin: { readonly uri: URI }, commandName: string): string {
 	const pluginSegment = basename(plugin.uri);
 	const prefix = normalizePluginToken(pluginSegment);
 	const normalizedCommand = normalizePluginToken(commandName);

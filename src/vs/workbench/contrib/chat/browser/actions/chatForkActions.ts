@@ -12,7 +12,7 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ServicesAccessor } from '../../../../../platform/instantiation/common/instantiation.js';
-import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { ChatContextKeyExprs, ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatService, ResponseModelState } from '../../common/chatService/chatService.js';
 import type { ISerializableChatData } from '../../common/model/chatModel.js';
 import { isChatTreeItem, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
@@ -40,7 +40,7 @@ export function registerChatForkActions() {
 							ChatContextKeys.isRequest,
 							ChatContextKeys.isFirstRequest.negate(),
 							ContextKeyExpr.or(
-								ChatContextKeys.lockedToCodingAgent.negate(),
+								ContextKeyExpr.or(ChatContextKeys.lockedToCodingAgent.negate(), ChatContextKeyExprs.isAgentHostSession),
 								ChatContextKeys.chatSessionSupportsFork
 							)
 						)

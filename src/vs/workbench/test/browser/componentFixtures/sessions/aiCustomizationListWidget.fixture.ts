@@ -17,7 +17,7 @@ import { CustomizationHarness, ICustomizationHarnessService, IHarnessDescriptor,
 import { IAgentPluginService } from '../../../../contrib/chat/common/plugins/agentPluginService.js';
 import { IChatSessionsService } from '../../../../contrib/chat/common/chatSessionsService.js';
 import { PromptsType } from '../../../../contrib/chat/common/promptSyntax/promptTypes.js';
-import { IPromptsService, IResolvedAgentFile, AgentFileType, PromptsStorage, IPromptPath } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IPromptsService, AgentInstructionFileType, PromptsStorage, IPromptPath, IAgentInstructionFile } from '../../../../contrib/chat/common/promptSyntax/service/promptsService.js';
 import { AICustomizationManagementSection } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { AICustomizationListWidget } from '../../../../contrib/chat/browser/aiCustomization/aiCustomizationListWidget.js';
 import { IProductService } from '../../../../../platform/product/common/productService.js';
@@ -46,11 +46,13 @@ interface IFixtureInstructionFile {
 	readonly applyTo?: string; /** If set, this instruction file has an applyTo pattern that controls automatic inclusion when the context matches (or `**` for always). */
 }
 
-function createMockPromptsService(instructionFiles: IFixtureInstructionFile[], agentInstructionFiles: IResolvedAgentFile[] = []): IPromptsService {
+function createMockPromptsService(instructionFiles: IFixtureInstructionFile[], agentInstructionFiles: IAgentInstructionFile[] = []): IPromptsService {
 	return new class extends mock<IPromptsService>() {
 		override readonly onDidChangeCustomAgents = Event.None;
 		override readonly onDidChangeSlashCommands = Event.None;
 		override readonly onDidChangeSkills = Event.None;
+		override readonly onDidChangeInstructions = Event.None;
+		override readonly onDidChangeHooks = Event.None;
 		override getDisabledPromptFiles(): ResourceSet { return new ResourceSet(); }
 		override async listPromptFiles(type: PromptsType) {
 			if (type === PromptsType.instructions) {
@@ -60,6 +62,15 @@ function createMockPromptsService(instructionFiles: IFixtureInstructionFile[], a
 		}
 		override async listAgentInstructions() { return agentInstructionFiles; }
 		override async getCustomAgents() { return []; }
+		override async getInstructionFiles() {
+			return instructionFiles.map(f => ({
+				uri: f.promptPath.uri,
+				name: f.name ?? '',
+				description: f.description,
+				storage: f.promptPath.storage,
+				pattern: f.applyTo,
+			}));
+		}
 		override async parseNew(uri: URI): Promise<ParsedPromptFile> {
 			const file = instructionFiles.find(f => isEqual(f.promptPath.uri, uri));
 			const headerLines = [];
@@ -90,6 +101,9 @@ function createMockWorkspaceService(): IAICustomizationWorkspaceService {
 	const activeProjectRoot = observableValue<URI | undefined>('mockActiveProjectRoot', URI.file('/workspace'));
 	return new class extends mock<IAICustomizationWorkspaceService>() {
 		override readonly isSessionsWindow = false;
+		override readonly welcomePageFeatures = {
+			showGettingStartedBanner: true,
+		};
 		override readonly activeProjectRoot = activeProjectRoot;
 		override readonly hasOverrideProjectRoot = observableValue('hasOverride', false);
 		override getActiveProjectRoot() { return URI.file('/workspace'); }
@@ -121,7 +135,7 @@ function createMockWorkspaceContextService(): IWorkspaceContextService {
 // Render helper
 // ============================================================================
 
-async function renderInstructionsTab(ctx: ComponentFixtureContext, instructionFiles: IFixtureInstructionFile[], agentInstructionFiles: IResolvedAgentFile[] = []): Promise<void> {
+async function renderInstructionsTab(ctx: ComponentFixtureContext, instructionFiles: IFixtureInstructionFile[], agentInstructionFiles: IAgentInstructionFile[] = []): Promise<void> {
 	const width = 500;
 	const height = 400;
 	ctx.container.style.width = `${width}px`;
@@ -144,9 +158,9 @@ async function renderInstructionsTab(ctx: ComponentFixtureContext, instructionFi
 	const instantiationService = createEditorServices(ctx.disposableStore, {
 		colorTheme: ctx.theme,
 		additionalServices: (reg) => {
+			registerWorkbenchServices(reg);
 			reg.defineInstance(IContextMenuService, contextMenuService);
 			reg.defineInstance(IContextViewService, contextViewService);
-			registerWorkbenchServices(reg);
 			reg.define(IListService, ListService);
 			reg.defineInstance(IPromptsService, createMockPromptsService(instructionFiles, agentInstructionFiles));
 			reg.defineInstance(IAICustomizationWorkspaceService, createMockWorkspaceService());
@@ -201,8 +215,8 @@ export default defineThemedFixtureGroup({ path: 'chat/aiCustomizations/' }, {
 			{ promptPath: { uri: URI.file('/home/dev/.copilot/instructions/typescript-rules.instructions.md'), storage: PromptsStorage.extension, type: PromptsType.instructions, extension: undefined!, source: undefined! }, name: 'TypeScript Rules', description: 'TypeScript conventions', applyTo: '**/*.ts' },
 		], [
 			// Agent instruction files (AGENTS.md, copilot-instructions.md)
-			{ uri: URI.file('/workspace/AGENTS.md'), realPath: undefined, type: AgentFileType.agentsMd },
-			{ uri: URI.file('/workspace/.github/copilot-instructions.md'), realPath: undefined, type: AgentFileType.copilotInstructionsMd },
+			{ uri: URI.file('/workspace/AGENTS.md'), realPath: undefined, type: AgentInstructionFileType.agentsMd },
+			{ uri: URI.file('/workspace/.github/copilot-instructions.md'), realPath: undefined, type: AgentInstructionFileType.copilotInstructionsMd },
 		]),
 	}),
 

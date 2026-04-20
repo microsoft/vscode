@@ -13,7 +13,8 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
-import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
+
+import { IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { ISharedWebContentExtractorService } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
 import { IDecorationsService } from '../../../../services/decorations/common/decorations.js';
@@ -29,8 +30,9 @@ import { IAgentSessionsService } from '../../../../contrib/chat/browser/agentSes
 import { IChatAttachmentResolveService } from '../../../../contrib/chat/browser/attachments/chatAttachmentResolveService.js';
 import { IChatAttachmentWidgetRegistry } from '../../../../contrib/chat/browser/attachments/chatAttachmentWidgetRegistry.js';
 import { IChatContextService } from '../../../../contrib/chat/browser/contextContrib/chatContextService.js';
+import { IChatImageCarouselService } from '../../../../contrib/chat/browser/chatImageCarouselService.js';
 import { ChatInputPart, IChatInputPartOptions, IChatInputStyles } from '../../../../contrib/chat/browser/widget/input/chatInputPart.js';
-import { IChatArtifacts, IChatArtifactsService } from '../../../../contrib/chat/common/tools/chatArtifactsService.js';
+import { IArtifactSourceGroup, IChatArtifacts, IChatArtifactsService } from '../../../../contrib/chat/common/tools/chatArtifactsService.js';
 import { ChatEditingSessionState, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../../contrib/chat/common/editing/chatEditingService.js';
 import { IChatRequestDisablement } from '../../../../contrib/chat/common/model/chatModel.js';
 import { IChatTodo, IChatTodoListService } from '../../../../contrib/chat/common/tools/chatTodoListService.js';
@@ -99,15 +101,14 @@ interface ChatInputFixtureOptions {
 async function renderChatInput(context: ComponentFixtureContext, fixtureOptions: ChatInputFixtureOptions = {}): Promise<void> {
 	const { container, disposableStore } = context;
 	const { artifacts = [], editingSession, todos = [] } = fixtureOptions;
-	const artifactsObs = observableValue<readonly typeof artifacts[number][]>('artifacts', artifacts);
+	const artifactGroups: IArtifactSourceGroup[] = artifacts.length > 0 ? [{ source: { kind: 'agent' as const }, artifacts }] : [];
+	const artifactsObs = observableValue<readonly IArtifactSourceGroup[]>('artifactGroups', artifactGroups);
 
 	const instantiationService = createEditorServices(disposableStore, {
 		colorTheme: context.theme,
 		additionalServices: (reg) => {
-			reg.define(IMenuService, FixtureMenuService);
 			registerWorkbenchServices(reg);
-			// eslint-disable-next-line local/code-no-dangerous-type-assertions
-			reg.defineInstance(ITextModelService, new class extends mock<ITextModelService>() { override async createModelReference() { return { object: { textEditorModel: null }, dispose() { } } as unknown as Awaited<ReturnType<ITextModelService['createModelReference']>>; } }());
+			reg.define(IMenuService, FixtureMenuService);
 			reg.defineInstance(IDecorationsService, new class extends mock<IDecorationsService>() { override onDidChangeDecorations = Event.None; }());
 			reg.defineInstance(ITextFileService, new class extends mock<ITextFileService>() { override readonly untitled = new class extends mock<ITextFileService['untitled']>() { override readonly onDidChangeLabel = Event.None; }(); }());
 			reg.defineInstance(ILanguageModelsService, new class extends mock<ILanguageModelsService>() { override onDidChangeLanguageModels = Event.None; override getLanguageModelIds() { return []; } }());
@@ -141,17 +142,18 @@ async function renderChatInput(context: ComponentFixtureContext, fixtureOptions:
 				override readonly repositoryCount = 0;
 			}());
 			reg.defineInstance(IActionWidgetService, new class extends mock<IActionWidgetService>() { override show() { } override hide() { } override get isVisible() { return false; } }());
+			reg.defineInstance(IFileDialogService, new class extends mock<IFileDialogService>() { }());
 			reg.defineInstance(IProductService, new class extends mock<IProductService>() { }());
+			reg.defineInstance(IChatImageCarouselService, new class extends mock<IChatImageCarouselService>() { }());
 			reg.defineInstance(IUpdateService, new class extends mock<IUpdateService>() { override onStateChange = Event.None; override get state() { return { type: StateType.Uninitialized as const }; } }());
 			reg.defineInstance(IUriIdentityService, new class extends mock<IUriIdentityService>() { }());
 			reg.defineInstance(IChatArtifactsService, new class extends mock<IChatArtifactsService>() {
 				override getArtifacts(): IChatArtifacts {
-					const mutableObs = observableValue<boolean>('mutable', true);
 					return new class extends mock<IChatArtifacts>() {
-						override readonly artifacts = artifactsObs;
-						override readonly mutable = mutableObs;
-						override set() { }
-						override clear() { }
+						override readonly artifactGroups = artifactsObs;
+						override setAgentArtifacts() { }
+						override clearAgentArtifacts() { }
+						override clearSubagentArtifacts() { }
 						override migrate() { }
 					}();
 				}
@@ -201,34 +203,27 @@ async function renderChatInput(context: ComponentFixtureContext, fixtureOptions:
 		listBackground: 'var(--vscode-editor-background)',
 	};
 
-	try {
-		const inputPart = disposableStore.add(instantiationService.createInstance(ChatInputPart, ChatAgentLocation.Chat, options, styles, false));
-		const mockWidget = new class extends mock<IChatWidget>() {
-			override readonly onDidChangeViewModel = new Emitter<never>().event;
-			override readonly viewModel = undefined;
-			override readonly contribs = [];
-			override readonly location = ChatAgentLocation.Chat;
-			override readonly viewContext = {};
-		}();
+	const inputPart = disposableStore.add(instantiationService.createInstance(ChatInputPart, ChatAgentLocation.Chat, options, styles, false));
+	const mockWidget = new class extends mock<IChatWidget>() {
+		override readonly onDidChangeViewModel = new Emitter<never>().event;
+		override readonly viewModel = undefined;
+		override readonly contribs = [];
+		override readonly location = ChatAgentLocation.Chat;
+		override readonly viewContext = {};
+	}();
 
-		inputPart.render(session, '', mockWidget);
-		inputPart.layout(500);
-		await new Promise(r => setTimeout(r, 100));
-		inputPart.layout(500);
-		inputPart.renderArtifactsWidget(URI.parse('chat-session:test-session'));
-		await inputPart.renderChatTodoListWidget(URI.parse('chat-session:test-session'));
+	inputPart.render(session, '', mockWidget);
+	inputPart.layout(500);
+	await new Promise(r => setTimeout(r, 100));
+	inputPart.layout(500);
+	inputPart.renderArtifactsWidget(URI.parse('chat-session:test-session'));
+	await inputPart.renderChatTodoListWidget(URI.parse('chat-session:test-session'));
+	await new Promise(r => setTimeout(r, 50));
+
+	if (editingSession) {
+		inputPart.renderChatEditingSessionState(editingSession);
 		await new Promise(r => setTimeout(r, 50));
-
-		if (editingSession) {
-			inputPart.renderChatEditingSessionState(editingSession);
-			await new Promise(r => setTimeout(r, 50));
-			inputPart.layout(500);
-		}
-	} catch (e) {
-		const err = document.createElement('pre');
-		err.style.cssText = 'color:red;font-size:11px;white-space:pre-wrap';
-		err.textContent = `Render error: ${e instanceof Error ? e.message : String(e)}`;
-		session.appendChild(err);
+		inputPart.layout(500);
 	}
 }
 
