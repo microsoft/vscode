@@ -29,20 +29,6 @@ import { Disposable } from '../../../util/vs/base/common/lifecycle';
 export type { MemoryPromptResponse };
 
 /**
- * Normalize citations field to string[] format.
- * Handles backward compatibility for legacy string format.
- */
-export function normalizeCitations(citations: string | string[] | undefined): string[] | undefined {
-	if (citations === undefined) {
-		return undefined;
-	}
-	if (typeof citations === 'string') {
-		return citations.split(',').map(c => c.trim()).filter(c => c.length > 0);
-	}
-	return citations;
-}
-
-/**
  * Type guard to validate if an object is a valid RepoMemoryEntry.
  * Accepts both new format (citations: string[]) and legacy format (citations: string).
  */

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { describe, expect, it } from 'vitest';
-import { isRepoMemoryEntry, normalizeCitations } from '../agentMemoryService';
+import { isRepoMemoryEntry } from '../agentMemoryService';
 
 describe('AgentMemoryService', () => {
 	describe('isRepoMemoryEntry', () => {
@@ -90,40 +90,5 @@ describe('AgentMemoryService', () => {
 		});
 	});
 
-	describe('normalizeCitations', () => {
-		it('should return undefined for undefined input', () => {
-			expect(normalizeCitations(undefined)).toBeUndefined();
-		});
 
-		it('should split comma-separated string into array', () => {
-			const result = normalizeCitations('src/a.ts:10, src/b.ts:20');
-			expect(result).toEqual(['src/a.ts:10', 'src/b.ts:20']);
-		});
-
-		it('should trim whitespace from citations', () => {
-			const result = normalizeCitations('  src/a.ts:10  ,  src/b.ts:20  ');
-			expect(result).toEqual(['src/a.ts:10', 'src/b.ts:20']);
-		});
-
-		it('should filter out empty citations', () => {
-			const result = normalizeCitations('src/a.ts:10, , src/b.ts:20');
-			expect(result).toEqual(['src/a.ts:10', 'src/b.ts:20']);
-		});
-
-		it('should return array input unchanged', () => {
-			const input = ['src/a.ts:10', 'src/b.ts:20'];
-			const result = normalizeCitations(input);
-			expect(result).toEqual(input);
-		});
-
-		it('should handle single citation string', () => {
-			const result = normalizeCitations('src/a.ts:10');
-			expect(result).toEqual(['src/a.ts:10']);
-		});
-
-		it('should handle empty string', () => {
-			const result = normalizeCitations('');
-			expect(result).toEqual([]);
-		});
-	});
 });
