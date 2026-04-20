@@ -637,6 +637,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/agentHost",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/aiCustomizationTreeView",
 			"project": "vscode-sessions"
 		},
@@ -654,6 +658,10 @@
 		},
 		{
 			"name": "vs/sessions/contrib/copilotChatSessions",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/configuration",
 			"project": "vscode-sessions"
 		},
 		{
@@ -681,10 +689,6 @@
 			"project": "vscode-sessions"
 		},
 		{
-			"name": "vs/sessions/contrib/localAgentHost",
-			"project": "vscode-sessions"
-		},
-		{
 			"name": "vs/sessions/contrib/remoteAgentHost",
 			"project": "vscode-sessions"
 		},
@@ -702,6 +706,10 @@
 		},
 		{
 			"name": "vs/sessions/contrib/chatDebug",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/tunnelHost",
 			"project": "vscode-sessions"
 		}
 	]

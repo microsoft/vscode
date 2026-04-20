@@ -208,8 +208,12 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	 */
 	continueMonitoringAsync(token: CancellationToken): void {
 		this._asyncMode = true;
-		// Cancel and dispose any in-progress monitoring run to avoid two concurrent loops
-		this._currentMonitoringCts?.dispose();
+		// Cancel and dispose any in-progress monitoring run to avoid two concurrent loops.
+		// Cancel before dispose so that onCancellationRequested handlers fire and pending
+		// promises (e.g. _waitForNewData) resolve properly.
+		const currentMonitoringCts = this._currentMonitoringCts;
+		currentMonitoringCts?.cancel();
+		currentMonitoringCts?.dispose();
 		this._currentMonitoringCts = new CancellationTokenSource(token);
 		this._state = OutputMonitorState.PollingForIdle;
 		this._startMonitoring(this._command, this._invocationContext, this._currentMonitoringCts.token);
@@ -249,9 +253,16 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 	private async _handleIdleState(token: CancellationToken): Promise<{ resources?: ILinkLocation[]; shouldContinuePolling: boolean; output?: string }> {
 		const output = this._execution.getOutput();
-		this._logService.trace(`OutputMonitor: Idle output summary: len=${output.length}, lastLine=${this._formatLastLineForLog(output)}`);
 
-		if (detectsNonInteractiveHelpPattern(output)) {
+		// Use only the tail of the output for logging and pattern detection. All
+		// detect* functions match prompts near the end of the buffer (using $
+		// anchors or normalized-string includes), and the idle summary only
+		// needs the last line. Slicing avoids unnecessary work over potentially
+		// large terminal scrollback.
+		const outputTail = output.slice(-1000);
+		this._logService.trace(`OutputMonitor: Idle output summary: len=${output.length}, lastLine=${this._formatLastLineForLog(outputTail)}`);
+
+		if (detectsNonInteractiveHelpPattern(outputTail)) {
 			this._logService.trace('OutputMonitor: Idle -> non-interactive help pattern detected, stopping');
 			return { shouldContinuePolling: false, output };
 		}
@@ -260,7 +271,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		// If the execution is a task and the output contains a VS Code task finish message,
 		// always treat it as a stop signal regardless of task active state (which can be stale).
 		const isTask = this._execution.task !== undefined;
-		if (isTask && detectsVSCodeTaskFinishMessage(output)) {
+		if (isTask && detectsVSCodeTaskFinishMessage(outputTail)) {
 			this._logService.trace('OutputMonitor: Idle -> VS Code task finish message detected, stopping');
 			// Task is finished, ignore the "press any key to close" message
 			return { shouldContinuePolling: false, output };
@@ -268,7 +279,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 
 		// Check for generic "press any key" prompts from scripts.
 		// Only shown for non-task executions since task finish messages are handled above.
-		if (!isTask && detectsGenericPressAnyKeyPattern(output)) {
+		if (!isTask && detectsGenericPressAnyKeyPattern(outputTail)) {
 			this._logService.trace('OutputMonitor: Idle -> generic "press any key" detected, signaling agent');
 			this._onDidDetectInputNeeded.fire();
 			this._cleanupIdleInputListener();
@@ -285,7 +296,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		// In async mode, use regex-based detection for input-required patterns
 		// (passwords, [Y/n], etc.) and signal the agent to handle via send_to_terminal.
 		if (this._asyncMode) {
-			if (detectsInputRequiredPattern(output)) {
+			if (detectsInputRequiredPattern(outputTail)) {
 				this._logService.trace('OutputMonitor: Async mode - input-required pattern detected, signaling agent');
 				this._onDidDetectInputNeeded.fire();
 			}
@@ -297,7 +308,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		// In foreground mode, fire the event so the race in runInTerminalTool can pick it
 		// up and return control to the agent (which uses send_to_terminal to provide input).
 		// No elicitation UI is shown — the agent handles it autonomously.
-		if (detectsInputRequiredPattern(output)) {
+		if (detectsInputRequiredPattern(outputTail)) {
 			this._logService.trace('OutputMonitor: Input-required pattern detected, signaling agent');
 			this._onDidDetectInputNeeded.fire();
 			this._cleanupIdleInputListener();
@@ -360,17 +371,18 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				waited += waitTime;
 				currentInterval = Math.min(currentInterval * 2, maxInterval);
 				const currentOutput = execution.getOutput();
+				const currentTail = currentOutput.slice(-1000);
 
-				if (detectsNonInteractiveHelpPattern(currentOutput)) {
+				if (detectsNonInteractiveHelpPattern(currentTail)) {
 					this._logService.trace(`OutputMonitor: waitForIdle -> non-interactive help detected (waited=${waited}ms)`);
 					this._state = OutputMonitorState.Idle;
 					this._setupIdleInputListener();
 					return this._state;
 				}
 
-				const promptResult = detectsInputRequiredPattern(currentOutput);
+				const promptResult = detectsInputRequiredPattern(currentTail);
 				if (promptResult) {
-					this._logService.trace(`OutputMonitor: waitForIdle -> input-required pattern detected (waited=${waited}ms, lastLine=${this._formatLastLineForLog(currentOutput)})`);
+					this._logService.trace(`OutputMonitor: waitForIdle -> input-required pattern detected (waited=${waited}ms, lastLine=${this._formatLastLineForLog(currentTail)})`);
 					this._state = OutputMonitorState.Idle;
 					this._setupIdleInputListener();
 					return this._state;
@@ -387,7 +399,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				const isActive = execution.isActive ? await execution.isActive() : undefined;
 				this._logService.trace(`OutputMonitor: waitForIdle check: waited=${waited}ms, recentlyIdle=${recentlyIdle}, isActive=${isActive}`);
 				if (recentlyIdle && isActive !== true) {
-					this._logService.trace(`OutputMonitor: waitForIdle -> recentlyIdle && !active (waited=${waited}ms, lastLine=${this._formatLastLineForLog(currentOutput)})`);
+					this._logService.trace(`OutputMonitor: waitForIdle -> recentlyIdle && !active (waited=${waited}ms, lastLine=${this._formatLastLineForLog(currentTail)})`);
 					this._state = OutputMonitorState.Idle;
 					this._setupIdleInputListener();
 					return this._state;
@@ -468,8 +480,9 @@ export function matchTerminalPromptOption(options: readonly string[], suggestedO
 export function detectsInputRequiredPattern(cursorLine: string): boolean {
 	return [
 		// PowerShell-style multi-option line (supports [?] Help and optional default suffix) ending
-		// in whitespace
-		/\s*(?:\[[^\]]\]\s+[^\[\s][^\[]*\s*)+(?:\(default is\s+"[^"]+"\):)?\s+$/,
+		// in whitespace.  Uses [^\[]* to match each label (everything up to the next bracket),
+		// ensuring linear-time matching with no nested quantifiers that could cause ReDoS.
+		/\s*(?:\[[^\]]\][^\[]*)+(?:\(default is\s+"[^"]+"\):)?\s+$/,
 		// Bracketed/parenthesized yes/no pairs at end of line: (y/n), [Y/n], (yes/no), [no/yes]
 		/(?:\(|\[)\s*(?:y(?:es)?\s*\/\s*n(?:o)?|n(?:o)?\s*\/\s*y(?:es)?)\s*(?:\]|\))\s+$/i,
 		// Same as above but allows a preceding '?' or ':' and optional wrappers e.g.

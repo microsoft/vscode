@@ -195,4 +195,47 @@ describe('OTelSqliteStore', () => {
 		expect(spans).toHaveLength(1);
 		expect(spans[0].agent_name).toBe('updated');
 	});
+
+	it('denormalizes copilot_chat.time_to_first_token into ttft_ms', () => {
+		store.insertSpan(makeSpan({
+			spanId: 'fg-chat',
+			traceId: 'trace-fg',
+			attributes: {
+				'gen_ai.operation.name': 'chat',
+				'copilot_chat.time_to_first_token': 450,
+			},
+		}));
+
+		const spans = store.getSpansByTraceId('trace-fg');
+		expect(spans[0].ttft_ms).toBe(450);
+	});
+
+	it('denormalizes github.copilot.time_to_first_chunk (seconds) into ttft_ms (ms)', () => {
+		store.insertSpan(makeSpan({
+			spanId: 'cli-chat',
+			traceId: 'trace-cli',
+			attributes: {
+				'gen_ai.operation.name': 'chat',
+				'github.copilot.time_to_first_chunk': 0.4386763570001349,
+			},
+		}));
+
+		const spans = store.getSpansByTraceId('trace-cli');
+		expect(spans[0].ttft_ms).toBe(439);
+	});
+
+	it('prefers copilot_chat.time_to_first_token over github.copilot.time_to_first_chunk', () => {
+		store.insertSpan(makeSpan({
+			spanId: 'both-chat',
+			traceId: 'trace-both',
+			attributes: {
+				'gen_ai.operation.name': 'chat',
+				'copilot_chat.time_to_first_token': 500,
+				'github.copilot.time_to_first_chunk': 0.6,
+			},
+		}));
+
+		const spans = store.getSpansByTraceId('trace-both');
+		expect(spans[0].ttft_ms).toBe(500);
+	});
 });

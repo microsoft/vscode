@@ -56,6 +56,8 @@
 	border-radius: 4px;
 	min-width: 0;
 	max-width: 600px;
+	cursor: pointer;
+	touch-action: manipulation;
 }
 
 .command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-pill:hover {
@@ -151,7 +153,7 @@
 	font-variant-numeric: tabular-nums;
 	text-align: center;
 	border-radius: 4px;
-	background-color: var(--vscode-activityBarBadge-background);
-	color: var(--vscode-activityBarBadge-foreground);
+	background-color: var(--vscode-agentsUnreadBadge-background);
+	color: var(--vscode-agentsUnreadBadge-foreground);
 	pointer-events: none;
 }

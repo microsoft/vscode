@@ -25,12 +25,14 @@ product.overrides.json
 *.snap.actual
 *.tsbuildinfo
 .vscode-test
+.chat-simulation-data
 vscode-telemetry-docs/
 test-output.json
 test/componentFixtures/.screenshots/*
 !test/componentFixtures/.screenshots/baseline/
 dist
 .playwright-cli
+.playwright-mcp
 .claude/
 .agents/agents/*.local.md
 .github/agents/*.local.md

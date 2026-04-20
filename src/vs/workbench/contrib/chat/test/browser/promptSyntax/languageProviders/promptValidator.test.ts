@@ -44,7 +44,6 @@ suite('PromptValidator', () => {
 		testConfigService = new TestConfigurationService();
 		testConfigService.setUserConfiguration(ChatConfiguration.ExtensionToolsEnabled, true);
 		testConfigService.setUserConfiguration(PromptsConfig.USE_CUSTOM_AGENT_HOOKS, true);
-		testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, true);
 		instaService = workbenchInstantiationService({
 			contextKeyService: () => disposables.add(new ContextKeyService(testConfigService)),
 			configurationService: () => testConfigService
@@ -1104,7 +1103,6 @@ suite('PromptValidator', () => {
 
 			// Valid infer: true (maps to 'all') - shows deprecation warning
 			{
-				testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, true);
 				const content = [
 					'---',
 					'name: "TestAgent"',
@@ -1165,28 +1163,8 @@ suite('PromptValidator', () => {
 			}
 		});
 
-		test('disable-model-invocation: false warns when customAgentInSubagent.enabled is disabled', async () => {
-			testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, false);
-
-			// disable-model-invocation: false should warn when config is disabled
-			{
-				const content = [
-					'---',
-					'name: "TestAgent"',
-					'description: "Test agent"',
-					'disable-model-invocation: false',
-					'---',
-					'Body',
-				].join('\n');
-				const markers = await validate(content, PromptsType.agent);
-				assert.strictEqual(markers.length, 1);
-				assert.strictEqual(markers[0].severity, MarkerSeverity.Warning);
-				assert.strictEqual(markers[0].message, `For agents to be used as subagent you also need to enable the 'chat.customAgentInSubagent.enabled' setting.`);
-			}
-		});
 
 		test('agents attribute must be an array', async () => {
-			testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, true);
 			const content = [
 				'---',
 				'description: "Test"',
@@ -1198,7 +1176,6 @@ suite('PromptValidator', () => {
 		});
 
 		test('each agent name in agents attribute must be a string', async () => {
-			testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, true);
 			const content = [
 				'---',
 				'description: "Test"',
@@ -1226,7 +1203,6 @@ suite('PromptValidator', () => {
 		});
 
 		test('agents attribute with non-empty value requires agent tool 1', async () => {
-			testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, true);
 			const content = [
 				'---',
 				'description: "Test"',
@@ -1238,7 +1214,6 @@ suite('PromptValidator', () => {
 		});
 
 		test('agents attribute with non-empty value requires agent tool 2', async () => {
-			testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, true);
 			const content = [
 				'---',
 				'description: "Test"',
@@ -1251,7 +1226,6 @@ suite('PromptValidator', () => {
 		});
 
 		test('agents attribute with non-empty value requires agent tool 3', async () => {
-			testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, true);
 			const content = [
 				'---',
 				'description: "Test"',
@@ -1264,7 +1238,6 @@ suite('PromptValidator', () => {
 		});
 
 		test('agents attribute with non-empty value requires agent tool 4', async () => {
-			testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, true);
 			const content = [
 				'---',
 				'description: "Test"',
@@ -1277,7 +1250,6 @@ suite('PromptValidator', () => {
 		});
 
 		test('agents attribute with empty array does not require agent tool', async () => {
-			testConfigService.setUserConfiguration(ChatConfiguration.SubagentToolCustomAgents, true);
 			const content = [
 				'---',
 				'description: "Test"',

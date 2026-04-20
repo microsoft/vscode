@@ -907,6 +907,84 @@ suite('MainThreadChatSessions', function () {
 
 		mainThread.$unregisterChatSessionContentProvider(1);
 	});
+
+	test('$updateChatSessionInputState applies selected options only to the targeted session', async function () {
+		const sessionScheme = 'test-session-type';
+		const controllerHandle = 0;
+
+		mainThread.$registerChatSessionItemController(controllerHandle, sessionScheme);
+		mainThread.$registerChatSessionContentProvider(1, sessionScheme);
+
+		const resourceA = URI.parse(`${sessionScheme}:/session-a`);
+		const resourceB = URI.parse(`${sessionScheme}:/session-b`);
+
+		asSinonMethodStub(proxy.$provideChatSessionContent)
+			.withArgs(sinon.match.any, sinon.match((r: URI) => r.toString() === resourceA.toString()), sinon.match.any, sinon.match.any)
+			.resolves({ resource: resourceA, history: [], hasActiveResponseCallback: false, hasRequestHandler: false, hasForkHandler: false, supportsInterruption: false } satisfies IChatSessionDto);
+		asSinonMethodStub(proxy.$provideChatSessionContent)
+			.withArgs(sinon.match.any, sinon.match((r: URI) => r.toString() === resourceB.toString()), sinon.match.any, sinon.match.any)
+			.resolves({ resource: resourceB, history: [], hasActiveResponseCallback: false, hasRequestHandler: false, hasForkHandler: false, supportsInterruption: false } satisfies IChatSessionDto);
+
+		await chatSessionsService.getOrCreateChatSession(resourceA, CancellationToken.None);
+		await chatSessionsService.getOrCreateChatSession(resourceB, CancellationToken.None);
+
+		// Update input state targeting only session A
+		mainThread.$updateChatSessionInputState(controllerHandle, resourceA, [{
+			id: 'models',
+			name: 'Models',
+			items: [{ id: 'modelA', name: 'Model A' }, { id: 'modelB', name: 'Model B' }],
+			selected: { id: 'modelB', name: 'Model B' },
+		}]);
+
+		assert.deepStrictEqual(chatSessionsService.getSessionOption(resourceA, 'models'), { id: 'modelB', name: 'Model B' });
+		assert.strictEqual(chatSessionsService.getSessionOption(resourceB, 'models'), undefined);
+
+		mainThread.$unregisterChatSessionContentProvider(1);
+		mainThread.$unregisterChatSessionItemController(controllerHandle);
+	});
+
+	test('$updateChatSessionInputState updates different sessions independently', async function () {
+		const sessionScheme = 'test-session-type';
+		const controllerHandle = 0;
+
+		mainThread.$registerChatSessionItemController(controllerHandle, sessionScheme);
+		mainThread.$registerChatSessionContentProvider(1, sessionScheme);
+
+		const resourceA = URI.parse(`${sessionScheme}:/session-a`);
+		const resourceB = URI.parse(`${sessionScheme}:/session-b`);
+
+		asSinonMethodStub(proxy.$provideChatSessionContent)
+			.withArgs(sinon.match.any, sinon.match((r: URI) => r.toString() === resourceA.toString()), sinon.match.any, sinon.match.any)
+			.resolves({ resource: resourceA, history: [], hasActiveResponseCallback: false, hasRequestHandler: false, hasForkHandler: false, supportsInterruption: false } satisfies IChatSessionDto);
+		asSinonMethodStub(proxy.$provideChatSessionContent)
+			.withArgs(sinon.match.any, sinon.match((r: URI) => r.toString() === resourceB.toString()), sinon.match.any, sinon.match.any)
+			.resolves({ resource: resourceB, history: [], hasActiveResponseCallback: false, hasRequestHandler: false, hasForkHandler: false, supportsInterruption: false } satisfies IChatSessionDto);
+
+		await chatSessionsService.getOrCreateChatSession(resourceA, CancellationToken.None);
+		await chatSessionsService.getOrCreateChatSession(resourceB, CancellationToken.None);
+
+		// Update session A with modelX
+		mainThread.$updateChatSessionInputState(controllerHandle, resourceA, [{
+			id: 'models',
+			name: 'Models',
+			items: [{ id: 'modelX', name: 'Model X' }, { id: 'modelY', name: 'Model Y' }],
+			selected: { id: 'modelX', name: 'Model X' },
+		}]);
+
+		// Update session B with modelY
+		mainThread.$updateChatSessionInputState(controllerHandle, resourceB, [{
+			id: 'models',
+			name: 'Models',
+			items: [{ id: 'modelX', name: 'Model X' }, { id: 'modelY', name: 'Model Y' }],
+			selected: { id: 'modelY', name: 'Model Y' },
+		}]);
+
+		assert.deepStrictEqual(chatSessionsService.getSessionOption(resourceA, 'models'), { id: 'modelX', name: 'Model X' });
+		assert.deepStrictEqual(chatSessionsService.getSessionOption(resourceB, 'models'), { id: 'modelY', name: 'Model Y' });
+
+		mainThread.$unregisterChatSessionContentProvider(1);
+		mainThread.$unregisterChatSessionItemController(controllerHandle);
+	});
 });
 
 suite('ExtHostChatSessions', function () {
@@ -922,6 +1000,7 @@ suite('ExtHostChatSessions', function () {
 		$unregisterChatSessionContentProvider: sinon.SinonStub;
 		$onDidChangeChatSessionOptions: sinon.SinonStub;
 		$onDidChangeChatSessionProviderOptions: sinon.SinonStub;
+		$updateChatSessionInputState: sinon.SinonStub;
 	};
 
 	setup(function () {
@@ -936,6 +1015,7 @@ suite('ExtHostChatSessions', function () {
 			$unregisterChatSessionContentProvider: sinon.stub(),
 			$onDidChangeChatSessionOptions: sinon.stub(),
 			$onDidChangeChatSessionProviderOptions: sinon.stub(),
+			$updateChatSessionInputState: sinon.stub(),
 		};
 
 		const rpcProtocol = AnyCallRPCProtocol(mainThreadChatSessionsProxy);

@@ -19,6 +19,7 @@ import { SessionsCategories } from '../../../common/categories.js';
 import { NewChatViewPane, SessionsViewId } from '../../chat/browser/newChatViewPane.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 
 registerAction2(class extends Action2 {
 	constructor() {
@@ -363,7 +364,7 @@ async function promptForRemoteFolder(
 
 	// The provider is created synchronously during addSSHConnection's
 	// onDidChangeConnections event, so it should exist by now.
-	const provider = sessionsProvidersService.getProviders().find(p => p.remoteAddress === connection.localAddress);
+	const provider = sessionsProvidersService.getProviders().find((p): p is IAgentHostSessionsProvider => isAgentHostProvider(p) && p.remoteAddress === connection.localAddress);
 	if (!provider) {
 		return;
 	}
@@ -525,7 +526,9 @@ async function promptToConnectViaTunnel(
 		// Trigger interactive auth for the chosen provider
 		const scopes = productService.tunnelApplicationConfig?.authenticationProviders?.[authProvider]?.scopes ?? [];
 		try {
-			await authenticationService.createSession(authProvider, scopes, { activateImmediate: true });
+			if (!(await authenticationService.getSessions(authProvider, scopes)).length) {
+				await authenticationService.createSession(authProvider, scopes, { activateImmediate: true });
+			}
 		} catch {
 			notificationService.error(localize('tunnelAuthFailed', "Authentication failed. Please try again."));
 			return;
@@ -615,7 +618,7 @@ async function promptForTunnelFolder(
 
 	// The provider is created by TunnelAgentHostContribution when the
 	// tunnel is cached (via onDidChangeTunnels / _reconcileProviders).
-	const provider = sessionsProvidersService.getProviders().find(p => p.remoteAddress === tunnelAddress);
+	const provider = sessionsProvidersService.getProviders().find((p): p is IAgentHostSessionsProvider => isAgentHostProvider(p) && p.remoteAddress === tunnelAddress);
 	if (!provider) {
 		return;
 	}

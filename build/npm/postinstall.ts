@@ -73,7 +73,7 @@ async function npmInstallAsync(dir: string, opts?: child_process.SpawnOptions): 
 		log(dir, `Installing dependencies inside container ${process.env['VSCODE_REMOTE_DEPENDENCIES_CONTAINER_NAME']}...`);
 
 		if (process.env['npm_config_arch'] === 'arm64') {
-			run('sudo', ['docker', 'run', '--rm', '--privileged', 'multiarch/qemu-user-static', '--reset', '-p', 'yes'], syncOpts);
+			run('sudo', ['docker', 'run', '--rm', '--privileged', 'vscodehub.azurecr.io/multiarch/qemu-user-static@sha256:fe60359c92e86a43cc87b3d906006245f77bfc0565676b80004cc666e4feb9f0', '--reset', '-p', 'yes'], syncOpts);
 		}
 		run('sudo', [
 			'docker', 'run',

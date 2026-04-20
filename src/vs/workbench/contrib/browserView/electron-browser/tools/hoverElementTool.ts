@@ -41,10 +41,7 @@ export const HoverElementToolData: IToolData = {
 			},
 		},
 		required: ['pageId', 'element'],
-		oneOf: [
-			{ required: ['ref'] },
-			{ required: ['selector'] },
-		]
+		$comment: 'One of "ref" or "selector" is required.',
 	},
 };
 

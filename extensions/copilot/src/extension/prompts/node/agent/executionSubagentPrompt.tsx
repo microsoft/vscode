@@ -36,6 +36,8 @@ export class ExecutionSubagentPrompt extends PromptElement<ExecutionSubagentProm
 					You will be given a description of a task, and potentially some commands to run, but you can adapt the commands as necessary to complete the task.<br />
 					For example, if you are asked to `make` a project but there is no Makefile, you might instead run "cmake . && make" to successfully build the code. <br />
 					<br />
+					Always use mode="sync" when calling run_in_terminal. Use a generous timeout (e.g. 30000ms or more) so commands have time to finish. Do NOT use mode="async" — you must wait for each command to complete before proceeding. If a sync command times out, use get_terminal_output to check its status, send_to_terminal if it needs input, or kill_terminal to stop it.<br />
+					<br />
 					<SafetyRules />
 					<br />
 					Once you have finished, return a message with ONLY: the &lt;final_answer&gt; tag to provide a compact summary of each command that was run.<br />

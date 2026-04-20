@@ -22,6 +22,14 @@ export interface NesRebaseConfigs {
 	 * the typed pair instead of failing.
 	 */
 	readonly absorbSubsequenceTyping?: boolean;
+	/**
+	 * When enabled, allows rebase to succeed when the user typed more text
+	 * than the model predicted at the same position (reverse agreement).
+	 * Model edits consumed by the user's typing are absorbed, and any
+	 * unconsumed portion of subsequent model edits is offered as the
+	 * rebased suggestion.
+	 */
+	readonly reverseAgreement?: boolean;
 }
 
 export class EditDataWithIndex implements IEditData<EditDataWithIndex> {
@@ -209,6 +217,75 @@ function tryRebaseEdits<T extends IEditData<T>>(content: string, ours: Annotated
 					));
 					ourIdx++;
 					offset += delta;
+				} else if (nesConfigs.reverseAgreement && ourEdit.replaceRange.equals(baseEdit.replaceRange)) {
+					// Reverse agreement: user's edit (base) covers model's edit (ours)
+					// at the same range. The user typed more than the model predicted.
+					// Use ourEdit (pre-shift) to avoid false matches from shift alignment.
+					// Iterate over consecutive our-edits consumed by this base edit.
+					let baseNewTextOffset = 0;
+					let previousOurE: AnnotatedStringReplacement<T> | undefined;
+
+					while (ourIdx < ours.replacements.length && baseEdit.replaceRange.containsRange(ours.replacements[ourIdx].replaceRange)) {
+						const curOurE = ours.replacements[ourIdx];
+
+						// Account for gap content between previous our-edit end and current our-edit start
+						const gapStart = previousOurE ? previousOurE.replaceRange.endExclusive : baseEdit.replaceRange.start;
+						const gapText = gapStart < curOurE.replaceRange.start ? content.substring(gapStart, curOurE.replaceRange.start) : '';
+						const effectiveText = gapText + curOurE.newText;
+
+						// Try full consumption: model text found entirely within user text
+						const j = baseEdit.newText.indexOf(effectiveText, baseNewTextOffset);
+						const strictRejected = j !== -1 && resolution === 'strict' && (
+							j - baseNewTextOffset > maxAgreementOffset ||
+							(j - baseNewTextOffset > 0 && effectiveText.length > maxImperfectAgreementLength)
+						);
+
+						if (j !== -1 && !strictRejected) {
+							// Full consumption — model edit absorbed by user typing
+							baseNewTextOffset = j + effectiveText.length;
+							previousOurE = curOurE;
+							ourIdx++;
+							continue;
+						}
+
+						// Try partial consumption: remaining user text is a prefix of model text
+						const remainingBase = baseEdit.newText.substring(baseNewTextOffset);
+						if (remainingBase.length > 0 && effectiveText.startsWith(remainingBase)) {
+							const consumedFromNewText = Math.max(0, remainingBase.length - gapText.length);
+							const unconsumedNewText = curOurE.newText.substring(consumedFromNewText);
+							if (unconsumedNewText.length > 0) {
+								newEdits.push(new AnnotatedStringReplacement(
+									OffsetRange.emptyAt(baseEdit.replaceRange.start + offset + baseEdit.newText.length),
+									unconsumedNewText,
+									curOurE.data,
+								));
+							}
+							baseNewTextOffset = baseEdit.newText.length;
+							previousOurE = curOurE;
+							ourIdx++;
+							break;
+						}
+
+						// Conflicting
+						return undefined;
+					}
+
+					// Verify trailing gap in strict mode: any original content between the
+					// last consumed our-edit and the end of the base range must be preserved.
+					// Remaining user text beyond the gap is the user's own typing and is fine.
+					if (baseNewTextOffset < baseEdit.newText.length && resolution === 'strict') {
+						const lastOurEnd = previousOurE ? previousOurE.replaceRange.endExclusive : baseEdit.replaceRange.start;
+						const trailingGap = content.substring(lastOurEnd, baseEdit.replaceRange.endExclusive);
+						if (trailingGap.length > 0) {
+							const remainingBase = baseEdit.newText.substring(baseNewTextOffset);
+							if (!remainingBase.startsWith(trailingGap)) {
+								return undefined;
+							}
+						}
+					}
+
+					baseIdx++;
+					offset += baseEdit.newText.length - baseEdit.replaceRange.length;
 				} else {
 					// Conflicting
 					return undefined;

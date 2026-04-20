@@ -315,7 +315,6 @@ export function folderMRUToChatProviderOptions(mruItems: FolderRepositoryMRUEntr
  */
 export interface ISessionOptionGroupBuilder {
 	readonly _serviceBrand: undefined;
-	setNewFolderForInputState(inputState: vscode.ChatSessionInputState, folderUri: vscode.Uri): void;
 	provideChatSessionProviderOptionGroups(previousInputState: vscode.ChatSessionInputState | undefined): Promise<vscode.ChatSessionProviderOptionGroup[]>;
 	buildBranchOptionGroup(branches: vscode.ChatSessionProviderOptionItem[], headBranchName: string | undefined, isolationEnabled: boolean, currentIsolation: IsolationMode | undefined, previousSelection: vscode.ChatSessionProviderOptionItem | undefined): vscode.ChatSessionProviderOptionGroup | undefined;
 	handleInputStateChange(state: vscode.ChatSessionInputState): Promise<void>;
@@ -323,6 +322,16 @@ export interface ISessionOptionGroupBuilder {
 	buildExistingSessionInputStateGroups(resource: vscode.Uri, token: vscode.CancellationToken): Promise<vscode.ChatSessionProviderOptionGroup[]>;
 	getBranchOptionItemsForRepository(repoUri: Uri, headBranchName: string | undefined): Promise<vscode.ChatSessionProviderOptionItem[]>;
 	getRepositoryOptionItems(): vscode.ChatSessionProviderOptionItem[];
+	/**
+	 * Lock all dropdown groups (make them readonly).
+	 * Used when a new session is being created.
+	 */
+	lockInputStateGroups(state: vscode.ChatSessionInputState): void;
+	/**
+	 * Update the branch dropdown to display a specific branch name (locked).
+	 * Used after a worktree is created to show the new branch.
+	 */
+	updateBranchInInputState(state: vscode.ChatSessionInputState, branchName: string): void;
 }
 export const ISessionOptionGroupBuilder = createServiceIdentifier<ISessionOptionGroupBuilder>('ISessionOptionGroupBuilder');
 
@@ -330,7 +339,7 @@ export class SessionOptionGroupBuilder implements ISessionOptionGroupBuilder {
 	declare readonly _serviceBrand: undefined;
 	private readonly _getBranchOptionItemsForRepositorySequencer = new SequencerByKey<string>();
 	private readonly _pendingBuildGroups = new WeakMap<vscode.ChatSessionInputState, Promise<vscode.ChatSessionProviderOptionGroup[]>>();
-	// Keeps track of the new folders selected by user, by using folder dialog to select a new folder.
+	// Keeps track of the new folders selected by user
 	private readonly _inputStateNewFolders = new WeakMap<vscode.ChatSessionInputState, vscode.Uri>();
 	constructor(
 		@IGitService private readonly gitService: IGitService,
@@ -344,9 +353,6 @@ export class SessionOptionGroupBuilder implements ISessionOptionGroupBuilder {
 	) { }
 
 
-	setNewFolderForInputState(inputState: vscode.ChatSessionInputState, folderUri: vscode.Uri): void {
-		this._inputStateNewFolders.set(inputState, folderUri);
-	}
 	/**
 	 * Return the git repository for a URI only if the folder is trusted.
 	 * Untrusted folders are treated as non-git.
@@ -399,27 +405,37 @@ export class SessionOptionGroupBuilder implements ISessionOptionGroupBuilder {
 
 			// For untitled workspaces, show last used repositories and "Open Repository..." command
 			const repositories = await this.copilotCLIFolderMruService.getRecentlyUsedFolders(CancellationToken.None);
-			const newFolder = previousInputState ? this._inputStateNewFolders.get(previousInputState) : undefined;
 			items = folderMRUToChatProviderOptions(repositories);
+			const addFolderToList = async (uri: Uri) => {
+				const newFolderRepo = await this.getTrustedRepository(uri, true);
+				const newFolderItem = newFolderRepo
+					? toRepositoryOptionItem(newFolderRepo.rootUri)
+					: toWorkspaceFolderOptionItem(uri, uri.path.split('/').pop() ?? uri.fsPath);
+				// Remove duplicate if already in the list, then add to top
+				items = items.filter(item => item.id !== newFolderItem.id);
+				items.unshift(newFolderItem);
+			};
+			if (selectedFolderUri) {
+				await addFolderToList(selectedFolderUri);
+			}
+			const previouslySelectedUri = previouslySelected ? vscode.Uri.file(previouslySelected.id) : undefined;
+			if (previouslySelectedUri) {
+				await addFolderToList(previouslySelectedUri);
+			}
+			// Ensure previously selected folder is added back into the list of folders.
+			const newFolder = previousInputState ? this._inputStateNewFolders.get(previousInputState) : undefined;
+			if (newFolder) {
+				await addFolderToList(newFolder);
+			}
 			const selectedFolderItem = selectedFolderUri ? items.find(i => i.id === selectedFolderUri.fsPath) : undefined;
+			const previouslySelectedItem = previouslySelected ? items.find(i => i.id === previouslySelected.id) : undefined;
 			const selectedItem = selectedFolderItem
-				?? (previouslySelected
-					? items.find(i => i.id === previouslySelected.id) ?? items[0]
-					: items[0]);
+				?? previouslySelectedItem ?? items[0];
 			if (selectedItem) {
 				defaultRepoUri = vscode.Uri.file(selectedItem.id);
 			}
 
 			items.splice(MAX_MRU_ENTRIES); // Limit to max entries
-			if (newFolder) {
-				const newFolderRepo = await this.getTrustedRepository(newFolder, true);
-				const newFolderItem = newFolderRepo
-					? toRepositoryOptionItem(newFolderRepo.rootUri)
-					: toWorkspaceFolderOptionItem(newFolder, newFolder.path.split('/').pop() ?? newFolder.fsPath);
-				// Remove duplicate if already in the list, then add to top
-				items = items.filter(item => item.id !== newFolderItem.id);
-				items.unshift(newFolderItem);
-			}
 			// If user selected something from the list but it's not there anymore (perhaps its an item at the end of MRU).
 			if (selectedItem && !items.some(item => item.id === selectedItem.id)) {
 				items.push(selectedItem);
@@ -533,8 +549,11 @@ export class SessionOptionGroupBuilder implements ISessionOptionGroupBuilder {
 	 */
 	async rebuildInputState(state: vscode.ChatSessionInputState, selectedFolderUri?: vscode.Uri): Promise<void> {
 		const newGroups = await this._buildGroupsOnce(state, selectedFolderUri);
-		if (!optionGroupsEqual(state.groups, newGroups)) {
+		if (!optionGroupsEqual(state.groups, newGroups) || selectedFolderUri) {
 			state.groups = newGroups;
+		}
+		if (selectedFolderUri) {
+			this._inputStateNewFolders.set(state, selectedFolderUri);
 		}
 	}
 
@@ -709,4 +728,39 @@ export class SessionOptionGroupBuilder implements ISessionOptionGroupBuilder {
 
 		return repoItems.sort((a, b) => a.name.localeCompare(b.name));
 	}
+
+	lockInputStateGroups(state: vscode.ChatSessionInputState): void {
+		lockInputStateGroups(state);
+	}
+
+	updateBranchInInputState(state: vscode.ChatSessionInputState, branchName: string): void {
+		const existingIdx = state.groups.findIndex(g => g.id === BRANCH_OPTION_ID);
+		if (existingIdx === -1) {
+			return;
+		}
+		const branchSelected: vscode.ChatSessionProviderOptionItem = {
+			id: branchName,
+			name: branchName,
+			icon: new vscode.ThemeIcon('git-branch'),
+			locked: true,
+		};
+		const branchGroup: vscode.ChatSessionProviderOptionGroup = {
+			id: BRANCH_OPTION_ID,
+			name: l10n.t('Branch'),
+			description: l10n.t('Pick Branch'),
+			items: [branchSelected],
+			selected: branchSelected,
+		};
+		const updatedGroups = [...state.groups];
+		updatedGroups[existingIdx] = branchGroup;
+		state.groups = updatedGroups;
+	}
+}
+
+export function lockInputStateGroups(state: vscode.ChatSessionInputState): void {
+	state.groups = state.groups.map(group => ({
+		...group,
+		items: group.items.map(item => ({ ...item, locked: true })),
+		selected: group.selected ? { ...group.selected, locked: true } : undefined,
+	}));
 }

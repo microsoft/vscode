@@ -1091,4 +1091,245 @@ class Point3D {
 		expect(lenient2?.apply(current2)).toStrictEqual(applied);
 		expect(lenient2?.removeCommonSuffixAndPrefix(current2).replacements.toString()).toMatchInlineSnapshot(`"[7, ${7 + maxImperfectAgreementLength + 1}) -> "x${'h'.repeat(maxImperfectAgreementLength + 2)}x""`);
 	});
+
+	test('reverse agreement: user typed more than model predicted at same position', () => {
+		// Model predicts two edits: insert "{" and insert body.
+		// User typed "{\n\t" which covers the first edit and the start of the second.
+		// Rebase should succeed, offering the unconsumed portion of the second edit.
+		const originalDocument = 'class Fibonacci \n';
+		const originalEdits = [
+			StringReplacement.replace(new OffsetRange(0, 16), 'class Fibonacci {'),
+			StringReplacement.replace(OffsetRange.emptyAt(17), '\n\tprivate memo: Map<number, number>;\n}'),
+		];
+		const userEditSince = StringEdit.create([
+			StringReplacement.replace(new OffsetRange(0, 16), 'class Fibonacci {\n\t'),
+		]);
+		const currentDocumentContent = 'class Fibonacci {\n\t\n';
+		const nesConfigs = { reverseAgreement: true };
+
+		const logger = new TestLogService();
+		// Without flag: rebase fails
+		expect(tryRebase(originalDocument, undefined, originalEdits, [], userEditSince, currentDocumentContent, [], 'strict', logger)).toBe('rebaseFailed');
+		// With flag: rebase succeeds
+		const res = tryRebase(originalDocument, undefined, originalEdits, [], userEditSince, currentDocumentContent, [], 'strict', logger, nesConfigs);
+		expect(res).toBeTypeOf('object');
+		const result = res as Exclude<typeof res, string>;
+		expect(result.length).toBe(1);
+		expect(result[0].rebasedEditIndex).toBe(1);
+		// The unconsumed portion of the body edit should be offered
+		expect(result[0].rebasedEdit.newText).toContain('private memo');
+	});
+
+	test('reverse agreement: user typed exactly the first model edit', () => {
+		// User typed exactly "{" which is the model's first edit.
+		// The second edit (body) should be offered in full.
+		// Note: this case is actually handled by the existing forward agreement path
+		// (user text length == model text length), so it works regardless of the flag.
+		const originalDocument = 'class Foo \n';
+		const originalEdits = [
+			StringReplacement.replace(new OffsetRange(0, 10), 'class Foo {'),
+			StringReplacement.replace(OffsetRange.emptyAt(12), '\n\tbar(): void {}\n}'),
+		];
+		const userEditSince = StringEdit.create([
+			StringReplacement.replace(new OffsetRange(0, 10), 'class Foo {'),
+		]);
+		const currentDocumentContent = 'class Foo {\n';
+
+		const logger = new TestLogService();
+		// Works without reverse agreement flag (handled by forward agreement)
+		const res = tryRebase(originalDocument, undefined, originalEdits, [], userEditSince, currentDocumentContent, [], 'strict', logger);
+		expect(res).toBeTypeOf('object');
+		const result = res as Exclude<typeof res, string>;
+		expect(result.length).toBe(1);
+		expect(result[0].rebasedEditIndex).toBe(1);
+		expect(result[0].rebasedEdit.newText).toContain('bar(): void {}');
+	});
+
+	test('reverse agreement: user typed completely different text — should conflict', () => {
+		// Model: "class Foo " → "class Foo {"
+		// User:  "class Foo " → "class Foo XYZ"
+		// "XYZ" is NOT found in "{", so this should fail.
+		const originalDocument = 'class Foo \n';
+		const originalEdits = [
+			StringReplacement.replace(new OffsetRange(0, 10), 'class Foo {'),
+		];
+		const userEditSince = StringEdit.create([
+			StringReplacement.replace(new OffsetRange(0, 10), 'class Foo XYZ'),
+		]);
+		const currentDocumentContent = 'class Foo XYZ\n';
+		const nesConfigs = { reverseAgreement: true };
+
+		const logger = new TestLogService();
+		expect(tryRebase(originalDocument, undefined, originalEdits, [], userEditSince, currentDocumentContent, [], 'strict', logger, nesConfigs)).toBe('rebaseFailed');
+		expect(tryRebase(originalDocument, undefined, originalEdits, [], userEditSince, currentDocumentContent, [], 'lenient', logger, nesConfigs)).toBe('rebaseFailed');
+	});
+
+	test('reverse agreement: user typed text that accidentally contains model text as substring', () => {
+		// Model: replace [0,5) "hello" → "hello{" (diff: insert "{" at 5), then insert body at 6.
+		// User: replace [0,5) "hello" → "helloXX{YY" (diff: insert "XX{YY" at 5).
+		// The model's first diff ("{") IS found in user's "XX{YY" at offset 2, so it's consumed.
+		// But the model's second edit ("\n\tworld\n}") can't be found in the remaining
+		// user text "YY" — partial consumption also fails ("YY" doesn't start with "\n\tworld\n}").
+		// So the rebase correctly fails for the second edit.
+		const originalDocument = 'hello\n';
+		const originalEdits = [
+			StringReplacement.replace(new OffsetRange(0, 5), 'hello{'),
+			StringReplacement.replace(OffsetRange.emptyAt(6), '\n\tworld\n}'),
+		];
+		const userEditSince = StringEdit.create([
+			StringReplacement.replace(new OffsetRange(0, 5), 'helloXX{YY'),
+		]);
+		const currentDocumentContent = 'helloXX{YY\n';
+		const nesConfigs = { reverseAgreement: true };
+
+		const logger = new TestLogService();
+		// Fails because user's remaining text "YY" doesn't match model's second edit
+		expect(tryRebase(originalDocument, undefined, originalEdits, [], userEditSince, currentDocumentContent, [], 'strict', logger, nesConfigs)).toBe('rebaseFailed');
+		expect(tryRebase(originalDocument, undefined, originalEdits, [], userEditSince, currentDocumentContent, [], 'lenient', logger, nesConfigs)).toBe('rebaseFailed');
+	});
+
+	test('reverse agreement: user typed text with model text at large offset — strict rejects', () => {
+		// Model: "a" → "a{"
+		// User:  "a" → "a" + "X".repeat(15) + "{"
+		// The "{" is at offset 15 into the user text, which exceeds maxAgreementOffset (10).
+		// Strict should reject; lenient should also fail since there's no lenient fallback
+		// in the reverse branch.
+		const pad = 'X'.repeat(maxAgreementOffset + 1);
+		const originalDocument = 'a\n';
+		const originalEdits = [
+			StringReplacement.replace(new OffsetRange(0, 1), 'a{'),
+		];
+		const userEditSince = StringEdit.create([
+			StringReplacement.replace(new OffsetRange(0, 1), 'a' + pad + '{'),
+		]);
+		const currentDocumentContent = 'a' + pad + '{\n';
+		const nesConfigs = { reverseAgreement: true };
+
+		const logger = new TestLogService();
+		expect(tryRebase(originalDocument, undefined, originalEdits, [], userEditSince, currentDocumentContent, [], 'strict', logger, nesConfigs)).toBe('rebaseFailed');
+	});
+
+	test('reverse agreement: user typed long text at small offset — strict rejects imperfect agreement', () => {
+		// Model: "a" → "a{"
+		// User:  "a" → "aX" + "{".repeat(maxImperfectAgreementLength + 1)
+		// The model text "{" is found at offset 1 (> 0) and the effective text length
+		// is 1 (≤ maxImperfectAgreementLength), so this should pass strict.
+		// But if effectiveText were longer...
+		const longText = 'Z'.repeat(maxImperfectAgreementLength + 1);
+		const originalDocument = 'a\n';
+		const originalEdits = [
+			StringReplacement.replace(new OffsetRange(0, 1), 'a' + longText),
+		];
+		const userEditSince = StringEdit.create([
+			StringReplacement.replace(new OffsetRange(0, 1), 'aX' + longText),
+		]);
+		const currentDocumentContent = 'aX' + longText + '\n';
+		const nesConfigs = { reverseAgreement: true };
+
+		const logger = new TestLogService();
+		// offset = 1 > 0, effectiveText.length = longText.length > maxImperfectAgreementLength
+		// → strict rejected
+		expect(tryRebase(originalDocument, undefined, originalEdits, [], userEditSince, currentDocumentContent, [], 'strict', logger, nesConfigs)).toBe('rebaseFailed');
+	});
+
+	test('reverse agreement: all model edits fully consumed by user — no rebased edit emitted', () => {
+		// Model predicts single edit: insert "{\n\t"
+		// User typed "{\n\tfoo\n}" which fully contains "{\n\t"
+		// All model edits consumed → nothing to offer
+		const originalDocument = 'fn \n';
+		const originalEdits = [
+			StringReplacement.replace(new OffsetRange(0, 3), 'fn {\n\t'),
+		];
+		const userEditSince = StringEdit.create([
+			StringReplacement.replace(new OffsetRange(0, 3), 'fn {\n\tfoo\n}'),
+		]);
+		const currentDocumentContent = 'fn {\n\tfoo\n}\n';
+		const nesConfigs = { reverseAgreement: true };
+
+		const logger = new TestLogService();
+		// Without flag: rebase fails
+		expect(tryRebase(originalDocument, undefined, originalEdits, [], userEditSince, currentDocumentContent, [], 'strict', logger)).toBe('rebaseFailed');
+		// With flag: succeeds with no edits to offer
+		const res = tryRebase(originalDocument, undefined, originalEdits, [], userEditSince, currentDocumentContent, [], 'strict', logger, nesConfigs);
+		expect(res).toBeTypeOf('object');
+		const result = res as Exclude<typeof res, string>;
+		// The single model edit was fully consumed — nothing left to suggest
+		expect(result.length).toBe(0);
+	});
+
+	test('reverse agreement: consistency check — rebased edit applied to current doc produces expected result', () => {
+		// This is the key correctness check: applying the rebased edit to the current
+		// document should produce the same result as applying the original edits to
+		// the original document.
+		const originalDocument = 'class Fibonacci \n';
+		const originalEdits = [
+			StringReplacement.replace(new OffsetRange(0, 16), 'class Fibonacci {'),
+			StringReplacement.replace(OffsetRange.emptyAt(17), '\n\tprivate memo: Map<number, number>;\n}'),
+		];
+		const userEditSince = StringEdit.create([
+			StringReplacement.replace(new OffsetRange(0, 16), 'class Fibonacci {\n\t'),
+		]);
+		const currentDocumentContent = 'class Fibonacci {\n\t\n';
+		const nesConfigs = { reverseAgreement: true };
+
+		// Expected final: apply both model edits in sequence to original
+		const expectedFinal = new StringEdit([originalEdits[0]]).apply(originalDocument);
+		const expectedFinal2 = new StringEdit([originalEdits[1]]).apply(expectedFinal);
+
+		const logger = new TestLogService();
+		const res = tryRebase(originalDocument, undefined, originalEdits, [], userEditSince, currentDocumentContent, [], 'strict', logger, nesConfigs);
+		expect(res).toBeTypeOf('object');
+		const result = res as Exclude<typeof res, string>;
+		expect(result.length).toBe(1);
+
+		// Apply rebased edit to current document
+		const actualFinal = StringEdit.single(result[0].rebasedEdit).apply(currentDocumentContent);
+		expect(actualFinal).toBe(expectedFinal2);
+	});
+
+	test('reverse agreement: pure inserts at same position — user insert is superset of model insert', () => {
+		// Both edits are pure inserts at position 5.
+		// Model inserts "X", user inserts "XY".
+		// After removeCommonSuffixAndPrefix on user edit:
+		//   user edit: insert at 5 → "XY", model edit: insert at 5 → "X"
+		// These have equal replaceRange (both emptyAt(5)).
+		// The reverse branch should fire: "X" found in "XY" at offset 0 → consumed.
+		// Nothing left to suggest from this model edit.
+		const originalDocument = 'hello world\n';
+		const suggestedEdit = StringEdit.create([
+			StringReplacement.replace(OffsetRange.emptyAt(5), 'X'),
+		]);
+		const userEdit = StringEdit.create([
+			StringReplacement.replace(OffsetRange.emptyAt(5), 'XY'),
+		]);
+		const current = userEdit.apply(originalDocument);
+		expect(current).toBe('helloXY world\n');
+
+		// Without flag: rebase fails
+		expect(tryRebaseStringEdits(originalDocument, suggestedEdit, userEdit, 'strict')).toBeUndefined();
+		// With flag: model edit fully consumed → empty result
+		const nesConfigs = { reverseAgreement: true };
+		const res = tryRebaseStringEdits(originalDocument, suggestedEdit, userEdit, 'strict', nesConfigs);
+		expect(res).toBeDefined();
+		expect(res!.replacements.length).toBe(0);
+	});
+
+	test('reverse agreement: does NOT fire when ranges differ', () => {
+		// Model replaces [0,3), user replaces [0,5) — different ranges.
+		// The reverse branch requires equal ranges, so this should NOT trigger it.
+		// Instead, this falls through to the conflict branch.
+		const originalDocument = 'abcde\n';
+		const originalEdits = [
+			StringReplacement.replace(new OffsetRange(0, 3), 'XYZ'),
+		];
+		const userEditSince = StringEdit.create([
+			StringReplacement.replace(new OffsetRange(0, 5), 'XYZWV'),
+		]);
+		const currentDocumentContent = 'XYZWV\n';
+		const nesConfigs = { reverseAgreement: true };
+
+		const logger = new TestLogService();
+		// The ranges don't match after removeCommonSuffixAndPrefix, so this conflicts
+		expect(tryRebase(originalDocument, undefined, originalEdits, [], userEditSince, currentDocumentContent, [], 'strict', logger, nesConfigs)).toBe('rebaseFailed');
+	});
 });

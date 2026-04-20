@@ -39,6 +39,14 @@ describe('sanitizeNetworkErrorForTelemetry', () => {
 		);
 	});
 
+	test('strips credentials with @ in URL userinfo', () => {
+		expect(sanitizeNetworkErrorForTelemetry(
+			'https://fictional-user@example.com:fictional-pass@proxy.fictional.example.com:8080/path'
+		)).toBe(
+			'https://<credentials>@<host>:8080/path'
+		);
+	});
+
 	test('replaces IPv4 addresses', () => {
 		expect(sanitizeNetworkErrorForTelemetry(
 			'connect ETIMEDOUT 10.20.30.40:443'
@@ -91,6 +99,14 @@ describe('sanitizeNetworkErrorForTelemetry', () => {
 		);
 	});
 
+	test('replaces full IPv6 addresses', () => {
+		expect(sanitizeNetworkErrorForTelemetry(
+			'connect ENETUNREACH 2001:db8:85a3:0:0:8a2e:370:7334:443'
+		)).toBe(
+			'connect ENETUNREACH <ip>:443'
+		);
+	});
+
 	test('does not match non-IPv6 double colons', () => {
 		expect(sanitizeNetworkErrorForTelemetry(
 			'net::ERR_SOCKET_NOT_CONNECTED'
@@ -112,6 +128,30 @@ describe('sanitizeNetworkErrorForTelemetry', () => {
 			'Failed to establish a socket connection to proxies: PROXY proxy.fictional.example.com:8080'
 		)).toBe(
 			'Failed to establish a socket connection to proxies: PROXY <host>:8080'
+		);
+	});
+
+	test('strips credentials with @ in password', () => {
+		expect(sanitizeNetworkErrorForTelemetry(
+			'Failed to establish a socket connection to proxies: PROXY fictional-user:P%40ss@fictional-proxy.example.com:8080'
+		)).toBe(
+			'Failed to establish a socket connection to proxies: PROXY <credentials>@<host>:8080'
+		);
+	});
+
+	test('strips credentials with email as username', () => {
+		expect(sanitizeNetworkErrorForTelemetry(
+			'Failed to establish a socket connection to proxies: PROXY fictional.user@example.com:fictional-pass@fictional-proxy.example.com:8080'
+		)).toBe(
+			'Failed to establish a socket connection to proxies: PROXY <credentials>@<host>:8080'
+		);
+	});
+
+	test('strips credentials with multiple @ signs', () => {
+		expect(sanitizeNetworkErrorForTelemetry(
+			'Failed to establish a socket connection to proxies: HTTPS fictional-id:fictional-pass@fictional-realm@fictional-proxy.example.com:80'
+		)).toBe(
+			'Failed to establish a socket connection to proxies: HTTPS <credentials>@<host>:80'
 		);
 	});
 

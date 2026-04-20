@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as electron from 'electron';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Disposable, IDisposable } from '../../../base/common/lifecycle.js';
+import { ICrossAppIPCService } from '../../crossAppIpc/electron-main/crossAppIpcService.js';
 import { ILifecycleMainService } from '../../lifecycle/electron-main/lifecycleMainService.js';
 import { ILogService } from '../../log/common/log.js';
 import { IUpdateService, State } from '../common/update.js';
@@ -61,7 +61,6 @@ export class CrossAppUpdateCoordinator extends Disposable implements IUpdateServ
 
 	declare readonly _serviceBrand: undefined;
 
-	private ipc: Electron.CrossAppIPC | undefined;
 	private mode: 'standalone' | 'server' | 'client' = 'standalone';
 
 	private _state: State;
@@ -81,6 +80,7 @@ export class CrossAppUpdateCoordinator extends Disposable implements IUpdateServ
 		private readonly localUpdateService: AbstractUpdateService,
 		private readonly logService: ILogService,
 		private readonly lifecycleMainService: ILifecycleMainService,
+		private readonly crossAppIPCService: ICrossAppIPCService,
 	) {
 		super();
 
@@ -89,65 +89,31 @@ export class CrossAppUpdateCoordinator extends Disposable implements IUpdateServ
 
 		// Track local service state changes (used in standalone/server mode)
 		this.registerLocalStateListener();
-	}
 
-	private registerLocalStateListener(): void {
-		this.localStateListener = this.localUpdateService.onStateChange(state => {
-			this.updateState(state);
-			this.broadcastState(state);
-		});
-	}
+		// Subscribe to cross-app IPC events
+		this._register(this.crossAppIPCService.onDidConnect(isServer => {
+			this.handleConnect(isServer);
+		}));
 
-	initialize(): void {
-		const crossAppIPC: Electron.CrossAppIPCModule | undefined = electron.crossAppIPC;
-
-		if (!crossAppIPC) {
-			this.logService.info('CrossAppUpdateCoordinator: crossAppIPC not available, running in standalone mode');
-			return;
+		// If the service is already connected (e.g. another consumer initialized
+		// it earlier), run the connect logic immediately.
+		if (this.crossAppIPCService.connected) {
+			this.handleConnect(this.crossAppIPCService.isServer);
 		}
 
-		const ipc = crossAppIPC.createCrossAppIPC();
-		this.ipc = ipc;
+		this._register(this.crossAppIPCService.onDidReceiveMessage(msg => {
+			this.handleMessage(msg as CrossAppUpdateMessage);
+		}));
 
-		ipc.on('connected', () => {
-			this.logService.info(`CrossAppUpdateCoordinator: connected (isServer=${ipc.isServer})`);
-
-			if (ipc.isServer) {
-				this.mode = 'server';
-				// Broadcast current state to the newly connected client
-				this.broadcastState(this.localUpdateService.state);
-			} else {
-				this.mode = 'client';
-				// Suspend the local update service and stop listening to its state
-				// changes. All update operations are proxied to the server, so
-				// neither automatic nor manual checks go through the local service.
-				this.localUpdateService.suspend();
-				this.localStateListener?.dispose();
-				this.localStateListener = undefined;
-				// Request current state from the server
-				this.sendMessage({ type: CrossAppUpdateMessageType.RequestInitialState });
-			}
-		});
-
-		ipc.on('message', (messageEvent) => {
-			this.handleMessage(messageEvent.data as CrossAppUpdateMessage);
-		});
-
-		ipc.on('disconnected', (reason) => {
+		this._register(this.crossAppIPCService.onDidDisconnect(reason => {
 			this.logService.info(`CrossAppUpdateCoordinator: disconnected (${reason}), was ${this.mode}`);
 
 			if (this.mode === 'client') {
-				// Resume the local update service — we're now the only app
 				this.localUpdateService.resume();
 				this.registerLocalStateListener();
-				// Sync coordinator state with the local service
 				this.updateState(this.localUpdateService.state);
 			}
 
-			// If the server was waiting for a quit confirmation and the client
-			// disconnected, treat it as an implicit confirmation — the client
-			// quit successfully but the IPC pipe was torn down before the
-			// QuitConfirmed message could be delivered.
 			if (this.mode === 'server' && this.pendingQuitAndInstall) {
 				this.logService.info('CrossAppUpdateCoordinator: client disconnected during pending quit, treating as confirmed');
 				this.pendingQuitAndInstall = false;
@@ -157,17 +123,29 @@ export class CrossAppUpdateCoordinator extends Disposable implements IUpdateServ
 			}
 
 			this.mode = 'standalone';
+		}));
+	}
 
-			// Reconnect to wait for the peer's next launch.
-			// Delay briefly to allow the old Mach bootstrap service to be
-			// deregistered before re-creating the server endpoint (macOS).
-			if (reason === 'peer-disconnected') {
-				setTimeout(() => ipc.connect(), 1000);
-			}
+	private handleConnect(isServer: boolean): void {
+		this.logService.info(`CrossAppUpdateCoordinator: connected (isServer=${isServer})`);
+
+		if (isServer) {
+			this.mode = 'server';
+			this.broadcastState(this.localUpdateService.state);
+		} else {
+			this.mode = 'client';
+			this.localUpdateService.suspend();
+			this.localStateListener?.dispose();
+			this.localStateListener = undefined;
+			this.sendMessage({ type: CrossAppUpdateMessageType.RequestInitialState });
+		}
+	}
+
+	private registerLocalStateListener(): void {
+		this.localStateListener = this.localUpdateService.onStateChange(state => {
+			this.updateState(state);
+			this.broadcastState(state);
 		});
-
-		ipc.connect();
-		this.logService.info('CrossAppUpdateCoordinator: connecting to peer');
 	}
 
 	private handleMessage(msg: CrossAppUpdateMessage): void {
@@ -256,9 +234,7 @@ export class CrossAppUpdateCoordinator extends Disposable implements IUpdateServ
 	}
 
 	private sendMessage(msg: CrossAppUpdateMessage): void {
-		if (this.ipc?.connected) {
-			this.ipc.postMessage(msg);
-		}
+		this.crossAppIPCService.sendMessage(msg);
 	}
 
 	// --- IUpdateService implementation ---
@@ -296,7 +272,7 @@ export class CrossAppUpdateCoordinator extends Disposable implements IUpdateServ
 	 * If no peer is connected (standalone), proceeds directly.
 	 */
 	private doCoordinatedQuitAndInstall(): void {
-		if (this.ipc?.connected) {
+		if (this.crossAppIPCService.connected) {
 			// Ask the client to quit; it will respond with QuitConfirmed/QuitVetoed,
 			// or disconnect (treated as implicit confirmation).
 			this.pendingQuitAndInstall = true;
@@ -329,7 +305,6 @@ export class CrossAppUpdateCoordinator extends Disposable implements IUpdateServ
 
 	override dispose(): void {
 		this.localStateListener?.dispose();
-		this.ipc?.close();
 		super.dispose();
 	}
 }

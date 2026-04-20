@@ -59,11 +59,6 @@ export class TestRequestLogger extends AbstractRequestLogger {
 		this._onDidChangeRequests.fire();
 	}
 
-	public override logServerToolCall(id: string, name: string, args: unknown, result: LanguageModelToolResult2): void {
-		this._entries.push(new TestLoggedToolCall(id, name, args, result, this.currentRequest, Date.now()));
-		this._onDidChangeRequests.fire();
-	}
-
 	/**
 	 * Clear all logged entries (useful between tests).
 	 */

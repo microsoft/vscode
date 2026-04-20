@@ -13,7 +13,6 @@ import { createServiceIdentifier } from '../../../../util/common/services';
 import { Disposable, DisposableStore, IDisposable } from '../../../../util/vs/base/common/lifecycle';
 import { hasKey } from '../../../../util/vs/base/common/types';
 import { URI } from '../../../../util/vs/base/common/uri';
-import { generateUuid } from '../../../../util/vs/base/common/uuid';
 import type { LanguageModelToolInformation } from '../../../../vscodeTypes';
 import { GitHubMcpDefinitionProvider } from '../../../githubMcp/common/githubMcpDefinitionProvider';
 
@@ -34,7 +33,7 @@ export type MCPServerConfig = NonNullable<Session['mcpServers']>[string];
 
 export interface ICopilotCLIMCPHandler {
 	readonly _serviceBrand: undefined;
-	loadMcpConfig(): Promise<{ mcpConfig: Record<string, MCPServerConfig> | undefined; disposable: IDisposable }>;
+	loadMcpConfig(sessionUri: URI): Promise<{ mcpConfig: Record<string, MCPServerConfig> | undefined; disposable: IDisposable }>;
 }
 
 export const ICopilotCLIMCPHandler = createServiceIdentifier<ICopilotCLIMCPHandler>('ICopilotCLIMCPHandler');
@@ -48,7 +47,7 @@ export class CopilotCLIMCPHandler implements ICopilotCLIMCPHandler {
 		@IMcpService private readonly mcpService: IMcpService,
 	) { }
 
-	public async loadMcpConfig(): Promise<{ mcpConfig: Record<string, MCPServerConfig> | undefined; disposable: IDisposable }> {
+	public async loadMcpConfig(sessionUri: URI): Promise<{ mcpConfig: Record<string, MCPServerConfig> | undefined; disposable: IDisposable }> {
 
 		// TODO: Sessions window settings override is not honored with extension
 		//       configuration API, so this needs to be a core setting
@@ -56,7 +55,7 @@ export class CopilotCLIMCPHandler implements ICopilotCLIMCPHandler {
 
 		// Sessions window: use the gateway approach which proxies all MCP servers from core
 		if (isSessionsWindow) {
-			return this.loadMcpConfigWithGateway();
+			return this.loadMcpConfigWithGateway(sessionUri);
 		}
 
 		// Standard path: use the CLIMCPServerEnabled setting
@@ -65,7 +64,7 @@ export class CopilotCLIMCPHandler implements ICopilotCLIMCPHandler {
 
 		if (enabled) {
 			this.logService.info('[CopilotCLIMCPHandler] MCP server forwarding is enabled, using gateway configuration');
-			return this.loadMcpConfigWithGateway();
+			return this.loadMcpConfigWithGateway(sessionUri);
 		}
 
 		const processedConfig: Record<string, MCPServerConfig> = {};
@@ -79,11 +78,11 @@ export class CopilotCLIMCPHandler implements ICopilotCLIMCPHandler {
 	/**
 	 * Use the Gateway to handle all connections
 	 */
-	private async loadMcpConfigWithGateway(): Promise<{ mcpConfig: Record<string, MCPServerConfig> | undefined; disposable: IDisposable }> {
+	private async loadMcpConfigWithGateway(sessionUri: URI): Promise<{ mcpConfig: Record<string, MCPServerConfig> | undefined; disposable: IDisposable }> {
 		const mcpConfig: Record<string, MCPServerConfig> = {};
 		const disposable = new DisposableStore();
 		try {
-			const gateway = await this.mcpService.startMcpGateway(URI.from({ scheme: 'copilot-cli', path: `mcp-gateway-${generateUuid()}` }));
+			const gateway = await this.mcpService.startMcpGateway(sessionUri);
 			if (gateway) {
 				disposable.add(gateway);
 				for (const server of gateway.servers) {
