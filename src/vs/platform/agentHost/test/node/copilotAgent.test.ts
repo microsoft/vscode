@@ -188,14 +188,14 @@ class TestableCopilotAgent extends CopilotAgent {
 	}
 }
 
-function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ICopilotClient; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none' }): { agent: CopilotAgent; instantiationService: IInstantiationService } {
+function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ICopilotClient; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager }): { agent: CopilotAgent; instantiationService: IInstantiationService } {
 	const services = new ServiceCollection();
 	const logService = new NullLogService();
 	const fileService = disposables.add(new FileService(logService));
 	services.set(ILogService, logService);
 	services.set(IFileService, fileService);
 	services.set(ISessionDataService, options?.sessionDataService ?? createNullSessionDataService());
-	services.set(IAgentPluginManager, new TestAgentPluginManager());
+	services.set(IAgentPluginManager, options?.pluginManager ?? new TestAgentPluginManager());
 	services.set(IAgentHostGitService, options?.gitService ?? new TestAgentHostGitService());
 	services.set(IAgentHostTerminalManager, new TestAgentHostTerminalManager());
 	if (options?.environmentServiceRegistration !== 'none') {
@@ -213,7 +213,7 @@ function createTestAgentContext(disposables: Pick<DisposableStore, 'add'>, optio
 	return { agent, instantiationService };
 }
 
-function createTestAgent(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ICopilotClient; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none' }): CopilotAgent {
+function createTestAgent(disposables: Pick<DisposableStore, 'add'>, options?: { sessionDataService?: ISessionDataService; copilotClient?: ICopilotClient; gitService?: TestAgentHostGitService; environmentServiceRegistration?: 'native' | 'none'; pluginManager?: IAgentPluginManager }): CopilotAgent {
 	return createTestAgentContext(disposables, options).agent;
 }
 
@@ -279,11 +279,14 @@ suite('CopilotAgent', () => {
 		assert.strictEqual(getCopilotWorktreeBranchName('12345678-aaaa-bbbb-cccc-123456789abc', 'a'.repeat(48)).length, 'agents/'.length + 48 + '-12345678'.length);
 	});
 
-	test('returns empty models and sessions before authentication', async () => {
+	test('returns empty models and throws AuthRequired for sessions before authentication', async () => {
 		const agent = createTestAgent(disposables);
 		try {
 			assert.deepStrictEqual(agent.models.get(), []);
-			assert.deepStrictEqual(await agent.listSessions(), []);
+			await assert.rejects(
+				() => agent.listSessions(),
+				(error: Error) => error instanceof ProtocolError && error.code === AHP_AUTH_REQUIRED,
+			);
 		} finally {
 			await disposeAgent(agent);
 		}
@@ -381,6 +384,75 @@ suite('CopilotAgent', () => {
 		} finally {
 			await disposeAgent(agent);
 		}
+	});
+
+	suite('createSession activeClient eager-claim', () => {
+
+		class SpyingPluginManager extends TestAgentPluginManager {
+			public readonly calls: { clientId: string; customizations: ICustomizationRef[] }[] = [];
+
+			override async syncCustomizations(clientId: string, customizations: ICustomizationRef[], _progress?: (status: ISessionCustomization[]) => void): Promise<ISyncedCustomization[]> {
+				this.calls.push({ clientId, customizations: [...customizations] });
+				return [];
+			}
+		}
+
+		test('createSession seeds activeClient tools and syncs customizations', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			const pluginManager = new SpyingPluginManager();
+			// Fail fast inside the SDK factory so we don't need to wire up a
+			// real raw session. The seeding of activeClient and the plugin
+			// sync both happen before `client.createSession` is invoked.
+			client.createSession = async () => { throw new Error('sentinel'); };
+
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, pluginManager });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+
+				const customizations: ICustomizationRef[] = [{ uri: 'file:///plugin-a', displayName: 'Plugin A' }];
+				await assert.rejects(
+					agent.createSession({
+						session: AgentSession.uri('copilot', 'test-session'),
+						workingDirectory: URI.file('/workspace'),
+						activeClient: {
+							clientId: 'client-1',
+							tools: [{ name: 't1', description: 'd', inputSchema: { type: 'object' } }],
+							customizations,
+						},
+					}),
+					(err: Error) => /sentinel/.test(err.message),
+				);
+
+				assert.deepStrictEqual(pluginManager.calls, [{ clientId: 'client-1', customizations }]);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
+
+		test('createSession without activeClient does not sync customizations', async () => {
+			const sessionDataService = disposables.add(new TestSessionDataService());
+			const client = new TestCopilotClient([]);
+			const pluginManager = new SpyingPluginManager();
+			client.createSession = async () => { throw new Error('sentinel'); };
+
+			const agent = createTestAgent(disposables, { sessionDataService, copilotClient: client, pluginManager });
+			try {
+				await agent.authenticate('https://api.github.com', 'token');
+
+				await assert.rejects(
+					agent.createSession({
+						session: AgentSession.uri('copilot', 'test-session-2'),
+						workingDirectory: URI.file('/workspace'),
+					}),
+					(err: Error) => /sentinel/.test(err.message),
+				);
+
+				assert.deepStrictEqual(pluginManager.calls, []);
+			} finally {
+				await disposeAgent(agent);
+			}
+		});
 	});
 
 	suite('worktree announcement', () => {

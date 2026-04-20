@@ -7,7 +7,7 @@
   {
     "kind": 2,
     "language": "github-issues",
-    "value": "$MILESTONE=milestone:\"1.117.0\"\n\n$TPI_CREATION=2026-03-23 // Used to find fixes that need to be verified"
+    "value": "$MILESTONE=milestone:\"1.118.0\"\n\n$TPI_CREATION=2026-03-23 // Used to find fixes that need to be verified"
   },
   {
     "kind": 1,

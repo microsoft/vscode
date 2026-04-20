@@ -124,4 +124,6 @@ export interface IChatSessionMetadataStore {
 	storeForkedSessionMetadata(sourceSessionId: string, targetSessionId: string, customTitle: string): Promise<void>;
 	setSessionOrigin(sessionId: string): Promise<void>;
 	getSessionOrigin(sessionId: string): Promise<'vscode' | 'other'>;
+	setSessionParentId(sessionId: string, parentSessionId: string): Promise<void>;
+	getSessionParentId(sessionId: string): Promise<string | undefined>;
 }

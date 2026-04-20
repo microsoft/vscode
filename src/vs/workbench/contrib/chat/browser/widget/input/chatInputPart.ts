@@ -1981,6 +1981,19 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 				this.clearQuestionCarousel();
 			}
 
+			let hasMatchingPlanReviewResource = false;
+			if (e.currentSessionResource) {
+				for (const r of this._planReviewSessionResources.values()) {
+					if (isEqual(r, e.currentSessionResource)) {
+						hasMatchingPlanReviewResource = true;
+						break;
+					}
+				}
+			}
+			if (this._planReviewSessionResources.size > 0 && (!e.currentSessionResource || !hasMatchingPlanReviewResource)) {
+				this.clearPlanReview();
+			}
+
 			// Swap the visible tool confirmation carousel for the new session
 			this._syncToolConfirmationCarouselForSession();
 

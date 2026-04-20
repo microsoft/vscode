@@ -19,7 +19,7 @@ import { AgentSession } from '../../common/agentService.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { ActionType, IActionEnvelope } from '../../common/state/sessionActions.js';
-import { ResponsePartKind, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type IMarkdownResponsePart, type IToolCallCompletedState, type IToolCallResponsePart } from '../../common/state/sessionState.js';
+import { ISessionActiveClient, ResponsePartKind, SessionLifecycle, ToolCallConfirmationReason, ToolCallStatus, ToolResultContentType, TurnState, buildSubagentSessionUri, type IMarkdownResponsePart, type IToolCallCompletedState, type IToolCallResponsePart } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
 import { MockAgent } from './mockAgent.js';
@@ -247,6 +247,36 @@ suite('AgentService (node dispatcher)', () => {
 			const session = await service.createSession({ provider: 'copilot', config });
 
 			assert.deepStrictEqual(service.stateManager.getSessionState(session.toString())?.config?.values, config);
+		});
+
+		test('seeds activeClient into the initial session state when provided', async () => {
+			service.registerProvider(copilotAgent);
+
+			const envelopes: IActionEnvelope[] = [];
+			disposables.add(service.onDidAction(env => envelopes.push(env)));
+
+			const activeClient: ISessionActiveClient = {
+				clientId: 'client-eager',
+				tools: [{ name: 't1', description: 'd', inputSchema: { type: 'object' } }],
+				customizations: [{ uri: 'file:///plugin-a', displayName: 'A' }],
+			};
+			const session = await service.createSession({ provider: 'copilot', activeClient });
+
+			assert.deepStrictEqual({
+				activeClient: service.stateManager.getSessionState(session.toString())?.activeClient,
+				dispatchedActiveClientChanged: envelopes.some(e => e.action.type === ActionType.SessionActiveClientChanged),
+			}, {
+				activeClient,
+				dispatchedActiveClientChanged: false,
+			});
+		});
+
+		test('omits activeClient from the initial session state when not provided', async () => {
+			service.registerProvider(copilotAgent);
+
+			const session = await service.createSession({ provider: 'copilot' });
+
+			assert.strictEqual(service.stateManager.getSessionState(session.toString())?.activeClient, undefined);
 		});
 	});
 

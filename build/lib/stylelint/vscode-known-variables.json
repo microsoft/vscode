@@ -941,6 +941,7 @@
 		"--inline-chat-frame-progress",
 		"--insert-border-color",
 		"--last-tab-margin-right",
+		"--last-tab-layout-actions-width",
 		"--list-scroll-right-offset",
 		"--monaco-monospace-font",
 		"--monaco-monospace-font",

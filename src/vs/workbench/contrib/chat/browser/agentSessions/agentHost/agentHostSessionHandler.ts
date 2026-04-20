@@ -2249,6 +2249,12 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 			}
 		}
 
+		const activeClient = {
+			clientId: this._config.connection.clientId,
+			tools: this._clientToolsObs.get().map(toolDataToDefinition),
+			customizations: this._config.customizations?.get() ?? [],
+		};
+
 		let session: URI;
 		try {
 			session = await this._config.connection.createSession({
@@ -2257,6 +2263,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				workingDirectory,
 				fork,
 				config,
+				activeClient,
 			});
 		} catch (err) {
 			// If authentication is required (e.g. token expired), try interactive auth and retry once
@@ -2270,6 +2277,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						workingDirectory,
 						fork,
 						config,
+						activeClient,
 					});
 				} else {
 					throw new Error(localize('agentHost.authRequired', "Authentication is required to start a session. Please sign in and try again."));
@@ -2289,10 +2297,6 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				const d = newSub.onDidChange(() => { d.dispose(); resolve(); });
 			});
 		}
-
-		// Claim the active client role with current customizations
-		const customizations = this._config.customizations?.get() ?? [];
-		this._dispatchActiveClient(session, customizations);
 
 		// Start syncing the chat model's pending requests to the protocol
 		this._ensurePendingMessageSubscription(sessionResource, session);
