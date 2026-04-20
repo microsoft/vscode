@@ -42,18 +42,16 @@ export class ClaudeSessionOptionBuilder {
 		private readonly _workspaceService: IWorkspaceService,
 	) { }
 
-	async buildNewSessionGroups(previousInputState?: vscode.ChatSessionInputState): Promise<vscode.ChatSessionProviderOptionGroup[]> {
+	async buildNewSessionGroups(): Promise<vscode.ChatSessionProviderOptionGroup[]> {
 		const groups: vscode.ChatSessionProviderOptionGroup[] = [];
 
-		const folderGroup = await this.buildNewFolderGroup(previousInputState);
+		const folderGroup = await this.buildNewFolderGroup();
 		if (folderGroup) {
 			groups.push(folderGroup);
 		}
 
 		const permissionGroup = this.buildPermissionModeGroup();
-		const previousPermission = previousInputState ? getSelectedOption(previousInputState.groups, PERMISSION_MODE_OPTION_ID) : undefined;
-		const selectedPermissionId = previousPermission?.id ?? this._lastUsedPermissionMode;
-		const selectedPermission = permissionGroup.items.find(i => i.id === selectedPermissionId);
+		const selectedPermission = permissionGroup.items.find(i => i.id === this._lastUsedPermissionMode);
 		groups.push({
 			...permissionGroup,
 			selected: selectedPermission ?? permissionGroup.items[0],
@@ -80,40 +78,23 @@ export class ClaudeSessionOptionBuilder {
 	}
 
 	buildPermissionModeGroup(): vscode.ChatSessionProviderOptionGroup {
-		const items: vscode.ChatSessionProviderOptionItem[] = [
-			{ id: 'default', name: l10n.t('Ask before edits') },
-			{ id: 'acceptEdits', name: l10n.t('Edit automatically') },
-			{ id: 'plan', name: l10n.t('Plan mode') },
-		];
-
-		if (this._configurationService.getConfig(ConfigKey.ClaudeAgentAllowDangerouslySkipPermissions)) {
-			items.push({ id: 'bypassPermissions', name: l10n.t('Bypass all permissions') });
-		}
-
-		return {
-			id: PERMISSION_MODE_OPTION_ID,
-			name: l10n.t('Permission Mode'),
-			description: l10n.t('Pick Permission Mode'),
-			items,
-		};
+		const bypassEnabled = this._configurationService.getConfig(ConfigKey.ClaudeAgentAllowDangerouslySkipPermissions);
+		return buildPermissionModeItems(bypassEnabled);
 	}
 
-	async buildNewFolderGroup(previousInputState: vscode.ChatSessionInputState | undefined): Promise<vscode.ChatSessionProviderOptionGroup | undefined> {
+	async buildNewFolderGroup(): Promise<vscode.ChatSessionProviderOptionGroup | undefined> {
 		const workspaceFolders = this._workspaceService.getWorkspaceFolders();
 		if (workspaceFolders.length === 1) {
 			return undefined;
 		}
 
 		const folderItems = await this.getFolderOptionItems();
-		const previousFolder = previousInputState ? getSelectedOption(previousInputState.groups, FOLDER_OPTION_ID) : undefined;
-		const defaultFolderId = previousFolder?.id ?? folderItems[0]?.id;
-		const selectedItem = defaultFolderId ? folderItems.find(i => i.id === defaultFolderId) : undefined;
 		return {
 			id: FOLDER_OPTION_ID,
 			name: l10n.t('Folder'),
 			description: l10n.t('Pick Folder'),
 			items: folderItems,
-			selected: selectedItem ?? folderItems[0],
+			selected: folderItems[0],
 		};
 	}
 
@@ -176,3 +157,30 @@ export class ClaudeSessionOptionBuilder {
 		return { permissionMode, folderUri };
 	}
 }
+
+// #region Pure group-building functions (observable-friendly)
+
+/**
+ * Build the permission mode option group from explicit inputs.
+ * Pure and synchronous — suitable for use in `derived` computations.
+ */
+export function buildPermissionModeItems(bypassEnabled: boolean): vscode.ChatSessionProviderOptionGroup {
+	const items: vscode.ChatSessionProviderOptionItem[] = [
+		{ id: 'default', name: l10n.t('Ask before edits') },
+		{ id: 'acceptEdits', name: l10n.t('Edit automatically') },
+		{ id: 'plan', name: l10n.t('Plan mode') },
+	];
+
+	if (bypassEnabled) {
+		items.push({ id: 'bypassPermissions', name: l10n.t('Bypass all permissions') });
+	}
+
+	return {
+		id: PERMISSION_MODE_OPTION_ID,
+		name: l10n.t('Permission Mode'),
+		description: l10n.t('Pick Permission Mode'),
+		items,
+	};
+}
+
+// #endregion

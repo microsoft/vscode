@@ -8,7 +8,10 @@ import assert from 'assert';
 import { DeferredPromise } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { join, sep } from '../../../../base/common/path.js';
+import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
+import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IFileService } from '../../../files/common/files.js';
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
@@ -62,6 +65,15 @@ class MockCopilotSession {
 	async destroy() { }
 }
 
+class CapturingLogService extends NullLogService {
+	readonly errors: Array<{ first: string | Error; args: unknown[] }> = [];
+
+	override error(message: string | Error, ...args: unknown[]): void {
+		this.errors.push({ first: message, args });
+		super.error(message, ...args);
+	}
+}
+
 // ---- Helpers ----------------------------------------------------------------
 
 /**
@@ -79,7 +91,25 @@ function invokeClientToolHandler(tool: { name: string; handler: (args: any, invo
 	})) as Promise<ToolResultObject>;
 }
 
-async function createAgentSession(disposables: DisposableStore, options?: { clientSnapshot?: IActiveClientSnapshot }): Promise<{
+type ISessionInternalsForTest = {
+	_onDidSessionProgress: { fire(event: IAgentProgressEvent): void };
+	_editTracker: {
+		trackEditStart(path: string): Promise<void>;
+		completeEdit(path: string): Promise<void>;
+	};
+	_pendingClientToolCalls: {
+		get(toolCallId: string): DeferredPromise<ToolResultObject> | undefined;
+		set(toolCallId: string, value: DeferredPromise<ToolResultObject>): Map<string, DeferredPromise<ToolResultObject>>;
+		delete(toolCallId: string): boolean;
+	};
+};
+
+async function createAgentSession(disposables: DisposableStore, options?: {
+	clientSnapshot?: IActiveClientSnapshot;
+	environmentServiceRegistration?: 'native' | 'none';
+	logService?: ILogService;
+	captureWrapperCallbacks?: { current?: Parameters<SessionWrapperFactory>[0] };
+}): Promise<{
 	session: CopilotAgentSession;
 	mockSession: MockCopilotSession;
 	progressEvents: IAgentProgressEvent[];
@@ -112,13 +142,25 @@ async function createAgentSession(disposables: DisposableStore, options?: { clie
 	const sessionUri = AgentSession.uri('copilot', 'test-session-1');
 	const mockSession = new MockCopilotSession();
 
-	const factory: SessionWrapperFactory = async () => new CopilotSessionWrapper(mockSession as unknown as CopilotSession);
+	const factory: SessionWrapperFactory = async callbacks => {
+		if (options?.captureWrapperCallbacks) {
+			options.captureWrapperCallbacks.current = callbacks;
+		}
+		return new CopilotSessionWrapper(mockSession as unknown as CopilotSession);
+	};
 
 	const services = new ServiceCollection();
-	services.set(ILogService, new NullLogService());
+	services.set(ILogService, options?.logService ?? new NullLogService());
 	services.set(IFileService, { _serviceBrand: undefined } as IFileService);
 	services.set(ISessionDataService, createSessionDataService());
 	services.set(IDiffComputeService, createZeroDiffComputeService());
+	const environmentService = {
+		_serviceBrand: undefined,
+		userHome: URI.file('/mock-home'),
+	} as INativeEnvironmentService;
+	if (options?.environmentServiceRegistration !== 'none') {
+		services.set(INativeEnvironmentService, environmentService);
+	}
 	const instantiationService = disposables.add(new InstantiationService(services));
 
 	const session = disposables.add(instantiationService.createInstance(
@@ -167,6 +209,81 @@ suite('CopilotAgentSession', () => {
 			assert.strictEqual(result.kind, 'approved');
 		});
 
+		test('auto-approves read permission for session-state plan files', async () => {
+			const previousXdgStateHome = process.env['XDG_STATE_HOME'];
+			process.env['XDG_STATE_HOME'] = '/mock-state-home';
+			try {
+				const { session, progressEvents } = await createAgentSession(disposables);
+				const result = await session.handlePermissionRequest({
+					kind: 'read',
+					path: join('/mock-state-home', '.copilot', 'session-state', 'test-session-1', 'plan.md'),
+					toolCallId: 'tc-read-plan',
+				});
+
+				assert.strictEqual(result.kind, 'approved');
+				assert.strictEqual(progressEvents.length, 0);
+			} finally {
+				if (previousXdgStateHome === undefined) {
+					delete process.env['XDG_STATE_HOME'];
+				} else {
+					process.env['XDG_STATE_HOME'] = previousXdgStateHome;
+				}
+			}
+		});
+
+		test('resolves native environment through INativeEnvironmentService registration', async () => {
+			const previousXdgStateHome = process.env['XDG_STATE_HOME'];
+			delete process.env['XDG_STATE_HOME'];
+			try {
+				const { session, progressEvents } = await createAgentSession(disposables, { environmentServiceRegistration: 'native' });
+				const result = await session.handlePermissionRequest({
+					kind: 'read',
+					path: join('/mock-home', '.copilot', 'session-state', 'test-session-1', 'plan.md'),
+					toolCallId: 'tc-read-plan-native-env',
+				});
+
+				assert.strictEqual(result.kind, 'approved');
+				assert.strictEqual(progressEvents.length, 0);
+			} finally {
+				if (previousXdgStateHome === undefined) {
+					delete process.env['XDG_STATE_HOME'];
+				} else {
+					process.env['XDG_STATE_HOME'] = previousXdgStateHome;
+				}
+			}
+		});
+
+		test('logs and rethrows permission failures', async () => {
+			const previousXdgStateHome = process.env['XDG_STATE_HOME'];
+			delete process.env['XDG_STATE_HOME'];
+			const logService = new CapturingLogService();
+			try {
+				const { session } = await createAgentSession(disposables, {
+					environmentServiceRegistration: 'none',
+					logService,
+				});
+
+				await assert.rejects(
+					session.handlePermissionRequest({
+						kind: 'read',
+						path: join('/mock-home', '.copilot', 'session-state', 'test-session-1', 'plan.md'),
+						toolCallId: 'tc-read-plan-missing-env',
+					}),
+				);
+
+				assert.strictEqual(logService.errors.length, 1);
+				const [entry] = logService.errors;
+				assert.ok(entry.first instanceof TypeError);
+				assert.strictEqual(entry.args[0], '[Copilot:test-session-1] Failed to handle permission request: kind=read, toolCallId=tc-read-plan-missing-env');
+			} finally {
+				if (previousXdgStateHome === undefined) {
+					delete process.env['XDG_STATE_HOME'];
+				} else {
+					process.env['XDG_STATE_HOME'] = previousXdgStateHome;
+				}
+			}
+		});
+
 		test('write permission fires tool_ready (deferred to side effects)', async () => {
 			const { session, progressEvents, waitForProgress } = await createAgentSession(disposables);
 			const resultPromise = session.handlePermissionRequest({
@@ -181,6 +298,81 @@ suite('CopilotAgentSession', () => {
 			assert.ok(session.respondToPermissionRequest('tc-1', true));
 			const result = await resultPromise;
 			assert.strictEqual(result.kind, 'approved');
+		});
+
+		test('auto-approves write permission for session-state plan files', async () => {
+			const previousXdgStateHome = process.env['XDG_STATE_HOME'];
+			process.env['XDG_STATE_HOME'] = '/mock-state-home';
+			try {
+				const { session, progressEvents } = await createAgentSession(disposables);
+				const result = await session.handlePermissionRequest({
+					kind: 'write',
+					fileName: join('/mock-state-home', '.copilot', 'session-state', 'test-session-1', 'plan.md'),
+					toolCallId: 'tc-write-plan',
+				});
+
+				assert.strictEqual(result.kind, 'approved');
+				assert.strictEqual(progressEvents.length, 0);
+			} finally {
+				if (previousXdgStateHome === undefined) {
+					delete process.env['XDG_STATE_HOME'];
+				} else {
+					process.env['XDG_STATE_HOME'] = previousXdgStateHome;
+				}
+			}
+		});
+
+		test('does not auto-approve session-state files from another session', async () => {
+			const previousXdgStateHome = process.env['XDG_STATE_HOME'];
+			process.env['XDG_STATE_HOME'] = '/mock-state-home';
+			try {
+				const { session, progressEvents, waitForProgress } = await createAgentSession(disposables);
+				const resultPromise = session.handlePermissionRequest({
+					kind: 'write',
+					fileName: join('/mock-state-home', '.copilot', 'session-state', 'different-session', 'plan.md'),
+					toolCallId: 'tc-write-other-plan',
+				});
+
+				await waitForProgress(e => e.type === 'tool_ready');
+				assert.strictEqual(progressEvents.length, 1);
+
+				assert.ok(session.respondToPermissionRequest('tc-write-other-plan', true));
+				const result = await resultPromise;
+				assert.strictEqual(result.kind, 'approved');
+			} finally {
+				if (previousXdgStateHome === undefined) {
+					delete process.env['XDG_STATE_HOME'];
+				} else {
+					process.env['XDG_STATE_HOME'] = previousXdgStateHome;
+				}
+			}
+		});
+
+		test('does not auto-approve traversal paths that escape the session-state directory', async () => {
+			const previousXdgStateHome = process.env['XDG_STATE_HOME'];
+			process.env['XDG_STATE_HOME'] = '/mock-state-home';
+			try {
+				const { session, progressEvents, waitForProgress } = await createAgentSession(disposables);
+				const sessionDir = join('/mock-state-home', '.copilot', 'session-state', 'test-session-1');
+				const resultPromise = session.handlePermissionRequest({
+					kind: 'write',
+					fileName: `${sessionDir}${sep}..${sep}outside.md`,
+					toolCallId: 'tc-write-traversal',
+				});
+
+				await waitForProgress(e => e.type === 'tool_ready');
+				assert.strictEqual(progressEvents.length, 1);
+
+				assert.ok(session.respondToPermissionRequest('tc-write-traversal', true));
+				const result = await resultPromise;
+				assert.strictEqual(result.kind, 'approved');
+			} finally {
+				if (previousXdgStateHome === undefined) {
+					delete process.env['XDG_STATE_HOME'];
+				} else {
+					process.env['XDG_STATE_HOME'] = previousXdgStateHome;
+				}
+			}
 		});
 
 		test('write permission outside working directory fires tool_ready', async () => {
@@ -554,6 +746,74 @@ suite('CopilotAgentSession', () => {
 		});
 	});
 
+	suite('SDK callback logging', () => {
+
+		test('logs and rethrows user input callback failures', async () => {
+			const logService = new CapturingLogService();
+			const { session } = await createAgentSession(disposables, { logService });
+			const sessionInternals = session as unknown as ISessionInternalsForTest;
+			sessionInternals._onDidSessionProgress.fire = () => {
+				throw new Error('user input boom');
+			};
+
+			await assert.rejects(
+				session.handleUserInputRequest(
+					{ question: 'Need input' },
+					{ sessionId: 'test-session-1' },
+				),
+				/user input boom/,
+			);
+
+			assert.strictEqual(logService.errors.length, 1);
+			const [entry] = logService.errors;
+			assert.ok(entry.first instanceof Error);
+			assert.strictEqual((entry.first as Error).message, 'user input boom');
+			assert.strictEqual(entry.args[0], '[Copilot:test-session-1] Failed to handle user input request: question="Need input"');
+		});
+
+		test('logs and rethrows onPreToolUse failures', async () => {
+			const logService = new CapturingLogService();
+			const capturedCallbacks: { current?: Parameters<SessionWrapperFactory>[0] } = {};
+			const { session } = await createAgentSession(disposables, { logService, captureWrapperCallbacks: capturedCallbacks });
+			const sessionInternals = session as unknown as ISessionInternalsForTest;
+			sessionInternals._editTracker.trackEditStart = async () => {
+				throw new Error('pre tool boom');
+			};
+
+			await assert.rejects(
+				capturedCallbacks.current!.hooks.onPreToolUse({ toolName: 'edit', toolArgs: { path: '/tmp/file.ts' } }),
+				/pre tool boom/,
+			);
+
+			assert.strictEqual(logService.errors.length, 1);
+			const [entry] = logService.errors;
+			assert.ok(entry.first instanceof Error);
+			assert.strictEqual((entry.first as Error).message, 'pre tool boom');
+			assert.strictEqual(entry.args[0], '[Copilot:test-session-1] Failed in onPreToolUse: tool=edit');
+		});
+
+		test('logs and rethrows onPostToolUse failures', async () => {
+			const logService = new CapturingLogService();
+			const capturedCallbacks: { current?: Parameters<SessionWrapperFactory>[0] } = {};
+			const { session } = await createAgentSession(disposables, { logService, captureWrapperCallbacks: capturedCallbacks });
+			const sessionInternals = session as unknown as ISessionInternalsForTest;
+			sessionInternals._editTracker.completeEdit = async () => {
+				throw new Error('post tool boom');
+			};
+
+			await assert.rejects(
+				capturedCallbacks.current!.hooks.onPostToolUse({ toolName: 'edit', toolArgs: { path: '/tmp/file.ts' } }),
+				/post tool boom/,
+			);
+
+			assert.strictEqual(logService.errors.length, 1);
+			const [entry] = logService.errors;
+			assert.ok(entry.first instanceof Error);
+			assert.strictEqual((entry.first as Error).message, 'post tool boom');
+			assert.strictEqual(entry.args[0], '[Copilot:test-session-1] Failed in onPostToolUse: tool=edit');
+		});
+	});
+
 	// ---- client tool calls ----
 
 	suite('client tool calls', () => {
@@ -725,6 +985,27 @@ suite('CopilotAgentSession', () => {
 				success: true,
 				pastTenseMessage: 'done again',
 			});
+		});
+
+		test('client tool handler logs and rethrows failures', async () => {
+			const logService = new CapturingLogService();
+			const { session } = await createAgentSession(disposables, { clientSnapshot: snapshot, logService });
+			const tools = session.createClientSdkTools();
+			const sessionInternals = session as unknown as ISessionInternalsForTest;
+			sessionInternals._pendingClientToolCalls.get = () => {
+				throw new Error('client tool boom');
+			};
+
+			await assert.rejects(
+				invokeClientToolHandler(tools[0], 'tc-client-error'),
+				/client tool boom/,
+			);
+
+			assert.strictEqual(logService.errors.length, 1);
+			const [entry] = logService.errors;
+			assert.ok(entry.first instanceof Error);
+			assert.strictEqual((entry.first as Error).message, 'client tool boom');
+			assert.strictEqual(entry.args[0], '[Copilot:test-session-1] Failed in client tool handler: tool=my_tool, toolCallId=tc-client-error');
 		});
 
 		test('tool_start stores pending auto-ready data for client tools', async () => {

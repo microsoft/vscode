@@ -400,7 +400,10 @@ suite('AgentEventMapper', () => {
 		assert.strictEqual(readyAction.confirmed, undefined);
 	});
 
-	test('tool_start with subagent toolKind extracts agent metadata from toolArguments', () => {
+	test('tool_start with subagent metadata forwards it as `_meta`', () => {
+		// Per-SDK adapters (e.g. the Copilot adapter) extract subagent
+		// metadata from their tool argument shape and set it on the event.
+		// The generic mapper just forwards the fields into `_meta`.
 		const event: IAgentToolStartEvent = {
 			session,
 			type: 'tool_start',
@@ -409,7 +412,8 @@ suite('AgentEventMapper', () => {
 			displayName: 'Task',
 			invocationMessage: 'Delegating...',
 			toolKind: 'subagent',
-			toolArguments: JSON.stringify({ description: 'Review the code', agentName: 'code-reviewer' }),
+			subagentDescription: 'Review the code',
+			subagentAgentName: 'code-reviewer',
 		};
 
 		const actions = mapToArray(mapper.mapProgressEventToActions(event, session.toString(), turnId));

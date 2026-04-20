@@ -8,6 +8,7 @@ import { rgPath } from '@vscode/ripgrep';
 import * as fs from 'fs/promises';
 import { Limiter, SequencerByKey } from '../../../../base/common/async.js';
 import { Emitter } from '../../../../base/common/event.js';
+import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableMap } from '../../../../base/common/lifecycle.js';
 import { ResourceMap } from '../../../../base/common/map.js';
 import { FileAccess } from '../../../../base/common/network.js';
@@ -22,7 +23,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IAgentPluginManager, ISyncedCustomization } from '../../common/agentPluginManager.js';
-import { AgentHostSessionConfigBranchNameHintKey, AgentSession, IAgent, IAgentAttachment, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentMessageEvent, IAgentModelInfo, IAgentProgressEvent, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IAgentSubagentStartedEvent, IAgentToolCompleteEvent, IAgentToolStartEvent } from '../../common/agentService.js';
+import { AgentHostSessionConfigBranchNameHintKey, AgentSession, IAgent, IAgentAttachment, IAgentCreateSessionConfig, IAgentCreateSessionResult, IAgentDescriptor, IAgentDeltaEvent, IAgentMessageEvent, IAgentModelInfo, IAgentProgressEvent, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAgentSessionProjectInfo, IAgentSubagentStartedEvent, IAgentToolCompleteEvent, IAgentToolStartEvent } from '../../common/agentService.js';
 import { ISessionDataService, SESSION_DB_FILENAME } from '../../common/sessionDataService.js';
 import type { IResolveSessionConfigResult, ISessionConfigCompletionsResult } from '../../common/state/protocol/commands.js';
 import { IProtectedResourceMetadata, type IConfigSchema, type IModelSelection, type IToolDefinition } from '../../common/state/protocol/state.js';
@@ -82,6 +83,49 @@ export function getCopilotWorktreeBranchName(sessionId: string, branchNameHint: 
 }
 
 /**
+ * Builds the localized "Created isolated worktree for branch X" markdown
+ * shown at the top of the first response in worktree-isolated sessions.
+ * The branch name is wrapped as inline code so the localized template
+ * doesn't have to embed markdown punctuation. The trailing blank line
+ * keeps the announcement visually separated when it gets merged into the
+ * same markdown part as the model's reply.
+ */
+function buildWorktreeAnnouncementText(branchName: string): string {
+	return localize(
+		'copilotAgent.worktreeCreated',
+		"Created isolated worktree for branch {0}",
+		appendEscapedMarkdownInlineCode(branchName)
+	) + '\n\n';
+}
+
+type AgentMessageOrEvent = IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent | IAgentSubagentStartedEvent;
+
+/**
+ * Returns a copy of `messages` where `announcement` has been prepended to
+ * the first top-level assistant message's content. Subagent inner messages
+ * (those with a `parentToolCallId`) are skipped so the announcement lands
+ * on the parent turn. If no assistant message exists yet, returns the
+ * messages unchanged — the live announcement path is responsible for the
+ * very first turn before any reply has been recorded.
+ */
+function prependAnnouncementToFirstAssistantMessage(
+	messages: readonly AgentMessageOrEvent[],
+	announcement: string,
+): readonly AgentMessageOrEvent[] {
+	const firstAssistantIdx = messages.findIndex(m => m.type === 'message' && m.role === 'assistant' && !m.parentToolCallId);
+	if (firstAssistantIdx === -1) {
+		return messages;
+	}
+	const target = messages[firstAssistantIdx] as IAgentMessageEvent;
+	const updated: IAgentMessageEvent = { ...target, content: announcement + target.content };
+	return [
+		...messages.slice(0, firstAssistantIdx),
+		updated,
+		...messages.slice(firstAssistantIdx + 1),
+	];
+}
+
+/**
  * Agent provider backed by the Copilot SDK {@link CopilotClient}.
  */
 export class CopilotAgent extends Disposable implements IAgent {
@@ -98,6 +142,16 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private _githubToken: string | undefined;
 	private readonly _sessions = this._register(new DisposableMap<string, CopilotAgentSession>());
 	private readonly _createdWorktrees = new Map<string, ICreatedWorktree>();
+	/**
+	 * Per-session announcement (markdown string) that should be emitted as
+	 * a synthetic streaming `delta` event the first time {@link sendMessage}
+	 * is called for the session. Currently used to surface the "Created
+	 * isolated worktree for branch X" message live during the first turn.
+	 * The same announcement is also injected on restore via
+	 * {@link getSessionMessages} by prepending to the first assistant
+	 * message's content so it stays visible after the session is reopened.
+	 */
+	private readonly _pendingFirstTurnAnnouncements = new Map<string, string>();
 	private readonly _sessionSequencer = new SequencerByKey<string>();
 	private _shutdownPromise: Promise<void> | undefined;
 	private readonly _plugins: PluginController;
@@ -597,6 +651,21 @@ export class CopilotAgent extends Disposable implements IAgent {
 			}
 
 			entry ??= await this._resumeSession(sessionId);
+
+			// Emit any pending first-turn announcements (e.g. worktree
+			// created) as a synthetic streaming delta before delegating to
+			// the SDK. The mapper treats it like any other assistant text —
+			// the SDK's subsequent deltas append to the same markdown part.
+			// The active turn has already been started by the state manager
+			// at this point, so the event mapper can attach the delta to it.
+			const pending = this._pendingFirstTurnAnnouncements.get(sessionId);
+			if (pending) {
+				this._pendingFirstTurnAnnouncements.delete(sessionId);
+				const messageId = `copilot-announcement-${generateUuid()}`;
+				const event: IAgentDeltaEvent = { type: 'delta', session, messageId, content: pending };
+				this._onDidSessionProgress.fire(event);
+			}
+
 			await entry.send(prompt, attachments, turnId);
 		});
 	}
@@ -628,7 +697,22 @@ export class CopilotAgent extends Disposable implements IAgent {
 		if (!entry) {
 			return [];
 		}
-		return entry.getMessages();
+		const rawMessages = await entry.getMessages();
+
+		// If a worktree was created for this session at create-time, prepend
+		// the announcement to the first assistant message's content so it
+		// appears at the top of the first response when the session is
+		// reopened. The live path (sendMessage) handles the very first turn
+		// when the session is fresh; this path takes over on subsequent
+		// loads, where _pendingFirstTurnAnnouncements is empty.
+		const branchName = await this._readWorktreeBranchMetadata(session).catch(err => {
+			this._logService.warn(`[Copilot:${sessionId}] Failed to read worktree branch metadata`, err);
+			return undefined;
+		});
+		if (!branchName) {
+			return rawMessages;
+		}
+		return [...prependAnnouncementToFirstAssistantMessage(rawMessages, buildWorktreeAnnouncementText(branchName))];
 	}
 
 	async disposeSession(session: URI): Promise<void> {
@@ -797,7 +881,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		};
 	}
 
-	private async _resumeSession(sessionId: string): Promise<CopilotAgentSession> {
+	protected async _resumeSession(sessionId: string): Promise<CopilotAgentSession> {
 		this._logService.info(`[Copilot:${sessionId}] Session not in memory, resuming...`);
 		const client = await this._ensureClient();
 
@@ -867,7 +951,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 		return this._gitService.getBranches(workingDirectory, { query, limit: CopilotAgent._BRANCH_COMPLETION_LIMIT });
 	}
 
-	private async _resolveSessionWorkingDirectory(config: IAgentCreateSessionConfig | undefined, sessionId: string): Promise<URI | undefined> {
+	protected async _resolveSessionWorkingDirectory(config: IAgentCreateSessionConfig | undefined, sessionId: string): Promise<URI | undefined> {
 		if (config?.config?.isolation !== 'worktree' || !config.workingDirectory || typeof config.config.branch !== 'string') {
 			return config?.workingDirectory;
 		}
@@ -884,6 +968,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 		await fs.mkdir(worktreesRoot.fsPath, { recursive: true });
 		await this._gitService.addWorktree(repositoryRoot, worktree, branchName, config.config.branch);
 		this._createdWorktrees.set(sessionId, { repositoryRoot, worktree });
+		// Queue the worktree announcement so the first turn (live) and any
+		// subsequent restore (history) both surface the message in the chat.
+		this._pendingFirstTurnAnnouncements.set(sessionId, buildWorktreeAnnouncementText(branchName));
+		const sessionUri = AgentSession.uri(this.id, sessionId);
+		try {
+			await this._writeWorktreeBranchMetadata(sessionUri, branchName);
+		} catch (error) {
+			this._logService.warn(`[Copilot:${sessionId}] Failed to persist worktree branch metadata: ${error instanceof Error ? error.message : String(error)}`);
+		}
 		return worktree;
 	}
 
@@ -908,6 +1001,29 @@ export class CopilotAgent extends Disposable implements IAgent {
 	private static readonly _META_PROJECT_RESOLVED = 'copilot.project.resolved';
 	private static readonly _META_PROJECT_URI = 'copilot.project.uri';
 	private static readonly _META_PROJECT_DISPLAY_NAME = 'copilot.project.displayName';
+	private static readonly _META_WORKTREE_BRANCH = 'copilot.worktree.branchName';
+
+	private async _writeWorktreeBranchMetadata(session: URI, branchName: string): Promise<void> {
+		const dbRef = this._sessionDataService.openDatabase(session);
+		try {
+			await dbRef.object.setMetadata(CopilotAgent._META_WORKTREE_BRANCH, branchName);
+		} finally {
+			dbRef.dispose();
+		}
+	}
+
+	private async _readWorktreeBranchMetadata(session: URI): Promise<string | undefined> {
+		const ref = await this._sessionDataService.tryOpenDatabase(session);
+		if (!ref) {
+			return undefined;
+		}
+		try {
+			const value = await ref.object.getMetadata(CopilotAgent._META_WORKTREE_BRANCH);
+			return value ?? undefined;
+		} finally {
+			ref.dispose();
+		}
+	}
 
 	private async _storeSessionMetadata(session: URI, model: IModelSelection | undefined, workingDirectory: URI | undefined, project: IAgentSessionProjectInfo | undefined, projectResolved = project !== undefined): Promise<void> {
 		const dbRef = this._sessionDataService.openDatabase(session);

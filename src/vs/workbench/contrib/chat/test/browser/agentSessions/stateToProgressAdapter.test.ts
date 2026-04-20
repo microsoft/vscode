@@ -397,6 +397,27 @@ suite('stateToProgressAdapter', () => {
 
 	suite('finalizeToolInvocation', () => {
 
+		test('rewrites markdown links in pastTenseMessage through the agent host scheme', () => {
+			const tc = createToolCallState({ status: ToolCallStatus.Running });
+			const invocation = toolCallStateToInvocation(tc);
+
+			rawFinalizeToolInvocation(invocation, {
+				status: ToolCallStatus.Completed,
+				toolCallId: 'tc-1',
+				toolName: 'view_file',
+				displayName: 'View File',
+				invocationMessage: 'Reading file...',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+				success: true,
+				pastTenseMessage: { markdown: 'Read [foo.ts](file:///path/to/foo.ts)' },
+			} as ICompletedToolCall, URI.file('/'), 'ssh__macbook-air');
+
+			assert.ok(invocation.pastTenseMessage);
+			assert.strictEqual(typeof invocation.pastTenseMessage, 'object');
+			const value = (invocation.pastTenseMessage as { value: string }).value;
+			assert.strictEqual(value, 'Read [](vscode-agent-host://ssh__macbook-air/file/-/path/to/foo.ts)');
+		});
+
 		test('finalizes terminal tool with output and exit code', () => {
 			const tc = createToolCallState({
 				toolInput: 'echo hi',

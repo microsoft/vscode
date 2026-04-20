@@ -6256,10 +6256,6 @@
 	},
 	"scripts": {
 		"postinstall": "tsx ./script/postinstall.ts",
-		"vscode-dts:update": "node script/build/vscodeDtsUpdate.js",
-		"vscode-dts:check": "node script/build/vscodeDtsCheck.js",
-		"vscode-dts:dev": "node node_modules/@vscode/dts/index.js dev && node script/build/moveProposedDts.js",
-		"vscode-dts:main": "node node_modules/@vscode/dts/index.js main && node script/build/moveProposedDts.js",
 		"build": "node .esbuild.ts --sourcemaps",
 		"compile": "node .esbuild.ts --dev",
 		"watch": "npm-run-all -lp watch:esbuild watch:tsc",

@@ -170,7 +170,6 @@ class OpenPullRequestAction extends Action2 {
 			title: localize2('openPullRequest', "Open Pull Request"),
 			icon: Codicon.gitPullRequest,
 			f1: false,
-			precondition: ChatContextKeys.requestInProgress.negate(),
 			menu: {
 				id: MenuId.ChatEditingSessionChangesToolbar,
 				group: 'navigation',

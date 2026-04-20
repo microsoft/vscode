@@ -89,7 +89,8 @@ export function sdkSessionInfoToSessionInfo(
 		created: info.createdAt ?? info.lastModified,
 		lastRequestEnded: info.lastModified,
 		folderName,
-		cwd: info.cwd
+		cwd: info.cwd,
+		gitBranch: info.gitBranch,
 	};
 }
 

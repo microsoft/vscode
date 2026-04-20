@@ -38,7 +38,7 @@ export interface ICommandFinishedEvent {
  */
 export interface IAgentHostTerminalManager {
 	readonly _serviceBrand: undefined;
-	createTerminal(params: ICreateTerminalParams, options?: { shell?: string }): Promise<void>;
+	createTerminal(params: ICreateTerminalParams, options?: { shell?: string; preventShellHistory?: boolean }): Promise<void>;
 	writeInput(uri: string, data: string): void;
 	onData(uri: string, cb: (data: string) => void): IDisposable;
 	onExit(uri: string, cb: (exitCode: number) => void): IDisposable;
@@ -172,7 +172,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 	 * Create a new terminal backed by node-pty.
 	 * Spawns the user's default shell.
 	 */
-	async createTerminal(params: ICreateTerminalParams, options?: { shell?: string }): Promise<void> {
+	async createTerminal(params: ICreateTerminalParams, options?: { shell?: string; preventShellHistory?: boolean }): Promise<void> {
 		const uri = params.terminal;
 		if (this._terminals.has(uri)) {
 			throw new Error(`Terminal already exists: ${uri}`);
@@ -192,6 +192,13 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		// Shell integration — inject scripts so the shell emits OSC 633 sequences
 		const nonce = generateUuid();
 		const env: Record<string, string> = { ...process.env as Record<string, string> };
+		if (options?.preventShellHistory) {
+			// Picked up by the shell integration scripts to set HISTCONTROL=ignorespace
+			// (bash) / HIST_IGNORE_SPACE (zsh), or suppress PSReadLine history (pwsh).
+			// Combined with the leading-space prefix applied at command-write time, this
+			// prevents agent-executed commands from polluting the user's shell history.
+			env['VSCODE_PREVENT_SHELL_HISTORY'] = '1';
+		}
 		let shellArgs: string[] = [];
 
 		const injection = await getShellIntegrationInjection(

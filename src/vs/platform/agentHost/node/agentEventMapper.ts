@@ -96,18 +96,14 @@ export class AgentEventMapper {
 				const e = event as IAgentToolStartEvent;
 				const meta: Record<string, unknown> = { toolKind: e.toolKind, language: e.language };
 
-				// For subagent tools, extract agent metadata from tool arguments
-				// so the renderer can display the name/description immediately.
-				if (e.toolKind === 'subagent' && e.toolArguments) {
-					try {
-						const args = JSON.parse(e.toolArguments) as Record<string, unknown>;
-						if (typeof args.description === 'string') {
-							meta.subagentDescription = args.description;
-						}
-						if (typeof args.agentName === 'string') {
-							meta.subagentAgentName = args.agentName;
-						}
-					} catch { /* ignore parse errors */ }
+				// Subagent metadata is normalized by the per-SDK adapter (e.g.
+				// the Copilot adapter maps `agent_type` → `subagentAgentName`),
+				// so the generic mapper just forwards it as-is.
+				if (e.subagentDescription) {
+					meta.subagentDescription = e.subagentDescription;
+				}
+				if (e.subagentAgentName) {
+					meta.subagentAgentName = e.subagentAgentName;
 				}
 
 				const startAction: IToolCallStartAction = {
