@@ -27,7 +27,7 @@ import { DisposableStore, IDisposable, toDisposable } from '../../../../util/vs/
 import { truncate } from '../../../../util/vs/base/common/strings';
 import { ThemeIcon } from '../../../../util/vs/base/common/themables';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
-import { ChatResponseMarkdownPart, ChatResponseThinkingProgressPart, ChatSessionStatus, ChatToolInvocationPart, EventEmitter, Uri } from '../../../../vscodeTypes';
+import { ChatResponseMarkdownPart, ChatResponseThinkingProgressPart, ChatSessionStatus, ChatToolInvocationPart, EventEmitter, MarkdownString, Uri } from '../../../../vscodeTypes';
 import { IToolsService } from '../../../tools/common/toolsService';
 import { IChatSessionMetadataStore } from '../../common/chatSessionMetadataStore';
 import { ExternalEditTracker } from '../../common/externalEditTracker';
@@ -1191,23 +1191,21 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			const frontendUrl = `https://github.com/${nwo.owner}/${nwo.repo}/tasks/${taskId}`;
 			this.logService.info(`[CopilotCLISession] MC session created, URL: ${frontendUrl}`);
 
-			// Show a notification popup with an "Open" button
-			const vsCodeApi = require('vscode') as typeof vscode;
-			const openAction = l10n.t('Open in Browser');
-			vsCodeApi.window.showInformationMessage(
-				l10n.t('Remote control enabled. View this session on GitHub.'),
-				openAction
-			).then(selection => {
-				if (selection === openAction) {
-					vsCodeApi.env.openExternal(vsCodeApi.Uri.parse(frontendUrl));
-				}
+			// Render a persistent inline info banner using the proposed
+			// `stream.info()` API (blue background + blue info icon, matches
+			// the native chat info notification style). The button uses
+			// `vscode.open` so it opens the URL externally without invoking
+			// the model, and the banner stays visible after click.
+			const banner = new MarkdownString(
+				`**${l10n.t('Remote control is enabled.')}** ` +
+				l10n.t('You can open this session from any device.')
+			);
+			this._stream?.info(banner);
+			this._stream?.button({
+				command: 'vscode.open',
+				arguments: [Uri.parse(frontendUrl)],
+				title: l10n.t('Open on GitHub'),
 			});
-
-			// Also show the link inline in the chat stream
-			this._stream?.markdown(l10n.t(
-				'Remote control enabled. Open this session from any device:\n\n[{0}]({1})',
-				frontendUrl, frontendUrl
-			));
 
 			// Step 9: Start continuous event exporter and command poller
 			this._startMcEventExporter();
