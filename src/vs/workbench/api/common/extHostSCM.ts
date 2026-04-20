@@ -1027,6 +1027,8 @@ export class ExtHostSCM implements ExtHostSCMShape {
 		this._sourceControlsByExtension.set(extension.identifier, sourceControls);
 
 		Event.once(sourceControl.onDidDispose)(() => {
+			this.logService.trace('ExtHostSCM#disposeSourceControl', extension.identifier.value, id, label, rootUri);
+
 			this._sourceControls.delete(sourceControl.handle);
 
 			const sourceControls = this._sourceControlsByExtension.get(extension.identifier);
