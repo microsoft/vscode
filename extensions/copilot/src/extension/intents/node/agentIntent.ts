@@ -9,6 +9,7 @@ import { BudgetExceededError } from '@vscode/prompt-tsx/dist/base/materialized';
 import type * as vscode from 'vscode';
 import { IChatSessionService } from '../../../platform/chat/common/chatSessionService';
 import { ChatFetchResponseType, ChatLocation, ChatResponse } from '../../../platform/chat/common/commonTypes';
+import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { isAnthropicFamily, isGptFamily, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelSupportsApplyPatch, modelSupportsMultiReplaceString, modelSupportsReplaceString, modelSupportsSimplifiedApplyPatchInstructions } from '../../../platform/endpoint/common/chatModelCapabilities';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
@@ -47,7 +48,7 @@ import { IBuildPromptResult, IIntent, IIntentInvocation } from '../../prompt/nod
 import { AgentPrompt, AgentPromptProps } from '../../prompts/node/agent/agentPrompt';
 import { BackgroundSummarizationState, BackgroundSummarizer, IBackgroundSummarizationResult, shouldKickOffBackgroundSummarization } from '../../prompts/node/agent/backgroundSummarizer';
 import { AgentPromptCustomizations, PromptRegistry } from '../../prompts/node/agent/promptRegistry';
-import { extractInlineSummary, InlineSummarizationUserMessage, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder } from '../../prompts/node/agent/summarizedConversationHistory';
+import { extractInlineSummary, InlineSummarizationUserMessage, SummarizedConversationHistory, SummarizedConversationHistoryMetadata, SummarizedConversationHistoryPropsBuilder, appendTranscriptHintToSummary, computeSummarizationRoundCounts } from '../../prompts/node/agent/summarizedConversationHistory';
 import { PromptRenderer, renderPromptElement } from '../../prompts/node/base/promptRenderer';
 import { ICodeMapperService } from '../../prompts/node/codeMapper/codeMapperService';
 import { EditCodePrompt2 } from '../../prompts/node/panel/editCodePrompt2';
@@ -388,6 +389,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		@IExperimentationService private readonly expService: IExperimentationService,
 		@IAutomodeService private readonly automodeService: IAutomodeService,
 		@IOTelService override readonly otelService: IOTelService,
+		@ISessionTranscriptService private readonly sessionTranscriptService: ISessionTranscriptService,
 	) {
 		super(intent, location, endpoint, request, intentOptions, instantiationService, codeMapperService, envService, promptPathRepresentationService, endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, otelService);
 	}
@@ -860,18 +862,27 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 					if (response.type !== ChatFetchResponseType.Success) {
 						throw new Error(`Background inline summarization request failed: ${response.type}`);
 					}
-					const summaryText = extractInlineSummary(response.value);
-					if (!summaryText) {
+					const rawSummaryText = extractInlineSummary(response.value);
+					if (!rawSummaryText) {
 						throw new Error('Background inline summarization: no <summary> tags found in response');
 					}
 					if (!toolCallRoundId) {
 						throw new Error('Background inline summarization: no round ID to apply summary to');
 					}
+					// Flush the transcript before snapshotting the line count so
+					// the baked "N lines" hint matches the on-disk file at this
+					// moment (mirrors the full/simple path in SummarizedConversationHistory.render).
+					if (conversationId && this.sessionTranscriptService.getTranscriptPath(conversationId)) {
+						await this.sessionTranscriptService.flush(conversationId);
+					}
+					const summaryText = conversationId
+						? appendTranscriptHintToSummary(rawSummaryText, conversationId, this.sessionTranscriptService)
+						: rawSummaryText;
 					this.logService.debug(`[ConversationHistorySummarizer] background inline compaction completed (${summaryText.length} chars, roundId=${toolCallRoundId})`);
 
 					// Send summarizedConversationHistory telemetry for parity
 					// with the standard ConversationHistorySummarizer path.
-					const numRoundsInHistory = history.reduce((sum, t) => sum + t.rounds.length, 0);
+					const { numRounds, numRoundsSinceLastSummarization } = computeSummarizationRoundCounts(history, rounds);
 					const numRoundsInCurrentTurn = rounds.length;
 					const lastUsedTool = rounds.at(-1)?.toolCalls?.at(-1)?.name
 						?? history.at(-1)?.rounds.at(-1)?.toolCalls?.at(-1)?.name ?? 'none';
@@ -905,7 +916,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 						lastUsedTool,
 						requestId: response.requestId,
 					}, {
-						numRounds: numRoundsInHistory + numRoundsInCurrentTurn,
+						numRounds,
 						turnIndex: history.length,
 						curTurnRoundIndex: numRoundsInCurrentTurn,
 						isDuringToolCalling: numRoundsInCurrentTurn > 0 ? 1 : 0,
@@ -924,8 +935,8 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 						durationMs: Date.now() - bgStartTime,
 						model: this.endpoint.model,
 						summarizationMode: 'inline',
-						numRounds: undefined,
-						numRoundsSinceLastSummarization: undefined,
+						numRounds,
+						numRoundsSinceLastSummarization,
 					};
 				} else {
 					// Standard mode: use triggerSummarize which makes a separate

@@ -30,22 +30,19 @@ import { AgentHostStateManager } from './agentHostStateManager.js';
  * on the provider identifier in the session configuration.
  */
 /**
- * Extracts subagent metadata from a tool start event's arguments,
- * matching the event mapper's extraction for the eager toolKind path.
+ * Extracts subagent metadata from a tool start event. Adapters are
+ * responsible for normalizing their SDK-specific argument shape into the
+ * generic `subagentAgentName` / `subagentDescription` fields on the event
+ * itself, so this just forwards them.
  */
 function extractSubagentMeta(start: IAgentToolStartEvent | undefined): { subagentDescription?: string; subagentAgentName?: string } {
-	if (!start?.toolKind || start.toolKind !== 'subagent' || !start.toolArguments) {
+	if (!start) {
 		return {};
 	}
-	try {
-		const args = JSON.parse(start.toolArguments) as Record<string, unknown>;
-		return {
-			subagentDescription: typeof args.description === 'string' && args.description.length > 0 ? args.description : undefined,
-			subagentAgentName: typeof args.agentName === 'string' && args.agentName.length > 0 ? args.agentName : undefined,
-		};
-	} catch {
-		return {};
-	}
+	return {
+		subagentDescription: start.subagentDescription,
+		subagentAgentName: start.subagentAgentName,
+	};
 }
 
 export class AgentService extends Disposable implements IAgentService {

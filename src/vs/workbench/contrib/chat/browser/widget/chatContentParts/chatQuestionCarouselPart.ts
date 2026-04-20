@@ -724,6 +724,18 @@ export class ChatQuestionCarouselPart extends Disposable implements IChatContent
 
 		// Render input based on question type
 		const inputContainer = dom.$('.chat-question-input-container');
+
+		// Render detailed markdown message inside the scrollable input area
+		if (question.detailedMessage) {
+			const detailedMd = isMarkdownString(question.detailedMessage)
+				? MarkdownString.lift(question.detailedMessage)
+				: new MarkdownString(question.detailedMessage);
+			const detailedMessageEl = dom.$('.chat-question-detailed-message');
+			const renderedDetailedMessage = questionRenderStore.add(this._markdownRendererService.render(detailedMd));
+			detailedMessageEl.appendChild(renderedDetailedMessage.element);
+			inputContainer.appendChild(detailedMessageEl);
+		}
+
 		this.renderInput(inputContainer, question);
 
 		const inputScrollable = questionRenderStore.add(new DomScrollableElement(inputContainer, {

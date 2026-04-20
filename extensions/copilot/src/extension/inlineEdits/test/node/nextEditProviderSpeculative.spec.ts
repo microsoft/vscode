@@ -18,8 +18,8 @@ import { EditStreamingWithTelemetry, IStatelessNextEditProvider, NoNextEditReaso
 import { NesHistoryContextProvider } from '../../../../platform/inlineEdits/common/workspaceEditTracker/nesHistoryContextProvider';
 import { NesXtabHistoryTracker } from '../../../../platform/inlineEdits/common/workspaceEditTracker/nesXtabHistoryTracker';
 import { ILogger, ILogService, LogServiceImpl } from '../../../../platform/log/common/logService';
-import { NullRequestLogger } from '../../../../platform/requestLogger/node/nullRequestLogger';
 import { IRequestLogger } from '../../../../platform/requestLogger/common/requestLogger';
+import { NullRequestLogger } from '../../../../platform/requestLogger/node/nullRequestLogger';
 import { ISnippyService, NullSnippyService } from '../../../../platform/snippy/common/snippyService';
 import { IExperimentationService, NullExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
 import { mockNotebookService } from '../../../../platform/test/common/testNotebookService';
@@ -1131,10 +1131,6 @@ describe('NextEditProvider speculative requests', () => {
 	});
 
 	describe('edit window cursor check for request reuse', () => {
-		beforeEach(async () => {
-			await configService.setConfig(ConfigKey.TeamInternal.InlineEditsCheckEditWindowOnReuse, true);
-		});
-
 		it('does not reuse in-flight request when cursor moves outside edit window', async () => {
 			const statelessProvider = new TestStatelessNextEditProvider();
 			// Edit window covers offsets 0–20 of the document

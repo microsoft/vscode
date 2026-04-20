@@ -27,6 +27,7 @@ import {
 	ToolResultContentType,
 	buildSubagentSessionUri,
 	getToolFileEdits,
+	parseSubagentSessionUri,
 	type ISessionCustomization,
 	type ISessionState,
 	type IToolResultContent,
@@ -48,6 +49,13 @@ export interface IAgentSideEffectsOptions {
 	readonly agents: IObservable<readonly IAgent[]>;
 	/** Session data service for cleaning up per-session data on disposal. */
 	readonly sessionDataService: ISessionDataService;
+}
+
+/** A progress event that was deferred because its subagent session does not exist yet. */
+interface IPendingSubagentEvent {
+	readonly event: IAgentProgressEvent;
+	readonly agent: IAgent;
+	readonly agentMapper: AgentEventMapper;
 }
 
 /**
@@ -82,6 +90,19 @@ export class AgentSideEffects extends Disposable {
 	 * Used to route events with `parentToolCallId` to the correct subagent.
 	 */
 	private readonly _subagentSessions = new Map<string, ProtocolURI>();
+
+	/**
+	 * Buffers progress events whose `parentToolCallId` references a subagent
+	 * whose `subagent_started` event has not yet been processed. The SDK is
+	 * not strict about ordering: an inner `tool_start` can arrive before the
+	 * `subagent_started` that creates the child session. Without buffering,
+	 * those events would be dispatched against the parent session and the
+	 * UI would render the inner tool calls flat at the top level rather than
+	 * grouping them under the subagent. Drained by `_handleSubagentStarted`.
+	 *
+	 * Key: `${parentSession}:${parentToolCallId}`.
+	 */
+	private readonly _pendingSubagentEvents = new Map<string, IPendingSubagentEvent[]>();
 
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
@@ -176,10 +197,19 @@ export class AgentSideEffects extends Disposable {
 		sessionKey: ProtocolURI,
 		agent: IAgent,
 	): boolean {
+		// Subagent sessions don't carry their own config or workingDirectory —
+		// inherit from the parent session so auto-approval rules apply
+		// uniformly to tool calls inside subagents.
+		const sessionState = this._stateManager.getSessionState(sessionKey);
+		const parentInfo = parseSubagentSessionUri(sessionKey);
+		const parentState = parentInfo ? this._stateManager.getSessionState(parentInfo.parentSession) : undefined;
+		const autoApproveLevel = sessionState?.config?.values?.autoApprove
+			?? parentState?.config?.values?.autoApprove;
+		const workDir = sessionState?.summary.workingDirectory
+			?? parentState?.summary.workingDirectory;
+
 		// Session-level auto-approve: when the user has set "Bypass Approvals"
 		// or "Autopilot", auto-approve all tool calls unconditionally.
-		const sessionState = this._stateManager.getSessionState(sessionKey);
-		const autoApproveLevel = sessionState?.config?.values?.autoApprove;
 		if (autoApproveLevel === 'autoApprove' || autoApproveLevel === 'autopilot') {
 			this._logService.trace(`[AgentSideEffects] Auto-approving tool call (session autoApprove=${autoApproveLevel})`);
 			this._toolCallAgents.delete(`${sessionKey}:${e.toolCallId}`);
@@ -189,7 +219,6 @@ export class AgentSideEffects extends Disposable {
 
 		// Read auto-approval: approve reads inside the session's working directory.
 		if (e.permissionKind === 'read' && e.permissionPath) {
-			const workDir = sessionState?.summary.workingDirectory;
 			const workingDirectory = workDir ? URI.parse(workDir) : undefined;
 			if (workingDirectory && extUriBiasedIgnorePathCase.isEqualOrParent(normalizePath(URI.file(e.permissionPath)), workingDirectory)) {
 				this._logService.trace(`[AgentSideEffects] Auto-approving read of ${e.permissionPath}`);
@@ -203,7 +232,6 @@ export class AgentSideEffects extends Disposable {
 		// Write auto-approval: only within the session's working directory,
 		// then apply the default glob patterns for protected files.
 		if (e.permissionKind === 'write' && e.permissionPath) {
-			const workDir = sessionState?.summary.workingDirectory;
 			const workingDirectory = workDir ? URI.parse(workDir) : undefined;
 			if (workingDirectory && extUriBiasedIgnorePathCase.isEqualOrParent(normalizePath(URI.file(e.permissionPath)), workingDirectory)) {
 				if (this._shouldAutoApproveEdit(e.permissionPath)) {
@@ -252,118 +280,169 @@ export class AgentSideEffects extends Disposable {
 		}
 		const agentMapper = mapper;
 		disposables.add(agent.onDidSessionProgress(e => {
-			// Track tool calls so handleAction can route confirmations
-			if (e.type === 'tool_start') {
-				this._toolCallAgents.set(`${e.session.toString()}:${e.toolCallId}`, agent.id);
-			}
+			this._handleAgentProgress(agent, agentMapper, e);
+		}));
+		return disposables;
+	}
 
-			const sessionKey = e.session.toString();
+	/**
+	 * Routes a single progress event from `agent` to the correct session.
+	 *
+	 * Events with a `parentToolCallId` are routed to the matching subagent
+	 * session. If the subagent session does not exist yet (the SDK can emit
+	 * an inner `tool_start` before its `subagent_started`), the event is
+	 * buffered in `_pendingSubagentEvents` and replayed once the
+	 * `subagent_started` arrives.
+	 */
+	private _handleAgentProgress(agent: IAgent, agentMapper: AgentEventMapper, e: IAgentProgressEvent): void {
+		const sessionKey = e.session.toString();
 
-			// Handle subagent_started: create the subagent session
-			if (e.type === 'subagent_started') {
-				this._handleSubagentStarted(sessionKey, e.toolCallId, e.agentName, e.agentDisplayName, e.agentDescription);
-				return;
-			}
+		// Track tool calls so handleAction can route confirmations. Defer
+		// registration for inner subagent tool calls (those carrying a
+		// `parentToolCallId`) until we know which subagent session they
+		// belong to — otherwise we'd register them under the parent
+		// session key and a later `tool_ready` (which lacks
+		// `parentToolCallId`) could be routed against the wrong session.
+		if (e.type === 'tool_start' && !this._getParentToolCallId(e)) {
+			this._toolCallAgents.set(`${sessionKey}:${e.toolCallId}`, agent.id);
+		}
 
-			// Route events with parentToolCallId to the subagent session
-			const parentToolCallId = this._getParentToolCallId(e);
-			if (parentToolCallId) {
-				const subagentKey = `${sessionKey}:${parentToolCallId}`;
-				const subagentSession = this._subagentSessions.get(subagentKey);
-				if (subagentSession) {
-					// Track tool calls in subagent context for confirmation routing
-					if (e.type === 'tool_start') {
-						this._toolCallAgents.set(`${subagentSession}:${e.toolCallId}`, agent.id);
-					}
-					const subTurnId = this._stateManager.getActiveTurnId(subagentSession);
-					if (subTurnId) {
-						if (e.type === 'tool_ready') {
-							if (this._tryAutoApproveToolReady(e, subagentSession, agent)) {
-								return;
-							}
-						}
-						this._dispatchProgressActions(agentMapper, e, subagentSession, subTurnId);
-					}
-					return;
+		// Handle subagent_started: create the subagent session, then drain
+		// any inner events that arrived before us.
+		if (e.type === 'subagent_started') {
+			this._handleSubagentStarted(sessionKey, e.toolCallId, e.agentName, e.agentDisplayName, e.agentDescription);
+			this._drainPendingSubagentEvents(sessionKey, e.toolCallId);
+			return;
+		}
+
+		// Route events with parentToolCallId to the subagent session.
+		const parentToolCallId = this._getParentToolCallId(e);
+		if (parentToolCallId) {
+			const subagentKey = `${sessionKey}:${parentToolCallId}`;
+			const subagentSession = this._subagentSessions.get(subagentKey);
+			if (subagentSession) {
+				// Track tool calls in subagent context for confirmation routing
+				if (e.type === 'tool_start') {
+					this._toolCallAgents.set(`${subagentSession}:${e.toolCallId}`, agent.id);
 				}
-			}
-
-			// Route tool_ready events for tools inside subagent sessions
-			// (tool_ready lacks parentToolCallId, but the tool was previously
-			// registered under its subagent session key in _toolCallAgents)
-			if (e.type === 'tool_ready') {
-				const subagentSession = this._findSubagentSessionForToolCall(sessionKey, e.toolCallId);
-				if (subagentSession) {
-					const subTurnId = this._stateManager.getActiveTurnId(subagentSession);
-					if (subTurnId) {
+				const subTurnId = this._stateManager.getActiveTurnId(subagentSession);
+				if (subTurnId) {
+					if (e.type === 'tool_ready') {
 						if (this._tryAutoApproveToolReady(e, subagentSession, agent)) {
 							return;
 						}
-						this._dispatchProgressActions(agentMapper, e, subagentSession, subTurnId);
 					}
+					this._dispatchProgressActions(agentMapper, e, subagentSession, subTurnId);
+				}
+				return;
+			}
+
+			// Subagent session does not exist yet — buffer the event so we
+			// can replay it after `subagent_started` arrives. Without this,
+			// inner tool calls would leak into the parent session and the
+			// UI would render them flat at the top level.
+			this._logService.trace(`[AgentSideEffects] Buffering ${e.type} for pending subagent ${subagentKey}`);
+			let buffer = this._pendingSubagentEvents.get(subagentKey);
+			if (!buffer) {
+				buffer = [];
+				this._pendingSubagentEvents.set(subagentKey, buffer);
+			}
+			buffer.push({ event: e, agent, agentMapper });
+			return;
+		}
+
+		// Route tool_ready events for tools inside subagent sessions
+		// (tool_ready lacks parentToolCallId, but the tool was previously
+		// registered under its subagent session key in _toolCallAgents)
+		if (e.type === 'tool_ready') {
+			const subagentSession = this._findSubagentSessionForToolCall(sessionKey, e.toolCallId);
+			if (subagentSession) {
+				const subTurnId = this._stateManager.getActiveTurnId(subagentSession);
+				if (subTurnId) {
+					if (this._tryAutoApproveToolReady(e, subagentSession, agent)) {
+						return;
+					}
+					this._dispatchProgressActions(agentMapper, e, subagentSession, subTurnId);
+				}
+				return;
+			}
+		}
+
+		const turnId = this._stateManager.getActiveTurnId(sessionKey);
+		if (turnId) {
+			// Auto-approve tool_ready events synchronously before dispatching.
+			// Tree-sitter is pre-warmed via initialize(), so this is fully sync.
+			if (e.type === 'tool_ready') {
+				if (this._tryAutoApproveToolReady(e, sessionKey, agent)) {
 					return;
 				}
 			}
 
-			const turnId = this._stateManager.getActiveTurnId(sessionKey);
-			if (turnId) {
-				// Auto-approve tool_ready events synchronously before dispatching.
-				// Tree-sitter is pre-warmed via initialize(), so this is fully sync.
-				if (e.type === 'tool_ready') {
-					if (this._tryAutoApproveToolReady(e, sessionKey, agent)) {
-						return;
-					}
-				}
-
-				// When a parent tool call has an associated subagent session,
-				// preserve the subagent content metadata in the completion
-				// result. The SDK's tool_complete provides its own content
-				// which would overwrite the IToolResultSubagentContent that
-				// was set via SessionToolCallContentChanged while running.
-				if (e.type === 'tool_complete') {
-					const subagentKey = `${sessionKey}:${e.toolCallId}`;
-					const subagentUri = this._subagentSessions.get(subagentKey);
-					if (subagentUri) {
-						const parentState = this._stateManager.getSessionState(sessionKey);
-						const runningContent = this._getRunningToolCallContent(parentState, turnId, e.toolCallId);
-						const subagentEntry = runningContent.find(c => hasKey(c, { type: true }) && c.type === ToolResultContentType.Subagent);
-						if (subagentEntry) {
-							const mergedContent = [...(e.result.content ?? []), subagentEntry];
-							e = { ...e, result: { ...e.result, content: mergedContent } };
-						}
-					}
-				}
-
-				this._dispatchProgressActions(agentMapper, e, sessionKey, turnId);
-
-				// When a parent tool call completes, complete any associated subagent session
-				if (e.type === 'tool_complete') {
-					this.completeSubagentSession(sessionKey, e.toolCallId);
-					if (getToolFileEdits((e as IAgentToolCompleteEvent).result).length > 0) {
-						this._scheduleDebouncedDiffComputation(sessionKey, turnId);
+			// When a parent tool call has an associated subagent session,
+			// preserve the subagent content metadata in the completion
+			// result. The SDK's tool_complete provides its own content
+			// which would overwrite the IToolResultSubagentContent that
+			// was set via SessionToolCallContentChanged while running.
+			if (e.type === 'tool_complete') {
+				const subagentKey = `${sessionKey}:${e.toolCallId}`;
+				const subagentUri = this._subagentSessions.get(subagentKey);
+				if (subagentUri) {
+					const parentState = this._stateManager.getSessionState(sessionKey);
+					const runningContent = this._getRunningToolCallContent(parentState, turnId, e.toolCallId);
+					const subagentEntry = runningContent.find(c => hasKey(c, { type: true }) && c.type === ToolResultContentType.Subagent);
+					if (subagentEntry) {
+						const mergedContent = [...(e.result.content ?? []), subagentEntry];
+						e = { ...e, result: { ...e.result, content: mergedContent } };
 					}
 				}
 			}
 
-			// After a turn completes (idle event), flush any pending debounced
-			// diff computation and compute final diffs immediately.
-			if (e.type === 'idle') {
-				this._cancelDebouncedDiffComputation(sessionKey);
-				this._computeSessionDiffs(sessionKey, turnId);
-				this._tryConsumeNextQueuedMessage(sessionKey);
-			}
+			this._dispatchProgressActions(agentMapper, e, sessionKey, turnId);
 
-			// Steering message was consumed by the agent — remove from protocol state
-			if (e.type === 'steering_consumed') {
-				this._stateManager.dispatchServerAction({
-					type: ActionType.SessionPendingMessageRemoved,
-					session: sessionKey,
-					kind: PendingMessageKind.Steering,
-					id: e.id,
-				});
+			// When a parent tool call completes, complete any associated subagent session
+			if (e.type === 'tool_complete') {
+				this.completeSubagentSession(sessionKey, e.toolCallId);
+				if (getToolFileEdits((e as IAgentToolCompleteEvent).result).length > 0) {
+					this._scheduleDebouncedDiffComputation(sessionKey, turnId);
+				}
 			}
-		}));
-		return disposables;
+		}
+
+		// After a turn completes (idle event), flush any pending debounced
+		// diff computation and compute final diffs immediately.
+		if (e.type === 'idle') {
+			this._cancelDebouncedDiffComputation(sessionKey);
+			this._computeSessionDiffs(sessionKey, turnId);
+			this._tryConsumeNextQueuedMessage(sessionKey);
+		}
+
+		// Steering message was consumed by the agent — remove from protocol state
+		if (e.type === 'steering_consumed') {
+			this._stateManager.dispatchServerAction({
+				type: ActionType.SessionPendingMessageRemoved,
+				session: sessionKey,
+				kind: PendingMessageKind.Steering,
+				id: e.id,
+			});
+		}
+	}
+
+	/**
+	 * Replays any progress events that were buffered while waiting for
+	 * `subagent_started` to create the subagent session. Called immediately
+	 * after `_handleSubagentStarted`.
+	 */
+	private _drainPendingSubagentEvents(parentSession: ProtocolURI, parentToolCallId: string): void {
+		const subagentKey = `${parentSession}:${parentToolCallId}`;
+		const buffer = this._pendingSubagentEvents.get(subagentKey);
+		if (!buffer) {
+			return;
+		}
+		this._pendingSubagentEvents.delete(subagentKey);
+		this._logService.trace(`[AgentSideEffects] Draining ${buffer.length} buffered event(s) for subagent ${subagentKey}`);
+		for (const { event, agent, agentMapper } of buffer) {
+			this._handleAgentProgress(agent, agentMapper, event);
+		}
 	}
 
 	// ---- Subagent session management ----------------------------------------
@@ -478,6 +557,12 @@ export class AgentSideEffects extends Disposable {
 				this._subagentSessions.delete(key);
 			}
 		}
+		// Drop any buffered events targeted at subagents that never started.
+		for (const key of [...this._pendingSubagentEvents.keys()]) {
+			if (key.startsWith(`${parentSession}:`)) {
+				this._pendingSubagentEvents.delete(key);
+			}
+		}
 	}
 
 	/**
@@ -486,6 +571,13 @@ export class AgentSideEffects extends Disposable {
 	 */
 	completeSubagentSession(parentSession: ProtocolURI, toolCallId: string): void {
 		const key = `${parentSession}:${toolCallId}`;
+
+		// Drop any events that were buffered waiting for a `subagent_started`
+		// that never arrived (e.g. the parent tool failed before the subagent
+		// was created). Without this, the buffer entry would leak until the
+		// parent session is disposed.
+		this._pendingSubagentEvents.delete(key);
+
 		const subagentUri = this._subagentSessions.get(key);
 		if (!subagentUri) {
 			return;
@@ -523,6 +615,13 @@ export class AgentSideEffects extends Disposable {
 		const prefix = `${parentSession}/subagent/`;
 		for (const uri of this._stateManager.getSessionUrisWithPrefix(prefix)) {
 			this._stateManager.removeSession(uri);
+		}
+
+		// Drop any buffered events targeted at subagents that never started.
+		for (const key of [...this._pendingSubagentEvents.keys()]) {
+			if (key.startsWith(`${parentSession}:`)) {
+				this._pendingSubagentEvents.delete(key);
+			}
 		}
 	}
 

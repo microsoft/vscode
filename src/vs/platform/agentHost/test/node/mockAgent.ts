@@ -515,6 +515,59 @@ export class ScriptedMockAgent implements IAgent {
 				break;
 			}
 
+			case 'subagent': {
+				// Spawns a subagent: parent `task` tool starts (emits start +
+				// auto-ready as a pair), then `subagent_started` creates the
+				// child session, then an inner tool runs in the child session
+				// (routed via `parentToolCallId`).
+				this._fireSequence(session, [
+					{
+						type: 'tool_start',
+						session,
+						toolCallId: 'tc-task-1',
+						toolName: 'task',
+						displayName: 'Task',
+						invocationMessage: 'Spawning subagent',
+						toolKind: 'subagent',
+						subagentAgentName: 'explore',
+						subagentDescription: 'Explore',
+					},
+					{
+						type: 'subagent_started',
+						session,
+						toolCallId: 'tc-task-1',
+						agentName: 'explore',
+						agentDisplayName: 'Explore',
+						agentDescription: 'Exploration helper',
+					},
+					{
+						type: 'tool_start',
+						session,
+						toolCallId: 'tc-inner-1',
+						toolName: 'echo_tool',
+						displayName: 'Echo Tool',
+						invocationMessage: 'Inner tool running...',
+						parentToolCallId: 'tc-task-1',
+					},
+					{
+						type: 'tool_complete',
+						session,
+						toolCallId: 'tc-inner-1',
+						parentToolCallId: 'tc-task-1',
+						result: { pastTenseMessage: 'Ran inner tool', content: [{ type: ToolResultContentType.Text, text: 'inner-ok' }], success: true },
+					},
+					{
+						type: 'tool_complete',
+						session,
+						toolCallId: 'tc-task-1',
+						result: { pastTenseMessage: 'Subagent done', content: [{ type: ToolResultContentType.Text, text: 'task-ok' }], success: true },
+					},
+					{ type: 'delta', session, messageId: 'msg-sa', content: 'Subagent finished.' },
+					{ type: 'idle', session },
+				]);
+				break;
+			}
+
 			default:
 				this._fireSequence(session, [
 					{ type: 'delta', session, messageId: 'msg-1', content: 'Unknown prompt: ' + prompt },

@@ -8,9 +8,12 @@ import { DeferredPromise } from '../../../../base/common/async.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { Emitter } from '../../../../base/common/event.js';
 import { Disposable, IReference, toDisposable } from '../../../../base/common/lifecycle.js';
+import { join } from '../../../../base/common/path.js';
+import { extUriBiasedIgnorePathCase, normalizePath } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import type { IParsedPlugin } from '../../../agentPlugins/common/pluginParsers.js';
+import { INativeEnvironmentService } from '../../../environment/common/environment.js';
 import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
@@ -20,10 +23,18 @@ import type { IFileEdit, IToolDefinition } from '../../common/state/protocol/sta
 import { SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolResultContentType, type IPendingMessage, type ISessionInputAnswer, type ISessionInputRequest, type IToolCallResult, type IToolResultContent } from '../../common/state/sessionState.js';
 import { CopilotSessionWrapper } from './copilotSessionWrapper.js';
 import type { ShellManager } from './copilotShellTools.js';
-import { getEditFilePath, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isShellTool, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
+import { getEditFilePath, getInvocationMessage, getPastTenseMessage, getPermissionDisplay, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool, isShellTool, tryStringify, type ITypedPermissionRequest } from './copilotToolDisplay.js';
 import { FileEditTracker } from './fileEditTracker.js';
 import { mapSessionEvents } from './mapSessionEvents.js';
 import { buildPendingEditContentUri } from './pendingEditContentStore.js';
+
+const COPILOT_HOME_DIRECTORY = '.copilot';
+const SESSION_STATE_DIRECTORY = join(COPILOT_HOME_DIRECTORY, 'session-state');
+
+function getCopilotCLISessionStateDir(userHome: string): string {
+	const xdgHome = process.env['XDG_STATE_HOME'];
+	return xdgHome ? join(xdgHome, SESSION_STATE_DIRECTORY) : join(userHome, SESSION_STATE_DIRECTORY);
+}
 
 /**
  * Immutable snapshot of the active client's contributions at session creation
@@ -128,6 +139,7 @@ export class CopilotAgentSession extends Disposable {
 		@ILogService private readonly _logService: ILogService,
 		@ISessionDataService sessionDataService: ISessionDataService,
 		@IFileService private readonly _fileService: IFileService,
+		@INativeEnvironmentService private readonly _environmentService: INativeEnvironmentService,
 	) {
 		super();
 		this.sessionId = options.rawSessionId;
@@ -199,14 +211,19 @@ export class CopilotAgentSession extends Disposable {
 			description: def.description ?? '',
 			parameters: def.inputSchema ?? { type: 'object' as const, properties: {} },
 			handler: async (_args: Record<string, unknown>, { toolCallId }) => {
-				let deferred = this._pendingClientToolCalls.get(toolCallId);
-				if (!deferred) {
-					deferred = new DeferredPromise<ToolResultObject>();
-					this._pendingClientToolCalls.set(toolCallId, deferred);
+				try {
+					let deferred = this._pendingClientToolCalls.get(toolCallId);
+					if (!deferred) {
+						deferred = new DeferredPromise<ToolResultObject>();
+						this._pendingClientToolCalls.set(toolCallId, deferred);
+					}
+					const result = await deferred.p;
+					this._pendingClientToolCalls.delete(toolCallId);
+					return result;
+				} catch (error) {
+					this._logService.error(error, `[Copilot:${this.sessionId}] Failed in client tool handler: tool=${def.name}, toolCallId=${toolCallId}`);
+					throw error;
 				}
-				const result = await deferred.p;
-				this._pendingClientToolCalls.delete(toolCallId);
-				return result;
 			},
 		}));
 	}
@@ -261,22 +278,8 @@ export class CopilotAgentSession extends Disposable {
 			onUserInputRequest: (request, invocation) => this.handleUserInputRequest(request, invocation),
 			clientTools: this.createClientSdkTools(),
 			hooks: {
-				onPreToolUse: async input => {
-					if (isEditTool(input.toolName)) {
-						const filePath = getEditFilePath(input.toolArgs);
-						if (filePath) {
-							await this._editTracker.trackEditStart(filePath);
-						}
-					}
-				},
-				onPostToolUse: async input => {
-					if (isEditTool(input.toolName)) {
-						const filePath = getEditFilePath(input.toolArgs);
-						if (filePath) {
-							await this._editTracker.completeEdit(filePath);
-						}
-					}
-				},
+				onPreToolUse: input => this._handlePreToolUse(input),
+				onPostToolUse: input => this._handlePostToolUse(input),
 			},
 		}));
 		this._subscribeToEvents();
@@ -366,52 +369,85 @@ export class CopilotAgentSession extends Disposable {
 	): Promise<PermissionRequestResult> {
 		this._logService.info(`[Copilot:${this.sessionId}] Permission request: kind=${request.kind}`);
 
-		const toolCallId = request.toolCallId;
-		if (!toolCallId) {
-			// TODO: handle permission requests without a toolCallId by creating a synthetic tool call
-			this._logService.warn(`[Copilot:${this.sessionId}] Permission request without toolCallId, auto-denying: kind=${request.kind}`);
-			return { kind: 'denied-interactively-by-user' };
+		try {
+			const toolCallId = request.toolCallId;
+			if (!toolCallId) {
+				// TODO: handle permission requests without a toolCallId by creating a synthetic tool call
+				this._logService.warn(`[Copilot:${this.sessionId}] Permission request without toolCallId, auto-denying: kind=${request.kind}`);
+				return { kind: 'denied-interactively-by-user' };
+			}
+
+			const sessionResourcePath = this._getInternalSessionResourcePath(request);
+			if (sessionResourcePath) {
+				this._logService.info(`[Copilot:${this.sessionId}] Auto-approving internal session resource ${sessionResourcePath}`);
+				return { kind: 'approved' };
+			}
+
+			this._logService.info(`[Copilot:${this.sessionId}] Requesting confirmation for tool call: ${toolCallId}`);
+
+			const deferred = new DeferredPromise<boolean>();
+			this._pendingPermissions.set(toolCallId, deferred);
+
+			// Derive display information from the permission request kind
+			const { confirmationTitle, invocationMessage, toolInput, permissionKind, permissionPath } = getPermissionDisplay(request);
+
+			// For write permission requests, build an IFileEdit preview so the
+			// client can show a diff before the user approves or denies. This
+			// awaits async filesystem operations; the SDK already calls
+			// `handlePermissionRequest` from an arbitrary async context, so the
+			// extra await here is fine.
+			const edits = await this._buildEditsForPermission(request, toolCallId);
+
+			// If the session was aborted/disposed while we were building the
+			// preview, the deferred has already been resolved and the
+			// `pending-edit-content:` entry has been cleaned up. Bail without
+			// firing tool_ready.
+			if (!this._pendingPermissions.has(toolCallId)) {
+				return { kind: 'denied-interactively-by-user' };
+			}
+
+			// Fire a tool_ready event to transition the tool to PendingConfirmation
+			this._onDidSessionProgress.fire({
+				session: this.sessionUri,
+				type: 'tool_ready',
+				toolCallId,
+				invocationMessage,
+				toolInput,
+				confirmationTitle,
+				permissionKind,
+				permissionPath,
+				edits,
+			});
+
+			const approved = await deferred.p;
+			this._logService.info(`[Copilot:${this.sessionId}] Permission response: toolCallId=${toolCallId}, approved=${approved}`);
+			return { kind: approved ? 'approved' : 'denied-interactively-by-user' };
+		} catch (error) {
+			this._logService.error(error, `[Copilot:${this.sessionId}] Failed to handle permission request: kind=${request.kind}, toolCallId=${request.toolCallId ?? 'missing'}`);
+			throw error;
+		}
+	}
+
+	private _getInternalSessionResourcePath(request: ITypedPermissionRequest): string | undefined {
+		let permissionPath: string | undefined;
+		if (request.kind === 'read') {
+			permissionPath = typeof request.path === 'string' ? request.path : undefined;
+		} else if (request.kind === 'write') {
+			permissionPath = typeof request.fileName === 'string' ? request.fileName : undefined;
 		}
 
-		this._logService.info(`[Copilot:${this.sessionId}] Requesting confirmation for tool call: ${toolCallId}`);
-
-		const deferred = new DeferredPromise<boolean>();
-		this._pendingPermissions.set(toolCallId, deferred);
-
-		// Derive display information from the permission request kind
-		const { confirmationTitle, invocationMessage, toolInput, permissionKind, permissionPath } = getPermissionDisplay(request);
-
-		// For write permission requests, build an IFileEdit preview so the
-		// client can show a diff before the user approves or denies. This
-		// awaits async filesystem operations; the SDK already calls
-		// `handlePermissionRequest` from an arbitrary async context, so the
-		// extra await here is fine.
-		const edits = await this._buildEditsForPermission(request, toolCallId);
-
-		// If the session was aborted/disposed while we were building the
-		// preview, the deferred has already been resolved and the
-		// `pending-edit-content:` entry has been cleaned up. Bail without
-		// firing tool_ready.
-		if (!this._pendingPermissions.has(toolCallId)) {
-			return { kind: 'denied-interactively-by-user' };
+		if (!permissionPath) {
+			return undefined;
 		}
 
-		// Fire a tool_ready event to transition the tool to PendingConfirmation
-		this._onDidSessionProgress.fire({
-			session: this.sessionUri,
-			type: 'tool_ready',
-			toolCallId,
-			invocationMessage,
-			toolInput,
-			confirmationTitle,
-			permissionKind,
-			permissionPath,
-			edits,
-		});
+		const sessionStateDir = normalizePath(URI.file(getCopilotCLISessionStateDir(this._environmentService.userHome.fsPath)));
+		const sessionDir = normalizePath(URI.joinPath(sessionStateDir, this.sessionId));
+		if (!extUriBiasedIgnorePathCase.isEqualOrParent(sessionDir, sessionStateDir)) {
+			return undefined;
+		}
 
-		const approved = await deferred.p;
-		this._logService.info(`[Copilot:${this.sessionId}] Permission response: toolCallId=${toolCallId}, approved=${approved}`);
-		return { kind: approved ? 'approved' : 'denied-interactively-by-user' };
+		const permissionUri = normalizePath(URI.file(permissionPath));
+		return extUriBiasedIgnorePathCase.isEqualOrParent(permissionUri, sessionDir) ? permissionPath : undefined;
 	}
 
 	/**
@@ -498,63 +534,69 @@ export class CopilotAgentSession extends Disposable {
 		request: IUserInputRequest,
 		_invocation: { sessionId: string },
 	): Promise<IUserInputResponse> {
-		const requestId = generateUuid();
-		const questionId = generateUuid();
-		this._logService.info(`[Copilot:${this.sessionId}] User input request: requestId=${requestId}, question="${request.question.substring(0, 100)}"`);
+		const questionPreview = request.question.substring(0, 100);
+		try {
+			const requestId = generateUuid();
+			const questionId = generateUuid();
+			this._logService.info(`[Copilot:${this.sessionId}] User input request: requestId=${requestId}, question="${questionPreview}"`);
 
-		const deferred = new DeferredPromise<{ response: SessionInputResponseKind; answers?: Record<string, ISessionInputAnswer> }>();
-		this._pendingUserInputs.set(requestId, { deferred, questionId });
+			const deferred = new DeferredPromise<{ response: SessionInputResponseKind; answers?: Record<string, ISessionInputAnswer> }>();
+			this._pendingUserInputs.set(requestId, { deferred, questionId });
 
-		// Build the protocol ISessionInputRequest from the SDK's simple format
-		const inputRequest: ISessionInputRequest = {
-			id: requestId,
-			message: request.question,
-			questions: [request.choices && request.choices.length > 0
-				? {
-					kind: SessionInputQuestionKind.SingleSelect,
-					id: questionId,
-					message: request.question,
-					required: true,
-					options: request.choices.map(c => ({ id: c, label: c })),
-					allowFreeformInput: request.allowFreeform ?? true,
-				}
-				: {
-					kind: SessionInputQuestionKind.Text,
-					id: questionId,
-					message: request.question,
-					required: true,
-				},
-			],
-		};
+			// Build the protocol ISessionInputRequest from the SDK's simple format
+			const inputRequest: ISessionInputRequest = {
+				id: requestId,
+				message: request.question,
+				questions: [request.choices && request.choices.length > 0
+					? {
+						kind: SessionInputQuestionKind.SingleSelect,
+						id: questionId,
+						message: request.question,
+						required: true,
+						options: request.choices.map(c => ({ id: c, label: c })),
+						allowFreeformInput: request.allowFreeform ?? true,
+					}
+					: {
+						kind: SessionInputQuestionKind.Text,
+						id: questionId,
+						message: request.question,
+						required: true,
+					},
+				],
+			};
 
-		this._onDidSessionProgress.fire({
-			session: this.sessionUri,
-			type: 'user_input_request',
-			request: inputRequest,
-		});
+			this._onDidSessionProgress.fire({
+				session: this.sessionUri,
+				type: 'user_input_request',
+				request: inputRequest,
+			});
 
-		const result = await deferred.p;
-		this._logService.info(`[Copilot:${this.sessionId}] User input response: requestId=${requestId}, response=${result.response}`);
+			const result = await deferred.p;
+			this._logService.info(`[Copilot:${this.sessionId}] User input response: requestId=${requestId}, response=${result.response}`);
 
-		if (result.response !== SessionInputResponseKind.Accept || !result.answers) {
+			if (result.response !== SessionInputResponseKind.Accept || !result.answers) {
+				return { answer: '', wasFreeform: true };
+			}
+
+			// Extract the answer for our single question
+			const answer = result.answers[questionId];
+			if (!answer || answer.state === SessionInputAnswerState.Skipped) {
+				return { answer: '', wasFreeform: true };
+			}
+
+			const { value: val } = answer;
+			if (val.kind === SessionInputAnswerValueKind.Text) {
+				return { answer: val.value, wasFreeform: true };
+			} else if (val.kind === SessionInputAnswerValueKind.Selected) {
+				const wasFreeform = !request.choices?.includes(val.value);
+				return { answer: val.value, wasFreeform };
+			}
+
 			return { answer: '', wasFreeform: true };
+		} catch (error) {
+			this._logService.error(error, `[Copilot:${this.sessionId}] Failed to handle user input request: question="${questionPreview}"`);
+			throw error;
 		}
-
-		// Extract the answer for our single question
-		const answer = result.answers[questionId];
-		if (!answer || answer.state === SessionInputAnswerState.Skipped) {
-			return { answer: '', wasFreeform: true };
-		}
-
-		const { value: val } = answer;
-		if (val.kind === SessionInputAnswerValueKind.Text) {
-			return { answer: val.value, wasFreeform: true };
-		} else if (val.kind === SessionInputAnswerValueKind.Selected) {
-			const wasFreeform = !request.choices?.includes(val.value);
-			return { answer: val.value, wasFreeform };
-		}
-
-		return { answer: '', wasFreeform: true };
 	}
 
 	respondToUserInputRequest(requestId: string, response: SessionInputResponseKind, answers?: Record<string, ISessionInputAnswer>): boolean {
@@ -565,6 +607,34 @@ export class CopilotAgentSession extends Disposable {
 			return true;
 		}
 		return false;
+	}
+
+	private async _handlePreToolUse(input: { toolName: string; toolArgs: unknown }): Promise<void> {
+		try {
+			if (isEditTool(input.toolName)) {
+				const filePath = getEditFilePath(input.toolArgs);
+				if (filePath) {
+					await this._editTracker.trackEditStart(filePath);
+				}
+			}
+		} catch (error) {
+			this._logService.error(error, `[Copilot:${this.sessionId}] Failed in onPreToolUse: tool=${input.toolName}`);
+			throw error;
+		}
+	}
+
+	private async _handlePostToolUse(input: { toolName: string; toolArgs: unknown }): Promise<void> {
+		try {
+			if (isEditTool(input.toolName)) {
+				const filePath = getEditFilePath(input.toolArgs);
+				if (filePath) {
+					await this._editTracker.completeEdit(filePath);
+				}
+			}
+		} catch (error) {
+			this._logService.error(error, `[Copilot:${this.sessionId}] Failed in onPostToolUse: tool=${input.toolName}`);
+			throw error;
+		}
 	}
 
 	// ---- event wiring -------------------------------------------------------
@@ -629,6 +699,7 @@ export class CopilotAgentSession extends Disposable {
 			const displayName = getToolDisplayName(e.data.toolName);
 			this._activeToolCalls.set(e.data.toolCallId, { toolName: e.data.toolName, displayName, parameters, content: [] });
 			const toolKind = getToolKind(e.data.toolName);
+			const subagentMeta = toolKind === 'subagent' ? getSubagentMetadata(parameters) : undefined;
 
 			this._onDidSessionProgress.fire({
 				session,
@@ -641,6 +712,8 @@ export class CopilotAgentSession extends Disposable {
 				toolKind,
 				language: toolKind === 'terminal' ? getShellLanguage(e.data.toolName) : undefined,
 				toolArguments: toolArgs,
+				subagentAgentName: subagentMeta?.agentName,
+				subagentDescription: subagentMeta?.description,
 				mcpServerName: e.data.mcpServerName,
 				mcpToolName: e.data.mcpToolName,
 				parentToolCallId: e.data.parentToolCallId,

@@ -233,6 +233,18 @@ export interface IAgentToolStartEvent extends IAgentProgressEventBase {
 	readonly language?: string;
 	/** Serialized JSON of the tool arguments, if available. */
 	readonly toolArguments?: string;
+	/**
+	 * For `toolKind === 'subagent'`, the internal name of the agent being
+	 * spawned (e.g. 'explore'). Adapters are responsible for extracting this
+	 * from their SDK-specific tool argument shape.
+	 */
+	readonly subagentAgentName?: string;
+	/**
+	 * For `toolKind === 'subagent'`, a human-readable description of the
+	 * subagent's task. Adapters are responsible for extracting this from
+	 * their SDK-specific tool argument shape.
+	 */
+	readonly subagentDescription?: string;
 	readonly mcpServerName?: string;
 	readonly mcpToolName?: string;
 	readonly parentToolCallId?: string;

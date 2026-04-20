@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/sessionsTitleBarWidget.css';
-import { $, addDisposableListener, EventType, getActiveWindow, reset } from '../../../../base/browser/dom.js';
+import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, getActiveWindow, reset } from '../../../../base/browser/dom.js';
 import { Separator } from '../../../../base/common/actions.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
@@ -186,7 +186,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			sessionPill.appendChild(centerGroup);
 
 			// Click handler on pill
-			this._dynamicDisposables.add(addDisposableListener(sessionPill, EventType.MOUSE_DOWN, (e) => {
+			this._dynamicDisposables.add(addDisposableGenericMouseDownListener(sessionPill, (e) => {
 				e.preventDefault();
 				e.stopPropagation();
 			}));

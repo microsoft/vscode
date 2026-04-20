@@ -80,3 +80,24 @@ export function resolvedConfigsEqual(a: IResolveSessionConfigResult, b: IResolve
 	}
 	return true;
 }
+
+/** Known auto-approve config values. */
+const AUTO_APPROVE_ENUM = ['default', 'autoApprove', 'autopilot'];
+
+/**
+ * Builds a minimal session-mutable config schema from changed values.
+ * Used when a restored session receives a ConfigChanged action before
+ * the full schema has been hydrated.
+ */
+export function buildMutableConfigSchema(config: Record<string, string>): Record<string, { type: 'string'; title: string; sessionMutable: true; enum: string[] }> {
+	const properties: Record<string, { type: 'string'; title: string; sessionMutable: true; enum: string[] }> = {};
+	for (const key of Object.keys(config)) {
+		properties[key] = {
+			type: 'string',
+			title: key,
+			sessionMutable: true,
+			enum: key === 'autoApprove' ? AUTO_APPROVE_ENUM : [config[key]],
+		};
+	}
+	return properties;
+}

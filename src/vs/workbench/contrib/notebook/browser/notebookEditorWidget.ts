@@ -331,7 +331,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		this.isReplHistory = creationOptions.isReplHistory ?? false;
 		this._readOnly = creationOptions.isReadOnly ?? false;
 
-		this._overlayLayout = new OverlayLayoutElement();
+		this._overlayLayout = this._register(new OverlayLayoutElement());
 		this._overlayContainer = this._overlayLayout.content;
 		this.scopedContextKeyService = this._register(contextKeyService.createScoped(this._overlayContainer));
 		this.instantiationService = this._register(instantiationService.createChild(new ServiceCollection([IContextKeyService, this.scopedContextKeyService])));
@@ -1953,8 +1953,8 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		}
 
 		this._overlayContainer.style.visibility = 'visible';
-		this._overlayContainer.style.left = ''; // Clear hide offset
 		this._overlayLayout.layoutOverAnchorElement(shadowElement, { clippingContainer, fallbackDimension: dimension, fallbackPosition: position });
+		this._overlayLayout.reapplyLayoutStyles();
 	}
 
 	//#endregion
