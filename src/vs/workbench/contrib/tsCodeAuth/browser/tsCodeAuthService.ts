@@ -17,7 +17,7 @@ import {
 	TokenResponse,
 	TSCODE_BASE_URL,
 	TSCODE_GATEWAY_BASE_URL,
-	TSCODE_AUTH_MOCK_TOKEN,
+	createMockToken,
 } from '../common/tsCodeAuth.js';
 
 export class TsCodeAuthService extends Disposable implements ITsCodeAuthService {
@@ -60,6 +60,7 @@ export class TsCodeAuthService extends Disposable implements ITsCodeAuthService 
 		try {
 			const token = await this.tokenStore.getToken();
 			if (token) {
+				this.telemetryService.setCommonProperty('common.userId', token.employeeId ?? ''); // test-workbench_change
 				return;
 			}
 			this._onDidNeedLogin.fire();
@@ -95,7 +96,9 @@ export class TsCodeAuthService extends Disposable implements ITsCodeAuthService 
 
 		if (this.productService.tsCodeAuthMockEnabled) { // test-workbench_change
 			this._pollingTimer = setTimeout(async () => {
-				await this.tokenStore.saveToken(TSCODE_AUTH_MOCK_TOKEN);
+				const mockToken = createMockToken(); // test-workbench_change
+				await this.tokenStore.saveToken(mockToken);
+				this.telemetryService.setCommonProperty('common.userId', mockToken.employeeId ?? ''); // test-workbench_change
 				this._onDidLogin.fire();
 			}, 10000);
 			return;
@@ -122,6 +125,7 @@ export class TsCodeAuthService extends Disposable implements ITsCodeAuthService 
 						};
 						await this.tokenStore.saveToken(storedToken);
 						this._sendLoginTelemetry(storedToken.employeeId, storedToken.userName); // test-workbench_change
+						this.telemetryService.setCommonProperty('common.userId', storedToken.employeeId ?? ''); // test-workbench_change
 						this._onDidLogin.fire();
 						return;
 					}
@@ -171,6 +175,7 @@ export class TsCodeAuthService extends Disposable implements ITsCodeAuthService 
 
 	async signOut(): Promise<void> { // test-workbench_change
 		await this.tokenStore.clearToken();
+		this.telemetryService.setCommonProperty('common.userId', ''); // test-workbench_change
 		this._onDidLogout.fire();
 		this._onDidNeedLogin.fire();
 	}
