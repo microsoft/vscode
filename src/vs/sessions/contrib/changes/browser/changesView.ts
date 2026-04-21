@@ -74,6 +74,7 @@ import { ResourceTree } from '../../../../base/common/resourceTree.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { compareFileNames, comparePaths } from '../../../../base/common/comparers.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 
 const $ = dom.$;
 
@@ -1013,14 +1014,30 @@ export class ChangesViewPane extends ViewPane {
 			return;
 		}
 
+		const compare = (aChange: IChatSessionFileChange | IChatSessionFileChange2, bChange: IChatSessionFileChange | IChatSessionFileChange2): number => {
+			const aPath = isIChatSessionFileChange2(aChange) ? aChange.uri.fsPath : aChange.modifiedUri.fsPath;
+			const bPath = isIChatSessionFileChange2(bChange) ? bChange.uri.fsPath : bChange.modifiedUri.fsPath;
+			return comparePaths(aPath, bPath);
+		};
+
+		// Sort the changes
+		const resources = changes.toSorted(compare).map(d => ({
+			originalUri: d.originalUri,
+			modifiedUri: d.modifiedUri
+		}));
+
+		// Ensure the reveal resource is part of the changes
+		reveal = reveal
+			? resources.some(r => isEqual(r.modifiedUri, reveal))
+				? reveal
+				: undefined
+			: undefined;
+
 		// Open multi-file diff editor
 		await this.commandService.executeCommand('_workbench.openMultiDiffEditor', {
 			multiDiffSourceUri: sessionResource.with({ scheme: sessionResource.scheme + '-session-changes' }),
 			title: localize('sessions.changes.title', 'Session Changes'),
-			resources: changes.map(d => ({
-				originalUri: d.originalUri,
-				modifiedUri: d.modifiedUri
-			})),
+			resources,
 			reveal: reveal
 				? { modifiedUri: reveal }
 				: undefined
