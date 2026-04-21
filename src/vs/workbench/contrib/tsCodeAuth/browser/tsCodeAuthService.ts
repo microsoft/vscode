@@ -61,6 +61,8 @@ export class TsCodeAuthService extends Disposable implements ITsCodeAuthService 
 			const token = await this.tokenStore.getToken();
 			if (token) {
 				this.telemetryService.setCommonProperty('common.userId', token.employeeId ?? ''); // test-workbench_change
+				this.telemetryService.setCommonProperty('common.userName', token.userName ?? ''); // test-workbench_change
+				this.telemetryService.setCommonProperty('common.pathName', token.pathName ?? ''); // test-workbench_change
 				return;
 			}
 			this._onDidNeedLogin.fire();
@@ -99,6 +101,8 @@ export class TsCodeAuthService extends Disposable implements ITsCodeAuthService 
 				const mockToken = createMockToken(); // test-workbench_change
 				await this.tokenStore.saveToken(mockToken);
 				this.telemetryService.setCommonProperty('common.userId', mockToken.employeeId ?? ''); // test-workbench_change
+				this.telemetryService.setCommonProperty('common.userName', mockToken.userName ?? ''); // test-workbench_change
+				this.telemetryService.setCommonProperty('common.pathName', mockToken.pathName ?? ''); // test-workbench_change
 				this._onDidLogin.fire();
 			}, 10000);
 			return;
@@ -126,6 +130,8 @@ export class TsCodeAuthService extends Disposable implements ITsCodeAuthService 
 						await this.tokenStore.saveToken(storedToken);
 						this._sendLoginTelemetry(storedToken.employeeId, storedToken.userName); // test-workbench_change
 						this.telemetryService.setCommonProperty('common.userId', storedToken.employeeId ?? ''); // test-workbench_change
+						this.telemetryService.setCommonProperty('common.userName', storedToken.userName ?? ''); // test-workbench_change
+						this.telemetryService.setCommonProperty('common.pathName', storedToken.pathName ?? ''); // test-workbench_change
 						this._onDidLogin.fire();
 						return;
 					}
@@ -176,6 +182,8 @@ export class TsCodeAuthService extends Disposable implements ITsCodeAuthService 
 	async signOut(): Promise<void> { // test-workbench_change
 		await this.tokenStore.clearToken();
 		this.telemetryService.setCommonProperty('common.userId', ''); // test-workbench_change
+		this.telemetryService.setCommonProperty('common.userName', ''); // test-workbench_change
+		this.telemetryService.setCommonProperty('common.pathName', ''); // test-workbench_change
 		this._onDidLogout.fire();
 		this._onDidNeedLogin.fire();
 	}

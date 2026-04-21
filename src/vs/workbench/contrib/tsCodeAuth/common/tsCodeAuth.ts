@@ -21,6 +21,7 @@ export function createMockToken(): StoredToken {
 		token: `mock-access-token-${id}`,
 		userName: `Mock User (${id})`,
 		employeeId: `mock-${id}`,
+		pathName: `mock-path-${id}`, // test-workbench_change
 	};
 }
 // test-workbench_change end
