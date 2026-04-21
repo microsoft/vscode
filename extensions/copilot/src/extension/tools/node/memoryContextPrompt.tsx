@@ -112,8 +112,8 @@ export class MemoryContextPrompt extends PromptElement<MemoryContextPromptProps>
 						<br />
 						Be sure to consider these stored facts carefully. Consider whether any are relevant to your current task. If they are, verify their current applicability before using them to inform your work.<br />
 						<br />
-						If you come across a memory that you're able to verify and that you find useful, you should use the {ToolName.Memory} tool to store the same fact again. Only recent memories are retained, so storing the fact again will cause it to be retained longer.<br />
-						If you come across a fact that's incorrect or outdated, you should use the {ToolName.Memory} tool to store a new fact that reflects the current reality.<br />
+						If you come across a memory that you're able to verify and that you find useful, you should use the `{ToolName.StoreMemory}` tool with `scope: 'repo'` to store the same fact again. Only recent memories are retained, so storing the fact again will cause it to be retained longer.<br />
+						If you come across a fact that's incorrect or outdated, you should use the `{ToolName.StoreMemory}` tool with `scope: 'repo'` to store a new fact that reflects the current reality.<br />
 					</Tag>
 				)}
 			</>
