@@ -305,6 +305,8 @@ class InlineChatEditToolsStrategy implements IInlineChatEditStrategy {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ILogService private readonly _logService: ILogService,
 		@IToolsService private readonly _toolsService: IToolsService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IExperimentationService private readonly _experimentationService: IExperimentationService,
 	) { }
 
 	async executeEdit(endpoint: IChatEndpoint, conversation: Conversation, request: vscode.ChatRequest, stream: vscode.ChatResponseStream, token: CancellationToken, documentContext: IDocumentContext, chatTelemetry: ChatTelemetryBuilder): Promise<IInlineChatEditResult> {
@@ -455,6 +457,12 @@ class InlineChatEditToolsStrategy implements IInlineChatEditStrategy {
 			userInitiatedRequest: true,
 			location: ChatLocation.Editor,
 			requestOptions,
+			modelCapabilities: {
+				enableThinking: this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.InlineChatEnableThinking, this._experimentationService),
+				reasoningEffort: typeof request.modelConfiguration?.reasoningEffort === 'string'
+					? request.modelConfiguration.reasoningEffort
+					: this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.InlineChatReasoningEffort, this._experimentationService),
+			},
 			telemetryProperties: {
 				messageId: telemetry.telemetryMessageId,
 				conversationId: telemetry.sessionId,
@@ -603,6 +611,8 @@ class InlineChatEditHeuristicStrategy implements IInlineChatEditStrategy {
 	constructor(
 		private readonly _intent: InlineChatIntent,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IExperimentationService private readonly _experimentationService: IExperimentationService,
 	) { }
 
 	async executeEdit(endpoint: IChatEndpoint, conversation: Conversation, request: vscode.ChatRequest, stream: vscode.ChatResponseStream, token: CancellationToken, documentContext: IDocumentContext, chatTelemetry: ChatTelemetryBuilder): Promise<IInlineChatEditResult> {
@@ -651,6 +661,12 @@ class InlineChatEditHeuristicStrategy implements IInlineChatEditStrategy {
 			messages: renderResult.messages,
 			userInitiatedRequest: true,
 			location: ChatLocation.Editor,
+			modelCapabilities: {
+				enableThinking: this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.InlineChatEnableThinking, this._experimentationService),
+				reasoningEffort: typeof request.modelConfiguration?.reasoningEffort === 'string'
+					? request.modelConfiguration.reasoningEffort
+					: this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.InlineChatReasoningEffort, this._experimentationService),
+			},
 			telemetryProperties: {
 				messageId: telemetry.telemetryMessageId,
 				conversationId: telemetry.sessionId,

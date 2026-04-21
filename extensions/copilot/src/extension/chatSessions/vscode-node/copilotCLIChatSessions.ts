@@ -155,6 +155,7 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 			}
 			isRefreshing = true;
 			const stopwatch = new StopWatch();
+			void this._metadataStore.refresh().catch(error => this.logService.error(error, 'Failed to refresh session metadata store during session list refresh'));
 			try {
 				const sessions = await this.sessionService.getAllSessions(CancellationToken.None);
 				const items = await Promise.all(sessions.map(async session => this.toChatSessionItem(session)));

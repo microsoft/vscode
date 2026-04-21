@@ -23,16 +23,16 @@ import { ILabelService } from '../../../../platform/label/common/label.js';
 import { bindContextKey } from '../../../../platform/observable/common/platformObservableUtils.js';
 import { IResourceLabel, ResourceLabels } from '../../../../workbench/browser/labels.js';
 import { ChatContextKeys } from '../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
-import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { chatEditingWidgetFileStateContextKey, ModifiedFileEntryState } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
-import { GITHUB_REMOTE_FILE_SCHEME } from '../../../services/sessions/common/session.js';
+import { GITHUB_REMOTE_FILE_SCHEME, ISessionFileChange } from '../../../services/sessions/common/session.js';
 import { ActiveSessionContextKeys, ChangesContextKeys, ChangesViewMode } from '../common/changes.js';
 import { ChangesViewModel } from './changesViewModel.js';
 
 const $ = dom.$;
 
-export function toIChangesFileItem(changes: readonly (IChatSessionFileChange | IChatSessionFileChange2)[]): IChangesFileItem[] {
+export function toIChangesFileItem(changes: readonly ISessionFileChange[]): IChangesFileItem[] {
 	return changes.map(change => {
 		const isAddition = change.originalUri === undefined;
 		const isDeletion = change.modifiedUri === undefined;

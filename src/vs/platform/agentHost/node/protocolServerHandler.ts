@@ -386,19 +386,25 @@ export class ProtocolServerHandler extends Disposable {
 		},
 		listSessions: async () => {
 			const sessions = await this._agentService.listSessions();
-			const items = sessions.map(s => ({
-				resource: s.session.toString(),
-				provider: AgentSession.provider(s.session) ?? 'copilot',
-				title: s.summary ?? 'Session',
-				status: s.status ?? SessionStatus.Idle,
-				createdAt: s.startTime,
-				modifiedAt: s.modifiedTime,
-				...(s.project ? { project: { uri: s.project.uri.toString(), displayName: s.project.displayName } } : {}),
-				model: s.model,
-				workingDirectory: s.workingDirectory?.toString(),
-				isRead: s.isRead,
-				isDone: s.isDone,
-			}));
+			const items = sessions.map(s => {
+				const provider = AgentSession.provider(s.session);
+				if (!provider) {
+					throw new Error(`Agent session URI has no provider scheme: ${s.session.toString()}`);
+				}
+				return {
+					resource: s.session.toString(),
+					provider,
+					title: s.summary ?? 'Session',
+					status: s.status ?? SessionStatus.Idle,
+					createdAt: s.startTime,
+					modifiedAt: s.modifiedTime,
+					...(s.project ? { project: { uri: s.project.uri.toString(), displayName: s.project.displayName } } : {}),
+					model: s.model,
+					workingDirectory: s.workingDirectory?.toString(),
+					isRead: s.isRead,
+					isDone: s.isDone,
+				};
+			});
 			return { items };
 		},
 		resolveSessionConfig: async (_client, params) => {

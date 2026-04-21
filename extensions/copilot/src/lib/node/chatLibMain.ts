@@ -716,7 +716,7 @@ export interface IEditorSession {
 	readonly uiKind?: string;
 }
 
-export type IActionItem = ActionItem
+export type IActionItem = ActionItem;
 export interface INotificationSender {
 	showWarningMessage(message: string, ...actions: IActionItem[]): Promise<IActionItem | undefined>;
 }

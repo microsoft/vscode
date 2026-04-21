@@ -31,7 +31,7 @@ export type RecentlyViewedDocumentsOptions = {
 	readonly includeViewedFiles: boolean;
 	readonly includeLineNumbers: IncludeLineNumbersOption;
 	readonly clippingStrategy: RecentFileClippingStrategy;
-}
+};
 
 export namespace RecentlyViewedDocumentsOptions {
 	export const VALIDATOR: IValidator<Partial<RecentlyViewedDocumentsOptions>> = vObj({
@@ -49,14 +49,14 @@ export type LanguageContextOptions = {
 	readonly enabled: boolean;
 	readonly maxTokens: number;
 	readonly traitPosition: 'before' | 'after';
-}
+};
 
 export type DiffHistoryOptions = {
 	readonly nEntries: number;
 	readonly maxTokens: number;
 	readonly onlyForDocsInPrompt: boolean;
 	readonly useRelativePaths: boolean;
-}
+};
 
 export type PagedClipping = { pageSize: number };
 
@@ -66,7 +66,7 @@ export type CurrentFileOptions = {
 	readonly includeLineNumbers: IncludeLineNumbersOption;
 	readonly includeCursorTag: boolean;
 	readonly prioritizeAboveCursor: boolean;
-}
+};
 
 export namespace CurrentFileOptions {
 	export const VALIDATOR: IValidator<Partial<CurrentFileOptions>> = vObj({
@@ -96,7 +96,7 @@ export type LintOptions = {
 	maxLineDistance: number;
 	/** When set to a value > 0, also include linter diagnostics from the N most recently edited/viewed files. */
 	nRecentFiles: number;
-}
+};
 
 /**
  * The raw user-facing aggressiveness setting. Includes `Default` to distinguish
@@ -241,7 +241,7 @@ export type PromptOptions = {
 	readonly diffHistory: DiffHistoryOptions;
 	readonly includePostScript: boolean;
 	readonly lintOptions: LintOptions | undefined;
-}
+};
 
 /**
  * Prompt strategies that tweak prompt in a way that's different from current prod prompting strategy.

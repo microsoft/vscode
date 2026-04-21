@@ -3968,15 +3968,6 @@
 			{
 				"id": "advanced",
 				"properties": {
-					"github.copilot.chat.sessionSearch.cloudSync.enabled": {
-						"type": "boolean",
-						"default": false,
-						"markdownDescription": "%github.copilot.config.sessionSearch.cloudSync.enabled%",
-						"tags": [
-							"advanced",
-							"onExp"
-						]
-					},
 					"github.copilot.chat.reasoningEffortOverride": {
 						"type": [
 							"string",
@@ -4225,6 +4216,33 @@
 						"type": "number",
 						"default": 0,
 						"markdownDescription": "%github.copilot.config.inlineChat.selectionRatioThreshold%",
+						"tags": [
+							"advanced",
+							"experimental",
+							"onExp"
+						]
+					},
+					"github.copilot.chat.inlineChat.reasoningEffort": {
+						"type": "string",
+						"default": "low",
+						"enum": [
+							"none",
+							"minimal",
+							"low",
+							"medium",
+							"high"
+						],
+						"markdownDescription": "%github.copilot.config.inlineChat.reasoningEffort%",
+						"tags": [
+							"advanced",
+							"experimental",
+							"onExp"
+						]
+					},
+					"github.copilot.chat.inlineChat.enableThinking": {
+						"type": "boolean",
+						"default": false,
+						"markdownDescription": "%github.copilot.config.inlineChat.enableThinking%",
 						"tags": [
 							"advanced",
 							"experimental",
@@ -5691,7 +5709,7 @@
 				{
 					"command": "github.copilot.sessions.discardChanges",
 					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.hasGitRepository && sessions.changesVersionMode == branchChanges",
-					"group": "navigation@1"
+					"group": "navigation@2"
 				}
 			],
 			"chat/customizations/create": [
@@ -6417,10 +6435,10 @@
 		"zod": "3.25.76"
 	},
 	"dependencies": {
-		"@anthropic-ai/claude-agent-sdk": "0.2.98",
+		"@anthropic-ai/claude-agent-sdk": "0.2.112",
 		"@anthropic-ai/sdk": "^0.82.0",
 		"@github/blackbird-external-ingest-utils": "^0.3.0",
-		"@github/copilot": "^1.0.28",
+		"@github/copilot": "^1.0.34",
 		"@google/genai": "^1.22.0",
 		"@humanwhocodes/gitignore-to-minimatch": "1.0.2",
 		"@microsoft/tiktokenizer": "^1.0.10",

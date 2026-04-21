@@ -20,7 +20,7 @@ export class BaseMsftTelemetrySender implements IMSFTTelemetrySender {
 	protected _internalLargeEventTelemetryReporter: ITelemetryReporter | undefined;
 	private _externalTelemetryReporter: ITelemetryReporter;
 
-	protected _disposables: DisposableStore = new DisposableStore();
+	protected readonly _disposables: DisposableStore = new DisposableStore();
 	private _username: string | undefined;
 	private _vscodeTeamMember: boolean = false;
 	private _sku: string | undefined;

@@ -22,7 +22,6 @@ import { IInstantiationService, ServicesAccessor } from '../../../../platform/in
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IsAuxiliaryWindowContext, AuxiliaryBarVisibleContext } from '../../../../workbench/common/contextkeys.js';
-import { getAgentChangesSummary } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsModel.js';
 import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IPaneCompositePartService } from '../../../../workbench/services/panecomposite/browser/panecomposite.js';
 import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
@@ -33,6 +32,7 @@ import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
 import { logChangesViewToggle } from '../../../common/sessionsTelemetry.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { CHANGES_VIEW_CONTAINER_ID } from '../common/changes.js';
+import { ISessionFileChange } from '../../../services/sessions/common/session.js';
 
 const TOGGLE_CHANGES_VIEW_ID = 'workbench.action.agentSessions.toggleChangesView';
 
@@ -106,7 +106,7 @@ class ChangesTitleBarActionViewItem extends BaseActionViewItem {
 		const activeSession = this.activeSessionService.activeSession.get();
 		const resource = activeSession?.resource;
 		const session = resource ? this.activeSessionService.getSession(resource) : undefined;
-		const summary = session ? getAgentChangesSummary(session.changes.get()) : undefined;
+		const summary = session ? this._getSessionChangesSummary(session.changes.get()) : undefined;
 
 		// Rebuild inner content: [diff icon] +insertions -deletions
 		append(btn, $(ThemeIcon.asCSSSelector(Codicon.diffMultiple)));
@@ -134,6 +134,22 @@ class ChangesTitleBarActionViewItem extends BaseActionViewItem {
 				localize('showChanges', "Show Changes")
 			));
 		}
+	}
+
+	private _getSessionChangesSummary(changes: readonly ISessionFileChange[]): {
+		files: number; insertions: number; deletions: number;
+	} | undefined {
+		if (changes.length === 0) {
+			return undefined;
+		}
+
+		let insertions = 0, deletions = 0;
+		for (const change of changes) {
+			insertions += change.insertions;
+			deletions += change.deletions;
+		}
+
+		return { files: changes.length, insertions, deletions };
 	}
 }
 

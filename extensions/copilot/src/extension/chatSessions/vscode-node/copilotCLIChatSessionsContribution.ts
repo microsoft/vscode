@@ -212,10 +212,15 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 	}
 
 	public notifySessionsChange(): void {
+		// Refresh the bulk metadata cache from disk so cross-process writes
+		// (e.g. another VS Code window editing the same session) become visible
+		// before consumers re-read items.
+		this.chatSessionMetadataStore.refresh().catch(() => { /* logged inside */ });
 		this._onDidChangeChatSessionItems.fire();
 	}
 
 	public async refreshSession(refreshOptions: { reason: 'update'; sessionId: string } | { reason: 'update'; sessionIds: string[] } | { reason: 'delete'; sessionId: string }): Promise<void> {
+		await this.chatSessionMetadataStore.refresh().catch(() => { /* logged inside */ });
 		this._onDidChangeChatSessionItems.fire();
 	}
 

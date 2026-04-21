@@ -199,7 +199,6 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 			this.progressObs.set(initialProgress, undefined);
 		}
 
-		this._register(toDisposable(() => this._onWillDispose.fire()));
 		this._register(toDisposable(onDispose));
 
 		// Always provide an interrupt callback so the chat UI's stop button
@@ -208,6 +207,16 @@ class AgentHostChatSession extends Disposable implements IChatSession {
 		this.interruptActiveResponseCallback = async () => interruptActiveResponse();
 
 		this.forkSession = this._forkSession;
+	}
+
+	override dispose(): void {
+		// Fire `onWillDispose` BEFORE `super.dispose()` so listeners (notably
+		// `ContributedChatSessionData` in `ChatSessionsService`) can evict
+		// this session from their caches.
+		if (!this._store.isDisposed) {
+			this._onWillDispose.fire();
+		}
+		super.dispose();
 	}
 
 	/**

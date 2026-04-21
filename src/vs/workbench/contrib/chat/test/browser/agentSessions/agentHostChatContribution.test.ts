@@ -553,6 +553,31 @@ suite('AgentHostChatContribution', () => {
 		});
 	});
 
+	// ---- Session disposal -----------------------------------------------
+
+	suite('disposal', () => {
+
+		test('fires onWillDispose before session is disposed', async () => {
+			const { sessionHandler } = createContribution(disposables);
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-dispose-test' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+
+			// `onWillDispose` is consumed by `ContributedChatSessionData` in
+			// `ChatSessionsService` to evict disposed sessions from its cache.
+			// If this event does not fire (e.g. because the emitter was
+			// disposed before `.fire()` ran during teardown), the service
+			// would hand out the disposed `IChatSession` to subsequent
+			// `getOrCreateChatSession` callers.
+			let fired = 0;
+			disposables.add(chatSession.onWillDispose(() => { fired++; }));
+
+			chatSession.dispose();
+
+			assert.strictEqual(fired, 1, 'onWillDispose should fire exactly once when the session is disposed');
+		});
+	});
+
 	// ---- Session list (IChatSessionItemController) ----------------------
 
 	suite('session list', () => {

@@ -633,7 +633,6 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		}
 
 		const session = await provider.provider.provideChatSessionContent(sessionResource, token, {
-			sessionOptions: context?.initialSessionOptions ?? [],
 			inputState,
 		});
 		if (token.isCancellationRequested) {
@@ -1089,7 +1088,6 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 				prompt: request.prompt,
 				command: request.command
 			},
-			sessionOptions: request.initialSessionOptions ?? [],
 			inputState,
 		}, token);
 		if (!item) {

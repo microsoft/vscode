@@ -393,6 +393,13 @@
 	border-color: var(--vscode-agentsChatInput-focusBorder, var(--vscode-focusBorder)) !important;
 }
 
+/* While the developer-joy animated border is active, suppress the static
+	border so it doesn't visually conflict with the spinning gradient ring. */
+.agent-sessions-workbench .interactive-session .chat-input-container.working,
+.agent-sessions-workbench .interactive-session .chat-input-container.working.focused {
+	border-color: transparent !important;
+}
+
 /* Make the Monaco editor inside the chat input transparent so it inherits the chatInput.background */
 .agent-sessions-workbench .interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor,
 .agent-sessions-workbench .interactive-session .interactive-input-part .chat-editor-container .interactive-input-editor .monaco-editor .monaco-editor-background {
