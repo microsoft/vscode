@@ -13,9 +13,8 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { LanguageModelTextPart, LanguageModelToolResult } from '../../../vscodeTypes';
 import { IAgentMemoryService } from '../common/agentMemoryService';
-import { ICopilotTool } from '../common/toolsRegistry';
 import { ToolName } from '../common/toolNames';
-import { ToolRegistry } from '../common/toolsRegistry';
+import { type ICopilotTool, ToolRegistry } from '../common/toolsRegistry';
 
 type StoreMemoryParams = StoreMemoryInput | ScopedStoreMemoryInput;
 

@@ -234,7 +234,6 @@ export class AgentIntent extends EditCodeIntent {
 		chatTelemetry: ChatTelemetryBuilder,
 		yieldRequested: () => boolean
 	): Promise<vscode.ChatResult> {
-		console.error('$$$$$ AgentIntent.handleRequest called $$$$$');
 		if (request.command === 'compact') {
 			return this.handleSummarizeCommand(conversation, request, stream, token);
 		}

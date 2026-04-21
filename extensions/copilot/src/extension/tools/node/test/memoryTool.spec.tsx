@@ -19,9 +19,9 @@ import { MarkdownString } from '../../../../vscodeTypes';
 import type { MemoryPromptResponse, MemoryResponse, StoreMemoryRequest } from '@github/copilot-agentic-tools/memory';
 import { IAgentMemoryService } from '../../common/agentMemoryService';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
+import { MemoryTool } from '../memoryTool';
 
 type RepoMemoryEntry = MemoryResponse;
-import { MemoryTool } from '../memoryTool';
 
 /**
  * Capturing telemetry service that records all events for assertion.

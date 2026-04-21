@@ -255,15 +255,11 @@ export class ToolsService extends BaseToolsService {
 			.filter(tool => {
 				// 0. If the tool was a model specific tool with an override, it'll be mixed in in the 'map' later.
 				if (modelSpecificTools.get(tool.name)?.tool.overridesTool) {
-					if (tool.name.includes('memory') || tool.name.includes('store')) { console.log(`[getEnabledTools] ${tool.name} EXCLUDED: modelSpecificOverride`); }
 					return false;
 				}
 
 				// 0. Check if the tool was disabled via the tool picker. If so, it must be disabled here
 				const toolPickerSelection = requestToolsByName.get(getContributedToolName(tool.name));
-				if (tool.name.includes('memory') || tool.name.includes('store')) {
-					console.log(`[getEnabledTools] ${tool.name} contributedName=${getContributedToolName(tool.name)} toolPickerSelection=${toolPickerSelection}`);
-				}
 				if (toolPickerSelection === false) {
 					return false;
 				}
@@ -290,11 +286,9 @@ export class ToolsService extends BaseToolsService {
 
 				// Tool was enabled via tool picker
 				if (toolPickerSelection === true) {
-					if (tool.name.includes('memory') || tool.name.includes('store')) { console.log(`[getEnabledTools] ${tool.name} INCLUDED: toolPickerSelection=true`); }
 					return true;
 				}
 
-				if (tool.name.includes('memory') || tool.name.includes('store')) { console.log(`[getEnabledTools] ${tool.name} EXCLUDED: toolPickerSelection=${toolPickerSelection} (fell through)`); }
 				return false;
 			})
 			.map(tool => {
