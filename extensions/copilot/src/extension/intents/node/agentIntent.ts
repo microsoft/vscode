@@ -17,7 +17,7 @@ import { IAutomodeService } from '../../../platform/endpoint/node/automodeServic
 import { IEnvService } from '../../../platform/env/common/envService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IEditLogService } from '../../../platform/multiFileEdit/common/editLogService';
-import { isAnthropicContextEditingEnabled } from '../../../platform/networking/common/anthropic';
+import { CUSTOM_TOOL_SEARCH_NAME, isAnthropicContextEditingEnabled } from '../../../platform/networking/common/anthropic';
 import { IChatEndpoint } from '../../../platform/networking/common/networking';
 import { modelsWithoutResponsesContextManagement } from '../../../platform/networking/common/openai';
 import { INotebookService } from '../../../platform/notebook/common/notebookService';
