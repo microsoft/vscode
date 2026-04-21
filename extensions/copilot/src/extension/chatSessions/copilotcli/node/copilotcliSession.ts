@@ -5,7 +5,6 @@
 
 import type { Attachment, SendOptions, Session, SessionOptions } from '@github/copilot/sdk';
 import * as l10n from '@vscode/l10n';
-import * as cp from 'child_process';
 import * as crypto from 'crypto';
 import type * as vscode from 'vscode';
 import type { ChatParticipantToolToken } from 'vscode';
@@ -17,7 +16,8 @@ import { CopilotChatAttr, GenAiAttr, GenAiOperationName, IOTelService, ISpanHand
 import { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
 import { IRequestLogger, LoggedRequestKind } from '../../../../platform/requestLogger/common/requestLogger';
 import { PromptTokenCategory, PromptTokenLabel } from '../../../../platform/tokenizer/node/promptTokenDetails';
-import { IGitService } from '../../../../platform/git/common/gitService';
+import { IGitService, getGithubRepoIdFromFetchUrl } from '../../../../platform/git/common/gitService';
+import { IGithubRepositoryService } from '../../../../platform/github/common/githubService';
 import { IWorkspaceService } from '../../../../platform/workspace/common/workspaceService';
 import { raceCancellation } from '../../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
@@ -242,6 +242,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		@IOTelService private readonly _otelService: IOTelService,
 		@IGitService private readonly _gitService: IGitService,
 		@IAuthenticationService private readonly _authenticationService: IAuthenticationService,
+		@IGithubRepositoryService private readonly _githubRepositoryService: IGithubRepositoryService,
 	) {
 		super();
 		this.sessionId = _sdkSession.sessionId;
@@ -1070,15 +1071,18 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				return;
 			}
 
-			// Step 4: Resolve numeric owner/repo IDs via GitHub API
-			const repoResponse = await fetch(`https://api.github.com/repos/${nwo.owner}/${nwo.repo}`, {
-				headers: { 'Authorization': `token ${githubToken}`, 'Accept': 'application/json' },
-			});
-			if (!repoResponse.ok) {
+			// Step 4: Resolve numeric owner/repo IDs via GitHub API. Use
+			// `IGithubRepositoryService` so the request is routed through the
+			// correct API host (github.com or a GHES instance) and goes through
+			// `IFetcherService` for consistent proxy/telemetry behavior.
+			let repoData: { id: number; owner: { id: number } };
+			try {
+				repoData = await this._githubRepositoryService.getRepositoryInfo(nwo.owner, nwo.repo);
+			} catch (err) {
+				this.logService.warn(`[CopilotCLISession] Failed to resolve repository ${nwo.owner}/${nwo.repo}: ${err}`);
 				this._stream?.markdown(l10n.t('Unable to enable remote control: could not resolve repository {0}/{1}.', nwo.owner, nwo.repo));
 				return;
 			}
-			const repoData = await repoResponse.json() as { id: number; owner: { id: number } };
 
 			// Step 5: Create Mission Control session
 			const agentTaskId = `${Date.now()}-${Math.random().toString(36).substring(2, 10)}`;
@@ -1150,8 +1154,8 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				cleanupMcSharedState(state);
 				mcStateBySessionId.delete(cleanupSessionIdCapture);
 			};
-			this._sdkSession.on('session.shutdown', cleanupOnShutdown);
-			this._sdkSession.on('session.error', cleanupOnShutdown);
+			const disposeOnSessionShutdown = this._sdkSession.on('session.shutdown', cleanupOnShutdown);
+			const disposeOnSessionError = this._sdkSession.on('session.error', cleanupOnShutdown);
 
 			// Step 7: Send the initial session.start event — MC requires this to
 			// transition out of "Fueling the runtime engines..." loading state.
@@ -1203,7 +1207,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			// are captured and forwarded to MC. Per-request listeners are disposed
 			// after each request completes, so this persistent listener fills the gap.
 			const sessionId = this.sessionId;
-			sharedState.mcEventListenerDispose = this._sdkSession.on('*', (event) => {
+			const disposePersistentEventListener = this._sdkSession.on('*', (event) => {
 				const state = mcStateBySessionId.get(sessionId);
 				if (!state) { return; }
 				// Use the static helper instead of this._bufferMcEvent to avoid
@@ -1249,8 +1253,19 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				}
 			});
 
-			// Step 8: Construct and display the frontend URL
-			const frontendUrl = `https://github.com/${nwo.owner}/${nwo.repo}/tasks/${taskId}`;
+			// Combine all three SDK listener disposers so `cleanupMcSharedState`
+			// (via `mcEventListenerDispose`) tears them all down in one step —
+			// on `/remote off`, SDK session shutdown/error, or replacement.
+			sharedState.mcEventListenerDispose = () => {
+				disposePersistentEventListener();
+				disposeOnSessionShutdown();
+				disposeOnSessionError();
+			};
+
+			// Step 8: Construct and display the frontend URL. Use the host from
+			// the resolved repo so GHES/GHE.com repositories open on the correct
+			// domain rather than always linking to github.com.
+			const frontendUrl = `https://${nwo.host}/${nwo.owner}/${nwo.repo}/tasks/${taskId}`;
 			this.logService.info(`[CopilotCLISession] MC session created, URL: ${frontendUrl}`);
 
 			// Render a persistent inline info banner using the proposed
@@ -1327,24 +1342,25 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	}
 
 	/**
-	 * Parse owner/repo from the git remote URL of a working directory.
+	 * Resolve owner/repo for a working directory using `IGitService`, which
+	 * handles non-`origin` remotes, SSH aliases, and GitHub Enterprise hosts
+	 * via the shared parsing utilities.
 	 */
-	private _resolveGitHubNwo(workingDirectory: vscode.Uri): Promise<{ owner: string; repo: string } | undefined> {
-		return new Promise((resolve) => {
-			cp.execFile('git', ['remote', 'get-url', 'origin'], { cwd: workingDirectory.fsPath, timeout: 5000 }, (_error, stdout) => {
-				if (!stdout) {
-					resolve(undefined);
-					return;
-				}
-				const url = stdout.trim();
-				const match = url.match(/github\.com[:/](?<owner>[^/]+)\/(?<repo>[^/]+?)(?:\.git)?$/);
-				if (match?.groups) {
-					resolve({ owner: match.groups.owner, repo: match.groups.repo });
-				} else {
-					resolve(undefined);
-				}
-			});
-		});
+	private async _resolveGitHubNwo(workingDirectory: vscode.Uri): Promise<{ owner: string; repo: string; host: string } | undefined> {
+		const fetchInfo = await this._gitService.getRepositoryFetchUrls(workingDirectory);
+		if (!fetchInfo?.remoteFetchUrls) {
+			return undefined;
+		}
+		for (const fetchUrl of fetchInfo.remoteFetchUrls) {
+			if (!fetchUrl) {
+				continue;
+			}
+			const repoId = getGithubRepoIdFromFetchUrl(fetchUrl);
+			if (repoId) {
+				return { owner: repoId.org, repo: repoId.repo, host: repoId.host };
+			}
+		}
+		return undefined;
 	}
 
 	// ── Mission Control event exporter ───────────────────────────────────
@@ -1389,6 +1405,11 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		const state = this._mcState;
 		const eventType = event.type ?? 'unknown';
 		if (!state) {
+			return;
+		}
+		// If a persistent MC listener is active, it already buffers every
+		// SDK event — skip here to avoid duplicating events in the buffer.
+		if (state.mcEventListenerDispose) {
 			return;
 		}
 		// Skip events that should not be forwarded to MC
@@ -1450,7 +1471,14 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	 */
 	private async _flushMcEvents(): Promise<void> {
 		const state = this._mcState;
-		if (!state || !state.mcSessionId || !state.mcApiUrl || !state.mcGithubToken || state.mcEventBuffer.length === 0) {
+		if (!state || !state.mcSessionId || !state.mcApiUrl || !state.mcGithubToken) {
+			return;
+		}
+		// Flush when there is anything to send — either new events, or
+		// completed command IDs that need to be acknowledged. Returning
+		// early on empty events would strand acks and cause MC to keep
+		// re-delivering the same in-progress commands.
+		if (state.mcEventBuffer.length === 0 && state.mcCompletedCommandIds.length === 0) {
 			return;
 		}
 
@@ -1459,6 +1487,22 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 
 		const eventTypes = events.map(e => e.type).join(', ');
 		this.logService.info(`[CopilotCLISession] Flushing ${events.length} MC event(s): [${eventTypes}]`);
+
+		// Re-queue events and completed command IDs on a flush failure so
+		// the next attempt retries them. Trim after re-queueing so a
+		// persistently failing endpoint cannot grow the buffers beyond the
+		// intended cap.
+		const MAX_BUFFER = 2000;
+		const requeueOnFailure = () => {
+			state.mcEventBuffer.unshift(...events);
+			if (state.mcEventBuffer.length > MAX_BUFFER) {
+				state.mcEventBuffer.splice(0, state.mcEventBuffer.length - MAX_BUFFER);
+			}
+			state.mcCompletedCommandIds.unshift(...completedCommandIds);
+			if (state.mcCompletedCommandIds.length > MAX_BUFFER) {
+				state.mcCompletedCommandIds.splice(0, state.mcCompletedCommandIds.length - MAX_BUFFER);
+			}
+		};
 
 		try {
 			const url = `${state.mcApiUrl}/agents/sessions/${state.mcSessionId}/events`;
@@ -1481,29 +1525,13 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			if (!response.ok) {
 				const respBody = await response.text().catch(() => '');
 				this.logService.warn(`[CopilotCLISession] MC event submission failed: ${response.status} ${response.statusText} - ${respBody}`);
-				// Re-queue events and completed command IDs on failure so the
-				// next flush retries them. Without re-queuing completed IDs,
-				// MC would keep returning the same in-progress commands and we
-				// would process them repeatedly. Cap the buffer so a persistently
-				// failing endpoint does not grow it unbounded.
-				if (state.mcEventBuffer.length < 2000) {
-					state.mcEventBuffer.unshift(...events);
-				}
-				if (state.mcCompletedCommandIds.length < 2000) {
-					state.mcCompletedCommandIds.unshift(...completedCommandIds);
-				}
+				requeueOnFailure();
 			} else {
 				this.logService.info(`[CopilotCLISession] MC event flush OK: ${response.status}`);
 			}
 		} catch (err) {
 			this.logService.warn(`[CopilotCLISession] MC event submission error: ${err}`);
-			// Re-queue on transient errors so no work is lost.
-			if (state.mcEventBuffer.length < 2000) {
-				state.mcEventBuffer.unshift(...events);
-			}
-			if (state.mcCompletedCommandIds.length < 2000) {
-				state.mcCompletedCommandIds.unshift(...completedCommandIds);
-			}
+			requeueOnFailure();
 		}
 	}
 

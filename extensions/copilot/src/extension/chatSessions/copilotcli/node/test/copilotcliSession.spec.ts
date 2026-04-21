@@ -31,7 +31,8 @@ import { IQuestion, IQuestionAnswer, IUserQuestionHandler } from '../userInputHe
 import { NullICopilotCLIImageSupport } from './testHelpers';
 import { MockGitService } from '../../../../../platform/ignore/node/test/mockGitService';
 import { MockAuthenticationService } from '../../../../../platform/ignore/node/test/mockAuthenticationService';
-import { IAuthenticationService } from '../../../../../platform/authentication/common/authentication';
+import { IGithubRepositoryService } from '../../../../../platform/github/common/githubService';
+import { mock } from '../../../../../util/common/test/simpleMock';
 
 vi.mock('../cliHelpers', async (importOriginal) => ({
 	...(await importOriginal<typeof import('../cliHelpers')>()),
@@ -250,7 +251,8 @@ describe('CopilotCLISession', () => {
 			configurationService,
 			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })),
 			new MockGitService(),
-			new MockAuthenticationService() as unknown as IAuthenticationService
+			new MockAuthenticationService(),
+			new class extends mock<IGithubRepositoryService>() { }()
 		));
 	}
 
