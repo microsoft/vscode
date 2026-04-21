@@ -2,7 +2,7 @@
 	"name": "copilot-chat",
 	"displayName": "GitHub Copilot Chat",
 	"description": "AI chat features powered by Copilot",
-	"version": "0.45.0",
+	"version": "0.46.0",
 	"build": "1",
 	"internalAIKey": "1058ec22-3c95-4951-8443-f26c1f325911",
 	"completionsCoreVersion": "1.378.1799",
@@ -23,7 +23,7 @@
 	"icon": "assets/copilot.png",
 	"pricing": "Trial",
 	"engines": {
-		"vscode": "^1.117.0",
+		"vscode": "^1.118.0",
 		"npm": ">=9.0.0",
 		"node": ">=22.14.0"
 	},
@@ -4269,6 +4269,33 @@
 							"onExp"
 						]
 					},
+					"github.copilot.chat.inlineChat.reasoningEffort": {
+						"type": "string",
+						"default": "low",
+						"enum": [
+							"none",
+							"minimal",
+							"low",
+							"medium",
+							"high"
+						],
+						"markdownDescription": "%github.copilot.config.inlineChat.reasoningEffort%",
+						"tags": [
+							"advanced",
+							"experimental",
+							"onExp"
+						]
+					},
+					"github.copilot.chat.inlineChat.enableThinking": {
+						"type": "boolean",
+						"default": false,
+						"markdownDescription": "%github.copilot.config.inlineChat.enableThinking%",
+						"tags": [
+							"advanced",
+							"experimental",
+							"onExp"
+						]
+					},
 					"github.copilot.chat.debug.requestLogger.maxEntries": {
 						"type": "number",
 						"default": 100,
@@ -5729,7 +5756,7 @@
 				{
 					"command": "github.copilot.sessions.discardChanges",
 					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.hasGitRepository && sessions.changesVersionMode == branchChanges",
-					"group": "navigation@1"
+					"group": "navigation@2"
 				}
 			],
 			"chat/customizations/create": [
@@ -6330,10 +6357,6 @@
 	},
 	"scripts": {
 		"postinstall": "tsx ./script/postinstall.ts",
-		"vscode-dts:update": "node script/build/vscodeDtsUpdate.js",
-		"vscode-dts:check": "node script/build/vscodeDtsCheck.js",
-		"vscode-dts:dev": "node node_modules/@vscode/dts/index.js dev && node script/build/moveProposedDts.js",
-		"vscode-dts:main": "node node_modules/@vscode/dts/index.js main && node script/build/moveProposedDts.js",
 		"build": "node .esbuild.ts --sourcemaps",
 		"compile": "node .esbuild.ts --dev",
 		"watch": "npm-run-all -lp watch:esbuild watch:tsc",
@@ -6468,10 +6491,10 @@
 		"zod": "3.25.76"
 	},
 	"dependencies": {
-		"@anthropic-ai/claude-agent-sdk": "0.2.98",
+		"@anthropic-ai/claude-agent-sdk": "0.2.112",
 		"@anthropic-ai/sdk": "^0.82.0",
 		"@github/blackbird-external-ingest-utils": "^0.3.0",
-		"@github/copilot": "^1.0.28",
+		"@github/copilot": "^1.0.34",
 		"@github/copilot-agentic-tools": "^0.6.0",
 		"@google/genai": "^1.22.0",
 		"@humanwhocodes/gitignore-to-minimatch": "1.0.2",
@@ -6502,7 +6525,7 @@
 		"applicationinsights": "^2.9.7",
 		"best-effort-json-parser": "^1.2.1",
 		"diff": "^8.0.3",
-		"dompurify": "^3.3.2",
+		"dompurify": "^3.4.0",
 		"express": "^5.2.1",
 		"ignore": "^7.0.5",
 		"isbinaryfile": "^5.0.4",

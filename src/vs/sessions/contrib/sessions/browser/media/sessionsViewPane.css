@@ -139,6 +139,16 @@
 		top: 1.5px;
 	}
 
+	/* Match the find widget's close button size to the header toolbar action buttons (22x22) */
+	.agent-sessions-find-widget-container > .monaco-tree-type-filter > .monaco-tree-type-filter-actionbar .monaco-action-bar .action-label {
+		width: 22px;
+		height: 22px;
+		padding: 0;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
 	/* Compact "New" button in header */
 	.agent-sessions-compact-new-button.monaco-button {
 		display: inline-flex;

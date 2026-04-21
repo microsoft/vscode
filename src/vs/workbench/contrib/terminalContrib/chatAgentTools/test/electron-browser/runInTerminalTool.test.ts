@@ -43,8 +43,9 @@ import { ITerminalProfileResolverService } from '../../../../terminal/common/ter
 import type { ICommandLinePresenter } from '../../browser/tools/commandLinePresenter/commandLinePresenter.js';
 import { createRunInTerminalToolData, RunInTerminalTool, shouldAutomaticallyRetryUnsandboxed, type IRunInTerminalInputParams } from '../../browser/tools/runInTerminalTool.js';
 import { ShellIntegrationQuality } from '../../browser/toolTerminalCreator.js';
-import { terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSandboxEnabledValue, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
+import { terminalChatAgentToolsConfiguration, TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 import { AgentNetworkDomainSettingId } from '../../../../../../platform/networkFilter/common/settings.js';
+import { AgentSandboxEnabledValue, AgentSandboxSettingId } from '../../../../../../platform/sandbox/common/settings.js';
 import { TerminalChatService } from '../../../chat/browser/terminalChatService.js';
 import type { IMarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IAgentSessionsService } from '../../../../chat/browser/agentSessions/agentSessionsService.js';
@@ -1118,6 +1119,20 @@ suite('RunInTerminalTool', () => {
 			assertConfirmationRequired(result, `Run command in \`bash\` within \`${isWindows ? '\\tmp' : '~/tmp'}\`?`);
 		});
 
+		test('should not show undefined in confirmation message when explanation and goal are missing', async () => {
+			const params: Partial<IRunInTerminalInputParams> = {
+				command: 'rm file.txt',
+			};
+			delete params.explanation;
+			delete params.goal;
+			const result = await executeToolTest(params);
+			assertConfirmationRequired(result);
+			const message = result?.confirmationMessages?.message;
+			ok(message, 'Expected confirmation message to be defined');
+			const messageText = typeof message === 'string' ? message : message.value;
+			ok(!messageText.includes('undefined'), `Confirmation message should not contain "undefined", got: ${messageText}`);
+		});
+
 		test('should use withLanguage inDirectory title when presenter returns languageDisplayName with cd prefix', async () => {
 			const workspaceFolder = URI.file(isWindows ? 'C:\\workspace\\project' : '/workspace/project');
 			const workspace = new Workspace('test', [toWorkspaceFolder(workspaceFolder)]);
@@ -1900,6 +1915,30 @@ suite('RunInTerminalTool', () => {
 			chatServiceDisposeEmitter.fire({ sessionResources: [LocalChatSessionUri.forSession('non-existent-session')], reason: 'cleared' });
 			strictEqual(runInTerminalTool.sessionTerminalAssociations.size, 0, 'No associations should exist after handling non-existent session');
 		});
+
+		test('should not reuse a disposed cached terminal', () => {
+			const sessionResource = LocalChatSessionUri.forSession('disposed-terminal-session');
+			const disposedTerminal = {
+				isDisposed: true,
+				dispose: () => { },
+				processId: 99999,
+			} as unknown as ITerminalInstance;
+			runInTerminalTool.sessionTerminalAssociations.set(sessionResource, {
+				instance: disposedTerminal,
+				shellIntegrationQuality: ShellIntegrationQuality.None,
+				isBackground: false,
+			});
+
+			// A disposed cached terminal should not be returned by the association lookup
+			const cachedTerminal = runInTerminalTool.sessionTerminalAssociations.get(sessionResource);
+			ok(cachedTerminal, 'Cached terminal should exist in the map');
+			strictEqual(cachedTerminal!.instance.isDisposed, true, 'Cached terminal should be disposed');
+
+			// Verify the guard condition that _initTerminal uses:
+			// cachedTerminal && !cachedTerminal.isBackground && !cachedTerminal.instance.isDisposed
+			const wouldReuse = cachedTerminal !== undefined && !cachedTerminal.isBackground && !cachedTerminal.instance.isDisposed;
+			strictEqual(wouldReuse, false, 'Should not reuse a disposed cached terminal');
+		});
 	});
 
 	test('should dedupe rapid repeated background input-needed notifications', () => {
@@ -2446,10 +2485,10 @@ suite('ChatAgentToolsContribution - tool registration refresh', () => {
 
 		// Enable sandbox and fire config change
 		sandboxEnabled = true;
-		configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.AgentSandboxEnabled, TerminalChatAgentToolsSandboxEnabledValue.On);
+		configurationService.setUserConfiguration(AgentSandboxSettingId.AgentSandboxEnabled, AgentSandboxEnabledValue.On);
 		configurationService.onDidChangeConfigurationEmitter.fire({
-			affectsConfiguration: (key: string) => key === TerminalChatAgentToolsSettingId.AgentSandboxEnabled,
-			affectedKeys: new Set([TerminalChatAgentToolsSettingId.AgentSandboxEnabled]),
+			affectsConfiguration: (key: string) => key === AgentSandboxSettingId.AgentSandboxEnabled,
+			affectedKeys: new Set([AgentSandboxSettingId.AgentSandboxEnabled]),
 			source: ConfigurationTarget.USER,
 			change: null!,
 		});

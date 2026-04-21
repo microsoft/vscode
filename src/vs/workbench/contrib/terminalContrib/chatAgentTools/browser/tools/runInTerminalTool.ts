@@ -473,12 +473,16 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	private readonly _terminalsBeingDisposedBySessionCleanup = new Set<ITerminalInstance>();
 
 	/**
-	 * Tracks active background completion notifications per terminal ID.
+	 * Tracks active background completion notifications per terminal instance ID.
 	 * When a new notification is registered for a terminal that already has one,
 	 * the previous notification (and its OutputMonitor) is disposed first to
 	 * prevent listener accumulation on the terminal's onDidInputData emitter.
+	 *
+	 * Keyed by `ITerminalInstance.instanceId` (stable per terminal) rather than
+	 * the per-invocation `termId` so that reusing the same foreground terminal
+	 * after an `inputNeeded` race disposes the prior OutputMonitor.
 	 */
-	private readonly _backgroundNotifications = this._register(new DisposableMap<string>());
+	private readonly _backgroundNotifications = this._register(new DisposableMap<number>());
 
 	// Immutable window state
 	protected readonly _osBackend: Promise<OperatingSystem>;
@@ -874,15 +878,17 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		// If forceConfirmationReason is set, always show confirmation regardless of auto-approval
 		const shouldShowConfirmation = (!isFinalAutoApproved && !isSessionAutoApproved) || context.forceConfirmationReason !== undefined;
 		(toolSpecificData as IRunInTerminalToolInvocationData).requiresConfirmationForRetry = (!isAutoApprovedByRules && !isSessionAutoApproved) || context.forceConfirmationReason !== undefined;
+		const explanation = args.explanation || localize('runInTerminal.defaultExplanation', "No explanation provided");
+		const goal = args.goal || localize('runInTerminal.defaultGoal', "No goal provided");
 		const confirmationMessage = requiresUnsandboxConfirmation
 			? new MarkdownString(localize(
 				'runInTerminal.unsandboxed.confirmationMessage',
 				"Explanation: {0}\n\nGoal: {1}\n\nReason for leaving the sandbox: {2}",
-				args.explanation,
-				args.goal,
+				explanation,
+				goal,
 				requestUnsandboxedExecutionReason || localize('runInTerminal.unsandboxed.confirmationMessage.defaultReason', "The model indicated that this command needs unsandboxed access.")
 			))
-			: new MarkdownString(localize('runInTerminal.confirmationMessage', "Explanation: {0}\n\nGoal: {1}", args.explanation, args.goal));
+			: new MarkdownString(localize('runInTerminal.confirmationMessage', "Explanation: {0}\n\nGoal: {1}", explanation, goal));
 		const confirmationMessages = shouldShowConfirmation ? {
 			title: confirmationTitle,
 			message: confirmationMessage,
@@ -1391,7 +1397,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 						resultText += `${outputAnalyzerMessage}\n`;
 					}
 					resultText += pollingResult.output;
-					resultText += `\nEvaluate the terminal output to determine if the command is waiting for input (e.g. a password prompt, confirmation, or interactive question). A normal shell prompt does NOT count as waiting for input. If it IS waiting for input, you MUST call the vscode_askQuestions tool to ask the user what values to provide. If you are certain about the exact sequence of upcoming prompts for this command (e.g. well-known interactive commands like npm init), include all of them in a single askQuestions call. Otherwise, ask only about the currently visible prompt. Do NOT respond with a text message asking the user — use the tool. Then send each answer one at a time using ${TerminalToolId.SendToTerminal} with id "${termId}", calling ${TerminalToolId.GetTerminalOutput} between each to read the next prompt before sending the next answer.`;
+					resultText += `\n${this._buildInputNeededSteeringText(chatSessionResource, termId, /*mentionTimeout*/ false)}`;
 				} else if (pollingResult) {
 					resultText += `\n The command is still running, with output:\n`;
 					if (outputAnalyzerMessage) {
@@ -1698,13 +1704,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 		}
 		if (didInputNeeded) {
-			resultText.push(`Note: The command is running in terminal ID ${termId} and may be waiting for input. Evaluate the terminal output to determine if the command is actually waiting for input (e.g. a password prompt, confirmation, or interactive question). A normal shell prompt does NOT count as waiting for input. If it IS waiting for input, you MUST call the vscode_askQuestions tool to ask the user what values to provide. If you are certain about the exact sequence of upcoming prompts for this command (e.g. well-known interactive commands like npm init), include all of them in a single askQuestions call. Otherwise, ask only about the currently visible prompt. Do NOT respond with a text message asking the user — use the tool. Then send each answer one at a time using ${TerminalToolId.SendToTerminal} with id "${termId}", calling ${TerminalToolId.GetTerminalOutput} between each to read the next prompt before sending the next answer.\n\n`);
+			resultText.push(`Note: The command is running in terminal ID ${termId} and may be waiting for input.\n${this._buildInputNeededSteeringText(chatSessionResource, termId, /*mentionTimeout*/ false)}\n\n`);
 		} else if (didTimeout && timeoutValue !== undefined && timeoutValue > 0) {
 			const notificationHint = shouldSendNotifications
 				? ' You will be automatically notified on your next turn when it completes.'
 				: '';
-			const inputAction = `If it IS waiting for input, you MUST call the vscode_askQuestions tool to ask the user what values to provide. If you are certain about the exact sequence of upcoming prompts for this command (e.g. well-known interactive commands like npm init), include all of them in a single askQuestions call. Otherwise, ask only about the currently visible prompt. Do NOT respond with a text message asking the user — use the tool. Then send each answer one at a time using ${TerminalToolId.SendToTerminal} with id "${termId}", calling ${TerminalToolId.GetTerminalOutput} between each to read the next prompt before sending the next answer.`;
-			resultText.push(`Note: Command timed out after ${timeoutValue}ms. The command may still be running in terminal ID ${termId}.${notificationHint} Use ${TerminalToolId.GetTerminalOutput} to check output before then, ${TerminalToolId.SendToTerminal} to send further input, or ${TerminalToolId.KillTerminal} to stop it. Do NOT use sleep or manual polling to wait. Evaluate the terminal output to determine if the command is waiting for input (e.g. a password prompt, confirmation, or interactive question). A normal shell prompt does NOT count as waiting for input. ${inputAction}\n\n`);
+			resultText.push(`Note: Command timed out after ${timeoutValue}ms. The command may still be running in terminal ID ${termId}.${notificationHint}\n${this._buildInputNeededSteeringText(chatSessionResource, termId, /*mentionTimeout*/ true)}\n\n`);
 		}
 		const outputAnalyzerMessage = await this._getOutputAnalyzerMessage(exitCode, terminalResult, command, didSandboxWrapCommand);
 		if (outputAnalyzerMessage) {
@@ -1740,6 +1745,35 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				...imageContent,
 			]
 		};
+	}
+
+	/**
+	 * Builds the steering text the model sees when the terminal tool suspects
+	 * the command may be waiting for input. The heuristic that triggers this
+	 * note can false-positive on long-running compute commands or shells sitting
+	 * on a secondary prompt (e.g. heredoc continuation `> `), so the text
+	 * explicitly:
+	 *   1. Tells the model this note is NOT a signal to end the turn.
+	 *   2. Leads with `get_terminal_output` as the safe recovery action.
+	 *   3. Offers `send_to_terminal` / `vscode_askQuestions` only for real prompts.
+	 * `kill_terminal` is only advertised on the timeout branch — suggesting it
+	 * in the general case leads the model to terminate valid interactive
+	 * sessions (e.g. `npm init`) instead of driving them.
+	 */
+	private _buildInputNeededSteeringText(chatSessionResource: URI, termId: string, mentionTimeout: boolean): string {
+		const isAutoApproved = isSessionAutoApproveLevel(chatSessionResource, this._configurationService, this._chatWidgetService, this._chatService);
+		const realInputBranch = isAutoApproved
+			? `determine the answer and call ${TerminalToolId.SendToTerminal} with id="${termId}" (which returns the next few lines of output). Repeat one prompt at a time.`
+			: `call the vscode_askQuestions tool to ask the user, then send each answer using ${TerminalToolId.SendToTerminal} with id="${termId}" (which returns the next few lines of output). Repeat one prompt at a time.`;
+		const lines = [
+			`This note is not a signal to end the turn — pick one of the actions below and continue.`,
+			`  1. If the command may still be producing output or the shell prompt has not returned, call ${TerminalToolId.GetTerminalOutput} with id="${termId}" to continue polling. This is the default and safest action when unsure.`,
+			`  2. Only if the output clearly ends with a real input prompt (password:, Continue? (y/n), etc. — a normal shell prompt like \`$\` or \`#\` does NOT count), ${realInputBranch}`,
+		];
+		if (mentionTimeout) {
+			lines.push(`  3. A timeout does not mean the command failed — call ${TerminalToolId.GetTerminalOutput} with id="${termId}" to continue polling. Only call ${TerminalToolId.KillTerminal} if the command is genuinely hung and you need to retry with a different approach.`);
+		}
+		return lines.join('\n');
 	}
 
 	private async _getOutputAnalyzerMessage(exitCode: number | undefined, exitResult: string, commandLine: string, isSandboxWrapped: boolean): Promise<string | undefined> {
@@ -1839,7 +1873,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		// For foreground mode, try to reuse cached terminal (but not if it was a background terminal)
 		if (!isBackground) {
 			const cachedTerminal = this._sessionTerminalAssociations.get(chatSessionResource);
-			if (cachedTerminal && !cachedTerminal.isBackground) {
+			if (cachedTerminal && !cachedTerminal.isBackground && !cachedTerminal.instance.isDisposed) {
 				this._logService.debug(`RunInTerminalTool: Using cached terminal with session resource \`${chatSessionResource}\``);
 				this._terminalToolCreator.refreshShellIntegrationQuality(cachedTerminal);
 				this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, cachedTerminal.instance);
@@ -2078,9 +2112,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	 * The output monitor is cancelled and disposed when a command finishes.
 	 */
 	private _registerCompletionNotification(terminalInstance: ITerminalInstance, termId: string, chatSessionResource: URI, commandName: string, outputMonitor?: OutputMonitor): void {
-		// Dispose any previous background notification for this terminal to prevent
-		// listener accumulation (e.g. multiple onDidInputData subscriptions).
-		this._backgroundNotifications.deleteAndDispose(termId);
+		// Dispose any previous background notification for this terminal instance to prevent
+		// listener accumulation (e.g. multiple onDidInputData subscriptions) when the same
+		// foreground terminal is reused across run_in_terminal invocations.
+		const notificationKey = terminalInstance.instanceId;
+		this._backgroundNotifications.deleteAndDispose(notificationKey);
 
 		const commandDetection = terminalInstance.capabilities.get(TerminalCapability.CommandDetection);
 		if (!commandDetection) {
@@ -2120,7 +2156,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		// stops asking questions and lets the user finish interacting with the terminal.
 		let userIsReplyingDirectly = false;
 
-		const disposeNotification = () => this._backgroundNotifications.deleteAndDispose(termId);
+		const disposeNotification = () => this._backgroundNotifications.deleteAndDispose(notificationKey);
 
 		// If the user manually stopped the agent, suppress background
 		// steering requests and tear down the notification listeners.
@@ -2185,8 +2221,8 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				}
 				lastInputNeededOutput = currentOutput;
 				lastInputNeededNotificationTime = now;
-				const inputAction = `You MUST call the vscode_askQuestions tool to ask the user what values to provide for all anticipated prompts at once (include upcoming prompts you can predict from the command, not just the currently visible one). Do NOT respond with a text message asking the user — use the tool. Then send each answer one at a time using ${TerminalToolId.SendToTerminal} with id "${termId}", calling ${TerminalToolId.GetTerminalOutput} between each to read the next prompt before sending the next answer.`;
-				const message = `[Terminal ${termId} notification: command is waiting for input. ${inputAction}]\nTerminal output:\n${currentOutput}`;
+				const inputAction = this._buildInputNeededSteeringText(chatSessionResource, termId, /*mentionTimeout*/ false);
+				const message = `[Terminal ${termId} notification: command is waiting for input.]\n${inputAction}\nTerminal output:\n${currentOutput}`;
 
 				this._logService.debug(`RunInTerminalTool: Input needed in background terminal ${termId}, notifying chat session`);
 
@@ -2268,7 +2304,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 		}));
 
-		this._backgroundNotifications.set(termId, store);
+		this._backgroundNotifications.set(notificationKey, store);
 	}
 
 	/**

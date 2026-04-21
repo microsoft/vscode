@@ -39,7 +39,7 @@ interface IManagedShell {
 	readonly shellType: ShellType;
 }
 
-type ShellType = 'bash' | 'powershell';
+export type ShellType = 'bash' | 'powershell';
 
 function getShellExecutable(shellType: ShellType): string {
 	if (shellType === 'powershell') {
@@ -109,7 +109,7 @@ export class ShellManager {
 			claim,
 			name: shellDisplayName,
 			cwd: cwd ?? this._workingDirectory?.fsPath,
-		}, { shell: getShellExecutable(shellType) });
+		}, { shell: getShellExecutable(shellType), preventShellHistory: true, nonInteractive: true });
 
 		const shell: IManagedShell = { id, terminalUri, shellType };
 		this._shells.set(id, shell);
@@ -186,6 +186,20 @@ function buildSentinelCommand(sentinelId: string, shellType: ShellType): string 
 	return `echo "${SENTINEL_PREFIX}${sentinelId}_EXIT_$?>>>"`;
 }
 
+/**
+ * For POSIX shells (bash/zsh) that honor `HISTCONTROL=ignorespace` /
+ * `HIST_IGNORE_SPACE`, prepending a single space prevents the command from
+ * being recorded in shell history. The shell integration scripts opt these
+ * settings in via the `VSCODE_PREVENT_SHELL_HISTORY` env var (set when the
+ * terminal is created with `preventShellHistory: true`). PowerShell
+ * suppresses history through PSReadLine instead, so no prefix is needed.
+ *
+ * Exported for tests.
+ */
+export function prefixForHistorySuppression(shellType: ShellType): string {
+	return shellType === 'powershell' ? '' : ' ';
+}
+
 function parseSentinel(content: string, sentinelId: string): { found: boolean; exitCode: number; outputBeforeSentinel: string } {
 	const marker = `${SENTINEL_PREFIX}${sentinelId}_EXIT_`;
 	const idx = content.indexOf(marker);
@@ -252,7 +266,7 @@ async function executeCommandWithShellIntegration(
 ): Promise<ToolResultObject> {
 	const disposables = new DisposableStore();
 
-	terminalManager.writeInput(shell.terminalUri, `${command}\r`);
+	terminalManager.writeInput(shell.terminalUri, `${prefixForHistorySuppression(shell.shellType)}${command}\r`);
 
 	return new Promise<ToolResultObject>(resolve => {
 		let resolved = false;
@@ -322,7 +336,7 @@ async function executeCommandWithSentinel(
 	const offsetBefore = contentBefore.length;
 
 	// PTY input uses \r for line endings — the PTY translates to \r\n
-	const input = `${command}\r${sentinelCmd}\r`;
+	const input = `${prefixForHistorySuppression(shell.shellType)}${command}\r${sentinelCmd}\r`;
 	terminalManager.writeInput(shell.terminalUri, input);
 
 	return new Promise<ToolResultObject>(resolve => {

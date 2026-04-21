@@ -633,7 +633,6 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		}
 
 		const session = await provider.provider.provideChatSessionContent(sessionResource, token, {
-			sessionOptions: context?.initialSessionOptions ?? [],
 			inputState,
 		});
 		if (token.isCancellationRequested) {
@@ -1089,7 +1088,6 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 				prompt: request.prompt,
 				command: request.command
 			},
-			sessionOptions: request.initialSessionOptions ?? [],
 			inputState,
 		}, token);
 		if (!item) {
@@ -1119,7 +1117,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		controllerData.onDidChangeChatSessionItemStateEmitter.fire(item);
 	}
 
-	async $provideChatSessionInputState(controllerHandle: number, sessionResourceComponents: UriComponents, token: CancellationToken): Promise<vscode.ChatSessionProviderOptionGroup[] | undefined> {
+	async $provideChatSessionInputState(controllerHandle: number, sessionResourceComponents: UriComponents | undefined, token: CancellationToken): Promise<vscode.ChatSessionProviderOptionGroup[] | undefined> {
 		const controllerData = this._chatSessionItemControllers.get(controllerHandle);
 		if (!controllerData) {
 			this._logService.warn(`No controller found for handle ${controllerHandle}`);
@@ -1130,14 +1128,13 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		if (!handler) {
 			return undefined;
 		}
-
-		const sessionResource = URI.revive(sessionResourceComponents);
-		const inputState = await handler(isUntitledChatSession(sessionResource) ? undefined : sessionResource, { previousInputState: undefined }, token);
+		const sessionResource = sessionResourceComponents ? URI.revive(sessionResourceComponents) : undefined;
+		const inputState = await handler(!sessionResource || isUntitledChatSession(sessionResource) ? undefined : sessionResource, { previousInputState: undefined }, token);
 		if (!inputState) {
 			return undefined;
 		}
 
-		if (inputState instanceof ChatSessionInputStateImpl) {
+		if (inputState instanceof ChatSessionInputStateImpl && sessionResource) {
 			if (isUntitledChatSession(sessionResource)) {
 				inputState.untitledSessionResource = sessionResource;
 			} else {

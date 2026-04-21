@@ -338,7 +338,6 @@ export default tseslint.config(
 		ignores: [
 			'src/util/vs/**/*.ts', // vendored code
 			'src/**/*.spec.ts', // allow in tests
-			'./src/extension/agents/copilotcli/node/nodePtyShim.ts',
 			'./src/extension/byok/common/anthropicMessageConverter.ts',
 			'./src/extension/byok/common/geminiFunctionDeclarationConverter.ts',
 			'./src/extension/byok/common/geminiMessageConverter.ts',
@@ -489,9 +488,6 @@ export default tseslint.config(
 			'./src/platform/test/node/telemetry.ts',
 			'./src/platform/test/node/testWorkbenchService.ts',
 			'./src/platform/testing/common/nullWorkspaceMutationManager.ts',
-			'./src/platform/tfidf/node/tfidf.ts',
-			'./src/platform/tfidf/node/tfidfMessaging.ts',
-			'./src/platform/tfidf/node/tfidfWorker.ts',
 			'./src/platform/thinking/common/thinking.ts',
 			'./src/platform/tokenizer/node/tikTokenizerWorker.ts',
 			'./src/platform/tokenizer/node/tokenizer.ts',

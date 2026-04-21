@@ -47,12 +47,7 @@
 				"fileLocation": [
 					"absolute"
 				],
-				"pattern": {
-					"regexp": "Error: ([^(]+)\\((\\d+|\\d+,\\d+|\\d+,\\d+,\\d+,\\d+)\\): (.*)$",
-					"file": 1,
-					"location": 2,
-					"message": 3
-				},
+				"pattern": "$tsc",
 				"background": {
 					"beginsPattern": "Starting compilation\\.\\.\\.",
 					"endsPattern": "Finished compilation with"
@@ -76,12 +71,7 @@
 					"relative",
 					"${workspaceFolder}"
 				],
-				"pattern": {
-					"regexp": "\\] ([^(]+)\\((\\d+,\\d+)\\): (.*)$",
-					"file": 1,
-					"location": 2,
-					"message": 3
-				},
+				"pattern": "$tsc",
 				"background": {
 					"beginsPattern": "Starting compilation",
 					"endsPattern": "Finished compilation"
@@ -275,14 +265,20 @@
 		},
 		{
 			"label": "Run and Compile Agents - OSS",
-			"dependsOn": ["Transpile Client", "Run Dev Agents"],
+			"dependsOn": [
+				"Transpile Client",
+				"Run Dev Agents"
+			],
 			"dependsOrder": "sequence",
 			"inAgents": true,
 			"problemMatcher": []
 		},
 		{
 			"label": "Run and Compile Code - OSS",
-			"dependsOn": ["Transpile Client", "Run Dev"],
+			"dependsOn": [
+				"Transpile Client",
+				"Run Dev"
+			],
 			"dependsOrder": "sequence",
 			"inAgents": true,
 			"problemMatcher": []

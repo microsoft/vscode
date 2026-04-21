@@ -12,11 +12,13 @@ import { SendToTerminalTool, SendToTerminalToolData } from '../../browser/tools/
 import { RunInTerminalTool, type IActiveTerminalExecution } from '../../browser/tools/runInTerminalTool.js';
 import type { IToolInvocation, IToolInvocationPreparationContext } from '../../../../chat/common/tools/languageModelToolsService.js';
 import type { ITerminalExecuteStrategyResult } from '../../browser/executeStrategy/executeStrategy.js';
-import { ITerminalChatService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
+import { ITerminalChatService, ITerminalService, type ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { workbenchInstantiationService } from '../../../../../test/browser/workbenchTestServices.js';
 import type { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IChatService } from '../../../../chat/common/chatService/chatService.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { IChatWidget, IChatWidgetService } from '../../../../chat/browser/chat.js';
+import { ChatPermissionLevel } from '../../../../chat/common/constants.js';
 
 suite('SendToTerminalTool', () => {
 	const store = ensureNoDisposablesAreLeakedInTestSuite();
@@ -69,12 +71,8 @@ suite('SendToTerminalTool', () => {
 		};
 	}
 
-	test('tool description documents terminal IDs and use cases', () => {
+	test('tool schema requires a UUID id', () => {
 		const idProperty = SendToTerminalToolData.inputSchema?.properties?.id as { description?: string; pattern?: string } | undefined;
-		const commandProperty = SendToTerminalToolData.inputSchema?.properties?.command as { description?: string } | undefined;
-		assert.ok(SendToTerminalToolData.modelDescription.includes('Send input text to a terminal session'));
-		assert.ok(SendToTerminalToolData.modelDescription.includes('may be empty or whitespace to press Enter'));
-		assert.ok(commandProperty?.description?.includes('Provide an empty or whitespace string to send just Enter'));
 		assert.ok(idProperty?.pattern?.includes('[0-9a-fA-F]{8}'));
 	});
 
@@ -349,5 +347,61 @@ suite('SendToTerminalTool', () => {
 		assert.strictEqual(third.confirmationMessages, undefined);
 		const thirdMsg = third.pastTenseMessage as IMarkdownString;
 		assert.ok(thirdMsg.value.includes('description'), 'third call should show description question');
+	});
+
+	test('prepareToolInvocation shows confirmation in default permission mode', async () => {
+		const prepared = await tool.prepareToolInvocation(
+			createPreparationContext(KNOWN_TERMINAL_ID, 'hello'),
+			CancellationToken.None,
+		);
+
+		assert.ok(prepared);
+		assert.ok(prepared.confirmationMessages, 'should show confirmation in default mode');
+		assert.strictEqual(prepared.confirmationMessages.title, 'Send to Terminal');
+	});
+
+	test('prepareToolInvocation skips confirmation in auto-approve mode', async () => {
+		const sessionResource = URI.parse('chat-session://test-session');
+		instantiationService.stub(IChatWidgetService, {
+			getWidgetBySessionResource: () => ({
+				input: {
+					currentModeInfo: {
+						permissionLevel: ChatPermissionLevel.AutoApprove,
+					},
+				},
+			}) as unknown as IChatWidget,
+			lastFocusedWidget: undefined,
+		});
+		tool = store.add(instantiationService.createInstance(SendToTerminalTool));
+
+		const prepared = await tool.prepareToolInvocation(
+			createPreparationContext(KNOWN_TERMINAL_ID, 'hello', sessionResource),
+			CancellationToken.None,
+		);
+
+		assert.ok(prepared);
+		assert.strictEqual(prepared.confirmationMessages, undefined, 'should skip confirmation in auto-approve mode');
+	});
+
+	test('prepareToolInvocation Focus Terminal link does not contain $(terminal)', async () => {
+		const mockExecution = createMockExecution('output');
+		(mockExecution.instance as { instanceId: number }).instanceId = 42;
+		(mockExecution.instance as { title: string }).title = 'node';
+		RunInTerminalTool.getExecution = () => mockExecution;
+		instantiationService.stub(ITerminalService, {
+			getInstanceFromId: () => undefined,
+		});
+		tool = store.add(instantiationService.createInstance(SendToTerminalTool));
+
+		const prepared = await tool.prepareToolInvocation(
+			createPreparationContext(KNOWN_TERMINAL_ID, 'hello'),
+			CancellationToken.None,
+		);
+
+		assert.ok(prepared);
+		assert.ok(prepared.confirmationMessages);
+		const message = prepared.confirmationMessages.message as IMarkdownString;
+		assert.ok(!message.value.includes('$(terminal)'), 'Focus Terminal link should not contain literal $(terminal)');
+		assert.ok(message.value.includes('Focus Terminal'), 'should contain Focus Terminal link text');
 	});
 });

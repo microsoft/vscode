@@ -16,6 +16,7 @@ globalThis._VSCODE_FILE_ROOT = fileURLToPath(new URL('../../../..', import.meta.
 import * as fs from 'fs';
 import * as os from 'os';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
+import { raceTimeout } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
@@ -47,6 +48,7 @@ import { AGENT_CLIENT_SCHEME } from '../common/agentClientUri.js';
 import { resolveServerUrls } from './serverUrls.js';
 import { AgentPluginManager } from './agentPluginManager.js';
 import { IAgentPluginManager } from '../common/agentPluginManager.js';
+import { registerPendingEditContentProvider } from './copilot/pendingEditContentStore.js';
 import { AgentHostGitService, IAgentHostGitService } from './agentHostGitService.js';
 
 /** Log to stderr so messages appear in the terminal alongside the process. */
@@ -153,6 +155,9 @@ async function main(): Promise<void> {
 	// File service
 	const fileService = disposables.add(new FileService(logService));
 	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new DiskFileSystemProvider(logService))));
+	// In-memory filesystem backing transient file-edit previews shown during
+	// tool-call confirmations.
+	disposables.add(registerPendingEditContentProvider(fileService));
 
 	// Session data service
 	const sessionDataService = new SessionDataService(URI.file(environmentService.userDataPath), fileService, logService);
@@ -249,12 +254,31 @@ async function main(): Promise<void> {
 
 	// Keep alive until stdin closes or signal
 	process.stdin.resume();
-	process.stdin.on('end', shutdown);
-	process.on('SIGTERM', shutdown);
-	process.on('SIGINT', shutdown);
+	process.stdin.on('end', () => { void shutdown(); });
+	process.on('SIGTERM', () => { void shutdown(); });
+	process.on('SIGINT', () => { void shutdown(); });
 
-	function shutdown(): void {
+	let shuttingDown = false;
+	async function shutdown(): Promise<void> {
+		if (shuttingDown) {
+			return;
+		}
+		shuttingDown = true;
 		logService.info('[AgentHostServer] Shutting down...');
+		// Close the WebSocket server first so no further actions can be
+		// dispatched while we wait for in-flight writes to flush — otherwise
+		// a late-arriving action could keep queuing DB writes and either
+		// undermine the flush or push us past the timeout.
+		wsServer.dispose();
+		// Wait for in-flight persistence writes to flush to the per-session
+		// SQLite databases. Without this, a SIGTERM arriving while a
+		// `setMetadata` write (configValues, customTitle, isRead, isDone,
+		// diffs) is in flight can drop the latest value — see the
+		// "Session Config persistence across restarts" integration test.
+		// Capped so a stuck write cannot hang shutdown indefinitely.
+		await raceTimeout(sessionDataService.whenIdle(), 3000, () => {
+			logService.warn('[AgentHostServer] Timed out waiting for session database writes to flush; exiting anyway.');
+		});
 		disposables.dispose();
 		loggerService?.dispose();
 		process.exit(0);

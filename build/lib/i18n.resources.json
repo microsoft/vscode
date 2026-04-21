@@ -637,6 +637,10 @@
 			"project": "vscode-sessions"
 		},
 		{
+			"name": "vs/sessions/contrib/agentHost",
+			"project": "vscode-sessions"
+		},
+		{
 			"name": "vs/sessions/contrib/aiCustomizationTreeView",
 			"project": "vscode-sessions"
 		},
@@ -672,20 +676,16 @@
 			"name": "vs/sessions/contrib/files",
 			"project": "vscode-sessions"
 		},
-                {
-                        "name": "vs/sessions/contrib/policyBlocked",
-                        "project": "vscode-sessions"
-                },
+		{
+			"name": "vs/sessions/contrib/policyBlocked",
+			"project": "vscode-sessions"
+		},
 		{
 			"name": "vs/sessions/contrib/git",
 			"project": "vscode-sessions"
 		},
 		{
 			"name": "vs/sessions/contrib/logs",
-			"project": "vscode-sessions"
-		},
-		{
-			"name": "vs/sessions/contrib/localAgentHost",
 			"project": "vscode-sessions"
 		},
 		{
@@ -710,6 +710,10 @@
 		},
 		{
 			"name": "vs/sessions/contrib/tunnelHost",
+			"project": "vscode-sessions"
+		},
+		{
+			"name": "vs/sessions/contrib/editor",
 			"project": "vscode-sessions"
 		}
 	]

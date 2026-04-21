@@ -42,6 +42,7 @@
 	display: flex;
 	flex-direction: column;
 	overflow: hidden;
+	position: relative;
 	transform: scale(0.96) translateY(8px);
 	transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -59,6 +60,36 @@
 	align-items: center;
 	justify-content: space-between;
 	padding: 20px 28px 0;
+}
+
+.onboarding-a-close-btn {
+	position: absolute;
+	top: 16px;
+	right: 16px;
+	z-index: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	width: 28px;
+	height: 28px;
+	border: none;
+	border-radius: 6px;
+	background: transparent;
+	color: var(--vscode-descriptionForeground);
+	cursor: pointer;
+	padding: 0;
+	flex-shrink: 0;
+	transition: background 0.15s ease, color 0.15s ease;
+}
+
+.onboarding-a-close-btn:hover {
+	background: var(--vscode-toolbar-hoverBackground, rgba(255, 255, 255, 0.1));
+	color: var(--vscode-editor-foreground);
+}
+
+.onboarding-a-close-btn:focus-visible {
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: 2px;
 }
 
 .onboarding-a-progress {
@@ -959,19 +990,6 @@
 		grid-template-columns: 1fr;
 	}
 
-	.onboarding-a-ext-list {
-		grid-template-columns: 1fr;
-	}
-
-	.onboarding-a-ext-row {
-		grid-template-columns: auto 1fr;
-	}
-
-	.onboarding-a-ext-install {
-		grid-column: 2;
-		justify-self: start;
-	}
-
 	.onboarding-a-personalize,
 	.onboarding-a-sessions {
 		justify-content: flex-start;
@@ -982,118 +1000,6 @@
 .onboarding-a-keymap-pill .codicon {
 	font-size: 13px;
 	opacity: 0.7;
-}
-
-/* Extensions step */
-.onboarding-a-extensions {
-	display: flex;
-	flex-direction: column;
-	flex: 1;
-	min-height: 0;
-	width: 100%;
-	margin: 0 auto;
-}
-
-.onboarding-a-ext-list {
-	display: grid;
-	grid-template-columns: repeat(2, minmax(0, 1fr));
-	align-content: start;
-	gap: 10px;
-}
-
-.onboarding-a-ext-row {
-	display: grid;
-	grid-template-columns: auto minmax(0, 1fr) auto;
-	align-items: center;
-	gap: 12px;
-	padding: 12px 14px;
-	border-radius: 8px;
-	border: 1px solid var(--vscode-widget-border, rgba(255, 255, 255, 0.08));
-	background: var(--vscode-editorWidget-background, var(--vscode-sideBar-background));
-}
-
-.onboarding-a-ext-icon {
-	width: 36px;
-	height: 36px;
-	border-radius: 6px;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	flex-shrink: 0;
-}
-
-.onboarding-a-ext-icon .codicon {
-	font-size: 28px;
-	color: var(--vscode-textLink-foreground, #3794ff);
-}
-
-.onboarding-a-ext-icon-img {
-	width: 100%;
-	height: 100%;
-	border-radius: 6px;
-	object-fit: contain;
-}
-
-.onboarding-a-ext-info {
-	flex: 1;
-	min-width: 0;
-}
-
-.onboarding-a-ext-name-row {
-	display: flex;
-	align-items: baseline;
-	gap: 6px;
-}
-
-.onboarding-a-ext-name {
-	font-size: 13px;
-	font-weight: 600;
-}
-
-.onboarding-a-ext-publisher {
-	font-size: 11px;
-	color: var(--vscode-descriptionForeground);
-}
-
-.onboarding-a-ext-desc {
-	font-size: 12px;
-	color: var(--vscode-descriptionForeground);
-	line-height: 1.4;
-	display: -webkit-box;
-	-webkit-line-clamp: 2;
-	line-clamp: 2;
-	-webkit-box-orient: vertical;
-	overflow: hidden;
-}
-
-.onboarding-a-ext-install {
-	padding: 4px 12px;
-	border-radius: 4px;
-	border: none;
-	background: var(--vscode-button-background);
-	color: var(--vscode-button-foreground);
-	font-size: 12px;
-	font-family: inherit;
-	cursor: pointer;
-	flex-shrink: 0;
-	outline: none;
-}
-
-.onboarding-a-ext-install:hover {
-	background: var(--vscode-button-hoverBackground);
-}
-
-.onboarding-a-ext-install:focus-visible {
-	outline: none;
-	box-shadow:
-		0 0 0 2px var(--vscode-editorWidget-background, #252526),
-		0 0 0 4px var(--vscode-focusBorder);
-}
-
-.onboarding-a-ext-install.installed {
-	background: var(--vscode-testing-iconPassed, #73c991);
-	color: var(--vscode-editor-background);
-	cursor: default;
 }
 
 @media (prefers-reduced-motion: reduce) {

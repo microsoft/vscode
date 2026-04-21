@@ -26,7 +26,7 @@ import { ThemeIcon } from '../../../../base/common/themables.js';
 import * as nls from '../../../../nls.js';
 import { IAgentFeedbackService } from './agentFeedbackService.js';
 import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
-import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { createAgentFeedbackContext, getSessionForResource } from './agentFeedbackEditorUtils.js';
 import { ICodeReviewService, IPRReviewState } from '../../codeReview/browser/codeReviewService.js';
@@ -37,6 +37,7 @@ import { IMarkdownRendererService } from '../../../../platform/markdown/browser/
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
+import { ISessionFileChange } from '../../../services/sessions/common/session.js';
 
 interface ICommentItemActions {
 	editAction: Action;
@@ -730,7 +731,7 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 		return comments.filter(comment => comment.resourceUri.fsPath === resourceUri.fsPath);
 	}
 
-	private _getSessionChangeForResource(resourceUri: URI): IChatSessionFileChange | IChatSessionFileChange2 | undefined {
+	private _getSessionChangeForResource(resourceUri: URI): ISessionFileChange | undefined {
 		if (!this._sessionResource) {
 			return undefined;
 		}
@@ -743,7 +744,7 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 		return changes.find(change => this._changeMatchesFsPath(change, resourceUri));
 	}
 
-	private _changeMatchesFsPath(change: IChatSessionFileChange | IChatSessionFileChange2, resourceUri: URI): boolean {
+	private _changeMatchesFsPath(change: ISessionFileChange, resourceUri: URI): boolean {
 		if (isIChatSessionFileChange2(change)) {
 			return change.uri.fsPath === resourceUri.fsPath
 				|| change.modifiedUri?.fsPath === resourceUri.fsPath
@@ -754,7 +755,7 @@ class AgentFeedbackEditorWidgetContribution extends Disposable implements IEdito
 			|| change.originalUri?.fsPath === resourceUri.fsPath;
 	}
 
-	private _isCurrentOrModifiedResource(change: IChatSessionFileChange | IChatSessionFileChange2, resourceUri: URI): boolean {
+	private _isCurrentOrModifiedResource(change: ISessionFileChange, resourceUri: URI): boolean {
 		if (isIChatSessionFileChange2(change)) {
 			return isEqual(change.uri, resourceUri) || (change.modifiedUri ? isEqual(change.modifiedUri, resourceUri) : false);
 		}

@@ -31,7 +31,11 @@ if ((process as INodeProcess).isEmbeddedApp) {
 
 	try {
 		const productSubObj = require('../product.sub.json');
-		productObj = Object.assign(productObj, productSubObj);
+		if (productObj.embedded && productSubObj.embedded) {
+			Object.assign(productObj.embedded, productSubObj.embedded);
+			delete productSubObj.embedded;
+		}
+		Object.assign(productObj, productSubObj);
 	} catch (error) { /* ignore */ }
 	try {
 		const pkgSubObj = require('../package.sub.json');

@@ -304,7 +304,8 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 		this.id = content.id;
 		this.content = content;
 		this.allThinkingParts.push(content);
-		this.showProgressDetails = this.configurationService.getValue<boolean>(ChatConfiguration.ChatPersistentProgressEnabled) !== false;
+		this.showProgressDetails = this.configurationService.getValue<boolean>(ChatConfiguration.ChatPersistentProgressEnabled) !== false
+			&& this.configurationService.getValue<boolean>(ChatConfiguration.ProgressBorder) !== true;
 		const configuredMode = this.configurationService.getValue<ThinkingDisplayMode>('chat.agent.thinkingStyle') ?? ThinkingDisplayMode.Collapsed;
 
 		this.fixedScrollingMode = configuredMode === ThinkingDisplayMode.FixedScrolling;
@@ -359,6 +360,9 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 
 		if (this.fixedScrollingMode) {
 			node.classList.add('chat-thinking-fixed-mode');
+			if (!this.streamingCompleted && !this.element.isComplete && this.showProgressDetails) {
+				node.classList.add('chat-thinking-persistent-streaming');
+			}
 			this.currentTitle = this.defaultTitle;
 		}
 
@@ -946,6 +950,7 @@ export class ChatThinkingContentPart extends ChatCollapsibleContentPart implemen
 			this.wrapper.classList.remove('chat-thinking-streaming');
 		}
 		this.domNode.classList.remove('chat-thinking-active');
+		this.domNode.classList.remove('chat-thinking-persistent-streaming');
 		this.domNode.classList.remove('chat-thinking-fade-top', 'chat-thinking-fade-bottom');
 		this.streamingCompleted = true;
 
@@ -1352,6 +1357,7 @@ ${this.hookCount > 0 ? `EXAMPLES WITH BLOCKED CONTENT (from hooks):
 			this.wrapper.classList.remove('chat-thinking-streaming');
 		}
 		this.domNode.classList.remove('chat-thinking-active');
+		this.domNode.classList.remove('chat-thinking-persistent-streaming');
 		this.streamingCompleted = true;
 
 		if (this._collapseButton) {

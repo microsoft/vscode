@@ -9,6 +9,7 @@ import { RemoteAgentHostProtocolClient } from '../../../../platform/agentHost/br
 import { RemoteAgentHostEntryType, IRemoteAgentHostService, RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import type { IProtocolTransport } from '../../../../platform/agentHost/common/state/sessionTransport.js';
 import type { IProtocolMessage, IAhpServerNotification, IJsonRpcResponse } from '../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { MALFORMED_FRAMES_FORCE_CLOSE_THRESHOLD, MALFORMED_FRAMES_LOG_CAP } from '../../../../platform/agentHost/common/transportConstants.js';
 import {
 	ITunnelAgentHostService,
 	TUNNEL_ADDRESS_PREFIX,
@@ -130,7 +131,7 @@ export class WebTunnelAgentHostService extends Disposable implements ITunnelAgen
 		// Derive connection token from tunnel ID (same convention as CLI and desktop)
 		const connectionToken = await deriveConnectionToken(tunnelId);
 
-		const transport = new TunnelConnectionTransport(connection);
+		const transport = new TunnelConnectionTransport(connection, this._logService);
 		const address = `${TUNNEL_ADDRESS_PREFIX}${tunnelId}`;
 		const protocolClient = this._instantiationService.createInstance(
 			RemoteAgentHostProtocolClient, address, transport,
@@ -233,14 +234,35 @@ class TunnelConnectionTransport extends Disposable implements IProtocolTransport
 	private readonly _onClose = this._register(new Emitter<void>());
 	readonly onClose = this._onClose.event;
 
-	constructor(private readonly _connection: ITunnelConnection) {
+	private _malformedFrames = 0;
+
+	constructor(
+		private readonly _connection: ITunnelConnection,
+		private readonly _logService: ILogService,
+	) {
 		super();
 		this._register(_connection.onMessage((data: string) => {
+			let message: IProtocolMessage;
 			try {
-				this._onMessage.fire(JSON.parse(data) as IProtocolMessage);
-			} catch {
-				// Malformed message - drop.
+				message = JSON.parse(data) as IProtocolMessage;
+			} catch (err) {
+				this._malformedFrames++;
+				if (this._malformedFrames <= MALFORMED_FRAMES_LOG_CAP) {
+					const preview = data.length > 80 ? data.slice(0, 80) + '…' : data;
+					this._logService.warn(
+						`[TunnelConnectionTransport] Malformed frame #${this._malformedFrames} (len=${data.length}): ${preview}`,
+						err instanceof Error ? err.message : String(err)
+					);
+				}
+				if (this._malformedFrames > MALFORMED_FRAMES_FORCE_CLOSE_THRESHOLD) {
+					this._logService.warn(
+						'[TunnelConnectionTransport] Malformed frame threshold exceeded; forcing tunnel close.'
+					);
+					this._connection.close();
+				}
+				return;
 			}
+			this._onMessage.fire(message);
 		}));
 		this._register(_connection.onClose(() => {
 			this._onClose.fire();

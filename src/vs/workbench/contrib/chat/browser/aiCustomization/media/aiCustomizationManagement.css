@@ -148,6 +148,47 @@
 	box-sizing: border-box;
 }
 
+.ai-customization-management-editor .section-back-arrow-button {
+	flex-shrink: 0;
+	align-self: flex-start;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 26px;
+	height: 26px;
+	padding: 0;
+	border: none;
+	border-radius: 4px;
+	background: transparent;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	font-family: inherit;
+	opacity: 0.8;
+	transition: background-color 0.1s ease, opacity 0.1s ease;
+}
+
+.ai-customization-management-editor .section-back-arrow-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground));
+	opacity: 1;
+}
+
+.ai-customization-management-editor .section-back-arrow-button:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.ai-customization-management-editor .section-back-arrow-icon {
+	font-size: 14px;
+	opacity: 0.85;
+}
+
+.ai-customization-management-editor .section-back-bar {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	margin-bottom: 8px;
+}
+
 /* List Widget */
 .ai-customization-list-widget {
 	display: flex;
@@ -795,6 +836,73 @@
 	margin-top: 16px;
 }
 
+/* MCP Disabled (access blocked) state */
+.mcp-list-widget .mcp-disabled-state {
+	display: none;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	padding: 48px 24px;
+	gap: 8px;
+	text-align: center;
+	flex: 1;
+}
+
+.mcp-list-widget .mcp-disabled-state .empty-state-header {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 8px;
+}
+
+.mcp-list-widget .mcp-disabled-state .empty-icon.codicon::before {
+	font-size: 48px;
+}
+
+.mcp-list-widget .mcp-disabled-state .empty-icon {
+	opacity: 0.5;
+	margin-bottom: 8px;
+	height: 48px;
+	width: 48px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.mcp-list-widget .mcp-disabled-state .empty-text {
+	font-size: 16px;
+	font-weight: 500;
+	color: var(--vscode-foreground);
+}
+
+.mcp-list-widget .mcp-disabled-state .empty-subtext {
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+	max-width: 420px;
+	line-height: 1.5;
+}
+
+.mcp-list-widget .mcp-disabled-state .mcp-disabled-settings-link {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+	text-decoration: none;
+}
+
+.mcp-list-widget .mcp-disabled-state .mcp-disabled-settings-link:hover,
+.mcp-list-widget .mcp-disabled-state .mcp-disabled-settings-link:focus {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+	outline: none;
+}
+
+.mcp-list-widget.access-disabled > *:not(.mcp-disabled-state) {
+	display: none !important;
+}
+
+.mcp-list-widget.access-disabled .mcp-disabled-state {
+	display: flex;
+}
+
 /* MCP Server Item */
 .mcp-server-item {
 	display: flex;
@@ -900,30 +1008,6 @@
 	outline-offset: -1px;
 }
 
-/* Back to installed link */
-.mcp-list-widget .mcp-back-link {
-	display: flex;
-	align-items: center;
-	gap: 4px;
-	padding: 4px 6px;
-	cursor: pointer;
-	font-size: 12px;
-	color: var(--vscode-descriptionForeground);
-	flex-shrink: 0;
-	border-radius: 4px;
-	margin: 4px 0;
-}
-
-.mcp-list-widget .mcp-back-link:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-	color: var(--vscode-foreground);
-}
-
-.mcp-list-widget .mcp-back-link:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
-}
-
 /* Gallery item specifics */
 .mcp-gallery-item .mcp-gallery-name-row {
 	display: flex;
@@ -982,17 +1066,19 @@
 .ai-customization-management-editor .editor-header {
 	display: flex;
 	align-items: center;
-	gap: 12px;
-	padding: 4px 0;
+	gap: 8px;
+	padding: 6px 2px;
 	flex-shrink: 0;
 }
 
 .ai-customization-management-editor .editor-back-button {
+	flex-shrink: 0;
+	align-self: flex-start;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 28px;
-	height: 28px;
+	width: 26px;
+	height: 26px;
 	border-radius: 4px;
 	cursor: pointer;
 	background: transparent;

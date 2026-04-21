@@ -13,9 +13,9 @@ import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
-import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { GitDiffChange, IGitService } from '../../../../workbench/contrib/git/common/gitService.js';
-import { COPILOT_CLOUD_SESSION_TYPE } from '../../../services/sessions/common/session.js';
+import { COPILOT_CLOUD_SESSION_TYPE, ISessionFileChange } from '../../../services/sessions/common/session.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IAgentFeedbackService } from '../../agentFeedback/browser/agentFeedbackService.js';
 import { CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
@@ -78,7 +78,7 @@ export interface ActiveSessionState {
 export class ChangesViewModel extends Disposable {
 	readonly activeSessionResourceObs: IObservable<URI | undefined>;
 	readonly activeSessionTypeObs: IObservable<string | undefined>;
-	readonly activeSessionChangesObs: IObservable<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]>;
+	readonly activeSessionChangesObs: IObservable<readonly ISessionFileChange[]>;
 	readonly activeSessionHasGitRepositoryObs: IObservable<boolean>;
 	readonly activeSessionFirstCheckpointRefObs: IObservable<string | undefined>;
 	readonly activeSessionLastCheckpointRefObs: IObservable<string | undefined>;
@@ -227,7 +227,7 @@ export class ChangesViewModel extends Disposable {
 		});
 	}
 
-	private _getActiveSessionChanges(): IObservable<readonly (IChatSessionFileChange | IChatSessionFileChange2)[]> {
+	private _getActiveSessionChanges(): IObservable<readonly ISessionFileChange[]> {
 		// Changes
 		const activeSessionChangesObs = derived(reader => {
 			const activeSession = this.sessionManagementService.activeSession.read(reader);
@@ -318,17 +318,23 @@ export class ChangesViewModel extends Disposable {
 		});
 
 		return derivedOpts({
-			equalsFn: arrayEqualsC<IChatSessionFileChange | IChatSessionFileChange2>()
+			equalsFn: arrayEqualsC<ISessionFileChange>()
 		}, reader => {
+			const versionMode = this.versionModeObs.read(reader);
+
+			// BranchChanges reads from the session provider's `changes`
+			// observable directly (e.g. agent-host-tracked diffs), so it
+			// works even for sessions without a git repository.
+			if (versionMode === ChangesVersionMode.BranchChanges) {
+				return activeSessionChangesObs.read(reader);
+			}
+
 			const hasGitRepository = this.activeSessionHasGitRepositoryObs.read(reader);
 			if (!hasGitRepository && !isWeb) {
 				return [];
 			}
 
-			const versionMode = this.versionModeObs.read(reader);
-			if (versionMode === ChangesVersionMode.BranchChanges) {
-				return activeSessionChangesObs.read(reader);
-			} else if (versionMode === ChangesVersionMode.UncommittedChanges) {
+			if (versionMode === ChangesVersionMode.UncommittedChanges) {
 				return this._activeSessionUncommittedChangesPromiseObs.read(reader).read(reader) ?? [];
 			} else if (versionMode === ChangesVersionMode.AllChanges) {
 				return this._activeSessionAllChangesPromiseObs.read(reader).read(reader) ?? [];

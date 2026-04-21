@@ -8,7 +8,7 @@ import { CancellationToken, CancellationTokenSource } from '../../../../../../ba
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { DisposableStore, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { observableValue } from '../../../../../../base/common/observable.js';
+import { ISettableObservable, observableValue, type IObservable } from '../../../../../../base/common/observable.js';
 import { mock, upcastPartial } from '../../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { runWithFakedTimers } from '../../../../../../base/test/common/timeTravelScheduler.js';
@@ -19,7 +19,7 @@ import { AgentHostSessionConfigBranchNameHintKey, IAgentCreateSessionConfig, IAg
 import { isSessionAction, type IActionEnvelope, type INotification, type ISessionAction, type ITerminalAction, type IToolCallConfirmedAction, type ITurnStartedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import type { ICustomizationRef } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, createSessionState, createActiveTurn, ROOT_STATE_URI, PolicyState, ResponsePartKind, StateComponents, type ISessionState, type ISessionSummary, IRootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, createSessionState, createActiveTurn, ROOT_STATE_URI, PolicyState, ResponsePartKind, StateComponents, buildSubagentSessionUri, ToolResultContentType, type ISessionState, type ISessionSummary, IRootState, type IToolCallState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { sessionReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
@@ -41,6 +41,7 @@ import { TestFileService } from '../../../../../test/common/workbenchTestService
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { MockLabelService } from '../../../../../services/label/test/common/mockLabelService.js';
 import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { IAgentPluginService } from '../../../common/plugins/agentPluginService.js';
 import { IStorageService, InMemoryStorageService } from '../../../../../../platform/storage/common/storage.js';
@@ -62,6 +63,12 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	override readonly onAgentHostExit = Event.None;
 	override readonly onAgentHostStart = Event.None;
 
+	private readonly _authenticationPending: ISettableObservable<boolean> = observableValue('authenticationPending', false);
+	override readonly authenticationPending: IObservable<boolean> = this._authenticationPending;
+	override setAuthenticationPending(pending: boolean): void {
+		this._authenticationPending.set(pending, undefined);
+	}
+
 	// Track live subscriptions so fireAction can route to them
 	private readonly _liveSubscriptions = new Map<string, { state: ISessionState; emitter: Emitter<ISessionState> }>();
 
@@ -82,6 +89,24 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		const id = `sdk-session-${this._nextId++}`;
 		const session = AgentSession.uri('copilot', id);
 		this._sessions.set(id, { session, startTime: Date.now(), modifiedTime: Date.now() });
+		// Simulate the server's eager active-client claim: if the caller
+		// provided activeClient, seed the session state so subscribers see it.
+		if (config?.activeClient) {
+			const summary: ISessionSummary = {
+				resource: session.toString(),
+				provider: 'copilot',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: Date.now(),
+				modifiedAt: Date.now(),
+			};
+			const state: ISessionState = {
+				...createSessionState(summary),
+				lifecycle: SessionLifecycle.Ready,
+				activeClient: config.activeClient,
+			};
+			this.sessionStates.set(session.toString(), state);
+		}
 		return session;
 	}
 
@@ -324,11 +349,16 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	});
 	instantiationService.stub(IAgentHostTerminalService, {
 		reviveTerminal: async () => undefined!,
+		createTerminalForEntry: async () => undefined,
+		profiles: observableValue('test', []),
+		getProfileForConnection: () => undefined,
+		registerEntry: () => ({ dispose() { } }),
 	});
 	instantiationService.stub(IAgentHostSessionWorkingDirectoryResolver, {
 		registerResolver: () => toDisposable(() => { }),
 		resolve: sessionResource => workingDirectoryResolver?.resolve(sessionResource),
 	});
+	instantiationService.stub(IWorkbenchEnvironmentService, { isSessionsWindow: false } as Partial<IWorkbenchEnvironmentService>);
 
 	return { instantiationService, agentHostService, chatAgentService };
 }
@@ -520,6 +550,31 @@ suite('AgentHostChatContribution', () => {
 			const { chatAgentService } = createContribution(disposables);
 
 			assert.ok(chatAgentService.registeredAgents.has('agent-host-copilot'));
+		});
+	});
+
+	// ---- Session disposal -----------------------------------------------
+
+	suite('disposal', () => {
+
+		test('fires onWillDispose before session is disposed', async () => {
+			const { sessionHandler } = createContribution(disposables);
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-dispose-test' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+
+			// `onWillDispose` is consumed by `ContributedChatSessionData` in
+			// `ChatSessionsService` to evict disposed sessions from its cache.
+			// If this event does not fire (e.g. because the emitter was
+			// disposed before `.fire()` ran during teardown), the service
+			// would hand out the disposed `IChatSession` to subsequent
+			// `getOrCreateChatSession` callers.
+			let fired = 0;
+			disposables.add(chatSession.onWillDispose(() => { fired++; }));
+
+			chatSession.dispose();
+
+			assert.strictEqual(fired, 1, 'onWillDispose should fire exactly once when the session is disposed');
 		});
 	});
 
@@ -2487,13 +2542,14 @@ suite('AgentHostChatContribution', () => {
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 			await turnPromise;
 
-			const activeClientAction = agentHostService.dispatchedActions.find(
-				d => d.action.type === 'session/activeClientChanged'
-			);
-			assert.ok(activeClientAction, 'should dispatch activeClientChanged');
-			const ac = activeClientAction!.action as { activeClient: { customizations?: ICustomizationRef[] } };
-			assert.strictEqual(ac.activeClient.customizations?.length, 1);
-			assert.strictEqual(ac.activeClient.customizations?.[0].uri, 'file:///plugin-a');
+			// The active-client claim is now threaded through createSession
+			// rather than dispatched separately, so assert on createSessionCalls.
+			const createCall = agentHostService.createSessionCalls.at(-1);
+			assert.ok(createCall?.activeClient, 'createSession should carry activeClient');
+			assert.strictEqual(createCall!.activeClient!.clientId, agentHostService.clientId);
+			assert.ok(Array.isArray(createCall!.activeClient!.tools), 'activeClient.tools should be a defined array');
+			assert.strictEqual(createCall!.activeClient!.customizations?.length, 1);
+			assert.strictEqual(createCall!.activeClient!.customizations?.[0].uri, 'file:///plugin-a');
 		});
 
 		test('re-dispatches activeClientChanged when customizations observable changes', async () => {
@@ -2532,5 +2588,207 @@ suite('AgentHostChatContribution', () => {
 			assert.strictEqual(ac.activeClient.customizations?.length, 1);
 			assert.strictEqual(ac.activeClient.customizations?.[0].uri, 'file:///plugin-b');
 		});
+	});
+
+	// ---- Subagent grouping ----------------------------------------------
+
+	suite('subagent grouping', () => {
+
+		/**
+		 * Build a child session state containing a single inner tool call in the running state.
+		 */
+		function makeChildState(childUri: string, innerToolCallId: string): ISessionState {
+			const summary: ISessionSummary = {
+				resource: childUri,
+				provider: 'copilot',
+				title: 'Subagent',
+				status: SessionStatus.Idle,
+				createdAt: Date.now(),
+				modifiedAt: Date.now(),
+			};
+			const innerTool: IToolCallState = {
+				toolCallId: innerToolCallId,
+				toolName: 'read_file',
+				displayName: 'Read File',
+				status: ToolCallStatus.Running,
+				invocationMessage: 'Reading file',
+				toolInput: '{}',
+				confirmed: ToolCallConfirmationReason.NotNeeded,
+			} as IToolCallState;
+			const activeTurn = createActiveTurn('child-turn-1', { text: 'do work' });
+			activeTurn.responseParts.push({ kind: ResponsePartKind.ToolCall, toolCall: innerTool });
+			return {
+				...createSessionState(summary),
+				lifecycle: SessionLifecycle.Ready,
+				activeTurn,
+			};
+		}
+
+		test('inner subagent tool calls are forwarded with subAgentInvocationId set', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			// Pre-populate the child subagent session state BEFORE the parent tool
+			// call fires, so that when the handler subscribes to it the inner tool
+			// is already present.
+			const parentToolCallId = 'tc-parent-task';
+			const childSessionUri = buildSubagentSessionUri(session.toString(), parentToolCallId);
+			agentHostService.sessionStates.set(childSessionUri, makeChildState(childSessionUri, 'tc-child-1'));
+
+			// Fire the parent task tool call with toolKind=subagent metadata.
+			fire({
+				type: 'session/toolCallStart', session, turnId,
+				toolCallId: parentToolCallId, toolName: 'task', displayName: 'Task',
+				_meta: { toolKind: 'subagent', subagentDescription: 'do some work', subagentAgentName: 'helper' },
+			} as ISessionAction);
+			fire({
+				type: 'session/toolCallReady', session, turnId,
+				toolCallId: parentToolCallId, invocationMessage: 'Spawning subagent',
+				confirmed: 'not-needed',
+			} as ISessionAction);
+
+			// Allow the throttler/observation flow to flush.
+			await timeout(50);
+
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
+			await turnPromise;
+
+			// Flatten all progress emissions and find tool invocations.
+			const allParts = collected.flat();
+			const toolInvocations = allParts.filter((p): p is IChatToolInvocation => p.kind === 'toolInvocation');
+
+			const parent = toolInvocations.find(t => t.toolCallId === parentToolCallId);
+			const child = toolInvocations.find(t => t.toolCallId === 'tc-child-1');
+
+			assert.ok(parent, 'parent task tool invocation should be emitted');
+			assert.strictEqual(parent!.toolSpecificData?.kind, 'subagent', 'parent should have subagent toolSpecificData');
+			assert.strictEqual(parent!.subAgentInvocationId, undefined, 'parent should not have a subAgentInvocationId');
+
+			assert.ok(child, 'inner child tool invocation should be forwarded into parent session progress');
+			assert.strictEqual(child!.subAgentInvocationId, parentToolCallId, 'child should be tagged with parent tool call id for grouping');
+		}));
+
+		test('inner subagent tool calls fired AFTER parent observation are also grouped', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			const parentToolCallId = 'tc-parent-task';
+			const childSessionUri = buildSubagentSessionUri(session.toString(), parentToolCallId);
+
+			// Fire the parent task tool — this should cause the handler to subscribe
+			// to the (still-empty) child subagent session.
+			fire({
+				type: 'session/toolCallStart', session, turnId,
+				toolCallId: parentToolCallId, toolName: 'task', displayName: 'Task',
+				_meta: { toolKind: 'subagent', subagentDescription: 'do work', subagentAgentName: 'helper' },
+			} as ISessionAction);
+			fire({
+				type: 'session/toolCallReady', session, turnId,
+				toolCallId: parentToolCallId, invocationMessage: 'Spawning subagent',
+				confirmed: 'not-needed',
+			} as ISessionAction);
+
+			// Allow the subscription to be set up.
+			await timeout(50);
+
+			// NOW fire the child session lifecycle: turnStarted, then a tool call.
+			const childTurnId = 'child-turn-1';
+			const childToolCallId = 'tc-child-1';
+			const fireChild = (action: ISessionAction) => {
+				agentHostService.fireAction({ action, serverSeq: 1000, origin: undefined });
+			};
+			fireChild({
+				type: 'session/turnStarted',
+				session: childSessionUri,
+				turnId: childTurnId,
+				userMessage: { text: '' },
+			} as ISessionAction);
+			fireChild({
+				type: 'session/toolCallStart', session: childSessionUri, turnId: childTurnId,
+				toolCallId: childToolCallId, toolName: 'read_file', displayName: 'Read File',
+			} as ISessionAction);
+			fireChild({
+				type: 'session/toolCallReady', session: childSessionUri, turnId: childTurnId,
+				toolCallId: childToolCallId, invocationMessage: 'Reading file',
+				confirmed: 'not-needed',
+			} as ISessionAction);
+
+			await timeout(50);
+
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
+			await turnPromise;
+
+			const allParts = collected.flat();
+			const toolInvocations = allParts.filter((p): p is IChatToolInvocation => p.kind === 'toolInvocation');
+
+			const parent = toolInvocations.find(t => t.toolCallId === parentToolCallId);
+			const child = toolInvocations.find(t => t.toolCallId === childToolCallId);
+
+			assert.ok(parent, 'parent task tool invocation should be emitted');
+			assert.strictEqual(parent!.toolSpecificData?.kind, 'subagent');
+			assert.strictEqual(parent!.subAgentInvocationId, undefined);
+
+			assert.ok(child, 'child tool invocation fired after subscription should be forwarded');
+			assert.strictEqual(child!.subAgentInvocationId, parentToolCallId, 'child should be tagged for grouping');
+		}));
+
+		test('parent subagent agentName is updated when subagent content arrives later', () => runWithFakedTimers({ useFakeTimers: true }, async () => {
+			// Repro for the missing-agent-name bug: when the parent task tool
+			// fires without `subagentAgentName` in `_meta` (e.g. the agent host
+			// did not extract it from args), the renderer should still pick up
+			// the agent name once the SDK emits a `subagent_started` event,
+			// which lands as a Subagent content block on the parent tool call.
+			const { sessionHandler, agentHostService, chatAgentService } = createContribution(disposables);
+			const { turnPromise, collected, session, turnId, fire } = await startTurn(sessionHandler, agentHostService, chatAgentService, disposables);
+
+			const parentToolCallId = 'tc-parent-task';
+
+			// Parent task tool fires WITHOUT subagentAgentName meta — only description.
+			fire({
+				type: 'session/toolCallStart', session, turnId,
+				toolCallId: parentToolCallId, toolName: 'task', displayName: 'Task',
+				_meta: { toolKind: 'subagent', subagentDescription: 'Exploring codebase structure' },
+			} as ISessionAction);
+			fire({
+				type: 'session/toolCallReady', session, turnId,
+				toolCallId: parentToolCallId, invocationMessage: 'Spawning subagent',
+				confirmed: 'not-needed',
+			} as ISessionAction);
+
+			await timeout(50);
+
+			// Now the SDK emits subagent_started → handler dispatches a content
+			// change with a Subagent content block carrying the agent name.
+			fire({
+				type: 'session/toolCallContentChanged', session, turnId,
+				toolCallId: parentToolCallId,
+				content: [{
+					type: ToolResultContentType.Subagent,
+					resource: buildSubagentSessionUri(session.toString(), parentToolCallId),
+					title: 'Subagent',
+					agentName: 'explore',
+				}],
+			} as ISessionAction);
+
+			await timeout(50);
+
+			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
+			await turnPromise;
+
+			const allParts = collected.flat();
+			const toolInvocations = allParts.filter((p): p is IChatToolInvocation => p.kind === 'toolInvocation');
+			const parent = toolInvocations.find(t => t.toolCallId === parentToolCallId);
+
+			assert.ok(parent, 'parent task tool invocation should be emitted');
+			assert.strictEqual(parent!.toolSpecificData?.kind, 'subagent', 'parent should have subagent toolSpecificData');
+			assert.strictEqual(
+				(parent!.toolSpecificData as { kind: 'subagent'; agentName?: string }).agentName,
+				'explore',
+				'parent toolSpecificData.agentName must be updated from the Subagent content block'
+			);
+		}));
+
 	});
 });

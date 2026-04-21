@@ -3,21 +3,25 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PermissionMode } from '@anthropic-ai/claude-agent-sdk';
 import * as vscode from 'vscode';
 import { ChatExtendedRequestHandler } from 'vscode';
+import { PermissionMode } from '@anthropic-ai/claude-agent-sdk';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { INativeEnvService } from '../../../platform/env/common/envService';
 import { IGitService } from '../../../platform/git/common/gitService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
-import { Disposable, IDisposable } from '../../../util/vs/base/common/lifecycle';
+import { Emitter, Event } from '../../../util/vs/base/common/event';
+import { Disposable, DisposableStore } from '../../../util/vs/base/common/lifecycle';
+import { autorun, derived, IObservable, ISettableObservable, observableFromEvent, observableValue } from '../../../util/vs/base/common/observable';
+import { basename } from '../../../util/vs/base/common/resources';
 import { URI } from '../../../util/vs/base/common/uri';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { ClaudeFolderInfo } from '../claude/common/claudeFolderInfo';
 import { ClaudeSessionUri } from '../claude/common/claudeSessionUri';
 import { ClaudeAgentManager } from '../claude/node/claudeCodeAgent';
+import { CLAUDE_REASONING_EFFORT_PROPERTY } from '../claude/node/claudeCodeModels';
 import { IClaudeCodeSdkService } from '../claude/node/claudeCodeSdkService';
 import { parseClaudeModelId } from '../claude/node/claudeModelId';
 import { IClaudeSessionStateService } from '../claude/common/claudeSessionStateService';
@@ -26,14 +30,27 @@ import { IClaudeCodeSessionInfo } from '../claude/node/sessionParser/claudeSessi
 import { IClaudeSlashCommandService } from '../claude/vscode-node/claudeSlashCommandService';
 import { IChatFolderMruService } from '../common/folderRepositoryManager';
 import { buildChatHistory } from './chatHistoryBuilder';
-import { ClaudeSessionOptionBuilder, FOLDER_OPTION_ID, isPermissionMode, PERMISSION_MODE_OPTION_ID } from './claudeSessionOptionBuilder';
-import { getSelectedOption } from './sessionOptionGroupBuilder';
+import { ClaudeSessionOptionBuilder, buildPermissionModeItems, FOLDER_OPTION_ID, isPermissionMode, PERMISSION_MODE_OPTION_ID } from './claudeSessionOptionBuilder';
+import { toWorkspaceFolderOptionItem } from './sessionOptionGroupBuilder';
 
 // Import the tool permission handlers
 import '../claude/vscode-node/toolPermissionHandlers/index';
 
 // Import the MCP server contributors to trigger self-registration
 import '../claude/vscode-node/mcpServers/index';
+
+interface InputStateReactivePipeline {
+	readonly permissionMode: ISettableObservable<PermissionMode>;
+	readonly folderUri: ISettableObservable<URI | undefined>;
+	readonly folderItems: ISettableObservable<readonly vscode.ChatSessionProviderOptionItem[]>;
+	readonly isSessionStarted: ISettableObservable<boolean>;
+	readonly store: DisposableStore;
+}
+
+function getSelectedFolderUri(inputState: vscode.ChatSessionInputState | undefined): URI | undefined {
+	const selectedFolderId = inputState?.groups.find(group => group.id === FOLDER_OPTION_ID)?.selected?.id;
+	return selectedFolderId ? URI.file(selectedFolderId) : undefined;
+}
 
 export class ClaudeChatSessionContentProvider extends Disposable implements vscode.ChatSessionContentProvider {
 	private readonly _controller: ClaudeChatSessionItemController;
@@ -89,27 +106,26 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 
 			// Lock the folder group when starting a new session (permission mode stays editable)
 			if (isNewSession) {
-				const state = chatSessionContext.inputState;
-				state.groups = state.groups.map(group => {
-					if (group.id !== FOLDER_OPTION_ID) {
-						return group;
-					}
-					return {
-						...group,
-						items: group.items.map(item => ({ ...item, locked: true })),
-						selected: group.selected ? { ...group.selected, locked: true } : undefined,
-					};
-				});
+				this._controller.markSessionStarted(chatSessionContext.inputState);
 			}
 
 			const modelId = parseClaudeModelId(request.model.id);
-			const permissionMode = this._controller.getPermissionModeForSession(effectiveSessionId);
-			const folderInfo = await this._controller.getFolderInfoForSession(effectiveSessionId);
+			const selectedPermissionId = chatSessionContext.inputState.groups.find(group => group.id === PERMISSION_MODE_OPTION_ID)?.selected?.id;
+			if (!selectedPermissionId || !isPermissionMode(selectedPermissionId)) {
+				throw new Error(`Permission mode not set for session ${effectiveSessionId}`);
+			}
+			const permissionMode = selectedPermissionId;
+			const selectedFolderUri = getSelectedFolderUri(chatSessionContext.inputState);
+			const folderInfo = await this._controller.getFolderInfoForSession(effectiveSessionId, selectedFolderUri);
 
 			// Commit UI state to session state service before invoking agent manager
 			this.sessionStateService.setModelIdForSession(effectiveSessionId, modelId);
 			this.sessionStateService.setPermissionModeForSession(effectiveSessionId, permissionMode);
 			this.sessionStateService.setFolderInfoForSession(effectiveSessionId, folderInfo);
+
+			const rawReasoningEffort = request.modelConfiguration?.[CLAUDE_REASONING_EFFORT_PROPERTY];
+			const normalizedReasoningEffort = typeof rawReasoningEffort === 'string' ? rawReasoningEffort.trim() || undefined : undefined;
+			this.sessionStateService.setReasoningEffortForSession(effectiveSessionId, normalizedReasoningEffort);
 
 			// Set usage handler to report token usage for context window widget
 			this.sessionStateService.setUsageHandlerForSession(effectiveSessionId, (usage) => {
@@ -163,9 +179,8 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
  * Reads sessions from ~/.claude/projects/<folder-slug>/, where each file name is a session id (GUID).
  *
  * Owns the input state (getChatSessionInputState) lifecycle: wiring external
- * state listeners, persisting selections to metadata, and resolving permission
- * mode / folder info for sessions.  Group construction is delegated to
- * {@link ClaudeSessionOptionBuilder}.
+ * state listeners and resolving folder info for sessions.  Group construction
+ * is delegated to {@link ClaudeSessionOptionBuilder}.
  */
 export class ClaudeChatSessionItemController extends Disposable {
 	private readonly _controller: vscode.ChatSessionItemController;
@@ -173,10 +188,28 @@ export class ClaudeChatSessionItemController extends Disposable {
 	private readonly _inProgressItems = new Map<string, vscode.ChatSessionItem>();
 	private _showBadge: boolean;
 
+	// #region Shared Observable State
+
+	/** Whether the "bypass permissions" config is enabled — controls permission mode items. */
+	private readonly _bypassPermissionsEnabled: IObservable<boolean>;
+
+	/** Current workspace folders — controls folder group items and visibility. */
+	private readonly _workspaceFolders: IObservable<URI[]>;
+
+	/** Disposes per-state autoruns when the state object is garbage collected. */
+	private readonly _stateAutorunRegistry = new FinalizationRegistry<DisposableStore>(
+		store => store.dispose()
+	);
+
+	/** Maps input state objects to their reactive pipelines for external updates. */
+	private readonly _statePipelines = new WeakMap<vscode.ChatSessionInputState, InputStateReactivePipeline>();
+
+	// #endregion
+
 	constructor(
 		@IClaudeCodeSessionService private readonly _claudeCodeSessionService: IClaudeCodeSessionService,
 		@IClaudeSessionStateService private readonly _sessionStateService: IClaudeSessionStateService,
-		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IConfigurationService _configurationService: IConfigurationService,
 		@IChatFolderMruService folderMruService: IChatFolderMruService,
 		@IWorkspaceService private readonly _workspaceService: IWorkspaceService,
 		@INativeEnvService private readonly _envService: INativeEnvService,
@@ -186,6 +219,24 @@ export class ClaudeChatSessionItemController extends Disposable {
 	) {
 		super();
 		this._optionBuilder = new ClaudeSessionOptionBuilder(_configurationService, folderMruService, _workspaceService);
+
+		this._bypassPermissionsEnabled = observableFromEvent(
+			this,
+			Event.filter(_configurationService.onDidChangeConfiguration,
+				e => e.affectsConfiguration(ConfigKey.ClaudeAgentAllowDangerouslySkipPermissions.fullyQualifiedId)),
+			() => _configurationService.getConfig(ConfigKey.ClaudeAgentAllowDangerouslySkipPermissions) as boolean,
+		);
+
+		// Bridge vscode.Event → internal Event for workspace folder changes
+		const workspaceFoldersEmitter = this._register(new Emitter<void>());
+		const workspaceFoldersSubscription = _workspaceService.onDidChangeWorkspaceFolders(() => workspaceFoldersEmitter.fire());
+		this._register({ dispose: () => workspaceFoldersSubscription.dispose() });
+		this._workspaceFolders = observableFromEvent(
+			this,
+			workspaceFoldersEmitter.event,
+			() => _workspaceService.getWorkspaceFolders(),
+		);
+
 		this._registerCommands();
 		this._controller = this._register(vscode.chat.createChatSessionItemController(
 			ClaudeSessionUri.scheme,
@@ -201,15 +252,13 @@ export class ClaudeChatSessionItemController extends Disposable {
 			item.iconPath = new vscode.ThemeIcon('claude');
 			item.timing = { created: Date.now() };
 
-			const permissionModeSelection = getSelectedOption(context.inputState.groups, PERMISSION_MODE_OPTION_ID);
-			const permissionMode = permissionModeSelection?.id;
-			const folderSelection = getSelectedOption(context.inputState.groups, FOLDER_OPTION_ID);
-			const folder = folderSelection?.id ? URI.file(folderSelection.id) : undefined;
+			// Set workspace metadata for correct session grouping
+			const selectedFolderUri = getSelectedFolderUri(context.inputState);
+			const folderInfo = await this.getFolderInfoForSession(newSessionId, selectedFolderUri);
+			if (folderInfo.cwd) {
+				item.metadata = { workingDirectoryPath: folderInfo.cwd };
+			}
 
-			item.metadata = {
-				permissionMode,
-				cwd: folder,
-			};
 			this._inProgressItems.set(newSessionId, item);
 			return item;
 		};
@@ -248,7 +297,23 @@ export class ClaudeChatSessionItemController extends Disposable {
 			const newItem = this._controller.createChatSessionItem(ClaudeSessionUri.forSessionId(result.sessionId), title);
 			newItem.iconPath = new vscode.ThemeIcon('claude');
 			newItem.timing = { created: Date.now() };
-			newItem.metadata = item?.metadata ? { ...item.metadata } : undefined;
+			// FYI, dropping any other metadata fields here...
+			if (item?.metadata?.workingDirectoryPath) {
+				newItem.metadata = { workingDirectoryPath: item.metadata.workingDirectoryPath };
+			}
+
+			// Copy parent session state to the forked session
+			const parentSessionId = ClaudeSessionUri.getSessionId(sessionResource);
+			const parentPermission = this._sessionStateService.getPermissionModeForSession(parentSessionId);
+			const parentFolder = this._sessionStateService.getFolderInfoForSession(parentSessionId);
+			this._sessionStateService.setPermissionModeForSession(result.sessionId, parentPermission);
+			if (parentFolder) {
+				this._sessionStateService.setFolderInfoForSession(result.sessionId, {
+					...parentFolder,
+					additionalDirectories: [...(parentFolder.additionalDirectories ?? [])],
+				});
+			}
+
 			this._controller.items.add(newItem);
 			return newItem;
 		};
@@ -272,151 +337,235 @@ export class ClaudeChatSessionItemController extends Disposable {
 
 	// #region Input State
 
-	private _setupInputState(): void {
-		const trackedStates: { ref: WeakRef<vscode.ChatSessionInputState>; subscription: IDisposable }[] = [];
+	/**
+	 * Creates a reactive pipeline for a single input state.
+	 *
+	 * Per-state observables (`permissionMode`, `folderUri`, `isSessionStarted`) are
+	 * combined with shared observables (`_bypassPermissionsEnabled`, `_workspaceFolders`)
+	 * into derived group computations. An autorun reads the derived groups and pushes
+	 * the result to `state.groups`, which is the "UI".
+	 *
+	 * The `state` is only held weakly by the autoruns so it can be garbage-collected
+	 * while the shared observables still reference the pipeline's observers. When the
+	 * state is collected, the finalization registry disposes the store and unsubscribes.
+	 *
+	 * Returns the per-state observables so callers can drive external updates, plus a
+	 * `DisposableStore` that owns the autorun lifecycle.
+	 */
+	private _createInputStateReactivePipeline(
+		state: vscode.ChatSessionInputState,
+	): InputStateReactivePipeline {
+		const store = new DisposableStore();
 
-		const sweepStaleEntries = () => {
-			for (let i = trackedStates.length - 1; i >= 0; i--) {
-				if (!trackedStates[i].ref.deref()) {
-					trackedStates[i].subscription.dispose();
-					trackedStates.splice(i, 1);
-				}
-			}
-		};
+		// Seed values are computed up front so that the first autorun pass
+		// observes fully-seeded observables and does not clobber `initialGroups`.
+		const seed = this._computeSeedValues(state.groups);
 
-		// Dispose all subscriptions when the content provider is disposed
-		this._register({
-			dispose: () => {
-				for (const entry of trackedStates) {
-					entry.subscription.dispose();
-				}
-				trackedStates.length = 0;
+		const permissionMode = observableValue<PermissionMode>(this, seed.permissionMode);
+		const folderUri = observableValue<URI | undefined>(this, seed.folderUri);
+		const folderItems = observableValue<readonly vscode.ChatSessionProviderOptionItem[]>(this, seed.folderItems);
+		const isSessionStarted = observableValue<boolean>(this, seed.isSessionStarted);
+
+		// When workspace folders change, update folder items reactively.
+		// Falls back to the async MRU list when the workspace becomes empty,
+		// matching the old imperative `buildNewFolderGroup` behavior.
+		store.add(autorun(reader => {
+			/** @description syncWorkspaceFolderItems */
+			const folders = this._workspaceFolders.read(reader);
+			if (folders.length !== 0) {
+				folderItems.set(
+					folders.map(f => toWorkspaceFolderOptionItem(f, this._workspaceService.getWorkspaceFolderName(f) || basename(f))),
+					undefined,
+				);
+			} else {
+				this._optionBuilder.getFolderOptionItems()
+					.then(items => folderItems.set(items, undefined))
+					.catch(e => this._logService.error(e));
 			}
+		}));
+
+		const permissionModeGroup = derived(reader => {
+			/** @description permissionModeGroup */
+			const bypassEnabled = this._bypassPermissionsEnabled.read(reader);
+			const selectedMode = permissionMode.read(reader);
+			const group = buildPermissionModeItems(bypassEnabled);
+			const selectedItem = group.items.find(i => i.id === selectedMode) ?? group.items[0];
+			return { ...group, selected: selectedItem };
 		});
 
+		const folderGroup = derived<vscode.ChatSessionProviderOptionGroup | undefined>(reader => {
+			/** @description folderGroup */
+			const items = folderItems.read(reader);
+			const folders = this._workspaceFolders.read(reader);
+			// Hide folder group when there's exactly one workspace folder (implicit)
+			if (folders.length === 1) {
+				return undefined;
+			}
+			const selectedFolder = folderUri.read(reader);
+			const locked = isSessionStarted.read(reader);
+			const lockedItems = locked ? items.map(i => ({ ...i, locked: true })) : items;
+			const selectedItem = selectedFolder
+				? lockedItems.find(i => i.id === selectedFolder.fsPath)
+				: lockedItems[0];
+			return {
+				id: FOLDER_OPTION_ID,
+				name: vscode.l10n.t('Folder'),
+				description: vscode.l10n.t('Pick Folder'),
+				items: lockedItems,
+				selected: selectedItem ? (locked ? { ...selectedItem, locked: true } : selectedItem) : undefined,
+			};
+		});
+
+		const allGroups = derived(reader => {
+			/** @description allGroups */
+			const groups: vscode.ChatSessionProviderOptionGroup[] = [];
+			const folder = folderGroup.read(reader);
+			if (folder) {
+				groups.push(folder);
+			}
+			groups.push(permissionModeGroup.read(reader));
+			return groups;
+		});
+
+		// Hold `state` via a WeakRef so the autorun's closure does not retain it.
+		// Shared observables (`_workspaceFolders`, `_bypassPermissionsEnabled`) hold
+		// strong references to autoruns; without the WeakRef, `state` would transitively
+		// stay reachable forever and `_stateAutorunRegistry` could never fire.
+		const stateRef = new WeakRef(state);
+		store.add(autorun(reader => {
+			/** @description syncInputStateGroups */
+			const groups = allGroups.read(reader);
+			const currentState = stateRef.deref();
+			if (currentState) {
+				currentState.groups = groups;
+			}
+		}));
+
+		return { permissionMode, folderUri, folderItems, isSessionStarted, store };
+	}
+
+	private _setupInputState(): void {
 		this._controller.getChatSessionInputState = async (sessionResource, context, token) => {
+			if (context.previousInputState) {
+				const state = this._controller.createChatSessionInputState([...context.previousInputState.groups]);
+				const pipeline = this._createInputStateReactivePipeline(state);
+				this._statePipelines.set(state, pipeline);
+				this._stateAutorunRegistry.register(state, pipeline.store);
+				return state;
+			}
+
 			const isExistingSession = sessionResource && await this._claudeCodeSessionService.getSession(sessionResource, token) !== undefined;
-
-			const groups = isExistingSession
+			const initialGroups = isExistingSession
 				? await this._buildExistingSessionGroups(sessionResource)
-				: await this._optionBuilder.buildNewSessionGroups(context.previousInputState);
-			const state = this._controller.createChatSessionInputState(groups);
+				: await this._optionBuilder.buildNewSessionGroups();
+			const state = this._controller.createChatSessionInputState(initialGroups);
+			const pipeline = this._createInputStateReactivePipeline(state);
 
-			const ref = new WeakRef(state);
-			const subscription = state.onDidChange(() => {
-				const s = ref.deref();
-				if (s) {
-					this._handleInputStateChange(s);
-				}
-			});
-			trackedStates.push({ ref, subscription });
+			if (isExistingSession) {
+				pipeline.isSessionStarted.set(true, undefined);
+			}
 
+			// React to external permission mode changes for this session
+			if (sessionResource) {
+				const sessionId = ClaudeSessionUri.getSessionId(sessionResource);
+				const externalPermissionMode = observableFromEvent(
+					this,
+					Event.filter(this._sessionStateService.onDidChangeSessionState,
+						e => e.sessionId === sessionId && e.permissionMode !== undefined),
+					() => this._sessionStateService.getPermissionModeForSession(sessionId),
+				);
+				pipeline.store.add(autorun(reader => {
+					/** @description syncExternalPermissionMode */
+					pipeline.permissionMode.set(externalPermissionMode.read(reader), undefined);
+				}));
+			}
+
+			this._statePipelines.set(state, pipeline);
+			this._stateAutorunRegistry.register(state, pipeline.store);
 			return state;
 		};
+	}
 
-		// Rebuild active input states when external conditions change
-		const refreshActiveInputStates = () => {
-			sweepStaleEntries();
-			for (const entry of trackedStates) {
-				const state = entry.ref.deref();
-				if (state) {
-					this._rebuildInputState(state).catch(e => this._logService.error(e));
-				}
-			}
-		};
+	/**
+	 * Extracts seed values for the per-state observables from the input groups.
+	 * Pure and synchronous — runs before any autoruns are attached so the first
+	 * autorun pass observes fully-seeded values and does not overwrite the
+	 * carefully-constructed initial groups.
+	 *
+	 * Also recovers the `isSessionStarted` signal from `locked` items — required to
+	 * preserve lock state when restoring a previously-started session.
+	 */
+	private _computeSeedValues(groups: readonly vscode.ChatSessionProviderOptionGroup[]): {
+		readonly permissionMode: PermissionMode;
+		readonly folderUri: URI | undefined;
+		readonly folderItems: readonly vscode.ChatSessionProviderOptionItem[];
+		readonly isSessionStarted: boolean;
+	} {
+		let permissionMode: PermissionMode = this._optionBuilder.lastUsedPermissionMode;
+		const permissionGroup = groups.find(g => g.id === PERMISSION_MODE_OPTION_ID);
+		if (permissionGroup?.selected && isPermissionMode(permissionGroup.selected.id)) {
+			permissionMode = permissionGroup.selected.id;
+		}
 
-		// Config change (bypass permissions toggle) → may add/remove permission items
-		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(ConfigKey.ClaudeAgentAllowDangerouslySkipPermissions.fullyQualifiedId)) {
-				refreshActiveInputStates();
+		let folderUri: URI | undefined;
+		let folderItems: readonly vscode.ChatSessionProviderOptionItem[] = [];
+		let isSessionStarted = false;
+		const folderGroup = groups.find(g => g.id === FOLDER_OPTION_ID);
+		if (folderGroup) {
+			if (folderGroup.items.length > 0) {
+				folderItems = folderGroup.items;
 			}
-		}));
+			if (folderGroup.selected) {
+				folderUri = URI.file(folderGroup.selected.id);
+			}
+			// Restore the "started" signal: if any items (or the selected item) carry
+			// `locked: true`, the session was previously started and must stay locked.
+			if (folderGroup.selected?.locked || folderGroup.items.some(i => i.locked)) {
+				isSessionStarted = true;
+			}
+		}
 
-		// Workspace folder changes → may add/remove folder group
-		this._register(this._workspaceService.onDidChangeWorkspaceFolders(() => {
-			refreshActiveInputStates();
-		}));
+		return { permissionMode, folderUri, folderItems, isSessionStarted };
+	}
 
-		// Session state service changes (e.g., permission mode changed externally)
-		this._register(this._sessionStateService.onDidChangeSessionState(e => {
-			if (e.permissionMode === undefined) {
-				return;
-			}
-			const existingMode = this.getMetadata(e.sessionId)?.permissionMode;
-			if (e.permissionMode === existingMode) {
-				return;
-			}
-			this.setMetadata(e.sessionId, { permissionMode: e.permissionMode });
-			for (const entry of trackedStates) {
-				const state = entry.ref.deref();
-				if (state?.sessionResource) {
-					const stateSessionId = ClaudeSessionUri.getSessionId(state.sessionResource);
-					if (stateSessionId === e.sessionId) {
-						const permissionGroup = this._optionBuilder.buildPermissionModeGroup();
-						const selectedItem = permissionGroup.items.find(i => i.id === e.permissionMode);
-						if (selectedItem) {
-							const updatedGroup = { ...permissionGroup, selected: selectedItem };
-							state.groups = state.groups.map(g =>
-								g.id === PERMISSION_MODE_OPTION_ID ? updatedGroup : g
-							);
-						}
-					}
-				}
-			}
-		}));
+	/**
+	 * Marks the input state as "started", which locks the folder group.
+	 * Called by the content provider when a new session begins.
+	 */
+	markSessionStarted(inputState: vscode.ChatSessionInputState): void {
+		const pipeline = this._statePipelines.get(inputState);
+		if (pipeline) {
+			pipeline.isSessionStarted.set(true, undefined);
+		}
 	}
 
 	private async _buildExistingSessionGroups(sessionResource: vscode.Uri): Promise<vscode.ChatSessionProviderOptionGroup[]> {
 		const sessionId = ClaudeSessionUri.getSessionId(sessionResource);
-		const permissionMode = this.getPermissionModeForSession(sessionId);
+		const permissionMode = this._sessionStateService.getPermissionModeForSession(sessionId);
+
 		const workspaceFolders = this._workspaceService.getWorkspaceFolders();
-		const folderUri = workspaceFolders.length !== 1 ? await this._getDefaultFolderForSession(sessionId) : undefined;
+		let folderUri: URI | undefined;
+		if (workspaceFolders.length !== 1) {
+			const stateFolder = this._sessionStateService.getFolderInfoForSession(sessionId);
+			if (stateFolder) {
+				folderUri = URI.file(stateFolder.cwd);
+			} else {
+				const session = await this._claudeCodeSessionService.getSession(sessionResource, CancellationToken.None);
+				if (session?.cwd) {
+					folderUri = URI.file(session.cwd);
+				} else {
+					folderUri = await this._optionBuilder.getDefaultFolder();
+				}
+			}
+		}
 		return this._optionBuilder.buildExistingSessionGroups(permissionMode, folderUri);
-	}
-
-	private _handleInputStateChange(state: vscode.ChatSessionInputState): void {
-		const { permissionMode, folderUri } = this._optionBuilder.getSelections(state.groups);
-		const sessionId = state.sessionResource ? ClaudeSessionUri.getSessionId(state.sessionResource) : undefined;
-		if (sessionId) {
-			if (permissionMode) {
-				this.setMetadata(sessionId, { permissionMode });
-			}
-			if (folderUri) {
-				this.setMetadata(sessionId, { cwd: folderUri });
-			}
-		}
-	}
-
-	private async _rebuildInputState(state: vscode.ChatSessionInputState): Promise<void> {
-		if (state.sessionResource) {
-			state.groups = await this._buildExistingSessionGroups(state.sessionResource);
-		} else {
-			state.groups = await this._optionBuilder.buildNewSessionGroups(state);
-		}
 	}
 
 	// #endregion
 
-	// #region Permission Mode & Folder Resolution
+	// #region Folder Resolution
 
-	private async _getDefaultFolderForSession(sessionId: string): Promise<URI | undefined> {
-		const selected = this.getMetadata(sessionId)?.cwd;
-		if (selected) {
-			return selected;
-		}
-
-		const defaultFolder = await this._optionBuilder.getDefaultFolder();
-		if (defaultFolder) {
-			this.setMetadata(sessionId, { cwd: defaultFolder });
-		}
-		return defaultFolder;
-	}
-
-	getPermissionModeForSession(sessionId: string): PermissionMode {
-		return this.getMetadata(sessionId)?.permissionMode ?? this._sessionStateService.getPermissionModeForSession(sessionId);
-	}
-
-	async getFolderInfoForSession(sessionId: string): Promise<ClaudeFolderInfo> {
+	async getFolderInfoForSession(sessionId: string, selectedFolderUri?: URI): Promise<ClaudeFolderInfo> {
 		const workspaceFolders = this._workspaceService.getWorkspaceFolders();
 
 		if (workspaceFolders.length === 1) {
@@ -426,11 +575,11 @@ export class ClaudeChatSessionItemController extends Disposable {
 			};
 		}
 
-		// Multi-root or empty workspace: use the selected folder
-		const selectedFolder = this.getMetadata(sessionId)?.cwd;
+		// Multi-root or empty workspace: resolve selected folder from inputState, sessionStateService, or session file
+		const folderUri = selectedFolderUri ?? await this._resolveSessionFolder(sessionId);
 
 		if (workspaceFolders.length > 1) {
-			const cwd = selectedFolder?.fsPath ?? workspaceFolders[0].fsPath;
+			const cwd = folderUri?.fsPath ?? workspaceFolders[0].fsPath;
 			const additionalDirectories = workspaceFolders
 				.map(f => f.fsPath)
 				.filter(p => p !== cwd);
@@ -438,9 +587,9 @@ export class ClaudeChatSessionItemController extends Disposable {
 		}
 
 		// Empty workspace
-		if (selectedFolder) {
+		if (folderUri) {
 			return {
-				cwd: selectedFolder.fsPath,
+				cwd: folderUri.fsPath,
 				additionalDirectories: [],
 			};
 		}
@@ -461,44 +610,22 @@ export class ClaudeChatSessionItemController extends Disposable {
 		};
 	}
 
+	private async _resolveSessionFolder(sessionId: string): Promise<URI | undefined> {
+		const stateFolder = this._sessionStateService.getFolderInfoForSession(sessionId);
+		if (stateFolder) {
+			return URI.file(stateFolder.cwd);
+		}
+
+		const sessionResource = ClaudeSessionUri.forSessionId(sessionId);
+		const session = await this._claudeCodeSessionService.getSession(sessionResource, CancellationToken.None);
+		if (session?.cwd) {
+			return URI.file(session.cwd);
+		}
+
+		return this._optionBuilder.getDefaultFolder();
+	}
+
 	// #endregion
-
-	// #region Metadata
-
-	setMetadata(sessionId: string, metadata: Partial<{ permissionMode: PermissionMode; cwd?: URI }>): void {
-		const item = this._controller.items.get(ClaudeSessionUri.forSessionId(sessionId));
-		if (item) {
-			item.metadata = {
-				...item.metadata,
-				permissionMode: metadata.permissionMode ?? item.metadata?.permissionMode,
-				cwd: metadata.cwd ?? item.metadata?.cwd,
-			};
-		}
-	}
-
-	getMetadata(sessionId: string): { permissionMode?: PermissionMode; cwd?: URI } | undefined {
-		const candidate = this._controller.items.get(ClaudeSessionUri.forSessionId(sessionId));
-		if (candidate) {
-			if (candidate.metadata?.permissionMode !== undefined && !isPermissionMode(candidate.metadata.permissionMode)) {
-				this._logService.warn(`Invalid permission mode "${candidate.metadata?.permissionMode}" found in metadata for session ${sessionId}. Falling back to default.`);
-				candidate.metadata = {
-					permissionMode: 'acceptEdits',
-					cwd: candidate.metadata?.cwd,
-				};
-			}
-			if (candidate.metadata?.cwd && !(URI.isUri(candidate.metadata.cwd))) {
-				this._logService.warn(`Invalid cwd "${candidate.metadata.cwd}" found in metadata for session ${sessionId}. Ignoring.`);
-				candidate.metadata = {
-					permissionMode: candidate.metadata.permissionMode,
-					cwd: undefined,
-				};
-			}
-			return {
-				permissionMode: candidate.metadata?.permissionMode,
-				cwd: candidate.metadata?.cwd,
-			};
-		}
-	}
 
 	updateItemLabel(sessionId: string, label: string): void {
 		const resource = ClaudeSessionUri.forSessionId(sessionId);
@@ -575,11 +702,10 @@ export class ClaudeChatSessionItemController extends Disposable {
 			lastRequestEnded: session.lastRequestEnded,
 		};
 		item.iconPath = new vscode.ThemeIcon('claude');
-		item.metadata = {
-			// Allow it to be set when opened
-			permissionMode: undefined,
-			cwd: session.cwd ? URI.file(session.cwd) : undefined
-		};
+		if (session.cwd) {
+			// Agents app needs this to decide the working directory for the session
+			item.metadata = { workingDirectoryPath: session.cwd };
+		}
 		return item;
 	}
 

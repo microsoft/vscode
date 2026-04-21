@@ -139,9 +139,6 @@ import '../workbench/contrib/terminal/electron-browser/terminal.contribution.js'
 // Themes
 import '../workbench/contrib/themes/browser/themes.test.contribution.js';
 import '../workbench/services/themes/electron-browser/themes.contribution.js';
-// User Data Sync
-import '../workbench/contrib/userDataSync/electron-browser/userDataSync.contribution.js';
-
 // Tags
 import '../workbench/contrib/tags/electron-browser/workspaceTagsService.js';
 import '../workbench/contrib/tags/electron-browser/tags.contribution.js';
@@ -207,7 +204,7 @@ import './contrib/remoteAgentHost/browser/remoteAgentHostTerminal.contribution.j
 import './contrib/remoteAgentHost/browser/tunnelAgentHost.contribution.js';
 
 // Local Agent Host
-import './contrib/localAgentHost/browser/localAgentHost.contribution.js';
+import './contrib/agentHost/browser/localAgentHost.contribution.js';
 
 // Tunnel Host (allow remote connections to local agent host)
 import './contrib/tunnelHost/electron-browser/tunnelHost.contribution.js';

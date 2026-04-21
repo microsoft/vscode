@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { decodeBase64, VSBuffer } from '../../../base/common/buffer.js';
+import { toErrorMessage } from '../../../base/common/errorMessage.js';
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
 import { observableValue } from '../../../base/common/observable.js';
@@ -29,22 +30,19 @@ import { AgentHostStateManager } from './agentHostStateManager.js';
  * on the provider identifier in the session configuration.
  */
 /**
- * Extracts subagent metadata from a tool start event's arguments,
- * matching the event mapper's extraction for the eager toolKind path.
+ * Extracts subagent metadata from a tool start event. Adapters are
+ * responsible for normalizing their SDK-specific argument shape into the
+ * generic `subagentAgentName` / `subagentDescription` fields on the event
+ * itself, so this just forwards them.
  */
 function extractSubagentMeta(start: IAgentToolStartEvent | undefined): { subagentDescription?: string; subagentAgentName?: string } {
-	if (!start?.toolKind || start.toolKind !== 'subagent' || !start.toolArguments) {
+	if (!start) {
 		return {};
 	}
-	try {
-		const args = JSON.parse(start.toolArguments) as Record<string, unknown>;
-		return {
-			subagentDescription: typeof args.description === 'string' && args.description.length > 0 ? args.description : undefined,
-			subagentAgentName: typeof args.agentName === 'string' && args.agentName.length > 0 ? args.agentName : undefined,
-		};
-	} catch {
-		return {};
-	}
+	return {
+		subagentDescription: start.subagentDescription,
+		subagentAgentName: start.subagentAgentName,
+	};
 }
 
 export class AgentService extends Disposable implements IAgentService {
@@ -265,6 +263,7 @@ export class AgentService extends Disposable implements IAgentService {
 			const state = this._stateManager.createSession(summary);
 			state.config = sessionConfig;
 			state.turns = sourceTurns;
+			state.activeClient = config.activeClient;
 		} else {
 			// Create empty state for new sessions
 			const summary: ISessionSummary = {
@@ -280,10 +279,34 @@ export class AgentService extends Disposable implements IAgentService {
 			};
 			const state = this._stateManager.createSession(summary);
 			state.config = sessionConfig;
+			state.activeClient = config?.activeClient;
+		}
+		// Persist initial config values so a subsequent `restoreSession` can
+		// re-hydrate them. We persist the full resolved values (not just the
+		// user's input) so clients can render them on restore without having
+		// to re-resolve. Mid-session changes are persisted by `AgentSideEffects`
+		// when handling `SessionConfigChanged`.
+		if (sessionConfig?.values && Object.keys(sessionConfig.values).length > 0) {
+			this._persistConfigValues(session, sessionConfig.values);
 		}
 		this._stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: session.toString() });
 
 		return session;
+	}
+
+	private _persistConfigValues(session: URI, values: Record<string, string>): void {
+		let ref;
+		try {
+			ref = this._sessionDataService.openDatabase(session);
+		} catch (err) {
+			this._logService.warn(`[AgentService] Failed to open session database to persist configValues for ${session.toString()}: ${toErrorMessage(err)}`);
+			return;
+		}
+		ref.object.setMetadata('configValues', JSON.stringify(values)).catch(err => {
+			this._logService.warn(`[AgentService] Failed to persist configValues for ${session.toString()}: ${toErrorMessage(err)}`);
+		}).finally(() => {
+			ref.dispose();
+		});
 	}
 
 	private async _resolveCreatedSessionConfig(provider: IAgent, config: IAgentCreateSessionConfig | undefined): Promise<ISessionConfigState | undefined> {
@@ -455,13 +478,14 @@ export class AgentService extends Disposable implements IAgentService {
 		let isRead: boolean | undefined;
 		let isDone: boolean | undefined;
 		let diffs: ISessionFileDiff[] | undefined;
+		let persistedConfigValues: Record<string, string> | undefined;
 		const ref = this._sessionDataService.tryOpenDatabase?.(session);
 		if (ref) {
 			try {
 				const db = await ref;
 				if (db) {
 					try {
-						const m = await db.object.getMetadataObject({ customTitle: true, isRead: true, isDone: true, diffs: true });
+						const m = await db.object.getMetadataObject({ customTitle: true, isRead: true, isDone: true, diffs: true, configValues: true });
 						if (m.customTitle) {
 							title = m.customTitle;
 						}
@@ -473,6 +497,13 @@ export class AgentService extends Disposable implements IAgentService {
 						}
 						if (m.diffs) {
 							try { diffs = JSON.parse(m.diffs); } catch { /* ignore malformed */ }
+						}
+						if (m.configValues) {
+							try {
+								persistedConfigValues = JSON.parse(m.configValues);
+							} catch (err) {
+								this._logService.warn(`[AgentService] Failed to parse persisted configValues for ${sessionStr}: ${toErrorMessage(err)}`);
+							}
 						}
 					} finally {
 						db.dispose();
@@ -499,6 +530,23 @@ export class AgentService extends Disposable implements IAgentService {
 		};
 
 		this._stateManager.restoreSession(summary, turns);
+
+		// Resolve the session config so clients (e.g. the running-session
+		// auto-approve picker) can render session-mutable properties for
+		// sessions that were not created in the current process lifetime.
+		// Overlay any values the user previously selected (persisted via
+		// `SessionConfigChanged`) on top of the provider's resolved defaults.
+		const restoredConfig = await this._resolveCreatedSessionConfig(agent, {
+			workingDirectory: meta.workingDirectory,
+			config: persistedConfigValues,
+		});
+		if (restoredConfig) {
+			const restoredState = this._stateManager.getSessionState(sessionStr);
+			if (restoredState) {
+				restoredState.config = restoredConfig;
+			}
+		}
+
 		this._logService.info(`[AgentService] Restored session ${sessionStr} with ${turns.length} turns`);
 	}
 

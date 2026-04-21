@@ -3,4 +3,5 @@ esbuild.*
 cgmanifest.json
 package-lock.json
 tsconfig*.json
+**/*.tsbuildinfo
 .gitignore

@@ -61,6 +61,7 @@ const REPOSITORY_OPTION_ID = 'repository';
 const _sessionWorktreeIsolationCache = new Map<string, boolean>();
 const BRANCH_OPTION_ID = 'branch';
 const ISOLATION_OPTION_ID = 'isolation';
+const PARENT_SESSION_OPTION_ID = 'parentSessionId';
 const LAST_USED_ISOLATION_OPTION_KEY = 'github.copilot.cli.lastUsedIsolationOption';
 const OPEN_REPOSITORY_COMMAND_ID = 'github.copilot.cli.sessions.openRepository';
 const OPEN_IN_COPILOT_CLI_COMMAND_ID = 'github.copilot.cli.openInCopilotCLI';
@@ -211,10 +212,15 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 	}
 
 	public notifySessionsChange(): void {
+		// Refresh the bulk metadata cache from disk so cross-process writes
+		// (e.g. another VS Code window editing the same session) become visible
+		// before consumers re-read items.
+		this.chatSessionMetadataStore.refresh().catch(() => { /* logged inside */ });
 		this._onDidChangeChatSessionItems.fire();
 	}
 
 	public async refreshSession(refreshOptions: { reason: 'update'; sessionId: string } | { reason: 'update'; sessionIds: string[] } | { reason: 'delete'; sessionId: string }): Promise<void> {
+		await this.chatSessionMetadataStore.refresh().catch(() => { /* logged inside */ });
 		this._onDidChangeChatSessionItems.fire();
 	}
 
@@ -279,16 +285,22 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 		} else if (workingDirectory && await vscode.workspace.isResourceTrusted(workingDirectory)) {
 			// Workspace
 			const workspaceChanges = await this.workspaceFolderService.getWorkspaceChanges(session.id) ?? [];
-			changes.push(...workspaceChanges.map(change => new vscode.ChatSessionChangedFile(
-				vscode.Uri.file(change.filePath),
-				change.originalFilePath
-					? toGitUri(vscode.Uri.file(change.originalFilePath), 'HEAD')
-					: undefined,
-				change.modifiedFilePath
-					? vscode.Uri.file(change.modifiedFilePath)
-					: undefined,
-				change.statistics.additions,
-				change.statistics.deletions)));
+			const repositoryProperties = await this.chatSessionMetadataStore.getRepositoryProperties(session.id);
+
+			changes.push(...workspaceChanges.map(change => {
+				const originalRef = repositoryProperties?.mergeBaseCommit ?? 'HEAD';
+
+				return new vscode.ChatSessionChangedFile(
+					vscode.Uri.file(change.filePath),
+					change.originalFilePath
+						? toGitUri(vscode.Uri.file(change.originalFilePath), originalRef)
+						: undefined,
+					change.modifiedFilePath
+						? vscode.Uri.file(change.modifiedFilePath)
+						: undefined,
+					change.statistics.additions,
+					change.statistics.deletions);
+			}));
 		}
 
 		// Status
@@ -302,9 +314,12 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 		// repository state which we are passing along through the metadata
 		worktreeProperties = await this.worktreeManager.getWorktreeProperties(session.id);
 
+		const sessionParentId = await this.chatSessionMetadataStore.getSessionParentId(session.id);
+
 		if (worktreeProperties) {
 			// Worktree
 			metadata = {
+				sessionParentId,
 				autoCommit: worktreeProperties.autoCommit !== false,
 				baseCommit: worktreeProperties?.baseCommit,
 				baseBranchName: worktreeProperties.version === 2
@@ -367,6 +382,7 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 				: undefined;
 
 			metadata = {
+				sessionParentId,
 				isolationMode: IsolationMode.Workspace,
 				repositoryPath: repositoryProperties?.repositoryPath,
 				branchName: repositoryProperties?.branchName,
@@ -1261,6 +1277,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		let { chatSessionContext } = context;
 		const disposables = new DisposableStore();
 		let sessionId: string | undefined = undefined;
+		let sessionParentId: string | undefined = undefined;
 		let sdkSessionId: string | undefined = undefined;
 		try {
 
@@ -1278,6 +1295,8 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 							_sessionBranch.set(sessionId, value);
 						} else if (opt.optionId === ISOLATION_OPTION_ID && value) {
 							_sessionIsolation.set(sessionId, value as IsolationMode);
+						} else if (opt.optionId === PARENT_SESSION_OPTION_ID && value) {
+							sessionParentId = value;
 						}
 					}
 				}
@@ -1363,7 +1382,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			};
 			const newBranch = (isUntitled && request.prompt && this.branchNameGenerator) ? this.branchNameGenerator.generateBranchName(fakeContext, token) : undefined;
 
-			const sessionResult = await this.getOrCreateSession(request, chatSessionContext, stream, { model, agent, newBranch }, disposables, token);
+			const sessionResult = await this.getOrCreateSession(request, chatSessionContext, stream, { model, agent, newBranch, sessionParentId }, disposables, token);
 			const session = sessionResult.session;
 			if (session) {
 				disposables.add(session);
@@ -1389,7 +1408,6 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			// Previously we just updated it with details of the folder.
 			// If user has selected a repo, then update with repo information (right icons, etc).
 			if (isUntitled) {
-				disposables.add(session.object.setSessionResource(resource));
 				void this.lockRepoOptionForSession(context, token);
 				this.customSessionTitleService.generateSessionTitle(session.object.sessionId, request, token).catch(ex => this.logService.error(ex, 'Failed to generate custom session title'));
 			}
@@ -1724,7 +1742,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		}
 	}
 
-	private async getOrCreateSession(request: vscode.ChatRequest, chatSessionContext: vscode.ChatSessionContext, stream: vscode.ChatResponseStream, options: { model: { model: string; reasoningEffort?: string } | undefined; agent: SweCustomAgent | undefined; newBranch?: Promise<string | undefined> }, disposables: DisposableStore, token: vscode.CancellationToken): Promise<{ session: IReference<ICopilotCLISession> | undefined; trusted: boolean }> {
+	private async getOrCreateSession(request: vscode.ChatRequest, chatSessionContext: vscode.ChatSessionContext, stream: vscode.ChatResponseStream, options: { model: { model: string; reasoningEffort?: string } | undefined; agent: SweCustomAgent | undefined; newBranch?: Promise<string | undefined>; sessionParentId?: string }, disposables: DisposableStore, token: vscode.CancellationToken): Promise<{ session: IReference<ICopilotCLISession> | undefined; trusted: boolean }> {
 		const { resource } = chatSessionContext.chatSessionItem;
 		const existingSessionId = this.sessionItemProvider.untitledSessionIdMapping.get(SessionIdForCLI.parse(resource));
 		const id = existingSessionId ?? SessionIdForCLI.parse(resource);
@@ -1742,7 +1760,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 		const debugTargetSessionIds = extractDebugTargetSessionIds(request.references);
 		const mcpServerMappings = buildMcpServerMappings(request.tools);
 		const session = isNewSession ?
-			await this.sessionService.createSession({ model: model?.model, reasoningEffort: model?.reasoningEffort, workspace: workspaceInfo, agent, debugTargetSessionIds, mcpServerMappings }, token) :
+			await this.sessionService.createSession({ model: model?.model, reasoningEffort: model?.reasoningEffort, workspace: workspaceInfo, agent, debugTargetSessionIds, mcpServerMappings, sessionParentId: options.sessionParentId }, token) :
 			await this.sessionService.getSession({ sessionId: id, model: model?.model, reasoningEffort: model?.reasoningEffort, workspace: workspaceInfo, agent, debugTargetSessionIds, mcpServerMappings }, token);
 		this.sessionItemProvider.notifySessionsChange();
 		// TODO @DonJayamanne We need to refresh to add this new session, but we need a label.
