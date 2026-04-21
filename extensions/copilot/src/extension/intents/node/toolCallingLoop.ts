@@ -1406,7 +1406,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		// (the server's response header value), because requestId is what appears as headerRequestId
 		// across all telemetry events.
 		if (fetchResult.type === ChatFetchResponseType.Success) {
-			this.lastHeaderRequestId = fetchResult.requestId;
+			this.lastHeaderRequestId = fetchResult.serverRequestId ?? fetchResult.requestId;
 		}
 
 		const promptTokenDetails = await computePromptTokenDetails({
