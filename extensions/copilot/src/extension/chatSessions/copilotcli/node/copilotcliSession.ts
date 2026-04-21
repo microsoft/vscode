@@ -489,7 +489,6 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			const shouldHandleExitPlanModeRequests = this.configurationService.getConfig(ConfigKey.Advanced.CLIPlanExitModeEnabled);
 			disposables.add(toDisposable(this._sdkSession.on('*', (event) => {
 				this.logService.trace(`[CopilotCLISession] CopilotCLI Event: ${JSON.stringify(event, null, 2)}`);
-				this.logService.info(`[CopilotCLISession] on(*) fired: ${event.type}`);
 				// Forward events to Mission Control if remote control is active
 				this._bufferMcEvent(event);
 			})));
@@ -1012,16 +1011,23 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 
 			this._stream?.progress(l10n.t('Enabling remote control...'));
 
-			// Step 1: Get GitHub token
-			const session = await this._authenticationService.getGitHubSession('any', { silent: true });
+			// Step 1: Get GitHub token. Try silent first; fall back to permissive
+			// with an interactive prompt so private repo metadata and Mission
+			// Control session creation have sufficient scope.
+			let session = await this._authenticationService.getGitHubSession('any', { silent: true });
+			if (!session?.accessToken) {
+				session = await this._authenticationService.getGitHubSession('permissive', {
+					createIfNone: { detail: l10n.t('Sign in to GitHub to enable remote control for this session.') },
+				});
+			}
 			if (!session?.accessToken) {
 				this._stream?.markdown(l10n.t('Unable to enable remote control: no GitHub authentication available.'));
 				return;
 			}
 			const githubToken = session.accessToken;
 
-			// Step 2: Exchange GitHub token for Copilot API URL
-			const apiUrl = await this._getCopilotApiUrl(githubToken);
+			// Step 2: Resolve Copilot API URL via authentication service
+			const apiUrl = await this._getCopilotApiUrl();
 			if (!apiUrl) {
 				this._stream?.markdown(l10n.t('Unable to enable remote control: could not resolve Copilot API.'));
 				return;
@@ -1080,7 +1086,23 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			const taskId = mcData.task_id ?? agentTaskId;
 
 			// Step 6: Store MC state in the shared map (keyed by SDK session ID)
-			// so it persists across CopilotCLISession instances.
+			// so it persists across CopilotCLISession instances. If a prior MC
+			// state exists (e.g. /remote invoked twice, or re-enabled after a
+			// partial failure), tear down its listeners/intervals before replacing
+			// it to avoid orphaned setInterval tasks and on('*') handlers.
+			const existingSharedState = mcStateBySessionId.get(this.sessionId);
+			if (existingSharedState) {
+				existingSharedState.mcEventListenerDispose?.();
+				existingSharedState.mcEventListenerDispose = undefined;
+				if (existingSharedState.mcFlushInterval) {
+					clearInterval(existingSharedState.mcFlushInterval);
+					existingSharedState.mcFlushInterval = undefined;
+				}
+				if (existingSharedState.mcPollInterval) {
+					clearInterval(existingSharedState.mcPollInterval);
+					existingSharedState.mcPollInterval = undefined;
+				}
+			}
 			const sharedState: McSharedState = {
 				mcSessionId: mcData.id,
 				mcApiUrl: apiUrl,
@@ -1251,7 +1273,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			if (!session?.accessToken) {
 				return;
 			}
-			const apiUrl = await this._getCopilotApiUrl(session.accessToken);
+			const apiUrl = await this._getCopilotApiUrl();
 			if (apiUrl) {
 				await fetch(`${apiUrl}/agents/sessions/${mcSessionId}`, {
 					method: 'DELETE',
@@ -1267,20 +1289,17 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	}
 
 	/**
-	 * Exchange a GitHub token for the Copilot API URL.
+	 * Resolve the Copilot API URL via the existing authentication service,
+	 * which handles token refresh and endpoint resolution internally.
 	 */
-	private async _getCopilotApiUrl(githubToken: string): Promise<string | undefined> {
-		const tokenResponse = await fetch('https://api.github.com/copilot_internal/v2/token', {
-			headers: {
-				'Authorization': `token ${githubToken}`,
-				'Accept': 'application/json',
-			},
-		});
-		if (!tokenResponse.ok) {
+	private async _getCopilotApiUrl(): Promise<string | undefined> {
+		try {
+			const copilotToken = await this._authenticationService.getCopilotToken();
+			return copilotToken.endpoints?.api;
+		} catch (err) {
+			this.logService.warn(`[CopilotCLISession] Failed to resolve Copilot API URL: ${err}`);
 			return undefined;
 		}
-		const tokenData = await tokenResponse.json() as { token: string; endpoints?: { api?: string } };
-		return tokenData.endpoints?.api;
 	}
 
 	/**
@@ -1366,7 +1385,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		) {
 			return;
 		}
-		this.logService.info(`[CopilotCLISession] MC buffered event: ${eventType}`);
+		this.logService.trace(`[CopilotCLISession] MC buffered event: ${eventType}`);
 
 		// If the SDK event already has a UUID id, pass it through directly
 		// to preserve the event identity chain. Otherwise create a new event.
@@ -1438,15 +1457,29 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			if (!response.ok) {
 				const respBody = await response.text().catch(() => '');
 				this.logService.warn(`[CopilotCLISession] MC event submission failed: ${response.status} ${response.statusText} - ${respBody}`);
-				// Re-queue events on failure (but don't grow unbounded)
+				// Re-queue events and completed command IDs on failure so the
+				// next flush retries them. Without re-queuing completed IDs,
+				// MC would keep returning the same in-progress commands and we
+				// would process them repeatedly. Cap the buffer so a persistently
+				// failing endpoint does not grow it unbounded.
 				if (state.mcEventBuffer.length < 2000) {
 					state.mcEventBuffer.unshift(...events);
+				}
+				if (state.mcCompletedCommandIds.length < 2000) {
+					state.mcCompletedCommandIds.unshift(...completedCommandIds);
 				}
 			} else {
 				this.logService.info(`[CopilotCLISession] MC event flush OK: ${response.status}`);
 			}
 		} catch (err) {
 			this.logService.warn(`[CopilotCLISession] MC event submission error: ${err}`);
+			// Re-queue on transient errors so no work is lost.
+			if (state.mcEventBuffer.length < 2000) {
+				state.mcEventBuffer.unshift(...events);
+			}
+			if (state.mcCompletedCommandIds.length < 2000) {
+				state.mcCompletedCommandIds.unshift(...completedCommandIds);
+			}
 		}
 	}
 
