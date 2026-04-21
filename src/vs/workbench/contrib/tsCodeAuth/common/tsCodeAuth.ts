@@ -15,11 +15,15 @@ export const TSCODE_SECRET_STORAGE_KEY = 'tscode-oauth.accessToken';
 
 // test-workbench_change start
 // Controlled via product.json field "tsCodeAuthMockEnabled"
-export const TSCODE_AUTH_MOCK_TOKEN: StoredToken = {
-	token: 'mock-access-token-for-dev',
-	userName: 'Mock User',
-	employeeId: 'mock-001',
-};
+export function createMockToken(): StoredToken {
+	const id = Math.random().toString(36).slice(2, 8);
+	return {
+		token: `mock-access-token-${id}`,
+		userName: `Mock User (${id})`,
+		employeeId: `mock-${id}`,
+		pathName: `mock-path-${id}`, // test-workbench_change
+	};
+}
 // test-workbench_change end
 
 // --- Data Models ---
