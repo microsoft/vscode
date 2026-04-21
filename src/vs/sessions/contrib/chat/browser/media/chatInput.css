@@ -62,7 +62,7 @@
 
 /* Height constraints are driven by MIN_EDITOR_HEIGHT / MAX_EDITOR_HEIGHT in newChatViewPane.ts */
 .sessions-chat-editor {
-	padding: 6px 6px 0 6px;
+	padding: 2px 10px 0 10px;
 	flex-shrink: 1;
 }
 
