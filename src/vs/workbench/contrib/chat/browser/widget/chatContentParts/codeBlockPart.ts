@@ -119,6 +119,7 @@ export interface ICodeBlockRenderOptions {
 }
 
 const defaultCodeblockPadding = 10;
+const defaultChatScrollbarSize = 7;
 export class CodeBlockPart extends Disposable {
 
 	/**
@@ -384,11 +385,10 @@ export class CodeBlockPart extends Disposable {
 		// When the code block is height-capped via `maxHeightInLines`, content can
 		// exceed the visible area. In that case the default hidden vertical
 		// scrollbar leaves users unable to reach the clipped content (see #283242).
-		// Enable a visible scrollbar and let the editor consume wheel events so
-		// scrolling works inside confirmation widgets. Callers can still override
+		// Enable a chat-sized visible scrollbar. Callers can still override
 		// via `renderOptions.editorOptions.scrollbar`.
 		const scrollbar: IEditorOptions['scrollbar'] | undefined = renderOptions?.maxHeightInLines
-			? { vertical: 'auto', alwaysConsumeMouseWheel: true, ...renderOptions?.editorOptions?.scrollbar }
+			? { vertical: 'auto', verticalScrollbarSize: defaultChatScrollbarSize, ...renderOptions?.editorOptions?.scrollbar }
 			: undefined;
 		return {
 			wordWrap: this.editorOptions.configuration.resultEditor.wordWrap,
