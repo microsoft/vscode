@@ -274,7 +274,6 @@ function sendNewRequestAddedTelemetry(telemetryService: ITelemetryService, telem
 	// Create telemetry data for the request
 	const requestData = TelemetryData.createAndMarkAsIssued(filteredProperties, telemetryData.measurements);
 
-	logService?.info(`[THINKING-TELEMETRY] model.request.added: ` + JSON.stringify({ properties: requestData.properties, measurements: requestData.measurements }));
 	telemetryService.sendInternalMSFTTelemetryEvent('model.request.added', requestData.properties, requestData.measurements);
 }
 
@@ -316,11 +315,6 @@ function sendIndividualMessagesTelemetry(telemetryService: ITelemetryService, me
 
 		// Convert message to JSON string for chunking
 		const messageJsonString = JSON.stringify(message);
-
-		// Log assistant messages at the model.message.added send point
-		if (message.role === 'assistant') {
-			logService?.info(`[THINKING-TELEMETRY] model.message.added ${messageDirection} assistant: ${messageJsonString.substring(0, 4000)}`);
-		}
 
 		const maxChunkSize = 8000;
 
@@ -415,7 +409,6 @@ function sendModelCallTelemetry(telemetryService: ITelemetryService, messageData
 				...(parentHeaderRequestId && { parentHeaderRequestId }), // Link subagent calls to parent HTTP request
 			}, telemetryData.measurements); // Include measurements from original telemetryData
 
-			logService?.info(`[THINKING-TELEMETRY] ${eventName}: ` + JSON.stringify({ properties: modelCallData.properties, measurements: modelCallData.measurements }));
 			telemetryService.sendInternalMSFTTelemetryEvent(eventName, modelCallData.properties, modelCallData.measurements);
 		}
 	}
@@ -457,14 +450,6 @@ export function sendEngineMessagesTelemetry(telemetryService: ITelemetryService,
 	const telemetryDataWithPrompt = telemetryData.extendedBy({
 		messagesJson: JSON.stringify(messages),
 	});
-
-	// Debug log: mirror what engine.messages and model.message.added send for assistant messages
-	const direction = isOutput ? 'output' : 'input';
-	for (const msg of messages) {
-		if (msg.role === 'assistant') {
-			logService?.info(`[THINKING-TELEMETRY] ${direction} assistant message: ${JSON.stringify(msg).substring(0, 4000)}`);
-		}
-	}
 
 	telemetryService.sendEnhancedGHTelemetryEvent('engine.messages', multiplexProperties(telemetryDataWithPrompt.properties), telemetryDataWithPrompt.measurements);
 	// Commenting this out to test a new deduplicated way to collect the same information using sendModelTelemetryEvents()

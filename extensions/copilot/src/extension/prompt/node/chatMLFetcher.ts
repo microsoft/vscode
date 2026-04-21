@@ -218,25 +218,6 @@ export class ChatMLFetcherImpl extends AbstractChatMLFetcher {
 				const copilotToken = await this._authenticationService.getCopilotToken();
 				usernameToScrub = copilotToken.username;
 
-				// DEBUG: Log the last two assistant messages as sent to the LLM
-				const apiMessages = (requestBody.messages ?? requestBody.input) as ReadonlyArray<Record<string, unknown>>;
-				if (apiMessages) {
-					// For Responses API, input items use 'type' discriminator (e.g. type:'message' with role:'assistant', type:'reasoning', type:'function_call')
-					// For CAPI/Anthropic, messages use 'role' directly
-					const assistantItems = apiMessages.filter(m =>
-						m.role === 'assistant' ||
-						m.type === 'reasoning' ||
-						(m.type === 'message' && m.role === 'assistant')
-					);
-					const lastTwo = assistantItems.slice(-2);
-					if (lastTwo.length > 0) {
-						this._logService.info('[LLM-DEBUG] Last two assistant messages sent to LLM:');
-						for (const msg of lastTwo) {
-							this._logService.info('[LLM-DEBUG] ' + JSON.stringify(msg, null, 2));
-						}
-					}
-				}
-
 				const fetchResult = await this._fetchAndStreamChat(
 					chatEndpoint,
 					requestBody,
