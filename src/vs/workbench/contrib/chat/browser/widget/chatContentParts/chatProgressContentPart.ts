@@ -186,7 +186,8 @@ export class ChatWorkingProgressContentPart extends Disposable implements IChatC
 	) {
 		super();
 		this.explicitContent = workingProgress.content;
-		const persistentProgressEnabled = configurationService.getValue<boolean>(ChatConfiguration.ChatPersistentProgressEnabled) !== false;
+		const persistentProgressEnabled = configurationService.getValue<boolean>(ChatConfiguration.ChatPersistentProgressEnabled) !== false
+			&& configurationService.getValue<boolean>(ChatConfiguration.ProgressBorder) !== true;
 		if (persistentProgressEnabled) {
 			const pool = buildPhrasePool(defaultThinkingMessages, configurationService);
 			this.label = pool[Math.floor(Math.random() * pool.length)];

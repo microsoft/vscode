@@ -387,10 +387,19 @@
 	border-color: var(--vscode-agentsChatInput-border) !important;
 	background-color: var(--vscode-agentsChatInput-background);
 	color: var(--vscode-agentsChatInput-foreground);
+	/* Preserve the agents-app input background under the developer-joy ring. */
+	--chat-input-working-fill: var(--vscode-agentsChatInput-background);
 }
 
 .agent-sessions-workbench .interactive-session .chat-input-container.focused {
 	border-color: var(--vscode-agentsChatInput-focusBorder, var(--vscode-focusBorder)) !important;
+}
+
+/* While the developer-joy animated border is active, suppress the static
+	border so it doesn't visually conflict with the spinning gradient ring. */
+.agent-sessions-workbench .interactive-session .chat-input-container.working,
+.agent-sessions-workbench .interactive-session .chat-input-container.working.focused {
+	border-color: transparent !important;
 }
 
 /* Make the Monaco editor inside the chat input transparent so it inherits the chatInput.background */
