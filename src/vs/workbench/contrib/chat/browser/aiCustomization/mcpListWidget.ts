@@ -379,7 +379,6 @@ export class McpListWidget extends Disposable {
 	private readonly disabledLinkListener = this._register(new MutableDisposable());
 	private browseButton!: Button;
 	private addButton!: Button;
-	private backLink!: HTMLElement;
 
 	private filteredServers: IWorkbenchMcpServer[] = [];
 	private filteredBuiltinCount = 0;
@@ -469,26 +468,6 @@ export class McpListWidget extends Disposable {
 		this._register(this.addButton.onDidClick(() => {
 			this.commandService.executeCommand(McpCommandIds.AddConfiguration);
 		}));
-
-		// Back to installed link (shown only in browse mode)
-		this.backLink = DOM.append(this.element, $('.mcp-back-link'));
-		this.backLink.setAttribute('role', 'button');
-		this.backLink.tabIndex = 0;
-		this.backLink.setAttribute('aria-label', localize('backToInstalledAriaLabel', "Back to installed servers"));
-		const backIcon = DOM.append(this.backLink, $('span'));
-		backIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.arrowLeft));
-		const backText = DOM.append(this.backLink, $('span'));
-		backText.textContent = localize('backToInstalled', "Back to installed servers");
-		this._register(DOM.addDisposableListener(this.backLink, 'click', () => {
-			this.toggleBrowseMode(false);
-		}));
-		this._register(DOM.addDisposableListener(this.backLink, 'keydown', (e: KeyboardEvent) => {
-			if (e.key === 'Enter' || e.key === ' ') {
-				e.preventDefault();
-				this.toggleBrowseMode(false);
-			}
-		}));
-		this.backLink.style.display = 'none';
 
 		// Empty state
 		this.emptyContainer = DOM.append(this.element, $('.mcp-empty-state'));
@@ -651,7 +630,6 @@ export class McpListWidget extends Disposable {
 		this.searchQuery = '';
 
 		// Update UI for browse vs installed mode
-		this.backLink.style.display = browse ? '' : 'none';
 		this.addButton.element.style.display = browse ? 'none' : '';
 		this.browseButton.element.parentElement!.style.display = browse ? 'none' : '';
 
@@ -943,11 +921,26 @@ export class McpListWidget extends Disposable {
 	}
 
 	/**
-	/**
 	 * Prepends an element to the search row (left of the search input).
 	 */
 	prependToSearchRow(element: HTMLElement): void {
 		this.searchAndButtonContainer.insertBefore(element, this.searchAndButtonContainer.firstChild);
+	}
+
+	/**
+	 * Whether the widget is currently in marketplace browse mode.
+	 */
+	isInBrowseMode(): boolean {
+		return this.browseMode;
+	}
+
+	/**
+	 * Exits marketplace browse mode and returns to the installed servers list.
+	 */
+	exitBrowseMode(): void {
+		if (this.browseMode) {
+			this.toggleBrowseMode(false);
+		}
 	}
 
 	/**
@@ -969,8 +962,7 @@ export class McpListWidget extends Disposable {
 			return;
 		}
 		const footerHeight = this.sectionHeader.offsetHeight;
-		const backLinkHeight = this.browseMode ? this.backLink.offsetHeight : 0;
-		const listHeight = Math.max(0, height - searchBarHeight - footerHeight - backLinkHeight);
+		const listHeight = Math.max(0, height - searchBarHeight - footerHeight);
 
 		this.listContainer.style.height = `${listHeight}px`;
 		this.list.layout(listHeight, width);

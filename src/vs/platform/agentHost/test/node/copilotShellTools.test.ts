@@ -19,9 +19,9 @@ import { ShellManager, prefixForHistorySuppression } from '../../node/copilot/co
 class TestAgentHostTerminalManager implements IAgentHostTerminalManager {
 	declare readonly _serviceBrand: undefined;
 
-	readonly created: { params: ICreateTerminalParams; options?: { shell?: string; preventShellHistory?: boolean } }[] = [];
+	readonly created: { params: ICreateTerminalParams; options?: { shell?: string; preventShellHistory?: boolean; nonInteractive?: boolean } }[] = [];
 
-	async createTerminal(params: ICreateTerminalParams, options?: { shell?: string; preventShellHistory?: boolean }): Promise<void> {
+	async createTerminal(params: ICreateTerminalParams, options?: { shell?: string; preventShellHistory?: boolean; nonInteractive?: boolean }): Promise<void> {
 		this.created.push({ params, options });
 	}
 	writeInput(): void { }
@@ -66,7 +66,7 @@ suite('CopilotShellTools', () => {
 		]);
 	});
 
-	test('opts every managed shell into shell-history suppression', async () => {
+	test('opts every managed shell into shell-history suppression and non-interactive mode', async () => {
 		const terminalManager = new TestAgentHostTerminalManager();
 		const services = new ServiceCollection();
 		services.set(ILogService, new NullLogService());
@@ -79,6 +79,7 @@ suite('CopilotShellTools', () => {
 
 		assert.strictEqual(terminalManager.created.length, 1);
 		assert.strictEqual(terminalManager.created[0].options?.preventShellHistory, true);
+		assert.strictEqual(terminalManager.created[0].options?.nonInteractive, true);
 	});
 
 	test('prefixForHistorySuppression prepends a space for POSIX shells, no-op for PowerShell', () => {

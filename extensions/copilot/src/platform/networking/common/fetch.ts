@@ -304,12 +304,12 @@ export type StreamOptions = {
 	 * All other chunks will also include a usage field, but with a null value. NOTE: If the stream is interrupted, you may not receive the final usage chunk which contains the total token usage for the request.
 	 */
 	include_usage?: boolean;
-}
+};
 
 export type Prediction = {
 	type: 'content';
 	content: string | { type: string; text: string }[];
-}
+};
 
 /** based on https://platform.openai.com/docs/api-reference/chat/create
  *

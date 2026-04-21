@@ -871,6 +871,72 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	overflow: hidden;
 }
 
+/* Animated gradient border shown around the chat input while the agent is
+	working or thinking. Toggled by the `chat.progressBorder.enabled`
+	setting and the chat widget's request-in-progress state. The ring is
+	rendered using layered `background-image` + `background-clip`
+	(`padding-box`/`border-box`), so it traces the input's outer corner
+	radius and isn't clipped by `overflow: hidden` on the parent. */
+@property --chat-input-anim-angle {
+	syntax: '<angle>';
+	inherits: false;
+	initial-value: 135deg;
+}
+
+@keyframes chat-input-working-border-spin {
+	from {
+		--chat-input-anim-angle: 135deg;
+	}
+
+	to {
+		--chat-input-anim-angle: 495deg;
+	}
+}
+
+@keyframes chat-input-working-border-glow {
+
+	0%,
+	100% {
+		box-shadow:
+			0 0 4px 0 color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 18%, transparent),
+			0 0 10px 0 color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor3) 8%, transparent);
+	}
+
+	50% {
+		box-shadow:
+			0 0 6px 0 color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor2) 22%, transparent),
+			0 0 14px 1px color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 12%, transparent);
+	}
+}
+
+.monaco-workbench .interactive-session .chat-input-container.working {
+	border-color: transparent;
+	/* The padding-box layer fills the input interior. It defaults to the
+		standard input background, but each host can override
+		`--chat-input-working-fill` to keep its own background color (e.g. the
+		Sessions workbench sets it to `--vscode-agentsChatInput-background`).
+		The conic-gradient layer is clipped to the border box so it paints
+		exactly where the (transparent) border lives. */
+	background:
+		linear-gradient(var(--chat-input-working-fill, var(--vscode-input-background)),
+			var(--chat-input-working-fill, var(--vscode-input-background))) padding-box,
+		conic-gradient(from var(--chat-input-anim-angle),
+			var(--vscode-chat-inputWorkingBorderColor1),
+			var(--vscode-chat-inputWorkingBorderColor2),
+			var(--vscode-chat-inputWorkingBorderColor3),
+			var(--vscode-chat-inputWorkingBorderColor2),
+			var(--vscode-chat-inputWorkingBorderColor1)) border-box;
+	animation:
+		chat-input-working-border-spin 1.2s linear infinite,
+		chat-input-working-border-glow 3s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.monaco-workbench .interactive-session .chat-input-container.working {
+		animation: none;
+	}
+}
+
 /* Context usage widget container - positioned in the secondary toolbar below input */
 .interactive-session .chat-input-toolbars .chat-context-usage-container,
 .interactive-session .chat-secondary-toolbar .chat-context-usage-container {

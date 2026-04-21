@@ -89,6 +89,24 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		const id = `sdk-session-${this._nextId++}`;
 		const session = AgentSession.uri('copilot', id);
 		this._sessions.set(id, { session, startTime: Date.now(), modifiedTime: Date.now() });
+		// Simulate the server's eager active-client claim: if the caller
+		// provided activeClient, seed the session state so subscribers see it.
+		if (config?.activeClient) {
+			const summary: ISessionSummary = {
+				resource: session.toString(),
+				provider: 'copilot',
+				title: 'Test',
+				status: SessionStatus.Idle,
+				createdAt: Date.now(),
+				modifiedAt: Date.now(),
+			};
+			const state: ISessionState = {
+				...createSessionState(summary),
+				lifecycle: SessionLifecycle.Ready,
+				activeClient: config.activeClient,
+			};
+			this.sessionStates.set(session.toString(), state);
+		}
 		return session;
 	}
 
@@ -532,6 +550,31 @@ suite('AgentHostChatContribution', () => {
 			const { chatAgentService } = createContribution(disposables);
 
 			assert.ok(chatAgentService.registeredAgents.has('agent-host-copilot'));
+		});
+	});
+
+	// ---- Session disposal -----------------------------------------------
+
+	suite('disposal', () => {
+
+		test('fires onWillDispose before session is disposed', async () => {
+			const { sessionHandler } = createContribution(disposables);
+
+			const sessionResource = URI.from({ scheme: 'agent-host-copilot', path: '/untitled-dispose-test' });
+			const chatSession = await sessionHandler.provideChatSessionContent(sessionResource, CancellationToken.None);
+
+			// `onWillDispose` is consumed by `ContributedChatSessionData` in
+			// `ChatSessionsService` to evict disposed sessions from its cache.
+			// If this event does not fire (e.g. because the emitter was
+			// disposed before `.fire()` ran during teardown), the service
+			// would hand out the disposed `IChatSession` to subsequent
+			// `getOrCreateChatSession` callers.
+			let fired = 0;
+			disposables.add(chatSession.onWillDispose(() => { fired++; }));
+
+			chatSession.dispose();
+
+			assert.strictEqual(fired, 1, 'onWillDispose should fire exactly once when the session is disposed');
 		});
 	});
 
@@ -2499,13 +2542,14 @@ suite('AgentHostChatContribution', () => {
 			fire({ type: 'session/turnComplete', session, turnId } as ISessionAction);
 			await turnPromise;
 
-			const activeClientAction = agentHostService.dispatchedActions.find(
-				d => d.action.type === 'session/activeClientChanged'
-			);
-			assert.ok(activeClientAction, 'should dispatch activeClientChanged');
-			const ac = activeClientAction!.action as { activeClient: { customizations?: ICustomizationRef[] } };
-			assert.strictEqual(ac.activeClient.customizations?.length, 1);
-			assert.strictEqual(ac.activeClient.customizations?.[0].uri, 'file:///plugin-a');
+			// The active-client claim is now threaded through createSession
+			// rather than dispatched separately, so assert on createSessionCalls.
+			const createCall = agentHostService.createSessionCalls.at(-1);
+			assert.ok(createCall?.activeClient, 'createSession should carry activeClient');
+			assert.strictEqual(createCall!.activeClient!.clientId, agentHostService.clientId);
+			assert.ok(Array.isArray(createCall!.activeClient!.tools), 'activeClient.tools should be a defined array');
+			assert.strictEqual(createCall!.activeClient!.customizations?.length, 1);
+			assert.strictEqual(createCall!.activeClient!.customizations?.[0].uri, 'file:///plugin-a');
 		});
 
 		test('re-dispatches activeClientChanged when customizations observable changes', async () => {

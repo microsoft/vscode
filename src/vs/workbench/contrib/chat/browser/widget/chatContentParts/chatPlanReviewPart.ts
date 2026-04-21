@@ -337,6 +337,7 @@ export class ChatPlanReviewPart extends Disposable implements IChatContentPart {
 
 	private updateCollapsedPresentation(): void {
 		this.domNode.classList.toggle('chat-plan-review-collapsed', this._isCollapsed);
+		this._restoreButton.element.classList.toggle('chat-plan-review-hidden', this._isCollapsed);
 		this._collapseButton.label = this._isCollapsed
 			? `$(${Codicon.chevronDown.id})`
 			: `$(${Codicon.chevronUp.id})`;

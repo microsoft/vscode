@@ -15,7 +15,9 @@ import {
 } from './neighborFiles';
 
 export class OpenTabFiles implements INeighborSource {
-	constructor(@ICompletionsTextDocumentManagerService readonly docManager: ICompletionsTextDocumentManagerService) { }
+	constructor(
+		@ICompletionsTextDocumentManagerService private readonly docManager: ICompletionsTextDocumentManagerService
+	) { }
 
 	private truncateDocs(
 		docs: readonly TextDocumentContents[],
