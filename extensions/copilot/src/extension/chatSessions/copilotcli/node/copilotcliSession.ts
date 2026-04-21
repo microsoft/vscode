@@ -93,6 +93,30 @@ interface McSharedState {
 }
 const mcStateBySessionId = new Map<string, McSharedState>();
 
+/**
+ * Stop intervals, detach the persistent event listener, and clear sensitive
+ * fields on a Mission Control shared state. Safe to call multiple times.
+ */
+function cleanupMcSharedState(state: McSharedState): void {
+	if (state.mcFlushInterval) {
+		clearInterval(state.mcFlushInterval);
+		state.mcFlushInterval = undefined;
+	}
+	if (state.mcPollInterval) {
+		clearInterval(state.mcPollInterval);
+		state.mcPollInterval = undefined;
+	}
+	if (state.mcEventListenerDispose) {
+		state.mcEventListenerDispose();
+		state.mcEventListenerDispose = undefined;
+	}
+	// Drop the GitHub token so it does not linger in memory after the session
+	// ends, and release buffered events for GC.
+	state.mcGithubToken = '';
+	state.mcEventBuffer = [];
+	state.mcCompletedCommandIds = [];
+}
+
 export const builtinSlashSCommands = {
 	commit: '/commit',
 	sync: '/sync',
@@ -1092,16 +1116,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			// it to avoid orphaned setInterval tasks and on('*') handlers.
 			const existingSharedState = mcStateBySessionId.get(this.sessionId);
 			if (existingSharedState) {
-				existingSharedState.mcEventListenerDispose?.();
-				existingSharedState.mcEventListenerDispose = undefined;
-				if (existingSharedState.mcFlushInterval) {
-					clearInterval(existingSharedState.mcFlushInterval);
-					existingSharedState.mcFlushInterval = undefined;
-				}
-				if (existingSharedState.mcPollInterval) {
-					clearInterval(existingSharedState.mcPollInterval);
-					existingSharedState.mcPollInterval = undefined;
-				}
+				cleanupMcSharedState(existingSharedState);
 			}
 			const sharedState: McSharedState = {
 				mcSessionId: mcData.id,
@@ -1118,6 +1133,25 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			};
 			mcStateBySessionId.set(this.sessionId, sharedState);
 			this.logService.info(`[CopilotCLISession] Set shared MC state for session ${this.sessionId}, mcSessionId=${mcData.id}`);
+
+			// Tie shared-state cleanup to the SDK session's lifecycle. If the
+			// session ends (or errors out) without an explicit `/remote off`,
+			// we must still stop intervals, detach the persistent listener,
+			// and drop the cached GitHub token — otherwise the module-level
+			// map and background timers outlive the session.
+			const cleanupSessionIdCapture = this.sessionId;
+			const cleanupLogService = this.logService;
+			const cleanupOnShutdown = () => {
+				const state = mcStateBySessionId.get(cleanupSessionIdCapture);
+				if (!state || state.mcSdkSession !== sharedState.mcSdkSession) {
+					return;
+				}
+				cleanupLogService.info(`[CopilotCLISession] SDK session ended — cleaning up MC state for ${cleanupSessionIdCapture}`);
+				cleanupMcSharedState(state);
+				mcStateBySessionId.delete(cleanupSessionIdCapture);
+			};
+			this._sdkSession.on('session.shutdown', cleanupOnShutdown);
+			this._sdkSession.on('session.error', cleanupOnShutdown);
 
 			// Step 7: Send the initial session.start event — MC requires this to
 			// transition out of "Fueling the runtime engines..." loading state.
@@ -1225,8 +1259,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			// `vscode.open` so it opens the URL externally without invoking
 			// the model, and the banner stays visible after click.
 			const banner = new MarkdownString(
-				`**${l10n.t('Remote control is enabled.')}** ` +
-				l10n.t('You can open this session from any device.')
+				l10n.t('**Remote control is enabled.** You can open this session from any device.')
 			);
 			this._stream?.info(banner);
 			this._stream?.button({
@@ -1248,29 +1281,20 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 	 * Tear down an active Mission Control session.
 	 */
 	private async _teardownRemoteControl(): Promise<void> {
-		// Stop exporter and poller
-		this._stopMcEventExporter();
-		this._stopMcCommandPoller();
-
 		const state = this._mcState;
 		if (!state) {
 			this.logService.info('[CopilotCLISession] No active MC session to tear down');
 			return;
 		}
 
-		// Clean up the persistent event listener
-		if (state.mcEventListenerDispose) {
-			state.mcEventListenerDispose();
-			state.mcEventListenerDispose = undefined;
-		}
-
 		const mcSessionId = state.mcSessionId;
+		const githubToken = state.mcGithubToken;
+		cleanupMcSharedState(state);
 		mcStateBySessionId.delete(this.sessionId);
 		this.logService.info(`[CopilotCLISession] Tearing down MC session ${mcSessionId}`);
 
 		try {
-			const session = await this._authenticationService.getGitHubSession('any', { silent: true });
-			if (!session?.accessToken) {
+			if (!githubToken) {
 				return;
 			}
 			const apiUrl = await this._getCopilotApiUrl();
@@ -1278,7 +1302,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 				await fetch(`${apiUrl}/agents/sessions/${mcSessionId}`, {
 					method: 'DELETE',
 					headers: {
-						'Authorization': `Bearer ${session.accessToken}`,
+						'Authorization': `Bearer ${githubToken}`,
 						'Copilot-Integration-Id': 'copilot-developer-cli',
 					},
 				});

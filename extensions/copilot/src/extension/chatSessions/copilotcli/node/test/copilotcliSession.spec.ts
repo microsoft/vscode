@@ -30,6 +30,8 @@ import { PermissionRequest } from '../permissionHelpers';
 import { IQuestion, IQuestionAnswer, IUserQuestionHandler } from '../userInputHelpers';
 import { NullICopilotCLIImageSupport } from './testHelpers';
 import { MockGitService } from '../../../../../platform/ignore/node/test/mockGitService';
+import { MockAuthenticationService } from '../../../../../platform/ignore/node/test/mockAuthenticationService';
+import { IAuthenticationService } from '../../../../../platform/authentication/common/authentication';
 
 vi.mock('../cliHelpers', async (importOriginal) => ({
 	...(await importOriginal<typeof import('../cliHelpers')>()),
@@ -248,7 +250,7 @@ describe('CopilotCLISession', () => {
 			configurationService,
 			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })),
 			new MockGitService(),
-			{ _serviceBrand: undefined } as any
+			new MockAuthenticationService() as unknown as IAuthenticationService
 		));
 	}
 
