@@ -115,7 +115,7 @@ export class ChatCompositeBar extends Disposable {
 			tab.classList.toggle('untitled', status === SessionStatus.Untitled);
 		}));
 
-		// Close action bar — only for non-main chats, visible on hover/active when untitled
+		// Remove action bar — only for non-main chats, visible on hover
 		if (!isMainChat) {
 			const closeAction = this._tabDisposables.add(new Action(
 				'chatCompositeBar.closeChat',
@@ -163,13 +163,6 @@ export class ChatCompositeBar extends Disposable {
 			}
 		}));
 
-		const deleteAction = this._tabDisposables.add(new Action('sessionCompositeBar.deleteChat', localize('deleteChat', "Delete"), undefined, !isMainChat, async () => {
-			const session = this._sessionsManagementService.activeSession.get();
-			if (session) {
-				await this._sessionsManagementService.deleteChat(session, chat.resource);
-			}
-		}));
-
 		this._tabDisposables.add(addDisposableListener(tab, EventType.CONTEXT_MENU, (e: MouseEvent) => {
 			// No context menu for untitled chats
 			if (chat.status.get() === SessionStatus.Untitled) {
@@ -183,7 +176,6 @@ export class ChatCompositeBar extends Disposable {
 				getAnchor: () => event,
 				getActions: () => [
 					renameAction,
-					deleteAction,
 				]
 			});
 		}));

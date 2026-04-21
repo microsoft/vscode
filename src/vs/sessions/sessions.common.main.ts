@@ -384,9 +384,6 @@ import '../workbench/contrib/languageStatus/browser/languageStatus.contribution.
 // Authentication
 import '../workbench/contrib/authentication/browser/authentication.contribution.js';
 
-// User Data Sync
-import '../workbench/contrib/userDataSync/browser/userDataSync.contribution.js';
-
 // User Data Profiles
 import '../workbench/contrib/userDataProfile/browser/userDataProfile.contribution.js';
 
