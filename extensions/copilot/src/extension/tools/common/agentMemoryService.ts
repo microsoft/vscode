@@ -222,8 +222,7 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 
 	async storeRepoMemory(memory: StoreMemoryRequest): Promise<boolean> {
 		try {
-			const enabled = await this.checkMemoryEnabled();
-			if (!enabled) {
+			if (!this.isCAPIMemorySyncConfigEnabled()) {
 				return false;
 			}
 
