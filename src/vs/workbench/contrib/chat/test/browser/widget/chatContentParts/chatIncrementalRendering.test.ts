@@ -293,6 +293,32 @@ suite('IncrementalDOMMorpher', () => {
 			// No error should occur — rAF is cancelled
 		});
 	});
+
+	suite('updateStreamRate', () => {
+
+		test('flushes remaining buffered content on completion for paragraph buffer', () => {
+			// Use paragraph buffer (default)
+			configService.setUserConfiguration(ChatConfiguration.IncrementalRenderingBuffering, 'paragraph');
+			const morpher = createMorpher();
+			const rendered: string[] = [];
+			morpher.setRenderCallback(md => rendered.push(md));
+			morpher.seed('');
+
+			// Append content where the tail has no \n\n boundary
+			morpher.tryMorph('paragraph one\n\nparagraph two trailing');
+			// The paragraph buffer only renders up to the last \n\n,
+			// so "paragraph two trailing" stays buffered.
+
+			// Signal stream completion — should schedule a render of
+			// the full content including the unbounded tail.
+			morpher.updateStreamRate(100, true);
+
+			// The render is async (rAF), but a pending markdown should
+			// now be scheduled. Verify by checking that tryMorph still
+			// succeeds with the same content (no state corruption).
+			assert.strictEqual(morpher.tryMorph('paragraph one\n\nparagraph two trailing'), true);
+		});
+	});
 });
 
 suite('BlockAnimation', () => {

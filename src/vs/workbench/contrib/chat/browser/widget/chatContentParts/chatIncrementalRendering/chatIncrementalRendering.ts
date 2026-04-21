@@ -120,6 +120,15 @@ export class IncrementalDOMMorpher extends Disposable {
 		if (this._buffer instanceof WordBuffer) {
 			this._buffer.setRate(rate, isComplete);
 		}
+
+		// For buffers that don't handle their own flushing (e.g.
+		// ParagraphBuffer), force-render any remaining buffered
+		// content when the stream completes. Without this, content
+		// after the last \n\n boundary is never rendered.
+		if (isComplete && !this._buffer.handlesFlush && this._lastMarkdown.length > this._renderedMarkdown.length) {
+			this._pendingMarkdown = this._lastMarkdown;
+			this._scheduleRender();
+		}
 	}
 
 	/**
