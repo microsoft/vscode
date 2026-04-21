@@ -1401,10 +1401,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		});
 		markChatExt(this.options.conversation.sessionId, ChatExtPerfMark.DidFetch);
 
-		// Store the headerRequestId from the fetch response for subagent telemetry linking.
-		// Use requestId (the client-generated UUID sent as X-Request-Id header), not serverRequestId
-		// (the server's response header value), because requestId is what appears as headerRequestId
-		// across all telemetry events.
+		// Store the server's x-request-id from the fetch response for subagent telemetry linking
 		if (fetchResult.type === ChatFetchResponseType.Success) {
 			this.lastHeaderRequestId = fetchResult.serverRequestId ?? fetchResult.requestId;
 		}
