@@ -16,7 +16,7 @@ export const GetTerminalOutputToolData: IToolData = {
 	toolReferenceName: 'getTerminalOutput',
 	legacyToolReferenceFullNames: ['runCommands/getTerminalOutput'],
 	displayName: localize('getTerminalOutputTool.displayName', 'Get Terminal Output'),
-	modelDescription: `Get output from an active terminal execution previously started with ${TerminalToolId.RunInTerminal} and still running. This includes async executions and sync executions that exceeded their timeout and were moved to the background — both cases return an \`id\` from ${TerminalToolId.RunInTerminal} that can be reused here. The ID must be the exact opaque UUID returned by ${TerminalToolId.RunInTerminal}; terminal names, labels, and integers are not valid IDs.`,
+	modelDescription: `Get output from an active terminal execution (identified by the \`id\` returned from ${TerminalToolId.RunInTerminal}).`,
 	icon: Codicon.terminal,
 	source: ToolDataSource.Internal,
 	inputSchema: {

@@ -27,7 +27,7 @@ export const SendToTerminalToolData: IToolData = {
 	id: TerminalToolId.SendToTerminal,
 	toolReferenceName: 'sendToTerminal',
 	displayName: localize('sendToTerminalTool.displayName', 'Send to Terminal'),
-	modelDescription: `Send input text to an active terminal execution previously started with ${TerminalToolId.RunInTerminal} and still running. This includes async executions and sync executions that exceeded their timeout and were moved to the background — both return an \`id\` from ${TerminalToolId.RunInTerminal} that can be reused here. The 'command' field may be empty or whitespace to press Enter (useful for interactive prompts). The result includes the last few lines of terminal output captured shortly after sending.`,
+	modelDescription: `Send input text to an active terminal execution (identified by the \`id\` returned from ${TerminalToolId.RunInTerminal}). The 'command' field may be empty or whitespace to press Enter (useful for interactive prompts). The result includes the last few lines of terminal output captured shortly after sending.`,
 	icon: Codicon.terminal,
 	source: ToolDataSource.Internal,
 	inputSchema: {
