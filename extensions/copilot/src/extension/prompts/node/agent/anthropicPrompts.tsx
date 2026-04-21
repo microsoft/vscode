@@ -7,8 +7,8 @@ import { PromptElement, PromptElementProps, PromptPiece, PromptSizing } from '@v
 import { IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { isHiddenModelG, modelSupportsToolSearch } from '../../../../platform/endpoint/common/chatModelCapabilities';
 import { CUSTOM_TOOL_SEARCH_NAME, isAnthropicContextEditingEnabled } from '../../../../platform/networking/common/anthropic';
-import { IToolDeferralService } from '../../../../platform/networking/common/toolDeferralService';
 import { IChatEndpoint } from '../../../../platform/networking/common/networking';
+import { IToolDeferralService } from '../../../../platform/networking/common/toolDeferralService';
 import { IExperimentationService } from '../../../../platform/telemetry/common/nullExperimentationService';
 import { agenticBrowserTools, ToolName } from '../../../tools/common/toolNames';
 import { InstructionMessage } from '../base/instructionMessage';
@@ -119,7 +119,7 @@ class DefaultAnthropicAgentPrompt extends PromptElement<DefaultAgentPromptProps>
 				{!this.props.codesearchMode && <>Think creatively and explore the workspace in order to make a complete fix.<br /></>}
 				Don't repeat yourself after a tool call, pick up where you left off.<br />
 				{!this.props.codesearchMode && tools.hasSomeEditTool && <>NEVER print out a codeblock with file changes unless the user asked for it. Use the appropriate edit tool instead.<br /></>}
-				{tools[ToolName.CoreRunInTerminal] && <>NEVER print out a codeblock with a terminal command to run unless the user asked for it. Use the {ToolName.ExecutionSubagent} or {ToolName.CoreRunInTerminal} tool instead.<br /></>}
+				{tools[ToolName.CoreRunInTerminal] && <>NEVER print out a codeblock with a terminal command to run unless the user asked for it. Use the {tools[ToolName.ExecutionSubagent] && <>{ToolName.ExecutionSubagent} or </>}{ToolName.CoreRunInTerminal} tool instead.<br /></>}
 				You don't need to read a file if it's already provided in context.
 			</Tag>
 			<Tag name='toolUseInstructions'>
