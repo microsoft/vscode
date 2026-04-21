@@ -861,6 +861,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	/* top padding is inside the editor widget */
 	width: 100%;
 	position: relative;
+	transition: box-shadow 350ms ease;
 }
 
 /* Prevent contents from covering border corners. Not applied in compact mode
@@ -924,10 +925,6 @@ have to be updated for changes to the rules above, or to support more deeply nes
 			0 0 10px 0 color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 22%, transparent),
 			0 0 22px 2px color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 10%, transparent);
 	}
-}
-
-.monaco-workbench .interactive-session .chat-input-container {
-	transition: box-shadow 350ms ease;
 }
 
 .monaco-workbench .interactive-session .chat-input-container::before {
