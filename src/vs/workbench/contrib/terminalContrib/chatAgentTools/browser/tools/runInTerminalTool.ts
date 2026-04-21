@@ -473,12 +473,16 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	private readonly _terminalsBeingDisposedBySessionCleanup = new Set<ITerminalInstance>();
 
 	/**
-	 * Tracks active background completion notifications per terminal ID.
+	 * Tracks active background completion notifications per terminal instance ID.
 	 * When a new notification is registered for a terminal that already has one,
 	 * the previous notification (and its OutputMonitor) is disposed first to
 	 * prevent listener accumulation on the terminal's onDidInputData emitter.
+	 *
+	 * Keyed by `ITerminalInstance.instanceId` (stable per terminal) rather than
+	 * the per-invocation `termId` so that reusing the same foreground terminal
+	 * after an `inputNeeded` race disposes the prior OutputMonitor.
 	 */
-	private readonly _backgroundNotifications = this._register(new DisposableMap<string>());
+	private readonly _backgroundNotifications = this._register(new DisposableMap<number>());
 
 	// Immutable window state
 	protected readonly _osBackend: Promise<OperatingSystem>;
@@ -2091,9 +2095,11 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	 * The output monitor is cancelled and disposed when a command finishes.
 	 */
 	private _registerCompletionNotification(terminalInstance: ITerminalInstance, termId: string, chatSessionResource: URI, commandName: string, outputMonitor?: OutputMonitor): void {
-		// Dispose any previous background notification for this terminal to prevent
-		// listener accumulation (e.g. multiple onDidInputData subscriptions).
-		this._backgroundNotifications.deleteAndDispose(termId);
+		// Dispose any previous background notification for this terminal instance to prevent
+		// listener accumulation (e.g. multiple onDidInputData subscriptions) when the same
+		// foreground terminal is reused across run_in_terminal invocations.
+		const notificationKey = terminalInstance.instanceId;
+		this._backgroundNotifications.deleteAndDispose(notificationKey);
 
 		const commandDetection = terminalInstance.capabilities.get(TerminalCapability.CommandDetection);
 		if (!commandDetection) {
@@ -2133,7 +2139,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		// stops asking questions and lets the user finish interacting with the terminal.
 		let userIsReplyingDirectly = false;
 
-		const disposeNotification = () => this._backgroundNotifications.deleteAndDispose(termId);
+		const disposeNotification = () => this._backgroundNotifications.deleteAndDispose(notificationKey);
 
 		// If the user manually stopped the agent, suppress background
 		// steering requests and tear down the notification listeners.
@@ -2284,7 +2290,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			}
 		}));
 
-		this._backgroundNotifications.set(termId, store);
+		this._backgroundNotifications.set(notificationKey, store);
 	}
 
 	/**
