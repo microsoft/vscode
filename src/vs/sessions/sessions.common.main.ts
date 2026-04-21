@@ -262,7 +262,8 @@ import '../workbench/contrib/sash/browser/sash.contribution.js';
 import '../workbench/contrib/git/browser/git.contributions.js';
 
 // SCM
-import '../workbench/contrib/scm/browser/scm.contribution.js';
+import '../workbench/contrib/scm/browser/quickDiff.contribution.js';
+import '../workbench/contrib/scm/browser/scm.service.contribution.js';
 
 // Debug (service)
 import '../workbench/contrib/debug/browser/debug.service.contribution.js';
