@@ -1357,7 +1357,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 		});
 		markChatExt(this.options.conversation.sessionId, ChatExtPerfMark.DidFetch);
 
-		// Store the headerRequestId from the fetch response for subagent telemetry linking
+		// Store the server's x-request-id from the fetch response for subagent telemetry linking
 		if (fetchResult.type === ChatFetchResponseType.Success) {
 			this.lastHeaderRequestId = fetchResult.serverRequestId ?? fetchResult.requestId;
 		}
