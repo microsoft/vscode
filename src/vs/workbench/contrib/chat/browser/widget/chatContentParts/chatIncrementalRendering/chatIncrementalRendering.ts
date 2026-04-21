@@ -114,7 +114,9 @@ export class IncrementalDOMMorpher extends Disposable {
 
 	/**
 	 * Forward the stream's word-rate estimate to the active buffer
-	 * (word buffer or line buffer).
+	 * (word buffer or line buffer). When the stream completes,
+	 * also flushes any remaining buffered content for buffers
+	 * that don't handle their own flushing (e.g. ParagraphBuffer).
 	 */
 	updateStreamRate(rate: number, isComplete: boolean): void {
 		if (this._buffer instanceof WordBuffer) {
