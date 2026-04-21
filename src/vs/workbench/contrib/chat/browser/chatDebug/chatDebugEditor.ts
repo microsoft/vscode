@@ -23,7 +23,7 @@ import { EditorInput } from '../../../../common/editor/editorInput.js';
 import { IEditorGroup } from '../../../../services/editor/common/editorGroupsService.js';
 import { IChatDebugService } from '../../common/chatDebugService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
-import { AGENT_DEBUG_LOG_ENABLED_SETTING } from '../../common/promptSyntax/promptTypes.js';
+import { AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING } from '../../common/promptSyntax/promptTypes.js';
 import { IChatWidgetService } from '../chat.js';
 import { ViewState, IChatDebugEditorOptions } from './chatDebugTypes.js';
 import { ChatDebugFilterState, registerFilterMenuItems } from './chatDebugFilters.js';
@@ -158,11 +158,12 @@ export class ChatDebugEditor extends EditorPane {
 			} else if (this.chatDebugService.activeSessionResource && event.sessionResource.toString() === this.chatDebugService.activeSessionResource.toString()) {
 				if (this.viewState === ViewState.Overview) {
 					this.overviewView?.refresh();
-				} else if (this.viewState === ViewState.Logs) {
-					this.logsView?.refreshList();
 				} else if (this.viewState === ViewState.FlowChart) {
 					this.flowChartView?.refresh();
 				}
+				// Note: Logs view is intentionally omitted here — it handles
+				// onDidAddEvent internally via loadEvents() → addEvent() →
+				// scheduleRefresh() to avoid a redundant full refresh.
 			}
 		}));
 
@@ -299,12 +300,12 @@ export class ChatDebugEditor extends EditorPane {
 		}
 	}
 
-	override setEditorVisible(visible: boolean): void {
+	protected override setEditorVisible(visible: boolean): void {
 		super.setEditorVisible(visible);
 		if (visible) {
 			this.telemetryService.publicLog2<{}, ChatDebugPanelOpenedClassification>('chatDebugPanelOpened');
-			// If the feature flag is disabled, always reset to the home view
-			if (!this.configurationService.getValue<boolean>(AGENT_DEBUG_LOG_ENABLED_SETTING)) {
+			// If file logging is disabled, always reset to the home view
+			if (!this.configurationService.getValue<boolean>(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING)) {
 				this.endActiveSession();
 				this.showView(ViewState.Home);
 				return;
@@ -318,8 +319,8 @@ export class ChatDebugEditor extends EditorPane {
 	}
 
 	private _applyNavigationOptions(options: IChatDebugEditorOptions): void {
-		// If the feature flag is disabled, always show the home view
-		if (!this.configurationService.getValue<boolean>(AGENT_DEBUG_LOG_ENABLED_SETTING)) {
+		// If file logging is disabled, always show the home view
+		if (!this.configurationService.getValue<boolean>(AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING)) {
 			this.endActiveSession();
 			this.showView(ViewState.Home);
 			return;

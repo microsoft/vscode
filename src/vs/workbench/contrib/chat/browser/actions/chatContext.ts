@@ -28,8 +28,6 @@ import { IChatWidget } from '../chat.js';
 import { imageToHash, isImage } from '../widget/input/editor/chatPasteProviders.js';
 import { convertBufferToScreenshotVariable } from '../attachments/chatScreenshotContext.js';
 import { ChatInstructionsPickerPick } from '../promptSyntax/attachInstructionsAction.js';
-import { createDebugEventsAttachment } from '../chatDebug/chatDebugAttachment.js';
-import { IChatDebugService } from '../../common/chatDebugService.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { getAgentSessionProviderIcon, AgentSessionProviders } from '../agentSessions/agentSessions.js';
 import { ITerminalService } from '../../../terminal/browser/terminal.js';
@@ -66,7 +64,6 @@ export class ChatContextContributions extends Disposable implements IWorkbenchCo
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(OpenEditorContextValuePick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ClipboardImageContextValuePick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(ScreenshotContextValuePick)));
-		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(DebugEventsSnapshotContextValuePick)));
 		this._store.add(contextPickService.registerChatContextItem(instantiationService.createInstance(SessionReferenceContextPickerPick)));
 	}
 }
@@ -297,31 +294,6 @@ class ScreenshotContextValuePick implements IChatContextValueItem {
 	async asAttachment(): Promise<IChatRequestVariableEntry | undefined> {
 		const blob = await this._hostService.getScreenshot();
 		return blob && convertBufferToScreenshotVariable(blob);
-	}
-}
-
-class DebugEventsSnapshotContextValuePick implements IChatContextValueItem {
-
-	readonly type = 'valuePick';
-	readonly icon = Codicon.output;
-	readonly label = localize('chatContext.debugEventsSnapshot', 'Debug Events Snapshot');
-	readonly ordinal = -600;
-
-	constructor(
-		@IChatDebugService private readonly _chatDebugService: IChatDebugService,
-	) { }
-
-	isEnabled(widget: IChatWidget): boolean {
-		const sessionResource = widget.viewModel?.sessionResource;
-		return !!sessionResource && this._chatDebugService.getEvents(sessionResource).length > 0;
-	}
-
-	async asAttachment(widget: IChatWidget): Promise<IChatRequestVariableEntry | undefined> {
-		const sessionResource = widget.viewModel?.sessionResource;
-		if (!sessionResource) {
-			return undefined;
-		}
-		return createDebugEventsAttachment(sessionResource, this._chatDebugService);
 	}
 }
 

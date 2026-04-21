@@ -19,7 +19,7 @@ import { ILanguageFeaturesService } from '../../../../../editor/common/services/
 import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { localize, localize2 } from '../../../../../nls.js';
 import { Action2, IAction2Options, MenuId, registerAction2 } from '../../../../../platform/actions/common/actions.js';
-import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { CommandsRegistry } from '../../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -27,18 +27,15 @@ import { EditorActivation } from '../../../../../platform/editor/common/editor.j
 import { KeybindingWeight } from '../../../../../platform/keybinding/common/keybindingsRegistry.js';
 import { IEditorPane } from '../../../../common/editor.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
-import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { IChatRequestVariableEntry, isImplicitVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isStringVariableEntry, isWorkspaceVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { isChatViewTitleActionContext } from '../../common/actions/chatActions.js';
-import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
+import { ChatContextKeyExprs, ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, CHAT_EDITING_MULTI_DIFF_SOURCE_RESOLVER_SCHEME, chatEditingResourceContextKey, chatEditingWidgetFileStateContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { isChatTreeItem, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { ChatTreeItem, IChatWidget, IChatWidgetService } from '../chat.js';
-import { IAgentSession, isAgentSession } from '../agentSessions/agentSessionsModel.js';
-import { AgentSessionProviders } from '../agentSessions/agentSessions.js';
 
 export abstract class EditingSessionAction extends Action2 {
 
@@ -342,78 +339,6 @@ export class ChatEditingShowChangesAction extends EditingSessionAction {
 }
 registerAction2(ChatEditingShowChangesAction);
 
-export class ViewAllSessionChangesAction extends Action2 {
-	static readonly ID = 'chatEditing.viewAllSessionChanges';
-
-	constructor() {
-		super({
-			id: ViewAllSessionChangesAction.ID,
-			title: localize2('chatEditing.viewAllSessionChanges', 'View All Changes'),
-			icon: Codicon.diffMultiple,
-			category: CHAT_CATEGORY,
-			precondition: ChatContextKeys.hasAgentSessionChanges,
-			menu: [
-				{
-					id: MenuId.ChatEditingSessionChangesToolbar,
-					group: 'navigation',
-					order: 10,
-				}
-			],
-		});
-	}
-
-	override async run(accessor: ServicesAccessor, sessionOrSessionResource?: URI | IAgentSession): Promise<void> {
-		const agentSessionsService = accessor.get(IAgentSessionsService);
-		const commandService = accessor.get(ICommandService);
-		const chatEditingService = accessor.get(IChatEditingService);
-
-		if (!URI.isUri(sessionOrSessionResource) && !isAgentSession(sessionOrSessionResource)) {
-			return;
-		}
-
-		const sessionResource = URI.isUri(sessionOrSessionResource)
-			? sessionOrSessionResource
-			: sessionOrSessionResource.resource;
-
-		const session = agentSessionsService.getSession(sessionResource);
-		const changes = session?.changes;
-
-		if (!session || !changes) {
-			return;
-		}
-
-		if (
-			session.providerType === AgentSessionProviders.Background ||
-			session.providerType === AgentSessionProviders.Cloud
-		) {
-			if (!Array.isArray(changes) || changes.length === 0) {
-				return;
-			}
-
-			// Use agent session changes
-			const resources = changes.map(d => ({
-				originalUri: d.originalUri,
-				modifiedUri: d.modifiedUri
-			}));
-
-			await commandService.executeCommand('_workbench.openMultiDiffEditor', {
-				multiDiffSourceUri: sessionResource.with({ scheme: sessionResource.scheme + '-worktree-changes' }),
-				title: localize('chatEditing.allChanges.title', 'All Session Changes'),
-				resources,
-			});
-
-			session?.setRead(true);
-			return;
-		}
-
-		// Use edit session changes
-		const editingSession = chatEditingService.getEditingSession(sessionResource);
-		await editingSession?.show();
-		session?.setRead(true);
-	}
-}
-registerAction2(ViewAllSessionChangesAction);
-
 function filterToUserAttachedContext(attachedContext: readonly IChatRequestVariableEntry[] | undefined): IChatRequestVariableEntry[] {
 	if (!attachedContext?.length) {
 		return [];
@@ -492,6 +417,8 @@ async function restoreSnapshotWithConfirmationByRequestId(accessor: ServicesAcce
 		await configurationService.updateValue('chat.editing.confirmEditRequestRemoval', false);
 	}
 
+	await chatService.cancelCurrentRequestForSession(sessionResource, 'restoreCheckpoint');
+
 	// Restore the snapshot to what it was before the request(s) that we deleted
 	const snapshotRequestId = chatRequests[itemIndex].id;
 	await session.restoreSnapshot(snapshotRequestId, undefined);
@@ -530,7 +457,7 @@ registerAction2(class RemoveAction extends Action2 {
 					id: MenuId.ChatMessageTitle,
 					group: 'navigation',
 					order: 2,
-					when: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatConfiguration.EditRequests}`, 'input').negate(), ContextKeyExpr.equals(`config.${ChatConfiguration.CheckpointsEnabled}`, false), ChatContextKeys.lockedToCodingAgent.negate()),
+					when: ContextKeyExpr.and(ContextKeyExpr.equals(`config.${ChatConfiguration.EditRequests}`, 'input').negate(), ContextKeyExpr.equals(`config.${ChatConfiguration.CheckpointsEnabled}`, false), ContextKeyExpr.or(ChatContextKeys.lockedToCodingAgent.negate(), ChatContextKeyExprs.isAgentHostSession)),
 				}
 			]
 		});
@@ -583,7 +510,7 @@ registerAction2(class RestoreCheckpointAction extends Action2 {
 					id: MenuId.ChatMessageCheckpoint,
 					group: 'navigation',
 					order: 2,
-					when: ContextKeyExpr.and(ChatContextKeys.isRequest, ChatContextKeys.lockedToCodingAgent.negate(), ChatContextKeys.isFirstRequest.negate())
+					when: ContextKeyExpr.and(ChatContextKeys.isRequest, ContextKeyExpr.or(ChatContextKeys.lockedToCodingAgent.negate(), ChatContextKeyExprs.isAgentHostSession), ChatContextKeys.isFirstRequest.negate())
 				}
 			]
 		});
@@ -630,7 +557,7 @@ registerAction2(class StartOverAction extends Action2 {
 					id: MenuId.ChatMessageCheckpoint,
 					group: 'navigation',
 					order: 2,
-					when: ContextKeyExpr.and(ChatContextKeys.isRequest, ChatContextKeys.lockedToCodingAgent.negate(), ChatContextKeys.isFirstRequest)
+					when: ContextKeyExpr.and(ChatContextKeys.isRequest, ContextKeyExpr.or(ChatContextKeys.lockedToCodingAgent.negate(), ChatContextKeyExprs.isAgentHostSession), ChatContextKeys.isFirstRequest)
 				}
 			]
 		});
@@ -664,7 +591,7 @@ registerAction2(class RestoreLastCheckpoint extends Action2 {
 			precondition: ContextKeyExpr.and(
 				ChatContextKeys.inChatSession,
 				ContextKeyExpr.equals(`config.${ChatConfiguration.CheckpointsEnabled}`, true),
-				ChatContextKeys.lockedToCodingAgent.negate()
+				ContextKeyExpr.or(ChatContextKeys.lockedToCodingAgent.negate(), ChatContextKeyExprs.isAgentHostSession)
 			)
 		});
 	}

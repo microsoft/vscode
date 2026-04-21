@@ -119,6 +119,7 @@ export interface ICodeBlockRenderOptions {
 }
 
 const defaultCodeblockPadding = 10;
+const defaultChatScrollbarSize = 7;
 export class CodeBlockPart extends Disposable {
 
 	/**
@@ -144,6 +145,8 @@ export class CodeBlockPart extends Disposable {
 	private currentCodeBlockData: ICodeBlockData | undefined;
 	private currentScrollWidth = 0;
 	private lastLayoutWidth: number | undefined;
+	private _isHovered = false;
+	private _toolbarElement!: HTMLElement;
 
 	private isDisposed = false;
 
@@ -236,9 +239,31 @@ export class CodeBlockPart extends Disposable {
 			// this.updateAriaLabel(collapseButton.element, referencesLabel, element.usedReferencesExpanded);
 		}));
 
+		let isDropdownVisible = false;
 		this._register(this.toolbar.onDidChangeDropdownVisibility(e => {
-			toolbarElement.classList.toggle('force-visibility', e);
+			isDropdownVisible = e;
+			toolbarElement.classList.toggle('force-visibility', e || this._isHovered);
 		}));
+
+		// Track hover state via JS so the toolbar remains visible and clickable
+		// even when the code block DOM element is briefly detached and reattached
+		// during streaming re-renders. CSS :hover is lost when an element leaves
+		// the DOM, which causes the toolbar to flicker and become unclickable
+		// because of the pointer-events:none rule. By tracking hover state with a
+		// persistent boolean and the force-visibility class, the toolbar survives
+		// DOM reattachment.
+		this._isHovered = false;
+		this._register(dom.addDisposableListener(this.element, 'mouseenter', () => {
+			this._isHovered = true;
+			toolbarElement.classList.add('force-visibility');
+		}));
+		this._register(dom.addDisposableListener(this.element, 'mouseleave', () => {
+			this._isHovered = false;
+			if (!isDropdownVisible) {
+				toolbarElement.classList.remove('force-visibility');
+			}
+		}));
+		this._toolbarElement = toolbarElement;
 
 		this._configureForScreenReader();
 		this._register(this.accessibilityService.onDidChangeScreenReaderOptimized(() => this._configureForScreenReader()));
@@ -356,6 +381,15 @@ export class CodeBlockPart extends Disposable {
 	}
 
 	private getEditorOptionsFromConfig(): IEditorOptions {
+		const renderOptions = this.currentCodeBlockData?.renderOptions;
+		// When the code block is height-capped via `maxHeightInLines`, content can
+		// exceed the visible area. In that case the default hidden vertical
+		// scrollbar leaves users unable to reach the clipped content (see #283242).
+		// Enable a chat-sized visible scrollbar. Callers can still override
+		// via `renderOptions.editorOptions.scrollbar`.
+		const scrollbar: IEditorOptions['scrollbar'] | undefined = renderOptions?.maxHeightInLines
+			? { vertical: 'auto', verticalScrollbarSize: defaultChatScrollbarSize, ...renderOptions?.editorOptions?.scrollbar }
+			: undefined;
 		return {
 			wordWrap: this.editorOptions.configuration.resultEditor.wordWrap,
 			fontLigatures: this.editorOptions.configuration.resultEditor.fontLigatures,
@@ -366,7 +400,8 @@ export class CodeBlockPart extends Disposable {
 			fontSize: this.editorOptions.configuration.resultEditor.fontSize,
 			fontWeight: this.editorOptions.configuration.resultEditor.fontWeight,
 			lineHeight: this.editorOptions.configuration.resultEditor.lineHeight,
-			...this.currentCodeBlockData?.renderOptions?.editorOptions,
+			...renderOptions?.editorOptions,
+			...(scrollbar ? { scrollbar } : {}),
 		};
 	}
 
@@ -442,7 +477,22 @@ export class CodeBlockPart extends Disposable {
 			this.element.classList.add('no-vulns');
 		}
 
+		// Restore toolbar visibility if the element was hovered before re-render.
+		// During streaming, code block elements are briefly detached from and
+		// reattached to the DOM, which causes the browser to lose CSS :hover state.
+		// The force-visibility class ensures the toolbar remains interactive.
+		if (this._isHovered) {
+			this._toolbarElement.classList.add('force-visibility');
+		}
+
 		this.layout();
+
+		// The editor element is typically not yet connected to the live DOM at
+		// this point (the caller still needs to attach it). Any render pass
+		// scheduled by setText/setLanguage/layout is silently dropped by the
+		// editor view when `isConnected` is false. Schedule a deferred render
+		// so the view lines are painted once the element is in the document.
+		this.editor.renderAsync(true);
 	}
 
 	reset() {
@@ -883,6 +933,9 @@ export class CodeCompareBlockPart extends Disposable {
 		}
 
 		const diffData = await data.diffData;
+		if (token.isCancellationRequested) {
+			return;
+		}
 
 		if (!isEditApplied && diffData) {
 			const viewModel = this.diffEditor.createViewModel({

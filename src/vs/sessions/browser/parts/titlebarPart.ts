@@ -14,11 +14,9 @@ import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { IConfigurationService } from '../../../platform/configuration/common/configuration.js';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { IThemeService } from '../../../platform/theme/common/themeService.js';
-import { WORKBENCH_BACKGROUND } from '../../../workbench/common/theme.js';
-import { chatBarTitleBackground, chatBarTitleForeground } from '../../common/theme.js';
+import { agentsPanelForeground } from '../../common/theme.js';
 import { isMacintosh, isWeb, isNative, platformLocale } from '../../../base/common/platform.js';
-import { Color } from '../../../base/common/color.js';
-import { EventType, EventHelper, append, $, addDisposableListener, prepend, getWindow, getWindowId } from '../../../base/browser/dom.js';
+import { EventType, EventHelper, append, $, addDisposableListener, prepend, getWindow, getWindowId, getContentWidth } from '../../../base/browser/dom.js';
 import { IInstantiationService } from '../../../platform/instantiation/common/instantiation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { IStorageService } from '../../../platform/storage/common/storage.js';
@@ -78,12 +76,18 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	private windowControlsContainer: HTMLElement | undefined;
 
 	private leftContent!: HTMLElement;
+	private leftToolbarContainer!: HTMLElement;
 	private centerContent!: HTMLElement;
 	private rightContent!: HTMLElement;
 
 	get leftContainer(): HTMLElement { return this.leftContent; }
 	get rightContainer(): HTMLElement { return this.rightContent; }
 	get rightWindowControlsContainer(): HTMLElement | undefined { return this.windowControlsContainer; }
+
+	private sideBarPartResizeObserver: ResizeObserver | undefined;
+	private leftToolbarContentWidth: number = 0;
+	private lastSideBarWidth: number = 0;
+	private leftSpacerWidth: number = 0;
 
 	private readonly titleBarStyle: TitlebarStyle;
 	private isInactive: boolean = false;
@@ -160,17 +164,20 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 				// macOS native: traffic lights are rendered by the OS at the top-left corner.
 				// Add a fixed-width spacer to push content past the traffic lights.
 				const spacer = append(this.leftContent, $('div.window-controls-container'));
-				spacer.style.width = '70px';
-				spacer.style.flexShrink = '0';
 
 				// Hide spacer in fullscreen (traffic lights are not shown)
 				const updateSpacerVisibility = () => {
-					spacer.style.display = isFullscreen(mainWindow) ? 'none' : '';
+					const fullscreen = isFullscreen(mainWindow);
+					spacer.style.display = fullscreen ? 'none' : '';
+					this.leftSpacerWidth = fullscreen ? 0 : 70;
 				};
 				updateSpacerVisibility();
+				spacer.style.width = `${this.leftSpacerWidth}px`;
+				spacer.style.flexShrink = '0';
 				this._register(onDidChangeFullscreen(windowId => {
 					if (windowId === getWindowId(mainWindow)) {
 						updateSpacerVisibility();
+						this.updateLeftContentWidth();
 					}
 				}));
 			} else if (getWindowControlsStyle(this.configurationService) === WindowControlsStyle.HIDDEN) {
@@ -188,12 +195,18 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		}
 
 		// Left toolbar (driven by Menus.TitleBarLeft, rendered after window controls via CSS order)
-		const leftToolbarContainer = append(this.leftContent, $('div.left-toolbar-container'));
-		this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, leftToolbarContainer, Menus.TitleBarLeftLayout, {
+		this.leftToolbarContainer = append(this.leftContent, $('div.left-toolbar-container'));
+		const leftToolbar = this._register(this.instantiationService.createInstance(MenuWorkbenchToolBar, this.leftToolbarContainer, Menus.TitleBarLeftLayout, {
 			contextMenu: Menus.TitleBarContext,
 			telemetrySource: 'titlePart.left',
 			hiddenItemStrategy: HiddenItemStrategy.NoHide,
 			toolbarOptions: { primaryGroup: () => true },
+		}));
+		this.leftToolbarContentWidth = getContentWidth(this.leftToolbarContainer);
+		this.updateLeftContentWidth();
+		this._register(leftToolbar.onDidChangeMenuItems(() => {
+			this.leftToolbarContentWidth = getContentWidth(this.leftToolbarContainer);
+			this.updateLeftContentWidth();
 		}));
 
 		// Center toolbar - command center (renders session picker via IActionViewItemService)
@@ -242,18 +255,11 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 		if (this.element) {
 			this.element.classList.toggle('inactive', this.isInactive);
 
-			const titleBackground = this.getColor(chatBarTitleBackground, (color, theme) => {
-				return color.isOpaque() ? color : color.makeOpaque(WORKBENCH_BACKGROUND(theme));
-			}) || '';
-			this.element.style.backgroundColor = titleBackground;
+			// Titlebar is transparent — it inherits the sidebar/gradient background via CSS.
+			// Only set foreground color for text/icon contrast.
+			this.element.style.backgroundColor = '';
 
-			if (titleBackground && Color.fromHex(titleBackground).isLighter()) {
-				this.element.classList.add('light');
-			} else {
-				this.element.classList.remove('light');
-			}
-
-			const titleForeground = this.getColor(chatBarTitleForeground);
+			const titleForeground = this.getColor(agentsPanelForeground);
 			this.element.style.color = titleForeground || '';
 		}
 	}
@@ -282,6 +288,36 @@ export class TitlebarPart extends Part implements ITitlebarPart {
 	override layout(width: number, height: number): void {
 		this.updateLayout();
 		super.layoutContents(width, height);
+		this.installSideBarPartResizeObserver();
+	}
+
+	private installSideBarPartResizeObserver(): void {
+		if (this.sideBarPartResizeObserver) {
+			return;
+		}
+
+		const sideBarContainer = this.layoutService.getContainer(getWindow(this.element), Parts.SIDEBAR_PART);
+		if (!sideBarContainer) {
+			return;
+		}
+
+		this.sideBarPartResizeObserver = new ResizeObserver(entries => {
+			this.lastSideBarWidth = entries[0].contentRect.width;
+			this.updateLeftContentWidth();
+		});
+		this.sideBarPartResizeObserver.observe(sideBarContainer);
+		this._register({ dispose: () => this.sideBarPartResizeObserver?.disconnect() });
+	}
+
+	private getLeftContentWidth(): number {
+		if (this.leftToolbarContentWidth === 0) {
+			this.leftToolbarContentWidth = getContentWidth(this.leftToolbarContainer);
+		}
+		return this.leftToolbarContentWidth + this.leftSpacerWidth;
+	}
+
+	private updateLeftContentWidth(): void {
+		this.leftContent.style.width = `${Math.max(this.getLeftContentWidth(), this.lastSideBarWidth)}px`;
 	}
 
 	private updateLayout(): void {

@@ -475,16 +475,16 @@ export class CreateRemoteAgentJobAction {
 					: userPrompt;
 
 				// Extract repository info from the source session to pass to the target session
-				const initialSessionOptions: { optionId: string; value: string }[] = [];
+				const initialSessionOptions = new Map<string, string>();
 				const repoNwo = await this.extractRepoNwoFromSession(agentSessionsService, chatSessionsService, fileService, sessionResource, chatModel);
 				if (repoNwo) {
-					initialSessionOptions.push({ optionId: 'repositories', value: repoNwo });
+					initialSessionOptions.set('repositories', repoNwo);
 				}
 
 				await commandService.executeCommand(actionId, {
 					prompt: delegationPrompt,
 					attachedContext: attachedContext.asArray(),
-					initialSessionOptions: initialSessionOptions.length > 0 ? initialSessionOptions : undefined,
+					initialSessionOptions: initialSessionOptions.size > 0 ? initialSessionOptions : undefined,
 				});
 				return;
 			}

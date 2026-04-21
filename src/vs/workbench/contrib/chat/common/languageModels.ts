@@ -827,10 +827,16 @@ export class LanguageModelsService implements ILanguageModelsService {
 			return;
 		}
 
-		// Activate extensions before requesting to resolve the models
-		await this._extensionService.activateByEvent(`onLanguageModelChatProvider:${vendorId}`);
-
-		const provider = this._providers.get(vendorId);
+		// If a provider is already registered (e.g. a renderer-side provider
+		// such as the agent host), skip the activation wait — there's nothing
+		// more for an extension to contribute, and waiting would block on
+		// extension host startup unnecessarily.
+		let provider = this._providers.get(vendorId);
+		if (!provider) {
+			// Activate extensions before requesting to resolve the models
+			await this._extensionService.activateByEvent(`onLanguageModelChatProvider:${vendorId}`);
+			provider = this._providers.get(vendorId);
+		}
 		if (!provider) {
 			this._logService.warn(`[LM] No provider registered for vendor ${vendorId}`);
 			return;
@@ -877,10 +883,11 @@ export class LanguageModelsService implements ILanguageModelsService {
 					continue;
 				}
 
-				// For the default vendor, groups that only have per-model config
-				// should not trigger a separate model resolution call.
+				// For vendors without a configuration schema whose models were already
+				// resolved in the initial (groupless) load, groups only carry per-model
+				// settings and should not trigger a separate model resolution call.
 				// Instead, apply the per-model config to the already-resolved models.
-				if (vendor.isDefault && !vendor.configuration) {
+				if (!vendor.configuration && allModels.length > 0) {
 					if (group.settings) {
 						for (const model of allModels) {
 							const modelConfig = group.settings[model.metadata.id];
@@ -925,6 +932,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 				}
 			}
 
+			const oldGroups = this._modelsGroups.get(vendorId) ?? [];
 			this._modelsGroups.set(vendorId, languageModelsGroups);
 			const oldModels = this._clearModelCache(vendorId);
 			let hasChanges = false;
@@ -940,6 +948,12 @@ export class LanguageModelsService implements ILanguageModelsService {
 			this._logService.trace(`[LM] Resolved language models for vendor ${vendorId}`, allModels);
 			hasChanges = hasChanges || oldModels.size > 0;
 
+			// Also detect group structure changes (added/removed groups, status changes)
+			// so the UI updates even when individual models haven't changed
+			if (!hasChanges) {
+				hasChanges = this._hasGroupStructureChanged(oldGroups, languageModelsGroups);
+			}
+
 			// Update per-model configurations for this vendor
 			this._clearModelConfigurations(vendorId);
 			for (const [identifier, config] of perModelConfigurations) {
@@ -954,6 +968,24 @@ export class LanguageModelsService implements ILanguageModelsService {
 				this._logService.trace(`[LM] No changes in language models for vendor ${vendorId}`);
 			}
 		});
+	}
+
+	private _hasGroupStructureChanged(oldGroups: readonly ILanguageModelsGroup[], newGroups: readonly ILanguageModelsGroup[]): boolean {
+		if (oldGroups.length !== newGroups.length) {
+			return true;
+		}
+		for (let i = 0; i < oldGroups.length; i++) {
+			const oldGroup = oldGroups[i];
+			const newGroup = newGroups[i];
+			if (oldGroup.group?.name !== newGroup.group?.name
+				|| oldGroup.group?.vendor !== newGroup.group?.vendor
+				|| oldGroup.status?.message !== newGroup.status?.message
+				|| oldGroup.status?.severity !== newGroup.status?.severity
+				|| oldGroup.modelIdentifiers.length !== newGroup.modelIdentifiers.length) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	getLanguageModelGroups(vendor: string): ILanguageModelsGroup[] {
@@ -1119,7 +1151,9 @@ export class LanguageModelsService implements ILanguageModelsService {
 			}
 		} else if (Object.keys(updatedConfig).length > 0) {
 			// Only create a new group if there's non-default config
-			const vendor = this.getVendors().find(v => v.vendor === metadata.vendor);
+			// Use _vendors directly instead of getVendors() which filters by `when` clause,
+			// because we need to store config for all vendors regardless of UI visibility.
+			const vendor = this._vendors.get(metadata.vendor);
 			if (!vendor) {
 				return;
 			}
@@ -1153,7 +1187,7 @@ export class LanguageModelsService implements ILanguageModelsService {
 		const currentConfig = this._modelConfigurations.get(modelId) ?? {};
 
 		for (const [key, propSchema] of Object.entries(schema.properties)) {
-			if (!propSchema.enum || !Array.isArray(propSchema.enum)) {
+			if (!propSchema.enum || !Array.isArray(propSchema.enum) || propSchema.enum.length < 2) {
 				continue;
 			}
 			const currentValue = currentConfig[key] ?? propSchema.default;

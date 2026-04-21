@@ -1,7 +1,7 @@
 {
 	"$schema": "vscode://schemas/color-theme",
 	"name": "2026 Light",
-	"include": "../../theme-defaults/themes/light_modern.json",
+	"include": "./light_modern.json",
 	"type": "light",
 	"colors": {
 		"foreground": "#202020",
@@ -261,6 +261,9 @@
 		"chat.requestBubbleBackground": "#EEF4FB",
 		"chat.requestBubbleHoverBackground": "#E6EDFA",
 		"chat.thinkingShimmer": "#999999",
+		"chat.inputWorkingBorderColor1": "#9B30FF",
+		"chat.inputWorkingBorderColor2": "#00C853",
+		"chat.inputWorkingBorderColor3": "#0044FF",
 		"editorCommentsWidget.rangeBackground": "#EEF4FB",
 		"editorCommentsWidget.rangeActiveBackground": "#E6EDFA",
 		"charts.foreground": "#202020",
@@ -276,6 +279,25 @@
 		"minimapSlider.background": "#99999926",
 		"minimapSlider.hoverBackground": "#99999940",
 		"minimapSlider.activeBackground": "#99999955",
+
+		"agents.background": "#FAFAFD",
+		"agentsPanel.background": "#FFFFFF",
+		"agentsPanel.foreground": "#202020",
+		"agentsPanel.border": "#E4E5E6FF",
+		"agentsGradient.tintColor": "#0069CC",
+		"agentsChatInput.background": "#F7F7FA",
+		"agentsChatInput.foreground": "#202020",
+		"agentsChatInput.border": "#D8D8D8",
+		"agentsChatInput.focusBorder": "#0069CCFF",
+		"agentsChatInput.placeholderForeground": "#999999",
+		"agentsNewSessionButton.background": "#00000000",
+		"agentsNewSessionButton.foreground": "#202020",
+		"agentsNewSessionButton.border": "#D8D8D8",
+		"agentsNewSessionButton.hoverBackground": "#00000010",
+		"agentsBadge.background": "#0069CC",
+		"agentsBadge.foreground": "#FFFFFF",
+		"agentsUnreadBadge.background": "#0069CC",
+		"agentsUnreadBadge.foreground": "#FFFFFF"
 	},
 	"tokenColors": [
 		{

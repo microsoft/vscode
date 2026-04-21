@@ -7,7 +7,7 @@ import assert from 'assert';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
 import { PromptsType } from '../../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-import { IPromptsService, PromptsStorage, IPromptPath, ILocalPromptPath, IUserPromptPath, IExtensionPromptPath, IResolvedAgentFile, AgentFileType } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
+import { IPromptsService, PromptsStorage, IPromptPath, ILocalPromptPath, IUserPromptPath, IExtensionPromptPath, IAgentInstructionFile, AgentInstructionFileType } from '../../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { IAICustomizationWorkspaceService, IStorageSourceFilter } from '../../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IWorkspaceContextService, IWorkspace, IWorkspaceFolder, WorkbenchState } from '../../../../../platform/workspace/common/workspace.js';
 import { getSourceCounts, getSourceCountsTotal, getCustomizationTotalCount } from '../../browser/customizationCounts.js';
@@ -33,8 +33,8 @@ function extensionFile(path: string): IExtensionPromptPath {
 	};
 }
 
-function agentInstructionFile(path: string): IResolvedAgentFile {
-	return { uri: URI.file(path), realPath: undefined, type: AgentFileType.agentsMd };
+function agentInstructionFile(path: string): IAgentInstructionFile {
+	return { uri: URI.file(path), realPath: undefined, type: AgentInstructionFileType.agentsMd };
 }
 
 function makeWorkspaceFolder(path: string, name?: string): IWorkspaceFolder {
@@ -52,7 +52,7 @@ function createMockPromptsService(opts: {
 	userFiles?: IPromptPath[];
 	extensionFiles?: IPromptPath[];
 	allFiles?: IPromptPath[];
-	agentInstructions?: IResolvedAgentFile[];
+	agentInstructions?: IAgentInstructionFile[];
 	agents?: { name: string; uri: URI; storage: PromptsStorage }[];
 	skills?: { name: string; uri: URI; storage: PromptsStorage }[];
 	commands?: { name: string; uri: URI; storage: PromptsStorage; type: PromptsType }[];
@@ -77,8 +77,13 @@ function createMockPromptsService(opts: {
 			storage: s.storage,
 		})),
 		getPromptSlashCommands: async () => (opts.commands ?? []).map(c => ({
+			uri: c.uri,
 			name: c.name,
-			promptPath: { uri: c.uri, storage: c.storage, type: c.type },
+			type: c.type,
+			storage: c.storage,
+			userInvocable: true,
+			parsedPromptFile: undefined!,
+			when: undefined,
 		})),
 		getSourceFolders: async () => [],
 		getResolvedSourceFolders: async () => [],
@@ -636,8 +641,9 @@ suite('customizationCounts', () => {
 
 			const total = await getCustomizationTotalCount(promptsService, mcpService, workspaceService, contextService);
 
-			// 1 agent + 1 skill + 0 instructions + 1 prompt + 0 hooks + 1 mcp = 4
-			assert.strictEqual(total, 4);
+			// 1 agent + 1 skill + 0 instructions + 0 hooks + 1 mcp = 3
+			// (prompts are not counted in sessions)
+			assert.strictEqual(total, 3);
 		});
 
 		test('empty workspace returns only mcp count', async () => {

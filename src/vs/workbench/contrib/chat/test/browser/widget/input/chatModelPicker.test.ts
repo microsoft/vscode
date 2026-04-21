@@ -18,7 +18,7 @@ import { ChatEntitlement, IChatEntitlementService } from '../../../../../../serv
 function createStubEntitlementService(opts?: { entitlement?: ChatEntitlement; isInternal?: boolean; anonymous?: boolean }): IChatEntitlementService {
 	return {
 		entitlement: opts?.entitlement ?? ChatEntitlement.Pro,
-		sentiment: { installed: true } as IChatEntitlementService['sentiment'],
+		sentiment: { completed: true } as IChatEntitlementService['sentiment'],
 		isInternal: opts?.isInternal ?? false,
 		anonymous: opts?.anonymous ?? false,
 	} as IChatEntitlementService;
@@ -105,7 +105,6 @@ function callBuild(
 		entitlementService,
 		opts.showUnavailableFeatured ?? true,
 		opts.showFeatured ?? true,
-		undefined,
 		stubLanguageModelsService,
 	);
 }
@@ -484,7 +483,6 @@ suite('buildModelPickerItems', () => {
 			stubChatEntitlementService,
 			true,
 			true,
-			undefined,
 			stubLanguageModelsService,
 		);
 		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');
@@ -571,7 +569,6 @@ suite('buildModelPickerItems', () => {
 			businessEntitlementService,
 			true,
 			true,
-			undefined,
 			stubLanguageModelsService,
 		);
 
@@ -658,7 +655,6 @@ suite('buildModelPickerItems', () => {
 			anonymousEntitlementService,
 			true,
 			true,
-			undefined,
 			stubLanguageModelsService,
 		);
 		const gptItem = getActionItems(items).find(a => a.label === 'GPT-4o');

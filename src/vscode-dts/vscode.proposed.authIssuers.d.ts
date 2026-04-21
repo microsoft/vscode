@@ -18,6 +18,12 @@ declare module 'vscode' {
 		 * authenticate the user. This is only used when a provider has `supportedAuthorizationServers` set
 		 */
 		authorizationServer?: Uri;
+
+		/**
+		 * When specified, the authentication provider will use the provided client ID for the OAuth flow
+		 * instead of its default client ID.
+		 */
+		clientId?: string;
 	}
 
 	export interface AuthenticationGetSessionOptions {
@@ -26,5 +32,11 @@ declare module 'vscode' {
 		 * authenticate the user. This is only used when a provider has `supportedAuthorizationServers` set
 		 */
 		authorizationServer?: Uri;
+
+		/**
+		 * When specified, the authentication provider will use the provided client ID for the OAuth flow
+		 * instead of its default client ID.
+		 */
+		clientId?: string;
 	}
 }

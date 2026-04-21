@@ -556,7 +556,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 						let attachedContext = chatOptions.attachedContext;
 
 						const resource = URI.revive(chatOptions.resource);
-						const ref = await chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+						const ref = await chatService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None, 'ChatSessionsContribution#sendPrompt');
 						try {
 							const promptFile = await resolvePromptSlashCommand(chatOptions.prompt, promptsService, toolsService);
 							if (promptFile) {
@@ -1036,7 +1036,7 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		}
 
 		let session: IChatSession;
-		const newSessionOptionGroups = await this.getNewChatSessionInputState(resolvedType);
+		const newSessionOptionGroups = isUntitledChatSession(sessionResource) ? await this.getNewChatSessionInputState(resolvedType, sessionResource) : undefined;
 		if (isUntitledChatSession(sessionResource) && newSessionOptionGroups) {
 			const options: ChatSessionOptionsMap = new Map();
 			for (const group of newSessionOptionGroups) {
@@ -1169,10 +1169,10 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return this._sessionTypeOptions.get(chatSessionType);
 	}
 
-	public async getNewChatSessionInputState(chatSessionType: string): Promise<readonly IChatSessionProviderOptionGroup[] | undefined> {
+	public async getNewChatSessionInputState(chatSessionType: string, sessionResource: URI): Promise<readonly IChatSessionProviderOptionGroup[] | undefined> {
 		const controllerData = this._itemControllers.get(chatSessionType);
 		if (controllerData?.controller.getNewChatSessionInputState) {
-			const groups = await controllerData.controller.getNewChatSessionInputState(CancellationToken.None);
+			const groups = await controllerData.controller.getNewChatSessionInputState(sessionResource, CancellationToken.None);
 			if (groups?.length) {
 				this._sessionTypeOptions.set(chatSessionType, [...groups]);
 				this._onDidChangeOptionGroups.fire(chatSessionType);
@@ -1237,8 +1237,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 }
 
 registerSingleton(IChatSessionsService, ChatSessionsService, InstantiationType.Delayed);
-
-
 
 function registerNewSessionInPlaceAction(type: string, displayName: string): IDisposable {
 	return registerAction2(class NewChatSessionInPlaceAction extends Action2 {
@@ -1307,6 +1305,7 @@ export type NewChatSessionOpenOptions = {
 async function openChatSession(accessor: ServicesAccessor, openOptions: NewChatSessionOpenOptions, chatSendOptions?: NewChatSessionSendOptions): Promise<void> {
 	const viewsService = accessor.get(IViewsService);
 	const chatService = accessor.get(IChatService);
+	const chatSessionService = accessor.get(IChatSessionsService);
 	const logService = accessor.get(ILogService);
 	const editorGroupService = accessor.get(IEditorGroupsService);
 	const editorService = accessor.get(IEditorService);
@@ -1362,14 +1361,9 @@ async function openChatSession(accessor: ServicesAccessor, openOptions: NewChatS
 			// Set initial session options on the model before sending the request,
 			// so that the contributed session provider can read them.
 			if (chatSendOptions.initialSessionOptions) {
-				const model = chatService.getSession(resource);
-				if (model?.contributedChatSession) {
-					model.setContributedChatSession({
-						...model.contributedChatSession,
-						initialSessionOptions: chatSendOptions.initialSessionOptions,
-					});
-				}
+				chatSessionService.updateSessionOptions(resource, normalizeSessionOptions(chatSendOptions.initialSessionOptions));
 			}
+
 			let attachedContext = chatSendOptions.attachedContext;
 			const promptFile = await resolvePromptSlashCommand(chatSendOptions.prompt, promptsService, toolsService);
 			if (promptFile) {
@@ -1380,6 +1374,28 @@ async function openChatSession(accessor: ServicesAccessor, openOptions: NewChatS
 			logService.error(`Failed to send initial request to '${openOptions.type}' chat session with contextOptions: ${JSON.stringify(chatSendOptions)}`, e);
 		}
 	}
+}
+
+/**
+ * Normalizes session options that may arrive in one of three runtime shapes
+ * into a proper `ReadonlyChatSessionOptionsMap`:
+ *
+ * - **Map** — returned as-is.
+ * - **Array** of `{optionId, value}` objects — e.g. from command arguments
+ *   that bypass static type checking.
+ * - **Plain record** (`Record<string, string | IChatSessionProviderOptionItem>`)
+ *   — e.g. from JSON deserialization across process boundaries where a Map
+ *   loses its prototype.
+ */
+function normalizeSessionOptions(options: ReadonlyChatSessionOptionsMap | ReadonlyArray<{ optionId: string; value: string | IChatSessionProviderOptionItem }>): ReadonlyChatSessionOptionsMap {
+	if (options instanceof Map) {
+		return options;
+	}
+	if (Array.isArray(options)) {
+		return new Map(options.map(o => [o.optionId, o.value]));
+	}
+	// Plain object fallback (e.g. from JSON deserialization)
+	return ChatSessionOptionsMap.fromRecord(options as unknown as Record<string, string | IChatSessionProviderOptionItem>);
 }
 
 /**
@@ -1394,7 +1410,7 @@ async function resolvePromptSlashCommand(prompt: string, promptsService: IPrompt
 		if (slashCommand) {
 			const parseResult = slashCommand.parsedPromptFile;
 			// add the prompt file to the context
-			const refs = parseResult.body?.variableReferences.map(({ name, offset }) => ({ name, range: new OffsetRange(offset, offset + name.length + 1) })) ?? [];
+			const refs = parseResult.body?.variableReferences.map(({ name, offset, fullLength }) => ({ name, range: new OffsetRange(offset, offset + fullLength) })) ?? [];
 			const toolReferences = toolsService.toToolReferences(refs);
 			return toPromptFileVariableEntry(parseResult.uri, PromptFileVariableKind.PromptFile, undefined, true, toolReferences);
 		}

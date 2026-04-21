@@ -30,9 +30,6 @@ import { defaultListStyles } from '../../theme/browser/defaultStyles.js';
 import { asCssVariable } from '../../theme/common/colorRegistry.js';
 import { ILayoutService } from '../../layout/browser/layoutService.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
-import { IHoverService } from '../../hover/browser/hover.js';
-import { HoverPosition } from '../../../base/browser/ui/hover/hoverWidget.js';
-import { IHoverPositionOptions, IHoverWidget } from '../../../base/browser/ui/hover/hover.js';
 
 export const acceptSelectedActionCommand = 'acceptSelectedCodeAction';
 export const previewSelectedActionCommand = 'previewSelectedCodeAction';
@@ -40,6 +37,7 @@ export const previewSelectedActionCommand = 'previewSelectedCodeAction';
 export interface IActionListDelegate<T> {
 	onHide(didCancel?: boolean): void;
 	onSelect(action: T, preview?: boolean): void;
+	onFilter?(filter: string, cancellationToken: CancellationToken): Promise<readonly IActionListItem<T>[]>;
 	onHover?(action: T, cancellationToken: CancellationToken): Promise<{ canPreview: boolean } | void>;
 	onFocus?(action: T | undefined): void;
 }
@@ -52,8 +50,6 @@ export interface IActionListItemHover {
 	 * Content to display in the hover.
 	 */
 	readonly content?: string | MarkdownString;
-
-	readonly position?: IHoverPositionOptions;
 }
 
 export interface IActionListItem<T> {
@@ -352,7 +348,8 @@ class ActionItemRenderer<T> implements IListRenderer<IActionListItem<T>, IAction
 		}
 
 		// Show submenu indicator only for items with submenu actions
-		if (element.submenuActions?.length) {
+		// but not when the item also has hover content (panel auto-shows on hover)
+		if (element.submenuActions?.length && !element.hover?.content) {
 			data.submenuIndicator.className = 'action-list-submenu-indicator has-submenu ' + ThemeIcon.asClassName(Codicon.chevronRight);
 			data.submenuIndicator.style.display = '';
 			data.submenuIndicator.style.visibility = '';
@@ -473,8 +470,6 @@ export class ActionListWidget<T> extends Disposable {
 
 	private readonly cts = this._register(new CancellationTokenSource());
 
-	private _hover = this._register(new MutableDisposable<IHoverWidget>());
-
 	private readonly _submenuDisposables = this._register(new DisposableStore());
 	private readonly _submenuContainer: HTMLElement;
 	private _submenuHideTimeout: ReturnType<typeof setTimeout> | undefined;
@@ -488,6 +483,7 @@ export class ActionListWidget<T> extends Disposable {
 	private _hasLaidOut = false;
 	private readonly _filterInput: HTMLInputElement | undefined;
 	private readonly _filterContainer: HTMLElement | undefined;
+	private readonly _filterCts = this._register(new MutableDisposable<CancellationTokenSource>());
 
 	private readonly _onDidRequestLayout = this._register(new Emitter<void>());
 
@@ -505,7 +501,6 @@ export class ActionListWidget<T> extends Disposable {
 		accessibilityProvider: Partial<IListAccessibilityProvider<IActionListItem<T>>> | undefined,
 		protected readonly _options: IActionListOptions | undefined,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
-		@IHoverService private readonly _hoverService: IHoverService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
@@ -550,7 +545,7 @@ export class ActionListWidget<T> extends Disposable {
 
 
 		const reserveSubmenuSpace = this._options?.reserveSubmenuSpace ?? true;
-		const hasAnySubmenuActions = reserveSubmenuSpace && items.some(item => !!item.submenuActions?.length);
+		const hasAnySubmenuActions = reserveSubmenuSpace && items.some(item => !!item.submenuActions?.length && !item.hover?.content);
 
 		this._list = this._register(new List(user, this.domNode, virtualDelegate, [
 			new ActionItemRenderer<T>(preview, (item) => this._removeItem(item), (item) => this._showSubmenuForItem(item), hasAnySubmenuActions, this._options?.linkHandler, this._keybindingService, this._openerService),
@@ -570,6 +565,9 @@ export class ActionListWidget<T> extends Disposable {
 						}
 						if (element.disabled) {
 							label = localize({ key: 'customQuickFixWidget.labels', comment: [`Action widget labels for accessibility.`] }, "{0}, Disabled Reason: {1}", label, element.disabled);
+						}
+						if (element.submenuActions?.length) {
+							label = localize('actionList.submenuHint', "{0}, use right arrow to access options", label);
 						}
 						return label;
 					}
@@ -622,7 +620,7 @@ export class ActionListWidget<T> extends Disposable {
 
 			this._register(dom.addDisposableListener(this._filterInput, 'input', () => {
 				this._filterText = this._filterInput!.value;
-				this._applyFilter();
+				this._applyOrUpdateFilter();
 			}));
 		}
 
@@ -659,7 +657,7 @@ export class ActionListWidget<T> extends Disposable {
 					this._filterInput.focus();
 					this._filterInput.value = e.key;
 					this._filterText = e.key;
-					this._applyFilter();
+					this._applyOrUpdateFilter();
 					e.preventDefault();
 					e.stopPropagation();
 				}
@@ -677,9 +675,28 @@ export class ActionListWidget<T> extends Disposable {
 		this._applyFilter();
 	}
 
-	private _applyFilter(): void {
-		const filterLower = this._filterText.toLowerCase();
-		const isFiltering = filterLower.length > 0;
+	private _applyOrUpdateFilter(): void {
+		if (!this._delegate.onFilter) {
+			this._applyFilter();
+			return;
+		}
+
+		const filterText = this._filterText;
+		this._filterCts.value?.cancel();
+		const cts = new CancellationTokenSource();
+		this._filterCts.value = cts;
+		this._delegate.onFilter(filterText, cts.token).then(items => {
+			if (cts.token.isCancellationRequested) {
+				return;
+			}
+			this._allMenuItems = [...items];
+			this._applyFilter(true);
+		}).catch(() => { /* best-effort */ });
+	}
+
+	private _applyFilter(skipTextFilter = false): void {
+		const filterLower = skipTextFilter ? '' : this._filterText.toLowerCase();
+		const isFiltering = !skipTextFilter && filterLower.length > 0;
 		const visible: IActionListItem<T>[] = [];
 
 		// Remember the focused item before splice
@@ -841,7 +858,8 @@ export class ActionListWidget<T> extends Disposable {
 	hide(didCancel?: boolean): void {
 		this._delegate.onHide(didCancel);
 		this.cts.cancel();
-		this._hover.clear();
+		this._filterCts.value?.cancel();
+		this._filterCts.clear();
 		this._hideSubmenu();
 	}
 
@@ -849,7 +867,7 @@ export class ActionListWidget<T> extends Disposable {
 		if (this._filterInput && this._filterText) {
 			this._filterInput.value = '';
 			this._filterText = '';
-			this._applyFilter();
+			this._applyOrUpdateFilter();
 			return true;
 		}
 		return false;
@@ -1183,42 +1201,22 @@ export class ActionListWidget<T> extends Disposable {
 	}
 
 	private _showHoverForElement(element: IActionListItem<T>, index: number): void {
-		if (this._currentSubmenuElement === element || element.submenuActions?.length) {
-			return;
-		}
-		this._submenuDisposables.clear();
-
-		const rowElement = this._getRowElement(index);
-		if (!rowElement) {
-			this._hover.clear();
+		if (this._currentSubmenuElement === element) {
 			return;
 		}
 
 		const hasHoverContent = !!element.hover?.content;
+		const hasSubmenuActions = !!element.submenuActions?.length;
 
-		if (!hasHoverContent) {
-			this._hover.clear();
+		if (hasHoverContent || hasSubmenuActions) {
+			const rowElement = this._getRowElement(index);
+			if (rowElement) {
+				this._showSubmenuForElement(element, rowElement);
+			}
 			return;
 		}
 
-		const markdown = typeof element.hover!.content === 'string' ? new MarkdownString(element.hover!.content) : element.hover!.content;
-		const linkHandler = this._options?.linkHandler;
-		this._hover.value = this._hoverService.showDelayedHover({
-			content: markdown ?? '',
-			target: rowElement,
-			additionalClasses: ['action-widget-hover'],
-			linkHandler: linkHandler ? (url: string) => {
-				linkHandler(URI.parse(url), element);
-			} : undefined,
-			position: {
-				hoverPosition: HoverPosition.LEFT,
-				forcePosition: false,
-				...element.hover!.position,
-			},
-			appearance: {
-				showPointer: true,
-			},
-		}, { groupId: `actionListHover` });
+		this._submenuDisposables.clear();
 	}
 
 	private _showSubmenuForItem(item: IActionListItem<T>): void {
@@ -1232,139 +1230,179 @@ export class ActionListWidget<T> extends Disposable {
 	}
 
 	private _showSubmenuForElement(element: IActionListItem<T>, anchor: HTMLElement): void {
+		if (this._currentSubmenuElement === element) {
+			return;
+		}
+
 		this._submenuDisposables.clear();
-		this._hover.clear();
 		this._currentSubmenuElement = element;
 		dom.clearNode(this._submenuContainer);
 
-		// Convert submenu actions into ActionListWidget items
-		const submenuItems: IActionListItem<IAction>[] = [];
-		const submenuGroups = element.submenuActions!.filter((a): a is SubmenuAction => a instanceof SubmenuAction);
-		const groupsWithActions = submenuGroups.filter(g => g.actions.length > 0);
-		for (let gi = 0; gi < groupsWithActions.length; gi++) {
-			const group = groupsWithActions[gi];
-			if (group.label) {
-				submenuItems.push({
-					kind: ActionListItemKind.Header,
-					group: { title: group.label },
-					label: group.label,
-				});
+		// When the item has hover content, render it as a header
+		let hoverHeader: HTMLElement | undefined;
+		const hoverContent = element.hover?.content;
+		if (hoverContent) {
+			const markdown = typeof hoverContent === 'string' ? new MarkdownString(hoverContent) : hoverContent;
+			const linkHandler = this._options?.linkHandler;
+			const rendered = renderMarkdown(markdown, {
+				actionHandler: (url: string) => {
+					const uri = URI.parse(url);
+					if (linkHandler) {
+						linkHandler(uri, element);
+					} else {
+						this._openerService.open(uri, { allowCommands: true });
+					}
+				},
+			});
+			this._submenuDisposables.add(rendered);
+			hoverHeader = rendered.element;
+			hoverHeader.classList.add('action-list-submenu-hover-header');
+			if (element.submenuActions?.length) {
+				hoverHeader.classList.add('has-submenu');
 			}
-			for (let ci = 0; ci < group.actions.length; ci++) {
-				const child = group.actions[ci];
-				submenuItems.push({
-					item: child,
-					kind: ActionListItemKind.Action,
-					label: child.label,
-					description: child.tooltip || undefined,
-					group: { title: '', icon: ThemeIcon.fromId(child.checked ? Codicon.check.id : Codicon.blank.id) },
-					hideIcon: false,
-					hover: {},
-				});
-			}
-			if (gi < groupsWithActions.length - 1) {
-				submenuItems.push({ kind: ActionListItemKind.Separator, label: '' });
-			}
-		}
-		// Also include non-SubmenuAction items directly
-		for (const action of element.submenuActions!) {
-			if (!(action instanceof SubmenuAction)) {
-				submenuItems.push({
-					item: action,
-					kind: ActionListItemKind.Action,
-					label: action.label,
-					description: action.tooltip || undefined,
-					group: { title: '' },
-					hideIcon: false,
-					hover: {},
-				});
-			}
+			this._submenuContainer.appendChild(hoverHeader);
 		}
 
-		const submenuDelegate: IActionListDelegate<IAction> = {
-			onHide: () => { },
-			onSelect: (action) => {
-				action.run();
-				// Also select the parent item in the main list
-				const parentItem = this._currentSubmenuElement?.item;
-				this._hideSubmenu();
-				if (parentItem) {
-					this._delegate.onSelect(parentItem);
-				}
-				this.hide();
-			},
-		};
+		const hasSubmenuActions = !!element.submenuActions?.length;
 
 		// Show container before creating widget so List can measure during construction
 		this._submenuContainer.style.display = '';
 		this._submenuContainer.style.position = 'absolute';
+		this._submenuContainer.removeAttribute('role');
 
-		// Position: prefer right side, fall back to left if not enough space
 		const anchorRect = anchor.getBoundingClientRect();
 		const parentRect = this.domNode.getBoundingClientRect();
-
-		const submenuWidget = this._submenuDisposables.add(this._instantiationService.createInstance(
-			ActionListWidget<IAction>,
-			'submenu',
-			false,
-			submenuItems,
-			submenuDelegate,
-			undefined,
-			undefined,
-		));
-		this._submenuContainer.appendChild(submenuWidget.domNode);
-		this._currentSubmenuWidget = submenuWidget;
-
-		// Layout: first pass renders items, second pass measures true width
-		const totalHeight = submenuWidget.computeListHeight();
-		submenuWidget.layout(totalHeight);
-		const maxWidth = submenuWidget.computeMaxWidth(0);
-		submenuWidget.layout(totalHeight, maxWidth);
-		submenuWidget.domNode.style.width = `${maxWidth}px`;
-
-		// Position: prefer right side, fall back to left if not enough space
 		const targetWindow = dom.getWindow(this.domNode);
-		const viewportWidth = targetWindow.innerWidth;
-		const spaceRight = viewportWidth - anchorRect.right;
-		const spaceLeft = parentRect.left;
-		const submenuWidth = maxWidth + 10; // account for border/padding
 
-		const gap = 4;
-		if (spaceRight >= submenuWidth || spaceRight >= spaceLeft) {
-			// Show on the right, offset past the parent's right edge
-			this._submenuContainer.style.left = `${parentRect.right - parentRect.left + gap}px`;
-		} else {
-			// Show on the left
-			this._submenuContainer.style.left = `${-submenuWidth - gap}px`;
-		}
-		this._submenuContainer.style.top = `${anchorRect.top - parentRect.top - 4}px`;
+		let totalHeight = 0;
+		let maxWidth = hoverHeader ? hoverHeader.offsetWidth : 0;
 
-		// Keyboard navigation in submenu
-		this._submenuDisposables.add(dom.addDisposableListener(submenuWidget.domNode, 'keydown', (e: KeyboardEvent) => {
-			if (e.key === 'ArrowLeft' || e.key === 'Escape') {
-				dom.EventHelper.stop(e, true);
-				this._hideSubmenu();
-				this._list.domFocus();
-			} else if (e.key === 'Enter') {
-				dom.EventHelper.stop(e, true);
-				const focused = submenuWidget.getFocusedElement();
-				if (focused?.item) {
-					focused.item.run();
+		if (hasSubmenuActions) {
+			// Convert submenu actions into ActionListWidget items
+			const submenuItems: IActionListItem<IAction>[] = [];
+			const submenuGroups = element.submenuActions!.filter((a): a is SubmenuAction => a instanceof SubmenuAction);
+			const groupsWithActions = submenuGroups.filter(g => g.actions.length > 0);
+			for (let gi = 0; gi < groupsWithActions.length; gi++) {
+				const group = groupsWithActions[gi];
+				if (group.label) {
+					submenuItems.push({
+						kind: ActionListItemKind.Header,
+						group: { title: group.label },
+						label: group.label,
+					});
+				}
+				for (let ci = 0; ci < group.actions.length; ci++) {
+					const child = group.actions[ci];
+					submenuItems.push({
+						item: child,
+						kind: ActionListItemKind.Action,
+						label: child.label,
+						description: child.tooltip || undefined,
+						group: { title: '', icon: ThemeIcon.fromId(child.checked ? Codicon.check.id : Codicon.blank.id) },
+						hideIcon: false,
+						hover: {},
+					});
+				}
+				if (gi < groupsWithActions.length - 1) {
+					submenuItems.push({ kind: ActionListItemKind.Separator, label: '' });
+				}
+			}
+			// Also include non-SubmenuAction items directly
+			for (const action of element.submenuActions!) {
+				if (!(action instanceof SubmenuAction)) {
+					submenuItems.push({
+						item: action,
+						kind: ActionListItemKind.Action,
+						label: action.label,
+						description: action.tooltip || undefined,
+						group: { title: '' },
+						hideIcon: false,
+						hover: {},
+					});
+				}
+			}
+
+			const submenuDelegate: IActionListDelegate<IAction> = {
+				onHide: () => { },
+				onSelect: (action) => {
+					action.run();
 					const parentItem = this._currentSubmenuElement?.item;
 					this._hideSubmenu();
 					if (parentItem) {
 						this._delegate.onSelect(parentItem);
 					}
 					this.hide();
+				},
+			};
+
+			const submenuWidget = this._submenuDisposables.add(this._instantiationService.createInstance(
+				ActionListWidget<IAction>,
+				'submenu',
+				false,
+				submenuItems,
+				submenuDelegate,
+				undefined,
+				undefined,
+			));
+			this._submenuContainer.appendChild(submenuWidget.domNode);
+			this._currentSubmenuWidget = submenuWidget;
+
+			totalHeight = submenuWidget.computeListHeight();
+			submenuWidget.layout(totalHeight);
+			const submenuMaxWidth = submenuWidget.computeMaxWidth(0);
+			maxWidth = Math.max(maxWidth, submenuMaxWidth);
+			submenuWidget.layout(totalHeight, maxWidth);
+			submenuWidget.domNode.style.width = `${maxWidth}px`;
+
+			// Keyboard navigation in submenu
+			this._submenuDisposables.add(dom.addDisposableListener(submenuWidget.domNode, 'keydown', (e: KeyboardEvent) => {
+				if (e.key === 'ArrowLeft' || e.key === 'Escape') {
+					dom.EventHelper.stop(e, true);
+					this._hideSubmenu();
+					this._list.domFocus();
+				} else if (e.key === 'Enter') {
+					dom.EventHelper.stop(e, true);
+					const focused = submenuWidget.getFocusedElement();
+					if (focused?.item) {
+						focused.item.run();
+						const parentItem = this._currentSubmenuElement?.item;
+						this._hideSubmenu();
+						if (parentItem) {
+							this._delegate.onSelect(parentItem);
+						}
+						this.hide();
+					}
+				} else if (e.key === 'ArrowDown') {
+					dom.EventHelper.stop(e, true);
+					submenuWidget.focusNext();
+				} else if (e.key === 'ArrowUp') {
+					dom.EventHelper.stop(e, true);
+					submenuWidget.focusPrevious();
 				}
-			} else if (e.key === 'ArrowDown') {
-				dom.EventHelper.stop(e, true);
-				submenuWidget.focusNext();
-			} else if (e.key === 'ArrowUp') {
-				dom.EventHelper.stop(e, true);
-				submenuWidget.focusPrevious();
-			}
-		}));
+			}));
+		}
+
+		// Position: prefer right side, fall back to left if not enough space
+		const viewportWidth = targetWindow.innerWidth;
+		const spaceRight = viewportWidth - anchorRect.right;
+		const spaceLeft = parentRect.left;
+		const panelWidth = maxWidth + 10; // account for border/padding
+
+		const gap = 4;
+		if (spaceRight >= panelWidth || spaceRight >= spaceLeft) {
+			this._submenuContainer.style.left = `${parentRect.right - parentRect.left + gap}px`;
+		} else {
+			this._submenuContainer.style.left = `${-panelWidth - gap}px`;
+		}
+		const hoverHeaderHeight = hoverHeader ? hoverHeader.offsetHeight : 0;
+		const totalPanelHeight = totalHeight + hoverHeaderHeight;
+		const viewportHeight = targetWindow.innerHeight;
+		let top = anchorRect.top - parentRect.top - 4;
+		const panelBottom = parentRect.top + top + totalPanelHeight;
+		if (panelBottom > viewportHeight) {
+			top -= (panelBottom - viewportHeight + 8);
+		}
+		this._submenuContainer.style.top = `${top}px`;
 	}
 
 	private _hideSubmenu(): void {
@@ -1399,7 +1437,7 @@ export class ActionListWidget<T> extends Disposable {
 			if (rowElement) {
 				this._showSubmenuForElement(element, rowElement);
 			}
-		}, 300);
+		}, 500);
 	}
 
 	private _cancelSubmenuShow(): void {
@@ -1426,14 +1464,22 @@ export class ActionListWidget<T> extends Disposable {
 			}
 
 			// Set focus immediately for responsive hover feedback
+			const hasPanel = !!(element.submenuActions?.length || element.hover?.content);
+			if (hasPanel) {
+				this._suppressHover = true;
+			}
 			this._list.setFocus(typeof e.index === 'number' ? [e.index] : []);
+			if (hasPanel) {
+				this._suppressHover = false;
+			}
 
-			// Show submenu on row hover for items with submenu actions
-			if (element.submenuActions?.length) {
+			// Show hover/submenu panel on row hover with a delay
+			if (hasPanel) {
 				if (this._currentSubmenuElement === element) {
 					this._cancelSubmenuHide();
 					this._cancelSubmenuShow();
 				} else {
+					this._hideSubmenu();
 					this._scheduleSubmenuShow(element, e.index);
 				}
 				return;
@@ -1458,8 +1504,14 @@ export class ActionListWidget<T> extends Disposable {
 				}
 			}
 		} else if (element && element.hover?.content && typeof e.index === 'number') {
-			// Show hover for disabled items that have hover content
-			this._showHoverForElement(element, e.index);
+			// Show hover for disabled items that have hover content (with delay)
+			if (this._currentSubmenuElement === element) {
+				this._cancelSubmenuHide();
+				this._cancelSubmenuShow();
+			} else {
+				this._hideSubmenu();
+				this._scheduleSubmenuShow(element, e.index);
+			}
 		}
 	}
 

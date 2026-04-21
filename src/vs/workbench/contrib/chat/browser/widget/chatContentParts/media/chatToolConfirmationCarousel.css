@@ -1,0 +1,286 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.interactive-session .interactive-input-part > .chat-tool-confirmation-carousel-container,
+.interactive-session .interactive-input-part .interactive-input-and-edit-session > .chat-tool-confirmation-carousel-container {
+	width: 100%;
+	position: relative;
+	display: flex;
+	flex-direction: column;
+
+	&:empty {
+		display: none;
+	}
+
+	&:not(:empty) {
+		margin-top: 8px;
+	}
+}
+
+.chat-tool-confirmation-carousel {
+	color: var(--vscode-foreground);
+	display: flex;
+	flex-direction: column;
+	max-height: min(300px, 45vh);
+	border: 1px solid var(--vscode-input-border, transparent);
+	border-radius: var(--vscode-cornerRadius-large);
+	background-color: var(--vscode-panel-background);
+	overflow: hidden;
+
+	&:focus {
+		outline: none !important;
+	}
+
+	&:focus-visible,
+	&:focus-within {
+		border-color: var(--vscode-focusBorder);
+	}
+
+	.chat-tool-carousel-content .chat-confirmation-widget-container:focus {
+		outline: none;
+	}
+
+	a {
+		color: var(--vscode-foreground);
+
+		&:hover,
+		&:active {
+			color: var(--vscode-textLink-activeForeground);
+		}
+	}
+
+	.chat-tool-carousel-overlay {
+		display: flex;
+		align-items: center;
+		gap: 8px;
+		padding: 6px 10px 6px 12px;
+		border-bottom: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-border, transparent));
+	}
+
+	.chat-tool-carousel-title-group {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		min-width: 0;
+		overflow: hidden;
+	}
+
+	.chat-tool-carousel-collapsed-title {
+		font-weight: 500;
+		font-size: var(--vscode-chat-font-size-body-s);
+		white-space: nowrap;
+		color: var(--vscode-foreground);
+	}
+
+	.chat-tool-carousel-agent-label {
+		background: none;
+		border: none;
+		cursor: pointer;
+		font-size: var(--vscode-chat-font-size-body-s);
+		color: var(--vscode-textLink-foreground);
+		padding: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+
+		&:hover {
+			text-decoration: underline;
+		}
+
+		&:disabled {
+			cursor: default;
+		}
+	}
+
+	.chat-tool-carousel-overlay-actions {
+		display: flex;
+		align-items: center;
+		gap: 4px;
+		flex-shrink: 0;
+		margin-left: auto;
+	}
+
+	.monaco-button.chat-tool-carousel-dismiss-button {
+		min-width: 22px;
+		width: 22px;
+		height: 22px;
+		padding: 0;
+		border: none !important;
+		box-shadow: none !important;
+		background: transparent !important;
+		color: var(--vscode-icon-foreground) !important;
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.monaco-button.chat-tool-carousel-dismiss-button:hover {
+		background: var(--vscode-toolbar-hoverBackground) !important;
+	}
+
+	button:focus,
+	.monaco-button:focus {
+		outline: none !important;
+		box-shadow: none !important;
+	}
+
+	.chat-tool-carousel-nav-arrows {
+		display: flex;
+		align-items: center;
+	}
+
+	.monaco-button.chat-tool-carousel-nav-arrow {
+		min-width: 22px;
+		width: 22px;
+		height: 22px;
+		padding: 0;
+		border: none !important;
+		box-shadow: none !important;
+		background: transparent !important;
+		color: var(--vscode-foreground) !important;
+	}
+
+	.monaco-button.chat-tool-carousel-nav-arrow:hover:not(.disabled) {
+		background: var(--vscode-toolbar-hoverBackground) !important;
+	}
+
+	.monaco-button.chat-tool-carousel-nav-arrow.disabled {
+		opacity: 0.4;
+	}
+
+	.monaco-list:focus {
+		outline: none !important;
+	}
+
+	.chat-tool-carousel-content {
+		display: flex;
+		flex-direction: column;
+		min-height: 0;
+		overflow: hidden;
+		flex: 1;
+
+		.chat-tool-invocation-part {
+			display: flex;
+			flex-direction: column;
+			flex: 1;
+			min-height: 0;
+			margin: 0;
+		}
+
+		.chat-confirmation-widget-container {
+			display: flex;
+			flex-direction: column;
+			flex: 1;
+			min-height: 0;
+			margin: 0;
+			border: none;
+		}
+
+		.chat-confirmation-widget,
+		.chat-confirmation-widget2 {
+			display: flex;
+			flex-direction: column;
+			flex: 1;
+			min-height: 0;
+			border: none;
+			border-radius: 0;
+			margin: 0;
+		}
+
+		.chat-confirmation-widget-message-container {
+			display: flex;
+			flex-direction: column;
+			flex: 1;
+			min-height: 0;
+			border: 1px solid var(--vscode-chat-requestBorder, var(--vscode-input-border, transparent));
+			border-radius: var(--vscode-cornerRadius-medium);
+			overflow: hidden;
+		}
+
+		.chat-confirmation-widget-message-scrollable {
+			flex: 1;
+			min-height: 0;
+		}
+
+		.chat-confirmation-widget-message {
+			flex: 1;
+			min-height: 0;
+			max-height: min(200px, 30vh);
+		}
+
+		.chat-confirmation-message-terminal-editor .interactive-result-code-block {
+			background-color: var(--vscode-sideBar-background);
+		}
+
+		.chat-confirmation-message-terminal-editor .interactive-result-editor {
+			background-color: var(--vscode-sideBar-background);
+		}
+
+		.chat-buttons-container {
+			flex-shrink: 0;
+		}
+
+		.interactive-result-code-block {
+			border: none;
+			border-radius: 0;
+		}
+
+		.message .see-more {
+			display: none !important;
+		}
+
+		.message.can-see-more .message-wrapper {
+			max-height: none !important;
+			mask-image: none !important;
+			pointer-events: auto !important;
+		}
+
+		.chat-confirmation-widget-buttons .chat-buttons .monaco-button:not(.monaco-dropdown-button) {
+			min-width: 60px;
+		}
+
+		.chat-confirmation-widget2 {
+			display: flex;
+			flex-direction: column;
+			flex: 1;
+		}
+
+		.chat-confirmation-widget2 .chat-confirmation-widget-buttons {
+			margin-top: auto;
+		}
+
+		.chat-confirmation-widget2 .chat-confirmation-widget-title {
+			align-items: center;
+		}
+
+		.chat-confirmation-widget-title {
+			display: none !important;
+		}
+
+		.chat-confirmation-message-terminal .chat-confirmation-message-terminal-disclaimer p:last-child {
+			margin: 4px 0px !important;
+			display: flex;
+			align-items: center;
+			gap: 4px;
+		}
+	}
+
+	.chat-tool-carousel-step-indicator {
+		font-size: var(--vscode-chat-font-size-body-s);
+		color: var(--vscode-descriptionForeground);
+		white-space: nowrap;
+		padding: 0 4px;
+	}
+}
+
+.agent-sessions-workbench .chat-tool-confirmation-carousel,
+.editor-instance .chat-tool-confirmation-carousel {
+	background-color: var(--vscode-editor-background);
+
+	.interactive-result-editor {
+		background-color: var(--vscode-interactive-result-editor-background-color, var(--vscode-editor-background));
+	}
+}

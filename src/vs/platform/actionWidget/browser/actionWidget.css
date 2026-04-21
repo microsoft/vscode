@@ -348,3 +348,37 @@
 	z-index: 50;
 	width: fit-content;
 }
+
+.action-list-submenu-hover-header {
+	padding: 4px 8px;
+	line-height: 1.5em;
+	min-width: 200px;
+	max-width: var(--vscode-hover-maxWidth, 500px);
+	word-wrap: break-word;
+}
+
+.action-list-submenu-hover-header a {
+	color: var(--vscode-textLink-foreground);
+}
+
+.action-list-submenu-hover-header a:hover,
+.action-list-submenu-hover-header a:active {
+	color: var(--vscode-textLink-activeForeground);
+}
+
+.action-list-submenu-hover-header.has-submenu {
+	border-bottom: 1px solid var(--vscode-menu-separatorBackground, var(--vscode-editorWidget-border));
+}
+
+.action-list-submenu-hover-header > p {
+	margin-left: 0;
+	margin-right: 0;
+}
+
+.action-list-submenu-hover-header > p:first-child {
+	margin-top: 0;
+}
+
+.action-list-submenu-hover-header > p:last-child {
+	margin-bottom: 0;
+}

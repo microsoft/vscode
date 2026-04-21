@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -16,10 +17,11 @@ import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { Target } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { AICustomizationManagementCommands } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
-import { ISessionsProvidersService } from '../../sessions/browser/sessionsProvidersService.js';
-import { CopilotCLISession } from './copilotChatSessionsProvider.js';
-import { CopilotCLISessionType } from '../../sessions/browser/sessionTypes.js';
+import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { CopilotChatSessionsProvider } from './copilotChatSessionsProvider.js';
+import { CopilotCLISessionType } from '../../../services/sessions/common/session.js';
 
 interface IModePickerItem {
 	readonly kind: 'mode';
@@ -43,7 +45,6 @@ export class ModePicker extends Disposable {
 	readonly onDidChange: Event<IChatMode> = this._onDidChange.event;
 
 	private _triggerElement: HTMLElement | undefined;
-	private _slotElement: HTMLElement | undefined;
 	private readonly _renderDisposables = this._register(new DisposableStore());
 
 	private _selectedMode: IChatMode = ChatMode.Agent;
@@ -85,21 +86,22 @@ export class ModePicker extends Disposable {
 		this._renderDisposables.clear();
 
 		const slot = dom.append(container, dom.$('.sessions-chat-picker-slot'));
-		this._slotElement = slot;
 		this._renderDisposables.add({ dispose: () => slot.remove() });
 
 		const trigger = dom.append(slot, dom.$('a.action-label'));
 		trigger.tabIndex = 0;
 		trigger.role = 'button';
-		trigger.setAttribute('aria-label', localize('sessions.modePicker.ariaLabel', "Select chat mode"));
 		this._triggerElement = trigger;
 
 		this._updateTriggerLabel();
 
-		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.CLICK, (e) => {
-			dom.EventHelper.stop(e, true);
-			this._showPicker();
-		}));
+		this._renderDisposables.add(Gesture.addTarget(trigger));
+		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
+			this._renderDisposables.add(dom.addDisposableListener(trigger, eventType, (e) => {
+				dom.EventHelper.stop(e, true);
+				this._showPicker();
+			}));
+		}
 
 		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, (e) => {
 			if (e.key === 'Enter' || e.key === ' ') {
@@ -150,7 +152,7 @@ export class ModePicker extends Disposable {
 				if (item.kind === 'mode') {
 					this._selectMode(item.mode);
 				} else {
-					this.commandService.executeCommand(AICustomizationManagementCommands.OpenEditor);
+					this.commandService.executeCommand(AICustomizationManagementCommands.OpenEditor, AICustomizationManagementSection.Agents);
 				}
 			},
 			onHide: () => { triggerElement.focus(); },
@@ -215,9 +217,13 @@ export class ModePicker extends Disposable {
 		this._onDidChange.fire(mode);
 
 		const session = this.sessionsManagementService.activeSession.get();
-		const providerSession = session ? this.sessionsProvidersService.getUntitledSession(session.providerId) : undefined;
-		if (providerSession instanceof CopilotCLISession) {
-			providerSession.setMode(mode);
+		if (!session) {
+			return;
+		}
+
+		const provider = this.sessionsProvidersService.getProvider(session.providerId);
+		if (provider instanceof CopilotChatSessionsProvider) {
+			provider.getSession(session.sessionId)?.setMode(mode);
 		}
 	}
 
@@ -237,7 +243,6 @@ export class ModePicker extends Disposable {
 		labelSpan.textContent = this._selectedMode.label.get();
 		dom.append(this._triggerElement, renderIcon(Codicon.chevronDown));
 
-		const modes = this._getAvailableModes();
-		this._slotElement?.classList.toggle('disabled', modes.length <= 1);
+		this._triggerElement.ariaLabel = localize('modePicker.triggerAriaLabel', "Pick Mode, {0}", this._selectedMode.label.get());
 	}
 }
