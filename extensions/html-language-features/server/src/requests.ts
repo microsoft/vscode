@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { RequestType, Connection } from 'vscode-languageserver';
-import { RuntimeEnvironment } from './htmlServer';
+import { RuntimeEnvironment } from './htmlServer.js';
 
 export namespace FsStatRequest {
 	export const type: RequestType<string, FileStat, any> = new RequestType('fs/stat');

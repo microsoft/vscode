@@ -144,6 +144,9 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	@memoize
 	get extHostLogsPath(): URI { return joinPath(this.logsHome, 'exthost'); }
 
+	@memoize
+	get agentPluginsHome(): URI { return joinPath(this.userRoamingDataHome, 'agent-plugins'); }
+
 	private extensionHostDebugEnvironment: IExtensionHostDebugEnvironment | undefined = undefined;
 
 	@memoize
@@ -255,7 +258,7 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 	get disableWorkspaceTrust(): boolean { return !this.options.enableWorkspaceTrust; }
 
 	@memoize
-	get isSessionsWindow(): boolean { return false; }
+	get isSessionsWindow(): boolean { return this.payload?.get('isSessionsWindow') === 'true'; }
 
 	@memoize
 	get profile(): string | undefined { return this.payload?.get('profile'); }
@@ -321,6 +324,13 @@ export class BrowserWorkbenchEnvironmentService implements IBrowserWorkbenchEnvi
 						break;
 					case 'inspect-extensions':
 						extensionHostDebugEnvironment.params.port = parseInt(value);
+						break;
+					case 'extensionEnvironment':
+						try {
+							extensionHostDebugEnvironment.params.env = JSON.parse(value);
+						} catch (error) {
+							onUnexpectedError(error);
+						}
 						break;
 					case 'enableProposedApi':
 						extensionHostDebugEnvironment.extensionEnabledProposedApi = [];

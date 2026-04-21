@@ -6,6 +6,7 @@
 import { mockObject } from '../../../../../../base/test/common/mock.js';
 import { assertSnapshot } from '../../../../../../base/test/common/snapshot.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
+import { Event } from '../../../../../../base/common/event.js';
 import { IContextKeyService } from '../../../../../../platform/contextkey/common/contextkey.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { MockContextKeyService } from '../../../../../../platform/keybinding/test/common/mockKeybindingService.js';
@@ -70,10 +71,9 @@ suite('ChatRequestParser', () => {
 	});
 
 	test('slash command', async () => {
-		const slashCommandService = mockObject<IChatSlashCommandService>()({});
+		const slashCommandService = mockObject<IChatSlashCommandService>()({ _serviceBrand: undefined });
 		slashCommandService.getCommands.returns([{ command: 'fix' }]);
-		// eslint-disable-next-line local/code-no-any-casts
-		instantiationService.stub(IChatSlashCommandService, slashCommandService as any);
+		instantiationService.stub(IChatSlashCommandService, slashCommandService);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const text = '/fix this';
@@ -82,10 +82,9 @@ suite('ChatRequestParser', () => {
 	});
 
 	test('invalid slash command', async () => {
-		const slashCommandService = mockObject<IChatSlashCommandService>()({});
+		const slashCommandService = mockObject<IChatSlashCommandService>()({ _serviceBrand: undefined });
 		slashCommandService.getCommands.returns([{ command: 'fix' }]);
-		// eslint-disable-next-line local/code-no-any-casts
-		instantiationService.stub(IChatSlashCommandService, slashCommandService as any);
+		instantiationService.stub(IChatSlashCommandService, slashCommandService);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const text = '/explain this';
@@ -94,10 +93,9 @@ suite('ChatRequestParser', () => {
 	});
 
 	test('multiple slash commands', async () => {
-		const slashCommandService = mockObject<IChatSlashCommandService>()({});
+		const slashCommandService = mockObject<IChatSlashCommandService>()({ _serviceBrand: undefined });
 		slashCommandService.getCommands.returns([{ command: 'fix' }]);
-		// eslint-disable-next-line local/code-no-any-casts
-		instantiationService.stub(IChatSlashCommandService, slashCommandService as any);
+		instantiationService.stub(IChatSlashCommandService, slashCommandService);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const text = '/fix /fix';
@@ -106,10 +104,9 @@ suite('ChatRequestParser', () => {
 	});
 
 	test('slash command not first', async () => {
-		const slashCommandService = mockObject<IChatSlashCommandService>()({});
+		const slashCommandService = mockObject<IChatSlashCommandService>()({ _serviceBrand: undefined });
 		slashCommandService.getCommands.returns([{ command: 'fix' }]);
-		// eslint-disable-next-line local/code-no-any-casts
-		instantiationService.stub(IChatSlashCommandService, slashCommandService as any);
+		instantiationService.stub(IChatSlashCommandService, slashCommandService);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const text = 'Hello /fix';
@@ -118,10 +115,9 @@ suite('ChatRequestParser', () => {
 	});
 
 	test('slash command after whitespace', async () => {
-		const slashCommandService = mockObject<IChatSlashCommandService>()({});
+		const slashCommandService = mockObject<IChatSlashCommandService>()({ _serviceBrand: undefined });
 		slashCommandService.getCommands.returns([{ command: 'fix' }]);
-		// eslint-disable-next-line local/code-no-any-casts
-		instantiationService.stub(IChatSlashCommandService, slashCommandService as any);
+		instantiationService.stub(IChatSlashCommandService, slashCommandService);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const text = '    /fix';
@@ -130,17 +126,15 @@ suite('ChatRequestParser', () => {
 	});
 
 	test('prompt slash command', async () => {
-		const slashCommandService = mockObject<IChatSlashCommandService>()({});
+		const slashCommandService = mockObject<IChatSlashCommandService>()({ _serviceBrand: undefined });
 		slashCommandService.getCommands.returns([{ command: 'fix' }]);
-		// eslint-disable-next-line local/code-no-any-casts
-		instantiationService.stub(IChatSlashCommandService, slashCommandService as any);
+		instantiationService.stub(IChatSlashCommandService, slashCommandService);
 
-		const promptSlashCommandService = mockObject<IPromptsService>()({});
+		const promptSlashCommandService = mockObject<IPromptsService>()({ _serviceBrand: undefined });
 		promptSlashCommandService.isValidSlashCommandName.callsFake((command: string) => {
 			return !!command.match(/^[\w_\-\.]+$/);
 		});
-		// eslint-disable-next-line local/code-no-any-casts
-		instantiationService.stub(IPromptsService, promptSlashCommandService as any);
+		instantiationService.stub(IPromptsService, promptSlashCommandService);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const text = '    /prompt';
@@ -149,17 +143,15 @@ suite('ChatRequestParser', () => {
 	});
 
 	test('prompt slash command after text', async () => {
-		const slashCommandService = mockObject<IChatSlashCommandService>()({});
+		const slashCommandService = mockObject<IChatSlashCommandService>()({ _serviceBrand: undefined });
 		slashCommandService.getCommands.returns([{ command: 'fix' }]);
-		// eslint-disable-next-line local/code-no-any-casts
-		instantiationService.stub(IChatSlashCommandService, slashCommandService as any);
+		instantiationService.stub(IChatSlashCommandService, slashCommandService);
 
-		const promptSlashCommandService = mockObject<IPromptsService>()({});
+		const promptSlashCommandService = mockObject<IPromptsService>()({ _serviceBrand: undefined });
 		promptSlashCommandService.isValidSlashCommandName.callsFake((command: string) => {
 			return !!command.match(/^[\w_\-\.]+$/);
 		});
-		// eslint-disable-next-line local/code-no-any-casts
-		instantiationService.stub(IPromptsService, promptSlashCommandService as any);
+		instantiationService.stub(IPromptsService, promptSlashCommandService);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const text = 'handle the / route and the request of /search-option';
@@ -168,18 +160,16 @@ suite('ChatRequestParser', () => {
 	});
 
 	test('prompt slash command after slash', async () => {
-		const slashCommandService = mockObject<IChatSlashCommandService>()({});
+		const slashCommandService = mockObject<IChatSlashCommandService>()({ _serviceBrand: undefined });
 		slashCommandService.getCommands.returns([{ command: 'fix' }]);
-		// eslint-disable-next-line local/code-no-any-casts
-		instantiationService.stub(IChatSlashCommandService, slashCommandService as any);
+		instantiationService.stub(IChatSlashCommandService, slashCommandService);
 
-		const promptSlashCommandService = mockObject<IPromptsService>()({});
+		const promptSlashCommandService = mockObject<IPromptsService>()({ _serviceBrand: undefined });
 		promptSlashCommandService.isValidSlashCommandName.callsFake((command: string) => {
 			return !!command.match(/^[\w_\-\.]+$/);
 
 		});
-		// eslint-disable-next-line local/code-no-any-casts
-		instantiationService.stub(IPromptsService, promptSlashCommandService as any);
+		instantiationService.stub(IPromptsService, promptSlashCommandService);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const text = '/ route and the request of /search-option';
@@ -188,17 +178,15 @@ suite('ChatRequestParser', () => {
 	});
 
 	test('prompt slash command with numbers', async () => {
-		const slashCommandService = mockObject<IChatSlashCommandService>()({});
+		const slashCommandService = mockObject<IChatSlashCommandService>()({ _serviceBrand: undefined });
 		slashCommandService.getCommands.returns([{ command: 'fix' }]);
-		// eslint-disable-next-line local/code-no-any-casts
-		instantiationService.stub(IChatSlashCommandService, slashCommandService as any);
+		instantiationService.stub(IChatSlashCommandService, slashCommandService);
 
-		const promptSlashCommandService = mockObject<IPromptsService>()({});
+		const promptSlashCommandService = mockObject<IPromptsService>()({ _serviceBrand: undefined });
 		promptSlashCommandService.isValidSlashCommandName.callsFake((command: string) => {
 			return !!command.match(/^[\w_\-\.]+$/);
 		});
-		// eslint-disable-next-line local/code-no-any-casts
-		instantiationService.stub(IPromptsService, promptSlashCommandService as any);
+		instantiationService.stub(IPromptsService, promptSlashCommandService);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const text = '/001-sample this is a test';
@@ -240,10 +228,9 @@ suite('ChatRequestParser', () => {
 	};
 
 	test('agent with subcommand after text', async () => {
-		const agentsService = mockObject<IChatAgentService>()({});
+		const agentsService = mockObject<IChatAgentService>()({ _serviceBrand: undefined, hasToolsAgent: false, onDidChangeAgents: Event.None });
 		agentsService.getAgentsByName.returns([getAgentWithSlashCommands([{ name: 'subCommand', description: '' }])]);
-		// eslint-disable-next-line local/code-no-any-casts
-		instantiationService.stub(IChatAgentService, agentsService as any);
+		instantiationService.stub(IChatAgentService, agentsService);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const result = parser.parseChatRequest(testSessionUri, '@agent Please do /subCommand thanks');
@@ -251,10 +238,9 @@ suite('ChatRequestParser', () => {
 	});
 
 	test('agents, subCommand', async () => {
-		const agentsService = mockObject<IChatAgentService>()({});
+		const agentsService = mockObject<IChatAgentService>()({ _serviceBrand: undefined, hasToolsAgent: false, onDidChangeAgents: Event.None });
 		agentsService.getAgentsByName.returns([getAgentWithSlashCommands([{ name: 'subCommand', description: '' }])]);
-		// eslint-disable-next-line local/code-no-any-casts
-		instantiationService.stub(IChatAgentService, agentsService as any);
+		instantiationService.stub(IChatAgentService, agentsService);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const result = parser.parseChatRequest(testSessionUri, '@agent /subCommand Please do thanks');
@@ -262,10 +248,9 @@ suite('ChatRequestParser', () => {
 	});
 
 	test('agent but edit mode', async () => {
-		const agentsService = mockObject<IChatAgentService>()({});
+		const agentsService = mockObject<IChatAgentService>()({ _serviceBrand: undefined, hasToolsAgent: false, onDidChangeAgents: Event.None });
 		agentsService.getAgentsByName.returns([getAgentWithSlashCommands([])]);
-		// eslint-disable-next-line local/code-no-any-casts
-		instantiationService.stub(IChatAgentService, agentsService as any);
+		instantiationService.stub(IChatAgentService, agentsService);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const result = parser.parseChatRequest(testSessionUri, '@agent hello', undefined, { mode: ChatModeKind.Edit });
@@ -273,10 +258,9 @@ suite('ChatRequestParser', () => {
 	});
 
 	test('agent with question mark', async () => {
-		const agentsService = mockObject<IChatAgentService>()({});
+		const agentsService = mockObject<IChatAgentService>()({ _serviceBrand: undefined, hasToolsAgent: false, onDidChangeAgents: Event.None });
 		agentsService.getAgentsByName.returns([getAgentWithSlashCommands([{ name: 'subCommand', description: '' }])]);
-		// eslint-disable-next-line local/code-no-any-casts
-		instantiationService.stub(IChatAgentService, agentsService as any);
+		instantiationService.stub(IChatAgentService, agentsService);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const result = parser.parseChatRequest(testSessionUri, '@agent? Are you there');
@@ -284,10 +268,9 @@ suite('ChatRequestParser', () => {
 	});
 
 	test('agent and subcommand with leading whitespace', async () => {
-		const agentsService = mockObject<IChatAgentService>()({});
+		const agentsService = mockObject<IChatAgentService>()({ _serviceBrand: undefined, hasToolsAgent: false, onDidChangeAgents: Event.None });
 		agentsService.getAgentsByName.returns([getAgentWithSlashCommands([{ name: 'subCommand', description: '' }])]);
-		// eslint-disable-next-line local/code-no-any-casts
-		instantiationService.stub(IChatAgentService, agentsService as any);
+		instantiationService.stub(IChatAgentService, agentsService);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const result = parser.parseChatRequest(testSessionUri, '    \r\n\t   @agent \r\n\t   /subCommand Thanks');
@@ -295,10 +278,9 @@ suite('ChatRequestParser', () => {
 	});
 
 	test('agent and subcommand after newline', async () => {
-		const agentsService = mockObject<IChatAgentService>()({});
+		const agentsService = mockObject<IChatAgentService>()({ _serviceBrand: undefined, hasToolsAgent: false, onDidChangeAgents: Event.None });
 		agentsService.getAgentsByName.returns([getAgentWithSlashCommands([{ name: 'subCommand', description: '' }])]);
-		// eslint-disable-next-line local/code-no-any-casts
-		instantiationService.stub(IChatAgentService, agentsService as any);
+		instantiationService.stub(IChatAgentService, agentsService);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const result = parser.parseChatRequest(testSessionUri, '    \n@agent\n/subCommand Thanks');
@@ -306,10 +288,9 @@ suite('ChatRequestParser', () => {
 	});
 
 	test('agent not first', async () => {
-		const agentsService = mockObject<IChatAgentService>()({});
+		const agentsService = mockObject<IChatAgentService>()({ _serviceBrand: undefined, hasToolsAgent: false, onDidChangeAgents: Event.None });
 		agentsService.getAgentsByName.returns([getAgentWithSlashCommands([{ name: 'subCommand', description: '' }])]);
-		// eslint-disable-next-line local/code-no-any-casts
-		instantiationService.stub(IChatAgentService, agentsService as any);
+		instantiationService.stub(IChatAgentService, agentsService);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const result = parser.parseChatRequest(testSessionUri, 'Hello Mr. @agent');
@@ -317,10 +298,9 @@ suite('ChatRequestParser', () => {
 	});
 
 	test('agents and tools and multiline', async () => {
-		const agentsService = mockObject<IChatAgentService>()({});
+		const agentsService = mockObject<IChatAgentService>()({ _serviceBrand: undefined, hasToolsAgent: false, onDidChangeAgents: Event.None });
 		agentsService.getAgentsByName.returns([getAgentWithSlashCommands([{ name: 'subCommand', description: '' }])]);
-		// eslint-disable-next-line local/code-no-any-casts
-		instantiationService.stub(IChatAgentService, agentsService as any);
+		instantiationService.stub(IChatAgentService, agentsService);
 
 		variableService.setSelectedToolAndToolSets(testSessionUri, new Map([
 			[{ id: 'get_selection', toolReferenceName: 'selection', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: ToolDataSource.Internal }, true],
@@ -333,10 +313,9 @@ suite('ChatRequestParser', () => {
 	});
 
 	test('agents and tools and multiline, part2', async () => {
-		const agentsService = mockObject<IChatAgentService>()({});
+		const agentsService = mockObject<IChatAgentService>()({ _serviceBrand: undefined, hasToolsAgent: false, onDidChangeAgents: Event.None });
 		agentsService.getAgentsByName.returns([getAgentWithSlashCommands([{ name: 'subCommand', description: '' }])]);
-		// eslint-disable-next-line local/code-no-any-casts
-		instantiationService.stub(IChatAgentService, agentsService as any);
+		instantiationService.stub(IChatAgentService, agentsService);
 
 		variableService.setSelectedToolAndToolSets(testSessionUri, new Map([
 			[{ id: 'get_selection', toolReferenceName: 'selection', canBeReferencedInPrompt: true, displayName: '', modelDescription: '', source: ToolDataSource.Internal }, true],
@@ -349,22 +328,19 @@ suite('ChatRequestParser', () => {
 	});
 
 	test('prompt slash command with agent and supportsPromptAttachments', async () => {
-		const agentsService = mockObject<IChatAgentService>()({});
+		const agentsService = mockObject<IChatAgentService>()({ _serviceBrand: undefined, hasToolsAgent: false, onDidChangeAgents: Event.None });
 		agentsService.getAgentsByName.returns([getAgentWithSlashCommands([{ name: 'subCommand', description: '' }])]);
-		// eslint-disable-next-line local/code-no-any-casts
-		instantiationService.stub(IChatAgentService, agentsService as any);
+		instantiationService.stub(IChatAgentService, agentsService);
 
-		const slashCommandService = mockObject<IChatSlashCommandService>()({});
+		const slashCommandService = mockObject<IChatSlashCommandService>()({ _serviceBrand: undefined });
 		slashCommandService.getCommands.returns([]);
-		// eslint-disable-next-line local/code-no-any-casts
-		instantiationService.stub(IChatSlashCommandService, slashCommandService as any);
+		instantiationService.stub(IChatSlashCommandService, slashCommandService);
 
-		const promptSlashCommandService = mockObject<IPromptsService>()({});
+		const promptSlashCommandService = mockObject<IPromptsService>()({ _serviceBrand: undefined });
 		promptSlashCommandService.isValidSlashCommandName.callsFake((command: string) => {
 			return !!command.match(/^[\w_\-\.]+$/);
 		});
-		// eslint-disable-next-line local/code-no-any-casts
-		instantiationService.stub(IPromptsService, promptSlashCommandService as any);
+		instantiationService.stub(IPromptsService, promptSlashCommandService);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const result = parser.parseChatRequest(testSessionUri, '@agent /myPrompt do something', undefined, {
@@ -374,22 +350,19 @@ suite('ChatRequestParser', () => {
 	});
 
 	test('prompt slash command with agent but no supportsPromptAttachments', async () => {
-		const agentsService = mockObject<IChatAgentService>()({});
+		const agentsService = mockObject<IChatAgentService>()({ _serviceBrand: undefined, hasToolsAgent: false, onDidChangeAgents: Event.None });
 		agentsService.getAgentsByName.returns([getAgentWithSlashCommands([{ name: 'subCommand', description: '' }])]);
-		// eslint-disable-next-line local/code-no-any-casts
-		instantiationService.stub(IChatAgentService, agentsService as any);
+		instantiationService.stub(IChatAgentService, agentsService);
 
-		const slashCommandService = mockObject<IChatSlashCommandService>()({});
+		const slashCommandService = mockObject<IChatSlashCommandService>()({ _serviceBrand: undefined });
 		slashCommandService.getCommands.returns([]);
-		// eslint-disable-next-line local/code-no-any-casts
-		instantiationService.stub(IChatSlashCommandService, slashCommandService as any);
+		instantiationService.stub(IChatSlashCommandService, slashCommandService);
 
-		const promptSlashCommandService = mockObject<IPromptsService>()({});
+		const promptSlashCommandService = mockObject<IPromptsService>()({ _serviceBrand: undefined });
 		promptSlashCommandService.isValidSlashCommandName.callsFake((command: string) => {
 			return !!command.match(/^[\w_\-\.]+$/);
 		});
-		// eslint-disable-next-line local/code-no-any-casts
-		instantiationService.stub(IPromptsService, promptSlashCommandService as any);
+		instantiationService.stub(IPromptsService, promptSlashCommandService);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const result = parser.parseChatRequest(testSessionUri, '@agent /myPrompt do something', undefined, {
@@ -399,22 +372,19 @@ suite('ChatRequestParser', () => {
 	});
 
 	test('agent subcommand still takes priority with supportsPromptAttachments', async () => {
-		const agentsService = mockObject<IChatAgentService>()({});
+		const agentsService = mockObject<IChatAgentService>()({ _serviceBrand: undefined, hasToolsAgent: false, onDidChangeAgents: Event.None });
 		agentsService.getAgentsByName.returns([getAgentWithSlashCommands([{ name: 'subCommand', description: '' }])]);
-		// eslint-disable-next-line local/code-no-any-casts
-		instantiationService.stub(IChatAgentService, agentsService as any);
+		instantiationService.stub(IChatAgentService, agentsService);
 
-		const slashCommandService = mockObject<IChatSlashCommandService>()({});
+		const slashCommandService = mockObject<IChatSlashCommandService>()({ _serviceBrand: undefined });
 		slashCommandService.getCommands.returns([]);
-		// eslint-disable-next-line local/code-no-any-casts
-		instantiationService.stub(IChatSlashCommandService, slashCommandService as any);
+		instantiationService.stub(IChatSlashCommandService, slashCommandService);
 
-		const promptSlashCommandService = mockObject<IPromptsService>()({});
+		const promptSlashCommandService = mockObject<IPromptsService>()({ _serviceBrand: undefined });
 		promptSlashCommandService.isValidSlashCommandName.callsFake((command: string) => {
 			return !!command.match(/^[\w_\-\.]+$/);
 		});
-		// eslint-disable-next-line local/code-no-any-casts
-		instantiationService.stub(IPromptsService, promptSlashCommandService as any);
+		instantiationService.stub(IPromptsService, promptSlashCommandService);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const result = parser.parseChatRequest(testSessionUri, '@agent /subCommand do something', undefined, {
@@ -424,19 +394,49 @@ suite('ChatRequestParser', () => {
 	});
 
 	test('slash command with agent and supportsPromptAttachments', async () => {
-		const agentsService = mockObject<IChatAgentService>()({});
+		const agentsService = mockObject<IChatAgentService>()({ _serviceBrand: undefined, hasToolsAgent: false, onDidChangeAgents: Event.None });
 		agentsService.getAgentsByName.returns([getAgentWithSlashCommands([{ name: 'subCommand', description: '' }])]);
-		// eslint-disable-next-line local/code-no-any-casts
-		instantiationService.stub(IChatAgentService, agentsService as any);
+		instantiationService.stub(IChatAgentService, agentsService);
 
-		const slashCommandService = mockObject<IChatSlashCommandService>()({});
+		const slashCommandService = mockObject<IChatSlashCommandService>()({ _serviceBrand: undefined });
 		slashCommandService.getCommands.returns([{ command: 'fix' }]);
-		// eslint-disable-next-line local/code-no-any-casts
-		instantiationService.stub(IChatSlashCommandService, slashCommandService as any);
+		instantiationService.stub(IChatSlashCommandService, slashCommandService);
 
 		parser = instantiationService.createInstance(ChatRequestParser);
 		const result = parser.parseChatRequest(testSessionUri, '@agent /fix this', undefined, {
 			attachmentCapabilities: { supportsPromptAttachments: true }
+		});
+		await assertSnapshot(result);
+	});
+
+	test('silent slash command with agent and no supportsPromptAttachments', async () => {
+		const agentsService = mockObject<IChatAgentService>()({ _serviceBrand: undefined, hasToolsAgent: false, onDidChangeAgents: Event.None });
+		agentsService.getAgentsByName.returns([getAgentWithSlashCommands([{ name: 'subCommand', description: '' }])]);
+		instantiationService.stub(IChatAgentService, agentsService);
+
+		const slashCommandService = mockObject<IChatSlashCommandService>()({ _serviceBrand: undefined });
+		slashCommandService.getCommands.returns([{ command: 'clear', silent: true }]);
+		instantiationService.stub(IChatSlashCommandService, slashCommandService);
+
+		parser = instantiationService.createInstance(ChatRequestParser);
+		const result = parser.parseChatRequest(testSessionUri, '@agent /clear', undefined, {
+			attachmentCapabilities: { supportsPromptAttachments: false }
+		});
+		await assertSnapshot(result);
+	});
+
+	test('non-silent slash command with agent and no supportsPromptAttachments', async () => {
+		const agentsService = mockObject<IChatAgentService>()({ _serviceBrand: undefined, hasToolsAgent: false, onDidChangeAgents: Event.None });
+		agentsService.getAgentsByName.returns([getAgentWithSlashCommands([{ name: 'subCommand', description: '' }])]);
+		instantiationService.stub(IChatAgentService, agentsService);
+
+		const slashCommandService = mockObject<IChatSlashCommandService>()({ _serviceBrand: undefined });
+		slashCommandService.getCommands.returns([{ command: 'fix' }]);
+		instantiationService.stub(IChatSlashCommandService, slashCommandService);
+
+		parser = instantiationService.createInstance(ChatRequestParser);
+		const result = parser.parseChatRequest(testSessionUri, '@agent /fix this', undefined, {
+			attachmentCapabilities: { supportsPromptAttachments: false }
 		});
 		await assertSnapshot(result);
 	});

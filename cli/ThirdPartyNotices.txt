@@ -722,9 +722,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -1666,7 +1666,6 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [//]: # (crates)
 
 [`aead`]: ./aead
-[`async‑signature`]: ./signature/async
 [`cipher`]: ./cipher
 [`crypto‑common`]: ./crypto-common
 [`crypto`]: ./crypto
@@ -1828,7 +1827,6 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [//]: # (crates)
 
 [`aead`]: ./aead
-[`async‑signature`]: ./signature/async
 [`cipher`]: ./cipher
 [`crypto‑common`]: ./crypto-common
 [`crypto`]: ./crypto
@@ -1924,9 +1922,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -5095,7 +5093,7 @@ DEALINGS IN THE SOFTWARE.
 num-conv 0.2.0 - MIT OR Apache-2.0
 https://github.com/jhpratt/num-conv
 
-Copyright (c) 2023 Jacob Pratt
+Copyright (c) Jacob Pratt
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -5289,9 +5287,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -5330,9 +5328,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -5371,9 +5369,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -5412,9 +5410,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -5453,9 +5451,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -5494,9 +5492,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -5535,9 +5533,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -5576,9 +5574,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -5617,9 +5615,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -5658,9 +5656,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -5699,9 +5697,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -5740,9 +5738,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -5781,9 +5779,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -5822,9 +5820,9 @@ Furthermore, the crates are (usually automatically) derived from Apple SDKs,
 and that may have implications for licensing, see below for details.
 
 [#23]: https://github.com/madsmtm/objc2/issues/23
-[MIT]: https://opensource.org/license/MIT
-[Zlib]: https://zlib.net/zlib_license.html
-[Apache-2.0]: https://www.apache.org/licenses/LICENSE-2.0
+[MIT]: ./LICENSE-MIT.txt
+[Zlib]: ./LICENSE-ZLIB.txt
+[Apache-2.0]: ./LICENSE-APACHE.txt
 
 
 ## Apple SDKs
@@ -9275,6 +9273,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [`bash‑hash`]: ./bash-hash
 [`belt‑hash`]: ./belt-hash
 [`blake2`]: ./blake2
+[`cshake`]: ./cshake
 [`fsb`]: ./fsb
 [`gost94`]: ./gost94
 [`groestl`]: ./groestl
@@ -9294,6 +9293,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [`sm3`]: ./sm3
 [`streebog`]: ./streebog
 [`tiger`]: ./tiger
+[`turbo-shake`]: ./turbo-shake
 [`whirlpool`]: ./whirlpool
 
 [//]: # (footnotes)
@@ -9319,6 +9319,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [Bash]: https://apmi.bsu.by/assets/files/std/bash-spec241.pdf
 [BelT]: https://ru.wikipedia.org/wiki/BelT
 [BLAKE2]: https://en.wikipedia.org/wiki/BLAKE_(hash_function)#BLAKE2
+[cSHAKE]: https://csrc.nist.gov/pubs/sp/800/185/final
 [FSB]: https://en.wikipedia.org/wiki/Fast_syndrome-based_hash
 [GOST94]: https://en.wikipedia.org/wiki/GOST_(hash_function)
 [Grøstl]: https://en.wikipedia.org/wiki/Grøstl
@@ -9339,6 +9340,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [Streebog]: https://en.wikipedia.org/wiki/Streebog
 [Whirlpool]: https://en.wikipedia.org/wiki/Whirlpool_(cryptography)
 [Tiger]: http://www.cs.technion.ac.il/~biham/Reports/Tiger/tiger/tiger.html
+[TurboSHAKE]: https://keccak.team/turboshake.html
 ---------------------------------------------------------
 
 ---------------------------------------------------------
@@ -9371,6 +9373,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [`bash‑hash`]: ./bash-hash
 [`belt‑hash`]: ./belt-hash
 [`blake2`]: ./blake2
+[`cshake`]: ./cshake
 [`fsb`]: ./fsb
 [`gost94`]: ./gost94
 [`groestl`]: ./groestl
@@ -9390,6 +9393,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [`sm3`]: ./sm3
 [`streebog`]: ./streebog
 [`tiger`]: ./tiger
+[`turbo-shake`]: ./turbo-shake
 [`whirlpool`]: ./whirlpool
 
 [//]: # (footnotes)
@@ -9415,6 +9419,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [Bash]: https://apmi.bsu.by/assets/files/std/bash-spec241.pdf
 [BelT]: https://ru.wikipedia.org/wiki/BelT
 [BLAKE2]: https://en.wikipedia.org/wiki/BLAKE_(hash_function)#BLAKE2
+[cSHAKE]: https://csrc.nist.gov/pubs/sp/800/185/final
 [FSB]: https://en.wikipedia.org/wiki/Fast_syndrome-based_hash
 [GOST94]: https://en.wikipedia.org/wiki/GOST_(hash_function)
 [Grøstl]: https://en.wikipedia.org/wiki/Grøstl
@@ -9435,6 +9440,7 @@ Unless you explicitly state otherwise, any contribution intentionally submitted 
 [Streebog]: https://en.wikipedia.org/wiki/Streebog
 [Whirlpool]: https://en.wikipedia.org/wiki/Whirlpool_(cryptography)
 [Tiger]: http://www.cs.technion.ac.il/~biham/Reports/Tiger/tiger/tiger.html
+[TurboSHAKE]: https://keccak.team/turboshake.html
 ---------------------------------------------------------
 
 ---------------------------------------------------------
@@ -10139,7 +10145,7 @@ DEALINGS IN THE SOFTWARE.
 
 ---------------------------------------------------------
 
-tar 0.4.44 - MIT OR Apache-2.0
+tar 0.4.45 - MIT OR Apache-2.0
 https://github.com/alexcrichton/tar-rs
 
 Copyright (c) The tar-rs Project Contributors
@@ -14169,9 +14175,6 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
-Some files in the "tests/data" subdirectory of this repository are under other
-licences; see files named LICENSE.*.txt for details.
 ---------------------------------------------------------
 
 ---------------------------------------------------------

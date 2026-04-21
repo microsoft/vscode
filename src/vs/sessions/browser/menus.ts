@@ -19,9 +19,13 @@ export const Menus = {
 	TitleBarRightLayout: new MenuId('SessionsTitleBarRightLayout'),
 	PanelTitle: new MenuId('SessionsPanelTitle'),
 	SidebarTitle: new MenuId('SessionsSidebarTitle'),
+	SidebarSessionsHeader: new MenuId('SessionsSidebarSessionsHeader'),
 	AuxiliaryBarTitle: new MenuId('SessionsAuxiliaryBarTitle'),
-	AuxiliaryBarTitleLeft: new MenuId('SessionsAuxiliaryBarTitleLeft'),
 	SidebarFooter: new MenuId('SessionsSidebarFooter'),
 	SidebarCustomizations: new MenuId('SessionsSidebarCustomizations'),
 	AgentFeedbackEditorContent: new MenuId('AgentFeedbackEditorContent'),
+
+	NewSessionConfig: new MenuId('NewSessions.SessionConfigMenu'),
+	NewSessionControl: new MenuId('NewSessions.SessionControlMenu'),
+	NewSessionRepositoryConfig: new MenuId('NewSessions.RepositoryConfigMenu'),
 } as const;

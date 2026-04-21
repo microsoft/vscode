@@ -51,8 +51,11 @@ export class UITest {
 	/**
 	 * Run the UI test actions.
 	 */
-	public async run(page: Page) {
+	public async run(page: Page, skipWelcome = false) {
 		try {
+			if (!skipWelcome) {
+				await this.dismissWelcomeDialog(page);
+			}
 			await this.dismissWorkspaceTrustDialog(page);
 			await this.createTextFile(page);
 			await this.installExtension(page);
@@ -68,6 +71,17 @@ export class UITest {
 	public validate() {
 		this.verifyTextFileCreated();
 		this.verifyExtensionInstalled();
+	}
+
+	/**
+	 * Dismiss the welcome sign-in dialog.
+	 */
+	public async dismissWelcomeDialog(page: Page) {
+		this.context.log('Dismissing welcome dialog');
+		const skipButton = page.getByRole('button', { name: 'Skip' });
+		await skipButton.waitFor({ state: 'visible' });
+		await skipButton.click();
+		await skipButton.waitFor({ state: 'hidden' });
 	}
 
 	/**
@@ -138,7 +152,7 @@ export class UITest {
 		const extensionItem = page.locator('.extension-list-item').getByText(/^GitHub Pull Requests$/);
 		const messageContainer = page.locator('.extensions-viewlet .message-container:not(.hidden)').first();
 
-		for (let attempt = 0; attempt < 3; attempt++) {
+		for (let attempt = 0; attempt < 5; attempt++) {
 			const result = await Promise.race([
 				extensionItem.waitFor().then(() => 'found' as const),
 				messageContainer.waitFor().then(() => 'message' as const),
@@ -149,20 +163,33 @@ export class UITest {
 			}
 
 			const message = await messageContainer.locator('.message').innerText();
-			this.context.log(`Marketplace message: ${message} (attempt ${attempt + 1}/3), clicking Refresh`);
+			this.context.log(`Marketplace message: ${message} (attempt ${attempt + 1}/5), clicking Refresh`);
 			await page.getByRole('button', { name: 'Refresh' }).click();
-			await messageContainer.waitFor({ state: 'hidden', timeout: 30_000 });
+			await page.waitForTimeout(5_000);
 		}
 
 		await extensionItem.waitFor();
 
-		this.context.log('Clicking Install on the first extension in the list');
-		const installButton = page.locator('.extension-action:not(.disabled)', { hasText: /Install/ }).first();
-		await installButton.waitFor();
-		await installButton.click();
+		for (let attempt = 0; attempt < 3; attempt++) {
+			try {
+				this.context.log(`Clicking Install on the first extension in the list (attempt ${attempt + 1}/3)`);
+				const installButton = page.locator('.extension-action:not(.disabled)', { hasText: /Install/ }).first();
+				await installButton.click();
 
-		this.context.log('Waiting for extension to be installed');
-		await page.locator('.extension-action:not(.disabled)', { hasText: /Uninstall/ }).waitFor({ timeout: 5 * 60_1000 });
+				this.context.log('Waiting for extension to be installed');
+				const uninstallButton = page.getByRole('button', { name: 'Uninstall' }).first();
+				const installed = await uninstallButton.waitFor({ timeout: 5 * 60_000 }).then(() => true, () => false);
+				if (installed) {
+					return;
+				}
+			} catch (error) {
+				this.context.log(`Extension install attempt ${attempt + 1}/3 failed: ${error instanceof Error ? error.message : String(error)}`);
+			}
+
+			this.context.log('Extension install may have failed, retrying');
+		}
+
+		throw new Error('Failed to install extension after 3 attempts');
 	}
 
 	/**

@@ -544,6 +544,36 @@ export interface IModalEditorPart extends IEditorPart {
 	toggleMaximized(): void;
 
 	/**
+	 * Size set by the user via resizing, if any.
+	 */
+	readonly size: IDimension | undefined;
+
+	/**
+	 * Position set by the user via dragging, if any.
+	 */
+	readonly position: { left: number; top: number } | undefined;
+
+	/**
+	 * Whether the modal editor part has a sidebar.
+	 */
+	readonly hasSidebar: boolean;
+
+	/**
+	 * Sidebar width set by the user via resizing, if any.
+	 */
+	readonly sidebarWidth: number | undefined;
+
+	/**
+	 * Whether the sidebar is hidden.
+	 */
+	readonly sidebarHidden: boolean;
+
+	/**
+	 * Toggle sidebar visibility.
+	 */
+	toggleSidebar(): void;
+
+	/**
 	 * The current navigation context, if any.
 	 */
 	readonly navigation: IModalEditorNavigation | undefined;
@@ -559,14 +589,19 @@ export interface IModalEditorPart extends IEditorPart {
 	readonly onWillClose: Event<void>;
 
 	/**
-	 * Close this modal editor part after moving all
-	 * editors of all groups back to the main editor part
-	 * if the related option is set. Dirty editors are
-	 * always moved back to the main part and thus not closed.
+	 * Close this modal editor part after closing all
+	 * editors of all groups. Dirty editors will trigger
+	 * a confirmation dialog asking the user to save.
 	 *
-	 * @returns `false` if an editor could not be moved back.
+	 * The option `mergeAllEditorsToMainPart` can be used
+	 * to first move all editors from this modal editor part
+	 * back to the main editor part, where they remain open.
+	 * This avoids the confirmation dialog because the editors
+	 * are not closed as part of this operation.
+	 *
+	 * @returns `false` if the close was cancelled.
 	 */
-	close(options?: { mergeAllEditorsToMainPart?: boolean }): boolean;
+	close(options?: { mergeAllEditorsToMainPart?: boolean }): Promise<boolean>;
 }
 
 export interface IEditorWorkingSet {

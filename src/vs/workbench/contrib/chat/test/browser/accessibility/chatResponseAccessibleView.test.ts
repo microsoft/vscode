@@ -486,5 +486,164 @@ suite('ChatResponseAccessibleView', () => {
 			assert.ok(content.includes('Response content'));
 			assert.ok(content.includes('Thinking: Reasoning'));
 		});
+
+		test('includes file path for URI inline references', () => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const storageService = store.add(new TestStorageService());
+
+			const inlineReferenceUri = URI.file('/path/to/index.ts');
+			const responseItem = {
+				response: {
+					value: [
+						{ kind: 'markdownContent', content: new MarkdownString('See file ') },
+						{ kind: 'inlineReference', inlineReference: inlineReferenceUri, name: 'index.ts' },
+						{ kind: 'markdownContent', content: new MarkdownString(' for details') }
+					]
+				},
+				model: { onDidChange: Event.None },
+				setVote: () => undefined
+			};
+			const items = [responseItem];
+			let focusedItem: unknown = responseItem;
+
+			const widget = {
+				hasInputFocus: () => false,
+				focusResponseItem: () => { focusedItem = responseItem; },
+				getFocus: () => focusedItem,
+				focus: (item: unknown) => { focusedItem = item; },
+				viewModel: { getItems: () => items }
+			} as unknown as IChatWidget;
+
+			const widgetService = {
+				_serviceBrand: undefined,
+				lastFocusedWidget: widget,
+				onDidAddWidget: Event.None,
+				onDidBackgroundSession: Event.None,
+				reveal: async () => true,
+				revealWidget: async () => widget,
+				getAllWidgets: () => [widget],
+				getWidgetByInputUri: () => widget,
+				openSession: async () => widget,
+				getWidgetBySessionResource: () => widget
+			} as unknown as IChatWidgetService;
+
+			instantiationService.stub(IChatWidgetService, widgetService);
+			instantiationService.stub(IStorageService, storageService);
+
+			const accessibleView = new ChatResponseAccessibleView();
+			const provider = instantiationService.invokeFunction(accessor => accessibleView.getProvider(accessor));
+			assert.ok(provider);
+			store.add(provider);
+			const content = provider.provideContent();
+			assert.ok(content.includes('index.ts'));
+			assert.ok(content.includes(inlineReferenceUri.path));
+			assert.ok(content.includes('See file'));
+			assert.ok(content.includes('for details'));
+		});
+
+		test('includes file path and line number for Location inline references', () => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const storageService = store.add(new TestStorageService());
+
+			const fileLocation: Location = {
+				uri: URI.file('/src/app/main.ts'),
+				range: new Range(42, 1, 42, 20)
+			};
+
+			const responseItem = {
+				response: {
+					value: [
+						{ kind: 'markdownContent', content: new MarkdownString('Error at ') },
+						{ kind: 'inlineReference', inlineReference: fileLocation, name: 'main.ts' }
+					]
+				},
+				model: { onDidChange: Event.None },
+				setVote: () => undefined
+			};
+			const items = [responseItem];
+			let focusedItem: unknown = responseItem;
+
+			const widget = {
+				hasInputFocus: () => false,
+				focusResponseItem: () => { focusedItem = responseItem; },
+				getFocus: () => focusedItem,
+				focus: (item: unknown) => { focusedItem = item; },
+				viewModel: { getItems: () => items }
+			} as unknown as IChatWidget;
+
+			const widgetService = {
+				_serviceBrand: undefined,
+				lastFocusedWidget: widget,
+				onDidAddWidget: Event.None,
+				onDidBackgroundSession: Event.None,
+				reveal: async () => true,
+				revealWidget: async () => widget,
+				getAllWidgets: () => [widget],
+				getWidgetByInputUri: () => widget,
+				openSession: async () => widget,
+				getWidgetBySessionResource: () => widget
+			} as unknown as IChatWidgetService;
+
+			instantiationService.stub(IChatWidgetService, widgetService);
+			instantiationService.stub(IStorageService, storageService);
+
+			const accessibleView = new ChatResponseAccessibleView();
+			const provider = instantiationService.invokeFunction(accessor => accessibleView.getProvider(accessor));
+			assert.ok(provider);
+			store.add(provider);
+			const content = provider.provideContent();
+			assert.ok(content.includes('main.ts'));
+			assert.ok(content.includes(`${fileLocation.uri.path}:42`));
+		});
+
+		test('uses basename as name for URI inline references without explicit name', () => {
+			const instantiationService = store.add(new TestInstantiationService());
+			const storageService = store.add(new TestStorageService());
+
+			const inlineReferenceUri = URI.file('/workspace/src/utils.ts');
+			const responseItem = {
+				response: {
+					value: [
+						{ kind: 'inlineReference', inlineReference: inlineReferenceUri }
+					]
+				},
+				model: { onDidChange: Event.None },
+				setVote: () => undefined
+			};
+			const items = [responseItem];
+			let focusedItem: unknown = responseItem;
+
+			const widget = {
+				hasInputFocus: () => false,
+				focusResponseItem: () => { focusedItem = responseItem; },
+				getFocus: () => focusedItem,
+				focus: (item: unknown) => { focusedItem = item; },
+				viewModel: { getItems: () => items }
+			} as unknown as IChatWidget;
+
+			const widgetService = {
+				_serviceBrand: undefined,
+				lastFocusedWidget: widget,
+				onDidAddWidget: Event.None,
+				onDidBackgroundSession: Event.None,
+				reveal: async () => true,
+				revealWidget: async () => widget,
+				getAllWidgets: () => [widget],
+				getWidgetByInputUri: () => widget,
+				openSession: async () => widget,
+				getWidgetBySessionResource: () => widget
+			} as unknown as IChatWidgetService;
+
+			instantiationService.stub(IChatWidgetService, widgetService);
+			instantiationService.stub(IStorageService, storageService);
+
+			const accessibleView = new ChatResponseAccessibleView();
+			const provider = instantiationService.invokeFunction(accessor => accessibleView.getProvider(accessor));
+			assert.ok(provider);
+			store.add(provider);
+			const content = provider.provideContent();
+			assert.ok(content.includes('utils.ts'));
+			assert.ok(content.includes(inlineReferenceUri.path));
+		});
 	});
 });

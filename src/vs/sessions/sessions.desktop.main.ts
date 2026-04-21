@@ -42,7 +42,7 @@ import '../workbench/services/update/electron-browser/updateService.js';
 import '../workbench/services/url/electron-browser/urlService.js';
 import '../workbench/services/lifecycle/electron-browser/lifecycleService.js';
 import '../workbench/services/host/electron-browser/nativeHostService.js';
-import './electron-browser/titleService.js';
+import './services/title/electron-browser/titleService.js';
 import '../platform/meteredConnection/electron-browser/meteredConnectionService.js';
 import '../workbench/services/request/electron-browser/requestService.js';
 import '../workbench/services/clipboard/electron-browser/clipboardService.js';
@@ -57,7 +57,6 @@ import '../workbench/services/mcp/electron-browser/mcpGalleryManifestService.js'
 import '../workbench/services/mcp/electron-browser/mcpWorkbenchManagementService.js';
 import '../workbench/services/encryption/electron-browser/encryptionService.js';
 import '../workbench/services/imageResize/electron-browser/imageResizeService.js';
-import '../workbench/services/browserElements/electron-browser/browserElementsService.js';
 import '../workbench/services/secrets/electron-browser/secretStorageService.js';
 import '../workbench/services/localization/electron-browser/languagePackService.js';
 import '../workbench/services/telemetry/electron-browser/telemetryService.js';
@@ -89,6 +88,7 @@ import '../workbench/services/extensions/electron-browser/nativeExtensionService
 import '../platform/userDataProfile/electron-browser/userDataProfileStorageService.js';
 import '../workbench/services/auxiliaryWindow/electron-browser/auxiliaryWindowService.js';
 import '../platform/extensionManagement/electron-browser/extensionsProfileScannerService.js';
+import '../platform/sandbox/electron-browser/sandboxHelperService.js';
 import '../platform/webContentExtractor/electron-browser/webContentExtractorService.js';
 import '../workbench/services/browserView/electron-browser/playwrightWorkbenchService.js';
 import '../workbench/services/process/electron-browser/processService.js';
@@ -177,8 +177,8 @@ import '../workbench/contrib/remoteTunnel/electron-browser/remoteTunnel.contribu
 
 // Chat
 import '../workbench/contrib/chat/electron-browser/chat.contribution.js';
-//import '../workbench/contrib/inlineChat/electron-browser/inlineChat.contribution.js';
 import './contrib/agentFeedback/browser/agentFeedback.contribution.js';
+import './contrib/chat/electron-browser/openInVSCode.contribution.js';
 
 // Encryption
 import '../workbench/contrib/encryption/electron-browser/encryption.contribution.js';
@@ -197,27 +197,20 @@ import '../workbench/contrib/policyExport/electron-browser/policyExport.contribu
 
 //#region --- sessions contributions
 
-import './browser/paneCompositePartService.js';
-import './browser/layoutActions.js';
+// Remote Agent Host
+import '../platform/agentHost/electron-browser/agentHostService.js';
+import '../platform/agentHost/electron-browser/remoteAgentHostService.js';
+import '../platform/agentHost/electron-browser/sshRemoteAgentHostService.js';
+import './contrib/remoteAgentHost/electron-browser/tunnelAgentHostService.js';
+import './contrib/remoteAgentHost/browser/remoteAgentHost.contribution.js';
+import './contrib/remoteAgentHost/browser/remoteAgentHostTerminal.contribution.js';
+import './contrib/remoteAgentHost/browser/tunnelAgentHost.contribution.js';
 
-import './contrib/accountMenu/browser/account.contribution.js';
-import './contrib/aiCustomizationTreeView/browser/aiCustomizationTreeView.contribution.js';
-import './contrib/chat/browser/chat.contribution.js';
-import './contrib/chat/browser/customizationsDebugLog.contribution.js';
-import './contrib/sessions/browser/sessions.contribution.js';
-import './contrib/sessions/browser/customizationsToolbar.contribution.js';
-import './contrib/changesView/browser/changesView.contribution.js';
-import './contrib/files/browser/files.contribution.js';
-import './contrib/gitSync/browser/gitSync.contribution.js';
-import './contrib/applyCommitsToParentRepo/browser/applyChangesToParentRepo.js';
-import './contrib/fileTreeView/browser/fileTreeView.contribution.js'; // view registration disabled; filesystem provider still needed
-import './contrib/configuration/browser/configuration.contribution.js';
-import './contrib/markdownPreview/browser/markdownPreview.contribution.js';
+// Local Agent Host
+import './contrib/agentHost/browser/localAgentHost.contribution.js';
 
-import './contrib/terminal/browser/sessionsTerminalContribution.js';
-import './contrib/logs/browser/logs.contribution.js';
-import './contrib/workspace/browser/workspace.contribution.js';
-import './contrib/welcome/browser/welcome.contribution.js';
+// Tunnel Host (allow remote connections to local agent host)
+import './contrib/tunnelHost/electron-browser/tunnelHost.contribution.js';
 
 //#endregion
 

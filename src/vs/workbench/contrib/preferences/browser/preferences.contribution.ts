@@ -836,6 +836,12 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 							order: 1,
 						},
 						{
+							id: MenuId.ModalEditorEditorTitle,
+							when: ResourceContextKey.Resource.isEqualTo(that.userDataProfileService.currentProfile.keybindingsResource.toString()),
+							group: 'navigation',
+							order: 1,
+						},
+						{
 							id: MenuId.GlobalActivity,
 							group: '2_configuration',
 							order: 4
@@ -881,6 +887,11 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 						{ id: MenuId.CommandPalette },
 						{
 							id: MenuId.EditorTitle,
+							when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR),
+							group: 'navigation',
+						},
+						{
+							id: MenuId.ModalEditorEditorTitle,
 							when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR),
 							group: 'navigation',
 						}
@@ -1246,13 +1257,24 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 		const commandId = '_workbench.openWorkspaceSettingsEditor';
 		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE && !CommandsRegistry.getCommand(commandId)) {
 			CommandsRegistry.registerCommand(commandId, () => this.preferencesService.openWorkspaceSettings({ jsonEditor: false }));
+			const when = ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.workspaceSettingsResource!.toString()), WorkbenchStateContext.isEqualTo('workspace'), ContextKeyExpr.not('isInDiffEditor'));
 			MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 				command: {
 					id: commandId,
 					title: OPEN_USER_SETTINGS_UI_TITLE,
 					icon: preferencesOpenSettingsIcon
 				},
-				when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.workspaceSettingsResource!.toString()), WorkbenchStateContext.isEqualTo('workspace'), ContextKeyExpr.not('isInDiffEditor')),
+				when,
+				group: 'navigation',
+				order: 1
+			});
+			MenuRegistry.appendMenuItem(MenuId.ModalEditorEditorTitle, {
+				command: {
+					id: commandId,
+					title: OPEN_USER_SETTINGS_UI_TITLE,
+					icon: preferencesOpenSettingsIcon
+				},
+				when,
 				group: 'navigation',
 				order: 1
 			});
@@ -1272,13 +1294,24 @@ class PreferencesActionsContribution extends Disposable implements IWorkbenchCon
 						return this.preferencesService.openFolderSettings({ folderUri: folder.uri, jsonEditor: false, groupId });
 					}
 				});
+				const when = ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.getFolderSettingsResource(folder.uri)!.toString()), ContextKeyExpr.not('isInDiffEditor'));
 				MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 					command: {
 						id: commandId,
 						title: OPEN_USER_SETTINGS_UI_TITLE,
 						icon: preferencesOpenSettingsIcon
 					},
-					when: ContextKeyExpr.and(ResourceContextKey.Resource.isEqualTo(this.preferencesService.getFolderSettingsResource(folder.uri)!.toString()), ContextKeyExpr.not('isInDiffEditor')),
+					when,
+					group: 'navigation',
+					order: 1
+				});
+				MenuRegistry.appendMenuItem(MenuId.ModalEditorEditorTitle, {
+					command: {
+						id: commandId,
+						title: OPEN_USER_SETTINGS_UI_TITLE,
+						icon: preferencesOpenSettingsIcon
+					},
+					when,
 					group: 'navigation',
 					order: 1
 				});
@@ -1320,6 +1353,11 @@ class SettingsEditorTitleContribution extends Disposable implements IWorkbenchCo
 							when: openUserSettingsEditorWhen,
 							group: 'navigation',
 							order: 1
+						}, {
+							id: MenuId.ModalEditorEditorTitle,
+							when: openUserSettingsEditorWhen,
+							group: 'navigation',
+							order: 1
 						}]
 					});
 				}
@@ -1346,6 +1384,11 @@ class SettingsEditorTitleContribution extends Disposable implements IWorkbenchCo
 					icon: preferencesOpenSettingsIcon,
 					menu: [{
 						id: MenuId.EditorTitle,
+						when: openSettingsJsonWhen,
+						group: 'navigation',
+						order: 1
+					}, {
+						id: MenuId.ModalEditorEditorTitle,
 						when: openSettingsJsonWhen,
 						group: 'navigation',
 						order: 1

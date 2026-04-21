@@ -11,11 +11,13 @@
 	border: 1px solid var(--vscode-editorHoverWidget-border);
 	border-radius: var(--vscode-cornerRadius-large);
 	box-sizing: content-box;
+	background-color: var(--vscode-editorHoverWidget-background);
 }
 
 .monaco-editor .monaco-resizable-hover > .monaco-hover {
 	border: none;
-	border-radius: unset;
+	border-radius: inherit;
+	overflow: hidden;
 }
 
 .monaco-editor .monaco-hover {
@@ -35,6 +37,7 @@
 }
 
 .monaco-editor .monaco-hover .hover-row {
+	border-radius: var(--vscode-cornerRadius-large);
 	display: flex;
 }
 

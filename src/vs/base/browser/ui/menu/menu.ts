@@ -1017,10 +1017,12 @@ export function formatRule(c: ThemeIcon) {
 }
 
 export function getMenuWidgetCSS(style: IMenuStyles, isForShadowDom: boolean): string {
+	const borderColor = style.borderColor ?? 'var(--vscode-menu-border)';
 	let result = /* css */`
 .monaco-menu {
 	font-size: 13px;
 	border-radius: var(--vscode-cornerRadius-large);
+	border: 1px solid ${borderColor};
 	min-width: 160px;
 }
 
@@ -1240,6 +1242,8 @@ ${formatRule(Codicon.menuSubmenu)}
 	animation: fadeIn 0.083s linear;
 	-webkit-app-region: no-drag;
 	box-shadow: var(--vscode-shadow-lg${style.shadowColor ? `, 0 0 12px ${style.shadowColor}` : ''});
+	border-radius: var(--vscode-cornerRadius-large);
+	overflow: hidden;
 }
 
 .context-view.monaco-menu-container :focus,

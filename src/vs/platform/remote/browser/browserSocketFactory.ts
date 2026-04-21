@@ -43,7 +43,7 @@ export interface IWebSocket {
 	readonly onError: Event<unknown>;
 
 	traceSocketEvent?(type: SocketDiagnosticsEventType, data?: VSBuffer | Uint8Array | ArrayBuffer | ArrayBufferView | unknown): void;
-	send(data: ArrayBuffer | ArrayBufferView): void;
+	send(data: ArrayBuffer | ArrayBufferView<ArrayBuffer>): void;
 	close(): void;
 }
 
@@ -182,7 +182,7 @@ class BrowserWebSocket extends Disposable implements IWebSocket {
 		}));
 	}
 
-	send(data: ArrayBuffer | ArrayBufferView): void {
+	send(data: ArrayBuffer | ArrayBufferView<ArrayBuffer>): void {
 		if (this._isClosed) {
 			// Refuse to write data to closed WebSocket...
 			return;
@@ -254,7 +254,7 @@ class BrowserSocket implements ISocket {
 	}
 
 	public write(buffer: VSBuffer): void {
-		this.socket.send(buffer.buffer);
+		this.socket.send(buffer.buffer as Uint8Array<ArrayBuffer>);
 	}
 
 	public end(): void {

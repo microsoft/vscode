@@ -32,8 +32,6 @@ function createMockUpdateService(state: State): IUpdateService {
 }
 
 function renderHoverWidget(ctx: ComponentFixtureContext, state: State): void {
-	ctx.container.style.padding = '16px';
-	ctx.container.style.width = '320px';
 	ctx.container.style.backgroundColor = 'var(--vscode-editorHoverWidget-background)';
 
 	const instantiationService = createEditorServices(ctx.disposableStore, {
@@ -75,7 +73,7 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 
 	UpdateHoverUpdating: defineComponentFixture({
 		labels: { kind: 'screenshot' },
-		render: ctx => renderHoverWidget(ctx, State.Updating(mockUpdate, 40, 100)),
+		render: ctx => renderHoverWidget(ctx, State.Updating(mockUpdate, true, 40, 100)),
 	}),
 
 	UpdateHoverSameVersion: defineComponentFixture({

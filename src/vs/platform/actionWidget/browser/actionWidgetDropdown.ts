@@ -170,6 +170,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 				action.run();
 			},
 			onHide: () => {
+				this.hide();
 				if (isHTMLElement(previouslyFocusedElement)) {
 					previouslyFocusedElement.focus();
 				}
@@ -220,6 +221,8 @@ export class ActionWidgetDropdown extends BaseDropdown {
 			},
 			getWidgetRole: () => 'menu',
 		};
+
+		super.show();
 
 		this.actionWidgetService.show<IActionWidgetDropdownAction>(
 			this._options.label ?? '',

@@ -50,7 +50,7 @@
 	display: flex;
 	font-size: 11px;
 	padding: 3px;
-	border-radius: 5px;
+	border-radius: var(--vscode-cornerRadius-medium);
 }
 
 .monaco-action-bar .action-item.disabled .action-label:not(.icon) ,

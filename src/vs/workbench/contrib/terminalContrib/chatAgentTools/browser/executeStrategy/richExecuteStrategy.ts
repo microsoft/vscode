@@ -8,12 +8,15 @@ import { CancellationError } from '../../../../../../base/common/errors.js';
 import { Emitter, Event } from '../../../../../../base/common/event.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../../../base/common/lifecycle.js';
 import { isNumber } from '../../../../../../base/common/types.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
+import { isCI, isMacintosh } from '../../../../../../base/common/platform.js';
 import type { ICommandDetectionCapability } from '../../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { ITerminalLogService } from '../../../../../../platform/terminal/common/terminal.js';
 import type { ITerminalInstance } from '../../../../terminal/browser/terminal.js';
 import { trackIdleOnPrompt, type ITerminalExecuteStrategy, type ITerminalExecuteStrategyResult } from './executeStrategy.js';
 import type { IMarker as IXtermMarker } from '@xterm/xterm';
-import { createAltBufferPromise, setupRecreatingStartMarker } from './strategyHelpers.js';
+import { createAltBufferPromise, setupRecreatingStartMarker, stripCommandEchoAndPrompt } from './strategyHelpers.js';
+import { TerminalChatAgentToolsSettingId } from '../../common/terminalChatAgentToolsConfiguration.js';
 
 /**
  * This strategy is used when the terminal has rich shell integration/command detection is
@@ -32,13 +35,19 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 	constructor(
 		private readonly _instance: ITerminalInstance,
 		private readonly _commandDetection: ICommandDetectionCapability,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 	) {
 		super();
 	}
 
-	async execute(commandLine: string, token: CancellationToken, commandId?: string): Promise<ITerminalExecuteStrategyResult> {
+	async execute(commandLine: string, token: CancellationToken, commandId?: string, commandLineForMetadata?: string): Promise<ITerminalExecuteStrategyResult> {
 		const store = new DisposableStore();
+		// Register the store with this strategy's disposable chain so that if
+		// the strategy is disposed while execute() is still running (e.g. the
+		// session is torn down), accumulated Event.toPromise listeners on
+		// shared emitters like onCommandFinished are cleaned up immediately.
+		this._register(store);
 		try {
 			// Ensure xterm is available
 			this._log('Waiting for xterm');
@@ -47,6 +56,8 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 				throw new Error('Xterm is not available');
 			}
 			const alternateBufferPromise = createAltBufferPromise(xterm, store, this._log.bind(this));
+
+			const idlePollInterval = this._configurationService.getValue<number>(TerminalChatAgentToolsSettingId.IdlePollInterval) ?? 1000;
 
 			const onDone = Promise.race([
 				Event.toPromise(this._commandDetection.onCommandFinished, store).then(e => {
@@ -63,12 +74,12 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 					this._log('onDone via terminal disposal');
 					return { type: 'disposal' } as const;
 				}),
-				trackIdleOnPrompt(this._instance, 1000, store).then(() => {
+				trackIdleOnPrompt(this._instance, idlePollInterval, store, idlePollInterval).then(() => {
 					this._log('onDone via idle prompt');
 				}),
 			]);
 
-			setupRecreatingStartMarker(
+			const markerRecreation = setupRecreatingStartMarker(
 				xterm,
 				this._startMarker,
 				m => this._onDidCreateStartMarker.fire(m),
@@ -78,7 +89,9 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 
 			// Execute the command
 			this._log(`Executing command line \`${commandLine}\``);
-			this._instance.runCommand(commandLine, true, commandId);
+			markerRecreation.dispose();
+			const forceBracketedPasteMode = isMacintosh;
+			this._instance.runCommand(commandLine, true, commandId, forceBracketedPasteMode, commandLineForMetadata);
 
 			// Wait for the terminal to idle
 			this._log('Waiting for done event');
@@ -109,13 +122,23 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 				const commandOutput = finishedCommand?.getOutput();
 				if (commandOutput !== undefined) {
 					this._log('Fetched output via finished command');
-					output = commandOutput;
+					// On some platforms (e.g. Windows/PowerShell), shell integration
+					// markers can misfire and getOutput() includes the command echo.
+					// Strip it defensively — the function is a no-op when the output
+					// is already clean.
+					output = stripCommandEchoAndPrompt(commandOutput, commandLine, this._log.bind(this));
 				}
 			}
 			if (output === undefined) {
 				try {
 					output = xterm.getContentsAsText(this._startMarker.value, endMarker);
 					this._log('Fetched output via markers');
+
+					// The marker-based output includes the command echo and trailing
+					// prompt lines. Strip them to isolate the actual command output.
+					if (output !== undefined) {
+						output = stripCommandEchoAndPrompt(output, commandLine, this._log.bind(this));
+					}
 				} catch {
 					this._log('Failed to fetch output via markers');
 					additionalInformationLines.push('Failed to retrieve command output');
@@ -142,6 +165,11 @@ export class RichExecuteStrategy extends Disposable implements ITerminalExecuteS
 	}
 
 	private _log(message: string) {
-		this._logService.debug(`RunInTerminalTool#Rich: ${message}`);
+		const msg = `RunInTerminalTool#Rich: ${message}`;
+		if (isCI) {
+			this._logService.info(msg);
+		} else {
+			this._logService.debug(msg);
+		}
 	}
 }

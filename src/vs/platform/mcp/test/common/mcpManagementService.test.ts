@@ -4,14 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { VSBuffer } from '../../../../base/common/buffer.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
-import { AbstractCommonMcpManagementService } from '../../common/mcpManagementService.js';
-import { IGalleryMcpServer, IGalleryMcpServerConfiguration, IInstallableMcpServer, ILocalMcpServer, InstallOptions, RegistryType, TransportType, UninstallOptions } from '../../common/mcpManagement.js';
-import { McpServerType, McpServerVariableType, IMcpServerVariable } from '../../common/mcpPlatformTypes.js';
+import { DisposableStore } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
+import { AbstractCommonMcpManagementService, AbstractMcpResourceManagementService } from '../../common/mcpManagementService.js';
+import { IGalleryMcpServer, IGalleryMcpServerConfiguration, IInstallableMcpServer, ILocalMcpServer, IMcpGalleryService, InstallOptions, RegistryType, TransportType, UninstallOptions } from '../../common/mcpManagement.js';
+import { IMcpSandboxConfiguration, McpServerType, McpServerVariableType, IMcpServerConfiguration, IMcpServerVariable } from '../../common/mcpPlatformTypes.js';
 import { IMarkdownString } from '../../../../base/common/htmlContent.js';
 import { Event } from '../../../../base/common/event.js';
 import { URI } from '../../../../base/common/uri.js';
+import { ConfigurationTarget } from '../../../configuration/common/configuration.js';
+import { FileService } from '../../../files/common/fileService.js';
+import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
+import { McpResourceScannerService } from '../../common/mcpResourceScannerService.js';
+import { UriIdentityService } from '../../../uriIdentity/common/uriIdentityService.js';
 
 class TestMcpManagementService extends AbstractCommonMcpManagementService {
 
@@ -38,6 +46,44 @@ class TestMcpManagementService extends AbstractCommonMcpManagementService {
 	}
 
 	override canInstall(server: IGalleryMcpServer | IInstallableMcpServer): true | IMarkdownString {
+		throw new Error('Not supported');
+	}
+}
+
+class TestMcpResourceManagementService extends AbstractMcpResourceManagementService {
+	constructor(mcpResource: URI, fileService: FileService, uriIdentityService: UriIdentityService, mcpResourceScannerService: McpResourceScannerService) {
+		super(
+			mcpResource,
+			ConfigurationTarget.USER,
+			{} as IMcpGalleryService,
+			fileService,
+			uriIdentityService,
+			new NullLogService(),
+			mcpResourceScannerService,
+		);
+	}
+
+	public reload(): Promise<void> {
+		return this.updateLocal();
+	}
+
+	override canInstall(_server: IGalleryMcpServer | IInstallableMcpServer): true | IMarkdownString {
+		throw new Error('Not supported');
+	}
+
+	protected override getLocalServerInfo(_name: string, _mcpServerConfig: IMcpServerConfiguration) {
+		return Promise.resolve(undefined);
+	}
+
+	protected override installFromUri(_uri: URI): Promise<ILocalMcpServer> {
+		throw new Error('Not supported');
+	}
+
+	override installFromGallery(_server: IGalleryMcpServer, _options?: InstallOptions): Promise<ILocalMcpServer> {
+		throw new Error('Not supported');
+	}
+
+	override updateMetadata(_local: ILocalMcpServer, _server: IGalleryMcpServer): Promise<ILocalMcpServer> {
 		throw new Error('Not supported');
 	}
 }
@@ -1071,5 +1117,76 @@ suite('McpManagementService - getMcpServerConfigurationFromManifest', () => {
 				assert.strictEqual(result.mcpServerConfiguration.config.env?.['API_KEY'], 'Bearer ${input:api_key}');
 			}
 		});
+	});
+});
+
+suite('McpResourceManagementService', () => {
+	const mcpResource = URI.from({ scheme: Schemas.inMemory, path: '/mcp.json' });
+	let disposables: DisposableStore;
+	let fileService: FileService;
+	let service: TestMcpResourceManagementService;
+
+	setup(async () => {
+		disposables = new DisposableStore();
+		fileService = disposables.add(new FileService(new NullLogService()));
+		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
+		const uriIdentityService = disposables.add(new UriIdentityService(fileService));
+		const scannerService = disposables.add(new McpResourceScannerService(fileService, uriIdentityService));
+		service = disposables.add(new TestMcpResourceManagementService(mcpResource, fileService, uriIdentityService, scannerService));
+
+		await fileService.writeFile(mcpResource, VSBuffer.fromString(JSON.stringify({
+			sandbox: {
+				network: { allowedDomains: ['example.com'] }
+			},
+			servers: {
+				test: {
+					type: 'stdio',
+					command: 'node',
+					sandboxEnabled: true
+				}
+			}
+		}, null, '\t')));
+	});
+
+	teardown(() => {
+		disposables.dispose();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('fires update when root sandbox changes', async () => {
+		const initial = await service.getInstalled();
+		assert.strictEqual(initial.length, 1);
+		assert.deepStrictEqual(initial[0].rootSandbox, {
+			network: { allowedDomains: ['example.com'] }
+		});
+
+		let updateCount = 0;
+		const updatePromise = new Promise<void>(resolve => disposables.add(service.onDidUpdateMcpServers(e => {
+			assert.strictEqual(e.length, 1);
+			updateCount++;
+			resolve();
+		})));
+
+		const updatedSandbox: IMcpSandboxConfiguration = {
+			network: { allowedDomains: ['changed.example.com'] }
+		};
+
+		await fileService.writeFile(mcpResource, VSBuffer.fromString(JSON.stringify({
+			sandbox: updatedSandbox,
+			servers: {
+				test: {
+					type: 'stdio',
+					command: 'node',
+					sandboxEnabled: true
+				}
+			}
+		}, null, '\t')));
+		await service.reload();
+		await updatePromise;
+		const updated = await service.getInstalled();
+
+		assert.strictEqual(updateCount, 1);
+		assert.deepStrictEqual(updated[0].rootSandbox, updatedSandbox);
 	});
 });

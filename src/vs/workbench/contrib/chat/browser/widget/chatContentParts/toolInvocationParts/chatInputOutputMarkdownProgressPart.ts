@@ -22,7 +22,7 @@ import { IChatCodeBlockInfo } from '../../../chat.js';
 import { IChatContentPartRenderContext } from '../chatContentParts.js';
 import { ChatCollapsibleInputOutputContentPart, ChatCollapsibleIOPart, IChatCollapsibleIOCodePart } from '../chatToolInputOutputContentPart.js';
 import { BaseChatToolInvocationSubPart } from './chatToolInvocationSubPart.js';
-import { getToolApprovalMessage } from './chatToolPartUtilities.js';
+import { getToolApprovalMessage, shouldShimmerForTool } from './chatToolPartUtilities.js';
 
 export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationSubPart {
 	/** Remembers expanded tool parts on re-render */
@@ -42,6 +42,7 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 		message: string | IMarkdownString,
 		subtitle: string | IMarkdownString | undefined,
 		input: string,
+		inputLanguage: string | undefined,
 		output: IToolResultInputOutputDetails['output'] | undefined,
 		isError: boolean,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -54,10 +55,10 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 		let codeBlockIndex = codeBlockStartIndex;
 
 		// Simple factory to create code part data objects
-		const createCodePart = (data: string): IChatCollapsibleIOCodePart => ({
+		const createCodePart = (data: string, languageId = 'json'): IChatCollapsibleIOCodePart => ({
 			kind: 'code',
 			data,
-			languageId: 'json',
+			languageId,
 			codeBlockIndex: codeBlockIndex++,
 			ownerMarkdownPartId: this.codeblocksPartId,
 			options: {
@@ -82,7 +83,7 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 			subtitle,
 			this.getAutoApproveMessageContent(),
 			context,
-			createCodePart(input),
+			createCodePart(input, inputLanguage),
 			processedOutput && processedOutput.length > 0 ? {
 				parts: processedOutput.map((o, i): ChatCollapsibleIOPart => {
 					const permalinkBasename = o.type === 'ref' || o.uri
@@ -115,6 +116,7 @@ export class ChatInputOutputMarkdownProgressPart extends BaseChatToolInvocationS
 			// otherwise use the stored expanded state (defaulting to false)
 			(isError && configurationService.getValue<boolean>(ChatConfiguration.AutoExpandToolFailures)) ||
 			(ChatInputOutputMarkdownProgressPart._expandedByDefault.get(toolInvocation) ?? false),
+			shouldShimmerForTool(toolInvocation),
 		));
 		this._register(toDisposable(() => ChatInputOutputMarkdownProgressPart._expandedByDefault.set(toolInvocation, collapsibleListPart.expanded)));
 

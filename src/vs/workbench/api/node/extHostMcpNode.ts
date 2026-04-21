@@ -73,6 +73,11 @@ export class NodeExtHostMpcService extends ExtHostMcpService {
 			}
 		}
 		for (const [key, value] of Object.entries(launch.env)) {
+			// For PATH, we want to append to the existing PATH instead of overwriting it.
+			if (key.toUpperCase() === 'PATH' && value !== null) {
+				env[key] = env[key] ? `${env[key]}${path.delimiter}${String(value)}` : String(value);
+				continue;
+			}
 			env[key] = value === null ? undefined : String(value);
 		}
 

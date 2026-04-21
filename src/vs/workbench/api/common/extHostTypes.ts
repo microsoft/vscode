@@ -5,7 +5,7 @@
 
 import type * as vscode from 'vscode';
 import { asArray } from '../../../base/common/arrays.js';
-import { VSBuffer } from '../../../base/common/buffer.js';
+import { encodeBase64, VSBuffer } from '../../../base/common/buffer.js';
 import { illegalArgument, SerializedError } from '../../../base/common/errors.js';
 import { IRelativePattern } from '../../../base/common/glob.js';
 import { MarshalledId } from '../../../base/common/marshallingIds.js';
@@ -1273,6 +1273,12 @@ export enum ShellQuoting {
 export enum TaskScope {
 	Global = 1,
 	Workspace = 2
+}
+
+export enum TaskRunOn {
+	Default = 1,
+	FolderOpen = 2,
+	WorktreeCreated = 3,
 }
 
 export class CustomExecution implements vscode.CustomExecution {
@@ -3524,6 +3530,7 @@ export class ChatRequestTurn implements vscode.ChatRequestTurn2 {
 		readonly editedFileEvents?: vscode.ChatRequestEditedFileEvent[],
 		readonly id?: string,
 		readonly modelId?: string,
+		readonly modeInstructions2?: vscode.ChatRequestModeInstructions,
 	) { }
 }
 
@@ -3561,6 +3568,17 @@ export enum ChatSessionStatus {
 	NeedsInput = 3
 }
 
+export class ChatSessionCustomizationType {
+	static readonly Agent = new ChatSessionCustomizationType('agent');
+	static readonly Skill = new ChatSessionCustomizationType('skill');
+	static readonly Instructions = new ChatSessionCustomizationType('instructions');
+	static readonly Prompt = new ChatSessionCustomizationType('prompt');
+	static readonly Hook = new ChatSessionCustomizationType('hook');
+	static readonly Plugins = new ChatSessionCustomizationType('plugins');
+
+	constructor(public readonly id: string) { }
+}
+
 export enum ChatDebugLogLevel {
 	Trace = 0,
 	Info = 1,
@@ -3571,6 +3589,12 @@ export enum ChatDebugLogLevel {
 export enum ChatDebugToolCallResult {
 	Success = 0,
 	Error = 1
+}
+
+export enum ChatDebugHookResult {
+	Success = 0,
+	Error = 1,
+	NonBlockingError = 2
 }
 
 export class ChatDebugToolCallEvent {
@@ -3750,11 +3774,23 @@ export class ChatDebugEventModelTurnContent {
 	}
 }
 
-export class ChatSessionChangedFile {
-	constructor(public readonly modifiedUri: vscode.Uri, public readonly insertions: number, public readonly deletions: number, public readonly originalUri?: vscode.Uri) { }
+export class ChatDebugEventHookContent {
+	readonly _kind = 'hookContent';
+	hookType: string;
+	command?: string;
+	result?: ChatDebugHookResult;
+	durationInMillis?: number;
+	input?: string;
+	output?: string;
+	exitCode?: number;
+	errorMessage?: string;
+
+	constructor(hookType: string) {
+		this.hookType = hookType;
+	}
 }
 
-export class ChatSessionChangedFile2 {
+export class ChatSessionChangedFile {
 	constructor(public readonly uri: vscode.Uri, public readonly originalUri: vscode.Uri | undefined, public readonly modifiedUri: vscode.Uri | undefined, public readonly insertions: number, public readonly deletions: number) { }
 }
 
@@ -3987,7 +4023,7 @@ export class LanguageModelDataPart implements vscode.LanguageModelDataPart2 {
 		return {
 			$mid: MarshalledId.LanguageModelDataPart,
 			mimeType: this.mimeType,
-			data: this.data,
+			data: encodeBase64(VSBuffer.wrap(this.data)),
 			audience: this.audience
 		};
 	}

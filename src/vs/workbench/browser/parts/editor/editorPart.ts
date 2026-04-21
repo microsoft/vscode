@@ -34,7 +34,7 @@ import { IBoundarySashes } from '../../../../base/browser/ui/sash/sash.js';
 import { IHostService } from '../../../services/host/browser/host.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { ServiceCollection } from '../../../../platform/instantiation/common/serviceCollection.js';
-import { EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext } from '../../../common/contextkeys.js';
+import { EditorPartMaximizedEditorGroupContext, EditorPartMultipleEditorGroupsContext, EditorTabsVisibleContext } from '../../../common/contextkeys.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 
 export interface IEditorPartUIState {
@@ -168,7 +168,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 		readonly windowId: number,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
-		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@IConfigurationService protected readonly configurationService: IConfigurationService,
 		@IStorageService storageService: IStorageService,
 		@IWorkbenchLayoutService layoutService: IWorkbenchLayoutService,
 		@IHostService private readonly hostService: IHostService,
@@ -237,9 +237,14 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 	}
 
 	readonly sideGroup: IEditorSideGroup = {
-		openEditor: (editor, options) => {
-			const [group] = this.scopedInstantiationService.invokeFunction(accessor => findGroup(accessor, { editor, options }, SIDE_GROUP));
-
+		openEditor: async (editor, options) => {
+			const findGroupResult = this.scopedInstantiationService.invokeFunction(accessor => findGroup(accessor, { editor, options }, SIDE_GROUP));
+			let group;
+			if (findGroupResult instanceof Promise) {
+				([group] = await findGroupResult);
+			} else {
+				([group] = findGroupResult);
+			}
 			return group.openEditor(editor, options);
 		}
 	};
@@ -1039,6 +1044,7 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 	protected handleContextKeys(): void {
 		const multipleEditorGroupsContext = EditorPartMultipleEditorGroupsContext.bindTo(this.scopedContextKeyService);
 		const maximizedEditorGroupContext = EditorPartMaximizedEditorGroupContext.bindTo(this.scopedContextKeyService);
+		const editorTabsVisibleContext = EditorTabsVisibleContext.bindTo(this.scopedContextKeyService);
 
 		const updateContextKeys = () => {
 			const groupCount = this.count;
@@ -1055,11 +1061,17 @@ export class EditorPart extends Part<IEditorPartMemento> implements IEditorPart,
 			}
 		};
 
+		const updateEditorTabsVisibleContext = () => {
+			editorTabsVisibleContext.set(this.partOptions.showTabs === 'multiple');
+		};
+
 		updateContextKeys();
+		updateEditorTabsVisibleContext();
 
 		this._register(this.onDidAddGroup(() => updateContextKeys()));
 		this._register(this.onDidRemoveGroup(() => updateContextKeys()));
 		this._register(this.onDidChangeGroupMaximized(() => updateContextKeys()));
+		this._register(this.onDidChangeEditorPartOptions(() => updateEditorTabsVisibleContext()));
 	}
 
 	private setupDragAndDropSupport(parent: HTMLElement, container: HTMLElement): void {

@@ -8,11 +8,14 @@ import { CancellationError } from '../../../../../../base/common/errors.js';
 import { MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { IJSONSchema, IJSONSchemaMap } from '../../../../../../base/common/jsonSchema.js';
 import { Disposable } from '../../../../../../base/common/lifecycle.js';
+import { hasKey } from '../../../../../../base/common/types.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
-import { IChatQuestion, IChatService } from '../../chatService/chatService.js';
+import { IChatQuestion, IChatQuestionAnswers, IChatQuestionAnswerValue, IChatMultiSelectAnswer, IChatService, IChatSingleSelectAnswer, IChatToolInvocation } from '../../chatService/chatService.js';
 import { ChatQuestionCarouselData } from '../../model/chatProgressTypes/chatQuestionCarouselData.js';
 import { IChatRequestModel } from '../../model/chatModel.js';
+import { ChatConfiguration, ChatPermissionLevel } from '../../constants.js';
+import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { StopWatch } from '../../../../../../base/common/stopwatch.js';
 import { ILogService } from '../../../../../../platform/log/common/log.js';
 import { ITelemetryService } from '../../../../../../platform/telemetry/common/telemetry.js';
@@ -21,6 +24,13 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { Codicon } from '../../../../../../base/common/codicons.js';
 import { raceCancellation } from '../../../../../../base/common/async.js';
 import { URI } from '../../../../../../base/common/uri.js';
+import { TerminalToolId } from '../terminalToolIds.js';
+
+/**
+ * Response returned to the model when the user is not available (autopilot mode).
+ */
+export const AUTOPILOT_ASK_USER_RESPONSE =
+	'The user is not available to respond and will review your work later. Work autonomously and make good decisions.';
 
 // Use a distinct id to avoid clashing with extension-provided tools
 export const AskQuestionsToolId = 'vscode_askQuestions';
@@ -53,22 +63,6 @@ function truncateToLimit(value: string | undefined, limit: number): string | und
 	return value;
 }
 
-export function formatHeaderForDisplay(header: string): string {
-	const normalized = header
-		.trim()
-		.replace(/[_-]+/g, ' ')
-		.replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-		.replace(/([A-Z]+)([A-Z][a-z])/g, '$1 $2')
-		.replace(/\s+/g, ' ')
-		.trim();
-
-	if (!normalized) {
-		return header;
-	}
-
-	return normalized.charAt(0).toUpperCase() + normalized.slice(1).toLowerCase();
-}
-
 export interface IQuestionOption {
 	readonly label: string;
 	readonly description?: string;
@@ -78,6 +72,7 @@ export interface IQuestionOption {
 export interface IQuestion {
 	readonly header: string;
 	readonly question: string;
+	readonly message?: string;
 	readonly multiSelect?: boolean;
 	readonly options?: IQuestionOption[];
 	readonly allowFreeformInput?: boolean;
@@ -117,7 +112,11 @@ export function createAskQuestionsToolData(): IToolData {
 			},
 			allowFreeformInput: {
 				type: 'boolean',
-				description: 'Allow freeform text answers in addition to option selection.'
+				description: 'Allow freeform text answers in addition to option selection. Defaults to true; set to false to restrict to predefined options only.'
+			},
+			message: {
+				type: 'string',
+				description: 'Optional markdown message to display below the question text, providing additional context or details.'
 			},
 			options: {
 				type: 'array',
@@ -166,7 +165,7 @@ export function createAskQuestionsToolData(): IToolData {
 		icon: ThemeIcon.fromId(Codicon.question.id),
 		displayName: localize('tool.askQuestions.displayName', 'Ask Clarifying Questions'),
 		userDescription: localize('tool.askQuestions.userDescription', 'Ask structured clarifying questions using single select, multi-select, or freeform inputs to collect task requirements before proceeding.'),
-		modelDescription: 'Use this tool to ask the user a small number of clarifying questions before proceeding. Provide the questions array with concise headers and prompts. Use options for fixed choices, set multiSelect when multiple selections are allowed, and set allowFreeformInput to let users supply their own answer.',
+		modelDescription: 'Use this tool to ask the user a small number of clarifying questions before proceeding. Provide the questions array with concise headers and prompts. Use options for fixed choices, set multiSelect when multiple selections are allowed. Users can always provide a freeform text answer alongside options unless you set allowFreeformInput to false.',
 		source: ToolDataSource.Internal,
 		inputSchema
 	};
@@ -180,6 +179,7 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 		@IChatService private readonly chatService: IChatService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService,
+		@IConfigurationService private readonly configService: IConfigurationService,
 	) {
 		super();
 	}
@@ -203,7 +203,23 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 			return this.createSkippedResult(questions);
 		}
 
+		// In autopilot mode or when auto-reply is enabled, the user is not available —
+		// auto-respond instead of blocking. Still append a completed carousel so the
+		// user can see what was skipped.
+		if (request.modeInfo?.permissionLevel === ChatPermissionLevel.Autopilot || this.configService.getValue<boolean>(ChatConfiguration.AutoReply)) {
+			const reason = request.modeInfo?.permissionLevel === ChatPermissionLevel.Autopilot ? 'Autopilot mode' : 'Auto-reply enabled';
+			this.logService.info(`[AskQuestionsTool] ${reason}: auto-responding to questions`);
+			const { carousel, idToHeaderMap } = this.toQuestionCarousel(questions);
+			carousel.terminalId = this.extractTerminalId(request);
+			carousel.data = this.buildAutopilotCarouselAnswers(questions, carousel, idToHeaderMap);
+			carousel.isUsed = true;
+			this.chatService.appendProgress(request, carousel);
+			return this.createAutopilotResult(questions);
+		}
+
 		const { carousel, idToHeaderMap } = this.toQuestionCarousel(questions);
+		carousel.terminalId = this.extractTerminalId(request);
+		this.logService.trace(`[AskQuestionsTool] request=${request.id} terminalExecutionId=${request.terminalExecutionId ?? 'undefined'} carousel.terminalId=${carousel.terminalId ?? 'undefined'}`);
 		this.chatService.appendProgress(request, carousel);
 
 		const answerResult = await raceCancellation(carousel.completion.p, token);
@@ -211,7 +227,19 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 			throw new CancellationError();
 		}
 
-		progress.report({ message: localize('askQuestionsTool.progress', 'Reviewing your answers') });
+		// When the user typed directly in the terminal (bypassing the carousel),
+		// tell the agent to stop asking questions and wait for the command to finish.
+		if (carousel.dismissedByTerminalInput && carousel.terminalId) {
+			this.logService.info(`[AskQuestionsTool] Carousel dismissed because user typed directly in terminal ${carousel.terminalId}`);
+			return {
+				content: [{
+					kind: 'text',
+					value: `The user is replying to the terminal prompts directly. Do not ask more questions or send input to the terminal. You will be automatically notified when the command in terminal ${carousel.terminalId} completes.`
+				}]
+			};
+		}
+
+		progress.report({ message: localize('askQuestionsTool.progress', 'Analyzing your answers...') });
 
 		const converted = this.convertCarouselAnswers(questions, answerResult?.answers, idToHeaderMap);
 		const { answeredCount, skippedCount, freeTextCount, recommendedAvailableCount, recommendedSelectedCount } = this.collectMetrics(questions, converted);
@@ -284,6 +312,50 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 		return { request, sessionResource: chatSessionResource };
 	}
 
+	/**
+	 * Resolves the terminal execution ID for the request.
+	 * Prefer structured metadata and fall back to legacy message parsing for
+	 * old sessions that may not carry the metadata yet.
+	 * As a final fallback, search completed runInTerminal tool invocations in
+	 * the response for the terminal ID (foreground/timeout path where the
+	 * model calls ask_questions from the same turn as runInTerminal).
+	 */
+	private extractTerminalId(request: IChatRequestModel): string | undefined {
+		if (request.terminalExecutionId) {
+			return request.terminalExecutionId;
+		}
+
+		const match = request.message.text.match(/\[Terminal (?<termId>\S+) notification:/);
+		if (match?.groups?.termId) {
+			return match.groups.termId;
+		}
+
+		// Search completed runInTerminal tool invocations in the response
+		// for the terminal execution ID (covers foreground/timeout path).
+		const response = request.response;
+		if (response) {
+			const parts = response.response.value;
+			for (let i = parts.length - 1; i >= 0; i--) {
+				const part = parts[i];
+				if (part.kind === 'toolInvocation' && part.toolId === TerminalToolId.RunInTerminal) {
+					const state = part.state.get();
+					if (state.type === IChatToolInvocation.StateKind.Completed && state.contentForModel) {
+						for (const item of state.contentForModel) {
+							if (item.kind === 'text') {
+								const idMatch = item.value.match(/terminal ID ([0-9a-fA-F-]+)/);
+								if (idMatch) {
+									return idMatch[1];
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+
+		return undefined;
+	}
+
 	private toQuestionCarousel(questions: IQuestion[]): { carousel: ChatQuestionCarouselData; idToHeaderMap: Map<string, string> } {
 		const idToHeaderMap = new Map<string, string>();
 		const mappedQuestions = questions.map(question => this.toChatQuestion(question, idToHeaderMap));
@@ -316,26 +388,26 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 		const internalId = generateUuid();
 		idToHeaderMap.set(internalId, question.header);
 
-		// Format + truncate header for display only; preserve original header for answer correlation
-		const formattedHeader = formatHeaderForDisplay(question.header);
-		const displayTitle = truncateToLimit(formattedHeader, HardLimits.header) ?? formattedHeader;
+		// Truncate header for display only
+		const displayTitle = truncateToLimit(question.header, HardLimits.header) ?? question.header;
 
 		return {
 			id: internalId,
 			type,
 			title: displayTitle,
 			message: question.question,
+			detailedMessage: question.message,
 			options: question.options?.map(opt => ({
 				id: opt.label,
 				label: opt.description ? `${opt.label} - ${opt.description}` : opt.label,
 				value: opt.label
 			})),
 			defaultValue,
-			allowFreeformInput: question.allowFreeformInput ?? false
+			allowFreeformInput: question.allowFreeformInput ?? true
 		};
 	}
 
-	protected convertCarouselAnswers(questions: IQuestion[], carouselAnswers: Record<string, unknown> | undefined, idToHeaderMap: Map<string, string>): IAnswerResult {
+	protected convertCarouselAnswers(questions: IQuestion[], carouselAnswers: IChatQuestionAnswers | undefined, idToHeaderMap: Map<string, string>): IAnswerResult {
 		const result: IAnswerResult = { answers: {} };
 
 		if (carouselAnswers) {
@@ -361,7 +433,7 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 
 			// Look up the answer using the internal ID that was used in the carousel
 			const internalId = headerToIdMap.get(question.header);
-			const answer = internalId ? carouselAnswers[internalId] : undefined;
+			const answer: IChatQuestionAnswerValue | undefined = internalId ? carouselAnswers[internalId] : undefined;
 			this.logService.trace(`[AskQuestionsTool] Processing question "${question.header}" (internal ID: ${internalId}), raw answer: ${JSON.stringify(answer)}, type: ${typeof answer}`);
 
 			if (answer === undefined) {
@@ -390,67 +462,36 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 					freeText: null,
 					skipped: false
 				};
-			} else if (typeof answer === 'object' && answer !== null) {
-				const answerObj = answer as Record<string, unknown>;
-				const freeformValue = typeof answerObj.freeformValue === 'string' && answerObj.freeformValue ? answerObj.freeformValue : null;
-				const selectedValues = Array.isArray(answerObj.selectedValues) ? answerObj.selectedValues.map(v => String(v)) : undefined;
-				const selectedValue = answerObj.selectedValue;
-				const label = typeof answerObj.label === 'string' ? answerObj.label : undefined;
-
-				if (selectedValues) {
-					result.answers[question.header] = {
-						selected: selectedValues,
-						freeText: freeformValue,
-						skipped: false
-					};
-				} else if (typeof selectedValue === 'string') {
-					if (question.options?.some(opt => opt.label === selectedValue)) {
-						result.answers[question.header] = {
-							selected: [selectedValue],
-							freeText: freeformValue,
-							skipped: false
-						};
-					} else {
-						result.answers[question.header] = {
-							selected: [],
-							freeText: freeformValue ?? selectedValue,
-							skipped: false
-						};
-					}
-				} else if (Array.isArray(selectedValue)) {
-					result.answers[question.header] = {
-						selected: selectedValue.map(v => String(v)),
-						freeText: freeformValue,
-						skipped: false
-					};
-				} else if (selectedValue === undefined || selectedValue === null) {
-					if (freeformValue) {
-						result.answers[question.header] = {
-							selected: [],
-							freeText: freeformValue,
-							skipped: false
-						};
-					} else {
-						result.answers[question.header] = {
-							selected: [],
-							freeText: null,
-							skipped: true
-						};
-					}
-				} else if (freeformValue) {
+			} else if (typeof answer === 'object' && hasKey(answer, { selectedValues: true })) {
+				const { selectedValues, freeformValue } = answer as IChatMultiSelectAnswer;
+				result.answers[question.header] = {
+					selected: selectedValues,
+					freeText: freeformValue ?? null,
+					skipped: false
+				};
+			} else if (typeof answer === 'object' && (hasKey(answer, { selectedValue: true }) || hasKey(answer, { freeformValue: true }))) {
+				const { selectedValue, freeformValue } = answer as IChatSingleSelectAnswer;
+				if (freeformValue) {
 					result.answers[question.header] = {
 						selected: [],
 						freeText: freeformValue,
 						skipped: false
 					};
-				} else if (label) {
-					result.answers[question.header] = {
-						selected: [label],
-						freeText: null,
-						skipped: false
-					};
+				} else if (selectedValue !== undefined) {
+					if (question.options?.some(opt => opt.label === selectedValue)) {
+						result.answers[question.header] = {
+							selected: [selectedValue],
+							freeText: null,
+							skipped: false
+						};
+					} else {
+						result.answers[question.header] = {
+							selected: [],
+							freeText: selectedValue,
+							skipped: false
+						};
+					}
 				} else {
-					this.logService.warn(`[AskQuestionsTool] Unknown answer object format for "${question.header}": ${JSON.stringify(answer)}`);
 					result.answers[question.header] = {
 						selected: [],
 						freeText: null,
@@ -458,7 +499,7 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 					};
 				}
 			} else {
-				this.logService.warn(`[AskQuestionsTool] Unknown answer format for "${question.header}": ${typeof answer}`);
+				this.logService.warn(`[AskQuestionsTool] Unknown answer format for "${question.header}": ${JSON.stringify(answer)}`);
 				result.answers[question.header] = {
 					selected: [],
 					freeText: null,
@@ -492,6 +533,63 @@ export class AskQuestionsTool extends Disposable implements IToolImpl {
 		return {
 			content: [{ kind: 'text', value: JSON.stringify({ answers: skippedAnswers }) }]
 		};
+	}
+
+	private createAutopilotResult(questions: IQuestion[]): IToolResult {
+		const answers: Record<string, IQuestionAnswer> = {};
+		for (const question of questions) {
+			// Pick the recommended option if available, otherwise pick the first option
+			const recommended = question.options?.find(opt => opt.recommended);
+			const firstOption = question.options?.[0];
+			const selected = recommended?.label ?? firstOption?.label;
+			answers[question.header] = {
+				selected: selected ? [selected] : [],
+				freeText: selected ? null : AUTOPILOT_ASK_USER_RESPONSE,
+				skipped: false,
+			};
+		}
+		return {
+			content: [{ kind: 'text', value: JSON.stringify({ answers } satisfies IAnswerResult) }]
+		};
+	}
+
+	/**
+	 * Build carousel answer data keyed by carousel question IDs for rendering
+	 * the completed summary in the UI during autopilot mode.
+	 */
+	private buildAutopilotCarouselAnswers(questions: IQuestion[], carousel: ChatQuestionCarouselData, idToHeaderMap: Map<string, string>): IChatQuestionAnswers {
+		const data: IChatQuestionAnswers = {};
+		// Build reverse map: original header -> internal carousel question ID
+		const headerToIdMap = new Map<string, string>();
+		for (const [internalId, originalHeader] of idToHeaderMap) {
+			headerToIdMap.set(originalHeader, internalId);
+		}
+
+		for (const question of questions) {
+			const internalId = headerToIdMap.get(question.header);
+			if (!internalId) {
+				continue;
+			}
+
+			const chatQuestion = carousel.questions.find(q => q.id === internalId);
+			if (!chatQuestion) {
+				continue;
+			}
+
+			const recommended = question.options?.find(opt => opt.recommended);
+			const firstOption = question.options?.[0];
+			const selectedLabel = recommended?.label ?? firstOption?.label;
+
+			if (chatQuestion.type === 'text' || !selectedLabel) {
+				data[internalId] = AUTOPILOT_ASK_USER_RESPONSE;
+			} else if (chatQuestion.type === 'multiSelect') {
+				data[internalId] = { selectedValues: [selectedLabel] };
+			} else {
+				data[internalId] = { selectedValue: selectedLabel };
+			}
+		}
+
+		return data;
 	}
 
 	private sendTelemetry(requestId: string | undefined, questionCount: number, answeredCount: number, skippedCount: number, freeTextCount: number, recommendedAvailableCount: number, recommendedSelectedCount: number, duration: number): void {

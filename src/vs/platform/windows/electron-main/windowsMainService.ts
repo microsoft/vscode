@@ -17,7 +17,7 @@ import { Disposable, DisposableStore, IDisposable } from '../../../base/common/l
 import { Schemas } from '../../../base/common/network.js';
 import { basename, join, normalize, posix } from '../../../base/common/path.js';
 import { getMarks, mark } from '../../../base/common/performance.js';
-import { IProcessEnvironment, isMacintosh, isWindows, OS } from '../../../base/common/platform.js';
+import { INodeProcess, IProcessEnvironment, isMacintosh, isWindows, OS } from '../../../base/common/platform.js';
 import { cwd } from '../../../base/common/process.js';
 import { extUriBiasedIgnorePathCase, isEqual, isEqualAuthority, normalizePath, originalFSPath, removeTrailingPathSeparator } from '../../../base/common/resources.js';
 import { assertReturnsDefined } from '../../../base/common/types.js';
@@ -39,7 +39,7 @@ import { getRemoteAuthority } from '../../remote/common/remoteHosts.js';
 import { IStateService } from '../../state/node/state.js';
 import { IAddRemoveFoldersRequest, INativeOpenFileRequest, INativeWindowConfiguration, IOpenEmptyWindowOptions, IPath, IPathsToWaitFor, isFileToOpen, isFolderToOpen, isWorkspaceToOpen, IWindowOpenable, IWindowSettings } from '../../window/common/window.js';
 import { CodeWindow } from './windowImpl.js';
-import { IBaseOpenConfiguration, IOpenConfiguration, IOpenEmptyConfiguration, IWindowsCountChangedEvent, IWindowsMainService, OpenContext, getLastFocused } from './windows.js';
+import { IOpenConfiguration, IOpenEmptyConfiguration, IWindowsCountChangedEvent, IWindowsMainService, OpenContext, getLastFocused } from './windows.js';
 import { findWindowOnExtensionDevelopmentPath, findWindowOnFile, findWindowOnWorkspaceOrFolder } from './windowsFinder.js';
 import { IWindowState, WindowsStateHandler } from './windowsStateHandler.js';
 import { IRecent } from '../../workspaces/common/workspaces.js';
@@ -292,12 +292,17 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		this.handleChatRequest(openConfig, [window]);
 	}
 
-	async openSessionsWindow(openConfig: IBaseOpenConfiguration): Promise<ICodeWindow[]> {
-		this.logService.trace('windowsManager#openSessionsWindow');
+	async openAgentsWindow(openConfig: IOpenConfiguration): Promise<ICodeWindow[]> {
+		this.logService.trace('windowsManager#openAgentsWindow');
 
+		// Open in a new browser window with the agent sessions workspace
+		return this.open(await this.ensureAgentsWindow(openConfig));
+	}
+
+	private async ensureAgentsWindow(openConfig: IOpenConfiguration): Promise<IOpenConfiguration> {
 		const agentSessionsWorkspaceUri = this.environmentMainService.agentSessionsWorkspace;
 		if (!agentSessionsWorkspaceUri) {
-			throw new Error('Sessions workspace is not configured');
+			throw new Error('Agents workspace is not configured');
 		}
 
 		// Ensure the workspace file exists
@@ -307,18 +312,26 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 			await this.fileService.writeFile(agentSessionsWorkspaceUri, VSBuffer.fromString(emptyWorkspaceContent));
 		}
 
-		// Open in a new browser window with the agent sessions workspace
-		return this.open({
-			...openConfig,
+		return {
 			urisToOpen: [{ workspaceUri: agentSessionsWorkspaceUri }],
-			cli: this.environmentMainService.args,
-			forceNewWindow: true,
+			userEnv: openConfig.userEnv,
+			cli: openConfig.cli,
 			noRecentEntry: true,
-		});
+			context: openConfig.context,
+			contextWindowId: openConfig.contextWindowId,
+			initialStartup: openConfig.initialStartup,
+			forceNewWindow: openConfig.forceNewWindow,
+		};
 	}
 
 	async open(openConfig: IOpenConfiguration): Promise<ICodeWindow[]> {
 		this.logService.trace('windowsManager#open');
+
+		// Take care of agents app specially
+		const isAgentsApp = (process as INodeProcess).isEmbeddedApp;
+		if (isAgentsApp) {
+			openConfig = await this.ensureAgentsWindow(openConfig);
+		}
 
 		// Make sure addMode/removeMode is only enabled if we have an active window
 		if ((openConfig.addMode || openConfig.removeMode) && (openConfig.initialStartup || !this.getLastActiveWindow())) {
@@ -388,7 +401,7 @@ export class WindowsMainService extends Disposable implements IWindowsMainServic
 		}
 
 		// These are windows to restore because of hot-exit or from previous session (only performed once on startup!)
-		if (openConfig.initialStartup) {
+		if (openConfig.initialStartup && !isAgentsApp /* skipped for agents app */) {
 
 			// Untitled workspaces are always restored
 			untitledWorkspacesToRestore.push(...this.workspacesManagementMainService.getUntitledWorkspaces());

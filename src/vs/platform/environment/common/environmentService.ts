@@ -148,6 +148,26 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	}
 
 	@memoize
+	get agentPluginsPath(): string {
+		const cliAgentPluginsDir = this.args['agent-plugins-dir'];
+		if (cliAgentPluginsDir) {
+			return resolve(cliAgentPluginsDir);
+		}
+
+		const vscodeAgentPlugins = env['VSCODE_AGENT_PLUGINS'];
+		if (vscodeAgentPlugins) {
+			return vscodeAgentPlugins;
+		}
+
+		const vscodePortable = env['VSCODE_PORTABLE'];
+		if (vscodePortable) {
+			return join(vscodePortable, 'agent-plugins');
+		}
+
+		return joinPath(this.userHome, this.productService.dataFolderName, 'agent-plugins').fsPath;
+	}
+
+	@memoize
 	get extensionDevelopmentLocationURI(): URI[] | undefined {
 		const extensionDevelopmentPaths = this.args.extensionDevelopmentPath;
 		if (Array.isArray(extensionDevelopmentPaths)) {
@@ -199,6 +219,14 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 		}
 
 		return false;
+	}
+
+	get skipBuiltinExtensions(): readonly string[] {
+		const value = env['VSCODE_SKIP_BUILTIN_EXTENSIONS'];
+		if (!value) {
+			return [];
+		}
+		return value.split(',').map(id => id.trim()).filter(id => id);
 	}
 
 	@memoize
@@ -262,6 +290,10 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 
 	get exportPolicyData(): string | undefined {
 		return this.args['export-policy-data'];
+	}
+
+	get exportDefaultKeybindings(): string | undefined {
+		return this.args['export-default-keybindings'];
 	}
 
 	get continueOn(): string | undefined {

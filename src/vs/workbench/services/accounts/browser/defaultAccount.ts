@@ -172,10 +172,10 @@ export class DefaultAccountService extends Disposable implements IDefaultAccount
 		});
 	}
 
-	async refresh(): Promise<IDefaultAccount | null> {
+	async refresh(options?: { forceRefresh?: boolean }): Promise<IDefaultAccount | null> {
 		await this.initBarrier.wait();
 
-		const account = await this.defaultAccountProvider?.refresh();
+		const account = await this.defaultAccountProvider?.refresh(options);
 		this.setDefaultAccount(account ?? null);
 		return this.defaultAccount;
 	}
@@ -202,6 +202,7 @@ export class DefaultAccountService extends Disposable implements IDefaultAccount
 interface IAccountPolicyData {
 	readonly accountId: string;
 	readonly policyData: IPolicyData;
+	readonly entitlementsFetchedAt?: number;
 	readonly tokenEntitlementsFetchedAt?: number;
 	readonly mcpRegistryDataFetchedAt?: number;
 }
@@ -317,7 +318,10 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 	}
 
 	private async init(): Promise<void> {
-		if (isWeb && !this.environmentService.remoteAuthority) {
+		// Skip initialization for classic web-no-remote (vscode.dev editor), but
+		// still initialize for the agents web workbench (vscode.dev/agents) where
+		// account state drives the title bar and the welcome walkthrough.
+		if (isWeb && !this.environmentService.remoteAuthority && !this.environmentService.isSessionsWindow) {
 			this.logService.debug('[DefaultAccount] Running in web without remote, skipping initialization');
 			return;
 		}
@@ -379,12 +383,12 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 
 		this._register(this.hostService.onDidChangeFocus(focused => {
 			if (focused) {
-				this.refetchDefaultAccount(true);
+				this.refetchDefaultAccount();
 			}
 		}));
 	}
 
-	async refresh(): Promise<IDefaultAccount | null> {
+	async refresh(options?: { forceRefresh?: boolean }): Promise<IDefaultAccount | null> {
 		if (!this.initialized) {
 			await this.initPromise;
 			return this.defaultAccount;
@@ -392,11 +396,11 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 
 		this.logService.debug('[DefaultAccount] Refreshing default account');
 
-		await this.updateDefaultAccount();
+		await this.updateDefaultAccount(options);
 		return this.defaultAccount;
 	}
 
-	private async refetchDefaultAccount(useExistingEntitlements?: boolean): Promise<void> {
+	private async refetchDefaultAccount(): Promise<void> {
 		if (this.accountDataPollScheduler.isScheduled()) {
 			this.accountDataPollScheduler.cancel();
 		}
@@ -406,16 +410,16 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 			return;
 		}
 		this.logService.debug('[DefaultAccount] Refetching default account');
-		await this.updateDefaultAccount(useExistingEntitlements);
+		await this.updateDefaultAccount();
 	}
 
-	private async updateDefaultAccount(useExistingEntitlements?: boolean): Promise<void> {
-		await this.updateThrottler.trigger(() => this.doUpdateDefaultAccount(useExistingEntitlements));
+	private async updateDefaultAccount(options?: { forceRefresh?: boolean }): Promise<void> {
+		await this.updateThrottler.trigger(() => this.doUpdateDefaultAccount(options));
 	}
 
-	private async doUpdateDefaultAccount(useExistingEntitlements: boolean = false): Promise<void> {
+	private async doUpdateDefaultAccount(options?: { forceRefresh?: boolean }): Promise<void> {
 		try {
-			const defaultAccount = await this.fetchDefaultAccount(useExistingEntitlements);
+			const defaultAccount = await this.fetchDefaultAccount(options);
 			this.setDefaultAccount(defaultAccount);
 			this.scheduleAccountDataPoll();
 		} catch (error) {
@@ -423,7 +427,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		}
 	}
 
-	private async fetchDefaultAccount(useExistingEntitlements: boolean): Promise<IDefaultAccountData | null> {
+	private async fetchDefaultAccount(options?: { forceRefresh?: boolean }): Promise<IDefaultAccountData | null> {
 		const defaultAccountProvider = this.getDefaultAccountAuthenticationProvider();
 		this.logService.debug('[DefaultAccount] Default account provider ID:', defaultAccountProvider.id);
 
@@ -433,7 +437,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 			return null;
 		}
 
-		return await this.getDefaultAccountForAuthenticationProvider(defaultAccountProvider, useExistingEntitlements);
+		return await this.getDefaultAccountForAuthenticationProvider(defaultAccountProvider, options);
 	}
 
 	private setDefaultAccount(account: IDefaultAccountData | null): void {
@@ -510,7 +514,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		return result;
 	}
 
-	private async getDefaultAccountForAuthenticationProvider(authenticationProvider: IDefaultAccountAuthenticationProvider, useExistingEntitlements: boolean): Promise<IDefaultAccountData | null> {
+	private async getDefaultAccountForAuthenticationProvider(authenticationProvider: IDefaultAccountAuthenticationProvider, options?: { forceRefresh?: boolean }): Promise<IDefaultAccountData | null> {
 		try {
 			this.logService.debug('[DefaultAccount] Getting Default Account from authenticated sessions for provider:', authenticationProvider.id);
 			const sessions = await this.findMatchingProviderSession(authenticationProvider.id, this.defaultAccountConfig.authenticationProvider.scopes);
@@ -520,36 +524,34 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 				return null;
 			}
 
-			return this.getDefaultAccountFromAuthenticatedSessions(authenticationProvider, sessions, useExistingEntitlements);
+			return this.getDefaultAccountFromAuthenticatedSessions(authenticationProvider, sessions, options);
 		} catch (error) {
 			this.logService.error('[DefaultAccount] Failed to get default account for provider:', authenticationProvider.id, getErrorMessage(error));
 			return null;
 		}
 	}
 
-	private async getDefaultAccountFromAuthenticatedSessions(authenticationProvider: IDefaultAccountAuthenticationProvider, sessions: AuthenticationSession[], useExistingEntitlements: boolean): Promise<IDefaultAccountData | null> {
+	private async getDefaultAccountFromAuthenticatedSessions(authenticationProvider: IDefaultAccountAuthenticationProvider, sessions: AuthenticationSession[], options?: { forceRefresh?: boolean }): Promise<IDefaultAccountData | null> {
 		try {
 			const accountId = sessions[0].account.id;
-			const existingEntitlementsData = this._defaultAccount?.accountId === accountId ? this._defaultAccount?.defaultAccount.entitlementsData : undefined;
 			const accountPolicyData = this._policyData?.accountId === accountId ? this._policyData : undefined;
 
-			const [entitlementsData, tokenEntitlementsResult] = await Promise.all([
-				useExistingEntitlements && existingEntitlementsData ? existingEntitlementsData : this.getEntitlements(sessions),
-				this.getTokenEntitlements(sessions, accountPolicyData),
-			]);
+			const entitlementsResult = await this.getEntitlements(sessions, accountPolicyData, options);
+			const entitlementsData = entitlementsResult?.data;
+			const entitlementsFetchedAt = entitlementsResult?.fetchedAt;
+			const tokenEntitlementsResult = entitlementsData?.chat_enabled ? await this.getTokenEntitlements(sessions, accountPolicyData, options) : undefined;
 
-			let tokenEntitlementsFetchedAt: number | undefined;
+			const tokenEntitlementsFetchedAt: number | undefined = tokenEntitlementsResult?.fetchedAt;
 			let mcpRegistryDataFetchedAt: number | undefined;
 			let policyData: Mutable<IPolicyData> | undefined = accountPolicyData?.policyData ? { ...accountPolicyData.policyData } : undefined;
-			if (tokenEntitlementsResult) {
-				tokenEntitlementsFetchedAt = tokenEntitlementsResult.fetchedAt;
+			if (tokenEntitlementsResult?.data) {
 				const tokenEntitlementsData = tokenEntitlementsResult.data;
 				policyData = policyData ?? {};
 				policyData.chat_agent_enabled = tokenEntitlementsData.policyData.chat_agent_enabled;
 				policyData.chat_preview_features_enabled = tokenEntitlementsData.policyData.chat_preview_features_enabled;
 				policyData.mcp = tokenEntitlementsData.policyData.mcp;
 				if (policyData.mcp) {
-					const mcpRegistryResult = await this.getMcpRegistryProvider(sessions, accountPolicyData);
+					const mcpRegistryResult = await this.getMcpRegistryProvider(sessions, accountPolicyData, options);
 					mcpRegistryDataFetchedAt = mcpRegistryResult?.fetchedAt;
 					policyData.mcpRegistryUrl = mcpRegistryResult?.data?.url;
 					policyData.mcpAccess = mcpRegistryResult?.data?.registry_access;
@@ -567,11 +569,14 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 				entitlementsData,
 			};
 			this.logService.debug('[DefaultAccount] Successfully created default account for provider:', authenticationProvider.id);
+			const accountPolicyResult: IAccountPolicyData | null = policyData || entitlementsFetchedAt
+				? { accountId, policyData: policyData ?? {}, entitlementsFetchedAt, tokenEntitlementsFetchedAt, mcpRegistryDataFetchedAt }
+				: null;
 			return {
 				defaultAccount,
 				accountId,
-				policyData: policyData ? { accountId, policyData, tokenEntitlementsFetchedAt, mcpRegistryDataFetchedAt } : null,
-				copilotTokenInfo: tokenEntitlementsResult?.data.copilotTokenInfo ?? null,
+				policyData: accountPolicyResult,
+				copilotTokenInfo: tokenEntitlementsResult?.data?.copilotTokenInfo ?? null,
 			};
 		} catch (error) {
 			this.logService.error('[DefaultAccount] Failed to create default account for provider:', authenticationProvider.id, getErrorMessage(error));
@@ -627,13 +632,13 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		return expectedScopes.every(scope => scopes.includes(scope));
 	}
 
-	private async getTokenEntitlements(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined): Promise<{ data: { policyData: Partial<IPolicyData>; copilotTokenInfo: ICopilotTokenInfo }; fetchedAt: number } | undefined> {
-		if (accountPolicyData?.tokenEntitlementsFetchedAt && !this.isDataStale(accountPolicyData.tokenEntitlementsFetchedAt)) {
+	private async getTokenEntitlements(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined, options?: { forceRefresh?: boolean }): Promise<{ data: { policyData: Partial<IPolicyData>; copilotTokenInfo: ICopilotTokenInfo } | undefined; fetchedAt: number }> {
+		if (!options?.forceRefresh && accountPolicyData?.tokenEntitlementsFetchedAt && !this.isDataStale(accountPolicyData.tokenEntitlementsFetchedAt)) {
 			this.logService.debug('[DefaultAccount] Using last fetched token entitlements data');
 			return { data: { policyData: accountPolicyData.policyData, copilotTokenInfo: this._copilotTokenInfo ?? {} }, fetchedAt: accountPolicyData.tokenEntitlementsFetchedAt };
 		}
 		const data = await this.requestTokenEntitlements(sessions);
-		return data ? { data, fetchedAt: Date.now() } : undefined;
+		return { data, fetchedAt: Date.now() };
 	}
 
 	private async requestTokenEntitlements(sessions: AuthenticationSession[]): Promise<{ policyData: Partial<IPolicyData>; copilotTokenInfo: ICopilotTokenInfo } | undefined> {
@@ -644,7 +649,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		}
 
 		this.logService.debug('[DefaultAccount] Fetching token entitlements from:', tokenEntitlementsUrl);
-		const response = await this.request(tokenEntitlementsUrl, 'GET', undefined, sessions, CancellationToken.None);
+		const response = await this.request(tokenEntitlementsUrl, 'GET', undefined, sessions, CancellationToken.None, 'defaultAccount.tokenEntitlements');
 		if (!response) {
 			return undefined;
 		}
@@ -663,8 +668,8 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 						// Editor preview features are disabled if the flag is present and set to 0
 						chat_preview_features_enabled: tokenMap.get('editor_preview_features') !== '0',
 						chat_agent_enabled: tokenMap.get('agent_mode') !== '0',
-						// MCP is disabled if the flag is present and set to 0
-						mcp: tokenMap.get('mcp') !== '0',
+						// MCP is only enabled if the flag is explicitly present and set to 1
+						mcp: tokenMap.get('mcp') === '1',
 					},
 					copilotTokenInfo: {
 						sn: tokenMap.get('sn'),
@@ -680,41 +685,49 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		return undefined;
 	}
 
-	private async getEntitlements(sessions: AuthenticationSession[]): Promise<IEntitlementsData | undefined | null> {
+	private async getEntitlements(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined, options?: { forceRefresh?: boolean }): Promise<{ data: IEntitlementsData | undefined | null; fetchedAt: number | undefined }> {
+		const accountId = sessions[0].account.id;
+		const existingData = this._defaultAccount?.accountId === accountId ? this._defaultAccount?.defaultAccount.entitlementsData : undefined;
+		if (!options?.forceRefresh && existingData && accountPolicyData?.entitlementsFetchedAt && !this.isDataStale(accountPolicyData.entitlementsFetchedAt)) {
+			this.logService.debug('[DefaultAccount] Using last fetched entitlements data');
+			return { data: existingData, fetchedAt: accountPolicyData.entitlementsFetchedAt };
+		}
+
 		const entitlementUrl = this.getEntitlementUrl();
 		if (!entitlementUrl) {
 			this.logService.debug('[DefaultAccount] No chat entitlements URL found');
-			return undefined;
+			return { data: undefined, fetchedAt: undefined };
 		}
 
 		this.logService.debug('[DefaultAccount] Fetching entitlements from:', entitlementUrl);
-		const response = await this.request(entitlementUrl, 'GET', undefined, sessions, CancellationToken.None);
+		const response = await this.request(entitlementUrl, 'GET', undefined, sessions, CancellationToken.None, 'defaultAccount.entitlements');
 		if (!response) {
-			return undefined;
+			return { data: undefined, fetchedAt: Date.now() };
 		}
 
 		if (response.res.statusCode && response.res.statusCode !== 200) {
 			this.logService.trace(`[DefaultAccount] unexpected status code ${response.res.statusCode} while fetching entitlements`);
-			return (
+			const data = (
 				response.res.statusCode === 401 || 	// oauth token being unavailable (expired/revoked)
 				response.res.statusCode === 404		// missing scopes/permissions, service pretends the endpoint doesn't exist
 			) ? null : undefined;
+			return { data, fetchedAt: Date.now() };
 		}
 
 		try {
 			const data = await asJson<IEntitlementsData>(response);
 			if (data) {
-				return data;
+				return { data, fetchedAt: Date.now() };
 			}
 			this.logService.error('[DefaultAccount] Failed to fetch entitlements', 'No data returned');
 		} catch (error) {
 			this.logService.error('[DefaultAccount] Failed to fetch entitlements', getErrorMessage(error));
 		}
-		return undefined;
+		return { data: undefined, fetchedAt: Date.now() };
 	}
 
-	private async getMcpRegistryProvider(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined): Promise<{ data: IMcpRegistryProvider | null; fetchedAt: number } | undefined> {
-		if (accountPolicyData?.mcpRegistryDataFetchedAt && !this.isDataStale(accountPolicyData.mcpRegistryDataFetchedAt)) {
+	private async getMcpRegistryProvider(sessions: AuthenticationSession[], accountPolicyData: IAccountPolicyData | undefined, options?: { forceRefresh?: boolean }): Promise<{ data: IMcpRegistryProvider | null; fetchedAt: number } | undefined> {
+		if (!options?.forceRefresh && accountPolicyData?.mcpRegistryDataFetchedAt && !this.isDataStale(accountPolicyData.mcpRegistryDataFetchedAt)) {
 			this.logService.debug('[DefaultAccount] Using last fetched MCP registry data');
 			const data = accountPolicyData.policyData.mcpRegistryUrl && accountPolicyData.policyData.mcpAccess ? { url: accountPolicyData.policyData.mcpRegistryUrl, registry_access: accountPolicyData.policyData.mcpAccess } : null;
 			return { data, fetchedAt: accountPolicyData.mcpRegistryDataFetchedAt };
@@ -731,7 +744,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		}
 
 		this.logService.debug('[DefaultAccount] Fetching MCP registry data from:', mcpRegistryDataUrl);
-		const response = await this.request(mcpRegistryDataUrl, 'GET', undefined, sessions, CancellationToken.None);
+		const response = await this.request(mcpRegistryDataUrl, 'GET', undefined, sessions, CancellationToken.None, 'defaultAccount.mcpRegistryProvider');
 		if (!response) {
 			return undefined;
 		}
@@ -759,9 +772,9 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		}
 	}
 
-	private async request(url: string, type: 'GET', body: undefined, sessions: AuthenticationSession[], token: CancellationToken): Promise<IRequestContext | undefined>;
-	private async request(url: string, type: 'POST', body: object, sessions: AuthenticationSession[], token: CancellationToken): Promise<IRequestContext | undefined>;
-	private async request(url: string, type: 'GET' | 'POST', body: object | undefined, sessions: AuthenticationSession[], token: CancellationToken): Promise<IRequestContext | undefined> {
+	private async request(url: string, type: 'GET', body: undefined, sessions: AuthenticationSession[], token: CancellationToken, callSite: string): Promise<IRequestContext | undefined>;
+	private async request(url: string, type: 'POST', body: object, sessions: AuthenticationSession[], token: CancellationToken, callSite: string): Promise<IRequestContext | undefined>;
+	private async request(url: string, type: 'GET' | 'POST', body: object | undefined, sessions: AuthenticationSession[], token: CancellationToken, callSite: string): Promise<IRequestContext | undefined> {
 		let lastResponse: IRequestContext | undefined;
 
 		for (const session of sessions) {
@@ -777,7 +790,8 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 					disableCache: true,
 					headers: {
 						'Authorization': `Bearer ${session.accessToken}`
-					}
+					},
+					callSite
 				}, token);
 
 				const status = response.res.statusCode;
@@ -896,7 +910,7 @@ class DefaultAccountProvider extends Disposable implements IDefaultAccountProvid
 		if (!this.defaultAccount) {
 			return;
 		}
-		this.commandService.executeCommand('_signOutOfAccount', { providerId: this.defaultAccount.authenticationProvider.id, accountLabel: this.defaultAccount.accountName });
+		await this.commandService.executeCommand('_signOutOfAccount', { providerId: this.defaultAccount.authenticationProvider.id, accountLabel: this.defaultAccount.accountName });
 	}
 
 }

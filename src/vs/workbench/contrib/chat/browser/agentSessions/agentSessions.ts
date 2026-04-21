@@ -7,10 +7,9 @@ import { localize } from '../../../../../nls.js';
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
-import { observableValue } from '../../../../../base/common/observable.js';
-import { IChatSessionTiming } from '../../common/chatService/chatService.js';
 import { foreground, listActiveSelectionForeground, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
+import { IProductService } from '../../../../../platform/product/common/productService.js';
 
 export enum AgentSessionProviders {
 	Local = 'local',
@@ -19,9 +18,18 @@ export enum AgentSessionProviders {
 	Claude = 'claude-code',
 	Codex = 'openai-codex',
 	Growth = 'copilot-growth',
+	AgentHostCopilot = 'agent-host-copilot',
 }
 
-export function isBuiltInAgentSessionProvider(provider: string): boolean {
+/**
+ * A session target is either a well-known {@link AgentSessionProviders} enum
+ * value or a dynamic string for dynamically-registered providers (e.g. remote
+ * agent hosts like `remote-{authority}-copilot`).
+ * TODO@roblourens HACK
+ */
+export type AgentSessionTarget = AgentSessionProviders | (string & {});
+
+export function isBuiltInAgentSessionProvider(provider: AgentSessionTarget): boolean {
 	return provider === AgentSessionProviders.Local ||
 		provider === AgentSessionProviders.Background ||
 		provider === AgentSessionProviders.Cloud ||
@@ -36,24 +44,19 @@ export function getAgentSessionProvider(sessionResource: URI | string): AgentSes
 		case AgentSessionProviders.Cloud:
 		case AgentSessionProviders.Claude:
 		case AgentSessionProviders.Codex:
+		case AgentSessionProviders.AgentHostCopilot:
 			return type;
 		default:
 			return undefined;
 	}
 }
 
-/**
- * Observable holding the display name for the background agent session provider.
- * Updated via experiment treatment to allow A/B testing of the display name.
- */
-export const backgroundAgentDisplayName = observableValue<string>('backgroundAgentDisplayName', localize('chat.session.providerLabel.background', "Background"));
-
-export function getAgentSessionProviderName(provider: AgentSessionProviders): string {
+export function getAgentSessionProviderName(provider: AgentSessionTarget): string {
 	switch (provider) {
 		case AgentSessionProviders.Local:
 			return localize('chat.session.providerLabel.local', "Local");
 		case AgentSessionProviders.Background:
-			return backgroundAgentDisplayName.get();
+			return localize('chat.session.providerLabel.background', "Copilot CLI");
 		case AgentSessionProviders.Cloud:
 			return localize('chat.session.providerLabel.cloud', "Cloud");
 		case AgentSessionProviders.Claude:
@@ -62,15 +65,19 @@ export function getAgentSessionProviderName(provider: AgentSessionProviders): st
 			return 'Codex';
 		case AgentSessionProviders.Growth:
 			return 'Growth';
+		case AgentSessionProviders.AgentHostCopilot:
+			return 'Copilot CLI [Local]';
+		default:
+			return provider;
 	}
 }
 
-export function getAgentSessionProviderIcon(provider: AgentSessionProviders): ThemeIcon {
+export function getAgentSessionProviderIcon(provider: AgentSessionTarget): ThemeIcon {
 	switch (provider) {
 		case AgentSessionProviders.Local:
 			return Codicon.vm;
 		case AgentSessionProviders.Background:
-			return Codicon.worktree;
+			return Codicon.copilot;
 		case AgentSessionProviders.Cloud:
 			return Codicon.cloud;
 		case AgentSessionProviders.Codex:
@@ -79,10 +86,52 @@ export function getAgentSessionProviderIcon(provider: AgentSessionProviders): Th
 			return Codicon.claude;
 		case AgentSessionProviders.Growth:
 			return Codicon.lightbulb;
+		case AgentSessionProviders.AgentHostCopilot:
+			return Codicon.vscodeInsiders; // default; use getAgentHostIcon() for quality-aware icon
+		default:
+			return Codicon.extensions;
 	}
 }
 
-export function isFirstPartyAgentSessionProvider(provider: AgentSessionProviders): boolean {
+/**
+ * Returns the VS Code or VS Code Insiders icon depending on product quality.
+ */
+export function getAgentHostIcon(productService: IProductService): ThemeIcon {
+	return productService.quality === 'stable' ? Codicon.vscode : Codicon.vscodeInsiders;
+}
+
+export function isFirstPartyAgentSessionProvider(provider: AgentSessionTarget): boolean {
+	switch (provider) {
+		case AgentSessionProviders.Local:
+		case AgentSessionProviders.Background:
+		case AgentSessionProviders.Cloud:
+		case AgentSessionProviders.AgentHostCopilot:
+			return true;
+		case AgentSessionProviders.Claude:
+		case AgentSessionProviders.Codex:
+		case AgentSessionProviders.Growth:
+			return false;
+		default:
+			return false;
+	}
+}
+
+/**
+ * Returns whether the given session type is an agent host target.
+ * Matches the local agent host (`agent-host-*`) and remote agent hosts (`remote-*`).
+ *
+ * Note: The `remote-` prefix convention is established by
+ * {@link RemoteAgentHostContribution} which generates session types as
+ * `remote-{sanitizedAddress}-{provider}`. If future remote providers that
+ * are NOT agent hosts need a different prefix, this function must be updated.
+ */
+export function isAgentHostTarget(target: string): boolean {
+	return target === AgentSessionProviders.AgentHostCopilot ||
+		target.startsWith('agent-host-') ||
+		target.startsWith('remote-');
+}
+
+export function getAgentCanContinueIn(provider: AgentSessionTarget): boolean {
 	switch (provider) {
 		case AgentSessionProviders.Local:
 		case AgentSessionProviders.Background:
@@ -91,24 +140,14 @@ export function isFirstPartyAgentSessionProvider(provider: AgentSessionProviders
 		case AgentSessionProviders.Claude:
 		case AgentSessionProviders.Codex:
 		case AgentSessionProviders.Growth:
+		case AgentSessionProviders.AgentHostCopilot:
+			return false;
+		default:
 			return false;
 	}
 }
 
-export function getAgentCanContinueIn(provider: AgentSessionProviders): boolean {
-	switch (provider) {
-		case AgentSessionProviders.Local:
-		case AgentSessionProviders.Background:
-		case AgentSessionProviders.Cloud:
-			return true;
-		case AgentSessionProviders.Claude:
-		case AgentSessionProviders.Codex:
-		case AgentSessionProviders.Growth:
-			return false;
-	}
-}
-
-export function getAgentSessionProviderDescription(provider: AgentSessionProviders): string {
+export function getAgentSessionProviderDescription(provider: AgentSessionTarget): string {
 	switch (provider) {
 		case AgentSessionProviders.Local:
 			return localize('chat.session.providerDescription.local', "Run tasks within VS Code chat. The agent iterates via chat and works interactively to implement changes on your main workspace.");
@@ -122,6 +161,10 @@ export function getAgentSessionProviderDescription(provider: AgentSessionProvide
 			return localize('chat.session.providerDescription.codex', "Opens a new Codex session in the editor. Codex sessions can be managed from the chat sessions view.");
 		case AgentSessionProviders.Growth:
 			return localize('chat.session.providerDescription.growth', "Learn about Copilot features.");
+		case AgentSessionProviders.AgentHostCopilot:
+			return 'Run a Copilot SDK agent in a dedicated process.';
+		default:
+			return '';
 	}
 }
 
@@ -146,6 +189,9 @@ export interface IAgentSessionsControl {
 
 	clearFocus(): void;
 	hasFocusOrSelection(): boolean;
+
+	resetSectionCollapseState(): void;
+	collapseAllSections(): void;
 }
 
 export const agentSessionReadIndicatorForeground = registerColor(
@@ -168,7 +214,3 @@ export const agentSessionSelectedUnfocusedBadgeBorder = registerColor(
 
 export const AGENT_SESSION_RENAME_ACTION_ID = 'agentSession.rename';
 export const AGENT_SESSION_DELETE_ACTION_ID = 'agentSession.delete';
-
-export function getAgentSessionTime(timing: IChatSessionTiming): number {
-	return timing.lastRequestStarted ?? timing.created;
-}

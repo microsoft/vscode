@@ -15,10 +15,8 @@ import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, IDisposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { basename } from '../../../../base/common/path.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
-import { IRange } from '../../../../editor/common/core/range.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ILanguageService } from '../../../../editor/common/languages/language.js';
-import { IModelService } from '../../../../editor/common/services/model.js';
 import { localize } from '../../../../nls.js';
 import { FileKind } from '../../../../platform/files/common/files.js';
 import { IHoverService } from '../../../../platform/hover/browser/hover.js';
@@ -44,7 +42,8 @@ interface IFeedbackCommentElement {
 	readonly id: string;
 	readonly text: string;
 	readonly resourceUri: URI;
-	readonly range: IRange;
+	readonly codeSelection?: string;
+	readonly diffHunks?: string;
 }
 
 type FeedbackTreeElement = IFeedbackFileElement | IFeedbackCommentElement;
@@ -151,7 +150,6 @@ class FeedbackCommentRenderer implements ITreeRenderer<IFeedbackCommentElement, 
 		private readonly _agentFeedbackService: IAgentFeedbackService | undefined,
 		private readonly _sessionResource: URI,
 		private readonly _hoverService: IHoverService,
-		private readonly _modelService: IModelService,
 		private readonly _languageService: ILanguageService,
 	) { }
 
@@ -224,15 +222,15 @@ class FeedbackCommentRenderer implements ITreeRenderer<IFeedbackCommentElement, 
 		const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 		markdown.appendText(element.text);
 
-		// Try to get the code snippet synchronously from already-loaded models
-		const model = this._modelService.getModel(element.resourceUri);
-		if (model) {
-			const snippet = model.getValueInRange(element.range);
-			if (snippet) {
-				const languageId = this._languageService.guessLanguageIdByFilepathOrFirstLine(element.resourceUri);
-				markdown.appendMarkdown('\n\n');
-				markdown.appendCodeblock(languageId ?? '', snippet);
-			}
+		if (element.codeSelection) {
+			const languageId = this._languageService.guessLanguageIdByFilepathOrFirstLine(element.resourceUri);
+			markdown.appendMarkdown('\n\n');
+			markdown.appendCodeblock(languageId ?? '', element.codeSelection);
+		}
+
+		if (element.diffHunks) {
+			markdown.appendMarkdown('\n\n');
+			markdown.appendCodeblock('diff', element.diffHunks);
 		}
 
 		return {
@@ -261,7 +259,6 @@ export class AgentFeedbackHover extends Disposable {
 		@IHoverService private readonly _hoverService: IHoverService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IAgentFeedbackService private readonly _agentFeedbackService: IAgentFeedbackService,
-		@IModelService private readonly _modelService: IModelService,
 		@ILanguageService private readonly _languageService: ILanguageService,
 	) {
 		super();
@@ -311,7 +308,7 @@ export class AgentFeedbackHover extends Disposable {
 			new FeedbackTreeDelegate(),
 			[
 				new FeedbackFileRenderer(resourceLabels, this._canDelete ? this._agentFeedbackService : undefined, this._attachment.sessionResource),
-				new FeedbackCommentRenderer(this._canDelete ? this._agentFeedbackService : undefined, this._attachment.sessionResource, this._hoverService, this._modelService, this._languageService),
+				new FeedbackCommentRenderer(this._canDelete ? this._agentFeedbackService : undefined, this._attachment.sessionResource, this._hoverService, this._languageService),
 			],
 			{
 				defaultIndent: 0,
@@ -360,6 +357,7 @@ export class AgentFeedbackHover extends Disposable {
 		return {
 			content: hoverElement,
 			style: HoverStyle.Pointer,
+			persistence: { hideOnHover: false },
 			position: { hoverPosition: HoverPosition.ABOVE },
 			trapFocus: true,
 			appearance: { compact: true },
@@ -384,7 +382,8 @@ export class AgentFeedbackHover extends Disposable {
 				id: item.id,
 				text: item.text,
 				resourceUri: item.resourceUri,
-				range: item.range,
+				codeSelection: item.codeSelection,
+				diffHunks: item.diffHunks,
 			});
 		}
 

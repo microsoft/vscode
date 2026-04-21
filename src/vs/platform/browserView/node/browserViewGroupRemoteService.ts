@@ -6,11 +6,9 @@
 import { Event } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { ProxyChannel } from '../../../base/parts/ipc/common/ipc.js';
-import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { IMainProcessService } from '../../ipc/common/mainProcessService.js';
 import { IBrowserViewGroup, IBrowserViewGroupService, IBrowserViewGroupViewEvent, ipcBrowserViewGroupChannelName } from '../common/browserViewGroup.js';
-
-export const IBrowserViewGroupRemoteService = createDecorator<IBrowserViewGroupRemoteService>('browserViewGroupRemoteService');
+import { CDPEvent, CDPRequest, CDPResponse } from '../common/cdp/types.js';
 
 /**
  * Remote-process service for managing browser view groups.
@@ -22,12 +20,11 @@ export const IBrowserViewGroupRemoteService = createDecorator<IBrowserViewGroupR
  * Usable from the shared process.
  */
 export interface IBrowserViewGroupRemoteService {
-	readonly _serviceBrand: undefined;
-
 	/**
 	 * Create a new browser view group.
+	 * @param windowId The ID of the primary window the group should be associated with.
 	 */
-	createGroup(): Promise<IBrowserViewGroup>;
+	createGroup(windowId: number): Promise<IBrowserViewGroup>;
 }
 
 /**
@@ -66,8 +63,12 @@ class RemoteBrowserViewGroup extends Disposable implements IBrowserViewGroup {
 		return this.groupService.removeViewFromGroup(this.id, viewId);
 	}
 
-	async getDebugWebSocketEndpoint(): Promise<string> {
-		return this.groupService.getDebugWebSocketEndpoint(this.id);
+	async sendCDPMessage(msg: CDPRequest): Promise<void> {
+		return this.groupService.sendCDPMessage(this.id, msg);
+	}
+
+	get onCDPMessage(): Event<CDPResponse | CDPEvent> {
+		return this.groupService.onDynamicCDPMessage(this.id);
 	}
 
 	override dispose(fromService = false): void {
@@ -79,20 +80,18 @@ class RemoteBrowserViewGroup extends Disposable implements IBrowserViewGroup {
 }
 
 export class BrowserViewGroupRemoteService implements IBrowserViewGroupRemoteService {
-	declare readonly _serviceBrand: undefined;
-
 	private readonly _groupService: IBrowserViewGroupService;
 	private readonly _groups = new Map<string, IBrowserViewGroup>();
 
 	constructor(
-		@IMainProcessService mainProcessService: IMainProcessService,
+		mainProcessService: IMainProcessService,
 	) {
 		const channel = mainProcessService.getChannel(ipcBrowserViewGroupChannelName);
 		this._groupService = ProxyChannel.toService<IBrowserViewGroupService>(channel);
 	}
 
-	async createGroup(): Promise<IBrowserViewGroup> {
-		const id = await this._groupService.createGroup();
+	async createGroup(windowId: number): Promise<IBrowserViewGroup> {
+		const id = await this._groupService.createGroup(windowId);
 		return this._wrap(id);
 	}
 

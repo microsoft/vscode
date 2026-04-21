@@ -5,18 +5,19 @@
 
 import './media/agentFeedbackEditorInput.css';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
-import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
+import { ICodeEditor, IDiffEditor, IOverlayWidget, IOverlayWidgetPosition } from '../../../../editor/browser/editorBrowser.js';
 import { IEditorContribution } from '../../../../editor/common/editorCommon.js';
 import { EditorContributionInstantiation, registerEditorContribution } from '../../../../editor/browser/editorExtensions.js';
+import { ICodeEditorService } from '../../../../editor/browser/services/codeEditorService.js';
 import { EditorOption } from '../../../../editor/common/config/editorOptions.js';
-import { SelectionDirection } from '../../../../editor/common/core/selection.js';
+import { Selection, SelectionDirection } from '../../../../editor/common/core/selection.js';
 import { URI } from '../../../../base/common/uri.js';
 import { addStandardDisposableListener, getWindow, ModifierKeyEmitter } from '../../../../base/browser/dom.js';
 import { KeyCode } from '../../../../base/common/keyCodes.js';
 import { IAgentFeedbackService } from './agentFeedbackService.js';
 import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
-import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
-import { getSessionForResource } from './agentFeedbackEditorUtils.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { createAgentFeedbackContext, getSessionForResource } from './agentFeedbackEditorUtils.js';
 import { localize } from '../../../../nls.js';
 import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Action } from '../../../../base/common/actions.js';
@@ -94,8 +95,6 @@ class AgentFeedbackInputWidget implements IOverlayWidget {
 			this._updateActionForAlt(status.altKey);
 		});
 
-		this._editor.applyFontInfo(this._inputElement);
-		this._editor.applyFontInfo(this._measureElement);
 		this._lineHeight = 22;
 		this._inputElement.style.lineHeight = `${this._lineHeight}px`;
 	}
@@ -196,6 +195,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 	private _widget: AgentFeedbackInputWidget | undefined;
 	private _visible = false;
 	private _mouseDown = false;
+	private _suppressSelectionChangeOnce = false;
 	private _sessionResource: URI | undefined;
 	private readonly _widgetListeners = this._store.add(new DisposableStore());
 
@@ -203,7 +203,8 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		private readonly _editor: ICodeEditor,
 		@IAgentFeedbackService private readonly _agentFeedbackService: IAgentFeedbackService,
 		@IChatEditingService private readonly _chatEditingService: IChatEditingService,
-		@IAgentSessionsService private readonly _agentSessionsService: IAgentSessionsService,
+		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 	) {
 		super();
 
@@ -262,16 +263,22 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 
 	private _onModelChanged(): void {
 		this._hide();
+		this._suppressSelectionChangeOnce = false;
 		this._sessionResource = undefined;
 	}
 
 	private _onSelectionChanged(): void {
+		if (this._suppressSelectionChangeOnce) {
+			this._suppressSelectionChangeOnce = false;
+			return;
+		}
+
 		if (this._mouseDown || !this._editor.hasTextFocus()) {
 			return;
 		}
 
 		const selection = this._editor.getSelection();
-		if (!selection || selection.isEmpty()) {
+		if (!selection || (selection.isEmpty() && !this._getDiffHunkForSelection(selection))) {
 			this._hide();
 			return;
 		}
@@ -282,7 +289,7 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			return;
 		}
 
-		const sessionResource = getSessionForResource(model.uri, this._chatEditingService, this._agentSessionsService);
+		const sessionResource = getSessionForResource(model.uri, this._chatEditingService, this._sessionsManagementService);
 		if (!sessionResource) {
 			this._hide();
 			return;
@@ -342,15 +349,39 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 					return;
 				}
 
+				// Don't capture Escape at this level - let it fall through to the input handler if focused
+				if (e.keyCode === KeyCode.Escape) {
+					this._hide();
+					this._editor.focus();
+					return;
+				}
+
+				// Ctrl+I / Cmd+I explicitly focuses the feedback input
+				if ((e.ctrlKey || e.metaKey) && e.keyCode === KeyCode.KeyI) {
+					e.preventDefault();
+					e.stopPropagation();
+					widget.inputElement.focus();
+					return;
+				}
+
 				// Don't focus if any modifier is held (keyboard shortcuts)
 				if (e.ctrlKey || e.altKey || e.metaKey) {
 					return;
 				}
 
-				// Don't capture Escape at this level - let it fall through to the input handler if focused
-				if (e.keyCode === KeyCode.Escape) {
-					this._hide();
-					this._editor.focus();
+				// Keep caret/navigation keys in the editor. Only actual typing should move focus.
+				if (
+					e.keyCode === KeyCode.UpArrow
+					|| e.keyCode === KeyCode.DownArrow
+					|| e.keyCode === KeyCode.LeftArrow
+					|| e.keyCode === KeyCode.RightArrow
+				) {
+					return;
+				}
+
+				// Only auto-focus the input on typing when the document is readonly;
+				// when editable the user must click or use Ctrl+I to focus.
+				if (!this._editor.getOption(EditorOption.readOnly)) {
 					return;
 				}
 
@@ -413,6 +444,18 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		}));
 	}
 
+	focusInput(): void {
+		if (this._visible && this._widget) {
+			this._widget.inputElement.focus();
+		}
+	}
+
+	private _hideAndRefocusEditor(): void {
+		this._suppressSelectionChangeOnce = true;
+		this._hide();
+		this._editor.focus();
+	}
+
 	private _addFeedback(): boolean {
 		if (!this._widget) {
 			return false;
@@ -429,9 +472,8 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			return false;
 		}
 
-		this._agentFeedbackService.addFeedback(this._sessionResource, model.uri, selection, text);
-		this._hide();
-		this._editor.focus();
+		this._agentFeedbackService.addFeedback(this._sessionResource, model.uri, selection, text, undefined, createAgentFeedbackContext(this._editor, this._codeEditorService, model.uri, selection));
+		this._hideAndRefocusEditor();
 		return true;
 	}
 
@@ -452,9 +494,53 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		}
 
 		const sessionResource = this._sessionResource;
-		this._hide();
-		this._editor.focus();
-		this._agentFeedbackService.addFeedbackAndSubmit(sessionResource, model.uri, selection, text);
+		this._hideAndRefocusEditor();
+		this._agentFeedbackService.addFeedbackAndSubmit(sessionResource, model.uri, selection, text, undefined, createAgentFeedbackContext(this._editor, this._codeEditorService, model.uri, selection));
+	}
+
+	private _getContainingDiffEditor(): IDiffEditor | undefined {
+		return this._codeEditorService.listDiffEditors().find(diffEditor =>
+			diffEditor.getModifiedEditor() === this._editor || diffEditor.getOriginalEditor() === this._editor
+		);
+	}
+
+	private _getDiffHunkForSelection(selection: Selection): { startLineNumber: number; endLineNumberExclusive: number } | undefined {
+		if (!selection.isEmpty()) {
+			return undefined;
+		}
+
+		const diffEditor = this._getContainingDiffEditor();
+		if (!diffEditor) {
+			return undefined;
+		}
+
+		const diffResult = diffEditor.getDiffComputationResult();
+		if (!diffResult) {
+			return undefined;
+		}
+
+		const position = selection.getStartPosition();
+		const lineNumber = position.lineNumber;
+		const isModifiedEditor = diffEditor.getModifiedEditor() === this._editor;
+		for (const change of diffResult.changes2) {
+			const lineRange = isModifiedEditor ? change.modified : change.original;
+			if (!lineRange.isEmpty && lineRange.contains(lineNumber)) {
+				// Don't show when cursor is at the start or end position of the hunk
+				const isAtHunkStart = lineNumber === lineRange.startLineNumber && position.column === 1;
+				const lastHunkLine = lineRange.endLineNumberExclusive - 1;
+				const model = this._editor.getModel();
+				const isAtHunkEnd = model && lineNumber === lastHunkLine && position.column === model.getLineMaxColumn(lastHunkLine);
+				if (isAtHunkStart || isAtHunkEnd) {
+					return undefined;
+				}
+				return {
+					startLineNumber: lineRange.startLineNumber,
+					endLineNumberExclusive: lineRange.endLineNumberExclusive,
+				};
+			}
+		}
+
+		return undefined;
 	}
 
 	private _updatePosition(): void {
@@ -463,8 +549,47 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 		}
 
 		const selection = this._editor.getSelection();
-		if (!selection || selection.isEmpty()) {
+		if (!selection) {
 			this._hide();
+			return;
+		}
+
+		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
+		const layoutInfo = this._editor.getLayoutInfo();
+		const widgetDom = this._widget.getDomNode();
+		const widgetHeight = widgetDom.offsetHeight || 30;
+		const widgetWidth = widgetDom.offsetWidth || 150;
+
+		if (selection.isEmpty()) {
+			const diffHunk = this._getDiffHunkForSelection(selection);
+			if (!diffHunk) {
+				this._hide();
+				return;
+			}
+
+			const cursorPosition = selection.getStartPosition();
+			const scrolledPosition = this._editor.getScrolledVisiblePosition(cursorPosition);
+			if (!scrolledPosition) {
+				this._widget.setPosition(null);
+				return;
+			}
+
+			const hunkLineCount = diffHunk.endLineNumberExclusive - diffHunk.startLineNumber;
+			const cursorLineOffset = cursorPosition.lineNumber - diffHunk.startLineNumber;
+			const topHalfLineCount = Math.ceil(hunkLineCount / 2);
+			const top = hunkLineCount < 10
+				? cursorLineOffset < topHalfLineCount
+					? scrolledPosition.top - (cursorLineOffset * lineHeight) - widgetHeight
+					: scrolledPosition.top + ((diffHunk.endLineNumberExclusive - cursorPosition.lineNumber) * lineHeight)
+				: scrolledPosition.top - widgetHeight;
+			const left = Math.max(0, Math.min(scrolledPosition.left, layoutInfo.width - widgetWidth));
+
+			this._widget.setPosition({
+				preference: {
+					top: Math.max(0, Math.min(top, layoutInfo.height - widgetHeight)),
+					left,
+				}
+			});
 			return;
 		}
 
@@ -477,12 +602,6 @@ export class AgentFeedbackEditorInputContribution extends Disposable implements 
 			this._widget.setPosition(null);
 			return;
 		}
-
-		const lineHeight = this._editor.getOption(EditorOption.lineHeight);
-		const layoutInfo = this._editor.getLayoutInfo();
-		const widgetDom = this._widget.getDomNode();
-		const widgetHeight = widgetDom.offsetHeight || 30;
-		const widgetWidth = widgetDom.offsetWidth || 150;
 
 		// Compute vertical position, flipping if out of bounds
 		let top: number;

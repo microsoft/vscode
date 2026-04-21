@@ -11,7 +11,6 @@ import { ConfigurationTarget } from '../../../../platform/configuration/common/c
 import { isBoolean, isString } from '../../../../base/common/types.js';
 import { IconContribution, IconDefinition } from '../../../../platform/theme/common/iconRegistry.js';
 import { ColorScheme, ThemeTypeSelector } from '../../../../platform/theme/common/theme.js';
-import product from '../../../../platform/product/common/product.js';
 
 export const IWorkbenchThemeService = refineServiceDecorator<IThemeService, IWorkbenchThemeService>(IThemeService);
 
@@ -39,19 +38,35 @@ export enum ThemeSettings {
 	SYSTEM_COLOR_THEME = 'window.systemColorTheme'
 }
 
-const isOSS = !product.quality;
-
 export namespace ThemeSettingDefaults {
-	export const COLOR_THEME_DARK = isOSS ? 'Experimental Dark' : 'Default Dark Modern';
-	export const COLOR_THEME_LIGHT = isOSS ? 'Experimental Light' : 'Default Light Modern';
+	export const COLOR_THEME_DARK = 'Dark 2026';
+	export const COLOR_THEME_LIGHT = 'Light 2026';
 	export const COLOR_THEME_HC_DARK = 'Default High Contrast';
 	export const COLOR_THEME_HC_LIGHT = 'Default High Contrast Light';
 
-	export const COLOR_THEME_DARK_OLD = 'Default Dark+';
-	export const COLOR_THEME_LIGHT_OLD = 'Default Light+';
-
 	export const FILE_ICON_THEME = 'vs-seti';
 	export const PRODUCT_ICON_THEME = 'Default';
+}
+
+/**
+ * Migrates legacy theme settings IDs to their current equivalents.
+ * Theme IDs were simplified: "Default" prefix was removed from built-in themes,
+ * and "Experimental" prefix was replaced when VS Code themes became GA.
+ */
+export function migrateThemeSettingsId(settingsId: string): string {
+	switch (settingsId) {
+		case 'Default Dark Modern': return 'Dark Modern';
+		case 'Default Light Modern': return 'Light Modern';
+		case 'Default Dark+': return 'Dark+';
+		case 'Default Light+': return 'Light+';
+		case 'Experimental Dark':
+		case 'VS Code Dark':
+			return ThemeSettingDefaults.COLOR_THEME_DARK;
+		case 'Experimental Light':
+		case 'VS Code Light':
+			return ThemeSettingDefaults.COLOR_THEME_LIGHT;
+	}
+	return settingsId;
 }
 
 export const COLOR_THEME_DARK_INITIAL_COLORS = {

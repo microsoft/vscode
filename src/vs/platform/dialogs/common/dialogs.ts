@@ -5,7 +5,6 @@
 
 import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Event } from '../../../base/common/event.js';
-import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { ThemeIcon } from '../../../base/common/themables.js';
 import { IMarkdownString } from '../../../base/common/htmlContent.js';
 import { basename } from '../../../base/common/resources.js';
@@ -287,21 +286,10 @@ export const IDialogService = createDecorator<IDialogService>('dialogService');
 
 export interface ICustomDialogOptions {
 	readonly buttonDetails?: string[];
-	readonly buttonOptions?: Array<undefined | ICustomDialogButtonOptions>;
 	readonly markdownDetails?: ICustomDialogMarkdown[];
-	readonly renderBody?: (container: HTMLElement, disposables: DisposableStore) => void;
 	readonly classes?: string[];
 	readonly icon?: ThemeIcon;
 	readonly disableCloseAction?: boolean;
-}
-
-export interface ICustomDialogButtonOptions {
-	readonly sublabel?: string;
-	readonly styleButton?: (button: ICustomDialogButtonControl) => void;
-}
-
-export interface ICustomDialogButtonControl {
-	set enabled(value: boolean);
 }
 
 export interface ICustomDialogMarkdown {

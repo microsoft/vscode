@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-// version: 2
+// version: 4
 
 declare module 'vscode' {
 	/**
@@ -596,12 +596,76 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Structured hook execution content for a resolved chat debug event,
+	 * containing the hook type, command, input, output, and result for rich rendering.
+	 */
+	export class ChatDebugEventHookContent {
+		/**
+		 * The type of hook that was executed (e.g., "PreToolUse", "PostToolUse", "Stop").
+		 */
+		hookType: string;
+
+		/**
+		 * The shell command that was executed.
+		 */
+		command?: string;
+
+		/**
+		 * The outcome of the hook execution.
+		 */
+		result?: ChatDebugHookResult;
+
+		/**
+		 * How long the hook took to complete, in milliseconds.
+		 */
+		durationInMillis?: number;
+
+		/**
+		 * The serialized JSON input passed to the hook via stdin.
+		 */
+		input?: string;
+
+		/**
+		 * The serialized output (stdout/stderr) returned by the hook.
+		 */
+		output?: string;
+
+		/**
+		 * An error message, if the hook failed.
+		 */
+		errorMessage?: string;
+
+		/**
+		 * The raw exit code from the hook process, if it failed.
+		 */
+		exitCode?: number;
+
+		/**
+		 * Create a new ChatDebugEventHookContent.
+		 * @param hookType The type of hook that was executed.
+		 */
+		constructor(hookType: string);
+	}
+
+	/**
+	 * The result of a hook execution.
+	 */
+	export enum ChatDebugHookResult {
+		/** The hook executed successfully (exit code 0). */
+		Success = 0,
+		/** The hook returned a blocking error (exit code 2). */
+		Error = 1,
+		/** The hook returned a non-blocking warning (other non-zero exit codes). */
+		NonBlockingError = 2
+	}
+
+	/**
 	 * Union of all resolved event content types.
 	 * Extensions may also return {@link ChatDebugUserMessageEvent} or
 	 * {@link ChatDebugAgentResponseEvent} from resolve, which will be
 	 * automatically converted to structured message content.
 	 */
-	export type ChatDebugResolvedEventContent = ChatDebugEventTextContent | ChatDebugEventMessageContent | ChatDebugEventToolCallContent | ChatDebugEventModelTurnContent | ChatDebugUserMessageEvent | ChatDebugAgentResponseEvent;
+	export type ChatDebugResolvedEventContent = ChatDebugEventTextContent | ChatDebugEventMessageContent | ChatDebugEventToolCallContent | ChatDebugEventModelTurnContent | ChatDebugEventHookContent | ChatDebugUserMessageEvent | ChatDebugAgentResponseEvent;
 
 	/**
 	 * Union of all chat debug event types. Each type is a class,
@@ -642,6 +706,48 @@ declare module 'vscode' {
 			eventId: string,
 			token: CancellationToken
 		): ProviderResult<ChatDebugResolvedEventContent>;
+
+		/**
+		 * Export the debug log for a chat session as a serialized byte array.
+		 * The extension controls the format (e.g., OTLP JSON with Copilot extensions).
+		 * Core provides the save dialog and writes the returned bytes to disk.
+		 *
+		 * @param sessionResource The resource URI of the chat session to export.
+		 * @param options Export options including core events and session metadata.
+		 * @param token A cancellation token.
+		 * @returns The serialized debug log data, or undefined if export is not available.
+		 */
+		provideChatDebugLogExport?(
+			sessionResource: Uri,
+			options: ChatDebugLogExportOptions,
+			token: CancellationToken
+		): ProviderResult<Uint8Array>;
+
+		/**
+		 * Import a previously exported debug log from a serialized byte array.
+		 * Core provides the open dialog and reads the file bytes.
+		 * The extension deserializes the data and returns a session URI that can be
+		 * opened in the debug panel via {@link provideChatDebugLog}.
+		 *
+		 * @param data The serialized debug log data (as returned by {@link provideChatDebugLogExport}).
+		 * @param token A cancellation token.
+		 * @returns The imported session info, or undefined if import failed.
+		 */
+		resolveChatDebugLogImport?(
+			data: Uint8Array,
+			token: CancellationToken
+		): ProviderResult<ChatDebugLogImportResult>;
+
+		/**
+		 * Return session resource URIs that have debug log data available,
+		 * including historical sessions persisted on disk.
+		 *
+		 * @param token A cancellation token.
+		 * @returns Session URIs with available debug data and optional titles.
+		 */
+		provideAvailableDebugSessionResources?(
+			token: CancellationToken
+		): ProviderResult<{ uri: Uri; title?: string }[]>;
 	}
 
 	export namespace chat {
@@ -653,5 +759,44 @@ declare module 'vscode' {
 		 * @returns A disposable that unregisters the provider.
 		 */
 		export function registerChatDebugLogProvider(provider: ChatDebugLogProvider): Disposable;
+
+		/**
+		 * Fired when a core-originated debug event is received (e.g., prompt discovery,
+		 * skill loading). Extensions can use this to capture events that originate
+		 * inside Core.
+		 */
+		export const onDidReceiveChatDebugEvent: Event<ChatDebugEvent>;
+	}
+
+	/**
+	 * Options passed to {@link ChatDebugLogProvider.provideChatDebugLogExport}.
+	 */
+	export interface ChatDebugLogExportOptions {
+		/**
+		 * Core-originated debug events (prompt discovery, skill loading, etc.)
+		 * for the session. The extension may include these in the export alongside its own data.
+		 */
+		readonly coreEvents: readonly ChatDebugEvent[];
+
+		/**
+		 * Session title, if available.
+		 * Used to provide a human-readable label in the exported file.
+		 */
+		readonly sessionTitle?: string;
+	}
+
+	/**
+	 * Result of importing a debug log via {@link ChatDebugLogProvider.resolveChatDebugLogImport}.
+	 */
+	export interface ChatDebugLogImportResult {
+		/**
+		 * The session resource URI for the imported session.
+		 */
+		readonly uri: Uri;
+
+		/**
+		 * The session title from the imported file, if available.
+		 */
+		readonly sessionTitle?: string;
 	}
 }

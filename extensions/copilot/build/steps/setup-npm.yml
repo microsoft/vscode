@@ -1,0 +1,14 @@
+parameters:
+  - name: NPM_REGISTRY
+    type: string
+
+steps:
+  - bash: |
+      npm config set registry ${{ parameters.NPM_REGISTRY }}
+      echo "##vso[task.setvariable variable=NPMRC_PATH]$(npm config get userconfig)"
+    displayName: 🔧 Set npm registry
+
+  - task: npmAuthenticate@0
+    inputs:
+      workingFile: $(NPMRC_PATH)
+    displayName: 🔑 Authenticate npm

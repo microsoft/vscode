@@ -7,7 +7,7 @@
 .monaco-editor .find-widget {
 	position: absolute;
 	z-index: 35;
-	height: 33px;
+	height: 34px;
 	overflow: hidden;
 	line-height: 19px;
 	transition: transform 200ms linear;

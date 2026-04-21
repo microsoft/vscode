@@ -20,6 +20,7 @@ export enum BrowserOverlayType {
 
 const OVERLAY_DEFINITIONS: ReadonlyArray<{ className: string; type: BrowserOverlayType }> = [
 	{ className: 'monaco-menu-container', type: BrowserOverlayType.Menu },
+	{ className: 'action-list-submenu-panel', type: BrowserOverlayType.Menu },
 	{ className: 'quick-input-widget', type: BrowserOverlayType.QuickInput },
 	{ className: 'monaco-hover', type: BrowserOverlayType.Hover },
 	{ className: 'editor-widget', type: BrowserOverlayType.Hover },
@@ -201,7 +202,12 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 		for (const overlay of this.overlays()) {
 			// Create a new observer for this specific element if we don't already have one
 			if (!this._elementObservers.has(overlay.element)) {
-				const observer = new this.targetWindow.MutationObserver(() => {
+				const observer = new this.targetWindow.MutationObserver((records) => {
+					// If all changes are within a browser container within the overlay, ignore.
+					if (records.every(record => record.target.parentElement?.closest('.browser-container'))) {
+						return;
+					}
+
 					this._overlayRectangles.delete(overlay.element);
 					this._onDidChangeOverlayState.fire();
 				});
@@ -244,28 +250,33 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 
 		// Check against all precomputed overlay rectangles
 		for (const overlay of this.overlays()) {
+			// Skip overlays that are ancestors of the target element,
+			// e.g., the modal editor backdrop when the browser is inside the modal
+			if (overlay.element.contains(element)) {
+				continue;
+			}
 			const overlayRect = this.getRect(overlay.element);
-			if (overlayRect && this.isRectanglesOverlapping(elementRect, overlayRect)) {
-				overlappingOverlays.push({
-					type: overlay.type,
-					rect: overlayRect
-				});
+			const overlapCenter = getOverlappingRectangleCenterPoint(elementRect, overlayRect);
+			if (overlapCenter) {
+				// z-index check. If the overlay isn't the topmost element, ignore it
+				// (the overlay either doesn't cover the element, or is also covered by another overlay).
+				const clientX = overlapCenter.x - this.targetWindow.scrollX;
+				const clientY = overlapCenter.y - this.targetWindow.scrollY;
+				let elementAtPoint = this.targetWindow.document.elementFromPoint(clientX, clientY);
+				// Account for shadow roots
+				if (elementAtPoint?.shadowRoot && !overlay.element.contains(elementAtPoint)) {
+					elementAtPoint = elementAtPoint.shadowRoot.elementFromPoint(clientX, clientY);
+				}
+				if (elementAtPoint && overlay.element.contains(elementAtPoint)) {
+					overlappingOverlays.push({
+						type: overlay.type,
+						rect: overlayRect
+					});
+				}
 			}
 		}
 
 		return overlappingOverlays;
-	}
-
-	private isRectanglesOverlapping(rect1: IDomNodePagePosition, rect2: IDomNodePagePosition): boolean {
-		// If elements are offscreen or set to zero size, consider them non-overlapping
-		if (rect1.width === 0 || rect1.height === 0 || rect2.width === 0 || rect2.height === 0) {
-			return false;
-		}
-
-		return !(rect1.left + rect1.width <= rect2.left ||
-			rect2.left + rect2.width <= rect1.left ||
-			rect1.top + rect1.height <= rect2.top ||
-			rect2.top + rect2.height <= rect1.top);
 	}
 
 	private stopTrackingElements(): void {
@@ -295,4 +306,20 @@ export class BrowserOverlayManager extends Disposable implements IBrowserOverlay
 
 		super.dispose();
 	}
+}
+
+function getOverlappingRectangleCenterPoint(rect1: IDomNodePagePosition, rect2: IDomNodePagePosition): { x: number; y: number } | null {
+	const overlapLeft = Math.max(rect1.left, rect2.left);
+	const overlapRight = Math.min(rect1.left + rect1.width, rect2.left + rect2.width);
+	const overlapTop = Math.max(rect1.top, rect2.top);
+	const overlapBottom = Math.min(rect1.top + rect1.height, rect2.top + rect2.height);
+
+	if (overlapRight > overlapLeft && overlapBottom > overlapTop) {
+		return {
+			x: (overlapLeft + overlapRight) / 2,
+			y: (overlapTop + overlapBottom) / 2
+		};
+	}
+
+	return null;
 }

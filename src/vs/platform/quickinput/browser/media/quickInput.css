@@ -308,6 +308,8 @@
 
 .quick-input-list .quick-input-list-entry .quick-input-list-separator {
 	margin-right: 4px;
+	font-size: var(--vscode-bodyFontSize-xSmall);
+	color: var(--vscode-descriptionForeground);
 	/* separate from keybindings or actions */
 }
 

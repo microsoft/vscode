@@ -23,6 +23,7 @@ import { chatSlashCommandBackground, chatSlashCommandForeground } from '../../..
 import { AICustomizationManagementCommands, AICustomizationManagementSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { IChatPromptSlashCommand, IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
+import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 
 /**
  * Static command ID used by completion items to trigger immediate slash command execution,
@@ -127,8 +128,9 @@ export class SlashCommandHandler extends Disposable {
 		}
 
 		const args = match[2]?.trim() ?? '';
-		const uri = promptCommand.promptPath.uri;
-		const expanded = `Use the prompt file located at [${promptCommand.name}](${uri.toString()}).`;
+		const uri = promptCommand.uri;
+		const typeLabel = promptCommand.type === PromptsType.skill ? 'skill' : 'prompt file';
+		const expanded = `Use the ${typeLabel} located at [${promptCommand.name}](${uri.toString()}).`;
 		return args ? `${expanded} ${args}` : expanded;
 	}
 
@@ -156,13 +158,6 @@ export class SlashCommandHandler extends Disposable {
 			sortText: 'z3_instructions',
 			executeImmediately: true,
 			execute: openSection(AICustomizationManagementSection.Instructions),
-		});
-		this._slashCommands.push({
-			command: 'prompts',
-			detail: localize('slashCommand.prompts', "View and manage prompt files"),
-			sortText: 'z3_prompts',
-			executeImmediately: true,
-			execute: openSection(AICustomizationManagementSection.Prompts),
 		});
 		this._slashCommands.push({
 			command: 'hooks',
@@ -295,7 +290,7 @@ export class SlashCommandHandler extends Disposable {
 				}
 
 				const promptCommands = await this.aiCustomizationWorkspaceService.getFilteredPromptSlashCommands(token);
-				const userInvocable = promptCommands.filter(c => c.parsedPromptFile?.header?.userInvocable !== false);
+				const userInvocable = promptCommands.filter(c => c.userInvocable);
 				if (userInvocable.length === 0) {
 					return null;
 				}

@@ -21,7 +21,7 @@
 	border-radius: 6px;
 	background-color: var(--vscode-editorWidget-background);
 	color: var(--vscode-foreground);
-	border: 1px solid var(--vscode-contrastBorder);
+	border: 1px solid var(--vscode-editorWidget-border);
 	overflow: hidden;
 }
 

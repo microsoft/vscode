@@ -261,6 +261,7 @@ class SCMInputWidgetEditorOptions {
 					e.affectsConfiguration('editor.cursorWidth') ||
 					e.affectsConfiguration('editor.emptySelectionClipboard') ||
 					e.affectsConfiguration('editor.fontFamily') ||
+					e.affectsConfiguration('editor.roundedSelection') ||
 					e.affectsConfiguration('editor.rulers') ||
 					e.affectsConfiguration('editor.wordWrap') ||
 					e.affectsConfiguration('editor.wordSegmenterLocales') ||
@@ -304,8 +305,9 @@ class SCMInputWidgetEditorOptions {
 		const cursorStyle = this.configurationService.getValue<IEditorOptions['cursorStyle']>('editor.cursorStyle');
 		const cursorWidth = this.configurationService.getValue<IEditorOptions['cursorWidth']>('editor.cursorWidth') ?? 1;
 		const emptySelectionClipboard = this.configurationService.getValue<boolean>('editor.emptySelectionClipboard') === true;
+		const roundedSelection = this.configurationService.getValue<boolean>('editor.roundedSelection') === true;
 
-		return { ...this._getEditorLanguageConfiguration(), accessibilitySupport, cursorBlinking, cursorStyle, cursorWidth, fontFamily, fontSize, lineHeight, emptySelectionClipboard, wordSegmenterLocales };
+		return { ...this._getEditorLanguageConfiguration(), accessibilitySupport, cursorBlinking, cursorStyle, cursorWidth, fontFamily, fontSize, lineHeight, emptySelectionClipboard, roundedSelection, wordSegmenterLocales };
 	}
 
 	private _getEditorFontFamily(): string {
@@ -845,8 +847,8 @@ registerAction2(class extends Action2 {
 				id: MenuId.SCMInputBox,
 				when: ContextKeyExpr.and(
 					ChatContextKeys.Setup.hidden.negate(),
-					ChatContextKeys.Setup.disabled.negate(),
-					ChatContextKeys.Setup.installed.negate(),
+					ChatContextKeys.Setup.disabledInWorkspace.negate(),
+					ChatContextKeys.Setup.completed.negate(),
 					ContextKeyExpr.equals('scmProvider', 'git')
 				)
 			}

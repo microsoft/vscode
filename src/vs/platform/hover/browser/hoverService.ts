@@ -248,6 +248,7 @@ export class HoverService extends Disposable implements IHoverService {
 	}
 
 	private _createHover(options: IHoverOptions, skipLastFocusedUpdate?: boolean): ICreateHoverResult | undefined {
+		this._currentDelayedHover?.dispose();
 		this._currentDelayedHover = undefined;
 
 		if (options.content === '') {
