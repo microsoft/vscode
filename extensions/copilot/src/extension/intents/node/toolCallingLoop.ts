@@ -1359,7 +1359,7 @@ export abstract class ToolCallingLoop<TOptions extends IToolCallingLoopOptions =
 
 		// Store the headerRequestId from the fetch response for subagent telemetry linking
 		if (fetchResult.type === ChatFetchResponseType.Success) {
-			this.lastHeaderRequestId = fetchResult.requestId;
+			this.lastHeaderRequestId = fetchResult.serverRequestId ?? fetchResult.requestId;
 		}
 
 		const promptTokenDetails = await computePromptTokenDetails({
