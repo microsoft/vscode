@@ -943,7 +943,7 @@ export class ChangesViewPane extends ViewPane {
 		));
 	}
 
-	async openChanges(): Promise<void> {
+	async openChanges(resource?: URI): Promise<void> {
 		const items = this.viewModel.activeSessionChangesObs.get();
 		if (items.length === 0) {
 			return;
@@ -952,12 +952,13 @@ export class ChangesViewPane extends ViewPane {
 		const modalEditorMode = this.configurationService.getValue<string>('workbench.editor.useModal');
 		if (modalEditorMode === 'all') {
 			const changes = toIChangesFileItem(items);
-			await this._openFileItem(changes[0], changes, false, false, false, changes.length > 1);
+			const changeToOpen = resource ? changes.find(c => isEqual(c.uri, resource)) : undefined;
+			await this._openFileItem(changeToOpen ?? changes[0], changes, false, false, false, changes.length > 1);
 			return;
 		}
 
 		// Open multi-file diff editor
-		await this._openMultiFileDiffEditor();
+		await this._openMultiFileDiffEditor(resource);
 	}
 
 	private async _openFileItem(item: IChangesFileItem, items: IChangesFileItem[], sideBySide: boolean, preserveFocus: boolean, pinned: boolean, includeSidebar: boolean): Promise<void> {

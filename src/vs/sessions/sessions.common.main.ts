@@ -264,13 +264,8 @@ import '../workbench/contrib/git/browser/git.contributions.js';
 // SCM
 import '../workbench/contrib/scm/browser/scm.contribution.js';
 
-// Debug
-import '../workbench/contrib/debug/browser/debug.contribution.js';
-import '../workbench/contrib/debug/browser/debugEditorContribution.js';
-import '../workbench/contrib/debug/browser/breakpointEditorContribution.js';
-import '../workbench/contrib/debug/browser/callStackEditorContribution.js';
-import '../workbench/contrib/debug/browser/repl.js';
-import '../workbench/contrib/debug/browser/debugViewlet.js';
+// Debug (service)
+import '../workbench/contrib/debug/browser/debug.service.contribution.js';
 
 // Markers
 import '../workbench/contrib/markers/browser/markers.contribution.js';

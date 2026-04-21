@@ -1515,7 +1515,7 @@ function registerModalEditorCommands(): void {
 				menu: {
 					id: MenuId.ModalEditorTitle,
 					group: 'navigation',
-					order: 1
+					order: 99
 				}
 			});
 		}
@@ -1552,7 +1552,7 @@ function registerModalEditorCommands(): void {
 				menu: {
 					id: MenuId.ModalEditorTitle,
 					group: 'navigation',
-					order: 2
+					order: 100
 				}
 			});
 		}

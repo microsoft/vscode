@@ -6,7 +6,7 @@
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { localize } from '../../../../nls.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { SessionsExperimentalShellGradientBackgroundSettingId } from '../../../common/configuration.js';
+import { SessionsExperimentalSendButtonGradientSettingId, SessionsExperimentalShellGradientBackgroundSettingId } from '../../../common/configuration.js';
 import { ThemeSettingDefaults } from '../../../../workbench/services/themes/common/workbenchThemeService.js';
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
@@ -18,6 +18,13 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
 			description: localize('sessions.experimental.shellGradientBackground', "Whether to enable the experimental accent-tinted shell background in the Sessions window."),
+		},
+		[SessionsExperimentalSendButtonGradientSettingId]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			description: localize('sessions.experimental.sendButtonGradient', "Whether to show a colorful animated gradient on the chat send button in the Sessions window. The button shows a slowly rotating gradient ring at rest, fills with a cycling color on hover, and emits a color pulse on click."),
 		},
 	},
 });
