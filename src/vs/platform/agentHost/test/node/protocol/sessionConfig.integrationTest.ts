@@ -6,7 +6,6 @@
 import assert from 'assert';
 import { mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
-import { timeout } from '../../../../../base/common/async.js';
 import { URI } from '../../../../../base/common/uri.js';
 import type { IResolveSessionConfigResult, ISessionConfigCompletionsResult, ISubscribeResult } from '../../../common/state/protocol/commands.js';
 import { ActionType, type ISessionAddedNotification } from '../../../common/state/sessionActions.js';
@@ -202,13 +201,15 @@ suite('Protocol WebSocket - Session Config persistence across restarts', functio
 			const configChanged = await client1.waitForNotification(n => isActionNotification(n, ActionType.SessionConfigChanged));
 			assert.strictEqual(getActionEnvelope(configChanged).action.type, ActionType.SessionConfigChanged);
 
-			// `_persistConfigValues` is fire-and-forget; give the SQLite write
-			// a moment to flush before tearing down the server.
-			await timeout(500);
-
 			client1.close();
 		} finally {
-			server1.process.kill();
+			// Trigger graceful shutdown by closing stdin rather than sending
+			// SIGTERM — on Windows, `child.kill()` (SIGTERM) unconditionally
+			// terminates the process without invoking the shutdown handler,
+			// so in-flight `setMetadata` writes never reach SQLite. Closing
+			// stdin fires `process.stdin.on('end', shutdown)` in the server
+			// on every platform.
+			server1.process.stdin!.end();
 			await new Promise<void>(resolve => server1.process.once('exit', () => resolve()));
 		}
 
@@ -239,7 +240,7 @@ suite('Protocol WebSocket - Session Config persistence across restarts', functio
 
 			client2.close();
 		} finally {
-			server2.process.kill();
+			server2.process.stdin!.end();
 			await new Promise<void>(resolve => server2.process.once('exit', () => resolve()));
 		}
 	});

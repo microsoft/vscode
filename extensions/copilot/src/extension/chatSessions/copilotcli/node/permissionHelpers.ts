@@ -28,7 +28,7 @@ type CoreTerminalConfirmationToolParams = {
 		command: string | undefined;
 		isBackground: boolean;
 	};
-}
+};
 
 type CoreConfirmationToolParams = {
 	tool: ToolName.CoreConfirmationTool;
@@ -37,7 +37,7 @@ type CoreConfirmationToolParams = {
 		message: string;
 		confirmationType: 'basic';
 	};
-}
+};
 
 /**
  * The result of requesting permissions — the full union accepted by `Session.respondToPermission`.

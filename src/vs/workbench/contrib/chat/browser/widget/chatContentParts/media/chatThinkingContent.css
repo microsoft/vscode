@@ -376,7 +376,7 @@
 	}
 
 	&.chat-thinking-persistent-streaming {
-		margin-bottom: 0;
+		margin-bottom: 3px;
 	}
 
 	> .monaco-scrollable-element > .shadow {

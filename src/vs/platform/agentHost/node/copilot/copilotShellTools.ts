@@ -109,7 +109,7 @@ export class ShellManager {
 			claim,
 			name: shellDisplayName,
 			cwd: cwd ?? this._workingDirectory?.fsPath,
-		}, { shell: getShellExecutable(shellType), preventShellHistory: true });
+		}, { shell: getShellExecutable(shellType), preventShellHistory: true, nonInteractive: true });
 
 		const shell: IManagedShell = { id, terminalUri, shellType };
 		this._shells.set(id, shell);

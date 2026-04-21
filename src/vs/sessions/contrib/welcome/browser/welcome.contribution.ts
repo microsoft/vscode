@@ -136,6 +136,7 @@ export class SessionsWelcomeContribution extends Disposable implements IWorkbenc
 			// Auth is handled by the walkthrough's GitHub button via
 			// IAuthenticationService. Discovery runs separately after auth.
 			this._checkWebAuth();
+			this._watchWebAuth();
 			return;
 		}
 		const isFirstLaunch = !this.storageService.getBoolean(WELCOME_COMPLETE_KEY, StorageScope.APPLICATION, false);
@@ -163,6 +164,32 @@ export class SessionsWelcomeContribution extends Disposable implements IWorkbenc
 			// Provider not available yet — show walkthrough
 		}
 		this.showWalkthrough();
+	}
+
+	/**
+	 * Web-only: react to GitHub session loss. When the user's last GitHub
+	 * session is removed (token expired, secret storage wiped, or explicit
+	 * sign-out from the account menu), clear the welcome completion marker
+	 * and show the sign-in walkthrough again. Without this, passive sign-out
+	 * leaves the user on a seemingly-working workbench with a stale UI.
+	 */
+	private _watchWebAuth(): void {
+		this._register(this.authenticationService.onDidChangeSessions(async e => {
+			if (e.providerId !== 'github' || !e.event.removed?.length) {
+				return;
+			}
+			try {
+				const remaining = await this.authenticationService.getSessions('github');
+				if (remaining.length > 0) {
+					return;
+				}
+			} catch {
+				// Provider became unavailable — treat as signed out
+			}
+			this.logService.info('[sessions welcome] GitHub session removed on web, re-showing walkthrough');
+			this.storageService.remove(WELCOME_COMPLETE_KEY, StorageScope.APPLICATION);
+			this.showWalkthrough();
+		}));
 	}
 
 	private showWalkthroughIfNeeded(): void {

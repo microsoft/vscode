@@ -46,19 +46,9 @@ export class SessionIndexingPreference {
 	/**
 	 * Check if cloud sync is enabled for a given repo.
 	 * Returns true if cloudSync.enabled is true AND the repo is not excluded.
-	 * Check both new and old setting for backward compatibility.
 	 */
 	hasCloudConsent(repoNwo?: string): boolean {
-		let cloudEnabled: boolean;
-		if (this._configService.isConfigured(ConfigKey.Advanced.SessionSearchCloudSync)) {
-			// New key explicitly set by user — authoritative
-			cloudEnabled = this._configService.getConfig(ConfigKey.Advanced.SessionSearchCloudSync);
-		} else {
-			// Fall back to old internal key for existing users who haven't migrated yet
-			cloudEnabled = this._configService.getConfig(ConfigKey.TeamInternal.SessionSearchCloudSyncEnabled);
-		}
-
-		if (!cloudEnabled) {
+		if (!this._configService.getConfig(ConfigKey.TeamInternal.SessionSearchCloudSyncEnabled)) {
 			return false;
 		}
 

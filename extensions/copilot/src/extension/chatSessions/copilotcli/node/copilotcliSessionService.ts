@@ -69,6 +69,7 @@ export type ISessionOptions = {
 	debugTargetSessionIds?: readonly string[];
 	mcpServerMappings?: McpServerMappings;
 	additionalWorkspaces?: IWorkspaceInfo[];
+	sessionParentId?: string;
 }
 export type IGetSessionOptions = ISessionOptions & { sessionId: string };
 export type ICreateSessionOptions = ISessionOptions & { sessionId?: string };
@@ -567,7 +568,15 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 
 			const session = this.createCopilotSession(sdkSession, options.workspace, options.agent?.name, sessionManager);
 			session.object.add(mcpGateway);
+
+			// Set origin
 			void this._chatSessionMetadataStore.setSessionOrigin(session.object.sessionId);
+
+			// Set session parent id
+			if (options.sessionParentId) {
+				void this._chatSessionMetadataStore.setSessionParentId(session.object.sessionId, options.sessionParentId);
+			}
+
 			return session;
 		}
 		catch (error) {

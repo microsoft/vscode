@@ -12,7 +12,7 @@ import { createDecorator } from '../../instantiation/common/instantiation.js';
 import type { ISyncedCustomization } from './agentPluginManager.js';
 import type { IAgentSubscription } from './state/agentSubscription.js';
 import type { ICreateTerminalParams, IResolveSessionConfigResult, ISessionConfigCompletionsResult } from './state/protocol/commands.js';
-import { IProtectedResourceMetadata, type IConfigSchema, type IFileEdit, type IModelSelection, type IToolDefinition } from './state/protocol/state.js';
+import { IProtectedResourceMetadata, type IConfigSchema, type IFileEdit, type IModelSelection, type ISessionActiveClient, type IToolDefinition } from './state/protocol/state.js';
 import type { IActionEnvelope, INotification, ISessionAction, ITerminalAction } from './state/sessionActions.js';
 import type { IResourceCopyParams, IResourceCopyResult, IResourceDeleteParams, IResourceDeleteResult, IResourceListResult, IResourceMoveParams, IResourceMoveResult, IResourceReadResult, IResourceWriteParams, IResourceWriteResult, IStateSnapshot } from './state/sessionProtocol.js';
 import { AttachmentType, ComponentToState, SessionInputResponseKind, SessionStatus, StateComponents, type ICustomizationRef, type IPendingMessage, type IRootState, type ISessionInputAnswer, type ISessionInputRequest, type IToolCallResult, type IToolResultContent, type PolicyState, type StringOrMarkdown } from './state/sessionState.js';
@@ -125,6 +125,14 @@ export interface IAgentCreateSessionConfig {
 	readonly session?: URI;
 	readonly workingDirectory?: URI;
 	readonly config?: Record<string, string>;
+	/**
+	 * Eagerly claim the active client role for the new session. When provided,
+	 * the server initializes the session with this client as the active
+	 * client, equivalent to dispatching a `session/activeClientChanged`
+	 * action immediately after creation. The `clientId` MUST match the
+	 * connection's own `clientId`.
+	 */
+	readonly activeClient?: ISessionActiveClient;
 	/** Fork from an existing session at a specific turn. */
 	readonly fork?: {
 		readonly session: URI;

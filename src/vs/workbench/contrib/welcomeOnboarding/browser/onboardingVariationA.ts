@@ -105,7 +105,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 	private contentEl: HTMLElement | undefined;
 	private backButton: HTMLButtonElement | undefined;
 	private nextButton: HTMLButtonElement | undefined;
-	private skipButton: HTMLButtonElement | undefined;
+	private closeButton: HTMLButtonElement | undefined;
 	private footerLeft: HTMLElement | undefined;
 	private _footerSignInBtn: HTMLButtonElement | undefined;
 
@@ -176,6 +176,12 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		// Card
 		this.card = append(this.overlay, $('.onboarding-a-card'));
 
+		// Close button (upper-right corner of card)
+		this.closeButton = append(this.card, $<HTMLButtonElement>('button.onboarding-a-close-btn'));
+		this.closeButton.type = 'button';
+		this.closeButton.setAttribute('aria-label', localize('onboarding.close', "Close"));
+		this.closeButton.appendChild(renderIcon(Codicon.close));
+
 		// Header with progress
 		const header = append(this.card, $('.onboarding-a-header'));
 		this.progressContainer = append(header, $('.onboarding-a-progress'));
@@ -194,10 +200,6 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		const footer = append(this.card, $('.onboarding-a-footer'));
 
 		this.footerLeft = append(footer, $('.onboarding-a-footer-left'));
-		this.skipButton = append(this.footerLeft, $<HTMLButtonElement>('button.onboarding-a-btn.onboarding-a-btn-ghost'));
-		this.skipButton.textContent = localize('onboarding.skip', "Skip");
-		this.skipButton.type = 'button';
-		this.footerFocusableElements.push(this.skipButton);
 
 		const footerRight = append(footer, $('.onboarding-a-footer-right'));
 
@@ -212,7 +214,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		this._updateButtonStates();
 
 		// Event handlers
-		this.disposables.add(addDisposableListener(this.skipButton, EventType.CLICK, () => {
+		this.disposables.add(addDisposableListener(this.closeButton, EventType.CLICK, () => {
 			this._logAction('skip');
 			this._dismiss('skip');
 		}));
@@ -412,15 +414,8 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 				this.nextButton.textContent = localize('onboarding.next', "Continue");
 			}
 		}
-		if (this.skipButton && this.footerLeft) {
-			if (this.currentStepIndex === 0) {
-				// Sign-in step: ghost Skip button
-				this.skipButton.className = 'onboarding-a-btn onboarding-a-btn-ghost';
-			} else {
-				this.skipButton.className = 'onboarding-a-btn onboarding-a-btn-ghost';
-			}
+		if (this.footerLeft) {
 			if (this._isLastStep()) {
-				this.skipButton.style.display = 'none';
 				// Show sign-in nudge in footer
 				if (!this._footerSignInBtn && !this._userSignedIn) {
 					this._footerSignInBtn = append(this.footerLeft, $<HTMLButtonElement>('button.onboarding-a-signin-nudge-btn'));
@@ -435,7 +430,6 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 					}));
 				}
 			} else {
-				this.skipButton.style.display = '';
 				if (this._footerSignInBtn) {
 					this._footerSignInBtn.remove();
 					this._footerSignInBtn = undefined;
@@ -1149,12 +1143,12 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 	}
 
 	private _getFocusableElements(): HTMLElement[] {
-		return [...this.stepFocusableElements, ...this.footerFocusableElements].filter(element => this._isTabbable(element));
+		return [...(this.closeButton ? [this.closeButton] : []), ...this.stepFocusableElements, ...this.footerFocusableElements].filter(element => this._isTabbable(element));
 	}
 
 	private _focusCurrentStepElement(): void {
 		const stepFocusable = this.stepFocusableElements.find(element => this._isTabbable(element));
-		(stepFocusable ?? this.nextButton ?? this.skipButton)?.focus();
+		(stepFocusable ?? this.nextButton ?? this.closeButton)?.focus();
 	}
 
 	private _registerStepFocusable<T extends HTMLElement>(element: T): T {
@@ -1210,7 +1204,7 @@ export class OnboardingVariationA extends Disposable implements IOnboardingServi
 		this.contentEl = undefined;
 		this.backButton = undefined;
 		this.nextButton = undefined;
-		this.skipButton = undefined;
+		this.closeButton = undefined;
 		this.footerLeft = undefined;
 		this._footerSignInBtn = undefined;
 		this.footerFocusableElements.length = 0;

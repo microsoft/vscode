@@ -38,7 +38,7 @@ export interface ICommandFinishedEvent {
  */
 export interface IAgentHostTerminalManager {
 	readonly _serviceBrand: undefined;
-	createTerminal(params: ICreateTerminalParams, options?: { shell?: string; preventShellHistory?: boolean }): Promise<void>;
+	createTerminal(params: ICreateTerminalParams, options?: { shell?: string; preventShellHistory?: boolean; nonInteractive?: boolean }): Promise<void>;
 	writeInput(uri: string, data: string): void;
 	onData(uri: string, cb: (data: string) => void): IDisposable;
 	onExit(uri: string, cb: (exitCode: number) => void): IDisposable;
@@ -172,7 +172,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 	 * Create a new terminal backed by node-pty.
 	 * Spawns the user's default shell.
 	 */
-	async createTerminal(params: ICreateTerminalParams, options?: { shell?: string; preventShellHistory?: boolean }): Promise<void> {
+	async createTerminal(params: ICreateTerminalParams, options?: { shell?: string; preventShellHistory?: boolean; nonInteractive?: boolean }): Promise<void> {
 		const uri = params.terminal;
 		if (this._terminals.has(uri)) {
 			throw new Error(`Terminal already exists: ${uri}`);
@@ -198,6 +198,18 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 			// Combined with the leading-space prefix applied at command-write time, this
 			// prevents agent-executed commands from polluting the user's shell history.
 			env['VSCODE_PREVENT_SHELL_HISTORY'] = '1';
+		}
+		if (options?.nonInteractive) {
+			// Suppress paging and interactive prompts so that tool-spawned
+			// terminals produce clean, machine-friendly output. An empty
+			// string disables paging in git, less, and most CLI tools and
+			// is safe on all platforms (unlike 'cat' which isn't on Windows PATH).
+			env['LC_ALL'] = 'C.UTF-8';
+			env['PAGER'] = '';
+			env['GIT_PAGER'] = '';
+			env['GH_PAGER'] = '';
+			env['GIT_TERMINAL_PROMPT'] = '0';
+			env['DEBIAN_FRONTEND'] = 'noninteractive';
 		}
 		let shellArgs: string[] = [];
 

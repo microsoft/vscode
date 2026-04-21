@@ -22,6 +22,12 @@ export const RemoteAgentHostsSettingId = 'chat.remoteAgentHosts';
 /** Configuration key to enable remote agent host connections. */
 export const RemoteAgentHostsEnabledSettingId = 'chat.remoteAgentHostsEnabled';
 
+/**
+ * Configuration key that controls whether online dev tunnels and
+ * configured SSH remote agent hosts are auto-connected at startup.
+ */
+export const RemoteAgentHostAutoConnectSettingId = 'chat.remoteAgentHostsAutoConnect';
+
 export const enum RemoteAgentHostEntryType {
 	WebSocket = 'websocket',
 	SSH = 'ssh',

@@ -359,6 +359,13 @@ export class SingleEditorTabsControl extends EditorTabsControl {
 		}
 	}
 
+	protected override prepareEditorLayoutActions(): IToolbarActions {
+		return {
+			primary: [],
+			secondary: []
+		};
+	}
+
 	getHeight(): number {
 		return this.tabHeight;
 	}

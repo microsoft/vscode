@@ -14,7 +14,7 @@ export type NesDatagen = {
 	readonly output: string | undefined;
 	readonly rowOffset: number;
 	readonly workerMode: boolean;
-}
+};
 
 export class SimulationOptions {
 	public static fromProcessArgs(): SimulationOptions {

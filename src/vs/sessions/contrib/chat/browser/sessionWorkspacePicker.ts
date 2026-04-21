@@ -197,11 +197,10 @@ export class WorkspacePicker extends Disposable {
 					return;
 				}
 				if (item.remoteProvider && item.browseActionIndex === undefined) {
-					if (item.remoteProvider.remoteAddress?.startsWith(TUNNEL_ADDRESS_PREFIX)) {
-						// Disconnected tunnel — trigger connection flow
-						this.commandService.executeCommand('workbench.action.sessions.connectViaTunnel');
-					} else {
-						// Disconnected SSH host — show options menu after widget hides
+					if (!item.remoteProvider.remoteAddress?.startsWith(TUNNEL_ADDRESS_PREFIX)) {
+						// Disconnected SSH host — show options menu after widget hides.
+						// (Disconnected tunnels are rendered as disabled with a
+						// refresh toolbar action, so onSelect doesn't fire for them.)
 						this._showRemoteHostOptionsDelayed(item.remoteProvider);
 					}
 				} else if (item.browseActionIndex !== undefined) {
@@ -437,11 +436,27 @@ export class WorkspacePicker extends Disposable {
 			const status = provider.connectionStatus!.get();
 			const isConnected = status === RemoteAgentHostConnectionStatus.Connected;
 			const providerBrowseIndex = allBrowseActions.findIndex(a => a.providerId === provider.id);
+			const isTunnel = provider.remoteAddress?.startsWith(TUNNEL_ADDRESS_PREFIX);
 
 			const toolbarActions: IAction[] = [];
 
-			// Gear menu only for SSH hosts, not tunnel providers
-			if (!provider.remoteAddress?.startsWith(TUNNEL_ADDRESS_PREFIX)) {
+			if (isTunnel) {
+				// Offline/connecting tunnels: surface a refresh button that
+				// attempts to (re)connect in case the cached status is stale.
+				if (!isConnected && providerBrowseIndex >= 0) {
+					const browseIndex = providerBrowseIndex;
+					toolbarActions.push(toAction({
+						id: `workspacePicker.remote.refresh.${provider.id}`,
+						label: localize('workspacePicker.refreshTunnel', "Attempt to Connect"),
+						class: ThemeIcon.asClassName(Codicon.refresh),
+						run: () => {
+							this.actionWidgetService.hide();
+							this._executeBrowseAction(browseIndex);
+						},
+					}));
+				}
+			} else {
+				// Gear menu only for SSH hosts, not tunnel providers
 				toolbarActions.push(toAction({
 					id: `workspacePicker.remote.gear.${provider.id}`,
 					label: localize('workspacePicker.remoteOptions', "Options"),
@@ -453,15 +468,13 @@ export class WorkspacePicker extends Disposable {
 				}));
 			}
 
-			const isTunnel = provider.remoteAddress?.startsWith(TUNNEL_ADDRESS_PREFIX);
-
 			items.push({
 				kind: ActionListItemKind.Action,
 				label: provider.label,
 				description: this._getStatusDescription(status),
 				hover: { content: this._getStatusHover(status, provider.remoteAddress) },
 				group: { title: '', icon: isTunnel ? Codicon.cloud : Codicon.remote },
-				disabled: isTunnel ? false : !isConnected,
+				disabled: !isConnected,
 				item: {
 					browseActionIndex: isConnected && providerBrowseIndex >= 0 ? providerBrowseIndex : undefined,
 					remoteProvider: provider,

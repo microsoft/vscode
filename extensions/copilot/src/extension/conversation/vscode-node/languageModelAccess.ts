@@ -486,7 +486,6 @@ class LanguageModelAccessPromptBaseCountCache {
 export class CopilotLanguageModelWrapper extends Disposable {
 
 	constructor(
-		@IExperimentationService readonly _expService: IExperimentationService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@IBlockedExtensionService private readonly _blockedExtensionService: IBlockedExtensionService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,

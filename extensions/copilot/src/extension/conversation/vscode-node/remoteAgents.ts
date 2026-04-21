@@ -88,7 +88,7 @@ interface IGitHubRepositoryReference {
 }
 
 export class RemoteAgentContribution implements IDisposable {
-	private disposables = new DisposableStore();
+	private readonly disposables = new DisposableStore();
 	private refreshRemoteAgentsP: Promise<void> | undefined;
 	private enabledSkillsPromise: Promise<Set<string>> | undefined;
 

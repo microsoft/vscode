@@ -1202,6 +1202,7 @@ class FakeGitService extends mock<IGitService>() {
 	}
 
 	override dispose(): void {
+		super.dispose();
 		this._onDidOpenRepository.dispose();
 		this._onDidCloseRepository.dispose();
 	}
@@ -1407,6 +1408,30 @@ describe('ClaudeChatSessionItemController', () => {
 			expect(item!.tooltip).toBe('Claude Code session: Disk Label');
 			// timing.created is derived from created
 			expect(item!.timing!.created).toBe(new Date('2024-06-01T12:00:00Z').getTime());
+		});
+
+		it('sets metadata with workingDirectoryPath when session has cwd', async () => {
+			const diskSession: IClaudeCodeSessionInfo = {
+				id: 'cwd-session',
+				label: 'CWD Session',
+				created: Date.now(),
+				lastRequestEnded: Date.now(),
+				folderName: 'my-project',
+				cwd: '/home/user/my-project',
+			};
+			vi.mocked(mockSessionService.getSession).mockResolvedValue(diskSession as any);
+
+			await controller.updateItemStatus('cwd-session', ChatSessionStatus.InProgress, 'Prompt');
+
+			const item = getItem('cwd-session');
+			expect(item!.metadata).toEqual({ workingDirectoryPath: '/home/user/my-project' });
+		});
+
+		it('does not set metadata when session has no cwd', async () => {
+			await controller.updateItemStatus('no-cwd-session', ChatSessionStatus.InProgress, 'Prompt');
+
+			const item = getItem('no-cwd-session');
+			expect(item!.metadata).toBeUndefined();
 		});
 	});
 

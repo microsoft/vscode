@@ -483,7 +483,7 @@ export class GitServiceImpl extends Disposable implements IGitService {
 	}
 
 	private static repoToRepoContext(repo: Repository): RepoContext;
-	private static repoToRepoContext(repo: Repository | undefined | null): RepoContext | undefined
+	private static repoToRepoContext(repo: Repository | undefined | null): RepoContext | undefined;
 	private static repoToRepoContext(repo: Repository | undefined | null): RepoContext | undefined {
 		if (!repo) {
 			return undefined;

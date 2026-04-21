@@ -780,7 +780,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 		this.welcomePage.rebuildCards(new Set(this.sections.map(s => s.id)));
 	}
 
-	private createBackArrowButton(): HTMLButtonElement {
+	private createBackArrowButton(onClick?: () => void): HTMLButtonElement {
 		const button = $('button.section-back-arrow-button') as HTMLButtonElement;
 		button.type = 'button';
 		button.setAttribute('aria-label', localize('backToOverview', "Back to overview"));
@@ -789,13 +789,17 @@ export class AICustomizationManagementEditor extends EditorPane {
 		icon.classList.add(...ThemeIcon.asClassNameArray(Codicon.arrowLeft));
 		icon.setAttribute('aria-hidden', 'true');
 		this.editorDisposables.add(DOM.addDisposableListener(button, 'click', () => {
-			this.showWelcomePage();
+			if (onClick) {
+				onClick();
+			} else {
+				this.showWelcomePage();
+			}
 		}));
 		return button;
 	}
 
-	private injectBackArrowIntoSearchRow(widget: { prependToSearchRow(el: HTMLElement): void }): void {
-		widget.prependToSearchRow(this.createBackArrowButton());
+	private injectBackArrowIntoSearchRow(widget: { prependToSearchRow(el: HTMLElement): void }, onClick?: () => void): void {
+		widget.prependToSearchRow(this.createBackArrowButton(onClick));
 	}
 
 	private createContent(): void {
@@ -859,7 +863,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.mcpContentContainer = DOM.append(contentInner, $('.mcp-content-container'));
 			this.mcpListWidget = this.editorDisposables.add(this.instantiationService.createInstance(McpListWidget));
 			this.mcpContentContainer.appendChild(this.mcpListWidget.element);
-			this.injectBackArrowIntoSearchRow(this.mcpListWidget);
+			this.injectBackArrowIntoSearchRow(this.mcpListWidget, () => {
+				if (this.mcpListWidget!.isInBrowseMode()) {
+					this.mcpListWidget!.exitBrowseMode();
+				} else {
+					this.showWelcomePage();
+				}
+			});
 
 			// Embedded MCP server detail view
 			this.mcpDetailContainer = DOM.append(contentInner, $('.mcp-detail-container'));
@@ -879,7 +889,13 @@ export class AICustomizationManagementEditor extends EditorPane {
 			this.pluginContentContainer = DOM.append(contentInner, $('.plugin-content-container'));
 			this.pluginListWidget = this.editorDisposables.add(this.instantiationService.createInstance(PluginListWidget));
 			this.pluginContentContainer.appendChild(this.pluginListWidget.element);
-			this.injectBackArrowIntoSearchRow(this.pluginListWidget);
+			this.injectBackArrowIntoSearchRow(this.pluginListWidget, () => {
+				if (this.pluginListWidget!.isInBrowseMode()) {
+					this.pluginListWidget!.exitBrowseMode();
+				} else {
+					this.showWelcomePage();
+				}
+			});
 
 			// Embedded plugin detail view
 			this.pluginDetailContainer = DOM.append(contentInner, $('.plugin-detail-container'));

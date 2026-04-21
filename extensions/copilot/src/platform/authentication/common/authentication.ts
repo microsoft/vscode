@@ -277,7 +277,7 @@ export abstract class BaseAuthenticationService extends Disposable implements IA
 	// #endregion
 
 	//#region ADO Token
-	abstract getAdoAccessTokenBase64(options?: AuthenticationGetSessionOptions): Promise<string | undefined>
+	abstract getAdoAccessTokenBase64(options?: AuthenticationGetSessionOptions): Promise<string | undefined>;
 	//#endregion
 
 	protected async _handleAuthChangeEvent(): Promise<void> {

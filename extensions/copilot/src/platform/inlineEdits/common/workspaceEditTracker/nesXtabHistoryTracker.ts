@@ -38,19 +38,19 @@ export interface IXtabHistoryVisibleRangesEntry extends IXtabHistoryDocumentEntr
 
 export type IXtabHistoryEntry =
 	| IXtabHistoryEditEntry
-	| IXtabHistoryVisibleRangesEntry
+	| IXtabHistoryVisibleRangesEntry;
 
 type DocumentChangedEvent = {
 	value: StringText;
 	changes: StringEdit[];
 	previous: StringText | undefined;
-}
+};
 
 type DocumentSelectionChangedEvent = {
 	value: readonly OffsetRange[];
 	changes: unknown[];
 	previous: readonly OffsetRange[] | undefined;
-}
+};
 
 /**
  * Controls how consecutive edits to the same document are merged in history.

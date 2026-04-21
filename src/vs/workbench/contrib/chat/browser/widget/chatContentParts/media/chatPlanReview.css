@@ -234,6 +234,11 @@
 	width: auto;
 }
 
+/* ---------- Hidden helper ---------- */
+.interactive-session .chat-plan-review-container .monaco-button.chat-plan-review-hidden {
+	display: none;
+}
+
 /* ---------- Collapsed state ---------- */
 .interactive-session .chat-plan-review-container.chat-plan-review-collapsed > .chat-confirmation-widget2.chat-plan-review > .chat-confirmation-widget-message-scrollable,
 .interactive-session .chat-plan-review-container.chat-plan-review-collapsed > .chat-confirmation-widget2.chat-plan-review > .chat-plan-review-feedback,

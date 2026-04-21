@@ -158,6 +158,7 @@ function createProvider() {
 	const metadataStore = new class extends mock<IChatSessionMetadataStore>() {
 		override getRequestDetails = vi.fn(async () => []);
 		override getRepositoryProperties = vi.fn(async () => undefined);
+		override getSessionParentId = vi.fn(async () => undefined);
 	};
 	const gitService = new TestGitService();
 	const folderRepositoryManager = new TestFolderRepositoryManager();

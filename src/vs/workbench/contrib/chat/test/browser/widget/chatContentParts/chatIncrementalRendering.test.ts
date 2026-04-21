@@ -191,6 +191,30 @@ suite('IncrementalDOMMorpher', () => {
 			// No \n\n — content is buffered
 			assert.strictEqual(morpher.tryMorph('partial paragraph'), true);
 		});
+
+		test('schedules render for content without any paragraph breaks', async () => {
+			configService.setUserConfiguration(ChatConfiguration.IncrementalRenderingBuffering, 'paragraph');
+			const morpher = createMorpher();
+			const rendered: string[] = [];
+			morpher.setRenderCallback(md => rendered.push(md));
+			morpher.seed('');
+
+			// Append content with no \n\n at all — previously this would
+			// never render because getRenderable returned lastRendered (empty seed).
+			morpher.tryMorph('single block no paragraph breaks');
+
+			// Flush the rAF — the full content should render since
+			// there are no paragraph boundaries to buffer at.
+			await new Promise(r => mainWindow.requestAnimationFrame(r));
+			assert.strictEqual(rendered.length, 1);
+			assert.strictEqual(rendered[0], 'single block no paragraph breaks');
+
+			// Further appends should also render
+			morpher.tryMorph('single block no paragraph breaks — more words');
+			await new Promise(r => mainWindow.requestAnimationFrame(r));
+			assert.strictEqual(rendered.length, 2);
+			assert.strictEqual(rendered[1], 'single block no paragraph breaks — more words');
+		});
 	});
 
 	suite('seed', () => {
@@ -291,6 +315,37 @@ suite('IncrementalDOMMorpher', () => {
 			// Dispose before rAF fires
 			morpher.dispose();
 			// No error should occur — rAF is cancelled
+		});
+	});
+
+	suite('updateStreamRate', () => {
+
+		test('flushes remaining buffered content on completion for paragraph buffer', async () => {
+			// Use paragraph buffer (default)
+			configService.setUserConfiguration(ChatConfiguration.IncrementalRenderingBuffering, 'paragraph');
+			const morpher = createMorpher();
+			const rendered: string[] = [];
+			morpher.setRenderCallback(md => rendered.push(md));
+			morpher.seed('');
+
+			const fullContent = 'paragraph one\n\nparagraph two trailing';
+			// Append content where the tail has no \n\n boundary
+			morpher.tryMorph(fullContent);
+
+			// Flush the rAF so the paragraph-boundary render fires
+			await new Promise(r => mainWindow.requestAnimationFrame(r));
+			// Only content up to the last \n\n should have rendered
+			assert.strictEqual(rendered.length, 1);
+			assert.strictEqual(rendered[0], 'paragraph one\n\n');
+
+			// Signal stream completion — should schedule a render of
+			// the full content including the unbounded tail.
+			morpher.updateStreamRate(100, true);
+			await new Promise(r => mainWindow.requestAnimationFrame(r));
+
+			// The render callback should now have the full content
+			assert.strictEqual(rendered.length, 2);
+			assert.strictEqual(rendered[1], fullContent);
 		});
 	});
 });

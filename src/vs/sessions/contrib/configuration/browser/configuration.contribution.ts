@@ -41,6 +41,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 
 		'diffEditor.hideUnchangedRegions.enabled': true,
 		'diffEditor.renderGutterMenu': false,
+		'diffEditor.renderIndicators': false,
 		'diffEditor.renderMarginRevertIcon': false,
 		'diffEditor.renderSideBySide': true,
 		'diffEditor.useInlineViewWhenSpaceIsLimited': true,

@@ -72,6 +72,7 @@ class MockAgentService implements IAgentService {
 	readonly browsedUris: URI[] = [];
 	readonly browseErrors = new Map<string, Error>();
 	readonly listedSessions: IAgentSessionMetadata[] = [];
+	readonly createSessionConfigs: (IAgentCreateSessionConfig | undefined)[] = [];
 
 	private readonly _onDidAction = new Emitter<import('../../common/state/sessionActions.js').IActionEnvelope>();
 	readonly onDidAction = this._onDidAction.event;
@@ -91,6 +92,7 @@ class MockAgentService implements IAgentService {
 		this._stateManager.dispatchClientAction(action, origin);
 	}
 	async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
+		this.createSessionConfigs.push(config);
 		const session = config?.session ?? URI.parse('copilot:///new-session');
 		this._stateManager.createSession({
 			resource: session.toString(),
@@ -576,5 +578,63 @@ suite('ProtocolServerHandler', () => {
 		// New transport closes - should decrement
 		transport2.simulateClose();
 		assert.deepStrictEqual(counts, [1, 1, 0]);
+	});
+
+	// ---- createSession activeClient -------------------------------------
+
+	suite('createSession activeClient', () => {
+
+		test('forwards activeClient to the agent service', async () => {
+			const newSession = URI.parse('copilot:///eager-session').toString();
+
+			const transport = connectClient('client-1');
+			transport.sent.length = 0;
+
+			const responsePromise = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'createSession', {
+				session: newSession,
+				provider: 'copilot',
+				activeClient: {
+					clientId: 'client-1',
+					tools: [{ name: 't1', description: 'd', inputSchema: { type: 'object' } }],
+					customizations: [{ uri: 'file:///plugin-a', displayName: 'A' }],
+				},
+			}));
+			const resp = await responsePromise as { result?: unknown; error?: unknown };
+
+			assert.strictEqual(resp.error, undefined, 'createSession should succeed');
+			const config = agentService.createSessionConfigs.at(-1);
+			assert.deepStrictEqual({
+				clientId: config?.activeClient?.clientId,
+				toolName: config?.activeClient?.tools[0]?.name,
+				customizationUri: config?.activeClient?.customizations?.[0].uri,
+			}, {
+				clientId: 'client-1',
+				toolName: 't1',
+				customizationUri: 'file:///plugin-a',
+			});
+		});
+
+		test('rejects createSession when activeClient.clientId mismatches', async () => {
+			const newSession = URI.parse('copilot:///mismatch-session').toString();
+
+			const transport = connectClient('client-1');
+			transport.sent.length = 0;
+
+			const responsePromise = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'createSession', {
+				session: newSession,
+				provider: 'copilot',
+				activeClient: {
+					clientId: 'other-client',
+					tools: [],
+				},
+			}));
+			const resp = await responsePromise as { result?: unknown; error?: { code: number; message: string } };
+
+			assert.ok(resp.error, 'response should be an error');
+			assert.strictEqual(resp.result, undefined);
+			assert.strictEqual(agentService.createSessionConfigs.length, 0, 'agent service should not have been called');
+		});
 	});
 });

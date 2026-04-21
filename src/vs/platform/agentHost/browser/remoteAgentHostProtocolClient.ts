@@ -180,7 +180,10 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 	 * Create a new session on the remote agent host.
 	 */
 	async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
-		const provider = config?.provider ?? 'copilot';
+		const provider = config?.provider;
+		if (!provider) {
+			throw new Error('Cannot create remote agent host session without a provider.');
+		}
 		const session = AgentSession.uri(provider, generateUuid());
 		await this._sendRequest('createSession', {
 			session: session.toString(),
@@ -188,6 +191,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			model: config?.model,
 			workingDirectory: config?.workingDirectory ? fromAgentHostUri(config.workingDirectory).toString() : undefined,
 			config: config?.config,
+			activeClient: config?.activeClient,
 		});
 		return session;
 	}

@@ -9,7 +9,6 @@ assets/walkthroughs/**
 !dist/*.bpe
 !dist/*.tiktoken
 !dist/node_modules/**
-!dist/tfidfWorker.js
 !dist/worker2.js
 !dist/tikTokenizerWorker.js
 !dist/diffWorker.js

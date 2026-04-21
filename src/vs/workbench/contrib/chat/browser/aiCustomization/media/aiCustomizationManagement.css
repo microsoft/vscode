@@ -1008,30 +1008,6 @@
 	outline-offset: -1px;
 }
 
-/* Back to installed link */
-.mcp-list-widget .mcp-back-link {
-	display: flex;
-	align-items: center;
-	gap: 4px;
-	padding: 4px 6px;
-	cursor: pointer;
-	font-size: 12px;
-	color: var(--vscode-descriptionForeground);
-	flex-shrink: 0;
-	border-radius: 4px;
-	margin: 4px 0;
-}
-
-.mcp-list-widget .mcp-back-link:hover {
-	background-color: var(--vscode-toolbar-hoverBackground);
-	color: var(--vscode-foreground);
-}
-
-.mcp-list-widget .mcp-back-link:focus-visible {
-	outline: 1px solid var(--vscode-focusBorder);
-	outline-offset: -1px;
-}
-
 /* Gallery item specifics */
 .mcp-gallery-item .mcp-gallery-name-row {
 	display: flex;

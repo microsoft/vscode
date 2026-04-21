@@ -40,7 +40,7 @@ export type RunPipelineOptions = {
 	readonly configFile: string | undefined;
 	readonly verbose: number | boolean | undefined;
 	readonly parallelism: number;
-}
+};
 
 export async function runInputPipeline(opts: RunPipelineOptions, log = console.log.bind(console)): Promise<void> {
 	const nesDatagenOpts = opts.nesDatagen!;

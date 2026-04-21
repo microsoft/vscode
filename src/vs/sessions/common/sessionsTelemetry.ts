@@ -114,8 +114,18 @@ export function logChangesViewReviewCommentAdded(telemetryService: ITelemetrySer
 
 // --- Tunnel agent host connect ---
 
-export type TunnelConnectErrorCategory = 'relayConnectionFailed' | 'auth' | 'network' | 'other';
-export type TunnelConnectFailureReason = 'hostOffline' | 'maxAttemptsReached';
+export type TunnelConnectErrorCategory =
+	| 'relayConnectionFailed'
+	| 'auth'
+	| 'authExpired'
+	| 'network'
+	| 'other';
+
+export type TunnelConnectFailureReason =
+	| 'hostOffline'
+	| 'maxAttemptsReached'
+	| 'auth'
+	| 'authExpired';
 
 type TunnelConnectAttemptEvent = {
 	isReconnect: boolean;
@@ -132,7 +142,7 @@ type TunnelConnectAttemptClassification = {
 	attempt: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Attempt number within the current connect session (1-based).' };
 	durationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Duration of this individual attempt in milliseconds.' };
 	success: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether this individual attempt succeeded.' };
-	errorCategory: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Category of error when the attempt failed (relayConnectionFailed, auth, network, other); empty on success.' };
+	errorCategory: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Category of error when the attempt failed (relayConnectionFailed, auth, authExpired, network, other); empty on success.' };
 };
 
 export function logTunnelConnectAttempt(telemetryService: ITelemetryService, data: { isReconnect: boolean; attempt: number; durationMs: number; success: boolean; errorCategory?: TunnelConnectErrorCategory }): void {
@@ -160,7 +170,7 @@ type TunnelConnectResolvedClassification = {
 	totalAttempts: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total number of attempts made before resolution.' };
 	totalDurationMs: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Total elapsed time from session start to resolution in milliseconds.' };
 	success: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; isMeasurement: true; comment: 'Whether the connect session ultimately succeeded.' };
-	failureReason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Reason the session terminated without connecting (hostOffline, maxAttemptsReached); empty on success.' };
+	failureReason: { classification: 'SystemMetaData'; purpose: 'PerformanceAndHealth'; comment: 'Reason the session terminated without connecting (hostOffline, maxAttemptsReached, auth, authExpired); empty on success.' };
 };
 
 export function logTunnelConnectResolved(telemetryService: ITelemetryService, data: { isReconnect: boolean; totalAttempts: number; totalDurationMs: number; success: boolean; failureReason?: TunnelConnectFailureReason }): void {

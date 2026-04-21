@@ -262,13 +262,11 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		}
 
 		if (!sessionTypeId) {
-			const defaultType = provider.getSessionTypes(repositoryUri)[0];
-			if (!defaultType) {
+			sessionTypeId = provider.getSessionTypes(repositoryUri)[0]?.id;
+			if (!sessionTypeId) {
 				throw new Error(`No session types available for provider '${providerId}'`);
 			}
-			sessionTypeId = defaultType.id;
 		}
-
 		const session = provider.createNewSession(repositoryUri, sessionTypeId);
 		this.setActiveSession(session);
 		return session;

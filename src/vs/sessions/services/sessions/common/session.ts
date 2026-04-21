@@ -40,6 +40,16 @@ export const CopilotCloudSessionType: ISessionType = {
 	icon: Codicon.cloud,
 };
 
+/** Session type ID for Claude Code sessions. */
+export const CLAUDE_CODE_SESSION_TYPE = 'claude-code';
+
+/** Claude Code session type — local agent powered by Claude. */
+export const ClaudeCodeSessionType: ISessionType = {
+	id: CLAUDE_CODE_SESSION_TYPE,
+	label: localize('claudeCode', "Claude"),
+	icon: Codicon.claude,
+};
+
 export const GITHUB_REMOTE_FILE_SCHEME = 'github-remote-file';
 
 /**

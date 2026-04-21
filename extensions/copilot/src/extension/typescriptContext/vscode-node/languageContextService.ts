@@ -477,7 +477,7 @@ type ContextRequestState = {
 type CacheInfo = {
 	version: number;
 	state: CacheState;
-}
+};
 
 enum CacheState {
 	NotPopulated = 'NotPopulated',
@@ -1244,9 +1244,9 @@ export class LanguageContextServiceImpl implements ILanguageContextService, vsco
 	public readonly onContextComputedOnTimeout: vscode.Event<OnContextComputedOnTimeoutEvent>;
 
 	constructor(
+		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExperimentationService private readonly experimentationService: IExperimentationService,
-		@ITelemetryService readonly telemetryService: ITelemetryService,
 		@ILogService private readonly logService: ILogService
 	) {
 		this.isDebugging = process.execArgv.some((arg) => /^--(?:inspect|debug)(?:-brk)?(?:=\d+)?$/i.test(arg));
@@ -1791,7 +1791,7 @@ async function* mapAsyncIterable<T, U>(
 const showContextInspectorViewContextKey = `github.copilot.chat.showContextInspectorView`;
 export class InlineCompletionContribution implements vscode.Disposable, TokenBudgetProvider {
 
-	private disposables: DisposableStore;
+	private readonly disposables: DisposableStore;
 
 	private registrations: DisposableStore | undefined;
 	private readonly registrationQueue: Queue<void>;
@@ -1799,10 +1799,10 @@ export class InlineCompletionContribution implements vscode.Disposable, TokenBud
 	private readonly telemetrySender: TelemetrySender;
 
 	constructor(
+		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExperimentationService private readonly experimentationService: IExperimentationService,
-		@ILogService readonly logService: ILogService,
-		@ITelemetryService readonly telemetryService: ITelemetryService,
+		@ILogService private readonly logService: ILogService,
 		@ILanguageContextService private readonly languageContextService: ILanguageContextService,
 		@ILanguageContextProviderService private readonly languageContextProviderService: ILanguageContextProviderService,
 	) {

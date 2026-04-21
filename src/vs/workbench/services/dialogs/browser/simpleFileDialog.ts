@@ -531,9 +531,6 @@ export class SimpleFileDialog extends Disposable implements ISimpleFileDialog {
 		});
 	}
 
-	public override dispose(): void {
-		super.dispose();
-	}
 
 	private async handleValueChange(value: string) {
 		try {

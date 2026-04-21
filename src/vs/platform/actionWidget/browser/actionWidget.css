@@ -357,6 +357,15 @@
 	word-wrap: break-word;
 }
 
+.action-list-submenu-hover-header a {
+	color: var(--vscode-textLink-foreground);
+}
+
+.action-list-submenu-hover-header a:hover,
+.action-list-submenu-hover-header a:active {
+	color: var(--vscode-textLink-activeForeground);
+}
+
 .action-list-submenu-hover-header.has-submenu {
 	border-bottom: 1px solid var(--vscode-menu-separatorBackground, var(--vscode-editorWidget-border));
 }

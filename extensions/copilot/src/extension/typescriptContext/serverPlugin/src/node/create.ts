@@ -114,7 +114,7 @@ type ResolvedInput = {
 	startTime: number;
 	timeBudget: number;
 	requestStartTime: number;
-}
+};
 const resolveInput = <T extends tt.server.protocol.FileRequestArgs & tt.server.protocol.Location & { timeBudget?: number; startTime?: number }>(args: T | undefined, defaultTimeBudget: number): ResolvedInput | FailedHandlerResponse => {
 	const requestStartTime = Date.now();
 	if (args === undefined) {

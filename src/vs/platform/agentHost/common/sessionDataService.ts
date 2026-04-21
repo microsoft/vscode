@@ -174,6 +174,19 @@ export interface ISessionDatabase extends IDisposable {
 	remapTurnIds(mapping: ReadonlyMap<string, string>): Promise<void>;
 
 	/**
+	 * Creates a safe, consistent copy of the database at the given path
+	 * using SQLite's `VACUUM INTO` command.
+	 */
+	vacuumInto(targetPath: string): Promise<void>;
+
+	/**
+	 * Resolves once all in-flight write operations on this database have
+	 * settled. Used by graceful shutdown to flush fire-and-forget writes
+	 * before the process exits.
+	 */
+	whenIdle(): Promise<void>;
+
+	/**
 	 * Close the database connection. After calling this method, the object is
 	 * considered disposed and all other methods will reject with an error.
 	 */
@@ -235,4 +248,12 @@ export interface ISessionDataService {
 	 * Called at startup; safe to call multiple times.
 	 */
 	cleanupOrphanedData(knownSessionIds: Set<string>): Promise<void>;
+
+	/**
+	 * Resolves once all in-flight write operations across every currently
+	 * open per-session database have settled. Intended for graceful
+	 * shutdown — fire-and-forget writes (e.g. metadata persistence) would
+	 * otherwise be lost when the process exits.
+	 */
+	whenIdle(): Promise<void>;
 }

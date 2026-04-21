@@ -231,7 +231,7 @@ export type IChatRequestTelemetryProperties = {
 	parentRequestId?: string;
 	/** For a subagent: The tool_call_id from the parent agent's LLM response that triggered this subagent invocation. */
 	parentToolCallId?: string;
-}
+};
 
 export interface ICreateEndpointBodyOptions extends IMakeChatRequestOptions {
 	requestId: string;

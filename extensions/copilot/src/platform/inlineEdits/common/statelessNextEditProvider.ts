@@ -26,7 +26,7 @@ import { InlineEditRequestLogContext } from './inlineEditLogContext';
 import { stringifyChatMessages } from './utils/stringifyChatMessages';
 import { IXtabHistoryEntry } from './workspaceEditTracker/nesXtabHistoryTracker';
 
-export type EditStreaming = AsyncGenerator<StreamedEdit, NoNextEditReason, void>
+export type EditStreaming = AsyncGenerator<StreamedEdit, NoNextEditReason, void>;
 
 export class WithStatelessProviderTelemetry<T> {
 	constructor(
@@ -36,7 +36,7 @@ export class WithStatelessProviderTelemetry<T> {
 	}
 }
 
-export type EditStreamingWithTelemetry = AsyncGenerator<WithStatelessProviderTelemetry<StreamedEdit>, WithStatelessProviderTelemetry<NoNextEditReason>, void>
+export type EditStreamingWithTelemetry = AsyncGenerator<WithStatelessProviderTelemetry<StreamedEdit>, WithStatelessProviderTelemetry<NoNextEditReason>, void>;
 
 export type StreamedEdit = {
 	readonly targetDocument: DocumentId;
@@ -49,7 +49,7 @@ export type StreamedEdit = {
 	 * in either the original location or the jump target location.
 	 */
 	readonly originalWindow?: OffsetRange;
-}
+};
 
 export type PushEdit = (edit: Result<StreamedEdit, NoNextEditReason>) => void;
 
@@ -432,7 +432,7 @@ export type FetchResultWithStats = {
 	readonly response: FetchResponse<string>;
 	readonly fetchTime: number;
 	readonly fetchResult: ChatFetchResponseType;
-}
+};
 
 export class StatelessNextEditTelemetryBuilder {
 

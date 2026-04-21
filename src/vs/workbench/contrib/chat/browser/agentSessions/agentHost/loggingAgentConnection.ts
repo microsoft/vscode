@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../../../base/common/event.js';
-import { Disposable, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable, IReference, toDisposable } from '../../../../../../base/common/lifecycle.js';
 import { URI, UriComponents } from '../../../../../../base/common/uri.js';
 import { Registry } from '../../../../../../platform/registry/common/platform.js';
 import { IAgentConnection, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult, AgentHostIpcLoggingSettingId } from '../../../../../../platform/agentHost/common/agentService.js';
@@ -98,6 +98,12 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 	/** Ref-count per channel ID so the output channel survives reconnections. */
 	private static readonly _channelRefCounts = new Map<string, number>();
 	private static readonly _currentRootStateLogKeys = new Set<string>();
+	/**
+	 * Shared event-log subscription per channel ID. Multiple wrappers may
+	 * exist for the same underlying connection (e.g. one for chat, one for
+	 * terminal); we only want each event to appear once in the channel.
+	 */
+	private static readonly _sharedEventLog = new Map<string, IDisposable>();
 
 	private _outputChannel: IOutputChannel | undefined;
 	private readonly _enabled: boolean;
@@ -130,6 +136,10 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 					log: false,
 					languageId: 'log',
 				});
+				const eventLogStore = new DisposableStore();
+				eventLogStore.add(_inner.onDidAction(e => this._log('**', 'onDidAction', e)));
+				eventLogStore.add(_inner.onDidNotification(e => this._log('**', 'onDidNotification', e)));
+				LoggingAgentConnection._sharedEventLog.set(this.channelId, eventLogStore);
 			}
 			LoggingAgentConnection._channelRefCounts.set(this.channelId, refs + 1);
 			logCurrentRootState = !LoggingAgentConnection._currentRootStateLogKeys.has(currentRootStateLogKey);
@@ -141,6 +151,8 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 				if (current <= 0) {
 					LoggingAgentConnection._channelRefCounts.delete(this.channelId);
 					LoggingAgentConnection._currentRootStateLogKeys.delete(currentRootStateLogKey);
+					LoggingAgentConnection._sharedEventLog.get(this.channelId)?.dispose();
+					LoggingAgentConnection._sharedEventLog.delete(this.channelId);
 					registry.removeChannel(this.channelId);
 				} else {
 					LoggingAgentConnection._channelRefCounts.set(this.channelId, current);
@@ -148,20 +160,12 @@ export class LoggingAgentConnection extends Disposable implements IAgentConnecti
 			}));
 		}
 
-		// Wrap events with logging
-		const onDidActionEmitter = this._register(new Emitter<IActionEnvelope>());
-		this._register(_inner.onDidAction(e => {
-			this._log('**', 'onDidAction', e);
-			onDidActionEmitter.fire(e);
-		}));
-		this.onDidAction = onDidActionEmitter.event;
-
-		const onDidNotificationEmitter = this._register(new Emitter<INotification>());
-		this._register(_inner.onDidNotification(e => {
-			this._log('**', 'onDidNotification', e);
-			onDidNotificationEmitter.fire(e);
-		}));
-		this.onDidNotification = onDidNotificationEmitter.event;
+		// Expose the inner events directly. Logging happens once per channel
+		// via the shared subscription registered above; wrappers must not
+		// add their own logging listener or events would be logged N times
+		// (once per wrapper for the same channel).
+		this.onDidAction = _inner.onDidAction;
+		this.onDidNotification = _inner.onDidNotification;
 
 		this._rootState = this._register(new LoggingAgentSubscription('rootState', _inner.rootState, logCurrentRootState, (arrow, method, data) => this._log(arrow, method, data)));
 	}

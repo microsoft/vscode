@@ -1487,6 +1487,33 @@ suite('ChatService', () => {
 			const model = ref.object as ChatModel;
 			assert.strictEqual(model.lastRequest?.response?.isComplete, true, 'Non-streaming session should complete response at load time');
 		});
+
+		test('draft input is restored after disposing and reloading a remote session', async () => {
+			const { resource } = setupRemoteProvider({ history: [] });
+
+			const testService = createChatService();
+
+			// Load the session and seed an unsent draft on its inputModel.
+			const ref1 = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref1, 'Should load remote session');
+			const model1 = ref1.object as ChatModel;
+			model1.inputModel.setState({
+				inputText: 'unsent draft',
+				selections: [{ selectionStartLineNumber: 1, selectionStartColumn: 1, positionLineNumber: 1, positionColumn: 12 }],
+			});
+
+			// Release the only reference -> willDisposeModel runs and persists metadata.
+			ref1.dispose();
+			await testService.waitForModelDisposals();
+
+			// Reload the same session. The draft must be restored from metadata.
+			const ref2 = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref2, 'Should re-load remote session');
+			testDisposables.add(ref2);
+			const model2 = ref2.object as ChatModel;
+			const restored = model2.inputModel.state.get();
+			assert.strictEqual(restored?.inputText, 'unsent draft', 'Input text should be restored');
+		});
 	});
 });
 
