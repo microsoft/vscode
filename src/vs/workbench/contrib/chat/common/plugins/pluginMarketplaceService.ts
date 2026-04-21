@@ -609,7 +609,9 @@ export class PluginMarketplaceService extends Disposable implements IPluginMarke
 				const repoDir = this._pluginRepositoryService.getRepositoryUri(reference);
 				const plugins = await this._readPluginsFromDirectory(repoDir, reference);
 				const match = plugins.find(p => {
-					const installUri = this._pluginRepositoryService.getPluginInstallUri(p);
+					const installUri = p.sourceDescriptor.kind === PluginSourceKind.RelativePath
+						? this._pluginRepositoryService.getPluginInstallUri(p)
+						: this._pluginRepositoryService.getPluginSourceInstallUri(p.sourceDescriptor);
 					return isEqual(installUri, entry.pluginUri);
 				});
 				if (match) {
