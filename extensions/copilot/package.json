@@ -4385,6 +4385,16 @@
 							"onExp"
 						]
 					},
+					"github.copilot.chat.executionSubagent.useAgenticProxy": {
+						"type": "boolean",
+						"default": false,
+						"markdownDescription": "%github.copilot.config.executionSubagent.useAgenticProxy%",
+						"tags": [
+							"advanced",
+							"experimental",
+							"onExp"
+						]
+					},
 					"github.copilot.chat.executionSubagent.toolCallLimit": {
 						"type": "number",
 						"default": 10,

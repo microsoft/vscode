@@ -11,6 +11,7 @@ import { ChatLocation, ChatResponse } from '../../../platform/chat/common/common
 import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { ChatEndpointFamily, IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
+import { ProxyAgenticExecutionEndpoint } from '../../../platform/endpoint/node/proxyAgenticExecutionEndpoint';
 import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
 import { IGitService } from '../../../platform/git/common/gitService';
 import { ILogService } from '../../../platform/log/common/logService';
@@ -76,28 +77,36 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 		return context;
 	}
 
+	private static readonly DEFAULT_AGENTIC_PROXY_MODEL = 'exec-subagent-router-a';
+
 	/**
 	 * Get the endpoint to use for the execution subagent
 	 */
 	private async getEndpoint() {
-		const modelName = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentModel, this._experimentationService) as ChatEndpointFamily;
+		const modelName = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentModel, this._experimentationService) as ChatEndpointFamily | undefined;
+		const useAgenticProxy = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentUseAgenticProxy, this._experimentationService);
+
+		if (useAgenticProxy) {
+			// Use agentic proxy with ExecutionSubagentModel or default to DEFAULT_AGENTIC_PROXY_MODEL
+			const agenticProxyModel = modelName || ExecutionSubagentToolCallingLoop.DEFAULT_AGENTIC_PROXY_MODEL;
+			return this.instantiationService.createInstance(ProxyAgenticExecutionEndpoint, agenticProxyModel);
+		}
+
 		if (modelName) {
 			try {
-				let endpoint = await this.endpointProvider.getChatEndpoint(modelName);
-				if (!endpoint.supportsToolCalls) {
-					this._logService.warn(`[ExecutionSubagentToolCallingLoop] Configured model ${modelName} does not support tool calls. Falling back to request's endpoint.`);
-					endpoint = await this.endpointProvider.getChatEndpoint(this.options.request);
-				}
-				return endpoint;
-			}
-			catch (error) {
-				this._logService.warn(`[ExecutionSubagentToolCallingLoop] Failed to get endpoint for model ${modelName}: ${error}. Falling back to request's endpoint.`);
+				// Try to get the specified model
+				return await this.endpointProvider.getChatEndpoint(modelName);
+			} catch (error) {
+				// Model not available or doesn't support tool calls, fallback to main agent
+				this._logService.warn(`Failed to get model ${modelName}, falling back to main agent endpoint: ${error}`);
 				return await this.endpointProvider.getChatEndpoint(this.options.request);
 			}
 		} else {
+			// No model name specified, use main agent endpoint
 			return await this.endpointProvider.getChatEndpoint(this.options.request);
 		}
 	}
+
 
 	protected async buildPrompt(buildpromptContext: IBuildPromptContext, progress: Progress<ChatResponseReferencePart | ChatResponseProgressPart>, token: CancellationToken): Promise<IBuildPromptResult> {
 		const endpoint = await this.getEndpoint();
