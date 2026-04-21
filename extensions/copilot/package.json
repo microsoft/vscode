@@ -5682,7 +5682,7 @@
 				{
 					"command": "github.copilot.sessions.discardChanges",
 					"when": "chatSessionType == copilotcli && isSessionsWindow && sessions.hasGitRepository && sessions.changesVersionMode == branchChanges",
-					"group": "navigation@1"
+					"group": "navigation@2"
 				}
 			],
 			"chat/customizations/create": [
