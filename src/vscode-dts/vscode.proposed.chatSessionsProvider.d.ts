@@ -100,11 +100,6 @@ declare module 'vscode' {
 			readonly command?: string;
 		};
 
-		/**
-		 * @deprecated Use `inputState` instead
-		 */
-		readonly sessionOptions: ReadonlyArray<{ optionId: string; value: string | ChatSessionProviderOptionItem }>;
-
 		readonly inputState: ChatSessionInputState;
 	}
 
@@ -505,11 +500,6 @@ declare module 'vscode' {
 		 */
 		provideChatSessionContent(resource: Uri, token: CancellationToken, context: {
 			readonly inputState: ChatSessionInputState;
-
-			/**
-			 * @deprecated Use `inputState` instead
-			 */
-			readonly sessionOptions: ReadonlyArray<{ optionId: string; value: string | ChatSessionProviderOptionItem }>;
 		}): Thenable<ChatSession> | ChatSession;
 
 		/**

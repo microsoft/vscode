@@ -38,6 +38,7 @@ import { promisify } from 'util';
 import globCallback from 'glob';
 import rceditCallback from 'rcedit';
 import * as cp from 'child_process';
+import { spawnTsgo } from './lib/tsgo.ts';
 
 
 const glob = promisify(globCallback);
@@ -221,25 +222,6 @@ function runEsbuildBundle(outDir: string, minify: boolean, nls: boolean, target:
 	});
 }
 
-function runTsGoTypeCheck(): Promise<void> {
-	return new Promise((resolve, reject) => {
-		const proc = cp.spawn('tsgo', ['--project', 'src/tsconfig.json', '--noEmit', '--skipLibCheck'], {
-			cwd: root,
-			stdio: 'inherit',
-			shell: true
-		});
-
-		proc.on('error', reject);
-		proc.on('close', code => {
-			if (code === 0) {
-				resolve();
-			} else {
-				reject(new Error(`tsgo typecheck failed with exit code ${code}`));
-			}
-		});
-	});
-}
-
 const sourceMappingURLBase = `https://main.vscode-cdn.net/sourcemaps/${commit}`;
 const isCI = !!process.env['CI'] || !!process.env['BUILD_ARTIFACTSTAGINGDIRECTORY'] || !!process.env['GITHUB_WORKSPACE'];
 const useCdnSourceMapsForPackagingTasks = isCI;
@@ -266,7 +248,7 @@ gulp.task(task.define('core-ci', task.series(
 	compileExtensionMediaBuildTask,
 	writeISODate('out-build'),
 	// Type-check with tsgo (no emit)
-	task.define('tsgo-typecheck', () => runTsGoTypeCheck()),
+	task.define('tsgo-typecheck', () => spawnTsgo(path.join(root, 'src', 'tsconfig.json'), { taskName: 'tsgo-typecheck', noEmit: true })),
 	// Transpile individual files to out-build first (for unit tests)
 	task.define('esbuild-out-build', () => runEsbuildTranspile('out-build', false)),
 	// Then bundle for shipping (bundles also write NLS files to out-build)

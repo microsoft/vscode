@@ -930,8 +930,11 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .monaco-workbench .interactive-session .chat-input-container::before {
 	content: '';
 	position: absolute;
-	inset: 0;
-	border-radius: inherit;
+	/* Pull the ring out by 1px so its outer edge aligns with where the
+		`box-shadow` glow on the container begins (the outer border-edge),
+		eliminating a sub-pixel gap between the rotating ring and the halo. */
+	inset: -1px;
+	border-radius: calc(var(--vscode-cornerRadius-large) - 1px);
 	padding: 1px;
 	background: conic-gradient(from var(--chat-input-anim-angle),
 		var(--vscode-chat-inputWorkingBorderColor1),

@@ -304,54 +304,32 @@
 	text-decoration: none !important;
 }
 
-/* Gradient ring at rest, drawn on the wrapper so the button's own
-	::before (codicon glyph) is not overridden. Gated behind the experimental
-	`sessions.experimental.sendButtonGradient` setting via the
-	`.sessions-experimental-send-button-gradient` class on the workbench root. */
-.monaco-workbench.sessions-experimental-send-button-gradient .sessions-chat-send-button::before {
-	content: '';
-	position: absolute;
-	inset: 0;
-	border-radius: 4px;
-	padding: 1px;
-	background: conic-gradient(from var(--chat-send-button-anim-angle),
-		var(--vscode-chat-inputWorkingBorderColor1),
-		var(--vscode-chat-inputWorkingBorderColor2),
-		var(--vscode-chat-inputWorkingBorderColor3),
-		var(--vscode-chat-inputWorkingBorderColor2),
-		var(--vscode-chat-inputWorkingBorderColor1));
-	-webkit-mask:
-		linear-gradient(#000 0 0) content-box,
-		linear-gradient(#000 0 0);
-	-webkit-mask-composite: xor;
-	mask:
-		linear-gradient(#000 0 0) content-box,
-		linear-gradient(#000 0 0);
-	mask-composite: exclude;
-	pointer-events: none;
-	transition: opacity 250ms ease;
-	z-index: 2;
-	/* Idle: very slowly rotate the gradient ring. */
+/* Idle: fill the entire button with a slowly rotating conic gradient (no
+	border ring). Gated behind the experimental `sessions.experimental.sendButtonGradient`
+	setting via the `.sessions-experimental-send-button-gradient` class on
+	the workbench root.
+
+	Colors are darkened to match the hover treatment (60% mixed with input
+	background), and the conic stops are asymmetric so the fill has a clear
+	head and tail rather than mirroring around the mid-point. */
+.monaco-workbench.sessions-experimental-send-button-gradient .sessions-chat-send-button .monaco-button:not(.disabled) {
+	background: conic-gradient(from var(--chat-send-button-anim-angle) at 0% 0%,
+		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, var(--vscode-input-background)) 0deg,
+		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor2) 60%, var(--vscode-input-background)) 90deg,
+		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor3) 60%, var(--vscode-input-background)) 200deg,
+		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, var(--vscode-input-background)) 360deg);
+	color: var(--vscode-button-foreground);
 	animation: chat-send-button-spin 18s linear infinite;
+	transition: box-shadow 250ms ease;
 }
 
-.monaco-workbench.sessions-experimental-send-button-gradient .sessions-chat-send-button:has(.monaco-button.disabled)::before {
-	display: none;
-}
-
-/* Hover/focus: fill the button with a solid color that smoothly cycles through
-	the gradient palette, rather than spinning the conic gradient. Focus mirrors
-	hover so keyboard users get the same delightful treatment. */
+/* Hover/focus: soft multi-color glow around the button (no size change). */
 .monaco-workbench.sessions-experimental-send-button-gradient .sessions-chat-send-button:has(.monaco-button:not(.disabled):hover) .monaco-button,
 .monaco-workbench.sessions-experimental-send-button-gradient .sessions-chat-send-button:has(.monaco-button:not(.disabled):focus-visible) .monaco-button {
-	background-color: color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, var(--vscode-input-background));
-	animation: chat-send-button-color-cycle 4.5s ease-in-out infinite;
-	color: var(--vscode-button-foreground);
-}
-
-.monaco-workbench.sessions-experimental-send-button-gradient .sessions-chat-send-button:has(.monaco-button:not(.disabled):hover)::before,
-.monaco-workbench.sessions-experimental-send-button-gradient .sessions-chat-send-button:has(.monaco-button:not(.disabled):focus-visible)::before {
-	opacity: 0;
+	box-shadow:
+		0 0 4px 0 color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor2) 70%, transparent),
+		0 0 8px 1px color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor3) 55%, transparent);
+	animation-duration: 6s;
 }
 
 /* Click: outward color pulse on the wrapper. */
@@ -400,52 +378,32 @@
 	outline: none;
 }
 
-/* Gradient ring at rest, drawn with the standard mask trick so only the
-	1px border area is painted (icon stays transparent over toolbar). */
-.monaco-workbench.sessions-experimental-send-button-gradient .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:has(> .action-label.codicon-arrow-up)::before {
-	content: '';
-	position: absolute;
-	inset: 0;
-	border-radius: inherit;
-	padding: 1px;
-	background: conic-gradient(from var(--chat-send-button-anim-angle),
-		var(--vscode-chat-inputWorkingBorderColor1),
-		var(--vscode-chat-inputWorkingBorderColor2),
-		var(--vscode-chat-inputWorkingBorderColor3),
-		var(--vscode-chat-inputWorkingBorderColor2),
-		var(--vscode-chat-inputWorkingBorderColor1));
-	-webkit-mask:
-		linear-gradient(#000 0 0) content-box,
-		linear-gradient(#000 0 0);
-	-webkit-mask-composite: xor;
-	mask:
-		linear-gradient(#000 0 0) content-box,
-		linear-gradient(#000 0 0);
-	mask-composite: exclude;
-	pointer-events: none;
-	transition: opacity 250ms ease;
-	z-index: 1;
+/* Idle: fill the entire action-label with a slowly rotating conic gradient.
+	Colors darkened to match hover (60% mixed with input background), with
+	asymmetric conic stops. */
+.monaco-workbench.sessions-experimental-send-button-gradient .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up {
+	background: conic-gradient(from var(--chat-send-button-anim-angle) at 0% 0%,
+		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, var(--vscode-input-background)) 0deg,
+		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor2) 60%, var(--vscode-input-background)) 90deg,
+		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor3) 60%, var(--vscode-input-background)) 200deg,
+		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, var(--vscode-input-background)) 360deg) !important;
+	color: var(--vscode-button-foreground) !important;
+	border-radius: 5px;
 	animation: chat-send-button-spin 18s linear infinite;
+	transition: box-shadow 250ms ease;
+	/* Lift the label above the click pulse `::after` on the action-item parent
+		so the pulse appears to expand from behind the button, not on top of it. */
+	position: relative;
+	z-index: 1;
 }
 
-.monaco-workbench.sessions-experimental-send-button-gradient .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item.disabled:has(> .action-label.codicon-arrow-up)::before {
-	display: none;
-}
-
+/* Hover/focus: soft multi-color glow around the button (no size change). */
 .monaco-workbench.sessions-experimental-send-button-gradient .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up:hover,
 .monaco-workbench.sessions-experimental-send-button-gradient .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up:focus-visible {
-	background-color: color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, var(--vscode-input-background));
-	animation: chat-send-button-color-cycle 4.5s ease-in-out infinite;
-}
-
-.monaco-workbench.sessions-experimental-send-button-gradient .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled):has(> .action-label.codicon-arrow-up:hover)::before,
-.monaco-workbench.sessions-experimental-send-button-gradient .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled):has(> .action-label.codicon-arrow-up:focus-visible)::before {
-	opacity: 0;
-}
-
-.monaco-workbench.sessions-experimental-send-button-gradient .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled):has(> .action-label.codicon-arrow-up:hover) .codicon-arrow-up,
-.monaco-workbench.sessions-experimental-send-button-gradient .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled):has(> .action-label.codicon-arrow-up:focus-visible) .codicon-arrow-up {
-	color: var(--vscode-button-foreground) !important;
+	box-shadow:
+		0 0 4px 0 color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor2) 70%, transparent),
+		0 0 8px 1px color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor3) 55%, transparent);
+	animation-duration: 6s;
 }
 
 .monaco-workbench.sessions-experimental-send-button-gradient .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled):has(> .action-label.codicon-arrow-up:active)::after {
@@ -465,15 +423,9 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-	/* New-session send button */
-	.monaco-workbench.sessions-experimental-send-button-gradient .sessions-chat-send-button::before,
-	.monaco-workbench.sessions-experimental-send-button-gradient .sessions-chat-send-button:has(.monaco-button:not(.disabled):hover) .monaco-button,
-	.monaco-workbench.sessions-experimental-send-button-gradient .sessions-chat-send-button:has(.monaco-button:not(.disabled):focus-visible) .monaco-button,
+	.monaco-workbench.sessions-experimental-send-button-gradient .sessions-chat-send-button .monaco-button:not(.disabled),
+	.monaco-workbench.sessions-experimental-send-button-gradient .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up,
 	.monaco-workbench.sessions-experimental-send-button-gradient .sessions-chat-send-button:has(.monaco-button:not(.disabled):active)::after,
-	/* Existing-chat toolbar send button */
-	.monaco-workbench.sessions-experimental-send-button-gradient .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:has(> .action-label.codicon-arrow-up)::before,
-	.monaco-workbench.sessions-experimental-send-button-gradient .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up:hover,
-	.monaco-workbench.sessions-experimental-send-button-gradient .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up:focus-visible,
 	.monaco-workbench.sessions-experimental-send-button-gradient .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled):has(> .action-label.codicon-arrow-up:active)::after {
 		animation: none;
 	}

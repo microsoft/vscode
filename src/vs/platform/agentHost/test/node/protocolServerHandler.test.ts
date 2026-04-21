@@ -367,6 +367,50 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual(result.items.map(item => item.project), [undefined]);
 	});
 
+	test('listSessions includes diffs with before/after URIs and content refs', async () => {
+		agentService.listedSessions.push({
+			session: URI.parse(sessionUri),
+			startTime: 1000,
+			modifiedTime: 2000,
+			summary: 'Session With Diffs',
+			diffs: [
+				{
+					before: { uri: URI.file('/workspace/file.ts').toString(), content: { uri: 'content://before-ref' } },
+					after: { uri: URI.file('/workspace/file.ts').toString(), content: { uri: 'content://after-ref' } },
+					diff: { added: 5, removed: 2 },
+				},
+				{
+					after: { uri: URI.file('/workspace/new-file.ts').toString(), content: { uri: 'content://new-ref' } },
+				},
+				{
+					before: { uri: URI.file('/workspace/deleted.ts').toString(), content: { uri: 'content://deleted-ref' } },
+				},
+			],
+		});
+
+		const transport = connectClient('client-list-diffs');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 2);
+
+		transport.simulateMessage(request(2, 'listSessions'));
+		const resp = await responsePromise;
+
+		const result = (resp as unknown as { result: IListSessionsResult }).result;
+		assert.deepStrictEqual(result.items[0].diffs, [
+			{
+				before: { uri: URI.file('/workspace/file.ts').toString(), content: { uri: 'content://before-ref' } },
+				after: { uri: URI.file('/workspace/file.ts').toString(), content: { uri: 'content://after-ref' } },
+				diff: { added: 5, removed: 2 },
+			},
+			{
+				after: { uri: URI.file('/workspace/new-file.ts').toString(), content: { uri: 'content://new-ref' } },
+			},
+			{
+				before: { uri: URI.file('/workspace/deleted.ts').toString(), content: { uri: 'content://deleted-ref' } },
+			},
+		]);
+	});
+
 	test('createSession returns null and broadcasts project in sessionAdded summary', async () => {
 		const transport = connectClient('client-create');
 		transport.sent.length = 0;

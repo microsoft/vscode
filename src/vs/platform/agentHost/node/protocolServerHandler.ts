@@ -403,6 +403,7 @@ export class ProtocolServerHandler extends Disposable {
 					workingDirectory: s.workingDirectory?.toString(),
 					isRead: s.isRead,
 					isDone: s.isDone,
+					diffs: s.diffs ? [...s.diffs] : undefined,
 				};
 			});
 			return { items };

@@ -262,7 +262,8 @@ import '../workbench/contrib/sash/browser/sash.contribution.js';
 import '../workbench/contrib/git/browser/git.contributions.js';
 
 // SCM
-import '../workbench/contrib/scm/browser/scm.contribution.js';
+import '../workbench/contrib/scm/browser/quickDiff.contribution.js';
+import '../workbench/contrib/scm/browser/scm.service.contribution.js';
 
 // Debug (service)
 import '../workbench/contrib/debug/browser/debug.service.contribution.js';
@@ -383,9 +384,6 @@ import '../workbench/contrib/languageStatus/browser/languageStatus.contribution.
 
 // Authentication
 import '../workbench/contrib/authentication/browser/authentication.contribution.js';
-
-// User Data Sync
-import '../workbench/contrib/userDataSync/browser/userDataSync.contribution.js';
 
 // User Data Profiles
 import '../workbench/contrib/userDataProfile/browser/userDataProfile.contribution.js';

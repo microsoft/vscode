@@ -215,13 +215,14 @@ export class ClaudeLanguageModelServer extends Disposable {
 			}
 
 			const capturingToken = sessionId ? this.sessionStateService.getCapturingTokenForSession(sessionId) : undefined;
+			const reasoningEffort = sessionId ? this.sessionStateService.getReasoningEffortForSession(sessionId) : undefined;
 
 			const doRequest = () => streamingEndpoint.makeChatRequest2({
 				debugName: 'Claude Copilot Proxy',
 				messages: messagesForLogging,
 				finishedCb: async () => undefined,
 				location: ChatLocation.MessagesProxy,
-				modelCapabilities: { enableThinking: true },
+				modelCapabilities: { enableThinking: true, reasoningEffort },
 				userInitiatedRequest: isUserInitiatedMessage
 			}, tokenSource.token);
 
