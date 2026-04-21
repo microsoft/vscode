@@ -1,0 +1,37 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-auto-model-routing-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 1px 6px;
+	margin: 0 4px;
+	border-radius: 4px;
+	color: var(--vscode-descriptionForeground);
+	font-size: var(--vscode-chat-font-size-body-s);
+	line-height: 1.4;
+	cursor: default;
+	user-select: none;
+	white-space: nowrap;
+}
+
+.chat-auto-model-routing-chip:hover,
+.chat-auto-model-routing-chip:focus {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--vscode-foreground);
+	outline: none;
+}
+
+.chat-auto-model-routing-chip .codicon {
+	font-size: 12px;
+	opacity: 0.85;
+}
+
+.chat-auto-model-routing-chip-label {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+}

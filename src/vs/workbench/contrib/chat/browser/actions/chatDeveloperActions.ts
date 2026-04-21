@@ -5,6 +5,7 @@
 
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { fromNow } from '../../../../../base/common/date.js';
+import { MarkdownString } from '../../../../../base/common/htmlContent.js';
 import { isUriComponents, URI } from '../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../editor/browser/editorExtensions.js';
 import { localize2 } from '../../../../../nls.js';
@@ -14,7 +15,7 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
-import { IChatService } from '../../common/chatService/chatService.js';
+import { IChatAutoModelRoutingPart, IChatProgress, IChatService } from '../../common/chatService/chatService.js';
 import { ILanguageModelsService } from '../../common/languageModels.js';
 import { IChatWidgetService } from '../chat.js';
 import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
@@ -40,6 +41,7 @@ export function registerChatDeveloperActions() {
 	registerAction2(InspectChatModelReferencesAction);
 	registerAction2(ClearRecentlyUsedLanguageModelsAction);
 	registerAction2(ResetChatPermissionWarningDialogsAction);
+	registerAction2(SimulateAutoModelRoutingAction);
 }
 
 function formatChatModelReferenceInspection(accessor: ServicesAccessor): string {
@@ -254,5 +256,69 @@ class ResetChatPermissionWarningDialogsAction extends Action2 {
 		const storageService = accessor.get(IStorageService);
 		storageService.remove(AUTOPILOT_DONT_SHOW_AGAIN_KEY, StorageScope.PROFILE);
 		storageService.remove(AUTO_APPROVE_DONT_SHOW_AGAIN_KEY, StorageScope.PROFILE);
+	}
+}
+
+/**
+ * Prototype dev command: injects a sample "Auto Model Routing" card into the
+ * currently focused chat session, so we can preview how this UI would look
+ * inside the chat without wiring up a real router yet.
+ */
+class SimulateAutoModelRoutingAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.simulateAutoModelRouting';
+
+	constructor() {
+		super({
+			id: SimulateAutoModelRoutingAction.ID,
+			title: localize2('workbench.action.chat.simulateAutoModelRouting.label', "Simulate Auto Model Selection Routing (Prototype)"),
+			category: Categories.Developer,
+			f1: true,
+			precondition: ChatContextKeys.enabled
+		});
+	}
+
+	override async run(accessor: ServicesAccessor): Promise<void> {
+		const chatWidgetService = accessor.get(IChatWidgetService);
+		const chatService = accessor.get(IChatService);
+		const widget = chatWidgetService.lastFocusedWidget;
+
+		if (!widget?.viewModel) {
+			return;
+		}
+
+		const sessionResource = widget.viewModel.model.sessionResource;
+
+		const routingPart: IChatAutoModelRoutingPart = {
+			kind: 'autoModelRouting',
+			selectedModel: 'Claude Opus 4.6',
+			selectionReason: 'Best match for deep reasoning and long-context debugging tasks',
+			intent: 'Complex debugging',
+			confidence: 0.91,
+			capabilities: [
+				{ name: 'Reasoning', score: 0.92 },
+				{ name: 'Code Gen', score: 0.61 },
+				{ name: 'Debugging', score: 0.88 },
+				{ name: 'Tool Use', score: 0.34 },
+			],
+			candidates: [
+				{ modelName: 'GPT-5', score: 0.84, reason: 'Strong general purpose, slightly lower on long-context reasoning' },
+				{ modelName: 'Claude Sonnet 4.5', score: 0.76, reason: 'Fast, but less capable on complex multi-step debugging' },
+				{ modelName: 'GPT-4.1', score: 0.61, reason: 'Lower cost option, weaker on deep reasoning tasks' },
+			],
+		};
+
+		const message: IChatProgress[] = [
+			{ kind: 'markdownContent', content: new MarkdownString('Routing your request through Copilot Auto…') },
+			routingPart,
+			{ kind: 'markdownContent', content: new MarkdownString('Done — using **Claude Opus 4.6** for this turn.') },
+		];
+
+		await chatService.addCompleteRequest(
+			sessionResource,
+			'/dev simulate auto model routing',
+			undefined,
+			0,
+			{ message }
+		);
 	}
 }

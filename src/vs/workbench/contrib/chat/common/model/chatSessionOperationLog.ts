@@ -72,6 +72,7 @@ const responsePartSchema = Adapt.v<IChatProgressResponseContent, SerializedChatR
 				case 'confirmation':
 				case 'extensions':
 				case 'hook':
+				case 'autoModelRouting':
 				case 'inlineReference':
 				case 'markdownVuln':
 				case 'notebookEditGroup':

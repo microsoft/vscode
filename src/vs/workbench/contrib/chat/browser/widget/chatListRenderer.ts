@@ -103,6 +103,7 @@ import { isEqual } from '../../../../../base/common/resources.js';
 import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { ChatHookContentPart } from './chatContentParts/chatHookContentPart.js';
+import { createAutoModelRoutingChip, getAutoModelRoutingHoverMarkdown } from './chatContentParts/chatAutoModelRoutingChip.js';
 import { ChatPendingDragController } from './chatPendingDragAndDrop.js';
 import { HookType } from '../../common/promptSyntax/hookTypes.js';
 import { IWorkbenchEnvironmentService } from '../../../../services/environment/common/environmentService.js';
@@ -135,6 +136,7 @@ export interface IChatListItemTemplate {
 	readonly header?: HTMLElement;
 	readonly footerToolbar: MenuWorkbenchToolBar;
 	readonly footerDetailsContainer: HTMLElement;
+	readonly footerRoutingChipContainer: HTMLElement;
 	readonly avatarContainer: HTMLElement;
 	readonly username: HTMLElement;
 	readonly detail: HTMLElement;
@@ -558,6 +560,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		const footerDetailsContainer = dom.append(footerToolbar.getElement(), $('.chat-footer-details'));
 		footerDetailsContainer.tabIndex = 0;
 
+		// Container for the auto-model routing chip; populated per-element when the response was auto-routed
+		const footerRoutingChipContainer = dom.append(footerToolbar.getElement(), $('.chat-footer-routing-chip-container'));
+		footerRoutingChipContainer.classList.add('hidden');
+
 		const checkpointRestoreContainer = dom.append(rowContainer, $('.checkpoint-restore-container'));
 		dom.append(checkpointRestoreContainer, $('.checkpoint-line-left'));
 		const label = dom.append(checkpointRestoreContainer, $('span.checkpoint-label-text'));
@@ -608,7 +614,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}));
 		const connectionObserver = document.createElement('connection-observer') as dom.ConnectionObserverElement;
 		dom.append(container, connectionObserver);
-		const template: IChatListItemTemplate = { header, avatarContainer, requestHover, username, detail, value, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar, footerDetailsContainer, disabledOverlay, checkpointToolbar, checkpointRestoreToolbar, checkpointContainer, checkpointRestoreContainer };
+		const template: IChatListItemTemplate = { header, avatarContainer, requestHover, username, detail, value, rowContainer, elementDisposables, templateDisposables, contextKeyService, instantiationService: scopedInstantiationService, agentHover, titleToolbar, footerToolbar, footerDetailsContainer, footerRoutingChipContainer, disabledOverlay, checkpointToolbar, checkpointRestoreToolbar, checkpointContainer, checkpointRestoreContainer };
 
 		connectionObserver.onDidDisconnect = () => {
 			template.renderedPartsMounted = false;
@@ -738,6 +744,23 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			templateData.footerDetailsContainer.classList.remove('hidden');
 		} else {
 			templateData.footerDetailsContainer.classList.add('hidden');
+		}
+
+		// Render auto-model routing chip in footer if the response was auto-routed
+		dom.clearNode(templateData.footerRoutingChipContainer);
+		templateData.footerRoutingChipContainer.classList.add('hidden');
+		if (isResponseVM(element)) {
+			const routingPart = element.model.response.value.find(c => c.kind === 'autoModelRouting');
+			if (routingPart && routingPart.kind === 'autoModelRouting') {
+				const chip = createAutoModelRoutingChip(routingPart);
+				templateData.footerRoutingChipContainer.appendChild(chip);
+				templateData.footerRoutingChipContainer.classList.remove('hidden');
+				templateData.elementDisposables.add(this.hoverService.setupManagedHover(
+					getDefaultHoverDelegate('element'),
+					chip,
+					{ markdown: getAutoModelRoutingHoverMarkdown(routingPart), markdownNotSupportedFallback: routingPart.selectedModel },
+				));
+			}
 		}
 
 		ChatContextKeys.responseHasError.bindTo(templateData.contextKeyService).set(isResponseVM(element) && !!element.errorDetails);
@@ -2197,6 +2220,9 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return this.instantiationService.createInstance(ChatErrorContentPart, ChatErrorLevel.Warning, content.content, content, this.chatContentMarkdownRenderer);
 			} else if (content.kind === 'hook') {
 				return this.renderHookPart(content, context, templateData);
+			} else if (content.kind === 'autoModelRouting') {
+				// Rendered as a chip in the response footer instead of inline
+				return this.renderNoContent(other => other.kind === content.kind);
 			} else if (content.kind === 'markdownContent') {
 				return this.renderMarkdown(content, templateData, context);
 			} else if (content.kind === 'references') {
