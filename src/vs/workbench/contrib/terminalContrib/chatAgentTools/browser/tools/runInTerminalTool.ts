@@ -1752,22 +1752,22 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 	 *   1. Tells the model this note is NOT a signal to end the turn.
 	 *   2. Leads with `get_terminal_output` as the safe recovery action.
 	 *   3. Offers `send_to_terminal` / `vscode_askQuestions` only for real prompts.
-	 * It intentionally does NOT suggest `kill_terminal` — the tool remains
-	 * available but advertising it here leads the model to terminate valid
-	 * interactive sessions (e.g. `npm init`) instead of driving them.
+	 * `kill_terminal` is only advertised on the timeout branch — suggesting it
+	 * in the general case leads the model to terminate valid interactive
+	 * sessions (e.g. `npm init`) instead of driving them.
 	 */
 	private _buildInputNeededSteeringText(chatSessionResource: URI, termId: string, mentionTimeout: boolean): string {
 		const isAutoApproved = isSessionAutoApproveLevel(chatSessionResource, this._configurationService, this._chatWidgetService, this._chatService);
 		const realInputBranch = isAutoApproved
 			? `determine the answer and call ${TerminalToolId.SendToTerminal} with id="${termId}" (which returns the next few lines of output). Repeat one prompt at a time.`
-			: `call the vscode_askQuestions tool to ask the user, then send each answer using ${TerminalToolId.SendToTerminal} with id="${termId}" (which returns the next few lines of output).`;
+			: `call the vscode_askQuestions tool to ask the user, then send each answer using ${TerminalToolId.SendToTerminal} with id="${termId}" (which returns the next few lines of output). Repeat one prompt at a time.`;
 		const lines = [
 			`This note is not a signal to end the turn — pick one of the actions below and continue.`,
 			`  1. If the command may still be producing output or the shell prompt has not returned, call ${TerminalToolId.GetTerminalOutput} with id="${termId}" to continue polling. This is the default and safest action when unsure.`,
 			`  2. Only if the output clearly ends with a real input prompt (password:, Continue? (y/n), etc. — a normal shell prompt like \`$\` or \`#\` does NOT count), ${realInputBranch}`,
 		];
 		if (mentionTimeout) {
-			lines.push(`  Note: timeouts can also be extended by re-invoking ${TerminalToolId.GetTerminalOutput} with id="${termId}"; they do not indicate the command has failed.`);
+			lines.push(`  3. A timeout does not mean the command failed — call ${TerminalToolId.GetTerminalOutput} with id="${termId}" to continue polling. Only call ${TerminalToolId.KillTerminal} if the command is genuinely hung and you need to retry with a different approach.`);
 		}
 		return lines.join('\n');
 	}
