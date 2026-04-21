@@ -21,6 +21,7 @@ import './installExtensionTool';
 import './listDirTool';
 import './manageTodoListTool';
 import './memoryTool';
+import './storeMemoryTool';
 import './multiReplaceStringTool';
 import './newNotebookTool';
 import './newWorkspace/newWorkspaceTool';

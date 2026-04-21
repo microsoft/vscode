@@ -1080,7 +1080,7 @@
 				"displayName": "Memory",
 				"toolReferenceName": "memory",
 				"userDescription": "Manage persistent memory across conversations",
-				"when": "config.github.copilot.chat.tools.memory.enabled",
+				"when": "config.github.copilot.chat.tools.memory.enabled && !config.github.copilot.chat.copilotMemory.enabled",
 				"modelDescription": "Manage a persistent memory system with three scopes for storing notes and information across conversations.\n\nMemory is organized under /memories/ with three tiers:\n- `/memories/` — User memory: persistent notes that survive across all workspaces and conversations. Store preferences, patterns, and general insights here.\n- `/memories/session/` — Session memory: notes scoped to the current conversation. Store task-specific context and in-progress notes here. Cleared after the conversation ends.\n- `/memories/repo/` — Repository memory: repository-scoped facts stored via Copilot. Only the `create` command is supported for this path.\n\nIMPORTANT: Before creating new memory files, first view the /memories/ directory to understand what already exists. This helps avoid duplicates and maintain organized notes.\n\nCommands:\n- `view`: View contents of a file or list directory contents. Can be used on files or directories (e.g., \"/memories/\" to see all top-level items).\n- `create`: Create a new file at the specified path with the given content. Fails if the file already exists.\n- `str_replace`: Replace an exact string in a file with a new string. The old_str must appear exactly once in the file.\n- `insert`: Insert text at a specific line number in a file. Line 0 inserts at the beginning.\n- `delete`: Delete a file or directory (and all its contents).\n- `rename`: Rename or move a file or directory from path to new_path. Cannot rename across scopes.",
 				"inputSchema": {
 					"type": "object",
@@ -1141,6 +1141,53 @@
 					},
 					"required": [
 						"command"
+					]
+				}
+			},
+			{
+				"name": "copilot_store_memory",
+				"displayName": "Store Memory",
+				"toolReferenceName": "store_memory",
+				"userDescription": "Store a persistent memory fact via Copilot",
+				"when": "config.github.copilot.chat.copilotMemory.enabled",
+				"modelDescription": "Store a persistent memory fact scoped to either the current repository or the current user. Use scope=\"repo\" for codebase conventions, build commands, and project-specific practices. Use scope=\"user\" when the user explicitly asks to remember a personal preference or cross-workspace habit.",
+				"inputSchema": {
+					"type": "object",
+					"properties": {
+						"subject": {
+							"type": "string",
+							"description": "The topic this memory relates to. 1-2 words. Examples: 'naming conventions', 'testing practices', 'formatting'."
+						},
+						"fact": {
+							"type": "string",
+							"description": "A clear, short description of the fact or preference to remember. For repo scope: a codebase convention or practice. For user scope: a personal preference or habit. Must be less than 200 characters."
+						},
+						"citations": {
+							"type": "array",
+							"items": {
+								"type": "string"
+							},
+							"description": "Sources for this fact, such as file:line references (e.g. ['src/foo.ts:12']). Use an empty array if there is no relevant file reference."
+						},
+						"reason": {
+							"type": "string",
+							"description": "A clear explanation of why this fact is worth remembering. At least 2-3 sentences."
+						},
+						"scope": {
+							"type": "string",
+							"enum": [
+								"repo",
+								"user"
+							],
+							"description": "'repo' for repository-scoped codebase facts; 'user' for personal preferences the user explicitly asked to save."
+						}
+					},
+					"required": [
+						"subject",
+						"fact",
+						"citations",
+						"reason",
+						"scope"
 					]
 				}
 			},
@@ -6172,70 +6219,97 @@
 			{
 				"path": "./assets/prompts/plan.prompt.md",
 				"when": "chatSessionType == local",
-				"sessionTypes": ["local"]
+				"sessionTypes": [
+					"local"
+				]
 			}
 		],
 		"chatSkills": [
 			{
 				"path": "./assets/prompts/skills/project-setup-info-local/SKILL.md",
 				"when": "chatSessionType == local && config.github.copilot.chat.projectSetupInfoSkill.enabled && !config.github.copilot.chat.newWorkspace.useContext7",
-				"sessionTypes": ["local"]
+				"sessionTypes": [
+					"local"
+				]
 			},
 			{
 				"path": "./assets/prompts/skills/project-setup-info-context7/SKILL.md",
 				"when": "chatSessionType == local && config.github.copilot.chat.projectSetupInfoSkill.enabled && config.github.copilot.chat.newWorkspace.useContext7",
-				"sessionTypes": ["local"]
+				"sessionTypes": [
+					"local"
+				]
 			},
 			{
 				"path": "./assets/prompts/skills/install-vscode-extension/SKILL.md",
 				"when": "chatSessionType == local && config.github.copilot.chat.installExtensionSkill.enabled && config.github.copilot.chat.newWorkspaceCreation.enabled",
-				"sessionTypes": ["local"]
+				"sessionTypes": [
+					"local"
+				]
 			},
 			{
 				"path": "./assets/prompts/skills/get-search-view-results/SKILL.md",
 				"when": "chatSessionType == local && config.github.copilot.chat.getSearchViewResultsSkill.enabled",
-				"sessionTypes": ["local"]
+				"sessionTypes": [
+					"local"
+				]
 			},
 			{
 				"path": "./assets/prompts/skills/troubleshoot/SKILL.md",
 				"when": "chatSessionType == local || chatSessionType == copilotcli",
-				"sessionTypes": ["local", "copilotcli"]
+				"sessionTypes": [
+					"local",
+					"copilotcli"
+				]
 			},
 			{
 				"path": "./assets/prompts/skills/agent-customization/SKILL.md",
 				"when": "chatSessionType == local || chatSessionType == copilotcli",
-				"sessionTypes": ["local", "copilotcli"]
+				"sessionTypes": [
+					"local",
+					"copilotcli"
+				]
 			},
 			{
 				"path": "./assets/prompts/skills/init/SKILL.md",
 				"when": "chatSessionType == local",
-				"sessionTypes": ["local"]
+				"sessionTypes": [
+					"local"
+				]
 			},
 			{
 				"path": "./assets/prompts/skills/create-prompt/SKILL.md",
 				"when": "chatSessionType == local",
-				"sessionTypes": ["local"]
+				"sessionTypes": [
+					"local"
+				]
 			},
 			{
 				"path": "./assets/prompts/skills/create-instructions/SKILL.md",
 				"when": "chatSessionType == local",
-				"sessionTypes": ["local"]
-
+				"sessionTypes": [
+					"local"
+				]
 			},
 			{
 				"path": "./assets/prompts/skills/create-skill/SKILL.md",
 				"when": "chatSessionType == local",
-				"sessionTypes": ["local"]
+				"sessionTypes": [
+					"local"
+				]
 			},
 			{
 				"path": "./assets/prompts/skills/create-agent/SKILL.md",
 				"when": "chatSessionType == local",
-				"sessionTypes": ["local"]
+				"sessionTypes": [
+					"local"
+				]
 			},
 			{
 				"path": "./assets/prompts/skills/create-hook/SKILL.md",
 				"when": "chatSessionType == local",
-				"sessionTypes": ["local"]
+				"sessionTypes": [
+					"local"
+				]
 			}
 		],
 		"terminal": {

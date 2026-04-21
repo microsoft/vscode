@@ -77,7 +77,9 @@ export class MemoryContextPrompt extends PromptElement<MemoryContextPromptProps>
 					<Tag name='userMemory'>
 						{userMemoryContent
 							? <>The following are your persistent user memory notes. These persist across all workspaces and conversations.<br /><br />{userMemoryContent}</>
-							: <>No user preferences or notes saved yet. Use the {ToolName.Memory} tool to store persistent notes under /memories/.</>
+							: enableCopilotMemory
+						? <>No user preferences or notes saved yet. Use the `{ToolName.StoreMemory}` tool with `scope: 'user'` to save personal preferences.</>
+						: <>No user preferences or notes saved yet. Use the {ToolName.Memory} tool to store persistent notes under /memories/.</>
 						}
 					</Tag>
 				)}
@@ -283,20 +285,23 @@ export class MemoryInstructionsPrompt extends PromptElement<BasePromptElementPro
 			<br />
 			<Tag name='memoryScopes'>
 				Memory is organized into the scopes defined below:<br />
-				{enableMemoryTool && <>- **User memory** (`/memories/`): Persistent notes that survive across all workspaces and conversations. Store user preferences, common patterns, frequently used commands, and general insights here. First {MAX_USER_MEMORY_LINES} lines are loaded into your context automatically.<br /></>}
+				{enableMemoryTool && !enableCopilotMemory && <>- **User memory** (`/memories/`): Persistent notes that survive across all workspaces and conversations. Store user preferences, common patterns, frequently used commands, and general insights here. First {MAX_USER_MEMORY_LINES} lines are loaded into your context automatically.<br /></>}
 				{enableMemoryTool && <>- **Session memory** (`/memories/session/`): Notes for the current conversation only. Store task-specific context, in-progress notes, and temporary working state here. Session files are listed in your context but not loaded automatically — use the memory tool to read them when needed.<br /></>}
-				{enableCopilotMemory && <>- **Repository memory** (`/memories/repo/`): Repository-scoped facts stored via Copilot. Only the `create` command is supported. Store codebase conventions, build commands, project structure facts, and verified practices here.<br /></>}
+				{enableCopilotMemory && <>- **User memory** (`scope: 'user'`): Personal preferences and cross-workspace notes stored via Copilot. Persists across all repositories and conversations. Use the `store_memory` tool with `scope: 'user'`.<br /></>}
+				{enableCopilotMemory && <>- **Repository memory** (`scope: 'repo'`): Repository-scoped facts stored via Copilot. Store codebase conventions, build commands, project structure facts, and verified practices here. Use the `store_memory` tool with `scope: 'repo'`.<br /></>}
 				{enableMemoryTool && !enableCopilotMemory && <>- **Repository memory** (`/memories/repo/`): Repository-scoped facts stored locally in the workspace. Store codebase conventions, build commands, project structure facts, and verified practices here.<br /></>}
 			</Tag>
 			<br />
 			{enableMemoryTool && <>
 				<Tag name='memoryGuidelines'>
-					Guidelines for user memory (`/memories/`):<br />
-					- Keep entries short and concise — use brief bullet points or single-line facts, not lengthy prose. User memory is loaded into context automatically, so brevity is critical.<br />
-					- Organize by topic in separate files (e.g., `debugging.md`, `patterns.md`).<br />
-					- Record only key insights: problem constraints, strategies that worked or failed, and lessons learned.<br />
-					- Update or remove memories that turn out to be wrong or outdated.<br />
-					- Do not create new files unless necessary — prefer updating existing files.<br />
+					{!enableCopilotMemory && <>
+						Guidelines for user memory (`/memories/`):<br />
+						- Keep entries short and concise — use brief bullet points or single-line facts, not lengthy prose. User memory is loaded into context automatically, so brevity is critical.<br />
+						- Organize by topic in separate files (e.g., `debugging.md`, `patterns.md`).<br />
+						- Record only key insights: problem constraints, strategies that worked or failed, and lessons learned.<br />
+						- Update or remove memories that turn out to be wrong or outdated.<br />
+						- Do not create new files unless necessary — prefer updating existing files.<br />
+					</>}
 					Guidelines for session memory (`/memories/session/`):<br />
 					- Use session memory to keep plans up to date and reviewing historical summaries.<br />
 					- Do not create unnecessary session memory files. You should only view and update existing session files.<br />
@@ -304,8 +309,16 @@ export class MemoryInstructionsPrompt extends PromptElement<BasePromptElementPro
 			</>}
 			<br />
 			{enableCopilotMemory && <>
+				<Tag name='userMemoryInstructions'>
+					When the user explicitly asks you to remember a personal preference, habit, or cross-workspace fact, use the `{ToolName.StoreMemory}` tool with `scope: 'user'` to save it. User memories persist across all repositories and conversations.<br />
+					Examples of things to store as user memories:<br />
+					- Preferred coding style (e.g., "prefers spaces over tabs", "uses single quotes")<br />
+					- Workflow preferences (e.g., "prefers dark mode", "always wants tests alongside new code")<br />
+					- Personal conventions the user has stated explicitly<br />
+					Set `citations` to an empty array when there is no relevant file reference.<br />
+				</Tag>
 				<Tag name='repoMemoryInstructions'>
-					If you come across an important fact about the codebase that could help in future code review or generation tasks, beyond the current task, use the {ToolName.Memory} tool to store it. Use the `create` command with a path under `/memories/repo/` to store repository-scoped facts. The file content should be a JSON object with these fields: `subject`, `fact`, `citations`, `reason`, and `category`.<br />
+					If you come across an important fact about the codebase that could help in future code review or generation tasks, beyond the current task, use the `{ToolName.StoreMemory}` tool with `scope: 'repo'` to store it.<br />
 					Facts may be gleaned from the codebase itself or learned from user input or feedback. Such facts might include:<br />
 					- Conventions, preferences, or best practices specific to this codebase that might be overlooked when inspecting only a limited code sample<br />
 					- Important information about the structure or logic of the codebase<br />
@@ -328,7 +341,6 @@ export class MemoryInstructionsPrompt extends PromptElement<BasePromptElementPro
 					</Tag>
 					Always include the reason and citations fields.<br />
 					Before storing, ask yourself: Will this help with future coding or code review tasks across the repository? If unsure, skip storing it.<br />
-					Note: Only `create` is supported for `/memories/repo/` paths.<br />
 					If the user asks how to view or manage their repo memories refer them to https://docs.github.com/en/copilot/how-tos/use-copilot-agents/copilot-memory.<br />
 				</Tag>
 			</>}
