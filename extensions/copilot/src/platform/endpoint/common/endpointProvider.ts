@@ -70,7 +70,7 @@ type ICompletionModelCapabilities = {
 	type: 'completion';
 	family: string;
 	tokenizer: TokenizerType;
-}
+};
 
 export enum ModelSupportedEndpoint {
 	ChatCompletions = '/chat/completions',

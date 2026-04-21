@@ -1076,6 +1076,17 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		queueMicrotask(() => this.inputActionsToolbar?.relayout());
 	}
 
+	/**
+	 * Flush the current input state to the bound input model. Use this before
+	 * the host releases its model reference (e.g. on session switch) to ensure
+	 * an unsent draft is captured by `willDisposeModel` persistence.
+	 */
+	public flushInputStateToModel(): void {
+		if (this._inputModel) {
+			this._syncInputStateToModel();
+		}
+	}
+
 	public setCurrentLanguageModel(model: ILanguageModelChatMetadataAndIdentifier) {
 		this._currentLanguageModel.set(model, undefined);
 

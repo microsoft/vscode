@@ -65,6 +65,7 @@ suite('AgentService (node dispatcher)', () => {
 			tryOpenDatabase: async () => undefined,
 			deleteSessionData: async () => { },
 			cleanupOrphanedData: async () => { },
+			whenIdle: async () => { },
 		};
 		fileService = disposables.add(new FileService(new NullLogService()));
 		disposables.add(fileService.registerProvider(Schemas.inMemory, disposables.add(new InMemoryFileSystemProvider())));
@@ -195,6 +196,7 @@ suite('AgentService (node dispatcher)', () => {
 				}),
 				deleteSessionData: async () => { },
 				cleanupOrphanedData: async () => { },
+				whenIdle: async () => { },
 			};
 
 			// Create a mock that returns a session with that ID

@@ -1946,7 +1946,7 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 
 		const modalEditorContainer = this.editorGroupsService.activeModalEditorPart?.modalElement;
 		let clippingContainer: HTMLElement | undefined;
-		if (DOM.isHTMLElement(modalEditorContainer)) {
+		if (DOM.isHTMLElement(modalEditorContainer) && modalEditorContainer.contains(shadowElement)) {
 			clippingContainer = modalEditorContainer;
 		} else {
 			clippingContainer = this.layoutService.getContainer(DOM.getWindow(this.getDomNode()), Parts.EDITOR_PART);

@@ -14,9 +14,9 @@ import { URI } from '../../../../base/common/uri.js';
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { localize } from '../../../../nls.js';
 import { AgentSession, IAgentConnection, IAgentSessionMetadata } from '../../../../platform/agentHost/common/agentService.js';
-import { NotificationType } from '../../../../platform/agentHost/common/state/protocol/notifications.js';
 import { IResolveSessionConfigResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
-import type { IFileEdit, IModelSelection, ISessionConfigPropertySchema, ISessionState, ISessionSummary } from '../../../../platform/agentHost/common/state/protocol/state.js';
+import { NotificationType } from '../../../../platform/agentHost/common/state/protocol/notifications.js';
+import type { IFileEdit, IModelSelection, IRootState, ISessionConfigPropertySchema, ISessionState, ISessionSummary } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, isSessionAction } from '../../../../platform/agentHost/common/state/sessionActions.js';
 import { StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
@@ -24,12 +24,12 @@ import { IChatSendRequestOptions, IChatService } from '../../../../workbench/con
 import { IChatSessionFileChange, IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ILanguageModelsService } from '../../../../workbench/contrib/chat/common/languageModels.js';
-import { agentHostSessionWorkspaceKey } from '../../../common/agentHostSessionWorkspace.js';
-import { diffsToChanges, diffsEqual, mapProtocolStatus } from '../../../common/agentHostDiffs.js';
+import { diffsEqual, diffsToChanges, mapProtocolStatus } from '../../../common/agentHostDiffs.js';
 import { buildMutableConfigSchema, IAgentHostSessionsProvider, resolvedConfigsEqual } from '../../../common/agentHostSessionsProvider.js';
+import { agentHostSessionWorkspaceKey } from '../../../common/agentHostSessionWorkspace.js';
 import { isSessionConfigComplete } from '../../../common/sessionConfig.js';
-import { ISendRequestOptions, ISessionChangeEvent } from '../../../services/sessions/common/sessionsProvider.js';
 import { IChat, IGitHubInfo, ISession, ISessionType, ISessionWorkspace, ISessionWorkspaceBrowseAction, SessionStatus } from '../../../services/sessions/common/session.js';
+import { ISendRequestOptions, ISessionChangeEvent } from '../../../services/sessions/common/sessionsProvider.js';
 
 // ============================================================================
 // AgentHostSessionAdapter — shared adapter for local and remote sessions
@@ -51,8 +51,6 @@ export interface IAgentHostAdapterOptions {
 	/** Optional URI mapping for diff entries (remote uses `toAgentHostUri`; local uses identity). */
 	readonly mapDiffUri?: (uri: URI) => URI;
 }
-
-const DEFAULT_AGENT_PROVIDER = 'copilot';
 
 /**
  * Adapts an {@link IAgentSessionMetadata} into an {@link ISession} for the
@@ -96,7 +94,11 @@ export class AgentHostSessionAdapter implements ISession {
 		private readonly _options: IAgentHostAdapterOptions,
 	) {
 		const rawId = AgentSession.id(metadata.session);
-		this.agentProvider = AgentSession.provider(metadata.session) ?? DEFAULT_AGENT_PROVIDER;
+		const agentProvider = AgentSession.provider(metadata.session);
+		if (!agentProvider) {
+			throw new Error(`Agent session URI has no provider scheme: ${metadata.session.toString()}`);
+		}
+		this.agentProvider = agentProvider;
 		this.resource = URI.from({ scheme: resourceScheme, path: `/${rawId}` });
 		this.sessionId = `${providerId}:${this.resource.toString()}`;
 		this.providerId = providerId;
@@ -300,14 +302,61 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	/** Provider-level authentication-pending observable used to derive `loading` for sessions. */
 	protected abstract get authenticationPending(): IObservable<boolean>;
 
-	/** Build an adapter for the given metadata. Subclass picks resource scheme, logical type, and adapter options. */
-	protected abstract createAdapter(meta: IAgentSessionMetadata): AgentHostSessionAdapter;
+	/**
+	 * Subclass-specific portion of the adapter options. Base fills in
+	 * the bits that are uniform across hosts (`icon`, `loading`,
+	 * `mapDiffUri`) from the corresponding hooks.
+	 */
+	protected abstract _adapterOptions(): Pick<IAgentHostAdapterOptions, 'description' | 'buildWorkspace'>;
 
-	/** Resolve a UI session-type id to the URI scheme used for new session resources. */
-	protected abstract resourceSchemeForSessionType(sessionTypeId: string): string;
+	/** Build an adapter for the given metadata. */
+	protected createAdapter(meta: IAgentSessionMetadata): AgentHostSessionAdapter {
+		const provider = AgentSession.provider(meta.session);
+		if (!provider) {
+			throw new Error(`Agent session URI has no provider scheme: ${meta.session.toString()}`);
+		}
+		return new AgentHostSessionAdapter(meta, this.id, this.resourceSchemeForProvider(provider), provider, {
+			icon: this.icon,
+			loading: this.authenticationPending,
+			mapDiffUri: this._diffUriMapper(),
+			...this._adapterOptions(),
+		});
+	}
 
-	/** Reverse of {@link resourceSchemeForSessionType} for the agent provider name. */
-	protected abstract agentProviderFromSessionType(sessionType: string): string;
+	/**
+	 * Computes the URI resource scheme used to route session URIs to this
+	 * provider's content provider for a given agent provider name. Local
+	 * uses `agent-host-${provider}`; remote uses a per-connection scheme.
+	 *
+	 * The resource scheme is host-specific and exists purely for content
+	 * provider routing. The logical {@link ISession.sessionType} is the
+	 * agent provider name itself, so the same agent (e.g. `copilotcli`)
+	 * appears under one shared session type across hosts.
+	 */
+	protected abstract resourceSchemeForProvider(provider: string): string;
+
+	/** Format the human-readable label for a session type entry (e.g. `Copilot [Local]`). */
+	protected abstract _formatSessionTypeLabel(agentLabel: string): string;
+
+	/**
+	 * Reconcile {@link _sessionTypes} against the agents advertised by the
+	 * host's root state, firing {@link onDidChangeSessionTypes} only if the
+	 * id/label set actually changed.
+	 */
+	protected _syncSessionTypesFromRootState(rootState: IRootState): void {
+		const next = rootState.agents.map((agent): ISessionType => ({
+			id: agent.provider,
+			label: this._formatSessionTypeLabel(agent.displayName?.trim() || agent.provider),
+			icon: this.icon,
+		}));
+
+		const prev = this._sessionTypes;
+		if (prev.length === next.length && prev.every((t, i) => t.id === next[i].id && t.label === next[i].label)) {
+			return;
+		}
+		this._sessionTypes = next;
+		this._onDidChangeSessionTypes.fire();
+	}
 
 	abstract resolveWorkspace(repositoryUri: URI): ISessionWorkspace;
 
@@ -395,7 +444,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 			throw new Error('Workspace has no repository URI');
 		}
 
-		const resourceScheme = this.resourceSchemeForSessionType(sessionType.id);
+		const resourceScheme = this.resourceSchemeForProvider(sessionType.id);
 		const resource = URI.from({ scheme: resourceScheme, path: `/untitled-${generateUuid()}` });
 		const status = observableValue<SessionStatus>(this, SessionStatus.Untitled);
 		const title = observableValue(this, '');
@@ -444,7 +493,7 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 		this._currentNewSessionStatus = status;
 		this._currentNewSessionModelId = modelId;
 		this._currentNewSessionLoading = loading;
-		const agentProvider = this.agentProviderFromSessionType(sessionType.id);
+		const agentProvider = sessionType.id;
 		this._newSessionWorkspaces.set(session.sessionId, workspaceUri);
 		this._newSessionAgentProviders.set(session.sessionId, agentProvider);
 		this._newSessionConfigs.set(session.sessionId, { schema: { type: 'object', properties: {} }, values: {} });
@@ -806,7 +855,11 @@ export abstract class BaseAgentHostSessionsProvider extends Disposable implement
 	}
 
 	private _getAgentProviderForSession(sessionId: string): string {
-		return this._newSessionAgentProviders.get(sessionId) ?? DEFAULT_AGENT_PROVIDER;
+		const provider = this._newSessionAgentProviders.get(sessionId);
+		if (!provider) {
+			throw new Error(`No agent provider tracked for new session: ${sessionId}`);
+		}
+		return provider;
 	}
 
 	// -- Lazy session-state subscription seeding -----------------------------

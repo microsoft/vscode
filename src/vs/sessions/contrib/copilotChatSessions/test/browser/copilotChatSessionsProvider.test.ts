@@ -10,7 +10,7 @@ import { DisposableStore, toDisposable } from '../../../../../base/common/lifecy
 import { URI } from '../../../../../base/common/uri.js';
 import { mock } from '../../../../../base/test/common/mock.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { IDialogService, IFileDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -30,8 +30,8 @@ import { IChatResponseModel } from '../../../../../workbench/contrib/chat/common
 import { IChatAgentData } from '../../../../../workbench/contrib/chat/common/participants/chatAgents.js';
 import { IGitService } from '../../../../../workbench/contrib/git/common/gitService.js';
 import { ISessionChangeEvent } from '../../../../services/sessions/common/sessionsProvider.js';
-import { CopilotCLISessionType, SessionStatus } from '../../../../services/sessions/common/session.js';
-import { CopilotChatSessionsProvider, COPILOT_PROVIDER_ID } from '../../browser/copilotChatSessionsProvider.js';
+import { ClaudeCodeSessionType, CopilotCLISessionType, GITHUB_REMOTE_FILE_SCHEME, SessionStatus } from '../../../../services/sessions/common/session.js';
+import { CLAUDE_CODE_ENABLED_SETTING, CopilotChatSessionsProvider, COPILOT_PROVIDER_ID } from '../../browser/copilotChatSessionsProvider.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
 
 // ---- Helpers ----------------------------------------------------------------
@@ -107,12 +107,21 @@ class MockAgentSessionsModel {
 function createProvider(
 	disposables: DisposableStore,
 	model: MockAgentSessionsModel,
-	opts?: { multiChatEnabled?: boolean },
+	opts?: { multiChatEnabled?: boolean; claudeEnabled?: boolean },
 ): CopilotChatSessionsProvider {
+	return createProviderWithConfig(disposables, model, opts).provider;
+}
+
+function createProviderWithConfig(
+	disposables: DisposableStore,
+	model: MockAgentSessionsModel,
+	opts?: { multiChatEnabled?: boolean; claudeEnabled?: boolean },
+): { provider: CopilotChatSessionsProvider; configService: TestConfigurationService } {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	const configService = new TestConfigurationService();
 	configService.setUserConfiguration('sessions.github.copilot.multiChatSessions', opts?.multiChatEnabled ?? true);
+	configService.setUserConfiguration(CLAUDE_CODE_ENABLED_SETTING, opts?.claudeEnabled ?? false);
 
 	instantiationService.stub(IConfigurationService, configService);
 	instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
@@ -171,7 +180,7 @@ function createProvider(
 	instantiationService.stub(IInstantiationService, instantiationService);
 
 	const provider = disposables.add(instantiationService.createInstance(CopilotChatSessionsProvider));
-	return provider;
+	return { provider, configService };
 }
 
 // ---- Provider factory for send/cancel tests ---------------------------------
@@ -188,12 +197,13 @@ function createProviderForSendTests(
 	disposables: DisposableStore,
 	model: MockAgentSessionsModel,
 	sendRequest: () => Promise<ChatSendResult>,
-	opts?: { onDidCommitSession?: Event<{ original: URI; committed: URI }> },
+	opts?: { onDidCommitSession?: Event<{ original: URI; committed: URI }>; claudeEnabled?: boolean },
 ): CopilotChatSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	const configService = new TestConfigurationService();
 	configService.setUserConfiguration('sessions.github.copilot.multiChatSessions', true);
+	configService.setUserConfiguration(CLAUDE_CODE_ENABLED_SETTING, opts?.claudeEnabled ?? false);
 
 	instantiationService.stub(ILogService, NullLogService);
 	instantiationService.stub(IConfigurationService, configService);
@@ -263,6 +273,83 @@ suite('CopilotChatSessionsProvider', () => {
 		assert.strictEqual(provider.sessionTypes.length, 2);
 	});
 
+	test('sessionTypes includes Claude when setting is enabled', () => {
+		const provider = createProvider(disposables, model, { claudeEnabled: true });
+		assert.strictEqual(provider.sessionTypes.length, 3);
+		assert.ok(provider.sessionTypes.some(t => t.id === ClaudeCodeSessionType.id));
+	});
+
+	test('onDidChangeSessionTypes fires when claude setting changes', () => {
+		const { provider, configService } = createProviderWithConfig(disposables, model);
+		assert.strictEqual(provider.sessionTypes.length, 2);
+
+		let fired = false;
+		disposables.add(provider.onDidChangeSessionTypes(() => { fired = true; }));
+
+		// Enable claude via config change
+		configService.setUserConfiguration(CLAUDE_CODE_ENABLED_SETTING, true);
+		configService.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([CLAUDE_CODE_ENABLED_SETTING]),
+			change: { keys: [CLAUDE_CODE_ENABLED_SETTING], overrides: [] },
+			affectsConfiguration: (key: string) => key === CLAUDE_CODE_ENABLED_SETTING,
+		});
+
+		assert.ok(fired, 'onDidChangeSessionTypes should have fired');
+		assert.strictEqual(provider.sessionTypes.length, 3);
+	});
+
+	test('toggling claude setting refreshes sessions list', () => {
+		const claudeResource = URI.from({ scheme: AgentSessionProviders.Claude, path: '/claude-session' });
+		model.addSession(createMockAgentSession(claudeResource, { providerType: AgentSessionProviders.Claude }));
+
+		const { provider, configService } = createProviderWithConfig(disposables, model);
+		assert.strictEqual(provider.getSessions().length, 0, 'Claude sessions should be hidden when disabled');
+
+		// Enable Claude
+		configService.setUserConfiguration(CLAUDE_CODE_ENABLED_SETTING, true);
+		configService.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([CLAUDE_CODE_ENABLED_SETTING]),
+			change: { keys: [CLAUDE_CODE_ENABLED_SETTING], overrides: [] },
+			affectsConfiguration: (key: string) => key === CLAUDE_CODE_ENABLED_SETTING,
+		});
+
+		assert.strictEqual(provider.getSessions().length, 1, 'Claude sessions should appear after enabling');
+
+		// Disable Claude
+		configService.setUserConfiguration(CLAUDE_CODE_ENABLED_SETTING, false);
+		configService.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([CLAUDE_CODE_ENABLED_SETTING]),
+			change: { keys: [CLAUDE_CODE_ENABLED_SETTING], overrides: [] },
+			affectsConfiguration: (key: string) => key === CLAUDE_CODE_ENABLED_SETTING,
+		});
+
+		assert.strictEqual(provider.getSessions().length, 0, 'Claude sessions should disappear after disabling');
+	});
+
+	// ---- getSessionTypes -------
+
+	test('getSessionTypes returns Claude for local workspace when enabled', () => {
+		const provider = createProvider(disposables, model, { claudeEnabled: true });
+		const types = provider.getSessionTypes(URI.file('/test/project'));
+		assert.ok(types.some(t => t.id === ClaudeCodeSessionType.id));
+	});
+
+	test('getSessionTypes does not return Claude for local workspace when disabled', () => {
+		const provider = createProvider(disposables, model);
+		const types = provider.getSessionTypes(URI.file('/test/project'));
+		assert.ok(!types.some(t => t.id === ClaudeCodeSessionType.id));
+	});
+
+	test('getSessionTypes returns only Cloud for remote workspace regardless of claude setting', () => {
+		const provider = createProvider(disposables, model, { claudeEnabled: true });
+		const types = provider.getSessionTypes(URI.from({ scheme: GITHUB_REMOTE_FILE_SCHEME, path: '/owner/repo' }));
+		assert.strictEqual(types.length, 1);
+		assert.ok(!types.some(t => t.id === ClaudeCodeSessionType.id));
+	});
+
 	// ---- Session listing -------
 
 	test('getSessions returns empty array initially', () => {
@@ -282,7 +369,7 @@ suite('CopilotChatSessionsProvider', () => {
 		assert.strictEqual(sessions.length, 2);
 	});
 
-	test('getSessions ignores non-Background/Cloud sessions', () => {
+	test('getSessions ignores non-Background/Cloud/Claude sessions', () => {
 		const bgResource = URI.from({ scheme: AgentSessionProviders.Background, path: '/bg-session' });
 		const localResource = URI.from({ scheme: AgentSessionProviders.Local, path: '/local-session' });
 		model.addSession(createMockAgentSession(bgResource));
@@ -292,6 +379,26 @@ suite('CopilotChatSessionsProvider', () => {
 		const sessions = provider.getSessions();
 
 		assert.strictEqual(sessions.length, 1);
+	});
+
+	test('getSessions includes Claude agent sessions when enabled', () => {
+		const claudeResource = URI.from({ scheme: AgentSessionProviders.Claude, path: '/claude-session' });
+		model.addSession(createMockAgentSession(claudeResource, { providerType: AgentSessionProviders.Claude }));
+
+		const provider = createProvider(disposables, model, { claudeEnabled: true });
+		const sessions = provider.getSessions();
+
+		assert.strictEqual(sessions.length, 1);
+	});
+
+	test('getSessions excludes Claude agent sessions when disabled', () => {
+		const claudeResource = URI.from({ scheme: AgentSessionProviders.Claude, path: '/claude-session' });
+		model.addSession(createMockAgentSession(claudeResource, { providerType: AgentSessionProviders.Claude }));
+
+		const provider = createProvider(disposables, model);
+		const sessions = provider.getSessions();
+
+		assert.strictEqual(sessions.length, 0);
 	});
 
 	test('onDidChangeSessions fires when agent model changes', () => {
@@ -372,6 +479,17 @@ suite('CopilotChatSessionsProvider', () => {
 		model.addSession(createMockAgentSession(resource));
 
 		const provider = createProvider(disposables, model, { multiChatEnabled: false });
+		const sessions = provider.getSessions();
+
+		assert.strictEqual(sessions.length, 1);
+		assert.strictEqual(sessions[0].capabilities.supportsMultipleChats, false);
+	});
+
+	test('claude sessions do not have supportsMultipleChats capability', () => {
+		const resource = URI.from({ scheme: AgentSessionProviders.Claude, path: '/session-1' });
+		model.addSession(createMockAgentSession(resource, { providerType: AgentSessionProviders.Claude }));
+
+		const provider = createProvider(disposables, model, { claudeEnabled: true });
 		const sessions = provider.getSessions();
 
 		assert.strictEqual(sessions.length, 1);
@@ -652,6 +770,130 @@ suite('CopilotChatSessionsProvider', () => {
 		assert.strictEqual(provider.browseActions.length, 2);
 		assert.strictEqual(provider.browseActions[0].providerId, COPILOT_PROVIDER_ID);
 		assert.strictEqual(provider.browseActions[1].providerId, COPILOT_PROVIDER_ID);
+	});
+
+	// ---- Claude session creation -------
+
+	function makeClaudeInFlightProvider(): { provider: CopilotChatSessionsProvider; cancelRequest: () => void } {
+		let resolveComplete!: () => void;
+		let resolveCreated!: (r: IChatResponseModel) => void;
+		const responseCompletePromise = new Promise<void>(r => { resolveComplete = r; });
+		const responseCreatedPromise = new Promise<IChatResponseModel>(r => { resolveCreated = r; });
+
+		const provider = createProviderForSendTests(disposables, model, async () => ({
+			kind: 'sent' as const,
+			data: {
+				responseCompletePromise,
+				responseCreatedPromise,
+				agent: new class extends mock<IChatAgentData>() { }(),
+			} as IChatSendRequestData,
+		}), { claudeEnabled: true });
+
+		return {
+			provider,
+			cancelRequest: () => {
+				resolveCreated({ isCanceled: true } as unknown as IChatResponseModel);
+				resolveComplete();
+			},
+		};
+	}
+
+	function waitForSessionAdded(provider: CopilotChatSessionsProvider): Promise<void> {
+		return new Promise<void>(resolve => {
+			const d = provider.onDidChangeSessions(e => {
+				if (e.added.length > 0) {
+					d.dispose();
+					resolve();
+				}
+			});
+		});
+	}
+
+	test('createNewSession with Claude type creates a session', async () => {
+		const { provider, cancelRequest } = makeClaudeInFlightProvider();
+		const workspace = URI.file('/test/project');
+
+		const session = provider.createNewSession(workspace, ClaudeCodeSessionType.id);
+
+		assert.ok(session);
+		assert.strictEqual(session.sessionType, ClaudeCodeSessionType.id);
+		assert.strictEqual(session.status.get(), SessionStatus.Untitled);
+
+		// Send and clean up so the session enters the cache and can be disposed
+		const added = waitForSessionAdded(provider);
+		const sendPromise = provider.sendAndCreateChat(session.sessionId, { query: 'test' });
+		await added;
+		cancelRequest();
+		await assert.doesNotReject(sendPromise);
+		await provider.deleteSession(session.sessionId);
+	});
+
+	test('archiveSession archives a Claude temp session', async () => {
+		const { provider, cancelRequest } = makeClaudeInFlightProvider();
+		const workspace = URI.file('/test/project');
+		const session = provider.createNewSession(workspace, ClaudeCodeSessionType.id);
+
+		const added = waitForSessionAdded(provider);
+		const sendPromise = provider.sendAndCreateChat(session.sessionId, { query: 'test' });
+		await added;
+
+		await provider.archiveSession(session.sessionId);
+		assert.strictEqual(provider.getSessions()[0].isArchived.get(), true);
+
+		cancelRequest();
+		await assert.doesNotReject(sendPromise);
+
+		// Clean up
+		await provider.deleteSession(session.sessionId);
+	});
+
+	test('unarchiveSession unarchives a Claude temp session', async () => {
+		const { provider, cancelRequest } = makeClaudeInFlightProvider();
+		const workspace = URI.file('/test/project');
+		const session = provider.createNewSession(workspace, ClaudeCodeSessionType.id);
+
+		const added = waitForSessionAdded(provider);
+		const sendPromise = provider.sendAndCreateChat(session.sessionId, { query: 'test' });
+		await added;
+
+		await provider.archiveSession(session.sessionId);
+		assert.strictEqual(provider.getSessions()[0].isArchived.get(), true);
+
+		await provider.unarchiveSession(session.sessionId);
+		assert.strictEqual(provider.getSessions()[0].isArchived.get(), false);
+
+		cancelRequest();
+		await assert.doesNotReject(sendPromise);
+
+		// Clean up
+		await provider.deleteSession(session.sessionId);
+	});
+
+	// ---- Rename -------
+
+	test('renameChat delegates to claude rename command', async () => {
+		const claudeResource = URI.from({ scheme: AgentSessionProviders.Claude, path: '/claude-session' });
+		model.addSession(createMockAgentSession(claudeResource, { providerType: AgentSessionProviders.Claude }));
+
+		const provider = createProvider(disposables, model, { claudeEnabled: true });
+		const sessions = provider.getSessions();
+		assert.strictEqual(sessions.length, 1);
+
+		// Should not throw — delegates to ICommandService.executeCommand
+		await provider.renameChat(sessions[0].sessionId, claudeResource, 'New Title');
+	});
+
+	test('renameChat throws for unsupported session type', async () => {
+		const resource = URI.from({ scheme: AgentSessionProviders.Cloud, path: '/cloud-session' });
+		model.addSession(createMockAgentSession(resource, { providerType: AgentSessionProviders.Cloud }));
+
+		const provider = createProvider(disposables, model);
+		const sessions = provider.getSessions();
+
+		await assert.rejects(
+			() => provider.renameChat(sessions[0].sessionId, resource, 'New Title'),
+			/not supported/,
+		);
 	});
 
 	// ---- Uncommitted temp session cleanup ------------------------------------

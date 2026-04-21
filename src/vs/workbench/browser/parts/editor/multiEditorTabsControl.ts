@@ -1775,6 +1775,10 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 		}
 	}
 
+	protected override prepareEditorLayoutActions(editorActions: IToolbarActions): IToolbarActions {
+		return editorActions;
+	}
+
 	getHeight(): number {
 
 		// Return quickly if our used dimensions are known
@@ -1880,6 +1884,9 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 	private doLayoutTabsWrapping(dimensions: IEditorTitleControlDimensions): boolean {
 		const [tabsAndActionsContainer, tabsContainer, editorToolbarContainer, tabsScrollbar] = assertReturnsAllDefined(this.tabsAndActionsContainer, this.tabsContainer, this.editorActionsToolbarContainer, this.tabsScrollbar);
 
+		const layoutActionsContainer = this.editorLayoutActionsToolbarContainer;
+		const editorToolbarWidth = () => editorToolbarContainer.offsetWidth + (layoutActionsContainer?.offsetWidth ?? 0);
+
 		// Handle wrapping tabs according to setting:
 		// - enabled: only add class if tabs wrap and don't exceed available dimensions
 		// - disabled: remove class and margin-right variable
@@ -1896,7 +1903,8 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 			// Update `last-tab-margin-right` CSS variable to account for the absolute
 			// positioned editor actions container when tabs wrap. The margin needs to
 			// be the width of the editor actions container to avoid screen cheese.
-			tabsContainer.style.setProperty('--last-tab-margin-right', tabsWrapMultiLine ? `${editorToolbarContainer.offsetWidth}px` : '0');
+			tabsContainer.style.setProperty('--last-tab-margin-right', tabsWrapMultiLine ? `${editorToolbarWidth()}px` : '0');
+			tabsAndActionsContainer.style.setProperty('--last-tab-layout-actions-width', `${layoutActionsContainer?.offsetWidth ?? 0}px`);
 
 			// Remove old css classes that are not needed anymore
 			for (const tab of tabsContainer.children) {
@@ -1914,7 +1922,7 @@ export class MultiEditorTabsControl extends EditorTabsControl {
 					return true; // no tab always fits
 				}
 
-				const lastTabOverlapWithToolbarWidth = lastTab.offsetWidth + editorToolbarContainer.offsetWidth - dimensions.available.width;
+				const lastTabOverlapWithToolbarWidth = lastTab.offsetWidth + editorToolbarWidth() - dimensions.available.width;
 				if (lastTabOverlapWithToolbarWidth > 1) {
 					// Allow for slight rounding errors related to zooming here
 					// https://github.com/microsoft/vscode/issues/116385

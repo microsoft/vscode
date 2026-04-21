@@ -17,7 +17,7 @@ export type DocumentHistoryDifference = {
 	before: StringText;
 	after: StringText;
 	edits: StringEdit;
-}
+};
 
 export class WorkspaceDocumentEditHistory extends Disposable {
 	private readonly _documentState = new Map<DocumentId, DocumentEditHistory>();

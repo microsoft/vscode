@@ -3968,15 +3968,6 @@
 			{
 				"id": "advanced",
 				"properties": {
-					"github.copilot.chat.sessionSearch.cloudSync.enabled": {
-						"type": "boolean",
-						"default": false,
-						"markdownDescription": "%github.copilot.config.sessionSearch.cloudSync.enabled%",
-						"tags": [
-							"advanced",
-							"onExp"
-						]
-					},
 					"github.copilot.chat.reasoningEffortOverride": {
 						"type": [
 							"string",
@@ -6417,7 +6408,7 @@
 		"zod": "3.25.76"
 	},
 	"dependencies": {
-		"@anthropic-ai/claude-agent-sdk": "0.2.98",
+		"@anthropic-ai/claude-agent-sdk": "0.2.112",
 		"@anthropic-ai/sdk": "^0.82.0",
 		"@github/blackbird-external-ingest-utils": "^0.3.0",
 		"@github/copilot": "^1.0.28",

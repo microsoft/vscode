@@ -132,6 +132,7 @@ Standup for <date>:
   - Key files: list 2-3 most important files changed
   - Tools used: mention key tools if visible (e.g., apply_patch, run_in_terminal, search)
   - PR: [#123](link) — merged/closed (if applicable)
+  - Sessions: \`session-id-1\`, \`session-id-2\`
 
 **🚧 In Progress**
 
@@ -139,6 +140,7 @@ Standup for <date>:
   - Summary of current work (1-2 sentences based on turn content)
   - Key files: list 2-3 most important files being worked on
   - PR: [#789](link) — draft/open (if applicable)
+  - Sessions: \`session-id\`
 
 Formatting rules:
 - Use the turn data (user messages AND assistant responses) to understand WHAT was done, not just that something happened

@@ -103,6 +103,7 @@ class TestSessionDataService extends Disposable implements ISessionDataService {
 
 	deleteSessionData(): Promise<void> { return Promise.resolve(); }
 	cleanupOrphanedData(): Promise<void> { return Promise.resolve(); }
+	whenIdle(): Promise<void> { return Promise.resolve(); }
 }
 
 class TestCopilotClient implements ICopilotClient {
@@ -218,7 +219,7 @@ function createTestAgent(disposables: Pick<DisposableStore, 'add'>, options?: { 
 }
 
 function createAgentSessionThroughAgent(agent: CopilotAgent, instantiationService: IInstantiationService): CopilotAgentSession {
-	const sessionUri = AgentSession.uri('copilot', 'test-session-1');
+	const sessionUri = AgentSession.uri('copilotcli', 'test-session-1');
 	const shellManager = instantiationService.createInstance(ShellManager, sessionUri, undefined);
 	const wrapperFactory: SessionWrapperFactory = async () => new CopilotSessionWrapper(new MockCopilotSession() as unknown as CopilotSession);
 	return (agent as unknown as {
@@ -335,7 +336,7 @@ suite('CopilotAgent', () => {
 
 	test('listSessions only returns sessions with a database', async () => {
 		const sessionDataService = disposables.add(new TestSessionDataService());
-		const ownedSession = AgentSession.uri('copilot', 'owned');
+		const ownedSession = AgentSession.uri('copilotcli', 'owned');
 		const ownedDb = sessionDataService.openDatabase(ownedSession);
 		ownedDb.dispose();
 
@@ -352,7 +353,7 @@ suite('CopilotAgent', () => {
 
 	test('listSessions reads stored metadata from sessions with a database', async () => {
 		const sessionDataService = disposables.add(new TestSessionDataService());
-		const legacySession = AgentSession.uri('copilot', 'legacy');
+		const legacySession = AgentSession.uri('copilotcli', 'legacy');
 		const legacyDb = sessionDataService.openDatabase(legacySession);
 		await legacyDb.object.setMetadata('copilot.workingDirectory', URI.file('/workspace').toString());
 		legacyDb.dispose();
@@ -413,7 +414,7 @@ suite('CopilotAgent', () => {
 				const customizations: ICustomizationRef[] = [{ uri: 'file:///plugin-a', displayName: 'Plugin A' }];
 				await assert.rejects(
 					agent.createSession({
-						session: AgentSession.uri('copilot', 'test-session'),
+						session: AgentSession.uri('copilotcli', 'test-session'),
 						workingDirectory: URI.file('/workspace'),
 						activeClient: {
 							clientId: 'client-1',
@@ -442,7 +443,7 @@ suite('CopilotAgent', () => {
 
 				await assert.rejects(
 					agent.createSession({
-						session: AgentSession.uri('copilot', 'test-session-2'),
+						session: AgentSession.uri('copilotcli', 'test-session-2'),
 						workingDirectory: URI.file('/workspace'),
 					}),
 					(err: Error) => /sentinel/.test(err.message),
@@ -477,7 +478,7 @@ suite('CopilotAgent', () => {
 
 		test('emits announcement live as a delta on first sendMessage and persists it for restore via getSessionMessages', async () => {
 			const sessionId = 'wt-session';
-			const session = AgentSession.uri('copilot', sessionId);
+			const session = AgentSession.uri('copilotcli', sessionId);
 			const repositoryRoot = URI.joinPath(URI.file(tmpDir), 'repo');
 			await fs.mkdir(repositoryRoot.fsPath, { recursive: true });
 
@@ -553,7 +554,7 @@ suite('CopilotAgent', () => {
 
 		test('does not announce or persist branch metadata when isolation is not worktree', async () => {
 			const sessionId = 'no-wt-session';
-			const session = AgentSession.uri('copilot', sessionId);
+			const session = AgentSession.uri('copilotcli', sessionId);
 			const repositoryRoot = URI.joinPath(URI.file(tmpDir), 'repo');
 			await fs.mkdir(repositoryRoot.fsPath, { recursive: true });
 

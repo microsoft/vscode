@@ -681,6 +681,10 @@ export class ClaudeChatSessionItemController extends Disposable {
 			lastRequestEnded: session.lastRequestEnded,
 		};
 		item.iconPath = new vscode.ThemeIcon('claude');
+		if (session.cwd) {
+			// Agents app needs this to decide the working directory for the session
+			item.metadata = { workingDirectoryPath: session.cwd };
+		}
 		return item;
 	}
 
