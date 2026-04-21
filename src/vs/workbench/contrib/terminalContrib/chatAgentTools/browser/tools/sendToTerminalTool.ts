@@ -84,7 +84,6 @@ export class SendToTerminalTool extends Disposable implements IToolImpl {
 		@IChatService private readonly _chatService: IChatService,
 		@IChatWidgetService private readonly _chatWidgetService: IChatWidgetService,
 		@ITerminalChatService private readonly _terminalChatService: ITerminalChatService,
-		@ITerminalService private readonly _terminalService: ITerminalService,
 	) {
 		super();
 	}
