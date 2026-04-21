@@ -37,6 +37,17 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	private _state: OutputMonitorState = OutputMonitorState.PollingForIdle;
 	get state(): OutputMonitorState { return this._state; }
 
+	private _getLastLineForPatternDetection(output: string | undefined): string {
+		if (!output) {
+			return '';
+		}
+		const lastLineBreak = Math.max(
+			output.lastIndexOf('\n'),
+			output.lastIndexOf('\r'),
+		);
+		return lastLineBreak === -1 ? output : output.slice(lastLineBreak + 1);
+	}
+
 	private _formatLastLineForLog(output: string | undefined): string {
 		if (!output) {
 			return '<empty>';
@@ -254,15 +265,13 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 	private async _handleIdleState(token: CancellationToken): Promise<{ resources?: ILinkLocation[]; shouldContinuePolling: boolean; output?: string }> {
 		const output = this._execution.getOutput();
 
-		// Use only the tail of the output for logging and pattern detection. All
-		// detect* functions match prompts near the end of the buffer (using $
-		// anchors or normalized-string includes), and the idle summary only
-		// needs the last line. Slicing avoids unnecessary work over potentially
-		// large terminal scrollback.
+		// Use only the tail of the output for logging and task-finish detection,
+		// but keep line-oriented prompt detectors scoped to the last line.
 		const outputTail = output.slice(-1000);
+		const outputLastLine = this._getLastLineForPatternDetection(outputTail);
 		this._logService.trace(`OutputMonitor: Idle output summary: len=${output.length}, lastLine=${this._formatLastLineForLog(outputTail)}`);
 
-		if (detectsNonInteractiveHelpPattern(outputTail)) {
+		if (detectsNonInteractiveHelpPattern(outputLastLine)) {
 			this._logService.trace('OutputMonitor: Idle -> non-interactive help pattern detected, stopping');
 			return { shouldContinuePolling: false, output };
 		}
@@ -296,7 +305,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		// In async mode, use regex-based detection for input-required patterns
 		// (passwords, [Y/n], etc.) and signal the agent to handle via send_to_terminal.
 		if (this._asyncMode) {
-			if (detectsInputRequiredPattern(outputTail)) {
+			if (detectsInputRequiredPattern(outputLastLine)) {
 				this._logService.trace('OutputMonitor: Async mode - input-required pattern detected, signaling agent');
 				this._onDidDetectInputNeeded.fire();
 			}
@@ -308,7 +317,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		// In foreground mode, fire the event so the race in runInTerminalTool can pick it
 		// up and return control to the agent (which uses send_to_terminal to provide input).
 		// No elicitation UI is shown — the agent handles it autonomously.
-		if (detectsInputRequiredPattern(outputTail)) {
+		if (detectsInputRequiredPattern(outputLastLine)) {
 			this._logService.trace('OutputMonitor: Input-required pattern detected, signaling agent');
 			this._onDidDetectInputNeeded.fire();
 			this._cleanupIdleInputListener();
@@ -372,15 +381,16 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				currentInterval = Math.min(currentInterval * 2, maxInterval);
 				const currentOutput = execution.getOutput();
 				const currentTail = currentOutput.slice(-1000);
+				const currentLastLine = this._getLastLineForPatternDetection(currentTail);
 
-				if (detectsNonInteractiveHelpPattern(currentTail)) {
+				if (detectsNonInteractiveHelpPattern(currentLastLine)) {
 					this._logService.trace(`OutputMonitor: waitForIdle -> non-interactive help detected (waited=${waited}ms)`);
 					this._state = OutputMonitorState.Idle;
 					this._setupIdleInputListener();
 					return this._state;
 				}
 
-				const promptResult = detectsInputRequiredPattern(currentTail);
+				const promptResult = detectsInputRequiredPattern(currentLastLine);
 				if (promptResult) {
 					this._logService.trace(`OutputMonitor: waitForIdle -> input-required pattern detected (waited=${waited}ms, lastLine=${this._formatLastLineForLog(currentTail)})`);
 					this._state = OutputMonitorState.Idle;

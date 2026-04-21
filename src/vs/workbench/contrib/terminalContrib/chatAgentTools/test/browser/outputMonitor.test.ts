@@ -228,6 +228,28 @@ suite('OutputMonitor', () => {
 		assert.strictEqual(inputNeededFired, false, 'onDidDetectInputNeeded should not fire for non-input output');
 	});
 
+	test('handleIdleState only inspects the last line for non-interactive help detection', async () => {
+		execution.getOutput = () => 'press h + enter to show help\nBuild complete successfully';
+		const monitorCts = new CancellationTokenSource();
+		monitorCts.cancel();
+		let customPollCalled = false;
+		const pollFn = async (): Promise<IPollingResult | undefined> => {
+			customPollCalled = true;
+			return { state: OutputMonitorState.Idle, output: 'custom poll output' };
+		};
+		monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, pollFn, createTestContext('1'), monitorCts.token, 'test command'));
+
+		const outputMonitorWithPrivateMethod = monitor as unknown as {
+			[key: string]: ((token: CancellationToken) => Promise<{ shouldContinuePolling: boolean; output?: string }>) | undefined;
+		};
+		const idleResult = await outputMonitorWithPrivateMethod['_handleIdleState']!(CancellationToken.None);
+		await Event.toPromise(monitor.onDidFinishCommand);
+		monitorCts.dispose();
+
+		assert.strictEqual(customPollCalled, true, 'custom poller should still run when help text is not on the last line');
+		assert.strictEqual(idleResult.output, 'custom poll output');
+	});
+
 	suite('detectsInputRequiredPattern', () => {
 		test('detects yes/no confirmation prompts (pairs and variants)', () => {
 			assert.strictEqual(detectsInputRequiredPattern('Continue? (y/N) '), true);
