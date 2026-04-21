@@ -832,38 +832,44 @@
 		]
 	},
 	{
+		// Reason: No open-source repository. Package is governed by Anthropic's Commercial Terms of Service.
+		// Homepage: https://github.com/anthropics/claude-agent-sdk-typescript
 		"name": "@anthropic-ai/claude-agent-sdk",
-		"licenseDetail": [
+		"fullLicenseText": [
 			"© Anthropic PBC. All rights reserved. Use is subject to Anthropic's Commercial Terms of Service."
 		]
 	},
 	{
+		// Reason: @github-scoped private package; repository is not publicly accessible.
+		// License declared as MIT in npm registry. Copyright holder not confirmed — needs human review.
 		"name": "@github/blackbird-external-ingest-utils",
-		"licenseDetail": [
+		"fullLicenseText": [
 			"MIT License"
 		]
 	},
 	{
+		// Reason: No repository URL in npm package metadata. Resolved to microsoft/dev-tunnels
+		// based on @microsoft scope and package naming convention.
 		"name": "@microsoft/dev-tunnels-connections",
-		"licenseDetail": [
-			"MIT License"
-		]
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/microsoft/dev-tunnels/6cc48487bcc96697afc0e86a2c06b30341b43d95/LICENSE"
 	},
 	{
+		// Reason: No repository URL in npm package metadata. Resolved to microsoft/dev-tunnels
+		// based on @microsoft scope and package naming convention.
 		"name": "@microsoft/dev-tunnels-contracts",
-		"licenseDetail": [
-			"MIT License"
-		]
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/microsoft/dev-tunnels/6cc48487bcc96697afc0e86a2c06b30341b43d95/LICENSE"
 	},
 	{
+		// Reason: No repository URL in npm package metadata. Resolved to microsoft/dev-tunnels
+		// based on @microsoft scope and package naming convention.
 		"name": "@microsoft/dev-tunnels-management",
-		"licenseDetail": [
-			"MIT License"
-		]
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/microsoft/dev-tunnels/6cc48487bcc96697afc0e86a2c06b30341b43d95/LICENSE"
 	},
 	{
+		// Reason: No separate LICENSE file in repository; license text is in README.md.
+		// Source: https://github.com/indutny/brorand/blob/ddc4f9344287769d7e2c2ea987d26bbeec5456b4/README.md
 		"name": "brorand",
-		"licenseDetail": [
+		"fullLicenseText": [
 			"This software is licensed under the MIT License.",
 			"",
 			"Copyright Fedor Indutny, 2014.",
@@ -876,26 +882,24 @@
 		]
 	},
 	{
+		// Reason: No separate LICENSE file in repository. BSD-2-Clause declared in package.json.
+		// Author: Forrest L Norvell. Copyright year not determinable from available sources — needs human review.
 		"name": "emitter-listener",
-		"licenseDetail": [
+		"fullLicenseText": [
 			"BSD-2-Clause"
 		]
 	},
 	{
+		// Reason: License file is named LICENCE.md (British spelling). Pinned to HEAD commit SHA.
+		// Source: https://github.com/MikeMcl/bignumber.js/blob/1b09c08acfe953d85369fb4522e4ab4a307a3f62/LICENCE.md
 		"name": "bignumber.js",
-		"licenseDetail": [
-			"Copyright © <2026> Michael Mclaughlin",
-			"",
-			"Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the \"Software\"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:",
-			"",
-			"The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.",
-			"",
-			"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE."
-		]
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/MikeMcl/bignumber.js/1b09c08acfe953d85369fb4522e4ab4a307a3f62/LICENCE.md"
 	},
 	{
+		// Reason: No separate LICENSE file in repository; license text is in README.md.
+		// Source: https://github.com/indutny/miller-rabin/blob/bda17a34d3b33a84a0dbb120ff7f662adea05c01/README.md
 		"name": "miller-rabin",
-		"licenseDetail": [
+		"fullLicenseText": [
 			"This software is licensed under the MIT License.",
 			"",
 			"Copyright Fedor Indutny, 2014.",
@@ -912,29 +916,9 @@
 		"fullLicenseTextUri": "https://raw.githubusercontent.com/googleapis/google-cloud-node-core/76ba85a7f55c6e82943008b4eceb07a0f58b39e1/LICENSE"
 	},
 	{
+		// Reason: No repository URL in npm package metadata. Resolved to crypto-browserify/randombytes
+		// from the npm registry repository field. License file pinned to latest commit SHA.
 		"name": "randombytes",
-		"licenseDetail": [
-			"MIT License",
-			"",
-			"Copyright (c) 2017 crypto-browserify",
-			"",
-			"Permission is hereby granted, free of charge, to any person obtaining a copy",
-			"of this software and associated documentation files (the \"Software\"), to deal",
-			"in the Software without restriction, including without limitation the rights",
-			"to use, copy, modify, merge, publish, distribute, sublicense, and/or sell",
-			"copies of the Software, and to permit persons to whom the Software is",
-			"furnished to do so, subject to the following conditions:",
-			"",
-			"The above copyright notice and this permission notice shall be included in all",
-			"copies or substantial portions of the Software.",
-			"",
-			"THE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR",
-			"IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,",
-			"FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE",
-			"AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER",
-			"LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,",
-			"OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE",
-			"SOFTWARE."
-		]
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/crypto-browserify/randombytes/b4eb4126fccc503e375853ca7b3e96aaa34af9e6/LICENSE"
 	}
 ]
