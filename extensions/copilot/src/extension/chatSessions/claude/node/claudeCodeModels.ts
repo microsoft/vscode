@@ -163,8 +163,13 @@ export class ClaudeCodeModels extends Disposable implements IClaudeCodeModels {
 	}
 }
 
+const SUPPORTED_EFFORT_LEVELS = ['low', 'medium', 'high'] as const;
+
 function buildConfigurationSchema(endpoint: IChatEndpoint): vscode.LanguageModelConfigurationSchema | undefined {
-	const effortLevels = endpoint.supportsReasoningEffort;
+	const effortLevels = endpoint.supportsReasoningEffort?.filter(
+		(level): level is typeof SUPPORTED_EFFORT_LEVELS[number] =>
+			(SUPPORTED_EFFORT_LEVELS as readonly string[]).includes(level)
+	);
 	if (!effortLevels || effortLevels.length <= 1) {
 		return;
 	}
@@ -180,12 +185,9 @@ function buildConfigurationSchema(endpoint: IChatEndpoint): vscode.LanguageModel
 				enumItemLabels: effortLevels.map(level => level.charAt(0).toUpperCase() + level.slice(1)),
 				enumDescriptions: effortLevels.map(level => {
 					switch (level) {
-						case 'none': return l10n.t('No reasoning applied');
 						case 'low': return l10n.t('Faster responses with less reasoning');
 						case 'medium': return l10n.t('Balanced reasoning and speed');
 						case 'high': return l10n.t('Greater reasoning depth but slower');
-						case 'xhigh': return l10n.t('Maximum reasoning depth but slower');
-						default: return level;
 					}
 				}),
 				default: defaultEffort,

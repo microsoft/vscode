@@ -119,8 +119,9 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 			this.sessionStateService.setPermissionModeForSession(effectiveSessionId, permissionMode);
 			this.sessionStateService.setFolderInfoForSession(effectiveSessionId, folderInfo);
 
-			const reasoningEffort = request.modelConfiguration?.[CLAUDE_REASONING_EFFORT_PROPERTY];
-			this.sessionStateService.setReasoningEffortForSession(effectiveSessionId, typeof reasoningEffort === 'string' ? reasoningEffort : undefined);
+			const rawReasoningEffort = request.modelConfiguration?.[CLAUDE_REASONING_EFFORT_PROPERTY];
+			const normalizedReasoningEffort = typeof rawReasoningEffort === 'string' ? rawReasoningEffort.trim() || undefined : undefined;
+			this.sessionStateService.setReasoningEffortForSession(effectiveSessionId, normalizedReasoningEffort);
 
 			// Set usage handler to report token usage for context window widget
 			this.sessionStateService.setUsageHandlerForSession(effectiveSessionId, (usage) => {
