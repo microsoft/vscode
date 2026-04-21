@@ -130,7 +130,7 @@
 }
 
 .agent-sessions-workbench .part.editor .multiDiffEntry {
-	padding: 0 8px;
+	padding: 6px 8px 0;
 	box-sizing: border-box;
 }
 

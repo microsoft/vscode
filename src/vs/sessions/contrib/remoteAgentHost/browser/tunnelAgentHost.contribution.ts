@@ -7,7 +7,7 @@ import { Disposable, DisposableMap, DisposableStore, toDisposable } from '../../
 import { isWeb } from '../../../../base/common/platform.js';
 import { mainWindow } from '../../../../base/browser/window.js';
 import * as nls from '../../../../nls.js';
-import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostService, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostsEnabledSettingId } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { ITunnelAgentHostService, TUNNEL_ADDRESS_PREFIX, type ITunnelInfo } from '../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
@@ -15,7 +15,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { INotificationService, Severity } from '../../../../platform/notification/common/notification.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
-import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
+import { AuthenticationSessionsChangeEvent, IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
 import { logTunnelConnectAttempt, logTunnelConnectResolved, TunnelConnectErrorCategory, TunnelConnectFailureReason } from '../../../common/sessionsTelemetry.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { RemoteAgentHostSessionsProvider } from './remoteAgentHostSessionsProvider.js';
@@ -34,6 +34,9 @@ const RECONNECT_MAX_DELAY = 30_000;
  */
 const RECONNECT_MAX_ATTEMPTS = 10;
 
+/** Minimum gap between wake/visibility-triggered resumes. */
+const RESUME_RATE_LIMIT_MS = 10_000;
+
 export class TunnelAgentHostContribution extends Disposable implements IWorkbenchContribution {
 
 	static readonly ID = 'sessions.contrib.tunnelAgentHostContribution';
@@ -42,6 +45,12 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 	private readonly _providerInstances = new Map<string, RemoteAgentHostSessionsProvider>();
 	private readonly _pendingConnects = new Map<string, Promise<void>>();
 	private _lastStatusCheck = 0;
+	/**
+	 * `false` until the first {@link _silentStatusCheck} resolves. Until then
+	 * we keep newly-created providers in the `Connecting` state so the picker
+	 * doesn't briefly show every cached tunnel as "Offline" on startup.
+	 */
+	private _initialStatusChecked = false;
 
 	/** Previous connection status per address — used to detect Connected→Disconnected transitions. */
 	private readonly _previousStatuses = new Map<string, RemoteAgentHostConnectionStatus>();
@@ -51,6 +60,8 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 	private readonly _reconnectAttempts = new Map<string, number>();
 	/** Addresses whose auto-reconnect loop has paused after too many failures. */
 	private readonly _reconnectPaused = new Set<string>();
+	/** Addresses paused specifically because the remote host is offline. */
+	private readonly _hostOfflinePaused = new Set<string>();
 	/** Timestamp of the last wake-triggered resume, to rate-limit rapid tab toggles. */
 	private _lastResumeAt = 0;
 
@@ -91,13 +102,14 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 			this._pruneReconnectState();
 		}));
 
-		// Re-run discovery when a GitHub session becomes available
-		// (e.g. after the walkthrough completes sign-in).
+		// Re-run discovery when a GitHub session becomes available,
+		// and tear down tunnel state bound to that provider if its session
+		// is removed.
 		this._register(this._authenticationService.onDidChangeSessions(e => {
-			if (e.providerId === 'github') {
-				this._logService.info('[TunnelAgentHost] GitHub sessions changed, retrying discovery...');
-				this._silentStatusCheck();
+			if (e.providerId !== 'github') {
+				return;
 			}
+			this._handleSessionsChange(e);
 		}));
 
 		// Wake-triggered retry: when the browser regains connectivity or
@@ -171,9 +183,13 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 			RemoteAgentHostSessionsProvider, {
 			address,
 			name,
-			connectOnDemand: () => this._connectTunnel(address),
+			connectOnDemand: () => this._connectTunnel(address, { userInitiated: true }),
 		},
 		);
+		// Surface as "Connecting" until the first silent status check or an
+		// auto-connect attempt determines the real state; otherwise the picker
+		// flashes "Offline" for every cached tunnel on startup.
+		provider.setConnectionStatus(RemoteAgentHostConnectionStatus.Connecting);
 		store.add(provider);
 		store.add(this._sessionsProvidersService.registerProvider(provider));
 		this._providerInstances.set(address, provider);
@@ -189,6 +205,10 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 			if (connectionInfo) {
 				provider.setConnectionStatus(connectionInfo.status);
 			} else if (this._pendingConnects.has(address)) {
+				provider.setConnectionStatus(RemoteAgentHostConnectionStatus.Connecting);
+			} else if (!this._initialStatusChecked) {
+				// Keep the initial "Connecting" state so the picker doesn't
+				// flash "Offline" before the first silent status check runs.
 				provider.setConnectionStatus(RemoteAgentHostConnectionStatus.Connecting);
 			} else {
 				provider.setConnectionStatus(RemoteAgentHostConnectionStatus.Disconnected);
@@ -219,7 +239,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 	 * Establish a relay connection to a cached tunnel. Called on demand
 	 * when the user invokes the browse action on an online-but-not-connected tunnel.
 	 */
-	private _connectTunnel(address: string): Promise<void> {
+	private _connectTunnel(address: string, options: { readonly userInitiated: boolean }): Promise<void> {
 		const existing = this._pendingConnects.get(address);
 		if (existing) {
 			return existing;
@@ -239,15 +259,16 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 
 		const promise = (async () => {
 			// Show a progress notification after a short delay so quick
-			// connects don't flash a notification.
+			// connects don't flash a notification. Only show for user-initiated
+			// connects; background auto-connects and reconnects stay silent.
 			let handle: { close(): void } | undefined;
-			const timer = setTimeout(() => {
+			const timer = options.userInitiated ? setTimeout(() => {
 				handle = this._notificationService.notify({
 					severity: Severity.Info,
 					message: nls.localize('tunnelConnecting', "Connecting to tunnel '{0}'...", cached.name),
 					progress: { infinite: true },
 				});
-			}, 1000);
+			}, 1000) : undefined;
 
 			this._updateConnectionStatuses();
 			try {
@@ -263,12 +284,22 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 				this._finishConnectAttempt(address, { success: true, attemptNumber, attemptStart, session, isReconnect });
 			} catch (err) {
 				this._logService.warn(`[TunnelAgentHost] Connect to ${cached.name} failed:`, err);
+				const errorCategory = this._categorizeError(err);
 				this._finishConnectAttempt(address, { success: false, attemptNumber, attemptStart, session, isReconnect, error: err });
 				// Clear the pending-connect entry BEFORE deciding what to do
 				// next; otherwise `_scheduleReconnect`'s in-flight guard
 				// (`_pendingConnects.has(address)`) would silently bail and
 				// we'd never re-arm the timer, leaving the tunnel stuck.
 				this._pendingConnects.delete(address);
+
+				// Auth failures are not worth retrying — a fresh token must
+				// be acquired by the user or by a session-change event. Pause
+				// immediately and let `_handleSessionsChange` resume us when
+				// a new session appears.
+				if (errorCategory === 'authExpired' || errorCategory === 'auth') {
+					this._pauseReconnect(address, errorCategory);
+					throw err;
+				}
 
 				const hostOnline = await this._probeHostOnline(cached.tunnelId);
 				if (hostOnline === false) {
@@ -279,7 +310,9 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 				}
 				throw err;
 			} finally {
-				clearTimeout(timer);
+				if (timer !== undefined) {
+					clearTimeout(timer);
+				}
 				handle?.close();
 				this._pendingConnects.delete(address);
 				this._updateConnectionStatuses();
@@ -412,7 +445,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 			}
 
 			this._reconnectAttempts.set(address, attempt + 1);
-			this._connectTunnel(address).catch(() => { /* _connectTunnel already re-schedules on failure */ });
+			this._connectTunnel(address, { userInitiated: false }).catch(() => { /* _connectTunnel already re-schedules on failure */ });
 		}, delay);
 		this._reconnectTimeouts.set(address, timer);
 	}
@@ -450,6 +483,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 	private _clearReconnectBackoff(address: string): void {
 		this._reconnectAttempts.delete(address);
 		this._reconnectPaused.delete(address);
+		this._hostOfflinePaused.delete(address);
 	}
 
 	/** Drop all reconnect + telemetry state for an address (e.g. on removal). */
@@ -460,6 +494,39 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 	}
 
 	/**
+	 * React to auth session add/remove. Additions re-run discovery (a fresh
+	 * token may unblock a previously auth-paused tunnel). Removals drop any
+	 * tunnel state that depended on that provider — otherwise we'd sit on a
+	 * stale auth pause forever, or hammer a provider whose session is gone.
+	 */
+	private _handleSessionsChange(e: { providerId: string; label: string; event: AuthenticationSessionsChangeEvent }): void {
+		const added = (e.event.added?.length ?? 0) > 0;
+		const removed = (e.event.removed?.length ?? 0) > 0;
+
+		if (removed) {
+			const cached = this._tunnelService.getCachedTunnels();
+			for (const tunnel of cached) {
+				if (tunnel.authProvider !== e.providerId) {
+					continue;
+				}
+				const address = `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`;
+				this._logService.info(
+					`[TunnelAgentHost] Auth session removed for ${e.providerId}; tearing down ${address}.`
+				);
+				this._resetReconnectState(address);
+				// Best-effort disconnect — the transport may already be dead.
+				this._tunnelService.disconnect(address).catch(() => { /* ignore */ });
+			}
+		}
+
+		if (added) {
+			this._logService.info(`[TunnelAgentHost] ${e.providerId} session added; resuming reconnects and rediscovering.`);
+			this._resumeReconnects('sessionAdded');
+			this._silentStatusCheck();
+		}
+	}
+
+	/**
 	 * Stop auto-reconnecting for an address until a wake/online/visibility
 	 * event resumes us, and close out any active telemetry session.
 	 */
@@ -467,9 +534,14 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 		this._cancelReconnect(address);
 		this._reconnectAttempts.delete(address);
 		this._reconnectPaused.add(address);
+		if (reason === 'hostOffline') {
+			this._hostOfflinePaused.add(address);
+		} else {
+			this._hostOfflinePaused.delete(address);
+		}
 		this._logService.info(
 			`[TunnelAgentHost] Pausing auto-reconnect for ${address} (${reason}); ` +
-			`will resume on network-online, tab-visible, or next status check.`
+			`will resume on network-online, tab-visible, session change, or next status check.`
 		);
 		const session = this._connectSessions.get(address);
 		if (session) {
@@ -527,13 +599,20 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 
 	private _categorizeError(err: unknown): TunnelConnectErrorCategory {
 		const message = err instanceof Error ? err.message : String(err);
-		if (/WebSocket relay connection failed/i.test(message)) {
-			return 'relayConnectionFailed';
+		// Expired / invalid credential — callers short-circuit this category
+		// to avoid burning retry budget on a token the user has to refresh.
+		if (/\b(401|403)\b|token.*expired|expired.*token|invalid[_ -]?grant/i.test(message)) {
+			return 'authExpired';
 		}
-		if (/authenticat|token|unauthor/i.test(message)) {
+		// Match authentication-specific language but NOT "connection token"
+		// or other protocol uses of the word "token".
+		if (/authenticat|unauthoriz|auth.*(fail|error|invalid)/i.test(message)) {
 			return 'auth';
 		}
-		if (/network|fetch|offline/i.test(message)) {
+		if (/WebSocket relay connection failed|failed to connect to relay/i.test(message)) {
+			return 'relayConnectionFailed';
+		}
+		if (/network|fetch|offline|ECONN|ENOTFOUND|ETIMEDOUT/i.test(message)) {
 			return 'network';
 		}
 		return 'other';
@@ -549,12 +628,15 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 	 * sequence (by clearing the pause flag) rather than zeroing the
 	 * attempt counter.
 	 */
-	private _resumeReconnects(trigger: 'wake' | 'visible'): void {
+	private _resumeReconnects(trigger: 'wake' | 'visible' | 'sessionAdded'): void {
 		if (!this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId)) {
 			return;
 		}
 
-		const RESUME_RATE_LIMIT_MS = 10_000;
+		// Rate-limit rapid wake/visibility events (e.g. alt-tab bursts or
+		// flaky Wi-Fi toggling online/offline) so we don't hammer the relay
+		// with immediate retries. This is an event-smoothing gate, not an
+		// error-backoff — that's handled by `_scheduleReconnect`.
 		const now = Date.now();
 		if (now - this._lastResumeAt < RESUME_RATE_LIMIT_MS) {
 			return;
@@ -607,6 +689,8 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 	private async _silentStatusCheck(): Promise<void> {
 		const enabled = this._configurationService.getValue<boolean>(RemoteAgentHostsEnabledSettingId);
 		if (!enabled) {
+			this._initialStatusChecked = true;
+			this._updateConnectionStatuses();
 			return;
 		}
 
@@ -618,6 +702,8 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 			onlineTunnels = await this._tunnelService.listTunnels({ silent: true });
 		} catch {
 			// No cached token or network error — leave statuses as-is
+			this._initialStatusChecked = true;
+			this._updateConnectionStatuses();
 			return;
 		}
 
@@ -633,17 +719,20 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 
 			// Auto-cache online tunnels that aren't cached yet so they
 			// appear in the UI on first discovery (e.g. fresh web session).
+			// Pass 'github' as authProvider so _handleSessionsChange can
+			// match these tunnels for teardown on session removal.
 			const cachedIds = new Set(cached.map(t => t.tunnelId));
 			for (const tunnel of onlineTunnels) {
 				if (!cachedIds.has(tunnel.tunnelId) && tunnel.hostConnectionCount > 0) {
-					this._tunnelService.cacheTunnel(tunnel);
+					this._tunnelService.cacheTunnel(tunnel, 'github');
 				}
 			}
 
 			// Update online/offline status based on hostConnectionCount.
 			// For tunnels, Connected means "host is online" (clickable to connect),
 			// Disconnected means "host is offline". Actual relay connection
-			// establishment happens when the user clicks the tunnel.
+			// establishment happens when the user clicks the tunnel (or via
+			// auto-connect below when enabled).
 			const onlineTunnelMap = new Map(onlineTunnels.map(t => [t.tunnelId, t]));
 			for (const [address, provider] of this._providerInstances) {
 				// Skip tunnels that already have an active relay connection
@@ -658,15 +747,33 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 				const info = onlineTunnelMap.get(tunnelId);
 				if (info && info.hostConnectionCount > 0) {
 					provider.setConnectionStatus(RemoteAgentHostConnectionStatus.Connected);
+
+					// If we paused reconnects because the host had gone
+					// offline, the status check is our cue to resume —
+					// don't wait for a wake/visibility event. Covers the
+					// common "my laptop came back, the remote host came
+					// back first" scenario deterministically.
+					if (this._hostOfflinePaused.has(address)) {
+						this._logService.info(
+							`[TunnelAgentHost] Host came back online for ${address}; auto-resuming reconnect.`
+						);
+						this._clearReconnectBackoff(address);
+						this._scheduleReconnect(address, /*immediate*/ true);
+					}
 				} else {
 					provider.setConnectionStatus(RemoteAgentHostConnectionStatus.Disconnected);
+					// Host is not online — drop any cached sessions we were
+					// showing for it so the UI doesn't list stale entries.
+					provider.unpublishCachedSessions();
 				}
 			}
 
-			// Auto-connect online tunnels that aren't connected yet.
-			// On web there is no workspace picker to trigger manual connection,
-			// so we connect eagerly when a tunnel is discovered and online.
-			if (isWeb) {
+			// Auto-connect online tunnels that aren't connected yet when the
+			// user has opted into auto-connect (default on). This mirrors the
+			// web embedder behaviour where no workspace picker is available
+			// to trigger manual connection.
+			const autoConnect = this._configurationService.getValue<boolean>(RemoteAgentHostAutoConnectSettingId);
+			if (autoConnect) {
 				for (const tunnel of onlineTunnels) {
 					if (tunnel.hostConnectionCount > 0) {
 						const address = `${TUNNEL_ADDRESS_PREFIX}${tunnel.tunnelId}`;
@@ -674,12 +781,15 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 							c => c.address === address && c.status === RemoteAgentHostConnectionStatus.Connected
 						);
 						if (!alreadyConnected) {
-							this._connectTunnel(address);
+							this._connectTunnel(address, { userInitiated: false });
 						}
 					}
 				}
 			}
 		}
+
+		this._initialStatusChecked = true;
+		this._updateConnectionStatuses();
 	}
 }
 

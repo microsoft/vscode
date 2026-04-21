@@ -40,7 +40,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	private readonly _onDidNotification = new Emitter<INotification>();
 	override readonly onDidNotification = this._onDidNotification.event;
 	private readonly _onDidRootStateChange = new Emitter<IRootState>();
-	private _rootStateValue: IRootState | Error | undefined = { agents: [{ provider: 'copilot', displayName: 'Copilot', description: '', models: [] } as IAgentInfo] };
+	private _rootStateValue: IRootState | Error | undefined = { agents: [{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as IAgentInfo] };
 	override readonly rootState: IAgentSubscription<IRootState>;
 
 	override readonly clientId = 'test-local-client';
@@ -178,7 +178,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 
 function createSession(id: string, opts?: { provider?: string; summary?: string; model?: string; project?: { uri: URI; displayName: string }; workingDirectory?: URI; startTime?: number; modifiedTime?: number }): IAgentSessionMetadata {
 	return {
-		session: AgentSession.uri(opts?.provider ?? 'copilot', id),
+		session: AgentSession.uri(opts?.provider ?? 'copilotcli', id),
 		startTime: opts?.startTime ?? 1000,
 		modifiedTime: opts?.modifiedTime ?? 2000,
 		summary: opts?.summary,
@@ -189,7 +189,7 @@ function createSession(id: string, opts?: { provider?: string; summary?: string;
 }
 
 function createProvider(disposables: DisposableStore, agentHostService: MockAgentHostService, contributions = [
-	{ type: 'agent-host-copilot', name: 'copilot', displayName: 'Copilot', description: 'test', icon: undefined },
+	{ type: 'agent-host-copilotcli', name: 'copilot', displayName: 'Copilot', description: 'test', icon: undefined },
 ], options?: { sendRequest?: (resource: URI, message: string, options?: IChatSendRequestOptions) => Promise<ChatSendResult>; openSession?: boolean }): LocalAgentHostSessionsProvider {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
@@ -230,7 +230,7 @@ async function waitForSessionConfig(provider: LocalAgentHostSessionsProvider, se
 }
 
 function fireSessionAdded(agentHost: MockAgentHostService, rawId: string, opts?: { provider?: string; title?: string; model?: string; modelConfig?: Record<string, string>; project?: { uri: string; displayName: string }; workingDirectory?: string }): void {
-	const provider = opts?.provider ?? 'copilot';
+	const provider = opts?.provider ?? 'copilotcli';
 	const sessionUri = AgentSession.uri(provider, rawId);
 	agentHost.fireNotification({
 		type: NotificationType.SessionAdded,
@@ -248,7 +248,7 @@ function fireSessionAdded(agentHost: MockAgentHostService, rawId: string, opts?:
 	});
 }
 
-function fireSessionRemoved(agentHost: MockAgentHostService, rawId: string, provider = 'copilot'): void {
+function fireSessionRemoved(agentHost: MockAgentHostService, rawId: string, provider = 'copilotcli'): void {
 	const sessionUri = AgentSession.uri(provider, rawId);
 	agentHost.fireNotification({
 		type: NotificationType.SessionRemoved,
@@ -279,72 +279,53 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(provider.id, 'local-agent-host');
 		assert.ok(provider.label.length > 0);
 		assert.strictEqual(provider.sessionTypes.length, 1);
-		assert.strictEqual(provider.sessionTypes[0].id, 'agent-host-copilot');
+		// The logical sessionType id is the agent provider name itself, so
+		// the same agent (e.g. `copilotcli`) shares one session type across
+		// local and remote hosts and the standalone Copilot CLI provider.
+		assert.strictEqual(provider.sessionTypes[0].id, 'copilotcli');
 		assert.strictEqual(provider.sessionTypes[0].label, 'Copilot [Local]');
 	});
 
 	test('session types update when the local host advertises additional agents', () => {
 		const provider = createProvider(disposables, agentHost);
 		assert.deepStrictEqual(provider.sessionTypes.map(t => ({ id: t.id, label: t.label })), [
-			{ id: 'agent-host-copilot', label: 'Copilot [Local]' },
+			{ id: 'copilotcli', label: 'Copilot [Local]' },
 		]);
 
 		let changes = 0;
 		disposables.add(provider.onDidChangeSessionTypes!(() => changes++));
 
 		agentHost.setAgents([
-			{ provider: 'copilot', displayName: 'Copilot', description: '', models: [] } as IAgentInfo,
+			{ provider: 'copilotcli', displayName: 'Copilot', description: '', models: [] } as IAgentInfo,
 			{ provider: 'openai', displayName: 'OpenAI', description: '', models: [] } as IAgentInfo,
 		]);
 
 		assert.strictEqual(changes, 1);
+		// The logical sessionType id is the agent provider name itself.
 		assert.deepStrictEqual(provider.sessionTypes.map(t => ({ id: t.id, label: t.label })), [
-			{ id: 'agent-host-copilot', label: 'Copilot [Local]' },
-			{ id: 'agent-host-openai', label: 'OpenAI [Local]' },
+			{ id: 'copilotcli', label: 'Copilot [Local]' },
+			{ id: 'openai', label: 'OpenAI [Local]' },
 		]);
 	});
 
-	test('falls back to registered agent-host contributions before rootState is hydrated', () => {
+	test('reports no session types before rootState hydrates', () => {
 		agentHost.clearRootState();
-		const provider = createProvider(disposables, agentHost, [
-			{ type: 'agent-host-openai', name: 'openai', displayName: 'OpenAI', description: 'test', icon: undefined },
-		]);
-
-		assert.deepStrictEqual(provider.sessionTypes.map(t => ({ id: t.id, label: t.label })), [
-			{ id: 'agent-host-openai', label: 'OpenAI [Local]' },
-		]);
-	});
-
-	test('does not use contribution fallback when rootState advertises no agents', () => {
-		agentHost.setAgents([]);
-		const provider = createProvider(disposables, agentHost, [
-			{ type: 'agent-host-openai', name: 'openai', displayName: 'OpenAI', description: 'test', icon: undefined },
-		]);
+		const provider = createProvider(disposables, agentHost);
 
 		assert.deepStrictEqual(provider.sessionTypes, []);
 	});
 
-	test('fires session type change when rootState hydrates from fallback to no agents', () => {
-		agentHost.clearRootState();
-		const provider = createProvider(disposables, agentHost, [
-			{ type: 'agent-host-openai', name: 'openai', displayName: 'OpenAI', description: 'test', icon: undefined },
-		]);
-		assert.strictEqual(provider.sessionTypes.length, 1);
-
-		let changes = 0;
-		disposables.add(provider.onDidChangeSessionTypes!(() => changes++));
+	test('reports no session types when rootState advertises no agents', () => {
 		agentHost.setAgents([]);
+		const provider = createProvider(disposables, agentHost);
 
-		assert.strictEqual(changes, 1);
 		assert.deepStrictEqual(provider.sessionTypes, []);
 	});
 
-	test('does not use contribution fallback after rootState resolves to an error', () => {
+	test('reports no session types after rootState resolves to an error', () => {
 		agentHost.clearRootState();
-		const provider = createProvider(disposables, agentHost, [
-			{ type: 'agent-host-openai', name: 'openai', displayName: 'OpenAI', description: 'test', icon: undefined },
-		]);
-		assert.strictEqual(provider.sessionTypes.length, 1);
+		const provider = createProvider(disposables, agentHost);
+		assert.deepStrictEqual(provider.sessionTypes, []);
 
 		agentHost.setRootStateError();
 
@@ -439,6 +420,65 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(sessions.length, 2);
 	}));
 
+	test('eagerly populates and fires onDidChangeSessions after construction without a getSessions() call', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('eager-1', { summary: 'First' }));
+		agentHost.addSession(createSession('eager-2', { summary: 'Second' }));
+
+		const provider = createProvider(disposables, agentHost);
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
+
+		// Wait for the eager listSessions() triggered by the constructor.
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			eventCount: changes.length,
+			added: changes[0]?.added.map(s => s.title.get()).sort(),
+			removed: changes[0]?.removed.length,
+			changed: changes[0]?.changed.length,
+			cachedTitles: provider.getSessions().map(s => s.title.get()).sort(),
+		}, {
+			eventCount: 1,
+			added: ['First', 'Second'],
+			removed: 0,
+			changed: 0,
+			cachedTitles: ['First', 'Second'],
+		});
+	}));
+
+	test('defers eager session list fetch until authentication settles', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		// Simulate fresh launch: auth is pending and the agent host has no
+		// sessions yet (returns []), then auth completes and the real session
+		// list becomes available.
+		agentHost.setAuthenticationPending(true);
+
+		const provider = createProvider(disposables, agentHost);
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
+
+		await timeout(0);
+
+		assert.strictEqual(changes.length, 0, 'no event should fire while authentication is pending');
+		assert.strictEqual(provider.getSessions().length, 0, 'no sessions should be cached while authentication is pending');
+
+		// Auth completes; sessions become available on the agent host.
+		agentHost.addSession(createSession('after-auth-1', { summary: 'First' }));
+		agentHost.addSession(createSession('after-auth-2', { summary: 'Second' }));
+		agentHost.setAuthenticationPending(false);
+
+		await timeout(0);
+
+		assert.deepStrictEqual({
+			eventCount: changes.length,
+			added: changes[0]?.added.map(s => s.title.get()).sort(),
+			cachedTitles: provider.getSessions().map(s => s.title.get()).sort(),
+		}, {
+			eventCount: 1,
+			added: ['First', 'Second'],
+			cachedTitles: ['First', 'Second'],
+		});
+	}));
+
 	test('uses project metadata as workspace group source', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		const projectUri = URI.file('/home/user/vscode');
 		const workingDirectory = URI.file('/tmp/copilot-worktrees/vscode-feature');
@@ -472,7 +512,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		await timeout(0);
 
 		const session = provider.getSessions().find(s => s.title.get() === 'Model Session');
-		assert.strictEqual(session?.modelId.get(), 'agent-host-copilot:claude-sonnet-4.5');
+		assert.strictEqual(session?.modelId.get(), 'agent-host-copilotcli:claude-sonnet-4.5');
 	}));
 
 	test('uses model metadata from session added notification', () => {
@@ -480,7 +520,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		fireSessionAdded(agentHost, 'notif-model', { title: 'Notif Model Session', model: 'gpt-5' });
 
 		const session = provider.getSessions().find(s => s.title.get() === 'Notif Model Session');
-		assert.strictEqual(session?.modelId.get(), 'agent-host-copilot:gpt-5');
+		assert.strictEqual(session?.modelId.get(), 'agent-host-copilotcli:gpt-5');
 	});
 
 	test('setModel updates existing session model and dispatches raw model', () => {
@@ -490,12 +530,12 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const session = provider.getSessions().find(s => s.title.get() === 'Set Model Session');
 		assert.ok(session);
 
-		provider.setModel(session!.sessionId, 'agent-host-copilot:new-model');
+		provider.setModel(session!.sessionId, 'agent-host-copilotcli:new-model');
 
-		assert.strictEqual(session!.modelId.get(), 'agent-host-copilot:new-model');
+		assert.strictEqual(session!.modelId.get(), 'agent-host-copilotcli:new-model');
 		assert.deepStrictEqual(agentHost.dispatchedActions.at(-1)?.action, {
 			type: ActionType.SessionModelChanged,
-			session: AgentSession.uri('copilot', 'set-model').toString(),
+			session: AgentSession.uri('copilotcli', 'set-model').toString(),
 			model: { id: 'new-model' },
 		});
 	});
@@ -507,11 +547,11 @@ suite('LocalAgentHostSessionsProvider', () => {
 		const session = provider.getSessions().find(s => s.title.get() === 'Set Model Config Session');
 		assert.ok(session);
 
-		provider.setModel(session!.sessionId, 'agent-host-copilot:configured-model');
+		provider.setModel(session!.sessionId, 'agent-host-copilotcli:configured-model');
 
 		assert.deepStrictEqual(agentHost.dispatchedActions.at(-1)?.action, {
 			type: ActionType.SessionModelChanged,
-			session: AgentSession.uri('copilot', 'set-model-config').toString(),
+			session: AgentSession.uri('copilotcli', 'set-model-config').toString(),
 			model: { id: 'configured-model', config: { thinkingLevel: 'high' } },
 		});
 	});
@@ -571,7 +611,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		assert.strictEqual(agentHost.disposedSessions.length, 1);
 		const disposedUri = agentHost.disposedSessions[0];
-		assert.strictEqual(AgentSession.provider(disposedUri), 'copilot');
+		assert.strictEqual(AgentSession.provider(disposedUri), 'copilotcli');
 		assert.strictEqual(AgentSession.id(disposedUri), 'del-sess');
 		assert.strictEqual(provider.getSessions().find(s => s.title.get() === 'To Delete'), undefined);
 	});
@@ -593,7 +633,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(dispatched.action.type, ActionType.SessionTitleChanged);
 		assert.strictEqual((dispatched.action as { title: string }).title, 'New Title');
 		const actionSession = (dispatched.action as { session: string }).session;
-		assert.strictEqual(AgentSession.provider(actionSession), 'copilot');
+		assert.strictEqual(AgentSession.provider(actionSession), 'copilotcli');
 		assert.strictEqual(AgentSession.id(actionSession), 'rename-sess');
 		assert.strictEqual(dispatched.clientId, 'test-local-client');
 	});
@@ -633,7 +673,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		agentHost.fireAction({
 			action: {
 				type: ActionType.SessionTitleChanged,
-				session: AgentSession.uri('copilot', 'echo-sess').toString(),
+				session: AgentSession.uri('copilotcli', 'echo-sess').toString(),
 				title: 'Server Title',
 			},
 			serverSeq: 1,
@@ -658,14 +698,14 @@ suite('LocalAgentHostSessionsProvider', () => {
 		agentHost.fireAction({
 			action: {
 				type: ActionType.SessionModelChanged,
-				session: AgentSession.uri('copilot', 'model-change').toString(),
+				session: AgentSession.uri('copilotcli', 'model-change').toString(),
 				model: { id: 'new-model' } satisfies IModelSelection,
 			},
 			serverSeq: 1,
 			origin: undefined,
 		} as IActionEnvelope);
 
-		assert.strictEqual(target!.modelId.get(), 'agent-host-copilot:new-model');
+		assert.strictEqual(target!.modelId.get(), 'agent-host-copilotcli:new-model');
 		assert.strictEqual(changes.length, 1);
 		assert.strictEqual(changes[0].changed.length, 1);
 	});
@@ -688,7 +728,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		agentHost.fireAction({
 			action: {
 				type: 'session/turnComplete',
-				session: AgentSession.uri('copilot', 'turn-sess').toString(),
+				session: AgentSession.uri('copilotcli', 'turn-sess').toString(),
 			},
 			serverSeq: 1,
 			origin: undefined,
@@ -846,12 +886,12 @@ suite('LocalAgentHostSessionsProvider', () => {
 			values: { autoApprove: 'default', isolation: 'worktree' },
 		};
 		const fakeState: ISessionState = {
-			summary: { resource: AgentSession.uri('copilot', 'seed-1').toString(), provider: 'copilot', title: 'Seeded Session', status: ProtocolSessionStatus.Idle, createdAt: 0, modifiedAt: 0 },
+			summary: { resource: AgentSession.uri('copilotcli', 'seed-1').toString(), provider: 'copilotcli', title: 'Seeded Session', status: ProtocolSessionStatus.Idle, createdAt: 0, modifiedAt: 0 },
 			lifecycle: SessionLifecycle.Ready,
 			turns: [],
 			config,
 		};
-		agentHost.setSessionState('seed-1', 'copilot', fakeState);
+		agentHost.setSessionState('seed-1', 'copilotcli', fakeState);
 
 		await waitForSessionConfig(provider, session!.sessionId, c => c?.values.autoApprove === 'default');
 
@@ -875,7 +915,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		// Trigger lazy subscription
 		provider.getSessionConfig(session!.sessionId);
-		const sessionUriStr = AgentSession.uri('copilot', 'seed-2').toString();
+		const sessionUriStr = AgentSession.uri('copilotcli', 'seed-2').toString();
 		assert.strictEqual(agentHost.sessionSubscribeCounts.get(sessionUriStr), 1);
 		assert.strictEqual(agentHost.sessionUnsubscribeCounts.get(sessionUriStr) ?? 0, 0);
 

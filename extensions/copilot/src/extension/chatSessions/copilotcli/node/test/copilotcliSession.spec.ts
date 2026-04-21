@@ -397,7 +397,7 @@ describe('CopilotCLISession', () => {
 		const attachments = [{ type: 'file' as const, path: attachedFilePath, displayName: 'attached-file.ts' }];
 		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Test' }, attachments as any, undefined, authInfo, CancellationToken.None);
 		expect(result).toEqual({ kind: 'denied-interactively-by-user' });
-		expect(toolsService.invokeToolCalls).toHaveLength(1);
+		expect(toolsService.invokeToolCalls).toHaveLength(2);
 	});
 
 	it('auto-approves read permission inside working directory without external handler', async () => {
@@ -487,8 +487,8 @@ describe('CopilotCLISession', () => {
 		// Path must be absolute within workspace, should auto-approve
 		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Test' }, [], undefined, authInfo, CancellationToken.None);
 		expect(result).toEqual({ kind: 'denied-interactively-by-user' });
-		expect(toolsService.invokeToolCalls).toHaveLength(1);
-		expect(toolsService.invokeToolCalls[0].input).toMatchObject({
+		expect(toolsService.invokeToolCalls).toHaveLength(2);
+		expect(toolsService.invokeToolCalls[1].input).toMatchObject({
 			title: 'Read file(s)',
 			message: 'Read file'
 		});
