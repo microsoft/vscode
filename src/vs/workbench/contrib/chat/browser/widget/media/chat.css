@@ -874,8 +874,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 /* Animated gradient border shown around the chat input while the agent is
 	working or thinking. Toggled by the `chat.progressBorder.enabled`
 	setting and the chat widget's request-in-progress state. The ring is
-	rendered inside the container (using a mask trick) so it works whether or
-	not the parent has `overflow: hidden`. */
+	rendered using layered `background-image` + `background-clip`
+	(`padding-box`/`border-box`), so it traces the input's outer corner
+	radius and isn't clipped by `overflow: hidden` on the parent. */
 @property --chat-input-anim-angle {
 	syntax: '<angle>';
 	inherits: false;
@@ -910,8 +911,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 .monaco-workbench .interactive-session .chat-input-container.working {
 	border-color: transparent;
+	/* The padding-box layer fills the input interior. It defaults to the
+		standard input background, but each host can override
+		`--chat-input-working-fill` to keep its own background color (e.g. the
+		Sessions workbench sets it to `--vscode-agentsChatInput-background`).
+		The conic-gradient layer is clipped to the border box so it paints
+		exactly where the (transparent) border lives. */
 	background:
-		linear-gradient(var(--vscode-input-background), var(--vscode-input-background)) padding-box,
+		linear-gradient(var(--chat-input-working-fill, var(--vscode-input-background)),
+			var(--chat-input-working-fill, var(--vscode-input-background))) padding-box,
 		conic-gradient(from var(--chat-input-anim-angle),
 			var(--vscode-chat-inputWorkingBorderColor1),
 			var(--vscode-chat-inputWorkingBorderColor2),
