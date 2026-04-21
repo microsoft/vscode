@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { raceTimeout } from '../../../../base/common/async.js';
+import { raceCancellationError, raceTimeout } from '../../../../base/common/async.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
@@ -1760,9 +1760,23 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		const tempSession = this._chatToSession(session);
 		this._onDidChangeSessions.fire({ added: [tempSession], removed: [], changed: [] });
 
+		// Extract response promises for cancellation detection
+		const responseCreatedPromise = result.kind === 'sent'
+			? result.data.responseCreatedPromise
+			: undefined;
+		const cts = new CancellationTokenSource();
+		// TODO: Understand why we are not awaiting this an only handling the cancellation
+		responseCreatedPromise?.then(r => {
+			if (r?.isCanceled) {
+				cts.cancel();
+			}
+		});
+
 		try {
-			// Wait for the agent sessions model to pick up the real session
-			const committedChat = await this._waitForSessionInCache(realResource);
+			// Wait for the agent sessions model to pick up the real session,
+			// racing against cancellation so we don't timeout when the user
+			// stops the request before the agent creates a worktree.
+			const committedChat = await this._waitForSessionInCache(realResource, cts.token);
 
 			// Clean up temp session and replace with the real adapter
 			this._sessionCache.delete(tempKey);
@@ -1793,6 +1807,8 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			this._onDidChangeSessions.fire({ added: [], removed: [tempSession], changed: [] });
 			session.dispose();
 			throw error;
+		} finally {
+			cts.dispose();
 		}
 	}
 
@@ -2083,7 +2099,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 	 * Only called once during session initialisation (after the commit event),
 	 * so the timeout has no performance impact on steady-state operations.
 	 */
-	private async _waitForSessionInCache(resource: URI): Promise<AgentSessionAdapter> {
+	private async _waitForSessionInCache(resource: URI, token?: CancellationToken): Promise<AgentSessionAdapter> {
 		const key = resource.toString();
 		const existing = this._sessionCache.get(key);
 		if (existing instanceof AgentSessionAdapter) {
@@ -2103,7 +2119,10 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 
 			// The adapter should appear almost immediately after the commit
 			// event via _refreshSessionCache; use a short safety timeout.
-			const result = await raceTimeout(sessionPromise, 5_000);
+			const result = await raceTimeout(
+				token ? raceCancellationError(sessionPromise, token) : sessionPromise,
+				5_000,
+			);
 			if (!result) {
 				throw new Error('Timed out waiting for committed session in cache');
 			}
