@@ -191,6 +191,23 @@ suite('IncrementalDOMMorpher', () => {
 			// No \n\n — content is buffered
 			assert.strictEqual(morpher.tryMorph('partial paragraph'), true);
 		});
+
+		test('schedules render for content without any paragraph breaks', () => {
+			configService.setUserConfiguration(ChatConfiguration.IncrementalRenderingBuffering, 'paragraph');
+			const morpher = createMorpher();
+			const rendered: string[] = [];
+			morpher.setRenderCallback(md => rendered.push(md));
+			morpher.seed('');
+
+			// Append content with no \n\n at all — previously this would
+			// never render because getRenderable returned lastRendered (empty seed).
+			morpher.tryMorph('single block no paragraph breaks');
+
+			// _renderedMarkdown should advance past the seed, allowing
+			// further appends to also be picked up.
+			morpher.tryMorph('single block no paragraph breaks — more words');
+			assert.strictEqual(morpher.tryMorph('single block no paragraph breaks — more words — even more'), true);
+		});
 	});
 
 	suite('seed', () => {
