@@ -39,7 +39,7 @@ interface ModelConfigurationWithSource extends ModelConfiguration {
 type ModelInfo = {
 	models: ModelConfigurationWithSource[];
 	currentModelId: string;
-}
+};
 
 export class InlineEditsModelService extends Disposable implements IInlineEditsModelService {
 

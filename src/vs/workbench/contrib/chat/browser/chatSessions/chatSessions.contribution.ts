@@ -32,21 +32,21 @@ import { ChatEditorInput } from '../widgetHosts/editor/chatEditorInput.js';
 import { IChatAgentAttachmentCapabilities, IChatAgentData, IChatAgentService } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { ChatSessionOptionsMap, ChatSessionStatus, IChatNewSessionRequest, IChatSession, IChatSessionCommitEvent, IChatSessionContentProvider, IChatSessionCustomizationItemGroup, IChatSessionCustomizationsProvider, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionOptionsChangeEvent, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionRequestHistoryItem, IChatSessionsExtensionPoint, IChatSessionsService, isSessionInProgressStatus, ReadonlyChatSessionOptionsMap, ResolvedChatSessionsExtensionPoint } from '../../common/chatSessionsService.js';
-import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../common/constants.js';
+import { ChatAgentLocation, ChatModeKind } from '../../common/constants.js';
 import { CHAT_CATEGORY } from '../actions/chatActions.js';
 import { IChatEditorOptions } from '../widgetHosts/editor/chatEditor.js';
 import { IChatService, ResponseModelState } from '../../common/chatService/chatService.js';
 import { autorun, observableFromEvent } from '../../../../../base/common/observable.js';
 import { IChatRequestVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
-import { ChatViewId, IChatWidgetService } from '../chat.js';
+import { ChatViewId } from '../chat.js';
 import { ChatViewPane } from '../widgetHosts/viewPane/chatViewPane.js';
 import { AgentSessionProviders, getAgentSessionProvider, getAgentSessionProviderName } from '../agentSessions/agentSessions.js';
 import { BugIndicatingError, isCancellationError } from '../../../../../base/common/errors.js';
 import { IEditorGroupsService } from '../../../../services/editor/common/editorGroupsService.js';
 import { isUntitledChatSession, LocalChatSessionUri } from '../../common/model/chatUri.js';
 import { assertNever } from '../../../../../base/common/assert.js';
-import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 import { Target } from '../../common/promptSyntax/promptTypes.js';
 import { slashReg } from '../../common/requestParser/chatRequestParser.js';
 import { IPromptsService } from '../../common/promptSyntax/service/promptsService.js';
@@ -1237,23 +1237,6 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 }
 
 registerSingleton(IChatSessionsService, ChatSessionsService, InstantiationType.Delayed);
-
-CommandsRegistry.registerCommand('workbench.action.chat.copilotcli.approval', (accessor: ServicesAccessor, sessionResource: UriComponents, setAutopilot: boolean) => {
-	const chatWidgetService = accessor.get(IChatWidgetService);
-	const widget = chatWidgetService.getWidgetBySessionResource(URI.revive(sessionResource));
-	if (!widget) {
-		return;
-	}
-	if (setAutopilot) {
-		widget.inputPart.setPermissionLevel(ChatPermissionLevel.Autopilot);
-	} else {
-		if (widget.inputPart.currentPermissionLevelObs.get() === ChatPermissionLevel.Autopilot) {
-			widget.inputPart.setPermissionLevel(ChatPermissionLevel.Default);
-		}
-	}
-});
-
-
 
 function registerNewSessionInPlaceAction(type: string, displayName: string): IDisposable {
 	return registerAction2(class NewChatSessionInPlaceAction extends Action2 {

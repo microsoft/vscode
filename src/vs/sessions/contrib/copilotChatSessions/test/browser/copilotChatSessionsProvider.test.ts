@@ -41,6 +41,7 @@ function createMockAgentSession(resource: URI, opts?: {
 	title?: string;
 	archived?: boolean;
 	read?: boolean;
+	metadata?: Record<string, unknown>;
 }): IAgentSession {
 	const providerType = opts?.providerType ?? AgentSessionProviders.Background;
 	let archived = opts?.archived ?? false;
@@ -53,7 +54,7 @@ function createMockAgentSession(resource: URI, opts?: {
 		override readonly status = ChatSessionStatus.Completed;
 		override readonly icon = Codicon.copilot;
 		override readonly timing = { created: Date.now(), lastRequestStarted: undefined, lastRequestEnded: undefined };
-		override readonly metadata = { repositoryPath: '/test/repo' };
+		override readonly metadata = opts?.metadata ?? { repositoryPath: '/test/repo' };
 		override isArchived(): boolean { return archived; }
 		override setArchived(value: boolean): void { archived = value; }
 		override isPinned(): boolean { return false; }
@@ -626,6 +627,24 @@ suite('CopilotChatSessionsProvider', () => {
 		assert.strictEqual(workspace.repositories.length, 1);
 		assert.strictEqual(workspace.repositories[0].uri.toString(), uri.toString());
 		assert.strictEqual(workspace.requiresWorkspaceTrust, true);
+	});
+
+	test('builds an unknown workspace fallback when repository metadata is missing', () => {
+		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: '/unknown-workspace-session' });
+		model.addSession(createMockAgentSession(resource, { metadata: {} }));
+
+		const provider = createProvider(disposables, model);
+		const sessions = provider.getSessions();
+		const workspace = sessions[0].workspace.get();
+
+		assert.ok(workspace);
+		assert.strictEqual(workspace.repositories.length, 1);
+		assert.strictEqual(workspace.repositories[0].uri.toString(), URI.parse('unknown:///').toString());
+		assert.strictEqual(workspace.requiresWorkspaceTrust, true);
+
+		// The core symptom of #310777: any of these calls must not throw.
+		assert.doesNotThrow(() => URI.joinPath(workspace.repositories[0].uri, '.vscode', 'settings.json'));
+		assert.doesNotThrow(() => URI.joinPath(workspace.repositories[0].uri, '.vscode/extensions.json'));
 	});
 
 	test('has folder and repo browse actions', () => {

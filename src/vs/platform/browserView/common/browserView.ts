@@ -326,8 +326,9 @@ export interface IBrowserViewService {
 	/**
 	 * Focus the browser view
 	 * @param id The browser view identifier
+	 * @param force Whether to force focus even if the view's window is not focused.
 	 */
-	focus(id: string): Promise<void>;
+	focus(id: string, force?: boolean): Promise<void>;
 
 	/**
 	 * Find text in the browser view's page

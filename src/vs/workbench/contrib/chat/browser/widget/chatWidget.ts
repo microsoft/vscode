@@ -1973,6 +1973,9 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		if (!model) {
+			// Flush any unsent draft to the outgoing input model before we drop our
+			// reference to it, so the host's `willDisposeModel` persistence sees it.
+			this.inputPart.flushInputStateToModel();
 			if (this.viewModel?.editing) {
 				this.finishedEditing();
 			}

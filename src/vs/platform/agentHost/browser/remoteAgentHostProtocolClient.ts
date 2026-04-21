@@ -188,6 +188,7 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			model: config?.model,
 			workingDirectory: config?.workingDirectory ? fromAgentHostUri(config.workingDirectory).toString() : undefined,
 			config: config?.config,
+			activeClient: config?.activeClient,
 		});
 		return session;
 	}

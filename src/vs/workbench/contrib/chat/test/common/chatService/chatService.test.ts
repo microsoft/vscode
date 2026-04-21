@@ -42,7 +42,7 @@ import { TestMcpService } from '../../../../mcp/test/common/testMcpService.js';
 import { IChatVariablesService } from '../../../common/attachments/chatVariables.js';
 import { IChatDebugService } from '../../../common/chatDebugService.js';
 import { ChatDebugServiceImpl } from '../../../common/chatDebugServiceImpl.js';
-import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReference, IChatService, ResponseModelState } from '../../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ChatSendResult, IChatFollowup, IChatModelReference, IChatProgress, IChatService, ResponseModelState } from '../../../common/chatService/chatService.js';
 import { ChatService } from '../../../common/chatService/chatServiceImpl.js';
 import { ChatAgentLocation, ChatModeKind } from '../../../common/constants.js';
 import { ChatEditingSessionState, IChatEditingService, IChatEditingSession, IModifiedFileEntry, ModifiedFileEntryState } from '../../../common/editing/chatEditingService.js';
@@ -55,7 +55,7 @@ import { MockChatVariablesService } from '../mockChatVariables.js';
 import { MockPromptsService } from '../promptSyntax/service/mockPromptsService.js';
 import { MockLanguageModelToolsService } from '../tools/mockLanguageModelToolsService.js';
 import { MockChatService } from './mockChatService.js';
-import { ChatSessionOptionsMap, IChatSessionsService } from '../../../common/chatSessionsService.js';
+import { ChatSessionOptionsMap, IChatSession, IChatSessionHistoryItem, IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { MockChatSessionsService } from '../mockChatSessionsService.js';
 import { AGENT_DEBUG_LOG_FILE_LOGGING_ENABLED_SETTING, COPILOT_SKILL_URI_SCHEME, TROUBLESHOOT_SKILL_PATH } from '../../../common/promptSyntax/promptTypes.js';
 
@@ -1327,6 +1327,193 @@ suite('ChatService', () => {
 
 		currentRef!.dispose();
 		await testService.waitForModelDisposals();
+	});
+
+	suite('loadRemoteSession progress streaming', () => {
+		const remoteScheme = 'remote-streaming-test';
+
+		interface IProvidedSessionOptions {
+			readonly progressObs?: ISettableObservable<IChatProgress[]>;
+			readonly isCompleteObs?: ISettableObservable<boolean>;
+			readonly interruptActiveResponseCallback?: () => Promise<boolean>;
+			readonly onDidStartServerRequest?: Event<{ prompt: string }>;
+			readonly history?: readonly IChatSessionHistoryItem[];
+		}
+
+		function setupRemoteProvider(opts: IProvidedSessionOptions): { resource: URI; provided: IChatSession } {
+			const resource = URI.from({ scheme: remoteScheme, path: '/session-' + generateId() });
+			const mockSessionsService = new MockChatSessionsService();
+			instantiationService.stub(IChatSessionsService, mockSessionsService);
+
+			testDisposables.add(chatAgentService.registerAgent(remoteScheme, { ...getAgentData(remoteScheme), isDefault: true }));
+			testDisposables.add(chatAgentService.registerAgentImplementation(remoteScheme, { async invoke() { return {}; } }));
+
+			const provided: IChatSession = {
+				sessionResource: resource,
+				history: opts.history ?? [{ type: 'request', prompt: 'hello', participant: remoteScheme }],
+				onWillDispose: Event.None,
+				progressObs: opts.progressObs,
+				isCompleteObs: opts.isCompleteObs,
+				interruptActiveResponseCallback: opts.interruptActiveResponseCallback,
+				onDidStartServerRequest: opts.onDidStartServerRequest,
+				dispose: () => { },
+			};
+			testDisposables.add(mockSessionsService.registerChatSessionContentProvider(remoteScheme, {
+				provideChatSessionContent: () => Promise.resolve(provided),
+			}));
+
+			return { resource, provided };
+		}
+
+		let idCounter = 0;
+		function generateId(): string {
+			return `${Date.now()}-${idCounter++}`;
+		}
+
+		test('already-complete session at load time: no initial pending request, response is completed via autorun', async () => {
+			const progressObs = observableValue<IChatProgress[]>('progress', []);
+			const isCompleteObs = observableValue<boolean>('isComplete', true);
+			let interruptCalls = 0;
+			const { resource } = setupRemoteProvider({
+				progressObs,
+				isCompleteObs,
+				interruptActiveResponseCallback: async () => { interruptCalls++; return true; },
+			});
+
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+
+			const model = ref.object as ChatModel;
+			const lastRequest = model.lastRequest!;
+			assert.strictEqual(lastRequest.response?.isComplete, true, 'Response should be completed through the isComplete autorun');
+
+			// No pending request should exist — cancelling is a noop and must not call the interrupt callback.
+			await testService.cancelCurrentRequestForSession(resource, 'test');
+			assert.strictEqual(interruptCalls, 0, 'Interrupt callback should not be invoked when there is no pending request');
+		});
+
+		test('active session at load time: cancelCurrentRequestForSession invokes the interrupt callback', async () => {
+			const progressObs = observableValue<IChatProgress[]>('progress', []);
+			const isCompleteObs = observableValue<boolean>('isComplete', false);
+			let interruptCalls = 0;
+			const { resource } = setupRemoteProvider({
+				progressObs,
+				isCompleteObs,
+				interruptActiveResponseCallback: async () => { interruptCalls++; return true; },
+			});
+
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+
+			const model = ref.object as ChatModel;
+			assert.strictEqual(model.lastRequest?.response?.isComplete, false, 'Response must stay open while session is active');
+
+			await testService.cancelCurrentRequestForSession(resource, 'test');
+			assert.strictEqual(interruptCalls, 1, 'Interrupt callback should be invoked once');
+		});
+
+		test('transition of isCompleteObs to true clears pending request and completes response', async () => {
+			const progressObs = observableValue<IChatProgress[]>('progress', []);
+			const isCompleteObs = observableValue<boolean>('isComplete', false);
+			let interruptCalls = 0;
+			const { resource } = setupRemoteProvider({
+				progressObs,
+				isCompleteObs,
+				interruptActiveResponseCallback: async () => { interruptCalls++; return true; },
+			});
+
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+
+			const model = ref.object as ChatModel;
+			const lastRequest = model.lastRequest!;
+			assert.strictEqual(lastRequest.response?.isComplete, false);
+
+			// Simulate server finishing the turn.
+			isCompleteObs.set(true, undefined);
+
+			assert.strictEqual(lastRequest.response?.isComplete, true, 'Response should complete when isCompleteObs transitions to true');
+
+			// Pending request entry should now be gone — cancel must be a noop.
+			await testService.cancelCurrentRequestForSession(resource, 'test');
+			assert.strictEqual(interruptCalls, 0, 'Interrupt should not fire after the turn has completed');
+		});
+
+		test('interrupt callback returning false installs a fresh pending request so cancel can be retried', async () => {
+			const progressObs = observableValue<IChatProgress[]>('progress', []);
+			const isCompleteObs = observableValue<boolean>('isComplete', false);
+			const interruptResults = [false, true];
+			const interruptInvocations: number[] = [];
+			const { resource } = setupRemoteProvider({
+				progressObs,
+				isCompleteObs,
+				interruptActiveResponseCallback: async () => {
+					const index = interruptInvocations.length;
+					interruptInvocations.push(index);
+					return interruptResults[index] ?? true;
+				},
+			});
+
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+
+			// First cancel: user rejects the interruption, so a new pending request is wired up.
+			await testService.cancelCurrentRequestForSession(resource, 'test-first');
+
+			// Second cancel: should find the freshly-installed pending request and fire the callback again.
+			await testService.cancelCurrentRequestForSession(resource, 'test-second');
+
+			assert.strictEqual(interruptInvocations.length, 2, 'Interrupt callback should be invoked on both cancel attempts');
+		});
+
+		test('non-streaming session with isCompleteObs=true at load: response completes synchronously', async () => {
+			const isCompleteObs = observableValue<boolean>('isComplete', true);
+			// Deliberately no progressObs / interruptActiveResponseCallback — falls through to the non-streaming branch.
+			const { resource } = setupRemoteProvider({ isCompleteObs });
+
+			const testService = createChatService();
+			const ref = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref);
+			testDisposables.add(ref);
+
+			const model = ref.object as ChatModel;
+			assert.strictEqual(model.lastRequest?.response?.isComplete, true, 'Non-streaming session should complete response at load time');
+		});
+
+		test('draft input is restored after disposing and reloading a remote session', async () => {
+			const { resource } = setupRemoteProvider({ history: [] });
+
+			const testService = createChatService();
+
+			// Load the session and seed an unsent draft on its inputModel.
+			const ref1 = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref1, 'Should load remote session');
+			const model1 = ref1.object as ChatModel;
+			model1.inputModel.setState({
+				inputText: 'unsent draft',
+				selections: [{ selectionStartLineNumber: 1, selectionStartColumn: 1, positionLineNumber: 1, positionColumn: 12 }],
+			});
+
+			// Release the only reference -> willDisposeModel runs and persists metadata.
+			ref1.dispose();
+			await testService.waitForModelDisposals();
+
+			// Reload the same session. The draft must be restored from metadata.
+			const ref2 = await testService.acquireOrLoadSession(resource, ChatAgentLocation.Chat, CancellationToken.None);
+			assert.ok(ref2, 'Should re-load remote session');
+			testDisposables.add(ref2);
+			const model2 = ref2.object as ChatModel;
+			const restored = model2.inputModel.state.get();
+			assert.strictEqual(restored?.inputText, 'unsent draft', 'Input text should be restored');
+		});
 	});
 });
 

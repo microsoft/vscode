@@ -10,7 +10,7 @@ import { URI } from '../../../../base/common/uri.js';
 import * as nls from '../../../../nls.js';
 import { agentHostAuthority } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { type AgentProvider, type IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
-import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, getEntryAddress } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostConnectionInfo, IRemoteAgentHostEntry, IRemoteAgentHostService, RemoteAgentHostAutoConnectSettingId, RemoteAgentHostConnectionStatus, RemoteAgentHostEntryType, RemoteAgentHostsEnabledSettingId, RemoteAgentHostsSettingId, getEntryAddress } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { TunnelAgentHostsSettingId } from '../../../../platform/agentHost/common/tunnelAgentHost.js';
 import { type IProtectedResourceMetadata, type URI as ProtocolURI } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { type IAgentInfo, type ICustomizationRef, type IRootState } from '../../../../platform/agentHost/common/state/sessionState.js';
@@ -102,7 +102,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 
 		// Reconcile providers when configured entries change
 		this._register(this._configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration(RemoteAgentHostsSettingId) || e.affectsConfiguration(RemoteAgentHostsEnabledSettingId)) {
+			if (e.affectsConfiguration(RemoteAgentHostsSettingId) || e.affectsConfiguration(RemoteAgentHostsEnabledSettingId) || e.affectsConfiguration(RemoteAgentHostAutoConnectSettingId)) {
 				this._reconcile();
 			}
 		}));
@@ -194,6 +194,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	 * sshConfigHost but no active connection.
 	 */
 	private _reconnectSSHEntries(): void {
+		const autoConnect = this._configurationService.getValue<boolean>(RemoteAgentHostAutoConnectSettingId);
 		const entries = this._remoteAgentHostService.configuredEntries;
 		for (const entry of entries) {
 			if (entry.connection.type !== RemoteAgentHostEntryType.SSH || !entry.connection.sshConfigHost) {
@@ -208,6 +209,9 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			if (hasConnection || this._pendingSSHReconnects.has(sshConfigHost)) {
 				continue;
 			}
+			if (!autoConnect) {
+				continue;
+			}
 			this._pendingSSHReconnects.add(sshConfigHost);
 			this._logService.info(`[RemoteAgentHost] Re-establishing SSH tunnel for ${sshConfigHost}`);
 			this._sshService.reconnect(sshConfigHost, entry.name).then(() => {
@@ -216,6 +220,10 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			}).catch(err => {
 				this._pendingSSHReconnects.delete(sshConfigHost);
 				this._logService.error(`[RemoteAgentHost] SSH reconnect failed for ${sshConfigHost}`, err);
+				// Host is unreachable — unpublish any cached sessions we
+				// were showing so the UI doesn't list stale entries for a
+				// host we cannot currently reach.
+				this._providerInstances.get(address)?.unpublishCachedSessions();
 			});
 		}
 	}
@@ -316,7 +324,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		}
 
 		// Authenticate using protectedResources from agent info
-		this._authenticateWithConnection(loggedConnection, rootState.agents)
+		this._authenticateWithConnection(address, loggedConnection, rootState.agents)
 			.catch(() => { /* best-effort */ });
 
 		// Register new agents, push model updates to existing ones
@@ -485,10 +493,10 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	}
 
 	private _authenticateAllConnections(): void {
-		for (const [, connState] of this._connections) {
+		for (const [address, connState] of this._connections) {
 			const rootState = connState.loggedConnection.rootState.value;
 			if (rootState && !(rootState instanceof Error)) {
-				this._authenticateWithConnection(connState.loggedConnection, rootState.agents).catch(() => { /* best-effort */ });
+				this._authenticateWithConnection(address, connState.loggedConnection, rootState.agents).catch(() => { /* best-effort */ });
 			}
 		}
 	}
@@ -496,8 +504,14 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 	/**
 	 * Authenticate using protectedResources from agent info in root state.
 	 * Resolves tokens via the standard VS Code authentication service.
+	 *
+	 * Marks the matching provider's `authenticationPending` observable while
+	 * the auth pass is in flight so that sessions surface as still loading.
 	 */
-	private async _authenticateWithConnection(loggedConnection: LoggingAgentConnection, agents: readonly IAgentInfo[]): Promise<void> {
+	private async _authenticateWithConnection(address: string, loggedConnection: LoggingAgentConnection, agents: readonly IAgentInfo[]): Promise<void> {
+		const providerId = `agenthost-${agentHostAuthority(address)}`;
+		const provider = this._sessionsProvidersService.getProvider<RemoteAgentHostSessionsProvider>(providerId);
+		provider?.setAuthenticationPending(true);
 		try {
 			for (const agent of agents) {
 				for (const resource of agent.protectedResources ?? []) {
@@ -514,6 +528,8 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 		} catch (err) {
 			this._logService.error('[RemoteAgentHost] Failed to authenticate with connection', err);
 			loggedConnection.logError('authenticateWithConnection', err);
+		} finally {
+			provider?.setAuthenticationPending(false);
 		}
 	}
 
@@ -578,7 +594,14 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[RemoteAgentHostsEnabledSettingId]: {
 			type: 'boolean',
 			description: nls.localize('chat.remoteAgentHosts.enabled', "Enable connecting to remote agent hosts."),
-			default: product.quality === 'insider',
+			default: product.quality !== 'stable',
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental', 'advanced'],
+		},
+		[RemoteAgentHostAutoConnectSettingId]: {
+			type: 'boolean',
+			description: nls.localize('chat.remoteAgentHosts.autoConnect', "Automatically connect to online dev tunnel and SSH-configured remote agent hosts on startup. When disabled, cached sessions are still shown but connections are established only on demand."),
+			default: true,
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental', 'advanced'],
 		},
@@ -619,4 +642,4 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 
 // Side-effect registrations for the remote agent host feature
 import './remoteAgentHostActions.js';
-import '../../chat/browser/agentHostModelPicker.js';
+import '../../chat/browser/agentHost/agentHostModelPicker.js';
