@@ -832,38 +832,44 @@
 		]
 	},
 	{
+		// Reason: npm license field is "SEE LICENSE IN README.md"; README references Anthropic's
+		// Commercial Terms of Service (not an OSS license). No LICENSE file found in
+		// github.com/anthropics/claude-agent-sdk-typescript. Needs manual resolution.
 		"name": "@anthropic-ai/claude-agent-sdk",
-		"licenseDetail": [
+		"fullLicenseText": [
 			"© Anthropic PBC. All rights reserved. Use is subject to Anthropic's Commercial Terms of Service."
 		]
 	},
 	{
+		// Reason: npm package declares MIT but no public repository found for
+		// @github/blackbird-external-ingest-utils. Needs manual resolution.
 		"name": "@github/blackbird-external-ingest-utils",
-		"licenseDetail": [
+		"fullLicenseText": [
 			"MIT License"
 		]
 	},
 	{
+		// Reason: npm package has no repository URL; source is in microsoft/dev-tunnels
+		// under ts/src/connections. MIT license confirmed in repo root LICENSE file.
 		"name": "@microsoft/dev-tunnels-connections",
-		"licenseDetail": [
-			"MIT License"
-		]
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/microsoft/dev-tunnels/6cc48487bcc96697afc0e86a2c06b30341b43d95/LICENSE"
 	},
 	{
+		// Reason: npm package has no repository URL; source is in microsoft/dev-tunnels
+		// under ts/src/contracts. MIT license confirmed in repo root LICENSE file.
 		"name": "@microsoft/dev-tunnels-contracts",
-		"licenseDetail": [
-			"MIT License"
-		]
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/microsoft/dev-tunnels/6cc48487bcc96697afc0e86a2c06b30341b43d95/LICENSE"
 	},
 	{
+		// Reason: npm package has no repository URL; source is in microsoft/dev-tunnels
+		// under ts/src/management. MIT license confirmed in repo root LICENSE file.
 		"name": "@microsoft/dev-tunnels-management",
-		"licenseDetail": [
-			"MIT License"
-		]
+		"fullLicenseTextUri": "https://raw.githubusercontent.com/microsoft/dev-tunnels/6cc48487bcc96697afc0e86a2c06b30341b43d95/LICENSE"
 	},
 	{
+		// Reason: No LICENSE file in repo; license text is in README.md under "LICENSE" heading.
 		"name": "brorand",
-		"licenseDetail": [
+		"fullLicenseText": [
 			"This software is licensed under the MIT License.",
 			"",
 			"Copyright Fedor Indutny, 2014.",
@@ -876,14 +882,18 @@
 		]
 	},
 	{
+		// Reason: No LICENSE file in repo; BSD-2-Clause declared in package.json but no
+		// license text or copyright year found in repo. Needs manual resolution.
 		"name": "emitter-listener",
-		"licenseDetail": [
+		"fullLicenseText": [
 			"BSD-2-Clause"
 		]
 	},
 	{
+		// Reason: No LICENSE file in repo; license text is in README.md under "LICENSE" heading.
+		// Copyright year from LICENCE.md uses placeholder format but author is confirmed.
 		"name": "bignumber.js",
-		"licenseDetail": [
+		"fullLicenseText": [
 			"Copyright © <2026> Michael Mclaughlin",
 			"",
 			"Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the \"Software\"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:",
@@ -894,8 +904,9 @@
 		]
 	},
 	{
+		// Reason: No LICENSE file in repo; license text is in README.md under "LICENSE" heading.
 		"name": "miller-rabin",
-		"licenseDetail": [
+		"fullLicenseText": [
 			"This software is licensed under the MIT License.",
 			"",
 			"Copyright Fedor Indutny, 2014.",
@@ -912,8 +923,10 @@
 		"fullLicenseTextUri": "https://raw.githubusercontent.com/googleapis/google-cloud-node-core/76ba85a7f55c6e82943008b4eceb07a0f58b39e1/LICENSE"
 	},
 	{
+		// Reason: No repository URL in npm; repository is crypto-browserify/randombytes (now at
+		// browserify/randombytes). MIT license confirmed in repo LICENSE file.
 		"name": "randombytes",
-		"licenseDetail": [
+		"fullLicenseText": [
 			"MIT License",
 			"",
 			"Copyright (c) 2017 crypto-browserify",
