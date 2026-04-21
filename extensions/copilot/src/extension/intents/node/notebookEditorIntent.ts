@@ -37,6 +37,7 @@ import { IToolsService } from '../../tools/common/toolsService';
 import { getAgentMaxRequests } from '../common/agentConfig';
 import { EditCodeIntent, EditCodeIntentOptions } from './editCodeIntent';
 import { EditCode2IntentInvocation } from './editCodeIntent2';
+import { IAgentMemoryToolRegistrar } from '../../tools/node/agentMemoryToolRegistrar';
 
 const getTools = (instaService: IInstantiationService, request: vscode.ChatRequest): Promise<vscode.LanguageModelToolInformation[]> =>
 	instaService.invokeFunction(async accessor => {
@@ -107,8 +108,9 @@ export class NotebookEditorIntentInvocation extends EditCode2IntentInvocation {
 		@IExperimentationService expService: IExperimentationService,
 		@IAutomodeService automodeService: IAutomodeService,
 		@IOTelService otelService: IOTelService,
+		@IAgentMemoryToolRegistrar agentMemoryToolRegistrar: IAgentMemoryToolRegistrar,
 	) {
-		super(intent, location, endpoint, request, intentOptions, instantiationService, codeMapperService, envService, promptPathRepresentationService, endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, logService, expService, automodeService, otelService);
+		super(intent, location, endpoint, request, intentOptions, instantiationService, codeMapperService, envService, promptPathRepresentationService, endpointProvider, workspaceService, toolsService, configurationService, editLogService, commandService, telemetryService, notebookService, logService, expService, automodeService, otelService, agentMemoryToolRegistrar);
 	}
 
 	protected override prompt = NotebookInlinePrompt;

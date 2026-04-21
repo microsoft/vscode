@@ -230,6 +230,7 @@ export class AgentIntent extends EditCodeIntent {
 		chatTelemetry: ChatTelemetryBuilder,
 		yieldRequested: () => boolean
 	): Promise<vscode.ChatResult> {
+		console.error('$$$$$ AgentIntent.handleRequest called $$$$$');
 		if (request.command === 'compact') {
 			return this.handleSummarizeCommand(conversation, request, stream, token);
 		}
@@ -397,6 +398,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		progress: vscode.Progress<vscode.ChatResponseReferencePart | vscode.ChatResponseProgressPart>,
 		token: vscode.CancellationToken
 	): Promise<IBuildPromptResult> {
+		this.logService.info(`[AgentIntentInvocation] buildPrompt called, history.length=${promptContext.history?.length}`);
 		this._resolvedCustomizations = await PromptRegistry.resolveAllCustomizations(this.instantiationService, this.endpoint);
 
 		if (promptContext.history?.length === 0) {

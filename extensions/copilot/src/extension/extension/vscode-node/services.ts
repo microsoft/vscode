@@ -142,7 +142,6 @@ import { WorkspaceMutationManager } from '../../testing/node/setupTestsFileManag
 import { AgentMemoryService, IAgentMemoryService } from '../../tools/common/agentMemoryService';
 import { IMemoryCleanupService, MemoryCleanupService } from '../../tools/common/memoryCleanupService';
 import { AgentMemoryToolRegistrar, IAgentMemoryToolRegistrar } from '../../tools/node/agentMemoryToolRegistrar';
-import { IToolDeferralService } from '../../../platform/networking/common/toolDeferralService';
 import { ToolDeferralService } from '../../tools/common/toolDeferralService';
 import { IToolsService } from '../../tools/common/toolsService';
 import { ToolsService } from '../../tools/vscode-node/toolsService';

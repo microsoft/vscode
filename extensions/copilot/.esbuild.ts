@@ -8,8 +8,9 @@ import * as fs from 'fs';
 import { copyFile, mkdir, readdir, rename } from 'fs/promises';
 import { glob } from 'glob';
 import * as path from 'path';
+import { fileURLToPath } from 'url';
 
-const REPO_ROOT = import.meta.dirname;
+const REPO_ROOT = import.meta.dirname ?? path.dirname(fileURLToPath(import.meta.url));
 const isWatch = process.argv.includes('--watch');
 const isDev = process.argv.includes('--dev');
 const generateSourceMaps = process.argv.includes('--sourcemaps');
