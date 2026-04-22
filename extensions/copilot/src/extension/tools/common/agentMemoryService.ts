@@ -83,11 +83,14 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 
 	getCachedMemoryPrompt(sessionId?: string): MemoryPromptResponse | undefined {
 		if (!sessionId) {
-			// Legacy behavior - return any cached response if no sessionId provided
 			const responses = Array.from(this._conversationMemoryCache.values());
-			return responses.length > 0 ? responses[0] : undefined;
+			const result = responses.length > 0 ? responses[0] : undefined;
+			this.logService.info(`[AgentMemoryService] getCachedMemoryPrompt(no sessionId): cache size=${this._conversationMemoryCache.size}, returning=${result ? `${result.memoriesContext.memoriesCount} memories` : 'undefined'}`);
+			return result;
 		}
-		return this._conversationMemoryCache.get(sessionId);
+		const result = this._conversationMemoryCache.get(sessionId);
+		this.logService.info(`[AgentMemoryService] getCachedMemoryPrompt(sessionId=${sessionId}): ${result ? `found ${result.memoriesContext.memoriesCount} memories` : 'NOT FOUND'}, cache keys=[${Array.from(this._conversationMemoryCache.keys()).join(', ')}]`);
+		return result;
 	}
 
 	constructor(
@@ -303,8 +306,8 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 				this.logService.debug(`[AgentMemoryService] No sessionId provided, skipping cache lookup`);
 			}
 
-			// If repoNwo not provided, auto-determine it to preserve original behavior
 			const resolvedRepoNwo = repoNwo ?? await this.getRepoNwo();
+			this.logService.info(`[AgentMemoryService] getMemoryPrompt: sessionId=${sessionId ?? 'none'}, resolvedRepoNwo=${resolvedRepoNwo ?? 'none (user scope only)'}`);
 
 			const token = await this.getToken();
 			if (!token) {
@@ -312,46 +315,76 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 				return undefined;
 			}
 
-			// Use repo-scoped options when a resolvedRepoNwo is available, otherwise user-scoped
-			let options: MemoryApiOptions;
-			if (resolvedRepoNwo) {
-				const [owner, repo] = resolvedRepoNwo.split('/');
-				options = {
-					scope: 'repository',
-					owner,
-					repo,
-					token,
-					integrationId: INTEGRATION_ID,
-					baseUrl: this.getBaseUrl(),
-					logger: this.makeLogger(),
-				};
+			const baseOptions = {
+				token,
+				integrationId: INTEGRATION_ID,
+				baseUrl: this.getBaseUrl(),
+				logger: this.makeLogger(),
+			};
+
+			// Always fetch user-scoped memories, and repo-scoped if a repo is available.
+			// Fetch both in parallel and merge so the model sees all relevant context.
+			const userOptions: MemoryApiOptions = { scope: 'user', ...baseOptions };
+			const repoOptions: MemoryApiOptions | undefined = resolvedRepoNwo
+				? (() => { const [owner, repo] = resolvedRepoNwo.split('/'); return { scope: 'repository' as const, owner, repo, ...baseOptions }; })()
+				: undefined;
+
+			this.logService.info(`[AgentMemoryService] Fetching: user-scope=yes, repo-scope=${resolvedRepoNwo ?? 'no'}`);
+
+			const [userResult, repoResult] = await Promise.allSettled([
+				fetchMemoryPrompts(userOptions),
+				repoOptions ? fetchMemoryPrompts(repoOptions) : Promise.resolve(undefined),
+			]);
+
+			if (userResult.status === 'rejected') {
+				this.logService.warn(`[AgentMemoryService] Failed to fetch user memory prompt: ${userResult.reason}`);
 			} else {
-				options = {
-					scope: 'user',
-					token,
-					integrationId: INTEGRATION_ID,
-					baseUrl: this.getBaseUrl(),
-					logger: this.makeLogger(),
-				};
+				this.logService.info(`[AgentMemoryService] User-scope result: ${userResult.value ? `${userResult.value.memoriesContext.memoriesCount} memories, promptLength=${userResult.value.memoriesContext.prompt?.length ?? 0}` : 'undefined (no response)'}`);
 			}
 
-			const response = await fetchMemoryPrompts(options);
+			if (repoResult.status === 'rejected') {
+				this.logService.warn(`[AgentMemoryService] Failed to fetch repo memory prompt: ${repoResult.reason}`);
+			} else {
+				this.logService.info(`[AgentMemoryService] Repo-scope result: ${repoResult.value ? `${repoResult.value.memoriesContext.memoriesCount} memories, promptLength=${repoResult.value.memoriesContext.prompt?.length ?? 0}` : 'undefined (no repo or no response)'}`);
+			}
+
+			const userResponse = userResult.status === 'fulfilled' ? userResult.value : undefined;
+			const repoResponse = repoResult.status === 'fulfilled' ? repoResult.value : undefined;
+
+			const response = this.mergeMemoryPromptResponses(userResponse, repoResponse);
 			if (response) {
-				this.logService.info(`[AgentMemoryService] Fetched memory prompt (${response.memoriesContext.memoriesCount} memories)${sessionId ? ` for conversation: ${sessionId}` : ''}`);
-				
-				// Cache the response for this conversation only
+				this.logService.info(`[AgentMemoryService] Merged: ${response.memoriesContext.memoriesCount} total memories, promptLength=${response.memoriesContext.prompt?.length ?? 0}, definitionVersion=${response.storeToolDefinition?.definitionVersion ?? 'none'}${sessionId ? ` — caching for conversation: ${sessionId}` : ' — not caching (no sessionId)'}`);
 				if (sessionId) {
 					this._conversationMemoryCache.set(sessionId, response);
-					this.logService.debug(`[AgentMemoryService] Cached response for conversation: ${sessionId}, cache size now: ${this._conversationMemoryCache.size}`);
-				} else {
-					this.logService.debug(`[AgentMemoryService] No sessionId provided, not caching response`);
 				}
+			} else {
+				this.logService.info(`[AgentMemoryService] Merge returned undefined — both user and repo fetches returned no response`);
 			}
 			return response;
 		} catch (error) {
 			this.logService.warn(`[AgentMemoryService] Failed to fetch memory prompt: ${error}`);
 			return undefined;
 		}
+	}
+
+	private mergeMemoryPromptResponses(user: MemoryPromptResponse | undefined, repo: MemoryPromptResponse | undefined): MemoryPromptResponse | undefined {
+		if (!user && !repo) {
+			return undefined;
+		}
+		if (!user) { return repo; }
+		if (!repo) { return user; }
+
+		const prompts = [user.memoriesContext.prompt, repo.memoriesContext.prompt].filter(Boolean);
+		return {
+			storeToolDefinition: repo.storeToolDefinition ?? user.storeToolDefinition,
+			toolDefinition: repo.toolDefinition ?? user.toolDefinition,
+			storeInstructions: repo.storeInstructions ?? user.storeInstructions,
+			memoriesContext: {
+				prompt: prompts.join('\n\n'),
+				memoriesCount: user.memoriesContext.memoriesCount + repo.memoriesContext.memoriesCount,
+				promptVersion: repo.memoriesContext.promptVersion ?? user.memoriesContext.promptVersion,
+			},
+		};
 	}
 
 	/**

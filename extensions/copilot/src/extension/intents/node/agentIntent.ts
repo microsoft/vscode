@@ -60,6 +60,7 @@ import { normalizeToolSchema } from '../../tools/common/toolSchemaNormalizer';
 import { IToolsService } from '../../tools/common/toolsService';
 import { IAgentMemoryService } from '../../tools/common/agentMemoryService';
 import { IAgentMemoryToolRegistrar } from '../../tools/node/agentMemoryToolRegistrar';
+import { extractSessionId } from '../../tools/node/memoryTool';
 import { applyPatch5Description } from '../../tools/node/applyPatchTool';
 import { multiReplaceStringPrimaryDescription } from '../../tools/node/multiReplaceStringTool';
 import { replaceStringBatchDescription } from '../../tools/node/replaceStringTool';
@@ -419,7 +420,9 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		this._resolvedCustomizations = await PromptRegistry.resolveAllCustomizations(this.instantiationService, this.endpoint);
 
 		if (promptContext.history?.length === 0) {
-			await this.agentMemoryToolRegistrar.registerMemoryTools(promptContext.conversation?.sessionId);
+			const sessionResource = (promptContext.tools?.toolInvocationToken as any)?.sessionResource as string | undefined;
+			const memorySessionId = sessionResource ? extractSessionId(sessionResource) : promptContext.conversation?.sessionId;
+			await this.agentMemoryToolRegistrar.registerMemoryTools(memorySessionId);
 		}
 		// Add any references from the codebase invocation to the request
 		const codebase = await this._getCodebaseReferences(promptContext, token);

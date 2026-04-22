@@ -8,6 +8,7 @@ import { ConfigKey, IConfigurationService } from '../../../platform/configuratio
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
 import { FileType } from '../../../platform/filesystem/common/fileTypes';
+import { ILogService } from '../../../platform/log/common/logService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { URI } from '../../../util/vs/base/common/uri';
@@ -32,6 +33,7 @@ export class MemoryContextPrompt extends PromptElement<MemoryContextPromptProps>
 		@IVSCodeExtensionContext private readonly extensionContext: IVSCodeExtensionContext,
 		@IFileSystemService private readonly fileSystemService: IFileSystemService,
 		@ITelemetryService private readonly telemetryService: ITelemetryService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super(props);
 	}
@@ -50,8 +52,10 @@ export class MemoryContextPrompt extends PromptElement<MemoryContextPromptProps>
 
 		// When CAPI memory is enabled, read from the cache primed by AgentMemoryToolRegistrar
 		const sessionId = this.props.sessionResource ? extractSessionId(this.props.sessionResource) : undefined;
+		this.logService.info(`[MemoryContextPrompt] render: sessionResource=${this.props.sessionResource ?? 'none'}, extractedSessionId=${sessionId ?? 'none'}, enableCopilotMemory=${enableCopilotMemory}`);
 		const promptResponse = enableCopilotMemory ? this.agentMemoryService.getCachedMemoryPrompt(sessionId) : undefined;
 		const memoryPromptText = promptResponse?.memoriesContext.prompt;
+		this.logService.info(`[MemoryContextPrompt] promptResponse=${promptResponse ? `${promptResponse.memoriesContext.memoriesCount} memories, promptLength=${memoryPromptText?.length ?? 0}, hasText=${!!memoryPromptText}` : 'undefined — <memory_context> will NOT render'}`);
 
 		this._sendContextReadTelemetry(
 			!!userMemoryContent,
