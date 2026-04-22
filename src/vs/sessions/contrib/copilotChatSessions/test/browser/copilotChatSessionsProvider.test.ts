@@ -41,6 +41,7 @@ function createMockAgentSession(resource: URI, opts?: {
 	title?: string;
 	archived?: boolean;
 	read?: boolean;
+	createdAt?: number;
 	metadata?: Record<string, unknown>;
 }): IAgentSession {
 	const providerType = opts?.providerType ?? AgentSessionProviders.Background;
@@ -53,7 +54,7 @@ function createMockAgentSession(resource: URI, opts?: {
 		override readonly label = opts?.title ?? 'Test Session';
 		override readonly status = ChatSessionStatus.Completed;
 		override readonly icon = Codicon.copilot;
-		override readonly timing = { created: Date.now(), lastRequestStarted: undefined, lastRequestEnded: undefined };
+		override readonly timing = { created: opts?.createdAt ?? Date.now(), lastRequestStarted: undefined, lastRequestEnded: undefined };
 		override readonly metadata = opts?.metadata ?? { repositoryPath: '/test/repo' };
 		override isArchived(): boolean { return archived; }
 		override setArchived(value: boolean): void { archived = value; }
@@ -530,6 +531,118 @@ suite('CopilotChatSessionsProvider', () => {
 
 		// Without explicit grouping, each chat is its own session
 		assert.strictEqual(sessions.length, 2);
+	});
+
+	test('groups committed chats using metadata.sessionParentId', () => {
+		const rootResource = URI.from({ scheme: AgentSessionProviders.Background, path: '/root-session' });
+		const child1Resource = URI.from({ scheme: AgentSessionProviders.Background, path: '/child-session-1' });
+		const child2Resource = URI.from({ scheme: AgentSessionProviders.Background, path: '/child-session-2' });
+
+		model.addSession(createMockAgentSession(rootResource, { title: 'Root', createdAt: 1 }));
+		model.addSession(createMockAgentSession(child1Resource, {
+			title: 'Child 1',
+			createdAt: 2,
+			metadata: { repositoryPath: '/test/repo', sessionParentId: 'root-session' }
+		}));
+		model.addSession(createMockAgentSession(child2Resource, {
+			title: 'Child 2',
+			createdAt: 3,
+			metadata: { repositoryPath: '/test/repo', sessionParentId: 'root-session' }
+		}));
+
+		const provider = createProvider(disposables, model);
+		const sessions = provider.getSessions();
+
+		assert.strictEqual(sessions.length, 1);
+		assert.strictEqual(sessions[0].chats.get().length, 3);
+		assert.strictEqual(sessions[0].mainChat.resource.toString(), rootResource.toString());
+	});
+
+	test('orders chats within a grouped session by createdAt', () => {
+		const rootResource = URI.from({ scheme: AgentSessionProviders.Background, path: '/root-session' });
+		const olderChildResource = URI.from({ scheme: AgentSessionProviders.Background, path: '/older-child' });
+		const newerChildResource = URI.from({ scheme: AgentSessionProviders.Background, path: '/newer-child' });
+
+		// Add out of order to ensure grouping order is driven by createdAt rather than insertion order.
+		model.addSession(createMockAgentSession(newerChildResource, {
+			title: 'Newer Child',
+			createdAt: 30,
+			metadata: { repositoryPath: '/test/repo', sessionParentId: 'root-session' }
+		}));
+		model.addSession(createMockAgentSession(rootResource, { title: 'Root', createdAt: 10 }));
+		model.addSession(createMockAgentSession(olderChildResource, {
+			title: 'Older Child',
+			createdAt: 20,
+			metadata: { repositoryPath: '/test/repo', sessionParentId: 'root-session' }
+		}));
+
+		const provider = createProvider(disposables, model);
+		const sessions = provider.getSessions();
+
+		assert.strictEqual(sessions.length, 1);
+		assert.deepStrictEqual(
+			sessions[0].chats.get().map(chat => chat.resource.toString()),
+			[rootResource.toString(), olderChildResource.toString(), newerChildResource.toString()]
+		);
+	});
+
+	test('groups child sessions even when the parent/root session is missing', () => {
+		const orphan1Resource = URI.from({ scheme: AgentSessionProviders.Background, path: '/orphan-child-1' });
+		const orphan2Resource = URI.from({ scheme: AgentSessionProviders.Background, path: '/orphan-child-2' });
+		const provider = createProvider(disposables, model);
+
+		provider.getSessions(); // initialize cache
+
+		const changes: ISessionChangeEvent[] = [];
+		disposables.add(provider.onDidChangeSessions(e => changes.push(e)));
+
+		model.addSession(createMockAgentSession(orphan1Resource, {
+			title: 'Orphan Child 1',
+			createdAt: 1,
+			metadata: { repositoryPath: '/test/repo', sessionParentId: 'missing-root' }
+		}));
+		model.addSession(createMockAgentSession(orphan2Resource, {
+			title: 'Orphan Child 2',
+			createdAt: 2,
+			metadata: { repositoryPath: '/test/repo', sessionParentId: 'missing-root' }
+		}));
+
+		const sessions = provider.getSessions();
+
+		assert.strictEqual(sessions.length, 1);
+		assert.deepStrictEqual(
+			sessions[0].chats.get().map(chat => chat.resource.toString()),
+			[orphan1Resource.toString(), orphan2Resource.toString()]
+		);
+		assert.deepStrictEqual(changes.map(e => ({ added: e.added.length, changed: e.changed.length })), [
+			{ added: 1, changed: 0 },
+			{ added: 0, changed: 1 },
+		]);
+	});
+
+	test('groups nested parent chains under the ultimate root', () => {
+		const middleResource = URI.from({ scheme: AgentSessionProviders.Background, path: '/middle-session' });
+		const leafResource = URI.from({ scheme: AgentSessionProviders.Background, path: '/leaf-session' });
+
+		model.addSession(createMockAgentSession(middleResource, {
+			title: 'Middle Session',
+			createdAt: 2,
+			metadata: { repositoryPath: '/test/repo', sessionParentId: 'missing-root' }
+		}));
+		model.addSession(createMockAgentSession(leafResource, {
+			title: 'Leaf Session',
+			createdAt: 3,
+			metadata: { repositoryPath: '/test/repo', sessionParentId: 'middle-session' }
+		}));
+
+		const provider = createProvider(disposables, model);
+		const sessions = provider.getSessions();
+
+		assert.strictEqual(sessions.length, 1);
+		assert.deepStrictEqual(
+			sessions[0].chats.get().map(chat => chat.resource.toString()),
+			[middleResource.toString(), leafResource.toString()]
+		);
 	});
 
 	test('session title comes from primary (first) chat', () => {
