@@ -910,7 +910,9 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	/* Sit fully inside the container so the parent's `overflow: hidden`
 		doesn't clip the beam. */
 	inset: 0;
-	border-radius: var(--vscode-cornerRadius-large);
+	/* Inherit so the ring matches whatever corner radius the container is
+		currently using (large by default, small in compact mode). */
+	border-radius: inherit;
 	padding: 1px;
 	/* The beam: a tight bright arc (~40deg) with a short fade, on an otherwise
 		transparent ring. As `--chat-input-anim-angle` rotates, the bright spot
@@ -937,13 +939,13 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	z-index: 2;
 }
 
-/* Glow ring: a wider (4px) blurred conic that shares the beam's angle, so
-	it forms a soft halo that overlaps the beam line directly — no gap. */
+/* Glow ring: a 2px blurred conic that shares the beam's angle, so it forms
+	a soft halo that overlaps the beam line directly — no gap. */
 .monaco-workbench .interactive-session .chat-input-container::after {
 	content: '';
 	position: absolute;
 	inset: 0;
-	border-radius: var(--vscode-cornerRadius-large);
+	border-radius: inherit;
 	padding: 2px;
 	background: conic-gradient(from var(--chat-input-anim-angle),
 		transparent 0deg,
