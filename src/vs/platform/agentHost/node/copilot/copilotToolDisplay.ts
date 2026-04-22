@@ -482,7 +482,7 @@ export function getPermissionDisplay(request: ITypedPermissionRequest): {
 			}
 			return {
 				confirmationTitle: localize('copilot.permission.default.title', "Allow tool call?"),
-				invocationMessage: md(localize('copilot.permission.default.message', "Allow the model to call {0}?", request.toolName)),
+				invocationMessage: md(localize('copilot.permission.default.message', "Allow the model to call {0}?", appendEscapedMarkdownInlineCode(toolName ?? request.kind))),
 				toolInput: args ? tryStringify(args) : tryStringify(request),
 				permissionKind: request.kind,
 				permissionPath: path,
@@ -499,7 +499,9 @@ export function getPermissionDisplay(request: ITypedPermissionRequest): {
 		case 'mcp': {
 			const title = toolName ?? localize('copilot.permission.mcp.defaultTool', "MCP Tool");
 			return {
-				confirmationTitle: localize('copilot.permission.mcp.title', "Allow tool from {0}?", serverName),
+				confirmationTitle: serverName
+					? localize('copilot.permission.mcp.title', "Allow tool from {0}?", serverName)
+					: localize('copilot.permission.default.title', "Allow tool call?"),
 				invocationMessage: serverName ? `${serverName}: ${title}` : title,
 				toolInput: tryStringify({ serverName, toolName }) ?? undefined,
 				permissionKind: 'mcp',
@@ -516,18 +518,19 @@ export function getPermissionDisplay(request: ITypedPermissionRequest): {
 			};
 		case 'url': {
 			const url = str(request.url);
+			// Parse through URL for punycode escaping, but preserve the raw value if parsing fails.
+			const normalizedUrl = url ? (URL.canParse(url) ? new URL(url).href : url) : undefined;
 			return {
 				confirmationTitle: localize('copilot.permission.url.title', "Fetch URL?"),
 				invocationMessage: md(localize('copilot.permission.url.message', "Allow fetching web content?")),
-				// parse through URL for punycode escaping
-				toolInput: JSON.stringify({ url: url && URL.canParse(url) ? new URL(url).href : undefined }),
+				toolInput: normalizedUrl ? JSON.stringify({ url: normalizedUrl }) : undefined,
 				permissionKind: 'url',
 			};
 		}
 		default:
 			return {
 				confirmationTitle: localize('copilot.permission.default.title', "Allow tool call?"),
-				invocationMessage: md(localize('copilot.permission.default.message', "Allow the model to call {0}?", request.toolName || request.kind)),
+				invocationMessage: md(localize('copilot.permission.default.message', "Allow the model to call {0}?", appendEscapedMarkdownInlineCode(toolName ?? request.kind))),
 				toolInput: tryStringify(request) ?? undefined,
 				permissionKind: request.kind,
 				permissionPath: path,
