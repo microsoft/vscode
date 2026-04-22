@@ -4657,6 +4657,7 @@
 						"default": false,
 						"markdownDescription": "%github.copilot.config.cli.remote.enabled%",
 						"tags": [
+							"advanced",
 							"experimental"
 						]
 					},
