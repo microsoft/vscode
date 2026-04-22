@@ -84,13 +84,9 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 	getCachedMemoryPrompt(sessionId?: string): MemoryPromptResponse | undefined {
 		if (!sessionId) {
 			const responses = Array.from(this._conversationMemoryCache.values());
-			const result = responses.length > 0 ? responses[0] : undefined;
-			this.logService.info(`[AgentMemoryService] getCachedMemoryPrompt(no sessionId): cache size=${this._conversationMemoryCache.size}, returning=${result ? `${result.memoriesContext.memoriesCount} memories` : 'undefined'}`);
-			return result;
+			return responses.length > 0 ? responses[0] : undefined;
 		}
-		const result = this._conversationMemoryCache.get(sessionId);
-		this.logService.info(`[AgentMemoryService] getCachedMemoryPrompt(sessionId=${sessionId}): ${result ? `found ${result.memoriesContext.memoriesCount} memories` : 'NOT FOUND'}, cache keys=[${Array.from(this._conversationMemoryCache.keys()).join(', ')}]`);
-		return result;
+		return this._conversationMemoryCache.get(sessionId);
 	}
 
 	constructor(
@@ -307,7 +303,6 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 			}
 
 			const resolvedRepoNwo = repoNwo ?? await this.getRepoNwo();
-			this.logService.info(`[AgentMemoryService] getMemoryPrompt: sessionId=${sessionId ?? 'none'}, resolvedRepoNwo=${resolvedRepoNwo ?? 'none (user scope only)'}`);
 
 			const token = await this.getToken();
 			if (!token) {
@@ -329,8 +324,6 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 				? (() => { const [owner, repo] = resolvedRepoNwo.split('/'); return { scope: 'repository' as const, owner, repo, ...baseOptions }; })()
 				: undefined;
 
-			this.logService.info(`[AgentMemoryService] Fetching: user-scope=yes, repo-scope=${resolvedRepoNwo ?? 'no'}`);
-
 			const [userResult, repoResult] = await Promise.allSettled([
 				fetchMemoryPrompts(userOptions),
 				repoOptions ? fetchMemoryPrompts(repoOptions) : Promise.resolve(undefined),
@@ -338,14 +331,9 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 
 			if (userResult.status === 'rejected') {
 				this.logService.warn(`[AgentMemoryService] Failed to fetch user memory prompt: ${userResult.reason}`);
-			} else {
-				this.logService.info(`[AgentMemoryService] User-scope result: ${userResult.value ? `${userResult.value.memoriesContext.memoriesCount} memories, promptLength=${userResult.value.memoriesContext.prompt?.length ?? 0}` : 'undefined (no response)'}`);
 			}
-
 			if (repoResult.status === 'rejected') {
 				this.logService.warn(`[AgentMemoryService] Failed to fetch repo memory prompt: ${repoResult.reason}`);
-			} else {
-				this.logService.info(`[AgentMemoryService] Repo-scope result: ${repoResult.value ? `${repoResult.value.memoriesContext.memoriesCount} memories, promptLength=${repoResult.value.memoriesContext.prompt?.length ?? 0}` : 'undefined (no repo or no response)'}`);
 			}
 
 			const userResponse = userResult.status === 'fulfilled' ? userResult.value : undefined;
@@ -353,12 +341,10 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 
 			const response = this.mergeMemoryPromptResponses(userResponse, repoResponse);
 			if (response) {
-				this.logService.info(`[AgentMemoryService] Merged: ${response.memoriesContext.memoriesCount} total memories, promptLength=${response.memoriesContext.prompt?.length ?? 0}, definitionVersion=${response.storeToolDefinition?.definitionVersion ?? 'none'}${sessionId ? ` — caching for conversation: ${sessionId}` : ' — not caching (no sessionId)'}`);
+				this.logService.info(`[AgentMemoryService] Fetched memory prompt (${response.memoriesContext.memoriesCount} memories)${sessionId ? ` for conversation: ${sessionId}` : ''}`);
 				if (sessionId) {
 					this._conversationMemoryCache.set(sessionId, response);
 				}
-			} else {
-				this.logService.info(`[AgentMemoryService] Merge returned undefined — both user and repo fetches returned no response`);
 			}
 			return response;
 		} catch (error) {
