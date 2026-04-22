@@ -212,6 +212,10 @@ export class ChatListWidget extends Disposable {
 		this._tree.scrollTop = value;
 	}
 
+	refilter(): void {
+		this._tree.refilter();
+	}
+
 	get scrollHeight(): number {
 		return this._tree.scrollHeight;
 	}
@@ -634,6 +638,10 @@ export class ChatListWidget extends Disposable {
 		return items;
 	}
 
+	getVisibleItems(): ChatTreeItem[] {
+		return this.getItems();
+	}
+
 
 	/**
 	 * Delegate scroll events from a mouse wheel event to the tree.
@@ -674,11 +682,19 @@ export class ChatListWidget extends Disposable {
 		return this._tree.getFocus().filter((e): e is ChatTreeItem => e !== null);
 	}
 
+	getSelection(): ChatTreeItem[] {
+		return this._tree.getSelection().filter((e): e is ChatTreeItem => e !== null);
+	}
+
 	/**
 	 * Set the focused elements.
 	 */
 	setFocus(elements: ChatTreeItem[]): void {
 		this._tree.setFocus(elements);
+	}
+
+	setSelection(elements: ChatTreeItem[]): void {
+		this._tree.setSelection(elements);
 	}
 
 	focusItem(item: ChatTreeItem): void {
@@ -813,6 +829,10 @@ export class ChatListWidget extends Disposable {
 	 */
 	updateRendererOptions(options: IChatListItemRendererOptions): void {
 		this._renderer.updateOptions(options);
+	}
+
+	refreshRenderedSearchHighlights(): void {
+		this._renderer.applyCurrentChatSearchHighlights();
 	}
 
 	/**

@@ -906,6 +906,34 @@ export function registerChatActions() {
 		}
 	});
 
+	registerAction2(class FindInCurrentChatAction extends Action2 {
+		static readonly ID = 'workbench.action.chat.find';
+
+		constructor() {
+			super({
+				id: FindInCurrentChatAction.ID,
+				title: localize2('interactiveSession.find.label', "Chat: Find in Current Session"),
+				category: CHAT_CATEGORY,
+				f1: true,
+				keybinding: [{
+					primary: KeyMod.CtrlCmd | KeyCode.KeyF,
+					weight: KeybindingWeight.WorkbenchContrib,
+					when: ContextKeyExpr.and(
+						ChatContextKeys.inChatSession,
+						ChatContextKeys.inQuickChat.negate(),
+						ChatContextKeys.inChatEditor.negate()
+					),
+				}]
+			});
+		}
+
+		async run(accessor: ServicesAccessor): Promise<void> {
+			const viewsService = accessor.get(IViewsService);
+			const view = await viewsService.openView(ChatViewId, true) as ChatViewPane | undefined;
+			view?.openFind();
+		}
+	});
+
 	registerAction2(class FocusTodosViewAction extends Action2 {
 		static readonly ID = 'workbench.action.chat.focusTodosView';
 

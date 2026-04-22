@@ -64,7 +64,7 @@ import { ClickAnimation } from '../../../../../base/browser/ui/animations/animat
 import { MarkHelpfulActionId } from '../actions/chatTitleActions.js';
 import { ChatTreeItem, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidgetService } from '../chat.js';
 import { ChatAgentHover, getChatAgentHoverOptions } from './chatAgentHover.js';
-import { ChatContentMarkdownRenderer } from './chatContentMarkdownRenderer.js';
+import { ChatContentMarkdownRenderer, countChatFindMatchesInText, highlightChatFindMatches } from './chatContentMarkdownRenderer.js';
 import { ChatAgentCommandContentPart } from './chatContentParts/chatAgentCommandContentPart.js';
 import { ChatAnonymousRateLimitedPart } from './chatContentParts/chatAnonymousRateLimitedPart.js';
 import { ChatAttachmentsContentPart } from './chatContentParts/chatAttachmentsContentPart.js';
@@ -117,6 +117,7 @@ const WORKING_CAUGHT_UP_DEBOUNCE_MS = 50;
 
 export interface IChatListItemTemplate {
 	currentElement?: ChatTreeItem;
+	currentChatFindMatchOffset?: number;
 	/**
 	 * The parts that are currently rendered in the template. Note that these are purposely not added to elementDisposables-
 	 * they are disposed in a separate cycle after diffing with the next content to render.
@@ -270,6 +271,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		super();
 
 		this.chatContentMarkdownRenderer = this.instantiationService.createInstance(ChatContentMarkdownRenderer);
+		this.chatContentMarkdownRenderer.setChatFindTextAccessor(this.rendererOptions.searchText);
 		this.markdownDecorationsRenderer = this.instantiationService.createInstance(ChatMarkdownDecorationsRenderer);
 		this._editorPool = this._register(this.instantiationService.createInstance(EditorPool, editorOptions, delegate, overflowWidgetsDomNode, true));
 		this._toolEditorPool = this._register(this.instantiationService.createInstance(EditorPool, editorOptions, delegate, overflowWidgetsDomNode, true));
@@ -311,6 +313,24 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 	public updateOptions(options: IChatListItemRendererOptions): void {
 		this.rendererOptions = { ...this.rendererOptions, ...options };
+		this.chatContentMarkdownRenderer.setChatFindTextAccessor(this.rendererOptions.searchText);
+	}
+
+	applyCurrentChatSearchHighlights(): void {
+		const templates = new Set<IChatListItemTemplate>([
+			...this.templateDataByRequestId.values(),
+			...this.responseTemplateDataByRequestId.values(),
+		]);
+
+		for (const template of templates) {
+			if (!template.rowContainer.isConnected) {
+				continue;
+			}
+
+			const elementId = template.currentElement?.id;
+			const isCurrentSearchResult = Boolean(elementId && elementId === this.rendererOptions.currentSearchItemId?.());
+			highlightChatFindMatches(template.value, this.rendererOptions.searchText?.(), isCurrentSearchResult ? this.rendererOptions.currentSearchItemMatchIndex?.() : undefined);
+		}
 	}
 
 	get templateId(): string {
@@ -692,6 +712,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 
 		templateData.currentElement = element;
+		templateData.currentChatFindMatchOffset = 0;
 		this.templateDataByRequestId.set(element.id, templateData);
 
 		// Clear pending-related classes and drag handle from previous renders
@@ -2987,7 +3008,16 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		}
 		const fillInIncompleteTokens = isResponseVM(element) && (!element.isComplete || element.isCanceled || element.errorDetails?.responseIsFiltered || element.errorDetails?.responseIsIncomplete || !!element.renderData);
 		const codeBlockStartIndex = context.codeBlockStartIndex;
-		const markdownPart = templateData.instantiationService.createInstance(ChatMarkdownContentPart, markdown, context, this._editorPool, fillInIncompleteTokens, codeBlockStartIndex, this.chatContentMarkdownRenderer, undefined, this._currentLayoutWidth.get(), {});
+		const currentChatFindMatchOffset = templateData.currentChatFindMatchOffset ?? 0;
+		const markdownMatchCount = countChatFindMatchesInText(markdown.content.value, this.rendererOptions.searchText?.());
+		const currentSearchItemMatchIndex = Boolean(element.id && element.id === this.rendererOptions.currentSearchItemId?.()) ? this.rendererOptions.currentSearchItemMatchIndex?.() : undefined;
+		const currentChatFindMatchIndex = typeof currentSearchItemMatchIndex === 'number'
+			&& currentSearchItemMatchIndex >= currentChatFindMatchOffset
+			&& currentSearchItemMatchIndex < currentChatFindMatchOffset + markdownMatchCount
+			? currentSearchItemMatchIndex - currentChatFindMatchOffset
+			: undefined;
+		templateData.currentChatFindMatchOffset = currentChatFindMatchOffset + markdownMatchCount;
+		const markdownPart = templateData.instantiationService.createInstance(ChatMarkdownContentPart, markdown, context, this._editorPool, fillInIncompleteTokens, codeBlockStartIndex, this.chatContentMarkdownRenderer, { currentChatFindMatchIndex }, this._currentLayoutWidth.get(), {});
 		markdownPart.addDisposable(markdownPart.onDidChangeHeight(() => this.fireItemHeightChange(templateData)));
 		if (isRequestVM(element)) {
 			markdownPart.domNode.tabIndex = 0;

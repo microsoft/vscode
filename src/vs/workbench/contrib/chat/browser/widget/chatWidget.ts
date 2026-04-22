@@ -2145,6 +2145,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this.listWidget.getFocus()[0] ?? undefined;
 	}
 
+	getSelection(): ChatTreeItem | undefined {
+		return this.listWidget.getSelection()[0] ?? undefined;
+	}
+
+	getVisibleItems(): ChatTreeItem[] {
+		return this.listWidget.getVisibleItems();
+	}
+
 	reveal(item: ChatTreeItem, relativeTop?: number): void {
 		this.listWidget.reveal(item, relativeTop);
 	}
@@ -2155,6 +2163,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		this.listWidget.focusItem(item);
+	}
+
+	select(item: ChatTreeItem | undefined): void {
+		if (!item || !this.listWidget.hasElement(item)) {
+			this.listWidget.setSelection([]);
+			return;
+		}
+
+		this.listWidget.setSelection([item]);
 	}
 
 	setInputPlaceholder(placeholder: string): void {
@@ -2172,6 +2189,22 @@ export class ChatWidget extends Disposable implements IChatWidget {
 
 	getInput(): string {
 		return this.input.inputEditor.getValue();
+	}
+
+	refreshList(): void {
+		this.listWidget.refresh();
+	}
+
+	rerenderList(): void {
+		this.listWidget.rerender();
+	}
+
+	refreshRenderedSearchHighlights(): void {
+		this.listWidget.refreshRenderedSearchHighlights();
+	}
+
+	refilterList(): void {
+		this.listWidget.refilter();
 	}
 
 	getContrib<T extends IChatWidgetContrib>(id: string): T | undefined {

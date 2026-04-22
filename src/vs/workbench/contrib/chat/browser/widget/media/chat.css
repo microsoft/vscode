@@ -90,6 +90,25 @@
 	color: var(--vscode-textLink-foreground);
 }
 
+.interactive-item-container .chat-find-match {
+	background-color: var(--vscode-editor-findMatchHighlightBackground);
+	color: var(--vscode-editor-findMatchHighlightForeground);
+	border: 1px solid var(--vscode-editor-findMatchHighlightBorder);
+	border-radius: 2px;
+	box-sizing: border-box;
+}
+
+
+.interactive-item-container .chat-find-current-match {
+	background-color: var(--vscode-focusBorder);
+	color: var(--vscode-editor-background);
+	border-color: var(--vscode-focusBorder);
+	box-shadow: 0 0 0 1px var(--vscode-editor-findMatchBorder);
+	outline: 2px solid var(--vscode-focusBorder);
+	outline-offset: 1px;
+	font-weight: 700;
+}
+
 .interactive-item-container .chat-animated-ellipsis {
 	display: inline-block;
 	width: 2em;

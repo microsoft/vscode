@@ -236,6 +236,9 @@ export interface IChatListItemRendererOptions {
 	readonly renderTextEditsAsSummary?: (uri: URI) => boolean;
 	readonly referencesExpandedWhenEmptyResponse?: boolean | ((mode: ChatModeKind) => boolean);
 	readonly progressMessageAtBottomOfResponse?: boolean | ((mode: ChatModeKind) => boolean);
+	readonly searchText?: () => string | undefined;
+	readonly currentSearchItemId?: () => string | undefined;
+	readonly currentSearchItemMatchIndex?: () => number | undefined;
 }
 
 export interface IChatWidgetViewOptions {

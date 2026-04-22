@@ -16,6 +16,15 @@
 		min-height: 0;
 		min-width: 0;
 
+		.chat-view-filter-container {
+			display: flex;
+			padding: 4px 16px 8px;
+
+			.viewpane-filter {
+				width: 100%;
+			}
+		}
+
 		.interactive-session {
 
 			/* needed so that the chat input does not overflow and input grows over content above */
