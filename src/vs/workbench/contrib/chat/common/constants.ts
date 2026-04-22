@@ -48,6 +48,7 @@ export enum ChatConfiguration {
 	ChatViewProgressBadgeEnabled = 'chat.viewProgressBadge.enabled',
 	ChatContextUsageEnabled = 'chat.contextUsage.enabled',
 	ChatPersistentProgressEnabled = 'chat.persistentProgress.enabled',
+	ProgressBorder = 'chat.progressBorder.enabled',
 	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
 	GeneralPurposeAgentEnabled = 'chat.generalPurposeAgent.enabled',
 	SubagentsAllowInvocationsFromSubagents = 'chat.subagents.allowInvocationsFromSubagents',

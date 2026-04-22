@@ -87,3 +87,18 @@ export const chatThinkingShimmer = registerColor(
 	'chat.thinkingShimmer',
 	{ dark: '#ffffff', light: '#000000', hcDark: '#ffffff', hcLight: '#000000' },
 	localize('chat.thinkingShimmer', 'Shimmer highlight for thinking/working labels.'), true);
+
+export const chatInputWorkingBorderColor1 = registerColor(
+	'chat.inputWorkingBorderColor1',
+	{ dark: '#E8E8EC', light: '#B8B8C0', hcDark: '#FFFFFF', hcLight: '#000000' },
+	localize('chat.inputWorkingBorderColor1', 'First color stop of the animated chat input border shown while a request is in flight.'), true);
+
+export const chatInputWorkingBorderColor2 = registerColor(
+	'chat.inputWorkingBorderColor2',
+	{ dark: '#8A8A92', light: '#7A7A82', hcDark: '#A0A0A0', hcLight: '#555555' },
+	localize('chat.inputWorkingBorderColor2', 'Second color stop of the animated chat input border shown while a request is in flight.'), true);
+
+export const chatInputWorkingBorderColor3 = registerColor(
+	'chat.inputWorkingBorderColor3',
+	{ dark: '#3A3A40', light: '#2E2E34', hcDark: '#000000', hcLight: '#000000' },
+	localize('chat.inputWorkingBorderColor3', 'Third color stop of the animated chat input border shown while a request is in flight.'), true);

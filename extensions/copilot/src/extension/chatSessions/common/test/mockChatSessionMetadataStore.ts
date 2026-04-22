@@ -31,6 +31,10 @@ export class MockChatSessionMetadataStore implements IChatSessionMetadataStore {
 		this._requestDetails.delete(sessionId);
 	}
 
+	async refresh(): Promise<void> {
+		// no-op in mock — there is no on-disk state to reload.
+	}
+
 	async storeWorktreeInfo(sessionId: string, properties: ChatSessionWorktreeProperties): Promise<void> {
 		this._worktreeProperties.set(sessionId, properties);
 	}
@@ -142,5 +146,13 @@ export class MockChatSessionMetadataStore implements IChatSessionMetadataStore {
 
 	async getSessionOrigin(sessionId: string): Promise<'vscode' | 'other'> {
 		return this._sessionOrigins.get(sessionId) ?? 'vscode';
+	}
+
+	setSessionParentId(_sessionId: string, _parentSessionId: string): Promise<void> {
+		return Promise.resolve();
+	}
+
+	getSessionParentId(_sessionId: string): Promise<string | undefined> {
+		return Promise.resolve(undefined);
 	}
 }

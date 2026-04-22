@@ -612,6 +612,7 @@ export namespace ConfigKey {
 		export const OmitBaseAgentInstructions = defineAndMigrateSetting<boolean>('chat.advanced.omitBaseAgentInstructions', 'chat.omitBaseAgentInstructions', false);
 		export const CLIShowExternalSessions = defineSetting<boolean>('chat.cli.showExternalSessions', ConfigType.Simple, false);
 		export const CLIPlanExitModeEnabled = defineSetting<boolean>('chat.cli.planExitMode.enabled', ConfigType.Simple, true);
+		export const CLIAutoModelEnabled = defineSetting<boolean>('chat.cli.autoModel.enabled', ConfigType.Simple, true);
 		export const CLIPlanCommandEnabled = defineSetting<boolean>('chat.cli.planCommand.enabled', ConfigType.Simple, true);
 		export const CLIAIGenerateBranchNames = defineSetting<boolean>('chat.cli.aiGenerateBranchNames.enabled', ConfigType.Simple, true);
 		export const CLIForkSessionsEnabled = defineSetting<boolean>('chat.cli.forkSessions.enabled', ConfigType.Simple, true);
@@ -621,6 +622,7 @@ export namespace ConfigKey {
 		export const CLIAutoCommitEnabled = defineSetting<boolean>('chat.cli.autoCommit.enabled', ConfigType.Simple, true);
 		export const CLISessionController = defineSetting<boolean>('chat.cli.sessionController.enabled', ConfigType.Simple, false);
 		export const CLIThinkingEffortEnabled = defineSetting<boolean>('chat.cli.thinkingEffort.enabled', ConfigType.Simple, true);
+		export const CLIRemoteEnabled = defineSetting<boolean>('chat.cli.remote.enabled', ConfigType.Simple, false);
 		export const CLISessionControllerForSessionsApp = defineSetting<boolean>('chat.cli.sessionControllerForSessionsApp.enabled', ConfigType.Simple, false);
 		export const CLITerminalLinks = defineSetting<boolean>('chat.cli.terminalLinks.enabled', ConfigType.Simple, true);
 		export const RequestLoggerMaxEntries = defineAndMigrateSetting<number>('chat.advanced.debug.requestLogger.maxEntries', 'chat.debug.requestLogger.maxEntries', 100);
@@ -640,6 +642,8 @@ export namespace ConfigKey {
 		export const UseAlternativeNESNotebookFormat = defineAndMigrateExpSetting<boolean>('chat.advanced.notebook.alternativeNESFormat.enabled', 'chat.notebook.alternativeNESFormat.enabled', false);
 
 		export const InlineChatSelectionRatioThreshold = defineSetting<number>('chat.inlineChat.selectionRatioThreshold', ConfigType.ExperimentBased, 0);
+		export const InlineChatReasoningEffort = defineSetting<string>('chat.inlineChat.reasoningEffort', ConfigType.ExperimentBased, 'low');
+		export const InlineChatEnableThinking = defineSetting<boolean>('chat.inlineChat.enableThinking', ConfigType.ExperimentBased, false);
 
 		export const InstantApplyShortModelName = defineAndMigrateExpSetting<string>('chat.advanced.instantApply.shortContextModelName', 'chat.instantApply.shortContextModelName', CHAT_MODEL.SHORT_INSTANT_APPLY);
 		export const InstantApplyShortContextLimit = defineAndMigrateExpSetting<number>('chat.advanced.instantApply.shortContextLimit', 'chat.instantApply.shortContextLimit', 8000);
@@ -713,8 +717,6 @@ export namespace ConfigKey {
 
 		/** Internal: override reasoning/thinking effort sent to model APIs (e.g. Responses API, Messages API). Used by evals. */
 		export const ReasoningEffortOverride = defineSetting<string | null>('chat.reasoningEffortOverride', ConfigType.Simple, null);
-
-		export const SessionSearchCloudSync = defineAndMigrateSetting<boolean>('chat.advanced.sessionSearch.cloudSync.enabled', 'chat.sessionSearch.cloudSync.enabled', false);
 	}
 
 	/**

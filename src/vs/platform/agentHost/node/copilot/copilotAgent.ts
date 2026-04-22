@@ -129,7 +129,7 @@ function prependAnnouncementToFirstAssistantMessage(
  * Agent provider backed by the Copilot SDK {@link CopilotClient}.
  */
 export class CopilotAgent extends Disposable implements IAgent {
-	readonly id = 'copilot' as const;
+	readonly id = 'copilotcli' as const;
 	private static readonly _BRANCH_COMPLETION_LIMIT = 25;
 
 	private readonly _onDidSessionProgress = this._register(new Emitter<IAgentProgressEvent>());
@@ -178,7 +178,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 	getDescriptor(): IAgentDescriptor {
 		return {
-			provider: 'copilot',
+			provider: 'copilotcli',
 			displayName: 'Copilot CLI',
 			description: 'Copilot SDK agent running in a dedicated process',
 		};
@@ -464,15 +464,21 @@ export class CopilotAgent extends Disposable implements IAgent {
 				});
 				const newSessionId = forkResult.sessionId;
 
-				// Copy the source session's database file so the forked session
-				// inherits turn event IDs and file-edit snapshots.
-				const sourceDbDir = this._sessionDataService.getSessionDataDir(config.fork!.session);
+				// Copy the source session's database using VACUUM INTO so the
+				// forked session inherits turn event IDs and file-edit snapshots.
+				// VACUUM INTO is safe even while the source DB is open.
 				const targetDbDir = this._sessionDataService.getSessionDataDirById(newSessionId);
-				const sourceDbPath = URI.joinPath(sourceDbDir, SESSION_DB_FILENAME);
 				const targetDbPath = URI.joinPath(targetDbDir, SESSION_DB_FILENAME);
 				try {
-					await fs.mkdir(targetDbDir.fsPath, { recursive: true });
-					await fs.copyFile(sourceDbPath.fsPath, targetDbPath.fsPath);
+					const sourceDbRef = await this._sessionDataService.tryOpenDatabase(config.fork!.session);
+					if (sourceDbRef) {
+						try {
+							await fs.mkdir(targetDbDir.fsPath, { recursive: true });
+							await sourceDbRef.object.vacuumInto(targetDbPath.fsPath);
+						} finally {
+							sourceDbRef.dispose();
+						}
+					}
 				} catch (err) {
 					this._logService.warn(`[Copilot] Failed to copy session database for fork: ${err instanceof Error ? err.message : String(err)}`);
 				}
@@ -495,6 +501,15 @@ export class CopilotAgent extends Disposable implements IAgent {
 
 		const sessionId = config?.session ? AgentSession.id(config.session) : generateUuid();
 		const sessionUri = AgentSession.uri(this.id, sessionId);
+		let seededActiveClient = false;
+		if (config?.activeClient) {
+			const ac = this._getOrCreateActiveClient(sessionUri);
+			seededActiveClient = true;
+			ac.updateTools(config.activeClient.clientId, config.activeClient.tools);
+			if (config.activeClient.customizations !== undefined) {
+				await this._plugins.sync(config.activeClient.clientId, config.activeClient.customizations);
+			}
+		}
 		const activeClient = this._activeClients.get(sessionUri);
 		const snapshot = activeClient ? await activeClient.snapshot() : undefined;
 		const workingDirectory = await this._resolveSessionWorkingDirectory(config, sessionId);
@@ -518,6 +533,9 @@ export class CopilotAgent extends Disposable implements IAgent {
 			agentSession = this._createAgentSession(factory, sessionId, shellManager, snapshot);
 			await agentSession.initializeSession();
 		} catch (error) {
+			if (seededActiveClient) {
+				this._activeClients.delete(sessionUri);
+			}
 			await this._removeCreatedWorktree(sessionId);
 			throw error;
 		}

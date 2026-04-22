@@ -544,6 +544,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 						when: g.when,
 						icon: g.icon,
 						commands: g.commands,
+						kind: g.kind,
 					}));
 					const resource = inputState.sessionResource ?? inputState.untitledSessionResource;
 					if (resource) {
@@ -633,7 +634,6 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		}
 
 		const session = await provider.provider.provideChatSessionContent(sessionResource, token, {
-			sessionOptions: context?.initialSessionOptions ?? [],
 			inputState,
 		});
 		if (token.isCancellationRequested) {
@@ -1050,7 +1050,8 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 		return {
 			type: 'response' as const,
 			parts,
-			participant: turn.participant
+			participant: turn.participant,
+			details: turn.result?.details,
 		};
 	}
 
@@ -1089,7 +1090,6 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 				prompt: request.prompt,
 				command: request.command
 			},
-			sessionOptions: request.initialSessionOptions ?? [],
 			inputState,
 		}, token);
 		if (!item) {
@@ -1159,6 +1159,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			when: g.when,
 			icon: g.icon,
 			commands: g.commands,
+			kind: g.kind,
 		}));
 	}
 }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { localize2 } from '../../../../nls.js';
+import { localize, localize2 } from '../../../../nls.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
@@ -15,6 +15,7 @@ import { ChangesViewPane, ChangesViewPaneContainer } from './changesView.js';
 import { ChangesTitleBarContribution } from './changesTitleBarWidget.js';
 import './changesViewActions.js';
 import './checksActions.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 
 const changesViewIcon = registerIcon('changes-view-icon', Codicon.gitCompare, localize2('changesViewIcon', 'View icon for the Changes view.').value);
 
@@ -41,6 +42,17 @@ viewsRegistry.registerViews([{
 	canMoveView: true,
 	weight: 100,
 	order: 1,
+	openCommandActionDescriptor: {
+		id: CHANGES_VIEW_CONTAINER_ID,
+		mnemonicTitle: localize({ key: 'miChanges', comment: ['&& denotes a mnemonic'] }, "&&Changes"),
+		keybindings: {
+			primary: 0,
+			win: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG },
+			linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyG },
+			mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.KeyG },
+		},
+		order: 1,
+	},
 	windowVisibility: WindowVisibility.Sessions,
 }], changesViewContainer);
 

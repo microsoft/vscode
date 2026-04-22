@@ -1061,7 +1061,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return undefined;
 		}
 
-		const showProgressDetails = this.configService.getValue<boolean>(ChatConfiguration.ChatPersistentProgressEnabled) !== false;
+		const showProgressDetails = this.configService.getValue<boolean>(ChatConfiguration.ChatPersistentProgressEnabled) !== false
+			&& this.configService.getValue<boolean>(ChatConfiguration.ProgressBorder) !== true;
 		if (element.isComplete) {
 			return undefined;
 		}
@@ -1227,7 +1228,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			return;
 		}
 
-		if (element.isComplete && this.configService.getValue<boolean>(ChatConfiguration.ChatPersistentProgressEnabled) !== false) {
+		if (element.isComplete && this.configService.getValue<boolean>(ChatConfiguration.ChatPersistentProgressEnabled) !== false && this.configService.getValue<boolean>(ChatConfiguration.ProgressBorder) !== true) {
 			return;
 		}
 
@@ -2194,6 +2195,8 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 				return this.renderConfirmation(context, content, templateData);
 			} else if (content.kind === 'warning') {
 				return this.instantiationService.createInstance(ChatErrorContentPart, ChatErrorLevel.Warning, content.content, content, this.chatContentMarkdownRenderer);
+			} else if (content.kind === 'info') {
+				return this.instantiationService.createInstance(ChatErrorContentPart, ChatErrorLevel.Info, content.content, content, this.chatContentMarkdownRenderer);
 			} else if (content.kind === 'hook') {
 				return this.renderHookPart(content, context, templateData);
 			} else if (content.kind === 'markdownContent') {

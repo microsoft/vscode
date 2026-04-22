@@ -10,6 +10,7 @@ import type * as vscode from 'vscode';
 import { IChatSessionService } from '../../../platform/chat/common/chatSessionService';
 import { ChatFetchResponseType, ChatLocation, ChatResponse } from '../../../platform/chat/common/commonTypes';
 import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
+import { getTextPart } from '../../../platform/chat/common/globalStringUtils';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { isAnthropicFamily, isGptFamily, modelCanUseApplyPatchExclusively, modelCanUseReplaceStringExclusively, modelSupportsApplyPatch, modelSupportsMultiReplaceString, modelSupportsReplaceString, modelSupportsSimplifiedApplyPatchInstructions } from '../../../platform/endpoint/common/chatModelCapabilities';
 import { IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
@@ -17,7 +18,7 @@ import { IAutomodeService } from '../../../platform/endpoint/node/automodeServic
 import { IEnvService } from '../../../platform/env/common/envService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IEditLogService } from '../../../platform/multiFileEdit/common/editLogService';
-import { CUSTOM_TOOL_SEARCH_NAME, isAnthropicContextEditingEnabled } from '../../../platform/networking/common/anthropic';
+import { isAnthropicContextEditingEnabled } from '../../../platform/networking/common/anthropic';
 import { IChatEndpoint } from '../../../platform/networking/common/networking';
 import { modelsWithoutResponsesContextManagement } from '../../../platform/networking/common/openai';
 import { INotebookService } from '../../../platform/notebook/common/notebookService';
@@ -140,8 +141,6 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	if (model.family.toLowerCase().includes('gemini-3') && configurationService.getExperimentBasedConfig(ConfigKey.Advanced.Gemini3MultiReplaceString, experimentationService)) {
 		allowTools[ToolName.MultiReplaceString] = true;
 	}
-
-	allowTools[CUSTOM_TOOL_SEARCH_NAME] = !!model.supportsToolSearch;
 
 	const tools = toolsService.getEnabledTools(request, model, tool => {
 		if (typeof allowTools[tool.name] === 'boolean') {
@@ -694,8 +693,13 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 					const strippedMessages = ToolCallingLoop.stripInternalToolCallIds(result.messages);
 					const rawEffort = this.request.modelConfiguration?.reasoningEffort;
 					const isSubagent = !!this.request.subAgentInvocationId;
+					// Must match the main agent's enableThinking logic in
+					// toolCallingLoop.ts runOne() — thinking is only disabled
+					// on continuation turns for Anthropic when no thinking
+					// blocks exist yet in the messages.
+					const shouldDisableThinking = !!promptContext.isContinuation && isAnthropicFamily(this.endpoint) && !ToolCallingLoop.messagesContainThinking(strippedMessages);
 					this._lastModelCapabilities = {
-						enableThinking: !isAnthropicFamily(this.endpoint) || ToolCallingLoop.messagesContainThinking(strippedMessages),
+						enableThinking: !shouldDisableThinking,
 						reasoningEffort: typeof rawEffort === 'string' ? rawEffort : undefined,
 						enableToolSearch: !isSubagent && !!this.endpoint.supportsToolSearch,
 						enableContextEditing: !isSubagent && isAnthropicContextEditingEnabled(this.endpoint, this.configurationService, this.expService),
@@ -886,6 +890,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 					const numRoundsInCurrentTurn = rounds.length;
 					const lastUsedTool = rounds.at(-1)?.toolCalls?.at(-1)?.name
 						?? history.at(-1)?.rounds.at(-1)?.toolCalls?.at(-1)?.name ?? 'none';
+					const promptTypes = messages.map(msg => `${msg.role}${'name' in msg && msg.name ? `-${msg.name}` : ''}:${getTextPart(msg.content).length}`).join(',');
 					/* __GDPR__
 						"summarizedConversationHistory" : {
 							"owner": "bhavyau",
@@ -897,6 +902,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 							"chatRequestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The chat request ID." },
 							"lastUsedTool": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The last tool used before summarization." },
 							"requestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The request ID from the summarization call." },
+							"promptTypes": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "Role and character count of each prompt message in order, as a proxy for cache hit rate (e.g. system:1234,user:567)." },
 							"numRounds": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "Total tool call rounds." },
 							"turnIndex": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The index of the current turn." },
 							"curTurnRoundIndex": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true, "comment": "The index of the current round within the current turn." },
@@ -915,6 +921,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 						chatRequestId: associatedRequestId,
 						lastUsedTool,
 						requestId: response.requestId,
+						promptTypes,
 					}, {
 						numRounds,
 						turnIndex: history.length,

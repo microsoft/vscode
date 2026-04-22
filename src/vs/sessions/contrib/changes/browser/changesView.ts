@@ -59,7 +59,7 @@ import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/b
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { CIStatusWidget } from './checksWidget.js';
-import { COPILOT_CLOUD_SESSION_TYPE, GITHUB_REMOTE_FILE_SCHEME, SessionStatus } from '../../../services/sessions/common/session.js';
+import { COPILOT_CLOUD_SESSION_TYPE, GITHUB_REMOTE_FILE_SCHEME, ISessionFileChange, SessionStatus } from '../../../services/sessions/common/session.js';
 import { Orientation } from '../../../../base/browser/ui/sash/sash.js';
 import { IView, Sizing, SplitView } from '../../../../base/browser/ui/splitview/splitview.js';
 import { Color } from '../../../../base/common/color.js';
@@ -74,6 +74,7 @@ import { ResourceTree } from '../../../../base/common/resourceTree.js';
 import { structuralEquals } from '../../../../base/common/equals.js';
 import { compareFileNames, comparePaths } from '../../../../base/common/comparers.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 
 const $ = dom.$;
 
@@ -942,7 +943,7 @@ export class ChangesViewPane extends ViewPane {
 		));
 	}
 
-	async openChanges(): Promise<void> {
+	async openChanges(resource?: URI): Promise<void> {
 		const items = this.viewModel.activeSessionChangesObs.get();
 		if (items.length === 0) {
 			return;
@@ -951,12 +952,13 @@ export class ChangesViewPane extends ViewPane {
 		const modalEditorMode = this.configurationService.getValue<string>('workbench.editor.useModal');
 		if (modalEditorMode === 'all') {
 			const changes = toIChangesFileItem(items);
-			await this._openFileItem(changes[0], changes, false, false, false, changes.length > 1);
+			const changeToOpen = resource ? changes.find(c => isEqual(c.uri, resource)) : undefined;
+			await this._openFileItem(changeToOpen ?? changes[0], changes, false, false, false, changes.length > 1);
 			return;
 		}
 
 		// Open multi-file diff editor
-		await this._openMultiFileDiffEditor();
+		await this._openMultiFileDiffEditor(resource);
 	}
 
 	private async _openFileItem(item: IChangesFileItem, items: IChangesFileItem[], sideBySide: boolean, preserveFocus: boolean, pinned: boolean, includeSidebar: boolean): Promise<void> {
@@ -1013,14 +1015,30 @@ export class ChangesViewPane extends ViewPane {
 			return;
 		}
 
+		const compare = (aChange: ISessionFileChange, bChange: ISessionFileChange): number => {
+			const aPath = isIChatSessionFileChange2(aChange) ? aChange.uri.fsPath : aChange.modifiedUri.fsPath;
+			const bPath = isIChatSessionFileChange2(bChange) ? bChange.uri.fsPath : bChange.modifiedUri.fsPath;
+			return comparePaths(aPath, bPath);
+		};
+
+		// Sort the changes
+		const resources = changes.toSorted(compare).map(d => ({
+			originalUri: d.originalUri,
+			modifiedUri: d.modifiedUri
+		}));
+
+		// Ensure the reveal resource is part of the changes
+		reveal = reveal
+			? resources.some(r => isEqual(r.modifiedUri, reveal))
+				? reveal
+				: undefined
+			: undefined;
+
 		// Open multi-file diff editor
 		await this.commandService.executeCommand('_workbench.openMultiDiffEditor', {
 			multiDiffSourceUri: sessionResource.with({ scheme: sessionResource.scheme + '-session-changes' }),
 			title: localize('sessions.changes.title', 'Session Changes'),
-			resources: changes.map(d => ({
-				originalUri: d.originalUri,
-				modifiedUri: d.modifiedUri
-			})),
+			resources,
 			reveal: reveal
 				? { modifiedUri: reveal }
 				: undefined

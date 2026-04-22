@@ -23,6 +23,7 @@ import {
 	isJsonRpcNotification,
 	isJsonRpcRequest,
 	JSON_RPC_INTERNAL_ERROR,
+	JsonRpcErrorCodes,
 	ProtocolError,
 	type IAhpServerNotification,
 	type IInitializeParams,
@@ -349,6 +350,11 @@ export class ProtocolServerHandler extends Disposable {
 				}
 				fork = { session: URI.parse(params.fork.session), turnIndex, turnId: params.fork.turnId };
 			}
+			// If the client eagerly claimed the active client role, validate
+			// the clientId matches the connection before forwarding.
+			if (params.activeClient && params.activeClient.clientId !== _client.clientId) {
+				throw new ProtocolError(JsonRpcErrorCodes.InvalidParams, `createSession.activeClient.clientId must match the connection's clientId`);
+			}
 			try {
 				createdSession = await this._agentService.createSession({
 					provider: params.provider,
@@ -357,6 +363,7 @@ export class ProtocolServerHandler extends Disposable {
 					session: URI.parse(params.session),
 					fork,
 					config: params.config,
+					activeClient: params.activeClient,
 				});
 			} catch (err) {
 				if (err instanceof ProtocolError) {
@@ -379,19 +386,26 @@ export class ProtocolServerHandler extends Disposable {
 		},
 		listSessions: async () => {
 			const sessions = await this._agentService.listSessions();
-			const items = sessions.map(s => ({
-				resource: s.session.toString(),
-				provider: AgentSession.provider(s.session) ?? 'copilot',
-				title: s.summary ?? 'Session',
-				status: s.status ?? SessionStatus.Idle,
-				createdAt: s.startTime,
-				modifiedAt: s.modifiedTime,
-				...(s.project ? { project: { uri: s.project.uri.toString(), displayName: s.project.displayName } } : {}),
-				model: s.model,
-				workingDirectory: s.workingDirectory?.toString(),
-				isRead: s.isRead,
-				isDone: s.isDone,
-			}));
+			const items = sessions.map(s => {
+				const provider = AgentSession.provider(s.session);
+				if (!provider) {
+					throw new Error(`Agent session URI has no provider scheme: ${s.session.toString()}`);
+				}
+				return {
+					resource: s.session.toString(),
+					provider,
+					title: s.summary ?? 'Session',
+					status: s.status ?? SessionStatus.Idle,
+					createdAt: s.startTime,
+					modifiedAt: s.modifiedTime,
+					...(s.project ? { project: { uri: s.project.uri.toString(), displayName: s.project.displayName } } : {}),
+					model: s.model,
+					workingDirectory: s.workingDirectory?.toString(),
+					isRead: s.isRead,
+					isDone: s.isDone,
+					diffs: s.diffs ? [...s.diffs] : undefined,
+				};
+			});
 			return { items };
 		},
 		resolveSessionConfig: async (_client, params) => {

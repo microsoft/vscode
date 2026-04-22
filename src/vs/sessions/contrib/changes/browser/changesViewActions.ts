@@ -26,8 +26,9 @@ import { ViewContainerLocation } from '../../../../workbench/common/views.js';
 import { ChangesViewPane } from './changesView.js';
 import { SESSIONS_FILES_CONTAINER_ID } from '../../files/browser/files.contribution.js';
 import { SESSIONS_FILES_VIEW_ID } from '../../files/browser/filesView.js';
-import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
-import { EditorMaximizedContext } from '../../../common/contextkeys.js';
+import { URI } from '../../../../base/common/uri.js';
+import { isEqual } from '../../../../base/common/resources.js';
+import { IEditorService } from '../../../../workbench/services/editor/common/editorService.js';
 
 const openChangesViewActionOptions: IAction2Options = {
 	id: 'workbench.action.agentSessions.openChangesView',
@@ -200,58 +201,65 @@ class OpenPullRequestAction extends Action2 {
 
 registerAction2(OpenPullRequestAction);
 
-class MaximizeMainEditorPartAction extends Action2 {
-	static readonly ID = 'workbench.action.agentSessions.maximizeMainEditorPart';
+class OpenFileAction extends Action2 {
+	static readonly ID = 'workbench.action.agentSessions.openFile';
 
 	constructor() {
 		super({
-			id: MaximizeMainEditorPartAction.ID,
-			title: localize2('maximizeMainEditorPart', "Maximize Editor"),
-			icon: Codicon.screenFull,
+			id: OpenFileAction.ID,
+			title: localize2('openFile', "Open File"),
+			icon: Codicon.goToFile,
 			f1: false,
 			menu: {
-				id: MenuId.EditorTitle,
+				id: MenuId.ChatEditingSessionChangeToolbar,
 				group: 'navigation',
-				order: 100001,
-				when: ContextKeyExpr.and(
-					IsSessionsWindowContext,
-					EditorMaximizedContext.negate())
+				order: 1,
+				when: IsSessionsWindowContext,
+				alt: {
+					id: 'workbench.action.agentSessions.openChanges',
+					title: localize2('openChanges', "Open Changes"),
+					icon: Codicon.gitCompare,
+				}
 			}
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
-		layoutService.setEditorMaximized(true);
+	async run(accessor: ServicesAccessor, _sessionResource: URI, _ref: string, ...resources: URI[]): Promise<void> {
+		const editorService = accessor.get(IEditorService);
+		await Promise.all(resources.map(resource => editorService.openEditor({ resource })));
 	}
 }
 
-registerAction2(MaximizeMainEditorPartAction);
+registerAction2(OpenFileAction);
 
-class RestoreMainEditorPartAction extends Action2 {
-	static readonly ID = 'workbench.action.agentSessions.restoreMainEditorPart';
+class OpenChangesAction extends Action2 {
+	static readonly ID = 'workbench.action.agentSessions.openChanges';
 
 	constructor() {
 		super({
-			id: RestoreMainEditorPartAction.ID,
-			title: localize2('restoreMainEditorPart', "Restore Editor"),
-			icon: Codicon.screenNormal,
-			f1: false,
-			menu: {
-				id: MenuId.EditorTitle,
-				group: 'navigation',
-				order: 100001,
-				when: ContextKeyExpr.and(
-					IsSessionsWindowContext,
-					EditorMaximizedContext)
-			}
+			id: OpenChangesAction.ID,
+			title: localize2('openChanges', "Open Changes"),
+			icon: Codicon.gitCompare,
+			f1: false
 		});
 	}
 
-	async run(accessor: ServicesAccessor): Promise<void> {
-		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
-		layoutService.setEditorMaximized(false);
+	async run(accessor: ServicesAccessor, _sessionResource: URI, _ref: string, ...resources: URI[]): Promise<void> {
+		const viewsService = accessor.get(IViewsService);
+		const editorService = accessor.get(IEditorService);
+
+		const view = viewsService.getViewWithId<ChangesViewPane>(CHANGES_VIEW_ID);
+		const sessionChanges = view?.viewModel.activeSessionChangesObs.get();
+
+		const changes = sessionChanges?.filter(change =>
+			resources.some(resource => isEqual(change.modifiedUri ?? change.originalUri, resource))
+		) ?? [];
+
+		await Promise.all(changes.map(change => editorService.openEditor({
+			original: { resource: change.originalUri },
+			modified: { resource: change.modifiedUri }
+		})));
 	}
 }
 
-registerAction2(RestoreMainEditorPartAction);
+registerAction2(OpenChangesAction);

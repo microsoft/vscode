@@ -17,7 +17,7 @@ export interface AnnotatedRef extends RefRow {
 }
 
 /** Sessions query — SQLite dialect, last 24 hours */
-export const SESSIONS_QUERY_SQLITE = `SELECT id, summary, branch, repository, cwd, host_type, created_at, updated_at
+export const SESSIONS_QUERY_SQLITE = `SELECT *
 	FROM sessions
 	WHERE updated_at >= datetime('now', '-1 day')
 	ORDER BY updated_at DESC`;
@@ -72,10 +72,15 @@ export function buildStandupPrompt(
 	const sessionLines = sessions.map(s => {
 		const branch = s.branch ?? 'unknown';
 		const repo = s.repository ?? 'unknown';
-		const summary = s.summary ?? 'No summary';
+		const agent = s.agent_name ?? s.source;
 
 		// Include turn summaries for this session (first few user messages + assistant responses)
 		const sessionTurns = turns.filter(t => t.session_id === s.id).slice(0, 5);
+
+		// Use first turn's user_message as summary when sessions.summary is empty
+		const firstTurnMessage = sessionTurns[0]?.user_message;
+		const summary = s.summary || firstTurnMessage || 'No summary';
+
 		const turnLines = sessionTurns
 			.filter(t => t.user_message || t.assistant_response)
 			.map(t => {
@@ -94,7 +99,7 @@ export function buildStandupPrompt(
 			: [];
 
 		return [
-			`- ${s.id} | ${repo} (${branch}) | ${summary} | updated ${s.updated_at}`,
+			`- ${s.id} | ${repo} (${branch}) | ${agent} | ${summary} | updated ${s.updated_at}`,
 			...turnLines,
 			...fileLines,
 		].join('\n');

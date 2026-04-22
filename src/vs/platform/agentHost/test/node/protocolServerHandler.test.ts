@@ -72,6 +72,7 @@ class MockAgentService implements IAgentService {
 	readonly browsedUris: URI[] = [];
 	readonly browseErrors = new Map<string, Error>();
 	readonly listedSessions: IAgentSessionMetadata[] = [];
+	readonly createSessionConfigs: (IAgentCreateSessionConfig | undefined)[] = [];
 
 	private readonly _onDidAction = new Emitter<import('../../common/state/sessionActions.js').IActionEnvelope>();
 	readonly onDidAction = this._onDidAction.event;
@@ -91,6 +92,7 @@ class MockAgentService implements IAgentService {
 		this._stateManager.dispatchClientAction(action, origin);
 	}
 	async createSession(config?: IAgentCreateSessionConfig): Promise<URI> {
+		this.createSessionConfigs.push(config);
 		const session = config?.session ?? URI.parse('copilot:///new-session');
 		this._stateManager.createSession({
 			resource: session.toString(),
@@ -365,6 +367,50 @@ suite('ProtocolServerHandler', () => {
 		assert.deepStrictEqual(result.items.map(item => item.project), [undefined]);
 	});
 
+	test('listSessions includes diffs with before/after URIs and content refs', async () => {
+		agentService.listedSessions.push({
+			session: URI.parse(sessionUri),
+			startTime: 1000,
+			modifiedTime: 2000,
+			summary: 'Session With Diffs',
+			diffs: [
+				{
+					before: { uri: URI.file('/workspace/file.ts').toString(), content: { uri: 'content://before-ref' } },
+					after: { uri: URI.file('/workspace/file.ts').toString(), content: { uri: 'content://after-ref' } },
+					diff: { added: 5, removed: 2 },
+				},
+				{
+					after: { uri: URI.file('/workspace/new-file.ts').toString(), content: { uri: 'content://new-ref' } },
+				},
+				{
+					before: { uri: URI.file('/workspace/deleted.ts').toString(), content: { uri: 'content://deleted-ref' } },
+				},
+			],
+		});
+
+		const transport = connectClient('client-list-diffs');
+		transport.sent.length = 0;
+		const responsePromise = waitForResponse(transport, 2);
+
+		transport.simulateMessage(request(2, 'listSessions'));
+		const resp = await responsePromise;
+
+		const result = (resp as unknown as { result: IListSessionsResult }).result;
+		assert.deepStrictEqual(result.items[0].diffs, [
+			{
+				before: { uri: URI.file('/workspace/file.ts').toString(), content: { uri: 'content://before-ref' } },
+				after: { uri: URI.file('/workspace/file.ts').toString(), content: { uri: 'content://after-ref' } },
+				diff: { added: 5, removed: 2 },
+			},
+			{
+				after: { uri: URI.file('/workspace/new-file.ts').toString(), content: { uri: 'content://new-ref' } },
+			},
+			{
+				before: { uri: URI.file('/workspace/deleted.ts').toString(), content: { uri: 'content://deleted-ref' } },
+			},
+		]);
+	});
+
 	test('createSession returns null and broadcasts project in sessionAdded summary', async () => {
 		const transport = connectClient('client-create');
 		transport.sent.length = 0;
@@ -576,5 +622,63 @@ suite('ProtocolServerHandler', () => {
 		// New transport closes - should decrement
 		transport2.simulateClose();
 		assert.deepStrictEqual(counts, [1, 1, 0]);
+	});
+
+	// ---- createSession activeClient -------------------------------------
+
+	suite('createSession activeClient', () => {
+
+		test('forwards activeClient to the agent service', async () => {
+			const newSession = URI.parse('copilot:///eager-session').toString();
+
+			const transport = connectClient('client-1');
+			transport.sent.length = 0;
+
+			const responsePromise = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'createSession', {
+				session: newSession,
+				provider: 'copilot',
+				activeClient: {
+					clientId: 'client-1',
+					tools: [{ name: 't1', description: 'd', inputSchema: { type: 'object' } }],
+					customizations: [{ uri: 'file:///plugin-a', displayName: 'A' }],
+				},
+			}));
+			const resp = await responsePromise as { result?: unknown; error?: unknown };
+
+			assert.strictEqual(resp.error, undefined, 'createSession should succeed');
+			const config = agentService.createSessionConfigs.at(-1);
+			assert.deepStrictEqual({
+				clientId: config?.activeClient?.clientId,
+				toolName: config?.activeClient?.tools[0]?.name,
+				customizationUri: config?.activeClient?.customizations?.[0].uri,
+			}, {
+				clientId: 'client-1',
+				toolName: 't1',
+				customizationUri: 'file:///plugin-a',
+			});
+		});
+
+		test('rejects createSession when activeClient.clientId mismatches', async () => {
+			const newSession = URI.parse('copilot:///mismatch-session').toString();
+
+			const transport = connectClient('client-1');
+			transport.sent.length = 0;
+
+			const responsePromise = waitForResponse(transport, 2);
+			transport.simulateMessage(request(2, 'createSession', {
+				session: newSession,
+				provider: 'copilot',
+				activeClient: {
+					clientId: 'other-client',
+					tools: [],
+				},
+			}));
+			const resp = await responsePromise as { result?: unknown; error?: { code: number; message: string } };
+
+			assert.ok(resp.error, 'response should be an error');
+			assert.strictEqual(resp.result, undefined);
+			assert.strictEqual(agentService.createSessionConfigs.length, 0, 'agent service should not have been called');
+		});
 	});
 });
