@@ -1,9 +1,0 @@
-{
-	"question": "typescript interface",
-	"exampleIncludeGlobs": [ "*.ts" ],
-	"queryShouldFind": [
-		[ "example.ts", [
-				"interface"
-			] ]
-	]
-}

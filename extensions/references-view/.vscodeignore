@@ -1,6 +1,0 @@
-.vscode/**
-src/**
-out/**
-tsconfig*.json
-esbuild*.mts
-package-lock.json

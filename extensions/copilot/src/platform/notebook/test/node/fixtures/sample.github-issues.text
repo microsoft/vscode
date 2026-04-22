@@ -1,6 +1,0 @@
-//%% vscode.cell [id=7ae086dd] [language=markdown]
-```
-# Sample
-```
-//%% vscode.cell [id=753c6b62] [language=github-issues]
-repo:microsoft/vscode is:open label:bug assignee:@me

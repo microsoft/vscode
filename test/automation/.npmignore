@@ -1,6 +1,0 @@
-!/out
-/src
-/tools
-.gitignore
-tsconfig.json
-*.tgz

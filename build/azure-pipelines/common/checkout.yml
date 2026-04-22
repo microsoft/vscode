@@ -1,5 +1,0 @@
-steps:
-  - checkout: self
-    fetchDepth: 1
-    fetchTags: false
-    displayName: Checkout microsoft/vscode

@@ -1,6 +1,0 @@
-src/**
-build/**
-cgmanifest.json
-esbuild*.mts
-tsconfig*.json
-

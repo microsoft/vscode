@@ -1,1 +1,0 @@
-node ./update-specs.js

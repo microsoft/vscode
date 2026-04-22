@@ -1,5 +1,0 @@
-# Ensure Lad and Joao review cache relevant code
-.github/workflows/pr-check-cache.yml @lszomoru @joaomoreno
-build/pr-check-cache-files.ts @lszomoru @joaomoreno
-test/base/cache-cli.ts @lszomoru @joaomoreno
-test/base/cache.ts @lszomoru @joaomoreno

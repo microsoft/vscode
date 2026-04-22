@@ -1,8 +1,0 @@
-.vscode/**
-src/**
-notebook-src/**
-out/**
-tsconfig*.json
-esbuild*.mts
-package-lock.json
-.gitignore

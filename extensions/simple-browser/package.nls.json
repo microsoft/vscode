@@ -1,5 +1,0 @@
-{
-	"displayName": "Simple Browser",
-	"description": "A very basic built-in webview for displaying web content.",
-	"configuration.focusLockIndicator.enabled.description": "Enable/disable the floating indicator that shows when focused in the simple browser."
-}

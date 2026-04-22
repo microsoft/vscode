@@ -1,5 +1,0 @@
-src/loader.ts:3
--	const data = await readFile(filePath, 'utf-8');
--	return data;
-+	const contents = await readFile(filePath, 'utf-8');
-+	return contents;

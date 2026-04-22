@@ -1,7 +1,0 @@
-class Teacher {
-	info() {
--		const response =
-+		const response = 'Hi I am a teacher';
-		console.log(response);
-	}
-}
