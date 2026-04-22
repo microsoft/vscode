@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { exec } from 'child_process';
+import { execFile } from 'child_process';
 import { totalmem } from 'os';
 import { FileAccess } from '../common/network.js';
 import { ProcessItem } from '../common/processes.js';
@@ -176,11 +176,10 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 				// The cpu usage value reported on Linux is the average over the process lifetime,
 				// recalculate the usage over a one second interval
-				// JSON.stringify is needed to escape spaces, https://github.com/nodejs/node/issues/6803
-				let cmd = JSON.stringify(FileAccess.asFileUri('vs/base/node/cpuUsage.sh').fsPath);
-				cmd += ' ' + pids.join(' ');
+				// Use execFile to prevent shell injection vulnerabilities
+				const cmd = FileAccess.asFileUri('vs/base/node/cpuUsage.sh').fsPath;
 
-				exec(cmd, {}, (err, stdout, stderr) => {
+				execFile(cmd, pids.map(String), {}, (err, stdout, stderr) => {
 					if (err || stderr) {
 						reject(err || new Error(stderr.toString()));
 					} else {
@@ -200,13 +199,13 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 				});
 			}
 
-			exec('which ps', {}, (err, stdout, stderr) => {
+			execFile('which', ['ps'], {}, (err, stdout, stderr) => {
 				if (err || stderr) {
 					if (process.platform !== 'linux') {
 						reject(err || new Error(stderr.toString()));
 					} else {
-						const cmd = JSON.stringify(FileAccess.asFileUri('vs/base/node/ps.sh').fsPath);
-						exec(cmd, {}, (err, stdout, stderr) => {
+						const cmd = FileAccess.asFileUri('vs/base/node/ps.sh').fsPath;
+						execFile(cmd, [], {}, (err, stdout, stderr) => {
 							if (err || stderr) {
 								reject(err || new Error(stderr.toString()));
 							} else {
@@ -217,10 +216,10 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 					}
 				} else {
 					const ps = stdout.toString().trim();
-					const args = '-ax -o pid=,ppid=,pcpu=,pmem=,command=';
+					const args = ['-ax', '-o', 'pid=,ppid=,pcpu=,pmem=,command='];
 
 					// Set numeric locale to ensure '.' is used as the decimal separator
-					exec(`${ps} ${args}`, { maxBuffer: 1000 * 1024, env: { LC_NUMERIC: 'en_US.UTF-8' } }, (err, stdout, stderr) => {
+					execFile(ps, args, { maxBuffer: 1000 * 1024, env: { LC_NUMERIC: 'en_US.UTF-8' } }, (err, stdout, stderr) => {
 						// Silently ignoring the screen size is bogus error. See https://github.com/microsoft/vscode/issues/98590
 						if (err || (stderr && !stderr.includes('screen size is bogus'))) {
 							reject(err || new Error(stderr.toString()));
