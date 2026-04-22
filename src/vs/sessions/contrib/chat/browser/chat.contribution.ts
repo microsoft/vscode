@@ -8,25 +8,21 @@ import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js';
 import { localize, localize2 } from '../../../../nls.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
-import { Schemas } from '../../../../base/common/network.js';
-import { URI } from '../../../../base/common/uri.js';
-import { IOpenerService } from '../../../../platform/opener/common/opener.js';
-import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IViewContainersRegistry, IViewsRegistry, ViewContainerLocation, Extensions as ViewExtensions, WindowVisibility } from '../../../../workbench/common/views.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
-import { AgentSessionProviders } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessions.js';
-import { IsActiveSessionBackgroundProviderContext, ISessionsManagementService, IsNewChatSessionContext } from '../../sessions/browser/sessionsManagementService.js';
-import { Menus } from '../../../browser/menus.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { IsNewChatInSessionContext, IsNewChatSessionContext } from '../../../common/contextkeys.js';
 import { BranchChatSessionAction } from './branchChatSessionAction.js';
 import { RunScriptContribution } from './runScriptAction.js';
 import './nullInlineChatSessionService.js';
+import './nullChatTipService.js';
 import { InstantiationType, registerSingleton } from '../../../../platform/instantiation/common/extensions.js';
 import { KeybindingWeight } from '../../../../platform/keybinding/common/keybindingsRegistry.js';
+import { ISessionsConfigurationService, SessionsConfigurationService } from './sessionsConfigurationService.js';
 import { AgenticPromptsService } from './promptsService.js';
 import { IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
-import { ISessionsConfigurationService, SessionsConfigurationService } from './sessionsConfigurationService.js';
 import { IAICustomizationWorkspaceService } from '../../../../workbench/contrib/chat/common/aiCustomizationWorkspaceService.js';
 import { ICustomizationHarnessService } from '../../../../workbench/contrib/chat/common/customizationHarnessService.js';
 import { SessionsAICustomizationWorkspaceService } from './aiCustomizationWorkspaceService.js';
@@ -34,68 +30,14 @@ import { SessionsCustomizationHarnessService } from './customizationHarnessServi
 import { ChatViewContainerId, ChatViewId } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { CHAT_CATEGORY } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { NewChatViewPane, SessionsViewId } from './newChatViewPane.js';
+import { NewChatInSessionViewPane, NewChatInSessionViewId } from './newChatInSessionViewPane.js';
 import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/viewPaneContainer.js';
 import { registerIcon } from '../../../../platform/theme/common/iconRegistry.js';
 import { ChatViewPane } from '../../../../workbench/contrib/chat/browser/widgetHosts/viewPane/chatViewPane.js';
-import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
+import { SessionsChatAccessibilityHelp } from './sessionsChatAccessibilityHelp.js';
 
-export class OpenSessionWorktreeInVSCodeAction extends Action2 {
-	static readonly ID = 'chat.openSessionWorktreeInVSCode';
-
-	constructor() {
-		super({
-			id: OpenSessionWorktreeInVSCodeAction.ID,
-			title: localize2('openInVSCode', 'Open in VS Code'),
-			icon: Codicon.vscodeInsiders,
-			precondition: IsActiveSessionBackgroundProviderContext,
-			menu: [{
-				id: Menus.TitleBarRightLayout,
-				group: 'navigation',
-				order: 0,
-				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsActiveSessionBackgroundProviderContext),
-			}]
-		});
-	}
-
-	override async run(accessor: ServicesAccessor): Promise<void> {
-		const openerService = accessor.get(IOpenerService);
-		const productService = accessor.get(IProductService);
-		const sessionsManagementService = accessor.get(ISessionsManagementService);
-
-		const activeSession = sessionsManagementService.activeSession.get();
-		if (!activeSession) {
-			return;
-		}
-
-		const workspace = activeSession.workspace.get();
-		const repo = workspace?.repositories[0];
-		const folderUri = activeSession.sessionType === AgentSessionProviders.Background ? repo?.workingDirectory ?? repo?.uri : undefined;
-
-		if (!folderUri) {
-			return;
-		}
-
-		const scheme = productService.quality === 'stable'
-			? 'vscode'
-			: productService.quality === 'exploration'
-				? 'vscode-exploration'
-				: 'vscode-insiders';
-
-		const params = new URLSearchParams();
-		params.set('windowId', '_blank');
-		params.set('session', activeSession.resource.toString());
-
-		await openerService.open(URI.from({
-			scheme,
-			authority: Schemas.file,
-			path: folderUri.path,
-			query: params.toString(),
-		}), { openExternal: true });
-	}
-}
-registerAction2(OpenSessionWorktreeInVSCodeAction);
 
 class NewChatInSessionsWindowAction extends Action2 {
 
@@ -170,7 +112,7 @@ class RegisterChatViewContainerContribution implements IWorkbenchContribution {
 			canToggleVisibility: false,
 			canMoveView: false,
 			ctorDescriptor: new SyncDescriptor(ChatViewPane),
-			when: IsNewChatSessionContext.negate(),
+			when: ContextKeyExpr.and(IsNewChatSessionContext.negate(), IsNewChatInSessionContext.negate()),
 			windowVisibility: WindowVisibility.Sessions
 		}, {
 			id: SessionsViewId,
@@ -182,6 +124,17 @@ class RegisterChatViewContainerContribution implements IWorkbenchContribution {
 			canMoveView: false,
 			ctorDescriptor: new SyncDescriptor(NewChatViewPane),
 			when: IsNewChatSessionContext,
+			windowVisibility: WindowVisibility.Sessions,
+		}, {
+			id: NewChatInSessionViewId,
+			containerIcon: chatViewContainer.icon,
+			containerTitle: chatViewContainer.title.value,
+			singleViewPaneContainerTitle: chatViewContainer.title.value,
+			name: localize2('sessions.newChatInSession.view', "New Chat"),
+			canToggleVisibility: false,
+			canMoveView: false,
+			ctorDescriptor: new SyncDescriptor(NewChatInSessionViewPane),
+			when: ContextKeyExpr.and(IsNewChatSessionContext.negate(), IsNewChatInSessionContext),
 			windowVisibility: WindowVisibility.Sessions,
 		}], chatViewContainer);
 	}
@@ -200,3 +153,6 @@ registerSingleton(IPromptsService, AgenticPromptsService, InstantiationType.Dela
 registerSingleton(ISessionsConfigurationService, SessionsConfigurationService, InstantiationType.Delayed);
 registerSingleton(IAICustomizationWorkspaceService, SessionsAICustomizationWorkspaceService, InstantiationType.Delayed);
 registerSingleton(ICustomizationHarnessService, SessionsCustomizationHarnessService, InstantiationType.Delayed);
+
+// register accessibility help
+AccessibleViewRegistry.register(new SessionsChatAccessibilityHelp());

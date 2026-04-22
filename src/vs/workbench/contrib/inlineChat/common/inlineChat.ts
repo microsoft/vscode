@@ -55,10 +55,9 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			description: localize('affordance', "Controls whether an inline chat affordance is shown when text is selected."),
 			default: 'off',
 			type: 'string',
-			enum: ['off', 'gutter', 'editor'],
+			enum: ['off', 'editor'],
 			enumDescriptions: [
 				localize('affordance.off', "No affordance is shown."),
-				localize('affordance.gutter', "Show an affordance in the gutter."),
 				localize('affordance.editor', "Show an affordance in the editor at the cursor position."),
 			],
 			experiment: {
@@ -68,7 +67,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		},
 		[InlineChatConfigKeys.RenderMode]: {
 			description: localize('renderMode', "Controls how inline chat is rendered."),
-			default: 'hover',
+			default: 'zone',
 			type: 'string',
 			enum: ['zone', 'hover'],
 			enumDescriptions: [
@@ -78,7 +77,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			experiment: {
 				mode: 'auto'
 			},
-			tags: ['experimental']
+			tags: ['experimental'],
 		},
 		[InlineChatConfigKeys.FixDiagnostics]: {
 			description: localize('fixDiagnostics', "Controls whether the Fix action is shown for diagnostics in the editor."),

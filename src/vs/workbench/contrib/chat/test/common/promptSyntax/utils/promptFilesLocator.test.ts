@@ -1938,7 +1938,7 @@ suite('PromptFilesLocator', () => {
 
 				const skills = await locator.findAgentSkills(CancellationToken.None);
 				assertOutcome(
-					skills.map(s => s.fileUri),
+					skills.map(s => s.uri),
 					[
 						'/Users/legomushroom/repos/vscode/.claude/skills/pptx/SKILL.md',
 						'/Users/legomushroom/repos/vscode/.claude/skills/excel/SKILL.md',
@@ -1974,7 +1974,7 @@ suite('PromptFilesLocator', () => {
 
 				const skills = await locator.findAgentSkills(CancellationToken.None);
 				assertOutcome(
-					skills.map(s => s.fileUri),
+					skills.map(s => s.uri),
 					[
 						'/Users/legomushroom/repos/vscode/.claude/skills/valid-skill/SKILL.md',
 					],
@@ -1996,7 +1996,7 @@ suite('PromptFilesLocator', () => {
 
 				const skills = await locator.findAgentSkills(CancellationToken.None);
 				assertOutcome(
-					skills.map(s => s.fileUri),
+					skills.map(s => s.uri),
 					[],
 					'Must return empty array when no skills exist.',
 				);
@@ -2016,7 +2016,7 @@ suite('PromptFilesLocator', () => {
 
 				const skills = await locator.findAgentSkills(CancellationToken.None);
 				assertOutcome(
-					skills.map(s => s.fileUri),
+					skills.map(s => s.uri),
 					[],
 					'Must return empty array when folder does not exist.',
 				);
@@ -2048,7 +2048,7 @@ suite('PromptFilesLocator', () => {
 
 				const skills = await locator.findAgentSkills(CancellationToken.None);
 				assertOutcome(
-					skills.map(s => s.fileUri),
+					skills.map(s => s.uri),
 					[
 						'/Users/legomushroom/repos/vscode/.claude/skills/skill-a/SKILL.md',
 						'/Users/legomushroom/repos/node/.claude/skills/skill-b/SKILL.md',
@@ -2779,6 +2779,32 @@ suite('PromptFilesLocator', () => {
 				roots.map(r => r.path),
 				['/repos/monorepo/packages/my-app'],
 				'Should only return workspace folders when includeParents is false',
+			);
+		});
+
+		testT('excludes vscode-agent-host workspace folders', async () => {
+			// Agent host folders surface customizations through AHP, not via
+			// filesystem scanning. Including them here would issue a `resourceList`
+			// JSON-RPC per configured location for every nonexistent `.github` /
+			// `.claude` folder on the remote.
+			const localFolder = URI.file('/repos/local-project');
+			const agentHostFolder = URI.from({ scheme: 'vscode-agent-host', authority: 'remote', path: '/repos/remote-project' });
+			const folders = [localFolder, agentHostFolder].map((uri, index) => new class extends mock<IWorkspaceFolder>() {
+				override uri = uri;
+				override name = basename(uri);
+				override index = index;
+			});
+			instantiationService.stub(IWorkspaceContextService, mockWorkspaceService(folders));
+			locator = instantiationService.createInstance(PromptFilesLocator);
+			await mockFiles(fileService, [
+				{ path: '/repos/local-project/.git/HEAD', contents: ['ref: refs/heads/main'] },
+			]);
+
+			const roots = await locator.getWorkspaceFolderRoots(true);
+			assert.deepStrictEqual(
+				roots.map(r => r.toString()),
+				[localFolder.toString()],
+				'Should exclude vscode-agent-host workspace folders from prompt-file discovery roots',
 			);
 		});
 

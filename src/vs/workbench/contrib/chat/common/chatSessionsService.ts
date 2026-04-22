@@ -34,9 +34,11 @@ export interface IChatSessionProviderOptionItem {
 	readonly id: string;
 	readonly name: string;
 	readonly description?: string;
+	readonly detail?: string;
 	readonly locked?: boolean;
 	readonly icon?: ThemeIcon;
 	readonly default?: boolean;
+	readonly slashCommand?: string;
 	// [key: string]: any;
 }
 
@@ -51,9 +53,9 @@ export interface IChatSessionProviderOptionGroup {
 	readonly id: string;
 	readonly name: string;
 	readonly description?: string;
+	readonly detail?: string;
+	readonly selected?: IChatSessionProviderOptionItem;
 	readonly items: readonly IChatSessionProviderOptionItem[];
-	readonly searchable?: boolean;
-	readonly onSearch?: (query: string, token: CancellationToken) => Thenable<IChatSessionProviderOptionItem[]>;
 	/**
 	 * A context key expression that controls visibility of this option group picker.
 	 * When specified, the picker is only visible when the expression evaluates to true.
@@ -67,6 +69,15 @@ export interface IChatSessionProviderOptionGroup {
 	 * These will be shown in a separate section at the end of the picker.
 	 */
 	readonly commands?: readonly IChatSessionProviderOptionGroupCommand[];
+	/**
+	 * Optional kind hint that controls how the group is presented.
+	 * - `'permissions'`: the group's items are surfaced inside the chat permission picker
+	 *   instead of being rendered as a standalone picker. At most one group per provider
+	 *   may use this kind; if multiple are declared, the first one (in declaration order)
+	 *   wins. The group has no UI of its own — it is invisible when the permission
+	 *   picker is hidden by its own `when` clauses.
+	 */
+	readonly kind?: 'permissions';
 }
 
 export interface IChatSessionsExtensionPoint {
@@ -104,10 +115,6 @@ export interface IChatSessionsExtensionPoint {
 	 * for this session type. Defaults to false when not specified.
 	 */
 	readonly autoAttachReferences?: boolean;
-	/**
-	 * When true, uses the incoming request's mode instructions to populate the built-in pickers such as Agent and Model pickers. When false, the pickers are populated based on the session type as they have been before. This is useful for testing the new ChatRequestTurn2-based flow for populating pickers.
-	 */
-	readonly useRequestToPopulateBuiltInPickers?: boolean;
 }
 
 export interface IChatSessionItem {
@@ -156,6 +163,7 @@ export type IChatSessionHistoryItem = {
 	type: 'response';
 	parts: IChatProgress[];
 	participant: string;
+	details?: string;
 };
 
 export type IChatSessionRequestHistoryItem = Extract<IChatSessionHistoryItem, { type: 'request' }>;
@@ -164,11 +172,6 @@ export type IChatSessionRequestHistoryItem = Extract<IChatSessionHistoryItem, { 
  * The session type used for local agent chat sessions.
  */
 export const localChatSessionType = 'local';
-
-/**
- * The option ID used for selecting the agent in chat sessions.
- */
-export const agentOptionId = 'agent';
 
 export interface IChatSession extends IDisposable {
 	readonly onWillDispose: Event<void>;
@@ -243,6 +246,8 @@ export interface IChatSessionItemController {
 	refresh(token: CancellationToken): Promise<void>;
 
 	newChatSessionItem?(request: IChatNewSessionRequest, token: CancellationToken): Promise<IChatSessionItem | undefined>;
+
+	getNewChatSessionInputState?(sessionResource: URI, token: CancellationToken): Promise<readonly IChatSessionProviderOptionGroup[] | undefined>;
 }
 
 export interface IChatSessionOptionsChangeEvent {
@@ -268,7 +273,8 @@ export namespace ChatSessionOptionsMap {
 
 	export function toRecord(map: ReadonlyChatSessionOptionsMap): Record<string, string | IChatSessionProviderOptionItem> {
 		const record: Record<string, string | IChatSessionProviderOptionItem> = Object.create(null);
-		for (const [key, value] of map) {
+		const entries = ensureIterable(map);
+		for (const [key, value] of entries) {
 			record[key] = value;
 		}
 		return record;
@@ -278,7 +284,21 @@ export namespace ChatSessionOptionsMap {
 		if (!map) {
 			return undefined;
 		}
-		return Array.from(map, ([optionId, value]) => ({ optionId, value: typeof value === 'string' ? value : value.id }));
+		const entries = ensureIterable(map);
+		return Array.from(entries, ([optionId, value]) => ({ optionId, value: typeof value === 'string' ? value : value.id }));
+	}
+
+	/**
+	 * Ensures the input is iterable. If a plain object is passed (e.g. due to
+	 * serialization across process boundaries losing the Map prototype), it is
+	 * converted to Map entries on the fly.
+	 */
+	function ensureIterable(map: ReadonlyChatSessionOptionsMap): Iterable<[string, string | IChatSessionProviderOptionItem]> {
+		if (map instanceof Map) {
+			return map;
+		}
+		// Fallback: treat as a plain record (e.g. from JSON deserialization)
+		return Object.entries(map as unknown as Record<string, string | IChatSessionProviderOptionItem>);
 	}
 }
 
@@ -423,10 +443,13 @@ export interface IChatSessionsService {
 	readonly onDidChangeOptionGroups: Event<string>;
 
 	getOptionGroupsForSessionType(chatSessionType: string): IChatSessionProviderOptionGroup[] | undefined;
-	setOptionGroupsForSessionType(chatSessionType: string, handle: number, optionGroups?: IChatSessionProviderOptionGroup[]): void;
+	setOptionGroupsForSessionType(chatSessionType: string, handle: number, optionGroups?: readonly IChatSessionProviderOptionGroup[]): void;
 
-	getNewSessionOptionsForSessionType(chatSessionType: string): ReadonlyChatSessionOptionsMap | undefined;
-	setNewSessionOptionsForSessionType(chatSessionType: string, options: ReadonlyChatSessionOptionsMap): void;
+	/**
+	 * Get the default options for new sessions of this type, derived from option groups'
+	 * `selected` or `default` items.
+	 */
+	getNewChatSessionInputState(chatSessionType: string, sessionResource: URI): Promise<readonly IChatSessionProviderOptionGroup[] | undefined>;
 
 	/**
 	 * Creates a new chat session item using the controller's newChatSessionItemHandler.

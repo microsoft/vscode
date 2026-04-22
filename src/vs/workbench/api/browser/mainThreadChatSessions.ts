@@ -29,7 +29,7 @@ import { ChatEditorInput } from '../../contrib/chat/browser/widgetHosts/editor/c
 import { IChatRequestVariableEntry } from '../../contrib/chat/common/attachments/chatVariableEntries.js';
 import { IChatDebugService } from '../../contrib/chat/common/chatDebugService.js';
 import { IChatContentInlineReference, IChatDetail, IChatProgress, IChatService, IChatSessionTiming } from '../../contrib/chat/common/chatService/chatService.js';
-import { ChatSessionOptionsMap, ChatSessionStatus, IChatNewSessionRequest, IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionProviderOptionItem, IChatSessionRequestHistoryItem, IChatSessionsService, ReadonlyChatSessionOptionsMap } from '../../contrib/chat/common/chatSessionsService.js';
+import { ChatSessionOptionsMap, ChatSessionStatus, IChatNewSessionRequest, IChatSession, IChatSessionContentProvider, IChatSessionHistoryItem, IChatSessionItem, IChatSessionItemController, IChatSessionItemsDelta, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem, IChatSessionRequestHistoryItem, IChatSessionsService, ReadonlyChatSessionOptionsMap } from '../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../contrib/chat/common/constants.js';
 import { IChatModel } from '../../contrib/chat/common/model/chatModel.js';
 import { getChatSessionType, isUntitledChatSession } from '../../contrib/chat/common/model/chatUri.js';
@@ -160,7 +160,8 @@ export class ObservableChatSession extends Disposable implements IChatSession {
 				return {
 					type: 'response' as const,
 					parts: turn.parts.map((part: IChatProgressDto) => revive(part) as IChatProgress),
-					participant: turn.participant
+					participant: turn.participant,
+					details: turn.details,
 				};
 			}));
 
@@ -491,6 +492,14 @@ class MainThreadChatSessionItemController extends Disposable implements IChatSes
 			this.addOrUpdateItem(existing);
 		}
 	}
+
+	async getNewChatSessionInputState(sessionResource: URI, token: CancellationToken): Promise<readonly IChatSessionProviderOptionGroup[] | undefined> {
+		const optionGroups = await this._proxy.$provideChatSessionInputState(this._handle, sessionResource, token);
+		if (!optionGroups?.length) {
+			return undefined;
+		}
+		return optionGroups;
+	}
 }
 
 class MainThreadChatSessionItem implements IChatSessionItem {
@@ -622,6 +631,29 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 			controller,
 			dispose: () => disposables.dispose(),
 		});
+
+		// Fetch initial input state for new/untitled sessions
+		this._refreshControllerInputState(handle, chatSessionType);
+	}
+
+	private _refreshControllerInputState(handle: number, chatSessionType: string): void {
+		this._proxy.$provideChatSessionInputState(handle, undefined, CancellationToken.None).then(optionGroups => {
+			if (optionGroups?.length) {
+				this._applyOptionGroups(handle, chatSessionType, undefined, optionGroups);
+			}
+		}).catch(err => this._logService.error('Error fetching chat session input state', err));
+	}
+
+	private _applyOptionGroups(handle: number, chatSessionType: string, sessionResourceComponents: UriComponents | undefined, optionGroups: readonly IChatSessionProviderOptionGroup[]): void {
+		this._chatSessionsService.setOptionGroupsForSessionType(chatSessionType, handle, optionGroups);
+		if (sessionResourceComponents) {
+			const sessionResource = URI.revive(sessionResourceComponents);
+			optionGroups.forEach(group => {
+				if (group.selected) {
+					this._chatSessionsService.setSessionOption(sessionResource, group.id, group.selected);
+				}
+			});
+		}
 	}
 
 	private getController(handle: number): MainThreadChatSessionItemController {
@@ -887,19 +919,20 @@ export class MainThreadChatSessions extends Disposable implements MainThreadChat
 		this._refreshProviderOptions(handle, sessionType);
 	}
 
+	$updateChatSessionInputState(controllerHandle: number, sessionResource: UriComponents, optionGroups: readonly IChatSessionProviderOptionGroup[]): void {
+		const registration = this._itemControllerRegistrations.get(controllerHandle);
+		if (!registration) {
+			this._logService.warn(`No controller found for handle ${controllerHandle} when updating input state`);
+			return;
+		}
+
+		this._applyOptionGroups(controllerHandle, registration.chatSessionType, sessionResource, optionGroups);
+	}
+
 	private _refreshProviderOptions(handle: number, chatSessionScheme: string): void {
 		this._proxy.$provideChatSessionProviderOptions(handle, CancellationToken.None).then(options => {
 			if (options?.optionGroups && options.optionGroups.length) {
-				const groupsWithCallbacks = options.optionGroups.map(group => ({
-					...group,
-					onSearch: group.searchable ? async (query: string, token: CancellationToken) => {
-						return await this._proxy.$invokeOptionGroupSearch(handle, group.id, query, token);
-					} : undefined,
-				}));
-				this._chatSessionsService.setOptionGroupsForSessionType(chatSessionScheme, handle, groupsWithCallbacks);
-			}
-			if (options?.newSessionOptions) {
-				this._chatSessionsService.setNewSessionOptionsForSessionType(chatSessionScheme, ChatSessionOptionsMap.fromRecord(options.newSessionOptions));
+				this._chatSessionsService.setOptionGroupsForSessionType(chatSessionScheme, handle, [...options.optionGroups]);
 			}
 		}).catch(err => this._logService.error('Error fetching chat session options', err));
 	}

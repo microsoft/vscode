@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 // Standalone agent host server with WebSocket protocol transport.
-// Start with: node out/vs/platform/agentHost/node/agentHostServerMain.js [--port <port>] [--connection-token <token>] [--connection-token-file <path>] [--without-connection-token] [--enable-mock-agent] [--quiet] [--log <level>]
+// Start with: node out/vs/platform/agentHost/node/agentHostServerMain.js [--port <port>] [--host <host>] [--connection-token <token>] [--connection-token-file <path>] [--without-connection-token] [--enable-mock-agent] [--quiet] [--log <level>]
 
 import { fileURLToPath } from 'url';
 
@@ -14,8 +14,9 @@ import { fileURLToPath } from 'url';
 globalThis._VSCODE_FILE_ROOT = fileURLToPath(new URL('../../../..', import.meta.url));
 
 import * as fs from 'fs';
+import * as os from 'os';
 import { DisposableStore } from '../../../base/common/lifecycle.js';
-import { observableValue } from '../../../base/common/observable.js';
+import { raceTimeout } from '../../../base/common/async.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { localize } from '../../../nls.js';
@@ -30,9 +31,8 @@ import { IProductService } from '../../product/common/productService.js';
 import { InstantiationService } from '../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../instantiation/common/serviceCollection.js';
 import { CopilotAgent } from './copilot/copilotAgent.js';
-import { AgentSession, type AgentProvider, type IAgent } from '../common/agentService.js';
-import { AgentSideEffects } from './agentSideEffects.js';
-import { SessionStateManager } from './sessionStateManager.js';
+import { AgentService } from './agentService.js';
+import { IAgentHostTerminalManager } from './agentHostTerminalManager.js';
 import { WebSocketProtocolServer } from './webSocketTransport.js';
 import { ProtocolServerHandler } from './protocolServerHandler.js';
 import { FileService } from '../../files/common/fileService.js';
@@ -40,7 +40,16 @@ import { IFileService } from '../../files/common/files.js';
 import { DiskFileSystemProvider } from '../../files/node/diskFileSystemProvider.js';
 import { Schemas } from '../../../base/common/network.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
+import { IDiffComputeService } from '../common/diffComputeService.js';
+import { NodeWorkerDiffComputeService } from './diffComputeService.js';
 import { SessionDataService } from './sessionDataService.js';
+import { AgentHostClientFileSystemProvider } from '../common/agentHostClientFileSystemProvider.js';
+import { AGENT_CLIENT_SCHEME } from '../common/agentClientUri.js';
+import { resolveServerUrls } from './serverUrls.js';
+import { AgentPluginManager } from './agentPluginManager.js';
+import { IAgentPluginManager } from '../common/agentPluginManager.js';
+import { registerPendingEditContentProvider } from './copilot/pendingEditContentStore.js';
+import { AgentHostGitService, IAgentHostGitService } from './agentHostGitService.js';
 
 /** Log to stderr so messages appear in the terminal alongside the process. */
 function log(msg: string): void {
@@ -53,6 +62,7 @@ const connectionTokenRegex = /^[0-9A-Za-z_-]+$/;
 
 interface IServerOptions {
 	readonly port: number;
+	readonly host: string | undefined;
 	readonly enableMockAgent: boolean;
 	readonly quiet: boolean;
 	/** Connection token string, or `undefined` when `--without-connection-token`. */
@@ -64,6 +74,8 @@ function parseServerOptions(): IServerOptions {
 	const envPort = parseInt(process.env['VSCODE_AGENT_HOST_PORT'] ?? '8081', 10);
 	const portIdx = argv.indexOf('--port');
 	const port = portIdx >= 0 ? parseInt(argv[portIdx + 1], 10) : envPort;
+	const hostIdx = argv.indexOf('--host');
+	const host = hostIdx >= 0 ? argv[hostIdx + 1] : undefined;
 	const enableMockAgent = argv.includes('--enable-mock-agent');
 	const quiet = argv.includes('--quiet');
 
@@ -107,7 +119,7 @@ function parseServerOptions(): IServerOptions {
 		connectionToken = generateUuid();
 	}
 
-	return { port, enableMockAgent, quiet, connectionToken };
+	return { port, host, enableMockAgent, quiet, connectionToken };
 }
 
 // ---- Main -------------------------------------------------------------------
@@ -140,51 +152,37 @@ async function main(): Promise<void> {
 
 	logService.info('[AgentHostServer] Starting standalone agent host server');
 
-	// Create state manager
-	const stateManager = disposables.add(new SessionStateManager(logService));
-
-	// Agent registry — maps provider id to agent instance
-	const agents = new Map<AgentProvider, IAgent>();
-
-	// Observable agents list for root state
-	const registeredAgents = observableValue<readonly IAgent[]>('agents', []);
-
 	// File service
 	const fileService = disposables.add(new FileService(logService));
 	disposables.add(fileService.registerProvider(Schemas.file, disposables.add(new DiskFileSystemProvider(logService))));
+	// In-memory filesystem backing transient file-edit previews shown during
+	// tool-call confirmations.
+	disposables.add(registerPendingEditContentProvider(fileService));
 
 	// Session data service
 	const sessionDataService = new SessionDataService(URI.file(environmentService.userDataPath), fileService, logService);
 
-	// Shared side-effect handler
-	const sideEffects = disposables.add(new AgentSideEffects(stateManager, {
-		getAgent(session) {
-			const provider = AgentSession.provider(session);
-			return provider ? agents.get(provider) : agents.values().next().value;
-		},
-		agents: registeredAgents,
-		sessionDataService,
-	}, logService, fileService));
-
-	function registerAgent(agent: IAgent): void {
-		agents.set(agent.id, agent);
-		disposables.add(sideEffects.registerProgressListener(agent));
-		registeredAgents.set([...agents.values()], undefined);
-		logService.info(`[AgentHostServer] Registered agent: ${agent.id}`);
-	}
+	// Create the agent service (owns AgentHostStateManager + AgentSideEffects internally)
+	const agentService = new AgentService(logService, fileService, sessionDataService, productService);
+	disposables.add(agentService);
 
 	// Register agents
 	if (!options.quiet) {
 		// Production agents (require DI)
 		const diServices = new ServiceCollection();
+		const pluginManager = new AgentPluginManager(URI.file(environmentService.userDataPath), fileService, logService);
 		diServices.set(IProductService, productService);
 		diServices.set(INativeEnvironmentService, environmentService);
 		diServices.set(ILogService, logService);
 		diServices.set(IFileService, fileService);
 		diServices.set(ISessionDataService, sessionDataService);
+		diServices.set(IAgentPluginManager, pluginManager);
+		diServices.set(IDiffComputeService, disposables.add(new NodeWorkerDiffComputeService(logService)));
+		diServices.set(IAgentHostTerminalManager, agentService.terminalManager);
 		const instantiationService = new InstantiationService(diServices);
+		diServices.set(IAgentHostGitService, instantiationService.createInstance(AgentHostGitService));
 		const copilotAgent = disposables.add(instantiationService.createInstance(CopilotAgent));
-		registerAgent(copilotAgent);
+		agentService.registerProvider(copilotAgent);
 		log('CopilotAgent registered');
 	}
 
@@ -192,7 +190,7 @@ async function main(): Promise<void> {
 		// Dynamic import to avoid bundling test code in production
 		import('../test/node/mockAgent.js').then(({ ScriptedMockAgent }) => {
 			const mockAgent = disposables.add(new ScriptedMockAgent());
-			registerAgent(mockAgent);
+			agentService.registerProvider(mockAgent);
 		}).catch(err => {
 			logService.error('[AgentHostServer] Failed to load mock agent', err);
 		});
@@ -201,24 +199,44 @@ async function main(): Promise<void> {
 	// WebSocket server
 	const wsServer = disposables.add(await WebSocketProtocolServer.create({
 		port: options.port,
+		host: options.host,
 		connectionTokenValidate: options.connectionToken
 			? token => token === options.connectionToken
 			: undefined,
 	}, logService));
 
+
+	const clientFileSystemProvider = disposables.add(new AgentHostClientFileSystemProvider());
+	disposables.add(fileService.registerProvider(AGENT_CLIENT_SCHEME, clientFileSystemProvider));
+
 	// Wire up protocol handler
-	disposables.add(new ProtocolServerHandler(stateManager, wsServer, sideEffects, logService));
+	disposables.add(new ProtocolServerHandler(
+		agentService,
+		agentService.stateManager,
+		wsServer,
+		{ defaultDirectory: URI.file(os.homedir()).toString() },
+		clientFileSystemProvider,
+		logService,
+	));
 
 	// Report ready
 	function reportReady(addr: string): void {
-		const listeningPort = addr.split(':').pop();
-		let wsUrl = `ws://${addr}`;
-		if (options.connectionToken) {
-			wsUrl += `?tkn=${options.connectionToken}`;
-		}
+		const listeningPort = Number(addr.split(':').pop());
 		process.stdout.write(`READY:${listeningPort}\n`);
-		log(`WebSocket server listening on ${wsUrl}`);
-		logService.info(`[AgentHostServer] WebSocket server listening on ${wsUrl}`);
+
+		const urls = resolveServerUrls(options.host, listeningPort);
+		for (const url of urls.local) {
+			log(`  Local:   ${url}`);
+			logService.info(`[AgentHostServer] Local:   ${url}`);
+		}
+		for (const url of urls.network) {
+			log(`  Network: ${url}`);
+			logService.info(`[AgentHostServer] Network: ${url}`);
+		}
+		if (urls.network.length === 0 && options.host === undefined) {
+			log('  Network: use --host to expose');
+			logService.info('[AgentHostServer] Network: use --host to expose');
+		}
 	}
 
 	const address = wsServer.address;
@@ -236,12 +254,31 @@ async function main(): Promise<void> {
 
 	// Keep alive until stdin closes or signal
 	process.stdin.resume();
-	process.stdin.on('end', shutdown);
-	process.on('SIGTERM', shutdown);
-	process.on('SIGINT', shutdown);
+	process.stdin.on('end', () => { void shutdown(); });
+	process.on('SIGTERM', () => { void shutdown(); });
+	process.on('SIGINT', () => { void shutdown(); });
 
-	function shutdown(): void {
+	let shuttingDown = false;
+	async function shutdown(): Promise<void> {
+		if (shuttingDown) {
+			return;
+		}
+		shuttingDown = true;
 		logService.info('[AgentHostServer] Shutting down...');
+		// Close the WebSocket server first so no further actions can be
+		// dispatched while we wait for in-flight writes to flush — otherwise
+		// a late-arriving action could keep queuing DB writes and either
+		// undermine the flush or push us past the timeout.
+		wsServer.dispose();
+		// Wait for in-flight persistence writes to flush to the per-session
+		// SQLite databases. Without this, a SIGTERM arriving while a
+		// `setMetadata` write (configValues, customTitle, isRead, isDone,
+		// diffs) is in flight can drop the latest value — see the
+		// "Session Config persistence across restarts" integration test.
+		// Capped so a stuck write cannot hang shutdown indefinitely.
+		await raceTimeout(sessionDataService.whenIdle(), 3000, () => {
+			logService.warn('[AgentHostServer] Timed out waiting for session database writes to flush; exiting anyway.');
+		});
 		disposables.dispose();
 		loggerService?.dispose();
 		process.exit(0);

@@ -7,21 +7,26 @@ import { generateUuid } from '../../../base/common/uuid.js';
 import type {
 	IAgentDeltaEvent,
 	IAgentErrorEvent,
+	IAgentMessageEvent,
 	IAgentProgressEvent,
 	IAgentReasoningEvent,
 	IAgentTitleChangedEvent,
 	IAgentToolCompleteEvent,
+	IAgentToolContentChangedEvent,
 	IAgentToolStartEvent,
-	IAgentUsageEvent
+	IAgentUsageEvent,
+	IAgentUserInputRequestEvent
 } from '../common/agentService.js';
 import {
 	ActionType,
 	type ISessionAction,
 	type ISessionErrorAction,
+	type ISessionInputRequestedAction,
 	type ITitleChangedAction,
 	type IToolCallCompleteAction,
 	type IToolCallReadyAction,
 	type IToolCallStartAction,
+	type ISessionToolCallContentChangedAction,
 	type ITurnCompleteAction,
 	type IUsageAction
 } from '../common/state/sessionActions.js';
@@ -89,6 +94,18 @@ export class AgentEventMapper {
 				// We emit both toolCallStart (streaming → created) and toolCallReady
 				// (params complete → running with auto-confirm) as a pair.
 				const e = event as IAgentToolStartEvent;
+				const meta: Record<string, unknown> = { toolKind: e.toolKind, language: e.language };
+
+				// Subagent metadata is normalized by the per-SDK adapter (e.g.
+				// the Copilot adapter maps `agent_type` → `subagentAgentName`),
+				// so the generic mapper just forwards it as-is.
+				if (e.subagentDescription) {
+					meta.subagentDescription = e.subagentDescription;
+				}
+				if (e.subagentAgentName) {
+					meta.subagentAgentName = e.subagentAgentName;
+				}
+
 				const startAction: IToolCallStartAction = {
 					type: ActionType.SessionToolCallStart,
 					session,
@@ -96,8 +113,17 @@ export class AgentEventMapper {
 					toolCallId: e.toolCallId,
 					toolName: e.toolName,
 					displayName: e.displayName,
-					_meta: { toolKind: e.toolKind, language: e.language },
+					toolClientId: e.toolClientId,
+					_meta: meta,
 				};
+
+				// For client tools, do NOT auto-ready — the tool handler
+				// will fire a separate tool_ready event once the deferred
+				// is in place (or the permission flow fires it first).
+				if (e.toolClientId) {
+					return startAction;
+				}
+
 				const readyAction: IToolCallReadyAction = {
 					type: ActionType.SessionToolCallReady,
 					session,
@@ -111,9 +137,11 @@ export class AgentEventMapper {
 			}
 
 			case 'tool_ready': {
-				// A running tool requires re-confirmation (e.g. mid-execution permission).
-				// Emit toolCallReady WITHOUT confirmed, which transitions
-				// Running → PendingConfirmation in the reducer.
+				// Two scenarios:
+				// 1. Permission request: confirmationTitle is set →
+				//    transition to PendingConfirmation (no `confirmed`).
+				// 2. Client tool auto-ready: confirmationTitle is absent →
+				//    transition to Running (`confirmed: NotNeeded`).
 				const e = event;
 				return {
 					type: ActionType.SessionToolCallReady,
@@ -123,6 +151,8 @@ export class AgentEventMapper {
 					invocationMessage: e.invocationMessage,
 					toolInput: e.toolInput,
 					confirmationTitle: e.confirmationTitle,
+					edits: e.edits,
+					...(!e.confirmationTitle ? { confirmed: ToolCallConfirmationReason.NotNeeded } : {}),
 				} satisfies IToolCallReadyAction;
 			}
 
@@ -135,6 +165,17 @@ export class AgentEventMapper {
 					toolCallId: e.toolCallId,
 					result: e.result,
 				} satisfies IToolCallCompleteAction;
+			}
+
+			case 'tool_content_changed': {
+				const e = event as IAgentToolContentChangedEvent;
+				return {
+					type: ActionType.SessionToolCallContentChanged,
+					session,
+					turnId,
+					toolCallId: e.toolCallId,
+					content: e.content,
+				} satisfies ISessionToolCallContentChangedAction;
 			}
 
 			case 'idle':
@@ -203,8 +244,39 @@ export class AgentEventMapper {
 				};
 			}
 
-			case 'message':
-				return undefined;
+			case 'message': {
+				// The SDK fires a `message` event with the complete assembled
+				// content after all streaming deltas. If delta events already
+				// captured the text (tracked via _currentMarkdownPartId), skip.
+				// Otherwise the text arrived without preceding deltas (e.g.
+				// after tool calls), so emit a new response part.
+				const e = event as IAgentMessageEvent;
+				if (e.role !== 'assistant' || !e.content) {
+					return undefined;
+				}
+				const existingPartId = this._currentMarkdownPartId.get(session);
+				if (existingPartId) {
+					// Deltas already streamed the content for this part
+					return undefined;
+				}
+				const partId = generateUuid();
+				this._currentMarkdownPartId.set(session, partId);
+				return {
+					type: ActionType.SessionResponsePart,
+					session,
+					turnId,
+					part: { kind: ResponsePartKind.Markdown, id: partId, content: e.content },
+				};
+			}
+
+			case 'user_input_request': {
+				const e = event as IAgentUserInputRequestEvent;
+				return {
+					type: ActionType.SessionInputRequested,
+					session,
+					request: e.request,
+				} satisfies ISessionInputRequestedAction;
+			}
 
 			default:
 				return undefined;

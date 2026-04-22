@@ -148,6 +148,21 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 	}
 
 	@memoize
+	get appSharedDataHome(): URI {
+		const cliSharedDataDir = this.args['shared-data-dir'];
+		if (cliSharedDataDir) {
+			return URI.file(resolve(cliSharedDataDir));
+		}
+
+		const vscodePortable = env['VSCODE_PORTABLE'];
+		if (vscodePortable) {
+			return URI.file(join(vscodePortable, 'shared-data'));
+		}
+
+		return joinPath(this.userHome, this.productService.sharedDataFolderName);
+	}
+
+	@memoize
 	get agentPluginsPath(): string {
 		const cliAgentPluginsDir = this.args['agent-plugins-dir'];
 		if (cliAgentPluginsDir) {
@@ -219,6 +234,14 @@ export abstract class AbstractNativeEnvironmentService implements INativeEnviron
 		}
 
 		return false;
+	}
+
+	get skipBuiltinExtensions(): readonly string[] {
+		const value = env['VSCODE_SKIP_BUILTIN_EXTENSIONS'];
+		if (!value) {
+			return [];
+		}
+		return value.split(',').map(id => id.trim()).filter(id => id);
 	}
 
 	@memoize

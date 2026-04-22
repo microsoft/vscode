@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import './media/sessionsTitleBarWidget.css';
-import { $, addDisposableListener, EventType, getActiveWindow, reset } from '../../../../base/browser/dom.js';
-
+import { $, addDisposableGenericMouseDownListener, addDisposableListener, EventType, getActiveWindow, reset } from '../../../../base/browser/dom.js';
 import { Separator } from '../../../../base/common/actions.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { StandardMouseEvent } from '../../../../base/browser/mouseEvent.js';
@@ -18,20 +17,19 @@ import { IMenuService, MenuRegistry, SubmenuItemAction } from '../../../../platf
 import { ContextKeyExpr, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IContextMenuService } from '../../../../platform/contextview/browser/contextView.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
-import { IWorkbenchLayoutService, Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { Menus } from '../../../browser/menus.js';
 import { IWorkbenchContribution } from '../../../../workbench/common/contributions.js';
 import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
-import { ISessionsManagementService } from './sessionsManagementService.js';
 import { autorun } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { IsAuxiliaryWindowContext } from '../../../../workbench/common/contextkeys.js';
-import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
-import { ISessionsProvidersService } from './sessionsProvidersService.js';
-import { SessionStatus } from '../common/sessionData.js';
-import { Codicon } from '../../../../base/common/codicons.js';
+import { ChatSessionProviderIdContext, IsNewChatSessionContext, SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
+import { ISessionsListModelService } from './views/sessionsListModelService.js';
 import { SHOW_SESSIONS_PICKER_COMMAND_ID } from './sessionsActions.js';
 import { IsSessionArchivedContext, IsSessionPinnedContext, IsSessionReadContext, SessionItemContextMenuId } from './views/sessionsList.js';
+import { basename } from '../../../../base/common/resources.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 
 /**
  * Sessions Title Bar Widget - renders the active chat session title
@@ -40,7 +38,7 @@ import { IsSessionArchivedContext, IsSessionPinnedContext, IsSessionReadContext,
  * Shows the current chat session label as a clickable pill with:
  * - Kind icon at the beginning (provider type icon)
  * - Session title
- * - Repository folder name
+ * - Repository folder name and active branch/worktree name when available
  *
  * Session actions (changes, terminal, etc.) are rendered via the
  * SessionTitleActions menu toolbar next to the session title.
@@ -63,11 +61,11 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		options: IBaseActionViewItemOptions | undefined,
 		@IHoverService private readonly hoverService: IHoverService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
+		@ISessionsListModelService private readonly sessionsListModelService: ISessionsListModelService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IMenuService private readonly menuService: IMenuService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
-		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@ICommandService private readonly commandService: ICommandService,
 	) {
 		super(undefined, action, options);
@@ -78,6 +76,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			if (sessionData) {
 				sessionData.title.read(reader);
 				sessionData.status.read(reader);
+				sessionData.workspace.read(reader);
 			}
 			this.sessionsManagementService.activeProviderId.read(reader);
 			this._lastRenderState = undefined;
@@ -131,9 +130,10 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			const label = this._getActiveSessionLabel();
 			const icon = this._getActiveSessionIcon();
 			const repoLabel = this._getRepositoryLabel();
-			const unreadCount = this._countUnreadSessions();
+			const repoDetailLabel = this._getRepositoryDetailLabel();
+			const pillLabel = repoLabel ? `${label} \u00B7 ${repoLabel}${repoDetailLabel ? ` (${repoDetailLabel})` : ''}` : label;
 			// Build a render-state key from all displayed data
-			const renderState = `${icon?.id ?? ''}|${label}|${repoLabel ?? ''}|${unreadCount}`;
+			const renderState = `${icon?.id ?? ''}|${label}|${repoLabel ?? ''}|${repoDetailLabel ?? ''}`;
 
 			// Skip re-render if state hasn't changed
 			if (this._lastRenderState === renderState) {
@@ -169,19 +169,24 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 
 			// Folder shown next to the title
 			if (repoLabel) {
+				const detailsEl = $('span.agent-sessions-titlebar-details');
+
 				const separator1 = $('span.agent-sessions-titlebar-separator');
 				separator1.textContent = '\u00B7';
-				centerGroup.appendChild(separator1);
+				separator1.setAttribute('aria-hidden', 'true');
+				detailsEl.appendChild(separator1);
 
 				const repoEl = $('span.agent-sessions-titlebar-repo');
-				repoEl.textContent = repoLabel;
-				centerGroup.appendChild(repoEl);
+				repoEl.textContent = repoDetailLabel ? `${repoLabel} (${repoDetailLabel})` : repoLabel;
+				detailsEl.appendChild(repoEl);
+
+				centerGroup.appendChild(detailsEl);
 			}
 
 			sessionPill.appendChild(centerGroup);
 
 			// Click handler on pill
-			this._dynamicDisposables.add(addDisposableListener(sessionPill, EventType.MOUSE_DOWN, (e) => {
+			this._dynamicDisposables.add(addDisposableGenericMouseDownListener(sessionPill, (e) => {
 				e.preventDefault();
 				e.stopPropagation();
 			}));
@@ -198,42 +203,11 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 
 			this._container.appendChild(sessionPill);
 
-			// Session count widget (to the left of the pill) — toggles sidebar
-			const countWidget = $('button.agent-sessions-titlebar-count') as HTMLButtonElement;
-			countWidget.type = 'button';
-			countWidget.tabIndex = 0;
-			const countIcon = $(ThemeIcon.asCSSSelector(Codicon.tasklist));
-			countWidget.appendChild(countIcon);
-			if (unreadCount > 0) {
-				const countLabel = $('span.agent-sessions-titlebar-count-label');
-				countLabel.textContent = `${unreadCount}`;
-				countWidget.appendChild(countLabel);
-				countWidget.setAttribute('aria-label', localize('showSidebarUnread', "Show Side Bar, {0} unread session(s)", unreadCount));
-			} else {
-				countWidget.setAttribute('aria-label', localize('showSidebar', "Show Side Bar"));
-			}
-			// Hide when sidebar is visible (only shown when sidebar is hidden)
-			const updateVisibility = () => {
-				countWidget.style.display = this.layoutService.isVisible(Parts.SIDEBAR_PART) ? 'none' : '';
-			};
-			updateVisibility();
-			this._dynamicDisposables.add(this.layoutService.onDidChangePartVisibility(e => {
-				if (e.partId === Parts.SIDEBAR_PART) {
-					updateVisibility();
-				}
-			}));
-			this._dynamicDisposables.add(addDisposableListener(countWidget, EventType.CLICK, (e) => {
-				e.preventDefault();
-				e.stopPropagation();
-				this.layoutService.setPartHidden(false, Parts.SIDEBAR_PART);
-			}));
-			this._container.insertBefore(countWidget, sessionPill);
-
 			// Hover
 			this._dynamicDisposables.add(this.hoverService.setupManagedHover(
 				getDefaultHoverDelegate('mouse'),
 				sessionPill,
-				label
+				pillLabel
 			));
 
 			// Keyboard handler
@@ -285,14 +259,33 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 		return undefined;
 	}
 
-	private _countUnreadSessions(): number {
-		let unread = 0;
-		for (const session of this.sessionsManagementService.getSessions()) {
-			if (!session.isArchived.get() && session.status.get() === SessionStatus.Completed && !session.isRead.get()) {
-				unread++;
-			}
+	private _getRepositoryDetailLabel(): string | undefined {
+		const sessionData = this.sessionsManagementService.activeSession.get();
+		const workspace = sessionData?.workspace.get();
+		const repository = workspace?.repositories[0];
+		if (!workspace || !repository) {
+			return undefined;
 		}
-		return unread;
+
+		if (repository.detail && !workspace.label.includes(`[${repository.detail}]`)) {
+			return repository.detail;
+		}
+
+		if (!repository.workingDirectory) {
+			return undefined;
+		}
+
+		const worktreeName = basename(repository.workingDirectory);
+		if (!worktreeName) {
+			return undefined;
+		}
+
+		const repositoryName = basename(repository.uri);
+		if (worktreeName === workspace.label || worktreeName === repositoryName) {
+			return undefined;
+		}
+
+		return worktreeName;
 	}
 
 	private _showContextMenu(e: MouseEvent): void {
@@ -301,12 +294,19 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			return;
 		}
 
+		if (this.contextKeyService.getContextKeyValue<boolean>(IsNewChatSessionContext.key)) {
+			return;
+		}
+
+		const isPinned = this.sessionsListModelService.isSessionPinned(sessionData);
+		const isArchived = sessionData.isArchived.get();
+		const isRead = this.sessionsListModelService.isSessionRead(sessionData);
 		const contextOverlay: [string, boolean | string][] = [
-			[IsSessionPinnedContext.key, false],
-			[IsSessionArchivedContext.key, sessionData.isArchived.get()],
-			[IsSessionReadContext.key, sessionData.isRead.get()],
+			[IsSessionPinnedContext.key, isPinned],
+			[IsSessionArchivedContext.key, isArchived],
+			[IsSessionReadContext.key, isRead],
 			['chatSessionType', sessionData.sessionType],
-			['chatSessionProviderId', sessionData.providerId],
+			[ChatSessionProviderIdContext.key, sessionData.providerId],
 		];
 
 		const menu = this.menuService.createMenu(SessionItemContextMenuId, this.contextKeyService.createOverlay(contextOverlay));

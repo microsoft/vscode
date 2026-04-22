@@ -4,20 +4,22 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { tmpdir } from 'os';
-import { randomUUID } from 'crypto';
-import { mkdirSync, rmSync } from 'fs';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { FileService } from '../../../files/common/fileService.js';
+import { IFileService } from '../../../files/common/files.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
-import { NullLogService } from '../../../log/common/log.js';
+import { ILogService, NullLogService } from '../../../log/common/log.js';
+import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
+import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
+import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
+import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ToolResultContentType } from '../../common/state/sessionState.js';
+import { createZeroDiffComputeService } from '../common/sessionTestHelpers.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { FileEditTracker, buildSessionDbUri, parseSessionDbUri } from '../../node/copilot/fileEditTracker.js';
-import { join } from '../../../../base/common/path.js';
 
 suite('FileEditTracker', () => {
 
@@ -25,26 +27,26 @@ suite('FileEditTracker', () => {
 	let fileService: FileService;
 	let db: SessionDatabase;
 	let tracker: FileEditTracker;
-	let testDir: string;
 
 	setup(async () => {
-		testDir = join(tmpdir(), `vscode-edit-tracker-test-${randomUUID()}`);
-		mkdirSync(testDir, { recursive: true });
-
 		fileService = disposables.add(new FileService(new NullLogService()));
 		const sourceFs = disposables.add(new InMemoryFileSystemProvider());
 		disposables.add(fileService.registerProvider('file', sourceFs));
 
-		db = disposables.add(await SessionDatabase.open(join(testDir, 'session.db')));
+		db = disposables.add(await SessionDatabase.open(':memory:'));
 		await db.createTurn('turn-1');
 
-		tracker = new FileEditTracker('copilot:/test-session', db, fileService, new NullLogService());
+		const services = new ServiceCollection();
+		services.set(ILogService, new NullLogService());
+		services.set(IFileService, fileService);
+		services.set(IDiffComputeService, createZeroDiffComputeService());
+		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
+		tracker = instantiationService.createInstance(FileEditTracker, 'copilot:/test-session', db);
 	});
 
 	teardown(async () => {
 		disposables.clear();
 		await db.close();
-		rmSync(testDir, { recursive: true, force: true });
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
 
@@ -60,14 +62,14 @@ suite('FileEditTracker', () => {
 		assert.strictEqual(fileEdit.type, ToolResultContentType.FileEdit);
 
 		// URIs are parseable session-db: URIs
-		const beforeFields = parseSessionDbUri(fileEdit.beforeURI);
+		const beforeFields = parseSessionDbUri(fileEdit.before!.content.uri);
 		assert.ok(beforeFields);
 		assert.strictEqual(beforeFields.sessionUri, 'copilot:/test-session');
 		assert.strictEqual(beforeFields.toolCallId, 'tc-1');
 		assert.strictEqual(beforeFields.filePath, '/workspace/test.txt');
 		assert.strictEqual(beforeFields.part, 'before');
 
-		const afterFields = parseSessionDbUri(fileEdit.afterURI);
+		const afterFields = parseSessionDbUri(fileEdit.after!.content.uri);
 		assert.ok(afterFields);
 		assert.strictEqual(afterFields.part, 'after');
 
@@ -161,5 +163,17 @@ suite('buildSessionDbUri / parseSessionDbUri', () => {
 		assert.strictEqual(parseSessionDbUri('session-db:copilot:/s1'), undefined);
 		assert.strictEqual(parseSessionDbUri('session-db:copilot:/s1?toolCallId=tc-1'), undefined);
 		assert.strictEqual(parseSessionDbUri('session-db:copilot:/s1?toolCallId=tc-1&filePath=/f&part=middle'), undefined);
+	});
+
+	test('URI path ends with the basename of the file', () => {
+		const uri = buildSessionDbUri('copilot:/s1', 'tc-1', '/workspace/src/index.ts', 'before');
+		const parsed = URI.parse(uri);
+		assert.ok(parsed.path.endsWith('/index.ts'));
+	});
+
+	test('URI path ends with basename for files with spaces and special chars', () => {
+		const uri = buildSessionDbUri('copilot:/s1', 'tc-1', '/work space/file (1).ts', 'after');
+		const parsed = URI.parse(uri);
+		assert.ok(parsed.path.endsWith('/file (1).ts'));
 	});
 });

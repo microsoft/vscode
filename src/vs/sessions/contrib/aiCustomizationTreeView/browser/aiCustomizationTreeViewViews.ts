@@ -27,6 +27,7 @@ import { IThemeService } from '../../../../platform/theme/common/themeService.js
 import { IViewPaneOptions, ViewPane } from '../../../../workbench/browser/parts/views/viewPane.js';
 import { IViewDescriptorService } from '../../../../workbench/common/views.js';
 import { IPromptsService, PromptsStorage, IAgentSkill, IPromptPath } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
+import { ResourceSet } from '../../../../base/common/map.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
 import { agentIcon, extensionIcon, instructionsIcon, mcpServerIcon, pluginIcon, promptIcon, skillIcon, userIcon, workspaceIcon, builtinIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
 import { AICustomizationItemMenuId } from './aiCustomizationTreeView.js';
@@ -385,13 +386,6 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 				icon: instructionsIcon,
 			},
 			{
-				type: 'category',
-				id: 'category-prompts',
-				label: localize('prompts', "Prompts"),
-				promptType: PromptsType.prompt,
-				icon: promptIcon,
-			},
-			{
 				type: 'link',
 				id: 'link-mcp-servers',
 				label: localize('mcpServers', "MCP Servers"),
@@ -446,7 +440,19 @@ class UnifiedAICustomizationDataSource implements IAsyncDataSource<RootElement, 
 
 		// For other types, fetch once and cache grouped by storage
 		if (!cached.files) {
-			const allItems = await this.promptsService.listPromptFiles(promptType, CancellationToken.None);
+			const allItems: IPromptPath[] = [...await this.promptsService.listPromptFiles(promptType, CancellationToken.None)];
+
+			// For instructions, also include agent instructions (AGENTS.md, copilot-instructions.md, CLAUDE.md, etc.)
+			if (promptType === PromptsType.instructions) {
+				const existingUris = new ResourceSet(allItems.map(item => item.uri));
+				const agentInstructions = await this.promptsService.listAgentInstructions(CancellationToken.None);
+				for (const file of agentInstructions) {
+					if (!existingUris.has(file.uri)) {
+						allItems.push({ uri: file.uri, storage: PromptsStorage.local, type: PromptsType.instructions });
+					}
+				}
+			}
+
 			const workspaceItems = allItems.filter(item => item.storage === PromptsStorage.local);
 			const userItems = allItems.filter(item => item.storage === PromptsStorage.user);
 			const extensionItems = allItems.filter(item => item.storage === PromptsStorage.extension);

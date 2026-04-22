@@ -12,6 +12,7 @@ import { DisposableStore, MutableDisposable } from '../../../../../base/common/l
 import { OperatingSystem } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { hasKey, isNumber, isObject, isString } from '../../../../../base/common/types.js';
+import { IAccessibilityService } from '../../../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TerminalCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { PromptInputState } from '../../../../../platform/terminal/common/capabilities/commandDetection/promptInputModel.js';
@@ -48,6 +49,7 @@ export class ToolTerminalCreator {
 	private static _lastSuccessfulShell: ShellLaunchType = ShellLaunchType.Unknown;
 
 	constructor(
+		@IAccessibilityService private readonly _accessibilityService: IAccessibilityService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalLogService private readonly _logService: ITerminalLogService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
@@ -199,11 +201,22 @@ export class ToolTerminalCreator {
 		const store = new DisposableStore();
 		const result = new DeferredPromise<ShellIntegrationQuality>();
 
+		// When screen reader mode is on, allow extra time before giving up on shell integration.
+		// Cold-loading PSReadLine on Windows PowerShell 5.1 with accessibility mode enabled can
+		// push the `HasRichCommandDetection` sequence past the default window, which otherwise
+		// causes `shellIntegrationQuality` to be stuck at `None` and the "Enable shell integration"
+		// banner to show up incorrectly. Only extend non-zero timeouts so tests using 0 remain 0.
+		const isScreenReaderOptimized = this._accessibilityService.isScreenReaderOptimized();
+		const effectiveTimeoutMs = timeoutMs > 0 && isScreenReaderOptimized
+			? timeoutMs + 3000
+			: timeoutMs;
+		this._logService.info(`ToolTerminalCreator#_waitForShellIntegration: base ${timeoutMs}ms, effective ${effectiveTimeoutMs}ms, screenReaderOptimized=${isScreenReaderOptimized}`);
+
 		const siNoneTimer = store.add(new MutableDisposable());
 		siNoneTimer.value = disposableTimeout(() => {
-			this._logService.info(`ToolTerminalCreator#_waitForShellIntegration: Timed out ${timeoutMs}ms, using no SI`);
+			this._logService.info(`ToolTerminalCreator#_waitForShellIntegration: Timed out ${effectiveTimeoutMs}ms, using no SI`);
 			result.complete(ShellIntegrationQuality.None);
-		}, timeoutMs);
+		}, effectiveTimeoutMs);
 
 		if (instance.capabilities.get(TerminalCapability.CommandDetection)?.hasRichCommandDetection) {
 			// Rich command detection is available immediately.

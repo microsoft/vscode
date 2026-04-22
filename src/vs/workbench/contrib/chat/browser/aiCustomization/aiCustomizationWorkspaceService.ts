@@ -64,6 +64,10 @@ class AICustomizationWorkspaceService implements IAICustomizationWorkspaceServic
 
 	readonly isSessionsWindow = false;
 
+	readonly welcomePageFeatures = {
+		showGettingStartedBanner: true,
+	};
+
 	readonly hasOverrideProjectRoot = constObservable(false);
 	setOverrideProjectRoot(_root: URI): void { }
 	clearOverrideProjectRoot(): void { }

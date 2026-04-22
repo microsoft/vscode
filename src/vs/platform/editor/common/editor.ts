@@ -336,11 +336,6 @@ export interface IModalEditorPartOptions {
 	readonly maximized?: boolean;
 
 	/**
-	 * Minimum width of the modal editor part in pixels.
-	 */
-	readonly minWidth?: number;
-
-	/**
 	 * Size of the modal editor part unless it is maximized.
 	 */
 	readonly size?: { readonly width: number; readonly height: number };
@@ -361,14 +356,28 @@ export interface IModalEditorPartOptions {
 	 * modal editor. The caller provides a render callback that
 	 * receives a container element and a layout callback, and
 	 * returns a disposable to clean up when the modal closes.
+	 *
+	 * Note: the sidebar will only be shown when provided during
+	 * opening and cannot currently be added, removed, or updated
+	 * after the modal editor is opened.
 	 */
-	readonly sidebar?: IModalEditorSidebarContent;
+	readonly sidebar?: IModalEditorSidebar;
 }
 
 /**
- * Content to render in the modal editor sidebar.
+ * Modal sidebar supports rendering custom content in a sidebar next to the main editor content.
  */
-export interface IModalEditorSidebarContent {
+export interface IModalEditorSidebar {
+
+	/**
+	 * Sidebar width set by the user via resizing, if any.
+	 */
+	readonly sidebarWidth?: number;
+
+	/**
+	 * Whether the sidebar is hidden.
+	 */
+	readonly sidebarHidden?: boolean;
 
 	/**
 	 * Render the sidebar content into the given container.

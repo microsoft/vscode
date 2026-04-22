@@ -19,7 +19,6 @@ import { IChatMarkdownAnchorService } from '../../../../browser/widget/chatConte
 import { IMarkdownRenderer } from '../../../../../../../platform/markdown/browser/markdownRenderer.js';
 import { IRenderedMarkdown, MarkdownRenderOptions } from '../../../../../../../base/browser/markdownRenderer.js';
 import { IMarkdownString } from '../../../../../../../base/common/htmlContent.js';
-import { CodeBlockModelCollection } from '../../../../common/widget/codeBlockModelCollection.js';
 import { EditorPool, DiffEditorPool } from '../../../../browser/widget/chatContentParts/chatContentCodePools.js';
 import { IHoverService } from '../../../../../../../platform/hover/browser/hover.js';
 import { IConfigurationService } from '../../../../../../../platform/configuration/common/configuration.js';
@@ -42,7 +41,6 @@ suite('ChatSubagentContentPart', () => {
 	let mockHoverService: IHoverService;
 	let mockListPool: CollapsibleListPool;
 	let mockEditorPool: EditorPool;
-	let mockCodeBlockModelCollection: CodeBlockModelCollection;
 	let announcedToolProgressKeys: Set<string>;
 
 	function createMockRenderContext(isComplete: boolean = false): IChatContentPartRenderContext {
@@ -64,7 +62,6 @@ suite('ChatSubagentContentPart', () => {
 			codeBlockStartIndex: 0,
 			treeStartIndex: 0,
 			diffEditorPool: {} as DiffEditorPool,
-			codeBlockModelCollection: mockCodeBlockModelCollection,
 			currentWidth: observableValue('currentWidth', 500),
 			onDidChangeVisibility: Event.None
 		};
@@ -151,6 +148,7 @@ suite('ChatSubagentContentPart', () => {
 			toolCallId: toolCallId,
 			subAgentInvocationId: options.subAgentInvocationId,
 			state: observableValue('state', stateValue),
+			toolSpecificDataKind: observableValue('test', (options.toolSpecificData ?? { kind: 'subagent' }).kind),
 			isAttachedToThinking: false,
 			kind: 'toolInvocation',
 			toJSON: () => createMockSerializedToolInvocation({
@@ -235,7 +233,6 @@ suite('ChatSubagentContentPart', () => {
 		// Mock list pool and editor pool
 		mockListPool = {} as CollapsibleListPool;
 		mockEditorPool = {} as EditorPool;
-		mockCodeBlockModelCollection = {} as CodeBlockModelCollection;
 		announcedToolProgressKeys = new Set();
 	});
 
@@ -257,7 +254,6 @@ suite('ChatSubagentContentPart', () => {
 			mockListPool,
 			mockEditorPool,
 			() => 500,
-			mockCodeBlockModelCollection,
 			announcedToolProgressKeys
 		));
 
@@ -357,6 +353,100 @@ suite('ChatSubagentContentPart', () => {
 		});
 	});
 
+	suite('Late metadata updates', () => {
+		// The parent subagent tool is often constructed before
+		// `subagent_started` (which carries the real agentName) arrives.
+		// The autorun in `watchToolCompletion` re-reads metadata when state
+		// changes and updates the title if the description transitioned from
+		// the default placeholder to a real value, or if the agentName
+		// changed to a real value. These tests cover that branch directly.
+
+		function getTitleText(part: ChatSubagentContentPart): string {
+			const button = getCollapseButton(part);
+			assert.ok(button, 'Should have collapse button');
+			const labelElement = getCollapseButtonLabel(button);
+			return labelElement?.textContent ?? button.textContent ?? '';
+		}
+
+		function getSettableState(toolInvocation: IChatToolInvocation): ReturnType<typeof observableValue<IChatToolInvocation.State>> {
+			return toolInvocation.state as ReturnType<typeof observableValue<IChatToolInvocation.State>>;
+		}
+
+		function setToolSpecificData(toolInvocation: IChatToolInvocation, data: IChatSubagentToolInvocationData): void {
+			(toolInvocation as { toolSpecificData: IChatSubagentToolInvocationData }).toolSpecificData = data;
+		}
+
+		test('default description with no agentName → real description arrives later → title updates', () => {
+			const toolInvocation = createMockToolInvocation({
+				stateType: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				toolSpecificData: { kind: 'subagent' /* no description, no agentName */ }
+			});
+			const context = createMockRenderContext(false);
+			const part = createPart(toolInvocation, context);
+
+			assert.ok(getTitleText(part).includes('Subagent:'), 'Title should start with default prefix');
+
+			// Late metadata: real description arrives via SessionToolCallContentChanged
+			setToolSpecificData(toolInvocation, { kind: 'subagent', description: 'Searching the codebase' });
+			getSettableState(toolInvocation).set(createState(IChatToolInvocation.StateKind.Executing), undefined);
+
+			assert.ok(getTitleText(part).includes('Searching the codebase'), 'Title should reflect the new description');
+		});
+
+		test('real description already set → agentName arrives later → title updates (regression)', () => {
+			const toolInvocation = createMockToolInvocation({
+				stateType: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				toolSpecificData: { kind: 'subagent', description: 'Searching the codebase' /* no agentName */ }
+			});
+			const context = createMockRenderContext(false);
+			const part = createPart(toolInvocation, context);
+
+			assert.ok(getTitleText(part).includes('Searching the codebase'), 'Title should start with the real description');
+			assert.ok(!getTitleText(part).includes('CodeSearchAgent'), 'Title should not yet have agent name');
+
+			// Late metadata: agentName arrives via subagent_started after the
+			// description has already been set (the bug we fixed).
+			setToolSpecificData(toolInvocation, { kind: 'subagent', description: 'Searching the codebase', agentName: 'CodeSearchAgent' });
+			getSettableState(toolInvocation).set(createState(IChatToolInvocation.StateKind.Executing), undefined);
+
+			assert.ok(getTitleText(part).includes('CodeSearchAgent'), 'Title should reflect the new agent name');
+		});
+
+		test('agentName already set → empty agentName arrives → title NOT cleared', () => {
+			const toolInvocation = createMockToolInvocation({
+				stateType: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				toolSpecificData: { kind: 'subagent', description: 'Searching the codebase', agentName: 'CodeSearchAgent' }
+			});
+			const context = createMockRenderContext(false);
+			const part = createPart(toolInvocation, context);
+
+			assert.ok(getTitleText(part).includes('CodeSearchAgent'), 'Title should start with the agent name');
+
+			// A subsequent update arrives with no agentName field — the part
+			// must NOT clear the previously-set name.
+			setToolSpecificData(toolInvocation, { kind: 'subagent', description: 'Searching the codebase' });
+			getSettableState(toolInvocation).set(createState(IChatToolInvocation.StateKind.Executing), undefined);
+
+			assert.ok(getTitleText(part).includes('CodeSearchAgent'), 'Title should still have the agent name');
+		});
+
+		test('real description already set → no further changes → title preserved', () => {
+			const toolInvocation = createMockToolInvocation({
+				stateType: IChatToolInvocation.StateKind.WaitingForConfirmation,
+				toolSpecificData: { kind: 'subagent', description: 'Searching the codebase', agentName: 'CodeSearchAgent' }
+			});
+			const context = createMockRenderContext(false);
+			const part = createPart(toolInvocation, context);
+
+			const before = getTitleText(part);
+
+			// Trigger the autorun without changing toolSpecificData.
+			getSettableState(toolInvocation).set(createState(IChatToolInvocation.StateKind.Executing), undefined);
+
+			assert.strictEqual(getTitleText(part), before, 'Title should be unchanged when no metadata changed');
+		});
+	});
+
 	suite('State management', () => {
 		test('should start as active', () => {
 			const toolInvocation = createMockToolInvocation();
@@ -414,6 +504,55 @@ suite('ChatSubagentContentPart', () => {
 
 			// Should collapse when inactive
 			assert.ok(part.domNode.classList.contains('chat-used-context-collapsed'), 'Should be collapsed after markAsInactive');
+		});
+
+		test('markAsInactive should change default description to past tense', () => {
+			const toolInvocation = createMockToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					// no description — should use the default "Running subagent"
+				}
+			});
+			const context = createMockRenderContext(false);
+
+			const part = createPart(toolInvocation, context);
+
+			// Before marking inactive, title should show "Running subagent"
+			const button = getCollapseButton(part);
+			assert.ok(button, 'Should have collapse button');
+			const labelBefore = getCollapseButtonLabel(button);
+			const textBefore = labelBefore?.textContent ?? button.textContent ?? '';
+			assert.ok(textBefore.includes('Running subagent'), 'Title should show "Running subagent" before completion');
+
+			part.markAsInactive();
+
+			// After marking inactive, title should show "Ran subagent"
+			const labelAfter = getCollapseButtonLabel(button);
+			const textAfter = labelAfter?.textContent ?? button.textContent ?? '';
+			assert.ok(textAfter.includes('Ran subagent'), 'Title should show "Ran subagent" after completion');
+			assert.ok(!textAfter.includes('Running subagent'), 'Title should no longer show "Running subagent"');
+		});
+
+		test('markAsInactive should keep custom description unchanged', () => {
+			const toolInvocation = createMockToolInvocation({
+				toolSpecificData: {
+					kind: 'subagent',
+					description: 'Searching the codebase',
+					agentName: 'Explorer',
+				}
+			});
+			const context = createMockRenderContext(false);
+
+			const part = createPart(toolInvocation, context);
+
+			part.markAsInactive();
+
+			// After marking inactive, title should still show the custom description
+			const button = getCollapseButton(part);
+			assert.ok(button, 'Should have collapse button');
+			const label = getCollapseButtonLabel(button);
+			const text = label?.textContent ?? button.textContent ?? '';
+			assert.ok(text.includes('Searching the codebase'), 'Title should keep custom description after completion');
 		});
 
 		test('finalizeTitle should update button icon to check', () => {

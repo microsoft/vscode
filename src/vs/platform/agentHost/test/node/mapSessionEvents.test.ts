@@ -4,40 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { tmpdir } from 'os';
-import { randomUUID } from 'crypto';
-import { mkdirSync, rmSync } from 'fs';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { AgentSession } from '../../common/agentService.js';
-import { ToolResultContentType } from '../../common/state/sessionState.js';
+import { FileEditKind, ToolResultContentType } from '../../common/state/sessionState.js';
 import { SessionDatabase } from '../../node/sessionDatabase.js';
 import { parseSessionDbUri } from '../../node/copilot/fileEditTracker.js';
 import { mapSessionEvents, type ISessionEvent } from '../../node/copilot/mapSessionEvents.js';
-import { join } from '../../../../base/common/path.js';
 
 suite('mapSessionEvents', () => {
 
 	const disposables = new DisposableStore();
-	let testDir: string;
 	let db: SessionDatabase | undefined;
 	const session = AgentSession.uri('copilot', 'test-session');
-
-	setup(() => {
-		testDir = join(tmpdir(), `vscode-map-events-test-${randomUUID()}`);
-		mkdirSync(testDir, { recursive: true });
-	});
 
 	teardown(async () => {
 		disposables.clear();
 		await db?.close();
-		rmSync(testDir, { recursive: true, force: true });
 	});
 	ensureNoDisposablesAreLeakedInTestSuite();
-
-	function dbPath(): string {
-		return join(testDir, 'session.db');
-	}
 
 	// ---- Basic event mapping --------------------------------------------
 
@@ -111,12 +96,13 @@ suite('mapSessionEvents', () => {
 	suite('file edit restoration', () => {
 
 		test('restores file edits from database for edit tools', async () => {
-			db = disposables.add(await SessionDatabase.open(dbPath()));
+			db = disposables.add(await SessionDatabase.open(':memory:'));
 			await db.createTurn('turn-1');
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-edit',
 				filePath: '/workspace/file.ts',
+				kind: FileEditKind.Edit,
 				beforeContent: new TextEncoder().encode('before'),
 				afterContent: new TextEncoder().encode('after'),
 				addedLines: 3,
@@ -146,8 +132,8 @@ suite('mapSessionEvents', () => {
 			assert.strictEqual(content[1].type, ToolResultContentType.FileEdit);
 
 			// File edit URIs should be parseable
-			const fileEdit = content[1] as { beforeURI: string; afterURI: string; diff?: { added?: number; removed?: number } };
-			const beforeFields = parseSessionDbUri(fileEdit.beforeURI);
+			const fileEdit = content[1] as { before: { uri: any; content: { uri: any } }; after: { uri: any; content: { uri: any } }; diff?: { added?: number; removed?: number } };
+			const beforeFields = parseSessionDbUri(fileEdit.before.content.uri);
 			assert.ok(beforeFields);
 			assert.strictEqual(beforeFields.toolCallId, 'tc-edit');
 			assert.strictEqual(beforeFields.filePath, '/workspace/file.ts');
@@ -156,12 +142,13 @@ suite('mapSessionEvents', () => {
 		});
 
 		test('handles multiple file edits for one tool call', async () => {
-			db = disposables.add(await SessionDatabase.open(dbPath()));
+			db = disposables.add(await SessionDatabase.open(':memory:'));
 			await db.createTurn('turn-1');
 			await db.storeFileEdit({
 				turnId: 'turn-1',
 				toolCallId: 'tc-multi',
 				filePath: '/workspace/a.ts',
+				kind: FileEditKind.Edit,
 				beforeContent: new Uint8Array(0),
 				afterContent: new TextEncoder().encode('a'),
 				addedLines: undefined,
@@ -171,6 +158,7 @@ suite('mapSessionEvents', () => {
 				turnId: 'turn-1',
 				toolCallId: 'tc-multi',
 				filePath: '/workspace/b.ts',
+				kind: FileEditKind.Edit,
 				beforeContent: new Uint8Array(0),
 				afterContent: new TextEncoder().encode('b'),
 				addedLines: undefined,
@@ -180,7 +168,7 @@ suite('mapSessionEvents', () => {
 			const events: ISessionEvent[] = [
 				{
 					type: 'tool.execution_start',
-					data: { toolCallId: 'tc-multi', toolName: 'write' },
+					data: { toolCallId: 'tc-multi', toolName: 'edit' },
 				},
 				{
 					type: 'tool.execution_complete',
@@ -217,7 +205,7 @@ suite('mapSessionEvents', () => {
 		});
 
 		test('non-edit tools do not get file edits even if db has data', async () => {
-			db = disposables.add(await SessionDatabase.open(dbPath()));
+			db = disposables.add(await SessionDatabase.open(':memory:'));
 
 			const events: ISessionEvent[] = [
 				{
@@ -235,6 +223,33 @@ suite('mapSessionEvents', () => {
 			assert.ok(content);
 			assert.strictEqual(content.length, 1);
 			assert.strictEqual(content[0].type, ToolResultContentType.Text);
+		});
+	});
+
+	// ---- Subagent events ------------------------------------------------
+
+	suite('subagent events', () => {
+
+		test('maps subagent.started event to subagent_started progress event', async () => {
+			const events: ISessionEvent[] = [
+				{
+					type: 'subagent.started',
+					data: {
+						toolCallId: 'tc-1',
+						agentName: 'code-reviewer',
+						agentDisplayName: 'Code Reviewer',
+						agentDescription: 'Reviews code',
+					},
+				},
+			];
+
+			const result = await mapSessionEvents(session, undefined, events);
+			assert.strictEqual(result.length, 1);
+			assert.strictEqual(result[0].type, 'subagent_started');
+			const event = result[0] as { type: string; toolCallId: string; agentName: string; agentDisplayName: string };
+			assert.strictEqual(event.toolCallId, 'tc-1');
+			assert.strictEqual(event.agentName, 'code-reviewer');
+			assert.strictEqual(event.agentDisplayName, 'Code Reviewer');
 		});
 	});
 });

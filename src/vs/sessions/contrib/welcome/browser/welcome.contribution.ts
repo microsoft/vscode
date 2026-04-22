@@ -3,125 +3,101 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import './media/welcomeOverlay.css';
+import { isWeb } from '../../../../base/common/platform.js';
 import { Disposable, DisposableStore, MutableDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
-import { $, append } from '../../../../base/browser/dom.js';
 import { autorun } from '../../../../base/common/observable.js';
-import { Codicon } from '../../../../base/common/codicons.js';
-import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
-import { Button } from '../../../../base/browser/ui/button/button.js';
-import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultStyles.js';
-import { localize, localize2 } from '../../../../nls.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
+import { localize2 } from '../../../../nls.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../workbench/common/contributions.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
-import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { ChatEntitlement, ChatEntitlementService, IChatEntitlementService } from '../../../../workbench/services/chat/common/chatEntitlementService.js';
-import { CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../../../../workbench/contrib/chat/browser/actions/chatActions.js';
 import { IInstantiationService, ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
 import { Action2, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { Categories } from '../../../../platform/action/common/actionCommonCategories.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
 import { IWorkbenchEnvironmentService } from '../../../../workbench/services/environment/common/environmentService.js';
+import { IAuthenticationService } from '../../../../workbench/services/authentication/common/authentication.js';
+import { SessionsWalkthroughOverlay, WalkthroughOutcome } from './sessionsWalkthrough.js';
+import { WELCOME_COMPLETE_KEY } from '../../../common/welcome.js';
 
-const WELCOME_COMPLETE_KEY = 'workbench.agentsession.welcomeComplete';
-
-class SessionsWelcomeOverlay extends Disposable {
-
-	private readonly overlay: HTMLElement;
-
-	constructor(
-		container: HTMLElement,
-		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
-		@ICommandService private readonly commandService: ICommandService,
-		@IExtensionService private readonly extensionService: IExtensionService,
-		@ILogService private readonly logService: ILogService,
-	) {
-		super();
-
-		this.overlay = append(container, $('.sessions-welcome-overlay'));
-		this.overlay.setAttribute('role', 'dialog');
-		this.overlay.setAttribute('aria-modal', 'true');
-		this.overlay.setAttribute('aria-label', localize('welcomeOverlay.aria', "Sign in to use Sessions"));
-		this._register(toDisposable(() => this.overlay.remove()));
-
-		const card = append(this.overlay, $('.sessions-welcome-card'));
-
-		// Header — large icon + title, centered
-		const header = append(card, $('.sessions-welcome-header'));
-		const iconEl = append(header, $('span.sessions-welcome-icon'));
-		iconEl.appendChild(renderIcon(Codicon.agent));
-		append(header, $('h2', undefined, localize('welcomeTitle', "Sign in to use Sessions")));
-		append(header, $('p.sessions-welcome-subtitle', undefined, localize('welcomeSubtitle', "Agent-powered development")));
-
-		// Action area
-		const actionArea = append(card, $('.sessions-welcome-action-area'));
-		const actionButton = this._register(new Button(actionArea, { ...defaultButtonStyles }));
-		actionButton.label = localize('sessions.getStarted', "Get Started");
-
-		const spinnerContainer = append(actionArea, $('.sessions-welcome-spinner'));
-		spinnerContainer.style.display = 'none';
-
-		const errorContainer = append(actionArea, $('p.sessions-welcome-error'));
-		errorContainer.style.display = 'none';
-
-		this._register(actionButton.onDidClick(() => this._runSetup(actionButton, spinnerContainer, errorContainer)));
-
-		// Focus the button so the overlay traps keyboard input
-		actionButton.focus();
+function shouldSkipSessionsWelcome(environmentService: IWorkbenchEnvironmentService): boolean {
+	const envArgs = (environmentService as IWorkbenchEnvironmentService & { args?: Record<string, unknown> }).args;
+	if (envArgs?.['skip-sessions-welcome']) {
+		return true;
 	}
 
-	private async _runSetup(button: Button, spinner: HTMLElement, error: HTMLElement): Promise<void> {
-		button.enabled = false;
-		error.style.display = 'none';
+	return typeof globalThis.location !== 'undefined' && new URLSearchParams(globalThis.location.search).has('skip-sessions-welcome');
+}
 
-		spinner.textContent = '';
-		spinner.appendChild(renderIcon(Codicon.loading));
-		append(spinner, $('span', undefined, localize('sessions.settingUp', "Setting up…")));
-		spinner.style.display = '';
+function needsChatSetup(chatEntitlementService: Pick<IChatEntitlementService, 'sentiment' | 'entitlement' | 'anonymous'>, includeUnknown: boolean = true): boolean {
+	const { sentiment, entitlement } = chatEntitlementService;
+	return (
+		!sentiment?.completed || // Setup not yet completed
+		sentiment?.disabled ||
+		entitlement === ChatEntitlement.Available ||
+		(
+			includeUnknown &&
+			entitlement === ChatEntitlement.Unknown &&
+			!chatEntitlementService.anonymous
+		)
+	);
+}
 
-		try {
-			const success = await this.commandService.executeCommand<boolean>(CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID, {
-				dialogIcon: Codicon.agent,
-				dialogTitle: this.chatEntitlementService.anonymous ?
-					localize('sessions.startUsingSessions', "Start using Sessions") :
-					localize('sessions.signinRequired', "Sign in to use Sessions"),
-			});
+function shouldPersistWelcomeCompletion(outcome: WalkthroughOutcome, chatEntitlementService: Pick<IChatEntitlementService, 'sentiment' | 'entitlement' | 'anonymous'>): boolean {
+	return outcome === 'completed' || !needsChatSetup(chatEntitlementService);
+}
 
-			if (success) {
-				spinner.textContent = '';
-				spinner.appendChild(renderIcon(Codicon.loading));
-				append(spinner, $('span', undefined, localize('sessions.restarting', "Completing setup…")));
+export function resetSessionsWelcome(
+	storageService: Pick<IStorageService, 'remove' | 'store'>,
+	instantiationService: IInstantiationService,
+	layoutService: IWorkbenchLayoutService,
+	chatEntitlementService: Pick<IChatEntitlementService, 'sentimentObs' | 'entitlementObs' | 'sentiment' | 'entitlement' | 'anonymous'>,
+	contextKeyService: IContextKeyService,
+	environmentService: IWorkbenchEnvironmentService,
+	logService: ILogService,
+): void {
+	// Clear completion marker
+	storageService.remove(WELCOME_COMPLETE_KEY, StorageScope.APPLICATION);
 
-				this.logService.info('[sessions welcome] Restarting extension host after setup completion');
-				const stopped = await this.extensionService.stopExtensionHosts(
-					localize('sessionsWelcome.restart', "Completing sessions setup")
-				);
-				if (stopped) {
-					await this.extensionService.startExtensionHosts();
-				}
-			} else {
-				button.enabled = true;
-				spinner.style.display = 'none';
-			}
-		} catch (err) {
-			this.logService.error('[sessions welcome] Setup failed:', err);
-			error.textContent = localize('sessions.setupError', "Something went wrong. Please try again.");
-			error.style.display = '';
-			button.enabled = true;
-			spinner.style.display = 'none';
+	if (shouldSkipSessionsWelcome(environmentService)) {
+		return;
+	}
+
+	// Immediately show the walkthrough overlay
+	const store = new DisposableStore();
+	const welcomeVisibleKey = SessionsWelcomeVisibleContext.bindTo(contextKeyService);
+	welcomeVisibleKey.set(true);
+	store.add(toDisposable(() => welcomeVisibleKey.reset()));
+
+	const walkthrough = store.add(instantiationService.createInstance(
+		SessionsWalkthroughOverlay,
+		layoutService.mainContainer,
+	));
+
+	store.add(autorun(reader => {
+		chatEntitlementService.sentimentObs.read(reader);
+		chatEntitlementService.entitlementObs.read(reader);
+
+		if (!needsChatSetup(chatEntitlementService)) {
+			storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			walkthrough.complete();
+			store.dispose();
 		}
-	}
+	}));
 
-	dismiss(): void {
-		this.overlay.classList.add('sessions-welcome-overlay-dismissed');
-		const handle = setTimeout(() => this.dispose(), 200);
-		this._register(toDisposable(() => clearTimeout(handle)));
-	}
+	walkthrough.outcome
+		.then(outcome => {
+			logService.info(`[sessions welcome] Developer reset walkthrough finished with outcome: ${outcome}`);
+			if (shouldPersistWelcomeCompletion(outcome, chatEntitlementService)) {
+				storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			}
+		})
+		.finally(() => {
+			store.dispose();
+		});
 }
 
 export class SessionsWelcomeContribution extends Disposable implements IWorkbenchContribution {
@@ -139,6 +115,8 @@ export class SessionsWelcomeContribution extends Disposable implements IWorkbenc
 		@IStorageService private readonly storageService: IStorageService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IWorkbenchEnvironmentService private readonly environmentService: IWorkbenchEnvironmentService,
+		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
+		@ILogService private readonly logService: ILogService,
 	) {
 		super();
 
@@ -149,25 +127,74 @@ export class SessionsWelcomeContribution extends Disposable implements IWorkbenc
 		// Allow automated tests to skip the welcome overlay entirely.
 		// Desktop: --skip-sessions-welcome CLI flag
 		// Web: ?skip-sessions-welcome query parameter
-		const envArgs = (this.environmentService as IWorkbenchEnvironmentService & { args?: Record<string, unknown> }).args;
-		if (envArgs?.['skip-sessions-welcome']) {
-			return;
-		}
-		if (typeof globalThis.location !== 'undefined' && new URLSearchParams(globalThis.location.search).has('skip-sessions-welcome')) {
+		if (shouldSkipSessionsWelcome(this.environmentService)) {
 			return;
 		}
 
+		if (isWeb) {
+			// On web, show the walkthrough if the user is not authenticated.
+			// Auth is handled by the walkthrough's GitHub button via
+			// IAuthenticationService. Discovery runs separately after auth.
+			this._checkWebAuth();
+			this._watchWebAuth();
+			return;
+		}
 		const isFirstLaunch = !this.storageService.getBoolean(WELCOME_COMPLETE_KEY, StorageScope.APPLICATION, false);
 		if (isFirstLaunch) {
-			this.showOverlay();
+			this.showWalkthrough();
 		} else {
-			this.showOverlayIfNeeded();
+			this.showWalkthroughIfNeeded();
 		}
 	}
 
-	private showOverlayIfNeeded(): void {
+	/**
+	 * Web-only: check if the user has a GitHub session. If not, show the
+	 * walkthrough so they can sign in. If they're already authenticated,
+	 * skip the walkthrough and let discovery handle the rest.
+	 */
+	private async _checkWebAuth(): Promise<void> {
+		try {
+			const sessions = await this.authenticationService.getSessions('github');
+			if (sessions.length > 0) {
+				this.logService.info('[sessions welcome] GitHub session found on web, skipping walkthrough');
+				this.storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+				return;
+			}
+		} catch {
+			// Provider not available yet — show walkthrough
+		}
+		this.showWalkthrough();
+	}
+
+	/**
+	 * Web-only: react to GitHub session loss. When the user's last GitHub
+	 * session is removed (token expired, secret storage wiped, or explicit
+	 * sign-out from the account menu), clear the welcome completion marker
+	 * and show the sign-in walkthrough again. Without this, passive sign-out
+	 * leaves the user on a seemingly-working workbench with a stale UI.
+	 */
+	private _watchWebAuth(): void {
+		this._register(this.authenticationService.onDidChangeSessions(async e => {
+			if (e.providerId !== 'github' || !e.event.removed?.length) {
+				return;
+			}
+			try {
+				const remaining = await this.authenticationService.getSessions('github');
+				if (remaining.length > 0) {
+					return;
+				}
+			} catch {
+				// Provider became unavailable — treat as signed out
+			}
+			this.logService.info('[sessions welcome] GitHub session removed on web, re-showing walkthrough');
+			this.storageService.remove(WELCOME_COMPLETE_KEY, StorageScope.APPLICATION);
+			this.showWalkthrough();
+		}));
+	}
+
+	private showWalkthroughIfNeeded(): void {
 		if (this._needsChatSetup()) {
-			this.showOverlay();
+			this.showWalkthrough();
 		} else {
 			this.watchEntitlementState();
 		}
@@ -178,10 +205,11 @@ export class SessionsWelcomeContribution extends Disposable implements IWorkbenc
 	 * completed. If the user's state changes such that setup is needed again
 	 * (e.g. extension uninstalled/disabled), shows the welcome overlay.
 	 *
-	 * {@link ChatEntitlement.Unknown} is intentionally ignored here: it is
-	 * almost always a transient state caused by a stale OAuth token being
-	 * refreshed after an update. A genuine sign-out will be caught on the
-	 * next app launch via the initial {@link showOverlayIfNeeded} check.
+	 * {@link ChatEntitlement.Unknown} is intentionally ignored here while the
+	 * welcome completion marker remains set: it is almost always a transient
+	 * state caused by a stale OAuth token being refreshed after an update.
+	 * Explicit sign-out clears that marker first so the next Unknown transition
+	 * immediately returns the user to the sign-in walkthrough.
 	 */
 	private watchEntitlementState(): void {
 		let setupComplete = !this._needsChatSetup(false);
@@ -189,62 +217,61 @@ export class SessionsWelcomeContribution extends Disposable implements IWorkbenc
 			this.chatEntitlementService.sentimentObs.read(reader);
 			this.chatEntitlementService.entitlementObs.read(reader);
 
-			const needsSetup = this._needsChatSetup(false);
+			const includeUnknown = !this.storageService.getBoolean(WELCOME_COMPLETE_KEY, StorageScope.APPLICATION, false);
+			const needsSetup = this._needsChatSetup(includeUnknown);
 			if (setupComplete && needsSetup) {
-				this.showOverlay();
+				this.showWalkthrough();
 			}
 			setupComplete = !needsSetup;
 		});
 	}
 
 	private _needsChatSetup(includeUnknown: boolean = true): boolean {
-		const { sentiment, entitlement } = this.chatEntitlementService;
-		if (
-			!sentiment?.installed ||						// Extension not installed: run setup to install
-			sentiment?.disabled ||							// Extension disabled: run setup to enable
-			entitlement === ChatEntitlement.Available ||	// Entitlement available: run setup to sign up
-			(
-				includeUnknown &&
-				entitlement === ChatEntitlement.Unknown &&	// Entitlement unknown: run setup to sign in / sign up
-				!this.chatEntitlementService.anonymous		// unless anonymous access is enabled
-			)
-		) {
-			return true;
-		}
-
-		return false;
+		return needsChatSetup(this.chatEntitlementService, includeUnknown);
 	}
 
-	private showOverlay(): void {
+	private showWalkthrough(): void {
 		if (this.overlayRef.value) {
 			return;
 		}
 
 		this.watcherRef.clear();
 		this.overlayRef.value = new DisposableStore();
+		let welcomeCompletionStored = false;
 
 		// Mark the welcome overlay as visible for titlebar disabling
 		const welcomeVisibleKey = SessionsWelcomeVisibleContext.bindTo(this.contextKeyService);
 		welcomeVisibleKey.set(true);
 		this.overlayRef.value.add(toDisposable(() => welcomeVisibleKey.reset()));
 
-		const overlay = this.overlayRef.value.add(this.instantiationService.createInstance(
-			SessionsWelcomeOverlay,
+		const walkthrough = this.overlayRef.value.add(this.instantiationService.createInstance(
+			SessionsWalkthroughOverlay,
 			this.layoutService.mainContainer,
 		));
 
-		// When setup completes (observables flip), dismiss and watch again
+		// When chat setup completes (observables flip), persist completion and
+		// finish the walkthrough so the app can render immediately.
 		this.overlayRef.value.add(autorun(reader => {
 			this.chatEntitlementService.sentimentObs.read(reader);
 			this.chatEntitlementService.entitlementObs.read(reader);
 
-			if (!this._needsChatSetup()) {
+			if (!welcomeCompletionStored && !this._needsChatSetup()) {
+				welcomeCompletionStored = true;
 				this.storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
-				overlay.dismiss();
-				this.overlayRef.clear();
-				this.watchEntitlementState();
+				walkthrough.complete();
 			}
 		}));
+
+		// Handle the walkthrough outcome
+		walkthrough.outcome.then(outcome => {
+			this.logService.info(`[sessions welcome] Walkthrough finished with outcome: ${outcome}`);
+			if (!welcomeCompletionStored && shouldPersistWelcomeCompletion(outcome, this.chatEntitlementService)) {
+				welcomeCompletionStored = true;
+				this.storageService.store(WELCOME_COMPLETE_KEY, true, StorageScope.APPLICATION, StorageTarget.MACHINE);
+			}
+			this.overlayRef.clear();
+			this.watchEntitlementState();
+		});
 	}
 }
 
@@ -254,13 +281,19 @@ registerAction2(class extends Action2 {
 	constructor() {
 		super({
 			id: 'workbench.action.resetSessionsWelcome',
-			title: localize2('resetSessionsWelcome', "Reset Sessions Welcome"),
+			title: localize2('resetSessionsWelcome', "Reset Agents Welcome"),
 			category: Categories.Developer,
 			f1: true,
 		});
 	}
 	run(accessor: ServicesAccessor): void {
 		const storageService = accessor.get(IStorageService);
-		storageService.remove(WELCOME_COMPLETE_KEY, StorageScope.APPLICATION);
+		const instantiationService = accessor.get(IInstantiationService);
+		const layoutService = accessor.get(IWorkbenchLayoutService);
+		const chatEntitlementService = accessor.get(IChatEntitlementService);
+		const contextKeyService = accessor.get(IContextKeyService);
+		const environmentService = accessor.get(IWorkbenchEnvironmentService);
+		const logService = accessor.get(ILogService);
+		resetSessionsWelcome(storageService, instantiationService, layoutService, chatEntitlementService, contextKeyService, environmentService, logService);
 	}
 });

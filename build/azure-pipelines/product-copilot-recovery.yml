@@ -1,0 +1,74 @@
+name: $(Date:yyyyMMdd)$(Rev:.r)
+
+trigger: none
+pr: none
+
+resources:
+  repositories:
+    - repository: templates
+      type: github
+      name: microsoft/vscode-engineering
+      ref: main
+      endpoint: Monaco
+
+parameters:
+  - name: customNPMRegistry
+    displayName: Custom NPM Registry (Terrapin)
+    type: boolean
+    default: true
+  - name: publishExtension
+    displayName: Publish Stable Recovery Extension
+    type: boolean
+    default: false
+
+variables:
+  - name: VSCODE_QUALITY
+    value: stable
+
+extends:
+  template: azure-pipelines/extension/stable.yml@templates
+  parameters:
+    workingDirectory: ./extensions/copilot
+    l10nSourcePaths: ./extensions/copilot/src
+    nodeVersion: 22.21.x
+
+    cgIgnoreDirectories: $(Build.SourcesDirectory)/extensions/copilot/script
+
+    # Suppress false positive strings SG.default.* that show up in
+    # dist/extension.js after the build. The original strings come from ora.
+    vscePackageArgs: '--allow-package-secrets sendgrid'
+
+    buildSteps:
+      - ${{ if eq(parameters.publishExtension, true) }}:
+        - ${{ if not(startsWith(variables['Build.SourceBranch'], 'refs/heads/release/')) }}:
+          - script: |
+              echo "##vso[task.logissue type=error]publishExtension requires a release/* branch"
+              exit 1
+            displayName: Validate release branch
+
+      - template: copilot/setup-steps.yml
+      - template: copilot/build-steps.yml
+
+    uploadSourceMaps:
+      enabled: true
+
+    testSteps:
+      - checkout: self
+        lfs: true
+      - template: copilot/setup-steps.yml
+      - template: copilot/test-steps.yml
+
+    tsa:
+      config:
+        areaPath: 'Visual Studio Code Copilot Extensions'
+        serviceTreeID: '1788a767-5861-45fb-973b-c686b67c5541'
+      enabled: true
+
+    ${{ if eq(parameters.customNPMRegistry, false) }}:
+      customNPMRegistry: ''
+
+    generateNotice: true
+
+    publishExtension: ${{ parameters.publishExtension }}
+    ghReleasePublishVSIX: true
+    ghTagPrefix: 'copilot/'

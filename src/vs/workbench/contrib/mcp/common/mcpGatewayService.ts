@@ -53,8 +53,11 @@ export interface IWorkbenchMcpGatewayService {
 	 * @param inRemote Whether to create the gateway in the remote environment.
 	 * If true, the gateway is created on the remote server (requires a remote connection).
 	 * If false, the gateway is created locally (requires a local Node process, e.g., desktop).
+	 * @param chatSessionResource Optional chat session resource URI to associate with this
+	 * gateway. When provided, MCP tool calls made through this gateway will be associated
+	 * with the chat session, enabling inline elicitation UI instead of notification fallback.
 	 * @returns A promise that resolves to the gateway result if successful,
 	 * or `undefined` if the requested environment is not available.
 	 */
-	createGateway(inRemote: boolean): Promise<IMcpGatewayResult | undefined>;
+	createGateway(inRemote: boolean, chatSessionResource?: URI): Promise<IMcpGatewayResult | undefined>;
 }

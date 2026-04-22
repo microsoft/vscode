@@ -20,7 +20,7 @@ import { localize, localize2 } from '../../../../../nls.js';
 import { IActionViewItemService } from '../../../../../platform/actions/browser/actionViewItemService.js';
 import { Action2, MenuId, MenuRegistry, registerAction2 } from '../../../../../platform/actions/common/actions.js';
 import { CommandsRegistry, ICommandService } from '../../../../../platform/commands/common/commands.js';
-import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ConfigurationTarget, IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { ContextKeyExpr, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { IsWebContext } from '../../../../../platform/contextkey/common/contextkeys.js';
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
@@ -51,7 +51,7 @@ import { ChatAgentLocation, ChatConfiguration, ChatModeKind } from '../../common
 import { CHAT_CATEGORY, CHAT_SETUP_ACTION_ID, CHAT_SETUP_SUPPORT_ANONYMOUS_ACTION_ID } from '../actions/chatActions.js';
 import { ChatViewContainerId, IChatWidgetService } from '../chat.js';
 import { chatViewsWelcomeRegistry } from '../viewsWelcome/chatViewsWelcome.js';
-import { ChatSetupAnonymous } from './chatSetup.js';
+import { ChatSetupAnonymous, ChatSetupStrategy } from './chatSetup.js';
 import { ChatSetupController } from './chatSetupController.js';
 import { GrowthSessionController, registerGrowthSession } from './chatSetupGrowthSession.js';
 import { AICodeActionsHelper, AINewSymbolNamesProvider, ChatCodeActionsProvider, SetupAgent } from './chatSetupProviders.js';
@@ -113,7 +113,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 			// Agent + Tools
 			{
-				if (!context.state.hidden && !context.state.disabled) {
+				if (!context.state.hidden && !context.state.disabledInWorkspace) {
 
 					// Default Agents (always, even if installed to allow for speedy requests right on startup)
 					if (!defaultAgentDisposables.value) {
@@ -144,8 +144,8 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						disposables.add(SetupAgent.registerDefaultAgents(this.instantiationService, ChatAgentLocation.EditorInline, ChatModeKind.Ask, context, controller).disposable);
 					}
 
-					// Built-In Agent + Tool (unless installed, signed-in and enabled)
-					if ((!context.state.installed || context.state.entitlement === ChatEntitlement.Unknown || context.state.entitlement === ChatEntitlement.Unresolved) && !vscodeAgentDisposables.value) {
+					// Built-In Agent + Tool (unless completed, signed-in and enabled)
+					if ((!context.state.completed || context.state.entitlement === ChatEntitlement.Unknown || context.state.entitlement === ChatEntitlement.Unresolved) && !vscodeAgentDisposables.value) {
 						const disposables = vscodeAgentDisposables.value = new DisposableStore();
 						disposables.add(SetupAgent.registerBuiltInAgents(this.instantiationService, context, controller));
 					}
@@ -154,14 +154,14 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					vscodeAgentDisposables.clear();
 				}
 
-				if (context.state.installed && !context.state.disabled) {
+				if (context.state.completed) {
 					vscodeAgentDisposables.clear(); // we need to do this to prevent showing duplicate agent/tool entries in the list
 				}
 			}
 
 			// Rename Provider
 			{
-				if (!context.state.installed && !context.state.hidden && !context.state.disabled) {
+				if (!context.state.completed && !context.state.hidden && !context.state.disabledInWorkspace) {
 					if (!renameProviderDisposables.value) {
 						renameProviderDisposables.value = AINewSymbolNamesProvider.registerProvider(this.instantiationService, context, controller);
 					}
@@ -172,7 +172,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 			// Code Actions Provider
 			{
-				if (!context.state.installed && !context.state.hidden && !context.state.disabled) {
+				if (!context.state.completed && !context.state.hidden && !context.state.disabledInWorkspace) {
 					if (!codeActionsProviderDisposables.value) {
 						codeActionsProviderDisposables.value = ChatCodeActionsProvider.registerProvider(this.instantiationService);
 					}
@@ -190,9 +190,9 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 		const updateGrowthSession = () => {
 			const experimentEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.GrowthNotificationEnabled) === true;
-			// Show for users who don't have the Copilot extension installed yet.
+			// Show for users who don't have completed the Chat setup yet.
 			// Additional conditions (e.g., anonymous, entitlement) can be layered here.
-			const shouldShow = experimentEnabled && !chatEntitlementService.sentiment.installed;
+			const shouldShow = experimentEnabled && !chatEntitlementService.sentiment.completed;
 			if (shouldShow && !growthSessionDisposables.value) {
 				const disposables = new DisposableStore();
 				const controller = disposables.add(this.instantiationService.createInstance(GrowthSessionController));
@@ -232,15 +232,15 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					f1: true,
 					precondition: ContextKeyExpr.or(
 						ChatContextKeys.Setup.hidden,
-						ChatContextKeys.Setup.disabled,
+						ChatContextKeys.Setup.disabledInWorkspace,
 						ChatContextKeys.Setup.untrusted,
-						ChatContextKeys.Setup.installed.negate(),
+						ChatContextKeys.Setup.completed.negate(),
 						ChatContextKeys.Entitlement.canSignUp
 					)
 				});
 			}
 
-			override async run(accessor: ServicesAccessor, mode?: ChatModeKind | string, options?: { forceSignInDialog?: boolean; additionalScopes?: readonly string[]; forceAnonymous?: ChatSetupAnonymous; inputValue?: string; dialogIcon?: ThemeIcon; dialogTitle?: string }): Promise<boolean> {
+			override async run(accessor: ServicesAccessor, mode?: ChatModeKind | string, options?: { forceSignInDialog?: boolean; additionalScopes?: readonly string[]; forceAnonymous?: ChatSetupAnonymous; inputValue?: string; dialogIcon?: ThemeIcon; dialogTitle?: string; setupStrategy?: ChatSetupStrategy }): Promise<boolean> {
 				const widgetService = accessor.get(IChatWidgetService);
 				const instantiationService = accessor.get(IInstantiationService);
 				const dialogService = accessor.get(IDialogService);
@@ -289,7 +289,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 				});
 			}
 
-			override async run(accessor: ServicesAccessor, options?: { dialogIcon?: ThemeIcon; dialogTitle?: string }): Promise<unknown> {
+			override async run(accessor: ServicesAccessor, options?: { dialogIcon?: ThemeIcon; dialogTitle?: string; setupStrategy?: ChatSetupStrategy }): Promise<unknown> {
 				const commandService = accessor.get(ICommandService);
 				const telemetryService = accessor.get(ITelemetryService);
 				const chatEntitlementService = accessor.get(IChatEntitlementService);
@@ -352,7 +352,8 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 						group: '2_copilot',
 						when: ContextKeyExpr.and(
 							ChatContextKeys.Setup.hidden.negate(),
-							ChatContextKeys.Setup.installed.negate(),
+							ChatContextKeys.Setup.disabledInWorkspace.negate(),
+							ChatContextKeys.Setup.completed.negate(),
 							ChatContextKeys.Entitlement.signedOut
 						)
 					}
@@ -386,6 +387,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 							ContextKeyExpr.has(`config.${ChatConfiguration.SignInTitleBarEnabled}`),
 							ChatContextKeys.Entitlement.signedOut,
 							ChatContextKeys.Setup.hidden.negate(),
+							ChatContextKeys.Setup.disabledInWorkspace.negate(),
 							ContextKeyExpr.has('updateTitleBar').negate()
 						),
 					}]
@@ -412,6 +414,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					f1: true,
 					precondition: ContextKeyExpr.and(
 						ChatContextKeys.Setup.hidden.negate(),
+						ChatContextKeys.Setup.disabledInWorkspace.negate(),
 						ContextKeyExpr.or(
 							ChatContextKeys.Entitlement.canSignUp,
 							ChatContextKeys.Entitlement.planFree
@@ -468,6 +471,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					f1: true,
 					precondition: ContextKeyExpr.and(
 						ChatContextKeys.Setup.hidden.negate(),
+						ChatContextKeys.Setup.disabledInWorkspace.negate(),
 						ContextKeyExpr.or(
 							ChatContextKeys.Entitlement.planPro,
 							ChatContextKeys.Entitlement.planProPlus,
@@ -559,8 +563,8 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 		const internalGenerateCodeContext = ContextKeyExpr.and(
 			ChatContextKeys.Setup.hidden.negate(),
-			ChatContextKeys.Setup.disabled.negate(),
-			ChatContextKeys.Setup.installed.negate(),
+			ChatContextKeys.Setup.disabledInWorkspace.negate(),
+			ChatContextKeys.Setup.completed.negate(),
 		);
 
 		MenuRegistry.appendMenuItem(MenuId.EditorContext, {
@@ -616,7 +620,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 		if (this.environmentService.isExtensionDevelopment) {
 			await this.extensionService.whenInstalledExtensionsRegistered();
 			if (this.extensionService.extensions.find(ext => ExtensionIdentifier.equals(ext.identifier, defaultChat.chatExtensionId))) {
-				context.update({ installed: true, disabled: false, untrusted: false });
+				context.update({ installed: true, disabled: false, untrusted: false, disabledInWorkspace: false });
 				return;
 			}
 		}
@@ -635,6 +639,7 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 
 			let disabled: boolean;
 			let untrusted = false;
+			let disabledInWorkspace = false;
 			if (installed) {
 				disabled = !this.extensionEnablementService.isEnabled(defaultChatExtension.local);
 				if (disabled) {
@@ -642,13 +647,15 @@ export class ChatSetupContribution extends Disposable implements IWorkbenchContr
 					if (state === EnablementState.DisabledByTrustRequirement) {
 						disabled = false; // not disabled by user choice but
 						untrusted = true; // by missing workspace trust
+					} else if (state === EnablementState.DisabledWorkspace) {
+						disabledInWorkspace = true; // disabled at workspace level
 					}
 				}
 			} else {
 				disabled = false;
 			}
 
-			context.update({ installed, disabled, untrusted });
+			context.update({ installed, disabled, untrusted, disabledInWorkspace });
 		}));
 	}
 }
@@ -752,7 +759,13 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 
 			const defaultChatExtension = this.extensionsWorkbenchService.local.find(value => ExtensionIdentifier.equals(value.identifier.id, defaultChat.chatExtensionId));
 			if (defaultChatExtension?.local && this.extensionEnablementService.isEnabled(defaultChatExtension.local)) {
-				this.configurationService.updateValue(ChatConfiguration.AIDisabled, false);
+				if (defaultChatExtension.enablementState === EnablementState.EnabledWorkspace) {
+					if (this.configurationService.inspect(ChatConfiguration.AIDisabled).workspaceValue === true) {
+						this.configurationService.updateValue(ChatConfiguration.AIDisabled, false, ConfigurationTarget.WORKSPACE);
+					}
+				} else {
+					this.configurationService.updateValue(ChatConfiguration.AIDisabled, false);
+				}
 			}
 		}));
 	}
@@ -792,12 +805,12 @@ export class ChatTeardownContribution extends Disposable implements IWorkbenchCo
 					title: ChatSetupHideAction.TITLE,
 					f1: true,
 					category: CHAT_CATEGORY,
-					precondition: ChatContextKeys.Setup.hidden.negate(),
+					precondition: ContextKeyExpr.and(ChatContextKeys.Setup.hidden.negate(), ChatContextKeys.Setup.disabledInWorkspace.negate()),
 					menu: {
 						id: MenuId.ChatTitleBarMenu,
 						group: 'z_hide',
 						order: 1,
-						when: ChatContextKeys.Setup.installed.negate()
+						when: ChatContextKeys.Setup.completed.negate()
 					}
 				});
 			}

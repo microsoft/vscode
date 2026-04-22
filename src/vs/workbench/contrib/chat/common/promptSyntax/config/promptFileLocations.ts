@@ -5,9 +5,8 @@
 
 import { URI } from '../../../../../../base/common/uri.js';
 import { basename, dirname } from '../../../../../../base/common/resources.js';
-import { PromptsType } from '../promptTypes.js';
+import { PromptFileSource, PromptsType } from '../promptTypes.js';
 import { PromptsStorage } from '../service/promptsService.js';
-import { IExtensionDescription } from '../../../../../../platform/extensions/common/extensions.js';
 
 /**
  * File extension for the reusable prompt files.
@@ -110,30 +109,12 @@ export const CLAUDE_RULES_SOURCE_FOLDER = '.claude/rules';
 export const HOOKS_SOURCE_FOLDER = '.github/hooks';
 
 /**
- * Tracks where prompt files originate from.
- */
-export enum PromptFileSource {
-	GitHubWorkspace = 'github-workspace',
-	CopilotPersonal = 'copilot-personal',
-	ClaudePersonal = 'claude-personal',
-	ClaudeWorkspace = 'claude-workspace',
-	ClaudeWorkspaceLocal = 'claude-workspace-local',
-	AgentsWorkspace = 'agents-workspace',
-	AgentsPersonal = 'agents-personal',
-	ConfigWorkspace = 'config-workspace',
-	ConfigPersonal = 'config-personal',
-	ExtensionContribution = 'extension-contribution',
-	ExtensionAPI = 'extension-api',
-	Plugin = 'plugin',
-}
-
-/**
  * Prompt source folder path with source and storage type.
  */
 export interface IPromptSourceFolder {
 	readonly path: string;
 	readonly source: PromptFileSource;
-	readonly storage: PromptsStorage;
+	readonly storage: PromptsStorage.local | PromptsStorage.user;
 }
 
 /**
@@ -144,7 +125,7 @@ export interface IResolvedPromptSourceFolder {
 	readonly parent: URI; // matches the URI when no glob pattern is used
 	readonly filePattern: string | undefined; // the part of the path with the glob pattern, or undefined if no glob pattern is used
 	readonly source: PromptFileSource;
-	readonly storage: PromptsStorage;
+	readonly storage: PromptsStorage.local | PromptsStorage.user;
 	/**
 	 * The original path string before resolution (e.g., '~/.copilot/agents' or '.github/agents').
 	 * Used for display purposes.
@@ -154,17 +135,6 @@ export interface IResolvedPromptSourceFolder {
 	 * Whether this is a default location (vs user-configured).
 	 */
 	readonly isDefault?: boolean;
-}
-
-/**
- * Resolved prompt markdown file with source and storage type.
- */
-export interface IResolvedPromptFile {
-	readonly fileUri: URI;
-	readonly source: PromptFileSource;
-	readonly storage: PromptsStorage;
-	readonly extension?: IExtensionDescription;
-	readonly pluginUri?: URI;
 }
 
 /**

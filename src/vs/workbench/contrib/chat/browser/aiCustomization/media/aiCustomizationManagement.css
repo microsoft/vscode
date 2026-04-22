@@ -26,69 +26,58 @@
 	flex-direction: column;
 }
 
-.ai-customization-management-editor .sidebar-sections-list {
-	flex: 1;
-	overflow: hidden;
-}
-
-/* Folder picker footer (sessions window only) */
-.ai-customization-management-editor .sidebar-folder-picker {
+.ai-customization-management-editor .sidebar-header-row {
 	flex-shrink: 0;
 	display: flex;
 	align-items: center;
-	gap: 2px;
-	padding: 6px 4px;
-	border-top: 1px solid var(--vscode-sideBarSectionHeader-border, transparent);
+	gap: 4px;
+	padding: 2px 0 6px;
+	margin-bottom: 6px;
+	border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border, var(--vscode-panel-border, var(--vscode-widget-border, transparent)));
 }
 
-.ai-customization-management-editor .folder-picker-button {
+.ai-customization-management-editor .sidebar-home-button {
+	flex-shrink: 0;
 	display: flex;
 	align-items: center;
-	gap: 6px;
-	flex: 1;
-	min-width: 0;
-	padding: 4px 6px;
+	gap: 10px;
+	padding: 4px 8px;
 	border: none;
 	border-radius: 4px;
 	background: transparent;
-	color: var(--vscode-descriptionForeground);
+	color: var(--vscode-foreground);
 	cursor: pointer;
-	font-size: 13px;
+	font-size: 12px;
+	font-weight: 600;
+	line-height: 18px;
+	font-family: inherit;
+	transition: background-color 0.1s ease;
 }
 
-.ai-customization-management-editor .folder-picker-button:hover {
+.ai-customization-management-editor .sidebar-home-button:hover {
 	background-color: var(--vscode-list-hoverBackground);
 }
 
-.ai-customization-management-editor .folder-picker-icon {
-	flex-shrink: 0;
-	font-size: 14px;
+.ai-customization-management-editor .sidebar-home-button:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
 }
 
-.ai-customization-management-editor .folder-picker-label {
+.ai-customization-management-editor .sidebar-home-icon {
+	flex-shrink: 0;
+	font-size: 14px;
+	opacity: 0.85;
+}
+
+.ai-customization-management-editor .sidebar-home-label {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	white-space: nowrap;
 }
 
-.ai-customization-management-editor .folder-picker-clear {
-	flex-shrink: 0;
-	display: flex;
-	align-items: center;
-	justify-content: center;
-	width: 22px;
-	height: 22px;
-	padding: 0;
-	border: none;
-	border-radius: 4px;
-	background: transparent;
-	color: var(--vscode-descriptionForeground);
-	cursor: pointer;
-	font-size: 12px;
-}
-
-.ai-customization-management-editor .folder-picker-clear:hover {
-	background-color: var(--vscode-list-hoverBackground);
+.ai-customization-management-editor .sidebar-sections-list {
+	flex: 1;
+	overflow: hidden;
 }
 
 /* Section list items */
@@ -107,17 +96,13 @@
 }
 
 /* Selected section - using list selection */
-.ai-customization-management-editor .monaco-list .monaco-list-row.selected .section-list-item {
-	background-color: var(--vscode-list-activeSelectionBackground);
-	color: var(--vscode-list-activeSelectionForeground);
+.ai-customization-management-editor .monaco-list .monaco-list-row.section-list-item.selected .section-icon {
+	color: inherit;
+	opacity: 1;
 }
 
-.ai-customization-management-editor .monaco-list .monaco-list-row.selected .section-list-item .section-icon {
-	color: var(--vscode-list-activeSelectionIconForeground, var(--vscode-list-activeSelectionForeground));
-}
-
-.ai-customization-management-editor .monaco-list .monaco-list-row.selected .section-list-item .section-label {
-	color: var(--vscode-list-activeSelectionForeground);
+.ai-customization-management-editor .monaco-list .monaco-list-row.section-list-item.selected .section-count {
+	color: inherit;
 }
 
 .ai-customization-management-editor .section-icon {
@@ -159,8 +144,49 @@
 
 .ai-customization-management-editor .content-inner {
 	height: 100%;
-	padding: 8px 12px;
+	padding: 10px;
 	box-sizing: border-box;
+}
+
+.ai-customization-management-editor .section-back-arrow-button {
+	flex-shrink: 0;
+	align-self: flex-start;
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	width: 26px;
+	height: 26px;
+	padding: 0;
+	border: none;
+	border-radius: 4px;
+	background: transparent;
+	color: var(--vscode-foreground);
+	cursor: pointer;
+	font-family: inherit;
+	opacity: 0.8;
+	transition: background-color 0.1s ease, opacity 0.1s ease;
+}
+
+.ai-customization-management-editor .section-back-arrow-button:hover {
+	background-color: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground));
+	opacity: 1;
+}
+
+.ai-customization-management-editor .section-back-arrow-button:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+.ai-customization-management-editor .section-back-arrow-icon {
+	font-size: 14px;
+	opacity: 0.85;
+}
+
+.ai-customization-management-editor .section-back-bar {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	margin-bottom: 8px;
 }
 
 /* List Widget */
@@ -173,8 +199,8 @@
 
 /* Harness dropdown in sidebar */
 .ai-customization-management-editor .sidebar-harness-dropdown {
-	flex-shrink: 0;
-	padding: 6px 4px 4px;
+	flex: 1;
+	min-width: 0;
 }
 
 .ai-customization-management-editor .harness-dropdown-button {
@@ -228,7 +254,7 @@
 	align-items: center;
 	gap: 8px;
 	flex-shrink: 0;
-	padding: 6px 0;
+	padding: 6px 2px;
 }
 
 .ai-customization-list-widget .list-search-container,
@@ -465,6 +491,25 @@
 	line-height: 16px;
 }
 
+/* Status icon for remote customization items (loading/loaded/degraded/error) */
+.ai-customization-list-item .item-status-icon {
+	flex-shrink: 0;
+	width: 16px;
+	height: 16px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 14px;
+}
+
+/* Sync checkbox for local items in remote agent harness view */
+.ai-customization-list-item .item-sync-checkbox {
+	flex-shrink: 0;
+	display: flex;
+	align-items: center;
+	margin-right: 4px;
+}
+
 /* MCP bridged badge — shown inline next to the server name */
 .mcp-server-item .mcp-server-name-row {
 	display: flex;
@@ -552,7 +597,6 @@
 .ai-customization-list-widget .section-footer .section-footer-description {
 	font-size: 13px;
 	color: var(--vscode-descriptionForeground);
-	line-height: 1.5;
 	margin: 0 0 8px 0;
 }
 
@@ -792,6 +836,73 @@
 	margin-top: 16px;
 }
 
+/* MCP Disabled (access blocked) state */
+.mcp-list-widget .mcp-disabled-state {
+	display: none;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	padding: 48px 24px;
+	gap: 8px;
+	text-align: center;
+	flex: 1;
+}
+
+.mcp-list-widget .mcp-disabled-state .empty-state-header {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 8px;
+}
+
+.mcp-list-widget .mcp-disabled-state .empty-icon.codicon::before {
+	font-size: 48px;
+}
+
+.mcp-list-widget .mcp-disabled-state .empty-icon {
+	opacity: 0.5;
+	margin-bottom: 8px;
+	height: 48px;
+	width: 48px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+}
+
+.mcp-list-widget .mcp-disabled-state .empty-text {
+	font-size: 16px;
+	font-weight: 500;
+	color: var(--vscode-foreground);
+}
+
+.mcp-list-widget .mcp-disabled-state .empty-subtext {
+	font-size: 13px;
+	color: var(--vscode-descriptionForeground);
+	max-width: 420px;
+	line-height: 1.5;
+}
+
+.mcp-list-widget .mcp-disabled-state .mcp-disabled-settings-link {
+	color: var(--vscode-textLink-foreground);
+	cursor: pointer;
+	text-decoration: none;
+}
+
+.mcp-list-widget .mcp-disabled-state .mcp-disabled-settings-link:hover,
+.mcp-list-widget .mcp-disabled-state .mcp-disabled-settings-link:focus {
+	color: var(--vscode-textLink-activeForeground);
+	text-decoration: underline;
+	outline: none;
+}
+
+.mcp-list-widget.access-disabled > *:not(.mcp-disabled-state) {
+	display: none !important;
+}
+
+.mcp-list-widget.access-disabled .mcp-disabled-state {
+	display: flex;
+}
+
 /* MCP Server Item */
 .mcp-server-item {
 	display: flex;
@@ -889,26 +1000,12 @@
 	display: flex;
 	gap: 4px;
 	flex-shrink: 0;
+	/* Reserve space so focused button outlines do not clip against the widget's overflow:hidden */
+	padding: 1px;
 }
 
-/* Back to installed link */
-.mcp-list-widget .mcp-back-link {
-	display: flex;
-	align-items: center;
-	gap: 4px;
-	padding: 4px 0;
-	cursor: pointer;
-	font-size: 12px;
-	color: var(--vscode-textLink-foreground);
-	flex-shrink: 0;
-}
-
-.mcp-list-widget .mcp-back-link:hover {
-	color: var(--vscode-textLink-activeForeground);
-}
-
-.mcp-list-widget .mcp-back-link:hover span:last-child {
-	text-decoration: underline;
+.mcp-list-widget .list-button-group .monaco-button:focus-visible {
+	outline-offset: -1px;
 }
 
 /* Gallery item specifics */
@@ -932,21 +1029,31 @@
 }
 
 .mcp-gallery-item.extension-list-item {
-	padding: 6px 8px 6px 16px;
+	padding: 6px 16px;
 }
 
-.mcp-gallery-item.extension-list-item > .details > .footer {
-	display: flex;
-	align-items: center;
+.mcp-gallery-item.extension-list-item > .details {
+	flex: 1;
+	min-width: 0;
+	overflow: hidden;
 }
 
-.mcp-gallery-item.extension-list-item .mcp-gallery-action {
-	margin-left: auto;
+.mcp-gallery-item.extension-list-item > .details > .description {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	line-height: 16px;
 }
 
 .mcp-gallery-item .mcp-gallery-install-button {
 	font-size: 11px;
 	padding: 2px 10px;
+}
+
+.mcp-gallery-item .mcp-gallery-install-button:focus-visible {
+	outline-offset: -1px;
 }
 
 /* Embedded Editor View */
@@ -959,18 +1066,19 @@
 .ai-customization-management-editor .editor-header {
 	display: flex;
 	align-items: center;
-	gap: 12px;
-	padding: 8px 4px 12px 4px;
-	border-bottom: 1px solid var(--vscode-widget-border);
+	gap: 8px;
+	padding: 6px 2px;
 	flex-shrink: 0;
 }
 
 .ai-customization-management-editor .editor-back-button {
+	flex-shrink: 0;
+	align-self: flex-start;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	width: 28px;
-	height: 28px;
+	width: 26px;
+	height: 26px;
 	border-radius: 4px;
 	cursor: pointer;
 	background: transparent;
@@ -1058,3 +1166,5 @@
 .ai-customization-management-editor .embedded-editor-container .monaco-editor {
 	border-radius: 4px;
 }
+
+/* Welcome page styles live in the welcome page variant stylesheets. */

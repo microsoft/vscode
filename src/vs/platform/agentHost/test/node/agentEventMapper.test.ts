@@ -14,8 +14,10 @@ import type {
 	IAgentReasoningEvent,
 	IAgentTitleChangedEvent,
 	IAgentToolCompleteEvent,
+	IAgentToolReadyEvent,
 	IAgentToolStartEvent,
 	IAgentUsageEvent,
+	IAgentUserInputRequestEvent,
 } from '../../common/agentService.js';
 import type {
 	IDeltaAction,
@@ -23,6 +25,7 @@ import type {
 	IResponsePartAction,
 	ISessionAction,
 	ISessionErrorAction,
+	ISessionInputRequestedAction,
 	ITitleChangedAction,
 	IToolCallCompleteAction,
 	IToolCallReadyAction,
@@ -30,7 +33,7 @@ import type {
 	ITurnCompleteAction,
 	IUsageAction,
 } from '../../common/state/sessionActions.js';
-import { ToolResultContentType, type IMarkdownResponsePart, type IReasoningResponsePart } from '../../common/state/sessionState.js';
+import { SessionInputQuestionKind, ToolCallConfirmationReason, ToolResultContentType, type IMarkdownResponsePart, type IReasoningResponsePart, type ISessionInputRequest } from '../../common/state/sessionState.js';
 import { AgentEventMapper } from '../../node/agentEventMapper.js';
 
 /** Helper: flatten the result of mapProgressEventToActions into an array. */
@@ -235,7 +238,7 @@ suite('AgentEventMapper', () => {
 		assert.strictEqual(reasoning.partId, partId);
 	});
 
-	test('message event returns undefined', () => {
+	test('message event with no prior deltas creates responsePart', () => {
 		const event: IAgentMessageEvent = {
 			session,
 			type: 'message',
@@ -244,7 +247,179 @@ suite('AgentEventMapper', () => {
 			content: 'Some full message',
 		};
 
+		const actions = mapToArray(mapper.mapProgressEventToActions(event, session.toString(), turnId));
+		assert.strictEqual(actions.length, 1);
+		assert.strictEqual(actions[0].type, 'session/responsePart');
+		const part = (actions[0] as IResponsePartAction).part;
+		assert.strictEqual(part.kind, 'markdown');
+		assert.strictEqual(part.content, 'Some full message');
+	});
+
+	test('message event after deltas returns undefined', () => {
+		// First send a delta so the mapper tracks a current markdown part
+		const delta: IAgentDeltaEvent = { session, type: 'delta', messageId: 'msg-1', content: 'hello' };
+		mapper.mapProgressEventToActions(delta, session.toString(), turnId);
+
+		const event: IAgentMessageEvent = {
+			session,
+			type: 'message',
+			role: 'assistant',
+			messageId: 'msg-1',
+			content: 'hello',
+		};
+
 		const result = mapper.mapProgressEventToActions(event, session.toString(), turnId);
 		assert.strictEqual(result, undefined);
+	});
+
+	test('message event after tool_start creates responsePart for post-tool text', () => {
+		// Delta before tool call
+		const delta: IAgentDeltaEvent = { session, type: 'delta', messageId: 'msg-1', content: 'before' };
+		mapper.mapProgressEventToActions(delta, session.toString(), turnId);
+
+		// Tool call clears the current markdown part
+		const toolStart: IAgentToolStartEvent = {
+			session, type: 'tool_start',
+			toolCallId: 'tc-1', toolName: 'bash', displayName: 'Bash',
+			invocationMessage: 'Running', toolInput: 'ls',
+		};
+		mapper.mapProgressEventToActions(toolStart, session.toString(), turnId);
+
+		// Message event with text that came after the tool call
+		const msg: IAgentMessageEvent = {
+			session, type: 'message', role: 'assistant',
+			messageId: 'msg-2', content: 'after tool',
+		};
+		const actions = mapToArray(mapper.mapProgressEventToActions(msg, session.toString(), turnId));
+		assert.strictEqual(actions.length, 1);
+		assert.strictEqual(actions[0].type, 'session/responsePart');
+		const part = (actions[0] as IResponsePartAction).part;
+		assert.strictEqual(part.kind, 'markdown');
+		assert.strictEqual(part.content, 'after tool');
+	});
+
+	test('message event with user role returns undefined', () => {
+		const event: IAgentMessageEvent = {
+			session, type: 'message', role: 'user',
+			messageId: 'msg-1', content: 'user text',
+		};
+		const result = mapper.mapProgressEventToActions(event, session.toString(), turnId);
+		assert.strictEqual(result, undefined);
+	});
+
+	test('message event with empty content returns undefined', () => {
+		const event: IAgentMessageEvent = {
+			session, type: 'message', role: 'assistant',
+			messageId: 'msg-1', content: '',
+		};
+		const result = mapper.mapProgressEventToActions(event, session.toString(), turnId);
+		assert.strictEqual(result, undefined);
+	});
+
+	test('user_input_request event maps to session/inputRequested action', () => {
+		const request: ISessionInputRequest = {
+			id: 'req-1',
+			message: 'What is your name?',
+			questions: [{
+				kind: SessionInputQuestionKind.Text,
+				id: 'q-1',
+				message: 'What is your name?',
+				required: true,
+			}],
+		};
+		const event: IAgentUserInputRequestEvent = {
+			session,
+			type: 'user_input_request',
+			request,
+		};
+
+		const actions = mapToArray(mapper.mapProgressEventToActions(event, session.toString(), turnId));
+		assert.strictEqual(actions.length, 1);
+		const action = actions[0] as ISessionInputRequestedAction;
+		assert.strictEqual(action.type, 'session/inputRequested');
+		assert.strictEqual(action.session, session.toString());
+		assert.strictEqual(action.request, request);
+	});
+
+	test('tool_start with toolClientId returns only startAction (no auto-ready)', () => {
+		const event: IAgentToolStartEvent = {
+			session,
+			type: 'tool_start',
+			toolCallId: 'tc-client-1',
+			toolName: 'runTests',
+			displayName: 'Run Tests',
+			invocationMessage: 'Running tests...',
+			toolInput: '{"files":["test.ts"]}',
+			toolClientId: 'test-client',
+		};
+
+		const actions = mapToArray(mapper.mapProgressEventToActions(event, session.toString(), turnId));
+		assert.strictEqual(actions.length, 1);
+
+		const startAction = actions[0] as IToolCallStartAction;
+		assert.strictEqual(startAction.type, 'session/toolCallStart');
+		assert.strictEqual(startAction.toolCallId, 'tc-client-1');
+		assert.strictEqual(startAction.toolClientId, 'test-client');
+	});
+
+	test('tool_ready without confirmationTitle auto-confirms with NotNeeded', () => {
+		const event: IAgentToolReadyEvent = {
+			session,
+			type: 'tool_ready',
+			toolCallId: 'tc-client-ready',
+			invocationMessage: 'Running tests...',
+			toolInput: '{"files":["test.ts"]}',
+		};
+
+		const actions = mapToArray(mapper.mapProgressEventToActions(event, session.toString(), turnId));
+		assert.strictEqual(actions.length, 1);
+
+		const readyAction = actions[0] as IToolCallReadyAction;
+		assert.strictEqual(readyAction.type, 'session/toolCallReady');
+		assert.strictEqual(readyAction.toolCallId, 'tc-client-ready');
+		assert.strictEqual(readyAction.confirmed, ToolCallConfirmationReason.NotNeeded);
+	});
+
+	test('tool_ready with confirmationTitle omits confirmed (permission flow)', () => {
+		const event: IAgentToolReadyEvent = {
+			session,
+			type: 'tool_ready',
+			toolCallId: 'tc-perm-ready',
+			invocationMessage: 'Running tests...',
+			toolInput: '{"files":["test.ts"]}',
+			confirmationTitle: 'Allow runTests?',
+		};
+
+		const actions = mapToArray(mapper.mapProgressEventToActions(event, session.toString(), turnId));
+		assert.strictEqual(actions.length, 1);
+
+		const readyAction = actions[0] as IToolCallReadyAction;
+		assert.strictEqual(readyAction.type, 'session/toolCallReady');
+		assert.strictEqual(readyAction.toolCallId, 'tc-perm-ready');
+		assert.strictEqual(readyAction.confirmationTitle, 'Allow runTests?');
+		assert.strictEqual(readyAction.confirmed, undefined);
+	});
+
+	test('tool_start with subagent metadata forwards it as `_meta`', () => {
+		// Per-SDK adapters (e.g. the Copilot adapter) extract subagent
+		// metadata from their tool argument shape and set it on the event.
+		// The generic mapper just forwards the fields into `_meta`.
+		const event: IAgentToolStartEvent = {
+			session,
+			type: 'tool_start',
+			toolCallId: 'tc-sub',
+			toolName: 'task',
+			displayName: 'Task',
+			invocationMessage: 'Delegating...',
+			toolKind: 'subagent',
+			subagentDescription: 'Review the code',
+			subagentAgentName: 'code-reviewer',
+		};
+
+		const actions = mapToArray(mapper.mapProgressEventToActions(event, session.toString(), turnId));
+		const startAction = actions[0] as IToolCallStartAction;
+		assert.strictEqual(startAction._meta?.toolKind, 'subagent');
+		assert.strictEqual(startAction._meta?.subagentDescription, 'Review the code');
+		assert.strictEqual(startAction._meta?.subagentAgentName, 'code-reviewer');
 	});
 });

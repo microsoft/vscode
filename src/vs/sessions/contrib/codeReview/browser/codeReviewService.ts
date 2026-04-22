@@ -14,9 +14,10 @@ import { IStorageService, StorageScope, StorageTarget } from '../../../../platfo
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { hash } from '../../../../base/common/hash.js';
 import { hasKey } from '../../../../base/common/types.js';
-import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
-import { ISessionsManagementService } from '../../sessions/browser/sessionsManagementService.js';
+import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
+import { ISessionFileChange } from '../../../services/sessions/common/session.js';
 
 // --- Types -------------------------------------------------------------------
 
@@ -45,7 +46,7 @@ export interface ICodeReviewFile {
 	readonly baseUri?: URI;
 }
 
-export function getCodeReviewFilesFromSessionChanges(changes: readonly (IChatSessionFileChange | IChatSessionFileChange2)[]): readonly ICodeReviewFile[] {
+export function getCodeReviewFilesFromSessionChanges(changes: readonly ISessionFileChange[]): readonly ICodeReviewFile[] {
 	return changes.map(change => {
 		if (isIChatSessionFileChange2(change)) {
 			return {
@@ -595,9 +596,10 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 	}
 
 	async resolvePRReviewThread(sessionResource: URI, threadId: string): Promise<void> {
-		const context = this._sessionsManagementService.getGitHubContextForSession(sessionResource);
-		if (context?.prNumber !== undefined) {
-			const prModel = this._gitHubService.getPullRequest(context.owner, context.repo, context.prNumber);
+		const session = this._sessionsManagementService.getSession(sessionResource);
+		const gitHubInfo = session?.gitHubInfo.get();
+		if (gitHubInfo?.pullRequest) {
+			const prModel = this._gitHubService.getPullRequest(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number);
 			try {
 				await prModel.resolveThread(threadId);
 			} catch (err) {
@@ -656,15 +658,17 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 			return;
 		}
 
-		const context = this._sessionsManagementService.getGitHubContextForSession(sessionResource);
-		if (!context || context.prNumber === undefined) {
+		const session = this._sessionsManagementService.getSession(sessionResource);
+		const gitHubInfo = session?.gitHubInfo.get();
+		if (!gitHubInfo?.pullRequest) {
 			return;
 		}
 
 		data.initialized = true;
 		data.state.set({ kind: PRReviewStateKind.Loading }, undefined);
 
-		const prModel = this._gitHubService.getPullRequest(context.owner, context.repo, context.prNumber);
+		const prModel = this._gitHubService.getPullRequest(gitHubInfo.owner, gitHubInfo.repo, gitHubInfo.pullRequest.number);
+		const workspace = session?.workspace.get();
 
 		// Watch the PR model's review threads and map to local state
 		data.disposables.add(autorun(reader => {
@@ -680,10 +684,11 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 				if (converted?.has(threadId)) {
 					continue;
 				}
-				const fileUri = this._sessionsManagementService.resolveSessionFileUri(sessionResource, thread.path);
-				if (!fileUri) {
+				const baseUri = workspace?.repositories[0]?.workingDirectory ?? workspace?.repositories[0]?.uri;
+				if (!baseUri) {
 					continue;
 				}
+				const fileUri = URI.joinPath(baseUri, thread.path);
 				const line = thread.line ?? 1;
 				const firstComment = thread.comments[0];
 				comments.push({
@@ -699,7 +704,7 @@ export class CodeReviewService extends Disposable implements ICodeReviewService 
 		}));
 
 		// Start polling and initial fetch
-		prModel.refreshThreads().catch(err => {
+		prModel.refresh().catch(err => {
 			this._logService.error('[CodeReviewService] Failed to fetch PR review threads:', err);
 			data.state.set({ kind: PRReviewStateKind.Error, reason: String(err) }, undefined);
 		});

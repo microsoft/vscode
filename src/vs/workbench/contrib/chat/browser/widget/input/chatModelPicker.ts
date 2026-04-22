@@ -17,7 +17,6 @@ import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { localize } from '../../../../../../nls.js';
 import { ActionListItemKind, IActionListItem } from '../../../../../../platform/actionWidget/browser/actionList.js';
-import { IHoverPositionOptions } from '../../../../../../base/browser/ui/hover/hover.js';
 import { IActionWidgetService } from '../../../../../../platform/actionWidget/browser/actionWidget.js';
 import { IActionWidgetDropdownAction } from '../../../../../../platform/actionWidget/browser/actionWidgetDropdown.js';
 import { ICommandService } from '../../../../../../platform/commands/common/commands.js';
@@ -92,8 +91,6 @@ type ChatModelPickerInteractionEvent = {
 function createModelItem(
 	action: IActionWidgetDropdownAction & { section?: string },
 	model?: ILanguageModelChatMetadataAndIdentifier,
-	hoverPosition?: IHoverPositionOptions,
-	languageModelsService?: ILanguageModelsService,
 ): IActionListItem<IActionWidgetDropdownAction> {
 	return {
 		item: action,
@@ -103,7 +100,7 @@ function createModelItem(
 		group: { title: '', icon: action.icon ?? ThemeIcon.fromId(action.checked ? Codicon.check.id : Codicon.blank.id) },
 		hideIcon: false,
 		section: action.section,
-		hover: model ? { content: getModelHoverContent(model, languageModelsService), position: hoverPosition } : undefined,
+		hover: model ? { content: getModelHoverContent(model) } : undefined,
 		submenuActions: action.toolbarActions,
 	};
 }
@@ -123,6 +120,9 @@ function getModelConfigurationDescription(model: ILanguageModelChatMetadataAndId
 
 	for (const [key, propSchema] of Object.entries(schema.properties)) {
 		if (propSchema.group !== 'navigation') {
+			continue;
+		}
+		if (!propSchema.enum || propSchema.enum.length < 2) {
 			continue;
 		}
 		const value = currentConfig[key] ?? propSchema.default;
@@ -213,7 +213,6 @@ export function buildModelPickerItems(
 	chatEntitlementService: IChatEntitlementService,
 	showUnavailableFeatured: boolean,
 	showFeatured: boolean,
-	hoverPosition?: IHoverPositionOptions,
 	languageModelsService?: ILanguageModelsService,
 ): IActionListItem<IActionWidgetDropdownAction>[] {
 	const items: IActionListItem<IActionWidgetDropdownAction>[] = [];
@@ -263,10 +262,10 @@ export function buildModelPickerItems(
 			};
 
 			// --- 1. Auto ---
-			const autoModel = models.find(m => m.metadata.id === 'auto' && m.metadata.vendor === 'copilot');
+			const autoModel = models.find(m => isAutoModel(m));
 			if (autoModel) {
 				markPlaced(autoModel.identifier, autoModel.metadata.id);
-				items.push(createModelItem(createModelAction(autoModel, selectedModelId, onSelect, languageModelsService!), autoModel, hoverPosition, languageModelsService));
+				items.push(createModelItem(createModelAction(autoModel, selectedModelId, onSelect, languageModelsService!), autoModel));
 			}
 
 			// --- 2. Promoted section (selected + recently used + featured) ---
@@ -354,9 +353,9 @@ export function buildModelPickerItems(
 
 				for (const item of promotedItems) {
 					if (item.kind === 'available') {
-						items.push(createModelItem(createModelAction(item.model, selectedModelId, onSelect, languageModelsService!), item.model, hoverPosition, languageModelsService));
+						items.push(createModelItem(createModelAction(item.model, selectedModelId, onSelect, languageModelsService!), item.model));
 					} else {
-						items.push(createUnavailableModelItem(item.id, item.entry, item.reason, manageSettingsUrl, updateStateType, undefined, hoverPosition));
+						items.push(createUnavailableModelItem(item.id, item.entry, item.reason, manageSettingsUrl, updateStateType, chatEntitlementService));
 					}
 				}
 			}
@@ -405,9 +404,9 @@ export function buildModelPickerItems(
 				for (const model of otherModels) {
 					const entry = controlModels[model.metadata.id] ?? controlModels[model.identifier];
 					if (entry?.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
-						items.push(createUnavailableModelItem(model.metadata.id, entry, 'update', manageSettingsUrl, updateStateType, ModelPickerSection.Other, hoverPosition));
+						items.push(createUnavailableModelItem(model.metadata.id, entry, 'update', manageSettingsUrl, updateStateType, chatEntitlementService, ModelPickerSection.Other));
 					} else {
-						items.push(createModelItem(createModelAction(model, selectedModelId, onSelect, languageModelsService!, ModelPickerSection.Other), model, hoverPosition, languageModelsService));
+						items.push(createModelItem(createModelAction(model, selectedModelId, onSelect, languageModelsService!, ModelPickerSection.Other), model));
 					}
 				}
 			}
@@ -427,9 +426,9 @@ export function buildModelPickerItems(
 		}
 	} else {
 		// Flat list: auto first, then all models sorted alphabetically
-		const autoModel = models.find(m => m.metadata.id === 'auto' && m.metadata.vendor === 'copilot');
+		const autoModel = models.find(m => isAutoModel(m));
 		if (autoModel) {
-			items.push(createModelItem(createModelAction(autoModel, selectedModelId, onSelect, languageModelsService!), autoModel, hoverPosition, languageModelsService));
+			items.push(createModelItem(createModelAction(autoModel, selectedModelId, onSelect, languageModelsService!), autoModel));
 		}
 		const sortedModels = models
 			.filter(m => m !== autoModel)
@@ -438,7 +437,7 @@ export function buildModelPickerItems(
 				return vendorCmp !== 0 ? vendorCmp : a.metadata.name.localeCompare(b.metadata.name);
 			});
 		for (const model of sortedModels) {
-			items.push(createModelItem(createModelAction(model, selectedModelId, onSelect, languageModelsService!), model, hoverPosition, languageModelsService));
+			items.push(createModelItem(createModelAction(model, selectedModelId, onSelect, languageModelsService!), model));
 		}
 	}
 
@@ -473,8 +472,8 @@ function createUnavailableModelItem(
 	reason: 'upgrade' | 'update' | 'admin',
 	manageSettingsUrl: string | undefined,
 	updateStateType: StateType,
+	chatEntitlementService: IChatEntitlementService,
 	section?: string,
-	hoverPosition?: IHoverPositionOptions,
 ): IActionListItem<IActionWidgetDropdownAction> {
 	let description: string | MarkdownString | undefined;
 
@@ -491,7 +490,11 @@ function createUnavailableModelItem(
 	let hoverContent: MarkdownString;
 	if (reason === 'upgrade') {
 		hoverContent = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
-		hoverContent.appendMarkdown(localize('chat.modelPicker.upgradeHover', "[Upgrade to GitHub Copilot Pro](command:workbench.action.chat.upgradePlan \" \") with a free 30-day trial to use the best models."));
+		if (chatEntitlementService.entitlement === ChatEntitlement.Pro) {
+			hoverContent.appendMarkdown(localize('chat.modelPicker.upgradeHoverProPlus', "[Upgrade to GitHub Copilot Pro+](command:workbench.action.chat.upgradePlan \" \") to use the best models."));
+		} else {
+			hoverContent.appendMarkdown(localize('chat.modelPicker.upgradeHover', "[Upgrade to GitHub Copilot Pro](command:workbench.action.chat.upgradePlan \" \") to use the best models."));
+		}
 	} else if (reason === 'update') {
 		hoverContent = getUpdateHoverContent(updateStateType);
 	} else {
@@ -518,11 +521,11 @@ function createUnavailableModelItem(
 		hideIcon: false,
 		className: 'chat-model-picker-unavailable',
 		section,
-		hover: { content: hoverContent, position: hoverPosition },
+		hover: { content: hoverContent },
 	};
 }
 
-export type ModelPickerBadge = 'info' | 'warning';
+type ModelPickerBadge = 'info' | 'warning';
 
 /**
  * A model selection dropdown widget.
@@ -556,7 +559,6 @@ export class ModelPickerWidget extends Disposable {
 
 	constructor(
 		private readonly _delegate: IModelPickerDelegate,
-		private readonly _hoverPosition: IHoverPositionOptions | undefined,
 		@IActionWidgetService private readonly _actionWidgetService: IActionWidgetService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@IOpenerService private readonly _openerService: IOpenerService,
@@ -619,8 +621,8 @@ export class ModelPickerWidget extends Disposable {
 
 		this._renderLabel();
 
-		// Open picker on click
-		this._register(dom.addDisposableListener(this._domNode, dom.EventType.MOUSE_DOWN, (e) => {
+		// Open picker on click (uses pointerdown on iOS where mousedown is unreliable)
+		this._register(dom.addDisposableGenericMouseDownListener(this._domNode, e => {
 			if (e.button !== 0) {
 				return; // only left click
 			}
@@ -681,7 +683,6 @@ export class ModelPickerWidget extends Disposable {
 			this._entitlementService,
 			this._delegate.showUnavailableFeatured(),
 			this._delegate.showFeatured(),
-			this._hoverPosition,
 			this._languageModelsService,
 		);
 
@@ -792,49 +793,24 @@ export class ModelPickerWidget extends Disposable {
 }
 
 
-function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier, languageModelsService?: ILanguageModelsService): MarkdownString {
-	const isAuto = model.metadata.id === 'auto' && model.metadata.vendor === 'copilot';
+function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier): MarkdownString {
+	const isAuto = isAutoModel(model);
 	const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 	markdown.appendMarkdown(`**${model.metadata.name}**`);
-	markdown.appendText(`\n`);
 
-	if (model.metadata.statusIcon && model.metadata.tooltip) {
+	if (model.metadata.tooltip) {
+		markdown.appendMarkdown(`\n\n`);
 		if (model.metadata.statusIcon) {
 			markdown.appendMarkdown(`$(${model.metadata.statusIcon.id})&nbsp;`);
 		}
 		markdown.appendMarkdown(`${model.metadata.tooltip}`);
-		markdown.appendText(`\n`);
-	}
-
-	if (model.metadata.multiplier) {
-		markdown.appendMarkdown(`${localize('multiplier.tooltip', "Each chat message counts {0} toward your premium request quota", model.metadata.multiplier)}`);
-		markdown.appendText(`\n`);
 	}
 
 	if (!isAuto && (model.metadata.maxInputTokens || model.metadata.maxOutputTokens)) {
+		markdown.appendMarkdown(`\n\n`);
 		const totalTokens = (model.metadata.maxInputTokens ?? 0) + (model.metadata.maxOutputTokens ?? 0);
 		markdown.appendMarkdown(`${localize('models.contextSize', 'Context Size')}: `);
 		markdown.appendMarkdown(`${formatTokenCount(totalTokens)}`);
-		markdown.appendText(`\n`);
-	}
-
-	if (languageModelsService) {
-		const schema = model.metadata.configurationSchema;
-		if (schema?.properties) {
-			const currentConfig = languageModelsService.getModelConfiguration(model.identifier) ?? {};
-			for (const [key, propSchema] of Object.entries(schema.properties)) {
-				const value = currentConfig[key] ?? propSchema.default;
-				if (value === undefined) {
-					continue;
-				}
-				const enumItemLabels = propSchema.enumItemLabels;
-				const enumIndex = propSchema.enum?.indexOf(value) ?? -1;
-				const displayValue = enumItemLabels?.[enumIndex] ?? String(value);
-				const label = propSchema.title ?? key;
-				markdown.appendText(`${label}: ${displayValue}`);
-				markdown.appendText(`\n`);
-			}
-		}
 	}
 
 	return markdown;
@@ -848,4 +824,8 @@ function formatTokenCount(count: number): string {
 		return `${(count / 1000).toFixed(0)}K`;
 	}
 	return count.toString();
+}
+
+function isAutoModel(model: ILanguageModelChatMetadataAndIdentifier): boolean {
+	return model.metadata.id === 'auto' && (model.metadata.vendor === 'copilot' || model.metadata.vendor === 'copilotcli');
 }

@@ -129,7 +129,15 @@ export interface ICommonNativeHostService {
 	openWindow(options?: IOpenEmptyWindowOptions): Promise<void>;
 	openWindow(toOpen: IWindowOpenable[], options?: IOpenWindowOptions): Promise<void>;
 
-	openSessionsWindow(): Promise<void>;
+	openAgentsWindow(options?: { readonly forceNewWindow?: boolean }): Promise<void>;
+
+	/**
+	 * Launches the sibling application (host ↔ embedded).
+	 * The launched process is detached with its own process group.
+	 *
+	 * @param args CLI arguments to pass to the sibling application.
+	 */
+	launchSiblingApp(args?: string[]): Promise<void>;
 
 	isFullScreen(options?: INativeHostOptions): Promise<boolean>;
 	toggleFullScreen(options?: INativeHostOptions): Promise<void>;
@@ -242,6 +250,7 @@ export interface ICommonNativeHostService {
 
 	// Perf Introspection
 	profileRenderer(session: string, duration: number): Promise<IV8Profile>;
+	startTracing(categories: string): Promise<void>;
 
 	// Connectivity
 	resolveProxy(url: string): Promise<string | undefined>;
