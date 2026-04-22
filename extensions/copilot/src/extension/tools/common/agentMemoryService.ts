@@ -229,6 +229,10 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 			const result = await storeMemory(memory, options);
 			if (!result.success) {
 				this.logService.warn(`[AgentMemoryService] Failed to store repo memory: ${result.error}`);
+			} else {
+				// Clear cache to ensure fresh data on next fetch
+				this.invalidateMemoryCache(repoNwo);
+				this.logService.debug(`[AgentMemoryService] Invalidated cache after storing repo memory`);
 			}
 			return result.success;
 		} catch (error) {
@@ -261,6 +265,10 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 			const result = await storeMemory(memory, options);
 			if (!result.success) {
 				this.logService.warn(`[AgentMemoryService] Failed to store user memory: ${result.error}`);
+			} else {
+				// Clear cache to ensure fresh data on next fetch
+				this.invalidateMemoryCache(); // User-scoped, so clear all user entries
+				this.logService.debug(`[AgentMemoryService] Invalidated cache after storing user memory`);
 			}
 			return result.success;
 		} catch (error) {
@@ -358,6 +366,30 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 			this._cachedPromptResponses.clear();
 			this.logService.debug(`[AgentMemoryService] Cleared all cache entries`);
 		}
+	}
+
+	/**
+	 * Invalidate cache entries that could be affected by storing new memories
+	 */
+	private invalidateMemoryCache(repoNwo?: string): void {
+		const keysToDelete: string[] = [];
+		for (const key of this._cachedPromptResponses.keys()) {
+			if (repoNwo) {
+				// For repo memories, invalidate entries with this specific repo
+				if (key.includes(`:${repoNwo}`)) {
+					keysToDelete.push(key);
+				}
+			} else {
+				// For user memories, invalidate user-scoped entries (ending with :user)
+				if (key.endsWith(':user')) {
+					keysToDelete.push(key);
+				}
+			}
+		}
+		for (const key of keysToDelete) {
+			this._cachedPromptResponses.delete(key);
+		}
+		this.logService.debug(`[AgentMemoryService] Invalidated ${keysToDelete.length} cache entries${repoNwo ? ` for repo ${repoNwo}` : ' for user scope'}`);
 	}
 
 	private generateCacheKey(sessionId?: string, repoNwo?: string): string {
