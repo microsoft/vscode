@@ -8,7 +8,7 @@
 /** @type {ServiceWorkerGlobalScope} */
 const sw = /** @type {any} */ (self);
 
-const VERSION = 4;
+const VERSION = 5;
 
 const resourceCacheName = `vscode-resource-cache-${VERSION}`;
 
@@ -116,6 +116,13 @@ class RequestStore {
 const resourceRequestStore = new RequestStore();
 
 /**
+ * Safari fallback: map of active chunk-based streaming responses.
+ * Maps request id to a WritableStreamDefaultWriter for piping chunks.
+ * @type {Map<number, WritableStreamDefaultWriter<Uint8Array>>}
+ */
+const safariResourceStreams = new Map();
+
+/**
  * Map of requested localhost origins to optional redirects.
  */
 /** @type {RequestStore<string|undefined>} */
@@ -158,8 +165,59 @@ sw.addEventListener('message', async (event) => {
 		case 'did-load-resource': {
 			/** @type {ResourceResponse} */
 			const response = event.data.data;
-			if (!resourceRequestStore.resolve(response.id, response)) {
+			if (response.status === 200 || response.status === 206) {
+				/** @type {ReadableStream<Uint8Array>} */
+				let stream;
+				if (response.stream) {
+					// Transferable stream (Chromium/Firefox)
+					stream = response.stream;
+				} else {
+					// Safari fallback: set up a TransformStream for incoming chunks
+					const transform = new TransformStream();
+					const writer = transform.writable.getWriter();
+					safariResourceStreams.set(response.id, writer);
+					writer.closed.then(
+						() => safariResourceStreams.delete(response.id),
+						() => safariResourceStreams.delete(response.id)
+					);
+					stream = transform.readable;
+				}
+				resourceRequestStore.resolve(response.id, {
+					status: response.status,
+					id: response.id,
+					path: response.path,
+					mime: response.mime,
+					etag: response.etag,
+					mtime: response.mtime,
+					stream,
+					range: response.range,
+				});
+			} else if (!resourceRequestStore.resolve(response.id, response)) {
 				console.log('Could not resolve unknown resource', response.path);
+			}
+			return;
+		}
+		// Safari fallback: chunk-based streaming for browsers without transferable streams
+		case 'did-load-resource-chunk': {
+			const data = event.data.data;
+			const writer = safariResourceStreams.get(data.id);
+			if (writer) {
+				writer.write(data.data).catch(() => {
+					safariResourceStreams.delete(data.id);
+				});
+			}
+			return;
+		}
+		case 'did-load-resource-end': {
+			const data = event.data.data;
+			const writer = safariResourceStreams.get(data.id);
+			if (writer) {
+				if (data.error) {
+					writer.abort(new Error('Stream error')).catch(() => { /* already cleaning up */ });
+				} else {
+					writer.close().catch(() => { /* already cleaning up */ });
+				}
+				safariResourceStreams.delete(data.id);
 			}
 			return;
 		}
@@ -309,46 +367,14 @@ async function processResourceRequest(
 			return unauthorized();
 		}
 
-		if (entry.status !== 200) {
+		if (entry.status !== 200 && entry.status !== 206) {
 			return notFound();
-		}
-
-		const byteLength = entry.data.byteLength;
-
-		const range = event.request.headers.get('range');
-		if (range) {
-			// To support seeking for videos, we need to handle range requests
-			const bytes = range.match(/^bytes\=(\d+)\-(\d+)?$/g);
-			if (bytes) {
-				// TODO: Right now we are always reading the full file content. This is a bad idea
-				// for large video files :)
-
-				const start = Number(bytes[1]);
-				const end = Number(bytes[2]) || byteLength - 1;
-				return new Response(entry.data.slice(start, end + 1), {
-					status: 206,
-					headers: {
-						...accessControlHeaders,
-						'Content-range': `bytes 0-${end}/${byteLength}`,
-					}
-				});
-			} else {
-				// We don't understand the requested bytes
-				return new Response(null, {
-					status: 416,
-					headers: {
-						...accessControlHeaders,
-						'Content-range': `*/${byteLength}`
-					}
-				});
-			}
 		}
 
 		/** @type {Record<string, string>} */
 		const headers = {
 			...accessControlHeaders,
 			'Content-Type': entry.mime,
-			'Content-Length': byteLength.toString(),
 		};
 
 		if (entry.etag) {
@@ -370,17 +396,24 @@ async function processResourceRequest(
 			headers['Cross-Origin-Opener-Policy'] = 'same-origin';
 		}
 
-		const response = new Response(entry.data, {
-			status: 200,
-			headers
-		});
+		if (entry.stream) {
+			// Range responses: the host already read only the requested range,
+			// so we just pipe the stream through with a 206 status.
+			if (entry.status === 206 && entry.range) {
+				headers['Content-Range'] = entry.range;
+				return new Response(entry.stream, { status: 206, headers });
+			}
 
-		if (shouldTryCaching && entry.etag) {
-			caches.open(resourceCacheName).then(cache => {
-				return cache.put(event.request, response);
-			});
+			const response = new Response(entry.stream, { status: 200, headers });
+
+			if (shouldTryCaching && entry.etag) {
+				const responseForCache = response.clone();
+				caches.open(resourceCacheName).then(cache => {
+					return cache.put(event.request, responseForCache);
+				});
+			}
+			return response;
 		}
-		return response.clone();
 	};
 
 	/** @type {Response|undefined} */
@@ -391,6 +424,28 @@ async function processResourceRequest(
 	}
 
 	const { requestId, promise } = resourceRequestStore.create();
+
+	// Parse range header to forward to the host so it can read only the needed bytes
+	/** @type {{ start: number, end?: number } | undefined} */
+	let range;
+	const rangeHeader = event.request.headers.get('range');
+	if (rangeHeader) {
+		const bytes = rangeHeader.match(/^bytes\=(\d+)\-(\d+)?$/);
+		if (bytes) {
+			range = {
+				start: Number(bytes[1]),
+				end: bytes[2] !== undefined ? Number(bytes[2]) : undefined,
+			};
+		} else {
+			return new Response(null, {
+				status: 416,
+				headers: {
+					'Access-Control-Allow-Origin': '*',
+					'Content-Range': '*/*',
+				}
+			});
+		}
+	}
 
 	if (webviewId) {
 		const parentClients = await getOuterIframeClient(webviewId);
@@ -408,6 +463,7 @@ async function processResourceRequest(
 				path: requestUrlComponents.path,
 				query: requestUrlComponents.query,
 				ifNoneMatch: cached?.headers.get('ETag'),
+				range,
 			});
 		}
 	} else if (client.type === 'worker' || client.type === 'sharedworker') {
@@ -419,6 +475,7 @@ async function processResourceRequest(
 			path: requestUrlComponents.path,
 			query: requestUrlComponents.query,
 			ifNoneMatch: cached?.headers.get('ETag'),
+			range,
 		});
 	}
 
@@ -536,8 +593,9 @@ async function getWorkerClientForId(clientId) {
 
 /**
  * @typedef {(
- *   | { readonly status: 200, id: number, path: string, mime: string, data: Uint8Array, etag: string|undefined, mtime: number|undefined }
- *   | { readonly status: 304, id: number, path: string, mime: string, mtime: number|undefined }
+ *   | { readonly status: 200, id: number, path: string, mime: string, stream: ReadableStream<Uint8Array>, etag: string|undefined, mtime: number | undefined }
+ *   | { readonly status: 206, id: number, path: string, mime: string, stream: ReadableStream<Uint8Array>, range: string, etag: string|undefined, mtime: number | undefined }
+ *   | { readonly status: 304, id: number, path: string, mime: string, mtime: number | undefined }
  *   | { readonly status: 401, id: number, path: string }
  *   | { readonly status: 404, id: number, path: string }
  * )} ResourceResponse

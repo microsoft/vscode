@@ -6,11 +6,13 @@ import { addDisposableListener, Dimension, $ } from '../../../../base/browser/do
 import * as aria from '../../../../base/browser/ui/aria/aria.js';
 import { renderMarkdown, renderAsPlaintext } from '../../../../base/browser/markdownRenderer.js';
 import { DomScrollableElement } from '../../../../base/browser/ui/scrollbar/scrollableElement.js';
+import { ActionViewItem } from '../../../../base/browser/ui/actionbar/actionViewItems.js';
 import { ActionRunner, IAction } from '../../../../base/common/actions.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { DisposableStore, toDisposable } from '../../../../base/common/lifecycle.js';
-import { autorun } from '../../../../base/common/observable.js';
+import { autorun, observableValue } from '../../../../base/common/observable.js';
 import { isEqual } from '../../../../base/common/resources.js';
+import { Event } from '../../../../base/common/event.js';
 import { ScrollbarVisibility } from '../../../../base/common/scrollable.js';
 import { assertType } from '../../../../base/common/types.js';
 import { ICodeEditor } from '../../../../editor/browser/editorBrowser.js';
@@ -21,17 +23,46 @@ import { Range } from '../../../../editor/common/core/range.js';
 import { ScrollType } from '../../../../editor/common/editorCommon.js';
 import { IOptions, ZoneWidget } from '../../../../editor/contrib/zoneWidget/browser/zoneWidget.js';
 import { localize } from '../../../../nls.js';
-import { IContextKey, IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, IContextKey, IContextKeyService, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { HiddenItemStrategy, MenuWorkbenchToolBar } from '../../../../platform/actions/browser/toolbar.js';
-import { MenuId } from '../../../../platform/actions/common/actions.js';
+import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
+import { IActionViewItemService } from '../../../../platform/actions/browser/actionViewItemService.js';
 import { IChatWidgetViewOptions } from '../../chat/browser/chat.js';
 import { IChatWidgetLocationOptions } from '../../chat/browser/widget/chatWidget.js';
 import { ChatMode } from '../../chat/common/chatModes.js';
 import { INotebookEditor } from '../../notebook/browser/notebookBrowser.js';
 import { ACTION_REGENERATE_RESPONSE, ACTION_REPORT_ISSUE, ACTION_TOGGLE_DIFF, CTX_INLINE_CHAT_OUTER_CURSOR_POSITION, MENU_INLINE_CHAT_SIDE, MENU_INLINE_CHAT_WIDGET_SECONDARY, MENU_INLINE_CHAT_WIDGET_STATUS } from '../common/inlineChat.js';
 import { EditorBasedInlineChatWidget } from './inlineChatWidget.js';
+import { ChatAgentLocation } from '../../chat/common/constants.js';
+import { ChatContextKeys } from '../../chat/common/actions/chatContextKeys.js';
+
+// a "creative" way of adding custom UI into the chat input part
+// without knowing/modifying its dom-structure
+class StatusPlaceholder extends Action2 {
+
+	static readonly Id = 'inlineChatWidget.statusPlaceholder';
+	static readonly CtxHasStatus = new RawContextKey<boolean>('inlineChatHasStatus', false);
+
+	constructor() {
+		super({
+			id: StatusPlaceholder.Id,
+			title: '',
+			precondition: ContextKeyExpr.false(),
+			menu: {
+				id: MenuId.ChatInput,
+				when: ContextKeyExpr.and(ContextKeyExpr.equals(ChatContextKeys.location.key, ChatAgentLocation.EditorInline), StatusPlaceholder.CtxHasStatus),
+				group: 'navigation',
+				order: Number.MAX_SAFE_INTEGER
+			}
+		});
+	}
+
+	run() { }
+}
+
+registerAction2(StatusPlaceholder);
 
 export class InlineChatZoneWidget extends ZoneWidget {
 
@@ -50,7 +81,10 @@ export class InlineChatZoneWidget extends ZoneWidget {
 
 	readonly widget: EditorBasedInlineChatWidget;
 
+	readonly status = observableValue(this, '');
+
 	readonly #ctxCursorPosition: IContextKey<'above' | 'below' | ''>;
+	readonly #ctxHasStatus: IContextKey<boolean>;
 	#dimension?: Dimension;
 	private notebookEditor?: INotebookEditor;
 
@@ -70,6 +104,7 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		/** @deprecated should go away with inline2 */
 		clearDelegate: () => Promise<void>,
 		@IInstantiationService instaService: IInstantiationService,
+		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@ILogService logService: ILogService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
@@ -100,10 +135,32 @@ export class InlineChatZoneWidget extends ZoneWidget {
 		this._disposables.add(this.#terminationStore);
 
 		this.#ctxCursorPosition = CTX_INLINE_CHAT_OUTER_CURSOR_POSITION.bindTo(contextKeyService);
+		this.#ctxHasStatus = StatusPlaceholder.CtxHasStatus.bindTo(contextKeyService);
 
 		this._disposables.add(toDisposable(() => {
 			this.#ctxCursorPosition.reset();
+			this.#ctxHasStatus.reset();
 		}));
+
+		this._disposables.add(autorun(r => {
+			this.#ctxHasStatus.set(!!this.status.read(r));
+		}));
+
+		this._disposables.add(actionViewItemService.register(MenuId.ChatInput, StatusPlaceholder.Id, (action, options) => {
+			const that = this;
+			const item = new class extends ActionViewItem {
+				override render(container: HTMLElement): void {
+					super.render(container);
+					container.classList.add('status-placeholder');
+					this._store.add(autorun(r => {
+						const value = that.status.read(r);
+						this.action.label = value ?? '';
+						this.updateLabel();
+					}));
+				}
+			}(undefined, action, { ...options, icon: false, label: true });
+			return item;
+		}, Event.fromObservable(this.status, this._disposables)));
 
 		this.widget = instaService.createInstance(EditorBasedInlineChatWidget, location, this.editor, {
 			statusMenuId: {

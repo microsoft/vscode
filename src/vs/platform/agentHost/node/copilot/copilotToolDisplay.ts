@@ -6,6 +6,7 @@
 import type { PermissionRequest } from '@github/copilot-sdk';
 import { hasKey } from '../../../../base/common/types.js';
 import { URI } from '../../../../base/common/uri.js';
+import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlContent.js';
 import { localize } from '../../../../nls.js';
 import type { IAgentToolReadyEvent } from '../../common/agentService.js';
 import { StringOrMarkdown } from '../../common/state/protocol/state.js';
@@ -203,7 +204,7 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 		const args = parameters as ICopilotShellToolArgs | undefined;
 		if (args?.command) {
 			const firstLine = args.command.split('\n')[0];
-			return md(localize('toolInvoke.shellCmd', "Running `{0}`", truncate(firstLine, 80)));
+			return md(localize('toolInvoke.shellCmd', "Running {0}", appendEscapedMarkdownInlineCode(truncate(firstLine, 80))));
 		}
 		return localize('toolInvoke.shell', "Running {0} command", displayName);
 	}
@@ -233,14 +234,14 @@ export function getInvocationMessage(toolName: string, displayName: string, para
 		case CopilotToolName.Grep: {
 			const args = parameters as ICopilotGrepToolArgs | undefined;
 			if (args?.pattern) {
-				return localize('toolInvoke.grepPattern', "Searching for `{0}`", truncate(args.pattern, 80));
+				return md(localize('toolInvoke.grepPattern', "Searching for {0}", appendEscapedMarkdownInlineCode(truncate(args.pattern, 80))));
 			}
 			return localize('toolInvoke.grep', "Searching files");
 		}
 		case CopilotToolName.Glob: {
 			const args = parameters as ICopilotGlobToolArgs | undefined;
 			if (args?.pattern) {
-				return localize('toolInvoke.globPattern', "Finding files matching `{0}`", truncate(args.pattern, 80));
+				return md(localize('toolInvoke.globPattern', "Finding files matching {0}", appendEscapedMarkdownInlineCode(truncate(args.pattern, 80))));
 			}
 			return localize('toolInvoke.glob', "Finding files");
 		}
@@ -258,7 +259,7 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 		const args = parameters as ICopilotShellToolArgs | undefined;
 		if (args?.command) {
 			const firstLine = args.command.split('\n')[0];
-			return localize('toolComplete.shellCmd', "Ran `{0}`", truncate(firstLine, 80));
+			return md(localize('toolComplete.shellCmd', "Ran {0}", appendEscapedMarkdownInlineCode(truncate(firstLine, 80))));
 		}
 		return localize('toolComplete.shell', "Ran {0} command", displayName);
 	}
@@ -288,14 +289,14 @@ export function getPastTenseMessage(toolName: string, displayName: string, param
 		case CopilotToolName.Grep: {
 			const args = parameters as ICopilotGrepToolArgs | undefined;
 			if (args?.pattern) {
-				return localize('toolComplete.grepPattern', "Searched for `{0}`", truncate(args.pattern, 80));
+				return md(localize('toolComplete.grepPattern', "Searched for {0}", appendEscapedMarkdownInlineCode(truncate(args.pattern, 80))));
 			}
 			return localize('toolComplete.grep', "Searched files");
 		}
 		case CopilotToolName.Glob: {
 			const args = parameters as ICopilotGlobToolArgs | undefined;
 			if (args?.pattern) {
-				return localize('toolComplete.globPattern', "Found files matching `{0}`", truncate(args.pattern, 80));
+				return md(localize('toolComplete.globPattern', "Found files matching {0}", appendEscapedMarkdownInlineCode(truncate(args.pattern, 80))));
 			}
 			return localize('toolComplete.glob', "Found files");
 		}
@@ -353,6 +354,28 @@ export function getToolKind(toolName: string): 'terminal' | 'subagent' | undefin
 		return 'subagent';
 	}
 	return undefined;
+}
+
+/**
+ * Extracts subagent metadata (agent name, description) from the parsed
+ * arguments of a Copilot SDK subagent tool call. The Copilot `task` tool
+ * uses `agent_type` (snake_case), which this normalizes into the generic
+ * `subagentAgentName` / `subagentDescription` shape used by the rest of the
+ * agent host code.
+ *
+ * Only call this for tools where {@link getToolKind} returned `'subagent'`.
+ */
+export function getSubagentMetadata(parameters: Record<string, unknown> | undefined): { agentName?: string; description?: string } {
+	if (!parameters) {
+		return {};
+	}
+	const agentName = typeof parameters.agent_type === 'string' && parameters.agent_type.length > 0
+		? parameters.agent_type
+		: undefined;
+	const description = typeof parameters.description === 'string' && parameters.description.length > 0
+		? parameters.description
+		: undefined;
+	return { agentName, description };
 }
 
 /**

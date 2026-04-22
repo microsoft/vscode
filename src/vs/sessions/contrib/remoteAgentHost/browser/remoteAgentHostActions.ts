@@ -362,7 +362,7 @@ async function promptForRemoteFolder(
 	const sessionsProvidersService = accessor.get(ISessionsProvidersService);
 	const sessionsManagementService = accessor.get(ISessionsManagementService);
 
-	// The provider is created synchronously during addSSHConnection's
+	// The provider is created synchronously during addManagedConnection's
 	// onDidChangeConnections event, so it should exist by now.
 	const provider = sessionsProvidersService.getProviders().find((p): p is IAgentHostSessionsProvider => isAgentHostProvider(p) && p.remoteAddress === connection.localAddress);
 	if (!provider) {
@@ -526,7 +526,9 @@ async function promptToConnectViaTunnel(
 		// Trigger interactive auth for the chosen provider
 		const scopes = productService.tunnelApplicationConfig?.authenticationProviders?.[authProvider]?.scopes ?? [];
 		try {
-			await authenticationService.createSession(authProvider, scopes, { activateImmediate: true });
+			if (!(await authenticationService.getSessions(authProvider, scopes)).length) {
+				await authenticationService.createSession(authProvider, scopes, { activateImmediate: true });
+			}
 		} catch {
 			notificationService.error(localize('tunnelAuthFailed', "Authentication failed. Please try again."));
 			return;

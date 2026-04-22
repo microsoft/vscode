@@ -17,8 +17,8 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession, IAgent } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
-import { ActionType, IActionEnvelope, ISessionAction } from '../../common/state/sessionActions.js';
-import { PendingMessageKind, ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType } from '../../common/state/sessionState.js';
+import { ActionType, ActionEnvelope, SessionAction } from '../../common/state/sessionActions.js';
+import { buildSubagentSessionUri, PendingMessageKind, ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
 import { AgentSideEffects } from '../../node/agentSideEffects.js';
@@ -93,7 +93,7 @@ suite('AgentSideEffects', () => {
 
 		test('calls sendMessage on the agent', async () => {
 			setupSession();
-			const action: ISessionAction = {
+			const action: SessionAction = {
 				type: ActionType.SessionTurnStarted,
 				session: sessionUri.toString(),
 				turnId: 'turn-1',
@@ -116,7 +116,7 @@ suite('AgentSideEffects', () => {
 				sessionDataService: {} as ISessionDataService,
 			}, new NullLogService()));
 
-			const envelopes: IActionEnvelope[] = [];
+			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 
 			noAgentSideEffects.handleAction({
@@ -151,7 +151,7 @@ suite('AgentSideEffects', () => {
 		test('dispatches titleChanged with user message on first turn', () => {
 			setupDefaultSession();
 
-			const envelopes: IActionEnvelope[] = [];
+			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 
 			sideEffects.handleAction({
@@ -171,7 +171,7 @@ suite('AgentSideEffects', () => {
 		test('does not dispatch titleChanged when message is whitespace', () => {
 			setupDefaultSession();
 
-			const envelopes: IActionEnvelope[] = [];
+			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 
 			sideEffects.handleAction({
@@ -188,7 +188,7 @@ suite('AgentSideEffects', () => {
 		test('normalizes whitespace and truncates long messages', () => {
 			setupDefaultSession();
 
-			const envelopes: IActionEnvelope[] = [];
+			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 
 			const longMessage = 'Fix the bug\nin the login\tpage  please ' + 'a'.repeat(250);
@@ -220,7 +220,7 @@ suite('AgentSideEffects', () => {
 				turnId: 'turn-1',
 			});
 
-			const envelopes: IActionEnvelope[] = [];
+			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 
 			sideEffects.handleAction({
@@ -247,7 +247,7 @@ suite('AgentSideEffects', () => {
 			});
 			stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri.toString() });
 
-			const envelopes: IActionEnvelope[] = [];
+			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 
 			sideEffects.handleAction({
@@ -304,7 +304,7 @@ suite('AgentSideEffects', () => {
 			setupSession();
 			startTurn('turn-1');
 
-			const envelopes: IActionEnvelope[] = [];
+			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 			disposables.add(sideEffects.registerProgressListener(agent));
 
@@ -318,7 +318,7 @@ suite('AgentSideEffects', () => {
 			setupSession();
 			startTurn('turn-1');
 
-			const envelopes: IActionEnvelope[] = [];
+			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 			const listener = sideEffects.registerProgressListener(agent);
 
@@ -351,7 +351,7 @@ suite('AgentSideEffects', () => {
 		});
 
 		test('model observable update publishes models', async () => {
-			const envelopes: IActionEnvelope[] = [];
+			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 
 			const envelope = Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope, e => {
@@ -378,7 +378,7 @@ suite('AgentSideEffects', () => {
 		});
 
 		test('unchanged model observable update does not dispatch unchanged agent infos', async () => {
-			const envelopes: IActionEnvelope[] = [];
+			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 			const models = [{ provider: 'mock' as const, id: 'mock-model', name: 'mock Model', maxContextWindow: 128000, supportsVision: false }];
 
@@ -521,7 +521,7 @@ suite('AgentSideEffects', () => {
 			// Message should NOT be consumed yet (turn is active)
 			assert.strictEqual(agent.sendMessageCalls.length, 0);
 
-			const envelopes: IActionEnvelope[] = [];
+			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 
 			// Fire idle → turn completes → queued message should be consumed
@@ -546,7 +546,7 @@ suite('AgentSideEffects', () => {
 			setupSession();
 			startTurn('turn-1');
 
-			const envelopes: IActionEnvelope[] = [];
+			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 
 			const setAction = {
@@ -574,7 +574,7 @@ suite('AgentSideEffects', () => {
 			setupSession();
 			disposables.add(sideEffects.registerProgressListener(agent));
 
-			const envelopes: IActionEnvelope[] = [];
+			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 
 			const action = {
@@ -621,10 +621,10 @@ suite('AgentSideEffects', () => {
 		test('calls setClientCustomizations and dispatches customizationsChanged', async () => {
 			setupSession();
 
-			const envelopes: IActionEnvelope[] = [];
+			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 
-			const action: ISessionAction = {
+			const action: SessionAction = {
 				type: ActionType.SessionActiveClientChanged,
 				session: sessionUri.toString(),
 				activeClient: {
@@ -657,10 +657,10 @@ suite('AgentSideEffects', () => {
 		test('skips when activeClient has no customizations', () => {
 			setupSession();
 
-			const envelopes: IActionEnvelope[] = [];
+			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 
-			const action: ISessionAction = {
+			const action: SessionAction = {
 				type: ActionType.SessionActiveClientChanged,
 				session: sessionUri.toString(),
 				activeClient: {
@@ -679,7 +679,7 @@ suite('AgentSideEffects', () => {
 		test('skips when activeClient is null', () => {
 			setupSession();
 
-			const action: ISessionAction = {
+			const action: SessionAction = {
 				type: ActionType.SessionActiveClientChanged,
 				session: sessionUri.toString(),
 				activeClient: null,
@@ -697,7 +697,7 @@ suite('AgentSideEffects', () => {
 		test('calls setCustomizationEnabled on the agent', () => {
 			setupSession();
 
-			const action: ISessionAction = {
+			const action: SessionAction = {
 				type: ActionType.SessionCustomizationToggled,
 				session: sessionUri.toString(),
 				uri: 'file:///plugin-a',
@@ -747,7 +747,7 @@ suite('AgentSideEffects', () => {
 				toolCallId: 'tc-conf-1',
 				approved: true,
 				confirmed: 'user-action' as const,
-			} as ISessionAction);
+			} as SessionAction);
 
 			assert.deepStrictEqual(agent.respondToPermissionCalls, [
 				{ requestId: 'tc-conf-1', approved: true },
@@ -775,7 +775,7 @@ suite('AgentSideEffects', () => {
 				toolCallId: 'tc-deny-1',
 				approved: false,
 				reason: 'denied' as const,
-			} as ISessionAction);
+			} as SessionAction);
 
 			assert.deepStrictEqual(agent.respondToPermissionCalls, [
 				{ requestId: 'tc-deny-1', approved: false },
@@ -970,7 +970,7 @@ suite('AgentSideEffects', () => {
 			startTurn('turn-1');
 			disposables.add(sideEffects.registerProgressListener(agent));
 
-			const envelopes: IActionEnvelope[] = [];
+			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 
 			agent.fireProgress({
@@ -1119,7 +1119,7 @@ suite('AgentSideEffects', () => {
 			startTurn('turn-1');
 			disposables.add(sideEffects.registerProgressListener(agent));
 
-			const envelopes: IActionEnvelope[] = [];
+			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 
 			agent.fireProgress({
@@ -1241,6 +1241,47 @@ suite('AgentSideEffects', () => {
 			assert.ok(state);
 			assert.strictEqual(state!.summary.title, 'Restored Title');
 		});
+
+		test('SessionConfigChanged persists merged config values to the database', async () => {
+			const sessionDataService = createSessionDataService(sessionDb);
+			const localStateManager = disposables.add(new AgentHostStateManager(new NullLogService()));
+			const localAgent = new MockAgent();
+			disposables.add(toDisposable(() => localAgent.dispose()));
+			const localSideEffects = disposables.add(new AgentSideEffects(localStateManager, {
+				getAgent: () => localAgent,
+				agents: observableValue<readonly IAgent[]>('agents', [localAgent]),
+				sessionDataService,
+			}, new NullLogService()));
+
+			const session = localStateManager.createSession({
+				resource: sessionUri.toString(),
+				provider: 'mock',
+				title: 'Initial',
+				status: SessionStatus.Idle,
+				createdAt: Date.now(),
+				modifiedAt: Date.now(),
+				project: { uri: 'file:///test-project', displayName: 'Test Project' },
+			});
+			session.config = { schema: { type: 'object', properties: {} }, values: { autoApprove: 'default' } };
+
+			// Mid-session change merges new values into existing.
+			localStateManager.dispatchClientAction({
+				type: ActionType.SessionConfigChanged,
+				session: sessionUri.toString(),
+				config: { autoApprove: 'autoApprove' },
+			}, { clientId: 'test-client', clientSeq: 1 });
+			localSideEffects.handleAction({
+				type: ActionType.SessionConfigChanged,
+				session: sessionUri.toString(),
+				config: { autoApprove: 'autoApprove' },
+			});
+
+			await new Promise(r => setTimeout(r, 50));
+
+			const persisted = await sessionDb.getMetadata('configValues');
+			assert.ok(persisted);
+			assert.deepStrictEqual(JSON.parse(persisted!), { autoApprove: 'autoApprove' });
+		});
 	});
 
 	// ---- Subagent sessions ----------------------------------------------
@@ -1327,6 +1368,51 @@ suite('AgentSideEffects', () => {
 				rp => rp.kind === ResponsePartKind.ToolCall && rp.toolCall.toolCallId === 'inner-tc-1'
 			);
 			assert.strictEqual(parentInnerTool, undefined, 'inner tool call should NOT be in parent session');
+		});
+
+		test('completeSubagentSession clears pending buffered events when subagent never started', () => {
+			// Regression: if the parent tool completes (or fails) before any
+			// `subagent_started` arrives, buffered inner events would
+			// otherwise leak in `_pendingSubagentEvents` until session
+			// disposal. After completion, a late `subagent_started` for the
+			// same toolCallId must not replay stale events.
+			setupSession();
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			agent.fireProgress({ session: sessionUri, type: 'tool_start', toolCallId: 'tc-1', toolName: 'runSubagent', displayName: 'Run Subagent', invocationMessage: 'Delegating...' });
+
+			// Inner event arrives but `subagent_started` never does.
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_start',
+				toolCallId: 'inner-1',
+				toolName: 'read',
+				displayName: 'Read',
+				invocationMessage: 'Reading...',
+				parentToolCallId: 'tc-1',
+			});
+
+			// Parent tool completes (e.g. it errored before delegating).
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_complete',
+				toolCallId: 'tc-1',
+				result: { success: false, pastTenseMessage: 'Failed' },
+			});
+
+			// Now a late `subagent_started` for the same toolCallId arrives.
+			// This is unusual but possible after a reconnect/replay. The
+			// drain must NOT replay the (cleared) buffered inner tool call.
+			agent.fireProgress({ session: sessionUri, type: 'subagent_started', toolCallId: 'tc-1', agentName: 'helper', agentDisplayName: 'Helper', agentDescription: 'Helps' });
+
+			const subagentUri = `${sessionUri.toString()}/subagent/tc-1`;
+			const subState = stateManager.getSessionState(subagentUri);
+			assert.ok(subState, 'subagent session should still be created');
+			const innerTool = subState!.activeTurn?.responseParts.find(
+				rp => rp.kind === ResponsePartKind.ToolCall && rp.toolCall.toolCallId === 'inner-1'
+			);
+			assert.strictEqual(innerTool, undefined, 'stale buffered inner tool call must not be replayed');
 		});
 
 		test('completeSubagentSession completes the subagent turn when parent tool completes', () => {
@@ -1451,6 +1537,312 @@ suite('AgentSideEffects', () => {
 			assert.ok(subagentEntry, 'Completed tool should preserve subagent content entry');
 			const textEntry = content.find(c => hasKey(c, { type: true }) && c.type === ToolResultContentType.Text);
 			assert.ok(textEntry, 'Completed tool should also have the SDK result content');
+		});
+
+		test('inner tool_start arriving BEFORE subagent_started routes to subagent (not parent)', () => {
+			// Reproduces the regression where inner subagent tool calls show up
+			// flat at the top level of the parent session because the SDK can
+			// emit `tool_start` (with parentToolCallId) before `subagent_started`.
+			setupSession();
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			// 1. Parent tool starts (the `task` invocation).
+			agent.fireProgress({ session: sessionUri, type: 'tool_start', toolCallId: 'tc-parent', toolName: 'task', displayName: 'Task', invocationMessage: 'Delegating...' });
+
+			// 2. Inner tool fires BEFORE subagent_started (race condition).
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_start',
+				toolCallId: 'inner-tc-1',
+				toolName: 'readFile',
+				displayName: 'Read File',
+				invocationMessage: 'Reading file...',
+				parentToolCallId: 'tc-parent',
+			});
+
+			// 3. subagent_started arrives later.
+			agent.fireProgress({ session: sessionUri, type: 'subagent_started', toolCallId: 'tc-parent', agentName: 'helper', agentDisplayName: 'Helper', agentDescription: 'Helps' });
+
+			const subagentUri = buildSubagentSessionUri(sessionUri.toString(), 'tc-parent');
+			const subState = stateManager.getSessionState(subagentUri);
+			assert.ok(subState?.activeTurn, 'subagent session should exist');
+
+			const innerTool = subState!.activeTurn!.responseParts.find(
+				rp => rp.kind === ResponsePartKind.ToolCall && rp.toolCall.toolCallId === 'inner-tc-1'
+			);
+			assert.ok(innerTool, 'inner tool fired before subagent_started should still end up in the subagent session');
+
+			// Parent must NOT have the inner tool.
+			const parentState = stateManager.getSessionState(sessionUri.toString());
+			const parentInnerTool = parentState!.activeTurn!.responseParts.find(
+				rp => rp.kind === ResponsePartKind.ToolCall && rp.toolCall.toolCallId === 'inner-tc-1'
+			);
+			assert.strictEqual(parentInnerTool, undefined, 'inner tool must not leak into parent session');
+		});
+
+		test('reads inside parent working directory are auto-approved for tools in subagent sessions', () => {
+			// Subagent sessions don't carry their own workingDirectory or
+			// autoApprove config. Without inheritance from the parent, every
+			// tool call inside a subagent (even a read in the workspace) would
+			// surface a confirmation dialog.
+			setupSession(URI.file('/workspace').toString());
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			// Parent task tool spawns a subagent.
+			agent.fireProgress({ session: sessionUri, type: 'tool_start', toolCallId: 'tc-parent', toolName: 'task', displayName: 'Task', invocationMessage: 'Delegating...' });
+			agent.fireProgress({ session: sessionUri, type: 'subagent_started', toolCallId: 'tc-parent', agentName: 'helper', agentDisplayName: 'Helper', agentDescription: 'Helps' });
+
+			// Inner tool inside the subagent requests permission to read a file
+			// inside the parent workspace.
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_start',
+				toolCallId: 'inner-read-1',
+				toolName: 'read',
+				displayName: 'Read',
+				invocationMessage: 'Read file',
+				parentToolCallId: 'tc-parent',
+			});
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_ready',
+				toolCallId: 'inner-read-1',
+				invocationMessage: 'Read src/app.ts',
+				permissionKind: 'read',
+				permissionPath: '/workspace/src/app.ts',
+			});
+
+			assert.deepStrictEqual(agent.respondToPermissionCalls, [
+				{ requestId: 'inner-read-1', approved: true },
+			]);
+		});
+
+		test('session-level autoApprove on the parent is inherited by tools in subagent sessions', () => {
+			setupSession(URI.file('/workspace').toString());
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			// Set the parent session to "Bypass Approvals" via session config.
+			const parentState = stateManager.getSessionState(sessionUri.toString());
+			if (parentState) {
+				parentState.config = {
+					schema: {
+						type: 'object',
+						properties: {
+							autoApprove: {
+								type: 'string',
+								title: 'Approvals',
+								enum: ['default', 'autoApprove', 'autopilot'],
+								default: 'default',
+								sessionMutable: true,
+							},
+						},
+					},
+					values: { autoApprove: 'autoApprove' },
+				};
+			}
+
+			agent.fireProgress({ session: sessionUri, type: 'tool_start', toolCallId: 'tc-parent', toolName: 'task', displayName: 'Task', invocationMessage: 'Delegating...' });
+			agent.fireProgress({ session: sessionUri, type: 'subagent_started', toolCallId: 'tc-parent', agentName: 'helper', agentDisplayName: 'Helper', agentDescription: 'Helps' });
+
+			// Inner write outside the workspace would normally NOT auto-approve,
+			// but session-level autoApprove on the parent must apply.
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_start',
+				toolCallId: 'inner-write-1',
+				toolName: 'write',
+				displayName: 'Write',
+				invocationMessage: 'Write file',
+				parentToolCallId: 'tc-parent',
+			});
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_ready',
+				toolCallId: 'inner-write-1',
+				invocationMessage: 'Write /tmp/foo',
+				permissionKind: 'write',
+				permissionPath: '/tmp/foo',
+			});
+
+			assert.deepStrictEqual(agent.respondToPermissionCalls, [
+				{ requestId: 'inner-write-1', approved: true },
+			]);
+		});
+	});
+
+	// ---- Session permissions ------------------------------------------------
+
+	suite('session permissions', () => {
+
+		test('tool_ready action includes confirmation options when confirmation is needed', () => {
+			setupSession();
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_start',
+				toolCallId: 'tc-perm-1',
+				toolName: 'CustomTool',
+				displayName: 'Custom Tool',
+				invocationMessage: 'Running custom tool',
+			});
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_ready',
+				toolCallId: 'tc-perm-1',
+				invocationMessage: 'Run custom tool',
+				confirmationTitle: 'Run custom tool',
+				permissionKind: 'custom-tool',
+			});
+
+			const state = stateManager.getSessionState(sessionUri.toString());
+			const tc = state!.activeTurn!.responseParts.find(
+				rp => rp.kind === ResponsePartKind.ToolCall && rp.toolCall.toolCallId === 'tc-perm-1'
+			);
+			assert.ok(tc && tc.kind === ResponsePartKind.ToolCall, 'tool call should exist');
+			assert.strictEqual(tc.toolCall.status, ToolCallStatus.PendingConfirmation);
+			assert.ok(Array.isArray(tc.toolCall.options), 'options should be an array');
+			assert.deepStrictEqual(tc.toolCall.options!.map(o => o.id), ['allow-session', 'allow-once', 'skip']);
+		});
+
+		test('SessionToolCallConfirmed with allow-session adds tool to session permissions', () => {
+			setupSession();
+			const state = stateManager.getSessionState(sessionUri.toString());
+			if (state) {
+				state.config = {
+					schema: { type: 'object', properties: {} },
+					values: {},
+				};
+			}
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_start',
+				toolCallId: 'tc-perm-2',
+				toolName: 'CustomTool',
+				displayName: 'Custom Tool',
+				invocationMessage: 'Running custom tool',
+			});
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_ready',
+				toolCallId: 'tc-perm-2',
+				invocationMessage: 'Run custom tool',
+				confirmationTitle: 'Run custom tool',
+				permissionKind: 'custom-tool',
+			});
+
+			sideEffects.handleAction({
+				type: ActionType.SessionToolCallConfirmed,
+				session: sessionUri.toString(),
+				turnId: 'turn-1',
+				toolCallId: 'tc-perm-2',
+				approved: true,
+				confirmed: 'user-action' as const,
+				selectedOptionId: 'allow-session',
+			} as SessionAction);
+
+			const updatedState = stateManager.getSessionState(sessionUri.toString());
+			assert.deepStrictEqual(
+				updatedState!.config!.values.permissions,
+				{ allow: ['CustomTool'], deny: [] },
+			);
+		});
+
+		test('subsequent tool_ready for same tool is auto-approved after allow-session permission', () => {
+			setupSession();
+			const state = stateManager.getSessionState(sessionUri.toString());
+			if (state) {
+				state.config = {
+					schema: { type: 'object', properties: {} },
+					values: { permissions: { allow: ['CustomTool'], deny: [] } },
+				};
+			}
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_start',
+				toolCallId: 'tc-perm-3',
+				toolName: 'CustomTool',
+				displayName: 'Custom Tool',
+				invocationMessage: 'Running custom tool',
+			});
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_ready',
+				toolCallId: 'tc-perm-3',
+				invocationMessage: 'Run custom tool',
+				confirmationTitle: 'Run custom tool',
+				permissionKind: 'custom-tool',
+			});
+
+			assert.deepStrictEqual(agent.respondToPermissionCalls, [
+				{ requestId: 'tc-perm-3', approved: true },
+			]);
+		});
+
+		test('subagent tool calls inherit parent session permissions', () => {
+			setupSession();
+			const state = stateManager.getSessionState(sessionUri.toString());
+			if (state) {
+				state.config = {
+					schema: { type: 'object', properties: {} },
+					values: { permissions: { allow: ['CustomTool'], deny: [] } },
+				};
+			}
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_start',
+				toolCallId: 'tc-parent',
+				toolName: 'task',
+				displayName: 'Task',
+				invocationMessage: 'Delegating...',
+			});
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'subagent_started',
+				toolCallId: 'tc-parent',
+				agentName: 'helper',
+				agentDisplayName: 'Helper',
+				agentDescription: 'Helps',
+			});
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_start',
+				toolCallId: 'inner-perm-1',
+				toolName: 'CustomTool',
+				displayName: 'Custom Tool',
+				invocationMessage: 'Running custom tool',
+				parentToolCallId: 'tc-parent',
+			});
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_ready',
+				toolCallId: 'inner-perm-1',
+				invocationMessage: 'Run custom tool',
+				confirmationTitle: 'Run custom tool',
+				permissionKind: 'custom-tool',
+			});
+
+			assert.deepStrictEqual(agent.respondToPermissionCalls, [
+				{ requestId: 'inner-perm-1', approved: true },
+			]);
 		});
 	});
 });

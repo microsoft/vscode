@@ -17,6 +17,8 @@ import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { ILanguageModelsService } from '../../common/languageModels.js';
 import { IChatWidgetService } from '../chat.js';
+import { IStorageService, StorageScope } from '../../../../../platform/storage/common/storage.js';
+import { AUTOPILOT_DONT_SHOW_AGAIN_KEY, AUTO_APPROVE_DONT_SHOW_AGAIN_KEY } from '../../common/chatPermissionStorageKeys.js';
 
 function uriReplacer(_key: string, value: unknown): unknown {
 	if (URI.isUri(value)) {
@@ -37,6 +39,7 @@ export function registerChatDeveloperActions() {
 	registerAction2(InspectChatModelAction);
 	registerAction2(InspectChatModelReferencesAction);
 	registerAction2(ClearRecentlyUsedLanguageModelsAction);
+	registerAction2(ResetChatPermissionWarningDialogsAction);
 }
 
 function formatChatModelReferenceInspection(accessor: ServicesAccessor): string {
@@ -231,5 +234,25 @@ class ClearRecentlyUsedLanguageModelsAction extends Action2 {
 
 	override run(accessor: ServicesAccessor): void {
 		accessor.get(ILanguageModelsService).clearRecentlyUsedList();
+	}
+}
+
+class ResetChatPermissionWarningDialogsAction extends Action2 {
+	static readonly ID = 'workbench.action.chat.resetPermissionWarningDialogs';
+
+	constructor() {
+		super({
+			id: ResetChatPermissionWarningDialogsAction.ID,
+			title: localize2('workbench.action.chat.resetPermissionWarningDialogs.label', "Reset Permission Warning Dialogs (Autopilot, Bypass Approvals)"),
+			category: Categories.Developer,
+			f1: true,
+			precondition: ChatContextKeys.enabled
+		});
+	}
+
+	override run(accessor: ServicesAccessor): void {
+		const storageService = accessor.get(IStorageService);
+		storageService.remove(AUTOPILOT_DONT_SHOW_AGAIN_KEY, StorageScope.PROFILE);
+		storageService.remove(AUTO_APPROVE_DONT_SHOW_AGAIN_KEY, StorageScope.PROFILE);
 	}
 }

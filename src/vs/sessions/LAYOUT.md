@@ -104,6 +104,7 @@ The Agent Sessions titlebar includes a custom left toolbar that appears after th
 | Action | ID | Location | Behavior |
 |--------|-----|----------|----------|
 | Toggle Sidebar | `workbench.action.agentToggleSidebarVisibility` | Left toolbar (`TitleBarLeft`) | Toggles primary sidebar visibility |
+| Agent Host Filter | `sessions.agentHostFilter.pick` | Left toolbar (`TitleBarLeft`) | Dropdown indicator of the host the workbench is scoped to; lets the user switch hosts or pick "All Hosts". Visible when at least one remote agent host is known (`sessions.hasAgentHosts`). Renders via a custom `HostFilterActionViewItem`. |
 | Run Script | `workbench.action.agentSessions.runScript` | Right toolbar (`TitleBarRight`) | Split button: runs configured script or shows configure dialog |
 | Open... | (submenu) | Right toolbar (`TitleBarRight`) | Split button submenu: Open Terminal, Open in VS Code |
 | Toggle Secondary Sidebar | `workbench.action.agentToggleSecondarySidebarVisibility` | Right toolbar (`TitleBarRight`) | Toggles auxiliary bar visibility |
@@ -171,12 +172,14 @@ This structure places the sidebar at the root level spanning the full window hei
 | Part | Default Size |
 |------|--------------|
 | Sidebar | 300px width |
-| Auxiliary Bar | 300px width |
+| Auxiliary Bar | 380px width |
 | Chat Bar | Remaining space |
 | Panel | 300px height |
 | Titlebar | Determined by `minimumHeight` (~30px) |
 
-The sessions sidebar can be resized down to a minimum width of 170px.
+The sessions sidebar can be resized down to a minimum width of 170px (desktop) or 270px (web, sized to fit the titlebar's left toolbar which includes the host filter combo).
+
+The sessions auxiliary bar can generally be resized down to 270px. When the main editor part is visible (i.e. any editor is open in the main editor area adjacent to the auxiliary bar), the sash no longer snaps it closed; the titlebar toggle action still hides and shows the auxiliary bar as before. This behavior is automatic and applies to all editor types without requiring an explicit allowlist.
 
 ### 4.3 Editor Modal
 
@@ -206,7 +209,7 @@ The setting `workbench.editor.useModal` is an enum with three values:
 - `'some'`: Certain editors (e.g. Settings, Keyboard Shortcuts) may open in a modal overlay when requested via `MODAL_GROUP`
 - `'all'`: All editors open in a modal overlay (used by agent sessions window)
 
-The sessions default configuration also sets `workbench.notifications.position` to `'top-right'` so toast notifications anchor in the top-right corner of the sessions window without changing the default notification placement in the regular workbench.
+The sessions default configuration also sets `workbench.notifications.position` to `'bottom-right'` so notifications anchor in the bottom-right corner of the sessions window without changing the default notification placement in the regular workbench. The sessions-specific stylesheet adjusts both notification center and toast offsets to `15px` from the bottom/right or bottom/left edges, and to `top: 40px; right: 15px;` for the top-right placement. Because the shared workbench notification controllers also compute a top-right inline offset for custom titlebar windows, the sessions workbench reapplies its fixed `40px` top offset after those controllers run so the sessions-only placement stays stable.
 
 
 ---
@@ -378,7 +381,7 @@ The Agent Sessions workbench uses specialized part implementations that extend t
 |---------|----------------|---------------------|
 | Activity Bar integration | Full support | No activity bar; account widget in the titlebar |
 | Composite bar position | Configurable (top/bottom/title/hidden) | Fixed: Title |
-| Composite bar visibility | Configurable | Sidebar: hidden (`shouldShowCompositeBar()` returns `false`); ChatBar: hidden; Auxiliary Bar & Panel: visible |
+| Composite bar visibility | Configurable | Sidebar: hidden (`shouldShowCompositeBar()` returns `false`); ChatBar: hidden; Auxiliary Bar & Panel: visible. Separately, the internal chat tab strip shown inside the Chat Bar preserves each chat title's original casing instead of forcing per-word capitalization via CSS. |
 | Auto-hide support | Configurable | Disabled |
 | Configuration listening | Many settings | Minimal |
 | Context menu actions | Full set | Simplified |
@@ -658,6 +661,12 @@ interface IPartVisibilityState {
 
 | Date | Change |
 |------|--------|
+| 2026-04-22 | Added sessions-only toast offset overrides so notification toasts now use `right: 15px` in the default bottom-right placement and `left: 15px` in the bottom-left placement, matching the notification center spacing. |
+| 2026-04-22 | Added a sessions-workbench notification offset override so the shared notification controllers no longer push top-right notifications down to `42px`; sessions now reapply a fixed `40px` top offset for top-right notification center/toast placement. |
+| 2026-04-22 | Generalized the auxiliary bar snap-close prevention to trigger whenever the main editor part is visible (any editor type), so the behavior now applies automatically without maintaining an editor-type allowlist. |
+| 2026-04-22 | Updated the sessions auxiliary bar sizing rules so attached diff editors and integrated browser editors keep the normal 270px auxiliary-bar minimum width while disabling sash snap-to-close in that state, and the titlebar toggle continues to hide/show the secondary sidebar normally. |
+| 2026-04-21 | Updated the sessions chat composite bar tabs to preserve each chat title's original casing instead of applying per-word capitalization. |
+| 2026-04-21 | Moved the sessions-only default notification placement to bottom-right and documented the sessions-specific notification center offsets: `15px` from the bottom/right or bottom/left edges, and `top: 40px; right: 15px;` for top-right placement. |
 | 2026-04-17 | Added a subtle 1px titlebar-token border around the sessions account widget's GitHub profile image, including the inactive-window variant, and documented the avatar chrome in the layout spec. |
 | 2026-04-16 | Softened the experimental sessions shell gradient by reducing the accent tint mix strength across the shared default, light-theme, and dark-theme variants so the primary color reads more subtly behind the workbench chrome. |
 | 2026-04-16 | Updated the layout visual representation to show the editor part in the top-right row and mark it as hidden by default. |

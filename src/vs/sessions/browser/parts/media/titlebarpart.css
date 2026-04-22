@@ -78,6 +78,17 @@
 	border-radius: var(--vscode-cornerRadius-medium);
 }
 
+/* Secondary sidebar toggle uses icon variants for toggle state — no background needed */
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container .action-label.codicon-agent-secondary-sidebar-toggle-open.checked,
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container .action-label.codicon-agent-secondary-sidebar-toggle-closed.checked {
+	background: none;
+}
+
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container .action-label.codicon-agent-secondary-sidebar-toggle-open.checked:hover,
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container .action-label.codicon-agent-secondary-sidebar-toggle-closed.checked:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-actions-container .monaco-action-bar .action-item:not(.disabled) .codicon {
 	color: var(--vscode-icon-foreground);
 }

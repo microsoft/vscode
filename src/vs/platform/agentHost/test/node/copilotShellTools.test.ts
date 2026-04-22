@@ -11,18 +11,18 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import type { ICreateTerminalParams } from '../../common/state/protocol/commands.js';
-import type { ITerminalClaim, ITerminalInfo } from '../../common/state/protocol/state.js';
+import type { CreateTerminalParams } from '../../common/state/protocol/commands.js';
+import type { TerminalClaim, TerminalInfo } from '../../common/state/protocol/state.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
-import { ShellManager } from '../../node/copilot/copilotShellTools.js';
+import { ShellManager, prefixForHistorySuppression } from '../../node/copilot/copilotShellTools.js';
 
 class TestAgentHostTerminalManager implements IAgentHostTerminalManager {
 	declare readonly _serviceBrand: undefined;
 
-	readonly created: ICreateTerminalParams[] = [];
+	readonly created: { params: CreateTerminalParams; options?: { shell?: string; preventShellHistory?: boolean; nonInteractive?: boolean } }[] = [];
 
-	async createTerminal(params: ICreateTerminalParams): Promise<void> {
-		this.created.push(params);
+	async createTerminal(params: CreateTerminalParams, options?: { shell?: string; preventShellHistory?: boolean; nonInteractive?: boolean }): Promise<void> {
+		this.created.push({ params, options });
 	}
 	writeInput(): void { }
 	onData(): IDisposable { return Disposable.None; }
@@ -30,12 +30,12 @@ class TestAgentHostTerminalManager implements IAgentHostTerminalManager {
 	onClaimChanged(): IDisposable { return Disposable.None; }
 	onCommandFinished(): IDisposable { return Disposable.None; }
 	getContent(): string | undefined { return undefined; }
-	getClaim(): ITerminalClaim | undefined { return undefined; }
+	getClaim(): TerminalClaim | undefined { return undefined; }
 	hasTerminal(): boolean { return false; }
 	getExitCode(): number | undefined { return undefined; }
 	supportsCommandDetection(): boolean { return false; }
 	disposeTerminal(): void { }
-	getTerminalInfos(): ITerminalInfo[] { return []; }
+	getTerminalInfos(): TerminalInfo[] { return []; }
 	getTerminalState(): undefined { return undefined; }
 }
 
@@ -60,9 +60,30 @@ suite('CopilotShellTools', () => {
 		await shellManager.getOrCreateShell('bash', 'turn-1', 'tool-1');
 		await shellManager.getOrCreateShell('bash', 'turn-2', 'tool-2', explicitCwd);
 
-		assert.deepStrictEqual(terminalManager.created.map(c => c.cwd), [
+		assert.deepStrictEqual(terminalManager.created.map(c => c.params.cwd), [
 			worktreePath,
 			explicitCwd,
 		]);
+	});
+
+	test('opts every managed shell into shell-history suppression and non-interactive mode', async () => {
+		const terminalManager = new TestAgentHostTerminalManager();
+		const services = new ServiceCollection();
+		services.set(ILogService, new NullLogService());
+		services.set(IAgentHostTerminalManager, terminalManager);
+		const instantiationService: IInstantiationService = disposables.add(new InstantiationService(services));
+		services.set(IInstantiationService, instantiationService);
+		const shellManager = disposables.add(instantiationService.createInstance(ShellManager, URI.parse('copilot:/session-1'), undefined));
+
+		await shellManager.getOrCreateShell('bash', 'turn-1', 'tool-1');
+
+		assert.strictEqual(terminalManager.created.length, 1);
+		assert.strictEqual(terminalManager.created[0].options?.preventShellHistory, true);
+		assert.strictEqual(terminalManager.created[0].options?.nonInteractive, true);
+	});
+
+	test('prefixForHistorySuppression prepends a space for POSIX shells, no-op for PowerShell', () => {
+		assert.strictEqual(prefixForHistorySuppression('bash'), ' ');
+		assert.strictEqual(prefixForHistorySuppression('powershell'), '');
 	});
 });

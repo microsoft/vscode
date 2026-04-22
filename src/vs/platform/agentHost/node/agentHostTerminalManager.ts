@@ -3,33 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import * as fs from 'fs';
+import { DeferredPromise, raceCancellablePromises, timeout } from '../../../base/common/async.js';
 import { Emitter } from '../../../base/common/event.js';
+import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
+import { dirname } from '../../../base/common/path.js';
 import * as platform from '../../../base/common/platform.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
+import { createDecorator } from '../../instantiation/common/instantiation.js';
 import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
-import { createDecorator } from '../../instantiation/common/instantiation.js';
-import { ActionType } from '../common/state/protocol/actions.js';
-import type { ICreateTerminalParams } from '../common/state/protocol/commands.js';
-import { ITerminalClaim, ITerminalContentPart, ITerminalInfo, ITerminalState, TerminalClaimKind } from '../common/state/protocol/state.js';
-import { isTerminalAction } from '../common/state/sessionActions.js';
 import { getShellIntegrationInjection } from '../../terminal/node/terminalEnvironment.js';
-import { Osc633Event, Osc633EventType, Osc633Parser } from './osc633Parser.js';
+import { ActionType } from '../common/state/protocol/actions.js';
+import type { CreateTerminalParams } from '../common/state/protocol/commands.js';
+import { TerminalClaim, TerminalContentPart, TerminalInfo, TerminalState, TerminalClaimKind } from '../common/state/protocol/state.js';
+import { isTerminalAction } from '../common/state/sessionActions.js';
 import type { AgentHostStateManager } from './agentHostStateManager.js';
-import * as fs from 'fs';
-import { dirname } from '../../../base/common/path.js';
-import { DeferredPromise, raceCancellablePromises, timeout } from '../../../base/common/async.js';
+import { Osc633Event, Osc633EventType, Osc633Parser } from './osc633Parser.js';
 
 const WAIT_FOR_PROMPT_TIMEOUT = 10_000;
-
-/** Returns true for POSIX absolute paths, Windows drive paths, and UNC paths. */
-function isAbsoluteFileSystemPath(path: string): boolean {
-	return path.startsWith('/')
-		|| /^[a-zA-Z]:[\\/]/.test(path)
-		|| path.startsWith('\\\\');
-}
 
 export const IAgentHostTerminalManager = createDecorator<IAgentHostTerminalManager>('agentHostTerminalManager');
 
@@ -45,20 +38,20 @@ export interface ICommandFinishedEvent {
  */
 export interface IAgentHostTerminalManager {
 	readonly _serviceBrand: undefined;
-	createTerminal(params: ICreateTerminalParams, options?: { shell?: string }): Promise<void>;
+	createTerminal(params: CreateTerminalParams, options?: { shell?: string; preventShellHistory?: boolean; nonInteractive?: boolean }): Promise<void>;
 	writeInput(uri: string, data: string): void;
 	onData(uri: string, cb: (data: string) => void): IDisposable;
 	onExit(uri: string, cb: (exitCode: number) => void): IDisposable;
-	onClaimChanged(uri: string, cb: (claim: ITerminalClaim) => void): IDisposable;
+	onClaimChanged(uri: string, cb: (claim: TerminalClaim) => void): IDisposable;
 	onCommandFinished(uri: string, cb: (event: ICommandFinishedEvent) => void): IDisposable;
 	getContent(uri: string): string | undefined;
-	getClaim(uri: string): ITerminalClaim | undefined;
+	getClaim(uri: string): TerminalClaim | undefined;
 	hasTerminal(uri: string): boolean;
 	getExitCode(uri: string): number | undefined;
 	supportsCommandDetection(uri: string): boolean;
 	disposeTerminal(uri: string): void;
-	getTerminalInfos(): ITerminalInfo[];
-	getTerminalState(uri: string): ITerminalState | undefined;
+	getTerminalInfos(): TerminalInfo[];
+	getTerminalState(uri: string): TerminalState | undefined;
 }
 
 // node-pty is loaded dynamically to avoid bundling issues in non-node environments
@@ -88,15 +81,15 @@ interface IManagedTerminal {
 	readonly pty: import('node-pty').IPty;
 	readonly onDataEmitter: Emitter<string>;
 	readonly onExitEmitter: Emitter<number>;
-	readonly onClaimChangedEmitter: Emitter<ITerminalClaim>;
+	readonly onClaimChangedEmitter: Emitter<TerminalClaim>;
 	readonly onCommandFinishedEmitter: Emitter<ICommandFinishedEvent>;
 	title: string;
 	cwd: string;
 	cols: number;
 	rows: number;
-	content: ITerminalContentPart[];
+	content: TerminalContentPart[];
 	contentSize: number;
-	claim: ITerminalClaim;
+	claim: TerminalClaim;
 	exitCode?: number;
 	commandTracker?: ICommandTracker;
 }
@@ -148,7 +141,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 	}
 
 	/** Get metadata for all active terminals (for root state). */
-	getTerminalInfos(): ITerminalInfo[] {
+	getTerminalInfos(): TerminalInfo[] {
 		return [...this._terminals.values()].map(t => ({
 			resource: t.uri,
 			title: t.title,
@@ -158,7 +151,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 	}
 
 	/** Get the full state for a terminal (for subscribe snapshots). */
-	getTerminalState(uri: string): ITerminalState | undefined {
+	getTerminalState(uri: string): TerminalState | undefined {
 		const terminal = this._terminals.get(uri);
 		if (!terminal) {
 			return undefined;
@@ -179,7 +172,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 	 * Create a new terminal backed by node-pty.
 	 * Spawns the user's default shell.
 	 */
-	async createTerminal(params: ICreateTerminalParams, options?: { shell?: string }): Promise<void> {
+	async createTerminal(params: CreateTerminalParams, options?: { shell?: string; preventShellHistory?: boolean; nonInteractive?: boolean }): Promise<void> {
 		const uri = params.terminal;
 		if (this._terminals.has(uri)) {
 			throw new Error(`Terminal already exists: ${uri}`);
@@ -199,6 +192,25 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		// Shell integration — inject scripts so the shell emits OSC 633 sequences
 		const nonce = generateUuid();
 		const env: Record<string, string> = { ...process.env as Record<string, string> };
+		if (options?.preventShellHistory) {
+			// Picked up by the shell integration scripts to set HISTCONTROL=ignorespace
+			// (bash) / HIST_IGNORE_SPACE (zsh), or suppress PSReadLine history (pwsh).
+			// Combined with the leading-space prefix applied at command-write time, this
+			// prevents agent-executed commands from polluting the user's shell history.
+			env['VSCODE_PREVENT_SHELL_HISTORY'] = '1';
+		}
+		if (options?.nonInteractive) {
+			// Suppress paging and interactive prompts so that tool-spawned
+			// terminals produce clean, machine-friendly output. An empty
+			// string disables paging in git, less, and most CLI tools and
+			// is safe on all platforms (unlike 'cat' which isn't on Windows PATH).
+			env['LC_ALL'] = 'C.UTF-8';
+			env['PAGER'] = '';
+			env['GIT_PAGER'] = '';
+			env['GH_PAGER'] = '';
+			env['GIT_TERMINAL_PROMPT'] = '0';
+			env['DEBIAN_FRONTEND'] = 'noninteractive';
+		}
 		let shellArgs: string[] = [];
 
 		const injection = await getShellIntegrationInjection(
@@ -258,11 +270,11 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		});
 
 		const store = new DisposableStore();
-		const claim: ITerminalClaim = params.claim ?? { kind: TerminalClaimKind.Client, clientId: '' };
+		const claim: TerminalClaim = params.claim ?? { kind: TerminalClaimKind.Client, clientId: '' };
 
 		const onDataEmitter = store.add(new Emitter<string>());
 		const onExitEmitter = store.add(new Emitter<number>());
-		const onClaimChangedEmitter = store.add(new Emitter<ITerminalClaim>());
+		const onClaimChangedEmitter = store.add(new Emitter<TerminalClaim>());
 		const onCommandFinishedEmitter = store.add(new Emitter<ICommandFinishedEvent>());
 
 		const managed: IManagedTerminal = {
@@ -364,7 +376,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 	}
 
 	/** Register a callback for terminal claim changes. */
-	onClaimChanged(uri: string, cb: (claim: ITerminalClaim) => void): IDisposable {
+	onClaimChanged(uri: string, cb: (claim: TerminalClaim) => void): IDisposable {
 		const terminal = this._terminals.get(uri);
 		if (!terminal) {
 			return toDisposable(() => { });
@@ -391,7 +403,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 	}
 
 	/** Get the current claim for a terminal. */
-	getClaim(uri: string): ITerminalClaim | undefined {
+	getClaim(uri: string): TerminalClaim | undefined {
 		return this._terminals.get(uri)?.claim;
 	}
 
@@ -422,7 +434,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 	}
 
 	/** Update a terminal's claim. */
-	private _setClaim(uri: string, claim: ITerminalClaim): void {
+	private _setClaim(uri: string, claim: TerminalClaim): void {
 		const terminal = this._terminals.get(uri);
 		if (terminal) {
 			terminal.claim = claim;
@@ -608,7 +620,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		}
 	}
 
-	private _getContentPartSize(part: ITerminalContentPart): number {
+	private _getContentPartSize(part: TerminalContentPart): number {
 		return part.type === 'command' ? part.output.length : part.value.length;
 	}
 
@@ -655,37 +667,33 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 	}
 
 	/**
-	 * Resolves the cwd string from {@link ICreateTerminalParams} to an
+	 * Resolves the cwd string from {@link CreateTerminalParams} to an
 	 * accessible filesystem path, falling back to $HOME if the requested
 	 * directory is missing (otherwise node-pty exits silently with code 1).
 	 * Accepts either a `file://` URI string or a raw absolute filesystem path.
 	 */
-	private async _resolveCwd(cwd: string | undefined, uri: string): Promise<string> {
-		let resolved = process.cwd();
+	private async _resolveCwd(cwd: string | undefined, terminalURI: string): Promise<string> {
+		let resolved = cwd;
 		if (cwd) {
-			if (isAbsoluteFileSystemPath(cwd)) {
-				resolved = cwd;
+			const parsed = URI.parse(cwd);
+			if (parsed.scheme === 'file' && parsed.fsPath && parsed.fsPath !== '/') {
+				resolved = parsed.fsPath;
 			} else {
-				try {
-					const parsed = URI.parse(cwd);
-					if (parsed.scheme === 'file' && parsed.fsPath && parsed.fsPath !== '/') {
-						resolved = parsed.fsPath;
-					} else {
-						this._logService.warn(`[TerminalManager] Ignoring non-file cwd for ${uri}: ${cwd}`);
-					}
-				} catch {
-					this._logService.warn(`[TerminalManager] Failed to parse cwd URI for ${uri}: ${cwd}`);
-				}
+				this._logService.warn(`[TerminalManager] Ignoring non-file cwd for ${terminalURI}: ${cwd}`);
 			}
 		}
+
 		try {
-			const stat = await fs.promises.stat(resolved);
-			if (stat.isDirectory()) {
-				return resolved;
+			if (resolved) {
+				const stat = await fs.promises.stat(resolved);
+				if (stat.isDirectory()) {
+					return resolved;
+				}
 			}
 		} catch {
 			// fall through to fallback
 		}
+
 		const fallback = process.env['HOME'] || process.env['USERPROFILE'] || process.cwd();
 		this._logService.warn(`[TerminalManager] cwd '${resolved}' is not accessible, falling back to ${fallback}`);
 		return fallback;

@@ -24,6 +24,7 @@ export namespace WebviewResourceResponse {
 			public readonly etag: string | undefined,
 			public readonly mtime: number | undefined,
 			public readonly mimeType: string,
+			public readonly size: number,
 		) { }
 	}
 
@@ -47,6 +48,7 @@ export async function loadLocalResource(
 	options: {
 		ifNoneMatch: string | undefined;
 		roots: ReadonlyArray<URI>;
+		range?: { readonly start: number; readonly end?: number };
 	},
 	uriIdentityService: IUriIdentityService,
 	fileService: IFileService,
@@ -65,9 +67,19 @@ export async function loadLocalResource(
 	const mime = getWebviewContentMimeType(requestUri); // Use the original path for the mime
 
 	try {
-		const result = await fileService.readFileStream(resourceToLoad, { etag: options.ifNoneMatch }, token);
+		const readOptions: { etag?: string; position?: number; length?: number } = { etag: options.ifNoneMatch };
+		if (options.range) {
+			readOptions.position = options.range.start;
+			if (options.range.end !== undefined) {
+				if (options.range.end < options.range.start) {
+					return WebviewResourceResponse.Failed;
+				}
+				readOptions.length = options.range.end - options.range.start + 1;
+			}
+		}
+		const result = await fileService.readFileStream(resourceToLoad, readOptions, token);
 		logService.trace(`Webview.loadLocalResource - Loaded. requestUri=${requestUri}, resourceToLoad=${resourceToLoad}`);
-		return new WebviewResourceResponse.StreamSuccess(result.value, result.etag, result.mtime, mime);
+		return new WebviewResourceResponse.StreamSuccess(result.value, result.etag, result.mtime, mime, result.size);
 	} catch (err) {
 		if (err instanceof FileOperationError) {
 			const result = err.fileOperationResult;

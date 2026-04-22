@@ -19,14 +19,14 @@ import type {
 } from '../common/agentService.js';
 import {
 	ActionType,
-	type ISessionAction,
-	type ISessionErrorAction,
-	type ISessionInputRequestedAction,
+	type SessionAction,
+	type SessionErrorAction,
+	type SessionInputRequestedAction,
 	type ITitleChangedAction,
 	type IToolCallCompleteAction,
 	type IToolCallReadyAction,
 	type IToolCallStartAction,
-	type ISessionToolCallContentChangedAction,
+	type SessionToolCallContentChangedAction,
 	type ITurnCompleteAction,
 	type IUsageAction
 } from '../common/state/sessionActions.js';
@@ -55,12 +55,12 @@ export class AgentEventMapper {
 
 	/**
 	 * Maps a flat {@link IAgentProgressEvent} from the agent host into
-	 * protocol {@link ISessionAction}(s) suitable for dispatch to the reducer.
+	 * protocol {@link SessionAction}(s) suitable for dispatch to the reducer.
 	 *
 	 * Returns `undefined` for events that have no corresponding action.
 	 * May return an array when a single SDK event maps to multiple protocol actions.
 	 */
-	mapProgressEventToActions(event: IAgentProgressEvent, session: URI, turnId: string): ISessionAction | ISessionAction[] | undefined {
+	mapProgressEventToActions(event: IAgentProgressEvent, session: URI, turnId: string): SessionAction | SessionAction[] | undefined {
 		switch (event.type) {
 			case 'delta': {
 				const e = event as IAgentDeltaEvent;
@@ -96,18 +96,14 @@ export class AgentEventMapper {
 				const e = event as IAgentToolStartEvent;
 				const meta: Record<string, unknown> = { toolKind: e.toolKind, language: e.language };
 
-				// For subagent tools, extract agent metadata from tool arguments
-				// so the renderer can display the name/description immediately.
-				if (e.toolKind === 'subagent' && e.toolArguments) {
-					try {
-						const args = JSON.parse(e.toolArguments) as Record<string, unknown>;
-						if (typeof args.description === 'string') {
-							meta.subagentDescription = args.description;
-						}
-						if (typeof args.agentName === 'string') {
-							meta.subagentAgentName = args.agentName;
-						}
-					} catch { /* ignore parse errors */ }
+				// Subagent metadata is normalized by the per-SDK adapter (e.g.
+				// the Copilot adapter maps `agent_type` → `subagentAgentName`),
+				// so the generic mapper just forwards it as-is.
+				if (e.subagentDescription) {
+					meta.subagentDescription = e.subagentDescription;
+				}
+				if (e.subagentAgentName) {
+					meta.subagentAgentName = e.subagentAgentName;
 				}
 
 				const startAction: IToolCallStartAction = {
@@ -179,7 +175,7 @@ export class AgentEventMapper {
 					turnId,
 					toolCallId: e.toolCallId,
 					content: e.content,
-				} satisfies ISessionToolCallContentChangedAction;
+				} satisfies SessionToolCallContentChangedAction;
 			}
 
 			case 'idle':
@@ -200,7 +196,7 @@ export class AgentEventMapper {
 						message: e.message,
 						stack: e.stack,
 					},
-				} satisfies ISessionErrorAction;
+				} satisfies SessionErrorAction;
 			}
 
 			case 'usage': {
@@ -279,7 +275,7 @@ export class AgentEventMapper {
 					type: ActionType.SessionInputRequested,
 					session,
 					request: e.request,
-				} satisfies ISessionInputRequestedAction;
+				} satisfies SessionInputRequestedAction;
 			}
 
 			default:

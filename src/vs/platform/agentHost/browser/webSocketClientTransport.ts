@@ -9,8 +9,9 @@
 import { Emitter } from '../../../base/common/event.js';
 import { Disposable } from '../../../base/common/lifecycle.js';
 import { connectionTokenQueryName } from '../../../base/common/network.js';
-import type { IAhpServerNotification, IJsonRpcResponse, IProtocolMessage } from '../common/state/sessionProtocol.js';
+import type { AhpServerNotification, JsonRpcResponse, ProtocolMessage } from '../common/state/sessionProtocol.js';
 import type { IClientTransport } from '../common/state/sessionTransport.js';
+import { MALFORMED_FRAMES_FORCE_CLOSE_THRESHOLD, MALFORMED_FRAMES_LOG_CAP } from '../common/transportConstants.js';
 
 // ---- Client transport -------------------------------------------------------
 
@@ -21,7 +22,7 @@ import type { IClientTransport } from '../common/state/sessionTransport.js';
  */
 export class WebSocketClientTransport extends Disposable implements IClientTransport {
 
-	private readonly _onMessage = this._register(new Emitter<IProtocolMessage>());
+	private readonly _onMessage = this._register(new Emitter<ProtocolMessage>());
 	readonly onMessage = this._onMessage.event;
 
 	private readonly _onClose = this._register(new Emitter<void>());
@@ -31,6 +32,7 @@ export class WebSocketClientTransport extends Disposable implements IClientTrans
 	readonly onOpen = this._onOpen.event;
 
 	private _ws: WebSocket | undefined;
+	private _malformedFrames = 0;
 
 	get isOpen(): boolean {
 		return this._ws?.readyState === WebSocket.OPEN;
@@ -94,13 +96,45 @@ export class WebSocketClientTransport extends Disposable implements IClientTrans
 
 			// Wire up long-lived listeners after connection
 			ws.addEventListener('message', (event: MessageEvent) => {
-				try {
-					const text = typeof event.data === 'string' ? event.data : '';
-					const message = JSON.parse(text) as IProtocolMessage;
-					this._onMessage.fire(message);
-				} catch {
-					// Malformed message - drop.
+				if (typeof event.data !== 'string') {
+					this._malformedFrames++;
+					if (this._malformedFrames <= MALFORMED_FRAMES_LOG_CAP) {
+						const dataType = event.data instanceof ArrayBuffer ? 'ArrayBuffer' : event.data instanceof Blob ? 'Blob' : typeof event.data;
+						const byteLen = event.data instanceof ArrayBuffer ? event.data.byteLength : event.data instanceof Blob ? event.data.size : 0;
+						console.warn(
+							`[WebSocketClientTransport] Non-string frame #${this._malformedFrames} (type=${dataType}, bytes=${byteLen})`
+						);
+					}
+					if (this._malformedFrames > MALFORMED_FRAMES_FORCE_CLOSE_THRESHOLD) {
+						console.warn(
+							`[WebSocketClientTransport] Malformed frame threshold exceeded; forcing close of ${this._address}.`
+						);
+						this._ws?.close(4002, 'malformed-frames');
+					}
+					return;
 				}
+				const text = event.data;
+				let message: ProtocolMessage;
+				try {
+					message = JSON.parse(text) as ProtocolMessage;
+				} catch (err) {
+					this._malformedFrames++;
+					if (this._malformedFrames <= MALFORMED_FRAMES_LOG_CAP) {
+						const preview = text.length > 80 ? text.slice(0, 80) + '…' : text;
+						console.warn(
+							`[WebSocketClientTransport] Malformed frame #${this._malformedFrames} (len=${text.length}): ${preview}`,
+							err instanceof Error ? err.message : String(err)
+						);
+					}
+					if (this._malformedFrames > MALFORMED_FRAMES_FORCE_CLOSE_THRESHOLD) {
+						console.warn(
+							`[WebSocketClientTransport] Malformed frame threshold exceeded; forcing close of ${this._address}.`
+						);
+						this._ws?.close(4002, 'malformed-frames');
+					}
+					return;
+				}
+				this._onMessage.fire(message);
 			});
 
 			ws.addEventListener('close', () => {
@@ -114,7 +148,7 @@ export class WebSocketClientTransport extends Disposable implements IClientTrans
 		});
 	}
 
-	send(message: IProtocolMessage | IAhpServerNotification | IJsonRpcResponse): void {
+	send(message: ProtocolMessage | AhpServerNotification | JsonRpcResponse): void {
 		if (this._ws?.readyState === WebSocket.OPEN) {
 			this._ws.send(JSON.stringify(message));
 		}

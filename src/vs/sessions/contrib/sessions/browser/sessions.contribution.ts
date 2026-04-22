@@ -28,6 +28,11 @@ const agentSessionsViewContainer: ViewContainer = Registry.as<IViewContainersReg
 	storageId: SessionsContainerId,
 	hideIfEmpty: true,
 	order: 6,
+	openCommandActionDescriptor: {
+		id: SessionsContainerId,
+		mnemonicTitle: localize({ key: 'miSessions', comment: ['&& denotes a mnemonic'] }, "&&Sessions"),
+		order: 0
+	},
 	windowVisibility: WindowVisibility.Sessions
 }, ViewContainerLocation.Sidebar, { isDefault: true });
 

@@ -21,6 +21,8 @@ export interface SessionRow {
 	host_type?: string;
 	branch?: string;
 	summary?: string;
+	agent_name?: string;
+	agent_description?: string;
 	created_at?: string;
 	updated_at?: string;
 }

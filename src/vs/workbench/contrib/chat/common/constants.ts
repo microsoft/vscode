@@ -6,7 +6,10 @@
 import { Schemas } from '../../../../base/common/network.js';
 import { IChatSessionsService } from './chatSessionsService.js';
 import { ServicesAccessor } from '../../../../platform/instantiation/common/instantiation.js';
-import { RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { ContextKeyExpr, RawContextKey } from '../../../../platform/contextkey/common/contextkey.js';
+import { IsDevelopmentContext, IsLinuxContext } from '../../../../platform/contextkey/common/contextkeys.js';
+import { ChatEntitlementContextKeys } from '../../../services/chat/common/chatEntitlementService.js';
+import { IsSessionsWindowContext } from '../../../common/contextkeys.js';
 
 export enum ChatConfiguration {
 	AIDisabled = 'chat.disableAIFeatures',
@@ -48,6 +51,7 @@ export enum ChatConfiguration {
 	ChatViewProgressBadgeEnabled = 'chat.viewProgressBadge.enabled',
 	ChatContextUsageEnabled = 'chat.contextUsage.enabled',
 	ChatPersistentProgressEnabled = 'chat.persistentProgress.enabled',
+	ProgressBorder = 'chat.progressBorder.enabled',
 	SubagentToolCustomAgents = 'chat.customAgentInSubagent.enabled',
 	GeneralPurposeAgentEnabled = 'chat.generalPurposeAgent.enabled',
 	SubagentsAllowInvocationsFromSubagents = 'chat.subagents.allowInvocationsFromSubagents',
@@ -99,8 +103,8 @@ export enum ChatPermissionLevel {
 
 const chatPermissionLevels = new Set<string>(Object.values(ChatPermissionLevel));
 
-export function isChatPermissionLevel(level: string | undefined): level is ChatPermissionLevel {
-	return level !== undefined && chatPermissionLevels.has(level);
+export function isChatPermissionLevel(level: unknown | undefined): level is ChatPermissionLevel {
+	return chatPermissionLevels.has(level as string);
 }
 
 /**
@@ -191,6 +195,15 @@ export function isSupportedChatFileScheme(accessor: ServicesAccessor, scheme: st
 }
 
 export const MANAGE_CHAT_COMMAND_ID = 'workbench.action.chat.manage';
+
+export const OPEN_AGENTS_WINDOW_COMMAND_ID = 'workbench.action.openAgentsWindow';
+export const OPEN_AGENTS_WINDOW_PRECONDITION = ContextKeyExpr.and(
+	ContextKeyExpr.or(IsLinuxContext.negate(), IsDevelopmentContext),
+	ChatEntitlementContextKeys.Setup.hidden.negate(),
+	ChatEntitlementContextKeys.Setup.disabledInWorkspace.negate(),
+	IsSessionsWindowContext.negate(),
+);
+
 export const ChatEditorTitleMaxLength = 30;
 
 export const CHAT_TERMINAL_OUTPUT_MAX_PREVIEW_LINES = 1000;

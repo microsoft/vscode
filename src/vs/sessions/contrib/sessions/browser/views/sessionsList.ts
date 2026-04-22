@@ -42,6 +42,7 @@ import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
 import { ISessionsListModelService } from './sessionsListModelService.js';
+import { IAgentHostFilterService } from '../../../remoteAgentHost/common/agentHostFilter.js';
 
 const $ = DOM.$;
 
@@ -457,7 +458,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 	private getStatusIcon(status: SessionStatus, isRead: boolean, isArchived: boolean, pullRequestIcon?: ThemeIcon): ThemeIcon {
 		switch (status) {
-			case SessionStatus.InProgress: return { ...Codicon.sessionInProgress, color: themeColorFromId('textLink.foreground') };
+			case SessionStatus.InProgress: return { ...ThemeIcon.modify(Codicon.loading, 'spin'), color: themeColorFromId('textLink.foreground') };
 			case SessionStatus.NeedsInput: return { ...Codicon.circleFilled, color: themeColorFromId('list.warningForeground') };
 			case SessionStatus.Error: return { ...Codicon.error, color: themeColorFromId('errorForeground') };
 			default:
@@ -688,6 +689,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		private readonly options: ISessionsListControlOptions,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsListModelService private readonly _sessionsListModelService: ISessionsListModelService,
+		@IAgentHostFilterService private readonly _agentHostFilterService: IAgentHostFilterService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -828,6 +830,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		}));
 
+		this._register(this._agentHostFilterService.onDidChange(() => {
+			if (this.visible) {
+				this.update();
+			}
+		}));
+
 		// Re-update when the active session changes so that a filtered-out
 		// session becomes visible while active and hides again when unselected.
 		// Also mark the newly active session as read.
@@ -854,6 +862,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		// Filter by session type and status
 		let filtered = this.sessions;
+		const hostFilter = this._agentHostFilterService.selectedProviderId;
+		if (hostFilter !== undefined) {
+			filtered = filtered.filter(s => s.providerId === hostFilter);
+		}
 		if (this.excludedSessionTypes.size > 0) {
 			filtered = filtered.filter(s => !this.excludedSessionTypes.has(s.sessionType));
 		}

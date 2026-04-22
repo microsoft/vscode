@@ -155,6 +155,7 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 			}
 			isRefreshing = true;
 			const stopwatch = new StopWatch();
+			void this._metadataStore.refresh().catch(error => this.logService.error(error, 'Failed to refresh session metadata store during session list refresh'));
 			try {
 				const sessions = await this.sessionService.getAllSessions(CancellationToken.None);
 				const items = await Promise.all(sessions.map(async session => this.toChatSessionItem(session)));
@@ -405,7 +406,10 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 		workingDirectory: vscode.Uri | undefined,
 	): Promise<{ readonly [key: string]: unknown }> {
 		if (worktreeProperties) {
+			const sessionParentId = await this._metadataStore.getSessionParentId(sessionId);
+
 			return {
+				sessionParentId,
 				autoCommit: worktreeProperties.autoCommit !== false,
 				baseCommit: worktreeProperties?.baseCommit,
 				baseBranchName: worktreeProperties.version === 2
@@ -451,7 +455,8 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 			} satisfies { readonly [key: string]: unknown };
 		}
 
-		const [sessionRequestDetails, repositoryProperties] = await Promise.all([
+		const [sessionParentId, sessionRequestDetails, repositoryProperties] = await Promise.all([
+			this._metadataStore.getSessionParentId(sessionId),
 			this._metadataStore.getRequestDetails(sessionId),
 			this._metadataStore.getRepositoryProperties(sessionId)
 		]);
@@ -470,6 +475,7 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 			: undefined;
 
 		return {
+			sessionParentId,
 			isolationMode: IsolationMode.Workspace,
 			repositoryPath: repositoryProperties?.repositoryPath,
 			branchName: repositoryProperties?.branchName,

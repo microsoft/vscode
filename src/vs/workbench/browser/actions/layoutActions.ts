@@ -276,6 +276,7 @@ MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
 	group: '2_appearance',
 	title: localize({ key: 'miAppearance', comment: ['&& denotes a mnemonic'] }, "&&Appearance"),
 	submenu: MenuId.MenubarAppearanceMenu,
+	when: IsSessionsWindowContext.negate(),
 	order: 1
 });
 

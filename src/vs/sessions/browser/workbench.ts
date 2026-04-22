@@ -7,7 +7,7 @@ import '../../workbench/browser/style.js';
 import './media/style.css';
 import { Disposable, DisposableStore, IDisposable, toDisposable } from '../../base/common/lifecycle.js';
 import { Emitter, Event, setGlobalLeakWarningThreshold } from '../../base/common/event.js';
-import { getActiveDocument, getActiveElement, getClientArea, getWindowId, getWindows, IDimension, isAncestorUsingFlowTo, size, Dimension, runWhenWindowIdle } from '../../base/browser/dom.js';
+import { getActiveDocument, getActiveElement, getClientArea, getWindowId, getWindows, IDimension, isAncestorUsingFlowTo, isHTMLElement, size, Dimension, runWhenWindowIdle } from '../../base/browser/dom.js';
 import { DeferredPromise, RunOnceScheduler } from '../../base/common/async.js';
 import { isFullscreen, onDidChangeFullscreen, isChrome, isFirefox, isSafari } from '../../base/browser/browser.js';
 import { mark } from '../../base/common/performance.js';
@@ -61,9 +61,14 @@ import { IMarkdownRendererService } from '../../platform/markdown/browser/markdo
 import { EditorMarkdownCodeBlockRenderer } from '../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
 import { SyncDescriptor } from '../../platform/instantiation/common/descriptors.js';
 import { TitleService } from './parts/titlebarPart.js';
-import { SessionsExperimentalShellGradientBackgroundSettingId } from '../common/configuration.js';
+import { SessionsExperimentalSendButtonGradientSettingId, SessionsExperimentalShellGradientBackgroundSettingId } from '../common/configuration.js';
 import { IContextKeyService } from '../../platform/contextkey/common/contextkey.js';
 import { EditorMaximizedContext } from '../common/contextkeys.js';
+import {
+	NotificationsPosition,
+	NotificationsSettings,
+	getNotificationsPosition
+} from '../../workbench/common/notifications.js';
 
 //#region Workbench Options
 
@@ -86,6 +91,7 @@ enum LayoutClasses {
 	CHATBAR_HIDDEN = 'nochatbar',
 	STATUSBAR_HIDDEN = 'nostatusbar',
 	EXPERIMENTAL_SHELL_GRADIENT_BACKGROUND = 'experimental-shell-gradient-background',
+	EXPERIMENTAL_SEND_BUTTON_GRADIENT = 'sessions-experimental-send-button-gradient',
 	FULLSCREEN = 'fullscreen',
 	MAXIMIZED = 'maximized'
 }
@@ -250,7 +256,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 
 	private readonly partVisibility: IPartVisibilityState = {
 		sidebar: true,
-		auxiliaryBar: false,
+		auxiliaryBar: true,
 		editor: false,
 		panel: false,
 		chatBar: true
@@ -441,6 +447,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		// Configuration changes
 		this._register(configurationService.onDidChangeConfiguration(e => this.updateFontAliasing(e, configurationService)));
 		this._register(configurationService.onDidChangeConfiguration(e => this.updateShellGradientBackground(e, configurationService)));
+		this._register(configurationService.onDidChangeConfiguration(e => this.updateSendButtonGradient(e, configurationService)));
 
 		// Font Info
 		if (isNative) {
@@ -535,6 +542,17 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		);
 	}
 
+	private updateSendButtonGradient(e: IConfigurationChangeEvent | undefined, configurationService: IConfigurationService): void {
+		if (e && !e.affectsConfiguration(SessionsExperimentalSendButtonGradientSettingId)) {
+			return;
+		}
+
+		this.mainContainer.classList.toggle(
+			LayoutClasses.EXPERIMENTAL_SEND_BUTTON_GRADIENT,
+			configurationService.getValue<boolean>(SessionsExperimentalSendButtonGradientSettingId)
+		);
+	}
+
 	//#endregion
 
 	private renderWorkbench(instantiationService: IInstantiationService, notificationService: NotificationService, storageService: IStorageService, configurationService: IConfigurationService): void {
@@ -559,6 +577,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		// Apply font aliasing
 		this.updateFontAliasing(undefined, configurationService);
 		this.updateShellGradientBackground(undefined, configurationService);
+		this.updateSendButtonGradient(undefined, configurationService);
 
 		// Warm up font cache information before building up too many dom elements
 		this.restoreFontInfo(storageService, configurationService);
@@ -582,13 +601,17 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		this.createEditorPart();
 
 		// Notification Handlers
-		this.createNotificationsHandlers(instantiationService, notificationService);
+		this.createNotificationsHandlers(instantiationService, notificationService, configurationService);
 
 		// Add Workbench to DOM
 		this.parent.appendChild(this.mainContainer);
 	}
 
-	private createNotificationsHandlers(instantiationService: IInstantiationService, notificationService: NotificationService): void {
+	private createNotificationsHandlers(
+		instantiationService: IInstantiationService,
+		notificationService: NotificationService,
+		configurationService: IConfigurationService
+	): void {
 		// Instantiate Notification components
 		const notificationsCenter = this._register(instantiationService.createInstance(NotificationsCenter, this.mainContainer, notificationService.model));
 		const notificationsToasts = this._register(instantiationService.createInstance(NotificationsToasts, this.mainContainer, notificationService.model));
@@ -611,10 +634,54 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		// Register notification accessible view
 		AccessibleViewRegistry.register(new NotificationAccessibleView());
 
+		// The shared notification controllers apply a top-right inline offset based on the
+		// default workbench custom titlebar height. The sessions workbench has its own
+		// fixed chrome, so re-apply the sessions-specific top-right offset after they run.
+		this.registerSessionsNotificationOffsets(configurationService, notificationsCenter, notificationsToasts);
+
 		// Register with Layout
 		this.registerNotifications({
-			onDidChangeNotificationsVisibility: Event.map(Event.any(notificationsToasts.onDidChangeVisibility, notificationsCenter.onDidChangeVisibility), () => notificationsToasts.isVisible || notificationsCenter.isVisible)
+			onDidChangeNotificationsVisibility: Event.map(
+				Event.any(notificationsToasts.onDidChangeVisibility, notificationsCenter.onDidChangeVisibility),
+				() => notificationsToasts.isVisible || notificationsCenter.isVisible
+			)
 		});
+	}
+
+	private registerSessionsNotificationOffsets(
+		configurationService: IConfigurationService,
+		notificationsCenter: NotificationsCenter,
+		notificationsToasts: NotificationsToasts
+	): void {
+		const applySessionsNotificationOffsets = () => {
+			const position = getNotificationsPosition(configurationService);
+			const notificationsCenterContainer = this.getWorkbenchChildByClassName('notifications-center');
+			const notificationsToastsContainer = this.getWorkbenchChildByClassName('notifications-toasts');
+
+			if (position === NotificationsPosition.TOP_RIGHT) {
+				notificationsCenterContainer?.style.setProperty('top', '40px');
+				notificationsToastsContainer?.style.setProperty('top', '40px');
+			}
+		};
+
+		this._register(this.onDidLayoutMainContainer(() => applySessionsNotificationOffsets()));
+		this._register(notificationsCenter.onDidChangeVisibility(() => applySessionsNotificationOffsets()));
+		this._register(notificationsToasts.onDidChangeVisibility(() => applySessionsNotificationOffsets()));
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(NotificationsSettings.NOTIFICATIONS_POSITION)) {
+				applySessionsNotificationOffsets();
+			}
+		}));
+	}
+
+	private getWorkbenchChildByClassName(className: string): HTMLElement | undefined {
+		for (const child of this.mainContainer.children) {
+			if (isHTMLElement(child) && child.classList.contains(className)) {
+				return child;
+			}
+		}
+
+		return undefined;
 	}
 
 	private createPartContainer(id: string, role: string, classes: string[]): HTMLElement {

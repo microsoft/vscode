@@ -57,7 +57,6 @@ import { CopilotCLIChatSessionContentProvider, CopilotCLIChatSessionItemProvider
 import { CopilotCloudSessionsProvider } from '../copilotCloudSessionsProvider';
 import { CopilotCLIFolderRepositoryManager } from '../folderRepositoryManagerImpl';
 import { MockPromptsService } from '../../../../platform/promptFiles/test/common/mockPromptsService';
-import { MockRunCommandExecutionService } from '../../../../platform/commands/common/mockRunCommandExecutionService';
 
 // Mock terminal integration to avoid importing PowerShell asset (.ps1) which Vite cannot parse during tests
 vi.mock('../copilotCLITerminalIntegration', () => {
@@ -328,7 +327,7 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 			}
 		});
 		sdk = {
-			getPackage: vi.fn(async () => ({ internal: { LocalSessionManager: MockCliSdkSessionManager, NoopTelemetryService: class { } }, createLocalFeatureFlagService: () => ({}), noopTelemetryBinder: {} })),
+			getPackage: vi.fn(async () => ({ internal: { LocalSessionManager: MockCliSdkSessionManager, NoopTelemetryService: class { } }, createLocalFeatureFlagService: () => ({}), AutoModeSessionManager: class { }, noopTelemetryBinder: {} })),
 			getAuthInfo: vi.fn(async () => ({ type: 'token' as const, token: 'valid-token', host: 'https://github.com' })),
 		} as unknown as ICopilotCLISDK;
 		const services = disposables.add(createExtensionUnitTestingServices());
@@ -393,13 +392,13 @@ describe('CopilotCLIChatSessionParticipant.handleRequest', () => {
 						}
 					}();
 				}
-				const session = new TestCopilotCLISession(workspaceInfo, agentName, sdkSession, [], logService, workspaceService, new MockChatSessionMetadataStore(), instantiationService, new NullRequestLogger(), new NullICopilotCLIImageSupport(), new FakeToolsService(), new FakeUserQuestionHandler(), accessor.get(IConfigurationService), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })), new MockRunCommandExecutionService(), new FakeGitService());
+				const session = new TestCopilotCLISession(workspaceInfo, agentName, sdkSession, [], logService, workspaceService, new MockChatSessionMetadataStore(), instantiationService, new NullRequestLogger(), new NullICopilotCLIImageSupport(), new FakeToolsService(), new FakeUserQuestionHandler(), accessor.get(IConfigurationService), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })), new FakeGitService(), { _serviceBrand: undefined } as any);
 				cliSessions.push(session);
 				return disposables.add(session);
 			}
 		} as unknown as IInstantiationService;
 		customSessionTitleService = new CustomSessionTitleService(new MockExtensionContext() as unknown as IVSCodeExtensionContext, accessor.get(IInstantiationService), logService, new MockChatSessionMetadataStore());
-		sessionService = disposables.add(new CopilotCLISessionService(logService, sdk, instantiationService, new NullNativeEnvService(), fileSystem, mcpHandler, new NullCopilotCLIAgents(), workspaceService, customSessionTitleService, accessor.get(IConfigurationService), new MockSkillLocations(), delegationService, new MockChatSessionMetadataStore(), { _serviceBrand: undefined, isAgentSessionsWorkspace: false } as IAgentSessionsWorkspace, workspaceFolderService, worktree, new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })), new NullPromptVariablesService(), new NullChatDebugFileLoggerService(), disposables.add(new MockPromptsService())));
+		sessionService = disposables.add(new CopilotCLISessionService(logService, sdk, instantiationService, new NullNativeEnvService(), fileSystem, mcpHandler, new NullCopilotCLIAgents(), workspaceService, customSessionTitleService, accessor.get(IConfigurationService), new MockSkillLocations(), delegationService, new MockChatSessionMetadataStore(), { _serviceBrand: undefined, isAgentSessionsWorkspace: false } as IAgentSessionsWorkspace, workspaceFolderService, worktree, new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })), new NullPromptVariablesService(), new NullChatDebugFileLoggerService(), disposables.add(new MockPromptsService()), models as unknown as ICopilotCLIModels));
 
 		manager = await sessionService.getSessionManager() as unknown as MockCliSdkSessionManager;
 		contentProvider = new class extends mock<CopilotCLIChatSessionContentProvider>() {

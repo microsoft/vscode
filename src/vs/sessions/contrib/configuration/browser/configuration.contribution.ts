@@ -6,7 +6,7 @@
 import { ConfigurationScope, Extensions, IConfigurationRegistry } from '../../../../platform/configuration/common/configurationRegistry.js';
 import { localize } from '../../../../nls.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { SessionsExperimentalShellGradientBackgroundSettingId } from '../../../common/configuration.js';
+import { SessionsExperimentalSendButtonGradientSettingId, SessionsExperimentalShellGradientBackgroundSettingId } from '../../../common/configuration.js';
 import { ThemeSettingDefaults } from '../../../../workbench/services/themes/common/workbenchThemeService.js';
 
 Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfiguration({
@@ -18,6 +18,13 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			scope: ConfigurationScope.APPLICATION,
 			tags: ['experimental'],
 			description: localize('sessions.experimental.shellGradientBackground', "Whether to enable the experimental accent-tinted shell background in the Sessions window."),
+		},
+		[SessionsExperimentalSendButtonGradientSettingId]: {
+			type: 'boolean',
+			default: false,
+			scope: ConfigurationScope.APPLICATION,
+			tags: ['experimental'],
+			description: localize('sessions.experimental.sendButtonGradient', "Whether to show a colorful animated gradient on the chat send button in the Sessions window. The button shows a slowly rotating gradient ring at rest, fills with a cycling color on hover, and emits a color pulse on click."),
 		},
 	},
 });
@@ -41,6 +48,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 
 		'diffEditor.hideUnchangedRegions.enabled': true,
 		'diffEditor.renderGutterMenu': false,
+		'diffEditor.renderIndicators': false,
 		'diffEditor.renderMarginRevertIcon': false,
 		'diffEditor.renderSideBySide': true,
 		'diffEditor.useInlineViewWhenSpaceIsLimited': true,
@@ -64,6 +72,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'github.copilot.chat.cli.branchSupport.enabled': true,
 		'github.copilot.chat.cli.isolationOption.enabled': true,
 		'github.copilot.chat.cli.mcp.enabled': true,
+		'github.copilot.chat.cli.remote.enabled': false,
 		'github.copilot.chat.githubMcpServer.enabled': true,
 		'github.copilot.chat.languageContext.typescript.enabled': true,
 
@@ -79,11 +88,11 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'workbench.editor.doubleClickTabToToggleEditorGroupSizes': 'maximize',
 		'workbench.editor.restoreEditors': false,
 		'update.showReleaseNotes': false,
-		'workbench.notifications.position': 'top-right',
+		'workbench.notifications.position': 'bottom-right',
 		'workbench.startupEditor': 'none',
 		'workbench.tips.enabled': false,
 		'workbench.layoutControl.type': 'toggles',
-		'workbench.editor.useModal': 'some',
+		'workbench.editor.useModal': 'all',
 		'workbench.panel.showLabels': false,
 		'workbench.colorTheme': ThemeSettingDefaults.COLOR_THEME_DARK,
 

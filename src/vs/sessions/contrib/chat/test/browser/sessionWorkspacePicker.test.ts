@@ -27,6 +27,9 @@ import { IAgentHostSessionsProvider } from '../../../../common/agentHostSessions
 import { ISessionWorkspace } from '../../../../services/sessions/common/session.js';
 import { WorkspacePicker, IWorkspaceSelection } from '../../browser/sessionWorkspacePicker.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IWorkspacesService } from '../../../../../platform/workspaces/common/workspaces.js';
+import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
+import { ICommandService } from '../../../../../platform/commands/common/commands.js';
 
 // ---- Storage key (must match the one in sessionWorkspacePicker.ts) ----------
 const STORAGE_KEY_RECENT_WORKSPACES = 'sessions.recentlyPickedWorkspaces';
@@ -70,6 +73,7 @@ function createMockProvider(id: string, opts?: {
 			onDidChangeSessionConfig: Event.None,
 			getSessionConfig: () => undefined,
 			setSessionConfigValue: async () => { },
+			replaceSessionConfig: async () => { },
 			getSessionConfigCompletions: async () => [],
 			getCreateSessionConfig: () => undefined,
 			clearSessionConfig: () => { },
@@ -137,6 +141,12 @@ function createTestPicker(
 	instantiationService.stub(IClipboardService, {});
 	instantiationService.stub(IPreferencesService, {});
 	instantiationService.stub(IOutputService, {});
+	instantiationService.stub(IConfigurationService, { getValue: () => undefined });
+	instantiationService.stub(ICommandService, { executeCommand: async () => { } });
+	instantiationService.stub(IWorkspacesService, {
+		getRecentlyOpened: async () => ({ workspaces: [], files: [] }),
+		onDidChangeRecentlyOpened: Event.None,
+	});
 
 	return disposables.add(instantiationService.createInstance(WorkspacePicker));
 }
@@ -297,9 +307,11 @@ suite('WorkspacePicker - Connection Status', () => {
 		const picker = createTestPicker(disposables, providersService, storage);
 
 		// Select the local workspace
+		const resolvedWorkspace = localProvider.resolveWorkspace(URI.file('/local/project'));
+		assert.ok(resolvedWorkspace, 'resolveWorkspace should resolve file:// URIs');
 		const localWorkspace: IWorkspaceSelection = {
 			providerId: 'local-1',
-			workspace: localProvider.resolveWorkspace(URI.file('/local/project')),
+			workspace: resolvedWorkspace,
 		};
 		picker.setSelectedWorkspace(localWorkspace, false);
 

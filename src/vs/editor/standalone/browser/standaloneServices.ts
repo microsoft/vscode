@@ -223,6 +223,7 @@ class StandaloneEnvironmentService implements IEnvironmentService {
 	readonly argvResource: URI = URI.from({ scheme: 'monaco', authority: 'argvResource' });
 	readonly untitledWorkspacesHome: URI = URI.from({ scheme: 'monaco', authority: 'untitledWorkspacesHome' });
 	readonly workspaceStorageHome: URI = URI.from({ scheme: 'monaco', authority: 'workspaceStorageHome' });
+	readonly appSharedDataHome: URI = URI.from({ scheme: 'monaco', authority: 'appSharedDataHome' });
 	readonly localHistoryHome: URI = URI.from({ scheme: 'monaco', authority: 'localHistoryHome' });
 	readonly cacheHome: URI = URI.from({ scheme: 'monaco', authority: 'cacheHome' });
 	readonly userDataSyncHome: URI = URI.from({ scheme: 'monaco', authority: 'userDataSyncHome' });

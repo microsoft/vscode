@@ -10,8 +10,8 @@ import { isEqualOrParent } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { AgentHostEnabledSettingId, IAgentHostService, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
-import { type IProtectedResourceMetadata, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { type IAgentInfo, type ICustomizationRef, type IRootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { type ProtectedResourceMetadata, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { type AgentInfo, type CustomizationRef, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -20,6 +20,7 @@ import { IStorageService } from '../../../../../../platform/storage/common/stora
 import { IWorkbenchContribution } from '../../../../../common/contributions.js';
 import { IAgentHostFileSystemService } from '../../../../../services/agentHost/common/agentHostFileSystemService.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
+import { IWorkbenchEnvironmentService } from '../../../../../services/environment/common/environmentService.js';
 import { IChatSessionsService } from '../../../common/chatSessionsService.js';
 import { ICustomizationHarnessService } from '../../../common/customizationHarnessService.js';
 import { ILanguageModelsService } from '../../../common/languageModels.js';
@@ -54,6 +55,8 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	/** Model providers keyed by agent provider, for pushing model updates. */
 	private readonly _modelProviders = new Map<AgentProvider, AgentHostLanguageModelProvider>();
 
+	private readonly _isSessionsWindow: boolean;
+
 	constructor(
 		@IAgentHostService private readonly _agentHostService: IAgentHostService,
 		@IChatSessionsService private readonly _chatSessionsService: IChatSessionsService,
@@ -67,8 +70,11 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		@ICustomizationHarnessService private readonly _customizationHarnessService: ICustomizationHarnessService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IAgentPluginService private readonly _agentPluginService: IAgentPluginService,
+		@IWorkbenchEnvironmentService environmentService: IWorkbenchEnvironmentService,
 	) {
 		super();
+
+		this._isSessionsWindow = environmentService.isSessionsWindow;
 
 		if (!configurationService.getValue<boolean>(AgentHostEnabledSettingId)) {
 			return;
@@ -95,7 +101,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		}
 	}
 
-	private _handleRootStateChange(rootState: IRootState): void {
+	private _handleRootStateChange(rootState: RootState): void {
 		const incoming = new Set(rootState.agents.map(a => a.provider));
 
 		// Remove agents that are no longer present
@@ -122,14 +128,17 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		}
 	}
 
-	private _registerAgent(agent: IAgentInfo): void {
+	private _registerAgent(agent: AgentInfo): void {
 		const store = new DisposableStore();
 		this._agentRegistrations.set(agent.provider, store);
 		const sessionType = `agent-host-${agent.provider}`;
 		const agentId = sessionType;
 		const vendor = sessionType;
 
-		// Chat session contribution
+		// Chat session contribution.
+		// In the Agents app, hide the delegation picker for local agent host
+		// sessions (matches behavior of remote agent host sessions). In VS Code,
+		// keep the picker available so users can hand off to other targets.
 		store.add(this._chatSessionsService.registerChatSessionContribution({
 			type: sessionType,
 			name: agentId,
@@ -137,6 +146,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			description: agent.description,
 			canDelegate: true,
 			requiresCustomModels: true,
+			supportsDelegation: !this._isSessionsWindow,
 			capabilities: {
 				supportsCheckpoints: true,
 			},
@@ -159,7 +169,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			syncProvider,
 		}));
 
-		const customizations = observableValue<ICustomizationRef[]>('agentCustomizations', []);
+		const customizations = observableValue<CustomizationRef[]>('agentCustomizations', []);
 		const updateCustomizations = async () => {
 			const refs = await this._resolveCustomizations(syncProvider, bundler);
 			customizations.set(refs, undefined);
@@ -214,14 +224,14 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	private async _resolveCustomizations(
 		syncProvider: AgentCustomizationSyncProvider,
 		bundler: SyncedCustomizationBundler,
-	): Promise<ICustomizationRef[]> {
+	): Promise<CustomizationRef[]> {
 		const entries = syncProvider.getSelectedEntries();
 		if (entries.length === 0) {
 			return [];
 		}
 
 		const plugins = this._agentPluginService.plugins.get();
-		const refs: ICustomizationRef[] = [];
+		const refs: CustomizationRef[] = [];
 		const individualFiles: { uri: URI; type: PromptsType }[] = [];
 
 		for (const entry of entries) {
@@ -246,7 +256,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		return refs;
 	}
 
-	private _getRootAgents(): readonly IAgentInfo[] {
+	private _getRootAgents(): readonly AgentInfo[] {
 		const rootState = this._agentHostService.rootState.value;
 		return (rootState && !(rootState instanceof Error)) ? rootState.agents : [];
 	}
@@ -255,7 +265,8 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	 * Authenticate using protectedResources from agent info in root state.
 	 * Resolves tokens via the standard VS Code authentication service.
 	 */
-	private async _authenticateWithServer(agents: readonly IAgentInfo[]): Promise<void> {
+	private async _authenticateWithServer(agents: readonly AgentInfo[]): Promise<void> {
+		this._agentHostService.setAuthenticationPending(true);
 		try {
 			for (const agent of agents) {
 				for (const resource of agent.protectedResources ?? []) {
@@ -272,6 +283,8 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		} catch (err) {
 			this._logService.error('[AgentHost] Failed to authenticate with server', err);
 			this._loggedConnection!.logError('authenticateWithServer', err);
+		} finally {
+			this._agentHostService.setAuthenticationPending(false);
 		}
 	}
 
@@ -289,7 +302,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	 * creates a session (which triggers the login UI), and pushes the token
 	 * to the server. Returns true if authentication succeeded.
 	 */
-	private async _resolveAuthenticationInteractively(protectedResources: IProtectedResourceMetadata[]): Promise<boolean> {
+	private async _resolveAuthenticationInteractively(protectedResources: ProtectedResourceMetadata[]): Promise<boolean> {
 		try {
 			for (const resource of protectedResources) {
 				const resourceUri = URI.parse(resource.resource);

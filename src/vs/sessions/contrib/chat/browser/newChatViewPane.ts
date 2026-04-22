@@ -7,6 +7,7 @@ import './media/chatWidget.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { derived } from '../../../../base/common/observable.js';
+import { isWeb } from '../../../../base/common/platform.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IContextKeyService } from '../../../../platform/contextkey/common/contextkey.js';
@@ -24,6 +25,7 @@ import { IViewDescriptorService } from '../../../../workbench/common/views.js';
 import { IWorkspaceTrustRequestService } from '../../../../platform/workspace/common/workspaceTrust.js';
 import { IViewPaneOptions, ViewPane } from '../../../../workbench/browser/parts/views/viewPane.js';
 import { WorkspacePicker, IWorkspaceSelection } from './sessionWorkspacePicker.js';
+import { ScopedWorkspacePicker } from './scopedWorkspacePicker.js';
 import { NewChatInputWidget } from './newChatInput.js';
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 
@@ -42,7 +44,7 @@ class NewChatWidget extends Disposable {
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 	) {
 		super();
-		this._workspacePicker = this._register(this.instantiationService.createInstance(WorkspacePicker));
+		this._workspacePicker = this._register(this.instantiationService.createInstance(isWeb ? ScopedWorkspacePicker : WorkspacePicker));
 
 		const canSendRequest = derived(reader => {
 			const session = this.sessionsManagementService.activeSession.read(reader);
@@ -82,7 +84,7 @@ class NewChatWidget extends Disposable {
 		const chatWidgetContent = dom.append(chatWidgetContainer, dom.$('.new-chat-widget-content'));
 
 		const workspacePickerContainer = dom.append(chatWidgetContent, dom.$('.new-session-workspace-picker-container'));
-		this._renderWorkspacePicker(workspacePickerContainer);
+		this._register(this._renderWorkspacePicker(workspacePickerContainer));
 
 		this._newChatInput.render(chatWidgetContent, parent);
 
