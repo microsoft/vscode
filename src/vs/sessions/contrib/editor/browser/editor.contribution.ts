@@ -9,9 +9,18 @@ import { ServicesAccessor } from '../../../../editor/browser/editorExtensions.js
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
-import { IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
+import { EditorPartModalContext, IsSessionsWindowContext } from '../../../../workbench/common/contextkeys.js';
 import { IAgentWorkbenchLayoutService } from '../../../browser/workbench.js';
 import { EditorMaximizedContext } from '../../../common/contextkeys.js';
+import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
+import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IEditorGroupsService } from '../../../../workbench/services/editor/common/editorGroupsService.js';
+import { MultiDiffEditorInput } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffEditorInput.js';
+import { CHANGES_VIEW_ID } from '../../changes/common/changes.js';
+import { ChangesViewPane } from '../../changes/browser/changesView.js';
+import { prepareMoveCopyEditors } from '../../../../workbench/browser/parts/editor/editor.js';
+import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
+import { MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID } from '../../../../workbench/browser/parts/editor/editorCommands.js';
 
 class MaximizeMainEditorPartAction extends Action2 {
 	static readonly ID = 'workbench.action.agentSessions.maximizeMainEditorPart';
@@ -25,7 +34,7 @@ class MaximizeMainEditorPartAction extends Action2 {
 			menu: {
 				id: MenuId.EditorTitleLayout,
 				group: 'navigation',
-				order: 1,
+				order: 99,
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
 					EditorMaximizedContext.negate())
@@ -53,7 +62,7 @@ class RestoreMainEditorPartAction extends Action2 {
 			menu: {
 				id: MenuId.EditorTitleLayout,
 				group: 'navigation',
-				order: 1,
+				order: 99,
 				when: ContextKeyExpr.and(
 					IsSessionsWindowContext,
 					EditorMaximizedContext)
@@ -94,3 +103,117 @@ class CloseMainEditorPartAction extends Action2 {
 }
 
 registerAction2(CloseMainEditorPartAction);
+
+class OpenEditorInModalEditorAction extends Action2 {
+	static readonly ID = 'workbench.action.agentSessions.openEditorInModal';
+
+	constructor() {
+		super({
+			id: OpenEditorInModalEditorAction.ID,
+			title: localize2('openEditorInModal', "Open in Modal Editor"),
+			icon: Codicon.openInWindow,
+			f1: false,
+			menu: {
+				id: MenuId.EditorTitleLayout,
+				group: 'navigation',
+				order: 1,
+				when: IsSessionsWindowContext
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const viewsService = accessor.get(IViewsService);
+		const configurationService = accessor.get(IConfigurationService);
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+
+		// Set the `workbench.editor.useModal` setting to 'all'
+		await configurationService.updateValue('workbench.editor.useModal', 'all');
+
+		// Move all editors from the active group to the modal editor
+		const activeGroup = editorGroupsService.mainPart.activeGroup;
+
+		// Check for multi-file diff editor
+		const multiFileDiffEditor = activeGroup.editors
+			.find(editor => editor instanceof MultiDiffEditorInput);
+
+		if (multiFileDiffEditor) {
+			// Reopen multi-file diff editor as the first editor in the modal editor
+			const view = viewsService.getViewWithId<ChangesViewPane>(CHANGES_VIEW_ID);
+			await view?.openChanges();
+
+			// Close the multi-file diff editor
+			await activeGroup.closeEditor(multiFileDiffEditor);
+		}
+
+		// Move all remaining editors to the modal editor
+		const modalPart = await editorGroupsService.createModalEditorPart();
+		const editorsToMove = prepareMoveCopyEditors(activeGroup, activeGroup.editors.slice(), true);
+		activeGroup.moveEditors(editorsToMove, modalPart.activeGroup);
+		modalPart.activeGroup.focus();
+	}
+}
+
+registerAction2(OpenEditorInModalEditorAction);
+
+class OpenModalEditorInEditorAction extends Action2 {
+	static readonly ID = 'workbench.action.agentSessions.openModalEditorInEditor';
+
+	constructor() {
+		super({
+			id: OpenModalEditorInEditorAction.ID,
+			title: localize2('openModalEditorInEditor', "Open in Editor"),
+			icon: Codicon.openInWindow,
+			f1: false,
+			menu: {
+				id: MenuId.ModalEditorTitle,
+				group: 'navigation',
+				order: 98,
+				when: ContextKeyExpr.and(
+					IsSessionsWindowContext,
+					EditorPartModalContext)
+			}
+		});
+	}
+
+	async run(accessor: ServicesAccessor): Promise<void> {
+		const viewsService = accessor.get(IViewsService);
+		const commandService = accessor.get(ICommandService);
+		const configurationService = accessor.get(IConfigurationService);
+		const editorGroupsService = accessor.get(IEditorGroupsService);
+		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
+
+		const activeGroup = editorGroupsService.activeModalEditorPart?.activeGroup;
+		if (!activeGroup) {
+			return;
+		}
+
+		// Set the `workbench.editor.useModal` setting back to 'some'
+		await configurationService.updateValue('workbench.editor.useModal', 'some');
+
+		// Show the main editor part
+		layoutService.setPartHidden(false, Parts.EDITOR_PART);
+
+		// Check for navigation in the modal editor
+		const navigation = activeGroup.activeEditorPane?.options?.modal?.navigation;
+		if (navigation) {
+			const view = viewsService.getViewWithId<ChangesViewPane>(CHANGES_VIEW_ID);
+			const changes = view?.viewModel.activeSessionChangesObs.get();
+
+			if (changes && navigation.current < changes.length) {
+				// Reopen multi-file diff editor for the current file
+				await view?.openChanges(changes[navigation.current].modifiedUri ?? changes[navigation.current].originalUri);
+
+				// Close the editor in the modal editor (assume that the
+				// multi-file diff editor is the first editor in the modal
+				// editor)
+				await activeGroup.closeEditor(activeGroup.editors[0]);
+			}
+		}
+
+		// Move all remaining editors to the main editor part
+		await commandService.executeCommand(MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID);
+	}
+}
+
+registerAction2(OpenModalEditorInEditorAction);

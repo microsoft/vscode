@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as l10n from '@vscode/l10n';
 import type * as vscode from 'vscode';
 import { IEndpointProvider } from '../../../../platform/endpoint/common/endpointProvider';
 import { ILogService } from '../../../../platform/log/common/logService';
@@ -12,6 +13,8 @@ import { Emitter } from '../../../../util/vs/base/common/event';
 import { Disposable } from '../../../../util/vs/base/common/lifecycle';
 import type { ParsedClaudeModelId } from '../common/claudeModelId';
 import { tryParseClaudeModelId } from './claudeModelId';
+
+export const CLAUDE_REASONING_EFFORT_PROPERTY = 'reasoningEffort';
 
 export interface IClaudeCodeModels {
 	readonly _serviceBrand: undefined;
@@ -87,6 +90,7 @@ export class ClaudeCodeModels extends Disposable implements IClaudeCodeModels {
 				multiplier,
 				multiplierNumeric: endpoint.multiplier,
 				isUserSelectable: true,
+				configurationSchema: buildConfigurationSchema(endpoint),
 				capabilities: {
 					imageInput: endpoint.supportsVision,
 					toolCalling: endpoint.supportsToolCalls,
@@ -157,4 +161,38 @@ export class ClaudeCodeModels extends Disposable implements IClaudeCodeModels {
 			return [];
 		}
 	}
+}
+
+const SUPPORTED_EFFORT_LEVELS = ['low', 'medium', 'high'] as const;
+
+function buildConfigurationSchema(endpoint: IChatEndpoint): vscode.LanguageModelConfigurationSchema | undefined {
+	const effortLevels = endpoint.supportsReasoningEffort?.filter(
+		(level): level is typeof SUPPORTED_EFFORT_LEVELS[number] =>
+			(SUPPORTED_EFFORT_LEVELS as readonly string[]).includes(level)
+	);
+	if (!effortLevels || effortLevels.length <= 1) {
+		return;
+	}
+
+	const defaultEffort = effortLevels.includes('high') ? 'high' : undefined;
+
+	return {
+		properties: {
+			[CLAUDE_REASONING_EFFORT_PROPERTY]: {
+				type: 'string',
+				title: l10n.t('Thinking Effort'),
+				enum: effortLevels,
+				enumItemLabels: effortLevels.map(level => level.charAt(0).toUpperCase() + level.slice(1)),
+				enumDescriptions: effortLevels.map(level => {
+					switch (level) {
+						case 'low': return l10n.t('Faster responses with less reasoning');
+						case 'medium': return l10n.t('Balanced reasoning and speed');
+						case 'high': return l10n.t('Greater reasoning depth but slower');
+					}
+				}),
+				default: defaultEffort,
+				group: 'navigation',
+			}
+		}
+	};
 }

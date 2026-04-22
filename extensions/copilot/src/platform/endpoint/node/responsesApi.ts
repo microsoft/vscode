@@ -86,8 +86,9 @@ export function createResponsesRequestBody(accessor: ServicesAccessor, options: 
 	body.truncation = configService.getConfig(ConfigKey.Advanced.UseResponsesApiTruncation) ?
 		'auto' :
 		'disabled';
+	const thinkingExplicitlyDisabled = options.modelCapabilities?.enableThinking === false;
 	const summaryConfig = configService.getExperimentBasedConfig(ConfigKey.ResponsesApiReasoningSummary, expService);
-	const shouldDisableReasoningSummary = endpoint.family === 'gpt-5.3-codex-spark-preview';
+	const shouldDisableReasoningSummary = endpoint.family === 'gpt-5.3-codex-spark-preview' || thinkingExplicitlyDisabled;
 	const effortFromSetting = configService.getConfig(ConfigKey.Advanced.ReasoningEffortOverride);
 	const effort = endpoint.supportsReasoningEffort?.length
 		? (effortFromSetting || options.modelCapabilities?.reasoningEffort || 'medium')

@@ -5,6 +5,7 @@
 
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { ICopilotTokenManager } from '../../../platform/authentication/common/copilotTokenManager';
+import { INTEGRATION_ID } from '../../../platform/endpoint/common/licenseAgreement';
 import { IFetcherService } from '../../../platform/networking/common/fetcherService';
 import type { CreateSessionFailureReason, CreateSessionResult, CloudSession, SessionEvent } from '../common/cloudSessionTypes';
 
@@ -150,7 +151,7 @@ export class CloudSessionApiClient {
 			const headers: Record<string, string> = {
 				'Content-Type': 'application/json',
 				'Authorization': `Bearer ${bearerToken}`,
-				'Copilot-Integration-Id': 'vscode-chat',
+				'Copilot-Integration-Id': INTEGRATION_ID,
 			};
 
 			return { url, headers };

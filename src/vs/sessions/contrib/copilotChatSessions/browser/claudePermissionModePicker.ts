@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { renderIcon } from '../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
@@ -72,10 +73,13 @@ export class ClaudePermissionModePicker extends Disposable {
 
 		this._updateTriggerLabel(trigger);
 
-		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.CLICK, (e) => {
-			dom.EventHelper.stop(e, true);
-			this._showPicker();
-		}));
+		this._renderDisposables.add(Gesture.addTarget(trigger));
+		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
+			this._renderDisposables.add(dom.addDisposableListener(trigger, eventType, (e) => {
+				dom.EventHelper.stop(e, true);
+				this._showPicker();
+			}));
+		}
 
 		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, (e) => {
 			if (e.key === 'Enter' || e.key === ' ') {

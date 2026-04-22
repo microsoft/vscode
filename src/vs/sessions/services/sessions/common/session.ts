@@ -9,7 +9,7 @@ import { IObservable } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
-import { IChatSessionFileChange } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { IChatSessionFileChange, IChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 
 export interface ISessionType {
 	/** Unique identifier (e.g., 'copilot-cli', 'copilot-cloud', 'claude-code'). */
@@ -117,6 +117,8 @@ export interface IGitHubInfo {
 	};
 }
 
+export type ISessionFileChange = IChatSessionFileChange | IChatSessionFileChange2;
+
 /**
  * A single chat within a session, produced by the sessions management layer.
  */
@@ -135,7 +137,7 @@ export interface IChat {
 	/** Current chat status. */
 	readonly status: IObservable<SessionStatus>;
 	/** File changes produced by the chat. */
-	readonly changes: IObservable<readonly IChatSessionFileChange[]>;
+	readonly changes: IObservable<readonly ISessionFileChange[]>;
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
 	/** Currently selected mode identifier and kind. */
@@ -179,7 +181,7 @@ export interface ISession {
 	/** Current session status. */
 	readonly status: IObservable<SessionStatus>;
 	/** File changes produced by the session. */
-	readonly changes: IObservable<readonly IChatSessionFileChange[]>;
+	readonly changes: IObservable<readonly ISessionFileChange[]>;
 	/** Currently selected model identifier. */
 	readonly modelId: IObservable<string | undefined>;
 	/** Currently selected mode identifier and kind. */

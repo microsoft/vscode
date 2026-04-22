@@ -119,21 +119,30 @@ export class EditorMouseEvent extends StandardMouseEvent {
 	/**
 	 * Editor's coordinates relative to the whole document.
 	 */
-	public readonly editorPos: EditorPagePosition;
+	public get editorPos(): EditorPagePosition {
+		this._editorPos ??= createEditorPagePosition(this._editorViewDomNode);
+		return this._editorPos;
+	}
+	private _editorPos: EditorPagePosition | undefined;
 
 	/**
 	 * Coordinates relative to the (top;left) of the editor.
 	 * *NOTE*: These coordinates are preferred because they take into account transformations applied to the editor.
 	 * *NOTE*: These coordinates could be negative if the mouse position is outside the editor.
-	 */
-	public readonly relativePos: CoordinatesRelativeToEditor;
+	*/
+	public get relativePos(): CoordinatesRelativeToEditor {
+		this._relativePos ??= createCoordinatesRelativeToEditor(this._editorViewDomNode, this.editorPos, this.pos);
+		return this._relativePos;
+	}
+	private _relativePos: CoordinatesRelativeToEditor | undefined;
+
+	private readonly _editorViewDomNode: HTMLElement;
 
 	constructor(e: MouseEvent, isFromPointerCapture: boolean, editorViewDomNode: HTMLElement) {
 		super(dom.getWindow(editorViewDomNode), e);
 		this.isFromPointerCapture = isFromPointerCapture;
 		this.pos = new PageCoordinates(this.posx, this.posy);
-		this.editorPos = createEditorPagePosition(editorViewDomNode);
-		this.relativePos = createCoordinatesRelativeToEditor(editorViewDomNode, this.editorPos, this.pos);
+		this._editorViewDomNode = editorViewDomNode;
 	}
 }
 

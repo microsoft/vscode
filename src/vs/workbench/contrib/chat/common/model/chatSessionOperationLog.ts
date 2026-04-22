@@ -81,6 +81,7 @@ const responsePartSchema = Adapt.v<IChatProgressResponseContent, SerializedChatR
 				case 'planReview':
 				case 'undoStop':
 				case 'warning':
+				case 'info':
 				case 'treeData':
 				case 'workspaceEdit':
 				case 'disabledClaudeHooks':

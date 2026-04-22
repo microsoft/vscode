@@ -444,9 +444,12 @@ function handleRequest(req, res) {
 						family: 'gpt-4o',
 						tokenizer: 'o200k_base',
 						limits: {
-							max_prompt_tokens: 128000,
+							// Use a very large token limit so the Responses API compaction
+							// threshold (90% of max_prompt_tokens) is never reached during
+							// perf benchmarks.
+							max_prompt_tokens: 10000000,
 							max_output_tokens: 131072,
-							max_context_window_tokens: 128000,
+							max_context_window_tokens: 10000000,
 						},
 						supports: {
 							streaming: true,
@@ -471,9 +474,9 @@ function handleRequest(req, res) {
 						family: 'gpt-4o-mini',
 						tokenizer: 'o200k_base',
 						limits: {
-							max_prompt_tokens: 128000,
+							max_prompt_tokens: 10000000,
 							max_output_tokens: 131072,
-							max_context_window_tokens: 128000,
+							max_context_window_tokens: 10000000,
 						},
 						supports: {
 							streaming: true,
@@ -508,7 +511,7 @@ function handleRequest(req, res) {
 				type: 'chat',
 				family: 'gpt-4o',
 				tokenizer: 'o200k_base',
-				limits: { max_prompt_tokens: 128000, max_output_tokens: 131072, max_context_window_tokens: 128000 },
+				limits: { max_prompt_tokens: 10000000, max_output_tokens: 131072, max_context_window_tokens: 10000000 },
 				supports: { streaming: true, tool_calls: true, parallel_tool_calls: true, vision: false },
 			},
 		});

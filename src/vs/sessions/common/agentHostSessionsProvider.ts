@@ -21,6 +21,20 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	readonly remoteAddress?: string;
 	/** Output channel ID for remote provider logs. */
 	outputChannelId?: string;
+	/**
+	 * Establish (or re-establish) the connection for this host on demand.
+	 * Tears down any existing connection first. Present on remote providers
+	 * that manage their own transport (e.g. tunnel relay); providers that
+	 * use the generic {@link IRemoteAgentHostService} reconnect flow may
+	 * leave this undefined.
+	 */
+	connect?(): Promise<void>;
+	/**
+	 * Tear down the active connection for this host without forgetting the
+	 * entry. A subsequent {@link connect} call should be able to re-establish
+	 * it. Present on remote providers that manage their own transport.
+	 */
+	disconnect?(): Promise<void>;
 
 	// -- Dynamic Session Config --
 

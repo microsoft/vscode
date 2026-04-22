@@ -5,16 +5,18 @@
 
 import { timeout } from '../../../../base/common/async.js';
 import { MarkdownString, isMarkdownString } from '../../../../base/common/htmlContent.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableMap, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { URI } from '../../../../base/common/uri.js';
 import * as nls from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
+import { ILogService } from '../../../../platform/log/common/log.js';
 import { IChatAgentService } from '../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../common/actions/chatContextKeys.js';
 import { IChatSlashCommandService } from '../common/participants/chatSlashCommands.js';
 import { IChatService } from '../common/chatService/chatService.js';
+import { IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem } from '../common/chatSessionsService.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel } from '../common/constants.js';
 import { ACTION_ID_NEW_CHAT } from './actions/chatActions.js';
 import { ChatSubmitAction, OpenModePickerAction, OpenModelPickerAction } from './actions/chatExecuteActions.js';
@@ -316,5 +318,95 @@ export class ChatSlashCommandsContribution extends Disposable {
 			// it has received all response data has been received.
 			await timeout(200);
 		}));
+	}
+}
+
+/**
+ * Registers slash commands declared by chat session providers via
+ * {@link IChatSessionProviderOptionItem.slashCommand}. Each slash command is
+ * scoped to its contributing session type via a `chatSessionType == X` `when`
+ * clause, executes immediately, and updates the session option corresponding
+ * to its declaring item — so e.g. `/yolo` switches the active permission mode
+ * without sending a chat request.
+ */
+export class ChatSessionOptionSlashCommandsContribution extends Disposable {
+
+	static readonly ID = 'workbench.contrib.chatSessionOptionSlashCommands';
+
+	private readonly _registrationsByType = this._register(new DisposableMap<string>());
+
+	constructor(
+		@IChatSessionsService private readonly chatSessionsService: IChatSessionsService,
+		@IChatSlashCommandService private readonly slashCommandService: IChatSlashCommandService,
+		@ILogService private readonly logService: ILogService,
+	) {
+		super();
+
+		this._register(this.chatSessionsService.onDidChangeOptionGroups(chatSessionType => {
+			this.refreshForSessionType(chatSessionType);
+		}));
+	}
+
+	private refreshForSessionType(chatSessionType: string): void {
+		// Always tear down the previous registrations for this type before re-adding,
+		// so renames / removals are honored.
+		this._registrationsByType.deleteAndDispose(chatSessionType);
+
+		const groups = this.chatSessionsService.getOptionGroupsForSessionType(chatSessionType);
+		if (!groups || groups.length === 0) {
+			return;
+		}
+
+		const store = new DisposableStore();
+		const seen = new Set<string>();
+		const whenClause = ChatContextKeys.chatSessionType.isEqualTo(chatSessionType);
+
+		for (const group of groups) {
+			for (const item of group.items) {
+				const name = item.slashCommand?.trim();
+				if (!name) {
+					continue;
+				}
+				if (seen.has(name)) {
+					this.logService.warn(`[ChatSessionOptionSlashCommands] Skipping duplicate slash command '${name}' contributed by session type '${chatSessionType}'.`);
+					continue;
+				}
+				if (this.slashCommandService.hasCommand(name)) {
+					this.logService.warn(`[ChatSessionOptionSlashCommands] Slash command '${name}' contributed by session type '${chatSessionType}' is already registered; skipping.`);
+					continue;
+				}
+				seen.add(name);
+				store.add(this.registerOne(chatSessionType, group, item, name, whenClause));
+			}
+		}
+
+		if (store.isDisposed || seen.size === 0) {
+			store.dispose();
+			return;
+		}
+		this._registrationsByType.set(chatSessionType, store);
+	}
+
+	private registerOne(
+		chatSessionType: string,
+		group: IChatSessionProviderOptionGroup,
+		item: IChatSessionProviderOptionItem,
+		name: string,
+		whenClause: ReturnType<typeof ChatContextKeys.chatSessionType.isEqualTo>,
+	) {
+		return this.slashCommandService.registerSlashCommand({
+			command: name,
+			detail: item.description ?? nls.localize('chatSessionOption.slashCommand.detail', "Switch to '{0}'", item.name),
+			sortText: `z1_${name}`,
+			executeImmediately: true,
+			silent: true,
+			locations: [ChatAgentLocation.Chat],
+			when: whenClause,
+		}, async (_prompt, _progress, _history, _location, sessionResource) => {
+			if (!sessionResource) {
+				return;
+			}
+			this.chatSessionsService.setSessionOption(sessionResource, group.id, item);
+		});
 	}
 }

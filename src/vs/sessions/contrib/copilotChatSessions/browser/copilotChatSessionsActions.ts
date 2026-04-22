@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { coalesce } from '../../../../base/common/arrays.js';
-import { Disposable, DisposableStore, IDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { IReader, autorun, observableValue } from '../../../../base/common/observable.js';
 import { localize2 } from '../../../../nls.js';
 import { Action2, registerAction2, MenuId, MenuRegistry, isIMenuItem } from '../../../../platform/actions/common/actions.js';
@@ -110,7 +110,7 @@ registerAction2(class extends Action2 {
 				id: Menus.NewSessionConfig,
 				group: 'navigation',
 				order: 1,
-				when: IsActiveSessionCopilotChatCLI,
+				when: ContextKeyExpr.or(IsActiveSessionCopilotChatCLI, IsActiveSessionCopilotChatClaudeCode),
 			}],
 		});
 	}
@@ -201,10 +201,6 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 	constructor(
 		@IActionViewItemService actionViewItemService: IActionViewItemService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@ILanguageModelsService languageModelsService: ILanguageModelsService,
-		@ISessionsManagementService sessionsManagementService: ISessionsManagementService,
-		@ISessionsProvidersService sessionsProvidersService: ISessionsProvidersService,
-		@IStorageService storageService: IStorageService,
 	) {
 		super();
 
@@ -232,56 +228,8 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 		this._register(actionViewItemService.register(
 			Menus.NewSessionConfig, 'sessions.defaultCopilot.localModelPicker',
 			() => {
-				const currentModel = observableValue<ILanguageModelChatMetadataAndIdentifier | undefined>('currentModel', undefined);
-				const delegate: IModelPickerDelegate = {
-					currentModel,
-					setModel: (model: ILanguageModelChatMetadataAndIdentifier) => {
-						currentModel.set(model, undefined);
-						storageService.store('sessions.localModelPicker.selectedModelId', model.identifier, StorageScope.PROFILE, StorageTarget.MACHINE);
-						const session = sessionsManagementService.activeSession.get();
-						if (session) {
-							const provider = sessionsProvidersService.getProviders().find(p => p.id === session.providerId);
-							provider?.setModel(session.sessionId, model.identifier);
-						}
-					},
-					getModels: () => getAvailableModels(languageModelsService, sessionsManagementService),
-					useGroupedModelPicker: () => true,
-					showManageModelsAction: () => false,
-					showUnavailableFeatured: () => false,
-					showFeatured: () => true,
-				};
-				const pickerOptions: IChatInputPickerOptions = {
-					hideChevrons: observableValue('hideChevrons', false),
-				};
-				const action = { id: 'sessions.modelPicker', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } };
-				const modelPicker = instantiationService.createInstance(ModelPickerActionItem, action, delegate, pickerOptions);
-
-				// Initialize with remembered model or first available model
-				const rememberedModelId = storageService.get('sessions.localModelPicker.selectedModelId', StorageScope.PROFILE);
-				const initModel = () => {
-					const models = getAvailableModels(languageModelsService, sessionsManagementService);
-					modelPicker.setEnabled(models.length > 0);
-					if (!currentModel.get() && models.length > 0) {
-						const remembered = rememberedModelId ? models.find(m => m.identifier === rememberedModelId) : undefined;
-						delegate.setModel(remembered ?? models[0]);
-					}
-				};
-				initModel();
-
-				const disposableStore = new DisposableStore();
-				disposableStore.add(languageModelsService.onDidChangeLanguageModels(() => initModel()));
-
-				// When the active session changes, push the selected model to the new session
-				disposableStore.add(autorun(reader => {
-					const session = sessionsManagementService.activeSession.read(reader);
-					const model = currentModel.read(reader);
-					if (session && model) {
-						const provider = sessionsProvidersService.getProviders().find(p => p.id === session.providerId);
-						provider?.setModel(session.sessionId, model.identifier);
-					}
-				}));
-
-				return new PickerActionViewItem(modelPicker, disposableStore);
+				const picker = instantiationService.createInstance(SessionModelPicker);
+				return new PickerActionViewItem(picker);
 			},
 		));
 		this._register(actionViewItemService.register(
@@ -309,7 +257,105 @@ class CopilotPickerActionViewItemContribution extends Disposable implements IWor
 	}
 }
 
-function getAvailableModels(
+// -- Model Picker Helpers --
+
+/**
+ * Returns a storage key scoped to the given session type.
+ */
+export function modelPickerStorageKey(sessionType: string): string {
+	return `sessions.modelPicker.${sessionType}.selectedModelId`;
+}
+
+/**
+ * A model picker widget that persists the selected model per session type and
+ * syncs the selection to the active session's provider. Instantiated via DI,
+ * consistent with the other picker widgets in this file.
+ */
+export class SessionModelPicker extends Disposable {
+
+	private readonly _currentModel = observableValue<ILanguageModelChatMetadataAndIdentifier | undefined>('currentModel', undefined);
+	private readonly _delegate: IModelPickerDelegate;
+	private readonly _modelPicker: ModelPickerActionItem;
+	private _lastSessionType: string | undefined;
+
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ILanguageModelsService private readonly _languageModelsService: ILanguageModelsService,
+		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
+		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
+		@IStorageService private readonly _storageService: IStorageService,
+	) {
+		super();
+
+		this._delegate = {
+			currentModel: this._currentModel,
+			setModel: (model: ILanguageModelChatMetadataAndIdentifier) => {
+				this._currentModel.set(model, undefined);
+				const session = this._sessionsManagementService.activeSession.get();
+				if (session) {
+					this._storageService.store(modelPickerStorageKey(session.sessionType), model.identifier, StorageScope.PROFILE, StorageTarget.MACHINE);
+					const provider = this._sessionsProvidersService.getProviders().find(p => p.id === session.providerId);
+					provider?.setModel(session.sessionId, model.identifier);
+				}
+			},
+			getModels: () => getAvailableModels(this._languageModelsService, this._sessionsManagementService),
+			useGroupedModelPicker: () => true,
+			showManageModelsAction: () => false,
+			showUnavailableFeatured: () => false,
+			showFeatured: () => true,
+		};
+
+		const pickerOptions: IChatInputPickerOptions = {
+			hideChevrons: observableValue('hideChevrons', false),
+		};
+		const action = { id: 'sessions.modelPicker', label: '', enabled: true, class: undefined, tooltip: '', run: () => { } };
+		this._modelPicker = instantiationService.createInstance(ModelPickerActionItem, action, this._delegate, pickerOptions);
+
+		this._initModel();
+		this._register(this._languageModelsService.onDidChangeLanguageModels(() => this._initModel()));
+
+		// When the active session changes, re-init (may switch session type).
+		// _initModel() calls _delegate.setModel() which already forwards to
+		// the provider, so no additional provider.setModel() call is needed.
+		this._register(autorun(reader => {
+			const session = this._sessionsManagementService.activeSession.read(reader);
+			if (session) {
+				this._initModel();
+			}
+		}));
+	}
+
+	private _initModel(): void {
+		const session = this._sessionsManagementService.activeSession.get();
+		const sessionType = session?.sessionType;
+
+		// Reset the current model when switching session types so we load the
+		// remembered model for the new type instead of carrying over the old one.
+		if (sessionType !== this._lastSessionType) {
+			this._currentModel.set(undefined, undefined);
+			this._lastSessionType = sessionType;
+		}
+
+		const models = getAvailableModels(this._languageModelsService, this._sessionsManagementService);
+		this._modelPicker.setEnabled(models.length > 0);
+		if (!this._currentModel.get() && models.length > 0) {
+			const rememberedModelId = sessionType ? this._storageService.get(modelPickerStorageKey(sessionType), StorageScope.PROFILE) : undefined;
+			const remembered = rememberedModelId ? models.find(m => m.identifier === rememberedModelId) : undefined;
+			this._delegate.setModel(remembered ?? models[0]);
+		}
+	}
+
+	render(container: HTMLElement): void {
+		this._modelPicker.render(container);
+	}
+
+	override dispose(): void {
+		this._modelPicker.dispose();
+		super.dispose();
+	}
+}
+
+export function getAvailableModels(
 	languageModelsService: ILanguageModelsService,
 	sessionsManagementService: ISessionsManagementService,
 ): ILanguageModelChatMetadataAndIdentifier[] {

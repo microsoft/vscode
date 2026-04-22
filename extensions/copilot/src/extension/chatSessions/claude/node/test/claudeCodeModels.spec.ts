@@ -25,6 +25,7 @@ function createMockEndpoint(overrides: {
 	multiplier?: number;
 	apiType?: string;
 	modelProvider?: string;
+	supportsReasoningEffort?: string[];
 }): IChatEndpoint {
 	const isAnthropic = overrides.modelProvider === undefined || overrides.modelProvider === 'Anthropic';
 	return {
@@ -41,6 +42,7 @@ function createMockEndpoint(overrides: {
 		supportsToolCalls: true,
 		supportsVision: false,
 		supportsPrediction: false,
+		supportsReasoningEffort: overrides.supportsReasoningEffort,
 		isDefault: false,
 		isFallback: false,
 		policy: 'enabled',
@@ -272,6 +274,53 @@ describe('ClaudeCodeModels', () => {
 			expect(info[0].maxInputTokens).toBe(endpoint.modelMaxPromptTokens);
 			expect(info[0].maxOutputTokens).toBe(endpoint.maxOutputTokens);
 			expect(info[0].version).toBe(endpoint.version);
+		});
+		it('includes configurationSchema when endpoint supports multiple reasoning effort levels', async () => {
+			const { service } = createServiceWithRefreshableEndpoints([
+				createMockEndpoint({
+					model: 'claude-sonnet-4-model',
+					name: 'Claude Sonnet 4',
+					family: 'claude-sonnet-4',
+					supportsReasoningEffort: ['low', 'medium', 'high'],
+				}),
+			]);
+			const { lm, getCapturedProvider } = createMockLm();
+
+			const info = await getProviderInfo(service, lm, getCapturedProvider);
+			expect(info[0].configurationSchema).toBeDefined();
+			const schema = info[0].configurationSchema!;
+			expect(schema.properties?.['reasoningEffort']).toBeDefined();
+			expect(schema.properties!['reasoningEffort'].enum).toEqual(['low', 'medium', 'high']);
+			expect(schema.properties!['reasoningEffort'].default).toBe('high');
+		});
+
+		it('omits configurationSchema when endpoint has no reasoning effort support', async () => {
+			const { service } = createServiceWithRefreshableEndpoints([
+				createMockEndpoint({
+					model: 'claude-sonnet-4-model',
+					name: 'Claude Sonnet 4',
+					family: 'claude-sonnet-4',
+				}),
+			]);
+			const { lm, getCapturedProvider } = createMockLm();
+
+			const info = await getProviderInfo(service, lm, getCapturedProvider);
+			expect(info[0].configurationSchema).toBeUndefined();
+		});
+
+		it('omits configurationSchema when endpoint has only one reasoning effort level', async () => {
+			const { service } = createServiceWithRefreshableEndpoints([
+				createMockEndpoint({
+					model: 'claude-sonnet-4-model',
+					name: 'Claude Sonnet 4',
+					family: 'claude-sonnet-4',
+					supportsReasoningEffort: ['high'],
+				}),
+			]);
+			const { lm, getCapturedProvider } = createMockLm();
+
+			const info = await getProviderInfo(service, lm, getCapturedProvider);
+			expect(info[0].configurationSchema).toBeUndefined();
 		});
 	});
 

@@ -16,7 +16,7 @@ import { localize } from '../../../../nls.js';
 import { agentHostUri } from '../../../../platform/agentHost/common/agentHostFileSystemProvider.js';
 import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 import { AgentSession, type IAgentConnection, type IAgentSessionMetadata } from '../../../../platform/agentHost/common/agentService.js';
-import { RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
+import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
@@ -94,6 +94,8 @@ export interface IRemoteAgentHostSessionsProviderConfig {
 	readonly name: string;
 	/** Optional hook to establish a connection on demand (e.g. tunnel relay). */
 	readonly connectOnDemand?: () => Promise<void>;
+	/** Optional hook to tear down the active connection on demand (e.g. tunnel relay). */
+	readonly disconnectOnDemand?: () => Promise<void>;
 }
 
 /**
@@ -145,6 +147,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	private readonly _connectionListeners = this._register(new DisposableStore());
 	private readonly _connectionAuthority: string;
 	private readonly _connectOnDemand: (() => Promise<void>) | undefined;
+	private readonly _disconnectOnDemand: (() => Promise<void>) | undefined;
 	/** Storage key used for persisting {@link _sessionCache} snapshots. */
 	private readonly _storageKey: string;
 	/**
@@ -179,11 +182,13 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		@IChatService chatService: IChatService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@ILanguageModelsService languageModelsService: ILanguageModelsService,
+		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
 	) {
 		super(chatSessionsService, chatService, chatWidgetService, languageModelsService);
 
 		this._connectionAuthority = agentHostAuthority(config.address);
 		this._connectOnDemand = config.connectOnDemand;
+		this._disconnectOnDemand = config.disconnectOnDemand;
 		const displayName = config.name || config.address;
 
 		this.id = `agenthost-${this._connectionAuthority}`;
@@ -277,6 +282,35 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	}
 
 	// -- Connection lifecycle ------------------------------------------------
+
+	/**
+	 * Establish (or re-establish) the connection for this host on demand.
+	 * Tunnel-backed providers use their relay hook; other providers fall
+	 * back to the generic remote agent host reconnect path.
+	 */
+	async connect(): Promise<void> {
+		if (this._connectOnDemand) {
+			await this._connectOnDemand();
+			return;
+		}
+		this._remoteAgentHostService.reconnect(this.remoteAddress);
+	}
+
+	/**
+	 * Tear down the active connection for this host. Tunnel-backed providers
+	 * use their relay hook; other providers fall back to the generic remote
+	 * agent host disconnect path. Cached sessions are hidden from the UI so
+	 * the sessions list reflects the disconnected state; the persisted cache
+	 * is retained so sessions can be restored on reconnect.
+	 */
+	async disconnect(): Promise<void> {
+		this.unpublishCachedSessions();
+		if (this._disconnectOnDemand) {
+			await this._disconnectOnDemand();
+			return;
+		}
+		await this._remoteAgentHostService.removeRemoteAgentHost(this.remoteAddress);
+	}
 
 	/** Update the connection status for this provider. */
 	setConnectionStatus(status: RemoteAgentHostConnectionStatus): void {

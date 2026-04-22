@@ -14,13 +14,17 @@
 .new-chat-widget-container {
 	display: flex;
 	flex-direction: column;
-	align-items: center;
+	/* Cross-axis: keep children flush left so the input's left edge — and therefore
+	 * the attach (+) button — stays anchored as the viewport narrows past max-width. */
+	align-items: flex-start;
 	justify-content: center;
 	width: 100%;
 	height: 100%;
 	box-sizing: border-box;
 	overflow: hidden;
 	padding: 16px 16px 20px 16px;
+	/* Establishes a size container so the @container (max-width: 330px) query below
+	 * can collapse picker labels to icon-only when the new-chat area is narrow. */
 	container-type: size;
 	position: relative;
 }
@@ -39,7 +43,6 @@
 	display: none;
 	width: 100%;
 	max-width: 800px;
-	margin: 0 0 8px 0;
 	padding: 0;
 	box-sizing: border-box;
 }
@@ -72,12 +75,14 @@
 	display: flex;
 	flex-direction: column;
 	align-items: stretch;
+	align-self: center;
 }
 
 .new-chat-widget-container .new-chat-bottom-container {
 	width: 100%;
 	max-width: 800px;
-	margin-top: 8px;
+	margin-top: 4px;
+	padding: 0 4px;
 	box-sizing: border-box;
 	display: none;
 	flex-direction: row;
@@ -93,6 +98,9 @@
 
 .new-chat-widget-container .new-chat-bottom-container .new-chat-controls-container {
 	display: flex;
+	gap: 4px;
+	min-width: 0;
+	overflow: hidden;
 }
 
 .new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container {
@@ -100,6 +108,70 @@
 	align-items: center;
 	gap: 2px;
 	min-width: 0;
+	overflow: hidden;
+}
+
+/* Allow nested toolbar items to shrink so labels can ellipsize when space is tight.
+ * Mirrors the regular chat-input-toolbar pattern: each flex layer between the
+ * bounded container and the ellipsizing label gets `min-width: 0; overflow: hidden`. */
+.new-chat-widget-container .new-chat-bottom-container .new-chat-controls-container > *,
+.new-chat-widget-container .new-chat-bottom-container .new-chat-repo-config-container > *,
+.new-chat-widget-container .new-chat-bottom-container .sessions-chat-picker-slot .action-label {
+	min-width: 0;
+	overflow: hidden;
+}
+
+/* Floor each picker so the icon + chevron (+ padding) stay visible even when
+ * the label is fully ellipsized. Approx: 7px padding-left + 12px icon + 2px
+ * label margin + 16px chevron box + 1px padding-right ~= 38px. The floor must
+ * be applied to the outermost flex item (.action-item), not just the label,
+ * because the parent's `min-width: 0` would otherwise let it clip the chevron. */
+.new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .action-item,
+.new-chat-widget-container .new-chat-bottom-container .sessions-chat-picker-slot .action-label,
+.new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .action-item .action-label {
+	min-width: 30px;
+	overflow: hidden;
+}
+
+/* Below this width the bottom-row pickers can't fit their labels comfortably,
+ * so collapse to icon + chevron only. The .new-chat-widget-container declares
+ * `container-type: size` which makes this a size container query. */
+@container (max-width: 330px) {
+	/* Bottom-row pickers (Copilot CLI, Default Approvals, Worktree, branch): icon-only */
+	.new-chat-widget-container .new-chat-bottom-container .sessions-chat-dropdown-label {
+		display: none;
+	}
+
+	/* Chat input config toolbar: hide mode picker label (uses sessions-chat-dropdown-label),
+	 * but keep the model picker label (uses chat-input-picker-label) visible. */
+	.new-chat-widget-container .sessions-chat-config-toolbar .sessions-chat-dropdown-label {
+		display: none;
+	}
+}
+
+/* Spacing between action items inside the bottom-row toolbars (e.g. Worktree, branch) */
+.new-chat-widget-container .new-chat-bottom-container .monaco-action-bar .actions-container {
+	gap: 4px;
+}
+
+/* Match VS Code chat-secondary-toolbar sizing for action items in the bottom row
+ * (e.g. session control pickers and repo config pickers) so they align with the
+ * mode/model picker font in the input toolbar. The 1px right padding is intentional
+ * because the chevron's 16x16 codicon box supplies the visual right padding. */
+.new-chat-widget-container .new-chat-bottom-container .action-label {
+	height: 16px;
+	padding: 3px 1px 3px 7px;
+	font-size: 11px;
+	color: var(--vscode-icon-foreground);
+}
+
+.new-chat-widget-container .new-chat-bottom-container .action-label > .codicon {
+	font-size: 12px;
+}
+
+.new-chat-widget-container .new-chat-bottom-container .action-label > .codicon-chevron-down {
+	font-size: 10px;
+	margin-left: 4px;
 }
 
 .chat-controls-container .monaco-editor-background {
@@ -168,7 +240,11 @@
 }
 
 .sessions-chat-dropdown-label {
-	margin-left: 4px;
+	margin-left: 6px;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
 }
 
 .sessions-chat-picker-slot {
@@ -182,11 +258,10 @@
 	display: flex;
 	align-items: center;
 	height: 16px;
-	padding: 3px 3px 3px 6px;
+	padding: 3px 1px 3px 7px;
 	background-color: transparent;
 	border: none;
 	color: var(--vscode-icon-foreground);
-	font-size: 13px;
 	cursor: pointer;
 	touch-action: manipulation;
 	white-space: nowrap;
@@ -245,18 +320,24 @@
 }
 
 .sessions-chat-picker-slot .action-label .codicon {
-	font-size: 14px;
+	font-size: 12px;
 	flex-shrink: 0;
+	/* Override the base .monaco-action-bar .action-item .codicon { width:16px; height:16px }
+	 * so codicons here size naturally to their font-size, matching pickers (like Copilot CLI)
+	 * that are rendered outside a monaco-action-bar. */
+	width: auto;
+	height: auto;
 }
 
 .sessions-chat-picker-slot .action-label .codicon-chevron-down {
 	display: inline-flex;
 	align-items: center;
 	justify-content: center;
-	font-size: 12px;
-	margin-left: 6px;
+	font-size: 10px;
+	margin-left: 2px;
 	line-height: 1;
-	transform: translateY(1px);
+	width: 12px;
+	height: 12px;
 }
 
 .sessions-chat-picker-slot .action-label .chat-session-option-label {

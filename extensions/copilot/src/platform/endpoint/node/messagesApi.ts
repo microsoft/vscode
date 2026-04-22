@@ -78,6 +78,11 @@ interface AnthropicStreamEvent {
 		signature?: string;
 		stop_reason?: string;
 		stop_sequence?: string;
+		stop_details?: {
+			category?: string;
+			explanation?: string;
+			type?: string;
+		};
 	};
 	copilot_annotations?: {
 		IPCodeCitations?: AnthropicIPCodeCitation[];
@@ -603,6 +608,7 @@ export class AnthropicMessagesProcessor {
 	private cacheReadTokens: number = 0;
 	private contextManagementResponse?: ContextManagementResponse;
 	private stopReason: string | undefined;
+	private stopDetails?: { category?: string; explanation?: string; type?: string };
 
 	constructor(
 		private readonly telemetryData: TelemetryData,
@@ -710,26 +716,6 @@ export class AnthropicMessagesProcessor {
 							encrypted: data,
 						}
 					});
-				} else if (chunk.content_block) {
-					const unknownType = (chunk.content_block as { type?: string }).type ?? 'undefined';
-					this.logService.warn(`[messagesAPI] Unknown content_block type '${unknownType}' at index ${chunk.index ?? -1} for model ${this.model}`);
-
-					/* __GDPR__
-						"messagesApi.unknownContentBlock" : {
-							"owner": "bhavyaus",
-							"comment": "Tracks unknown Anthropic content block types",
-							"requestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The request ID for correlation" },
-							"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model that emitted the unknown block" },
-							"blockType": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The unknown content_block.type string" }
-						}
-					*/
-					this.telemetryService.sendMSFTTelemetryEvent('messagesApi.unknownContentBlock',
-						{
-							requestId: this.requestId,
-							model: this.model,
-							blockType: unknownType,
-						}
-					);
 				}
 				return;
 			case 'content_block_delta':
@@ -818,9 +804,12 @@ export class AnthropicMessagesProcessor {
 						contextManagement: chunk.context_management
 					});
 				}
-				// Track stop_reason for determining finish reason in message_stop
+				// Track stop_reason and stop_details for determining finish reason in message_stop
 				if (chunk.delta?.stop_reason) {
 					this.stopReason = chunk.delta.stop_reason;
+				}
+				if (chunk.delta?.stop_details) {
+					this.stopDetails = chunk.delta.stop_details;
 				}
 				return;
 			case 'message_stop': {
@@ -864,6 +853,28 @@ export class AnthropicMessagesProcessor {
 						}
 					);
 				}
+				if (this.stopReason === 'refusal') {
+					const category = this.stopDetails?.category ?? 'unknown';
+					this.logService.warn(`[messagesAPI] Refusal received: category='${category}' for model ${this.model}`);
+
+					/* __GDPR__
+						"messagesApi.refusal" : {
+							"owner": "bhavyaus",
+							"comment": "Tracks Anthropic refusal responses including cyber and other policy categories",
+							"requestId": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The request ID for correlation" },
+							"model": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The model that produced the refusal" },
+							"category": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "comment": "The refusal category (e.g. cyber, content_policy)" }
+						}
+					*/
+					this.telemetryService.sendMSFTTelemetryEvent('messagesApi.refusal',
+						{
+							requestId: this.requestId,
+							model: this.model,
+							category,
+						}
+					);
+				}
+
 				let finishReason: FinishedCompletionReason;
 				switch (this.stopReason) {
 					case 'refusal':

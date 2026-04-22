@@ -524,7 +524,7 @@ export interface RequestIdDetails {
  * Build chat history from SDK events for VS Code chat session
  * Converts SDKEvents into ChatRequestTurn2 and ChatResponseTurn2 objects
  */
-export function buildChatHistoryFromEvents(sessionId: string, modelId: string | undefined, events: readonly SessionEvent[], getVSCodeRequestId: (sdkRequestId: string) => RequestIdDetails | undefined, delegationSummaryService: IChatDelegationSummaryService, logger: ILogger, workingDirectory?: URI, defaultModeInstructionsForLastRequest?: StoredModeInstructions): (ChatRequestTurn2 | ChatResponseTurn2)[] {
+export function buildChatHistoryFromEvents(sessionId: string, modelId: string | undefined, events: readonly SessionEvent[], getVSCodeRequestId: (sdkRequestId: string) => RequestIdDetails | undefined, delegationSummaryService: IChatDelegationSummaryService, logger: ILogger, workingDirectory?: URI, defaultModeInstructionsForLastRequest?: StoredModeInstructions, lastResponseDetails?: string): (ChatRequestTurn2 | ChatResponseTurn2)[] {
 	const turns: (ChatRequestTurn2 | ChatResponseTurn2)[] = [];
 	let currentResponseParts: ExtendedChatResponsePart[] = [];
 	const pendingToolInvocations = new Map<string, [ChatToolInvocationPart | ChatResponseMarkdownPart | ChatResponseThinkingProgressPart, toolData: ToolCall, parentToolCallId: string | undefined]>();
@@ -744,7 +744,7 @@ export function buildChatHistoryFromEvents(sessionId: string, modelId: string | 
 	flushPendingAssistantMessage();
 
 	if (currentResponseParts.length > 0) {
-		turns.push(new ChatResponseTurn2(currentResponseParts, {}, ''));
+		turns.push(new ChatResponseTurn2(currentResponseParts, lastResponseDetails ? { details: lastResponseDetails } : {}, ''));
 	}
 
 	return turns;

@@ -21,6 +21,7 @@ import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { ClaudeFolderInfo } from '../claude/common/claudeFolderInfo';
 import { ClaudeSessionUri } from '../claude/common/claudeSessionUri';
 import { ClaudeAgentManager } from '../claude/node/claudeCodeAgent';
+import { CLAUDE_REASONING_EFFORT_PROPERTY } from '../claude/node/claudeCodeModels';
 import { IClaudeCodeSdkService } from '../claude/node/claudeCodeSdkService';
 import { parseClaudeModelId } from '../claude/node/claudeModelId';
 import { IClaudeSessionStateService } from '../claude/common/claudeSessionStateService';
@@ -44,6 +45,11 @@ interface InputStateReactivePipeline {
 	readonly folderItems: ISettableObservable<readonly vscode.ChatSessionProviderOptionItem[]>;
 	readonly isSessionStarted: ISettableObservable<boolean>;
 	readonly store: DisposableStore;
+}
+
+function getSelectedFolderUri(inputState: vscode.ChatSessionInputState | undefined): URI | undefined {
+	const selectedFolderId = inputState?.groups.find(group => group.id === FOLDER_OPTION_ID)?.selected?.id;
+	return selectedFolderId ? URI.file(selectedFolderId) : undefined;
 }
 
 export class ClaudeChatSessionContentProvider extends Disposable implements vscode.ChatSessionContentProvider {
@@ -109,14 +115,17 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 				throw new Error(`Permission mode not set for session ${effectiveSessionId}`);
 			}
 			const permissionMode = selectedPermissionId;
-			const selectedFolderId = chatSessionContext.inputState.groups.find(group => group.id === FOLDER_OPTION_ID)?.selected?.id;
-			const selectedFolderUri = selectedFolderId ? URI.file(selectedFolderId) : undefined;
+			const selectedFolderUri = getSelectedFolderUri(chatSessionContext.inputState);
 			const folderInfo = await this._controller.getFolderInfoForSession(effectiveSessionId, selectedFolderUri);
 
 			// Commit UI state to session state service before invoking agent manager
 			this.sessionStateService.setModelIdForSession(effectiveSessionId, modelId);
 			this.sessionStateService.setPermissionModeForSession(effectiveSessionId, permissionMode);
 			this.sessionStateService.setFolderInfoForSession(effectiveSessionId, folderInfo);
+
+			const rawReasoningEffort = request.modelConfiguration?.[CLAUDE_REASONING_EFFORT_PROPERTY];
+			const normalizedReasoningEffort = typeof rawReasoningEffort === 'string' ? rawReasoningEffort.trim() || undefined : undefined;
+			this.sessionStateService.setReasoningEffortForSession(effectiveSessionId, normalizedReasoningEffort);
 
 			// Set usage handler to report token usage for context window widget
 			this.sessionStateService.setUsageHandlerForSession(effectiveSessionId, (usage) => {
@@ -242,6 +251,14 @@ export class ClaudeChatSessionItemController extends Disposable {
 			);
 			item.iconPath = new vscode.ThemeIcon('claude');
 			item.timing = { created: Date.now() };
+
+			// Set workspace metadata for correct session grouping
+			const selectedFolderUri = getSelectedFolderUri(context.inputState);
+			const folderInfo = await this.getFolderInfoForSession(newSessionId, selectedFolderUri);
+			if (folderInfo.cwd) {
+				item.metadata = { workingDirectoryPath: folderInfo.cwd };
+			}
+
 			this._inProgressItems.set(newSessionId, item);
 			return item;
 		};
@@ -280,6 +297,10 @@ export class ClaudeChatSessionItemController extends Disposable {
 			const newItem = this._controller.createChatSessionItem(ClaudeSessionUri.forSessionId(result.sessionId), title);
 			newItem.iconPath = new vscode.ThemeIcon('claude');
 			newItem.timing = { created: Date.now() };
+			// FYI, dropping any other metadata fields here...
+			if (item?.metadata?.workingDirectoryPath) {
+				newItem.metadata = { workingDirectoryPath: item.metadata.workingDirectoryPath };
+			}
 
 			// Copy parent session state to the forked session
 			const parentSessionId = ClaudeSessionUri.getSessionId(sessionResource);

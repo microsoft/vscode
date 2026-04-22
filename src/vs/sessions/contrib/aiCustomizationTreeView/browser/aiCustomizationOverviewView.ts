@@ -22,7 +22,7 @@ import { IHoverService } from '../../../../platform/hover/browser/hover.js';
 import { ResourceSet } from '../../../../base/common/map.js';
 import { IPromptsService } from '../../../../workbench/contrib/chat/common/promptSyntax/service/promptsService.js';
 import { PromptsType } from '../../../../workbench/contrib/chat/common/promptSyntax/promptTypes.js';
-import { AICustomizationManagementSection } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
+import { AICustomizationManagementSection, AI_CUSTOMIZATION_MANAGEMENT_EDITOR_ID } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagement.js';
 import { AICustomizationManagementEditorInput } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationManagementEditorInput.js';
 import { agentIcon, instructionsIcon, mcpServerIcon, pluginIcon, skillIcon } from '../../../../workbench/contrib/chat/browser/aiCustomization/aiCustomizationIcons.js';
 import { IWorkspaceContextService } from '../../../../platform/workspace/common/workspace.js';
@@ -34,6 +34,10 @@ import { IAgentPluginService } from '../../../../workbench/contrib/chat/common/p
 const $ = DOM.$;
 
 export const AI_CUSTOMIZATION_OVERVIEW_VIEW_ID = 'workbench.view.aiCustomizationOverview';
+
+function isWelcomePageEditor(editor: unknown): editor is { showWelcomePage(): void } {
+	return typeof (editor as { showWelcomePage?: unknown })?.showWelcomePage === 'function';
+}
 
 interface ISectionSummary {
 	readonly id: AICustomizationManagementSection;
@@ -222,7 +226,13 @@ export class AICustomizationOverviewView extends ViewPane {
 
 	private async openOverview(): Promise<void> {
 		const input = AICustomizationManagementEditorInput.getOrCreate();
-		await this.editorService.openEditor(input, { pinned: true });
+		const editor = await this.editorService.openEditor(input, { pinned: true });
+
+		// Always reset to the welcome page when opening from the sidebar,
+		// so we don't restore the previously selected section.
+		if (editor?.getId() === AI_CUSTOMIZATION_MANAGEMENT_EDITOR_ID && isWelcomePageEditor(editor)) {
+			editor.showWelcomePage();
+		}
 	}
 
 	protected override layoutBody(height: number, width: number): void {

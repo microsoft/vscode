@@ -387,8 +387,6 @@
 	border-color: var(--vscode-agentsChatInput-border) !important;
 	background-color: var(--vscode-agentsChatInput-background);
 	color: var(--vscode-agentsChatInput-foreground);
-	/* Preserve the agents-app input background under the developer-joy ring. */
-	--chat-input-working-fill: var(--vscode-agentsChatInput-background);
 }
 
 .agent-sessions-workbench .interactive-session .chat-input-container.focused {

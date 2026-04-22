@@ -9,7 +9,7 @@ import { Event } from '../../../../../util/vs/base/common/event';
 import { Disposable, IDisposable } from '../../../../../util/vs/base/common/lifecycle';
 import { URI } from '../../../../../util/vs/base/common/uri';
 import { generateUuid } from '../../../../../util/vs/base/common/uuid';
-import { CLIAgentInfo, ICopilotCLIAgents } from '../copilotCli';
+import { CLIAgentInfo, CopilotCLIModelInfo, ICopilotCLIAgents, ICopilotCLIModels } from '../copilotCli';
 import { ICopilotCLIImageSupport } from '../copilotCLIImageSupport';
 import { ICopilotCLISkills } from '../copilotCLISkills';
 import { ICopilotCLIMCPHandler } from '../mcpHandler';
@@ -106,4 +106,13 @@ export class NullCopilotCLIMCPHandler implements ICopilotCLIMCPHandler {
 	async loadMcpConfig(_resource: URI): Promise<{ mcpConfig: Record<string, NonNullable<SessionOptions['mcpServers']>[string]> | undefined; disposable: IDisposable }> {
 		return { mcpConfig: undefined, disposable: Disposable.None };
 	}
+}
+
+export class NullCopilotCLIModels implements ICopilotCLIModels {
+	_serviceBrand: undefined;
+	async resolveModel(_modelId: string): Promise<string | undefined> { return undefined; }
+	async getDefaultModel(): Promise<string | undefined> { return undefined; }
+	async setDefaultModel(_modelId: string | undefined): Promise<void> { return; }
+	async getModels(): Promise<CopilotCLIModelInfo[]> { return []; }
+	registerLanguageModelChatProvider(): void { return; }
 }

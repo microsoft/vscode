@@ -105,7 +105,7 @@ The welcome/new-session view (`NewChatInputWidget`) renders three toolbar menus 
 
 | Menu | Purpose | Examples |
 |------|---------|----------|
-| `Menus.NewSessionConfig` | Session configuration (mode, model) | `ModePicker`, `CloudModelPicker`, local model picker |
+| `Menus.NewSessionConfig` | Session configuration (mode, model) | `ModePicker`, `CloudModelPicker`, unified model picker (CLI + Claude) |
 | `Menus.NewSessionControl` | Session controls (permissions) | `PermissionPicker`, `ClaudePermissionModePicker` |
 | `Menus.NewSessionRepositoryConfig` | Repository configuration | `IsolationPicker`, `BranchPicker` |
 

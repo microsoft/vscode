@@ -861,6 +861,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	/* top padding is inside the editor widget */
 	width: 100%;
 	position: relative;
+	transition: box-shadow 350ms ease;
 }
 
 /* Prevent contents from covering border corners. Not applied in compact mode
@@ -873,10 +874,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 
 /* Animated gradient border shown around the chat input while the agent is
 	working or thinking. Toggled by the `chat.progressBorder.enabled`
-	setting and the chat widget's request-in-progress state. The ring is
-	rendered using layered `background-image` + `background-clip`
-	(`padding-box`/`border-box`), so it traces the input's outer corner
-	radius and isn't clipped by `overflow: hidden` on the parent. */
+	setting and the chat widget's request-in-progress state.
+
+	The ring is rendered as a `::before` pseudo-element so it can fade in
+	and out via `opacity` when the `.working` class is toggled, without
+	disturbing the input's own background. The pseudo uses a 1px padding
+	+ inverted mask trick to paint a hairline gradient ring that follows
+	the input's corner radius. The three color stops are themeable via
+	`chat.inputWorkingBorderColor1/2/3`. */
 @property --chat-input-anim-angle {
 	syntax: '<angle>';
 	inherits: false;
@@ -893,46 +898,77 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
+/* Halo that cycles through the same three theme colors as the conic ring,
+	in sync with the 3s spin, so the glow appears to emanate from the
+	rotating gradient. */
 @keyframes chat-input-working-border-glow {
+	0% {
+		box-shadow:
+			0 0 10px 0 color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 22%, transparent),
+			0 0 22px 2px color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 10%, transparent);
+	}
 
-	0%,
+	33% {
+		box-shadow:
+			0 0 10px 0 color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor2) 22%, transparent),
+			0 0 22px 2px color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor2) 10%, transparent);
+	}
+
+	66% {
+		box-shadow:
+			0 0 10px 0 color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor3) 22%, transparent),
+			0 0 22px 2px color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor3) 10%, transparent);
+	}
+
 	100% {
 		box-shadow:
-			0 0 4px 0 color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 18%, transparent),
-			0 0 10px 0 color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor3) 8%, transparent);
+			0 0 10px 0 color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 22%, transparent),
+			0 0 22px 2px color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 10%, transparent);
 	}
+}
 
-	50% {
-		box-shadow:
-			0 0 6px 0 color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor2) 22%, transparent),
-			0 0 14px 1px color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 12%, transparent);
-	}
+.monaco-workbench .interactive-session .chat-input-container::before {
+	content: '';
+	position: absolute;
+	/* Pull the ring out by 1px so its outer edge aligns with where the
+		`box-shadow` glow on the container begins (the outer border-edge),
+		eliminating a sub-pixel gap between the rotating ring and the halo. */
+	inset: -1px;
+	border-radius: calc(var(--vscode-cornerRadius-large) - 1px);
+	padding: 1px;
+	background: conic-gradient(from var(--chat-input-anim-angle),
+		var(--vscode-chat-inputWorkingBorderColor1),
+		var(--vscode-chat-inputWorkingBorderColor2),
+		var(--vscode-chat-inputWorkingBorderColor3),
+		var(--vscode-chat-inputWorkingBorderColor2),
+		var(--vscode-chat-inputWorkingBorderColor1));
+	-webkit-mask:
+		linear-gradient(#000 0 0) content-box,
+		linear-gradient(#000 0 0);
+	mask:
+		linear-gradient(#000 0 0) content-box,
+		linear-gradient(#000 0 0);
+	-webkit-mask-composite: xor;
+	mask-composite: exclude;
+	opacity: 0;
+	transition: opacity 350ms ease;
+	pointer-events: none;
+	z-index: 1;
 }
 
 .monaco-workbench .interactive-session .chat-input-container.working {
 	border-color: transparent;
-	/* The padding-box layer fills the input interior. It defaults to the
-		standard input background, but each host can override
-		`--chat-input-working-fill` to keep its own background color (e.g. the
-		Sessions workbench sets it to `--vscode-agentsChatInput-background`).
-		The conic-gradient layer is clipped to the border box so it paints
-		exactly where the (transparent) border lives. */
-	background:
-		linear-gradient(var(--chat-input-working-fill, var(--vscode-input-background)),
-			var(--chat-input-working-fill, var(--vscode-input-background))) padding-box,
-		conic-gradient(from var(--chat-input-anim-angle),
-			var(--vscode-chat-inputWorkingBorderColor1),
-			var(--vscode-chat-inputWorkingBorderColor2),
-			var(--vscode-chat-inputWorkingBorderColor3),
-			var(--vscode-chat-inputWorkingBorderColor2),
-			var(--vscode-chat-inputWorkingBorderColor1)) border-box;
-	animation:
-		chat-input-working-border-spin 1.2s linear infinite,
-		chat-input-working-border-glow 3s ease-in-out infinite;
+	animation: chat-input-working-border-glow 3s linear infinite;
+}
+
+.monaco-workbench .interactive-session .chat-input-container.working::before {
+	opacity: 1;
+	animation: chat-input-working-border-spin 3s linear infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.monaco-workbench .interactive-session .chat-input-container.working {
+	.monaco-workbench .interactive-session .chat-input-container.working,
+	.monaco-workbench .interactive-session .chat-input-container.working::before {
 		animation: none;
 	}
 }

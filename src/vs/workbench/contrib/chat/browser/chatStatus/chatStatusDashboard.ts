@@ -6,6 +6,7 @@
 import { $, append, EventType, addDisposableListener, EventHelper, disposableWindowInterval, getWindow } from '../../../../../base/browser/dom.js';
 import { Gesture, EventType as TouchEventType } from '../../../../../base/browser/touch.js';
 import { ActionBar } from '../../../../../base/browser/ui/actionbar/actionbar.js';
+import { renderLabelWithIcons } from '../../../../../base/browser/ui/iconLabel/iconLabels.js';
 import { Button } from '../../../../../base/browser/ui/button/button.js';
 import { Checkbox } from '../../../../../base/browser/ui/toggle/toggle.js';
 import { IAction, toAction, WorkbenchActionExecutedEvent, WorkbenchActionExecutedClassification } from '../../../../../base/common/actions.js';
@@ -13,7 +14,8 @@ import { CancellationToken, cancelOnDispose } from '../../../../../base/common/c
 import { Codicon } from '../../../../../base/common/codicons.js';
 import { safeIntl } from '../../../../../base/common/date.js';
 import { MarkdownString } from '../../../../../base/common/htmlContent.js';
-import { DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { MutableDisposable, DisposableStore } from '../../../../../base/common/lifecycle.js';
+import { parseLinkedText } from '../../../../../base/common/linkedText.js';
 import { language } from '../../../../../base/common/platform.js';
 import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { isObject } from '../../../../../base/common/types.js';
@@ -29,6 +31,7 @@ import { ICommandService } from '../../../../../platform/commands/common/command
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { IHoverService, nativeHoverDelegate } from '../../../../../platform/hover/browser/hover.js';
 import { IMarkdownRendererService } from '../../../../../platform/markdown/browser/markdownRenderer.js';
+import { Link } from '../../../../../platform/opener/browser/link.js';
 import { IOpenerService } from '../../../../../platform/opener/common/opener.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { defaultButtonStyles, defaultCheckboxStyles } from '../../../../../platform/theme/browser/defaultStyles.js';
@@ -37,6 +40,7 @@ import { EditorResourceAccessor, SideBySideEditor } from '../../../../common/edi
 import { IChatEntitlementService, ChatEntitlementService, ChatEntitlement, IQuotaSnapshot, getChatPlanName } from '../../../../services/chat/common/chatEntitlementService.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { isNewUser } from './chatStatus.js';
+import { IChatStatusItemService, ChatStatusEntry } from './chatStatusItemService.js';
 import product from '../../../../../platform/product/common/product.js';
 import { contrastBorder, inputValidationErrorBorder, inputValidationInfoBorder, inputValidationWarningBorder, registerColor, transparent } from '../../../../../platform/theme/common/colorRegistry.js';
 import { Color } from '../../../../../base/common/color.js';
@@ -134,6 +138,7 @@ export class ChatStatusDashboard extends DomWidget {
 	constructor(
 		private readonly options: IChatStatusDashboardOptions | undefined,
 		@IChatEntitlementService private readonly chatEntitlementService: ChatEntitlementService,
+		@IChatStatusItemService private readonly chatStatusItemService: IChatStatusItemService,
 		@ICommandService private readonly commandService: ICommandService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IEditorService private readonly editorService: IEditorService,
@@ -255,6 +260,30 @@ export class ChatStatusDashboard extends DomWidget {
 			this.renderUsageContent(this.element, token, updatePromise);
 		} else if (hasInlineSuggestionsSection) {
 			this.renderInlineSuggestionsContent(this.element, token, updatePromise);
+		}
+
+		// Contributions
+		{
+			for (const item of this.chatStatusItemService.getEntries()) {
+				this.element.appendChild($('hr'));
+
+				const itemDisposables = this._store.add(new MutableDisposable());
+
+				let rendered = this.renderContributedChatStatusItem(item);
+				itemDisposables.value = rendered.disposables;
+				this.element.appendChild(rendered.element);
+
+				this._store.add(this.chatStatusItemService.onDidChange(e => {
+					if (e.entry.id === item.id) {
+						const previousElement = rendered.element;
+
+						rendered = this.renderContributedChatStatusItem(e.entry);
+						itemDisposables.value = rendered.disposables;
+
+						previousElement.replaceWith(rendered.element);
+					}
+				}));
+			}
 		}
 
 		// New to Chat / Signed out
@@ -457,6 +486,47 @@ export class ChatStatusDashboard extends DomWidget {
 		if (action) {
 			const toolbar = disposables.add(new ActionBar(header, { hoverDelegate: nativeHoverDelegate }));
 			toolbar.push([action], { icon: true, label: false });
+		}
+	}
+
+	private renderContributedChatStatusItem(item: ChatStatusEntry): { element: HTMLElement; disposables: DisposableStore } {
+		const disposables = new DisposableStore();
+
+		const itemElement = $('div.contribution');
+
+		const headerLabel = typeof item.label === 'string' ? item.label : item.label.label;
+		const headerLink = typeof item.label === 'string' ? undefined : item.label.link;
+		this.renderHeader(itemElement, disposables, headerLabel, headerLink ? toAction({
+			id: 'workbench.action.openChatStatusItemLink',
+			label: localize('learnMore', "Learn More"),
+			tooltip: localize('learnMore', "Learn More"),
+			class: ThemeIcon.asClassName(Codicon.linkExternal),
+			run: () => this.runCommandAndClose(() => this.openerService.open(URI.parse(headerLink))),
+		}) : undefined);
+
+		const itemBody = itemElement.appendChild($('div.body'));
+
+		const description = itemBody.appendChild($('span.description'));
+		this.renderTextPlus(description, item.description, disposables);
+
+		if (item.detail) {
+			const separator = itemBody.appendChild($('span.separator'));
+			separator.textContent = '\u2014';
+			const detail = itemBody.appendChild($('span.detail-item'));
+			this.renderTextPlus(detail, item.detail, disposables);
+		}
+
+		return { element: itemElement, disposables };
+	}
+
+	private renderTextPlus(target: HTMLElement, text: string, store: DisposableStore): void {
+		for (const node of parseLinkedText(text).nodes) {
+			if (typeof node === 'string') {
+				const parts = renderLabelWithIcons(node);
+				target.append(...parts);
+			} else {
+				store.add(new Link(target, node, undefined, this.hoverService, this.openerService));
+			}
 		}
 	}
 

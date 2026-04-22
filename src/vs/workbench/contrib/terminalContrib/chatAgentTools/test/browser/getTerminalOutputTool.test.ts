@@ -56,14 +56,12 @@ suite('GetTerminalOutputTool', () => {
 		};
 	}
 
-	test('tool description documents opaque terminal ids', () => {
+	test('tool schema requires a UUID id', () => {
 		const idProperty = GetTerminalOutputToolData.inputSchema?.properties?.id as { description?: string; pattern?: string } | undefined;
-		assert.ok(GetTerminalOutputToolData.modelDescription.includes('exact opaque UUID'));
-		assert.ok(/exact opaque (uuid|id) returned by that tool/i.test(idProperty?.description ?? ''));
 		assert.ok(idProperty?.pattern?.includes('[0-9a-fA-F]{8}'));
 	});
 
-	test('returns error when neither id nor terminalId is provided', async () => {
+	test('returns error when id is not provided', async () => {
 		const result = await tool.invoke(
 			{ parameters: {}, callId: 'test-call', context: { sessionId: 'test-session' }, toolId: 'get_terminal_output', tokenBudget: 1000, isComplete: () => false, isCancellationRequested: false } as unknown as IToolInvocation,
 			async () => 0,
@@ -72,7 +70,7 @@ suite('GetTerminalOutputTool', () => {
 		);
 
 		const value = (result.content[0] as { value: string }).value;
-		assert.ok(value.includes('Either'));
+		assert.ok(value.includes('must be provided'));
 	});
 
 	test('returns explicit error for unknown terminal id', async () => {

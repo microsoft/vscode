@@ -5,6 +5,7 @@
 
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
 import { ICopilotTokenManager } from '../../../platform/authentication/common/copilotTokenManager';
+import { INTEGRATION_ID } from '../../../platform/endpoint/common/licenseAgreement';
 import { IFetcherService } from '../../../platform/networking/common/fetcherService';
 
 /** Cloud query endpoint path. */
@@ -77,7 +78,7 @@ export class CloudSessionStoreClient {
 				method: 'POST',
 				headers: {
 					'Authorization': `Bearer ${bearerToken}`,
-					'Copilot-Integration-Id': 'vscode-chat',
+					'Copilot-Integration-Id': INTEGRATION_ID,
 				},
 				json: { query: sql },
 				timeout: REQUEST_TIMEOUT_MS,

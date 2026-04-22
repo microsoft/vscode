@@ -6,6 +6,7 @@
 import { Emitter } from '../../../util/vs/base/common/event';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
 import { Config, ConfigKey, ExperimentBasedConfig, ExperimentBasedConfigType, IConfigurationService } from '../../configuration/common/configurationService';
+import { INTEGRATION_ID } from '../../endpoint/common/licenseAgreement';
 import { IEnvService } from '../../env/common/envService';
 import { ILogService } from '../../log/common/logService';
 import { IExperimentationService } from '../../telemetry/common/nullExperimentationService';
@@ -131,7 +132,7 @@ export class FetcherService extends Disposable implements IFetcherService {
 	createWebSocket(url: string, options?: WebSocketConnectOptions): WebSocketConnection {
 		if (options?.headers) {
 			delete options.headers['Request-Hmac'];
-			options.headers['Copilot-Integration-Id'] = 'vscode-chat';
+			options.headers['Copilot-Integration-Id'] = INTEGRATION_ID;
 		}
 		return createWebSocket(url, options);
 	}

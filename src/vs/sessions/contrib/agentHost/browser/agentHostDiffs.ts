@@ -3,11 +3,12 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { isDefined } from '../../base/common/types.js';
-import { URI } from '../../base/common/uri.js';
-import { SessionStatus as ProtocolSessionStatus } from '../../platform/agentHost/common/state/protocol/state.js';
-import { ISessionFileDiff } from '../../platform/agentHost/common/state/sessionState.js';
-import { SessionStatus } from '../services/sessions/common/session.js';
+import { isDefined } from '../../../../base/common/types.js';
+import { URI } from '../../../../base/common/uri.js';
+import { SessionStatus as ProtocolSessionStatus } from '../../../../platform/agentHost/common/state/protocol/state.js';
+import { ISessionFileDiff } from '../../../../platform/agentHost/common/state/sessionState.js';
+import { IChatSessionFileChange } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { SessionStatus } from '../../../services/sessions/common/session.js';
 
 /**
  * Maps the protocol-layer session status bitset to the UI-layer
@@ -23,13 +24,8 @@ export function mapProtocolStatus(protocol: ProtocolSessionStatus): SessionStatu
 	if (protocol & ProtocolSessionStatus.Error) {
 		return SessionStatus.Error;
 	}
-	return SessionStatus.Completed;
-}
 
-export interface IFileChange {
-	readonly modifiedUri: URI;
-	readonly insertions: number;
-	readonly deletions: number;
+	return SessionStatus.Completed;
 }
 
 /**
@@ -38,14 +34,26 @@ export interface IFileChange {
  * @param mapUri Optional URI mapper applied after parsing. The remote agent
  *   host provider uses this to rewrite `file:` URIs into agent-host URIs.
  */
-export function diffsToChanges(diffs: readonly ISessionFileDiff[], mapUri?: (uri: URI) => URI): IFileChange[] {
+export function diffsToChanges(diffs: readonly ISessionFileDiff[], mapUri?: (uri: URI) => URI): IChatSessionFileChange[] {
 	return diffs.map(d => {
 		const uri = d.after?.uri || d.before?.uri;
 		if (!uri) {
 			return undefined;
 		}
+
+		const modifiedUri = mapUri ? mapUri(URI.parse(uri)) : URI.parse(uri);
+
+		// Use the before-content reference URI so the diff editor can
+		// fetch the snapshot of the file *before* the session's edits.
+		let originalUri: URI | undefined;
+		if (d.before?.content?.uri) {
+			const parsed = URI.parse(d.before.content.uri);
+			originalUri = mapUri ? mapUri(parsed) : parsed;
+		}
+
 		return {
-			modifiedUri: mapUri ? mapUri(URI.parse(uri)) : URI.parse(uri),
+			modifiedUri,
+			originalUri,
 			insertions: d.diff?.added ?? 0,
 			deletions: d.diff?.removed ?? 0,
 		};
@@ -56,7 +64,7 @@ export function diffsToChanges(diffs: readonly ISessionFileDiff[], mapUri?: (uri
  * Returns `true` when the current file changes already
  * match the incoming diffs, avoiding unnecessary observable updates.
  */
-export function diffsEqual(current: readonly IFileChange[], diffs: readonly ISessionFileDiff[], mapUri?: (uri: URI) => URI): boolean {
+export function diffsEqual(current: readonly IChatSessionFileChange[], diffs: readonly ISessionFileDiff[], mapUri?: (uri: URI) => URI): boolean {
 	if (current.length !== diffs.length) {
 		return false;
 	}
@@ -70,6 +78,18 @@ export function diffsEqual(current: readonly IFileChange[], diffs: readonly ISes
 		const parsed = URI.parse(uri);
 		const diffUri = mapUri ? mapUri(parsed) : parsed;
 		if (c.modifiedUri.toString() !== diffUri.toString() || c.insertions !== (d.diff?.added ?? 0) || c.deletions !== (d.diff?.removed ?? 0)) {
+			return false;
+		}
+
+		const beforeContentUri = d.before?.content?.uri;
+		const currentOriginal = c.originalUri?.toString();
+		if (beforeContentUri) {
+			const parsedBefore = URI.parse(beforeContentUri);
+			const mappedBefore = mapUri ? mapUri(parsedBefore) : parsedBefore;
+			if (currentOriginal !== mappedBefore.toString()) {
+				return false;
+			}
+		} else if (currentOriginal) {
 			return false;
 		}
 	}
