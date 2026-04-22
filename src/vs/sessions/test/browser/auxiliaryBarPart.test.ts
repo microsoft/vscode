@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
-import { DisposableStore } from '../../../base/common/lifecycle.js';
 import { Emitter } from '../../../base/common/event.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../base/test/common/utils.js';
 import { TestInstantiationService } from '../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { IPartVisibilityChangeEvent, IWorkbenchLayoutService, Parts } from '../../../workbench/services/layout/browser/layoutService.js';
+import { IViewDescriptorService } from '../../../workbench/common/views.js';
+import { ViewDescriptorService } from '../../../workbench/services/views/browser/viewDescriptorService.js';
 import { TestLayoutService, workbenchInstantiationService } from '../../../workbench/test/browser/workbenchTestServices.js';
 import { AuxiliaryBarPart } from '../../browser/parts/auxiliaryBarPart.js';
 
@@ -37,25 +38,20 @@ class MutableTestLayoutService extends TestLayoutService {
 }
 
 suite('Sessions - Auxiliary Bar Part', () => {
-	const disposables = new DisposableStore();
+	const disposables = ensureNoDisposablesAreLeakedInTestSuite();
 
 	let instantiationService: TestInstantiationService;
 	let layoutService: MutableTestLayoutService;
 	let auxiliaryBarPart: AuxiliaryBarPart;
 
 	setup(() => {
-		layoutService = new MutableTestLayoutService();
+		layoutService = disposables.add(new MutableTestLayoutService());
 		instantiationService = workbenchInstantiationService({}, disposables);
 		instantiationService.stub(IWorkbenchLayoutService, layoutService as IWorkbenchLayoutService);
+		const viewDescriptorService = disposables.add(instantiationService.createInstance(ViewDescriptorService));
+		instantiationService.stub(IViewDescriptorService, viewDescriptorService);
 		auxiliaryBarPart = disposables.add(instantiationService.createInstance(AuxiliaryBarPart));
 	});
-
-	teardown(() => {
-		layoutService.dispose();
-		disposables.clear();
-	});
-
-	ensureNoDisposablesAreLeakedInTestSuite();
 
 	test('keeps the default minimum width and disables sash snap when the editor part is visible', () => {
 		layoutService.setVisible(Parts.EDITOR_PART, true);
