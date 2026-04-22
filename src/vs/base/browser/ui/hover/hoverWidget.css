@@ -200,6 +200,11 @@
 	cursor: default;
 }
 
+.monaco-hover-content .action-container:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
 /* Prevent text selection in all button-like elements within hovers */
 .monaco-hover .action-container,
 .monaco-hover .action,
