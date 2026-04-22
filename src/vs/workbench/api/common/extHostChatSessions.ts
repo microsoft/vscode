@@ -544,6 +544,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 						when: g.when,
 						icon: g.icon,
 						commands: g.commands,
+						kind: g.kind,
 					}));
 					const resource = inputState.sessionResource ?? inputState.untitledSessionResource;
 					if (resource) {
@@ -1157,6 +1158,7 @@ export class ExtHostChatSessions extends Disposable implements ExtHostChatSessio
 			when: g.when,
 			icon: g.icon,
 			commands: g.commands,
+			kind: g.kind,
 		}));
 	}
 }

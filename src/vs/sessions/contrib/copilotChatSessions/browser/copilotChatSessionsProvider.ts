@@ -1792,8 +1792,6 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			this._currentNewSession = undefined;
 			session.dispose();
 
-			this._groupModel.addChat(committedChat.id, committedChat.id);
-
 			const committedSession = this._chatToSession(committedChat);
 			this._sessionGroupCache.delete(session.id);
 			this._onDidReplaceSession.fire({ from: tempSession, to: committedSession });

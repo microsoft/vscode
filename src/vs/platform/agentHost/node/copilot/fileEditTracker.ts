@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { decodeHex, encodeHex, VSBuffer } from '../../../../base/common/buffer.js';
+import { basename } from '../../../../base/common/path.js';
 import { URI } from '../../../../base/common/uri.js';
 import { IFileService } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
@@ -21,7 +22,7 @@ export function buildSessionDbUri(sessionUri: string, toolCallId: string, filePa
 	return URI.from({
 		scheme: SESSION_DB_SCHEME,
 		authority: encodeHex(VSBuffer.fromString(sessionUri)).toString(),
-		path: `/${encodeURIComponent(toolCallId)}/${encodeHex(VSBuffer.fromString(filePath))}/${part}`,
+		path: `/${encodeURIComponent(toolCallId)}/${encodeHex(VSBuffer.fromString(filePath))}/${part}/${basename(filePath)}`,
 	}).toString();
 }
 

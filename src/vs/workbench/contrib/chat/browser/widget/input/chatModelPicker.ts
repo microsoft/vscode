@@ -355,7 +355,7 @@ export function buildModelPickerItems(
 					if (item.kind === 'available') {
 						items.push(createModelItem(createModelAction(item.model, selectedModelId, onSelect, languageModelsService!), item.model));
 					} else {
-						items.push(createUnavailableModelItem(item.id, item.entry, item.reason, manageSettingsUrl, updateStateType));
+						items.push(createUnavailableModelItem(item.id, item.entry, item.reason, manageSettingsUrl, updateStateType, chatEntitlementService));
 					}
 				}
 			}
@@ -404,7 +404,7 @@ export function buildModelPickerItems(
 				for (const model of otherModels) {
 					const entry = controlModels[model.metadata.id] ?? controlModels[model.identifier];
 					if (entry?.minVSCodeVersion && !isVersionAtLeast(currentVSCodeVersion, entry.minVSCodeVersion)) {
-						items.push(createUnavailableModelItem(model.metadata.id, entry, 'update', manageSettingsUrl, updateStateType, ModelPickerSection.Other));
+						items.push(createUnavailableModelItem(model.metadata.id, entry, 'update', manageSettingsUrl, updateStateType, chatEntitlementService, ModelPickerSection.Other));
 					} else {
 						items.push(createModelItem(createModelAction(model, selectedModelId, onSelect, languageModelsService!, ModelPickerSection.Other), model));
 					}
@@ -472,6 +472,7 @@ function createUnavailableModelItem(
 	reason: 'upgrade' | 'update' | 'admin',
 	manageSettingsUrl: string | undefined,
 	updateStateType: StateType,
+	chatEntitlementService: IChatEntitlementService,
 	section?: string,
 ): IActionListItem<IActionWidgetDropdownAction> {
 	let description: string | MarkdownString | undefined;
@@ -489,7 +490,11 @@ function createUnavailableModelItem(
 	let hoverContent: MarkdownString;
 	if (reason === 'upgrade') {
 		hoverContent = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
-		hoverContent.appendMarkdown(localize('chat.modelPicker.upgradeHover', "[Upgrade to GitHub Copilot Pro](command:workbench.action.chat.upgradePlan \" \") to use the best models."));
+		if (chatEntitlementService.entitlement === ChatEntitlement.Pro) {
+			hoverContent.appendMarkdown(localize('chat.modelPicker.upgradeHoverProPlus', "[Upgrade to GitHub Copilot Pro+](command:workbench.action.chat.upgradePlan \" \") to use the best models."));
+		} else {
+			hoverContent.appendMarkdown(localize('chat.modelPicker.upgradeHover', "[Upgrade to GitHub Copilot Pro](command:workbench.action.chat.upgradePlan \" \") to use the best models."));
+		}
 	} else if (reason === 'update') {
 		hoverContent = getUpdateHoverContent(updateStateType);
 	} else {
