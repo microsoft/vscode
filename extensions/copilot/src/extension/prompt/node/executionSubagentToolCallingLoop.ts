@@ -11,7 +11,7 @@ import { ChatLocation, ChatResponse } from '../../../platform/chat/common/common
 import { ISessionTranscriptService } from '../../../platform/chat/common/sessionTranscriptService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { ChatEndpointFamily, IEndpointProvider } from '../../../platform/endpoint/common/endpointProvider';
-import { ProxyAgenticExecutionEndpoint } from '../../../platform/endpoint/node/proxyAgenticExecutionEndpoint';
+import { ProxyAgenticEndpoint } from '../../../platform/endpoint/node/proxyAgenticEndpoint';
 import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
 import { IGitService } from '../../../platform/git/common/gitService';
 import { ILogService } from '../../../platform/log/common/logService';
@@ -89,7 +89,7 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 		if (useAgenticProxy) {
 			// Use agentic proxy with ExecutionSubagentModel or default to DEFAULT_AGENTIC_PROXY_MODEL
 			const agenticProxyModel = modelName || ExecutionSubagentToolCallingLoop.DEFAULT_AGENTIC_PROXY_MODEL;
-			return this.instantiationService.createInstance(ProxyAgenticExecutionEndpoint, agenticProxyModel);
+			return this.instantiationService.createInstance(ProxyAgenticEndpoint, agenticProxyModel);
 		}
 
 		if (modelName) {
