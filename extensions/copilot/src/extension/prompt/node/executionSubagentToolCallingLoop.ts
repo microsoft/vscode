@@ -99,12 +99,10 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 				if (endpoint.supportsToolCalls) {
 					return endpoint;
 				}
-
-				this._logService.warn(`Configured execution subagent model ${modelName} does not support tool calls, falling back to main agent endpoint`);
+				// Model does not support tool calls, fallback to main agent endpoint
 				return await this.endpointProvider.getChatEndpoint(this.options.request);
 			} catch (error) {
 				// Model not available, fallback to main agent endpoint
-				this._logService.warn(`Failed to get model ${modelName}, falling back to main agent endpoint: ${error}`);
 				return await this.endpointProvider.getChatEndpoint(this.options.request);
 			}
 		} else {
