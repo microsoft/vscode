@@ -251,7 +251,7 @@ export class ToolsService extends BaseToolsService {
 		const modelSpecificOverrides = new Map(this.getToolOverridesForEndpoint(endpoint, tools));
 		const modelSpecificTools = this.getModelSpecificTools();
 
-		return tools
+		const result = tools
 			.filter(tool => {
 				// 0. If the tool was a model specific tool with an override, it'll be mixed in in the 'map' later.
 				if (modelSpecificTools.get(tool.name)?.tool.overridesTool) {
@@ -312,6 +312,8 @@ export class ToolsService extends BaseToolsService {
 
 				return resultTool;
 			});
+		
+		return result;
 	}
 
 	private *getToolOverridesForEndpoint(endpoint: IChatEndpoint, tools = this.tools) {
