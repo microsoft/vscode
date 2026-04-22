@@ -7,7 +7,7 @@ import assert from 'assert';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../base/test/common/utils.js';
 import { Position } from '../../../common/core/position.js';
 import { Range } from '../../../common/core/range.js';
-import { EndOfLineSequence, PositionAffinity } from '../../../common/model.js';
+import { EndOfLineSequence, PositionAffinity, TextDirection } from '../../../common/model.js';
 import { ViewEventHandler } from '../../../common/viewEventHandler.js';
 import { ViewEvent } from '../../../common/viewEvents.js';
 import { testViewModel } from './testViewModel.js';
@@ -146,6 +146,38 @@ suite('ViewModel', () => {
 
 			model.undo();
 			assert.ok(viewModel.getVisibleRanges() !== null);
+		});
+	});
+
+	test('rtlAutoDetect renders Arabic text as RTL when enabled', () => {
+		testViewModel(['مرحبا، Hello world!'], { rtlAutoDetect: true }, (viewModel) => {
+			assert.strictEqual(viewModel.getTextDirection(1), TextDirection.RTL);
+		});
+	});
+
+	test('rtlAutoDetect keeps Arabic text as LTR when disabled', () => {
+		testViewModel(['مرحبا، Hello world!'], { rtlAutoDetect: false }, (viewModel) => {
+			assert.strictEqual(viewModel.getTextDirection(1), TextDirection.LTR);
+		});
+	});
+
+	test('rtlAutoDetect still allows forcing LTR direction via decorations', () => {
+		testViewModel(['مرحبا، Hello world!'], { rtlAutoDetect: true }, (viewModel, model) => {
+			model.deltaDecorations([], [{
+				range: new Range(1, 1, 1, 1),
+				options: {
+					description: 'text-direction-ltr',
+					textDirection: TextDirection.LTR,
+				}
+			}]);
+
+			assert.strictEqual(viewModel.getTextDirection(1), TextDirection.LTR);
+		});
+	});
+
+	test('rtlAutoDetect renders ASCII-only lines as LTR', () => {
+		testViewModel(['Hello world!'], { rtlAutoDetect: true }, (viewModel) => {
+			assert.strictEqual(viewModel.getTextDirection(1), TextDirection.LTR);
 		});
 	});
 
