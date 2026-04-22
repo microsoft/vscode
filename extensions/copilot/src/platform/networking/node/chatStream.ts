@@ -274,7 +274,6 @@ function sendNewRequestAddedTelemetry(telemetryService: ITelemetryService, telem
 	// Create telemetry data for the request
 	const requestData = TelemetryData.createAndMarkAsIssued(filteredProperties, telemetryData.measurements);
 
-	logService?.info(`[DEBUG-TELEMETRY] model.request.added: ` + JSON.stringify({ properties: requestData.properties, measurements: requestData.measurements }));
 	telemetryService.sendInternalMSFTTelemetryEvent('model.request.added', requestData.properties, requestData.measurements);
 }
 
@@ -410,9 +409,6 @@ function sendModelCallTelemetry(telemetryService: ITelemetryService, messageData
 				...(parentHeaderRequestId && { parentHeaderRequestId }), // Link subagent calls to parent HTTP request
 			}, telemetryData.measurements); // Include measurements from original telemetryData
 
-			if (eventName.endsWith('.input')) {
-				logService?.info(`[DEBUG-TELEMETRY] ${eventName}: ` + JSON.stringify({ properties: modelCallData.properties, measurements: modelCallData.measurements }));
-			}
 			telemetryService.sendInternalMSFTTelemetryEvent(eventName, modelCallData.properties, modelCallData.measurements);
 		}
 	}
