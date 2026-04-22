@@ -33,11 +33,6 @@ export interface IAgentMemoryService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Get the GitHub owner/repo NWO for the current workspace, or undefined if not available.
-	 */
-	getRepoNwo(): Promise<string | undefined>;
-
-	/**
 	 * Check if Copilot Memory is enabled for the current repository.
 	 */
 	checkMemoryEnabled(): Promise<boolean>;

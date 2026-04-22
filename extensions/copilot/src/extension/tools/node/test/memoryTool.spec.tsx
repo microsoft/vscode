@@ -48,10 +48,6 @@ class MockAgentMemoryService implements IAgentMemoryService {
 	storedMemories: StoreMemoryRequest[] = [];
 	storedUserMemories: StoreMemoryRequest[] = [];
 
-	async getRepoNwo(): Promise<string | undefined> {
-		return undefined;
-	}
-
 	async checkMemoryEnabled(): Promise<boolean> {
 		return true;
 	}
@@ -85,10 +81,6 @@ class MockAgentMemoryService implements IAgentMemoryService {
  */
 class DisabledMockAgentMemoryService implements IAgentMemoryService {
 	declare readonly _serviceBrand: undefined;
-
-	async getRepoNwo(): Promise<string | undefined> {
-		return undefined;
-	}
 
 	async checkMemoryEnabled(): Promise<boolean> {
 		return false;

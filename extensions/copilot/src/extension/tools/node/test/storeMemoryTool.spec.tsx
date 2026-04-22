@@ -27,7 +27,6 @@ class TrackingMemoryService implements IAgentMemoryService {
 	userMemories: StoreMemoryRequest[] = [];
 	shouldSucceed = true;
 
-	async getRepoNwo(): Promise<string | undefined> { return 'owner/repo'; }
 	async checkMemoryEnabled(): Promise<boolean> { return true; }
 	async getMemoryPrompt(): Promise<MemoryPromptResponse | undefined> { return undefined; }
 	getCachedMemoryPrompt(): MemoryPromptResponse | undefined { return undefined; }
