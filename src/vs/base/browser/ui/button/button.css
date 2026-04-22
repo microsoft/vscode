@@ -26,6 +26,7 @@
 }
 
 .monaco-text-button:focus {
+	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: 2px !important;
 }
 
@@ -83,6 +84,7 @@
 }
 
 .monaco-button-dropdown > .monaco-button:focus {
+	outline: 1px solid var(--vscode-focusBorder);
 	outline-offset: -1px !important;
 }
 
