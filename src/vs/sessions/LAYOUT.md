@@ -379,7 +379,7 @@ The Agent Sessions workbench uses specialized part implementations that extend t
 |---------|----------------|---------------------|
 | Activity Bar integration | Full support | No activity bar; account widget in the titlebar |
 | Composite bar position | Configurable (top/bottom/title/hidden) | Fixed: Title |
-| Composite bar visibility | Configurable | Sidebar: hidden (`shouldShowCompositeBar()` returns `false`); ChatBar: hidden; Auxiliary Bar & Panel: visible |
+| Composite bar visibility | Configurable | Sidebar: hidden (`shouldShowCompositeBar()` returns `false`); ChatBar: hidden; Auxiliary Bar & Panel: visible. Separately, the internal chat tab strip shown inside the Chat Bar preserves each chat title's original casing instead of forcing per-word capitalization via CSS. |
 | Auto-hide support | Configurable | Disabled |
 | Configuration listening | Many settings | Minimal |
 | Context menu actions | Full set | Simplified |
@@ -659,6 +659,7 @@ interface IPartVisibilityState {
 
 | Date | Change |
 |------|--------|
+| 2026-04-21 | Updated the sessions chat composite bar tabs to preserve each chat title's original casing instead of applying per-word capitalization. |
 | 2026-04-17 | Added a subtle 1px titlebar-token border around the sessions account widget's GitHub profile image, including the inactive-window variant, and documented the avatar chrome in the layout spec. |
 | 2026-04-16 | Softened the experimental sessions shell gradient by reducing the accent tint mix strength across the shared default, light-theme, and dark-theme variants so the primary color reads more subtly behind the workbench chrome. |
 | 2026-04-16 | Updated the layout visual representation to show the editor part in the top-right row and mark it as hidden by default. |

@@ -15,7 +15,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { ChatSessionProviderIdContext } from '../../../common/contextkeys.js';
 import { ISession } from '../../../services/sessions/common/session.js';
 import { SessionItemContextMenuId } from '../../sessions/browser/views/sessionsList.js';
-import { agentSessionSettingsUri, AGENT_SESSION_SETTINGS_SCHEME, AgentSessionSettingsFileSystemProvider } from './agentSessionSettingsFileSystemProvider.js';
+import { agentSessionSettingsUri, AGENT_SESSION_SETTINGS_SCHEME, AgentSessionSettingsFileSystemProvider, AgentSessionSettingsSchemaRegistrar } from './agentSessionSettingsFileSystemProvider.js';
 
 /**
  * Registers the {@link AgentSessionSettingsFileSystemProvider} with the
@@ -32,7 +32,8 @@ class AgentSessionSettingsContribution extends Disposable implements IWorkbenchC
 	) {
 		super();
 
-		const provider = this._register(instantiationService.createInstance(AgentSessionSettingsFileSystemProvider));
+		const schemaRegistrar = this._register(instantiationService.createInstance(AgentSessionSettingsSchemaRegistrar));
+		const provider = this._register(instantiationService.createInstance(AgentSessionSettingsFileSystemProvider, schemaRegistrar));
 		this._register(fileService.registerProvider(AGENT_SESSION_SETTINGS_SCHEME, provider));
 
 		this._register(labelService.registerFormatter({

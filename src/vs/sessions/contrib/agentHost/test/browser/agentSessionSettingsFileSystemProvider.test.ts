@@ -13,11 +13,13 @@ import type { IResolveSessionConfigResult } from '../../../../../platform/agentH
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { NullLogService, ILogService } from '../../../../../platform/log/common/log.js';
+import { Extensions as JSONExtensions, IJSONContributionRegistry } from '../../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
 import type { IAgentHostSessionsProvider } from '../../../../common/agentHostSessionsProvider.js';
 import { ISessionsProvidersService } from '../../../../services/sessions/browser/sessionsProvidersService.js';
 import type { ISession } from '../../../../services/sessions/common/session.js';
 import type { ISessionsProvider } from '../../../../services/sessions/common/sessionsProvider.js';
-import { agentSessionSettingsUri, AgentSessionSettingsFileSystemProvider } from '../../browser/agentSessionSettingsFileSystemProvider.js';
+import { agentSessionSettingsUri, AgentSessionSettingsFileSystemProvider, AgentSessionSettingsSchemaRegistrar } from '../../browser/agentSessionSettingsFileSystemProvider.js';
 
 const PROVIDER_ID = 'local-agent-host';
 const RESOURCE_SCHEME = 'agent-host-copilot';
@@ -46,6 +48,7 @@ suite('AgentSessionSettingsFileSystemProvider', () => {
 	interface IMockAgentHostSessionsProvider extends IAgentHostSessionsProvider {
 		config: IResolveSessionConfigResult | undefined;
 		readonly onDidChangeSessionConfigEmitter: Emitter<string>;
+		readonly onDidChangeSessionsEmitter: Emitter<{ added: readonly ISession[]; removed: readonly ISession[]; changed: readonly ISession[] }>;
 		readonly replaceCalls: Array<{ sessionId: string; values: Record<string, unknown> }>;
 	}
 
@@ -56,14 +59,18 @@ suite('AgentSessionSettingsFileSystemProvider', () => {
 		const session = createSession();
 
 		const onDidChangeSessionConfigEmitter = store.add(new Emitter<string>());
+		const onDidChangeSessionsEmitter = store.add(new Emitter<{ added: readonly ISession[]; removed: readonly ISession[]; changed: readonly ISession[] }>());
 		const replaceCalls: Array<{ sessionId: string; values: Record<string, unknown> }> = [];
 
 		const sessionProvider: IMockAgentHostSessionsProvider = {
 			id: PROVIDER_ID,
 			config: initialConfig,
 			onDidChangeSessionConfigEmitter,
+			onDidChangeSessionsEmitter,
 			replaceCalls,
 			onDidChangeSessionConfig: onDidChangeSessionConfigEmitter.event,
+			onDidChangeSessions: onDidChangeSessionsEmitter.event,
+			getSessions: () => [session],
 			getSessionConfig: (_sessionId: string) => sessionProvider.config,
 			replaceSessionConfig: async (sessionId: string, values: Record<string, unknown>) => {
 				replaceCalls.push({ sessionId, values });
@@ -77,6 +84,7 @@ suite('AgentSessionSettingsFileSystemProvider', () => {
 			setSessionConfigValue: async () => { /* unused by writeFile */ },
 		} as unknown as IMockAgentHostSessionsProvider;
 
+		const onDidChangeProvidersEmitter = store.add(new Emitter<{ added: readonly ISessionsProvider[]; removed: readonly ISessionsProvider[] }>());
 		const providersService: ISessionsProvidersService = {
 			getProvider<T extends ISessionsProvider>(providerId: string): T | undefined {
 				if (registerProvider && providerId === PROVIDER_ID) {
@@ -84,6 +92,8 @@ suite('AgentSessionSettingsFileSystemProvider', () => {
 				}
 				return undefined;
 			},
+			getProviders: () => registerProvider ? [sessionProvider as unknown as ISessionsProvider] : [],
+			onDidChangeProviders: onDidChangeProvidersEmitter.event,
 		} as unknown as ISessionsProvidersService;
 
 		const instantiationService = store.add(new TestInstantiationService(new ServiceCollection(
@@ -91,7 +101,8 @@ suite('AgentSessionSettingsFileSystemProvider', () => {
 			[ILogService, new NullLogService()],
 		)));
 
-		const fs = store.add(instantiationService.createInstance(AgentSessionSettingsFileSystemProvider));
+		const schemaRegistrar = store.add(instantiationService.createInstance(AgentSessionSettingsSchemaRegistrar));
+		const fs = store.add(instantiationService.createInstance(AgentSessionSettingsFileSystemProvider, schemaRegistrar));
 
 		return { fs, session, uri: agentSessionSettingsUri(session), sessionProvider };
 	}
@@ -212,6 +223,92 @@ suite('AgentSessionSettingsFileSystemProvider', () => {
 
 		await assert.rejects(async () => {
 			await fs.readFile(uri);
+		});
+	});
+
+	suite('schema registration', () => {
+		const schemaRegistry = Registry.as<IJSONContributionRegistry>(JSONExtensions.JSONContribution);
+
+		function expectedSchemaId(session: ISession): string {
+			return `vscode://schemas/agent-session-settings/${session.providerId}${session.resource.scheme}${session.resource.path}.jsonc`;
+		}
+
+		test('readFile lazily registers a schema + association for the session', async () => {
+			const { fs, uri, session } = createHarness({
+				schema: {
+					type: 'object',
+					properties: {
+						autoApprove: { type: 'string', title: 'Auto Approve', sessionMutable: true, enum: ['default', 'autoApprove'] },
+					},
+				},
+				values: { autoApprove: 'default' },
+			});
+			const schemaId = expectedSchemaId(session);
+
+			// No registration before the file is read.
+			assert.strictEqual(schemaRegistry.hasSchemaContent(schemaId), false);
+			assert.strictEqual(schemaRegistry.getSchemaAssociations()[schemaId], undefined);
+
+			await fs.readFile(uri);
+
+			assert.strictEqual(schemaRegistry.hasSchemaContent(schemaId), true);
+			assert.deepStrictEqual(schemaRegistry.getSchemaAssociations()[schemaId], [uri.toString()]);
+		});
+
+		test('schema is refreshed when onDidChangeSessionConfig fires with a new schema identity', async () => {
+			const { fs, uri, session, sessionProvider } = createHarness({
+				schema: {
+					type: 'object',
+					properties: {
+						autoApprove: { type: 'string', title: 'Auto Approve', sessionMutable: true, enum: ['default'] },
+					},
+				},
+				values: { autoApprove: 'default' },
+			});
+			const schemaId = expectedSchemaId(session);
+
+			// Trigger initial registration.
+			await fs.readFile(uri);
+			const initial = schemaRegistry.getSchemaContributions().schemas[schemaId];
+			assert.ok(initial);
+
+			// Swap in a new schema (identity change) and notify.
+			sessionProvider.config = {
+				schema: {
+					type: 'object',
+					properties: {
+						autoApprove: { type: 'string', title: 'Auto Approve', sessionMutable: true, enum: ['default', 'autoApprove'] },
+						mode: { type: 'string', title: 'Mode', sessionMutable: true, enum: ['a', 'b'] },
+					},
+				},
+				values: { autoApprove: 'default', mode: 'a' },
+			};
+			sessionProvider.onDidChangeSessionConfigEmitter.fire(session.sessionId);
+
+			const refreshed = schemaRegistry.getSchemaContributions().schemas[schemaId];
+			assert.notStrictEqual(refreshed, initial);
+			assert.ok(refreshed.properties?.['mode'], 'refreshed schema should include the newly added property');
+		});
+
+		test('schema is disposed when the session is removed', async () => {
+			const { fs, uri, session, sessionProvider } = createHarness({
+				schema: {
+					type: 'object',
+					properties: {
+						autoApprove: { type: 'string', title: 'Auto Approve', sessionMutable: true, enum: ['default'] },
+					},
+				},
+				values: { autoApprove: 'default' },
+			});
+			const schemaId = expectedSchemaId(session);
+
+			await fs.readFile(uri);
+			assert.strictEqual(schemaRegistry.hasSchemaContent(schemaId), true);
+
+			sessionProvider.onDidChangeSessionsEmitter.fire({ added: [], removed: [session], changed: [] });
+
+			assert.strictEqual(schemaRegistry.hasSchemaContent(schemaId), false);
+			assert.strictEqual(schemaRegistry.getSchemaAssociations()[schemaId], undefined);
 		});
 	});
 });
