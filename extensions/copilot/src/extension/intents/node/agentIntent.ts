@@ -55,11 +55,11 @@ import { ICodeMapperService } from '../../prompts/node/codeMapper/codeMapperServ
 import { EditCodePrompt2 } from '../../prompts/node/panel/editCodePrompt2';
 import { NotebookInlinePrompt } from '../../prompts/node/panel/notebookInlinePrompt';
 import { ToolResultMetadata } from '../../prompts/node/panel/toolCalling';
-import { IAgentMemoryService } from '../../tools/common/agentMemoryService';
 import { IEditToolLearningService } from '../../tools/common/editToolLearningService';
 import { ContributedToolName, ToolName } from '../../tools/common/toolNames';
 import { normalizeToolSchema } from '../../tools/common/toolSchemaNormalizer';
 import { IToolsService } from '../../tools/common/toolsService';
+import { IAgentMemoryService } from '../../tools/common/agentMemoryService';
 import { IAgentMemoryToolRegistrar } from '../../tools/node/agentMemoryToolRegistrar';
 import { applyPatch5Description } from '../../tools/node/applyPatchTool';
 import { extractSessionId } from '../../tools/node/memoryTool';
@@ -150,13 +150,10 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 
 	allowTools[CUSTOM_TOOL_SEARCH_NAME] = !!model.supportsToolSearch;
 
-	// Check memory enablement consistently with cached prompt availability
-	const cachedMemoryPrompt = agentMemoryService.getCachedMemoryPrompt();
-
-	// Use cached prompt existence as the source of truth for enablement
-	const memoryToolEnabled = !!cachedMemoryPrompt;
-
-	allowTools[ToolName.StoreMemory] = memoryToolEnabled;
+	if (!agentMemoryService.getCachedMemoryPrompt() && configurationService.getExperimentBasedConfig(ConfigKey.CopilotMemoryEnabled, experimentationService)) {
+		await agentMemoryService.getMemoryPrompt();
+	}
+	allowTools[ToolName.StoreMemory] = !!agentMemoryService.getCachedMemoryPrompt();
 
 	const tools = toolsService.getEnabledTools(request, model, tool => {
 		if (typeof allowTools[tool.name] === 'boolean') {
