@@ -90,7 +90,7 @@ export const chatThinkingShimmer = registerColor(
 
 export const chatInputWorkingBorderColor1 = registerColor(
 	'chat.inputWorkingBorderColor1',
-	{ dark: '#E8E8EC', light: '#B8B8C0', hcDark: '#FFFFFF', hcLight: '#000000' },
+	{ dark: '#B8B8C0', light: '#5A5A62', hcDark: '#FFFFFF', hcLight: '#000000' },
 	localize('chat.inputWorkingBorderColor1', 'First color stop of the animated chat input border shown while a request is in flight.'), true);
 
 export const chatInputWorkingBorderColor2 = registerColor(

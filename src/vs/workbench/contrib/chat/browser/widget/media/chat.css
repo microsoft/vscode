@@ -899,16 +899,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
-/* Soft static halo painted inside the input so it stays within the chat
-	input bounds (the parent uses `overflow: hidden`, so an outer halo would
-	be clipped anyway). Static so it doesn't add a competing pulse. */
-@keyframes chat-input-working-border-glow {
-	from, to {
-		box-shadow:
-			inset 0 0 4px 0 color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 12%, transparent),
-			inset 0 0 8px 0 color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 5%, transparent);
-	}
-}
+/* The beam (`::before`) and its glow (`::after`) are two stacked rings
+	occupying the same outer edge: the glow is wider and blurred, the beam is
+	hairline and sharp. Both share `--chat-input-anim-angle` so the glow
+	travels with the comet head with no gap. */
 
 .monaco-workbench .interactive-session .chat-input-container::before {
 	content: '';
@@ -940,12 +934,40 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	opacity: 0;
 	transition: opacity 350ms ease;
 	pointer-events: none;
+	z-index: 2;
+}
+
+/* Glow ring: a wider (4px) blurred conic that shares the beam's angle, so
+	it forms a soft halo that overlaps the beam line directly — no gap. */
+.monaco-workbench .interactive-session .chat-input-container::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	border-radius: var(--vscode-cornerRadius-large);
+	padding: 2px;
+	background: conic-gradient(from var(--chat-input-anim-angle),
+		transparent 0deg,
+		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, transparent) 25deg,
+		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 35%, transparent) 50deg,
+		transparent 90deg,
+		transparent 360deg);
+	-webkit-mask:
+		linear-gradient(#000 0 0) content-box,
+		linear-gradient(#000 0 0);
+	mask:
+		linear-gradient(#000 0 0) content-box,
+		linear-gradient(#000 0 0);
+	-webkit-mask-composite: xor;
+	mask-composite: exclude;
+	filter: blur(1.5px);
+	opacity: 0;
+	transition: opacity 350ms ease;
+	pointer-events: none;
 	z-index: 1;
 }
 
 .monaco-workbench .interactive-session .chat-input-container.working {
 	border-color: transparent;
-	animation: chat-input-working-border-glow 4s linear infinite;
 }
 
 .monaco-workbench .interactive-session .chat-input-container.working::before {
@@ -953,9 +975,15 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	animation: chat-input-working-border-spin 4s linear infinite;
 }
 
+.monaco-workbench .interactive-session .chat-input-container.working::after {
+	opacity: 1;
+	animation: chat-input-working-border-spin 4s linear infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
 	.monaco-workbench .interactive-session .chat-input-container.working,
-	.monaco-workbench .interactive-session .chat-input-container.working::before {
+	.monaco-workbench .interactive-session .chat-input-container.working::before,
+	.monaco-workbench .interactive-session .chat-input-container.working::after {
 		animation: none;
 	}
 }
