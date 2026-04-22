@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-TaWGDzV7c9rUH2q/5ygOyYUHSyHIqBMYfucPh3lnKvU=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-MHMdj69j7s+XOj/Ua5WTqF2BSUKbqG+ei6wZtfA19Ts=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -33,6 +33,7 @@
 		const ID = searchParams.get('id');
 		const webviewOrigin = searchParams.get('origin');
 		const onElectron = searchParams.get('platform') === 'electron';
+		const isMacintosh = (navigator.userAgentData ? navigator.userAgentData.platform : navigator.platform).toLowerCase().indexOf('mac') >= 0;
 		const disableServiceWorker = searchParams.has('disableServiceWorker');
 		const expectedWorkerVersion = parseInt(searchParams.get('swVersion'));
 
@@ -688,7 +689,9 @@
 		 * @return {boolean}
 		 */
 		function isPrint(e) {
-			const hasMeta = e.ctrlKey || e.metaKey;
+			// On macOS, the system print shortcut is Cmd+P. Ctrl+P is a cursor movement
+			// shortcut in text inputs and should not be intercepted as a browser shortcut.
+			const hasMeta = isMacintosh ? e.metaKey : (e.ctrlKey || e.metaKey);
 			// 80: keyCode of "P"
 			return hasMeta && e.keyCode === 80;
 		}
@@ -698,7 +701,9 @@
 		 * @return {boolean}
 		 */
 		function isFindEvent(e) {
-			const hasMeta = e.ctrlKey || e.metaKey;
+			// On macOS, the system find shortcut is Cmd+F. Ctrl+F is a cursor movement
+			// shortcut in text inputs and should not be intercepted as a browser shortcut.
+			const hasMeta = isMacintosh ? e.metaKey : (e.ctrlKey || e.metaKey);
 			// 70: keyCode of "F"
 			return hasMeta && e.keyCode === 70;
 		}
