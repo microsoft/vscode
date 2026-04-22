@@ -49,7 +49,8 @@ export class MemoryContextPrompt extends PromptElement<MemoryContextPromptProps>
 		const localRepoMemoryFiles = (enableMemoryTool && !enableCopilotMemory) ? await this.getLocalRepoMemoryFiles() : undefined;
 
 		// When CAPI memory is enabled, read from the cache primed by AgentMemoryToolRegistrar
-		const promptResponse = enableCopilotMemory ? this.agentMemoryService.getCachedMemoryPrompt() : undefined;
+		const sessionId = this.props.sessionResource ? extractSessionId(this.props.sessionResource) : undefined;
+		const promptResponse = enableCopilotMemory ? this.agentMemoryService.getCachedMemoryPrompt(sessionId) : undefined;
 		const memoryPromptText = promptResponse?.memoriesContext.prompt;
 
 		this._sendContextReadTelemetry(
