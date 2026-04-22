@@ -124,8 +124,11 @@ class OpenEditorInModalEditorAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const viewsService = accessor.get(IViewsService);
+		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
 		const configurationService = accessor.get(IConfigurationService);
 		const editorGroupsService = accessor.get(IEditorGroupsService);
+
+		const isMaximized = layoutService.isEditorMaximized();
 
 		// Set the `workbench.editor.useModal` setting to 'all'
 		await configurationService.updateValue('workbench.editor.useModal', 'all');
@@ -150,6 +153,13 @@ class OpenEditorInModalEditorAction extends Action2 {
 		const modalPart = await editorGroupsService.createModalEditorPart();
 		const editorsToMove = prepareMoveCopyEditors(activeGroup, activeGroup.editors.slice(), true);
 		activeGroup.moveEditors(editorsToMove, modalPart.activeGroup);
+
+		// Maximize
+		if (isMaximized) {
+			modalPart.toggleMaximized();
+		}
+
+		// Focus
 		modalPart.activeGroup.focus();
 	}
 }
@@ -183,10 +193,13 @@ class OpenModalEditorInEditorAction extends Action2 {
 		const editorGroupsService = accessor.get(IEditorGroupsService);
 		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
 
-		const activeGroup = editorGroupsService.activeModalEditorPart?.activeGroup;
-		if (!activeGroup) {
+		const activeEditorPart = editorGroupsService.activeModalEditorPart;
+		const activeGroup = activeEditorPart?.activeGroup;
+		if (!activeEditorPart || !activeGroup) {
 			return;
 		}
+
+		const isMaximized = activeEditorPart.maximized;
 
 		// Set the `workbench.editor.useModal` setting back to 'some'
 		await configurationService.updateValue('workbench.editor.useModal', 'some');
@@ -213,6 +226,14 @@ class OpenModalEditorInEditorAction extends Action2 {
 
 		// Move all remaining editors to the main editor part
 		await commandService.executeCommand(MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID);
+
+		// Maximize
+		if (isMaximized) {
+			layoutService.setEditorMaximized(true);
+		}
+
+		// Focus
+		editorGroupsService.activeGroup.focus();
 	}
 }
 

@@ -84,6 +84,7 @@ export class ViewAllSessionChangesAction extends Action2 {
 					id: MenuId.ChatEditingSessionChangesToolbar,
 					group: 'navigation',
 					order: 10,
+					when: ContextKeyExpr.false()
 				}
 			],
 		});

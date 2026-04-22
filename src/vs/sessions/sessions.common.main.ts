@@ -383,7 +383,7 @@ import '../workbench/contrib/remoteCodingAgents/browser/remoteCodingAgents.contr
 import '../workbench/contrib/codeActions/browser/codeActions.contribution.js';
 
 // Timeline
-import '../workbench/contrib/timeline/browser/timeline.contribution.js';
+import '../workbench/contrib/timeline/browser/timeline.service.contribution.js';
 
 // Local History
 import '../workbench/contrib/localHistory/browser/localHistory.contribution.js';
