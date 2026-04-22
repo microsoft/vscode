@@ -421,8 +421,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 
 		if (promptContext.history?.length === 0) {
 			const sessionResource = (promptContext.tools?.toolInvocationToken as any)?.sessionResource as string | undefined;
-			const memorySessionId = sessionResource ? extractSessionId(sessionResource) : promptContext.conversation?.sessionId;
-			await this.agentMemoryToolRegistrar.registerMemoryTools(memorySessionId);
+			await this.agentMemoryToolRegistrar.registerMemoryTools(sessionResource ? extractSessionId(sessionResource) : undefined);
 		}
 		// Add any references from the codebase invocation to the request
 		const codebase = await this._getCodebaseReferences(promptContext, token);
