@@ -320,7 +320,7 @@
 		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor3) 60%, var(--vscode-input-background)) 200deg,
 		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, var(--vscode-input-background)) 360deg);
 	color: var(--vscode-button-foreground);
-	animation: chat-send-button-spin 18s linear infinite;
+	animation: chat-send-button-spin 8s linear infinite;
 	transition: box-shadow 120ms ease;
 }
 
@@ -389,7 +389,7 @@
 		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, var(--vscode-input-background)) 360deg) !important;
 	color: var(--vscode-button-foreground) !important;
 	border-radius: 5px;
-	animation: chat-send-button-spin 18s linear infinite;
+	animation: chat-send-button-spin 8s linear infinite;
 	transition: box-shadow 120ms ease;
 	/* Lift the label above the click pulse `::after` on the action-item parent
 		so the pulse appears to expand from behind the button, not on top of it. */

@@ -67,7 +67,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 		},
 		[InlineChatConfigKeys.RenderMode]: {
 			description: localize('renderMode', "Controls how inline chat is rendered."),
-			default: 'hover',
+			default: 'zone',
 			type: 'string',
 			enum: ['zone', 'hover'],
 			enumDescriptions: [
@@ -77,7 +77,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerConfigurat
 			experiment: {
 				mode: 'auto'
 			},
-			tags: ['experimental']
+			tags: ['experimental'],
 		},
 		[InlineChatConfigKeys.FixDiagnostics]: {
 			description: localize('fixDiagnostics', "Controls whether the Fix action is shown for diagnostics in the editor."),

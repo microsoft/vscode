@@ -4,9 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Delayer } from '../../../../base/common/async.js';
-import { VSBuffer, VSBufferReadableStream } from '../../../../base/common/buffer.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { consumeStream } from '../../../../base/common/stream.js';
 import { ProxyChannel } from '../../../../base/parts/ipc/common/ipc.js';
 import { IAccessibilityService } from '../../../../platform/accessibility/common/accessibility.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
@@ -90,22 +88,6 @@ export class ElectronWebviewElement extends WebviewElement {
 
 	protected override webviewContentEndpoint(iframeId: string): string {
 		return `${Schemas.vscodeWebview}://${iframeId}`;
-	}
-
-	protected override streamToBuffer(stream: VSBufferReadableStream): Promise<ArrayBufferLike> {
-		// Join buffers from stream without using the Node.js backing pool.
-		// This lets us transfer the resulting buffer to the webview.
-		return consumeStream<VSBuffer, ArrayBufferLike>(stream, (buffers: readonly VSBuffer[]) => {
-			const totalLength = buffers.reduce((prev, curr) => prev + curr.byteLength, 0);
-			const ret = new ArrayBuffer(totalLength);
-			const view = new Uint8Array(ret);
-			let offset = 0;
-			for (const element of buffers) {
-				view.set(element.buffer, offset);
-				offset += element.byteLength;
-			}
-			return ret;
-		});
 	}
 
 	/**

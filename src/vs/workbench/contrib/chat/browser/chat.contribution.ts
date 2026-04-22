@@ -1337,15 +1337,6 @@ configurationRegistry.registerConfiguration({
 			disallowConfigurationDefault: true,
 			tags: ['preview', 'prompts', 'hooks', 'agent']
 		},
-		[PromptsConfig.USE_CUSTOM_AGENT_HOOKS]: {
-			type: 'boolean',
-			title: nls.localize('chat.useCustomAgentHooks.title', "Use Custom Agent Hooks",),
-			markdownDescription: nls.localize('chat.useCustomAgentHooks.description', "Controls whether hooks defined in custom agent frontmatter are parsed and executed. When disabled, hooks from agent files are ignored.",),
-			default: false,
-			restricted: true,
-			disallowConfigurationDefault: true,
-			tags: ['preview', 'prompts', 'hooks', 'agent']
-		},
 		[PromptsConfig.PROMPT_FILES_SUGGEST_KEY]: {
 			type: 'object',
 			scope: ConfigurationScope.RESOURCE,

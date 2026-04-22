@@ -344,6 +344,7 @@
 	"github.copilot.config.responsesApiReasoningSummary": "Sets the reasoning summary style used for the Responses API. Requires `#github.copilot.chat.useResponsesApi#`.",
 	"github.copilot.config.responsesApiContextManagement.enabled": "Enables context management for the Responses API. Requires `#github.copilot.chat.useResponsesApi#`.",
 	"github.copilot.config.responsesApi.promptCacheKey.enabled": "Enables prompt cache key being set for the Responses API.",
+	"github.copilot.config.responsesApi.toolSearchTool.enabled": "Enable tool search for OpenAI Responses API models. When enabled, tools are dynamically discovered and loaded on-demand using embeddings-based search, reducing context window usage when many tools are available.",
 	"github.copilot.config.updated53CodexPrompt.enabled": "Enables the updated prompt for gpt-5.3-codex model.",
 	"github.copilot.config.gpt54ConcisePrompt.enabled": "Enables the concise prompt experiment for gpt-5.4 model.",
 	"github.copilot.config.gpt54LargePrompt.enabled": "Enables the large prompt experiment for gpt-5.4 model.",

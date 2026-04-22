@@ -30,6 +30,7 @@ import { ILanguageModelsService } from '../../../../../workbench/contrib/chat/co
 import { ISessionChangeEvent } from '../../../../services/sessions/common/sessionsProvider.js';
 import { SessionStatus, COPILOT_CLI_SESSION_TYPE } from '../../../../services/sessions/common/session.js';
 import { RemoteAgentHostSessionsProvider, type IRemoteAgentHostSessionsProviderConfig } from '../../browser/remoteAgentHostSessionsProvider.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 
 // ---- Mock connection --------------------------------------------------------
 
@@ -196,6 +197,9 @@ function createProvider(disposables: DisposableStore, connection: MockAgentConne
 		lookupLanguageModel: () => undefined,
 	});
 	instantiationService.stub(IStorageService, overrides?.storageService ?? disposables.add(new InMemoryStorageService()));
+	instantiationService.stub(ILabelService, {
+		getUriLabel: (uri: URI) => uri.path,
+	});
 
 	const config: IRemoteAgentHostSessionsProviderConfig = {
 		address: overrides?.address ?? 'localhost:4321',
@@ -312,6 +316,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 		const uri = URI.parse('vscode-agent-host://auth/home/user/project');
 		const ws = provider.resolveWorkspace(uri);
 
+		assert.ok(ws, 'resolveWorkspace should resolve vscode-agent-host:// URIs');
 		assert.strictEqual(ws.label, 'project [Test Host]');
 		assert.strictEqual(ws.repositories.length, 1);
 		assert.strictEqual(ws.repositories[0].uri.toString(), uri.toString());
@@ -923,7 +928,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	// ---- Running session config seeding (from ISessionState.config) -------
 
-	test('getSessionConfig seeds running config from session state subscription, filtered to sessionMutable properties', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('getSessionConfig seeds running config from session state subscription with full schema', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		connection.addSession(createSession('seed-1', { summary: 'Seeded Session' }));
 		const provider = createProvider(disposables, connection);
 		provider.getSessions();
@@ -953,13 +958,15 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 		await waitForSessionConfig(provider, session!.sessionId, c => c?.values.autoApprove === 'default');
 
+		// Full schema + values are retained; the JSONC settings editor relies
+		// on this to preserve non-mutable values through replace dispatches.
 		const seeded = provider.getSessionConfig(session!.sessionId);
 		assert.deepStrictEqual({
-			properties: Object.keys(seeded?.schema.properties ?? {}),
+			properties: Object.keys(seeded?.schema.properties ?? {}).sort(),
 			values: seeded?.values,
 		}, {
-			properties: ['autoApprove'],
-			values: { autoApprove: 'default' },
+			properties: ['autoApprove', 'isolation'],
+			values: { autoApprove: 'default', isolation: 'worktree' },
 		});
 	}));
 

@@ -15,8 +15,6 @@ import { NullChatDebugFileLoggerService } from '../../../../../platform/chat/com
 import { IConfigurationService } from '../../../../../platform/configuration/common/configurationService';
 import { NullNativeEnvService } from '../../../../../platform/env/common/nullEnvService';
 import { MockFileSystemService } from '../../../../../platform/filesystem/node/test/mockFileSystemService';
-import { IGithubRepositoryService } from '../../../../../platform/github/common/githubService';
-import { IFetcherService } from '../../../../../platform/networking/common/fetcherService';
 import { MockGitService } from '../../../../../platform/ignore/node/test/mockGitService';
 import { ILogService } from '../../../../../platform/log/common/logService';
 import { NullMcpService } from '../../../../../platform/mcp/common/mcpService';
@@ -47,7 +45,7 @@ import { IQuestion, IQuestionAnswer, IUserQuestionHandler } from '../userInputHe
 import { MockCliSdkSession, MockCliSdkSessionManager, MockSkillLocations, NullCopilotCLIAgents, NullCopilotCLIModels, NullICopilotCLIImageSupport } from './testHelpers';
 
 // Re-export for backward compatibility with other spec files
-export { MockCliSdkSession, MockCliSdkSessionManager, MockSkillLocations, NullCopilotCLIAgents, NullCopilotCLIModels, NullICopilotCLIImageSupport } from './testHelpers';
+export { MockCliSdkSession, MockCliSdkSessionManager, MockSkillLocations, NullCopilotCLIAgents, NullICopilotCLIImageSupport } from './testHelpers';
 
 class MockLocalSession {
 	static async fromEvents(events: readonly { type: string }[]): Promise<{}> {
@@ -150,7 +148,7 @@ describe('CopilotCLISessionService', () => {
 						}
 					}();
 				}
-				return disposables.add(new CopilotCLISession(workspaceInfo, agentName, sdkSession, [], logService, workspaceService, new MockChatSessionMetadataStore(), instantiationService, new NullRequestLogger(), new NullICopilotCLIImageSupport(), new FakeToolsService(), new FakeUserQuestionHandler(), accessor.get(IConfigurationService), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })), new MockGitService(), authService, new class extends mock<IGithubRepositoryService>() { }(), new class extends mock<IFetcherService>() { }()));
+				return disposables.add(new CopilotCLISession(workspaceInfo, agentName, sdkSession, [], logService, workspaceService, new MockChatSessionMetadataStore(), instantiationService, new NullRequestLogger(), new NullICopilotCLIImageSupport(), new FakeToolsService(), new FakeUserQuestionHandler(), accessor.get(IConfigurationService), new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })), new MockGitService(), { _serviceBrand: undefined } as any));
 			}
 		} as unknown as IInstantiationService;
 		const configurationService = accessor.get(IConfigurationService);

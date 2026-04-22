@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LanguageSelector } from '../../../../../editor/common/languageSelector.js';
+import { localize } from '../../../../../nls.js';
 
 /**
  * Documentation link for the reusable prompts feature.
@@ -137,7 +138,38 @@ export enum PromptFileSource {
 	AgentsPersonal = 'agents-personal',
 	ConfigWorkspace = 'config-workspace',
 	ConfigPersonal = 'config-personal',
+	UserData = 'user-data',
 	ExtensionContribution = 'extension-contribution',
 	ExtensionAPI = 'extension-api',
 	Plugin = 'plugin',
+}
+
+/**
+ * Returns a human-readable description for a prompt file source.
+ */
+export function getSourceDescription(source: PromptFileSource): string | undefined {
+	switch (source) {
+		case PromptFileSource.AgentsWorkspace:
+			return localize('source.agentsWorkspace', "Workspace customization discovered by all agents");
+		case PromptFileSource.AgentsPersonal:
+			return localize('source.agentsPersonal', "Global customization discovered by all agents");
+		case PromptFileSource.GitHubWorkspace:
+			return localize('source.githubWorkspace', "Workspace customization discovered by Copilot agents");
+		case PromptFileSource.CopilotPersonal:
+			return localize('source.copilotPersonal', "Global customization discovered by Copilot agents");
+		case PromptFileSource.ClaudeWorkspace:
+			return localize('source.claudeWorkspace', "Workspace customization discovered by Claude agents");
+		case PromptFileSource.ClaudeWorkspaceLocal:
+			return localize('source.claudeWorkspaceLocal', "Workspace customization discovered by Claude agents (usually git-ignored)");
+		case PromptFileSource.ClaudePersonal:
+			return localize('source.claudePersonal', "Global customization discovered by Claude agents");
+		case PromptFileSource.UserData:
+			return localize('source.userData', "Global customization that roams with Settings Sync (VS Code only)");
+		case PromptFileSource.ConfigWorkspace:
+			return localize('source.configWorkspace', "Workspace customization from settings");
+		case PromptFileSource.ConfigPersonal:
+			return localize('source.configPersonal', "Global customization from settings");
+		default:
+			return undefined;
+	}
 }

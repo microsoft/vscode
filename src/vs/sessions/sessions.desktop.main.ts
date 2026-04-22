@@ -121,6 +121,9 @@ import '../workbench/contrib/codeEditor/electron-browser/codeEditor.contribution
 // Debug
 import '../workbench/contrib/debug/electron-browser/extensionHostDebugService.js';
 
+// Extension devtools
+import '../workbench/contrib/extensions/electron-browser/devtoolsExtensionHost.contribution.js';
+
 
 // Issues
 import '../workbench/contrib/issue/electron-browser/issue.contribution.js';
@@ -202,6 +205,7 @@ import './contrib/remoteAgentHost/browser/tunnelAgentHost.contribution.js';
 
 // Local Agent Host
 import './contrib/agentHost/browser/localAgentHost.contribution.js';
+import './contrib/agentHost/browser/agentSessionSettings.contribution.js';
 
 // Tunnel Host (allow remote connections to local agent host)
 import './contrib/tunnelHost/electron-browser/tunnelHost.contribution.js';

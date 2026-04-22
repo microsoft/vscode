@@ -30,10 +30,6 @@ import { PermissionRequest } from '../permissionHelpers';
 import { IQuestion, IQuestionAnswer, IUserQuestionHandler } from '../userInputHelpers';
 import { NullICopilotCLIImageSupport } from './testHelpers';
 import { MockGitService } from '../../../../../platform/ignore/node/test/mockGitService';
-import { MockAuthenticationService } from '../../../../../platform/ignore/node/test/mockAuthenticationService';
-import { IGithubRepositoryService } from '../../../../../platform/github/common/githubService';
-import { IFetcherService } from '../../../../../platform/networking/common/fetcherService';
-import { mock } from '../../../../../util/common/test/simpleMock';
 
 vi.mock('../cliHelpers', async (importOriginal) => ({
 	...(await importOriginal<typeof import('../cliHelpers')>()),
@@ -123,9 +119,6 @@ class MockSdkSession {
 	}
 
 	async compactHistory() { return { success: true }; }
-
-	public chatMessages: Awaited<ReturnType<Session['getChatMessages']>> = [{ role: 'user', content: 'hi' }, { role: 'assistant', content: 'hello' }];
-	async getChatMessages() { return this.chatMessages; }
 
 	async abort() { }
 
@@ -255,9 +248,7 @@ describe('CopilotCLISession', () => {
 			configurationService,
 			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })),
 			new MockGitService(),
-			new MockAuthenticationService(),
-			new class extends mock<IGithubRepositoryService>() { }(),
-			new class extends mock<IFetcherService>() { }()
+			{ _serviceBrand: undefined } as any
 		));
 	}
 
@@ -732,36 +723,6 @@ describe('CopilotCLISession', () => {
 
 			expect(sdkSession.currentMode).toBe('interactive');
 			expect(stream.output.join('\n')).toContain('Compacted conversation.');
-		});
-
-		it('reports already-compacted when no new messages since last compaction (issue #311422)', async () => {
-			const session = await createSession();
-			const stream = new MockChatResponseStream();
-			session.attachStream(stream);
-			// Simulate post-compaction state: only the single summary message remains.
-			sdkSession.chatMessages = [{ role: 'system', content: 'summary' }];
-			let compactCalled = false;
-			sdkSession.compactHistory = async () => { compactCalled = true; return { success: true }; };
-
-			await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { command: 'compact', prompt: '' }, [], undefined, authInfo, CancellationToken.None);
-
-			expect(compactCalled).toBe(false);
-			expect(stream.output.join('\n')).toContain('Conversation already compacted.');
-		});
-
-		it('reports nothing-to-compact on an empty session', async () => {
-			const session = await createSession();
-			const stream = new MockChatResponseStream();
-			session.attachStream(stream);
-			// Simulate a brand-new session with no conversation yet.
-			sdkSession.chatMessages = [];
-			let compactCalled = false;
-			sdkSession.compactHistory = async () => { compactCalled = true; return { success: true }; };
-
-			await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { command: 'compact', prompt: '' }, [], undefined, authInfo, CancellationToken.None);
-
-			expect(compactCalled).toBe(false);
-			expect(stream.output.join('\n')).toContain('Nothing to compact.');
 		});
 	});
 

@@ -18,7 +18,7 @@ import { localize } from '../../../../../../nls.js';
 import { AgentHostSessionConfigBranchNameHintKey, AgentProvider, AgentSession, IAgentAttachment, type IAgentConnection } from '../../../../../../platform/agentHost/common/agentService.js';
 import { IAgentSubscription } from '../../../../../../platform/agentHost/common/state/agentSubscription.js';
 import { ISessionTruncatedAction } from '../../../../../../platform/agentHost/common/state/protocol/actions.js';
-import { ICustomizationRef, TerminalClaimKind, ToolResultContentType, type IProtectedResourceMetadata, type IToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { ConfirmationOptionKind, ICustomizationRef, TerminalClaimKind, ToolResultContentType, type IConfirmationOption, type IProtectedResourceMetadata, type IToolDefinition } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ActionType, ISessionTurnStartedAction, type ISessionAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import { AHP_AUTH_REQUIRED, ProtocolError } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import { AttachmentType, buildSubagentSessionUri, getToolFileEdits, getToolSubagentContent, PendingMessageKind, ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, StateComponents, ToolCallCancellationReason, ToolCallConfirmationReason, ToolCallStatus, TurnState, type ICompletedToolCall, type IMessageAttachment, type IModelSelection, type IResponsePart, type IRootState, type ISessionInputAnswer, type ISessionInputRequest, type ISessionState, type IToolCallState, type ITurn } from '../../../../../../platform/agentHost/common/state/sessionState.js';
@@ -1099,10 +1099,22 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		session: URI,
 		turnId: string,
 		cancellationToken: CancellationToken,
+		protocolOptions?: IConfirmationOption[],
 	): void {
 		IChatToolInvocation.awaitConfirmation(invocation, cancellationToken).then(reason => {
-			const approved = reason.type !== ToolConfirmKind.Denied && reason.type !== ToolConfirmKind.Skipped;
-			this._logService.info(`[AgentHost] Tool confirmation: toolCallId=${toolCallId}, approved=${approved}`);
+			// When the user picked a custom button, resolve the matching
+			// protocol option so we can forward `selectedOptionId` and
+			// derive approve/deny from the option's kind.
+			let selectedOption: IConfirmationOption | undefined;
+			if (reason.type === ToolConfirmKind.UserAction && reason.selectedButton && protocolOptions) {
+				selectedOption = protocolOptions.find(o => o.id === reason.selectedButton);
+			}
+
+			const approved = selectedOption
+				? selectedOption.kind === ConfirmationOptionKind.Approve
+				: reason.type !== ToolConfirmKind.Denied && reason.type !== ToolConfirmKind.Skipped;
+
+			this._logService.info(`[AgentHost] Tool confirmation: toolCallId=${toolCallId}, approved=${approved}, selectedOptionId=${selectedOption?.id}`);
 			if (approved) {
 				this._config.connection.dispatch({
 					type: ActionType.SessionToolCallConfirmed,
@@ -1111,6 +1123,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					toolCallId,
 					approved: true,
 					confirmed: ToolCallConfirmationReason.UserAction,
+					...(selectedOption ? { selectedOptionId: selectedOption.id } : {}),
 				});
 			} else {
 				this._config.connection.dispatch({
@@ -1120,6 +1133,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 					toolCallId,
 					approved: false,
 					reason: ToolCallCancellationReason.Denied,
+					...(selectedOption ? { selectedOptionId: selectedOption.id } : {}),
 				});
 			}
 		}).catch(err => {
@@ -1155,7 +1169,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 				const confirmInvocation = toolCallStateToInvocation(tc, undefined, ctx.backendSession, this._config.connectionAuthority);
 				ctx.activeToolInvocations.set(toolCallId, confirmInvocation);
 				ctx.progress([confirmInvocation]);
-				this._awaitToolConfirmation(confirmInvocation, toolCallId, ctx.backendSession, ctx.turnId, ctx.cancellationToken);
+				this._awaitToolConfirmation(confirmInvocation, toolCallId, ctx.backendSession, ctx.turnId, ctx.cancellationToken, tc.options);
 				existing = confirmInvocation;
 			}
 		} else if (tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.PendingResultConfirmation) {
@@ -1595,7 +1609,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 							ctx.progress([existing]);
 
 							if (tc.status === ToolCallStatus.PendingConfirmation) {
-								this._awaitToolConfirmation(existing, tc.toolCallId, ctx.backendSession, ctx.turnId, ctx.cancellationToken);
+								this._awaitToolConfirmation(existing, tc.toolCallId, ctx.backendSession, ctx.turnId, ctx.cancellationToken, tc.options);
 							} else {
 								// First snapshot may already be Running/Completed/
 								// Cancelled (due to throttling). Process immediately
@@ -1921,7 +1935,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 						emitProgress([existing]);
 
 						if (tc.status === ToolCallStatus.PendingConfirmation) {
-							this._awaitToolConfirmation(existing, tc.toolCallId, URI.parse(childSessionUri), turnId, childCts.token);
+							this._awaitToolConfirmation(existing, tc.toolCallId, URI.parse(childSessionUri), turnId, childCts.token, tc.options);
 						}
 					} else if (tc.status === ToolCallStatus.PendingConfirmation) {
 						const existingState = existing.state.get();
@@ -1930,7 +1944,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 							const confirmInvocation = toolCallStateToInvocation(tc, parentToolCallId, URI.parse(childSessionUri), this._config.connectionAuthority);
 							activeChildToolInvocations.set(tc.toolCallId, confirmInvocation);
 							emitProgress([confirmInvocation]);
-							this._awaitToolConfirmation(confirmInvocation, tc.toolCallId, URI.parse(childSessionUri), turnId, childCts.token);
+							this._awaitToolConfirmation(confirmInvocation, tc.toolCallId, URI.parse(childSessionUri), turnId, childCts.token, tc.options);
 						}
 					} else if (tc.status === ToolCallStatus.Running) {
 						updateRunningToolSpecificData(existing, tc, this._config.connectionAuthority);
@@ -2037,7 +2051,14 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 		reconnectDisposables.add(toDisposable(() => cts.dispose(true)));
 		for (const [toolCallId, invocation] of activeToolInvocations) {
 			if (!IChatToolInvocation.isComplete(invocation)) {
-				this._awaitToolConfirmation(invocation, toolCallId, backendSession, turnId, cts.token);
+				// Look up the tool call state to forward protocol options on reconnection
+				const tcState = currentState?.activeTurn?.responseParts.find(
+					rp => rp.kind === ResponsePartKind.ToolCall && rp.toolCall.toolCallId === toolCallId
+				);
+				const tcOptions = tcState?.kind === ResponsePartKind.ToolCall && tcState.toolCall.status === ToolCallStatus.PendingConfirmation
+					? tcState.toolCall.options
+					: undefined;
+				this._awaitToolConfirmation(invocation, toolCallId, backendSession, turnId, cts.token, tcOptions);
 			}
 			if (invocation.toolSpecificData?.kind === 'subagent' && !observedSubagentToolIds.has(toolCallId)) {
 				observedSubagentToolIds.add(toolCallId);
@@ -2237,7 +2258,7 @@ export class AgentHostSessionHandler extends Disposable implements IChatSessionC
 	}
 
 	/** Creates a new backend session and subscribes to its state. */
-	private async _createAndSubscribe(sessionResource: URI, model: IModelSelection | undefined, fork?: { session: URI; turnIndex: number; turnId: string }, sessionConfig?: Record<string, string>, branchNameHint?: string): Promise<URI> {
+	private async _createAndSubscribe(sessionResource: URI, model: IModelSelection | undefined, fork?: { session: URI; turnIndex: number; turnId: string }, sessionConfig?: Record<string, unknown>, branchNameHint?: string): Promise<URI> {
 		const config = branchNameHint ? { ...sessionConfig, [AgentHostSessionConfigBranchNameHintKey]: branchNameHint } : sessionConfig;
 		const workingDirectory = this._config.resolveWorkingDirectory?.(sessionResource)
 			?? this._workingDirectoryResolver.resolve(sessionResource)

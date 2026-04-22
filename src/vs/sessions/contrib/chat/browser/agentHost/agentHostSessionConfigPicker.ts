@@ -66,7 +66,7 @@ interface IConfigPickerItem {
 	readonly description?: string;
 }
 
-function getConfigIcon(property: string, value: string | undefined): ThemeIcon | undefined {
+function getConfigIcon(property: string, value: unknown | undefined): ThemeIcon | undefined {
 	if (property === 'isolation') {
 		if (value === 'folder') {
 			return Codicon.folder;
@@ -90,7 +90,7 @@ function getConfigIcon(property: string, value: string | undefined): ThemeIcon |
 	return undefined;
 }
 
-function toActionItems(property: string, items: readonly IConfigPickerItem[], currentValue: string | undefined, policyRestricted?: boolean): IActionListItem<IConfigPickerItem>[] {
+function toActionItems(property: string, items: readonly IConfigPickerItem[], currentValue: unknown | undefined, policyRestricted?: boolean): IActionListItem<IConfigPickerItem>[] {
 	return items.map(item => ({
 		kind: ActionListItemKind.Action,
 		label: item.label,
@@ -212,7 +212,7 @@ async function confirmAutoApproveLevel(value: string, dialogService: IDialogServ
 /**
  * Applies warning/info CSS classes to a trigger element for auto-approve levels.
  */
-function applyAutoApproveTriggerStyles(trigger: HTMLElement, property: string | undefined, value: string | undefined): void {
+function applyAutoApproveTriggerStyles(trigger: HTMLElement, property: string | undefined, value: unknown | undefined): void {
 	if (property === AUTO_APPROVE_PROPERTY) {
 		trigger.classList.toggle('warning', value === 'autopilot');
 		trigger.classList.toggle('info', value === 'autoApprove');
@@ -282,8 +282,28 @@ class AgentHostSessionConfigPicker extends Disposable {
 			return;
 		}
 
+		// In the running-session flow only `sessionMutable` properties can
+		// actually be changed (non-mutable ones would no-op in
+		// `setSessionConfigValue`). In the new-session flow any property is
+		// changeable because changes trigger a full config re-resolve — so
+		// non-mutable properties like `isolation` must remain visible and
+		// interactive there.
+		const isNewSession = provider.getCreateSessionConfig(session.sessionId) !== undefined;
+
 		for (const [property, schema] of Object.entries(resolvedConfig.schema.properties)) {
 			if (property === AgentHostSessionConfigBranchNameHintKey) {
+				continue;
+			}
+			// Only render pickers for properties we know how to present. Today
+			// that's string properties with an `enum` — anything else (objects,
+			// arrays, free-form strings, numbers, booleans) has no enumerable
+			// choice set and is edited through the JSONC settings editor instead.
+			if (schema.type !== 'string' || !schema.enum || schema.enum.length === 0) {
+				continue;
+			}
+			// In a running session, skip non-mutable properties — they can't
+			// be changed and would render as dead pills.
+			if (!isNewSession && !schema.sessionMutable) {
 				continue;
 			}
 			// When the autoApprove property uses the well-known schema, the
@@ -301,7 +321,7 @@ class AgentHostSessionConfigPicker extends Disposable {
 		}
 	}
 
-	private _renderTrigger(trigger: HTMLElement, property: string, schema: ISessionConfigPropertySchema, value: string | undefined): void {
+	private _renderTrigger(trigger: HTMLElement, property: string, schema: ISessionConfigPropertySchema, value: unknown | undefined): void {
 		dom.clearNode(trigger);
 		const icon = getConfigIcon(property, value);
 		if (icon) {
@@ -391,7 +411,7 @@ class AgentHostSessionConfigPicker extends Disposable {
 		};
 	}
 
-	private _getLabel(schema: ISessionConfigPropertySchema, value: string | undefined): string {
+	private _getLabel(schema: ISessionConfigPropertySchema, value: unknown | undefined): string {
 		if (typeof value === 'string') {
 			const index = schema.enum?.indexOf(value) ?? -1;
 			return index >= 0 ? schema.enumLabels?.[index] ?? value : value;

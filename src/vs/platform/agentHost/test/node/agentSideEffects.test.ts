@@ -1672,4 +1672,177 @@ suite('AgentSideEffects', () => {
 			]);
 		});
 	});
+
+	// ---- Session permissions ------------------------------------------------
+
+	suite('session permissions', () => {
+
+		test('tool_ready action includes confirmation options when confirmation is needed', () => {
+			setupSession();
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_start',
+				toolCallId: 'tc-perm-1',
+				toolName: 'CustomTool',
+				displayName: 'Custom Tool',
+				invocationMessage: 'Running custom tool',
+			});
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_ready',
+				toolCallId: 'tc-perm-1',
+				invocationMessage: 'Run custom tool',
+				confirmationTitle: 'Run custom tool',
+				permissionKind: 'custom-tool',
+			});
+
+			const state = stateManager.getSessionState(sessionUri.toString());
+			const tc = state!.activeTurn!.responseParts.find(
+				rp => rp.kind === ResponsePartKind.ToolCall && rp.toolCall.toolCallId === 'tc-perm-1'
+			);
+			assert.ok(tc && tc.kind === ResponsePartKind.ToolCall, 'tool call should exist');
+			assert.strictEqual(tc.toolCall.status, ToolCallStatus.PendingConfirmation);
+			assert.ok(Array.isArray(tc.toolCall.options), 'options should be an array');
+			assert.deepStrictEqual(tc.toolCall.options!.map(o => o.id), ['allow-session', 'allow-once', 'skip']);
+		});
+
+		test('SessionToolCallConfirmed with allow-session adds tool to session permissions', () => {
+			setupSession();
+			const state = stateManager.getSessionState(sessionUri.toString());
+			if (state) {
+				state.config = {
+					schema: { type: 'object', properties: {} },
+					values: {},
+				};
+			}
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_start',
+				toolCallId: 'tc-perm-2',
+				toolName: 'CustomTool',
+				displayName: 'Custom Tool',
+				invocationMessage: 'Running custom tool',
+			});
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_ready',
+				toolCallId: 'tc-perm-2',
+				invocationMessage: 'Run custom tool',
+				confirmationTitle: 'Run custom tool',
+				permissionKind: 'custom-tool',
+			});
+
+			sideEffects.handleAction({
+				type: ActionType.SessionToolCallConfirmed,
+				session: sessionUri.toString(),
+				turnId: 'turn-1',
+				toolCallId: 'tc-perm-2',
+				approved: true,
+				confirmed: 'user-action' as const,
+				selectedOptionId: 'allow-session',
+			} as ISessionAction);
+
+			const updatedState = stateManager.getSessionState(sessionUri.toString());
+			assert.deepStrictEqual(
+				updatedState!.config!.values.permissions,
+				{ allow: ['CustomTool'], deny: [] },
+			);
+		});
+
+		test('subsequent tool_ready for same tool is auto-approved after allow-session permission', () => {
+			setupSession();
+			const state = stateManager.getSessionState(sessionUri.toString());
+			if (state) {
+				state.config = {
+					schema: { type: 'object', properties: {} },
+					values: { permissions: { allow: ['CustomTool'], deny: [] } },
+				};
+			}
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_start',
+				toolCallId: 'tc-perm-3',
+				toolName: 'CustomTool',
+				displayName: 'Custom Tool',
+				invocationMessage: 'Running custom tool',
+			});
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_ready',
+				toolCallId: 'tc-perm-3',
+				invocationMessage: 'Run custom tool',
+				confirmationTitle: 'Run custom tool',
+				permissionKind: 'custom-tool',
+			});
+
+			assert.deepStrictEqual(agent.respondToPermissionCalls, [
+				{ requestId: 'tc-perm-3', approved: true },
+			]);
+		});
+
+		test('subagent tool calls inherit parent session permissions', () => {
+			setupSession();
+			const state = stateManager.getSessionState(sessionUri.toString());
+			if (state) {
+				state.config = {
+					schema: { type: 'object', properties: {} },
+					values: { permissions: { allow: ['CustomTool'], deny: [] } },
+				};
+			}
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_start',
+				toolCallId: 'tc-parent',
+				toolName: 'task',
+				displayName: 'Task',
+				invocationMessage: 'Delegating...',
+			});
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'subagent_started',
+				toolCallId: 'tc-parent',
+				agentName: 'helper',
+				agentDisplayName: 'Helper',
+				agentDescription: 'Helps',
+			});
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_start',
+				toolCallId: 'inner-perm-1',
+				toolName: 'CustomTool',
+				displayName: 'Custom Tool',
+				invocationMessage: 'Running custom tool',
+				parentToolCallId: 'tc-parent',
+			});
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_ready',
+				toolCallId: 'inner-perm-1',
+				invocationMessage: 'Run custom tool',
+				confirmationTitle: 'Run custom tool',
+				permissionKind: 'custom-tool',
+			});
+
+			assert.deepStrictEqual(agent.respondToPermissionCalls, [
+				{ requestId: 'inner-perm-1', approved: true },
+			]);
+		});
+	});
 });

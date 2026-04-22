@@ -17,6 +17,7 @@ import { ThemeIcon } from '../../../../../base/common/themables.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { Location } from '../../../../../editor/common/languages.js';
 import { localize } from '../../../../../nls.js';
+import { IConfirmationOption } from '../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ContextKeyExpression, IContextKeyService } from '../../../../../platform/contextkey/common/contextkey.js';
 import { ExtensionIdentifier } from '../../../../../platform/extensions/common/extensions.js';
 import { ByteSize } from '../../../../../platform/files/common/files.js';
@@ -328,8 +329,8 @@ export interface IToolConfirmationMessages {
 	confirmResults?: boolean;
 	/** If title is not set (no confirmation needed), this reason will be shown to explain why confirmation was not needed */
 	confirmationNotNeededReason?: string | IMarkdownString;
-	/** Custom button labels to display instead of the default Allow/Skip buttons. */
-	customButtons?: string[];
+	/** Custom options to display instead of the default Allow/Skip buttons. */
+	customOptions?: IConfirmationOption[];
 	/** When set, shows an additional approval option to approve this particular combination of tool and arguments */
 	approveCombination?: {
 		/** Human-readable label for the approval option */

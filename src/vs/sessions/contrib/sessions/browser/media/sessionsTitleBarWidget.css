@@ -29,12 +29,13 @@
 
 .command-center .agent-sessions-titlebar-container {
 	display: flex;
-	width: 100%;
+	flex: 1;
 	flex-direction: row;
 	flex-wrap: nowrap;
 	align-items: center;
 	justify-content: flex-start;
-	padding-left: 16px;
+	min-width: 0;
+	margin-left: 16px;
 	height: 22px;
 	border-radius: 4px;
 	-webkit-app-region: no-drag;
@@ -45,7 +46,7 @@
 }
 
 .agent-sessions-workbench:not(.nosidebar) .command-center .agent-sessions-titlebar-container {
-	padding-left: 0;
+	margin-left: 0;
 }
 
 /* Session pill - clickable area for session picker */

@@ -207,7 +207,7 @@ The setting `workbench.editor.useModal` is an enum with three values:
 - `'some'`: Certain editors (e.g. Settings, Keyboard Shortcuts) may open in a modal overlay when requested via `MODAL_GROUP`
 - `'all'`: All editors open in a modal overlay (used by agent sessions window)
 
-The sessions default configuration also sets `workbench.notifications.position` to `'top-right'` so toast notifications anchor in the top-right corner of the sessions window without changing the default notification placement in the regular workbench.
+The sessions default configuration also sets `workbench.notifications.position` to `'bottom-right'` so notifications anchor in the bottom-right corner of the sessions window without changing the default notification placement in the regular workbench. The sessions-specific stylesheet adjusts both notification center and toast offsets to `15px` from the bottom/right or bottom/left edges, and to `top: 40px; right: 15px;` for the top-right placement. Because the shared workbench notification controllers also compute a top-right inline offset for custom titlebar windows, the sessions workbench reapplies its fixed `40px` top offset after those controllers run so the sessions-only placement stays stable.
 
 
 ---
@@ -379,7 +379,7 @@ The Agent Sessions workbench uses specialized part implementations that extend t
 |---------|----------------|---------------------|
 | Activity Bar integration | Full support | No activity bar; account widget in the titlebar |
 | Composite bar position | Configurable (top/bottom/title/hidden) | Fixed: Title |
-| Composite bar visibility | Configurable | Sidebar: hidden (`shouldShowCompositeBar()` returns `false`); ChatBar: hidden; Auxiliary Bar & Panel: visible |
+| Composite bar visibility | Configurable | Sidebar: hidden (`shouldShowCompositeBar()` returns `false`); ChatBar: hidden; Auxiliary Bar & Panel: visible. Separately, the internal chat tab strip shown inside the Chat Bar preserves each chat title's original casing instead of forcing per-word capitalization via CSS. |
 | Auto-hide support | Configurable | Disabled |
 | Configuration listening | Many settings | Minimal |
 | Context menu actions | Full set | Simplified |
@@ -659,6 +659,10 @@ interface IPartVisibilityState {
 
 | Date | Change |
 |------|--------|
+| 2026-04-22 | Added sessions-only toast offset overrides so notification toasts now use `right: 15px` in the default bottom-right placement and `left: 15px` in the bottom-left placement, matching the notification center spacing. |
+| 2026-04-22 | Added a sessions-workbench notification offset override so the shared notification controllers no longer push top-right notifications down to `42px`; sessions now reapply a fixed `40px` top offset for top-right notification center/toast placement. |
+| 2026-04-21 | Updated the sessions chat composite bar tabs to preserve each chat title's original casing instead of applying per-word capitalization. |
+| 2026-04-21 | Moved the sessions-only default notification placement to bottom-right and documented the sessions-specific notification center offsets: `15px` from the bottom/right or bottom/left edges, and `top: 40px; right: 15px;` for top-right placement. |
 | 2026-04-17 | Added a subtle 1px titlebar-token border around the sessions account widget's GitHub profile image, including the inactive-window variant, and documented the avatar chrome in the layout spec. |
 | 2026-04-16 | Softened the experimental sessions shell gradient by reducing the accent tint mix strength across the shared default, light-theme, and dark-theme variants so the primary color reads more subtly behind the workbench chrome. |
 | 2026-04-16 | Updated the layout visual representation to show the editor part in the top-right row and mark it as hidden by default. |

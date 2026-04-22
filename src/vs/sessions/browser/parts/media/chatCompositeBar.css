@@ -26,7 +26,7 @@
 	display: none;
 }
 
-/* Base tab: capitalize text + pill padding — mirrors auxiliarybar action-label */
+/* Base tab: preserve chat title casing while keeping the same pill treatment */
 .chat-composite-bar-tab {
 	display: flex;
 	align-items: center;
@@ -35,7 +35,6 @@
 	cursor: pointer;
 	white-space: nowrap;
 	color: var(--chat-tab-inactive-foreground);
-	text-transform: capitalize;
 	font-weight: 500;
 	font-size: 12px;
 	line-height: 22px;

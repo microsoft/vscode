@@ -125,6 +125,7 @@ import './contrib/debug/electron-browser/extensionHostDebugService.js';
 
 // Extensions Management
 import './contrib/extensions/electron-browser/extensions.contribution.js';
+import './contrib/extensions/electron-browser/devtoolsExtensionHost.contribution.js';
 
 // Issues
 import './contrib/issue/electron-browser/issue.contribution.js';
@@ -177,6 +178,8 @@ import './contrib/multiDiffEditor/browser/multiDiffEditor.contribution.js';
 // Remote Tunnel
 import './contrib/remoteTunnel/electron-browser/remoteTunnel.contribution.js';
 
+// Chat
+import './contrib/chat/electron-browser/chat.contribution.js';
 
 // Encryption
 import './contrib/encryption/electron-browser/encryption.contribution.js';
