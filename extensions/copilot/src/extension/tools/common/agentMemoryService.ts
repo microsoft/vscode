@@ -11,6 +11,7 @@ import {
 	type StoreMemoryRequest,
 } from '@github/copilot-agentic-tools/memory';
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
+import { IChatSessionService } from '../../../platform/chat/common/chatSessionService';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { ICAPIClientService } from '../../../platform/endpoint/common/capiClient';
 import { getGithubRepoIdFromFetchUrl, getOrderedRemoteUrlsFromContext, IGitService, toGithubNwo } from '../../../platform/git/common/gitService';
@@ -72,21 +73,21 @@ export const IAgentMemoryService = createServiceIdentifier<IAgentMemoryService>(
 export class AgentMemoryService extends Disposable implements IAgentMemoryService {
 	declare readonly _serviceBrand: undefined;
 
-	private _cachedPromptResponses = new Map<string, MemoryPromptResponse>();
-	private static readonly MAX_CACHE_ENTRIES = 50; // Prevent unbounded growth
+	// Conversation-scoped cache - one entry per conversation, cleared on conversation end
+	private _conversationMemoryCache = new Map<string, MemoryPromptResponse>();
 
 	override dispose(): void {
-		this._cachedPromptResponses.clear();
+		this._conversationMemoryCache.clear();
 		super.dispose();
 	}
 
 	getCachedMemoryPrompt(sessionId?: string): MemoryPromptResponse | undefined {
-		if (sessionId) {
-			return this._cachedPromptResponses.get(sessionId);
+		if (!sessionId) {
+			// Legacy behavior - return any cached response if no sessionId provided
+			const responses = Array.from(this._conversationMemoryCache.values());
+			return responses.length > 0 ? responses[0] : undefined;
 		}
-		// Legacy behavior - return any cached response if no sessionId provided
-		const responses = Array.from(this._cachedPromptResponses.values());
-		return responses.length > 0 ? responses[0] : undefined;
+		return this._conversationMemoryCache.get(sessionId);
 	}
 
 	constructor(
@@ -96,9 +97,15 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 		@IWorkspaceService private readonly workspaceService: IWorkspaceService,
 		@IConfigurationService private readonly configService: IConfigurationService,
 		@IExperimentationService private readonly experimentationService: IExperimentationService,
-		@IAuthenticationService private readonly authenticationService: IAuthenticationService
+		@IAuthenticationService private readonly authenticationService: IAuthenticationService,
+		@IChatSessionService private readonly chatSessionService: IChatSessionService,
 	) {
 		super();
+		
+		// Clear cache when conversations end to ensure fresh data for new conversations
+		this._register(this.chatSessionService.onDidDisposeChatSession(sessionId => {
+			this.clearCache(sessionId);
+		}));
 	}
 
 	async getRepoNwo(): Promise<string | undefined> {
@@ -230,9 +237,10 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 			if (!result.success) {
 				this.logService.warn(`[AgentMemoryService] Failed to store repo memory: ${result.error}`);
 			} else {
-				// Optimistically update cache instead of invalidating
-				this.updateCacheAfterStore(repoNwo, memory, 'repo');
-				this.logService.debug(`[AgentMemoryService] Updated cache after storing repo memory`);
+				// Invalidate cache for current conversation since new memory was stored
+				// We don't know which conversation this came from, so we clear all to be safe
+				this.logService.debug(`[AgentMemoryService] Stored repo memory, clearing all conversation caches to ensure fresh data`);
+				this._conversationMemoryCache.clear();
 			}
 			return result.success;
 		} catch (error) {
@@ -266,9 +274,10 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 			if (!result.success) {
 				this.logService.warn(`[AgentMemoryService] Failed to store user memory: ${result.error}`);
 			} else {
-				// Optimistically update cache instead of invalidating
-				this.updateCacheAfterStore(undefined, memory, 'user');
-				this.logService.debug(`[AgentMemoryService] Updated cache after storing user memory`);
+				// Invalidate cache for current conversation since new memory was stored  
+				// We don't know which conversation this came from, so we clear all to be safe
+				this.logService.debug(`[AgentMemoryService] Stored user memory, clearing all conversation caches to ensure fresh data`);
+				this._conversationMemoryCache.clear();
 			}
 			return result.success;
 		} catch (error) {
@@ -284,18 +293,18 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 				return undefined;
 			}
 
+			// For conversation-scoped caching, use sessionId as the cache key
+			// If no sessionId provided, we don't cache (for backward compatibility)
+			if (sessionId) {
+				const cachedResponse = this._conversationMemoryCache.get(sessionId);
+				if (cachedResponse) {
+					this.logService.debug(`[AgentMemoryService] Using cached memory prompt for conversation: ${sessionId}`);
+					return cachedResponse;
+				}
+			}
+
 			// If repoNwo not provided, auto-determine it to preserve original behavior
 			const resolvedRepoNwo = repoNwo ?? await this.getRepoNwo();
-
-			// Generate a cache key that includes both sessionId and scope/repo context
-			const cacheKey = this.generateCacheKey(sessionId, resolvedRepoNwo);
-			
-			// Check if we already have a cached response for this session and context
-			const cachedResponse = this._cachedPromptResponses.get(cacheKey);
-			if (cachedResponse) {
-				this.logService.debug(`[AgentMemoryService] Using cached memory prompt for key: ${cacheKey}`);
-				return cachedResponse;
-			}
 
 			const token = await this.getToken();
 			if (!token) {
@@ -328,18 +337,12 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 
 			const response = await fetchMemoryPrompts(options);
 			if (response) {
-				this.logService.info(`[AgentMemoryService] Fetched memory prompt (${response.memoriesContext.memoriesCount} memories) for key: ${cacheKey}`);
+				this.logService.info(`[AgentMemoryService] Fetched memory prompt (${response.memoriesContext.memoriesCount} memories)${sessionId ? ` for conversation: ${sessionId}` : ''}`);
 				
-				// Prevent unbounded cache growth
-				if (this._cachedPromptResponses.size >= AgentMemoryService.MAX_CACHE_ENTRIES) {
-					const firstKey = this._cachedPromptResponses.keys().next().value;
-					if (firstKey) {
-						this._cachedPromptResponses.delete(firstKey);
-						this.logService.debug(`[AgentMemoryService] Evicted cache entry: ${firstKey}`);
-					}
+				// Cache the response for this conversation only
+				if (sessionId) {
+					this._conversationMemoryCache.set(sessionId, response);
 				}
-				
-				this._cachedPromptResponses.set(cacheKey, response);
 			}
 			return response;
 		} catch (error) {
@@ -348,67 +351,19 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 		}
 	}
 
+	/**
+	 * Clear cached memory for a specific conversation (called when conversation ends)
+	 */
 	clearCache(sessionId?: string): void {
 		if (sessionId) {
-			// Clear all cache entries for a specific session
-			const keysToDelete: string[] = [];
-			for (const key of this._cachedPromptResponses.keys()) {
-				if (key.startsWith(`${sessionId}:`)) {
-					keysToDelete.push(key);
-				}
-			}
-			for (const key of keysToDelete) {
-				this._cachedPromptResponses.delete(key);
-			}
-			this.logService.debug(`[AgentMemoryService] Cleared cache for session: ${sessionId}`);
+			const deleted = this._conversationMemoryCache.delete(sessionId);
+			this.logService.debug(`[AgentMemoryService] Cleared cache for conversation: ${sessionId} (found: ${deleted})`);
 		} else {
-			// Clear all cache entries
-			this._cachedPromptResponses.clear();
-			this.logService.debug(`[AgentMemoryService] Cleared all cache entries`);
+			// Clear all conversations
+			const count = this._conversationMemoryCache.size;
+			this._conversationMemoryCache.clear();
+			this.logService.debug(`[AgentMemoryService] Cleared all conversation caches (${count} entries)`);
 		}
 	}
 
-	/**
-	 * Optimistically update cache entries after storing a memory
-	 */
-	private updateCacheAfterStore(repoNwo: string | undefined, memory: StoreMemoryRequest, scope: 'repo' | 'user'): void {
-		const updatedEntries: string[] = [];
-		
-		for (const [key, response] of this._cachedPromptResponses.entries()) {
-			let shouldUpdate = false;
-			
-			if (scope === 'repo' && repoNwo) {
-				// Update repo-specific entries
-				shouldUpdate = key.includes(`:${repoNwo}`);
-			} else if (scope === 'user') {
-				// Update user-scoped entries
-				shouldUpdate = key.endsWith(':user');
-			}
-			
-			if (shouldUpdate) {
-				// Create updated response with incremented count and appended memory
-				const updatedResponse: MemoryPromptResponse = {
-					...response,
-					memoriesContext: {
-						...response.memoriesContext,
-						memoriesCount: response.memoriesContext.memoriesCount + 1,
-						prompt: response.memoriesContext.prompt + `\n${memory.subject}: ${memory.fact}`
-					}
-				};
-				
-				this._cachedPromptResponses.set(key, updatedResponse);
-				updatedEntries.push(key);
-			}
-		}
-		
-		this.logService.debug(`[AgentMemoryService] Optimistically updated ${updatedEntries.length} cache entries with new memory`);
-	}
-
-	private generateCacheKey(sessionId?: string, repoNwo?: string): string {
-		// Create a cache key that combines session and context
-		// Use 'default' if no sessionId to maintain backward compatibility
-		const session = sessionId || 'default';
-		const context = repoNwo || 'user';
-		return `${session}:${context}`;
-	}
 }
