@@ -4,8 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { afterAll, beforeAll, beforeEach, describe, expect, suite, test } from 'vitest';
-import type { StoreMemoryRequest } from '@github/copilot-agentic-tools/memory';
-import type { MemoryPromptResponse, MemoryResponse } from '@github/copilot-agentic-tools/memory';
+import type { MemoryPromptResponse, StoreMemoryRequest } from '@github/copilot-agentic-tools/memory';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
@@ -30,7 +29,6 @@ class TrackingMemoryService implements IAgentMemoryService {
 
 	async getRepoNwo(): Promise<string | undefined> { return 'owner/repo'; }
 	async checkMemoryEnabled(): Promise<boolean> { return true; }
-	async getRepoMemories(): Promise<MemoryResponse[] | undefined> { return []; }
 	async getMemoryPrompt(): Promise<MemoryPromptResponse | undefined> { return undefined; }
 	getCachedMemoryPrompt(): MemoryPromptResponse | undefined { return undefined; }
 

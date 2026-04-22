@@ -16,12 +16,10 @@ import { URI } from '../../../../util/vs/base/common/uri';
 import { SyncDescriptor } from '../../../../util/vs/platform/instantiation/common/descriptors';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { MarkdownString } from '../../../../vscodeTypes';
-import type { MemoryPromptResponse, MemoryResponse, StoreMemoryRequest } from '@github/copilot-agentic-tools/memory';
+import type { MemoryPromptResponse, StoreMemoryRequest } from '@github/copilot-agentic-tools/memory';
 import { IAgentMemoryService } from '../../common/agentMemoryService';
 import { createExtensionUnitTestingServices } from '../../../test/node/services';
 import { MemoryTool } from '../memoryTool';
-
-type RepoMemoryEntry = MemoryResponse;
 
 /**
  * Capturing telemetry service that records all events for assertion.
@@ -47,7 +45,7 @@ class MockCapturingTelemetryService extends NullTelemetryService {
  */
 class MockAgentMemoryService implements IAgentMemoryService {
 	declare readonly _serviceBrand: undefined;
-	storedMemories: RepoMemoryEntry[] = [];
+	storedMemories: StoreMemoryRequest[] = [];
 	storedUserMemories: StoreMemoryRequest[] = [];
 
 	async getRepoNwo(): Promise<string | undefined> {
@@ -56,10 +54,6 @@ class MockAgentMemoryService implements IAgentMemoryService {
 
 	async checkMemoryEnabled(): Promise<boolean> {
 		return true;
-	}
-
-	async getRepoMemories(_limit?: number): Promise<RepoMemoryEntry[] | undefined> {
-		return this.storedMemories;
 	}
 
 	async storeRepoMemory(memory: StoreMemoryRequest): Promise<boolean> {
@@ -98,10 +92,6 @@ class DisabledMockAgentMemoryService implements IAgentMemoryService {
 
 	async checkMemoryEnabled(): Promise<boolean> {
 		return false;
-	}
-
-	async getRepoMemories(_limit?: number): Promise<RepoMemoryEntry[] | undefined> {
-		return undefined;
 	}
 
 	async storeRepoMemory(_memory: StoreMemoryRequest): Promise<boolean> {

@@ -5,11 +5,9 @@
 
 import {
 	fetchMemoryPrompts,
-	fetchRecentMemories,
 	storeMemory,
 	type MemoryApiOptions,
 	type MemoryPromptResponse,
-	type MemoryResponse,
 	type StoreMemoryRequest,
 } from '@github/copilot-agentic-tools/memory';
 import { IAuthenticationService } from '../../../platform/authentication/common/authentication';
@@ -43,11 +41,6 @@ export interface IAgentMemoryService {
 	 * Check if Copilot Memory is enabled for the current repository.
 	 */
 	checkMemoryEnabled(): Promise<boolean>;
-
-	/**
-	 * Get repo memories from Copilot Memory service.
-	 */
-	getRepoMemories(limit?: number): Promise<MemoryResponse[] | undefined>;
 
 	/**
 	 * Store a repo memory to Copilot Memory service.
@@ -190,45 +183,6 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 		} catch (error) {
 			this.logService.warn(`[AgentMemoryService] Failed to check memory enablement: ${error}`);
 			return false;
-		}
-	}
-
-	async getRepoMemories(limit: number = 10): Promise<MemoryResponse[] | undefined> {
-		try {
-			const enabled = await this.checkMemoryEnabled();
-			if (!enabled) {
-				return undefined;
-			}
-
-			const repoNwo = await this.getRepoNwo();
-			if (!repoNwo) {
-				return undefined;
-			}
-
-			const token = await this.getToken();
-			if (!token) {
-				this.logService.warn('[AgentMemoryService] No GitHub session available for fetching memories');
-				return undefined;
-			}
-
-			const [owner, repo] = repoNwo.split('/');
-			const options: MemoryApiOptions = {
-				scope: 'repository',
-				owner,
-				repo,
-				token,
-				integrationId: INTEGRATION_ID,
-				baseUrl: this.getBaseUrl(),
-				limit,
-				logger: this.makeLogger(),
-			};
-
-			const memories = await fetchRecentMemories(options);
-			this.logService.info(`[AgentMemoryService] Fetched ${memories?.length ?? 0} repo memories for ${repoNwo}`);
-			return memories;
-		} catch (error) {
-			this.logService.warn(`[AgentMemoryService] Failed to fetch repo memories: ${error}`);
-			return undefined;
 		}
 	}
 
