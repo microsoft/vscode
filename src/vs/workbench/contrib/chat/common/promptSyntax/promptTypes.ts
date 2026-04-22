@@ -150,23 +150,23 @@ export enum PromptFileSource {
 export function getSourceDescription(source: PromptFileSource): string | undefined {
 	switch (source) {
 		case PromptFileSource.AgentsWorkspace:
-			return localize('source.agentsWorkspace', "Workspace-level customization discovered by all agents");
+			return localize('source.agentsWorkspace', "Workspace customization discovered by all agents");
 		case PromptFileSource.AgentsPersonal:
 			return localize('source.agentsPersonal', "Global customization discovered by all agents");
 		case PromptFileSource.GitHubWorkspace:
-			return localize('source.githubWorkspace', "Workspace-level customization discovered by Copilot agents");
+			return localize('source.githubWorkspace', "Workspace customization discovered by Copilot agents");
 		case PromptFileSource.CopilotPersonal:
 			return localize('source.copilotPersonal', "Global customization discovered by Copilot agents");
 		case PromptFileSource.ClaudeWorkspace:
-			return localize('source.claudeWorkspace', "Workspace-level customization discovered by Claude agents");
+			return localize('source.claudeWorkspace', "Workspace customization discovered by Claude agents");
 		case PromptFileSource.ClaudeWorkspaceLocal:
-			return localize('source.claudeWorkspaceLocal', "Workspace-level customization discovered by Claude agents (usually git-ignored)");
+			return localize('source.claudeWorkspaceLocal', "Workspace customization discovered by Claude agents (usually git-ignored)");
 		case PromptFileSource.ClaudePersonal:
 			return localize('source.claudePersonal', "Global customization discovered by Claude agents");
 		case PromptFileSource.UserData:
 			return localize('source.userData', "Global customization that roams with Settings Sync (VS Code only)");
 		case PromptFileSource.ConfigWorkspace:
-			return localize('source.configWorkspace', "Workspace-level customization from settings");
+			return localize('source.configWorkspace', "Workspace customization from settings");
 		case PromptFileSource.ConfigPersonal:
 			return localize('source.configPersonal', "Global customization from settings");
 		default:
