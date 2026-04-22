@@ -61,7 +61,7 @@ interface IStoredRecentWorkspace {
 /**
  * Item type used in the action list.
  */
-interface IWorkspacePickerItem {
+export interface IWorkspacePickerItem {
 	readonly selection?: IWorkspaceSelection;
 	readonly browseActionIndex?: number;
 	readonly checked?: boolean;
@@ -79,9 +79,9 @@ interface IWorkspacePickerItem {
  */
 export class WorkspacePicker extends Disposable {
 
-	private readonly _onDidSelectWorkspace = this._register(new Emitter<IWorkspaceSelection | undefined>());
+	protected readonly _onDidSelectWorkspace = this._register(new Emitter<IWorkspaceSelection | undefined>());
 	readonly onDidSelectWorkspace: Event<IWorkspaceSelection | undefined> = this._onDidSelectWorkspace.event;
-	private readonly _onDidChangeSelection = this._register(new Emitter<void>());
+	protected readonly _onDidChangeSelection = this._register(new Emitter<void>());
 	readonly onDidChangeSelection: Event<void> = this._onDidChangeSelection.event;
 
 	private _selectedWorkspace: IWorkspaceSelection | undefined;
@@ -98,7 +98,7 @@ export class WorkspacePicker extends Disposable {
 		@IActionWidgetService private readonly actionWidgetService: IActionWidgetService,
 		@IStorageService private readonly storageService: IStorageService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
-		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
+		@ISessionsProvidersService protected readonly sessionsProvidersService: ISessionsProvidersService,
 		@ISessionsManagementService private readonly sessionsManagementService: ISessionsManagementService,
 		@IRemoteAgentHostService private readonly remoteAgentHostService: IRemoteAgentHostService,
 		@IQuickInputService private readonly quickInputService: IQuickInputService,
@@ -284,7 +284,7 @@ export class WorkspacePicker extends Disposable {
 	/**
 	 * Executes a browse action from a provider, identified by index.
 	 */
-	private async _executeBrowseAction(actionIndex: number): Promise<void> {
+	protected async _executeBrowseAction(actionIndex: number): Promise<void> {
 		const allActions = this._getAllBrowseActions();
 		const action = allActions[actionIndex];
 		if (!action) {
@@ -316,11 +316,11 @@ export class WorkspacePicker extends Disposable {
 	/**
 	 * Collects browse actions from all registered providers.
 	 */
-	private _getAllBrowseActions(): ISessionWorkspaceBrowseAction[] {
+	protected _getAllBrowseActions(): ISessionWorkspaceBrowseAction[] {
 		return this.sessionsProvidersService.getProviders().flatMap(p => p.browseActions);
 	}
 
-	private _buildItems(): IActionListItem<IWorkspacePickerItem>[] {
+	protected _buildItems(): IActionListItem<IWorkspacePickerItem>[] {
 		const items: IActionListItem<IWorkspacePickerItem>[] = [];
 
 		// Collect recent workspaces from picker storage across all providers
@@ -636,7 +636,7 @@ export class WorkspacePicker extends Disposable {
 	 * (disconnected or still connecting).
 	 * Returns false for providers without connection status (e.g. local providers).
 	 */
-	private _isProviderUnavailable(providerId: string): boolean {
+	protected _isProviderUnavailable(providerId: string): boolean {
 		const provider = this.sessionsProvidersService.getProvider(providerId);
 		if (!provider || !isAgentHostProvider(provider) || !provider.connectionStatus) {
 			return false;
@@ -682,7 +682,7 @@ export class WorkspacePicker extends Disposable {
 		});
 	}
 
-	private _isSelectedWorkspace(selection: IWorkspaceSelection): boolean {
+	protected _isSelectedWorkspace(selection: IWorkspaceSelection): boolean {
 		if (!this._selectedWorkspace) {
 			return false;
 		}
@@ -819,7 +819,7 @@ export class WorkspacePicker extends Disposable {
 		this.storageService.store(STORAGE_KEY_RECENT_WORKSPACES, JSON.stringify(updated), StorageScope.PROFILE, StorageTarget.MACHINE);
 	}
 
-	private _getRecentWorkspaces(): { providerId: string; workspace: ISessionWorkspace }[] {
+	protected _getRecentWorkspaces(): { providerId: string; workspace: ISessionWorkspace }[] {
 		return this._getStoredRecentWorkspaces()
 			.map(stored => {
 				const uri = URI.revive(stored.uri);
@@ -841,7 +841,7 @@ export class WorkspacePicker extends Disposable {
 			});
 	}
 
-	private _removeRecentWorkspace(selection: IWorkspaceSelection): void {
+	protected _removeRecentWorkspace(selection: IWorkspaceSelection): void {
 		const uri = selection.workspace.repositories[0]?.uri;
 		if (!uri) {
 			return;

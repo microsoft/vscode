@@ -38,6 +38,7 @@ export interface IChatSessionProviderOptionItem {
 	readonly locked?: boolean;
 	readonly icon?: ThemeIcon;
 	readonly default?: boolean;
+	readonly slashCommand?: string;
 	// [key: string]: any;
 }
 
@@ -68,6 +69,15 @@ export interface IChatSessionProviderOptionGroup {
 	 * These will be shown in a separate section at the end of the picker.
 	 */
 	readonly commands?: readonly IChatSessionProviderOptionGroupCommand[];
+	/**
+	 * Optional kind hint that controls how the group is presented.
+	 * - `'permissions'`: the group's items are surfaced inside the chat permission picker
+	 *   instead of being rendered as a standalone picker. At most one group per provider
+	 *   may use this kind; if multiple are declared, the first one (in declaration order)
+	 *   wins. The group has no UI of its own — it is invisible when the permission
+	 *   picker is hidden by its own `when` clauses.
+	 */
+	readonly kind?: 'permissions';
 }
 
 export interface IChatSessionsExtensionPoint {

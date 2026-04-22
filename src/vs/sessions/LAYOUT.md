@@ -104,6 +104,7 @@ The Agent Sessions titlebar includes a custom left toolbar that appears after th
 | Action | ID | Location | Behavior |
 |--------|-----|----------|----------|
 | Toggle Sidebar | `workbench.action.agentToggleSidebarVisibility` | Left toolbar (`TitleBarLeft`) | Toggles primary sidebar visibility |
+| Agent Host Filter | `sessions.agentHostFilter.pick` | Left toolbar (`TitleBarLeft`) | Dropdown indicator of the host the workbench is scoped to; lets the user switch hosts or pick "All Hosts". Visible when at least one remote agent host is known (`sessions.hasAgentHosts`). Renders via a custom `HostFilterActionViewItem`. |
 | Run Script | `workbench.action.agentSessions.runScript` | Right toolbar (`TitleBarRight`) | Split button: runs configured script or shows configure dialog |
 | Open... | (submenu) | Right toolbar (`TitleBarRight`) | Split button submenu: Open Terminal, Open in VS Code |
 | Toggle Secondary Sidebar | `workbench.action.agentToggleSecondarySidebarVisibility` | Right toolbar (`TitleBarRight`) | Toggles auxiliary bar visibility |
@@ -176,7 +177,7 @@ This structure places the sidebar at the root level spanning the full window hei
 | Panel | 300px height |
 | Titlebar | Determined by `minimumHeight` (~30px) |
 
-The sessions sidebar can be resized down to a minimum width of 170px.
+The sessions sidebar can be resized down to a minimum width of 170px (desktop) or 270px (web, sized to fit the titlebar's left toolbar which includes the host filter combo).
 
 ### 4.3 Editor Modal
 
