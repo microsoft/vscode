@@ -611,6 +611,16 @@ declare module 'vscode' {
 		 * Only one item per option group should be marked as default.
 		 */
 		readonly default?: boolean;
+
+		/**
+		 * Optional slash-command alias (without leading `/`) that selects this option
+		 * when the user submits `/<slashCommand>`. Does not send a chat request; only
+		 * updates the selection so the next prompt runs with this option active.
+		 *
+		 * Scoped to chat sessions owned by the contributing provider. Names must be
+		 * unique across the provider's groups; on conflict, the first declared wins.
+		 */
+		readonly slashCommand?: string;
 	}
 
 	/**
@@ -668,6 +678,22 @@ declare module 'vscode' {
 		 * `{ inputState: ChatSessionInputState; sessionResource: Uri | undefined }` that they can use to determine which session and options they are being invoked for.
 		 */
 		readonly commands?: Command[];
+
+		/**
+		 * Optional kind that hints how this option group should be presented in the UI.
+		 *
+		 * - `'permissions'`: The group represents tool-approval permissions for the session.
+		 *   The editor will not render this group as its own picker. Instead, its items
+		 *   replace the built-in items in the chat permission picker for the session,
+		 *   and the user's selection is reported back through the standard
+		 *   {@link ChatSessionContentProvider.handleChatSessionOptionsChange} flow.
+		 *   At most one option group per provider may use this kind; if more than one is
+		 *   declared, the first one (in declaration order) is used. The group is invisible
+		 *   if the chat permission picker itself is hidden by other `when` clauses.
+		 *
+		 * When omitted, the group is rendered as a standalone picker as usual.
+		 */
+		readonly kind?: 'permissions';
 	}
 
 	export interface ChatSessionProviderOptions {

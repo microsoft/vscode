@@ -72,6 +72,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'github.copilot.chat.cli.branchSupport.enabled': true,
 		'github.copilot.chat.cli.isolationOption.enabled': true,
 		'github.copilot.chat.cli.mcp.enabled': true,
+		'github.copilot.chat.cli.remote.enabled': false,
 		'github.copilot.chat.githubMcpServer.enabled': true,
 		'github.copilot.chat.languageContext.typescript.enabled': true,
 
