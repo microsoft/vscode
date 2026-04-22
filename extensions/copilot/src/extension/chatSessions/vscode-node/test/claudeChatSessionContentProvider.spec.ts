@@ -33,6 +33,7 @@ import { IClaudeCodeSessionService } from '../../claude/node/sessionParser/claud
 import { IClaudeCodeSessionInfo } from '../../claude/node/sessionParser/claudeSessionSchema';
 import { IClaudeSlashCommandService } from '../../claude/vscode-node/claudeSlashCommandService';
 import { FolderRepositoryMRUEntry, IChatFolderMruService } from '../../common/folderRepositoryManager';
+import { IClaudeWorkspaceFolderService } from '../../common/claudeWorkspaceFolderService';
 import { ClaudeChatSessionContentProvider, ClaudeChatSessionItemController } from '../claudeChatSessionContentProvider';
 
 // Expose the most recently created items map so tests can inspect controller items.
@@ -255,6 +256,10 @@ function createProviderWithServices(
 		forkSession: vi.fn().mockResolvedValue({ sessionId: 'forked' }),
 		listSubagents: vi.fn().mockResolvedValue([]),
 		getSubagentMessages: vi.fn().mockResolvedValue([]),
+	});
+	serviceCollection.define(IClaudeWorkspaceFolderService, {
+		_serviceBrand: undefined,
+		getWorkspaceChanges: vi.fn().mockResolvedValue([]),
 	});
 
 	const accessor = serviceCollection.createTestingAccessor();
@@ -1240,6 +1245,10 @@ describe('ClaudeChatSessionItemController', () => {
 			getSubagentMessages: vi.fn().mockResolvedValue([]),
 		};
 		serviceCollection.define(IClaudeCodeSdkService, mockSdkService);
+		serviceCollection.define(IClaudeWorkspaceFolderService, {
+			_serviceBrand: undefined,
+			getWorkspaceChanges: vi.fn().mockResolvedValue([]),
+		});
 		const accessor = serviceCollection.createTestingAccessor();
 		lastControllerAccessor = accessor;
 		const ctrl = accessor.get(IInstantiationService).createInstance(ClaudeChatSessionItemController);
@@ -1356,6 +1365,77 @@ describe('ClaudeChatSessionItemController', () => {
 			expect(itemA!.status).toBe(ChatSessionStatus.Completed);
 			expect(itemB!.status).toBe(ChatSessionStatus.InProgress);
 		});
+
+		it('calls getWorkspaceChanges on Completed status when session has cwd', async () => {
+			const diskSession: IClaudeCodeSessionInfo = {
+				id: 'changes-session',
+				label: 'Changes Session',
+				created: Date.now(),
+				lastRequestEnded: Date.now(),
+				folderName: 'my-project',
+				cwd: '/home/user/my-project',
+				gitBranch: 'feature-branch',
+			};
+			vi.mocked(mockSessionService.getSession).mockResolvedValue(diskSession as any);
+
+			const mockChanges = [{ uri: URI.file('/home/user/my-project/file.ts') }];
+			const workspaceFolderService = lastControllerAccessor.get(IClaudeWorkspaceFolderService);
+			vi.mocked(workspaceFolderService.getWorkspaceChanges).mockResolvedValue(mockChanges as any);
+
+			await controller.updateItemStatus('changes-session', ChatSessionStatus.InProgress, 'Prompt');
+			await controller.updateItemStatus('changes-session', ChatSessionStatus.Completed, 'Prompt');
+
+			expect(workspaceFolderService.getWorkspaceChanges).toHaveBeenCalledWith(
+				'/home/user/my-project',
+				'feature-branch',
+				undefined,
+				true,
+			);
+			const item = getItem('changes-session');
+			expect(item!.changes).toBe(mockChanges);
+		});
+
+		it('does not call getWorkspaceChanges on Completed when session has no cwd', async () => {
+			const diskSession: IClaudeCodeSessionInfo = {
+				id: 'no-cwd',
+				label: 'No CWD',
+				created: Date.now(),
+				lastRequestEnded: Date.now(),
+				folderName: undefined,
+			};
+			vi.mocked(mockSessionService.getSession).mockResolvedValue(diskSession as any);
+
+			const workspaceFolderService = lastControllerAccessor.get(IClaudeWorkspaceFolderService);
+
+			await controller.updateItemStatus('no-cwd', ChatSessionStatus.InProgress, 'Prompt');
+			await controller.updateItemStatus('no-cwd', ChatSessionStatus.Completed, 'Prompt');
+
+			expect(workspaceFolderService.getWorkspaceChanges).not.toHaveBeenCalled();
+		});
+
+		it('does not call getWorkspaceChanges with forceRefresh on InProgress status', async () => {
+			const diskSession: IClaudeCodeSessionInfo = {
+				id: 'in-progress',
+				label: 'In Progress',
+				created: Date.now(),
+				lastRequestEnded: Date.now(),
+				folderName: 'my-project',
+				cwd: '/home/user/my-project',
+				gitBranch: 'feature-branch',
+			};
+			vi.mocked(mockSessionService.getSession).mockResolvedValue(diskSession as any);
+
+			const workspaceFolderService = lastControllerAccessor.get(IClaudeWorkspaceFolderService);
+
+			await controller.updateItemStatus('in-progress', ChatSessionStatus.InProgress, 'Prompt');
+
+			expect(workspaceFolderService.getWorkspaceChanges).not.toHaveBeenCalledWith(
+				expect.anything(),
+				expect.anything(),
+				expect.anything(),
+				true,
+			);
+		});
 	});
 
 	// #endregion
@@ -1432,6 +1512,33 @@ describe('ClaudeChatSessionItemController', () => {
 
 			const item = getItem('no-cwd-session');
 			expect(item!.metadata).toBeUndefined();
+		});
+
+		it('populates item.changes when session has cwd and gitBranch', async () => {
+			const diskSession: IClaudeCodeSessionInfo = {
+				id: 'changes-item',
+				label: 'Changes Item',
+				created: Date.now(),
+				lastRequestEnded: Date.now(),
+				folderName: 'my-project',
+				cwd: '/home/user/my-project',
+				gitBranch: 'feature-branch',
+			};
+			vi.mocked(mockSessionService.getSession).mockResolvedValue(diskSession as any);
+
+			const mockChanges = [{ uri: URI.file('/home/user/my-project/file.ts') }];
+			const workspaceFolderService = lastControllerAccessor.get(IClaudeWorkspaceFolderService);
+			vi.mocked(workspaceFolderService.getWorkspaceChanges).mockResolvedValue(mockChanges as any);
+
+			await controller.updateItemStatus('changes-item', ChatSessionStatus.InProgress, 'Prompt');
+
+			expect(workspaceFolderService.getWorkspaceChanges).toHaveBeenCalledWith(
+				'/home/user/my-project',
+				'feature-branch',
+				undefined,
+			);
+			const item = getItem('changes-item');
+			expect(item!.changes).toBe(mockChanges);
 		});
 	});
 
