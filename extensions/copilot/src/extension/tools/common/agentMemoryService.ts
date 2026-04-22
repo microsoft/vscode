@@ -63,15 +63,27 @@ export interface IAgentMemoryService {
 	/**
 	 * Fetch the unified memory prompt from the /prompt endpoint.
 	 * Returns the full MemoryPromptResponse including storeToolDefinition,
-	 * or undefined on failure.
+	 * or undefined on failure. Caches the result for the current conversation.
 	 */
 	getMemoryPrompt(repoNwo?: string): Promise<MemoryPromptResponse | undefined>;
+
+	/**
+	 * Returns the most recently fetched MemoryPromptResponse, or undefined if
+	 * getMemoryPrompt() has not yet been called successfully this conversation.
+	 */
+	getCachedMemoryPrompt(): MemoryPromptResponse | undefined;
 }
 
 export const IAgentMemoryService = createServiceIdentifier<IAgentMemoryService>('IAgentMemoryService');
 
 export class AgentMemoryService extends Disposable implements IAgentMemoryService {
 	declare readonly _serviceBrand: undefined;
+
+	private _cachedPromptResponse: MemoryPromptResponse | undefined;
+
+	getCachedMemoryPrompt(): MemoryPromptResponse | undefined {
+		return this._cachedPromptResponse;
+	}
 
 	constructor(
 		@ILogService private readonly logService: ILogService,
@@ -331,6 +343,7 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 			const response = await fetchMemoryPrompts(options);
 			if (response) {
 				this.logService.info(`[AgentMemoryService] Fetched memory prompt (${response.memoriesContext.memoriesCount} memories)`);
+				this._cachedPromptResponse = response;
 			}
 			return response;
 		} catch (error) {

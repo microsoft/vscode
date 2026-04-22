@@ -3,12 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import type * as vscode from 'vscode';
 import {
+	resolveStoreMemorySchema,
 	type ScopedStoreMemoryInput,
 	type StoreMemoryInput,
 	type StoreMemoryRequest,
 } from '@github/copilot-agentic-tools/memory';
+import type * as vscode from 'vscode';
+import { zodToJsonSchema } from 'zod-to-json-schema';
 import { ILogService } from '../../../platform/log/common/logService';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { LanguageModelTextPart, LanguageModelToolResult } from '../../../vscodeTypes';
@@ -31,6 +33,20 @@ export class StoreMemoryTool implements ICopilotTool<StoreMemoryParams> {
 		@ILogService private readonly logService: ILogService,
 	) { }
 
+	alternativeDefinition(tool: vscode.LanguageModelToolInformation): vscode.LanguageModelToolInformation {
+		const cached = this.agentMemoryService.getCachedMemoryPrompt();
+		if (!cached) {
+			return tool;
+		}
+		const toolDef = cached.storeToolDefinition;
+		if (!toolDef) {
+			return tool;
+		}
+		const zodSchema = resolveStoreMemorySchema(toolDef.definitionVersion);
+		const inputSchema = zodToJsonSchema(zodSchema, { target: 'openApi3' }) as { [key: string]: unknown };
+		return { ...tool, description: toolDef.description, inputSchema };
+	}
+
 	async invoke(options: vscode.LanguageModelToolInvocationOptions<StoreMemoryParams>, _token: CancellationToken): Promise<vscode.LanguageModelToolResult> {
 		const input = options.input;
 
@@ -38,8 +54,8 @@ export class StoreMemoryTool implements ICopilotTool<StoreMemoryParams> {
 			const memory: StoreMemoryRequest = {
 				subject: input.subject,
 				fact: input.fact,
-				citations: input.citations,
-				reason: input.reason,
+				citations: input.citations ?? [],
+				reason: input.reason ?? '',
 			};
 
 			const scope = 'scope' in input ? input.scope : 'repo';

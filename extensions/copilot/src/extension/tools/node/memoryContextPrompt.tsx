@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BasePromptElementProps, PromptElement, PromptElementProps, PromptSizing } from '@vscode/prompt-tsx';
+import { BasePromptElementProps, PromptElement, PromptElementProps } from '@vscode/prompt-tsx';
 import { ConfigKey, IConfigurationService } from '../../../platform/configuration/common/configurationService';
 import { IVSCodeExtensionContext } from '../../../platform/extContext/common/extensionContext';
 import { IFileSystemService } from '../../../platform/filesystem/common/fileSystemService';
@@ -12,7 +12,6 @@ import { IExperimentationService } from '../../../platform/telemetry/common/null
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { URI } from '../../../util/vs/base/common/uri';
 import { Tag } from '../../prompts/node/base/tag';
-import type { MemoryResponse } from '@github/copilot-agentic-tools/memory';
 import { IAgentMemoryService } from '../common/agentMemoryService';
 import { ToolName } from '../common/toolNames';
 import { extractSessionId } from './memoryTool';
@@ -49,26 +48,17 @@ export class MemoryContextPrompt extends PromptElement<MemoryContextPromptProps>
 		const sessionMemoryFiles = enableMemoryTool ? await this.getSessionMemoryFiles(this.props.sessionResource) : undefined;
 		const localRepoMemoryFiles = (enableMemoryTool && !enableCopilotMemory) ? await this.getLocalRepoMemoryFiles() : undefined;
 
-		// When CAPI memory is enabled, fetch from the unified /prompt endpoint
-		let memoryPromptText: string | undefined;
-		let repoMemories: MemoryResponse[] | undefined;
-		if (enableCopilotMemory) {
-			const repoNwo = await this.agentMemoryService.getRepoNwo();
-			const promptResponse = await this.agentMemoryService.getMemoryPrompt(repoNwo);
-			memoryPromptText = promptResponse?.memoriesContext.prompt;
-			// Fall back to individual repo memories if /prompt endpoint is unavailable
-			if (!memoryPromptText) {
-				repoMemories = await this.agentMemoryService.getRepoMemories();
-			}
-		}
+		// When CAPI memory is enabled, read from the cache primed by AgentMemoryToolRegistrar
+		const promptResponse = enableCopilotMemory ? this.agentMemoryService.getCachedMemoryPrompt() : undefined;
+		const memoryPromptText = promptResponse?.memoriesContext.prompt;
 
 		this._sendContextReadTelemetry(
 			!!userMemoryContent,
 			userMemoryContent?.length ?? 0,
 			sessionMemoryFiles?.length ?? 0,
 			sessionMemoryFiles?.join('\n').length ?? 0,
-			repoMemories?.length ?? 0,
-			repoMemories ? this.formatMemories(repoMemories).length : 0,
+			promptResponse?.memoriesContext.memoriesCount ?? 0,
+			memoryPromptText?.length ?? 0,
 		);
 
 		return (
@@ -102,18 +92,6 @@ export class MemoryContextPrompt extends PromptElement<MemoryContextPromptProps>
 				{memoryPromptText && (
 					<Tag name='memory_context'>
 						{memoryPromptText}
-					</Tag>
-				)}
-				{!memoryPromptText && repoMemories && repoMemories.length > 0 && (
-					<Tag name='repository_memories'>
-						The following are recent memories stored for this repository from previous agent interactions. These memories may contain useful context about the codebase conventions, patterns, and practices. However, be aware that memories might be obsolete or incorrect or may not apply to your current task. Use the citations provided to verify the accuracy of any relevant memory before relying on it.<br />
-						<br />
-						{this.formatMemories(repoMemories)}
-						<br />
-						Be sure to consider these stored facts carefully. Consider whether any are relevant to your current task. If they are, verify their current applicability before using them to inform your work.<br />
-						<br />
-						If you come across a memory that you're able to verify and that you find useful, you should use the `{ToolName.StoreMemory}` tool with `scope: 'repo'` to store the same fact again. Only recent memories are retained, so storing the fact again will cause it to be retained longer.<br />
-						If you come across a fact that's incorrect or outdated, you should use the `{ToolName.StoreMemory}` tool with `scope: 'repo'` to store a new fact that reflects the current reality.<br />
 					</Tag>
 				)}
 			</>
@@ -217,24 +195,6 @@ export class MemoryContextPrompt extends PromptElement<MemoryContextPromptProps>
 		return files.length > 0 ? files : undefined;
 	}
 
-	private formatMemories(memories: MemoryResponse[]): string {
-		return memories.map(m => {
-			const lines = [`**${m.subject}**`, `- Fact: ${m.fact}`];
-
-			const citations = Array.isArray(m.citations) ? m.citations : m.citations ? [m.citations] : [];
-			if (citations.length > 0) {
-				lines.push(`- Citations: ${citations.join(', ')}`);
-			}
-
-			// Include reason if present (from CAPI format)
-			if (m.reason) {
-				lines.push(`- Reason: ${m.reason}`);
-			}
-
-			return lines.join('\n');
-		}).join('\n\n');
-	}
-
 	private _sendContextReadTelemetry(hasUserMemory: boolean, userMemoryLength: number, sessionFileCount: number, sessionMemoryLength: number, repoMemoryCount: number, repoMemoryLength: number): void {
 		/* __GDPR__
 			"memoryContextRead" : {
@@ -267,18 +227,23 @@ export class MemoryContextPrompt extends PromptElement<MemoryContextPromptProps>
 export class MemoryInstructionsPrompt extends PromptElement<BasePromptElementProps> {
 	constructor(
 		props: PromptElementProps<BasePromptElementProps>,
+		@IAgentMemoryService private readonly agentMemoryService: IAgentMemoryService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExperimentationService private readonly experimentationService: IExperimentationService,
 	) {
 		super(props);
 	}
 
-	async render(state: void, sizing: PromptSizing) {
+	async render() {
 		const enableCopilotMemory = this.configurationService.getExperimentBasedConfig(ConfigKey.CopilotMemoryEnabled, this.experimentationService);
 		const enableMemoryTool = this.configurationService.getExperimentBasedConfig(ConfigKey.MemoryToolEnabled, this.experimentationService);
 		if (!enableCopilotMemory && !enableMemoryTool) {
 			return null;
 		}
+
+		const storeInstructionsPrompt = enableCopilotMemory
+			? this.agentMemoryService.getCachedMemoryPrompt()?.storeInstructions?.prompt
+			: undefined;
 
 		return <Tag name='memoryInstructions'>
 			As you work, consult your memory files to build on previous experience. When you encounter a mistake that seems like it could be common, check your memory for relevant notes — and if nothing is written yet, record what you learned.<br />
@@ -287,8 +252,6 @@ export class MemoryInstructionsPrompt extends PromptElement<BasePromptElementPro
 				Memory is organized into the scopes defined below:<br />
 				{enableMemoryTool && !enableCopilotMemory && <>- **User memory** (`/memories/`): Persistent notes that survive across all workspaces and conversations. Store user preferences, common patterns, frequently used commands, and general insights here. First {MAX_USER_MEMORY_LINES} lines are loaded into your context automatically.<br /></>}
 				{enableMemoryTool && <>- **Session memory** (`/memories/session/`): Notes for the current conversation only. Store task-specific context, in-progress notes, and temporary working state here. Session files are listed in your context but not loaded automatically — use the memory tool to read them when needed.<br /></>}
-				{enableCopilotMemory && <>- **User memory** (`scope: 'user'`): Personal preferences and cross-workspace notes stored via Copilot. Persists across all repositories and conversations. Use the `store_memory` tool with `scope: 'user'`.<br /></>}
-				{enableCopilotMemory && <>- **Repository memory** (`scope: 'repo'`): Repository-scoped facts stored via Copilot. Store codebase conventions, build commands, project structure facts, and verified practices here. Use the `store_memory` tool with `scope: 'repo'`.<br /></>}
 				{enableMemoryTool && !enableCopilotMemory && <>- **Repository memory** (`/memories/repo/`): Repository-scoped facts stored locally in the workspace. Store codebase conventions, build commands, project structure facts, and verified practices here.<br /></>}
 			</Tag>
 			<br />
@@ -308,42 +271,11 @@ export class MemoryInstructionsPrompt extends PromptElement<BasePromptElementPro
 				</Tag>
 			</>}
 			<br />
-			{enableCopilotMemory && <>
-				<Tag name='userMemoryInstructions'>
-					When the user explicitly asks you to remember a personal preference, habit, or cross-workspace fact, use the `{ToolName.StoreMemory}` tool with `scope: 'user'` to save it. User memories persist across all repositories and conversations.<br />
-					Examples of things to store as user memories:<br />
-					- Preferred coding style (e.g., "prefers spaces over tabs", "uses single quotes")<br />
-					- Workflow preferences (e.g., "prefers dark mode", "always wants tests alongside new code")<br />
-					- Personal conventions the user has stated explicitly<br />
-					Set `citations` to an empty array when there is no relevant file reference.<br />
+			{storeInstructionsPrompt && (
+				<Tag name='storeMemoryInstructions'>
+					{storeInstructionsPrompt}
 				</Tag>
-				<Tag name='repoMemoryInstructions'>
-					If you come across an important fact about the codebase that could help in future code review or generation tasks, beyond the current task, use the `{ToolName.StoreMemory}` tool with `scope: 'repo'` to store it.<br />
-					Facts may be gleaned from the codebase itself or learned from user input or feedback. Such facts might include:<br />
-					- Conventions, preferences, or best practices specific to this codebase that might be overlooked when inspecting only a limited code sample<br />
-					- Important information about the structure or logic of the codebase<br />
-					- Commands for linting, building, or running tests that have been verified through a successful run<br />
-					<Tag name='examples'>
-						- "Use ErrKind wrapper for every public API error"<br />
-						- "Prefer ExpectNoLog helper over silent nil checks in tests"<br />
-						- "Always use Python typing"<br />
-						- "Follow the Google JavaScript Style Guide"<br />
-						- "Use html_escape as a sanitizer to avoid cross site scripting vulnerabilities"<br />
-						- "The code can be built with `npm run build` and tested with `npm run test`"<br />
-					</Tag>
-					Only store facts that meet the following criteria:<br />
-					<Tag name='factsCriteria'>
-						- Are likely to have actionable implications for a future task<br />
-						- Are independent of changes you are making as part of your current task, and will remain relevant if your current code isn't merged<br />
-						- Are unlikely to change over time<br />
-						- Cannot always be inferred from a limited code sample<br />
-						- Contain no secrets or sensitive data<br />
-					</Tag>
-					Always include the reason and citations fields.<br />
-					Before storing, ask yourself: Will this help with future coding or code review tasks across the repository? If unsure, skip storing it.<br />
-					If the user asks how to view or manage their repo memories refer them to https://docs.github.com/en/copilot/how-tos/use-copilot-agents/copilot-memory.<br />
-				</Tag>
-			</>}
+			)}
 		</Tag>;
 	}
 }

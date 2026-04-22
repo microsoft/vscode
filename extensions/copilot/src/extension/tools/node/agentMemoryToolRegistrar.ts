@@ -7,15 +7,15 @@ import { ConfigKey, IConfigurationService } from '../../../platform/configuratio
 import { ILogService } from '../../../platform/log/common/logService';
 import { IExperimentationService } from '../../../platform/telemetry/common/nullExperimentationService';
 import { createServiceIdentifier } from '../../../util/common/services';
-import type { MemoryPromptResponse } from '../common/agentMemoryService';
+import { IAgentMemoryService } from '../common/agentMemoryService';
 
 export interface IAgentMemoryToolRegistrar {
 	readonly _serviceBrand: undefined;
 	/**
-	 * Called at the start of each new agent conversation. Logs enablement state.
-	 * Tool registration itself is handled statically via package.json.
+	 * Called at the start of each new agent conversation. Fetches and caches the
+	 * /prompt response so that tool schema and instructions are available for rendering.
 	 */
-	registerMemoryTools(promptResponse?: MemoryPromptResponse): Promise<void>;
+	registerMemoryTools(): Promise<void>;
 }
 
 export const IAgentMemoryToolRegistrar = createServiceIdentifier<IAgentMemoryToolRegistrar>('IAgentMemoryToolRegistrar');
@@ -26,11 +26,17 @@ export class AgentMemoryToolRegistrar implements IAgentMemoryToolRegistrar {
 	constructor(
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@IExperimentationService private readonly experimentationService: IExperimentationService,
+		@IAgentMemoryService private readonly agentMemoryService: IAgentMemoryService,
 		@ILogService private readonly logService: ILogService,
 	) { }
 
-	async registerMemoryTools(_promptResponse?: MemoryPromptResponse): Promise<void> {
+	async registerMemoryTools(): Promise<void> {
 		const enabled = this.configurationService.getExperimentBasedConfig(ConfigKey.CopilotMemoryEnabled, this.experimentationService);
-		this.logService.info(`[AgentMemoryToolRegistrar] registerMemoryTools called, enabled=${enabled}`);
+		if (!enabled) {
+			return;
+		}
+		const repoNwo = await this.agentMemoryService.getRepoNwo();
+		const response = await this.agentMemoryService.getMemoryPrompt(repoNwo);
+		this.logService.info(`[AgentMemoryToolRegistrar] primed memory prompt cache, definitionVersion=${response?.storeToolDefinition?.definitionVersion ?? 'none'}`);
 	}
 }

@@ -76,6 +76,10 @@ class MockAgentMemoryService implements IAgentMemoryService {
 		return undefined;
 	}
 
+	getCachedMemoryPrompt(): MemoryPromptResponse | undefined {
+		return undefined;
+	}
+
 	clearMemories(): void {
 		this.storedMemories = [];
 		this.storedUserMemories = [];
@@ -109,6 +113,10 @@ class DisabledMockAgentMemoryService implements IAgentMemoryService {
 	}
 
 	async getMemoryPrompt(_repoNwo?: string): Promise<MemoryPromptResponse | undefined> {
+		return undefined;
+	}
+
+	getCachedMemoryPrompt(): MemoryPromptResponse | undefined {
 		return undefined;
 	}
 }
