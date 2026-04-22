@@ -652,7 +652,7 @@ export async function showConfigureHooksQuickPick(
 					const localFolders = allFolders.filter(f => f.storage === PromptsStorage.local);
 
 					if (localFolders.length === 0) {
-						notificationService.error(localize('commands.hook.noLocalFolders', "Please open a workspace folder to configure hooks."));
+						notificationService.error(localize('commands.hook.noLocalFolders', "No hook file locations are configured. Please configure hook file locations in settings."));
 						return;
 					}
 

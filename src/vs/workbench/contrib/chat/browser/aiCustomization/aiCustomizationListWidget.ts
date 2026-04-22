@@ -990,10 +990,10 @@ export class AICustomizationListWidget extends Disposable {
 				}
 			} else if (!override?.commandId) {
 				// Sessions / non-local: configure hooks (view + create)
+				// Hooks support user-level storage, so no workspace is required.
 				actions.push({
 					label: `$(${Codicon.add.id}) ${localize('configureHooks', "Configure Hooks")}`,
-					enabled: hasWorkspace,
-					tooltip: hasWorkspace ? undefined : localize('configureHooksDisabled', "Open a workspace folder to configure hooks."),
+					enabled: true,
 					run: () => { this._onDidRequestCreateManual.fire({ type: promptType, target: 'workspace' }); },
 				});
 			}
