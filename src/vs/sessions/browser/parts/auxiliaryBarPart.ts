@@ -36,8 +36,6 @@ import { getFlatContextMenuActions } from '../../../platform/actions/browser/men
 import { IDisposable, MutableDisposable } from '../../../base/common/lifecycle.js';
 import { Extensions } from '../../../workbench/browser/panecomposite.js';
 import { mainWindow } from '../../../base/browser/window.js';
-import { IEditorService } from '../../../workbench/services/editor/common/editorService.js';
-import { DiffEditorInput } from '../../../workbench/common/editor/diffEditorInput.js';
 
 /**
  * Auxiliary bar part specifically for agent sessions workbench.
@@ -59,12 +57,6 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	private static readonly RUN_SCRIPT_ACTION_ID = 'workbench.action.agentSessions.runScript';
 	private static readonly RUN_SCRIPT_DROPDOWN_MENU_ID = MenuId.for('AgentSessionsRunScriptDropdown');
 	private static readonly DEFAULT_MINIMUM_WIDTH = 270;
-	private static readonly MULTI_DIFF_EDITOR_INPUT_ID = 'workbench.input.multiDiffEditor';
-	private static readonly INTEGRATED_BROWSER_EDITOR_IDS = new Set([
-		'mainThreadWebview-browserPreview',
-		'mainThreadWebview-simpleBrowser.view',
-		'workbench.editor.browser', // BrowserEditorInput used by workbench.browser.openLocalhostLinks
-	]);
 
 	// Run script dropdown management
 	private readonly _runScriptDropdown = this._register(new MutableDisposable<DropdownWithPrimaryActionViewItem>());
@@ -116,7 +108,6 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IExtensionService extensionService: IExtensionService,
 		@IMenuService menuService: IMenuService,
-		@IEditorService private readonly editorService: IEditorService,
 	) {
 		super(
 			Parts.AUXILIARYBAR_PART,
@@ -154,7 +145,6 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 				this._onDidChange.fire(undefined);
 			}
 		}));
-		this._register(this.editorService.onDidVisibleEditorsChange(() => this._onDidChange.fire(undefined)));
 	}
 
 	override create(parent: HTMLElement): void {
@@ -275,13 +265,8 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	}
 
 	private hasAttachedEditorRequiringSidebarSpace(): boolean {
-		if (!this.layoutService.isVisible(Parts.AUXILIARYBAR_PART) || !this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow)) {
-			return false;
-		}
-
-		return this.editorService.visibleEditors.some(editor => editor.typeId === DiffEditorInput.ID
-			|| editor.typeId === AuxiliaryBarPart.MULTI_DIFF_EDITOR_INPUT_ID
-			|| (typeof editor.editorId === 'string' && AuxiliaryBarPart.INTEGRATED_BROWSER_EDITOR_IDS.has(editor.editorId)));
+		return this.layoutService.isVisible(Parts.AUXILIARYBAR_PART)
+			&& this.layoutService.isVisible(Parts.EDITOR_PART, mainWindow);
 	}
 
 	private fillExtraContextMenuActions(_actions: IAction[]): void { }

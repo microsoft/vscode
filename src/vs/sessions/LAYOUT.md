@@ -179,7 +179,7 @@ This structure places the sidebar at the root level spanning the full window hei
 
 The sessions sidebar can be resized down to a minimum width of 170px (desktop) or 270px (web, sized to fit the titlebar's left toolbar which includes the host filter combo).
 
-The sessions auxiliary bar can generally be resized down to 270px. When the main editor area is hosting an attached diff editor or integrated browser next to the auxiliary bar, the auxiliary bar keeps that same 270px minimum width and the sash no longer snaps it closed; the titlebar toggle action still hides and shows the auxiliary bar as before.
+The sessions auxiliary bar can generally be resized down to 270px. When the main editor part is visible (i.e. any editor is open in the main editor area adjacent to the auxiliary bar), the sash no longer snaps it closed; the titlebar toggle action still hides and shows the auxiliary bar as before. This behavior is automatic and applies to all editor types without requiring an explicit allowlist.
 
 ### 4.3 Editor Modal
 
@@ -663,6 +663,7 @@ interface IPartVisibilityState {
 |------|--------|
 | 2026-04-22 | Added sessions-only toast offset overrides so notification toasts now use `right: 15px` in the default bottom-right placement and `left: 15px` in the bottom-left placement, matching the notification center spacing. |
 | 2026-04-22 | Added a sessions-workbench notification offset override so the shared notification controllers no longer push top-right notifications down to `42px`; sessions now reapply a fixed `40px` top offset for top-right notification center/toast placement. |
+| 2026-04-22 | Generalized the auxiliary bar snap-close prevention to trigger whenever the main editor part is visible (any editor type), and increased the editor part minimum width from 220px to 300px. |
 | 2026-04-22 | Updated the sessions auxiliary bar sizing rules so attached diff editors and integrated browser editors keep the normal 270px auxiliary-bar minimum width while disabling sash snap-to-close in that state, and the titlebar toggle continues to hide/show the secondary sidebar normally. |
 | 2026-04-21 | Updated the sessions chat composite bar tabs to preserve each chat title's original casing instead of applying per-word capitalization. |
 | 2026-04-21 | Moved the sessions-only default notification placement to bottom-right and documented the sessions-specific notification center offsets: `15px` from the bottom/right or bottom/left edges, and `top: 40px; right: 15px;` for top-right placement. |
