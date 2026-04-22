@@ -18,8 +18,7 @@ import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/vie
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { WorkspaceFolderCountContext } from '../../../../workbench/common/contextkeys.js';
 import { SESSIONS_FILES_EMPTY_VIEW_ID, SESSIONS_FILES_VIEW_ID, SessionsExplorerEmptyView, SessionsExplorerView } from './filesView.js';
-import { KeyMod } from '../../../../base/common/keyCodes.js';
-import { KeyCode } from '../../../../editor/common/standalone/standaloneEnums.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 
 export const SESSIONS_FILES_CONTAINER_ID = 'workbench.sessions.auxiliaryBar.filesContainer';
 
