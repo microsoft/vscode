@@ -35,8 +35,7 @@ export class AgentMemoryToolRegistrar implements IAgentMemoryToolRegistrar {
 		if (!enabled) {
 			return;
 		}
-		const repoNwo = await this.agentMemoryService.getRepoNwo();
-		const response = await this.agentMemoryService.getMemoryPrompt(repoNwo);
+		const response = await this.agentMemoryService.getMemoryPrompt();
 		this.logService.info(`[AgentMemoryToolRegistrar] primed memory prompt cache, definitionVersion=${response?.storeToolDefinition?.definitionVersion ?? 'none'}`);
 	}
 }

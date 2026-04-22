@@ -58,6 +58,7 @@ import { IEditToolLearningService } from '../../tools/common/editToolLearningSer
 import { ContributedToolName, ToolName } from '../../tools/common/toolNames';
 import { normalizeToolSchema } from '../../tools/common/toolSchemaNormalizer';
 import { IToolsService } from '../../tools/common/toolsService';
+import { IAgentMemoryService } from '../../tools/common/agentMemoryService';
 import { IAgentMemoryToolRegistrar } from '../../tools/node/agentMemoryToolRegistrar';
 import { applyPatch5Description } from '../../tools/node/applyPatchTool';
 import { multiReplaceStringPrimaryDescription } from '../../tools/node/multiReplaceStringTool';
@@ -81,6 +82,7 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	const experimentationService = accessor.get<IExperimentationService>(IExperimentationService);
 	const endpointProvider = accessor.get<IEndpointProvider>(IEndpointProvider);
 	const editToolLearningService = accessor.get<IEditToolLearningService>(IEditToolLearningService);
+	const agentMemoryService = accessor.get<IAgentMemoryService>(IAgentMemoryService);
 	const model = await endpointProvider.getChatEndpoint(request);
 
 	const allowTools: Record<string, boolean> = {};
@@ -144,8 +146,13 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 
 	allowTools[CUSTOM_TOOL_SEARCH_NAME] = !!model.supportsToolSearch;
 
-	const capiMemoryEnabled = configurationService.getExperimentBasedConfig(ConfigKey.CopilotMemoryEnabled, experimentationService);
-	allowTools[ToolName.StoreMemory] = capiMemoryEnabled;
+	// Check memory enablement consistently with cached prompt availability
+	const cachedMemoryPrompt = agentMemoryService.getCachedMemoryPrompt();
+	
+	// Use cached prompt existence as the source of truth for enablement
+	const memoryToolEnabled = !!cachedMemoryPrompt;
+	
+	allowTools[ToolName.StoreMemory] = memoryToolEnabled;
 
 	const tools = toolsService.getEnabledTools(request, model, tool => {
 		if (typeof allowTools[tool.name] === 'boolean') {
