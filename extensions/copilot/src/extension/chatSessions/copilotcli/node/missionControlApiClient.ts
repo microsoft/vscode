@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { INTEGRATION_ID } from '@github/copilot/sdk';
 import { IAuthenticationService } from '../../../../platform/authentication/common/authentication';
 import { PermissiveAuthRequiredError } from '../../../../platform/github/common/githubService';
 import { ILogService } from '../../../../platform/log/common/logService';
 import { IFetcherService } from '../../../../platform/networking/common/fetcherService';
 
 /** Integration id for requests originating from the Copilot CLI /remote feature. */
-const INTEGRATION_ID = 'copilot-developer-cli';
 
 /** Base path for Mission Control (agent session) endpoints. */
 const SESSIONS_PATH = '/agents/sessions';
