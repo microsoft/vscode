@@ -111,7 +111,6 @@ export class ExecutionSubagentToolCallingLoop extends ToolCallingLoop<IExecution
 		}
 	}
 
-
 	protected async buildPrompt(buildpromptContext: IBuildPromptContext, progress: Progress<ChatResponseReferencePart | ChatResponseProgressPart>, token: CancellationToken): Promise<IBuildPromptResult> {
 		const endpoint = await this.getEndpoint();
 		const maxExecutionTurns = this._configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentToolCallLimit, this._experimentationService);
