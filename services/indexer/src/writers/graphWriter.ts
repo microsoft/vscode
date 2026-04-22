@@ -369,24 +369,22 @@ export class GraphWriter {
 	}
 
 	private async writeCallSites(callSites: CallSite[]): Promise<void> {
-		for (const call of callSites) {
-			if (!call.callerName || !call.calledName) {
-				continue;
-			}
+		const validCallSites = callSites.filter(call => call.callerName && call.calledName);
 
-			// Create CALLS edge between functions (best effort matching by name)
-			await this.db.write(
-				`MATCH (caller:Function {name: $callerName}),
-					(called:Function {name: $calledName})
-				WHERE caller <> called
-				CREATE (caller)-[:CALLS {line: $line, column: $column}]->(called)`,
-				{
-					callerName: call.callerName,
-					calledName: call.calledName,
-					line: call.line,
-					column: call.column,
-				}
-			);
+		if (validCallSites.length === 0) {
+			return;
 		}
+
+		// Optimization: Batch call site edge creation using UNWIND
+		// Reduces N+1 database queries to a single query, improving graph write performance
+		// significantly for files with many function calls.
+		await this.db.write(
+			`UNWIND $calls AS call
+			MATCH (caller:Function {name: call.callerName}),
+				(called:Function {name: call.calledName})
+			WHERE caller <> called
+			CREATE (caller)-[:CALLS {line: call.line, column: call.column}]->(called)`,
+			{ calls: validCallSites }
+		);
 	}
 }
