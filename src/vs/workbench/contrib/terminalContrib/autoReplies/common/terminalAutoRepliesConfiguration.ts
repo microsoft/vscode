@@ -26,6 +26,7 @@ export const terminalAutoRepliesConfiguration: IStringDictionary<IConfigurationP
 			},
 			{ type: 'null' }]
 		},
+		restricted: true,
 		default: {}
 	},
 };

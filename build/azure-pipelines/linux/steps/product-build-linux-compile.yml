@@ -17,6 +17,9 @@ parameters:
   - name: VSCODE_RUN_REMOTE_TESTS
     type: boolean
     default: false
+  - name: VSCODE_RUN_CHECKS
+    type: boolean
+    default: false
 
 steps:
   - template: ../../common/checkout.yml@self
@@ -35,15 +38,6 @@ steps:
       KeyVaultName: vscode-build-secrets
       SecretsFilter: "github-distro-mixin-password"
 
-  - task: DownloadPipelineArtifact@2
-    inputs:
-      artifact: Compilation
-      path: $(Build.ArtifactStagingDirectory)
-    displayName: Download compilation output
-
-  - script: tar -xzf $(Build.ArtifactStagingDirectory)/compilation.tar.gz
-    displayName: Extract compilation output
-
   - script: |
       set -e
       # Start X server
@@ -54,7 +48,9 @@ steps:
         libxkbfile-dev \
         libkrb5-dev \
         libgbm1 \
-        rpm
+        rpm \
+        bubblewrap \
+        socat
       sudo cp build/azure-pipelines/linux/xvfb.init /etc/init.d/xvfb
       sudo chmod +x /etc/init.d/xvfb
       sudo update-rc.d xvfb defaults
@@ -165,15 +161,48 @@ steps:
     condition: and(succeeded(), ne(variables.NODE_MODULES_RESTORED, 'true'))
     displayName: Create node_modules archive
 
+  - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
+    - script: npx deemon --detach --wait -- node build/azure-pipelines/common/waitForArtifacts.ts $(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli
+      env:
+        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      displayName: Wait for CLI artifact (background)
+
   - script: node build/azure-pipelines/distro/mixin-quality.ts
     displayName: Mixin distro quality
 
   - template: ../../common/install-builtin-extensions.yml@self
 
+  - script: npx deemon --detach --wait -- node build/azure-pipelines/common/downloadCopilotVsix.ts
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+    displayName: Download Copilot VSIX (background)
+
+  - script: npm run gulp core-ci
+    env:
+      GITHUB_TOKEN: "$(github-distro-mixin-password)"
+    displayName: Compile
+
+  - ${{ if eq(parameters.VSCODE_ARCH, 'x64') }}:
+    - script: node build/azure-pipelines/common/extract-telemetry.ts
+      displayName: Generate lists of telemetry events
+
+  - ${{ if or(eq(parameters.VSCODE_RUN_ELECTRON_TESTS, true), eq(parameters.VSCODE_RUN_BROWSER_TESTS, true), eq(parameters.VSCODE_RUN_REMOTE_TESTS, true)) }}:
+    - script: |
+        set -e
+        npm run compile --prefix test/smoke
+        npm run compile --prefix test/integration/browser
+      displayName: Compile test suites (non-OSS)
+      condition: and(succeeded(), eq(variables['VSCODE_STEP_ON_IT'], 'false'))
+
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
     - script: npm run copy-policy-dto --prefix build && node build/lib/policies/policyGenerator.ts build/lib/policies/policyData.jsonc linux
       displayName: Generate policy definitions
       retryCountOnTaskFailure: 3
+
+  - script: npx deemon --attach -- node build/azure-pipelines/common/downloadCopilotVsix.ts
+    env:
+      SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+    displayName: Download Copilot VSIX
 
   - script: |
       set -e
@@ -187,6 +216,11 @@ steps:
     displayName: Build client
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
+    - script: npx deemon --attach -- node build/azure-pipelines/common/waitForArtifacts.ts $(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli
+      env:
+        SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+      displayName: Wait for CLI artifact
+
     - task: DownloadPipelineArtifact@2
       inputs:
         artifact: $(ARTIFACT_PREFIX)vscode_cli_linux_$(VSCODE_ARCH)_cli
@@ -323,7 +357,7 @@ steps:
         - script: |
             set -e
             npm run gulp "vscode-linux-$(VSCODE_ARCH)-prepare-snap"
-            sudo -E docker run -e VSCODE_ARCH -e VSCODE_QUALITY -v $(pwd):/work -w /work vscodehub.azurecr.io/vscode-linux-build-agent:snapcraft-x64 /bin/bash -c "./build/azure-pipelines/linux/build-snap.sh"
+            sudo -E docker run -e VSCODE_ARCH -e VSCODE_QUALITY -v $(pwd):/work -w /work vscodehub.azurecr.io/vscode-linux-build-agent:snapcraft-x64@sha256:ab4a88c4d85e0d7a85acabba59543f7143f575bab2c0b2b07f5b77d4a7e491ff /bin/bash -c "./build/azure-pipelines/linux/build-snap.sh"
 
             SNAP_ROOT="$(pwd)/.build/linux/snap/$(VSCODE_ARCH)"
             SNAP_EXTRACTED_PATH=$(find $SNAP_ROOT -maxdepth 1 -type d -name 'code-*')
@@ -377,6 +411,24 @@ steps:
         VSCODE_RUN_ELECTRON_TESTS: ${{ parameters.VSCODE_RUN_ELECTRON_TESTS }}
         VSCODE_RUN_BROWSER_TESTS: ${{ parameters.VSCODE_RUN_BROWSER_TESTS }}
         VSCODE_RUN_REMOTE_TESTS: ${{ parameters.VSCODE_RUN_REMOTE_TESTS }}
+
+  - script: |
+      set -e
+      echo "Disk usage before cleanup:"
+      df -h /
+      # Remove build intermediates no longer needed after tests
+      rm -rf .build/sysroots
+      rm -rf .build/electron
+      rm -rf out
+      rm -rf out-build
+      rm -rf out-vscode-min
+      rm -rf out-vscode-reh-min
+      rm -rf out-vscode-reh-web-min
+      rm -rf ~/.cache/ms-playwright
+      echo "Disk usage after cleanup:"
+      df -h /
+    displayName: Free disk space
+    condition: succeededOrFailed()
 
   - ${{ if ne(parameters.VSCODE_CIBUILD, true) }}:
     - script: npx deemon --attach node build/azure-pipelines/linux/codesign.ts

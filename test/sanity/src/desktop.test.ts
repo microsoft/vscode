@@ -12,27 +12,33 @@ export function setup(context: TestContext) {
 	context.test('desktop-darwin-x64', ['darwin', 'x64', 'desktop'], async () => {
 		const dir = await context.downloadAndUnpack('darwin');
 		context.validateAllCodesignSignatures(dir);
+		context.validateAgentsEntryPoint(dir);
 		if (!context.options.downloadOnly) {
 			const entryPoint = context.getDesktopEntryPoint(dir);
 			await testDesktopApp(entryPoint);
+			await testAgentsApp(entryPoint);
 		}
 	});
 
 	context.test('desktop-darwin-arm64', ['darwin', 'arm64', 'desktop'], async () => {
 		const dir = await context.downloadAndUnpack('darwin-arm64');
 		context.validateAllCodesignSignatures(dir);
+		context.validateAgentsEntryPoint(dir);
 		if (!context.options.downloadOnly) {
 			const entryPoint = context.getDesktopEntryPoint(dir);
 			await testDesktopApp(entryPoint);
+			await testAgentsApp(entryPoint);
 		}
 	});
 
 	context.test('desktop-darwin-universal', ['darwin', 'desktop'], async () => {
 		const dir = await context.downloadAndUnpack('darwin-universal');
 		context.validateAllCodesignSignatures(dir);
+		context.validateAgentsEntryPoint(dir);
 		if (!context.options.downloadOnly) {
 			const entryPoint = context.getDesktopEntryPoint(dir);
 			await testDesktopApp(entryPoint);
+			await testAgentsApp(entryPoint);
 		}
 	});
 
@@ -42,8 +48,10 @@ export function setup(context: TestContext) {
 		if (!context.options.downloadOnly) {
 			const dir = context.mountDmg(packagePath);
 			context.validateAllCodesignSignatures(dir);
+			context.validateAgentsEntryPoint(dir);
 			const entryPoint = context.getDesktopEntryPoint(dir);
 			await testDesktopApp(entryPoint);
+			await testAgentsApp(entryPoint);
 			context.unmountDmg(dir);
 		}
 	});
@@ -54,8 +62,10 @@ export function setup(context: TestContext) {
 		if (!context.options.downloadOnly) {
 			const dir = context.mountDmg(packagePath);
 			context.validateAllCodesignSignatures(dir);
+			context.validateAgentsEntryPoint(dir);
 			const entryPoint = context.getDesktopEntryPoint(dir);
 			await testDesktopApp(entryPoint);
+			await testAgentsApp(entryPoint);
 			context.unmountDmg(dir);
 		}
 	});
@@ -66,8 +76,10 @@ export function setup(context: TestContext) {
 		if (!context.options.downloadOnly) {
 			const dir = context.mountDmg(packagePath);
 			context.validateAllCodesignSignatures(dir);
+			context.validateAgentsEntryPoint(dir);
 			const entryPoint = context.getDesktopEntryPoint(dir);
 			await testDesktopApp(entryPoint);
+			await testAgentsApp(entryPoint);
 			context.unmountDmg(dir);
 		}
 	});
@@ -79,6 +91,7 @@ export function setup(context: TestContext) {
 			const entryPoint = context.getDesktopEntryPoint(dir);
 			const dataDir = context.createPortableDataDir(dir);
 			await testDesktopApp(entryPoint, dataDir);
+			await testAgentsApp(entryPoint, dataDir);
 		}
 	});
 
@@ -89,14 +102,16 @@ export function setup(context: TestContext) {
 			const entryPoint = context.getDesktopEntryPoint(dir);
 			const dataDir = context.createPortableDataDir(dir);
 			await testDesktopApp(entryPoint, dataDir);
+			await testAgentsApp(entryPoint, dataDir);
 		}
 	});
 
 	context.test('desktop-linux-deb-arm64', ['linux', 'arm64', 'deb', 'desktop'], async () => {
 		const packagePath = await context.downloadTarget('linux-deb-arm64');
 		if (!context.options.downloadOnly) {
-			const entryPoint = context.installDeb(packagePath);
+			const entryPoint = await context.installDeb(packagePath);
 			await testDesktopApp(entryPoint);
+			await testAgentsApp(entryPoint);
 			await context.uninstallDeb();
 		}
 	});
@@ -104,8 +119,9 @@ export function setup(context: TestContext) {
 	context.test('desktop-linux-deb-armhf', ['linux', 'arm32', 'deb', 'desktop'], async () => {
 		const packagePath = await context.downloadTarget('linux-deb-armhf');
 		if (!context.options.downloadOnly) {
-			const entryPoint = context.installDeb(packagePath);
+			const entryPoint = await context.installDeb(packagePath);
 			await testDesktopApp(entryPoint);
+			await testAgentsApp(entryPoint);
 			await context.uninstallDeb();
 		}
 	});
@@ -113,8 +129,9 @@ export function setup(context: TestContext) {
 	context.test('desktop-linux-deb-x64', ['linux', 'x64', 'deb', 'desktop'], async () => {
 		const packagePath = await context.downloadTarget('linux-deb-x64');
 		if (!context.options.downloadOnly) {
-			const entryPoint = context.installDeb(packagePath);
+			const entryPoint = await context.installDeb(packagePath);
 			await testDesktopApp(entryPoint);
+			await testAgentsApp(entryPoint);
 			await context.uninstallDeb();
 		}
 	});
@@ -124,6 +141,7 @@ export function setup(context: TestContext) {
 		if (!context.options.downloadOnly) {
 			const entryPoint = context.installRpm(packagePath);
 			await testDesktopApp(entryPoint);
+			await testAgentsApp(entryPoint);
 			await context.uninstallRpm();
 		}
 	});
@@ -133,6 +151,7 @@ export function setup(context: TestContext) {
 		if (!context.options.downloadOnly) {
 			const entryPoint = context.installRpm(packagePath);
 			await testDesktopApp(entryPoint);
+			await testAgentsApp(entryPoint);
 			await context.uninstallRpm();
 		}
 	});
@@ -142,6 +161,7 @@ export function setup(context: TestContext) {
 		if (!context.options.downloadOnly) {
 			const entryPoint = context.installRpm(packagePath);
 			await testDesktopApp(entryPoint);
+			await testAgentsApp(entryPoint);
 			await context.uninstallRpm();
 		}
 	});
@@ -151,6 +171,7 @@ export function setup(context: TestContext) {
 		if (!context.options.downloadOnly) {
 			const entryPoint = context.installSnap(packagePath);
 			await testDesktopApp(entryPoint);
+			await testAgentsApp(entryPoint);
 			await context.uninstallSnap();
 		}
 	});
@@ -162,16 +183,21 @@ export function setup(context: TestContext) {
 			const entryPoint = context.getDesktopEntryPoint(dir);
 			const dataDir = context.createPortableDataDir(dir);
 			await testDesktopApp(entryPoint, dataDir);
+			await testAgentsApp(entryPoint, dataDir);
 		}
 	});
 
 	context.test('desktop-win32-arm64', ['windows', 'arm64', 'desktop'], async () => {
 		const packagePath = await context.downloadTarget('win32-arm64');
 		context.validateAuthenticodeSignature(packagePath);
+		context.validateVersionInfo(packagePath);
 		if (!context.options.downloadOnly) {
 			const entryPoint = context.installWindowsApp('system', packagePath);
 			context.validateAllAuthenticodeSignatures(path.dirname(entryPoint));
+			context.validateAllVersionInfo(path.dirname(entryPoint));
+			context.validateAgentsEntryPoint(path.dirname(entryPoint));
 			await testDesktopApp(entryPoint);
+			await testAgentsApp(entryPoint);
 			await context.uninstallWindowsApp('system');
 		}
 	});
@@ -179,20 +205,27 @@ export function setup(context: TestContext) {
 	context.test('desktop-win32-arm64-archive', ['windows', 'arm64', 'desktop'], async () => {
 		const dir = await context.downloadAndUnpack('win32-arm64-archive');
 		context.validateAllAuthenticodeSignatures(dir);
+		context.validateAllVersionInfo(dir);
+		context.validateAgentsEntryPoint(dir);
 		if (!context.options.downloadOnly) {
 			const entryPoint = context.getDesktopEntryPoint(dir);
 			const dataDir = context.createPortableDataDir(dir);
 			await testDesktopApp(entryPoint, dataDir);
+			await testAgentsApp(entryPoint, dataDir);
 		}
 	});
 
 	context.test('desktop-win32-arm64-user', ['windows', 'arm64', 'desktop'], async () => {
 		const packagePath = await context.downloadTarget('win32-arm64-user');
 		context.validateAuthenticodeSignature(packagePath);
+		context.validateVersionInfo(packagePath);
 		if (!context.options.downloadOnly) {
 			const entryPoint = context.installWindowsApp('user', packagePath);
 			context.validateAllAuthenticodeSignatures(path.dirname(entryPoint));
+			context.validateAllVersionInfo(path.dirname(entryPoint));
+			context.validateAgentsEntryPoint(path.dirname(entryPoint));
 			await testDesktopApp(entryPoint);
+			await testAgentsApp(entryPoint);
 			await context.uninstallWindowsApp('user');
 		}
 	});
@@ -200,10 +233,14 @@ export function setup(context: TestContext) {
 	context.test('desktop-win32-x64', ['windows', 'x64', 'desktop'], async () => {
 		const packagePath = await context.downloadTarget('win32-x64');
 		context.validateAuthenticodeSignature(packagePath);
+		context.validateVersionInfo(packagePath);
 		if (!context.options.downloadOnly) {
 			const entryPoint = context.installWindowsApp('system', packagePath);
 			context.validateAllAuthenticodeSignatures(path.dirname(entryPoint));
+			context.validateAllVersionInfo(path.dirname(entryPoint));
+			context.validateAgentsEntryPoint(path.dirname(entryPoint));
 			await testDesktopApp(entryPoint);
+			await testAgentsApp(entryPoint);
 			await context.uninstallWindowsApp('system');
 		}
 	});
@@ -211,20 +248,27 @@ export function setup(context: TestContext) {
 	context.test('desktop-win32-x64-archive', ['windows', 'x64', 'desktop'], async () => {
 		const dir = await context.downloadAndUnpack('win32-x64-archive');
 		context.validateAllAuthenticodeSignatures(dir);
+		context.validateAllVersionInfo(dir);
+		context.validateAgentsEntryPoint(dir);
 		if (!context.options.downloadOnly) {
 			const entryPoint = context.getDesktopEntryPoint(dir);
 			const dataDir = context.createPortableDataDir(dir);
 			await testDesktopApp(entryPoint, dataDir);
+			await testAgentsApp(entryPoint, dataDir);
 		}
 	});
 
 	context.test('desktop-win32-x64-user', ['windows', 'x64', 'desktop'], async () => {
 		const packagePath = await context.downloadTarget('win32-x64-user');
 		context.validateAuthenticodeSignature(packagePath);
+		context.validateVersionInfo(packagePath);
 		if (!context.options.downloadOnly) {
 			const entryPoint = context.installWindowsApp('user', packagePath);
 			context.validateAllAuthenticodeSignatures(path.dirname(entryPoint));
+			context.validateAllVersionInfo(path.dirname(entryPoint));
+			context.validateAgentsEntryPoint(path.dirname(entryPoint));
 			await testDesktopApp(entryPoint);
+			await testAgentsApp(entryPoint);
 			await context.uninstallWindowsApp('user');
 		}
 	});
@@ -239,13 +283,37 @@ export function setup(context: TestContext) {
 
 		context.log(`Starting VS Code ${entryPoint} with args ${args.join(' ')}`);
 		const app = await _electron.launch({ executablePath: entryPoint, args });
-		const window = await context.getPage(app.firstWindow());
-
-		await test.run(window);
-
-		context.log('Closing the application');
-		await app.close();
+		try {
+			const window = await context.getPage(app.firstWindow());
+			await test.run(window);
+		} finally {
+			context.log('Closing the application');
+			await app.close();
+		}
 
 		test.validate();
+	}
+
+	async function testAgentsApp(desktopEntryPoint: string, dataDir?: string) {
+		const test = new UITest(context, dataDir);
+		const args = ['--agents'];
+		if (!dataDir) {
+			args.push('--extensions-dir', test.extensionsDir);
+			args.push('--user-data-dir', test.userDataDir);
+		}
+
+		context.log(`Starting Agents app ${desktopEntryPoint} with args ${args.join(' ')}`);
+		const app = await _electron.launch({ executablePath: desktopEntryPoint, args });
+		try {
+			const window = await context.getPage(app.firstWindow());
+			await window.waitForSelector('.agent-sessions-workbench', { timeout: 60000 });
+
+			context.log('Clicking "Sign in with GitHub" button');
+			const button = await window.waitForSelector('button.provider-github');
+			await button.click();
+		} finally {
+			context.log('Closing the Agents app');
+			await app.close();
+		}
 	}
 }

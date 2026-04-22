@@ -9,8 +9,8 @@ parameters:
 
 jobs:
 - job: macOSCLI_${{ parameters.VSCODE_ARCH }}
-  displayName: macOS (${{ upper(parameters.VSCODE_ARCH) }})
-  timeoutInMinutes: 60
+  displayName: macOS CLI (${{ upper(parameters.VSCODE_ARCH) }})
+  timeoutInMinutes: 90
   pool:
     name: AcesShared
     os: macOS
@@ -24,11 +24,12 @@ jobs:
     outputs:
       - ${{ if not(parameters.VSCODE_CHECK_ONLY) }}:
         - output: pipelineArtifact
-          targetPath: $(Build.ArtifactStagingDirectory)/unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli.zip
-          artifactName: unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli
-          displayName: Publish unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli artifact
-          sbomEnabled: false
-          isProduction: false
+          targetPath: $(Build.ArtifactStagingDirectory)/out/vscode_cli_darwin_$(VSCODE_ARCH)_cli/vscode_cli_darwin_$(VSCODE_ARCH)_cli.zip
+          artifactName: vscode_cli_darwin_$(VSCODE_ARCH)_cli
+          displayName: Publish vscode_cli_darwin_$(VSCODE_ARCH)_cli artifact
+          sbomBuildDropPath: $(Build.ArtifactStagingDirectory)/sign/unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli
+          sbomPackageName: "VS Code macOS $(VSCODE_ARCH) CLI"
+          sbomPackageVersion: $(Build.SourceVersion)
   steps:
     - template: ../common/checkout.yml@self
 
@@ -83,3 +84,55 @@ jobs:
           VSCODE_CLI_ENV:
             OPENSSL_LIB_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-osx/lib
             OPENSSL_INCLUDE_DIR: $(Build.ArtifactStagingDirectory)/openssl/arm64-osx/include
+
+    - ${{ if not(parameters.VSCODE_CHECK_ONLY) }}:
+      - template: ../common/publish-artifact.yml@self
+        parameters:
+          targetPath: $(Build.ArtifactStagingDirectory)/unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli.zip
+          artifactName: unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli
+          displayName: Publish unsigned CLI
+          sbomEnabled: false
+
+      - script: |
+          set -e
+          mkdir -p $(Build.ArtifactStagingDirectory)/pkg/unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli
+          cp $(Build.ArtifactStagingDirectory)/unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli.zip $(Build.ArtifactStagingDirectory)/pkg/unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli/unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli.zip
+        displayName: Prepare CLI for signing
+
+      - task: ExtractFiles@1
+        displayName: Extract unsigned CLI (for SBOM)
+        inputs:
+          archiveFilePatterns: $(Build.ArtifactStagingDirectory)/unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli.zip
+          destinationFolder: $(Build.ArtifactStagingDirectory)/sign/unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli
+
+      - task: UseDotNet@2
+        inputs:
+          version: 6.x
+
+      - task: EsrpCodeSigning@5
+        inputs:
+          UseMSIAuthentication: true
+          ConnectedServiceName: vscode-esrp
+          AppRegistrationClientId: $(ESRP_CLIENT_ID)
+          AppRegistrationTenantId: $(ESRP_TENANT_ID)
+          AuthAKVName: vscode-esrp
+          AuthSignCertName: esrp-sign
+          FolderPath: .
+          Pattern: noop
+        displayName: 'Install ESRP Tooling'
+
+      - script: node build/azure-pipelines/common/sign.ts $(Agent.RootDirectory)/_tasks/EsrpCodeSigning_*/*/net6.0/esrpcli.dll sign-darwin $(Build.ArtifactStagingDirectory)/pkg/unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli "*.zip"
+        env:
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+        displayName: ✍️ Codesign
+
+      - script: node build/azure-pipelines/common/sign.ts $(Agent.RootDirectory)/_tasks/EsrpCodeSigning_*/*/net6.0/esrpcli.dll notarize-darwin $(Build.ArtifactStagingDirectory)/pkg/unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli "*.zip"
+        env:
+          SYSTEM_ACCESSTOKEN: $(System.AccessToken)
+        displayName: ✍️ Notarize
+
+      - script: |
+          set -e
+          mkdir -p $(Build.ArtifactStagingDirectory)/out/vscode_cli_darwin_$(VSCODE_ARCH)_cli
+          mv $(Build.ArtifactStagingDirectory)/pkg/unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli/unsigned_vscode_cli_darwin_$(VSCODE_ARCH)_cli.zip $(Build.ArtifactStagingDirectory)/out/vscode_cli_darwin_$(VSCODE_ARCH)_cli/vscode_cli_darwin_$(VSCODE_ARCH)_cli.zip
+        displayName: Rename signed artifact

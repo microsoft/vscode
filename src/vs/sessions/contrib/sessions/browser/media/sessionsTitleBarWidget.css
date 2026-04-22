@@ -1,0 +1,159 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* Container - button style hover */
+.agent-sessions-workbench .command-center .monaco-action-bar .actions-container {
+	display: flex;
+	align-items: center;
+}
+
+.agent-sessions-workbench .command-center .monaco-action-bar .actions-container > .action-item.agent-sessions-titlebar-container + .action-item {
+	position: relative;
+	margin-left: 8px;
+	padding-left: 12px;
+}
+
+.agent-sessions-workbench .command-center .monaco-action-bar .actions-container > .action-item.agent-sessions-titlebar-container + .action-item::before {
+	content: '';
+	position: absolute;
+	left: 0;
+	top: 50%;
+	width: 1px;
+	height: 16px;
+	transform: translateY(-50%);
+	background-color: var(--vscode-commandCenter-border);
+	pointer-events: none;
+}
+
+.command-center .agent-sessions-titlebar-container {
+	display: flex;
+	width: 100%;
+	flex-direction: row;
+	flex-wrap: nowrap;
+	align-items: center;
+	justify-content: flex-start;
+	padding-left: 16px;
+	height: 22px;
+	border-radius: 4px;
+	-webkit-app-region: no-drag;
+	overflow: hidden;
+	color: var(--vscode-commandCenter-foreground);
+	gap: 6px;
+	cursor: default;
+}
+
+.agent-sessions-workbench:not(.nosidebar) .command-center .agent-sessions-titlebar-container {
+	padding-left: 0;
+}
+
+/* Session pill - clickable area for session picker */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-pill {
+	display: flex;
+	align-items: center;
+	padding: 0 4px;
+	border-radius: 4px;
+	min-width: 0;
+	max-width: 600px;
+	cursor: pointer;
+	touch-action: manipulation;
+}
+
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-pill:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+}
+
+.command-center .agent-sessions-titlebar-container:focus {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+/* Center group: icon + label + folder */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-center {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	flex: 1 1 auto;
+	min-width: 0;
+	justify-content: flex-start;
+	cursor: pointer;
+	overflow: hidden;
+}
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-icon {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	font-size: 14px;
+}
+
+.command-center > .monaco-toolbar > .monaco-action-bar > .actions-container > .action-item:not(.disabled) > .action-label {
+	color: var(--vscode-icon-foreground);
+}
+
+/* Label (title) */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-label {
+	flex: 0 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	font-weight: 500;
+}
+
+/* Repository/worktree metadata shrinks before the primary title. */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-details {
+	display: flex;
+	align-items: center;
+	flex: 0 999 auto;
+	gap: 6px;
+	min-width: 0;
+	overflow: hidden;
+}
+
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-repo {
+	flex: 1 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	opacity: 0.7;
+}
+
+/* Dot separator */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-separator {
+	opacity: 0.5;
+	flex-shrink: 0;
+}
+
+/* Provider label (shown for untitled sessions) */
+.command-center .agent-sessions-titlebar-container .agent-sessions-titlebar-provider {
+	display: flex;
+	align-items: center;
+	flex-shrink: 0;
+	opacity: 0.7;
+}
+
+/* Sidebar toggle unread badge */
+.agent-sessions-workbench .action-item.sidebar-toggle-action {
+	position: relative;
+}
+
+.agent-sessions-workbench .action-item.sidebar-toggle-action .sidebar-toggle-badge {
+	position: absolute;
+	top: 0;
+	right: -4px;
+	min-width: 14px;
+	height: 14px;
+	line-height: 14px;
+	padding: 0 3px;
+	box-sizing: border-box;
+	font-size: 9px;
+	font-weight: 600;
+	font-variant-numeric: tabular-nums;
+	text-align: center;
+	border-radius: 4px;
+	background-color: var(--vscode-agentsUnreadBadge-background);
+	color: var(--vscode-agentsUnreadBadge-foreground);
+	pointer-events: none;
+}

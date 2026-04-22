@@ -883,6 +883,7 @@ export class TimelinePane extends ViewPane {
 	override setVisible(visible: boolean): void {
 		if (visible) {
 			this.extensionService.activateByEvent('onView:timeline');
+			this.visibilityDisposables?.dispose();
 			this.visibilityDisposables = new DisposableStore();
 
 			this.editorService.onDidActiveEditorChange(this.onActiveEditorChanged, this, this.visibilityDisposables);
@@ -926,7 +927,7 @@ export class TimelinePane extends ViewPane {
 		// this.treeElement.classList.add('show-file-icons');
 		container.appendChild(this.$tree);
 
-		this.treeRenderer = this.instantiationService.createInstance(TimelineTreeRenderer, this.commands, this.viewDescriptorService.getViewLocationById(this.id));
+		this.treeRenderer = this._register(this.instantiationService.createInstance(TimelineTreeRenderer, this.commands, this.viewDescriptorService.getViewLocationById(this.id)));
 		this._register(this.treeRenderer.onDidScrollToEnd(item => {
 			if (this.pageOnScroll) {
 				this.loadMore(item);
@@ -1153,8 +1154,8 @@ export class TimelineListVirtualDelegate implements IListVirtualDelegate<TreeEle
 	}
 }
 
-class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, TimelineElementTemplate> {
-	private readonly _onDidScrollToEnd = new Emitter<LoadMoreCommand>();
+class TimelineTreeRenderer extends Disposable implements ITreeRenderer<TreeElement, FuzzyScore, TimelineElementTemplate> {
+	private readonly _onDidScrollToEnd = this._register(new Emitter<LoadMoreCommand>());
 	readonly onDidScrollToEnd: Event<LoadMoreCommand> = this._onDidScrollToEnd.event;
 
 	readonly templateId: string = TimelineElementTemplate.id;
@@ -1169,6 +1170,7 @@ class TimelineTreeRenderer implements ITreeRenderer<TreeElement, FuzzyScore, Tim
 		@IInstantiationService protected readonly instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService
 	) {
+		super();
 		this.actionViewItemProvider = createActionViewItem.bind(undefined, this.instantiationService);
 
 		this._hoverDelegate = this.instantiationService.createInstance(

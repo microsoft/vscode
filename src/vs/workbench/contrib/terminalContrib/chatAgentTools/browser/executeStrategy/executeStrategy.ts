@@ -18,8 +18,11 @@ export interface ITerminalExecuteStrategy extends IDisposable {
 	 * @param commandLine The command line to execute
 	 * @param token Cancellation token
 	 * @param commandId Optional predefined command ID to link the command
+	 * @param commandLineForMetadata Optional command line to report in terminal execution metadata.
+	 * This can differ from the command line that is sent to the shell, for example when the command
+	 * is wrapped for sandbox execution.
 	 */
-	execute(commandLine: string, token: CancellationToken, commandId?: string): Promise<ITerminalExecuteStrategyResult>;
+	execute(commandLine: string, token: CancellationToken, commandId?: string, commandLineForMetadata?: string): Promise<ITerminalExecuteStrategyResult>;
 
 	readonly onDidCreateStartMarker: Event<IXtermMarker | undefined>;
 }
@@ -160,6 +163,7 @@ export async function trackIdleOnPrompt(
 	instance: ITerminalInstance,
 	idleDurationMs: number,
 	store: DisposableStore,
+	promptFallbackMs?: number,
 ): Promise<void> {
 	const idleOnPrompt = new DeferredPromise<void>();
 	const onData = instance.onData;
@@ -176,7 +180,7 @@ export async function trackIdleOnPrompt(
 		}
 		state = TerminalState.PromptAfterExecuting;
 		scheduler.schedule();
-	}, 1000));
+	}, promptFallbackMs ?? 1000));
 	// Only schedule when a prompt sequence (A) is seen after an execute sequence (C). This prevents
 	// cases where the command is executed before the prompt is written. While not perfect, sitting
 	// on an A without a C following shortly after is a very good indicator that the command is done

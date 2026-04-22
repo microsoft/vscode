@@ -8,11 +8,65 @@
 .chat-status-bar-entry-tooltip {
 	margin-top: 4px;
 	margin-bottom: 4px;
+	max-width: 340px;
 }
 
 .chat-status-bar-entry-tooltip hr {
 	margin-top: 8px;
 	margin-bottom: 8px;
+}
+
+/* Tab Bar */
+
+.chat-status-bar-entry-tooltip .tab-bar {
+	display: flex;
+	gap: 0;
+	margin-bottom: 8px;
+	border-bottom: 1px solid var(--vscode-editorWidget-border);
+}
+
+.chat-status-bar-entry-tooltip .tab-bar .tab {
+	padding: 4px 12px;
+	border: none;
+	background: none;
+	cursor: pointer;
+	font-size: inherit;
+	font-family: inherit;
+	color: var(--vscode-descriptionForeground);
+	border-bottom: 2px solid transparent;
+	margin-bottom: -1px;
+}
+
+.chat-status-bar-entry-tooltip .tab-bar .tab:hover {
+	color: var(--vscode-foreground);
+}
+
+.chat-status-bar-entry-tooltip .tab-bar .tab.active {
+	color: var(--vscode-foreground);
+	border-bottom-color: var(--vscode-focusBorder);
+	font-weight: 600;
+}
+
+.chat-status-bar-entry-tooltip .tab-bar .tab:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+/* Tab Content — grid overlay keeps height stable across tab switches */
+
+.chat-status-bar-entry-tooltip .tab-content-container {
+	display: grid;
+}
+
+.chat-status-bar-entry-tooltip .tab-content-container > .tab-content {
+	grid-area: 1 / 1;
+	visibility: hidden;
+	pointer-events: none;
+}
+
+.chat-status-bar-entry-tooltip .tab-content-container > .tab-content.active {
+	visibility: visible;
+	pointer-events: auto;
 }
 
 .chat-status-bar-entry-tooltip div.header {
@@ -56,25 +110,52 @@
 /* Quota Indicator */
 
 .chat-status-bar-entry-tooltip .quota-indicator {
+	margin-bottom: 8px;
+	padding: 10px 12px;
+	border: 1px solid var(--vscode-editorWidget-border);
+	border-radius: 8px;
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator .quota-title {
+	font-weight: 600;
+	margin-bottom: 4px;
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator .quota-details {
+	display: flex;
+	justify-content: space-between;
+	align-items: baseline;
+	gap: 12px;
 	margin-bottom: 6px;
 }
 
-.chat-status-bar-entry-tooltip .quota-indicator .quota-label {
+.chat-status-bar-entry-tooltip .quota-indicator .quota-percentage {
 	display: flex;
-	justify-content: space-between;
-	gap: 20px;
-	margin-bottom: 3px;
+	align-items: baseline;
+	gap: 2px;
 }
 
-.chat-status-bar-entry-tooltip .quota-indicator .quota-label .quota-value {
+.chat-status-bar-entry-tooltip .quota-indicator .quota-percentage .quota-value {
+	font-size: 18px;
+	font-weight: 700;
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator .quota-percentage .quota-value-suffix {
+	font-size: 12px;
 	color: var(--vscode-descriptionForeground);
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator .quota-reset {
+	font-size: 12px;
+	color: var(--vscode-descriptionForeground);
+	white-space: nowrap;
 }
 
 .chat-status-bar-entry-tooltip .quota-indicator .quota-bar {
 	width: 100%;
-	height: 4px;
+	height: 6px;
 	background-color: var(--vscode-gauge-background);
-	border-radius: 4px;
+	border-radius: 6px;
 	border: 1px solid var(--vscode-gauge-border);
 	margin: 4px 0;
 }
@@ -82,7 +163,11 @@
 .chat-status-bar-entry-tooltip .quota-indicator .quota-bar .quota-bit {
 	height: 100%;
 	background-color: var(--vscode-gauge-foreground);
-	border-radius: 4px;
+	border-radius: 6px;
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.warning {
+	border-color: var(--vscode-gauge-warningForeground);
 }
 
 .chat-status-bar-entry-tooltip .quota-indicator.warning .quota-bar {
@@ -93,12 +178,95 @@
 	background-color: var(--vscode-gauge-warningForeground);
 }
 
+.chat-status-bar-entry-tooltip .quota-indicator.warning .quota-percentage .quota-value {
+	color: var(--vscode-gauge-warningForeground);
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.info {
+	border-color: var(--vscode-gauge-foreground);
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.info .quota-percentage .quota-value {
+	color: var(--vscode-gauge-foreground);
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.error {
+	border-color: var(--vscode-gauge-errorForeground);
+}
+
 .chat-status-bar-entry-tooltip .quota-indicator.error .quota-bar {
 	background-color: var(--vscode-gauge-errorBackground);
 }
 
 .chat-status-bar-entry-tooltip .quota-indicator.error .quota-bar .quota-bit {
 	background-color: var(--vscode-gauge-errorForeground);
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.error .quota-percentage .quota-value {
+	color: var(--vscode-gauge-errorForeground);
+}
+
+/* Dimmed state when quota limit is fully exhausted */
+
+.chat-status-bar-entry-tooltip .quota-indicator.dimmed {
+	border-color: var(--vscode-editorWidget-border);
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.dimmed .quota-percentage .quota-value {
+	color: var(--vscode-disabledForeground);
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.dimmed .quota-bar {
+	background-color: var(--vscode-gauge-background);
+}
+
+.chat-status-bar-entry-tooltip .quota-indicator.dimmed .quota-bar .quota-bit {
+	background-color: var(--vscode-disabledForeground);
+}
+
+/* Quota Callout */
+
+.chat-status-bar-entry-tooltip .quota-callout {
+	display: flex;
+	align-items: flex-start;
+	gap: 6px;
+	padding: 8px 10px;
+	border-radius: 6px;
+	border: 1px solid;
+	margin-bottom: 8px;
+	font-size: 12px;
+	line-height: 1.4;
+}
+
+.chat-status-bar-entry-tooltip .quota-callout .callout-icon {
+	flex-shrink: 0;
+}
+
+.chat-status-bar-entry-tooltip .quota-callout.warning {
+	border-color: var(--vscode-gauge-warningForeground);
+	color: var(--vscode-foreground);
+}
+
+.chat-status-bar-entry-tooltip .quota-callout.warning .callout-icon {
+	color: var(--vscode-gauge-warningForeground);
+}
+
+.chat-status-bar-entry-tooltip .quota-callout.error {
+	border-color: var(--vscode-gauge-errorForeground);
+	color: var(--vscode-foreground);
+}
+
+.chat-status-bar-entry-tooltip .quota-callout.error .callout-icon {
+	color: var(--vscode-gauge-errorForeground);
+}
+
+.chat-status-bar-entry-tooltip .quota-callout.info {
+	border-color: var(--vscode-editorWidget-border);
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-status-bar-entry-tooltip .quota-callout.info .callout-icon {
+	color: var(--vscode-descriptionForeground);
 }
 
 /* Settings */
@@ -149,6 +317,34 @@
 	color: var(--vscode-descriptionForeground);
 }
 
+/* Provider Options */
+
+.chat-status-bar-entry-tooltip .suggest-option-selection {
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 0 0 0;
+}
+
+.chat-status-bar-entry-tooltip .suggest-option-selection .suggest-option-text {
+	flex: 1;
+}
+
+.chat-status-bar-entry-tooltip .suggest-option-selection .suggest-option-action-bar {
+	margin-left: auto;
+}
+
+.chat-status-bar-entry-tooltip .model-selection .model-action-bar .action-label,
+.chat-status-bar-entry-tooltip .suggest-option-selection .suggest-option-action-bar .action-label {
+	height: 12px;
+	line-height: 12px;
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-status-bar-entry-tooltip .suggest-option-selection .suggest-option-action-bar .codicon {
+	color: var(--vscode-descriptionForeground);
+}
+
 /* Snoozing */
 
 .chat-status-bar-entry-tooltip .snooze-completions {
@@ -188,24 +384,28 @@
 	margin-left: auto;
 }
 
-/* Contributions */
-
 .chat-status-bar-entry-tooltip .contribution .body {
 	display: flex;
-	flex-direction: row;
 	align-items: center;
-	gap: 5px;
+	gap: 4px;
+	font-size: 11px;
+	overflow: hidden;
+	min-width: 0;
+}
 
-	.description,
-	.detail-item {
-		display: flex;
-		align-items: center;
-		gap: 3px;
-	}
+.chat-status-bar-entry-tooltip .contribution .body .description,
+.chat-status-bar-entry-tooltip .contribution .body .detail-item {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
+}
 
-	.detail-item,
-	.detail-item a {
-		margin-left: auto;
-		color: var(--vscode-descriptionForeground);
-	}
+.chat-status-bar-entry-tooltip .contribution .body .detail-item {
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-status-bar-entry-tooltip .contribution .body .separator {
+	opacity: 0.6;
+	padding: 0 2px;
 }

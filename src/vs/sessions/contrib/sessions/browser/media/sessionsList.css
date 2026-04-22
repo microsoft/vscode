@@ -1,0 +1,405 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.sessions-list-control {
+	flex: 1 1 auto;
+	height: 100%;
+	min-height: 0;
+
+	.monaco-list-row:has(.session-item) {
+		border-radius: 6px;
+		margin: 0 10px;
+		width: calc(100% - 20px);
+	}
+
+	.monaco-list-row .force-no-twistie {
+		display: none !important;
+	}
+
+	.monaco-list-row.selected .session-details-row {
+		color: unset;
+	}
+
+	.monaco-list:focus .monaco-list-row.selected .session-details-row {
+		.session-diff {
+
+			.session-diff-added,
+			.session-diff-removed {
+				color: unset;
+			}
+		}
+	}
+
+	.monaco-list-row.selected .session-title {
+		color: unset;
+	}
+
+	.monaco-list:not(:focus) .monaco-list-row.selected .session-details-row {
+		color: var(--vscode-descriptionForeground);
+	}
+
+	.monaco-list-row .session-title-toolbar {
+		position: relative;
+		height: 16px;
+		display: none;
+
+		.monaco-toolbar {
+			position: relative;
+			right: 0;
+			top: 0;
+		}
+	}
+
+	.monaco-list-row:hover,
+	.monaco-list-row.focused:not(.selected) {
+		.session-title-toolbar {
+			display: block;
+		}
+
+		.session-title {
+			margin-right: 8px;
+		}
+	}
+
+	/* Pinned but not hovered/focused: show only the unpin action */
+	.monaco-list-row:not(:hover):not(.focused):has(.session-item.pinned) {
+		.session-title-toolbar {
+			display: block;
+
+			.action-item:not(:last-child) {
+				display: none;
+			}
+		}
+
+		.session-title {
+			margin-right: 8px;
+		}
+	}
+}
+
+/* Session Item */
+
+.session-item {
+	display: flex;
+	flex-direction: row;
+	height: 100%;
+	box-sizing: border-box;
+	padding: 8px 6px;
+
+	&.archived {
+		color: var(--vscode-descriptionForeground);
+	}
+
+	.session-main,
+	.session-title-row,
+	.session-details-row {
+		flex: 1;
+		min-width: 0;
+	}
+
+	.session-icon {
+		display: flex;
+		align-items: flex-start;
+		line-height: 17px;
+
+		> .codicon {
+			flex-shrink: 0;
+			font-size: 12px;
+			height: 16px;
+			display: flex;
+			align-items: center;
+			justify-content: center;
+		}
+
+		&.session-icon-pulse > .codicon {
+			animation: session-needs-input-pulse 2s ease-in-out infinite;
+		}
+
+		@media (prefers-reduced-motion: reduce) {
+			&.session-icon-pulse > .codicon {
+				animation: none;
+			}
+		}
+	}
+
+	.session-main {
+		padding-left: 6px;
+	}
+
+	.session-title-row,
+	.session-details-row {
+		display: flex;
+		align-items: center;
+	}
+
+	.session-title-row {
+		line-height: 17px;
+		padding-bottom: 4px;
+	}
+
+	.session-details-row {
+		gap: 4px;
+		font-size: 12px;
+		line-height: 15px;
+		max-height: 15px;
+		overflow: hidden;
+		color: var(--vscode-descriptionForeground);
+
+		.session-details-icon {
+			display: flex;
+			align-items: center;
+
+			> .codicon {
+				font-size: 12px;
+			}
+		}
+
+		.session-diff {
+			font-variant-numeric: tabular-nums;
+			overflow: hidden;
+			display: flex;
+			gap: 2px;
+
+			.session-diff-added {
+				color: var(--vscode-chat-linesAddedForeground);
+			}
+
+			.session-diff-removed {
+				color: var(--vscode-chat-linesRemovedForeground);
+			}
+		}
+
+		.session-badge {
+			overflow: hidden;
+			white-space: nowrap;
+			text-overflow: ellipsis;
+		}
+
+		.session-separator {
+			display: none;
+
+			&.has-separator {
+				display: inline;
+
+				&::before {
+					content: '\00B7';
+				}
+			}
+		}
+	}
+
+	.session-title,
+	.session-description {
+		/* push other items to the end */
+		flex: 1;
+		overflow: hidden;
+		white-space: nowrap;
+		text-overflow: ellipsis;
+	}
+
+	.session-description p {
+		margin: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.session-description:empty {
+		display: none;
+	}
+
+	.session-title {
+		font-size: 13px;
+	}
+
+	.session-time {
+		display: flex;
+		align-items: center;
+		font-variant-numeric: tabular-nums;
+		white-space: nowrap;
+	}
+
+	.session-approval-row {
+		display: none;
+		gap: 8px;
+		margin-top: 4px;
+		padding: 4px 8px;
+		box-sizing: border-box;
+		border: 1px solid var(--vscode-contrastBorder, var(--vscode-widget-border, transparent));
+		border-radius: 4px;
+		background-color: var(--vscode-editor-background);
+		color: var(--vscode-editor-foreground);
+		align-items: center;
+
+		&.visible {
+			display: flex;
+		}
+
+		.session-approval-label {
+			flex: 1;
+			overflow: hidden;
+			min-width: 0;
+
+			& > .rendered-markdown,
+			& > .rendered-markdown > .code,
+			& > .rendered-markdown > .code > span {
+				display: block;
+				overflow: hidden;
+			}
+
+			.monaco-tokenized-source {
+				display: block;
+				overflow: hidden;
+				white-space: nowrap;
+				text-overflow: ellipsis;
+				font-size: 12px;
+			}
+		}
+
+		.session-approval-button {
+			flex-shrink: 0;
+
+			.monaco-button {
+				padding: 2px 10px;
+				font-size: 12px;
+				white-space: nowrap;
+			}
+		}
+	}
+}
+
+/* Show More */
+
+.session-show-more {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	padding: 0 10px;
+	font-size: 11px;
+	color: var(--vscode-descriptionForeground);
+	min-height: 26px;
+	cursor: pointer;
+
+	.session-show-more-label {
+		padding: 0 6px;
+		flex-shrink: 0;
+		white-space: nowrap;
+	}
+
+	/* Lines on both sides of the text */
+	&::before,
+	&::after {
+		content: '';
+		flex: 1;
+		height: 1px;
+		background: var(--vscode-widget-border, var(--vscode-contrastBorder));
+	}
+}
+
+.monaco-list-row:hover .session-show-more:hover {
+	color: var(--vscode-foreground);
+}
+
+/* Section Header */
+
+.session-section {
+	display: flex;
+	align-items: center;
+	font-size: 11px;
+	font-weight: 500;
+	color: var(--vscode-descriptionForeground);
+	text-transform: uppercase;
+	/* align with session item margin */
+	padding: 0 10px;
+
+	.session-section-label {
+		flex: 1 1 auto;
+		min-width: 0;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
+	}
+
+	.session-section-count {
+		flex-shrink: 0;
+		opacity: 0.7;
+		margin-left: 4px;
+		margin-right: 4px;
+	}
+
+	.session-section-toolbar {
+		flex-shrink: 0;
+		margin-left: 4px;
+		display: none;
+	}
+}
+
+.monaco-list-row:hover .session-section .session-section-toolbar,
+.monaco-list-row.focused .session-section .session-section-toolbar {
+	display: block;
+}
+
+.sessions-list-control {
+
+	.monaco-list:focus .monaco-list-row.focused.selected .session-section-label,
+	.monaco-list:focus .monaco-list-row.selected .session-section-label {
+		color: var(--vscode-list-activeSelectionForeground);
+	}
+
+	.monaco-list:not(:focus) .monaco-list-row.selected .session-section-label {
+		color: var(--vscode-list-inactiveSelectionForeground);
+	}
+}
+
+@keyframes session-needs-input-pulse {
+
+	0%,
+	100% {
+		opacity: 1;
+	}
+
+	50% {
+		opacity: 0.4;
+	}
+}
+
+/* Shimmer effect for in-progress session titles when not selected */
+
+.monaco-list-row:not(.selected) .session-item.in-progress .session-title {
+	background: linear-gradient(
+		90deg,
+		var(--vscode-foreground) 0%,
+		var(--vscode-foreground) 30%,
+		var(--vscode-chat-thinkingShimmer) 50%,
+		var(--vscode-foreground) 70%,
+		var(--vscode-foreground) 100%
+	);
+	background-size: 400% 100%;
+	background-clip: text;
+	-webkit-background-clip: text;
+	-webkit-text-fill-color: transparent;
+	animation: session-title-shimmer 3s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.monaco-list-row:not(.selected) .session-item.in-progress .session-title {
+		animation: none;
+		background: none;
+		background-clip: border-box;
+		-webkit-background-clip: border-box;
+		color: var(--vscode-foreground);
+		-webkit-text-fill-color: var(--vscode-foreground);
+	}
+}
+
+@keyframes session-title-shimmer {
+	0% {
+		background-position: 120% 0;
+	}
+
+	100% {
+		background-position: -120% 0;
+	}
+}

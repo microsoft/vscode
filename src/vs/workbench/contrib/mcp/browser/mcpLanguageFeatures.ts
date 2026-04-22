@@ -388,9 +388,9 @@ export class McpLanguageFeatures extends Disposable implements IWorkbenchContrib
 
 		function pushAnnotation(savedId: string, offset: number, saved: IResolvedValue): InlayHint {
 			const tooltip = new MarkdownString([
-				createMarkdownCommandLink({ id: McpCommandIds.EditStoredInput, title: localize('edit', 'Edit'), arguments: [savedId, model.uri, mcpConfigurationSection, inConfig!.target] }),
-				createMarkdownCommandLink({ id: McpCommandIds.RemoveStoredInput, title: localize('clear', 'Clear'), arguments: [inConfig!.scope, savedId] }),
-				createMarkdownCommandLink({ id: McpCommandIds.RemoveStoredInput, title: localize('clearAll', 'Clear All'), arguments: [inConfig!.scope] }),
+				createMarkdownCommandLink({ id: McpCommandIds.EditStoredInput, text: localize('edit', 'Edit'), arguments: [savedId, model.uri, mcpConfigurationSection, inConfig!.target], tooltip: localize('edit.savedValue.tooltip', 'Edit saved value') }),
+				createMarkdownCommandLink({ id: McpCommandIds.RemoveStoredInput, text: localize('clear', 'Clear'), arguments: [inConfig!.scope, savedId], tooltip: localize('clear.savedValue.tooltip', 'Clear saved value') }),
+				createMarkdownCommandLink({ id: McpCommandIds.RemoveStoredInput, text: localize('clearAll', 'Clear All'), arguments: [inConfig!.scope], tooltip: localize('clearAll.savedValues.tooltip', 'Clear all saved values') }),
 			].join(' | '), { isTrusted: true });
 
 			const hint: InlayHint = {

@@ -13,9 +13,10 @@ import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/tes
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
 import { TestConfigurationService } from '../../../../../platform/configuration/test/common/testConfigurationService.js';
 import { TestInstantiationService } from '../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
+import { ResultKind } from '../../../../../platform/keybinding/common/keybindingResolver.js';
 import { TerminalCapability, type ICwdDetectionCapability } from '../../../../../platform/terminal/common/capabilities/capabilities.js';
 import { TerminalCapabilityStore } from '../../../../../platform/terminal/common/capabilities/terminalCapabilityStore.js';
-import { GeneralShellType, ITerminalChildProcess, ITerminalProfile, TitleEventSource, type IShellLaunchConfig, type ITerminalBackend, type ITerminalProcessOptions } from '../../../../../platform/terminal/common/terminal.js';
+import { GeneralShellType, ITerminalChildProcess, ITerminalProfile, PosixShellType, TitleEventSource, type IShellLaunchConfig, type ITerminalBackend, type ITerminalProcessOptions } from '../../../../../platform/terminal/common/terminal.js';
 import { IWorkspaceFolder } from '../../../../../platform/workspace/common/workspace.js';
 import { IViewDescriptorService } from '../../../../common/views.js';
 import { ITerminalConfigurationService, ITerminalInstance, ITerminalInstanceService, ITerminalService } from '../../browser/terminal.js';
@@ -23,7 +24,7 @@ import { TerminalConfigurationService } from '../../browser/terminalConfiguratio
 import { parseExitResult, TerminalInstance, TerminalLabelComputer } from '../../browser/terminalInstance.js';
 import { IEnvironmentVariableService } from '../../common/environmentVariable.js';
 import { EnvironmentVariableService } from '../../common/environmentVariableService.js';
-import { ITerminalProfileResolverService, ProcessState } from '../../common/terminal.js';
+import { ITerminalProfileResolverService, ProcessState, DEFAULT_COMMANDS_TO_SKIP_SHELL } from '../../common/terminal.js';
 import { TestViewDescriptorService } from './xterm/xtermTerminal.test.js';
 import { fixPath } from '../../../../services/search/test/browser/queryBuilder.test.js';
 import { TestTerminalProfileResolverService, workbenchInstantiationService } from '../../../../test/browser/workbenchTestServices.js';
@@ -123,7 +124,8 @@ suite('Workbench - TerminalInstance', () => {
 
 	suite('TerminalInstance', () => {
 		let terminalInstance: ITerminalInstance;
-		test('should create an instance of TerminalInstance with env from default profile', async () => {
+
+		async function createTerminalInstance(): Promise<TerminalInstance> {
 			const instantiationService = workbenchInstantiationService({
 				configurationService: () => new TestConfigurationService({
 					files: {},
@@ -134,6 +136,7 @@ suite('Workbench - TerminalInstance', () => {
 							fastScrollSensitivity: 2,
 							mouseWheelScrollSensitivity: 1,
 							unicodeVersion: '6',
+							commandsToSkipShell: [],
 							shellIntegration: {
 								enabled: true
 							}
@@ -146,8 +149,14 @@ suite('Workbench - TerminalInstance', () => {
 			instantiationService.stub(IEnvironmentVariableService, store.add(instantiationService.createInstance(EnvironmentVariableService)));
 			instantiationService.stub(ITerminalInstanceService, store.add(new TestTerminalInstanceService()));
 			instantiationService.stub(ITerminalService, { setNextCommandId: async () => { } } as Partial<ITerminalService>);
-			terminalInstance = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, {}));
-			// //Wait for the teminalInstance._xtermReadyPromise to resolve
+			const instance = store.add(instantiationService.createInstance(TerminalInstance, terminalShellTypeContextKey, {}));
+			await instance.xtermReadyPromise;
+			return instance;
+		}
+
+		test('should create an instance of TerminalInstance with env from default profile', async () => {
+			terminalInstance = await createTerminalInstance();
+			// Wait for the terminal instance to resolve shell launch config env.
 			await new Promise(resolve => setTimeout(resolve, 100));
 			deepStrictEqual(terminalInstance.shellLaunchConfig.env, { TEST: 'TEST' });
 		});
@@ -191,6 +200,86 @@ suite('Workbench - TerminalInstance', () => {
 
 			// Verify that the task name is preserved
 			strictEqual(taskTerminal.title, 'Test Task Name', 'Task terminal should preserve API-set title');
+		});
+
+		test('should preserve agent shell type detected from sequence until the parent shell returns', async () => {
+			const instance = await createTerminalInstance() as TerminalInstance;
+			const onTitleChange = (title: string) => (instance as unknown as Record<string, (value: string) => void>)['_onTitleChange'](title);
+			const handleShellTypeChange = (shellType: GeneralShellType | PosixShellType | undefined) => (instance as unknown as Record<string, (value: GeneralShellType | PosixShellType | undefined) => void>)['_handleShellTypeChange'](shellType);
+
+			strictEqual(instance.shellType, undefined);
+			onTitleChange('Claude Code');
+			strictEqual(instance.shellType, GeneralShellType.Claude);
+
+			handleShellTypeChange(GeneralShellType.Node);
+			strictEqual(instance.shellType, GeneralShellType.Claude);
+
+			handleShellTypeChange(undefined);
+			strictEqual(instance.shellType, GeneralShellType.Claude);
+
+			handleShellTypeChange(PosixShellType.Zsh);
+			strictEqual(instance.shellType, PosixShellType.Zsh);
+		});
+
+		test('custom key event handler should handle commands in DEFAULT_COMMANDS_TO_SKIP_SHELL in VS Code and not xterm when sendKeybindingsToShell is disabled', async () => {
+			const instance = await createTerminalInstance();
+			const keybindingService = instance['_keybindingService'];
+			const originalSoftDispatch = keybindingService.softDispatch;
+			keybindingService.softDispatch = () => ({ kind: ResultKind.KbFound, commandId: 'workbench.action.zoomIn', commandArgs: undefined, isBubble: false });
+
+			let capturedHandler: ((e: KeyboardEvent) => boolean) | undefined;
+			instance.xterm!.raw.attachCustomKeyEventHandler = handler => { capturedHandler = handler; };
+			const container = document.createElement('div');
+			document.body.appendChild(container);
+			instance.attachToElement(container);
+			instance.setVisible(true);
+
+			const event = new KeyboardEvent('keydown', { key: '=', cancelable: true });
+			try {
+				deepStrictEqual(
+					{ result: capturedHandler?.(event), defaultPrevented: event.defaultPrevented },
+					{ result: false, defaultPrevented: true }
+				);
+			} finally {
+				keybindingService.softDispatch = originalSoftDispatch;
+				container.remove();
+			}
+		});
+
+		test('custom key event handler should intercept Meta-modified keys that resolve to a command when sendKeybindingsToShell is disabled', async () => {
+			const instance = await createTerminalInstance();
+			const keybindingService = instance['_keybindingService'];
+			const originalSoftDispatch = keybindingService.softDispatch;
+			strictEqual(DEFAULT_COMMANDS_TO_SKIP_SHELL.includes('test.metaKeyInterceptCommand'), false);
+			keybindingService.softDispatch = () => ({ kind: ResultKind.KbFound, commandId: 'test.metaKeyInterceptCommand', commandArgs: undefined, isBubble: false });
+
+			let capturedHandler: ((e: KeyboardEvent) => boolean) | undefined;
+			instance.xterm!.raw.attachCustomKeyEventHandler = handler => { capturedHandler = handler; };
+			const container = document.createElement('div');
+			document.body.appendChild(container);
+			instance.attachToElement(container);
+			instance.setVisible(true);
+
+			const event = new KeyboardEvent('keydown', { key: '=', metaKey: true, cancelable: true });
+			try {
+				deepStrictEqual(
+					{ result: capturedHandler?.(event), defaultPrevented: event.defaultPrevented },
+					{ result: false, defaultPrevented: true }
+				);
+			} finally {
+				keybindingService.softDispatch = originalSoftDispatch;
+				container.remove();
+			}
+		});
+	});
+	suite('DEFAULT_COMMANDS_TO_SKIP_SHELL', () => {
+		test('should include zoom commands so they are not consumed by kitty keyboard protocol', () => {
+			deepStrictEqual(
+				['workbench.action.zoomIn', 'workbench.action.zoomOut', 'workbench.action.zoomReset'].every(
+					cmd => DEFAULT_COMMANDS_TO_SKIP_SHELL.includes(cmd)
+				),
+				true
+			);
 		});
 	});
 	suite('parseExitResult', () => {
@@ -286,6 +375,12 @@ suite('Workbench - TerminalInstance', () => {
 			deepStrictEqual(
 				parseExitResult({ code: 1260, message: 'A native exception occurred during launch (Cannot create process, error code: 1260)' }, { executable: 'foo' }, ProcessState.KilledDuringLaunch, undefined),
 				{ code: 1260, message: `The terminal process failed to launch: Windows cannot open this program because it has been prevented by a software restriction policy. For more information, open Event Viewer or contact your system Administrator.` }
+			);
+		});
+		test('should format conpty launch failure', () => {
+			deepStrictEqual(
+				parseExitResult({ message: 'A native exception occurred during launch (Cannot launch conpty). Winpty has been removed, see https://code.visualstudio.com/updates/v1_109#_removal-of-winpty-support for more details. You can also try enabling the `terminal.integrated.windowsUseConptyDll` setting.' }, {}, ProcessState.KilledDuringLaunch, undefined),
+				{ code: undefined, message: `The terminal process failed to launch: A native exception occurred during launch (Cannot launch conpty). Winpty has been removed, see https://code.visualstudio.com/updates/v1_109#_removal-of-winpty-support for more details. You can also try enabling the \`terminal.integrated.windowsUseConptyDll\` setting..` }
 			);
 		});
 		test('should format generic failures', () => {
@@ -397,6 +492,32 @@ suite('Workbench - TerminalInstance', () => {
 			terminalLabelComputer.refreshLabel(createInstance({ capabilities, processName: 'process', workspaceFolder: { uri: URI.from({ scheme: Schemas.file, path: 'folder' }) } as IWorkspaceFolder, staticTitle: 'my-title' }));
 			strictEqual(terminalLabelComputer.title, 'my-title');
 			strictEqual(terminalLabelComputer.description, 'folder');
+		});
+		test('should use shellLaunchConfig.titleTemplate as template when set', () => {
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}', description: '${cwd}' } } } });
+			terminalLabelComputer.refreshLabel(createInstance({ capabilities, sequence: 'my-sequence', processName: 'zsh', shellLaunchConfig: { titleTemplate: '${sequence}' } }));
+			strictEqual(terminalLabelComputer.title, 'my-sequence');
+			strictEqual(terminalLabelComputer.description, 'cwd');
+		});
+		test('should use ${sequence} for agent CLI shell types', () => {
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}', description: '${cwd}', allowAgentCliTitle: true } } } });
+			terminalLabelComputer.refreshLabel(createInstance({ capabilities, shellType: GeneralShellType.Copilot, sequence: 'Copilot Agent', processName: 'copilot' }));
+			strictEqual(terminalLabelComputer.title, 'Copilot Agent');
+		});
+		test('should use ${sequence} for Gemini agent CLI shell type', () => {
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}', description: '${cwd}', allowAgentCliTitle: true } } } });
+			terminalLabelComputer.refreshLabel(createInstance({ capabilities, shellType: GeneralShellType.Gemini, sequence: 'Gemini - my-project', processName: 'node' }));
+			strictEqual(terminalLabelComputer.title, 'Gemini - my-project');
+		});
+		test('should prefer shellLaunchConfig.titleTemplate over agent CLI shell type override', () => {
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}', description: '${cwd}', allowAgentCliTitle: true } } } });
+			terminalLabelComputer.refreshLabel(createInstance({ capabilities, shellType: GeneralShellType.Copilot, sequence: 'Copilot Agent', processName: 'copilot', shellLaunchConfig: { titleTemplate: '${process}' } }));
+			strictEqual(terminalLabelComputer.title, 'copilot');
+		});
+		test('should fall back to configured title when allowAgentCliTitle is disabled', () => {
+			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' - ', title: '${process}', description: '${cwd}', allowAgentCliTitle: false } } } });
+			terminalLabelComputer.refreshLabel(createInstance({ capabilities, shellType: GeneralShellType.Copilot, sequence: 'Copilot Agent', processName: 'copilot' }));
+			strictEqual(terminalLabelComputer.title, 'copilot');
 		});
 		test('should provide cwdFolder for all cwds only when in multi-root', () => {
 			const terminalLabelComputer = createLabelComputer({ terminal: { integrated: { tabs: { separator: ' ~ ', title: '${process}${separator}${cwdFolder}', description: '${cwdFolder}' } } } });

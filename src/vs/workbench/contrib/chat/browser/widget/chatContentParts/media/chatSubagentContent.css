@@ -60,4 +60,34 @@
 			}
 		}
 	}
+
+	button.chat-subagent-confirmation-placeholder {
+		display: flex;
+		align-items: center;
+		gap: 6px;
+		padding: 6px 12px 6px 24px;
+		background: none;
+		border: none;
+		outline: none;
+		color: var(--vscode-descriptionForeground);
+		cursor: pointer;
+		font-size: var(--vscode-chat-font-size-body-s);
+		position: relative;
+
+		&::before {
+			content: '\2022';
+			position: absolute;
+			left: 8px;
+			color: var(--vscode-descriptionForeground);
+		}
+
+		&:hover {
+			color: var(--vscode-textLink-foreground);
+		}
+
+		&:focus-visible {
+			outline: 1px solid var(--vscode-focusBorder);
+			outline-offset: 2px;
+		}
+	}
 }

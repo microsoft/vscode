@@ -16,7 +16,7 @@ import Severity from '../../../base/common/severity.js';
 import { isString } from '../../../base/common/types.js';
 import { isModifierKey } from '../../../base/common/keyCodes.js';
 import { localize } from '../../../nls.js';
-import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickInputHideReason, QuickPickInput, QuickPickFocus, QuickInputType, IQuickTree, IQuickTreeItem } from '../common/quickInput.js';
+import { IInputBox, IInputOptions, IKeyMods, IPickOptions, IQuickInput, IQuickInputButton, IQuickNavigateConfiguration, IQuickPick, IQuickPickItem, IQuickWidget, QuickInputHideReason, QuickPickInput, QuickPickFocus, QuickInputType, IQuickTree, IQuickTreeItem, QuickInputAlignment } from '../common/quickInput.js';
 import { QuickInputBox } from './quickInputBox.js';
 import { QuickInputUI, Writeable, IQuickInputStyles, IQuickInputOptions, QuickPick, backButton, InputBox, Visibilities, QuickWidget, InQuickInputContextKey, QuickInputTypeContextKey, EndOfQuickInputBoxContextKey, QuickInputAlignmentContextKey } from './quickInput.js';
 import { ILayoutService } from '../../layout/browser/layoutService.js';
@@ -26,7 +26,7 @@ import { IContextMenuService } from '../../contextview/browser/contextView.js';
 import { QuickInputList } from './quickInputList.js';
 import { IContextKey, IContextKeyService } from '../../contextkey/common/contextkey.js';
 import './quickInputActions.js';
-import { autorun, observableValue } from '../../../base/common/observable.js';
+import { IObservable, autorun, observableValue } from '../../../base/common/observable.js';
 import { StandardMouseEvent } from '../../../base/browser/mouseEvent.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../storage/common/storage.js';
 import { IConfigurationService } from '../../configuration/common/configuration.js';
@@ -37,6 +37,8 @@ import { TriStateCheckbox, createToggleActionViewItemProvider } from '../../../b
 import { defaultCheckboxStyles } from '../../theme/browser/defaultStyles.js';
 import { QuickInputTreeController } from './tree/quickInputTreeController.js';
 import { QuickTree } from './tree/quickTree.js';
+import { AnchorAlignment, AnchorPosition, layout2d } from '../../../base/common/layout.js';
+import { getAnchorRect, IAnchor } from '../../../base/browser/ui/contextview/contextview.js';
 
 const $ = dom.$;
 
@@ -58,7 +60,7 @@ export class QuickInputController extends Disposable {
 	private readonly onDidAcceptEmitter = this._register(new Emitter<void>());
 	private readonly onDidCustomEmitter = this._register(new Emitter<void>());
 	private readonly onDidTriggerButtonEmitter = this._register(new Emitter<IQuickInputButton>());
-	private keyMods: Writeable<IKeyMods> = { ctrlCmd: false, alt: false };
+	private keyMods: Writeable<IKeyMods> = { ctrlCmd: false, alt: false, shift: false };
 
 	private controller: IQuickInput | null = null;
 	get currentQuickInput() { return this.controller ?? undefined; }
@@ -78,6 +80,9 @@ export class QuickInputController extends Disposable {
 
 	private viewState: QuickInputViewState | undefined;
 	private dndController: QuickInputDragAndDropController | undefined;
+
+	private readonly _alignment = observableValue<QuickInputAlignment>(this, 'top');
+	readonly alignment: IObservable<QuickInputAlignment> = this._alignment;
 
 	private readonly inQuickInputContext: IContextKey<boolean>;
 	private readonly quickInputTypeContext: IContextKey<QuickInputType>;
@@ -118,6 +123,7 @@ export class QuickInputController extends Disposable {
 		const listener = (e: KeyboardEvent | MouseEvent) => {
 			this.keyMods.ctrlCmd = e.ctrlKey || e.metaKey;
 			this.keyMods.alt = e.altKey;
+			this.keyMods.shift = e.shiftKey;
 		};
 
 		for (const event of [dom.EventType.KEY_DOWN, dom.EventType.KEY_UP, dom.EventType.MOUSE_DOWN]) {
@@ -236,8 +242,10 @@ export class QuickInputController extends Disposable {
 				const activeDescendant = list.getActiveDescendant();
 				if (activeDescendant) {
 					inputBox.setAttribute('aria-activedescendant', activeDescendant);
+					inputBox.setListFocusMode(true);
 				} else {
 					inputBox.removeAttribute('aria-activedescendant');
+					inputBox.setListFocusMode(false);
 				}
 			}
 		}));
@@ -280,8 +288,10 @@ export class QuickInputController extends Disposable {
 				const activeDescendant = tree.getActiveDescendant();
 				if (activeDescendant) {
 					inputBox.setAttribute('aria-activedescendant', activeDescendant);
+					inputBox.setListFocusMode(true);
 				} else {
 					inputBox.removeAttribute('aria-activedescendant');
+					inputBox.setListFocusMode(false);
 				}
 			}
 		}));
@@ -341,6 +351,8 @@ export class QuickInputController extends Disposable {
 			// See: https://github.com/microsoft/vscode/issues/271032
 			if (!isModifierKey(e.keyCode)) {
 				inputBox.removeAttribute('aria-activedescendant');
+				// Reset ARIA popup mode to allow normal text editing with arrow keys
+				inputBox.setListFocusMode(false);
 			}
 		}));
 		this._register(dom.addDisposableListener(container, dom.EventType.FOCUS, (e: FocusEvent) => {
@@ -390,6 +402,11 @@ export class QuickInputController extends Disposable {
 			if (dndViewState.done) {
 				this.saveViewState(this.viewState);
 			}
+		}));
+
+		// Mirror DnD alignment into the stable observable
+		this._register(autorun(reader => {
+			this._alignment.set(this.dndController!.alignment.read(reader), undefined);
 		}));
 
 		this.ui = {
@@ -535,6 +552,7 @@ export class QuickInputController extends Disposable {
 			input.quickNavigate = options.quickNavigate;
 			input.hideInput = !!options.hideInput;
 			input.contextKey = options.contextKey;
+			input.anchor = options.anchor;
 			input.busy = true;
 			Promise.all([picks, options.activeItem])
 				.then(([items, _activeItem]) => {
@@ -646,6 +664,9 @@ export class QuickInputController extends Disposable {
 	}
 
 	setAlignment(alignment: 'top' | 'center' | { top: number; left: number }): void {
+		if (this.controller?.anchor) {
+			return; // anchored inputs own their own positioning
+		}
 		this.dndController?.setAlignment(alignment);
 	}
 
@@ -661,7 +682,6 @@ export class QuickInputController extends Disposable {
 
 	private show(controller: IQuickInput) {
 		const ui = this.getUI(true);
-		this.onShowEmitter.fire();
 		const oldController = this.controller;
 		this.controller = controller;
 		oldController?.didHide();
@@ -704,7 +724,17 @@ export class QuickInputController extends Disposable {
 
 		ui.container.style.display = '';
 		this.updateLayout();
+		this.dndController?.setEnabled(!controller.anchor);
 		this.dndController?.layoutContainer();
+		if (controller.anchor) {
+			// Anchored quick inputs are positioned near a specific element, not
+			// at the default top location, so report them as custom-positioned.
+			this._alignment.set('custom', undefined);
+		} else {
+			// Re-sync from DnD in case a previous anchored input left us stale.
+			this._alignment.set(this.dndController?.alignment.get() ?? 'top', undefined);
+		}
+		this.onShowEmitter.fire();
 		ui.inputBox.setFocus();
 		this.quickInputTypeContext.set(controller.type);
 	}
@@ -827,13 +857,14 @@ export class QuickInputController extends Disposable {
 		}
 	}
 
-	async accept(keyMods: IKeyMods = { alt: false, ctrlCmd: false }) {
+	async accept(keyMods: IKeyMods = { alt: false, ctrlCmd: false, shift: false }) {
 		// When accepting the item programmatically, it is important that
 		// we update `keyMods` either from the provided set or unset it
 		// because the accept did not happen from mouse or keyboard
 		// interaction on the list itself
 		this.keyMods.alt = keyMods.alt;
 		this.keyMods.ctrlCmd = keyMods.ctrlCmd;
+		this.keyMods.shift = keyMods.shift;
 
 		this.onDidAcceptEmitter.fire();
 	}
@@ -855,16 +886,52 @@ export class QuickInputController extends Disposable {
 	private updateLayout() {
 		if (this.ui && this.isVisible()) {
 			const style = this.ui.container.style;
-			const width = Math.min(this.dimension!.width * 0.62 /* golden cut */, QuickInputController.MAX_WIDTH);
+			let width = Math.min(this.dimension!.width * 0.62 /* golden cut */, QuickInputController.MAX_WIDTH);
 			style.width = width + 'px';
 
+			let listHeight = this.dimension && this.dimension.height * 0.4;
+
 			// Position
-			style.top = `${this.viewState?.top ? Math.round(this.dimension!.height * this.viewState.top) : this.titleBarOffset}px`;
-			style.left = `${Math.round((this.dimension!.width * (this.viewState?.left ?? 0.5 /* center */)) - (width / 2))}px`;
+			if (this.controller?.anchor) {
+				const container = this.layoutService.getContainer(dom.getActiveWindow()).getBoundingClientRect();
+				const anchor = getAnchorRect(this.controller.anchor as HTMLElement | IAnchor);
+				width = 380;
+				listHeight = this.dimension ? Math.min(this.dimension.height * 0.2, 200) : 200;
+
+				// Beware:
+				// We need to add some extra pixels to the height to account for the input and padding.
+				const containerHeight = Math.floor(listHeight) + 6 + 26 + 16;
+				const { top, left, right, bottom, anchorAlignment, anchorPosition } = layout2d(container, { width, height: containerHeight }, anchor, { anchorPosition: AnchorPosition.ABOVE });
+
+				if (anchorAlignment === AnchorAlignment.RIGHT) {
+					style.right = `${right}px`;
+					style.left = 'initial';
+				} else {
+					style.left = `${left}px`;
+					style.right = 'initial';
+				}
+
+				if (anchorPosition === AnchorPosition.ABOVE) {
+					style.bottom = `${bottom}px`;
+					style.top = 'initial';
+				} else {
+					style.top = `${top}px`;
+					style.bottom = 'initial';
+				}
+
+				style.width = `${width}px`;
+				style.height = '';
+			} else {
+				style.top = `${this.viewState?.top !== undefined ? Math.round(this.dimension!.height * this.viewState.top) : this.titleBarOffset}px`;
+				style.left = `${Math.round((this.dimension!.width * (this.viewState?.left ?? 0.5 /* center */)) - (width / 2))}px`;
+				style.right = '';
+				style.bottom = '';
+				style.height = '';
+			}
 
 			this.ui.inputBox.layout();
-			this.ui.list.layout(this.dimension && this.dimension.height * 0.4);
-			this.ui.tree.layout(this.dimension && this.dimension.height * 0.4);
+			this.ui.list.layout(listHeight);
+			this.ui.tree.layout(listHeight);
 		}
 	}
 
@@ -876,13 +943,12 @@ export class QuickInputController extends Disposable {
 	private updateStyles() {
 		if (this.ui) {
 			const {
-				quickInputTitleBackground, quickInputBackground, quickInputForeground, widgetBorder, widgetShadow,
+				quickInputTitleBackground, quickInputBackground, quickInputForeground, widgetBorder,
 			} = this.styles.widget;
 			this.ui.titleBar.style.backgroundColor = quickInputTitleBackground ?? '';
 			this.ui.container.style.backgroundColor = quickInputBackground ?? '';
 			this.ui.container.style.color = quickInputForeground ?? '';
 			this.ui.container.style.border = widgetBorder ? `1px solid ${widgetBorder}` : '';
-			this.ui.container.style.boxShadow = widgetShadow ? `0 0 8px 2px ${widgetShadow}` : '';
 			this.ui.list.style(this.styles.list);
 			this.ui.tree.tree.style(this.styles.list);
 
@@ -959,13 +1025,17 @@ export interface IQuickInputControllerHost extends ILayoutService { }
 class QuickInputDragAndDropController extends Disposable {
 	readonly dndViewState = observableValue<{ top?: number; left?: number; done: boolean } | undefined>(this, undefined);
 
+	private _enabled = true;
+
 	private readonly _snapThreshold = 20;
 	private readonly _snapLineHorizontalRatio = 0.25;
 
 	private readonly _controlsOnLeft: boolean;
 	private readonly _controlsOnRight: boolean;
 
-	private _quickInputAlignmentContext: IContextKey<'center' | 'top' | undefined>;
+	private readonly _quickInputAlignmentContext: IContextKey<'center' | 'top' | undefined>;
+	private readonly _alignment = observableValue<QuickInputAlignment>(this, 'top');
+	readonly alignment: IObservable<QuickInputAlignment> = this._alignment;
 
 	constructor(
 		private _container: HTMLElement,
@@ -987,6 +1057,11 @@ class QuickInputDragAndDropController extends Disposable {
 		this._registerLayoutListener();
 		this.registerMouseListeners();
 		this.dndViewState.set({ ...initialViewState, done: true }, undefined);
+		// Initialize alignment from restored state. The exact snap alignment will
+		// be refined in layoutContainer() once pixel dimensions are available.
+		if (initialViewState?.top !== undefined && initialViewState?.left !== undefined) {
+			this._setAlignmentState(undefined);
+		}
 	}
 
 	reparentUI(container: HTMLElement): void {
@@ -994,15 +1069,29 @@ class QuickInputDragAndDropController extends Disposable {
 	}
 
 	layoutContainer(dimension = this._layoutService.activeContainerDimension): void {
+		if (!this._enabled) {
+			return;
+		}
+
 		const state = this.dndViewState.get();
 		const dragAreaRect = this._quickInputContainer.getBoundingClientRect();
-		if (state?.top && state?.left) {
+		if (state?.top !== undefined && state?.left !== undefined) {
 			const a = Math.round(state.left * 1e2) / 1e2;
 			const b = dimension.width;
 			const c = dragAreaRect.width;
 			const d = a * b - c / 2;
 			this._layout(state.top * dimension.height, d);
 		}
+	}
+
+	setEnabled(enabled: boolean): void {
+		this._enabled = enabled;
+		this._quickInputContainer.classList.toggle('no-drag', !enabled);
+	}
+
+	private _setAlignmentState(value: 'top' | 'center' | undefined): void {
+		this._quickInputAlignmentContext.set(value);
+		this._alignment.set(value ?? 'custom', undefined);
 	}
 
 	setAlignment(alignment: 'top' | 'center' | { top: number; left: number }, done = true): void {
@@ -1012,17 +1101,17 @@ class QuickInputDragAndDropController extends Disposable {
 				left: (this._getCenterXSnapValue() + (this._quickInputContainer.clientWidth / 2)) / this._container.clientWidth,
 				done
 			}, undefined);
-			this._quickInputAlignmentContext.set('top');
+			this._setAlignmentState('top');
 		} else if (alignment === 'center') {
 			this.dndViewState.set({
 				top: this._getCenterYSnapValue() / this._container.clientHeight,
 				left: (this._getCenterXSnapValue() + (this._quickInputContainer.clientWidth / 2)) / this._container.clientWidth,
 				done
 			}, undefined);
-			this._quickInputAlignmentContext.set('center');
+			this._setAlignmentState('center');
 		} else {
 			this.dndViewState.set({ top: alignment.top, left: alignment.left, done }, undefined);
-			this._quickInputAlignmentContext.set(undefined);
+			this._setAlignmentState(undefined);
 		}
 	}
 
@@ -1035,6 +1124,10 @@ class QuickInputDragAndDropController extends Disposable {
 
 		// Double click
 		this._register(dom.addDisposableGenericMouseUpListener(dragArea, (event: MouseEvent) => {
+			if (!this._enabled) {
+				return;
+			}
+
 			const originEvent = new StandardMouseEvent(dom.getWindow(dragArea), event);
 			if (originEvent.detail !== 2) {
 				return;
@@ -1047,10 +1140,15 @@ class QuickInputDragAndDropController extends Disposable {
 			}
 
 			this.dndViewState.set({ top: undefined, left: undefined, done: true }, undefined);
+			this._setAlignmentState('top');
 		}));
 
 		// Mouse down
 		this._register(dom.addDisposableGenericMouseDownListener(dragArea, (e: MouseEvent) => {
+			if (!this._enabled) {
+				return;
+			}
+
 			const activeWindow = dom.getWindow(this._layoutService.activeContainer);
 			const originEvent = new StandardMouseEvent(activeWindow, e);
 
@@ -1124,14 +1222,14 @@ class QuickInputDragAndDropController extends Disposable {
 		this.dndViewState.set({ top, left, done: false }, undefined);
 		if (snappingToCenterX) {
 			if (snappingToTop) {
-				this._quickInputAlignmentContext.set('top');
+				this._setAlignmentState('top');
 				return;
 			} else if (snappingToCenter) {
-				this._quickInputAlignmentContext.set('center');
+				this._setAlignmentState('center');
 				return;
 			}
 		}
-		this._quickInputAlignmentContext.set(undefined);
+		this._setAlignmentState(undefined);
 	}
 
 	private _getTopSnapValue() {

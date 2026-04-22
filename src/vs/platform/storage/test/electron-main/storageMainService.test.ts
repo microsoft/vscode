@@ -188,6 +188,7 @@ suite('StorageMainService', function () {
 		const workspaceStorage2 = storageMainService.workspaceStorage(workspace);
 		notStrictEqual(workspaceStorage, workspaceStorage2);
 
+		await profileStorage2.close();
 		await workspaceStorage2.close();
 	});
 

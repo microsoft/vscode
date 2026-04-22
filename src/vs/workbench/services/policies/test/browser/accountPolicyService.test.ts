@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 
 import assert from 'assert';
+import { IDefaultAccount, IDefaultAccountAuthenticationProvider, IPolicyData } from '../../../../../base/common/defaultAccount.js';
 import { Event } from '../../../../../base/common/event.js';
-import { NullLogService } from '../../../../../platform/log/common/log.js';
-import { IDefaultAccountProvider, IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
-import { DefaultAccountService } from '../../../accounts/browser/defaultAccount.js';
-import { AccountPolicyService } from '../../common/accountPolicyService.js';
+import { PolicyCategory } from '../../../../../base/common/policy.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { Extensions, IConfigurationNode, IConfigurationRegistry } from '../../../../../platform/configuration/common/configurationRegistry.js';
 import { DefaultConfiguration, PolicyConfiguration } from '../../../../../platform/configuration/common/configurations.js';
-import { IDefaultAccount, IDefaultAccountAuthenticationProvider, IPolicyData } from '../../../../../base/common/defaultAccount.js';
-import { PolicyCategory } from '../../../../../base/common/policy.js';
+import { IDefaultAccountProvider, IDefaultAccountService } from '../../../../../platform/defaultAccount/common/defaultAccount.js';
+import { NullLogService } from '../../../../../platform/log/common/log.js';
+import { Registry } from '../../../../../platform/registry/common/platform.js';
 import { TestProductService } from '../../../../test/common/workbenchTestServices.js';
+import { DefaultAccountService } from '../../../accounts/browser/defaultAccount.js';
+import { AccountPolicyService } from '../../common/accountPolicyService.js';
 
 const BASE_DEFAULT_ACCOUNT: IDefaultAccount = {
 	authenticationProvider: {
@@ -23,6 +23,7 @@ const BASE_DEFAULT_ACCOUNT: IDefaultAccount = {
 		name: 'GitHub',
 		enterprise: false,
 	},
+	accountName: 'testuser',
 	sessionId: 'abc123',
 	enterprise: false,
 };
@@ -31,6 +32,8 @@ class DefaultAccountProvider implements IDefaultAccountProvider {
 
 	readonly onDidChangeDefaultAccount = Event.None;
 	readonly onDidChangePolicyData = Event.None;
+	readonly copilotTokenInfo = null;
+	readonly onDidChangeCopilotTokenInfo = Event.None;
 
 	constructor(
 		readonly defaultAccount: IDefaultAccount,
@@ -48,6 +51,8 @@ class DefaultAccountProvider implements IDefaultAccountProvider {
 	async signIn(): Promise<IDefaultAccount | null> {
 		return null;
 	}
+
+	async signOut(): Promise<void> { }
 }
 
 suite('AccountPolicyService', () => {

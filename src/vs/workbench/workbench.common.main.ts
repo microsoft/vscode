@@ -10,6 +10,10 @@ import '../editor/editor.all.js';
 import './api/browser/extensionHost.contribution.js';
 import './browser/workbench.contribution.js';
 
+// Agent-sessions color tokens — side-effect import so they register in the
+// global color registry and appear in the color-theme JSON schema.
+import '../sessions/common/theme.js';
+
 //#endregion
 
 
@@ -116,6 +120,7 @@ import './services/authentication/browser/authenticationMcpService.js';
 import './services/authentication/browser/dynamicAuthenticationProviderStorageService.js';
 import './services/authentication/browser/authenticationQueryService.js';
 import '../platform/hover/browser/hoverService.js';
+import '../platform/userInteraction/browser/userInteractionServiceImpl.js';
 import './services/assignment/common/assignmentService.js';
 import './services/outline/browser/outlineService.js';
 import './services/languageDetection/browser/languageDetectionWorkerServiceImpl.js';
@@ -211,6 +216,7 @@ import './contrib/inlineChat/browser/inlineChat.contribution.js';
 import './contrib/mcp/browser/mcp.contribution.js';
 import './contrib/chat/browser/chatSessions/chatSessions.contribution.js';
 import './contrib/chat/browser/contextContrib/chatContext.contribution.js';
+import './contrib/imageCarousel/browser/imageCarousel.contribution.js';
 
 // Interactive
 import './contrib/interactive/browser/interactive.contribution.js';
@@ -249,8 +255,13 @@ import './contrib/searchEditor/browser/searchEditor.contribution.js';
 // Sash
 import './contrib/sash/browser/sash.contribution.js';
 
+// Git
+import './contrib/git/browser/git.contributions.js';
+
 // SCM
 import './contrib/scm/browser/scm.contribution.js';
+import './contrib/scm/browser/quickDiff.contribution.js';
+import './contrib/scm/browser/scm.service.contribution.js';
 
 // Debug
 import './contrib/debug/browser/debug.contribution.js';
@@ -358,6 +369,9 @@ import './contrib/welcomeWalkthrough/browser/walkThrough.contribution.js';
 import './contrib/welcomeViews/common/viewsWelcome.contribution.js';
 import './contrib/welcomeViews/common/newFile.contribution.js';
 
+// Welcome Onboarding
+import './contrib/welcomeOnboarding/browser/welcomeOnboarding.contribution.js';
+
 // Call Hierarchy
 import './contrib/callHierarchy/browser/callHierarchy.contribution.js';
 
@@ -415,6 +429,9 @@ import './contrib/bracketPairColorizer2Telemetry/browser/bracketPairColorizer2Te
 
 // Accessibility
 import './contrib/accessibility/browser/accessibility.contribution.js';
+
+// Metered Connection
+import './contrib/meteredConnection/browser/meteredConnection.contribution.js';
 
 // Share
 import './contrib/share/browser/share.contribution.js';

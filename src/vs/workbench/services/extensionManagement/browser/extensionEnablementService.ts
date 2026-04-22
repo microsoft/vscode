@@ -33,6 +33,7 @@ import { isString } from '../../../../base/common/types.js';
 import { Delayer } from '../../../../base/common/async.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { isWeb } from '../../../../base/common/platform.js';
+import { ChatEntitlementService, IChatEntitlementService } from '../../chat/common/chatEntitlementService.js';
 
 const SOURCE = 'IWorkbenchExtensionEnablementService';
 
@@ -44,7 +45,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 
 	declare readonly _serviceBrand: undefined;
 
-	private readonly _onEnablementChanged = new Emitter<readonly IExtension[]>();
+	private readonly _onEnablementChanged = this._register(new Emitter<readonly IExtension[]>());
 	public readonly onEnablementChanged: Event<readonly IExtension[]> = this._onEnablementChanged.event;
 
 	protected readonly extensionsManager: ExtensionsManager;
@@ -75,6 +76,7 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 		@IWorkspaceTrustManagementService private readonly workspaceTrustManagementService: IWorkspaceTrustManagementService,
 		@IWorkspaceTrustRequestService private readonly workspaceTrustRequestService: IWorkspaceTrustRequestService,
 		@IExtensionManifestPropertiesService private readonly extensionManifestPropertiesService: IExtensionManifestPropertiesService,
+		@IChatEntitlementService chatEntitlementService: IChatEntitlementService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ILogService private readonly logService: ILogService,
 		@IProductService productService: IProductService
@@ -132,6 +134,38 @@ export class ExtensionEnablementService extends Disposable implements IWorkbench
 					priority: NotificationPriority.URGENT
 				});
 			});
+		}
+
+		if (!this.environmentService.isSessionsWindow && !this.environmentService.skipBuiltinExtensions?.some(id => id.toLowerCase() === this._chatExtensionId)) {
+			const builtinChatExtensionEnablementMigrationKey = 'builtinChatExtensionEnablementMigration';
+			const builtinChatExtensionEnablementMigration = this.storageService.getBoolean(builtinChatExtensionEnablementMigrationKey, StorageScope.PROFILE) === true;
+			if (!builtinChatExtensionEnablementMigration) {
+				this.logService.debug('Running builtin chat extension enablement migration');
+				this.storageService.store(builtinChatExtensionEnablementMigrationKey, true, StorageScope.PROFILE, StorageTarget.MACHINE);
+				const context = (chatEntitlementService as ChatEntitlementService).context;
+				if (context) {
+					if (context.value.state.completed) {
+						// User has used chat features before
+						if (this._isDisabledGlobally({ id: this._chatExtensionId })) {
+							// User had specifically disabled the chat extension to disable AI features
+							if (this.configurationService.getValue('chat.disableAIFeatures') !== true) {
+								// Honor that choice by disabling AI features
+								this.logService.debug('Disabling AI features because builtin chat extension is disabled');
+								this.configurationService.updateValue('chat.disableAIFeatures', true)
+									.catch(err => this.logService.error('Failed to update chat.disableAIFeatures setting during builtin chat extension enablement migration', err));
+							}
+						}
+					} else {
+						try {
+							// User has not used chat features before so avoid activating the chat extension by disabling it
+							this.logService.debug('Disabling builtin chat extension as chat set up is not completed');
+							this._disableExtension({ id: this._chatExtensionId });
+						} catch (error) {
+							this.logService.error('Failed to disable builtin chat extension during enablement migration', error);
+						}
+					}
+				}
+			}
 		}
 	}
 

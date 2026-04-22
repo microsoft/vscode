@@ -10,7 +10,8 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-permissions: {}
+permissions:
+  contents: read
 
 env:
   VSCODE_QUALITY: 'oss'
@@ -18,10 +19,12 @@ env:
 jobs:
   compile:
     name: Compile & Hygiene
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-ubuntu-22.04-x64 ]
+    runs-on: ubuntu-22.04
     steps:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@v6
+        with:
+          lfs: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -77,16 +80,19 @@ jobs:
         working-directory: build
 
       - name: Compile & Hygiene
-        run: npm exec -- npm-run-all2 -lp core-ci extensions-ci hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
+        run: npm exec -- npm-run-all2 -lp core-ci hygiene eslint valid-layers-check define-class-fields-check vscode-dts-compile-check tsec-compile-check test-build-scripts
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check cyclic dependencies
+        run: node build/lib/checkCyclicDependencies.ts out-build
 
   linux-cli-tests:
     name: Linux
     uses: ./.github/workflows/pr-linux-cli-test.yml
     with:
       job_name: CLI
-      rustup_toolchain: 1.85
+      rustup_toolchain: 1.88
 
   linux-electron-tests:
     name: Linux
@@ -150,3 +156,259 @@ jobs:
     with:
       job_name: Remote
       remote_tests: true
+
+  copilot-check-test-cache:
+    name: Copilot - Check Test Cache
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          lfs: true
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: extensions/copilot/.nvmrc
+
+      - name: Restore build cache
+        uses: actions/cache/restore@v5
+        id: build-cache
+        with:
+          key: copilot-build_cache-${{ hashFiles('extensions/copilot/build/.cachesalt', 'extensions/copilot/package-lock.json') }}
+          path: extensions/copilot/.build/build_cache
+
+      - name: Extract build cache
+        if: steps.build-cache.outputs.cache-hit == 'true'
+        working-directory: extensions/copilot
+        run: tar -xzf .build/build_cache/cache.tgz
+
+      - name: Install dependencies
+        if: steps.build-cache.outputs.cache-hit != 'true'
+        working-directory: extensions/copilot
+        run: npm ci
+
+      - name: Ensure no duplicate cache keys
+        working-directory: extensions/copilot
+        run: npx tsx test/base/cache-cli check
+
+      - name: Ensure no untrusted cache changes
+        if: github.event_name == 'pull_request'
+        working-directory: extensions/copilot
+        run: npx tsx build/pr-check-cache-files.ts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          PULL_REQUEST: ${{ github.event.pull_request.number }}
+
+  copilot-check-telemetry:
+    name: Copilot - Check Telemetry
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          lfs: true
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22.21.x'
+
+      - name: Validate telemetry events
+        working-directory: extensions/copilot
+        run: npx --package=@vscode/telemetry-extractor --yes vscode-telemetry-extractor -s . > /dev/null
+
+  copilot-linux-tests:
+    name: Copilot - Test (Linux)
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          lfs: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22.21.x'
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          architecture: 'x64'
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0'
+
+      - name: Install setuptools
+        run: pip install setuptools
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb libgtk-3-0 libgbm1
+
+      - name: Restore build cache
+        uses: actions/cache/restore@v5
+        id: build-cache
+        with:
+          key: copilot-build_cache-${{ hashFiles('extensions/copilot/build/.cachesalt', 'extensions/copilot/package-lock.json') }}
+          path: extensions/copilot/.build/build_cache
+
+      - name: Extract build cache
+        if: steps.build-cache.outputs.cache-hit == 'true'
+        working-directory: extensions/copilot
+        run: tar -xzf .build/build_cache/cache.tgz
+
+      - name: Install dependencies
+        if: steps.build-cache.outputs.cache-hit != 'true'
+        working-directory: extensions/copilot
+        run: npm ci
+
+      - name: Create build cache archive
+        if: steps.build-cache.outputs.cache-hit != 'true'
+        working-directory: extensions/copilot
+        run: |
+          set -e
+          mkdir -p .build
+          node build/listBuildCacheFiles.js .build/build_cache_list.txt
+          mkdir -p .build/build_cache
+          tar -czf .build/build_cache/cache.tgz --files-from .build/build_cache_list.txt
+
+      - name: TypeScript type checking
+        working-directory: extensions/copilot
+        run: npm run typecheck
+
+      - name: Lint
+        working-directory: extensions/copilot
+        run: npm run lint
+
+      - name: Compile
+        working-directory: extensions/copilot
+        run: npm run compile
+
+      - name: Run vitest unit tests
+        working-directory: extensions/copilot
+        run: npm run test:unit
+
+      - name: Run simulation tests with cache
+        working-directory: extensions/copilot
+        run: npm run simulate-ci
+
+      - name: Run Completions Core prompt tests
+        working-directory: extensions/copilot
+        run: npm run test:prompt
+
+      - name: Run Completions Core lib tests using VS Code
+        working-directory: extensions/copilot
+        run: xvfb-run -a npm run test:completions-core
+
+      - name: Archive simulation output
+        if: always()
+        working-directory: extensions/copilot
+        run: |
+          set -e
+          mkdir -p .simulation-archive
+          tar -czf .simulation-archive/simulation.tgz -C .simulation .
+
+      - name: Upload simulation output
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: copilot-simulation-output-linux-${{ github.run_attempt }}
+          path: extensions/copilot/.simulation-archive/simulation.tgz
+
+  copilot-windows-tests:
+    name: Copilot - Test (Windows)
+    runs-on: windows-2022
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          lfs: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22.21.x'
+
+      - name: Setup Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+          architecture: 'x64'
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0'
+
+      - name: Install setuptools
+        run: pip install setuptools
+
+      - name: Restore build cache
+        uses: actions/cache/restore@v5
+        id: build-cache
+        with:
+          key: copilot-windows-build_cache-${{ hashFiles('extensions/copilot/build/.cachesalt', 'extensions/copilot/package-lock.json') }}
+          path: extensions/copilot/.build/build_cache
+
+      - name: Extract build cache
+        if: steps.build-cache.outputs.cache-hit == 'true'
+        working-directory: extensions/copilot
+        run: 7z.exe x .build/build_cache/cache.7z -aoa
+
+      - name: Install dependencies
+        if: steps.build-cache.outputs.cache-hit != 'true'
+        working-directory: extensions/copilot
+        run: npm ci
+
+      - name: Create build cache archive
+        if: steps.build-cache.outputs.cache-hit != 'true'
+        working-directory: extensions/copilot
+        run: |
+          mkdir -Force .build
+          node build/listBuildCacheFiles.js .build/build_cache_list.txt
+          mkdir -Force .build/build_cache
+          7z.exe a .build/build_cache/cache.7z -mx3 `@.build/build_cache_list.txt
+
+      - name: TypeScript type checking
+        working-directory: extensions/copilot
+        run: npm run typecheck
+
+      - name: Lint
+        working-directory: extensions/copilot
+        run: npm run lint
+
+      - name: Compile
+        working-directory: extensions/copilot
+        run: npm run compile
+
+      - name: Run vitest unit tests
+        working-directory: extensions/copilot
+        run: npm run test:unit
+
+      - name: Run simulation tests with cache
+        working-directory: extensions/copilot
+        run: npm run simulate-ci
+
+      - name: Run Completions Core prompt tests
+        working-directory: extensions/copilot
+        run: npm run test:prompt
+
+      - name: Run Completions Core lib tests using VS Code
+        working-directory: extensions/copilot
+        run: npm run test:completions-core
+
+

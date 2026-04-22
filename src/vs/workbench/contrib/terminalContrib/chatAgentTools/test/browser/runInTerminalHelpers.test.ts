@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { ok, strictEqual } from 'assert';
-import { generateAutoApproveActions, TRUNCATION_MESSAGE, dedupeRules, isPowerShell, sanitizeTerminalOutput, truncateOutputKeepingTail, extractCdPrefix } from '../../browser/runInTerminalHelpers.js';
+import { generateAutoApproveActions, TRUNCATION_MESSAGE, dedupeRules, isPowerShell, truncateOutputKeepingTail, extractCdPrefix, normalizeTerminalCommandForDisplay } from '../../browser/runInTerminalHelpers.js';
 import { OperatingSystem } from '../../../../../../base/common/platform.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { ConfigurationTarget } from '../../../../../../platform/configuration/common/configuration.js';
@@ -283,13 +283,22 @@ suite('truncateOutputKeepingTail', () => {
 	});
 });
 
-suite('sanitizeTerminalOutput', () => {
+suite('normalizeTerminalCommandForDisplay', () => {
 	ensureNoDisposablesAreLeakedInTestSuite();
-	test('adds truncation notice when exceeding max length', () => {
-		const longOutput = 'line\n'.repeat(20000);
-		const result = sanitizeTerminalOutput(longOutput);
-		ok(result.startsWith(TRUNCATION_MESSAGE));
-		ok(result.endsWith('line'));
+
+	test('removes escaped single and double quotes', () => {
+		const input = 'git rev-parse \\\'stash@{0}\\\' && echo \\\"done\\\"';
+		strictEqual(normalizeTerminalCommandForDisplay(input), 'git rev-parse \'stash@{0}\' && echo "done"');
+	});
+
+	test('normalizes escaped forward slashes', () => {
+		const input = 'echo \\/Users\\/me\\/project';
+		strictEqual(normalizeTerminalCommandForDisplay(input), 'echo /Users/me/project');
+	});
+
+	test('preserves non-quote escapes', () => {
+		const input = 'echo path\\ with\\ spaces';
+		strictEqual(normalizeTerminalCommandForDisplay(input), input);
 	});
 });
 

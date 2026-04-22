@@ -9,7 +9,7 @@ parameters:
 
 jobs:
   - job: LinuxCLI_${{ parameters.VSCODE_ARCH }}
-    displayName: Linux (${{ upper(parameters.VSCODE_ARCH) }})
+    displayName: Linux CLI (${{ upper(parameters.VSCODE_ARCH) }})
     timeoutInMinutes: 60
     pool:
       name: 1es-ubuntu-22.04-x64

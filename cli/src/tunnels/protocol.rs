@@ -299,9 +299,10 @@ pub enum PortPrivacy {
 	Private,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Copy, Eq, Clone, Debug)]
+#[derive(Serialize, Deserialize, PartialEq, Copy, Eq, Clone, Debug, Default)]
 #[serde(rename_all = "lowercase")]
 pub enum PortProtocol {
+	#[default]
 	Auto,
 	Http,
 	Https,
@@ -310,12 +311,6 @@ pub enum PortProtocol {
 impl std::fmt::Display for PortProtocol {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
 		write!(f, "{}", self.to_contract_str())
-	}
-}
-
-impl Default for PortProtocol {
-	fn default() -> Self {
-		Self::Auto
 	}
 }
 

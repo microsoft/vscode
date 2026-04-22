@@ -838,20 +838,6 @@ export function getDomNodePagePosition(domNode: HTMLElement): IDomNodePagePositi
 }
 
 /**
- * Returns whether the element is in the bottom right quarter of the container.
- *
- * @param element the element to check for being in the bottom right quarter
- * @param container the container to check against
- * @returns true if the element is in the bottom right quarter of the container
- */
-export function isElementInBottomRightQuarter(element: HTMLElement, container: HTMLElement): boolean {
-	const position = getDomNodePagePosition(element);
-	const clientArea = getClientArea(container);
-
-	return position.left > clientArea.width / 2 && position.top > clientArea.height / 2;
-}
-
-/**
  * Returns the effective zoom on a given element before window zoom level is applied
  */
 export function getDomNodeZoomLevel(domNode: HTMLElement): number {
@@ -1744,39 +1730,6 @@ export function triggerUpload(): Promise<FileList | undefined> {
 		// Ensure to remove the element from DOM eventually
 		setTimeout(() => input.remove());
 	});
-}
-
-export interface INotification extends IDisposable {
-	readonly onClick: event.Event<void>;
-}
-
-function sanitizeNotificationText(text: string): string {
-	return text.replace(/`/g, '\''); // convert backticks to single quotes
-}
-
-export async function triggerNotification(message: string, options?: { detail?: string; sticky?: boolean }): Promise<INotification | undefined> {
-	const permission = await Notification.requestPermission();
-	if (permission !== 'granted') {
-		return;
-	}
-
-	const disposables = new DisposableStore();
-
-	const notification = new Notification(sanitizeNotificationText(message), {
-		body: options?.detail ? sanitizeNotificationText(options.detail) : undefined,
-		requireInteraction: options?.sticky,
-	});
-
-	const onClick = new event.Emitter<void>();
-	disposables.add(addDisposableListener(notification, 'click', () => onClick.fire()));
-	disposables.add(addDisposableListener(notification, 'close', () => disposables.dispose()));
-
-	disposables.add(toDisposable(() => notification.close()));
-
-	return {
-		onClick: onClick.event,
-		dispose: () => disposables.dispose()
-	};
 }
 
 export enum DetectedFullscreenMode {

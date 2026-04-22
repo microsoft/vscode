@@ -11,21 +11,21 @@ import { ITextModel } from '../../../../../../../editor/common/model.js';
 import { IExtensionDescription } from '../../../../../../../platform/extensions/common/extensions.js';
 import { PromptsType } from '../../../../common/promptSyntax/promptTypes.js';
 import { ParsedPromptFile } from '../../../../common/promptSyntax/promptFileParser.js';
-import { IAgentSkill, ICustomAgent, IPromptFileContext, IPromptFileResource, IPromptPath, IPromptsService, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
+import { IAgentSkill, ICustomAgent, IPromptDiscoveryInfo, IPromptFileContext, IPromptFileResource, IPromptPath, IPromptsService, IAgentInstructionFile, IInstructionFile, PromptsStorage } from '../../../../common/promptSyntax/service/promptsService.js';
 import { ResourceSet } from '../../../../../../../base/common/map.js';
 
 export class MockPromptsService implements IPromptsService {
 
 	_serviceBrand: undefined;
 
-	private readonly _onDidChangeCustomChatModes = new Emitter<void>();
-	readonly onDidChangeCustomAgents = this._onDidChangeCustomChatModes.event;
+	private readonly _onDidChangeCustomAgents = new Emitter<void>();
+	readonly onDidChangeCustomAgents = this._onDidChangeCustomAgents.event;
 
 	private _customModes: ICustomAgent[] = [];
 
 	setCustomModes(modes: ICustomAgent[]): void {
 		this._customModes = modes;
-		this._onDidChangeCustomChatModes.fire();
+		this._onDidChangeCustomAgents.fire();
 	}
 
 	async getCustomAgents(token: CancellationToken): Promise<readonly ICustomAgent[]> {
@@ -54,17 +54,22 @@ export class MockPromptsService implements IPromptsService {
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	parseNew(_uri: URI, _token: CancellationToken): Promise<any> { throw new Error('Not implemented'); }
 	getParsedPromptFile(textModel: ITextModel): ParsedPromptFile { throw new Error('Not implemented'); }
-	registerContributedFile(type: PromptsType, uri: URI, extension: IExtensionDescription, name: string | undefined, description: string | undefined): IDisposable { throw new Error('Not implemented'); }
+	registerContributedFile(type: PromptsType, uri: URI, extension: IExtensionDescription, name: string | undefined, description: string | undefined, when?: string, sessionTypes?: readonly string[]): IDisposable { throw new Error('Not implemented'); }
 	getPromptLocationLabel(promptPath: IPromptPath): string { throw new Error('Not implemented'); }
-	findAgentMDsInWorkspace(token: CancellationToken): Promise<URI[]> { throw new Error('Not implemented'); }
-	listAgentMDs(token: CancellationToken): Promise<URI[]> { throw new Error('Not implemented'); }
-	listCopilotInstructionsMDs(token: CancellationToken): Promise<URI[]> { throw new Error('Not implemented'); }
+	listNestedAgentMDs(token: CancellationToken): Promise<IAgentInstructionFile[]> { throw new Error('Not implemented'); }
+	listAgentInstructions(token: CancellationToken): Promise<IAgentInstructionFile[]> { throw new Error('Not implemented'); }
 	getAgentFileURIFromModeFile(oldURI: URI): URI | undefined { throw new Error('Not implemented'); }
 	getDisabledPromptFiles(type: PromptsType): ResourceSet { throw new Error('Method not implemented.'); }
 	setDisabledPromptFiles(type: PromptsType, uris: ResourceSet): void { throw new Error('Method not implemented.'); }
 	registerPromptFileProvider(extension: IExtensionDescription, type: PromptsType, provider: { providePromptFiles: (context: IPromptFileContext, token: CancellationToken) => Promise<IPromptFileResource[] | undefined> }): IDisposable { throw new Error('Method not implemented.'); }
 	findAgentSkills(token: CancellationToken): Promise<IAgentSkill[] | undefined> { throw new Error('Method not implemented.'); }
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	getPromptDiscoveryInfo(_type: any, _token: CancellationToken): Promise<any> { throw new Error('Method not implemented.'); }
+	getHooks(_token: CancellationToken): Promise<any> { throw new Error('Method not implemented.'); }
+	getInstructionFiles(_token: CancellationToken): Promise<readonly IInstructionFile[]> { throw new Error('Method not implemented.'); }
+	getDiscoveryInfo(_type: PromptsType, _token: CancellationToken): Promise<IPromptDiscoveryInfo> { throw new Error('Method not implemented.'); }
 	dispose(): void { }
+	onDidChangeInstructions: Event<void> = Event.None;
+	onDidChangePromptFiles: Event<void> = Event.None;
+	onDidChangeSkills: Event<void> = Event.None;
+	onDidChangeHooks: Event<void> = Event.None;
 }

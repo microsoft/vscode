@@ -168,7 +168,8 @@ export class DebugRendererInNewWindowAction extends Action2 {
 
 		const storage = instantiationService.createInstance(Storage);
 		storage.storeRendererDebugOnNewWindow(port);
-		hostService.openWindow();
+		// Force local window since Chrome debugging only works locally
+		hostService.openWindow({ remoteAuthority: null });
 	}
 }
 
@@ -204,7 +205,8 @@ export class DebugExtensionHostAndRendererAction extends Action2 {
 		const storage = instantiationService.createInstance(Storage);
 		storage.storeDebugOnNewWindow(extHostPort);
 		storage.storeRendererDebugOnNewWindow(rendererPort);
-		hostService.openWindow();
+		// Force local window since Chrome debugging only works locally
+		hostService.openWindow({ remoteAuthority: null });
 	}
 }
 

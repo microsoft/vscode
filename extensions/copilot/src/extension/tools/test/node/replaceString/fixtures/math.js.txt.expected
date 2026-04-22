@@ -1,0 +1,77 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/// <reference path="./math.test.js" />
+
+console.log("foobar");
+
+// one
+// two
+// three
+
+logwo
+
+// * merge/re-use modified file entries
+// * no accept/disacrd on new session
+// * accept all hunks
+
+export function fib(nth) {
+	if (nth <= 0) return 0;
+	if (nth === 1) return 0;
+	if (nth === 2) return 1;
+	return fib(nth - 1) + fib(nth - 2);
+}
+
+///-///-////---
+
+const r = /hello/gim;
+
+export function sum(a, b) {
+	return a + b;
+}
+
+export function sub(a, b) {
+	return a - b;
+}
+
+export function sumArray(a) {
+	return a.reduce((sum, num) => sum + num, 0);
+}
+
+export function div(A, b) {
+  // console.log fff fff
+  return A / b;
+}
+
+
+
+export function mul(a, b) {
+	return a * b;
+}
+
+export function sumThreeFloats(a, b, c) {
+	return a + b + c;
+}
+
+/**
+ * Checks if a given number is a prime number.
+ *
+ * @param {number} number - The number to check for primality.
+ * @returns {boolean} - Returns true if the number is prime, otherwise false.
+ */
+export function isPrime(number) {
+	if (number <= 1) return false;
+	for (let i = 2; i <= Math.sqrt(number); i++) {
+		if (number % i === 0) {
+			return false;
+		}
+	}
+	return true;
+}
+
+
+export function isEven(n) {
+	return n % 2 === 0;
+}

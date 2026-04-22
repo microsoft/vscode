@@ -13,12 +13,14 @@ import { URI } from '../../../../../base/common/uri.js';
 import { localize } from '../../../../../nls.js';
 import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IWebContentExtractorService, WebContentExtractResult } from '../../../../../platform/webContentExtractor/common/webContentExtractor.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { detectEncodingFromBuffer } from '../../../../services/textfile/common/encoding.js';
 import { ITrustedDomainService } from '../../../url/browser/trustedDomainService.js';
 import { IChatService } from '../../common/chatService/chatService.js';
 import { ChatImageMimeType } from '../../common/languageModels.js';
 import { CountTokensCallback, IPreparedToolInvocation, IToolData, IToolImpl, IToolInvocation, IToolInvocationPreparationContext, IToolResult, IToolResultDataPart, IToolResultTextPart, ToolDataSource, ToolProgress } from '../../common/tools/languageModelToolsService.js';
 import { InternalFetchWebPageToolId } from '../../common/tools/builtinTools/tools.js';
+import { IAgentNetworkFilterService } from '../../../../../platform/networkFilter/common/networkFilterService.js';
 
 export const FetchWebPageToolData: IToolData = {
 	id: InternalFetchWebPageToolId,
@@ -56,14 +58,16 @@ export class FetchWebPageTool implements IToolImpl {
 		@IFileService private readonly _fileService: IFileService,
 		@ITrustedDomainService private readonly _trustedDomainService: ITrustedDomainService,
 		@IChatService private readonly _chatService: IChatService,
+		@IWorkspaceContextService private readonly _workspaceContextService: IWorkspaceContextService,
+		@IAgentNetworkFilterService private readonly _agentNetworkFilterService: IAgentNetworkFilterService,
 	) { }
 
 	async invoke(invocation: IToolInvocation, _countTokens: CountTokensCallback, _progress: ToolProgress, token: CancellationToken): Promise<IToolResult> {
 		const urls = (invocation.parameters as IFetchWebPageToolParams).urls || [];
-		const { webUris, fileUris, invalidUris } = this._parseUris(urls);
+		const { webUris, fileUris, invalidUris, blockedUris } = this._parseUris(urls);
 		const allValidUris = [...webUris.values(), ...fileUris.values()];
 
-		if (!allValidUris.length && invalidUris.size === 0) {
+		if (!allValidUris.length && invalidUris.size === 0 && blockedUris.size === 0) {
 			return {
 				content: [{ kind: 'text', value: localize('fetchWebPage.noValidUrls', 'No valid URLs provided.') }]
 			};
@@ -123,7 +127,9 @@ export class FetchWebPageTool implements IToolImpl {
 		let webIndex = 0;
 		let fileIndex = 0;
 		for (const url of urls) {
-			if (invalidUris.has(url)) {
+			if (blockedUris.has(url)) {
+				results.push(this._agentNetworkFilterService.formatError(URI.parse(url)));
+			} else if (invalidUris.has(url)) {
 				results.push(undefined);
 			} else if (webUris.has(url)) {
 				results.push({ type: 'extracted', value: webContents[webIndex] });
@@ -154,7 +160,7 @@ export class FetchWebPageTool implements IToolImpl {
 	}
 
 	async prepareToolInvocation(context: IToolInvocationPreparationContext, token: CancellationToken): Promise<IPreparedToolInvocation | undefined> {
-		const { webUris, fileUris, invalidUris } = this._parseUris(context.parameters.urls);
+		const { webUris, fileUris, invalidUris, blockedUris } = this._parseUris(context.parameters.urls);
 
 		// Check which file URIs can actually be read
 		const validFileUris: URI[] = [];
@@ -169,8 +175,16 @@ export class FetchWebPageTool implements IToolImpl {
 			}
 		}
 
-		const invalid = [...Array.from(invalidUris), ...additionalInvalidUrls];
-		const urlsNeedingConfirmation = new ResourceSet([...webUris.values(), ...validFileUris]);
+		const invalid = [...Array.from(invalidUris), ...additionalInvalidUrls, ...Array.from(blockedUris)];
+		// All valid URIs (web + file) for display in messages
+		const allFetchedUris = new ResourceSet([...webUris.values(), ...validFileUris]);
+		// File URIs that are inside the workspace don't need confirmation — they're already accessible
+		// and don't carry the web content risks (prompt injection, malicious redirects).
+		// File URIs outside the workspace are treated like web URIs and require confirmation.
+		const fileUrisOutsideWorkspace = validFileUris.filter(
+			uri => !this._workspaceContextService.getWorkspaceFolder(uri)
+		);
+		const urlsNeedingConfirmation = new ResourceSet([...webUris.values(), ...fileUrisOutsideWorkspace]);
 
 		const pastTenseMessage = invalid.length
 			? invalid.length > 1
@@ -178,7 +192,7 @@ export class FetchWebPageTool implements IToolImpl {
 				? new MarkdownString(
 					localize(
 						'fetchWebPage.pastTenseMessage.plural',
-						'Fetched {0} resources, but the following were invalid URLs:\n\n{1}\n\n', urlsNeedingConfirmation.size, invalid.map(url => `- ${url}`).join('\n')
+						'Fetched {0} resources, but the following were invalid URLs:\n\n{1}\n\n', allFetchedUris.size, invalid.map(url => `- ${url}`).join('\n')
 					))
 				// If there is only one invalid URL, show it
 				: new MarkdownString(
@@ -190,11 +204,11 @@ export class FetchWebPageTool implements IToolImpl {
 			: new MarkdownString();
 
 		const invocationMessage = new MarkdownString();
-		if (urlsNeedingConfirmation.size > 1) {
-			pastTenseMessage.appendMarkdown(localize('fetchWebPage.pastTenseMessageResult.plural', 'Fetched {0} resources', urlsNeedingConfirmation.size));
-			invocationMessage.appendMarkdown(localize('fetchWebPage.invocationMessage.plural', 'Fetching {0} resources', urlsNeedingConfirmation.size));
-		} else if (urlsNeedingConfirmation.size === 1) {
-			const url = Iterable.first(urlsNeedingConfirmation)!.toString(true);
+		if (allFetchedUris.size > 1) {
+			pastTenseMessage.appendMarkdown(localize('fetchWebPage.pastTenseMessageResult.plural', 'Fetched {0} resources', allFetchedUris.size));
+			invocationMessage.appendMarkdown(localize('fetchWebPage.invocationMessage.plural', 'Fetching {0} resources', allFetchedUris.size));
+		} else if (allFetchedUris.size === 1) {
+			const url = Iterable.first(allFetchedUris)!.toString(true);
 			// If the URL is too long or it's a file url, show it as a link... otherwise, show it as plain text
 			if (url.length > 400 || validFileUris.length === 1) {
 				pastTenseMessage.appendMarkdown(localize({
@@ -266,16 +280,21 @@ export class FetchWebPageTool implements IToolImpl {
 		return result;
 	}
 
-	private _parseUris(urls?: string[]): { webUris: Map<string, URI>; fileUris: Map<string, URI>; invalidUris: Set<string> } {
+	private _parseUris(urls?: string[]): { webUris: Map<string, URI>; fileUris: Map<string, URI>; invalidUris: Set<string>; blockedUris: Set<string> } {
 		const webUris = new Map<string, URI>();
 		const fileUris = new Map<string, URI>();
 		const invalidUris = new Set<string>();
+		const blockedUris = new Set<string>();
 
 		urls?.forEach(url => {
 			try {
 				const uriObj = URI.parse(url);
 				if (uriObj.scheme === 'http' || uriObj.scheme === 'https') {
-					webUris.set(url, uriObj);
+					if (!this._agentNetworkFilterService.isUriAllowed(uriObj)) {
+						blockedUris.add(url);
+					} else {
+						webUris.set(url, uriObj);
+					}
 				} else {
 					// Try to handle other schemes via file service
 					fileUris.set(url, uriObj);
@@ -285,7 +304,7 @@ export class FetchWebPageTool implements IToolImpl {
 			}
 		});
 
-		return { webUris, fileUris, invalidUris };
+		return { webUris, fileUris, invalidUris, blockedUris };
 	}
 
 	private _getPromptPartsForResults(urls: string[], results: ResultType[]): (IToolResultTextPart | IToolResultDataPart)[] {

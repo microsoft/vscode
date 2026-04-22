@@ -20,7 +20,7 @@ import { overviewRulerRangeHighlight } from '../../../../../editor/common/core/e
 import { IEditorDecorationsCollection } from '../../../../../editor/common/editorCommon.js';
 import { OverviewRulerLane } from '../../../../../editor/common/model.js';
 import { themeColorFromId } from '../../../../../platform/theme/common/themeService.js';
-import { ChatViewId, ChatViewPaneTarget, IChatWidget, IChatWidgetService } from '../chat.js';
+import { ChatViewId, IChatWidget, IChatWidgetService } from '../chat.js';
 import { IViewsService } from '../../../../services/views/common/viewsService.js';
 import * as nls from '../../../../../nls.js';
 import { IExplanationDiffInfo, IChangeExplanation as IChangeExplanationModel, IChatEditingExplanationModelManager } from './chatEditingExplanationModelManager.js';
@@ -353,7 +353,7 @@ export class ChatEditingExplanationWidget extends Disposable implements IOverlay
 				const range = new Range(exp.startLineNumber, 1, exp.endLineNumber, 1);
 				let chatWidget: IChatWidget | undefined;
 				if (this._chatSessionResource) {
-					chatWidget = await this._chatWidgetService.openSession(this._chatSessionResource, ChatViewPaneTarget);
+					chatWidget = await this._chatWidgetService.openSession(this._chatSessionResource);
 				} else {
 					await this._viewsService.openView(ChatViewId, true);
 					chatWidget = this._chatWidgetService.lastFocusedWidget;

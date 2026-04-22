@@ -1,0 +1,66 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+/* ---- Changes Titlebar Indicator (in right toolbar) ---- */
+
+/* Separator between local-session actions (Run, VS Code) and fixed toggles (Terminal, Changes).
+ * Targets the action following the VS Code icon (any Codicon.vscode variant). */
+.agent-sessions-workbench .titlebar-session-actions-container .monaco-action-bar .actions-container > .action-item:has(.codicon[class*="codicon-vscode"]) + .action-item {
+	position: relative;
+	margin-left: 17px;
+}
+
+.agent-sessions-workbench .titlebar-session-actions-container .monaco-action-bar .actions-container > .action-item:has(.codicon[class*="codicon-vscode"]) + .action-item::before {
+	content: '';
+	position: absolute;
+	left: -9px;
+	top: 3px;
+	width: 1px;
+	height: 16px;
+	background-color: var(--vscode-disabledForeground);
+}
+
+.agent-sessions-workbench .changes-titlebar-indicator {
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	height: 22px;
+	padding: 0 4px;
+	border-radius: var(--vscode-cornerRadius-medium);
+	cursor: pointer;
+	color: inherit;
+	gap: 3px;
+}
+
+.agent-sessions-workbench .changes-titlebar-indicator:hover {
+	background: var(--vscode-toolbar-hoverBackground);
+}
+
+.agent-sessions-workbench .changes-titlebar-indicator.toggled,
+.agent-sessions-workbench .changes-titlebar-indicator.toggled:hover {
+	background: var(--vscode-toolbar-activeBackground);
+}
+
+.agent-sessions-workbench .changes-titlebar-indicator .codicon {
+	font-size: 16px;
+	color: inherit;
+}
+
+.agent-sessions-workbench .changes-titlebar-count {
+	font-size: 11px;
+	font-variant-numeric: tabular-nums;
+	line-height: 16px;
+	color: inherit;
+}
+
+.agent-sessions-workbench .changes-titlebar-insertions {
+	color: var(--vscode-gitDecoration-addedResourceForeground);
+	font-weight: 600;
+}
+
+.agent-sessions-workbench .changes-titlebar-deletions {
+	color: var(--vscode-gitDecoration-deletedResourceForeground);
+	font-weight: 600;
+}

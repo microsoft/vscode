@@ -6,6 +6,7 @@ import path from 'path';
 import * as fs from 'fs';
 import * as child_process from 'child_process';
 import * as os from 'os';
+import { isUpToDate, forceInstallMessage } from './installStateHash.ts';
 
 if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
 	// Get the running Node.js version
@@ -28,10 +29,10 @@ if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
 	const requiredMinor = parseInt(requiredVersionMatch[2]);
 	const requiredPatch = parseInt(requiredVersionMatch[3]);
 
-	if (majorNodeVersion < requiredMajor ||
-		(majorNodeVersion === requiredMajor && minorNodeVersion < requiredMinor) ||
-		(majorNodeVersion === requiredMajor && minorNodeVersion === requiredMinor && patchNodeVersion < requiredPatch)) {
-		console.error(`\x1b[1;31m*** Please use Node.js v${requiredVersion} or later for development. Currently using v${process.versions.node}.\x1b[0;0m`);
+	if (majorNodeVersion !== requiredMajor ||
+		minorNodeVersion < requiredMinor ||
+		(minorNodeVersion === requiredMinor && patchNodeVersion < requiredPatch)) {
+		console.error(`\x1b[1;31m*** Please use Node.js v${requiredVersion} or newer with the same major version (${requiredMajor}) as specified in .nvmrc. Currently using v${process.versions.node}.\x1b[0;0m`);
 		throw new Error();
 	}
 }
@@ -39,6 +40,24 @@ if (!process.env['VSCODE_SKIP_NODE_VERSION_CHECK']) {
 if (process.env.npm_execpath?.includes('yarn')) {
 	console.error('\x1b[1;31m*** Seems like you are using `yarn` which is not supported in this repo any more, please use `npm i` instead. ***\x1b[0;0m');
 	throw new Error();
+}
+
+const npmUserAgent = process.env.npm_config_user_agent;
+const npmVersionMatch = npmUserAgent?.match(/npm\/(\d+)\.(\d+)\.(\d+)/);
+if (npmVersionMatch) {
+	const npmMajor = parseInt(npmVersionMatch[1]);
+	const npmMinor = parseInt(npmVersionMatch[2]);
+	if (npmMajor > 11 || (npmMajor === 11 && npmMinor >= 2)) {
+		console.error(`\x1b[1;31m*** Please use npm version < 11.2.0. Currently using v${npmUserAgent}.\x1b[0;0m`);
+		throw new Error();
+	}
+}
+
+// Fast path: if nothing changed since last successful install, skip everything.
+// This makes `npm i` near-instant when dependencies haven't changed.
+if (!process.env['VSCODE_FORCE_INSTALL'] && isUpToDate()) {
+	console.log(`\x1b[32mAll dependencies up to date.\x1b[0m ${forceInstallMessage}`);
+	process.exit(0);
 }
 
 if (process.platform === 'win32') {

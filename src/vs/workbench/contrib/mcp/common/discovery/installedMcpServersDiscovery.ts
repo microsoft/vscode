@@ -89,6 +89,7 @@ export class InstalledMcpServersDiscovery extends Disposable implements IMcpDisc
 					type: McpServerTransportType.HTTP,
 					uri: URI.parse(config.url),
 					headers: Object.entries(config.headers || {}),
+					oauth: config.oauth,
 				} : {
 					type: McpServerTransportType.Stdio,
 					command: config.command,
@@ -96,12 +97,14 @@ export class InstalledMcpServersDiscovery extends Disposable implements IMcpDisc
 					env: config.env || {},
 					envFile: config.envFile,
 					cwd: config.cwd,
+					sandbox: server.rootSandbox
 				};
 
 				definitions[1].push({
 					id: `${collectionId}.${server.name}`,
 					label: server.name,
 					launch,
+					sandboxEnabled: config.type === 'http' ? undefined : config.sandboxEnabled,
 					cacheNonce: await McpServerLaunch.hash(launch),
 					roots: mcpConfigPath?.workspaceFolder ? [mcpConfigPath.workspaceFolder.uri] : undefined,
 					variableReplacement: {

@@ -23,8 +23,8 @@
 
 	border-top-style: solid;
 	border-bottom-style: solid;
-	border-top-color: rgb(0, 122, 204);
-	border-bottom-color: rgb(0, 122, 204);
+	border-top-color: var(--vscode-inlineChat-border);
+	border-bottom-color: var(--vscode-inlineChat-border);
 	border-top-width: 1px;
 	border-bottom-width: 1px;
 }

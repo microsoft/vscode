@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/jtbandes/swift-tmlanguage/commit/45ac01d47c6d63402570c2c36bcfbadbd1c7bca6",
+	"version": "https://github.com/jtbandes/swift-tmlanguage/commit/3fca2fa10f7dc962d19ee617b17844d6eecfa2cb",
 	"name": "Swift",
 	"scopeName": "source.swift",
 	"comment": "See swift.tmbundle/grammar-test.swift for test cases.",
@@ -3848,7 +3848,7 @@
 				},
 				{
 					"name": "string.quoted.double.block.raw.swift",
-					"begin": "#\"\"\"",
+					"begin": "#\"\"\"(?!#)(?=(?:[^\"]|\"(?!#))*$)",
 					"end": "\"\"\"#(#*)",
 					"beginCaptures": {
 						"0": {
@@ -3884,7 +3884,7 @@
 				},
 				{
 					"name": "string.quoted.double.block.raw.swift",
-					"begin": "(##+)\"\"\"",
+					"begin": "(?<!#)(##+)\"\"\"(?!\\1)(?=(?:[^\"]|\"(?!\\1))*$)",
 					"end": "\"\"\"\\1(#*)",
 					"beginCaptures": {
 						"0": {
@@ -3936,7 +3936,7 @@
 				{
 					"comment": "SE-0168: raw string literals (more than one #, grammar limitations prevent us from supporting escapes)",
 					"name": "string.quoted.double.single-line.raw.swift",
-					"begin": "(##+)\"",
+					"begin": "(?<!#)(##+)\"",
 					"end": "\"\\1(#*)",
 					"beginCaptures": {
 						"0": {

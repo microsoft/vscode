@@ -110,6 +110,7 @@
 	border: 1px solid var(--vscode-button-border, transparent);
 	border-left-width: 0 !important;
 	border-radius: 0 4px 4px 0;
+	padding: 0 4px;
 	display: flex;
 	align-items: center;
 }

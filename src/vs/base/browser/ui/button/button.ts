@@ -91,6 +91,15 @@ const buttonSanitizerConfig = Object.freeze<DomSanitizerConfig>({
 	},
 });
 
+// Markdown render options that allow class attributes to pass through
+const buttonMarkdownRenderOptions = Object.freeze({
+	sanitizerConfig: {
+		allowedAttributes: {
+			override: ['class'],
+		}
+	}
+});
+
 export class Button extends Disposable implements IButton {
 
 	protected options: IButtonOptions;
@@ -262,7 +271,7 @@ export class Button extends Disposable implements IButton {
 		const labelElement = this.options.supportShortLabel ? this._labelElement! : this._element;
 
 		if (isMarkdownString(value)) {
-			const rendered = renderMarkdown(value, undefined, document.createElement('span'));
+			const rendered = renderMarkdown(value, buttonMarkdownRenderOptions, document.createElement('span'));
 			rendered.dispose();
 
 			// Don't include outer `<p>`
@@ -351,10 +360,10 @@ export class Button extends Disposable implements IButton {
 	set checked(value: boolean) {
 		if (value) {
 			this._element.classList.add('checked');
-			this._element.setAttribute('aria-checked', 'true');
+			this._element.setAttribute('aria-pressed', 'true');
 		} else {
 			this._element.classList.remove('checked');
-			this._element.setAttribute('aria-checked', 'false');
+			this._element.setAttribute('aria-pressed', 'false');
 		}
 	}
 
@@ -673,7 +682,7 @@ export class ButtonWithIcon extends Button {
 
 		this._element.classList.add('monaco-text-button');
 		if (isMarkdownString(value)) {
-			const rendered = renderMarkdown(value, undefined, document.createElement('span'));
+			const rendered = renderMarkdown(value, buttonMarkdownRenderOptions, document.createElement('span'));
 			rendered.dispose();
 
 			// eslint-disable-next-line no-restricted-syntax

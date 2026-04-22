@@ -24,12 +24,11 @@ export class ExtHostConsoleForwarder extends AbstractExtHostConsoleForwarder {
 		this._wrapStream('stdout', 'log');
 	}
 
-	protected override _nativeConsoleLogMessage(method: 'log' | 'info' | 'warn' | 'error' | 'debug', original: (...args: any[]) => void, args: IArguments) {
+	protected override _nativeConsoleLogMessage(method: 'log' | 'info' | 'warn' | 'error' | 'debug', original: (...args: unknown[]) => void, args: unknown[]): void {
 		const stream = method === 'error' || method === 'warn' ? process.stderr : process.stdout;
 		this._isMakingConsoleCall = true;
 		stream.write(`\n${NativeLogMarkers.Start}\n`);
-		// eslint-disable-next-line local/code-no-any-casts
-		original.apply(console, args as any);
+		original.apply(console, args);
 		stream.write(`\n${NativeLogMarkers.End}\n`);
 		this._isMakingConsoleCall = false;
 	}

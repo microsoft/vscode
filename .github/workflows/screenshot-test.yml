@@ -1,0 +1,318 @@
+name: Checking Component Screenshots
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches:
+      - main
+      - 'release/*'
+
+permissions:
+  contents: read
+  statuses: write
+  pull-requests: write
+  id-token: write
+
+concurrency:
+  group: screenshots-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  screenshots:
+    name: Checking Component Screenshots
+    runs-on: ubuntu-latest
+    continue-on-error: true # TODO(hediet): Remove once screenshot pipeline is stable
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          # Depth 2 gives us the test-merge commit plus its parents, which is
+          # enough for the merge-base lookup below (the target-branch tip is a
+          # direct parent). Full clone would be wasteful for this large repo.
+          fetch-depth: 2
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: 1
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install build dependencies
+        run: npm ci
+        working-directory: build
+
+      - name: Install rspack dependencies
+        run: npm ci
+        working-directory: build/rspack
+
+      - name: Copy codicons
+        run: cp node_modules/@vscode/codicons/dist/codicon.ttf src/vs/base/browser/ui/codicons/codicon/codicon.ttf
+
+      - name: Transpile source
+        run: npm run transpile-client
+
+      - name: Install Playwright Chromium
+        run: npx playwright install chromium
+
+      - name: Capture screenshots
+        run: ./node_modules/.bin/component-explorer render --project ./test/componentFixtures/component-explorer.json
+
+      - name: Log fixture errors
+        if: always()
+        run: |
+          MANIFEST="test/componentFixtures/.screenshots/current/manifest.json"
+          if [ ! -f "$MANIFEST" ]; then
+            echo "::warning::No manifest found — render may have failed entirely"
+            exit 0
+          fi
+          ERRORS=$(node -e "
+            const m = require('./$MANIFEST');
+            const errs = m.fixtures.filter(f => f.hasError);
+            if (!errs.length) { console.log('No fixture errors.'); process.exit(0); }
+            console.log(errs.length + ' fixture(s) with errors:');
+            for (const f of errs) {
+              console.log('::error::' + f.fixtureId + ': ' + (f.error || 'unknown error'));
+              if (f.events?.length) {
+                for (const e of f.events) { console.log('  event: ' + JSON.stringify(e)); }
+              }
+            }
+          ")
+          echo "$ERRORS"
+
+      - name: Check blocks-ci screenshots
+        id: blocks-ci
+        run: |
+          node build/lib/screenshotBlocksCi.ts \
+            test/componentFixtures/.screenshots/current/manifest.json \
+            test/componentFixtures/blocks-ci-screenshots.md \
+            https://hediet-screenshots.azurewebsites.net \
+            > /tmp/blocks-ci-updated.md 2>/tmp/blocks-ci-stderr.txt \
+            && echo "match=true" >> "$GITHUB_OUTPUT" \
+            || {
+              echo "match=false" >> "$GITHUB_OUTPUT"
+              cat /tmp/blocks-ci-stderr.txt >&2
+              CONTENT=$(cat /tmp/blocks-ci-updated.md)
+              echo "content<<BLOCKS_CI_EOF" >> "$GITHUB_OUTPUT"
+              echo "$CONTENT" >> "$GITHUB_OUTPUT"
+              echo "BLOCKS_CI_EOF" >> "$GITHUB_OUTPUT"
+            }
+
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v7
+        with:
+          name: screenshots
+          path: test/componentFixtures/.screenshots/current/
+
+      - name: Skip notice (fork PR)
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+        run: echo "::notice::Skipping screenshot upload and diff — OIDC is not available for fork PRs"
+
+      - name: Get OIDC token
+        id: oidc
+        if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+        run: |
+          TOKEN=$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=https://hediet-screenshots.azurewebsites.net" \
+            | jq -r .value)
+          echo "::add-mask::$TOKEN"
+          echo "token=$TOKEN" >> "$GITHUB_OUTPUT"
+
+      - name: Upload screenshots to service
+        if: steps.oidc.outputs.token
+        run: |
+          cd test/componentFixtures/.screenshots/current
+          zip -qr "$GITHUB_WORKSPACE/screenshots.zip" .
+          curl -sS -f -X POST "https://hediet-screenshots.azurewebsites.net/upload" \
+            -H "Content-Type: application/zip" \
+            -H "Authorization: Bearer $SCREENSHOT_SERVICE_TOKEN" \
+            --data-binary @"$GITHUB_WORKSPACE/screenshots.zip"
+        env:
+          SCREENSHOT_SERVICE_TOKEN: ${{ steps.oidc.outputs.token }}
+
+      - name: Diff screenshots against merge base
+        id: diff
+        if: github.event_name == 'pull_request' && steps.oidc.outputs.token
+        run: |
+          # We diff screenshots(checked-out commit) vs screenshots(merge-base of
+          # that commit with the target branch). This isolates the visual effect
+          # of just this PR's divergence from target. Using pull_request.base.sha
+          # would be wrong: it's the target-branch tip at PR creation time and can
+          # be stale, causing unrelated target-branch commits to show up as diffs.
+          TARGET_REF="origin/${{ github.event.pull_request.base.ref }}"
+          git fetch --no-tags --depth=1 origin "${{ github.event.pull_request.base.ref }}"
+          BASE_SHA=$(git merge-base "${{ github.sha }}" "$TARGET_REF")
+          echo "Using base SHA: $BASE_SHA (merge-base of ${{ github.sha }} and $TARGET_REF)"
+          BODY=$(node build/lib/screenshotDiffReport.ts \
+            https://hediet-screenshots.azurewebsites.net \
+            ${{ github.repository_owner }} \
+            ${{ github.event.repository.name }} \
+            "$BASE_SHA" \
+            ${{ github.sha }})
+          if [ -n "$BODY" ]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            echo "body<<SCREENSHOT_EOF" >> "$GITHUB_OUTPUT"
+            echo "$BODY" >> "$GITHUB_OUTPUT"
+            echo "SCREENSHOT_EOF" >> "$GITHUB_OUTPUT"
+          else
+            echo "No screenshot changes to report."
+          fi
+          if [ -f .tmp/screenshotDiffReport.json ]; then
+            echo "::group::Compare response JSON"
+            cat .tmp/screenshotDiffReport.json
+            echo "::endgroup::"
+          fi
+        continue-on-error: true
+        env:
+          SCREENSHOT_SERVICE_TOKEN: ${{ steps.oidc.outputs.token }}
+
+      - name: Post PR comment
+        if: github.event_name == 'pull_request' && (steps.diff.outputs.has_changes == 'true' || steps.blocks-ci.outputs.match == 'false')
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const marker = '<!-- screenshot-diff-report -->';
+            let body = process.env.COMMENT_BODY || '';
+            const blocksCiContent = process.env.BLOCKS_CI_CONTENT;
+
+            if (blocksCiContent) {
+              if (body) { body += '\n\n---\n\n'; }
+              body += '### blocks-ci screenshots changed\n\n';
+              body += 'Replace the contents of `test/componentFixtures/blocks-ci-screenshots.md` with:\n\n';
+              body += '<details>\n<summary>Updated blocks-ci-screenshots.md</summary>\n\n';
+              body += '```md\n' + blocksCiContent + '\n```\n\n';
+              body += '</details>';
+            }
+
+            body = marker + '\n' + body;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+              per_page: 100,
+            });
+            const existing = comments.find(c => c.body?.startsWith(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+        env:
+          COMMENT_BODY: ${{ steps.diff.outputs.body }}
+          BLOCKS_CI_CONTENT: ${{ steps.blocks-ci.outputs.content }}
+
+      - name: Fail if blocks-ci hashes changed
+        if: steps.blocks-ci.outputs.match == 'false'
+        run: |
+          echo "::error::blocks-ci screenshot hashes do not match committed file. See PR comment for updated content."
+          exit 1
+
+      # - name: Compare screenshots
+      #   id: compare
+      #   run: |
+      #     ./node_modules/.bin/component-explorer screenshot:compare \
+      #       --project ./test/componentFixtures \
+      #       --report ./test/componentFixtures/.screenshots/report
+      #   continue-on-error: true
+
+      # - name: Prepare explorer artifact
+      #   run: |
+      #     mkdir -p /tmp/explorer-artifact/screenshot-report
+      #     cp -r build/vite/dist/* /tmp/explorer-artifact/
+      #     if [ -d test/componentFixtures/.screenshots/report ]; then
+      #       cp -r test/componentFixtures/.screenshots/report/* /tmp/explorer-artifact/screenshot-report/
+      #     fi
+
+      # - name: Upload explorer artifact
+      #   uses: actions/upload-artifact@v7
+      #   with:
+      #     name: component-explorer
+      #     path: /tmp/explorer-artifact/
+
+      # - name: Upload screenshot report
+      #   if: steps.compare.outcome == 'failure'
+      #   uses: actions/upload-artifact@v7
+      #   with:
+      #     name: screenshot-diff
+      #     path: |
+      #       test/componentFixtures/.screenshots/current/
+      #       test/componentFixtures/.screenshots/report/
+
+      # - name: Set check title
+      #   env:
+      #     GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #   run: |
+      #     REPORT="test/componentFixtures/.screenshots/report/report.json"
+      #     STATE="success"
+      #     if [ -f "$REPORT" ]; then
+      #       CHANGED=$(node -e "const r = require('./$REPORT'); console.log(r.summary.added + r.summary.removed + r.summary.changed)")
+      #       TITLE="⚠ ${CHANGED} screenshots changed"
+      #       BLOCKS_CI=$(node -e "
+      #         const r = require('./$REPORT');
+      #         const blocking = Object.entries(r.fixtures).filter(([, f]) =>
+      #           f.status !== 'unchanged' && (f.labels || []).includes('blocks-ci')
+      #         );
+      #         if (blocking.length > 0) {
+      #           console.log(blocking.map(([name]) => name).join(', '));
+      #         }
+      #       ")
+      #       if [ -n "$BLOCKS_CI" ]; then
+      #         STATE="failure"
+      #         TITLE="❌ ${CHANGED} screenshots changed (blocks CI: ${BLOCKS_CI})"
+      #       fi
+      #     else
+      #       TITLE="✅ Screenshots match"
+      #     fi
+
+      #     SHA="${{ github.event.pull_request.head.sha || github.sha }}"
+      #     DETAILS_URL="https://hediet-ghartifactpreview.azurewebsites.net/${{ github.repository }}/run/${{ github.run_id }}/component-explorer/___explorer.html?report=./screenshot-report/report.json&search=changed"
+
+      #     gh api "repos/${{ github.repository }}/statuses/$SHA" \
+      #       --input - <<EOF || echo "::warning::Could not create commit status (expected for fork PRs)"
+      #     {"state":"$STATE","target_url":"$DETAILS_URL","description":"$TITLE","context":"Component Screenshots"}
+      #     EOF
+
+      # - name: Post PR comment
+      #   if: github.event_name == 'pull_request'
+      #   env:
+      #     GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      #   run: |
+      #     COMMENT_MARKER="<!-- screenshot-report -->"
+      #     BODY="$COMMENT_MARKER"$'\n'
+      #
+      #     if [ -f test/componentFixtures/.screenshots/report.md ]; then
+      #       BODY+=$(cat test/componentFixtures/.screenshots/report.md)
+      #       BODY+=$'\n\n'
+      #       BODY+="📦 [Download the \`screenshot-diff\` artifact](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) to review images."
+      #     else
+      #       BODY+="## Screenshots ✅"$'\n\n'
+      #       BODY+="No visual changes detected."
+      #     fi
+      #
+      #     # Find existing comment
+      #     EXISTING=$(gh api "repos/${{ github.repository }}/issues/${{ github.event.pull_request.number }}/comments" \
+      #       --paginate --jq ".[] | select(.body | startswith(\"$COMMENT_MARKER\")) | .id" | head -1)
+      #
+      #     if [ -n "$EXISTING" ]; then
+      #       gh api "repos/${{ github.repository }}/issues/comments/$EXISTING" -X PATCH -f body="$BODY"
+      #     else
+      #       gh pr comment "${{ github.event.pull_request.number }}" --body "$BODY"
+      #     fi

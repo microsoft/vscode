@@ -30,6 +30,11 @@ export const CONTEXT_FIND_WIDGET_NOT_VISIBLE = CONTEXT_FIND_WIDGET_VISIBLE.toNeg
 // Keep ContextKey use of 'Focussed' to not break when clauses
 export const CONTEXT_FIND_INPUT_FOCUSED = new RawContextKey<boolean>('findInputFocussed', false);
 export const CONTEXT_REPLACE_INPUT_FOCUSED = new RawContextKey<boolean>('replaceInputFocussed', false);
+/**
+ * Context key that is true when any element within the Find widget has focus.
+ * This includes the Find input, Replace input, checkboxes, buttons, etc.
+ */
+export const CONTEXT_FIND_WIDGET_FOCUSED = new RawContextKey<boolean>('findWidgetFocused', false);
 
 export const ToggleCaseSensitiveKeybinding: IKeybindings = {
 	primary: KeyMod.Alt | KeyCode.KeyC,

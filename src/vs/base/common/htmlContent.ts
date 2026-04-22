@@ -173,6 +173,23 @@ export function appendEscapedMarkdownCodeBlockFence(code: string, langId: string
 	].join('\n');
 }
 
+/**
+ * Wraps arbitrary text in a markdown inline code span using a backtick fence
+ * long enough to safely contain any backtick sequences present in the text.
+ *
+ * Backticks inside an inline code span cannot be backslash-escaped per the
+ * CommonMark spec — the only safe way is to choose a delimiter run longer
+ * than any run of backticks in the content (and pad with spaces if the
+ * content begins or ends with a backtick).
+ */
+export function appendEscapedMarkdownInlineCode(text: string): string {
+	const longestBacktickRun = Math.max(0, ...(text.match(/`+/g) ?? []).map(m => m.length));
+	const fence = '`'.repeat(longestBacktickRun + 1);
+	const needsSpace = text.startsWith('`') || text.endsWith('`');
+	const content = needsSpace ? ` ${text} ` : text;
+	return `${fence}${content}${fence}`;
+}
+
 export function escapeDoubleQuotes(input: string) {
 	return input.replace(/"/g, '&quot;');
 }
@@ -210,9 +227,9 @@ export function createMarkdownLink(text: string, href: string, title?: string, e
 	return `[${escapeTokens ? escapeMarkdownSyntaxTokens(text) : text}](${href}${title ? ` "${escapeMarkdownSyntaxTokens(title)}"` : ''})`;
 }
 
-export function createMarkdownCommandLink(command: { title: string; id: string; arguments?: unknown[]; tooltip?: string }, escapeTokens = true): string {
+export function createMarkdownCommandLink(command: { text: string; id: string; arguments?: unknown[]; tooltip: string }, escapeTokens = true): string {
 	const uri = createCommandUri(command.id, ...(command.arguments || [])).toString();
-	return createMarkdownLink(command.title, uri, command.tooltip, escapeTokens);
+	return createMarkdownLink(command.text, uri, command.tooltip, escapeTokens);
 }
 
 export function createCommandUri(commandId: string, ...commandArgs: unknown[]): URI {

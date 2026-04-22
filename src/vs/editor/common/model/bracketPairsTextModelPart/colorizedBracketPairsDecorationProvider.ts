@@ -21,7 +21,7 @@ export class ColorizedBracketPairsDecorationProvider extends Disposable implemen
 	private colorizationOptions: BracketPairColorizationOptions;
 	private readonly colorProvider = new ColorProvider();
 
-	private readonly onDidChangeEmitter = new Emitter<void>();
+	private readonly onDidChangeEmitter = this._register(new Emitter<void>());
 	public readonly onDidChange = this.onDidChangeEmitter.event;
 
 	constructor(private readonly textModel: TextModel) {

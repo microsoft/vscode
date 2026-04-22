@@ -9,7 +9,7 @@ import { CancellationToken } from '../../../base/common/cancellation.js';
 import { Emitter, Event } from '../../../base/common/event.js';
 import { Iterable } from '../../../base/common/iterator.js';
 import { Disposable, IDisposable, toDisposable } from '../../../base/common/lifecycle.js';
-import { ResourceMap } from '../../../base/common/map.js';
+import { ResourceMap, ResourceSet } from '../../../base/common/map.js';
 import { Schemas } from '../../../base/common/network.js';
 import { observableValue } from '../../../base/common/observable.js';
 import { join } from '../../../base/common/path.js';
@@ -118,6 +118,10 @@ export class TestContextService implements IWorkspaceContextService {
 		}
 
 		return WorkbenchState.EMPTY;
+	}
+
+	hasWorkspaceData(): boolean {
+		return this.getWorkbenchState() !== WorkbenchState.EMPTY;
 	}
 
 	getCompleteWorkspace(): Promise<IWorkspace> {
@@ -348,7 +352,7 @@ export const NullFilesConfigurationService = new class implements IFilesConfigur
 	enableAutoSaveAfterShortDelay(resourceOrEditor: URI | EditorInput): IDisposable { throw new Error('Method not implemented.'); }
 	disableAutoSave(resourceOrEditor: URI | EditorInput): IDisposable { throw new Error('Method not implemented.'); }
 	isReadonly(resource: URI, stat?: IBaseFileStat | undefined): boolean { return false; }
-	async updateReadonly(resource: URI, readonly: boolean | 'toggle' | 'reset'): Promise<void> { }
+	async updateReadonly(_resource: URI | URI[], _readonly: boolean | 'toggle' | 'reset'): Promise<void> { }
 	preventSaveConflicts(resource: URI, language?: string | undefined): boolean { throw new Error('Method not implemented.'); }
 };
 
@@ -376,7 +380,8 @@ export class TestWorkspaceTrustManagementService extends Disposable implements I
 
 
 	constructor(
-		private trusted: boolean = true
+		private trusted: boolean = true,
+		private trustedUris: ResourceSet = new ResourceSet()
 	) {
 		super();
 	}
@@ -402,11 +407,11 @@ export class TestWorkspaceTrustManagementService extends Disposable implements I
 	}
 
 	getUriTrustInfo(uri: URI): Promise<IWorkspaceTrustUriInfo> {
-		throw new Error('Method not implemented.');
+		return Promise.resolve({ trusted: this.trustedUris.has(uri), uri });
 	}
 
 	async setTrustedUris(folders: URI[]): Promise<void> {
-		throw new Error('Method not implemented.');
+		this.trustedUris = new ResourceSet(folders);
 	}
 
 	async setUrisTrust(uris: URI[], trusted: boolean): Promise<void> {
@@ -784,6 +789,7 @@ export class TestChatEntitlementService implements IChatEntitlementService {
 	readonly organisations: undefined;
 	readonly isInternal = false;
 	readonly sku = undefined;
+	readonly copilotTrackingId = undefined;
 
 	readonly onDidChangeQuotaExceeded = Event.None;
 	readonly onDidChangeQuotaRemaining = Event.None;
@@ -804,6 +810,11 @@ export class TestChatEntitlementService implements IChatEntitlementService {
 	readonly anonymous = false;
 	onDidChangeAnonymous = Event.None;
 	readonly anonymousObs = observableValue({}, false);
+
+	markAnonymousRateLimited(): void { }
+
+	readonly previewFeaturesDisabled = false;
+	readonly clientByokEnabled = false;
 }
 
 export class TestLifecycleService extends Disposable implements ILifecycleService {

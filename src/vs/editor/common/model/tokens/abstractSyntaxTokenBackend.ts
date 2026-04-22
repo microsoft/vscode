@@ -6,7 +6,7 @@
 import { equals } from '../../../../base/common/arrays.js';
 import { RunOnceScheduler } from '../../../../base/common/async.js';
 import { Emitter, Event } from '../../../../base/common/event.js';
-import { Disposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, IDisposable } from '../../../../base/common/lifecycle.js';
 import { LineRange } from '../../core/ranges/lineRange.js';
 import { StandardTokenType } from '../../encodedTokenAttributes.js';
 import { ILanguageIdCodec } from '../../languages.js';
@@ -21,7 +21,7 @@ import { equalsIfDefinedC, thisEqualsC, arrayEqualsC } from '../../../../base/co
 /**
  * @internal
  */
-export class AttachedViews {
+export class AttachedViews implements IDisposable {
 	private readonly _onDidChangeVisibleRanges = new Emitter<{ view: IAttachedView; state: AttachedViewState | undefined }>();
 	public readonly onDidChangeVisibleRanges = this._onDidChangeVisibleRanges.event;
 
@@ -56,6 +56,10 @@ export class AttachedViews {
 		this._views.delete(view as AttachedViewImpl);
 		this._onDidChangeVisibleRanges.fire({ view, state: undefined });
 		this._viewsChanged.trigger(undefined);
+	}
+
+	public dispose(): void {
+		this._onDidChangeVisibleRanges.dispose();
 	}
 }
 

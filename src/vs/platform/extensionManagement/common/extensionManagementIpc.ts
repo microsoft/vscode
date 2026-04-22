@@ -54,11 +54,11 @@ export class ExtensionManagementChannel<TContext = RemoteAgentConnectionContext 
 	readonly onDidUpdateExtensionMetadata: Event<DidUpdateExtensionMetadata>;
 
 	constructor(private service: IExtensionManagementService, private getUriTransformer: (requestContext: TContext) => IURITransformer | null) {
-		this.onInstallExtension = Event.buffer(service.onInstallExtension, true);
-		this.onDidInstallExtensions = Event.buffer(service.onDidInstallExtensions, true);
-		this.onUninstallExtension = Event.buffer(service.onUninstallExtension, true);
-		this.onDidUninstallExtension = Event.buffer(service.onDidUninstallExtension, true);
-		this.onDidUpdateExtensionMetadata = Event.buffer(service.onDidUpdateExtensionMetadata, true);
+		this.onInstallExtension = Event.buffer(service.onInstallExtension, 'onInstallExtension', true);
+		this.onDidInstallExtensions = Event.buffer(service.onDidInstallExtensions, 'onDidInstallExtensions', true);
+		this.onUninstallExtension = Event.buffer(service.onUninstallExtension, 'onUninstallExtension', true);
+		this.onDidUninstallExtension = Event.buffer(service.onDidUninstallExtension, 'onDidUninstallExtension', true);
+		this.onDidUpdateExtensionMetadata = Event.buffer(service.onDidUpdateExtensionMetadata, 'onDidUpdateExtensionMetadata', true);
 	}
 
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any

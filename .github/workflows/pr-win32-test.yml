@@ -17,7 +17,7 @@ on:
 jobs:
   windows-test:
     name: ${{ inputs.job_name }}
-    runs-on: [ self-hosted, 1ES.Pool=1es-vscode-oss-windows-2022-x64 ]
+    runs-on: windows-2022
     env:
       ARTIFACT_NAME: ${{ (inputs.electron_tests && 'electron') || (inputs.browser_tests && 'browser') || (inputs.remote_tests && 'remote') || 'unknown' }}
       NPM_ARCH: x64
@@ -25,6 +25,8 @@ jobs:
     steps:
       - name: Checkout microsoft/vscode
         uses: actions/checkout@v6
+        with:
+          lfs: true
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -179,6 +181,10 @@ jobs:
             compile-extension:vscode-test-resolver `
           }
 
+      - name: Compile Copilot extension
+        shell: pwsh
+        run: npm --prefix extensions/copilot run compile
+
       - name: Diagnostics before integration test runs
         shell: pwsh
         run: .\build\azure-pipelines\win32\listprocesses.bat
@@ -249,7 +255,7 @@ jobs:
         if: always()
 
       - name: Publish Crash Reports
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: failure()
         continue-on-error: true
         with:
@@ -260,7 +266,7 @@ jobs:
       # In order to properly symbolify above crash reports
       # (if any), we need the compiled native modules too
       - name: Publish Node Modules
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: failure()
         continue-on-error: true
         with:
@@ -269,7 +275,7 @@ jobs:
           if-no-files-found: ignore
 
       - name: Publish Log Files
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: always()
         continue-on-error: true
         with:

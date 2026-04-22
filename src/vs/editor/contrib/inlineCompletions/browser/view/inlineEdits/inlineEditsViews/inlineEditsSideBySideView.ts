@@ -10,6 +10,7 @@ import { IObservable, IReader, autorun, constObservable, derived, derivedObserva
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { asCssVariable } from '../../../../../../../platform/theme/common/colorUtils.js';
 import { IThemeService } from '../../../../../../../platform/theme/common/themeService.js';
+import { IUserInteractionService } from '../../../../../../../platform/userInteraction/browser/userInteractionService.js';
 import { ICodeEditor } from '../../../../../../browser/editorBrowser.js';
 import { observableCodeEditor } from '../../../../../../browser/observableCodeEditor.js';
 import { Rect } from '../../../../../../common/core/2d/rect.js';
@@ -71,6 +72,7 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 		private readonly _tabAction: IObservable<InlineEditTabAction>,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IThemeService private readonly _themeService: IThemeService,
+		@IUserInteractionService private readonly _userInteractionService: IUserInteractionService,
 	) {
 		super();
 		this._editorObs = observableCodeEditor(this._editor);
@@ -89,7 +91,7 @@ export class InlineEditsSideBySideView extends Disposable implements IInlineEdit
 		}, [
 			n.div({ class: 'preview', style: { pointerEvents: 'none' }, ref: this.previewRef }),
 		]).keepUpdated(this._store);
-		this.isHovered = this._editorContainer.didMouseMoveDuringHover;
+		this.isHovered = this._userInteractionService.createHoverTracker(this._editorContainer.element, this._store);
 		this.previewEditor = this._register(this._instantiationService.createInstance(
 			EmbeddedCodeEditorWidget,
 			this.previewRef.element,

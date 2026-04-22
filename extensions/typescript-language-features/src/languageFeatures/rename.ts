@@ -11,6 +11,7 @@ import { API } from '../tsServer/api';
 import type * as Proto from '../tsServer/protocol/protocol';
 import * as typeConverters from '../typeConverters';
 import { ClientCapability, ITypeScriptServiceClient } from '../typescriptService';
+import { readUnifiedConfig } from '../utils/configuration';
 import FileConfigurationManager from './fileConfigurationManager';
 import { conditionalRegistration, requireSomeCapability } from './util/dependentRegistration';
 import { LanguageDescription } from '../configuration/languageDescription';
@@ -112,7 +113,7 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 
 		// Prefer renaming matching jsx tag when available
 		if (this.client.apiVersion.gte(API.v510) &&
-			vscode.workspace.getConfiguration(this.language.id).get('preferences.renameMatchingJsxTags', true) &&
+			readUnifiedConfig<boolean>('preferences.renameMatchingJsxTags', true, { scope: document, fallbackSection: this.language.id }) &&
 			this.looksLikePotentialJsxTagContext(document, position)
 		) {
 			const args = typeConverters.Position.toFileLocationRequestArgs(file, position);

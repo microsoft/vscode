@@ -21,6 +21,7 @@ import { ChatMode, ChatModeService } from '../../common/chatModes.js';
 import { ChatModeKind } from '../../common/constants.js';
 import { IAgentSource, ICustomAgent, IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
 import { MockPromptsService } from './promptSyntax/service/mockPromptsService.js';
+import { Target } from '../../common/promptSyntax/promptTypes.js';
 
 class TestChatAgentService implements Partial<IChatAgentService> {
 	_serviceBrand: undefined;
@@ -119,7 +120,8 @@ suite('ChatModeService', () => {
 			tools: ['tool1', 'tool2'],
 			agentInstructions: { content: 'Custom mode body', toolReferences: [] },
 			source: workspaceSource,
-			visibility: { userInvokable: true, agentInvokable: true }
+			target: Target.Undefined,
+			visibility: { userInvocable: true, agentInvocable: true }
 		};
 
 		promptsService.setCustomModes([customMode]);
@@ -156,7 +158,8 @@ suite('ChatModeService', () => {
 			tools: [],
 			agentInstructions: { content: 'Custom mode body', toolReferences: [] },
 			source: workspaceSource,
-			visibility: { userInvokable: true, agentInvokable: true }
+			target: Target.Undefined,
+			visibility: { userInvocable: true, agentInvocable: true }
 		};
 
 		promptsService.setCustomModes([customMode]);
@@ -175,7 +178,8 @@ suite('ChatModeService', () => {
 			tools: [],
 			agentInstructions: { content: 'Findable mode body', toolReferences: [] },
 			source: workspaceSource,
-			visibility: { userInvokable: true, agentInvokable: true }
+			target: Target.Undefined,
+			visibility: { userInvocable: true, agentInvocable: true }
 		};
 
 		promptsService.setCustomModes([customMode]);
@@ -200,7 +204,8 @@ suite('ChatModeService', () => {
 			agentInstructions: { content: 'Initial body', toolReferences: [] },
 			model: ['gpt-4'],
 			source: workspaceSource,
-			visibility: { userInvokable: true, agentInvokable: true }
+			target: Target.Undefined,
+			visibility: { userInvocable: true, agentInvocable: true }
 		};
 
 		promptsService.setCustomModes([initialMode]);
@@ -244,7 +249,8 @@ suite('ChatModeService', () => {
 			tools: [],
 			agentInstructions: { content: 'Mode 1 body', toolReferences: [] },
 			source: workspaceSource,
-			visibility: { userInvokable: true, agentInvokable: true }
+			target: Target.Undefined,
+			visibility: { userInvocable: true, agentInvocable: true }
 		};
 
 		const mode2: ICustomAgent = {
@@ -254,7 +260,8 @@ suite('ChatModeService', () => {
 			tools: [],
 			agentInstructions: { content: 'Mode 2 body', toolReferences: [] },
 			source: workspaceSource,
-			visibility: { userInvokable: true, agentInvokable: true }
+			target: Target.Undefined,
+			visibility: { userInvocable: true, agentInvocable: true }
 		};
 
 		// Add both modes

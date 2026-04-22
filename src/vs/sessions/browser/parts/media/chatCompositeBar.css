@@ -1,0 +1,95 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.chat-composite-bar {
+	display: flex;
+	align-items: center;
+	background-color: var(--chat-bar-background);
+	padding: 0 4px;
+	height: 35px;
+	flex-shrink: 0;
+	overflow: hidden;
+}
+
+.chat-composite-bar-tabs {
+	display: flex;
+	align-items: center;
+	height: 100%;
+	gap: 0;
+	overflow-x: auto;
+	overflow-y: hidden;
+}
+
+.chat-composite-bar-tabs::-webkit-scrollbar {
+	display: none;
+}
+
+/* Base tab: capitalize text + pill padding — mirrors auxiliarybar action-label */
+.chat-composite-bar-tab {
+	display: flex;
+	align-items: center;
+	position: relative;
+	padding: 0 8px;
+	cursor: pointer;
+	white-space: nowrap;
+	color: var(--chat-tab-inactive-foreground);
+	text-transform: capitalize;
+	font-weight: 500;
+	font-size: 12px;
+	line-height: 22px;
+	height: 26px;
+	border-radius: 4px;
+	user-select: none;
+}
+
+.chat-composite-bar-tab:hover {
+	color: var(--chat-tab-active-foreground);
+}
+
+/* Active state: background container instead of underline — mirrors auxiliarybar checked */
+.chat-composite-bar-tab.active {
+	color: var(--chat-tab-active-foreground);
+	background-color: color-mix(in srgb, var(--vscode-agentsPanel-foreground, var(--vscode-foreground)) 5%, transparent);
+}
+
+/* Reduce right padding when close button is present to avoid excess spacing */
+.chat-composite-bar-tab:has(.chat-composite-bar-tab-actions) {
+	padding-right: 2px;
+}
+
+/* Hide the underline indicator — mirrors auxiliarybar active-item-indicator hiding */
+.chat-composite-bar-tab-indicator {
+	display: none;
+}
+
+.chat-composite-bar-tab:focus-visible {
+	outline: 1px solid var(--vscode-focusBorder);
+	outline-offset: -1px;
+}
+
+/* Remove action bar — always occupies space; opacity toggled like editor tabs */
+.chat-composite-bar-tab-actions {
+	display: flex;
+	margin-left: 2px;
+}
+
+.chat-composite-bar-tab-actions .action-item .action-label {
+	width: 16px;
+	height: 16px;
+	border-radius: 4px;
+	color: var(--chat-tab-inactive-foreground, currentColor);
+	opacity: 0;
+}
+
+.chat-composite-bar-tab.active .chat-composite-bar-tab-actions .action-label,
+.chat-composite-bar-tab:hover .chat-composite-bar-tab-actions .action-label,
+.chat-composite-bar-tab-actions .action-label:focus {
+	opacity: 1;
+}
+
+.chat-composite-bar-tab-actions .action-item .action-label:hover {
+	background-color: var(--vscode-toolbar-hoverBackground);
+	color: var(--chat-tab-active-foreground);
+}
