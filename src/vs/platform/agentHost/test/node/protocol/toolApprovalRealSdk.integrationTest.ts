@@ -626,12 +626,14 @@ function terminalText(state: ITerminalState): string {
 
 		// Auto-approve every tool that needs confirmation while the turn runs.
 		// Multiple inner tool calls may need approval; doing this in a background
-		// loop keeps the turn unblocked. Track confirmed tool call IDs so we
-		// don't busy-spin on already-confirmed entries (waitForNotification
-		// returns matching notifications from the queue without consuming them).
+		// loop keeps the turn unblocked. Track processed serverSeqs so we don't
+		// busy-spin on already-handled notifications (waitForNotification returns
+		// matching notifications from the queue without consuming them). Using
+		// serverSeq rather than toolCallId allows the same tool to be legitimately
+		// re-confirmed in a later notification.
 		let approvalsActive = true;
 		let approvalSeq = 1000;
-		const confirmed = new Set<string>();
+		const processedSeqs = new Set<number>();
 		const approvalLoop = (async () => {
 			while (approvalsActive) {
 				try {
@@ -639,22 +641,26 @@ function terminalText(state: ITerminalState): string {
 						if (!isActionNotification(n, 'session/toolCallReady')) {
 							return false;
 						}
-						const a = getActionEnvelope(n).action as { toolCallId: string; confirmed?: string };
-						return !a.confirmed && !confirmed.has(a.toolCallId);
+						const envelope = getActionEnvelope(n);
+						const a = envelope.action as { confirmed?: string };
+						return !a.confirmed && !processedSeqs.has(envelope.serverSeq);
 					}, 2_000);
-					const action = getActionEnvelope(ready).action as { session: string; turnId: string; toolCallId: string; confirmed?: string };
-					if (!action.confirmed && !confirmed.has(action.toolCallId)) {
-						confirmed.add(action.toolCallId);
-						client.notify('dispatchAction', {
-							clientSeq: ++approvalSeq,
-							action: {
-								type: 'session/toolCallConfirmed',
-								session: action.session,
-								turnId: action.turnId,
-								toolCallId: action.toolCallId,
-								approved: true,
-							},
-						});
+					const envelope = getActionEnvelope(ready);
+					if (!processedSeqs.has(envelope.serverSeq)) {
+						processedSeqs.add(envelope.serverSeq);
+						const action = envelope.action as { session: string; turnId: string; toolCallId: string; confirmed?: string };
+						if (!action.confirmed) {
+							client.notify('dispatchAction', {
+								clientSeq: ++approvalSeq,
+								action: {
+									type: 'session/toolCallConfirmed',
+									session: action.session,
+									turnId: action.turnId,
+									toolCallId: action.toolCallId,
+									approved: true,
+								},
+							});
+						}
 					}
 				} catch {
 					// Timeout — re-poll. Loop exits when approvalsActive flips.
