@@ -15,7 +15,7 @@ export interface IAgentMemoryToolRegistrar {
 	 * Called at the start of each new agent conversation. Fetches and caches the
 	 * /prompt response so that tool schema and instructions are available for rendering.
 	 */
-	registerMemoryTools(): Promise<void>;
+	registerMemoryTools(sessionId?: string): Promise<void>;
 }
 
 export const IAgentMemoryToolRegistrar = createServiceIdentifier<IAgentMemoryToolRegistrar>('IAgentMemoryToolRegistrar');
@@ -30,12 +30,12 @@ export class AgentMemoryToolRegistrar implements IAgentMemoryToolRegistrar {
 		@ILogService private readonly logService: ILogService,
 	) { }
 
-	async registerMemoryTools(): Promise<void> {
+	async registerMemoryTools(sessionId?: string): Promise<void> {
 		const enabled = this.configurationService.getExperimentBasedConfig(ConfigKey.CopilotMemoryEnabled, this.experimentationService);
 		if (!enabled) {
 			return;
 		}
-		const response = await this.agentMemoryService.getMemoryPrompt();
-		this.logService.info(`[AgentMemoryToolRegistrar] primed memory prompt cache, definitionVersion=${response?.storeToolDefinition?.definitionVersion ?? 'none'}`);
+		const response = await this.agentMemoryService.getMemoryPrompt(undefined, sessionId);
+		this.logService.info(`[AgentMemoryToolRegistrar] primed memory prompt cache for session ${sessionId || 'default'}, definitionVersion=${response?.storeToolDefinition?.definitionVersion ?? 'none'}`);
 	}
 }

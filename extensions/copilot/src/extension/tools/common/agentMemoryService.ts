@@ -51,15 +51,20 @@ export interface IAgentMemoryService {
 	/**
 	 * Fetch the unified memory prompt from the /prompt endpoint.
 	 * Returns the full MemoryPromptResponse including storeToolDefinition,
-	 * or undefined on failure. Caches the result for the current conversation.
+	 * or undefined on failure. Caches the result per conversation.
 	 */
-	getMemoryPrompt(repoNwo?: string): Promise<MemoryPromptResponse | undefined>;
+	getMemoryPrompt(repoNwo?: string, sessionId?: string): Promise<MemoryPromptResponse | undefined>;
 
 	/**
-	 * Returns the most recently fetched MemoryPromptResponse, or undefined if
-	 * getMemoryPrompt() has not yet been called successfully this conversation.
+	 * Returns the cached MemoryPromptResponse for a specific session, or undefined if
+	 * getMemoryPrompt() has not yet been called successfully for that session.
 	 */
-	getCachedMemoryPrompt(): MemoryPromptResponse | undefined;
+	getCachedMemoryPrompt(sessionId?: string): MemoryPromptResponse | undefined;
+
+	/**
+	 * Clear cached memory prompts for a specific session or all sessions.
+	 */
+	clearCache(sessionId?: string): void;
 }
 
 export const IAgentMemoryService = createServiceIdentifier<IAgentMemoryService>('IAgentMemoryService');
@@ -67,10 +72,21 @@ export const IAgentMemoryService = createServiceIdentifier<IAgentMemoryService>(
 export class AgentMemoryService extends Disposable implements IAgentMemoryService {
 	declare readonly _serviceBrand: undefined;
 
-	private _cachedPromptResponse: MemoryPromptResponse | undefined;
+	private _cachedPromptResponses = new Map<string, MemoryPromptResponse>();
+	private static readonly MAX_CACHE_ENTRIES = 50; // Prevent unbounded growth
 
-	getCachedMemoryPrompt(): MemoryPromptResponse | undefined {
-		return this._cachedPromptResponse;
+	override dispose(): void {
+		this._cachedPromptResponses.clear();
+		super.dispose();
+	}
+
+	getCachedMemoryPrompt(sessionId?: string): MemoryPromptResponse | undefined {
+		if (sessionId) {
+			return this._cachedPromptResponses.get(sessionId);
+		}
+		// Legacy behavior - return any cached response if no sessionId provided
+		const responses = Array.from(this._cachedPromptResponses.values());
+		return responses.length > 0 ? responses[0] : undefined;
 	}
 
 	constructor(
@@ -254,10 +270,20 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 	}
 
 
-	async getMemoryPrompt(repoNwo?: string): Promise<MemoryPromptResponse | undefined> {
+	async getMemoryPrompt(repoNwo?: string, sessionId?: string): Promise<MemoryPromptResponse | undefined> {
 		try {
 			if (!this.isCAPIMemorySyncConfigEnabled()) {
 				return undefined;
+			}
+
+			// Generate a cache key that includes both sessionId and scope/repo context
+			const cacheKey = this.generateCacheKey(sessionId, repoNwo);
+			
+			// Check if we already have a cached response for this session and context
+			const cachedResponse = this._cachedPromptResponses.get(cacheKey);
+			if (cachedResponse) {
+				this.logService.debug(`[AgentMemoryService] Using cached memory prompt for key: ${cacheKey}`);
+				return cachedResponse;
 			}
 
 			const token = await this.getToken();
@@ -291,13 +317,51 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 
 			const response = await fetchMemoryPrompts(options);
 			if (response) {
-				this.logService.info(`[AgentMemoryService] Fetched memory prompt (${response.memoriesContext.memoriesCount} memories)`);
-				this._cachedPromptResponse = response;
+				this.logService.info(`[AgentMemoryService] Fetched memory prompt (${response.memoriesContext.memoriesCount} memories) for key: ${cacheKey}`);
+				
+				// Prevent unbounded cache growth
+				if (this._cachedPromptResponses.size >= AgentMemoryService.MAX_CACHE_ENTRIES) {
+					const firstKey = this._cachedPromptResponses.keys().next().value;
+					if (firstKey) {
+						this._cachedPromptResponses.delete(firstKey);
+						this.logService.debug(`[AgentMemoryService] Evicted cache entry: ${firstKey}`);
+					}
+				}
+				
+				this._cachedPromptResponses.set(cacheKey, response);
 			}
 			return response;
 		} catch (error) {
 			this.logService.warn(`[AgentMemoryService] Failed to fetch memory prompt: ${error}`);
 			return undefined;
 		}
+	}
+
+	clearCache(sessionId?: string): void {
+		if (sessionId) {
+			// Clear all cache entries for a specific session
+			const keysToDelete: string[] = [];
+			for (const key of this._cachedPromptResponses.keys()) {
+				if (key.startsWith(`${sessionId}:`)) {
+					keysToDelete.push(key);
+				}
+			}
+			for (const key of keysToDelete) {
+				this._cachedPromptResponses.delete(key);
+			}
+			this.logService.debug(`[AgentMemoryService] Cleared cache for session: ${sessionId}`);
+		} else {
+			// Clear all cache entries
+			this._cachedPromptResponses.clear();
+			this.logService.debug(`[AgentMemoryService] Cleared all cache entries`);
+		}
+	}
+
+	private generateCacheKey(sessionId?: string, repoNwo?: string): string {
+		// Create a cache key that combines session and context
+		// Use 'default' if no sessionId to maintain backward compatibility
+		const session = sessionId || 'default';
+		const context = repoNwo || 'user';
+		return `${session}:${context}`;
 	}
 }

@@ -419,7 +419,7 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 		this._resolvedCustomizations = await PromptRegistry.resolveAllCustomizations(this.instantiationService, this.endpoint);
 
 		if (promptContext.history?.length === 0) {
-			await this.agentMemoryToolRegistrar.registerMemoryTools();
+			await this.agentMemoryToolRegistrar.registerMemoryTools(promptContext.conversation?.sessionId);
 		}
 		// Add any references from the codebase invocation to the request
 		const codebase = await this._getCodebaseReferences(promptContext, token);

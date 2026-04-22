@@ -62,12 +62,16 @@ class MockAgentMemoryService implements IAgentMemoryService {
 		return true;
 	}
 
-	async getMemoryPrompt(_repoNwo?: string): Promise<MemoryPromptResponse | undefined> {
+	async getMemoryPrompt(_repoNwo?: string, _sessionId?: string): Promise<MemoryPromptResponse | undefined> {
 		return undefined;
 	}
 
-	getCachedMemoryPrompt(): MemoryPromptResponse | undefined {
+	getCachedMemoryPrompt(_sessionId?: string): MemoryPromptResponse | undefined {
 		return undefined;
+	}
+
+	clearCache(_sessionId?: string): void {
+		// Mock implementation - no-op
 	}
 
 	clearMemories(): void {
@@ -94,12 +98,16 @@ class DisabledMockAgentMemoryService implements IAgentMemoryService {
 		return false;
 	}
 
-	async getMemoryPrompt(_repoNwo?: string): Promise<MemoryPromptResponse | undefined> {
+	async getMemoryPrompt(_repoNwo?: string, _sessionId?: string): Promise<MemoryPromptResponse | undefined> {
 		return undefined;
 	}
 
-	getCachedMemoryPrompt(): MemoryPromptResponse | undefined {
+	getCachedMemoryPrompt(_sessionId?: string): MemoryPromptResponse | undefined {
 		return undefined;
+	}
+
+	clearCache(_sessionId?: string): void {
+		// Mock implementation - no-op
 	}
 }
 
