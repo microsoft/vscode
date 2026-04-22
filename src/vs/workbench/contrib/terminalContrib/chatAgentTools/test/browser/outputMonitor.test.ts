@@ -209,6 +209,43 @@ suite('OutputMonitor', () => {
 		assert.strictEqual(sendTextCalled, false, 'no elicitation or auto-reply should send text');
 	});
 
+	test('onDidDetectInputNeeded fires for newline-terminated input-required patterns in foreground mode', async () => {
+		execution.getOutput = () => 'Continue? (y/n) \n';
+		const monitorCts = new CancellationTokenSource();
+		monitorCts.cancel();
+		monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), monitorCts.token, 'test command'));
+
+		let inputNeededFired = false;
+		store.add(monitor.onDidDetectInputNeeded(() => { inputNeededFired = true; }));
+
+		const outputMonitorWithPrivateMethod = monitor as unknown as {
+			[key: string]: ((token: CancellationToken) => Promise<{ shouldContinuePolling: boolean; output?: string }>) | undefined;
+		};
+		const idleResult = await outputMonitorWithPrivateMethod['_handleIdleState']!(CancellationToken.None);
+		await Event.toPromise(monitor.onDidFinishCommand);
+		monitorCts.dispose();
+
+		assert.strictEqual(inputNeededFired, true, 'onDidDetectInputNeeded should fire for newline-terminated input-required pattern');
+		assert.strictEqual(idleResult.shouldContinuePolling, false, 'monitor should stop polling after signaling agent');
+		assert.strictEqual(idleResult.output, 'Continue? (y/n) \n', 'output should be returned');
+		assert.strictEqual(sendTextCalled, false, 'no elicitation or auto-reply should send text');
+	});
+
+	test('last-line detection preserves bare carriage-return progress updates', async () => {
+		const monitorCts = new CancellationTokenSource();
+		monitorCts.cancel();
+		monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), monitorCts.token, 'test command'));
+
+		const outputMonitorWithPrivateMethod = monitor as unknown as {
+			[key: string]: ((output: string | undefined) => string) | undefined;
+		};
+		const lastLine = outputMonitorWithPrivateMethod['_getLastLineForPatternDetection']!('Downloading package metadata\r');
+		await Event.toPromise(monitor.onDidFinishCommand);
+		monitorCts.dispose();
+
+		assert.strictEqual(lastLine, 'Downloading package metadata', 'bare carriage-return progress lines should keep the final visual line');
+	});
+
 	test('onDidDetectInputNeeded does not fire for non-input output', async () => {
 		execution.getOutput = () => 'Build complete successfully';
 		const monitorCts = new CancellationTokenSource();

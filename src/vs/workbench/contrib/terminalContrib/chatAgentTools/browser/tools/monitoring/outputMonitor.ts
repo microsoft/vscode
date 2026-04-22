@@ -41,18 +41,21 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		if (!output) {
 			return '';
 		}
-		const lastLineBreak = Math.max(
-			output.lastIndexOf('\n'),
-			output.lastIndexOf('\r'),
-		);
-		return lastLineBreak === -1 ? output : output.slice(lastLineBreak + 1);
+		const trimmedOutput = output.replace(/[\r\n]+$/, '');
+		if (!trimmedOutput) {
+			return '';
+		}
+		const lastLineFeed = trimmedOutput.lastIndexOf('\n');
+		const lastLine = lastLineFeed === -1 ? trimmedOutput : trimmedOutput.slice(lastLineFeed + 1);
+		const lastCarriageReturn = lastLine.lastIndexOf('\r');
+		return lastCarriageReturn === -1 ? lastLine : lastLine.slice(lastCarriageReturn + 1);
 	}
 
 	private _formatLastLineForLog(output: string | undefined): string {
 		if (!output) {
 			return '<empty>';
 		}
-		const lastLine = output.trimEnd().split(/\r?\n/).pop() ?? '';
+		const lastLine = this._getLastLineForPatternDetection(output).trimEnd();
 		if (!lastLine) {
 			return '<empty>';
 		}
