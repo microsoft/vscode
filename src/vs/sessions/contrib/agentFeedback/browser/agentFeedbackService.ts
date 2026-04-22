@@ -11,7 +11,7 @@ import { createDecorator } from '../../../../platform/instantiation/common/insta
 import { generateUuid } from '../../../../base/common/uuid.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { IChatEditingService } from '../../../../workbench/contrib/chat/common/editing/chatEditingService.js';
-import { IChatSessionFileChange, IChatSessionFileChange2, isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
+import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { editingEntriesContainResource } from '../../../../workbench/contrib/chat/browser/sessionResourceMatching.js';
 import { changeMatchesResource, IAgentFeedbackContext } from './agentFeedbackEditorUtils.js';
@@ -22,6 +22,7 @@ import { ILogService } from '../../../../platform/log/common/log.js';
 import { ICodeReviewSuggestion } from '../../codeReview/browser/codeReviewService.js';
 import { ITelemetryService } from '../../../../platform/telemetry/common/telemetry.js';
 import { logChangesViewReviewCommentAdded } from '../../../common/sessionsTelemetry.js';
+import { ISessionFileChange } from '../../../services/sessions/common/session.js';
 
 // --- Types --------------------------------------------------------------------
 
@@ -363,11 +364,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		this.setNavigationAnchor(sessionResource, commentId);
 	}
 
-	private _getSessionChange(resourceUri: URI, changes: readonly IChatSessionFileChange[] | readonly IChatSessionFileChange2[] | {
-		readonly files: number;
-		readonly insertions: number;
-		readonly deletions: number;
-	} | undefined): { originalUri?: URI; modifiedUri: URI; isDeletion: boolean } | undefined {
+	private _getSessionChange(resourceUri: URI, changes: readonly ISessionFileChange[] | undefined): { originalUri?: URI; modifiedUri: URI; isDeletion: boolean } | undefined {
 		if (!(changes instanceof Array)) {
 			return undefined;
 		}
@@ -392,7 +389,7 @@ export class AgentFeedbackService extends Disposable implements IAgentFeedbackSe
 		};
 	}
 
-	private _changeContainsResource(change: IChatSessionFileChange | IChatSessionFileChange2, resourceUri: URI): boolean {
+	private _changeContainsResource(change: ISessionFileChange, resourceUri: URI): boolean {
 		if (isIChatSessionFileChange2(change)) {
 			return change.uri.fsPath === resourceUri.fsPath
 				|| change.originalUri?.fsPath === resourceUri.fsPath

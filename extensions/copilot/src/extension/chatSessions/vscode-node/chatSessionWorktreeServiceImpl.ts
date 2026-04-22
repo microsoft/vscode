@@ -22,9 +22,9 @@ import { isEqual } from '../../../util/vs/base/common/resources';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { IAgentSessionsWorkspace } from '../common/agentSessionsWorkspace';
 import { IChatSessionMetadataStore } from '../common/chatSessionMetadataStore';
-import { ChatSessionWorktreeData, ChatSessionWorktreeFile, ChatSessionWorktreeProperties, ChatSessionWorktreePropertiesV2, IChatSessionWorktreeService } from '../common/chatSessionWorktreeService';
+import { ChatSessionWorktreeFile, ChatSessionWorktreeProperties, ChatSessionWorktreePropertiesV2, IChatSessionWorktreeService } from '../common/chatSessionWorktreeService';
 
-const CHAT_SESSION_WORKTREE_MEMENTO_KEY = 'github.copilot.cli.sessionWorktrees';
+// const CHAT_SESSION_WORKTREE_MEMENTO_KEY = 'github.copilot.cli.sessionWorktrees';
 
 export class ChatSessionWorktreeService extends Disposable implements IChatSessionWorktreeService {
 	declare _serviceBrand: undefined;
@@ -42,6 +42,8 @@ export class ChatSessionWorktreeService extends Disposable implements IChatSessi
 		@IChatSessionMetadataStore private readonly metadataStore: IChatSessionMetadataStore,
 	) {
 		super();
+		// This is not used.
+		// void this.extensionContext.globalState.update(CHAT_SESSION_WORKTREE_MEMENTO_KEY, undefined);
 	}
 
 	async createWorktree(repositoryPath: vscode.Uri, stream?: vscode.ChatResponseStream, baseBranch?: string, branchName?: string): Promise<ChatSessionWorktreeProperties | undefined> {
@@ -202,11 +204,7 @@ export class ChatSessionWorktreeService extends Disposable implements IChatSessi
 
 	async setWorktreeProperties(sessionId: string, properties: ChatSessionWorktreeProperties): Promise<void> {
 		this._sessionWorktrees.set(sessionId, properties);
-
-		const sessionWorktreesProperties = this.extensionContext.globalState.get<Record<string, string | ChatSessionWorktreeData>>(CHAT_SESSION_WORKTREE_MEMENTO_KEY, {});
-		sessionWorktreesProperties[sessionId] = { data: JSON.stringify(properties), version: properties.version };
 		await this.metadataStore.storeWorktreeInfo(sessionId, properties);
-		await this.extensionContext.globalState.update(CHAT_SESSION_WORKTREE_MEMENTO_KEY, sessionWorktreesProperties);
 	}
 
 	async getWorktreeRepository(sessionId: string): Promise<RepoContext | undefined> {

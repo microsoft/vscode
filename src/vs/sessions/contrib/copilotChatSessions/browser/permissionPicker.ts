@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from '../../../../base/browser/dom.js';
+import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { Codicon } from '../../../../base/common/codicons.js';
 import { Disposable, DisposableStore } from '../../../../base/common/lifecycle.js';
 import { autorun, IObservable } from '../../../../base/common/observable.js';
@@ -101,10 +102,13 @@ export class PermissionPicker extends Disposable {
 
 		this._updateTriggerLabel(trigger);
 
-		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.CLICK, (e) => {
-			dom.EventHelper.stop(e, true);
-			this.showPicker();
-		}));
+		this._renderDisposables.add(Gesture.addTarget(trigger));
+		for (const eventType of [dom.EventType.CLICK, TouchEventType.Tap]) {
+			this._renderDisposables.add(dom.addDisposableListener(trigger, eventType, (e) => {
+				dom.EventHelper.stop(e, true);
+				this.showPicker();
+			}));
+		}
 
 		this._renderDisposables.add(dom.addDisposableListener(trigger, dom.EventType.KEY_DOWN, (e) => {
 			if (e.key === 'Enter' || e.key === ' ') {

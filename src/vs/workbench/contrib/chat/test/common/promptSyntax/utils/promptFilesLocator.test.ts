@@ -2782,6 +2782,32 @@ suite('PromptFilesLocator', () => {
 			);
 		});
 
+		testT('excludes vscode-agent-host workspace folders', async () => {
+			// Agent host folders surface customizations through AHP, not via
+			// filesystem scanning. Including them here would issue a `resourceList`
+			// JSON-RPC per configured location for every nonexistent `.github` /
+			// `.claude` folder on the remote.
+			const localFolder = URI.file('/repos/local-project');
+			const agentHostFolder = URI.from({ scheme: 'vscode-agent-host', authority: 'remote', path: '/repos/remote-project' });
+			const folders = [localFolder, agentHostFolder].map((uri, index) => new class extends mock<IWorkspaceFolder>() {
+				override uri = uri;
+				override name = basename(uri);
+				override index = index;
+			});
+			instantiationService.stub(IWorkspaceContextService, mockWorkspaceService(folders));
+			locator = instantiationService.createInstance(PromptFilesLocator);
+			await mockFiles(fileService, [
+				{ path: '/repos/local-project/.git/HEAD', contents: ['ref: refs/heads/main'] },
+			]);
+
+			const roots = await locator.getWorkspaceFolderRoots(true);
+			assert.deepStrictEqual(
+				roots.map(r => r.toString()),
+				[localFolder.toString()],
+				'Should exclude vscode-agent-host workspace folders from prompt-file discovery roots',
+			);
+		});
+
 		testT('returns only workspace folder when no .git is found', async () => {
 			setWorkspaceFoldersForRoots(['/Users/legomushroom/my-project']);
 			await mockFiles(fileService, [

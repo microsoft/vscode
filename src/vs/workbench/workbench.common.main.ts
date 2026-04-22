@@ -260,6 +260,8 @@ import './contrib/git/browser/git.contributions.js';
 
 // SCM
 import './contrib/scm/browser/scm.contribution.js';
+import './contrib/scm/browser/quickDiff.contribution.js';
+import './contrib/scm/browser/scm.service.contribution.js';
 
 // Debug
 import './contrib/debug/browser/debug.contribution.js';

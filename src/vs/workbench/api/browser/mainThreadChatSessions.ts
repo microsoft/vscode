@@ -160,7 +160,8 @@ export class ObservableChatSession extends Disposable implements IChatSession {
 				return {
 					type: 'response' as const,
 					parts: turn.parts.map((part: IChatProgressDto) => revive(part) as IChatProgress),
-					participant: turn.participant
+					participant: turn.participant,
+					details: turn.details,
 				};
 			}));
 

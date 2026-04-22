@@ -31,6 +31,10 @@ export class MockChatSessionMetadataStore implements IChatSessionMetadataStore {
 		this._requestDetails.delete(sessionId);
 	}
 
+	async refresh(): Promise<void> {
+		// no-op in mock — there is no on-disk state to reload.
+	}
+
 	async storeWorktreeInfo(sessionId: string, properties: ChatSessionWorktreeProperties): Promise<void> {
 		this._worktreeProperties.set(sessionId, properties);
 	}

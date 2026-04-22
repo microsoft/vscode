@@ -45,7 +45,7 @@ import { emptyWorkspaceInfo, getWorkingDirectory, isIsolationEnabled, IWorkspace
 import { ICustomSessionTitleService } from '../copilotcli/common/customSessionTitleService';
 import { IChatDelegationSummaryService } from '../copilotcli/common/delegationSummaryService';
 import { getCopilotCLISessionDir } from '../copilotcli/node/cliHelpers';
-import { COPILOT_CLI_REASONING_EFFORT_PROPERTY, ICopilotCLIAgents, ICopilotCLIModels, ICopilotCLISDK, isWelcomeView } from '../copilotcli/node/copilotCli';
+import { COPILOT_CLI_REASONING_EFFORT_PROPERTY, formatModelDetails, ICopilotCLIAgents, ICopilotCLIModels, ICopilotCLISDK, isWelcomeView } from '../copilotcli/node/copilotCli';
 import { CopilotCLIPromptResolver } from '../copilotcli/node/copilotcliPromptResolver';
 import { builtinSlashSCommands, CopilotCLICommand, copilotCLICommands, ICopilotCLISession } from '../copilotcli/node/copilotcliSession';
 import { ICopilotCLISessionItem, ICopilotCLISessionService } from '../copilotcli/node/copilotcliSessionService';
@@ -212,10 +212,15 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 	}
 
 	public notifySessionsChange(): void {
+		// Refresh the bulk metadata cache from disk so cross-process writes
+		// (e.g. another VS Code window editing the same session) become visible
+		// before consumers re-read items.
+		this.chatSessionMetadataStore.refresh().catch(() => { /* logged inside */ });
 		this._onDidChangeChatSessionItems.fire();
 	}
 
 	public async refreshSession(refreshOptions: { reason: 'update'; sessionId: string } | { reason: 'update'; sessionIds: string[] } | { reason: 'delete'; sessionId: string }): Promise<void> {
+		await this.chatSessionMetadataStore.refresh().catch(() => { /* logged inside */ });
 		this._onDidChangeChatSessionItems.fire();
 	}
 
@@ -1435,6 +1440,18 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 				await this.commitWorktreeChangesIfNeeded(request, session.object, token);
 			}
 
+			// Build the result before the untitled-session swap below. After the swap,
+			// the chat UI reloads history from the SDK and discards the in-memory
+			// result, which would drop our `details` field on the first request.
+			const models = await this.copilotCLIModels.getModels().catch(ex => {
+				this.logService.error(ex, 'Failed to get models');
+				return [];
+			});
+			const modelInfo = models.find(m => m.id === model?.model);
+			const result: vscode.ChatResult = modelInfo
+				? { details: formatModelDetails(modelInfo) }
+				: {};
+
 			if (isUntitled && !token.isCancellationRequested) {
 				// Its possible the user tried steering, in that case, we should NOT swap the session item because the session.
 				// Else the messages may get lost (wait CHECK_FOR_STEERING_DELAYms to check if we have pending steering requests)
@@ -1445,7 +1462,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 					// If we have more requests, that means we had the original request as well as at least one another steering request.
 					// Lets not swap anything here, until all pending requests have been completed.
 					if (pendingRequests.size > 0) {
-						return;
+						return result;
 					}
 				}
 
@@ -1457,7 +1474,8 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 				this.folderRepositoryManager.deleteNewSessionFolder(id);
 				this.sessionItemProvider.swap(chatSessionContext.chatSessionItem, { resource: SessionIdForCLI.getResource(session.object.sessionId), label: request.prompt });
 			}
-			return {};
+
+			return result;
 		} catch (ex) {
 			if (isCancellationError(ex)) {
 				return {};

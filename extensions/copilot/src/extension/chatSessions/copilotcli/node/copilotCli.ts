@@ -59,6 +59,10 @@ export interface ICopilotCLIModels {
 	registerLanguageModelChatProvider(lm: typeof vscode['lm']): void;
 }
 
+export function formatModelDetails(model: CopilotCLIModelInfo): string {
+	return `${model.name}${model.multiplier ? ` • ${model.multiplier}x` : ''}`;
+}
+
 export const ICopilotCLISDK = createServiceIdentifier<ICopilotCLISDK>('ICopilotCLISDK');
 
 export const ICopilotCLIModels = createServiceIdentifier<ICopilotCLIModels>('ICopilotCLIModels');

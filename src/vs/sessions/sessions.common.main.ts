@@ -262,15 +262,11 @@ import '../workbench/contrib/sash/browser/sash.contribution.js';
 import '../workbench/contrib/git/browser/git.contributions.js';
 
 // SCM
-import '../workbench/contrib/scm/browser/scm.contribution.js';
+import '../workbench/contrib/scm/browser/quickDiff.contribution.js';
+import '../workbench/contrib/scm/browser/scm.service.contribution.js';
 
-// Debug
-import '../workbench/contrib/debug/browser/debug.contribution.js';
-import '../workbench/contrib/debug/browser/debugEditorContribution.js';
-import '../workbench/contrib/debug/browser/breakpointEditorContribution.js';
-import '../workbench/contrib/debug/browser/callStackEditorContribution.js';
-import '../workbench/contrib/debug/browser/repl.js';
-import '../workbench/contrib/debug/browser/debugViewlet.js';
+// Debug (service)
+import '../workbench/contrib/debug/browser/debug.service.contribution.js';
 
 // Markers
 import '../workbench/contrib/markers/browser/markers.contribution.js';
@@ -389,9 +385,6 @@ import '../workbench/contrib/languageStatus/browser/languageStatus.contribution.
 // Authentication
 import '../workbench/contrib/authentication/browser/authentication.contribution.js';
 
-// User Data Sync
-import '../workbench/contrib/userDataSync/browser/userDataSync.contribution.js';
-
 // User Data Profiles
 import '../workbench/contrib/userDataProfile/browser/userDataProfile.contribution.js';
 
@@ -465,6 +458,7 @@ import './contrib/chat/browser/customizationsDebugLog.contribution.js';
 import './contrib/copilotChatSessions/browser/copilotChatSessions.contribution.js';
 import './contrib/sessions/browser/sessions.contribution.js';
 import './contrib/sessions/browser/views/sessionsListModelService.js';
+import './contrib/remoteAgentHost/browser/agentHostFilterService.js';
 import './contrib/sessions/browser/customizationsToolbar.contribution.js';
 import './contrib/changes/browser/changesView.contribution.js';
 import './contrib/layout/browser/layout.contribution.js';

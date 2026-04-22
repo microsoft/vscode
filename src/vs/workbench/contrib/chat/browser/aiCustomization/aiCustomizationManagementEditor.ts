@@ -1007,7 +1007,7 @@ export class AICustomizationManagementEditor extends EditorPane {
 	/**
 	 * Navigates to the welcome page (no section selected).
 	 */
-	private showWelcomePage(): void {
+	public showWelcomePage(): void {
 		if (this.viewMode === 'editor') {
 			this.goBackToList();
 		}

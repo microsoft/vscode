@@ -13,6 +13,7 @@ This guide covers the **Claude** session target in VS Code Copilot Chat: what it
   - [Enabling Claude Sessions](#enabling-claude-sessions)
   - [Opening a Claude Session](#opening-a-claude-session)
   - [Choosing a Model](#choosing-a-model)
+  - [Thinking Effort](#thinking-effort)
 - [Session Options](#session-options)
   - [Permission Mode](#permission-mode)
   - [Folder Selection](#folder-selection)
@@ -104,6 +105,18 @@ Claude sessions support multiple Anthropic models. The **"Pick Model"** button i
 Your model choice is remembered across sessions. To change models, click the model picker button at any time.
 
 > **Default behavior:** If no preference is stored, the latest Sonnet model is selected automatically.
+
+### Thinking Effort
+
+Some Claude models support configurable **thinking effort** — the amount of reasoning Claude applies before responding. When a model supports this, a **Thinking Effort** dropdown appears in the model picker with options such as:
+
+| Level | Description |
+|-------|-------------|
+| **Low** | Faster responses with less reasoning |
+| **Medium** | Balanced reasoning and speed |
+| **High** | Greater reasoning depth but slower (default when available) |
+
+Thinking effort is set per request and is not persisted across sessions.
 
 ---
 

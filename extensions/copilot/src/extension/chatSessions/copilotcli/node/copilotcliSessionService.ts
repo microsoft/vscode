@@ -44,7 +44,7 @@ import { ICustomSessionTitleService } from '../common/customSessionTitleService'
 import { IChatDelegationSummaryService } from '../common/delegationSummaryService';
 import { SessionIdForCLI } from '../common/utils';
 import { getCopilotCLISessionDir } from './cliHelpers';
-import { getAgentFileNameFromFilePath, ICopilotCLIAgents, ICopilotCLISDK, isEnabledForCopilotCLI } from './copilotCli';
+import { formatModelDetails, getAgentFileNameFromFilePath, ICopilotCLIAgents, ICopilotCLIModels, ICopilotCLISDK, isEnabledForCopilotCLI } from './copilotCli';
 import { CopilotCliBridgeSpanProcessor } from './copilotCliBridgeSpanProcessor';
 import { CopilotCLISession, ICopilotCLISession } from './copilotcliSession';
 import { ICopilotCLISkills } from './copilotCLISkills';
@@ -167,6 +167,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		@IPromptVariablesService private readonly _promptVariablesService: IPromptVariablesService,
 		@IChatDebugFileLoggerService private readonly _debugFileLogger: IChatDebugFileLoggerService,
 		@IPromptsService private readonly _promptsService: IPromptsService,
+		@ICopilotCLIModels private readonly _copilotCLIModels: ICopilotCLIModels,
 	) {
 		super();
 		this.showExternalSessions = this.configurationService.getConfig(ConfigKey.Advanced.CLIShowExternalSessions);
@@ -178,7 +179,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 		this.monitorSessionFiles();
 		this._sessionManager = new Lazy<Promise<internal.LocalSessionManager>>(async () => {
 			try {
-				const { internal, createLocalFeatureFlagService } = await this.getSDKPackage();
+				const { internal, createLocalFeatureFlagService, AutoModeSessionManager } = await this.getSDKPackage();
 				// Always enable SDK OTel so the debug panel receives native spans via the bridge.
 				// When user OTel is disabled, we force file exporter to /dev/null so the SDK
 				// creates OtelSessionTracker (for debug panel) but doesn't export to any collector.
@@ -210,6 +211,7 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 				return new internal.LocalSessionManager({
 					featureFlagService: createLocalFeatureFlagService(),
 					telemetryService: new internal.NoopTelemetryService(),
+					autoModeManager: new AutoModeSessionManager(),
 				}, { flushDebounceMs: undefined, settings: undefined, version: undefined });
 			}
 			catch (error) {
@@ -221,8 +223,8 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 	}
 
 	private async getSDKPackage() {
-		const { internal, LocalSession, createLocalFeatureFlagService } = await this.copilotCLISDK.getPackage();
-		return { internal, LocalSession, createLocalFeatureFlagService };
+		const { internal, LocalSession, createLocalFeatureFlagService, AutoModeSessionManager } = await this.copilotCLISDK.getPackage();
+		return { internal, LocalSession, createLocalFeatureFlagService, AutoModeSessionManager };
 	}
 
 	getSessionWorkingDirectory(sessionId: string): Uri | undefined {
@@ -843,7 +845,8 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 			return mapping;
 		};
 
-		const history = buildChatHistoryFromEvents(sessionId, modelId, events, getVSCodeRequestId, this._delegationSummaryService, this.logService, getWorkingDirectory(workspace), defaultModeInstructions);
+		const lastResponseDetails = await this.getModelDetailsString(modelId);
+		const history = buildChatHistoryFromEvents(sessionId, modelId, events, getVSCodeRequestId, this._delegationSummaryService, this.logService, getWorkingDirectory(workspace), defaultModeInstructions, lastResponseDetails);
 
 		if (legacyMappings.length > 0) {
 			void this._chatSessionMetadataStore.updateRequestDetails(sessionId, legacyMappings).catch(error => {
@@ -890,6 +893,18 @@ export class CopilotCLISessionService extends Disposable implements ICopilotCLIS
 			name: agent.name?.trim() || agentId,
 			content: await lazyContent.value,
 		};
+	}
+
+	private async getModelDetailsString(modelId: string | undefined): Promise<string | undefined> {
+		if (!modelId) {
+			return undefined;
+		}
+		const models = await this._copilotCLIModels.getModels().catch(ex => {
+			this.logService.error(ex, 'Failed to get models');
+			return [];
+		});
+		const modelInfo = models.find(m => m.id === modelId);
+		return modelInfo ? formatModelDetails(modelInfo) : undefined;
 	}
 
 

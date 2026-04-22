@@ -22,6 +22,7 @@ export interface SessionState {
 	capturingToken: CapturingToken | undefined;
 	folderInfo: ClaudeFolderInfo | undefined;
 	usageHandler: UsageHandler | undefined;
+	reasoningEffort: string | undefined;
 }
 
 /**
@@ -91,6 +92,16 @@ export interface IClaudeSessionStateService {
 	 * Sets the usage handler for a session.
 	 */
 	setUsageHandlerForSession(sessionId: string, handler: UsageHandler | undefined): void;
+
+	/**
+	 * Gets the reasoning effort for a session (user's per-request selection from the model picker).
+	 */
+	getReasoningEffortForSession(sessionId: string): string | undefined;
+
+	/**
+	 * Sets the reasoning effort for a session.
+	 */
+	setReasoningEffortForSession(sessionId: string, effort: string | undefined): void;
 }
 
 export const IClaudeSessionStateService = createServiceIdentifier<IClaudeSessionStateService>('IClaudeSessionStateService');
