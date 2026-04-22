@@ -121,8 +121,6 @@ import '../workbench/contrib/codeEditor/electron-browser/codeEditor.contribution
 // Debug
 import '../workbench/contrib/debug/electron-browser/extensionHostDebugService.js';
 
-// Extensions Management
-import '../workbench/contrib/extensions/electron-browser/extensions.contribution.js';
 
 // Issues
 import '../workbench/contrib/issue/electron-browser/issue.contribution.js';
@@ -173,7 +171,6 @@ import '../workbench/contrib/multiDiffEditor/browser/multiDiffEditor.contributio
 import '../workbench/contrib/remoteTunnel/electron-browser/remoteTunnel.contribution.js';
 
 // Chat
-import '../workbench/contrib/chat/electron-browser/chat.contribution.js';
 import './contrib/agentFeedback/browser/agentFeedback.contribution.js';
 import './contrib/chat/electron-browser/openInVSCode.contribution.js';
 

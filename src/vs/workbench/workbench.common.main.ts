@@ -212,8 +212,10 @@ import './contrib/speech/browser/speech.contribution.js';
 
 // Chat
 import './contrib/chat/browser/chat.contribution.js';
+import './contrib/chat/browser/chat.view.contribution.js';
 import './contrib/inlineChat/browser/inlineChat.contribution.js';
 import './contrib/mcp/browser/mcp.contribution.js';
+import './contrib/mcp/browser/mcp.view.contribution.js';
 import './contrib/chat/browser/chatSessions/chatSessions.contribution.js';
 import './contrib/chat/browser/contextContrib/chatContext.contribution.js';
 import './contrib/imageCarousel/browser/imageCarousel.contribution.js';
@@ -260,6 +262,8 @@ import './contrib/git/browser/git.contributions.js';
 
 // SCM
 import './contrib/scm/browser/scm.contribution.js';
+import './contrib/scm/browser/quickDiff.contribution.js';
+import './contrib/scm/browser/scm.service.contribution.js';
 
 // Debug
 import './contrib/debug/browser/debug.contribution.js';

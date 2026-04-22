@@ -26,6 +26,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { HOOKS_BY_TARGET } from '../hookTypes.js';
 import { PromptsConfig } from '../config/config.js';
 import { GithubPromptHeaderAttributes } from './promptFileAttributes.js';
+import { ILogService } from '../../../../../../platform/log/common/log.js';
 
 export const MARKERS_OWNER_ID = 'prompts-diagnostics-provider';
 
@@ -37,7 +38,8 @@ export class PromptValidator {
 		@IFileService private readonly fileService: IFileService,
 		@ILabelService private readonly labelService: ILabelService,
 		@IPromptsService private readonly promptsService: IPromptsService,
-		@IConfigurationService private readonly configurationService: IConfigurationService
+		@IConfigurationService private readonly configurationService: IConfigurationService,
+		@ILogService private readonly logger: ILogService,
 	) { }
 
 	public async validate(promptAST: ParsedPromptFile, promptType: PromptsType, report: (markers: IMarkerData) => void): Promise<void> {
@@ -132,13 +134,13 @@ export class PromptValidator {
 				fileReferenceChecks.push((async () => {
 					try {
 						const exists = await this.fileService.exists(resolved);
-						if (exists) {
-							return;
+						if (!exists) {
+							const loc = this.labelService.getUriLabel(resolved);
+							report(toMarker(localize('promptValidator.fileNotFound', "File '{0}' not found at '{1}'.", ref.content, loc), ref.range, MarkerSeverity.Warning));
 						}
 					} catch {
+						this.logger.warn(`Error checking existence of file reference '${ref.content}' resolved to '${resolved.toString()}' in prompt file '${promptAST.uri.toString()}'`);
 					}
-					const loc = this.labelService.getUriLabel(resolved);
-					report(toMarker(localize('promptValidator.fileNotFound', "File '{0}' not found at '{1}'.", ref.content, loc), ref.range, MarkerSeverity.Warning));
 				})());
 			}
 		}
