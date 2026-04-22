@@ -202,6 +202,10 @@ export class PtyService extends Disposable implements IPtyService {
 
 	@traceRpc
 	async freePortKillProcess(port: string): Promise<{ port: string; processId: string }> {
+		if (!/^\d+$/.test(port)) {
+			throw new Error(`Invalid port: ${port}`);
+		}
+
 		const stdout = await new Promise<string>((resolve, reject) => {
 			exec(isWindows ? `netstat -ano | findstr "${port}"` : `lsof -nP -iTCP -sTCP:LISTEN | grep ${port}`, {}, (err, stdout) => {
 				if (err) {

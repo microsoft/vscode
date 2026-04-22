@@ -1,0 +1,4 @@
+## 2026-04-19 - Command Injection in freePortKillProcess
+**Vulnerability:** The `port` string extracted via regex from the terminal output was passed directly into a `child_process.exec()` call (`netstat -ano | findstr "${port}"` or `lsof -nP -iTCP -sTCP:LISTEN | grep ${port}`). An attacker who could inject text into the terminal matching the regex could supply a malicious port string like `8080; touch /tmp/pwned` to achieve arbitrary code execution.
+**Learning:** Even internal RPC functions processing regex matches from known outputs can be vulnerable to injection if the underlying regex is loose or if the input isn't explicitly sanitized before being passed to shell commands.
+**Prevention:** Always use strict validation (e.g., `/^\d+$/`) on parameters before inserting them into `exec()` or use `execFile()` to bypass the shell completely.
