@@ -23,7 +23,7 @@
 	"icon": "assets/copilot.png",
 	"pricing": "Trial",
 	"engines": {
-		"vscode": "^1.118.0",
+		"vscode": "^1.117.0",
 		"npm": ">=9.0.0",
 		"node": ">=22.14.0"
 	},
@@ -1150,45 +1150,10 @@
 				"toolReferenceName": "store_memory",
 				"userDescription": "Store a persistent memory fact via Copilot",
 				"when": "config.github.copilot.chat.copilotMemory.enabled",
-				"modelDescription": "Store a persistent memory fact scoped to either the current repository or the current user. Use scope=\"repo\" for codebase conventions, build commands, and project-specific practices. Use scope=\"user\" when the user explicitly asks to remember a personal preference or cross-workspace habit.",
+				"modelDescription": "Store a persistent memory fact via Copilot Memory.",
 				"inputSchema": {
 					"type": "object",
-					"properties": {
-						"subject": {
-							"type": "string",
-							"description": "The topic this memory relates to. 1-2 words. Examples: 'naming conventions', 'testing practices', 'formatting'."
-						},
-						"fact": {
-							"type": "string",
-							"description": "A clear, short description of the fact or preference to remember. For repo scope: a codebase convention or practice. For user scope: a personal preference or habit. Must be less than 200 characters."
-						},
-						"citations": {
-							"type": "array",
-							"items": {
-								"type": "string"
-							},
-							"description": "Sources for this fact, such as file:line references (e.g. ['src/foo.ts:12']). Use an empty array if there is no relevant file reference."
-						},
-						"reason": {
-							"type": "string",
-							"description": "A clear explanation of why this fact is worth remembering. At least 2-3 sentences."
-						},
-						"scope": {
-							"type": "string",
-							"enum": [
-								"repo",
-								"user"
-							],
-							"description": "'repo' for repository-scoped codebase facts; 'user' for personal preferences the user explicitly asked to save."
-						}
-					},
-					"required": [
-						"subject",
-						"fact",
-						"citations",
-						"reason",
-						"scope"
-					]
+					"properties": {}
 				}
 			},
 			{

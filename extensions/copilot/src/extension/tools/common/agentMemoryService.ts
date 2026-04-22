@@ -296,7 +296,11 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 				if (cachedResponse) {
 					this.logService.debug(`[AgentMemoryService] Using cached memory prompt for conversation: ${sessionId}`);
 					return cachedResponse;
+				} else {
+					this.logService.debug(`[AgentMemoryService] Cache miss for conversation: ${sessionId}, cache size: ${this._conversationMemoryCache.size}`);
 				}
+			} else {
+				this.logService.debug(`[AgentMemoryService] No sessionId provided, skipping cache lookup`);
 			}
 
 			// If repoNwo not provided, auto-determine it to preserve original behavior
@@ -338,6 +342,9 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 				// Cache the response for this conversation only
 				if (sessionId) {
 					this._conversationMemoryCache.set(sessionId, response);
+					this.logService.debug(`[AgentMemoryService] Cached response for conversation: ${sessionId}, cache size now: ${this._conversationMemoryCache.size}`);
+				} else {
+					this.logService.debug(`[AgentMemoryService] No sessionId provided, not caching response`);
 				}
 			}
 			return response;
