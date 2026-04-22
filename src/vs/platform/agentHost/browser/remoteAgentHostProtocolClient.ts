@@ -9,7 +9,7 @@
 
 import { DeferredPromise } from '../../../base/common/async.js';
 import { Emitter } from '../../../base/common/event.js';
-import { Disposable, IReference, toDisposable } from '../../../base/common/lifecycle.js';
+import { Disposable, IReference } from '../../../base/common/lifecycle.js';
 import { Schemas } from '../../../base/common/network.js';
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
@@ -113,7 +113,6 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		this._address = address;
 		this._connectionAuthority = agentHostAuthority(address);
 		this._transport = transport;
-		this._register(toDisposable(() => this._handleClose(RemoteAgentHostProtocolError.disposed(this._address))));
 		this._register(this._transport);
 		this._register(this._transport.onMessage(msg => this._handleMessage(msg)));
 		this._register(this._transport.onClose(() => this._handleClose(RemoteAgentHostProtocolError.connectionClosed(this._address))));
@@ -130,6 +129,11 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 		this._register(this.onDidAction(envelope => {
 			this._subscriptionManager.receiveEnvelope(envelope);
 		}));
+	}
+
+	override dispose(): void {
+		this._handleClose(RemoteAgentHostProtocolError.disposed(this._address));
+		super.dispose();
 	}
 
 	/**

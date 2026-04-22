@@ -199,7 +199,6 @@ suite('RemoteAgentHostProtocolClient', () => {
 		const rejected = assertRemoteProtocolError(client.connect(), { code: -32000, message: 'Connection disposed: test.example:1234' });
 
 		client.dispose();
-		transport.connectDeferred.complete();
 
 		await rejected;
 		assert.strictEqual(transport.sentMessages.length, 0);
