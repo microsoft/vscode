@@ -276,8 +276,11 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 				return undefined;
 			}
 
+			// If repoNwo not provided, auto-determine it to preserve original behavior
+			const resolvedRepoNwo = repoNwo ?? await this.getRepoNwo();
+
 			// Generate a cache key that includes both sessionId and scope/repo context
-			const cacheKey = this.generateCacheKey(sessionId, repoNwo);
+			const cacheKey = this.generateCacheKey(sessionId, resolvedRepoNwo);
 			
 			// Check if we already have a cached response for this session and context
 			const cachedResponse = this._cachedPromptResponses.get(cacheKey);
@@ -292,10 +295,10 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 				return undefined;
 			}
 
-			// Use repo-scoped options when a repoNwo is available, otherwise user-scoped
+			// Use repo-scoped options when a resolvedRepoNwo is available, otherwise user-scoped
 			let options: MemoryApiOptions;
-			if (repoNwo) {
-				const [owner, repo] = repoNwo.split('/');
+			if (resolvedRepoNwo) {
+				const [owner, repo] = resolvedRepoNwo.split('/');
 				options = {
 					scope: 'repository',
 					owner,
