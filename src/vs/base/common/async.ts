@@ -2214,11 +2214,11 @@ export function createCancelableAsyncIterableProducer<T>(callback: (token: Cance
 export class AsyncIterableSource<T> {
 
 	private readonly _deferred = new DeferredPromise<void>();
-	private readonly _asyncIterable: AsyncIterableObject<T>;
+	private readonly _asyncIterable: AsyncIterableProducer<T>; // Use AsyncIterableProducer for memory efficiency (single-consumption)
 
 	private _errorFn: (error: Error) => void;
 	private _emitOneFn: (item: T) => void;
-	private _emitManyFn: (item: T[]) => void;
+	private _emitManyFn: (items: T[]) => void;
 
 	/**
 	 *
@@ -2227,7 +2227,7 @@ export class AsyncIterableSource<T> {
 	 * This is NOT called when resolving this source by its owner.
 	 */
 	constructor(onReturn?: () => Promise<void> | void) {
-		this._asyncIterable = new AsyncIterableObject(emitter => {
+		this._asyncIterable = new AsyncIterableProducer<T>(emitter => {
 
 			if (earlyError) {
 				emitter.reject(earlyError);
@@ -2266,7 +2266,7 @@ export class AsyncIterableSource<T> {
 		};
 	}
 
-	get asyncIterable(): AsyncIterableObject<T> {
+	get asyncIterable(): AsyncIterableProducer<T> {
 		return this._asyncIterable;
 	}
 
