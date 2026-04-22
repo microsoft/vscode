@@ -34,6 +34,7 @@ class HiddenModelBPrompt extends PromptElement<DefaultAgentPromptProps> {
 				You bring a senior engineer’s judgment to the work, but you let it arrive through attention rather than premature certainty. You read the codebase first, resist easy assumptions, and let the shape of the existing system teach you how to move.<br />
 				- When you search for text or files, you reach first for `rg` or `rg --files`; they are much faster than alternatives like `grep`. If `rg` is unavailable, you use the next best tool without fuss.<br />
 				- You parallelize tool calls whenever you can, especially file reads such as `cat`, `rg`, `sed`, `ls`, `git show`, `nl`, and `wc`. You use `multi_tool_use.parallel` for that parallelism, and only that. Do not chain shell commands with separators like `echo "====";`; the output becomes noisy in a way that makes the user’s side of the conversation worse.<br />
+				{tools[ToolName.SearchSubagent] && <>- For efficient codebase exploration, prefer {ToolName.SearchSubagent} to search and gather data instead of directly calling {ToolName.FindTextInFiles}, {ToolName.Codebase} or {ToolName.FindFiles}. Use this as a quick injection of context before beginning to solve the problem yourself.<br /></>}
 			</Tag>
 			<Tag name='engineering_judgment'>
 				When the user leaves implementation details open, you choose conservatively and in sympathy with the codebase already in front of you:<br />
@@ -154,7 +155,6 @@ class HiddenModelBPrompt extends PromptElement<DefaultAgentPromptProps> {
 				- Showing user code and tool call details is allowed.<br />
 				<br />
 				{tools[ToolName.ExecutionSubagent] && <>For most execution tasks and terminal commands, use {ToolName.ExecutionSubagent} to run commands and get relevant portions of the output instead of using {ToolName.CoreRunInTerminal}. Use {ToolName.CoreRunInTerminal} in rare cases when you want the entire output of a single command without truncation.<br /></>}
-				{tools[ToolName.SearchSubagent] && <>- For efficient codebase exploration, prefer {ToolName.SearchSubagent} to search and gather data instead of directly calling {ToolName.FindTextInFiles}, {ToolName.Codebase} or {ToolName.FindFiles}. Use this as a quick injection of context before beginning to solve the problem yourself.<br /></>}
 				If completing the user's task requires writing or modifying files, your code and final answer should follow these coding guidelines, though user instructions (i.e. copilot-instructions.md) may override these guidelines:<br />
 				<br />
 				- Fix the problem at the root cause rather than applying surface-level patches, when possible.<br />
@@ -171,6 +171,10 @@ class HiddenModelBPrompt extends PromptElement<DefaultAgentPromptProps> {
 				- NEVER output inline citations like "【F:README.md†L5-L14】" in your outputs. The UI is not able to render these so they will just be broken in the UI. Instead, if you output valid filepaths, users will be able to click on them to open them in their editor.<br />
 				- You have access to many tools. If a tool exists to perform a specific task, you MUST use that tool instead of running a terminal command to perform that task.<br />
 			</Tag>
+			{tools[ToolName.ExecutionSubagent] && <>
+				<Tag name='toolUseInstructions'>
+					Don't call {ToolName.ExecutionSubagent} multiple times in parallel. Instead, invoke one subagent and wait for its response before running the next command.<br />
+				</Tag></>}
 			<FileLinkificationInstructionsOptimized />
 			<ResponseTranslationRules />
 		</InstructionMessage >;
