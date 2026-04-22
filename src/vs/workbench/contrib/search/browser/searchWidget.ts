@@ -10,7 +10,7 @@ import { ActionBar } from '../../../../base/browser/ui/actionbar/actionbar.js';
 import { Button, IButtonOptions } from '../../../../base/browser/ui/button/button.js';
 import { IFindInputOptions } from '../../../../base/browser/ui/findinput/findInput.js';
 import { ReplaceInput } from '../../../../base/browser/ui/findinput/replaceInput.js';
-import { IInputBoxStyles, IMessage, InputBox } from '../../../../base/browser/ui/inputbox/inputBox.js';
+import { IInputBoxStyles, IMessage, InputBox, MessageType } from '../../../../base/browser/ui/inputbox/inputBox.js';
 import { Widget } from '../../../../base/browser/ui/widget.js';
 import { Action } from '../../../../base/common/actions.js';
 import { Delayer, disposableTimeout } from '../../../../base/common/async.js';
@@ -643,7 +643,14 @@ export class SearchWidget extends Widget {
 		try {
 			new RegExp(value, 'u');
 		} catch (e) {
-			return { content: e.message };
+			return { content: e.message, type: MessageType.ERROR };
+		}
+
+		if (this.searchInput?.filterVisible && (this._notebookFilters.markupPreview || this._notebookFilters.codeOutput)) {
+			return {
+				content: nls.localize('searchNotSupportedForNotebookOutputAndMarkdownPreview', "Searching in notebook output and markdown preview does not support regular expressions."),
+				type: MessageType.WARNING
+			};
 		}
 
 		return null;
