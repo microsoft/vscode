@@ -207,6 +207,21 @@ export interface ISession {
 }
 
 /**
+ * Build the canonical {@link ISession.sessionId} from a provider id and
+ * session resource URI.
+ *
+ * This is the single source of truth for the `providerId:resourceUri`
+ * string format used by every sessions provider (agent-host and
+ * Copilot chat sessions). Consumers that only have a provider id and a
+ * resource URI (e.g. a filesystem provider reconstructing a sessionId
+ * from a synthetic URI) should call this rather than rebuilding the
+ * string inline.
+ */
+export function toSessionId(providerId: string, resource: URI): string {
+	return `${providerId}:${resource.toString()}`;
+}
+
+/**
  * Capabilities declared per session.
  * Consumers check these before surfacing session-specific features in the UI.
  */

@@ -283,13 +283,13 @@ suite('LocalAgentHostSessionsProvider', () => {
 		// the same agent (e.g. `copilotcli`) shares one session type across
 		// local and remote hosts and the standalone Copilot CLI provider.
 		assert.strictEqual(provider.sessionTypes[0].id, 'copilotcli');
-		assert.strictEqual(provider.sessionTypes[0].label, 'Copilot [Local]');
+		assert.strictEqual(provider.sessionTypes[0].label, 'Copilot');
 	});
 
 	test('session types update when the local host advertises additional agents', () => {
 		const provider = createProvider(disposables, agentHost);
 		assert.deepStrictEqual(provider.sessionTypes.map(t => ({ id: t.id, label: t.label })), [
-			{ id: 'copilotcli', label: 'Copilot [Local]' },
+			{ id: 'copilotcli', label: 'Copilot' },
 		]);
 
 		let changes = 0;
@@ -303,8 +303,8 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(changes, 1);
 		// The logical sessionType id is the agent provider name itself.
 		assert.deepStrictEqual(provider.sessionTypes.map(t => ({ id: t.id, label: t.label })), [
-			{ id: 'copilotcli', label: 'Copilot [Local]' },
-			{ id: 'openai', label: 'OpenAI [Local]' },
+			{ id: 'copilotcli', label: 'Copilot' },
+			{ id: 'openai', label: 'OpenAI' },
 		]);
 	});
 
@@ -334,12 +334,12 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	// ---- Workspace resolution -------
 
-	test('resolveWorkspace builds workspace from URI', () => {
+	test('resolveWorkspace builds workspace from URI with [Local] tag', () => {
 		const provider = createProvider(disposables, agentHost);
 		const uri = URI.parse('file:///home/user/project');
 		const ws = provider.resolveWorkspace(uri);
 
-		assert.strictEqual(ws.label, 'project');
+		assert.strictEqual(ws.label, 'project [Local]');
 		assert.strictEqual(ws.repositories.length, 1);
 		assert.strictEqual(ws.repositories[0].uri.toString(), uri.toString());
 		assert.strictEqual(ws.requiresWorkspaceTrust, true);
@@ -498,10 +498,25 @@ suite('LocalAgentHostSessionsProvider', () => {
 			repository: workspace?.repositories[0]?.uri.toString(),
 			workingDirectory: workspace?.repositories[0]?.workingDirectory?.toString(),
 		}, {
-			label: 'vscode',
+			label: 'vscode [Local]',
 			repository: projectUri.toString(),
 			workingDirectory: workingDirectory.toString(),
 		});
+	}));
+
+	test('listed session with only workingDirectory (no project) shows folder name with [Local] tag', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		const workingDirectory = URI.file('/home/user/standalone-folder');
+		agentHost.addSession(createSession('wd-only-1', {
+			summary: 'WD-only Session',
+			workingDirectory,
+		}));
+
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+
+		const workspace = provider.getSessions()[0].workspace.get();
+		assert.strictEqual(workspace?.label, 'standalone-folder [Local]');
 	}));
 
 	test('uses model metadata as selected model for listed sessions', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -566,7 +581,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		assert.strictEqual(session.providerId, provider.id);
 		assert.strictEqual(session.status.get(), SessionStatus.Untitled);
 		assert.ok(session.workspace.get());
-		assert.strictEqual(session.workspace.get()?.label, 'my-project');
+		assert.strictEqual(session.workspace.get()?.label, 'my-project [Local]');
 		assert.strictEqual(session.sessionType, provider.sessionTypes[0].id);
 		assert.deepStrictEqual(provider.getSessionConfig(session.sessionId), { schema: { type: 'object', properties: {} }, values: {} });
 	});
@@ -593,7 +608,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 		}, {
 			listedSessions: 0,
 			resolvedResource: session.resource.toString(),
-			resolvedWorkspaceLabel: 'my-project',
+			resolvedWorkspaceLabel: 'my-project [Local]',
 		});
 	});
 
@@ -756,7 +771,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		const workspace = wsSession!.workspace.get();
 		assert.ok(workspace);
-		assert.strictEqual(workspace!.label, 'myrepo');
+		assert.strictEqual(workspace!.label, 'myrepo [Local]');
 	}));
 
 	test('session adapter without working directory has no workspace', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
@@ -861,7 +876,7 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 	// ---- Running session config seeding (from ISessionState.config) -------
 
-	test('getSessionConfig seeds running config from session state subscription, filtered to sessionMutable properties', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('getSessionConfig seeds running config from session state subscription with full schema', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		agentHost.addSession(createSession('seed-1', { summary: 'Seeded Session' }));
 		const provider = createProvider(disposables, agentHost);
 		provider.getSessions();
@@ -895,13 +910,16 @@ suite('LocalAgentHostSessionsProvider', () => {
 
 		await waitForSessionConfig(provider, session!.sessionId, c => c?.values.autoApprove === 'default');
 
+		// The full schema + values are retained (non-mutable values are
+		// required by the JSONC settings editor to round-trip via replace
+		// semantics without dropping server-side config).
 		const seeded = provider.getSessionConfig(session!.sessionId);
 		assert.deepStrictEqual({
-			properties: Object.keys(seeded?.schema.properties ?? {}),
+			properties: Object.keys(seeded?.schema.properties ?? {}).sort(),
 			values: seeded?.values,
 		}, {
-			properties: ['autoApprove'],
-			values: { autoApprove: 'default' },
+			properties: ['autoApprove', 'isolation'],
+			values: { autoApprove: 'default', isolation: 'worktree' },
 		});
 	}));
 
@@ -922,5 +940,179 @@ suite('LocalAgentHostSessionsProvider', () => {
 		fireSessionRemoved(agentHost, 'seed-2');
 
 		assert.strictEqual(agentHost.sessionUnsubscribeCounts.get(sessionUriStr), 1);
+	}));
+
+	// ---- replaceSessionConfig -------
+
+	test('replaceSessionConfig only replaces sessionMutable, non-readOnly values and preserves everything else', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('rep-1', { summary: 'Replace Session' }));
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(s => s.title.get() === 'Replace Session');
+		assert.ok(session);
+
+		const config: ISessionConfigState = {
+			schema: {
+				type: 'object',
+				properties: {
+					autoApprove: { type: 'string', title: 'Auto Approve', enum: ['default', 'autoApprove'], sessionMutable: true },
+					isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'] }, // non-mutable
+					branch: { type: 'string', title: 'Branch', enum: ['main'], sessionMutable: true, readOnly: true }, // readOnly
+				},
+			},
+			values: { autoApprove: 'default', isolation: 'worktree', branch: 'main' },
+		};
+		const fakeState: ISessionState = {
+			summary: { resource: AgentSession.uri('copilotcli', 'rep-1').toString(), provider: 'copilotcli', title: 'Replace Session', status: ProtocolSessionStatus.Idle, createdAt: 0, modifiedAt: 0 },
+			lifecycle: SessionLifecycle.Ready,
+			turns: [],
+			config,
+		};
+		agentHost.setSessionState('rep-1', 'copilotcli', fakeState);
+		await waitForSessionConfig(provider, session!.sessionId, c => c?.values.autoApprove === 'default');
+
+		// Caller attempts to change everything — including non-mutable
+		// `isolation`, readOnly `branch`, and an unknown `rogue` key. Only
+		// `autoApprove` should actually change; all other values must be
+		// carried through unchanged and `rogue` must be dropped.
+		await provider.replaceSessionConfig(session!.sessionId, {
+			autoApprove: 'autoApprove',
+			isolation: 'folder',
+			branch: 'other',
+			rogue: 'ignored',
+		});
+
+		const sessionUri = AgentSession.uri('copilotcli', 'rep-1').toString();
+		const configChanged = agentHost.dispatchedActions.find(d => d.action.type === ActionType.SessionConfigChanged && (d.action as { session: string }).session === sessionUri);
+		assert.ok(configChanged, 'a SessionConfigChanged action should be dispatched');
+		assert.deepStrictEqual(configChanged.action, {
+			type: ActionType.SessionConfigChanged,
+			session: sessionUri,
+			config: { autoApprove: 'autoApprove', isolation: 'worktree', branch: 'main' },
+			replace: true,
+		});
+
+		const latest = provider.getSessionConfig(session!.sessionId);
+		assert.deepStrictEqual(latest?.values, { autoApprove: 'autoApprove', isolation: 'worktree', branch: 'main' });
+	}));
+
+	test('replaceSessionConfig is a no-op when nothing editable actually changes', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('rep-2', { summary: 'No-op Session' }));
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(s => s.title.get() === 'No-op Session');
+		assert.ok(session);
+
+		const config: ISessionConfigState = {
+			schema: {
+				type: 'object',
+				properties: {
+					autoApprove: { type: 'string', title: 'Auto Approve', enum: ['default', 'autoApprove'], sessionMutable: true },
+					isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'] },
+				},
+			},
+			values: { autoApprove: 'default', isolation: 'worktree' },
+		};
+		const fakeState: ISessionState = {
+			summary: { resource: AgentSession.uri('copilotcli', 'rep-2').toString(), provider: 'copilotcli', title: 'No-op Session', status: ProtocolSessionStatus.Idle, createdAt: 0, modifiedAt: 0 },
+			lifecycle: SessionLifecycle.Ready,
+			turns: [],
+			config,
+		};
+		agentHost.setSessionState('rep-2', 'copilotcli', fakeState);
+		await waitForSessionConfig(provider, session!.sessionId, c => c?.values.autoApprove === 'default');
+
+		const before = agentHost.dispatchedActions.length;
+		// Caller re-asserts the same editable value; everything else either
+		// matches or is non-editable.
+		await provider.replaceSessionConfig(session!.sessionId, { autoApprove: 'default' });
+		assert.strictEqual(agentHost.dispatchedActions.length, before, 'no action should be dispatched');
+	}));
+
+	// ---- Server-echoed SessionConfigChanged -------
+
+	test('server-echoed SessionConfigChanged merges config values into the running cache by default', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('cfg-merge', { summary: 'Merge Session' }));
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(s => s.title.get() === 'Merge Session');
+		assert.ok(session);
+
+		const fakeState: ISessionState = {
+			summary: { resource: AgentSession.uri('copilotcli', 'cfg-merge').toString(), provider: 'copilotcli', title: 'Merge Session', status: ProtocolSessionStatus.Idle, createdAt: 0, modifiedAt: 0 },
+			lifecycle: SessionLifecycle.Ready,
+			turns: [],
+			config: {
+				schema: {
+					type: 'object',
+					properties: {
+						autoApprove: { type: 'string', title: 'Auto Approve', enum: ['default', 'autoApprove'], sessionMutable: true },
+						isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'] },
+					},
+				},
+				values: { autoApprove: 'default', isolation: 'worktree' },
+			},
+		};
+		agentHost.setSessionState('cfg-merge', 'copilotcli', fakeState);
+		await waitForSessionConfig(provider, session!.sessionId, c => c?.values.autoApprove === 'default');
+
+		agentHost.fireAction({
+			action: {
+				type: ActionType.SessionConfigChanged,
+				session: AgentSession.uri('copilotcli', 'cfg-merge').toString(),
+				config: { autoApprove: 'autoApprove' },
+			},
+			serverSeq: 1,
+			origin: undefined,
+		} as IActionEnvelope);
+
+		const updated = provider.getSessionConfig(session!.sessionId);
+		assert.deepStrictEqual(updated?.values, { autoApprove: 'autoApprove', isolation: 'worktree' });
+	}));
+
+	test('server-echoed SessionConfigChanged with replace:true overwrites the running cache', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+		agentHost.addSession(createSession('cfg-replace', { summary: 'Replace Session' }));
+		const provider = createProvider(disposables, agentHost);
+		provider.getSessions();
+		await timeout(0);
+		const session = provider.getSessions().find(s => s.title.get() === 'Replace Session');
+		assert.ok(session);
+
+		const fakeState: ISessionState = {
+			summary: { resource: AgentSession.uri('copilotcli', 'cfg-replace').toString(), provider: 'copilotcli', title: 'Replace Session', status: ProtocolSessionStatus.Idle, createdAt: 0, modifiedAt: 0 },
+			lifecycle: SessionLifecycle.Ready,
+			turns: [],
+			config: {
+				schema: {
+					type: 'object',
+					properties: {
+						autoApprove: { type: 'string', title: 'Auto Approve', enum: ['default', 'autoApprove'], sessionMutable: true },
+						mode: { type: 'string', title: 'Mode', enum: ['a', 'b'], sessionMutable: true },
+						isolation: { type: 'string', title: 'Isolation', enum: ['folder', 'worktree'] },
+					},
+				},
+				values: { autoApprove: 'default', mode: 'a', isolation: 'worktree' },
+			},
+		};
+		agentHost.setSessionState('cfg-replace', 'copilotcli', fakeState);
+		await waitForSessionConfig(provider, session!.sessionId, c => c?.values.autoApprove === 'default');
+
+		agentHost.fireAction({
+			action: {
+				type: ActionType.SessionConfigChanged,
+				session: AgentSession.uri('copilotcli', 'cfg-replace').toString(),
+				config: { autoApprove: 'autoApprove', isolation: 'worktree' },
+				replace: true,
+			},
+			serverSeq: 1,
+			origin: undefined,
+		} as IActionEnvelope);
+
+		// `mode` is dropped because it wasn't re-asserted in the replace payload.
+		const updated = provider.getSessionConfig(session!.sessionId);
+		assert.deepStrictEqual(updated?.values, { autoApprove: 'autoApprove', isolation: 'worktree' });
 	}));
 });

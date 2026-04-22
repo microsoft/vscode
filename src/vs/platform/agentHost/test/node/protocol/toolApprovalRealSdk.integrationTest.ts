@@ -30,8 +30,9 @@ import { URI } from '../../../../../base/common/uri.js';
 import type { ISessionToolCallStartAction } from '../../../common/state/protocol/actions.js';
 import { ISubscribeResult } from '../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../common/state/sessionCapabilities.js';
-import { ResponsePartKind, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolResultContentType, isSubagentSession, type ISessionInputAnswer, type ISessionInputRequest, type ISessionState, type ITerminalState, type IToolResultContent, type IToolResultSubagentContent } from '../../../common/state/sessionState.js';
-import type { ISessionAddedNotification, ISessionInputRequestedAction, ISessionResponsePartAction, ISessionToolCallReadyAction } from '../../../common/state/sessionActions.js';
+import { ResponsePartKind, ROOT_STATE_URI, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolResultContentType, isSubagentSession, type ISessionInputAnswer, type ISessionInputRequest, type ISessionState, type ITerminalState, type IToolResultContent, type IToolResultSubagentContent } from '../../../common/state/sessionState.js';
+import type { IRootState } from '../../../common/state/protocol/state.js';
+import type { IRootAgentsChangedAction, ISessionAddedNotification, ISessionInputRequestedAction, ISessionResponsePartAction, ISessionToolCallReadyAction } from '../../../common/state/sessionActions.js';
 import type { INotificationBroadcastParams } from '../../../common/state/sessionProtocol.js';
 import {
 	getActionEnvelope,
@@ -74,8 +75,8 @@ async function createRealSessionFull(c: TestProtocolClient, clientId: string, tr
 
 	await c.call('authenticate', { resource: 'https://api.github.com', token: resolveGitHubToken() }, 30_000);
 
-	const sessionUri = URI.from({ scheme: 'copilot', path: `/real-test-${Date.now()}` }).toString();
-	await c.call('createSession', { session: sessionUri, provider: 'copilot', workingDirectory }, 30_000);
+	const sessionUri = URI.from({ scheme: 'copilotcli', path: `/real-test-${Date.now()}` }).toString();
+	await c.call('createSession', { session: sessionUri, provider: 'copilotcli', workingDirectory }, 30_000);
 
 	const notif = await c.waitForNotification(n =>
 		n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded',
@@ -432,8 +433,8 @@ function terminalText(state: ITerminalState): string {
 		await client.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'real-sdk-workdir' });
 		await client.call('authenticate', { resource: 'https://api.github.com', token: resolveGitHubToken() });
 
-		const sessionUri = URI.from({ scheme: 'copilot', path: `/real-test-wd-${Date.now()}` }).toString();
-		await client.call('createSession', { session: sessionUri, provider: 'copilot', workingDirectory: workingDirUri });
+		const sessionUri = URI.from({ scheme: 'copilotcli', path: `/real-test-wd-${Date.now()}` }).toString();
+		await client.call('createSession', { session: sessionUri, provider: 'copilotcli', workingDirectory: workingDirUri });
 
 		// 1. Verify workingDirectory in the sessionAdded notification
 		const addedNotif = await client.waitForNotification(n =>
@@ -476,10 +477,10 @@ function terminalText(state: ITerminalState): string {
 		await client.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'real-sdk-worktree' });
 		await client.call('authenticate', { resource: 'https://api.github.com', token: resolveGitHubToken() });
 
-		const sessionUri = URI.from({ scheme: 'copilot', path: `/real-test-wt-${Date.now()}` }).toString();
+		const sessionUri = URI.from({ scheme: 'copilotcli', path: `/real-test-wt-${Date.now()}` }).toString();
 		await client.call('createSession', {
 			session: sessionUri,
-			provider: 'copilot',
+			provider: 'copilotcli',
 			workingDirectory: workingDirUri,
 			config: { isolation: 'worktree', branch: defaultBranch },
 		});
@@ -710,5 +711,55 @@ function terminalText(state: ITerminalState): string {
 		assert.ok(subagentStarts.length >= 1,
 			`subagent session should contain at least one inner tool call, got ${subagentStarts.length}. ` +
 			`Parent tool calls: ${JSON.stringify(parentStarts.map(a => a.toolName))}`);
+	});
+
+	// ---- Model discovery -----------------------------------------------------
+
+	test('listModels returns well-shaped model entries after authenticate', async function () {
+		this.timeout(60_000);
+
+		await client.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'real-sdk-list-models' }, 30_000);
+
+		// Subscribe to root state *before* authenticating so we can observe
+		// the agentsChanged action that carries the populated model list.
+		const rootResult = await client.call<ISubscribeResult>('subscribe', { resource: ROOT_STATE_URI }, 30_000);
+		const initial = rootResult.snapshot.state as IRootState;
+		const copilotAgent = initial.agents.find(a => a.provider === 'copilotcli');
+		assert.ok(copilotAgent, `Expected copilotcli agent in root state, got: ${initial.agents.map(a => a.provider).join(', ')}`);
+
+		await client.call('authenticate', { resource: 'https://api.github.com', token: resolveGitHubToken() }, 30_000);
+
+		// Models are loaded asynchronously after authenticate. Wait for the
+		// agentsChanged action that populates them.
+		const notif = await client.waitForNotification(n => {
+			if (!isActionNotification(n, 'root/agentsChanged')) {
+				return false;
+			}
+			const action = getActionEnvelope(n).action as IRootAgentsChangedAction;
+			const agent = action.agents.find(a => a.provider === 'copilotcli');
+			return !!agent && agent.models.length > 0;
+		}, 30_000);
+
+		const action = getActionEnvelope(notif).action as IRootAgentsChangedAction;
+		const agent = action.agents.find(a => a.provider === 'copilotcli')!;
+
+		assert.ok(agent.models.length > 0, 'Expected at least one model from listModels');
+
+		// Assert every model has the shape CopilotAgent._listModels produces.
+		// maxContextWindow is optional because synthetic SDK entries (e.g. the
+		// `auto` router) ship with `capabilities: {}` and no fixed window.
+		for (const model of agent.models) {
+			assert.strictEqual(typeof model.id, 'string', `model.id should be a string: ${JSON.stringify(model)}`);
+			assert.ok(model.id.length > 0, `model.id should be non-empty: ${JSON.stringify(model)}`);
+			assert.strictEqual(typeof model.name, 'string', `model.name should be a string: ${JSON.stringify(model)}`);
+			assert.strictEqual(model.provider, 'copilotcli', `model.provider should be copilotcli: ${JSON.stringify(model)}`);
+			assert.ok(model.maxContextWindow === undefined || (typeof model.maxContextWindow === 'number' && model.maxContextWindow > 0),
+				`model.maxContextWindow should be undefined or a positive number: ${JSON.stringify(model)}`);
+			assert.ok(model.supportsVision === undefined || typeof model.supportsVision === 'boolean', `model.supportsVision should be boolean or undefined: ${JSON.stringify(model)}`);
+		}
+
+		// The `auto` synthetic router model should be present even though it
+		// has no fixed context window.
+		assert.ok(agent.models.some(m => m.id === 'auto'), `Expected 'auto' model in list, got: ${agent.models.map(m => m.id).join(', ')}`);
 	});
 });

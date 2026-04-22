@@ -5,7 +5,7 @@
 	<meta charset="UTF-8">
 
 	<meta http-equiv="Content-Security-Policy"
-		content="default-src 'none'; script-src 'sha256-TaWGDzV7c9rUH2q/5ygOyYUHSyHIqBMYfucPh3lnKvU=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
+		content="default-src 'none'; script-src 'sha256-25y69Rmwe2/7r58SQN/qPNWvAcjm+OR1DVlm3D2jsXc=' 'self'; frame-src 'self'; style-src 'unsafe-inline';">
 
 	<!-- Disable pinch zooming -->
 	<meta name="viewport"
@@ -486,11 +486,21 @@
 
 		if (!disableServiceWorker) {
 			hostMessaging.onMessage('did-load-resource', (_event, data) => {
-				assertIsDefined(navigator.serviceWorker.controller).postMessage({ channel: 'did-load-resource', data }, data.data?.buffer ? [data.data.buffer] : []);
+				const transfer = data.stream ? [data.stream] : [];
+				assertIsDefined(navigator.serviceWorker.controller).postMessage({ channel: 'did-load-resource', data }, transfer);
 			});
 
-			hostMessaging.onMessage('did-load-localhost', (_event, data) => {
-				assertIsDefined(navigator.serviceWorker.controller).postMessage({ channel: 'did-load-localhost', data });
+			for (const channel of [
+				'did-load-resource-end',
+				'did-load-localhost',
+			]) {
+				hostMessaging.onMessage(channel, (_event, data) => {
+					assertIsDefined(navigator.serviceWorker.controller).postMessage({ channel, data });
+				});
+			}
+
+			hostMessaging.onMessage('did-load-resource-chunk', (_event, data) => {
+				assertIsDefined(navigator.serviceWorker.controller).postMessage({ channel: 'did-load-resource-chunk', data }, data.data?.buffer ? [data.data.buffer] : []);
 			});
 
 			navigator.serviceWorker.addEventListener('message', event => {

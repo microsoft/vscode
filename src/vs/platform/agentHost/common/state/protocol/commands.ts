@@ -31,6 +31,12 @@ export interface IInitializeParams {
 	clientId: string;
 	/** URIs to subscribe to during handshake */
 	initialSubscriptions?: URI[];
+	/**
+	 * IETF BCP 47 language tag indicating the client's preferred locale
+	 * (e.g. `"en-US"`, `"ja"`). The server SHOULD use this to localise
+	 * user-facing strings such as confirmation option labels.
+	 */
+	locale?: string;
 }
 
 /**
@@ -197,7 +203,7 @@ export interface ICreateSessionParams {
 	 * Agent-specific configuration values collected via `resolveSessionConfig`.
 	 * Keys and values correspond to the schema returned by the server.
 	 */
-	config?: Record<string, string>;
+	config?: Record<string, unknown>;
 	/**
 	 * Eagerly claim the active client role for the new session.
 	 *
@@ -768,7 +774,7 @@ export interface IResolveSessionConfigParams {
 	/** Working directory for the session */
 	workingDirectory?: URI;
 	/** Current user-filled configuration values */
-	config?: Record<string, string>;
+	config?: Record<string, unknown>;
 }
 
 /**
@@ -778,7 +784,7 @@ export interface IResolveSessionConfigResult {
 	/** JSON Schema describing available configuration properties given the current context */
 	schema: ISessionConfigSchema;
 	/** Current configuration values (echoed back with server-resolved defaults applied) */
-	values: Record<string, string>;
+	values: Record<string, unknown>;
 }
 
 // ─── sessionConfigCompletions ────────────────────────────────────────────────
@@ -832,7 +838,7 @@ export interface ISessionConfigCompletionsParams {
 	/** Working directory for the session */
 	workingDirectory?: URI;
 	/** Current user-filled configuration values (provides context for the query) */
-	config?: Record<string, string>;
+	config?: Record<string, unknown>;
 	/** Property id from the schema to query values for */
 	property: string;
 	/** Search filter text (empty or omitted returns default/recent values) */

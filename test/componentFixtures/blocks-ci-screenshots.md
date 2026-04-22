@@ -5,3 +5,15 @@
 
 #### editor/codeEditor/CodeEditor/Light
 ![screenshot](https://hediet-screenshots.azurewebsites.net/images/42624fbba5e0db7f32c224b5eb9c5dd3b08245697ae2e7d2a88be0d7c287129b)
+
+#### editor/inlineChatZoneWidget/InlineChatZoneWidget/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/7d1a6d2346754115e77fc2b0b09a0e6fb6fd9fe22acbff6354813eefb8b45fc2)
+
+#### editor/inlineChatZoneWidget/InlineChatZoneWidget/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/11dbc075c584b7dde0f08314e98db121e420529ced6249effb941cfe2ae3164b)
+
+#### editor/inlineChatZoneWidget/InlineChatZoneWidgetTerminated/Dark
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/2fbc12507b59ff950d9612d2df92e6b39d8bf0bf500478e42eca2ead4d1ae206)
+
+#### editor/inlineChatZoneWidget/InlineChatZoneWidgetTerminated/Light
+![screenshot](https://hediet-screenshots.azurewebsites.net/images/4632ab04d1fdd7db9ab0e00cce10aefb7a6344eb8869dfce740309a8801cab73)

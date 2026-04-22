@@ -3788,6 +3788,15 @@
 							"onExp"
 						]
 					},
+					"github.copilot.chat.responsesApi.toolSearchTool.enabled": {
+						"type": "boolean",
+						"default": false,
+						"markdownDescription": "%github.copilot.config.responsesApi.toolSearchTool.enabled%",
+						"tags": [
+							"experimental",
+							"onExp"
+						]
+					},
 					"github.copilot.chat.updated53CodexPrompt.enabled": {
 						"type": "boolean",
 						"default": true,
@@ -4591,6 +4600,14 @@
 							"advanced"
 						]
 					},
+					"github.copilot.chat.cli.autoModel.enabled": {
+						"type": "boolean",
+						"default": true,
+						"markdownDescription": "%github.copilot.config.cli.autoModel.enabled%",
+						"tags": [
+							"advanced"
+						]
+					},
 					"github.copilot.chat.cli.planCommand.enabled": {
 						"type": "boolean",
 						"default": true,
@@ -4662,6 +4679,15 @@
 						"markdownDescription": "%github.copilot.config.cli.terminalLinks.enabled%",
 						"tags": [
 							"advanced"
+						]
+					},
+					"github.copilot.chat.cli.remote.enabled": {
+						"type": "boolean",
+						"default": false,
+						"markdownDescription": "%github.copilot.config.cli.remote.enabled%",
+						"tags": [
+							"advanced",
+							"experimental"
 						]
 					},
 					"github.copilot.chat.searchSubagent.enabled": {
@@ -6178,6 +6204,11 @@
 						"name": "fleet",
 						"description": "%github.copilot.command.cli.fleet.description%",
 						"when": "false"
+					},
+					{
+						"name": "remote",
+						"description": "%github.copilot.command.cli.remote.description%",
+						"when": "config.github.copilot.chat.cli.remote.enabled"
 					}
 				],
 				"customAgentTarget": "github-copilot",

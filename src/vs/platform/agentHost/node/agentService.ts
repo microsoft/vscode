@@ -294,7 +294,7 @@ export class AgentService extends Disposable implements IAgentService {
 		return session;
 	}
 
-	private _persistConfigValues(session: URI, values: Record<string, string>): void {
+	private _persistConfigValues(session: URI, values: Record<string, unknown>): void {
 		let ref;
 		try {
 			ref = this._sessionDataService.openDatabase(session);

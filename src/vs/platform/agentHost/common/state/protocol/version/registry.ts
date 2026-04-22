@@ -62,6 +62,7 @@ export const ACTION_INTRODUCED_IN: { readonly [K in IStateAction['type']]: numbe
 	[ActionType.SessionDiffsChanged]: 1,
 	[ActionType.SessionConfigChanged]: 1,
 	[ActionType.RootTerminalsChanged]: 1,
+	[ActionType.RootConfigChanged]: 1,
 	[ActionType.TerminalData]: 1,
 	[ActionType.TerminalInput]: 1,
 	[ActionType.TerminalResized]: 1,

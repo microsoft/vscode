@@ -68,6 +68,30 @@ suite('CommandLineBackgroundDetachRewriter', () => {
 				forDisplay: 'flask run',
 			});
 		});
+
+		test('should not duplicate trailing & when command already backgrounds itself', () => {
+			deepStrictEqual(rewriter.rewrite(createOptions('pypi-server ... &', '/bin/bash', OperatingSystem.Linux, true)), {
+				rewritten: 'nohup pypi-server ... &',
+				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
+				forDisplay: 'pypi-server ... &',
+			});
+		});
+
+		test('should not duplicate trailing & when command ends with chained background command', () => {
+			deepStrictEqual(rewriter.rewrite(createOptions('cd /app && python3 service.py &', '/bin/bash', OperatingSystem.Linux, true)), {
+				rewritten: 'nohup cd /app && python3 service.py &',
+				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
+				forDisplay: 'cd /app && python3 service.py &',
+			});
+		});
+
+		test('should trim trailing whitespace before detecting existing &', () => {
+			deepStrictEqual(rewriter.rewrite(createOptions('node server.js &   ', '/bin/bash', OperatingSystem.Linux, true)), {
+				rewritten: 'nohup node server.js &',
+				reasoning: 'Wrapped background command with nohup to survive terminal shutdown',
+				forDisplay: 'node server.js &   ',
+			});
+		});
 	});
 
 	suite('POSIX (zsh)', () => {

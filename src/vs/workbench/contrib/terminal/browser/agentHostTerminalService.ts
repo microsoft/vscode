@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { SequencerByKey } from '../../../../base/common/async.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable, toDisposable } from '../../../../base/common/lifecycle.js';
 import { IObservable, observableValue, transaction } from '../../../../base/common/observable.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -103,6 +104,7 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 
 	/** Revived terminal instances, keyed by terminal URI string. */
 	private readonly _revivedInstances = new Map<string, ITerminalInstance>();
+	private readonly _reviveSequencer = new SequencerByKey<string>();
 
 	constructor(
 		@ITerminalService private readonly _terminalService: ITerminalService,
@@ -300,11 +302,14 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 
 	async reviveTerminal(connection: IAgentConnection, terminalUri: URI, terminalToolSessionId: string): Promise<ITerminalInstance> {
 		const key = terminalUri.toString();
+		return this._reviveSequencer.queue(key, () => this._doReviveTerminal(connection, terminalUri, terminalToolSessionId, key));
+	}
+
+	private async _doReviveTerminal(connection: IAgentConnection, terminalUri: URI, terminalToolSessionId: string, key: string): Promise<ITerminalInstance> {
 		const existing = this._revivedInstances.get(key);
 		if (existing) {
 			return existing;
 		}
-
 		const store = new DisposableStore();
 		const commandSource = store.add(new AhpTerminalCommandSource());
 		store.add(this._terminalChatService.registerAhpCommandSource(terminalToolSessionId, commandSource));
@@ -327,6 +332,7 @@ export class AgentHostTerminalService extends Disposable implements IAgentHostTe
 				},
 				name: localize('agentHostTerminal.tool', "Agent Host Terminal"),
 				isFeatureTerminal: true,
+				hideFromUser: true,
 			},
 		});
 		this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, instance);

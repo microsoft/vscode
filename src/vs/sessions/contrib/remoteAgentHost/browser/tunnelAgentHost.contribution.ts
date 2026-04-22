@@ -184,6 +184,7 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 			address,
 			name,
 			connectOnDemand: () => this._connectTunnel(address, { userInitiated: true }),
+			disconnectOnDemand: () => this._disconnectTunnel(address),
 		},
 		);
 		// Surface as "Connecting" until the first silent status check or an
@@ -326,6 +327,21 @@ export class TunnelAgentHostContribution extends Disposable implements IWorkbenc
 
 		this._pendingConnects.set(address, promise);
 		return promise;
+	}
+
+	/**
+	 * Tear down the active tunnel relay for {@link address} and cancel any
+	 * pending auto-reconnect. The cached tunnel entry is kept so the user
+	 * can re-connect later; only the live WebSocket is closed.
+	 */
+	private async _disconnectTunnel(address: string): Promise<void> {
+		this._cancelReconnect(address);
+		this._resetReconnectState(address);
+		// Mark as explicitly disconnected so `_handleConnectionChanges` does
+		// not treat the impending Connected→(removed) transition as a
+		// reconnect-worthy drop.
+		this._previousStatuses.delete(address);
+		await this._tunnelService.disconnect(address);
 	}
 
 	/**

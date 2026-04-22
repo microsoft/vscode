@@ -70,6 +70,7 @@ function createMockProvider(id: string, opts?: {
 			onDidChangeSessionConfig: Event.None,
 			getSessionConfig: () => undefined,
 			setSessionConfigValue: async () => { },
+			replaceSessionConfig: async () => { },
 			getSessionConfigCompletions: async () => [],
 			getCreateSessionConfig: () => undefined,
 			clearSessionConfig: () => { },

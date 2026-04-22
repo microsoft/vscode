@@ -2,7 +2,6 @@
 	// --- Chat ---
 	"inlineChat.enableV2": true,
 	"inlineChat.affordance": "editor",
-	"inlineChat.renderMode": "hover",
 	"chat.tools.terminal.autoApprove": {
 		"scripts/test.bat": true,
 		"scripts/test.sh": true,

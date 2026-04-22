@@ -124,7 +124,7 @@ export interface IAgentCreateSessionConfig {
 	readonly model?: IModelSelection;
 	readonly session?: URI;
 	readonly workingDirectory?: URI;
-	readonly config?: Record<string, string>;
+	readonly config?: Record<string, unknown>;
 	/**
 	 * Eagerly claim the active client role for the new session. When provided,
 	 * the server initializes the session with this client as the active
@@ -153,7 +153,7 @@ export const AgentHostSessionConfigBranchNameHintKey = 'branchNameHint';
 export interface IAgentResolveSessionConfigParams {
 	readonly provider?: AgentProvider;
 	readonly workingDirectory?: URI;
-	readonly config?: Record<string, string>;
+	readonly config?: Record<string, unknown>;
 }
 
 export interface IAgentSessionConfigCompletionsParams extends IAgentResolveSessionConfigParams {
@@ -180,7 +180,7 @@ export interface IAgentModelInfo {
 	readonly provider: AgentProvider;
 	readonly id: string;
 	readonly name: string;
-	readonly maxContextWindow: number;
+	readonly maxContextWindow?: number;
 	readonly supportsVision: boolean;
 	readonly configSchema?: IConfigSchema;
 	readonly policyState?: PolicyState;

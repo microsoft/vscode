@@ -10,6 +10,7 @@ import { localize } from '../../../../../../../nls.js';
 import { IContextKeyService } from '../../../../../../../platform/contextkey/common/contextkey.js';
 import { IInstantiationService } from '../../../../../../../platform/instantiation/common/instantiation.js';
 import { IKeybindingService } from '../../../../../../../platform/keybinding/common/keybinding.js';
+import { ConfirmationOptionKind, IConfirmationOption } from '../../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { ChatContextKeys } from '../../../../common/actions/chatContextKeys.js';
 import { ConfirmedReason, IChatToolInvocation, ToolConfirmKind } from '../../../../common/chatService/chatService.js';
 import { ILanguageModelToolsService } from '../../../../common/tools/languageModelToolsService.js';
@@ -60,20 +61,14 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 		const { keybindingService, languageModelToolsService, toolInvocation } = this;
 
 		const state = toolInvocation.state.get();
-		const customButtons = state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
-			? state.confirmationMessages?.customButtons
+		const customOptions = state.type === IChatToolInvocation.StateKind.WaitingForConfirmation
+			? state.confirmationMessages?.customOptions
 			: undefined;
 
 		let buttons: IChatConfirmationButton<(() => void)>[];
 
-		if (customButtons && customButtons.length > 0) {
-			buttons = customButtons.map((label, index) => ({
-				label,
-				data: () => {
-					this.confirmWith(toolInvocation, { type: ToolConfirmKind.UserAction, selectedButton: label });
-				},
-				isSecondary: index > 0,
-			}));
+		if (customOptions && customOptions.length > 0) {
+			buttons = this.buildCustomOptionButtons(toolInvocation, customOptions);
 		} else {
 			const allowTooltip = keybindingService.appendKeybinding(config.allowLabel, config.allowActionId);
 			const skipTooltip = keybindingService.appendKeybinding(config.skipLabel, config.skipActionId);
@@ -151,6 +146,51 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 
 	protected confirmWith(toolInvocation: IChatToolInvocation, reason: ConfirmedReason): void {
 		IChatToolInvocation.confirmWith(toolInvocation, reason);
+	}
+
+	private buildCustomOptionButtons(toolInvocation: IChatToolInvocation, options: readonly IConfirmationOption[]): IChatConfirmationButton<(() => void)>[] {
+		const approve: IConfirmationOption[] = [];
+		const deny: IConfirmationOption[] = [];
+		for (const option of options) {
+			(option.kind === ConfirmationOptionKind.Deny ? deny : approve).push(option);
+		}
+
+		const makeAction = (option: IConfirmationOption): IChatConfirmationButton<(() => void)> => ({
+			label: option.label,
+			data: () => {
+				this.confirmWith(toolInvocation, { type: ToolConfirmKind.UserAction, selectedButton: option.id });
+			},
+		});
+
+		const makeGroupButton = (group: IConfirmationOption[], isSecondary: boolean): IChatConfirmationButton<(() => void)> => {
+			const [primary, ...rest] = group;
+			const button: IChatConfirmationButton<(() => void)> = {
+				...makeAction(primary),
+				isSecondary,
+			};
+			if (rest.length > 0) {
+				const moreActions: (IChatConfirmationButton<(() => void)> | Separator)[] = [];
+				let prevGroup = primary.group;
+				for (const option of rest) {
+					if (option.group !== prevGroup) {
+						moreActions.push(new Separator());
+					}
+					moreActions.push(makeAction(option));
+					prevGroup = option.group;
+				}
+				button.moreActions = moreActions;
+			}
+			return button;
+		};
+
+		const buttons: IChatConfirmationButton<(() => void)>[] = [];
+		if (approve.length > 0) {
+			buttons.push(makeGroupButton(approve, false));
+		}
+		if (deny.length > 0) {
+			buttons.push(makeGroupButton(deny, approve.length > 0));
+		}
+		return buttons;
 	}
 
 	protected additionalPrimaryActions(): AbstractToolPrimaryAction[] {

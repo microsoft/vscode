@@ -206,9 +206,6 @@ export async function assertFileOkForTool(accessor: ServicesAccessor, uri: URI, 
 }
 
 async function isExternalInstructionsFile(normalizedUri: URI, customInstructionsService: ICustomInstructionsService, buildPromptContext?: IBuildPromptContext): Promise<boolean> {
-	if (customInstructionsService.getExtensionSkillInfo(normalizedUri)) {
-		return true;
-	}
 	if (buildPromptContext) {
 		const instructionIndexFile = getInstructionsIndexFile(buildPromptContext, customInstructionsService);
 		if (instructionIndexFile) {
@@ -227,6 +224,9 @@ async function isExternalInstructionsFile(normalizedUri: URI, customInstructions
 			return true;
 		}
 	} else {
+		if (customInstructionsService.getExtensionSkillInfo(normalizedUri)) {
+			return true;
+		}
 		// Note: this fallback check does not handle scenario where model passes file:// for userData schemes.
 		if (await customInstructionsService.isExternalInstructionsFile(normalizedUri)) {
 			return true;

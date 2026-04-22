@@ -923,7 +923,7 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 	// ---- Running session config seeding (from ISessionState.config) -------
 
-	test('getSessionConfig seeds running config from session state subscription, filtered to sessionMutable properties', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
+	test('getSessionConfig seeds running config from session state subscription with full schema', () => runWithFakedTimers<void>({ useFakeTimers: true }, async () => {
 		connection.addSession(createSession('seed-1', { summary: 'Seeded Session' }));
 		const provider = createProvider(disposables, connection);
 		provider.getSessions();
@@ -953,13 +953,15 @@ suite('RemoteAgentHostSessionsProvider', () => {
 
 		await waitForSessionConfig(provider, session!.sessionId, c => c?.values.autoApprove === 'default');
 
+		// Full schema + values are retained; the JSONC settings editor relies
+		// on this to preserve non-mutable values through replace dispatches.
 		const seeded = provider.getSessionConfig(session!.sessionId);
 		assert.deepStrictEqual({
-			properties: Object.keys(seeded?.schema.properties ?? {}),
+			properties: Object.keys(seeded?.schema.properties ?? {}).sort(),
 			values: seeded?.values,
 		}, {
-			properties: ['autoApprove'],
-			values: { autoApprove: 'default' },
+			properties: ['autoApprove', 'isolation'],
+			values: { autoApprove: 'default', isolation: 'worktree' },
 		});
 	}));
 

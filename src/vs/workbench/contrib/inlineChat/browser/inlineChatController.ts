@@ -481,6 +481,8 @@ export class InlineChatController implements IEditorContribution {
 
 			if (!response?.isInProgress.read(r)) {
 
+				this.#zone.rawValue?.status.set(response?.result?.details ?? '', undefined);
+
 				if (response?.result?.errorDetails) {
 					// ERROR case
 					this.#zone.rawValue?.widget.updateInfo(`$(error) ${response.result.errorDetails.message}`);
@@ -502,6 +504,7 @@ export class InlineChatController implements IEditorContribution {
 
 			} else {
 				this.#zone.rawValue?.widget.domNode.classList.toggle('request-in-progress', true);
+				this.#zone.rawValue?.status.set('', undefined);
 				let placeholder = response.request?.message.text;
 				const lastProgress = lastResponseProgressObs.read(r);
 				if (lastProgress) {

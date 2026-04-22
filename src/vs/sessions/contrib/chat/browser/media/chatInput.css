@@ -186,9 +186,9 @@
 }
 
 /* Delightful gradient styling for the chat send (submit) button. The button
-	gets a multi-color gradient ring at rest using the same palette as the
-	working-state border, fills with a slowly cycling color on hover/focus,
-	and emits a quick colorful pulse on click. Gated behind the experimental
+	is filled at rest with a slowly rotating multi-color conic gradient using
+	the same palette as the working-state border, and emits a quick colorful
+	pulse on click. Gated behind the experimental
 	`sessions.experimental.sendButtonGradient` setting via the
 	`.sessions-experimental-send-button-gradient` class on the workbench root. */
 @property --chat-send-button-anim-angle {
@@ -309,9 +309,10 @@
 	setting via the `.sessions-experimental-send-button-gradient` class on
 	the workbench root.
 
-	Colors are darkened to match the hover treatment (60% mixed with input
-	background), and the conic stops are asymmetric so the fill has a clear
-	head and tail rather than mirroring around the mid-point. */
+	Colors are darkened (60% mixed with input background) so the gradient
+	reads as a calm fill rather than a saturated accent, and the conic stops
+	are asymmetric so the fill has a clear head and tail rather than
+	mirroring around the mid-point. */
 .monaco-workbench.sessions-experimental-send-button-gradient .sessions-chat-send-button .monaco-button:not(.disabled) {
 	background: conic-gradient(from var(--chat-send-button-anim-angle) at 0% 0%,
 		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, var(--vscode-input-background)) 0deg,
@@ -319,17 +320,16 @@
 		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor3) 60%, var(--vscode-input-background)) 200deg,
 		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, var(--vscode-input-background)) 360deg);
 	color: var(--vscode-button-foreground);
-	animation: chat-send-button-spin 18s linear infinite;
-	transition: box-shadow 250ms ease;
+	animation: chat-send-button-spin 8s linear infinite;
+	transition: box-shadow 120ms ease;
 }
 
-/* Hover/focus: soft multi-color glow around the button (no size change). */
+/* Hover/focus: subtle dark overlay to match standard toolbar button hover
+	feedback. Uses an inset box-shadow so the rotating gradient background is
+	preserved underneath. */
 .monaco-workbench.sessions-experimental-send-button-gradient .sessions-chat-send-button:has(.monaco-button:not(.disabled):hover) .monaco-button,
 .monaco-workbench.sessions-experimental-send-button-gradient .sessions-chat-send-button:has(.monaco-button:not(.disabled):focus-visible) .monaco-button {
-	box-shadow:
-		0 0 4px 0 color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor2) 70%, transparent),
-		0 0 8px 1px color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor3) 55%, transparent);
-	animation-duration: 6s;
+	box-shadow: inset 0 0 0 100px rgba(0, 0, 0, 0.12);
 }
 
 /* Click: outward color pulse on the wrapper. */
@@ -379,7 +379,7 @@
 }
 
 /* Idle: fill the entire action-label with a slowly rotating conic gradient.
-	Colors darkened to match hover (60% mixed with input background), with
+	Colors darkened (60% mixed with input background) for a calm fill, with
 	asymmetric conic stops. */
 .monaco-workbench.sessions-experimental-send-button-gradient .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up {
 	background: conic-gradient(from var(--chat-send-button-anim-angle) at 0% 0%,
@@ -389,21 +389,20 @@
 		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, var(--vscode-input-background)) 360deg) !important;
 	color: var(--vscode-button-foreground) !important;
 	border-radius: 5px;
-	animation: chat-send-button-spin 18s linear infinite;
-	transition: box-shadow 250ms ease;
+	animation: chat-send-button-spin 8s linear infinite;
+	transition: box-shadow 120ms ease;
 	/* Lift the label above the click pulse `::after` on the action-item parent
 		so the pulse appears to expand from behind the button, not on top of it. */
 	position: relative;
 	z-index: 1;
 }
 
-/* Hover/focus: soft multi-color glow around the button (no size change). */
+/* Hover/focus: subtle dark overlay to match standard toolbar button hover
+	feedback. Uses an inset box-shadow so the rotating gradient background is
+	preserved underneath. */
 .monaco-workbench.sessions-experimental-send-button-gradient .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up:hover,
 .monaco-workbench.sessions-experimental-send-button-gradient .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled) > .action-label.codicon-arrow-up:focus-visible {
-	box-shadow:
-		0 0 4px 0 color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor2) 70%, transparent),
-		0 0 8px 1px color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor3) 55%, transparent);
-	animation-duration: 6s;
+	box-shadow: inset 0 0 0 100px rgba(0, 0, 0, 0.12);
 }
 
 .monaco-workbench.sessions-experimental-send-button-gradient .interactive-session .chat-input-toolbars > .chat-execute-toolbar .monaco-action-bar .action-item:not(.disabled):has(> .action-label.codicon-arrow-up:active)::after {

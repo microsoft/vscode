@@ -488,6 +488,9 @@ export function toolCallStateToInvocation(tc: IToolCallState, subAgentInvocation
 			title: stringOrMarkdownToString(tc.confirmationTitle, connectionAuthority) ?? tc.displayName,
 			message: stringOrMarkdownToString(tc.invocationMessage, connectionAuthority),
 		};
+		if (tc.options) {
+			confirmationMessages.customOptions = tc.options;
+		}
 
 		let toolSpecificData: IChatTerminalToolInvocationData | IChatToolInputInvocationData | IChatModifiedFilesConfirmationData | undefined;
 		const pendingEdits = tc.edits?.items;
