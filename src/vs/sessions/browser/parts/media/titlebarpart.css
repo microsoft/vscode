@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container {
+.monaco-workbench .part.titlebar > .sessions-titlebar-container {
 	justify-content: initial;
 }
 
-.agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left {
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left {
 	display: flex;
 	height: 100%;
 	align-items: center;
@@ -18,7 +18,7 @@
 	justify-content: flex-start;
 }
 
-.agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container.has-center > .titlebar-center {
+.monaco-workbench .part.titlebar > .sessions-titlebar-container.has-center > .titlebar-center {
 	order: 1;
 	width: auto;
 	flex-grow: 0;
@@ -28,21 +28,21 @@
 	justify-content: flex-start;
 }
 
-.agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container.has-center > .titlebar-left {
+.agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left {
 	width: fit-content;
 	flex-grow: 0;
 }
 
-.agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container.has-center > .titlebar-center {
+.agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center {
 	flex: 1;
 	max-width: none;
 }
 
-.agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container.has-center > .titlebar-center .window-title {
+.agent-sessions-workbench.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-center .window-title {
 	margin: unset;
 }
 
-.agent-sessions-workbench.monaco-workbench.mac .part.titlebar > .sessions-titlebar-container.has-center > .titlebar-right {
+.agent-sessions-workbench.monaco-workbench.mac .part.titlebar > .sessions-titlebar-container > .titlebar-right {
 	order: 2;
 	width: fit-content;
 	flex-grow: 0;
@@ -90,7 +90,7 @@
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left > .left-toolbar-container {
 	display: none;
 	padding-left: 8px;
-	flex-grow: 1;
+	flex-grow: 0;
 	flex-shrink: 0;
 	text-align: center;
 	position: relative;
@@ -102,7 +102,7 @@
 
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left > .left-toolbar-container:not(.has-no-actions) {
 	display: flex;
-	justify-content: flex-start;
+	justify-content: center;
 	align-items: center;
 }
 
@@ -112,14 +112,6 @@
 
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left > .left-toolbar-container .monaco-action-bar .action-item {
 	display: flex;
-}
-
-/* Allow the action bar inside the left toolbar to fill the container so the host filter combo can center itself in the remaining space. */
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left > .left-toolbar-container,
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left > .left-toolbar-container > .monaco-action-bar,
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-left > .left-toolbar-container > .monaco-action-bar > .actions-container {
-	flex: 1 1 auto;
-	min-width: 0;
 }
 
 /* Remove the titlebar shadow in agent sessions */
