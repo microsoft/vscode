@@ -663,7 +663,7 @@ interface IPartVisibilityState {
 |------|--------|
 | 2026-04-22 | Added sessions-only toast offset overrides so notification toasts now use `right: 15px` in the default bottom-right placement and `left: 15px` in the bottom-left placement, matching the notification center spacing. |
 | 2026-04-22 | Added a sessions-workbench notification offset override so the shared notification controllers no longer push top-right notifications down to `42px`; sessions now reapply a fixed `40px` top offset for top-right notification center/toast placement. |
-| 2026-04-22 | Generalized the auxiliary bar snap-close prevention to trigger whenever the main editor part is visible (any editor type), and increased the editor part minimum width from 220px to 300px. |
+| 2026-04-22 | Generalized the auxiliary bar snap-close prevention to trigger whenever the main editor part is visible (any editor type), so the behavior now applies automatically without maintaining an editor-type allowlist. |
 | 2026-04-22 | Updated the sessions auxiliary bar sizing rules so attached diff editors and integrated browser editors keep the normal 270px auxiliary-bar minimum width while disabling sash snap-to-close in that state, and the titlebar toggle continues to hide/show the secondary sidebar normally. |
 | 2026-04-21 | Updated the sessions chat composite bar tabs to preserve each chat title's original casing instead of applying per-word capitalization. |
 | 2026-04-21 | Moved the sessions-only default notification placement to bottom-right and documented the sessions-specific notification center offsets: `15px` from the bottom/right or bottom/left edges, and `top: 40px; right: 15px;` for top-right placement. |
