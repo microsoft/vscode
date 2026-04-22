@@ -2394,13 +2394,20 @@ export class NotebookEditorWidget extends Disposable implements INotebookEditorD
 		const previousIndex = this._list.getViewIndex(previousSelection)!;
 
 		const cellsInSelectionRange = this.getCellsInViewRange(selectedIndex, previousIndex);
+
+		// ⚡ BOLT OPTIMIZATION:
+		// Convert cellsInSelectionRange to a Set to optimize the O(N*M) nested array traversal during filtering.
+		// `cellsInSelectionRange.includes` inside `currentSelections.filter` is O(N*M).
+		// By using a Set, the lookup `cellsInSelectionRangeSet.has(current)` becomes O(1), making the overall operation O(N+M).
+		const cellsInSelectionRangeSet = new Set(cellsInSelectionRange);
+
 		if (isSelected) {
 			// Deselect
-			this._list.selectElements(currentSelections.filter(current => !cellsInSelectionRange.includes(current)));
+			this._list.selectElements(currentSelections.filter(current => !cellsInSelectionRangeSet.has(current)));
 		} else {
 			// Add to selection
 			this.focusElement(selectedCell);
-			this._list.selectElements([...currentSelections.filter(current => !cellsInSelectionRange.includes(current)), ...cellsInSelectionRange]);
+			this._list.selectElements([...currentSelections.filter(current => !cellsInSelectionRangeSet.has(current)), ...cellsInSelectionRange]);
 		}
 	}
 
