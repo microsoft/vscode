@@ -243,22 +243,6 @@ function getRateLimitMessage(fetchResult: ChatFetchError, copilotPlan: string | 
 		if (fetchResult.retryAfter) {
 			const resetDate = new Date(Date.now() + fetchResult.retryAfter * 1000);
 			const resetDateString = resetDate.toLocaleString(undefined, { year: 'numeric', month: 'long', day: 'numeric', hour: 'numeric', minute: '2-digit' });
-			if (copilotPlan === 'free' || copilotPlan === 'individual' || copilotPlan === 'individual_pro') {
-				if (fetchResult.isAuto) {
-					return l10n.t({
-						message: 'You\'ve reached your weekly rate limit. Please upgrade your plan or wait for your limit to reset on {0}. [Learn More]({1})',
-						args: [resetDateString, 'https://aka.ms/github-copilot-rate-limit-error'],
-						comment: [`{Locked=']({'}`]
-					});
-				}
-
-				return l10n.t({
-					message: 'You\'ve reached your weekly rate limit. Please upgrade your plan, switch to the Auto model to continue working, or wait for your limit to reset on {0}. [Learn More]({1})',
-					args: [resetDateString, 'https://aka.ms/github-copilot-rate-limit-error'],
-					comment: [`{Locked=']({'}`]
-				});
-			}
-
 			if (fetchResult.isAuto) {
 				return l10n.t({
 					message: 'You\'ve reached your weekly rate limit. Please wait for your limit to reset on {0}. [Learn More]({1})',
