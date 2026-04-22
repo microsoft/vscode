@@ -45,7 +45,7 @@ export class MemoryContextPrompt extends PromptElement<MemoryContextPromptProps>
 		}
 
 		const userMemoryContent = enableMemoryTool ? await this.getUserMemoryContent() : undefined;
-		const sessionMemoryFiles = enableMemoryTool ? await this.getSessionMemoryFiles(this.props.sessionResource) : undefined;
+		const sessionMemoryFiles = (enableMemoryTool && !enableCopilotMemory) ? await this.getSessionMemoryFiles(this.props.sessionResource) : undefined;
 		const localRepoMemoryFiles = (enableMemoryTool && !enableCopilotMemory) ? await this.getLocalRepoMemoryFiles() : undefined;
 
 		// When CAPI memory is enabled, read from the cache primed by AgentMemoryToolRegistrar
@@ -73,7 +73,7 @@ export class MemoryContextPrompt extends PromptElement<MemoryContextPromptProps>
 						}
 					</Tag>
 				)}
-				{enableMemoryTool && (
+				{enableMemoryTool && !enableCopilotMemory && (
 					<Tag name='sessionMemory'>
 						{sessionMemoryFiles && sessionMemoryFiles.length > 0
 							? <>The following files exist in your session memory (/memories/session/). Use the {ToolName.Memory} tool to read them if needed.<br /><br />{sessionMemoryFiles.join('\n')}</>
