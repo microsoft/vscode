@@ -230,9 +230,9 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 			if (!result.success) {
 				this.logService.warn(`[AgentMemoryService] Failed to store repo memory: ${result.error}`);
 			} else {
-				// Clear cache to ensure fresh data on next fetch
-				this.invalidateMemoryCache(repoNwo);
-				this.logService.debug(`[AgentMemoryService] Invalidated cache after storing repo memory`);
+				// Optimistically update cache instead of invalidating
+				this.updateCacheAfterStore(repoNwo, memory, 'repo');
+				this.logService.debug(`[AgentMemoryService] Updated cache after storing repo memory`);
 			}
 			return result.success;
 		} catch (error) {
@@ -266,9 +266,9 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 			if (!result.success) {
 				this.logService.warn(`[AgentMemoryService] Failed to store user memory: ${result.error}`);
 			} else {
-				// Clear cache to ensure fresh data on next fetch
-				this.invalidateMemoryCache(); // User-scoped, so clear all user entries
-				this.logService.debug(`[AgentMemoryService] Invalidated cache after storing user memory`);
+				// Optimistically update cache instead of invalidating
+				this.updateCacheAfterStore(undefined, memory, 'user');
+				this.logService.debug(`[AgentMemoryService] Updated cache after storing user memory`);
 			}
 			return result.success;
 		} catch (error) {
@@ -369,27 +369,39 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 	}
 
 	/**
-	 * Invalidate cache entries that could be affected by storing new memories
+	 * Optimistically update cache entries after storing a memory
 	 */
-	private invalidateMemoryCache(repoNwo?: string): void {
-		const keysToDelete: string[] = [];
-		for (const key of this._cachedPromptResponses.keys()) {
-			if (repoNwo) {
-				// For repo memories, invalidate entries with this specific repo
-				if (key.includes(`:${repoNwo}`)) {
-					keysToDelete.push(key);
-				}
-			} else {
-				// For user memories, invalidate user-scoped entries (ending with :user)
-				if (key.endsWith(':user')) {
-					keysToDelete.push(key);
-				}
+	private updateCacheAfterStore(repoNwo: string | undefined, memory: StoreMemoryRequest, scope: 'repo' | 'user'): void {
+		const updatedEntries: string[] = [];
+		
+		for (const [key, response] of this._cachedPromptResponses.entries()) {
+			let shouldUpdate = false;
+			
+			if (scope === 'repo' && repoNwo) {
+				// Update repo-specific entries
+				shouldUpdate = key.includes(`:${repoNwo}`);
+			} else if (scope === 'user') {
+				// Update user-scoped entries
+				shouldUpdate = key.endsWith(':user');
+			}
+			
+			if (shouldUpdate) {
+				// Create updated response with incremented count and appended memory
+				const updatedResponse: MemoryPromptResponse = {
+					...response,
+					memoriesContext: {
+						...response.memoriesContext,
+						memoriesCount: response.memoriesContext.memoriesCount + 1,
+						prompt: response.memoriesContext.prompt + `\n${memory.subject}: ${memory.fact}`
+					}
+				};
+				
+				this._cachedPromptResponses.set(key, updatedResponse);
+				updatedEntries.push(key);
 			}
 		}
-		for (const key of keysToDelete) {
-			this._cachedPromptResponses.delete(key);
-		}
-		this.logService.debug(`[AgentMemoryService] Invalidated ${keysToDelete.length} cache entries${repoNwo ? ` for repo ${repoNwo}` : ' for user scope'}`);
+		
+		this.logService.debug(`[AgentMemoryService] Optimistically updated ${updatedEntries.length} cache entries with new memory`);
 	}
 
 	private generateCacheKey(sessionId?: string, repoNwo?: string): string {
