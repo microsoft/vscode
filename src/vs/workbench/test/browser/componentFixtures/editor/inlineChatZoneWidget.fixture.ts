@@ -377,11 +377,11 @@ function renderInlineChatZoneWidget({ container, disposableStore, theme }: Compo
 
 export default defineThemedFixtureGroup({ path: 'editor/' }, {
 	InlineChatZoneWidget: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: true },
 		render: (context) => renderInlineChatZoneWidget(context, false),
 	}),
 	InlineChatZoneWidgetTerminated: defineComponentFixture({
-		labels: { kind: 'screenshot' },
+		labels: { kind: 'screenshot', blocksCi: true },
 		render: (context) => renderInlineChatZoneWidget(context, true),
 	}),
 });
