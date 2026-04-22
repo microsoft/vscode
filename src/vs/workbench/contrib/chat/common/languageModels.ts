@@ -906,6 +906,14 @@ export class LanguageModelsService implements ILanguageModelsService {
 				try {
 					const models = await provider.provideLanguageModelChatInfo({ group: group.name, silent, configuration }, CancellationToken.None);
 					if (models.length) {
+						// Override metadata.detail with the user-provided group name so users can
+						// distinguish between multiple instances (e.g. multiple Ollama servers) of the
+						// same vendor in the model picker. Without this, every model from the same
+						// vendor would show the generic vendor name (e.g. "Ollama") regardless of
+						// which configured instance it belongs to.
+						for (let i = 0; i < models.length; i++) {
+							models[i] = { ...models[i], metadata: { ...models[i].metadata, detail: group.name } };
+						}
 						allModels.push(...models);
 						languageModelsGroups.push({ group, modelIdentifiers: models.map(m => m.identifier) });
 					}

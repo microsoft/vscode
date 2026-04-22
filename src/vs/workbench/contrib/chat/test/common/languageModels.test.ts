@@ -1143,3 +1143,85 @@ suite('LanguageModels - Per-Model Configuration', function () {
 		assert.deepStrictEqual(receivedOptions, { configuration: { temperature: 0.2 } });
 	});
 });
+
+suite('LanguageModels - Provider Group Detail Override', function () {
+
+	const disposables = new DisposableStore();
+
+	teardown(function () {
+		disposables.clear();
+	});
+
+	ensureNoDisposablesAreLeakedInTestSuite();
+
+	test('model.detail is replaced with the group name so multiple instances of the same vendor are distinguishable', async function () {
+		const languageModelsService = disposables.add(new LanguageModelsService(
+			new class extends mock<IExtensionService>() {
+				override activateByEvent() {
+					return Promise.resolve();
+				}
+			},
+			new NullLogService(),
+			new TestStorageService(),
+			new MockContextKeyService(),
+			new class extends mock<ILanguageModelsConfigurationService>() {
+				override onDidChangeLanguageModelGroups = Event.None;
+				override getLanguageModelsProviderGroups() {
+					return [
+						{ vendor: 'multi-vendor', name: 'Local' },
+						{ vendor: 'multi-vendor', name: 'Remote' }
+					];
+				}
+			},
+			new class extends mock<IQuickInputService>() { },
+			new TestSecretStorageService(),
+			new class extends mock<IProductService>() { override readonly version = '1.100.0'; },
+			new class extends mock<IRequestService>() { },
+		));
+
+		languageModelsService.deltaLanguageModelChatProviderDescriptors([
+			{ vendor: 'multi-vendor', displayName: 'Multi Vendor', configuration: undefined, managementCommand: undefined, when: undefined }
+		], []);
+
+		disposables.add(languageModelsService.registerLanguageModelProvider('multi-vendor', {
+			onDidChange: Event.None,
+			provideLanguageModelChatInfo: async (options) => {
+				if (!options.group) {
+					return [];
+				}
+				// Provider returns the same model id for each group, but the
+				// identifier is namespaced by group so they don't collide.
+				// The provider sets a generic detail (vendor displayName) which
+				// the service should replace with the per-instance group name.
+				return [{
+					metadata: {
+						extension: nullExtensionDescription.identifier,
+						name: 'Shared Model',
+						vendor: 'multi-vendor',
+						family: 'shared',
+						version: '1.0',
+						id: 'shared-model',
+						detail: 'Multi Vendor',
+						maxInputTokens: 100,
+						maxOutputTokens: 100,
+						modelPickerCategory: DEFAULT_MODEL_PICKER_CATEGORY,
+						isDefaultForLocation: {}
+					} satisfies ILanguageModelChatMetadata,
+					identifier: `multi-vendor/${options.group}/shared-model`
+				}];
+			},
+			sendChatRequest: async () => { throw new Error(); },
+			provideTokenCount: async () => { throw new Error(); }
+		}));
+
+		await languageModelsService.selectLanguageModels({});
+
+		const local = languageModelsService.lookupLanguageModel('multi-vendor/Local/shared-model');
+		const remote = languageModelsService.lookupLanguageModel('multi-vendor/Remote/shared-model');
+
+		assert.deepStrictEqual(
+			{ localDetail: local?.detail, remoteDetail: remote?.detail },
+			{ localDetail: 'Local', remoteDetail: 'Remote' }
+		);
+	});
+});
