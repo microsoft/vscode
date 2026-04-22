@@ -111,6 +111,14 @@ suite('Sessions - Auxiliary Bar Part', () => {
 		assert.strictEqual(auxiliaryBarPart.snap, false);
 	});
 
+	test('keeps the default minimum width and disables sash snap for localhost link browser editors', () => {
+		layoutService.setVisible(Parts.EDITOR_PART, true);
+		editorService.setVisibleEditors([createEditorInput('workbench.editorinputs.browser', 'workbench.editor.browser')]);
+
+		assert.strictEqual(auxiliaryBarPart.minimumWidth, 270);
+		assert.strictEqual(auxiliaryBarPart.snap, false);
+	});
+
 	test('restores the default auxiliary bar constraints for other editor states', () => {
 		layoutService.setVisible(Parts.EDITOR_PART, true);
 		editorService.setVisibleEditors([createEditorInput(MULTI_DIFF_EDITOR_INPUT_ID)]);

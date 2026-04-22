@@ -63,6 +63,7 @@ export class AuxiliaryBarPart extends AbstractPaneCompositePart {
 	private static readonly INTEGRATED_BROWSER_EDITOR_IDS = new Set([
 		'mainThreadWebview-browserPreview',
 		'mainThreadWebview-simpleBrowser.view',
+		'workbench.editor.browser', // BrowserEditorInput used by workbench.browser.openLocalhostLinks
 	]);
 
 	// Run script dropdown management
