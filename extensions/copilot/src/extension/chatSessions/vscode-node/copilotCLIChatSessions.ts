@@ -411,11 +411,12 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 		if (!worktreeProperties?.repositoryPath) {
 			return false;
 		}
-		const [trusted, available] = await Promise.all([
+		const [trusted, hasCachedWorktreeChanges, hasCachedWorkspaceChanges] = await Promise.all([
 			vscode.workspace.isResourceTrusted(vscode.Uri.file(worktreeProperties.repositoryPath)),
-			this.copilotCLIWorktreeManagerService.hasCachedChanges(sessionId)
+			this.copilotCLIWorktreeManagerService.hasCachedChanges(sessionId),
+			this._workspaceFolderService.hasCachedChanges(sessionId)
 		]);
-		return trusted && available;
+		return trusted && (hasCachedWorktreeChanges || hasCachedWorkspaceChanges);
 	}
 
 	private async buildChanges(

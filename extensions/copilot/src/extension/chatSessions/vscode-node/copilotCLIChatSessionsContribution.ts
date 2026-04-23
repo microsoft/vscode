@@ -413,11 +413,12 @@ export class CopilotCLIChatSessionItemProvider extends Disposable implements vsc
 		if (!worktreeProperties?.repositoryPath) {
 			return false;
 		}
-		const [trusted, available] = await Promise.all([
+		const [trusted, hasCachedWorktreeChanges, hasCachedWorkspaceChanges] = await Promise.all([
 			vscode.workspace.isResourceTrusted(vscode.Uri.file(worktreeProperties.repositoryPath)),
-			this.worktreeManager.hasCachedChanges(sessionId)
+			this.worktreeManager.hasCachedChanges(sessionId),
+			this.workspaceFolderService.hasCachedChanges(sessionId)
 		]);
-		return trusted && available;
+		return trusted && (hasCachedWorktreeChanges || hasCachedWorkspaceChanges);
 	}
 
 
