@@ -51,14 +51,21 @@ export class SessionsPolicyBlockedContribution extends Disposable implements IWo
 		// Priority 2: account policy gate
 		const gateInfo = this.gateService.gateInfo;
 		if (gateInfo.state === AccountPolicyGateState.Restricted) {
-			// Transient states (noAccount before account loads, policyNotResolved)
-			// show a loading bar instead of an incorrect "Sign-In Required" message.
-			const isTransient = gateInfo.reason === AccountPolicyGateUnsatisfiedReason.NoAccount
-				|| gateInfo.reason === AccountPolicyGateUnsatisfiedReason.PolicyNotResolved;
+			// noAccount / wrongProvider: don't show our overlay — the sessions
+			// welcome/walkthrough screen already handles sign-in. We only block
+			// with the overlay when the user IS signed in but to the wrong org,
+			// or when waiting for policy data to resolve.
+			if (gateInfo.reason === AccountPolicyGateUnsatisfiedReason.NoAccount
+				|| gateInfo.reason === AccountPolicyGateUnsatisfiedReason.WrongProvider) {
+				this.overlayRef.clear();
+				this.currentReason = undefined;
+				return;
+			}
 
-			if (isTransient) {
+			if (gateInfo.reason === AccountPolicyGateUnsatisfiedReason.PolicyNotResolved) {
 				this.showOverlay({ reason: SessionsBlockedReason.Loading });
 			} else {
+				// orgNotApproved — stable restriction
 				const accountName = this.defaultAccountService.currentDefaultAccount?.accountName;
 				this.showOverlay({
 					reason: SessionsBlockedReason.AccountPolicyGate,
