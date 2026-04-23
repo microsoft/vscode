@@ -33,6 +33,10 @@
           "name": "Nexora Chat"
         },
         {
+          "id": "nexora.taskTree",
+          "name": "Task Plan"
+        },
+        {
           "id": "nexora.platformBrowser",
           "name": "Platform Browser"
         }
@@ -54,6 +58,18 @@
         "command": "nexora.checkBackend",
         "title": "Check Backend Connection",
         "category": "Nexora"
+      },
+      {
+        "command": "nexora.decomposeRequest",
+        "title": "Plan Tasks",
+        "category": "Nexora",
+        "icon": "$(list-tree)"
+      },
+      {
+        "command": "nexora.clearTasks",
+        "title": "Clear Task Plan",
+        "category": "Nexora",
+        "icon": "$(clear-all)"
       }
     ],
     "menus": {
@@ -61,6 +77,16 @@
         {
           "command": "nexora.refreshPlatforms",
           "when": "view == nexora.platformBrowser",
+          "group": "navigation"
+        },
+        {
+          "command": "nexora.decomposeRequest",
+          "when": "view == nexora.taskTree",
+          "group": "navigation"
+        },
+        {
+          "command": "nexora.clearTasks",
+          "when": "view == nexora.taskTree",
           "group": "navigation"
         }
       ]

@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import { ChatPanelProvider } from './chatPanel';
 import { PlatformBrowserProvider } from './platformPanel';
+import { TaskTreeProvider } from './taskTreeProvider';
 import { getBackendClient } from './services/backendClient';
 
 export function activate(context: vscode.ExtensionContext) {
@@ -19,6 +20,12 @@ export function activate(context: vscode.ExtensionContext) {
 	const platformProvider = new PlatformBrowserProvider();
 	context.subscriptions.push(
 		vscode.window.registerTreeDataProvider('nexora.platformBrowser', platformProvider)
+	);
+
+	// Task Tree View (Week 6)
+	const taskTreeProvider = new TaskTreeProvider();
+	context.subscriptions.push(
+		vscode.window.registerTreeDataProvider('nexora.taskTree', taskTreeProvider)
 	);
 
 	context.subscriptions.push(
@@ -43,6 +50,37 @@ export function activate(context: vscode.ExtensionContext) {
 			} else {
 				vscode.window.showErrorMessage('Backend is offline. Start it with: uvicorn app.main:app --reload --port 8000');
 			}
+		}),
+		vscode.commands.registerCommand('nexora.decomposeRequest', async () => {
+			const request = await vscode.window.showInputBox({
+				prompt: 'What do you want to build?',
+				placeHolder: 'e.g., Build a blog with user authentication'
+			});
+
+			if (request) {
+				try {
+					const client = getBackendClient();
+					const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+					const result = await client.decomposeRequest(request, workspacePath);
+
+					if (result.tasks && result.tasks.length > 0) {
+						taskTreeProvider.setDecomposition(result);
+						vscode.window.showInformationMessage(
+							`Decomposed into ${result.tasks.length} tasks`
+						);
+					} else if (result.error) {
+						vscode.window.showErrorMessage(`Decomposition failed: ${result.error}`);
+					} else {
+						vscode.window.showWarningMessage('No tasks generated for this request');
+					}
+				} catch (error) {
+					vscode.window.showErrorMessage(`Failed to decompose request: ${error}`);
+				}
+			}
+		}),
+		vscode.commands.registerCommand('nexora.clearTasks', () => {
+			taskTreeProvider.clear();
+			vscode.window.showInformationMessage('Task plan cleared');
 		})
 	);
 

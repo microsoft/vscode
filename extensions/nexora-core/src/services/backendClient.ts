@@ -166,6 +166,49 @@ export class BackendClient {
 		}
 	}
 
+	/**
+	 * Decompose a user request into executable tasks with DAG.
+	 * 
+	 * @param userRequest Natural language request to decompose
+	 * @param workspacePath Optional workspace path for context
+	 * @returns Decomposition result with tasks, DAG, parallel groups, etc.
+	 */
+	async decomposeRequest(userRequest: string, workspacePath?: string): Promise<any> {
+		try {
+			const response = await this._post('/api/cognitive/decompose', {
+				user_request: userRequest,
+				workspace_path: workspacePath
+			});
+			return response;
+		} catch (error) {
+			return {
+				tasks: [],
+				dag: {},
+				parallel_groups: [],
+				execution_order: [],
+				error: 'Decomposition failed'
+			};
+		}
+	}
+
+	/**
+	 * Get similar past orchestration decisions.
+	 * 
+	 * @param request User request to find similar decisions for
+	 * @param limit Maximum number of results
+	 * @returns List of similar past decisions
+	 */
+	async getSimilarDecisions(request: string, limit: number = 3): Promise<any[]> {
+		try {
+			const response = await this._get(
+				`/api/cognitive/similar-decisions?request=${encodeURIComponent(request)}&limit=${limit}`
+			);
+			return response || [];
+		} catch {
+			return [];
+		}
+	}
+
 	private async _get(endpoint: string): Promise<any> {
 		const url = `${this.config.baseUrl}${endpoint}`;
 
