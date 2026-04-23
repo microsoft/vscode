@@ -686,7 +686,7 @@ export function buildChatHistoryFromEvents(sessionId: string, modelId: string | 
 				break;
 			}
 			case 'session.error': {
-				currentResponseParts.push(new ChatResponseMarkdownPart(`\n\n❌ Error: (${event.data.errorType}) ${event.data.message}`));
+				currentResponseParts.push(new ChatResponseMarkdownPart(`\n\nError: (${event.data.errorType}) ${event.data.message}`));
 				break;
 			}
 			case 'assistant.message': {

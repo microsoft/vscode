@@ -1525,7 +1525,7 @@ export class CopilotCLIChatSessionParticipant extends Disposable {
 			if (isCancellationError(ex)) {
 				return {};
 			}
-			throw ex;
+			return { errorDetails: { message: ex instanceof Error ? ex.message : String(ex) } };
 		}
 		finally {
 			if (sdkSessionId) {

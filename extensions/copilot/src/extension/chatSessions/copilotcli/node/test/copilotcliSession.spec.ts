@@ -280,10 +280,10 @@ describe('CopilotCLISession', () => {
 		const session = await createSession();
 		const stream = new MockChatResponseStream();
 		session.attachStream(stream);
-		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Boom' }, [], undefined, authInfo, CancellationToken.None);
+		await expect(session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Boom' }, [], undefined, authInfo, CancellationToken.None))
+			.rejects.toThrow('network');
 
 		expect(session.status).toBe(ChatSessionStatus.Failed);
-		expect(stream.output.join('\n')).toContain('Error: network');
 	});
 
 	it('emits status events on successful request', async () => {
@@ -307,9 +307,9 @@ describe('CopilotCLISession', () => {
 		const listener = disposables.add(session.onDidChangeStatus(s => statuses.push(s)));
 		const stream = new MockChatResponseStream();
 		session.attachStream(stream);
-		await session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Will Fail' }, [], undefined, authInfo, CancellationToken.None);
+		await expect(session.handleRequest({ id: '', toolInvocationToken: undefined as never }, { prompt: 'Will Fail' }, [], undefined, authInfo, CancellationToken.None))
+			.rejects.toThrow('boom');
 		listener.dispose?.();
-		expect(stream.output.join('\n')).toContain('Error: boom');
 	});
 
 	it('auto-approves read permission inside workspace without external handler', async () => {
@@ -736,10 +736,10 @@ describe('CopilotCLISession', () => {
 			const stream = new MockChatResponseStream();
 			session.attachStream(stream);
 
-			await session.handleRequest(
+			await expect(session.handleRequest(
 				{ id: 'req-1', toolInvocationToken: undefined as never },
 				{ prompt: 'Initial failure' }, [], undefined, authInfo, CancellationToken.None
-			);
+			)).rejects.toThrow('boom');
 			expect(session.status).toBe(ChatSessionStatus.Failed);
 
 			let resolveSecondSend!: () => void;

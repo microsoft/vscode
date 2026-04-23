@@ -288,7 +288,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			}
 		});
 
-		this.previousRequest = this.previousRequest.then(() => handled);
+		this.previousRequest = this.previousRequest.then(() => handled).catch(() => { /* error handled by caller */ });
 		return handled;
 	}
 
@@ -423,6 +423,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 		const toolCalls = new Map<string, ToolCall>();
 		const editTracker = new ExternalEditTracker();
 		let sdkRequestId: string | undefined;
+		let sessionError: string | undefined;
 		const toolIdEditMap = new Map<string, Promise<string | undefined>>();
 		clearTodoList(this._toolsService, request.toolInvocationToken, token).catch(err => {
 			this.logService.error(err, '[CopilotCLISession] Failed to clear todo list at start of session');
@@ -749,7 +750,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			disposables.add(toDisposable(this._sdkSession.on('session.error', (event) => {
 				flushPendingInvocationMessages();
 				this.logService.error(`[CopilotCLISession]CopilotCLI error: (${event.data.errorType}), ${event.data.message}`);
-				this._stream?.markdown(`\n\n❌ Error: (${event.data.errorType}) ${event.data.message}`);
+				sessionError = `(${event.data.errorType}) ${event.data.message}`;
 
 				const errorMarkdown = [`# Error Details`, `Type: ${event.data.errorType}`, `Message: ${event.data.message}`, `## Stack`, event.data.stack || ''].join('\n');
 				this._requestLogger.addEntry({
@@ -807,6 +808,9 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			if (!token.isCancellationRequested) {
 				await this.sendRequestInternal(input, attachments, false, logStartTime);
 			}
+			if (sessionError) {
+				throw new Error(sessionError);
+			}
 			this.logService.trace(`[CopilotCLISession] Invoking session (completed) ${this.sessionId}`);
 			const resolvedToolIdEditMap: Record<string, string> = {};
 			await Promise.all(Array.from(toolIdEditMap.entries()).map(async ([toolId, editFilePromise]) => {
@@ -837,7 +841,6 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 			this._status = ChatSessionStatus.Failed;
 			this._statusChange.fire(this._status);
 			this.logService.error(`[CopilotCLISession] Invoking session (error) ${this.sessionId}`, error);
-			this._stream?.markdown(`\n\n❌ Error: ${error instanceof Error ? error.message : String(error)}`);
 
 			invokeAgentSpan.setStatus(SpanStatusCode.ERROR, error instanceof Error ? error.message : String(error));
 			if (error instanceof Error) {
@@ -846,6 +849,7 @@ export class CopilotCLISession extends DisposableStore implements ICopilotCLISes
 
 			// Log the failed conversation
 			this._logConversation(prompt, assistantMessageChunks.join(''), modelId || '', attachments, logStartTime, 'Failed', error instanceof Error ? error.message : String(error));
+			throw error;
 		} finally {
 			// End the invoke_agent wrapper span
 			const durationSec = (Date.now() - logStartTime) / 1000;
