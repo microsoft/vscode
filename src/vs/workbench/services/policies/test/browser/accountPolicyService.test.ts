@@ -419,7 +419,8 @@ suite('AccountPolicyService', () => {
 
 	test('boot race: gate is fail-closed until async managed policy service resolves', async () => {
 		// Simulate the IPC boundary: managed service only knows about its policies AFTER
-		// `updatePolicyDefinitions` has resolved. Before that, `getPolicyValue` returns undefined.
+		// `updatePolicyDefinitions` has been called by the MultiplexPolicyService.
+		// Before that, `getPolicyValue` returns undefined.
 		class AsyncManagedPolicyService extends FakeManagedPolicyService {
 			private _seeded = false;
 			private readonly _seedValue: string;
@@ -433,13 +434,12 @@ suite('AccountPolicyService', () => {
 				}
 				return super.getPolicyValue(name);
 			}
-			protected override async _updatePolicyDefinitions(): Promise<void> {
-				// Yield, then seed (mimics IPC round-trip).
+			async seed(): Promise<void> {
+				// Simulate the MultiplexPolicyService calling updatePolicyDefinitions,
+				// which in production triggers the IPC round-trip and then fires onDidChange.
 				await new Promise(resolve => setTimeout(resolve, 0));
-				if (!this._seeded) {
-					this._seeded = true;
-					this.setPolicy(APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME, this._seedValue);
-				}
+				this._seeded = true;
+				this.setPolicy(APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME, this._seedValue);
 			}
 		}
 
@@ -454,8 +454,15 @@ suite('AccountPolicyService', () => {
 		const config = disposables.add(new PolicyConfiguration(defaultConfiguration, service, new NullLogService()));
 		await config.initialize();
 
-		// Gate must reflect the admin policy that was unknown at construction time;
-		// without the boot-race fix, this would be Inactive (false-open).
+		// Before managed service resolves, the gate sees no approved-org policy → Inactive.
+		assert.strictEqual(service.gateInfo.state, AccountPolicyGateState.Inactive);
+
+		// Simulate the multiplex seeding the managed service (IPC completes).
+		// This fires onDidChange on the managed service, which AccountPolicyService
+		// listens to and re-evaluates the gate.
+		await managed.seed();
+
+		// Gate must now reflect the admin policy; account is NOT in 'OnlyOtherOrg'.
 		assert.strictEqual(service.gateInfo.state, AccountPolicyGateState.Restricted);
 		assert.strictEqual(service.gateInfo.reason, AccountPolicyGateUnsatisfiedReason.OrgNotApproved);
 	});
