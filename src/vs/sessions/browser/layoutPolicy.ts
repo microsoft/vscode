@@ -150,7 +150,7 @@ export class SessionsLayoutPolicy extends Disposable {
 				// Tablet currently falls back to desktop sizing.
 				return {
 					sideBarSize: 300,
-					auxiliaryBarSize: 380,
+					auxiliaryBarSize: 340,
 					panelSize: 300,
 					chatBarWidth: width - 300,
 				};

@@ -73,7 +73,6 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'github.copilot.chat.cli.showExternalSessions': false,
 
 		'inlineChat.affordance': 'editor',
-		'inlineChat.renderMode': 'hover',
 
 		'search.quickOpen.includeHistory': false,
 
