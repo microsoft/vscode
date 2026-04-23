@@ -541,7 +541,13 @@ export function prepareChatCompletionForReturn(
 		telemetryDataWithUsage = telemetryData.extendedBy({}, {
 			promptTokens: c.usage.prompt_tokens,
 			completionTokens: c.usage.completion_tokens,
-			totalTokens: c.usage.total_tokens
+			totalTokens: c.usage.total_tokens,
+			...(c.usage.prompt_tokens_details && { cachedTokens: c.usage.prompt_tokens_details.cached_tokens }),
+			...(c.usage.completion_tokens_details && {
+				reasoningTokens: c.usage.completion_tokens_details.reasoning_tokens,
+				acceptedPredictionTokens: c.usage.completion_tokens_details.accepted_prediction_tokens,
+				rejectedPredictionTokens: c.usage.completion_tokens_details.rejected_prediction_tokens,
+			}),
 		});
 	}
 
