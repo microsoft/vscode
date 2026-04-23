@@ -29,7 +29,16 @@
 	background-color: var(--vscode-panel-background);
 	overflow: hidden;
 
-	&:focus:not(:focus-visible) {
+	&:focus {
+		outline: none !important;
+	}
+
+	&:focus-visible,
+	&:focus-within {
+		border-color: var(--vscode-focusBorder);
+	}
+
+	.chat-tool-carousel-content .chat-confirmation-widget-container:focus {
 		outline: none;
 	}
 
@@ -93,8 +102,27 @@
 		margin-left: auto;
 	}
 
-	button:focus:not(:focus-visible),
-	.monaco-button:focus:not(:focus-visible) {
+	.monaco-button.chat-tool-carousel-dismiss-button {
+		min-width: 22px;
+		width: 22px;
+		height: 22px;
+		padding: 0;
+		border: none !important;
+		box-shadow: none !important;
+		background: transparent !important;
+		color: var(--vscode-icon-foreground) !important;
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+	}
+
+	.monaco-button.chat-tool-carousel-dismiss-button:hover {
+		background: var(--vscode-toolbar-hoverBackground) !important;
+	}
+
+	button:focus,
+	.monaco-button:focus {
 		outline: none !important;
 		box-shadow: none !important;
 	}
@@ -146,24 +174,8 @@
 		max-height: min(650px, 70vh);
 	}
 
-	&.chat-tool-carousel-collapsed {
-		.chat-tool-carousel-content {
-			display: none;
-		}
-
-		.chat-tool-carousel-overlay {
-			padding: 6px 10px 6px 12px;
-			border-bottom: none;
-		}
-
-		.chat-tool-carousel-title-group {
-			flex: 1;
-		}
-
-		.chat-tool-carousel-nav-arrows,
-		.chat-tool-carousel-step-indicator {
-			display: none;
-		}
+	.monaco-list:focus {
+		outline: none !important;
 	}
 
 	.chat-tool-carousel-content {
@@ -222,18 +234,18 @@
 			max-height: min(200px, 30vh);
 		}
 
+		.chat-tool-carousel-content-expanded & {
+			.chat-confirmation-widget-message {
+				max-height: min(500px, 55vh);
+			}
+		}
+
 		.chat-confirmation-message-terminal-editor .interactive-result-code-block {
 			background-color: var(--vscode-sideBar-background);
 		}
 
 		.chat-confirmation-message-terminal-editor .interactive-result-editor {
 			background-color: var(--vscode-sideBar-background);
-		}
-
-		.chat-tool-carousel-content-expanded & {
-			.chat-confirmation-widget-message {
-				max-height: min(500px, 55vh);
-			}
 		}
 
 		.chat-buttons-container {

@@ -14,7 +14,6 @@ import { IChatFollowup, IChatProgress, IChatResponseProgressFileTreeData, IChatS
 import { IExtensionService } from '../../../../services/extensions/common/extensions.js';
 import { ChatAgentLocation, ChatModeKind } from '../constants.js';
 import { URI } from '../../../../../base/common/uri.js';
-import { Target } from '../promptSyntax/promptTypes.js';
 
 //#region slash service, commands etc
 
@@ -39,7 +38,7 @@ export interface IChatSlashData {
 
 	locations: ChatAgentLocation[];
 	modes?: ChatModeKind[];
-	targets?: Target[];
+	sessionTypes?: string[];
 
 	/**
 	 * Optional context key expression that controls visibility of this command.

@@ -3,21 +3,26 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { IActionWidgetService } from './actionWidget.js';
-import { IAction } from '../../../base/common/actions.js';
-import { BaseDropdown, IActionProvider, IBaseDropdownOptions } from '../../../base/browser/ui/dropdown/dropdown.js';
-import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListItemHover, IActionListOptions } from './actionList.js';
-import { ThemeIcon } from '../../../base/common/themables.js';
-import { Codicon } from '../../../base/common/codicons.js';
 import { getActiveElement, isHTMLElement } from '../../../base/browser/dom.js';
-import { IKeybindingService } from '../../keybinding/common/keybinding.js';
+import { BaseDropdown, IActionProvider, IBaseDropdownOptions } from '../../../base/browser/ui/dropdown/dropdown.js';
 import { IListAccessibilityProvider } from '../../../base/browser/ui/list/listWidget.js';
+import { IAction } from '../../../base/common/actions.js';
+import { Codicon } from '../../../base/common/codicons.js';
+import { ResolvedKeybinding } from '../../../base/common/keybindings.js';
+import { ThemeIcon } from '../../../base/common/themables.js';
+import { IKeybindingService } from '../../keybinding/common/keybinding.js';
 import { ITelemetryService } from '../../telemetry/common/telemetry.js';
+import { ActionListItemKind, IActionListDelegate, IActionListItem, IActionListItemHover, IActionListOptions } from './actionList.js';
+import { IActionWidgetService } from './actionWidget.js';
 
 export interface IActionWidgetDropdownAction extends IAction {
 	category?: { label: string; order: number; showHeader?: boolean };
 	icon?: ThemeIcon;
 	description?: string;
+	/**
+	 * Optional detail text displayed as a second line below the label.
+	 */
+	detail?: string;
 	/**
 	 * Optional flyout hover configuration shown when focusing/hovering over the action.
 	 */
@@ -26,6 +31,13 @@ export interface IActionWidgetDropdownAction extends IAction {
 	 * Optional toolbar actions shown when the item is focused or hovered.
 	 */
 	toolbarActions?: IAction[];
+	/**
+	 * Optional keybinding to display next to the action. When provided, this overrides the
+	 * keybinding that would otherwise be looked up via {@link IKeybindingService.lookupKeybinding}.
+	 * Useful when the active keybinding depends on a scoped context (e.g. focus state) that the
+	 * dropdown cannot evaluate at display time.
+	 */
+	keybinding?: ResolvedKeybinding;
 }
 
 // TODO @lramos15 - Should we just make IActionProvider templated?
@@ -130,6 +142,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 					item: action,
 					tooltip: action.tooltip,
 					description: action.description,
+					detail: action.detail,
 					hover: action.hover,
 					toolbarActions: action.toolbarActions,
 					kind: ActionListItemKind.Action,
@@ -139,7 +152,7 @@ export class ActionWidgetDropdown extends BaseDropdown {
 					hideIcon: false,
 					label: action.label,
 					keybinding: this._options.showItemKeybindings ?
-						this.keybindingService.lookupKeybinding(action.id) :
+						(action.keybinding ?? this.keybindingService.lookupKeybinding(action.id)) :
 						undefined,
 				});
 			}

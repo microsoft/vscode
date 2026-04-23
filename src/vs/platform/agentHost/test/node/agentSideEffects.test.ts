@@ -17,7 +17,7 @@ import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesy
 import { NullLogService } from '../../../log/common/log.js';
 import { AgentSession, IAgent } from '../../common/agentService.js';
 import { ISessionDataService } from '../../common/sessionDataService.js';
-import { ActionType, IActionEnvelope, ISessionAction } from '../../common/state/sessionActions.js';
+import { ActionType, ActionEnvelope, SessionAction } from '../../common/state/sessionActions.js';
 import { buildSubagentSessionUri, PendingMessageKind, ResponsePartKind, SessionStatus, ToolCallStatus, ToolResultContentType } from '../../common/state/sessionState.js';
 import { IProductService } from '../../../product/common/productService.js';
 import { AgentService } from '../../node/agentService.js';
@@ -93,7 +93,7 @@ suite('AgentSideEffects', () => {
 
 		test('calls sendMessage on the agent', async () => {
 			setupSession();
-			const action: ISessionAction = {
+			const action: SessionAction = {
 				type: ActionType.SessionTurnStarted,
 				session: sessionUri.toString(),
 				turnId: 'turn-1',
@@ -116,7 +116,7 @@ suite('AgentSideEffects', () => {
 				sessionDataService: {} as ISessionDataService,
 			}, new NullLogService()));
 
-			const envelopes: IActionEnvelope[] = [];
+			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 
 			noAgentSideEffects.handleAction({
@@ -151,7 +151,7 @@ suite('AgentSideEffects', () => {
 		test('dispatches titleChanged with user message on first turn', () => {
 			setupDefaultSession();
 
-			const envelopes: IActionEnvelope[] = [];
+			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 
 			sideEffects.handleAction({
@@ -171,7 +171,7 @@ suite('AgentSideEffects', () => {
 		test('does not dispatch titleChanged when message is whitespace', () => {
 			setupDefaultSession();
 
-			const envelopes: IActionEnvelope[] = [];
+			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 
 			sideEffects.handleAction({
@@ -188,7 +188,7 @@ suite('AgentSideEffects', () => {
 		test('normalizes whitespace and truncates long messages', () => {
 			setupDefaultSession();
 
-			const envelopes: IActionEnvelope[] = [];
+			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 
 			const longMessage = 'Fix the bug\nin the login\tpage  please ' + 'a'.repeat(250);
@@ -220,7 +220,7 @@ suite('AgentSideEffects', () => {
 				turnId: 'turn-1',
 			});
 
-			const envelopes: IActionEnvelope[] = [];
+			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 
 			sideEffects.handleAction({
@@ -247,7 +247,7 @@ suite('AgentSideEffects', () => {
 			});
 			stateManager.dispatchServerAction({ type: ActionType.SessionReady, session: sessionUri.toString() });
 
-			const envelopes: IActionEnvelope[] = [];
+			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 
 			sideEffects.handleAction({
@@ -304,7 +304,7 @@ suite('AgentSideEffects', () => {
 			setupSession();
 			startTurn('turn-1');
 
-			const envelopes: IActionEnvelope[] = [];
+			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 			disposables.add(sideEffects.registerProgressListener(agent));
 
@@ -318,7 +318,7 @@ suite('AgentSideEffects', () => {
 			setupSession();
 			startTurn('turn-1');
 
-			const envelopes: IActionEnvelope[] = [];
+			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 			const listener = sideEffects.registerProgressListener(agent);
 
@@ -351,7 +351,7 @@ suite('AgentSideEffects', () => {
 		});
 
 		test('model observable update publishes models', async () => {
-			const envelopes: IActionEnvelope[] = [];
+			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 
 			const envelope = Event.toPromise(Event.filter(stateManager.onDidEmitEnvelope, e => {
@@ -378,7 +378,7 @@ suite('AgentSideEffects', () => {
 		});
 
 		test('unchanged model observable update does not dispatch unchanged agent infos', async () => {
-			const envelopes: IActionEnvelope[] = [];
+			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 			const models = [{ provider: 'mock' as const, id: 'mock-model', name: 'mock Model', maxContextWindow: 128000, supportsVision: false }];
 
@@ -521,7 +521,7 @@ suite('AgentSideEffects', () => {
 			// Message should NOT be consumed yet (turn is active)
 			assert.strictEqual(agent.sendMessageCalls.length, 0);
 
-			const envelopes: IActionEnvelope[] = [];
+			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 
 			// Fire idle → turn completes → queued message should be consumed
@@ -546,7 +546,7 @@ suite('AgentSideEffects', () => {
 			setupSession();
 			startTurn('turn-1');
 
-			const envelopes: IActionEnvelope[] = [];
+			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 
 			const setAction = {
@@ -574,7 +574,7 @@ suite('AgentSideEffects', () => {
 			setupSession();
 			disposables.add(sideEffects.registerProgressListener(agent));
 
-			const envelopes: IActionEnvelope[] = [];
+			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 
 			const action = {
@@ -621,10 +621,10 @@ suite('AgentSideEffects', () => {
 		test('calls setClientCustomizations and dispatches customizationsChanged', async () => {
 			setupSession();
 
-			const envelopes: IActionEnvelope[] = [];
+			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 
-			const action: ISessionAction = {
+			const action: SessionAction = {
 				type: ActionType.SessionActiveClientChanged,
 				session: sessionUri.toString(),
 				activeClient: {
@@ -657,10 +657,10 @@ suite('AgentSideEffects', () => {
 		test('skips when activeClient has no customizations', () => {
 			setupSession();
 
-			const envelopes: IActionEnvelope[] = [];
+			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 
-			const action: ISessionAction = {
+			const action: SessionAction = {
 				type: ActionType.SessionActiveClientChanged,
 				session: sessionUri.toString(),
 				activeClient: {
@@ -679,7 +679,7 @@ suite('AgentSideEffects', () => {
 		test('skips when activeClient is null', () => {
 			setupSession();
 
-			const action: ISessionAction = {
+			const action: SessionAction = {
 				type: ActionType.SessionActiveClientChanged,
 				session: sessionUri.toString(),
 				activeClient: null,
@@ -697,7 +697,7 @@ suite('AgentSideEffects', () => {
 		test('calls setCustomizationEnabled on the agent', () => {
 			setupSession();
 
-			const action: ISessionAction = {
+			const action: SessionAction = {
 				type: ActionType.SessionCustomizationToggled,
 				session: sessionUri.toString(),
 				uri: 'file:///plugin-a',
@@ -747,7 +747,7 @@ suite('AgentSideEffects', () => {
 				toolCallId: 'tc-conf-1',
 				approved: true,
 				confirmed: 'user-action' as const,
-			} as ISessionAction);
+			} as SessionAction);
 
 			assert.deepStrictEqual(agent.respondToPermissionCalls, [
 				{ requestId: 'tc-conf-1', approved: true },
@@ -775,7 +775,7 @@ suite('AgentSideEffects', () => {
 				toolCallId: 'tc-deny-1',
 				approved: false,
 				reason: 'denied' as const,
-			} as ISessionAction);
+			} as SessionAction);
 
 			assert.deepStrictEqual(agent.respondToPermissionCalls, [
 				{ requestId: 'tc-deny-1', approved: false },
@@ -970,7 +970,7 @@ suite('AgentSideEffects', () => {
 			startTurn('turn-1');
 			disposables.add(sideEffects.registerProgressListener(agent));
 
-			const envelopes: IActionEnvelope[] = [];
+			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 
 			agent.fireProgress({
@@ -1119,7 +1119,7 @@ suite('AgentSideEffects', () => {
 			startTurn('turn-1');
 			disposables.add(sideEffects.registerProgressListener(agent));
 
-			const envelopes: IActionEnvelope[] = [];
+			const envelopes: ActionEnvelope[] = [];
 			disposables.add(stateManager.onDidEmitEnvelope(e => envelopes.push(e)));
 
 			agent.fireProgress({
@@ -1669,6 +1669,179 @@ suite('AgentSideEffects', () => {
 
 			assert.deepStrictEqual(agent.respondToPermissionCalls, [
 				{ requestId: 'inner-write-1', approved: true },
+			]);
+		});
+	});
+
+	// ---- Session permissions ------------------------------------------------
+
+	suite('session permissions', () => {
+
+		test('tool_ready action includes confirmation options when confirmation is needed', () => {
+			setupSession();
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_start',
+				toolCallId: 'tc-perm-1',
+				toolName: 'CustomTool',
+				displayName: 'Custom Tool',
+				invocationMessage: 'Running custom tool',
+			});
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_ready',
+				toolCallId: 'tc-perm-1',
+				invocationMessage: 'Run custom tool',
+				confirmationTitle: 'Run custom tool',
+				permissionKind: 'custom-tool',
+			});
+
+			const state = stateManager.getSessionState(sessionUri.toString());
+			const tc = state!.activeTurn!.responseParts.find(
+				rp => rp.kind === ResponsePartKind.ToolCall && rp.toolCall.toolCallId === 'tc-perm-1'
+			);
+			assert.ok(tc && tc.kind === ResponsePartKind.ToolCall, 'tool call should exist');
+			assert.strictEqual(tc.toolCall.status, ToolCallStatus.PendingConfirmation);
+			assert.ok(Array.isArray(tc.toolCall.options), 'options should be an array');
+			assert.deepStrictEqual(tc.toolCall.options!.map(o => o.id), ['allow-session', 'allow-once', 'skip']);
+		});
+
+		test('SessionToolCallConfirmed with allow-session adds tool to session permissions', () => {
+			setupSession();
+			const state = stateManager.getSessionState(sessionUri.toString());
+			if (state) {
+				state.config = {
+					schema: { type: 'object', properties: {} },
+					values: {},
+				};
+			}
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_start',
+				toolCallId: 'tc-perm-2',
+				toolName: 'CustomTool',
+				displayName: 'Custom Tool',
+				invocationMessage: 'Running custom tool',
+			});
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_ready',
+				toolCallId: 'tc-perm-2',
+				invocationMessage: 'Run custom tool',
+				confirmationTitle: 'Run custom tool',
+				permissionKind: 'custom-tool',
+			});
+
+			sideEffects.handleAction({
+				type: ActionType.SessionToolCallConfirmed,
+				session: sessionUri.toString(),
+				turnId: 'turn-1',
+				toolCallId: 'tc-perm-2',
+				approved: true,
+				confirmed: 'user-action' as const,
+				selectedOptionId: 'allow-session',
+			} as SessionAction);
+
+			const updatedState = stateManager.getSessionState(sessionUri.toString());
+			assert.deepStrictEqual(
+				updatedState!.config!.values.permissions,
+				{ allow: ['CustomTool'], deny: [] },
+			);
+		});
+
+		test('subsequent tool_ready for same tool is auto-approved after allow-session permission', () => {
+			setupSession();
+			const state = stateManager.getSessionState(sessionUri.toString());
+			if (state) {
+				state.config = {
+					schema: { type: 'object', properties: {} },
+					values: { permissions: { allow: ['CustomTool'], deny: [] } },
+				};
+			}
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_start',
+				toolCallId: 'tc-perm-3',
+				toolName: 'CustomTool',
+				displayName: 'Custom Tool',
+				invocationMessage: 'Running custom tool',
+			});
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_ready',
+				toolCallId: 'tc-perm-3',
+				invocationMessage: 'Run custom tool',
+				confirmationTitle: 'Run custom tool',
+				permissionKind: 'custom-tool',
+			});
+
+			assert.deepStrictEqual(agent.respondToPermissionCalls, [
+				{ requestId: 'tc-perm-3', approved: true },
+			]);
+		});
+
+		test('subagent tool calls inherit parent session permissions', () => {
+			setupSession();
+			const state = stateManager.getSessionState(sessionUri.toString());
+			if (state) {
+				state.config = {
+					schema: { type: 'object', properties: {} },
+					values: { permissions: { allow: ['CustomTool'], deny: [] } },
+				};
+			}
+			startTurn('turn-1');
+			disposables.add(sideEffects.registerProgressListener(agent));
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_start',
+				toolCallId: 'tc-parent',
+				toolName: 'task',
+				displayName: 'Task',
+				invocationMessage: 'Delegating...',
+			});
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'subagent_started',
+				toolCallId: 'tc-parent',
+				agentName: 'helper',
+				agentDisplayName: 'Helper',
+				agentDescription: 'Helps',
+			});
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_start',
+				toolCallId: 'inner-perm-1',
+				toolName: 'CustomTool',
+				displayName: 'Custom Tool',
+				invocationMessage: 'Running custom tool',
+				parentToolCallId: 'tc-parent',
+			});
+
+			agent.fireProgress({
+				session: sessionUri,
+				type: 'tool_ready',
+				toolCallId: 'inner-perm-1',
+				invocationMessage: 'Run custom tool',
+				confirmationTitle: 'Run custom tool',
+				permissionKind: 'custom-tool',
+			});
+
+			assert.deepStrictEqual(agent.respondToPermissionCalls, [
+				{ requestId: 'inner-perm-1', approved: true },
 			]);
 		});
 	});

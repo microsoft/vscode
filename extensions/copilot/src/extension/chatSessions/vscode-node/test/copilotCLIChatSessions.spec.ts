@@ -70,6 +70,7 @@ class TestSessionService extends mock<ICopilotCLISessionService>() {
 	override isNewSessionId = vi.fn(() => false);
 	override deleteSession = vi.fn(async () => { });
 	override renameSession = vi.fn(async () => { });
+	override getSessionTitle = vi.fn(async () => '');
 	override getSession = vi.fn(async () => ({
 		object: {
 			sessionId: 'session-1',
@@ -158,6 +159,7 @@ function createProvider() {
 	const metadataStore = new class extends mock<IChatSessionMetadataStore>() {
 		override getRequestDetails = vi.fn(async () => []);
 		override getRepositoryProperties = vi.fn(async () => undefined);
+		override getSessionParentId = vi.fn(async () => undefined);
 	};
 	const gitService = new TestGitService();
 	const folderRepositoryManager = new TestFolderRepositoryManager();

@@ -345,7 +345,6 @@ export class PluginListWidget extends Disposable {
 	private disabledMessage!: HTMLElement;
 	private readonly disabledLinkListener = this._register(new MutableDisposable());
 	private browseButton!: Button;
-	private backLink!: HTMLElement;
 
 	private installedItems: IInstalledPluginItem[] = [];
 	private displayEntries: IPluginListEntry[] = [];
@@ -437,26 +436,6 @@ export class PluginListWidget extends Disposable {
 		this._register(createPluginButton.onDidClick(() => {
 			this.commandService.executeCommand('workbench.action.chat.createPlugin');
 		}));
-
-		// Back to installed link (shown only in browse mode)
-		this.backLink = DOM.append(this.element, $('.mcp-back-link'));
-		this.backLink.setAttribute('role', 'button');
-		this.backLink.tabIndex = 0;
-		this.backLink.setAttribute('aria-label', localize('backToInstalledPluginsAriaLabel', "Back to installed plugins"));
-		const backIcon = DOM.append(this.backLink, $('span'));
-		backIcon.classList.add(...ThemeIcon.asClassNameArray(Codicon.arrowLeft));
-		const backText = DOM.append(this.backLink, $('span'));
-		backText.textContent = localize('backToInstalledPlugins', "Back to installed plugins");
-		this._register(DOM.addDisposableListener(this.backLink, 'click', () => {
-			this.toggleBrowseMode(false);
-		}));
-		this._register(DOM.addDisposableListener(this.backLink, 'keydown', (e: KeyboardEvent) => {
-			if (e.key === 'Enter' || e.key === ' ') {
-				e.preventDefault();
-				this.toggleBrowseMode(false);
-			}
-		}));
-		this.backLink.style.display = 'none';
 
 		// Empty state
 		this.emptyContainer = DOM.append(this.element, $('.mcp-empty-state'));
@@ -646,7 +625,6 @@ export class PluginListWidget extends Disposable {
 		this.searchInput.value = '';
 		this.searchQuery = '';
 
-		this.backLink.style.display = browse ? '' : 'none';
 		this.browseButton.element.parentElement!.style.display = browse ? 'none' : '';
 
 		this.searchInput.setPlaceHolder(browse
@@ -845,6 +823,22 @@ export class PluginListWidget extends Disposable {
 		this.searchAndButtonContainer.insertBefore(element, this.searchAndButtonContainer.firstChild);
 	}
 
+	/**
+	 * Whether the widget is currently in marketplace browse mode.
+	 */
+	isInBrowseMode(): boolean {
+		return this.browseMode;
+	}
+
+	/**
+	 * Exits marketplace browse mode and returns to the installed plugins list.
+	 */
+	exitBrowseMode(): void {
+		if (this.browseMode) {
+			this.toggleBrowseMode(false);
+		}
+	}
+
 	layout(height: number, width: number): void {
 		this.lastHeight = height;
 		this.lastWidth = width;
@@ -855,14 +849,15 @@ export class PluginListWidget extends Disposable {
 		// When offsetHeight returns 0 the container just became visible
 		// after display:none and the browser hasn't reflowed yet — defer
 		// layout to the next frame so measurements are accurate.
+		// Skip the retry when the element is hidden (display:none parent)
+		// since rAF will never produce a non-zero measurement.
 		const searchBarHeight = this.searchAndButtonContainer.offsetHeight;
-		if (searchBarHeight === 0) {
+		if (searchBarHeight === 0 && this.element.offsetParent !== null) {
 			DOM.getWindow(this.element).requestAnimationFrame(() => this.layout(this.lastHeight, this.lastWidth));
 			return;
 		}
 		const footerHeight = this.sectionHeader.offsetHeight;
-		const backLinkHeight = this.browseMode ? this.backLink.offsetHeight : 0;
-		const listHeight = Math.max(0, height - searchBarHeight - footerHeight - backLinkHeight);
+		const listHeight = Math.max(0, height - searchBarHeight - footerHeight);
 
 		this.listContainer.style.height = `${listHeight}px`;
 		this.list.layout(listHeight, width);

@@ -44,7 +44,7 @@ export class MockPromptsService implements IPromptsService {
 	getResolvedSourceFolders(_type: any): Promise<readonly any[]> { throw new Error('Not implemented'); }
 	isValidSlashCommandName(_command: string): boolean { return false; }
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
-	resolvePromptSlashCommand(command: string, _token: CancellationToken): Promise<any> { throw new Error('Not implemented'); }
+	resolvePromptSlashCommand(command: string, _sessionType: string | undefined, _token: CancellationToken): Promise<any> { throw new Error('Not implemented'); }
 	get onDidChangeSlashCommands(): Event<void> { throw new Error('Not implemented'); }
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	getPromptSlashCommands(_token: CancellationToken): Promise<any[]> { throw new Error('Not implemented'); }

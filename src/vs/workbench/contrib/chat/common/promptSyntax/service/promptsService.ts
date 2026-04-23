@@ -595,7 +595,7 @@ export interface IPromptsService extends IDisposable {
 	/**
 	 * Gets the prompt file for a slash command.
 	 */
-	resolvePromptSlashCommand(command: string, token: CancellationToken): Promise<IResolvedChatPromptSlashCommand | undefined>;
+	resolvePromptSlashCommand(command: string, sessionType: string | undefined, token: CancellationToken): Promise<IResolvedChatPromptSlashCommand | undefined>;
 
 	/**
 	 * Event that is triggered when the slash command to ParsedPromptFile cache is updated.

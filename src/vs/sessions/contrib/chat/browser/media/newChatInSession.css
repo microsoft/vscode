@@ -16,7 +16,10 @@
 .new-chat-in-session .new-chat-widget-content {
 	width: 100%;
 	max-width: 950px;
-	margin: 0 auto !important;
+	/* Left-align (rather than centering with `margin: 0 auto`) so the input's
+	 * left edge — and therefore the attach (+) button — stays anchored as the
+	 * viewport narrows past max-width. */
+	margin: 0 !important;
 	padding: 4px 10px !important;
 	box-sizing: border-box;
 }
@@ -95,7 +98,7 @@
 }
 
 .new-chat-in-session .sessions-chat-dropdown-label {
-	margin-left: 4px;
+	margin-left: 6px;
 }
 
 /* Disable fade-in animations — show content immediately */

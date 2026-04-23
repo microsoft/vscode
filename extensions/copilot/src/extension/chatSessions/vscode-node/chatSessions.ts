@@ -31,6 +31,7 @@ import { ClaudeAgentManager } from '../claude/node/claudeCodeAgent';
 import { ClaudeCodeModels, IClaudeCodeModels } from '../claude/node/claudeCodeModels';
 import { ClaudeCodeSdkService, IClaudeCodeSdkService } from '../claude/node/claudeCodeSdkService';
 import { ClaudeRuntimeDataService } from '../claude/node/claudeRuntimeDataService';
+import { ClaudePluginService, IClaudePluginService } from '../claude/node/claudeSkills';
 import { IClaudeSessionStateService } from '../claude/common/claudeSessionStateService';
 import { ClaudeSessionStateService } from '../claude/node/claudeSessionStateService';
 import { ClaudeCodeSessionService, IClaudeCodeSessionService } from '../claude/node/sessionParser/claudeCodeSessionService';
@@ -38,6 +39,7 @@ import { ClaudeSlashCommandService, IClaudeSlashCommandService } from '../claude
 import { IAgentSessionsWorkspace } from '../common/agentSessionsWorkspace';
 import { IChatSessionMetadataStore } from '../common/chatSessionMetadataStore';
 import { IChatSessionWorkspaceFolderService } from '../common/chatSessionWorkspaceFolderService';
+import { IClaudeWorkspaceFolderService } from '../common/claudeWorkspaceFolderService';
 import { IChatSessionWorktreeCheckpointService } from '../common/chatSessionWorktreeCheckpointService';
 import { IChatSessionWorktreeService } from '../common/chatSessionWorktreeService';
 import { IChatFolderMruService, IFolderRepositoryManager } from '../common/folderRepositoryManager';
@@ -61,6 +63,7 @@ import { UserQuestionHandler } from './askUserQuestionHandler';
 import { ChatSessionMetadataStore } from './chatSessionMetadataStoreImpl';
 import { ChatSessionRepositoryTracker } from './chatSessionRepositoryTracker';
 import { ChatSessionWorkspaceFolderService } from './chatSessionWorkspaceFolderServiceImpl';
+import { ClaudeWorkspaceFolderService } from './claudeWorkspaceFolderServiceImpl';
 import { ChatSessionWorktreeCheckpointService } from './chatSessionWorktreeCheckpointServiceImpl';
 import { ChatSessionWorktreeService } from './chatSessionWorktreeServiceImpl';
 import { ClaudeChatSessionContentProvider } from './claudeChatSessionContentProvider';
@@ -142,9 +145,11 @@ export class ChatSessionsContrib extends Disposable implements IExtensionContrib
 				[IChatSessionWorktreeService, new SyncDescriptor(ChatSessionWorktreeService)],
 				[IChatSessionWorktreeCheckpointService, new SyncDescriptor(ChatSessionWorktreeCheckpointService)],
 				[IChatSessionWorkspaceFolderService, new SyncDescriptor(ChatSessionWorkspaceFolderService)],
+				[IClaudeWorkspaceFolderService, new SyncDescriptor(ClaudeWorkspaceFolderService)],
 				[IFolderRepositoryManager, new SyncDescriptor(ClaudeFolderRepositoryManager)],
 				[IChatFolderMruService, new SyncDescriptor(ClaudeCodeFolderMruService)],
 				[IClaudeRuntimeDataService, new SyncDescriptor(ClaudeRuntimeDataService)],
+				[IClaudePluginService, new SyncDescriptor(ClaudePluginService)],
 			));
 		const claudeAgentManager = this._register(claudeAgentInstaService.createInstance(ClaudeAgentManager));
 		const claudeModels = claudeAgentInstaService.invokeFunction(accessor => accessor.get(IClaudeCodeModels));

@@ -50,6 +50,7 @@ import './browser/parts/editor/editorParts.js';
 import './browser/parts/paneCompositePartService.js';
 import './browser/parts/banner/bannerPart.js';
 import './browser/parts/statusbar/statusbarPart.js';
+import './browser/parts/titlebar/menubar.contribution.js';
 
 //#endregion
 
@@ -193,6 +194,9 @@ registerSingleton(IAllowedMcpServersService, AllowedMcpServersService, Instantia
 // Default Account
 import './services/accounts/browser/defaultAccount.js';
 
+// Account Policy Gate
+import './services/policies/browser/accountPolicyGate.contribution.js';
+
 // Telemetry
 import './contrib/telemetry/browser/telemetry.contribution.js';
 
@@ -212,8 +216,10 @@ import './contrib/speech/browser/speech.contribution.js';
 
 // Chat
 import './contrib/chat/browser/chat.contribution.js';
+import './contrib/chat/browser/chat.view.contribution.js';
 import './contrib/inlineChat/browser/inlineChat.contribution.js';
 import './contrib/mcp/browser/mcp.contribution.js';
+import './contrib/mcp/browser/mcp.view.contribution.js';
 import './contrib/chat/browser/chatSessions/chatSessions.contribution.js';
 import './contrib/chat/browser/contextContrib/chatContext.contribution.js';
 import './contrib/imageCarousel/browser/imageCarousel.contribution.js';
@@ -260,6 +266,8 @@ import './contrib/git/browser/git.contributions.js';
 
 // SCM
 import './contrib/scm/browser/scm.contribution.js';
+import './contrib/scm/browser/quickDiff.contribution.js';
+import './contrib/scm/browser/scm.service.contribution.js';
 
 // Debug
 import './contrib/debug/browser/debug.contribution.js';
@@ -406,6 +414,7 @@ import './contrib/codeActions/browser/codeActions.contribution.js';
 
 // Timeline
 import './contrib/timeline/browser/timeline.contribution.js';
+import './contrib/timeline/browser/timeline.service.contribution.js';
 
 // Local History
 import './contrib/localHistory/browser/localHistory.contribution.js';

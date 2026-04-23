@@ -41,7 +41,9 @@ import { IHoverService } from '../../../../../platform/hover/browser/hover.js';
 import { HoverStyle } from '../../../../../base/browser/ui/hover/hover.js';
 import { HoverPosition } from '../../../../../base/browser/ui/hover/hoverWidget.js';
 import { ISessionsManagementService } from '../../../../services/sessions/common/sessionsManagement.js';
+import { IAgentSessionsService } from '../../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { ISessionsListModelService } from './sessionsListModelService.js';
+import { IAgentHostFilterService } from '../../../remoteAgentHost/common/agentHostFilter.js';
 
 const $ = DOM.$;
 
@@ -172,6 +174,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 		private readonly contextKeyService: IContextKeyService,
 		private readonly markdownRendererService: IMarkdownRendererService,
 		private readonly hoverService: IHoverService,
+		private readonly agentSessionsService: IAgentSessionsService,
 	) { }
 
 	renderTemplate(container: HTMLElement): ISessionItemTemplate {
@@ -211,6 +214,12 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 	private renderSession(element: ISession, template: ISessionItemTemplate, matches?: IMatch[]): void {
 		template.elementDisposables.clear();
+
+		// Trigger lazy resolve for expensive session properties (e.g. changes)
+		// so that providers which populate them on demand deliver fresh data
+		// by the time the row renders. Only fires for sessions that become
+		// visible in the viewport (O(visible rows), not O(all sessions)).
+		this.agentSessionsService.model.observeSession(element.resource);
 
 		// Toolbar context
 		template.titleToolbar.context = element;
@@ -457,7 +466,7 @@ class SessionItemRenderer implements ITreeRenderer<SessionListItem, FuzzyScore, 
 
 	private getStatusIcon(status: SessionStatus, isRead: boolean, isArchived: boolean, pullRequestIcon?: ThemeIcon): ThemeIcon {
 		switch (status) {
-			case SessionStatus.InProgress: return { ...Codicon.sessionInProgress, color: themeColorFromId('textLink.foreground') };
+			case SessionStatus.InProgress: return { ...ThemeIcon.modify(Codicon.loading, 'spin'), color: themeColorFromId('textLink.foreground') };
 			case SessionStatus.NeedsInput: return { ...Codicon.circleFilled, color: themeColorFromId('list.warningForeground') };
 			case SessionStatus.Error: return { ...Codicon.error, color: themeColorFromId('errorForeground') };
 			default:
@@ -628,6 +637,11 @@ export interface ISessionsList {
 	readonly onDidChangeFindOpenState: Event<boolean>;
 	refresh(): void;
 	reveal(sessionResource: URI): boolean;
+	/**
+	 * Returns the sessions currently visible in the list, in display order.
+	 * Sessions hidden by workspace group capping ("show more") are excluded.
+	 */
+	getVisibleSessions(): readonly ISession[];
 	clearFocus(): void;
 	hasFocusOrSelection(): boolean;
 	setVisible(visible: boolean): void;
@@ -651,6 +665,7 @@ export interface ISessionsList {
 	resetFilters(): void;
 	setWorkspaceGroupCapped(capped: boolean): void;
 	isWorkspaceGroupCapped(): boolean;
+	collapseAllSections(): void;
 }
 
 export class SessionsList extends Disposable implements ISessionsList {
@@ -674,6 +689,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private workspaceGroupCapped: boolean;
 	private readonly expandedWorkspaceGroups = new Set<string>();
 	private findOpen = false;
+	private suspendCollapseStatePersistence = false;
 
 	private readonly _onDidUpdate = this._register(new Emitter<void>());
 	readonly onDidUpdate: Event<void> = this._onDidUpdate.event;
@@ -688,6 +704,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		private readonly options: ISessionsListControlOptions,
 		@ISessionsManagementService private readonly _sessionsManagementService: ISessionsManagementService,
 		@ISessionsListModelService private readonly _sessionsListModelService: ISessionsListModelService,
+		@IAgentHostFilterService private readonly _agentHostFilterService: IAgentHostFilterService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IStorageService private readonly storageService: IStorageService,
@@ -713,6 +730,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 		const approvalModel = this._register(instantiationService.createInstance(AgentSessionApprovalModel));
 		const markdownRendererService = instantiationService.invokeFunction(accessor => accessor.get(IMarkdownRendererService));
 		const hoverService = instantiationService.invokeFunction(accessor => accessor.get(IHoverService));
+		const agentSessionsService = instantiationService.invokeFunction(accessor => accessor.get(IAgentSessionsService));
 		const sessionRenderer = new SessionItemRenderer(
 			{ grouping: this.options.grouping, sorting: this.options.sorting, isPinned: s => this.isSessionPinned(s), isRead: s => this.isSessionRead(s) },
 			approvalModel,
@@ -720,6 +738,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 			contextKeyService,
 			markdownRendererService,
 			hoverService,
+			agentSessionsService,
 		);
 
 		const showMoreRenderer = new SessionShowMoreRenderer();
@@ -804,6 +823,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 
 		this._register(this.tree.onDidChangeCollapseState(e => {
+			if (this.suspendCollapseStatePersistence) {
+				return;
+			}
 			const element = e.node.element;
 			if (element && isSessionSection(element)) {
 				this.saveSectionCollapseState(element.id, e.node.collapsed);
@@ -823,6 +845,12 @@ export class SessionsList extends Disposable implements ISessionsList {
 		}));
 
 		this._register(this._sessionsListModelService.onDidChange(() => {
+			if (this.visible) {
+				this.update();
+			}
+		}));
+
+		this._register(this._agentHostFilterService.onDidChange(() => {
 			if (this.visible) {
 				this.update();
 			}
@@ -854,6 +882,10 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		// Filter by session type and status
 		let filtered = this.sessions;
+		const hostFilter = this._agentHostFilterService.selectedProviderId;
+		if (hostFilter !== undefined) {
+			filtered = filtered.filter(s => s.providerId === hostFilter);
+		}
 		if (this.excludedSessionTypes.size > 0) {
 			filtered = filtered.filter(s => !this.excludedSessionTypes.has(s.sessionType));
 		}
@@ -925,6 +957,36 @@ export class SessionsList extends Disposable implements ISessionsList {
 
 		this.tree.setChildren(null, children);
 		this._onDidUpdate.fire();
+	}
+
+	getVisibleSessions(): readonly ISession[] {
+		// Derive the visible session list from the tree model so that index-based
+		// navigation matches what the user actually sees: this respects collapsed
+		// sections, find-widget filtering, and excludes section / show-more nodes.
+		const sessions = new Set<ISession>(this.sessions);
+		const visibleSessions: ISession[] = [];
+
+		const collect = (node: ITreeNode<SessionListItem | null, FuzzyScore | undefined>): void => {
+			if (!node.visible) {
+				return;
+			}
+			if (node.element && sessions.has(node.element as ISession)) {
+				visibleSessions.push(node.element as ISession);
+			}
+			if (node.collapsed) {
+				return;
+			}
+			for (const child of node.children) {
+				collect(child);
+			}
+		};
+
+		const root = this.tree.getNode();
+		for (const child of root.children) {
+			collect(child);
+		}
+
+		return visibleSessions;
 	}
 
 	reveal(sessionResource: URI): boolean {
@@ -1175,6 +1237,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return this.workspaceGroupCapped;
 	}
 
+	collapseAllSections(): void {
+		this.suspendCollapseStatePersistence = true;
+		try {
+			this.tree.collapseAll();
+		} finally {
+			this.suspendCollapseStatePersistence = false;
+		}
+		this.saveBulkCollapseState(true);
+	}
+
 	// -- Section collapse persistence --
 
 	private getSavedCollapseState(sectionId: string): boolean | undefined {
@@ -1206,6 +1278,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		}
 		state[sectionId] = collapsed;
+		this.storageService.store(SessionsList.SECTION_COLLAPSE_STATE_KEY, JSON.stringify(state), StorageScope.PROFILE, StorageTarget.USER);
+	}
+
+	private saveBulkCollapseState(collapsed: boolean): void {
+		const state: Record<string, boolean> = {};
+		for (const child of this.tree.getNode(null).children) {
+			if (child.element && isSessionSection(child.element)) {
+				state[child.element.id] = collapsed;
+			}
+		}
 		this.storageService.store(SessionsList.SECTION_COLLAPSE_STATE_KEY, JSON.stringify(state), StorageScope.PROFILE, StorageTarget.USER);
 	}
 

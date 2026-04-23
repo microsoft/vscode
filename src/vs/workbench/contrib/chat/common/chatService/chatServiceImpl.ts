@@ -62,6 +62,22 @@ import { ChatMode } from '../chatModes.js';
 
 const serializedChatKey = 'interactive.sessions';
 
+/**
+ * True when the user has typed text or attached non-trivial context to the input
+ * but not yet sent it. Used to decide whether an external session needs metadata
+ * persisted on dispose so the draft survives switching sessions.
+ */
+function hasDraftInput(model: ChatModel): boolean {
+	const state = model.inputModel.state.get();
+	if (!state) {
+		return false;
+	}
+	if (state.inputText.trim().length > 0) {
+		return true;
+	}
+	return state.attachments.length > 0;
+}
+
 class CancellableRequest implements IDisposable {
 	private readonly _yieldRequested: ISettableObservable<boolean> = observableValue(this, false);
 
@@ -187,7 +203,9 @@ export class ChatService extends Disposable implements IChatService {
 					} else if (this._saveModelsEnabled) {
 						await this._chatSessionStore.storeSessions([model]);
 					}
-				} else if (!localSessionId && model.getRequests().length > 0) {
+				} else if (!localSessionId && (model.getRequests().length > 0 || hasDraftInput(model))) {
+					// External sessions: persist metadata when there are requests, OR when the
+					// user has typed/attached unsent input we need to restore on next open.
 					await this._chatSessionStore.storeSessionsMetadataOnly([model]);
 				}
 			}
@@ -575,7 +593,9 @@ export class ChatService extends Disposable implements IChatService {
 		const chatSessionType = getChatSessionType(sessionResource);
 		const modelId = findLast(providedSession.history.filter(m => m.type === 'request'), req => req.modelId)?.modelId;
 		const agentUri = findLast(providedSession.history.filter(m => m.type === 'request'), req => req.modeInstructions?.uri)?.modeInstructions?.uri;
-		const storedPermissionLevel = this._chatSessionStore.getMetadataForSessionSync(sessionResource)?.permissionLevel;
+		const storedMetadata = this._chatSessionStore.getMetadataForSessionSync(sessionResource);
+		const storedPermissionLevel = storedMetadata?.permissionLevel;
+		const storedInputState = storedMetadata?.inputState;
 		let initialData: ISerializedChatDataReference | undefined = undefined;
 		if ((modelId || agentUri)) {
 			const mode: ISerializableChatModelInputState['mode'] = agentUri ? { kind: ChatModeKind.Agent, id: agentUri.toString() } : { kind: ChatModeKind.Agent, id: ChatMode.Agent.id };
@@ -607,18 +627,21 @@ export class ChatService extends Disposable implements IChatService {
 			};
 		}
 
-		// Contributed sessions do not use UI tools
+		// Contributed sessions do not use UI tools.
+		// Prefer (in order): a transferred draft, a persisted draft from metadata,
+		// otherwise let the constructor fall back to initialData.value.inputState.
 		const modelRef = this._sessionModels.acquireOrCreate({
 			initialData,
 			location,
 			sessionResource: sessionResource,
 			canUseTools: false,
 			transferEditingSession: providedSession.transferredState?.editingSession,
-			inputState: providedSession.transferredState?.inputState,
+			inputState: providedSession.transferredState?.inputState ?? storedInputState,
 		}, debugOwner ?? 'ChatService#loadRemoteSession');
 
 		// Restore permission level from metadata even when initialData was not constructed
-		if (storedPermissionLevel && !initialData) {
+		// and no inputState carried it through.
+		if (storedPermissionLevel && !initialData && !storedInputState) {
 			modelRef.object.inputModel.setState({ permissionLevel: storedPermissionLevel });
 		}
 
@@ -680,6 +703,9 @@ export class ChatService extends Disposable implements IChatService {
 				if (lastRequest) {
 					for (const part of message.parts) {
 						model.acceptResponseProgress(lastRequest, part);
+					}
+					if (message.details && lastRequest.response) {
+						lastRequest.response.setResult({ details: message.details });
 					}
 				}
 			}

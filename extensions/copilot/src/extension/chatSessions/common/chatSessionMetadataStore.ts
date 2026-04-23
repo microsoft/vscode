@@ -91,6 +91,21 @@ export interface ChatSessionMetadataFile {
 	 * session or if the session is a child session created from the Agents app.
 	 */
 	parentSessionId?: string;
+	/** Milliseconds since epoch when this metadata was first written. */
+	created?: number;
+	/** Milliseconds since epoch of the last write. Used for top-N trim sort and cross-process merge. */
+	modified?: number;
+}
+
+/**
+ * One line in `~/.copilot/vscode.session.worktree.jsonl`. Maps a session id
+ * to the path of its worktree so folder → session lookups work even when the
+ * session has been evicted from the bulk metadata cache.
+ */
+export interface WorktreeSessionEntry {
+	readonly id: string;
+	readonly path: string;
+	readonly created: number;
 }
 
 export const IChatSessionMetadataStore = createServiceIdentifier<IChatSessionMetadataStore>('IChatSessionMetadataStore');
@@ -124,4 +139,12 @@ export interface IChatSessionMetadataStore {
 	storeForkedSessionMetadata(sourceSessionId: string, targetSessionId: string, customTitle: string): Promise<void>;
 	setSessionOrigin(sessionId: string): Promise<void>;
 	getSessionOrigin(sessionId: string): Promise<'vscode' | 'other'>;
+	setSessionParentId(sessionId: string, parentSessionId: string): Promise<void>;
+	getSessionParentId(sessionId: string): Promise<string | undefined>;
+	/**
+	 * Re-read the shared bulk metadata file from disk and merge into the in-memory cache.
+	 * Wired to the chat-sessions UI refresh action so cross-process writes become visible
+	 * on demand. Concurrent calls collapse: at most one in-flight + one pending.
+	 */
+	refresh(): Promise<void>;
 }

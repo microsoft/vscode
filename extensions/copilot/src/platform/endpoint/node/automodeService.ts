@@ -63,14 +63,18 @@ class AutoModeTokenBank extends Disposable {
 		this._fetchedValue = this._register(createCapiClientFetchedValue<AutoModeAPIResponse>(capiClientService, envService, {
 			request: async () => {
 				const authToken = (await authService.getCopilotToken()).token;
-				const autoModeHint = expService.getTreatmentVariable<string>(expName) || 'auto';
+				const extValue = expService.getTreatmentVariable<string>(expName);
+				const model_hints = [extValue || 'auto'];
+				if (location === ChatLocation.Editor && model_hints[0] !== 'auto') {
+					model_hints.push('auto');
+				}
 				return {
 					headers: {
 						'Content-Type': 'application/json',
 						'Authorization': `Bearer ${authToken}`,
 					},
 					method: 'POST' as const,
-					json: { auto_mode: { model_hints: [autoModeHint] } },
+					json: { auto_mode: { model_hints } },
 				};
 			},
 			requestMetadata: { type: RequestType.AutoModels },

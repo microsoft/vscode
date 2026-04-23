@@ -10,8 +10,8 @@ import { URI } from '../../../../base/common/uri.js';
 import { IProcessPropertyMap, ITerminalChildProcess, ITerminalLaunchError, ITerminalLaunchResult, ProcessPropertyType } from '../../../../platform/terminal/common/terminal.js';
 import { IAgentConnection } from '../../../../platform/agentHost/common/agentService.js';
 import { AGENT_HOST_SCHEME, fromAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
-import { ActionType, IActionEnvelope } from '../../../../platform/agentHost/common/state/sessionActions.js';
-import { TerminalClaimKind, type ITerminalContentPart, type ITerminalState } from '../../../../platform/agentHost/common/state/protocol/state.js';
+import { ActionType, ActionEnvelope } from '../../../../platform/agentHost/common/state/sessionActions.js';
+import { TerminalClaimKind, type TerminalContentPart, type TerminalState } from '../../../../platform/agentHost/common/state/protocol/state.js';
 import { IAgentSubscription } from '../../../../platform/agentHost/common/state/agentSubscription.js';
 import { StateComponents } from '../../../../platform/agentHost/common/state/sessionState.js';
 import { BasePty } from '../common/basePty.js';
@@ -95,7 +95,7 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 
 	private readonly _startBarrier = new Barrier();
 	private readonly _subscriptionDisposables = this._register(new DisposableStore());
-	private _subscriptionRef: IReference<IAgentSubscription<ITerminalState>> | undefined;
+	private _subscriptionRef: IReference<IAgentSubscription<TerminalState>> | undefined;
 	private _initialCwd = '';
 
 	private readonly _onCommandExecuted = this._register(new Emitter<IAgentHostPtyCommandExecutedEvent>());
@@ -157,7 +157,7 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 				});
 			}
 
-			const state = subscription.value as ITerminalState;
+			const state = subscription.value as TerminalState;
 
 			// 4. Replay any existing content from the snapshot
 			if (state.supportsCommandDetection) {
@@ -189,7 +189,7 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 		}
 	}
 
-	private _handleAction(envelope: IActionEnvelope): void {
+	private _handleAction(envelope: ActionEnvelope): void {
 		const action = envelope.action;
 		switch (action.type) {
 			case ActionType.TerminalData:
@@ -254,7 +254,7 @@ export class AgentHostPty extends BasePty implements ITerminalChildProcess {
 	 * Emits command lifecycle events for command parts so that consumers
 	 * (e.g. {@link AhpTerminalCommandSource}) can reconstruct command history.
 	 */
-	private _replayContent(content: ITerminalContentPart[]): void {
+	private _replayContent(content: TerminalContentPart[]): void {
 		for (const part of content) {
 			if (part.type === 'unclassified') {
 				if (part.value) {

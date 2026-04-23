@@ -223,6 +223,9 @@ jobs:
         if: steps.blocks-ci.outputs.match == 'false'
         run: |
           echo "::error::blocks-ci screenshot hashes do not match committed file. See PR comment for updated content."
+          echo ""
+          echo "Diff between committed and expected blocks-ci-screenshots.md:"
+          diff -u test/componentFixtures/blocks-ci-screenshots.md /tmp/blocks-ci-updated.md || true
           exit 1
 
       # - name: Compare screenshots

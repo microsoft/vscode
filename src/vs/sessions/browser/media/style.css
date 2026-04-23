@@ -69,6 +69,42 @@
 	display: none;
 }
 
+.monaco-workbench.agent-sessions-workbench > .notifications-center {
+	right: 15px;
+	bottom: 15px;
+}
+
+.monaco-workbench.agent-sessions-workbench > .notifications-toasts {
+	right: 15px;
+	bottom: 15px;
+}
+
+.monaco-workbench.agent-sessions-workbench.nostatusbar > .notifications-center {
+	bottom: 15px;
+}
+
+.monaco-workbench.agent-sessions-workbench.nostatusbar > .notifications-toasts {
+	bottom: 15px;
+}
+
+.monaco-workbench.agent-sessions-workbench > .notifications-center.bottom-left {
+	right: auto;
+	left: 15px;
+	bottom: 15px;
+}
+
+.monaco-workbench.agent-sessions-workbench > .notifications-toasts.bottom-left {
+	right: auto;
+	left: 15px;
+	bottom: 15px;
+}
+
+.monaco-workbench.agent-sessions-workbench > .notifications-center.top-right {
+	top: 40px;
+	right: 15px;
+	bottom: auto;
+}
+
 .agent-sessions-workbench.experimental-shell-gradient-background > .monaco-grid-view {
 	position: relative;
 	z-index: 1;
@@ -130,7 +166,7 @@
 }
 
 .agent-sessions-workbench .part.editor .multiDiffEntry {
-	padding: 0 8px;
+	padding: 6px 8px 0;
 	box-sizing: border-box;
 }
 
@@ -391,6 +427,13 @@
 
 .agent-sessions-workbench .interactive-session .chat-input-container.focused {
 	border-color: var(--vscode-agentsChatInput-focusBorder, var(--vscode-focusBorder)) !important;
+}
+
+/* While the developer-joy animated border is active, suppress the static
+	border so it doesn't visually conflict with the spinning gradient ring. */
+.agent-sessions-workbench .interactive-session .chat-input-container.working,
+.agent-sessions-workbench .interactive-session .chat-input-container.working.focused {
+	border-color: transparent !important;
 }
 
 /* Make the Monaco editor inside the chat input transparent so it inherits the chatInput.background */

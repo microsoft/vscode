@@ -29,7 +29,7 @@ const READ_ONLY_ACTION_CODES = new Set([
 ]);
 
 /** Schema version — bump when altering tables so existing DBs get migrated. */
-const SCHEMA_VERSION = 2;
+const SCHEMA_VERSION = 3;
 
 /**
  * Session store backed by SQLite + FTS5.
@@ -118,6 +118,8 @@ export class SessionStore implements ISessionStore {
 				host_type TEXT,
 				branch TEXT,
 				summary TEXT,
+				agent_name TEXT,
+				agent_description TEXT,
 				created_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
 				updated_at TEXT DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
 			);
@@ -193,6 +195,10 @@ export class SessionStore implements ISessionStore {
 		if (currentVersion >= 1 && currentVersion < 2) {
 			db.exec('ALTER TABLE sessions ADD COLUMN host_type TEXT');
 		}
+		if (currentVersion >= 1 && currentVersion < 3) {
+			db.exec('ALTER TABLE sessions ADD COLUMN agent_name TEXT');
+			db.exec('ALTER TABLE sessions ADD COLUMN agent_description TEXT');
+		}
 
 		// Update or insert schema version
 		if (currentVersion === 0) {
@@ -210,14 +216,16 @@ export class SessionStore implements ISessionStore {
 	upsertSession(session: SessionRow): void {
 		const db = this.ensureDb();
 		db.prepare(
-			`INSERT INTO sessions (id, cwd, repository, host_type, branch, summary, created_at, updated_at)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+			`INSERT INTO sessions (id, cwd, repository, host_type, branch, summary, agent_name, agent_description, created_at, updated_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			 ON CONFLICT(id) DO UPDATE SET
 				cwd = COALESCE(excluded.cwd, cwd),
 				repository = COALESCE(excluded.repository, repository),
 				host_type = COALESCE(excluded.host_type, host_type),
 				branch = COALESCE(excluded.branch, branch),
 				summary = COALESCE(excluded.summary, summary),
+				agent_name = COALESCE(excluded.agent_name, agent_name),
+				agent_description = COALESCE(excluded.agent_description, agent_description),
 				created_at = MIN(created_at, excluded.created_at),
 				updated_at = MAX(updated_at, excluded.updated_at)`,
 		).run(
@@ -227,6 +235,8 @@ export class SessionStore implements ISessionStore {
 			session.host_type ?? null,
 			session.branch ?? null,
 			session.summary ?? null,
+			session.agent_name ?? null,
+			session.agent_description ?? null,
 			session.created_at ?? new Date().toISOString(),
 			session.updated_at ?? new Date().toISOString(),
 		);
