@@ -41,20 +41,22 @@ export class SessionsPolicyBlockedContribution extends Disposable implements IWo
 	}
 
 	private update(): void {
-		// Priority 1: agent mode disabled by policy
+		const gateInfo = this.gateService.gateInfo;
+		const gateActive = gateInfo.state !== AccountPolicyGateState.Inactive;
+
+		// Check agent-disabled ONLY when it's not being artificially forced
+		// by our own account policy gate (which sets restrictedValue on the
+		// ChatAgentMode policy, making chat.agent.enabled = false).
 		const agentEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled);
-		if (agentEnabled === false) {
+		if (agentEnabled === false && !gateActive) {
 			this.showOverlay({ reason: SessionsBlockedReason.AgentDisabled });
 			return;
 		}
 
-		// Priority 2: account policy gate
-		const gateInfo = this.gateService.gateInfo;
+		// Account policy gate
 		if (gateInfo.state === AccountPolicyGateState.Restricted) {
 			// noAccount / wrongProvider: don't show our overlay — the sessions
-			// welcome/walkthrough screen already handles sign-in. We only block
-			// with the overlay when the user IS signed in but to the wrong org,
-			// or when waiting for policy data to resolve.
+			// welcome/walkthrough screen already handles sign-in.
 			if (gateInfo.reason === AccountPolicyGateUnsatisfiedReason.NoAccount
 				|| gateInfo.reason === AccountPolicyGateUnsatisfiedReason.WrongProvider) {
 				this.overlayRef.clear();
