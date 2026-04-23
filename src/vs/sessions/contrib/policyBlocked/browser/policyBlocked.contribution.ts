@@ -8,6 +8,7 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ISessionsBlockedOverlayOptions, SessionsBlockedReason, SessionsPolicyBlockedOverlay } from './sessionsPolicyBlocked.js';
 import { AccountPolicyGateState, AccountPolicyGateUnsatisfiedReason, IAccountPolicyGateService } from '../../../../workbench/services/policies/common/accountPolicyService.js';
@@ -24,6 +25,7 @@ export class SessionsPolicyBlockedContribution extends Disposable implements IWo
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IAccountPolicyGateService private readonly gateService: IAccountPolicyGateService,
+		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 	) {
 		super();
 
@@ -53,16 +55,25 @@ export class SessionsPolicyBlockedContribution extends Disposable implements IWo
 
 		// Account policy gate
 		if (gateInfo.state === AccountPolicyGateState.Restricted) {
-			// PolicyNotResolved is the only transient state — show a loading bar
-			// so we don't flash a misleading message while data is in flight.
-			// All other unsatisfied reasons (noAccount, wrongProvider, orgNotApproved)
-			// require user action: defer to the sessions welcome/walkthrough screen
-			// so the user can sign in or switch accounts via the standard flow.
+			// noAccount / wrongProvider: defer to the sessions welcome/walkthrough
+			// screen so the user can sign in via the standard flow.
+			if (gateInfo.reason === AccountPolicyGateUnsatisfiedReason.NoAccount
+				|| gateInfo.reason === AccountPolicyGateUnsatisfiedReason.WrongProvider) {
+				this.overlayRef.clear();
+				this.currentReason = undefined;
+				return;
+			}
+
 			if (gateInfo.reason === AccountPolicyGateUnsatisfiedReason.PolicyNotResolved) {
 				this.showOverlay({ reason: SessionsBlockedReason.Loading });
 			} else {
-				this.overlayRef.clear();
-				this.currentReason = undefined;
+				// orgNotApproved — signed in but wrong account
+				const accountName = this.defaultAccountService.currentDefaultAccount?.accountName;
+				this.showOverlay({
+					reason: SessionsBlockedReason.AccountPolicyGate,
+					approvedOrganizations: gateInfo.approvedOrganizations,
+					accountName,
+				});
 			}
 			return;
 		}
@@ -73,8 +84,9 @@ export class SessionsPolicyBlockedContribution extends Disposable implements IWo
 	}
 
 	private showOverlay(options: ISessionsBlockedOverlayOptions): void {
-		// Don't recreate if already showing the same reason
-		if (this.currentReason === options.reason) {
+		// Don't recreate if already showing the same reason (except AccountPolicyGate
+		// where the account name may have changed)
+		if (this.currentReason === options.reason && options.reason !== SessionsBlockedReason.AccountPolicyGate) {
 			return;
 		}
 		this.overlayRef.clear();

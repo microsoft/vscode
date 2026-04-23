@@ -35,4 +35,18 @@ export default defineThemedFixtureGroup({ path: 'sessions/' }, {
 		labels: { kind: 'screenshot' },
 		render: (ctx) => createOverlay(ctx, { reason: SessionsBlockedReason.Loading }),
 	}),
+	AccountPolicyGate: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (ctx) => createOverlay(ctx, {
+			reason: SessionsBlockedReason.AccountPolicyGate,
+			accountName: 'octocat',
+			approvedOrganizations: ['github', 'microsoft'],
+		}),
+	}),
+	AccountPolicyGateNoAccount: defineComponentFixture({
+		labels: { kind: 'screenshot' },
+		render: (ctx) => createOverlay(ctx, {
+			reason: SessionsBlockedReason.AccountPolicyGate,
+		}),
+	}),
 });
