@@ -6249,24 +6249,28 @@
 		"chatSkills": [
 			{
 				"path": "./assets/prompts/skills/project-setup-info-local/SKILL.md",
+				"when": "config.github.copilot.chat.projectSetupInfoSkill.enabled && !config.github.copilot.chat.newWorkspace.useContext7",
 				"sessionTypes": [
 					"local"
 				]
 			},
 			{
 				"path": "./assets/prompts/skills/project-setup-info-context7/SKILL.md",
+				"when": "config.github.copilot.chat.projectSetupInfoSkill.enabled && config.github.copilot.chat.newWorkspace.useContext7",
 				"sessionTypes": [
 					"local"
 				]
 			},
 			{
 				"path": "./assets/prompts/skills/install-vscode-extension/SKILL.md",
+				"when": "config.github.copilot.chat.installExtensionSkill.enabled && config.github.copilot.chat.newWorkspaceCreation.enabled",
 				"sessionTypes": [
 					"local"
 				]
 			},
 			{
 				"path": "./assets/prompts/skills/get-search-view-results/SKILL.md",
+				"when": "config.github.copilot.chat.getSearchViewResultsSkill.enabled",
 				"sessionTypes": [
 					"local"
 				]
