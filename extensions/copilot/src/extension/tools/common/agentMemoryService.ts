@@ -164,7 +164,7 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 
 			const token = await this.getToken();
 			if (!token) {
-				this.logService.warn('[AgentMemoryService] No GitHub session available for storing memory');
+				this.logService.warn('[AgentMemoryService] No GitHub authentication token available for storing memory');
 				return false;
 			}
 
@@ -202,7 +202,7 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 
 			const token = await this.getToken();
 			if (!token) {
-				this.logService.warn('[AgentMemoryService] No GitHub session available for storing user memory');
+				this.logService.warn('[AgentMemoryService] No GitHub authentication token available for storing user memory');
 				return false;
 			}
 
@@ -254,7 +254,7 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 
 			const token = await this.getToken();
 			if (!token) {
-				this.logService.warn('[AgentMemoryService] No GitHub session available for fetching memory prompt');
+				this.logService.warn('[AgentMemoryService] No GitHub authentication token available for fetching memory prompt');
 				return undefined;
 			}
 
