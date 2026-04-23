@@ -198,6 +198,10 @@ suite('CommandLineFileWriteAnalyzer', () => {
 			// Absolute paths are converted to URIs and checked normally
 			test('absolute path inside workspace - outsideWorkspace setting - allow', () => tNoCwd('echo hello > /workspace/project/file.txt', 'outsideWorkspace', true, 1));
 			test('absolute path outside workspace - outsideWorkspace setting - block', () => tNoCwd('echo hello > /tmp/file.txt', 'outsideWorkspace', false, 1));
+			test('quoted absolute path inside workspace - outsideWorkspace setting - allow', () => tNoCwd('echo hello > "/workspace/project/file.txt"', 'outsideWorkspace', true, 1));
+			test('quoted absolute path outside workspace - outsideWorkspace setting - block', () => tNoCwd('echo hello > "/tmp/file.txt"', 'outsideWorkspace', false, 1));
+			test('single-quoted absolute path inside workspace - outsideWorkspace setting - allow', () => tNoCwd('echo hello > \'/workspace/project/file.txt\'', 'outsideWorkspace', true, 1));
+			test('single-quoted absolute path outside workspace - outsideWorkspace setting - block', () => tNoCwd('echo hello > \'/tmp/file.txt\'', 'outsideWorkspace', false, 1));
 			test('absolute path - all setting - block', () => tNoCwd('echo hello > /tmp/file.txt', 'all', false, 1));
 		});
 	});
@@ -456,5 +460,36 @@ suite('CommandLineFileWriteAnalyzer', () => {
 		test('unquoted absolute path outside remote workspace - block', () => t('echo hello > /home/user/other/file.txt', false, 1));
 		test('relative path in remote workspace - allow', () => t('echo hello > file.txt', true, 1));
 		test('relative path with subdirectory in remote workspace - allow', () => t('echo hello > subdir/file.txt', true, 1));
+	});
+
+	suite('windows path normalization (cross-platform)', () => {
+		const cwd = URI.file('C:/workspace/project');
+
+		async function t(commandLine: string, expectedAutoApprove: boolean, expectedDisclaimers: number = 0) {
+			configurationService.setUserConfiguration(TerminalChatAgentToolsSettingId.BlockDetectedFileWrites, 'outsideWorkspace');
+
+			const workspace = new Workspace('test', [toWorkspaceFolder(cwd)]);
+			workspaceContextService.setWorkspace(workspace);
+
+			const options: ICommandLineAnalyzerOptions = {
+				commandLine,
+				cwd,
+				shell: 'pwsh',
+				os: OperatingSystem.Windows,
+				treeSitterLanguage: TreeSitterCommandParserLanguage.PowerShell,
+				terminalToolSessionId: 'test',
+				chatSessionResource: undefined,
+			};
+
+			const result = await analyzer.analyze(options);
+			strictEqual(result.isAutoApproveAllowed, expectedAutoApprove, `Expected auto approve to be ${expectedAutoApprove} for: ${commandLine}`);
+			strictEqual((result.disclaimers || []).length, expectedDisclaimers, `Expected ${expectedDisclaimers} disclaimers for: ${commandLine}`);
+		}
+
+		test('absolute path with backslashes inside workspace - allow', () => t('Write-Host "hello" > C:\\workspace\\project\\file.txt', true, 1));
+		test('absolute path with forward slashes inside workspace - allow', () => t('Write-Host "hello" > C:/workspace/project/file.txt', true, 1));
+		test('absolute path with backslashes outside workspace - block', () => t('Write-Host "hello" > C:\\workspace\\outside\\file.txt', false, 1));
+		test('quoted absolute path with backslashes inside workspace - allow', () => t('Write-Host "hello" > "C:\\workspace\\project\\file.txt"', true, 1));
+		test('absolute path with different casing inside workspace - allow', () => t('Write-Host "hello" > c:\\WORKSPACE\\PROJECT\\file.txt', true, 1));
 	});
 });
