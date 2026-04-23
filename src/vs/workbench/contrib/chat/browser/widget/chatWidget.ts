@@ -1899,7 +1899,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				if (e.followup.subCommand) {
 					msg += `${chatSubcommandLeader}${e.followup.subCommand} `;
 				}
-			} else if (!e.followup.agentId && e.followup.subCommand && this.chatSlashCommandService.hasCommand(e.followup.subCommand)) {
+			} else if (!e.followup.agentId && e.followup.subCommand && this.chatSlashCommandService.hasCommand(e.followup.subCommand, getChatSessionType(this.viewModel.model.sessionResource))) {
 				msg = `${chatSubcommandLeader}${e.followup.subCommand} `;
 			}
 
