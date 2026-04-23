@@ -454,6 +454,14 @@ export interface IActionListOptions {
 	readonly minWidth?: number;
 
 	/**
+	 * Fixed width for the action list. When set, DOM-based width measurement is
+	 * skipped and this value is used directly, preventing width fluctuations caused
+	 * by scrollbar presence (which changes with window height). Use this for pickers
+	 * that should have a stable, fixed width (e.g. the workspace picker at 600px).
+	 */
+	readonly fixedWidth?: number;
+
+	/**
 	 * Optional handler for markdown links activated in item descriptions or hovers.
 	 * When unset, links open via the opener service with command links allowed.
 	 */
@@ -1608,6 +1616,7 @@ export class ActionList<T> extends Disposable {
 	private _cachedMaxWidth: number | undefined;
 	private _hasLaidOut = false;
 	private _showAbove: boolean | undefined;
+	private readonly _options: IActionListOptions | undefined;
 
 	get domNode(): HTMLElement {
 		return this._widget.domNode;
@@ -1646,6 +1655,7 @@ export class ActionList<T> extends Disposable {
 	) {
 		super();
 		this._anchor = anchor;
+		this._options = options;
 
 		this._widget = this._register(instantiationService.createInstance(
 			ActionListWidget<T>,
@@ -1710,7 +1720,6 @@ export class ActionList<T> extends Disposable {
 		const listHeight = this._widget.computeListHeight();
 
 		const filterHeight = this._widget.filterContainer ? 36 : 0;
-		const padding = 10;
 		const targetWindow = dom.getWindow(this.domNode);
 		let availableHeight;
 
@@ -1718,8 +1727,9 @@ export class ActionList<T> extends Disposable {
 			const viewportHeight = targetWindow.innerHeight;
 			const anchorRect = getAnchorRect(this._anchor);
 			const anchorTopInViewport = anchorRect.top - targetWindow.pageYOffset;
-			const spaceBelow = viewportHeight - anchorTopInViewport - anchorRect.height - padding;
-			const spaceAbove = anchorTopInViewport - padding;
+			const bottomGap = 30;
+			const spaceBelow = viewportHeight - anchorTopInViewport - anchorRect.height - bottomGap;
+			const spaceAbove = anchorTopInViewport;
 
 			// Lock the direction on first layout based on whether the full
 			// unconstrained list fits below. Once decided, the dropdown stays
@@ -1730,6 +1740,7 @@ export class ActionList<T> extends Disposable {
 			}
 			availableHeight = this._showAbove ? spaceAbove : spaceBelow;
 		} else {
+			const padding = 10;
 			const windowHeight = this._layoutService.getContainer(targetWindow).clientHeight;
 			const widgetTop = this.domNode.getBoundingClientRect().top;
 			availableHeight = widgetTop > 0 ? windowHeight - widgetTop - padding : windowHeight * 0.7;
@@ -1749,7 +1760,16 @@ export class ActionList<T> extends Disposable {
 		const listHeight = this.computeHeight();
 		this._widget.layout(listHeight);
 
-		this._cachedMaxWidth = this._widget.computeMaxWidth(minWidth);
+		// When a fixedWidth is provided, skip DOM measurement entirely.
+		// DOM-based measurement varies with scrollbar presence (which depends on
+		// the list height), causing the width to fluctuate as the window is resized.
+		let computedWidth: number;
+		if (this._options?.fixedWidth !== undefined) {
+			computedWidth = this._options.fixedWidth;
+		} else {
+			computedWidth = this._widget.computeMaxWidth(minWidth);
+		}
+		this._cachedMaxWidth = computedWidth;
 		this._widget.layout(listHeight, this._cachedMaxWidth);
 
 		return this._cachedMaxWidth;

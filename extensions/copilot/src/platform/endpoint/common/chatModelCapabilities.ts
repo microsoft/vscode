@@ -67,6 +67,8 @@ const HIDDEN_MODEL_J_HASHES: string[] = [
 	'5a81e6aa7556585ba7c569881d1103683adc9e0124ff7952df423afba2f167b5',
 ];
 
+const HIDDEN_MODEL_K_HASH = 'a62e299160a1075d9973c28a7aa77f446c21c09887c7aa65c11022918cf83eda';
+
 const HIDDEN_FAMILY_H_HASHES: string[] = [
 	'70fcded3f255d368e868cc807d8838a62108bfa5c86ce7d37966f58cda229e33',
 ];
@@ -104,6 +106,11 @@ export function isHiddenModelG(model: LanguageModelChat | IChatEndpoint) {
 export function isHiddenFamilyH(model: LanguageModelChat | IChatEndpoint) {
 	const family_hash = getCachedSha256Hash(model.family);
 	return HIDDEN_FAMILY_H_HASHES.includes(family_hash);
+}
+
+export function isHiddenModelK(model: LanguageModelChat | IChatEndpoint) {
+	const h = getCachedSha256Hash(model.family);
+	return h === HIDDEN_MODEL_K_HASH;
 }
 
 
@@ -230,7 +237,7 @@ export function modelPrefersJsonNotebookRepresentation(model: LanguageModelChat 
  * Model supports replace_string_in_file as an edit tool.
  */
 export function modelSupportsReplaceString(model: LanguageModelChat | IChatEndpoint): boolean {
-	return model.family.toLowerCase().includes('gemini') || model.family.includes('grok-code') || modelSupportsMultiReplaceString(model) || isHiddenModelF(model) || isMinimaxFamily(model) || isHiddenFamilyH(model);
+	return isGeminiFamily(model) || model.family.includes('grok-code') || modelSupportsMultiReplaceString(model) || isHiddenModelF(model) || isMinimaxFamily(model) || isHiddenFamilyH(model);
 }
 
 /**
@@ -295,7 +302,7 @@ export function modelCanUseApplyPatchExclusively(model: LanguageModelChat | ICha
  * replace_string.
  */
 export function modelNeedsStrongReplaceStringHint(model: LanguageModelChat | IChatEndpoint): boolean {
-	return model.family.toLowerCase().includes('gemini') || isHiddenModelF(model);
+	return isGeminiFamily(model) || isHiddenModelF(model);
 }
 
 /**
@@ -309,8 +316,9 @@ export function isAnthropicFamily(model: LanguageModelChat | IChatEndpoint): boo
 	return model.family.startsWith('claude') || model.family.startsWith('Anthropic') || isHiddenModelG(model);
 }
 
-export function isGeminiFamily(model: LanguageModelChat | IChatEndpoint): boolean {
-	return model.family.toLowerCase().startsWith('gemini');
+export function isGeminiFamily(model: LanguageModelChat | IChatEndpoint | string): boolean {
+	const family = typeof model === 'string' ? model : model.family;
+	return family.toLowerCase().startsWith('gemini') || getCachedSha256Hash(family) === HIDDEN_MODEL_K_HASH;
 }
 
 export function isMinimaxFamily(model: LanguageModelChat | IChatEndpoint): boolean {

@@ -212,7 +212,7 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 		hasToolConfirmationKey.set(true);
 		this._register(toDisposable(() => hasToolConfirmationKey.reset()));
 
-		this._register(confirmWidget.onDidClick(async button => {
+		this._register(confirmWidget.onDidClick(async ({ button, isTouchClick }) => {
 			let doComplete = true;
 			const data = button.data;
 			let toolConfirmKind: ToolConfirmKind = ToolConfirmKind.Denied;
@@ -373,7 +373,9 @@ export class ChatTerminalToolConfirmationSubPart extends BaseChatToolInvocationS
 
 			if (doComplete) {
 				IChatToolInvocation.confirmWith(toolInvocation, { type: toolConfirmKind });
-				this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource)?.focusInput();
+				if (!isTouchClick) {
+					this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource)?.focusInput();
+				}
 			}
 		}));
 

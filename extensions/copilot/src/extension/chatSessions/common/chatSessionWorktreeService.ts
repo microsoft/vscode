@@ -63,7 +63,6 @@ export interface IChatSessionWorktreeService {
 	createWorktree(repositoryPath: vscode.Uri, stream?: vscode.ChatResponseStream, baseBranch?: string, branchName?: string): Promise<ChatSessionWorktreeProperties | undefined>;
 
 	getWorktreeProperties(sessionId: string): Promise<ChatSessionWorktreeProperties | undefined>;
-	getWorktreeProperties(folder: vscode.Uri): Promise<ChatSessionWorktreeProperties | undefined>;
 	setWorktreeProperties(sessionId: string, properties: string | ChatSessionWorktreeProperties): Promise<void>;
 
 	getWorktreeRepository(sessionId: string): Promise<RepoContext | undefined>;
@@ -71,9 +70,9 @@ export interface IChatSessionWorktreeService {
 
 	applyWorktreeChanges(sessionId: string): Promise<void>;
 
-	getSessionIdForWorktree(folder: vscode.Uri): Promise<string | undefined>;
-
 	getWorktreeChanges(sessionId: string): Promise<readonly vscode.ChatSessionChangedFile[] | undefined>;
+
+	hasCachedChanges(sessionId: string): Promise<boolean>;
 
 	handleRequestCompleted(sessionId: string): Promise<void>;
 

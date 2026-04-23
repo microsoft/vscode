@@ -59,4 +59,6 @@ export interface IChatSessionWorkspaceFolderService {
 	 * Returns the affected session IDs.
 	 */
 	clearWorkspaceChanges(folderUri: vscode.Uri): string[];
+
+	hasCachedChanges(sessionId: string): Promise<boolean>;
 }

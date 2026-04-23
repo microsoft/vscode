@@ -956,8 +956,10 @@ export class McpListWidget extends Disposable {
 		// When offsetHeight returns 0 the container just became visible
 		// after display:none and the browser hasn't reflowed yet — defer
 		// layout to the next frame so measurements are accurate.
+		// Skip the retry when the element is hidden (display:none parent)
+		// since rAF will never produce a non-zero measurement.
 		const searchBarHeight = this.searchAndButtonContainer.offsetHeight;
-		if (searchBarHeight === 0) {
+		if (searchBarHeight === 0 && this.element.offsetParent !== null) {
 			DOM.getWindow(this.element).requestAnimationFrame(() => this.layout(this.lastHeight, this.lastWidth));
 			return;
 		}

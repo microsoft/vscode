@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { PermissionMode } from '@anthropic-ai/claude-agent-sdk';
+import { EffortLevel, PermissionMode } from '@anthropic-ai/claude-agent-sdk';
 import { CapturingToken } from '../../../../platform/requestLogger/common/capturingToken';
 import { arrayEquals } from '../../../../util/vs/base/common/equals';
 import { Emitter } from '../../../../util/vs/base/common/event';
@@ -122,11 +122,11 @@ export class ClaudeSessionStateService extends Disposable implements IClaudeSess
 		});
 	}
 
-	getReasoningEffortForSession(sessionId: string): string | undefined {
+	getReasoningEffortForSession(sessionId: string): EffortLevel | undefined {
 		return this._sessionState.get(sessionId)?.reasoningEffort;
 	}
 
-	setReasoningEffortForSession(sessionId: string, effort: string | undefined): void {
+	setReasoningEffortForSession(sessionId: string, effort: EffortLevel | undefined): void {
 		const existing = this._sessionState.get(sessionId);
 		if (existing?.reasoningEffort === effort) {
 			return;

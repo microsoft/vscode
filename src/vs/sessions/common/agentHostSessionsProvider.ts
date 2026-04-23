@@ -7,7 +7,7 @@ import { Event } from '../../base/common/event.js';
 import { IObservable } from '../../base/common/observable.js';
 import { equals } from '../../base/common/objects.js';
 import { RemoteAgentHostConnectionStatus } from '../../platform/agentHost/common/remoteAgentHostService.js';
-import { IResolveSessionConfigResult, ISessionConfigValueItem } from '../../platform/agentHost/common/state/protocol/commands.js';
+import { ResolveSessionConfigResult, SessionConfigValueItem } from '../../platform/agentHost/common/state/protocol/commands.js';
 import { ISessionsProvider } from '../services/sessions/common/sessionsProvider.js';
 
 /**
@@ -42,7 +42,7 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	/** Fires when dynamic configuration for a session changes. */
 	readonly onDidChangeSessionConfig: Event<string>;
 	/** Returns the last resolved dynamic configuration for a session. */
-	getSessionConfig(sessionId: string): IResolveSessionConfigResult | undefined;
+	getSessionConfig(sessionId: string): ResolveSessionConfigResult | undefined;
 	/** Sets one dynamic configuration property and re-resolves the schema. */
 	setSessionConfigValue(sessionId: string, property: string, value: unknown): Promise<void>;
 	/**
@@ -61,15 +61,17 @@ export interface IAgentHostSessionsProvider extends ISessionsProvider {
 	 */
 	replaceSessionConfig(sessionId: string, values: Record<string, unknown>): Promise<void>;
 	/** Returns dynamic completions for a configuration property. */
-	getSessionConfigCompletions(sessionId: string, property: string, query?: string): Promise<readonly ISessionConfigValueItem[]>;
+	getSessionConfigCompletions(sessionId: string, property: string, query?: string): Promise<readonly SessionConfigValueItem[]>;
 	/** Returns the resolved config that should be sent to createSession. */
 	getCreateSessionConfig(sessionId: string): Record<string, unknown> | undefined;
 	/** Clears dynamic configuration state for an abandoned new session. */
 	clearSessionConfig(sessionId: string): void;
 }
 
-const LOCAL_AGENT_HOST_PROVIDER_ID = 'local-agent-host';
-const REMOTE_AGENT_HOST_PROVIDER_PREFIX = 'agenthost-';
+export const LOCAL_AGENT_HOST_PROVIDER_ID = 'local-agent-host';
+export const REMOTE_AGENT_HOST_PROVIDER_PREFIX = 'agenthost-';
+export const REMOTE_AGENT_HOST_PROVIDER_RE = /^agenthost-/;
+export const ANY_AGENT_HOST_PROVIDER_RE = /^(local-agent-host|agenthost-)/;
 
 /**
  * Checks whether a provider is an agent host provider based on its
@@ -88,7 +90,7 @@ export function isAgentHostProvider(provider: ISessionsProvider): provider is IA
  * are deep-compared via {@link equals} so non-string entries (e.g. permission
  * objects) compare correctly.
  */
-export function resolvedConfigsEqual(a: IResolveSessionConfigResult, b: IResolveSessionConfigResult): boolean {
+export function resolvedConfigsEqual(a: ResolveSessionConfigResult, b: ResolveSessionConfigResult): boolean {
 	const aValueKeys = Object.keys(a.values);
 	const bValueKeys = Object.keys(b.values);
 	if (aValueKeys.length !== bValueKeys.length) {

@@ -28,8 +28,8 @@ import {
 import { Extensions as JSONExtensions, IJSONContributionRegistry } from '../../../../platform/jsonschemas/common/jsonContributionRegistry.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { Registry } from '../../../../platform/registry/common/platform.js';
-import { ISessionConfigPropertySchema, ISessionConfigSchema } from '../../../../platform/agentHost/common/state/protocol/state.js';
-import { IResolveSessionConfigResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
+import { SessionConfigPropertySchema, SessionConfigSchema } from '../../../../platform/agentHost/common/state/protocol/state.js';
+import { ResolveSessionConfigResult } from '../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ISession, toSessionId } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
@@ -300,7 +300,7 @@ export class AgentSessionSettingsFileSystemProvider extends Disposable implement
  * {@link IJSONSchema} suitable for registration with the JSON language
  * service.
  */
-function convertPropertySchema(schema: ISessionConfigPropertySchema): IJSONSchema {
+function convertPropertySchema(schema: SessionConfigPropertySchema): IJSONSchema {
 	const out: IJSONSchema = {
 		type: schema.type,
 		title: schema.title,
@@ -335,7 +335,7 @@ function convertPropertySchema(schema: ISessionConfigPropertySchema): IJSONSchem
  * {@link serializeSessionSettings} so validation matches the file contents
  * produced by this provider.
  */
-export function buildSessionSettingsJsonSchema(config: IResolveSessionConfigResult): IJSONSchema {
+export function buildSessionSettingsJsonSchema(config: ResolveSessionConfigResult): IJSONSchema {
 	const properties: Record<string, IJSONSchema> = {};
 	const required: string[] = [];
 	for (const [key, schema] of Object.entries(config.schema.properties)) {
@@ -350,7 +350,7 @@ export function buildSessionSettingsJsonSchema(config: IResolveSessionConfigResu
 	const result: IJSONSchema = {
 		type: 'object',
 		properties,
-		additionalProperties: false,
+		additionalProperties: true,
 	};
 	if (required.length > 0) {
 		result.required = required;
@@ -371,7 +371,7 @@ export function buildSessionSettingsJsonSchema(config: IResolveSessionConfigResu
  * or its provider is removed.
  *
  * A schema is rebuilt only when the session's underlying
- * {@link ISessionConfigSchema} changes by identity (protocol config schemas
+ * {@link SessionConfigSchema} changes by identity (protocol config schemas
  * are treated as immutable snapshots); value-only changes are ignored to
  * avoid churning the JSON language service.
  */
@@ -386,11 +386,11 @@ export class AgentSessionSettingsSchemaRegistrar extends Disposable {
 	private readonly _sessionSchemas = this._register(new DisposableMap<string /* settingsUri */>());
 
 	/**
-	 * Tracks the {@link ISessionConfigSchema} identity last used to register
+	 * Tracks the {@link SessionConfigSchema} identity last used to register
 	 * a schema for a given settings URI, so we can skip re-registration when
 	 * only values have changed.
 	 */
-	private readonly _lastSchemaIdentity = new Map<string /* settingsUri */, ISessionConfigSchema>();
+	private readonly _lastSchemaIdentity = new Map<string /* settingsUri */, SessionConfigSchema>();
 
 	constructor(
 		@ISessionsProvidersService private readonly _sessionsProvidersService: ISessionsProvidersService,
@@ -493,7 +493,7 @@ export class AgentSessionSettingsSchemaRegistrar extends Disposable {
 		// client only knows how to fetch schema content for that scheme.
 		// The settings-file URI is used as the fileMatch glob so the schema
 		// is applied to the actual editor document.
-		const schemaId = `vscode://schemas/agent-session-settings/${session.providerId}${session.resource.scheme}${session.resource.path}.jsonc`;
+		const schemaId = `vscode://schemas/agent-session-settings/${session.providerId}/${session.resource.scheme}/${session.resource.path}.jsonc`;
 		const identity = config.schema;
 		if (this._lastSchemaIdentity.get(settingsUri) === identity) {
 			return;
@@ -520,3 +520,4 @@ export class AgentSessionSettingsSchemaRegistrar extends Disposable {
 		this._sessionSchemas.deleteAndDispose(schemaUri);
 	}
 }
+

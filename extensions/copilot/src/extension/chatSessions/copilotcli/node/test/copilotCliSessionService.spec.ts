@@ -77,8 +77,11 @@ class NullChatSessionWorktreeService extends mock<IChatSessionWorktreeService>()
 
 class NullCustomSessionTitleService implements ICustomSessionTitleService {
 	declare _serviceBrand: undefined;
-	async getCustomSessionTitle(_sessionId: string): Promise<string | undefined> { return undefined; }
-	async setCustomSessionTitle(_sessionId: string, _title: string): Promise<void> { }
+	private readonly titles = new Map<string, string>();
+	async getCustomSessionTitle(sessionId: string): Promise<string | undefined> { return this.titles.get(sessionId); }
+	async setCustomSessionTitle(sessionId: string, title: string): Promise<void> {
+		this.titles.set(sessionId, title);
+	}
 	async generateSessionTitle(_sessionId: string, _request: { prompt?: string; command?: string }): Promise<string | undefined> { return undefined; }
 }
 
@@ -330,6 +333,49 @@ describe('CopilotCLISessionService', () => {
 			const session = await service.getSession({ sessionId: 'does-not-exist', ...sessionOptionsFor() }, CancellationToken.None);
 			disposables.add(session!);
 			expect(session).toBeUndefined();
+		});
+	});
+
+	describe('CopilotCLISessionService.renameSession', () => {
+		it('renames an inactive session through copilot/sdk', async () => {
+			const sessionId = 'rename-inactive';
+			manager.sessions.set(sessionId, new MockCliSdkSession(sessionId, new Date()));
+
+			await service.renameSession(sessionId, 'Renamed From VS Code');
+
+			expect(manager.sessions.get(sessionId)?.title).toBe('Renamed From VS Code');
+			expect(await service.getSessionTitle(sessionId, CancellationToken.None)).toBe('Renamed From VS Code');
+		});
+
+		it('renames an active wrapped session through copilot/sdk', async () => {
+			const session = await service.createSession({ sessionId: 'rename-active', ...sessionOptionsFor(URI.file('/tmp')) }, CancellationToken.None);
+
+			await service.renameSession(session.object.sessionId, 'Wrapped Session Name');
+
+			expect(manager.sessions.get(session.object.sessionId)?.title).toBe('Wrapped Session Name');
+			expect(await service.getSessionTitle(session.object.sessionId, CancellationToken.None)).toBe('Wrapped Session Name');
+			session.dispose();
+		});
+
+		it('updates session summaries through copilot/sdk for untitled sessions', async () => {
+			const sessionId = 'summary-session';
+			manager.sessions.set(sessionId, new MockCliSdkSession(sessionId, new Date()));
+
+			await service.updateSessionSummary(sessionId, 'Generated Summary');
+
+			expect(manager.sessions.get(sessionId)?.summary).toBe('Generated Summary');
+			expect(await service.getSessionTitle(sessionId, CancellationToken.None)).toBe('Generated Summary');
+		});
+
+		it('syncs staged titles for newly created vscode sessions into copilot/sdk', async () => {
+			const sessionId = service.createNewSessionId();
+			await (service as unknown as { customSessionTitleService: ICustomSessionTitleService }).customSessionTitleService.setCustomSessionTitle(sessionId, 'Staged Session Title');
+
+			const session = await service.createSession({ sessionId, ...sessionOptionsFor(URI.file('/tmp')) }, CancellationToken.None);
+
+			expect(manager.sessions.get(sessionId)?.summary).toBe('Staged Session Title');
+			expect(await service.getSessionTitle(sessionId, CancellationToken.None)).toBe('Staged Session Title');
+			session.dispose();
 		});
 	});
 

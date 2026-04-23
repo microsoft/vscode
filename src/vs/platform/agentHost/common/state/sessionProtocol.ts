@@ -14,59 +14,59 @@
 
 // JSON-RPC base types
 export type {
-	IJsonRpcErrorResponse,
-	IJsonRpcNotification,
-	IJsonRpcRequest,
-	IJsonRpcResponse,
-	IJsonRpcSuccessResponse,
+	JsonRpcErrorResponse,
+	JsonRpcNotification,
+	JsonRpcRequest,
+	JsonRpcResponse,
+	JsonRpcSuccessResponse,
 } from './protocol/messages.js';
 
 // Typed message unions
 export type {
-	IAhpClientNotification,
-	IAhpNotification,
-	IAhpRequest,
-	IAhpResponse,
-	IAhpServerNotification,
-	IAhpSuccessResponse,
-	ICommandMap,
-	IClientNotificationMap,
-	INotificationMap,
-	INotificationMethodParams,
-	IProtocolMessage,
-	IServerNotificationMap,
+	AhpClientNotification,
+	AhpNotification,
+	AhpRequest,
+	AhpResponse,
+	AhpServerNotification,
+	AhpSuccessResponse,
+	CommandMap,
+	ClientNotificationMap,
+	NotificationMap,
+	NotificationMethodParams,
+	ProtocolMessage,
+	ServerNotificationMap,
 } from './protocol/messages.js';
 
 // Command params and results
 export type {
-	ICreateSessionParams,
-	IDirectoryEntry,
-	IDispatchActionParams,
-	IDisposeSessionParams,
-	IFetchTurnsParams,
-	IFetchTurnsResult,
-	IInitializeParams,
-	IInitializeResult,
-	IListSessionsParams,
-	IListSessionsResult,
-	IReconnectParams,
-	IReconnectReplayResult,
-	IReconnectResult,
-	IReconnectSnapshotResult,
-	IResourceCopyParams,
-	IResourceCopyResult,
-	IResourceDeleteParams,
-	IResourceDeleteResult,
-	IResourceListParams,
-	IResourceListResult,
-	IResourceMoveParams,
-	IResourceMoveResult,
-	IResourceReadParams,
-	IResourceReadResult,
-	IResourceWriteParams,
-	IResourceWriteResult,
-	ISubscribeParams,
-	IUnsubscribeParams,
+	CreateSessionParams,
+	DirectoryEntry,
+	DispatchActionParams,
+	DisposeSessionParams,
+	FetchTurnsParams,
+	FetchTurnsResult,
+	InitializeParams,
+	InitializeResult,
+	ListSessionsParams,
+	ListSessionsResult,
+	ReconnectParams,
+	ReconnectReplayResult,
+	ReconnectResult,
+	ReconnectSnapshotResult,
+	ResourceCopyParams,
+	ResourceCopyResult,
+	ResourceDeleteParams,
+	ResourceDeleteResult,
+	ResourceListParams,
+	ResourceListResult,
+	ResourceMoveParams,
+	ResourceMoveResult,
+	ResourceReadParams,
+	ResourceReadResult,
+	ResourceWriteParams,
+	ResourceWriteResult,
+	SubscribeParams,
+	UnsubscribeParams,
 } from './protocol/commands.js';
 
 export { ContentEncoding, ReconnectResultType } from './protocol/commands.js';
@@ -76,7 +76,7 @@ export { AhpErrorCodes, JsonRpcErrorCodes } from './protocol/errors.js';
 export type { AhpErrorCode, JsonRpcErrorCode } from './protocol/errors.js';
 
 // Snapshot type (re-exported from state)
-export type { ISnapshot as IStateSnapshot } from './protocol/state.js';
+export type { Snapshot as IStateSnapshot } from './protocol/state.js';
 
 // ---- Backward-compatible error code aliases ---------------------------------
 
@@ -92,17 +92,17 @@ export const AHP_AUTH_REQUIRED = -32007 as const;
 
 // ---- Type guards -----------------------------------------------------------
 
-import type { IAhpRequest, IAhpNotification, IAhpSuccessResponse, IProtocolMessage, IJsonRpcErrorResponse } from './protocol/messages.js';
+import type { AhpRequest, AhpNotification, AhpSuccessResponse, ProtocolMessage, JsonRpcErrorResponse } from './protocol/messages.js';
 
-export function isJsonRpcRequest(msg: IProtocolMessage): msg is IAhpRequest {
+export function isJsonRpcRequest(msg: ProtocolMessage): msg is AhpRequest {
 	return 'method' in msg && 'id' in msg;
 }
 
-export function isJsonRpcNotification(msg: IProtocolMessage): msg is IAhpNotification {
+export function isJsonRpcNotification(msg: ProtocolMessage): msg is AhpNotification {
 	return 'method' in msg && !('id' in msg);
 }
 
-export function isJsonRpcResponse(msg: IProtocolMessage): msg is IAhpSuccessResponse | IJsonRpcErrorResponse {
+export function isJsonRpcResponse(msg: ProtocolMessage): msg is AhpSuccessResponse | JsonRpcErrorResponse {
 	return 'id' in msg && !('method' in msg);
 }
 

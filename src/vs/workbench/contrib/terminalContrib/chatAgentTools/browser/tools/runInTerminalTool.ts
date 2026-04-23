@@ -1872,6 +1872,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				this._logService.debug(`RunInTerminalTool: Using cached terminal with session resource \`${chatSessionResource}\``);
 				this._terminalToolCreator.refreshShellIntegrationQuality(cachedTerminal);
 				this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, cachedTerminal.instance);
+				// Dispose any previous background notification (e.g. from an earlier
+				// `inputNeeded` race that left an OutputMonitor attached) before reusing
+				// this terminal, so its listeners don't accumulate across invocations.
+				this._backgroundNotifications.deleteAndDispose(cachedTerminal.instance.instanceId);
 				return cachedTerminal;
 			}
 		}

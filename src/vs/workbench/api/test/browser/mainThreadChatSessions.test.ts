@@ -25,7 +25,7 @@ import { IAgentSessionsModel } from '../../../contrib/chat/browser/agentSessions
 import { IAgentSessionsService } from '../../../contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { ChatSessionsService } from '../../../contrib/chat/browser/chatSessions/chatSessions.contribution.js';
 import { IChatProgress, IChatProgressMessage, IChatService } from '../../../contrib/chat/common/chatService/chatService.js';
-import { IChatSessionProviderOptionGroup, IChatSessionRequestHistoryItem, IChatSessionsService } from '../../../contrib/chat/common/chatSessionsService.js';
+import { IChatSessionProviderOptionGroup, IChatSessionItem, IChatSessionRequestHistoryItem, IChatSessionsService } from '../../../contrib/chat/common/chatSessionsService.js';
 import { ChatAgentLocation } from '../../../contrib/chat/common/constants.js';
 import { LocalChatSessionUri } from '../../../contrib/chat/common/model/chatUri.js';
 import { IChatAgentRequest, IChatAgentResult } from '../../../contrib/chat/common/participants/chatAgents.js';
@@ -35,6 +35,7 @@ import { IExtHostContext } from '../../../services/extensions/common/extHostCust
 import { ExtensionHostKind } from '../../../services/extensions/common/extensionHostKind.js';
 import { IExtensionService, nullExtensionDescription } from '../../../services/extensions/common/extensions.js';
 import { IViewsService } from '../../../services/views/common/viewsService.js';
+import { Dto } from '../../../services/extensions/common/proxyIdentifier.js';
 import { mock, TestExtensionService } from '../../../test/common/workbenchTestServices.js';
 import { MainThreadChatSessions, ObservableChatSession } from '../../browser/mainThreadChatSessions.js';
 import { ExtHostChatSessionsShape, IChatProgressDto, IChatSessionDto, IChatSessionProviderOptions, IChatSessionRequestHistoryItemDto } from '../../common/extHost.protocol.js';
@@ -73,6 +74,7 @@ suite('ObservableChatSession', function () {
 			$onDidChangeChatSessionItemState: sinon.stub(),
 			$newChatSessionItem: sinon.stub().resolves(undefined),
 			$forkChatSession: sinon.stub().resolves(undefined),
+			$resolveChatSessionItem: sinon.stub().resolves(undefined),
 			$provideChatSessionInputState: sinon.stub().resolves(undefined),
 		};
 	});
@@ -523,6 +525,7 @@ suite('MainThreadChatSessions', function () {
 			$onDidChangeChatSessionItemState: sinon.stub(),
 			$newChatSessionItem: sinon.stub().resolves(undefined),
 			$forkChatSession: sinon.stub().resolves(undefined),
+			$resolveChatSessionItem: sinon.stub().resolves(undefined),
 			$provideChatSessionInputState: sinon.stub().resolves(undefined),
 		};
 
@@ -912,7 +915,7 @@ suite('MainThreadChatSessions', function () {
 		const sessionScheme = 'test-session-type';
 		const controllerHandle = 0;
 
-		mainThread.$registerChatSessionItemController(controllerHandle, sessionScheme);
+		mainThread.$registerChatSessionItemController(controllerHandle, sessionScheme, false);
 		mainThread.$registerChatSessionContentProvider(1, sessionScheme);
 
 		const resourceA = URI.parse(`${sessionScheme}:/session-a`);
@@ -947,7 +950,7 @@ suite('MainThreadChatSessions', function () {
 		const sessionScheme = 'test-session-type';
 		const controllerHandle = 0;
 
-		mainThread.$registerChatSessionItemController(controllerHandle, sessionScheme);
+		mainThread.$registerChatSessionItemController(controllerHandle, sessionScheme, false);
 		mainThread.$registerChatSessionContentProvider(1, sessionScheme);
 
 		const resourceA = URI.parse(`${sessionScheme}:/session-a`);
@@ -985,6 +988,174 @@ suite('MainThreadChatSessions', function () {
 		mainThread.$unregisterChatSessionContentProvider(1);
 		mainThread.$unregisterChatSessionItemController(controllerHandle);
 	});
+
+	test('resolveChatSessionItem invokes proxy and updates item', async function () {
+		const sessionScheme = 'test-session-type';
+		const controllerHandle = 0;
+
+		mainThread.$registerChatSessionItemController(controllerHandle, sessionScheme, true);
+
+		const resource = URI.parse(`${sessionScheme}:/session-a`);
+		const initialItem: Dto<IChatSessionItem> = {
+			resource,
+			label: 'Session A',
+			timing: { created: 0, lastRequestStarted: undefined, lastRequestEnded: undefined },
+		};
+
+		// Add initial item via $addOrUpdateChatSessionItem
+		await mainThread.$addOrUpdateChatSessionItem(controllerHandle, initialItem);
+
+		const resolvedItem: Dto<IChatSessionItem> = {
+			resource,
+			label: 'Session A',
+			timing: { created: 0, lastRequestStarted: undefined, lastRequestEnded: undefined },
+			badge: 'resolved',
+		};
+
+		asSinonMethodStub(proxy.$resolveChatSessionItem).resolves(resolvedItem);
+
+		const result = await chatSessionsService.resolveChatSessionItem(sessionScheme, resource, CancellationToken.None);
+
+		assert.ok(asSinonMethodStub(proxy.$resolveChatSessionItem).calledOnce);
+		assert.deepStrictEqual(result?.badge, 'resolved');
+
+		mainThread.$unregisterChatSessionItemController(controllerHandle);
+	});
+
+	test('resolveChatSessionItem returns undefined when supportsResolve is false', async function () {
+		const sessionScheme = 'test-session-type';
+		const controllerHandle = 0;
+
+		mainThread.$registerChatSessionItemController(controllerHandle, sessionScheme, false);
+
+		const resource = URI.parse(`${sessionScheme}:/session-a`);
+
+		const result = await chatSessionsService.resolveChatSessionItem(sessionScheme, resource, CancellationToken.None);
+
+		assert.strictEqual(result, undefined);
+		assert.ok(asSinonMethodStub(proxy.$resolveChatSessionItem).notCalled);
+
+		mainThread.$unregisterChatSessionItemController(controllerHandle);
+	});
+
+	test('resolveChatSessionItem cache is invalidated on item update', async function () {
+		const sessionScheme = 'test-session-type';
+		const controllerHandle = 0;
+
+		mainThread.$registerChatSessionItemController(controllerHandle, sessionScheme, true);
+
+		const resource = URI.parse(`${sessionScheme}:/session-a`);
+		const timing = { created: 0, lastRequestStarted: undefined, lastRequestEnded: undefined };
+		const initialItem: Dto<IChatSessionItem> = {
+			resource,
+			label: 'Session A',
+			timing,
+		};
+
+		await mainThread.$addOrUpdateChatSessionItem(controllerHandle, initialItem);
+
+		const resolvedItem1: Dto<IChatSessionItem> = { resource, label: 'Session A', timing, badge: 'first' };
+		const resolvedItem2: Dto<IChatSessionItem> = { resource, label: 'Session A', timing, badge: 'second' };
+
+		const resolveStub = asSinonMethodStub(proxy.$resolveChatSessionItem);
+		resolveStub.onFirstCall().resolves(resolvedItem1);
+		resolveStub.onSecondCall().resolves(resolvedItem2);
+
+		// First resolve
+		const result1 = await chatSessionsService.resolveChatSessionItem(sessionScheme, resource, CancellationToken.None);
+		assert.deepStrictEqual(result1?.badge, 'first');
+
+		// Simulate item update (should invalidate cache)
+		await mainThread.$addOrUpdateChatSessionItem(controllerHandle, { ...initialItem, label: 'Session A Updated' });
+
+		// Second resolve after cache invalidation should call proxy again
+		const result2 = await chatSessionsService.resolveChatSessionItem(sessionScheme, resource, CancellationToken.None);
+		assert.deepStrictEqual(result2?.badge, 'second');
+
+		assert.strictEqual(resolveStub.callCount, 2);
+
+		mainThread.$unregisterChatSessionItemController(controllerHandle);
+	});
+
+	test('resolveChatSessionItem caches undefined result until item update invalidates it', async function () {
+		const sessionScheme = 'test-session-type';
+		const controllerHandle = 0;
+
+		mainThread.$registerChatSessionItemController(controllerHandle, sessionScheme, true);
+
+		const resource = URI.parse(`${sessionScheme}:/session-a`);
+		const timing = { created: 0, lastRequestStarted: undefined, lastRequestEnded: undefined };
+		const initialItem: Dto<IChatSessionItem> = {
+			resource,
+			label: 'Session A',
+			timing,
+		};
+
+		const resolveStub = asSinonMethodStub(proxy.$resolveChatSessionItem);
+		resolveStub.onFirstCall().resolves(undefined);
+		resolveStub.onSecondCall().resolves({ resource, label: 'Session A', timing, badge: 'resolved' } satisfies Dto<IChatSessionItem>);
+
+		// First resolve returns undefined and should be cached.
+		const result1 = await chatSessionsService.resolveChatSessionItem(sessionScheme, resource, CancellationToken.None);
+		assert.strictEqual(result1, undefined);
+
+		// Second resolve should reuse the cached undefined result.
+		const result2 = await chatSessionsService.resolveChatSessionItem(sessionScheme, resource, CancellationToken.None);
+		assert.strictEqual(result2, undefined);
+		assert.strictEqual(resolveStub.callCount, 1);
+
+		// Updating the item should invalidate the cached undefined result.
+		await mainThread.$addOrUpdateChatSessionItem(controllerHandle, initialItem);
+
+		const result3 = await chatSessionsService.resolveChatSessionItem(sessionScheme, resource, CancellationToken.None);
+		assert.deepStrictEqual(result3?.badge, 'resolved');
+
+		assert.strictEqual(resolveStub.callCount, 2);
+
+		mainThread.$unregisterChatSessionItemController(controllerHandle);
+	});
+
+	test('resolveChatSessionItem ignores stale in-flight resolve result after item update', async function () {
+		const sessionScheme = 'test-session-type';
+		const controllerHandle = 0;
+
+		mainThread.$registerChatSessionItemController(controllerHandle, sessionScheme, true);
+
+		const resource = URI.parse(`${sessionScheme}:/session-a`);
+		const timing = { created: 0, lastRequestStarted: undefined, lastRequestEnded: undefined };
+		const initialItem: Dto<IChatSessionItem> = {
+			resource,
+			label: 'Session A',
+			timing,
+		};
+
+		await mainThread.$addOrUpdateChatSessionItem(controllerHandle, initialItem);
+
+		let resolvePending: ((value: Dto<IChatSessionItem>) => void) | undefined;
+		asSinonMethodStub(proxy.$resolveChatSessionItem).returns(new Promise<Dto<IChatSessionItem>>(resolve => {
+			resolvePending = resolve;
+		}));
+
+		const pendingResolve = chatSessionsService.resolveChatSessionItem(sessionScheme, resource, CancellationToken.None);
+
+		await mainThread.$addOrUpdateChatSessionItem(controllerHandle, {
+			...initialItem,
+			label: 'Session A Updated',
+		});
+
+		resolvePending?.({
+			resource,
+			label: 'Session A',
+			timing,
+			badge: 'stale',
+		});
+
+		const result = await pendingResolve;
+		assert.strictEqual(result?.label, 'Session A Updated');
+		assert.strictEqual(result?.badge, undefined);
+
+		mainThread.$unregisterChatSessionItemController(controllerHandle);
+	});
 });
 
 suite('ExtHostChatSessions', function () {
@@ -992,6 +1163,7 @@ suite('ExtHostChatSessions', function () {
 	let extHostChatSessions: ExtHostChatSessions;
 	let mainThreadChatSessionsProxy: {
 		$registerChatSessionItemController: sinon.SinonStub;
+		$updateChatSessionItemControllerCapabilities: sinon.SinonStub;
 		$unregisterChatSessionItemController: sinon.SinonStub;
 		$updateChatSessionItems: sinon.SinonStub;
 		$addOrUpdateChatSessionItem: sinon.SinonStub;
@@ -1007,6 +1179,7 @@ suite('ExtHostChatSessions', function () {
 		disposables = new DisposableStore();
 		mainThreadChatSessionsProxy = {
 			$registerChatSessionItemController: sinon.stub(),
+			$updateChatSessionItemControllerCapabilities: sinon.stub(),
 			$unregisterChatSessionItemController: sinon.stub(),
 			$updateChatSessionItems: sinon.stub().resolves(),
 			$addOrUpdateChatSessionItem: sinon.stub().resolves(),
@@ -1037,6 +1210,21 @@ suite('ExtHostChatSessions', function () {
 			provideChatSessionContent: async () => session,
 		};
 	}
+
+	test('controller only advertises resolve support after resolve handler is assigned', function () {
+		const sessionScheme = 'test-session-type';
+		const controller = disposables.add(extHostChatSessions.createChatSessionItemController(nullExtensionDescription, sessionScheme, async () => { }));
+
+		assert.ok(mainThreadChatSessionsProxy.$registerChatSessionItemController.calledOnceWithExactly(0, sessionScheme, false));
+		assert.ok(mainThreadChatSessionsProxy.$updateChatSessionItemControllerCapabilities.notCalled);
+
+		controller.resolveChatSessionItem = async () => { };
+		assert.ok(mainThreadChatSessionsProxy.$updateChatSessionItemControllerCapabilities.calledOnceWithExactly(0, true));
+
+		controller.resolveChatSessionItem = undefined;
+		assert.ok(mainThreadChatSessionsProxy.$updateChatSessionItemControllerCapabilities.calledTwice);
+		assert.ok(mainThreadChatSessionsProxy.$updateChatSessionItemControllerCapabilities.secondCall.calledWithExactly(0, false));
+	});
 
 	test('advertises controller fork support when only the controller registers a fork handler', async function () {
 		const sessionScheme = 'test-session-type';

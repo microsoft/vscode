@@ -18,8 +18,8 @@ import { ITerminalInstance, ITerminalService } from '../../../../workbench/contr
 import { TerminalCapability } from '../../../../platform/terminal/common/capabilities/capabilities.js';
 import { IPathService } from '../../../../workbench/services/path/common/pathService.js';
 import { Menus } from '../../../browser/menus.js';
-import { isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
-import { SessionsWelcomeVisibleContext } from '../../../common/contextkeys.js';
+import { isAgentHostProvider, LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
+import { SessionsWelcomeVisibleContext, IsPhoneLayoutContext } from '../../../common/contextkeys.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { CopilotCLISessionType, ISession } from '../../../services/sessions/common/session.js';
 import { ISessionsProvidersService } from '../../../services/sessions/browser/sessionsProvidersService.js';
@@ -86,13 +86,17 @@ export class SessionsTerminalContribution extends Disposable implements IWorkben
 		super();
 
 		const profileOverride = derived(reader => {
-			const profiles = this._agentHostTerminalService.profiles.read(reader);
 			const session = this._sessionsManagementService.activeSession.read(reader);
+			if (!session || session.providerId === LOCAL_AGENT_HOST_PROVIDER_ID) {
+				return; // no need to override local default profiles with the local AH
+			}
+
 			const address = this._getSessionAgentHostAddress(session);
 			if (!address) {
 				return;
 			}
 
+			const profiles = this._agentHostTerminalService.profiles.read(reader);
 			return profiles.find(p => p.address === address) ?? this._agentHostTerminalService.getProfileForConnection(address);
 		});
 
@@ -392,7 +396,7 @@ class OpenSessionInTerminalAction extends Action2 {
 				id: Menus.TitleBarSessionMenu,
 				group: 'navigation',
 				order: 10,
-				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated()),
+				when: ContextKeyExpr.and(IsAuxiliaryWindowContext.toNegated(), SessionsWelcomeVisibleContext.toNegated(), IsPhoneLayoutContext.negate()),
 			}]
 		});
 	}

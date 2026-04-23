@@ -22,8 +22,8 @@ import { BaseAgentHostSessionsProvider } from './baseAgentHostSessionsProvider.j
 import { buildAgentHostSessionWorkspace } from '../../../common/agentHostSessionWorkspace.js';
 import { ISessionWorkspace, ISessionWorkspaceBrowseAction } from '../../../services/sessions/common/session.js';
 import { toAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
+import { LOCAL_AGENT_HOST_PROVIDER_ID } from '../../../common/agentHostSessionsProvider.js';
 
-const LOCAL_PROVIDER_ID = 'local-agent-host';
 const LOCAL_RESOURCE_SCHEME_PREFIX = 'agent-host-';
 
 /**
@@ -36,7 +36,7 @@ const LOCAL_RESOURCE_SCHEME_PREFIX = 'agent-host-';
  */
 export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvider {
 
-	readonly id = LOCAL_PROVIDER_ID;
+	readonly id = LOCAL_AGENT_HOST_PROVIDER_ID;
 	readonly label: string;
 	readonly icon: ThemeIcon = Codicon.vm;
 	readonly browseActions: readonly ISessionWorkspaceBrowseAction[];
