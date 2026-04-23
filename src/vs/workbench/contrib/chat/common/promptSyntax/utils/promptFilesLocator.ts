@@ -63,7 +63,7 @@ export class PromptFilesLocator {
 			uri: userDataPromptsHome,
 			parent: userDataPromptsHome,
 			filePattern: undefined,
-			source: PromptFileSource.CopilotPersonal,
+			source: PromptFileSource.UserData,
 			storage: PromptsStorage.user,
 			displayPath: nls.localize('promptsUserDataFolder', "User Data"),
 			isDefault: true
@@ -269,7 +269,7 @@ export class PromptFilesLocator {
 	 * Gets the hook source folders for creating new hooks.
 	 * Returns configured hook folders, excluding Claude paths (which are read-only).
 	 */
-	public async getHookSourceFolders(): Promise<readonly URI[]> {
+	public async getHookSourceFolders(): Promise<readonly IResolvedPromptSourceFolder[]> {
 		const configuredLocations = this.getPromptSourceFolders(PromptsType.hook);
 
 		// Ignore claude folders since they aren't first-class supported, so we don't want to create invalid formats
@@ -278,18 +278,23 @@ export class PromptFilesLocator {
 			!loc.path.startsWith('.claude/') && !loc.path.includes('/.claude/')
 		);
 
-		// Convert to absolute URIs
-		const result = new ResourceSet();
+		// Convert to absolute locations with metadata
 		const absoluteLocations = await this.toAbsoluteLocations(PromptsType.hook, allowedHookFolders);
 
+		// Deduplicate by parent URI, keeping the first occurrence
+		const seen = new ResourceSet();
+		const result: IResolvedPromptSourceFolder[] = [];
 		for (const location of absoluteLocations) {
 			// For hook configs, entries are directories unless the path ends with .json (specific file)
 			// Default entries have filePattern, user entries don't but are still directories
 			// location.parent points to the directory in both cases, so we can just use that
-			result.add(location.parent);
+			if (!seen.has(location.parent)) {
+				seen.add(location.parent);
+				result.push({ ...location, uri: location.parent, filePattern: undefined });
+			}
 		}
 
-		return [...result];
+		return result;
 	}
 
 	/**

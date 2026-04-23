@@ -314,7 +314,7 @@ class InlineChatEditToolsStrategy implements IInlineChatEditStrategy {
 		assertType(documentContext);
 
 		const isLargeFile = documentContext.document.lineCount > LARGE_FILE_LINE_THRESHOLD;
-		const availableTools = await this._getAvailableTools(request, isLargeFile);
+		const availableTools = await this._getAvailableTools(request, endpoint, isLargeFile);
 
 		const previousRounds: ICompletedToolCallRound[] = [];
 		let failedEditCount = 0;
@@ -546,14 +546,9 @@ class InlineChatEditToolsStrategy implements IInlineChatEditStrategy {
 		return { fetchResult, toolCalls, failedEdits, allCallResults };
 	}
 
-	private async _getAvailableTools(request: vscode.ChatRequest, isLargeFile: boolean): Promise<vscode.LanguageModelToolInformation[]> {
+	private async _getAvailableTools(request: vscode.ChatRequest, model: IChatEndpoint, isLargeFile: boolean): Promise<vscode.LanguageModelToolInformation[]> {
 		assertType(request.location2 instanceof ChatRequestEditorData);
 
-		// const exitTool = this._toolsService.getTool(INLINE_CHAT_EXIT_TOOL_NAME);
-		// if (!exitTool) {
-		// 	this._logService.error('MISSING inline chat exit tool');
-		// 	throw new Error('Missing inline chat exit tool');
-		// }
 
 		const enabledTools = new Set(InlineChatIntent._EDIT_TOOLS);
 		if (!request.location2.selection.isEmpty) {
@@ -572,7 +567,7 @@ class InlineChatEditToolsStrategy implements IInlineChatEditStrategy {
 			),
 		};
 
-		const agentTools = await this._instantiationService.invokeFunction(getAgentTools, fakeRequest);
+		const agentTools = await this._instantiationService.invokeFunction(getAgentTools, fakeRequest, model);
 		let editTools = agentTools.filter(tool => enabledTools.has(tool.name));
 
 		if (editTools.length === 0) {

@@ -165,6 +165,7 @@ class ChangesButtonBarWidget extends Disposable {
 	private _getButtonConfiguration(action: IAction, outgoingChanges: number, reviewState: { isLoading: boolean; commentCount: number | undefined }): { showIcon: boolean; showLabel: boolean; isSecondary?: boolean; customLabel?: string; customClass?: string } | undefined {
 		if (
 			action.id === 'github.copilot.sessions.sync' ||
+			action.id === 'github.copilot.claude.sessions.sync' ||
 			action.id === 'github.copilot.chat.createPullRequestCopilotCLIAgentSession.updatePR'
 		) {
 			const customLabel = outgoingChanges > 0
@@ -197,6 +198,9 @@ class ChangesButtonBarWidget extends Disposable {
 			action.id === 'pr.checkoutFromChat' ||
 			action.id === 'github.copilot.sessions.initializeRepository' ||
 			action.id === 'github.copilot.sessions.commit' ||
+			action.id === 'github.copilot.claude.sessions.initializeRepository' ||
+			action.id === 'github.copilot.claude.sessions.commit' ||
+			action.id === 'github.copilot.claude.sessions.commitAndSync' ||
 			action.id === 'agentSession.markAsDone'
 		) {
 			return { showIcon: true, showLabel: true, isSecondary: false };
@@ -1250,7 +1254,7 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 						...action,
 						id: 'chatEditing.versionsBranchChanges',
 						label: localize('chatEditing.versionsBranchChanges', 'Branch Changes'),
-						description: branchName && baseBranchName
+						detail: branchName && baseBranchName
 							? `${branchName} → ${baseBranchName}`
 							: branchName,
 						checked: viewModel.versionModeObs.get() === ChangesVersionMode.BranchChanges,
@@ -1270,7 +1274,7 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 						...action,
 						id: 'chatEditing.versionsUncommittedChanges',
 						label: localize('chatEditing.versionsUncommittedChanges', 'Uncommitted Changes'),
-						description: localize('chatEditing.versionsUncommittedChanges.description', 'Show uncommitted changes in this session'),
+						detail: localize('chatEditing.versionsUncommittedChanges.description', 'Show uncommitted changes in this session'),
 						checked: viewModel.versionModeObs.get() === ChangesVersionMode.UncommittedChanges,
 						category: { label: 'changes', order: 2, showHeader: false },
 						enabled: viewModel.activeSessionTypeObs.get() !== COPILOT_CLOUD_SESSION_TYPE,
@@ -1286,7 +1290,7 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 						...action,
 						id: 'chatEditing.versionsAllChanges',
 						label: localize('chatEditing.versionsAllChanges', 'All Changes'),
-						description: localize('chatEditing.versionsAllChanges.description', 'Show all changes made in this session'),
+						detail: localize('chatEditing.versionsAllChanges.description', 'Show all changes made in this session'),
 						checked: viewModel.versionModeObs.get() === ChangesVersionMode.AllChanges,
 						category: { label: 'checkpoints', order: 3, showHeader: false },
 						enabled: viewModel.activeSessionTypeObs.get() === COPILOT_CLOUD_SESSION_TYPE ||
@@ -1304,7 +1308,7 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 						...action,
 						id: 'chatEditing.versionsLastTurnChanges',
 						label: localize('chatEditing.versionsLastTurnChanges', "Last Turn's Changes"),
-						description: localize('chatEditing.versionsLastTurnChanges.description', 'Show only changes from the last turn'),
+						detail: localize('chatEditing.versionsLastTurnChanges.description', 'Show only changes from the last turn'),
 						checked: viewModel.versionModeObs.get() === ChangesVersionMode.LastTurn,
 						category: { label: 'checkpoints', order: 4, showHeader: false },
 						enabled: viewModel.activeSessionTypeObs.get() === COPILOT_CLOUD_SESSION_TYPE ||
@@ -1324,7 +1328,7 @@ class ChangesPickerActionItem extends ActionWidgetDropdownActionViewItem {
 			},
 		};
 
-		super(action, { actionProvider, listOptions: { descriptionBelow: true } }, actionWidgetService, keybindingService, contextKeyService, telemetryService);
+		super(action, { actionProvider, listOptions: {} }, actionWidgetService, keybindingService, contextKeyService, telemetryService);
 
 		this._register(autorun(reader => {
 			viewModel.versionModeObs.read(reader);

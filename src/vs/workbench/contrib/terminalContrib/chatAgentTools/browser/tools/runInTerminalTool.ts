@@ -18,6 +18,7 @@ import { OperatingSystem, OS } from '../../../../../../base/common/platform.js';
 import { count } from '../../../../../../base/common/strings.js';
 import { generateUuid } from '../../../../../../base/common/uuid.js';
 import { localize } from '../../../../../../nls.js';
+import { ConfirmationOptionKind } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { IInstantiationService, type ServicesAccessor } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -330,7 +331,7 @@ export async function createRunInTerminalToolData(
 		toolReferenceName: TOOL_REFERENCE_NAME,
 		legacyToolReferenceFullNames: LEGACY_TOOL_REFERENCE_FULL_NAMES,
 		displayName: localize('runInTerminalTool.displayName', 'Run in Terminal'),
-		modelDescription: `${modelDescription}\n\nExecution mode:\n- mode='sync': wait for completion up to timeout; if still running, return with a terminal ID.\n- mode='async': wait for an initial idle/output signal, then return with terminal output snapshot and ID. Timeout caps how long to wait for the initial idle/output signal.\n- Prefer mode='sync' for commands that will prompt for interactive input (e.g., npm init, interactive installers, configuration wizards).\n\nTerminal notifications: When an async command finishes or a sync command times out, you will be automatically notified on your next turn with the exit code and terminal output. You will also be notified if the terminal needs input. Use ${TerminalToolId.GetTerminalOutput} to check output before then. Do NOT poll or sleep to wait for completion.`,
+		modelDescription: `${modelDescription}\n\nExecution mode:\n- mode='sync': wait for completion (optionally capped by timeout); if still running when timeout elapses, return with a terminal ID.\n- mode='async': wait for an initial idle/output signal, then return with terminal output snapshot and ID. Timeout caps how long to wait for the initial idle/output signal.\n- Prefer mode='sync' for commands that will prompt for interactive input (e.g., npm init, interactive installers, configuration wizards).\n\nTimeout parameter: Only set 'timeout' when you want a hard cap on how long the tool tracks the command. Omit it to let the command run to completion. Package installs, builds, and long-running scripts should usually omit the timeout rather than guessing a value.\n\nTerminal notifications: When an async command finishes or a sync command times out, you will be automatically notified on your next turn with the exit code and terminal output. You will also be notified if the terminal needs input. Use ${TerminalToolId.GetTerminalOutput} to check output before then. Do NOT poll or sleep to wait for completion.`,
 		userDescription: localize('runInTerminalTool.userDescription', 'Run commands in the terminal'),
 		source: ToolDataSource.Internal,
 		icon: Codicon.terminal,
@@ -354,10 +355,10 @@ export async function createRunInTerminalToolData(
 				},
 				timeout: {
 					type: 'number',
-					description: 'Timeout in milliseconds that determines how long to wait before returning. Use 0 for no timeout.',
+					description: 'Optional hard cap in milliseconds on how long the tool tracks the command before returning. Omit to let the command run to completion (recommended for package installs, builds, and long-running scripts). Use 0 to explicitly indicate no timeout.',
 				},
 			},
-			required: ['command', 'explanation', 'goal', 'mode', 'timeout']
+			required: ['command', 'explanation', 'goal', 'mode']
 		}
 	};
 }
@@ -716,9 +717,9 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 					"The following dependencies required for sandboxed execution are not installed: {0}. Would you like to install them?",
 					depsList
 				)),
-				customButtons: [
-					localize('runInTerminal.missingDeps.install', "Install"),
-					localize('runInTerminal.missingDeps.cancel', "Cancel"),
+				customOptions: [
+					{ id: 'install', label: localize('runInTerminal.missingDeps.install', "Install"), kind: ConfirmationOptionKind.Approve },
+					{ id: 'cancel', label: localize('runInTerminal.missingDeps.cancel', "Cancel"), kind: ConfirmationOptionKind.Deny },
 				],
 			};
 		}
@@ -1112,8 +1113,7 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 		// Handle missing sandbox dependencies install flow.
 		// The user was shown a confirmation window in prepareToolInvocation.
 		if (toolSpecificData.missingSandboxDependencies?.length) {
-			const installButton = localize('runInTerminal.missingDeps.install', "Install");
-			if (invocation.selectedCustomButton === installButton) {
+			if (invocation.selectedCustomButton === 'install') {
 				// Install dependencies, focus terminal for sudo password, wait for completion
 				const sessionResource = invocation.context.sessionResource;
 				const { exitCode } = await this._terminalSandboxService.installMissingSandboxDependencies(toolSpecificData.missingSandboxDependencies, sessionResource, token, {
@@ -1177,17 +1177,12 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 			};
 		}
 		if (executionOptions.mode === 'sync' && args.timeout === undefined) {
-			if (args.isBackground === false) {
-				// Legacy path: isBackground=false didn't require timeout, default to no timeout
-				args.timeout = 0;
-			} else {
-				return {
-					content: [{
-						kind: 'text',
-						value: 'Error: timeout is required for mode=sync and must be provided in milliseconds (use 0 for no timeout).'
-					}]
-				};
-			}
+			// Timeout is optional for mode=sync: when omitted, the tool waits for
+			// the command to complete with no hard cap. Models frequently pick
+			// timeouts that are too short for package installs, builds, and
+			// long-running scripts, which causes the command to be moved to the
+			// background unnecessarily.
+			args.timeout = 0;
 		}
 
 		const chatSessionResource = invocation.context.sessionResource;
@@ -1877,6 +1872,10 @@ export class RunInTerminalTool extends Disposable implements IToolImpl {
 				this._logService.debug(`RunInTerminalTool: Using cached terminal with session resource \`${chatSessionResource}\``);
 				this._terminalToolCreator.refreshShellIntegrationQuality(cachedTerminal);
 				this._terminalChatService.registerTerminalInstanceWithToolSession(terminalToolSessionId, cachedTerminal.instance);
+				// Dispose any previous background notification (e.g. from an earlier
+				// `inputNeeded` race that left an OutputMonitor attached) before reusing
+				// this terminal, so its listeners don't accumulate across invocations.
+				this._backgroundNotifications.deleteAndDispose(cachedTerminal.instance.instanceId);
 				return cachedTerminal;
 			}
 		}

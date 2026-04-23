@@ -209,6 +209,24 @@ registerAction2(class ShowAllWorkspaceSessionsAction extends Action2 {
 	}
 });
 
+//  Collapse All Groups
+
+registerAction2(class CollapseAllGroupsAction extends Action2 {
+	constructor() {
+		super({
+			id: 'sessionsViewPane.collapseAllGroups',
+			title: localize2('collapseAllGroups', "Collapse All Groups"),
+			category: SessionsCategories.Sessions,
+			menu: [{ id: SessionsViewFilterSubMenu, group: '4_collapse', order: 0 }]
+		});
+	}
+	override run(accessor: ServicesAccessor) {
+		const viewsService = accessor.get(IViewsService);
+		const view = viewsService.getViewWithId<SessionsView>(SessionsViewId);
+		view?.sessionsControl?.collapseAllSections();
+	}
+});
+
 //  View Toolbar Actions
 
 registerAction2(class RefreshSessionsAction extends Action2 {
@@ -701,16 +719,6 @@ registerAction2(class MarkSessionAsDoneAction extends Action2 {
 			icon: Codicon.check,
 			precondition: ChatContextKeys.requestInProgress.negate(),
 			menu: [{
-				id: Menus.CommandCenter,
-				order: 103,
-				when: ContextKeyExpr.and(
-					IsAuxiliaryWindowContext.negate(),
-					SessionsWelcomeVisibleContext.negate(),
-					IsNewChatSessionContext.negate(),
-					IsActiveSessionArchivedContext.negate()
-				)
-			},
-			{
 				id: MenuId.ChatEditingSessionChangesToolbar,
 				group: 'navigation',
 				order: 1,
@@ -750,7 +758,7 @@ registerAction2(class AddChatAction extends Action2 {
 	constructor() {
 		super({
 			id: 'agentSession.addChat',
-			title: localize2('addChat', "Add Chat"),
+			title: localize2('addChat', "New Sub-Session"),
 			icon: Codicon.plus,
 			menu: [{
 				id: Menus.CommandCenter,

@@ -9,6 +9,7 @@ import { Codicon } from '../../../../base/common/codicons.js';
 import { CancellationError } from '../../../../base/common/errors.js';
 import { IMarkdownString, MarkdownString } from '../../../../base/common/htmlContent.js';
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { autorun, constObservable, derived, IObservable, IReader, observableFromEvent, observableValue, transaction } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -22,9 +23,9 @@ import { AgentSessionProviders, AgentSessionTarget } from '../../../../workbench
 import { IChatService, IChatSendRequestOptions } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatResponseModel } from '../../../../workbench/contrib/chat/common/model/chatModel.js';
 import { ChatSessionStatus, IChatSessionsService, IChatSessionProviderOptionGroup, IChatSessionProviderOptionItem } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
-import { ISession, IChat, ISessionRepository, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, CopilotCLISessionType, CopilotCloudSessionType, ClaudeCodeSessionType, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange } from '../../../services/sessions/common/session.js';
+import { ISession, IChat, ISessionRepository, ISessionWorkspace, SessionStatus, GITHUB_REMOTE_FILE_SCHEME, IGitHubInfo, CopilotCLISessionType, CopilotCloudSessionType, ClaudeCodeSessionType, ISessionType, ISessionWorkspaceBrowseAction, ISessionFileChange, toSessionId } from '../../../services/sessions/common/session.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../../../../workbench/contrib/chat/common/constants.js';
-import { basename, isEqual } from '../../../../base/common/resources.js';
+import { basename, dirname, isEqual } from '../../../../base/common/resources.js';
 import { ISendRequestOptions, ISessionChangeEvent, ISessionsProvider } from '../../../services/sessions/common/sessionsProvider.js';
 import { ISessionOptionGroup } from '../../chat/browser/newSession.js';
 import { IsolationMode } from './isolationPicker.js';
@@ -39,6 +40,7 @@ import { IContextKeyService, ContextKeyExpr } from '../../../../platform/context
 import { IChatRequestVariableEntry } from '../../../../workbench/contrib/chat/common/attachments/chatVariableEntries.js';
 import { localize } from '../../../../nls.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IGitHubService } from '../../github/browser/githubService.js';
 import { computePullRequestIcon, GitHubPullRequestState } from '../../github/common/types.js';
@@ -232,7 +234,7 @@ class CopilotCLISession extends Disposable implements ICopilotChatSession {
 		@IGitService private readonly gitService: IGitService,
 	) {
 		super();
-		this.id = `${providerId}:${resource.toString()}`;
+		this.id = toSessionId(providerId, resource);
 		this.providerId = providerId;
 		this.sessionType = AgentSessionProviders.Background;
 		this.icon = CopilotCLISessionType.icon;
@@ -516,7 +518,7 @@ export class RemoteNewSession extends Disposable implements ICopilotChatSession 
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 	) {
 		super();
-		this.id = `${providerId}:${resource.toString()}`;
+		this.id = toSessionId(providerId, resource);
 		this.providerId = providerId;
 		this.sessionType = target;
 		this.icon = CopilotCloudSessionType.icon;
@@ -743,7 +745,7 @@ class ClaudeCodeNewSession extends Disposable implements ICopilotChatSession {
 		providerId: string,
 	) {
 		super();
-		this.id = `${providerId}:${resource.toString()}`;
+		this.id = toSessionId(providerId, resource);
 		this.providerId = providerId;
 		this.sessionType = AgentSessionProviders.Claude;
 		this.icon = ClaudeCodeSessionType.icon;
@@ -874,7 +876,7 @@ class AgentSessionAdapter implements ICopilotChatSession {
 		providerId: string,
 		private readonly _gitHubService: IGitHubService | undefined,
 	) {
-		this.id = `${providerId}:${session.resource.toString()}`;
+		this.id = toSessionId(providerId, session.resource);
 		this.resource = session.resource;
 		this.providerId = providerId;
 		this.sessionType = session.providerType;
@@ -1242,6 +1244,7 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ILogService private readonly logService: ILogService,
 		@IGitHubService private readonly gitHubService: IGitHubService,
+		@ILabelService private readonly labelService: ILabelService,
 	) {
 		super();
 
@@ -1334,6 +1337,9 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		}
 
 		const workspace = this.resolveWorkspace(workspaceUri);
+		if (!workspace) {
+			throw new Error(`Cannot resolve workspace for URI: ${workspaceUri.toString()}`);
+		}
 
 		if (workspaceUri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
 			if (sessionTypeId !== CopilotCloudSessionType.id) {
@@ -2015,7 +2021,10 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			this._currentNewSession = undefined;
 		}
 
-		const newWorkspace: ISessionWorkspace = this.resolveWorkspace(repository.workingDirectory || repository.uri);
+		const newWorkspace = this.resolveWorkspace(repository.workingDirectory || repository.uri);
+		if (!newWorkspace) {
+			throw new Error(`Cannot resolve workspace for URI: ${(repository.workingDirectory || repository.uri).toString()}`);
+		}
 		const resource = URI.from({ scheme: AgentSessionProviders.Background, path: `/untitled-${generateUuid()}` });
 		const session = this.instantiationService.createInstance(CopilotCLISession, resource, newWorkspace, this.id);
 		session.setIsolationMode('workspace');
@@ -2170,9 +2179,16 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 		return undefined;
 	}
 
-	resolveWorkspace(repositoryUri: URI): ISessionWorkspace {
+	resolveWorkspace(repositoryUri: URI): ISessionWorkspace | undefined {
+		if (repositoryUri.scheme !== Schemas.file && repositoryUri.scheme !== GITHUB_REMOTE_FILE_SCHEME) {
+			return undefined;
+		}
 		return {
 			label: this._labelFromUri(repositoryUri),
+			description: this._descriptionFromUri(repositoryUri),
+			group: repositoryUri.scheme === GITHUB_REMOTE_FILE_SCHEME
+				? localize('copilotProvider.workspaceGroupRepositories', "Repositories")
+				: localize('copilotProvider.workspaceGroupFolders', "Folders"),
 			icon: this._iconFromUri(repositoryUri),
 			repositories: [{ uri: repositoryUri, workingDirectory: undefined, detail: undefined, baseBranchName: undefined, baseBranchProtected: undefined }],
 			requiresWorkspaceTrust: repositoryUri.scheme !== GITHUB_REMOTE_FILE_SCHEME
@@ -2184,6 +2200,16 @@ export class CopilotChatSessionsProvider extends Disposable implements ISessions
 			return uri.path.substring(1).replace(/\/HEAD$/, '');
 		}
 		return basename(uri);
+	}
+
+	private _descriptionFromUri(uri: URI): string | undefined {
+		if (uri.scheme === GITHUB_REMOTE_FILE_SCHEME) {
+			// For GitHub URIs the path is "/<owner>/<repo>", return the owner as description
+			const parts = uri.path.substring(1).split('/');
+			return parts.length >= 2 ? parts[0] : undefined;
+		}
+		// For local file URIs, return the tildified parent directory path
+		return this.labelService.getUriLabel(dirname(uri), { relative: false });
 	}
 
 	private _iconFromUri(uri: URI): ThemeIcon {

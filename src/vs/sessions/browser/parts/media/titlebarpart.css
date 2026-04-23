@@ -63,19 +63,26 @@
 	align-items: center;
 }
 
-/* Separator before right layout toolbar (only when session actions toolbar also has actions) */
-.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container:not(.has-no-actions) + .titlebar-right-layout-container:not(.has-no-actions)::before {
-	content: '';
-	width: 1px;
-	height: 16px;
-	margin: 0 8px;
-	background-color: var(--vscode-disabledForeground);
+/* Add spacing between the session action group and the right layout actions. */
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container:not(.has-no-actions) + .titlebar-right-layout-container:not(.has-no-actions) {
+	margin-left: 8px;
 }
 
 /* Toggled action buttons in session actions toolbar */
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container .action-label.checked {
 	background: var(--vscode-toolbar-activeBackground);
 	border-radius: var(--vscode-cornerRadius-medium);
+}
+
+/* Secondary sidebar toggle uses icon variants for toggle state — no background needed */
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container .action-label.codicon-agent-secondary-sidebar-toggle-open.checked,
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container .action-label.codicon-agent-secondary-sidebar-toggle-closed.checked {
+	background: none;
+}
+
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container .action-label.codicon-agent-secondary-sidebar-toggle-open.checked:hover,
+.monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-session-actions-container .action-label.codicon-agent-secondary-sidebar-toggle-closed.checked:hover {
+	background: var(--vscode-toolbar-hoverBackground);
 }
 
 .monaco-workbench .part.titlebar > .sessions-titlebar-container > .titlebar-right > .titlebar-actions-container .monaco-action-bar .action-item:not(.disabled) .codicon {

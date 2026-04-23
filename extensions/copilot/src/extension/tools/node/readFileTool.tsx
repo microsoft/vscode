@@ -386,19 +386,19 @@ export class ReadFileTool implements ICopilotTool<ReadFileParams> {
 			const plaintextProps = {
 				skillName: skillInfo.skillName,
 				skillPath: uri.toString(),
-				extensionId,
-				extensionVersion,
+				skillExtensionId: extensionId,
+				skillExtensionVersion: extensionVersion,
 				skillStorage: skillInfo.storage,
-				contentHash,
+				skillContentHash: contentHash,
 			};
 
 			this.telemetryService.sendGHTelemetryEvent('skillContentRead',
 				{
 					skillNameHash: String(hash(skillInfo.skillName)),
-					extensionIdHash: extensionId ? String(hash(extensionId)) : '',
-					extensionVersion: plaintextProps.extensionVersion,
+					skillExtensionIdHash: extensionId ? String(hash(extensionId)) : '',
+					skillExtensionVersion: plaintextProps.skillExtensionVersion,
 					skillStorage: plaintextProps.skillStorage,
-					contentHash,
+					skillContentHash: contentHash,
 				}
 			);
 

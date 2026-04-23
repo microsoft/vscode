@@ -262,6 +262,8 @@ export interface IChatSessionItemController {
 	newChatSessionItem?(request: IChatNewSessionRequest, token: CancellationToken): Promise<IChatSessionItem | undefined>;
 
 	getNewChatSessionInputState?(sessionResource: URI, token: CancellationToken): Promise<readonly IChatSessionProviderOptionGroup[] | undefined>;
+
+	resolveChatSessionItem?(resource: URI, token: CancellationToken): Promise<IChatSessionItem | undefined>;
 }
 
 export interface IChatSessionOptionsChangeEvent {
@@ -396,6 +398,12 @@ export interface IChatSessionsService {
 
 	/** @deprecated Use `getChatSessionItems` */
 	getInProgress(): { chatSessionType: string; count: number }[];
+
+	/**
+	 * Lazily resolves a chat session item, filling in expensive details like timing, changes, and badge.
+	 * Returns the resolved item, or undefined if no resolve handler is available.
+	 */
+	resolveChatSessionItem(chatSessionType: string, resource: URI, token: CancellationToken): Promise<IChatSessionItem | undefined>;
 
 	// #endregion
 

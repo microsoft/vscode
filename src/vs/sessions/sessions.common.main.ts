@@ -247,7 +247,8 @@ import '../workbench/contrib/bulkEdit/browser/preview/bulkEdit.contribution.js';
 // Rename Symbol Tracker for Inline completions.
 import '../workbench/contrib/inlineCompletions/browser/renameSymbolTrackerService.js';
 
-
+// Search Quick Access (file picker only, not the full search contribution)
+import '../workbench/contrib/search/browser/searchQuickAccess.contribution.js';
 
 // Sash
 import '../workbench/contrib/sash/browser/sash.contribution.js';
@@ -427,6 +428,7 @@ import '../workbench/contrib/opener/browser/opener.contribution.js';
 
 import './browser/paneCompositePartService.js';
 import './browser/parts/editorParts.js';
+import './browser/parts/menubar.contribution.js';
 import './browser/layoutActions.js';
 
 import './contrib/accountMenu/browser/account.contribution.js';

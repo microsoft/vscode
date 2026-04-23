@@ -119,6 +119,7 @@ export const OPTIONS: OptionDescriptions<Required<NativeParsedArgs>> = {
 	'extensions-dir': { type: 'string', deprecates: ['extensionHomePath'], cat: 'e', args: 'dir', description: localize('extensionHomePath', "Set the root path for extensions.") },
 	'extensions-download-dir': { type: 'string' },
 	'builtin-extensions-dir': { type: 'string' },
+	'shared-data-dir': { type: 'string' },
 	'list-extensions': { type: 'boolean', cat: 'e', description: localize('listExtensions', "List the installed extensions.") },
 	'agent-plugins-dir': { type: 'string' },
 	'show-versions': { type: 'boolean', cat: 'e', description: localize('showVersions', "Show versions of installed extensions, when using --list-extensions.") },

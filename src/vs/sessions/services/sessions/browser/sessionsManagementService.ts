@@ -11,6 +11,7 @@ import { IContextKey, IContextKeyService } from '../../../../platform/contextkey
 import { ILogService } from '../../../../platform/log/common/log.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { ChatViewPaneTarget, IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
+import { IAgentSessionsService } from '../../../../workbench/contrib/chat/browser/agentSessions/agentSessionsService.js';
 import { IUriIdentityService } from '../../../../platform/uriIdentity/common/uriIdentity.js';
 import { ActiveSessionProviderIdContext, ActiveSessionTypeContext, IsActiveSessionArchivedContext, IsActiveSessionBackgroundProviderContext, IsNewChatInSessionContext, IsNewChatSessionContext } from '../../../common/contextkeys.js';
 import { ActiveSessionSupportsMultiChatContext, IActiveSession, ISessionsChangeEvent, ISessionsManagementService } from '../common/sessionsManagement.js';
@@ -57,6 +58,7 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 		@ISessionsProvidersService private readonly sessionsProvidersService: ISessionsProvidersService,
 		@IUriIdentityService private readonly uriIdentityService: IUriIdentityService,
 		@IChatWidgetService private readonly chatWidgetService: IChatWidgetService,
+		@IAgentSessionsService private readonly agentSessionsService: IAgentSessionsService,
 	) {
 		super();
 
@@ -380,6 +382,13 @@ class SessionsManagementService extends Disposable implements ISessionsManagemen
 
 		if (session) {
 			this.logService.info(`[ActiveSessionService] Active session changed: ${session.resource.toString()}`);
+
+			// Trigger lazy resolve for expensive session properties (e.g. changes,
+			// badge). This is fire-and-forget — the resolve result flows back through
+			// the model's onDidChangeSessions → _refreshSessionCache → adapter.update()
+			// chain, updating observables reactively. Safe for providers without a
+			// resolve handler (returns undefined).
+			this.agentSessionsService.model.observeSession(session.resource);
 		} else {
 			this.logService.trace('[ActiveSessionService] Active session cleared');
 		}

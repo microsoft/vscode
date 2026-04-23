@@ -8,7 +8,7 @@ import { Emitter, Event } from '../../../../base/common/event.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
 import { DisposableStore } from '../../../../base/common/lifecycle.js';
 import { Schemas } from '../../../../base/common/network.js';
-import { basename } from '../../../../base/common/resources.js';
+import { basename, dirname } from '../../../../base/common/resources.js';
 import { IObservable, observableValue } from '../../../../base/common/observable.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -18,6 +18,7 @@ import { AGENT_HOST_SCHEME, agentHostAuthority, toAgentHostUri } from '../../../
 import { AgentSession, type IAgentConnection, type IAgentSessionMetadata } from '../../../../platform/agentHost/common/agentService.js';
 import { IRemoteAgentHostService, RemoteAgentHostConnectionStatus } from '../../../../platform/agentHost/common/remoteAgentHostService.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
 import { INotificationService } from '../../../../platform/notification/common/notification.js';
 import { IStorageService, StorageScope, StorageTarget } from '../../../../platform/storage/common/storage.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
@@ -49,6 +50,8 @@ interface ISerializedSessionMetadata {
 	readonly model?: IAgentSessionMetadata['model'];
 	readonly workingDirectory?: string;
 	readonly isRead?: boolean;
+	readonly isArchived?: boolean;
+	/** @deprecated Legacy name for `isArchived`. */
 	readonly isDone?: boolean;
 	readonly project?: { readonly uri: string; readonly displayName: string };
 }
@@ -62,7 +65,7 @@ function serializeMetadata(meta: IAgentSessionMetadata): ISerializedSessionMetad
 		model: meta.model,
 		workingDirectory: meta.workingDirectory?.toString(),
 		isRead: meta.isRead,
-		isDone: meta.isDone,
+		isArchived: meta.isArchived,
 		project: meta.project ? { uri: meta.project.uri.toString(), displayName: meta.project.displayName } : undefined,
 	};
 }
@@ -77,7 +80,7 @@ function deserializeMetadata(raw: ISerializedSessionMetadata): IAgentSessionMeta
 			model: raw.model,
 			workingDirectory: raw.workingDirectory ? URI.parse(raw.workingDirectory) : undefined,
 			isRead: raw.isRead,
-			isDone: raw.isDone,
+			isArchived: raw.isArchived ?? raw.isDone,
 			project: raw.project ? { uri: URI.parse(raw.project.uri), displayName: raw.project.displayName } : undefined,
 		};
 	} catch {
@@ -183,6 +186,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@ILanguageModelsService languageModelsService: ILanguageModelsService,
 		@IRemoteAgentHostService private readonly _remoteAgentHostService: IRemoteAgentHostService,
+		@ILabelService private readonly _labelService: ILabelService,
 	) {
 		super(chatSessionsService, chatService, chatWidgetService, languageModelsService);
 
@@ -242,8 +246,11 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 	protected _adapterOptions() {
 		return {
 			description: new MarkdownString().appendText(this.label),
-			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined) =>
-				RemoteAgentHostSessionsProvider.buildWorkspace(project, workingDirectory, this.label),
+			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined) => {
+				const uriForDescription = project?.uri ?? workingDirectory;
+				const description = uriForDescription ? this._labelService.getUriLabel(dirname(uriForDescription), { relative: false }) : undefined;
+				return buildAgentHostSessionWorkspace(project, workingDirectory, { providerLabel: this.label, fallbackIcon: Codicon.remote, requiresWorkspaceTrust: false, description });
+			},
 		};
 	}
 
@@ -464,7 +471,7 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 				modifiedTime: adapter.updatedAt.get().getTime(),
 				model: adapter.modelSelection ?? base.model,
 				isRead: adapter.isRead.get(),
-				isDone: adapter.isArchived.get(),
+				isArchived: adapter.isArchived.get(),
 			}));
 		}
 		if (entries.length === 0) {
@@ -484,21 +491,22 @@ export class RemoteAgentHostSessionsProvider extends BaseAgentHostSessionsProvid
 
 	// -- Workspaces ----------------------------------------------------------
 
-	static buildWorkspace(project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined, providerLabel: string): ISessionWorkspace | undefined {
-		return buildAgentHostSessionWorkspace(project, workingDirectory, { providerLabel, fallbackIcon: Codicon.remote, requiresWorkspaceTrust: false });
-	}
-
 	private _buildWorkspaceFromUri(uri: URI): ISessionWorkspace {
 		const folderName = basename(uri) || uri.path;
 		return {
 			label: `${folderName} [${this.label}]`,
+			description: this._labelService.getUriLabel(dirname(uri), { relative: false }),
+			group: this.label,
 			icon: Codicon.remote,
 			repositories: [{ uri, workingDirectory: undefined, detail: undefined, baseBranchName: undefined, baseBranchProtected: undefined }],
 			requiresWorkspaceTrust: true,
 		};
 	}
 
-	resolveWorkspace(repositoryUri: URI): ISessionWorkspace {
+	resolveWorkspace(repositoryUri: URI): ISessionWorkspace | undefined {
+		if (repositoryUri.scheme !== AGENT_HOST_SCHEME) {
+			return undefined;
+		}
 		return this._buildWorkspaceFromUri(repositoryUri);
 	}
 

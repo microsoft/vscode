@@ -154,7 +154,7 @@ export class PermissionPicker extends Disposable {
 					checked: this._currentLevel === ChatPermissionLevel.Default,
 				},
 				label: localize('permissions.default', "Default Approvals"),
-				description: localize('permissions.default.subtext', "Copilot uses your configured settings"),
+				detail: localize('permissions.default.subtext', "Copilot uses your configured settings"),
 				disabled: false,
 			},
 			{
@@ -167,7 +167,7 @@ export class PermissionPicker extends Disposable {
 					checked: this._currentLevel === ChatPermissionLevel.AutoApprove,
 				},
 				label: localize('permissions.autoApprove', "Bypass Approvals"),
-				description: localize('permissions.autoApprove.subtext', "All tool calls are auto-approved"),
+				detail: localize('permissions.autoApprove.subtext', "All tool calls are auto-approved"),
 				disabled: policyRestricted,
 			},
 		];
@@ -183,7 +183,7 @@ export class PermissionPicker extends Disposable {
 					checked: this._currentLevel === ChatPermissionLevel.Autopilot,
 				},
 				label: localize('permissions.autopilot', "Autopilot (Preview)"),
-				description: localize('permissions.autopilot.subtext', "Autonomously iterates from start to finish"),
+				detail: localize('permissions.autopilot.subtext', "Autonomously iterates from start to finish"),
 				disabled: policyRestricted,
 			});
 		}
@@ -219,7 +219,7 @@ export class PermissionPicker extends Disposable {
 			onHide: () => { triggerElement.focus(); },
 		};
 
-		const listOptions: IActionListOptions = { descriptionBelow: true, minWidth: 255 };
+		const listOptions: IActionListOptions = { minWidth: 255 };
 		this.actionWidgetService.show<IPermissionItem>(
 			'permissionPicker',
 			false,

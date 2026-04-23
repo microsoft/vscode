@@ -20,7 +20,7 @@ import { IDomainService } from '../common/domainService';
 import { IChatModelInformation } from '../common/endpointProvider';
 import { ChatEndpoint } from './chatEndpoint';
 
-export class ProxyAgenticSearchEndpoint extends ChatEndpoint {
+export class ProxyAgenticEndpoint extends ChatEndpoint {
 
 	constructor(
 		modelName: string,

@@ -1454,7 +1454,7 @@ export interface IChatSendRequestOptions {
 	rejectedConfirmationData?: any[];
 	attachedContext?: IChatRequestVariableEntry[];
 	resolvedVariables?: IChatRequestVariableEntry[];
-	agentHostSessionConfig?: Record<string, string>;
+	agentHostSessionConfig?: Record<string, unknown>;
 
 	/** The target agent ID can be specified with this property instead of using @ in 'message' */
 	agentId?: string;

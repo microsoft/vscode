@@ -8,7 +8,7 @@
 // and maintains connections, reconnecting as the setting changes.
 
 import { Emitter } from '../../../base/common/event.js';
-import { Disposable, DisposableStore } from '../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { DeferredPromise, raceTimeout } from '../../../base/common/async.js';
 import { ConfigurationTarget, IConfigurationService } from '../../configuration/common/configuration.js';
 import { IInstantiationService } from '../../instantiation/common/instantiation.js';
@@ -59,7 +59,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 	private readonly _tokens = new Map<string, string | undefined>();
 	/**
 	 * Stores the original {@link IRemoteAgentHostEntry} for connections
-	 * registered via {@link addSSHConnection}. This is needed because
+	 * registered via {@link addManagedConnection}. This is needed because
 	 * tunnel entries are not persisted to settings and therefore don't
 	 * appear in {@link configuredEntries}.
 	 */
@@ -206,7 +206,7 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		return connection;
 	}
 
-	async addSSHConnection(entry: IRemoteAgentHostEntry, connection: IAgentConnection): Promise<IRemoteAgentHostConnectionInfo> {
+	async addManagedConnection(entry: IRemoteAgentHostEntry, connection: IAgentConnection, transportDisposable?: IDisposable): Promise<IRemoteAgentHostConnectionInfo> {
 		const address = getEntryAddress(entry);
 
 		// Dispose any existing entry for this address to avoid leaking
@@ -222,6 +222,12 @@ export class RemoteAgentHostService extends Disposable implements IRemoteAgentHo
 		// Create a connection entry wrapping the pre-connected client
 		const protocolClient = connection as RemoteAgentHostProtocolClient;
 		store.add(protocolClient);
+		// Tear the underlying transport (e.g. SSH/tunnel relay) down with
+		// the entry. This is what makes "Remove Remote" actually close the
+		// shared-process tunnel and stop the remote agent host process.
+		if (transportDisposable) {
+			store.add(transportDisposable);
+		}
 		const connEntry: IConnectionEntry = { store, client: protocolClient, connected: true, status: RemoteAgentHostConnectionStatus.Connected };
 		this._entries.set(address, connEntry);
 		this._names.set(address, entry.name);

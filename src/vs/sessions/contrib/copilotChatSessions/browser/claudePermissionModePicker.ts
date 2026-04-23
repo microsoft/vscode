@@ -101,7 +101,7 @@ export class ClaudePermissionModePicker extends Disposable {
 			group: { kind: ActionListItemKind.Header, title: '', icon: mode.icon },
 			item: mode,
 			label: mode.label,
-			description: mode.description,
+			detail: mode.description,
 			disabled: false,
 		}));
 
@@ -114,7 +114,7 @@ export class ClaudePermissionModePicker extends Disposable {
 			onHide: () => { triggerElement.focus(); },
 		};
 
-		const listOptions: IActionListOptions = { descriptionBelow: true, minWidth: 255 };
+		const listOptions: IActionListOptions = { minWidth: 255 };
 		this.actionWidgetService.show<IClaudePermissionModeItem>(
 			'claudePermissionModePicker',
 			false,
