@@ -158,10 +158,6 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 		this._register(signInButton.onDidClick(() => {
 			this.commandService.executeCommand('workbench.action.agenticSignIn');
 		}));
-
-		const openButton = this._register(new Button(card, { ...defaultButtonStyles, secondary: true }));
-		openButton.label = localize('accountGate.openVSCode', "Open VS Code");
-		this._register(openButton.onDidClick(() => this._openVSCode()));
 	}
 
 	private _openVSCode(): void {
