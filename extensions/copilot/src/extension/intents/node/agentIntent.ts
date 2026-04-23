@@ -150,9 +150,6 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 
 	allowTools[CUSTOM_TOOL_SEARCH_NAME] = !!model.supportsToolSearch;
 
-	if (!agentMemoryService.getCachedMemoryPrompt() && configurationService.getExperimentBasedConfig(ConfigKey.CopilotMemoryEnabled, experimentationService)) {
-		await agentMemoryService.getMemoryPrompt();
-	}
 	allowTools[ToolName.StoreMemory] = !!agentMemoryService.getCachedMemoryPrompt();
 
 	const tools = toolsService.getEnabledTools(request, model, tool => {
