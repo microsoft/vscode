@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { detectsGenericPressAnyKeyPattern, detectsInputRequiredPattern, detectsNonInteractiveHelpPattern, detectsVSCodeTaskFinishMessage, matchTerminalPromptOption, OutputMonitor } from '../../browser/tools/monitoring/outputMonitor.js';
-import { CancellationToken, CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
+import { detectsGenericPressAnyKeyPattern, detectsInputRequiredPattern, detectsNonInteractiveHelpPattern, detectsVSCodeTaskFinishMessage, getLastLine, matchTerminalPromptOption, OutputMonitor } from '../../browser/tools/monitoring/outputMonitor.js';
+import { CancellationTokenSource } from '../../../../../../base/common/cancellation.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
 import { IExecution, IPollingResult, OutputMonitorState } from '../../browser/tools/monitoring/types.js';
 import { TestInstantiationService } from '../../../../../../platform/instantiation/test/common/instantiationServiceMock.js';
@@ -167,124 +167,119 @@ suite('OutputMonitor', () => {
 	});
 
 	test('press any key fires onDidDetectInputNeeded and stops polling', async () => {
-		execution.getOutput = () => 'Press any key to continue...';
-		const monitorCts = new CancellationTokenSource();
-		monitorCts.cancel();
-		monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), monitorCts.token, 'test command'));
+		return runWithFakedTimers({}, async () => {
+			execution.getOutput = () => 'Press any key to continue...';
+			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), cts.token, 'test command'));
 
-		let inputNeededFired = false;
-		store.add(monitor.onDidDetectInputNeeded(() => { inputNeededFired = true; }));
+			let inputNeededFired = false;
+			store.add(monitor.onDidDetectInputNeeded(() => { inputNeededFired = true; }));
 
-		const outputMonitorWithPrivateMethod = monitor as unknown as {
-			[key: string]: ((token: CancellationToken) => Promise<{ shouldContinuePolling: boolean }>) | undefined;
-		};
-		const idleResult = await outputMonitorWithPrivateMethod['_handleIdleState']!(CancellationToken.None);
-		await Event.toPromise(monitor.onDidFinishCommand);
-		monitorCts.dispose();
+			await Event.toPromise(monitor.onDidFinishCommand);
+			const pollingResult = monitor.pollingResult;
 
-		assert.strictEqual(inputNeededFired, true, 'onDidDetectInputNeeded should fire for press any key');
-		assert.strictEqual(sendTextCalled, false, 'sendText should not be called');
-		assert.strictEqual(idleResult.shouldContinuePolling, false, 'monitor should stop polling');
+			assert.strictEqual(inputNeededFired, true, 'onDidDetectInputNeeded should fire for press any key');
+			assert.strictEqual(sendTextCalled, false, 'sendText should not be called');
+			assert.strictEqual(pollingResult?.state, OutputMonitorState.Idle);
+			assert.strictEqual(pollingResult?.output, 'Press any key to continue...');
+		});
 	});
 
 	test('onDidDetectInputNeeded fires for input-required patterns in foreground mode', async () => {
-		execution.getOutput = () => 'Continue? (y/n) ';
-		const monitorCts = new CancellationTokenSource();
-		monitorCts.cancel();
-		monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), monitorCts.token, 'test command'));
+		return runWithFakedTimers({}, async () => {
+			execution.getOutput = () => 'Continue? (y/n) ';
+			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), cts.token, 'test command'));
 
-		let inputNeededFired = false;
-		store.add(monitor.onDidDetectInputNeeded(() => { inputNeededFired = true; }));
+			let inputNeededFired = false;
+			store.add(monitor.onDidDetectInputNeeded(() => { inputNeededFired = true; }));
 
-		const outputMonitorWithPrivateMethod = monitor as unknown as {
-			[key: string]: ((token: CancellationToken) => Promise<{ shouldContinuePolling: boolean; output?: string }>) | undefined;
-		};
-		const idleResult = await outputMonitorWithPrivateMethod['_handleIdleState']!(CancellationToken.None);
-		await Event.toPromise(monitor.onDidFinishCommand);
-		monitorCts.dispose();
+			await Event.toPromise(monitor.onDidFinishCommand);
+			const pollingResult = monitor.pollingResult;
 
-		assert.strictEqual(inputNeededFired, true, 'onDidDetectInputNeeded should fire for input-required pattern');
-		assert.strictEqual(idleResult.shouldContinuePolling, false, 'monitor should stop polling after signaling agent');
-		assert.strictEqual(idleResult.output, 'Continue? (y/n) ', 'output should be returned');
-		assert.strictEqual(sendTextCalled, false, 'no elicitation or auto-reply should send text');
+			assert.strictEqual(inputNeededFired, true, 'onDidDetectInputNeeded should fire for input-required pattern');
+			assert.strictEqual(pollingResult?.state, OutputMonitorState.Idle);
+			assert.strictEqual(pollingResult?.output, 'Continue? (y/n) ', 'output should be returned');
+			assert.strictEqual(sendTextCalled, false, 'no elicitation or auto-reply should send text');
+		});
 	});
 
 	test('onDidDetectInputNeeded fires for newline-terminated input-required patterns in foreground mode', async () => {
-		execution.getOutput = () => 'Continue? (y/n) \n';
-		const monitorCts = new CancellationTokenSource();
-		monitorCts.cancel();
-		monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), monitorCts.token, 'test command'));
+		return runWithFakedTimers({}, async () => {
+			execution.getOutput = () => 'Continue? (y/n) \n';
+			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), cts.token, 'test command'));
 
-		let inputNeededFired = false;
-		store.add(monitor.onDidDetectInputNeeded(() => { inputNeededFired = true; }));
+			let inputNeededFired = false;
+			store.add(monitor.onDidDetectInputNeeded(() => { inputNeededFired = true; }));
 
-		const outputMonitorWithPrivateMethod = monitor as unknown as {
-			[key: string]: ((token: CancellationToken) => Promise<{ shouldContinuePolling: boolean; output?: string }>) | undefined;
-		};
-		const idleResult = await outputMonitorWithPrivateMethod['_handleIdleState']!(CancellationToken.None);
-		await Event.toPromise(monitor.onDidFinishCommand);
-		monitorCts.dispose();
+			await Event.toPromise(monitor.onDidFinishCommand);
+			const pollingResult = monitor.pollingResult;
 
-		assert.strictEqual(inputNeededFired, true, 'onDidDetectInputNeeded should fire for newline-terminated input-required pattern');
-		assert.strictEqual(idleResult.shouldContinuePolling, false, 'monitor should stop polling after signaling agent');
-		assert.strictEqual(idleResult.output, 'Continue? (y/n) \n', 'output should be returned');
-		assert.strictEqual(sendTextCalled, false, 'no elicitation or auto-reply should send text');
-	});
-
-	test('last-line detection preserves bare carriage-return progress updates', async () => {
-		const monitorCts = new CancellationTokenSource();
-		monitorCts.cancel();
-		monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), monitorCts.token, 'test command'));
-
-		const outputMonitorWithPrivateMethod = monitor as unknown as {
-			[key: string]: ((output: string | undefined) => string) | undefined;
-		};
-		const lastLine = outputMonitorWithPrivateMethod['_getLastLineForPatternDetection']!('Downloading package metadata\r');
-		await Event.toPromise(monitor.onDidFinishCommand);
-		monitorCts.dispose();
-
-		assert.strictEqual(lastLine, 'Downloading package metadata', 'bare carriage-return progress lines should keep the final visual line');
+			assert.strictEqual(inputNeededFired, true, 'onDidDetectInputNeeded should fire for newline-terminated input-required pattern');
+			assert.strictEqual(pollingResult?.state, OutputMonitorState.Idle);
+			assert.strictEqual(pollingResult?.output, 'Continue? (y/n) \n', 'output should be returned');
+			assert.strictEqual(sendTextCalled, false, 'no elicitation or auto-reply should send text');
+		});
 	});
 
 	test('onDidDetectInputNeeded does not fire for non-input output', async () => {
-		execution.getOutput = () => 'Build complete successfully';
-		const monitorCts = new CancellationTokenSource();
-		monitorCts.cancel();
-		monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), monitorCts.token, 'test command'));
+		return runWithFakedTimers({}, async () => {
+			execution.getOutput = () => 'Build complete successfully';
+			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, undefined, createTestContext('1'), cts.token, 'test command'));
 
-		let inputNeededFired = false;
-		store.add(monitor.onDidDetectInputNeeded(() => { inputNeededFired = true; }));
+			let inputNeededFired = false;
+			store.add(monitor.onDidDetectInputNeeded(() => { inputNeededFired = true; }));
 
-		const outputMonitorWithPrivateMethod = monitor as unknown as {
-			[key: string]: ((token: CancellationToken) => Promise<{ shouldContinuePolling: boolean }>) | undefined;
-		};
-		await outputMonitorWithPrivateMethod['_handleIdleState']!(CancellationToken.None);
-		await Event.toPromise(monitor.onDidFinishCommand);
-		monitorCts.dispose();
-
-		assert.strictEqual(inputNeededFired, false, 'onDidDetectInputNeeded should not fire for non-input output');
+			await Event.toPromise(monitor.onDidFinishCommand);
+			assert.strictEqual(inputNeededFired, false, 'onDidDetectInputNeeded should not fire for non-input output');
+		});
 	});
 
-	test('handleIdleState only inspects the last line for non-interactive help detection', async () => {
-		execution.getOutput = () => 'press h + enter to show help\nBuild complete successfully';
-		const monitorCts = new CancellationTokenSource();
-		monitorCts.cancel();
-		let customPollCalled = false;
-		const pollFn = async (): Promise<IPollingResult | undefined> => {
-			customPollCalled = true;
-			return { state: OutputMonitorState.Idle, output: 'custom poll output' };
-		};
-		monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, pollFn, createTestContext('1'), monitorCts.token, 'test command'));
+	test('non-interactive help on the last line stops monitoring before custom polling', async () => {
+		return runWithFakedTimers({}, async () => {
+			execution.getOutput = () => 'Build complete successfully\npress h + enter to show help';
+			let customPollCalled = false;
+			const pollFn = async (): Promise<IPollingResult | undefined> => {
+				customPollCalled = true;
+				return { state: OutputMonitorState.Idle, output: 'custom poll output' };
+			};
+			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, pollFn, createTestContext('1'), cts.token, 'test command'));
 
-		const outputMonitorWithPrivateMethod = monitor as unknown as {
-			[key: string]: ((token: CancellationToken) => Promise<{ shouldContinuePolling: boolean; output?: string }>) | undefined;
-		};
-		const idleResult = await outputMonitorWithPrivateMethod['_handleIdleState']!(CancellationToken.None);
-		await Event.toPromise(monitor.onDidFinishCommand);
-		monitorCts.dispose();
+			await Event.toPromise(monitor.onDidFinishCommand);
+			const pollingResult = monitor.pollingResult;
 
-		assert.strictEqual(customPollCalled, true, 'custom poller should still run when help text is not on the last line');
-		assert.strictEqual(idleResult.output, 'custom poll output');
+			assert.strictEqual(customPollCalled, false, 'custom poller should not run when help text is on the last line');
+			assert.strictEqual(pollingResult?.state, OutputMonitorState.Idle);
+			assert.strictEqual(pollingResult?.output, 'Build complete successfully\npress h + enter to show help');
+		});
+	});
+
+	test('non-interactive help on a non-final line does not stop custom polling', async () => {
+		return runWithFakedTimers({}, async () => {
+			execution.getOutput = () => 'press h + enter to show help\nBuild complete successfully';
+			let customPollCalled = false;
+			const pollFn = async (): Promise<IPollingResult | undefined> => {
+				customPollCalled = true;
+				return { state: OutputMonitorState.Idle, output: 'custom poll output' };
+			};
+			monitor = store.add(instantiationService.createInstance(OutputMonitor, execution, pollFn, createTestContext('1'), cts.token, 'test command'));
+
+			await Event.toPromise(monitor.onDidFinishCommand);
+			const pollingResult = monitor.pollingResult;
+
+			assert.strictEqual(customPollCalled, true, 'custom poller should still run when help text is not on the last line');
+			assert.strictEqual(pollingResult?.output, 'custom poll output');
+		});
+	});
+
+	suite('getLastLine', () => {
+		test('trims trailing line breaks before returning the last line', () => {
+			assert.strictEqual(getLastLine('Password:\n'), 'Password:');
+			assert.strictEqual(getLastLine('Continue? (y/n) \n'), 'Continue? (y/n) ');
+		});
+
+		test('preserves the final visual line across bare carriage returns', () => {
+			assert.strictEqual(getLastLine('Downloading package metadata\r'), 'Downloading package metadata');
+			assert.strictEqual(getLastLine('25%\r50%\rPassword:'), 'Password:');
+		});
 	});
 
 	suite('detectsInputRequiredPattern', () => {

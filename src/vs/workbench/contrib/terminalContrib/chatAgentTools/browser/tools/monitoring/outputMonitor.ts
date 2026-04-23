@@ -33,29 +33,32 @@ export interface IOutputMonitorTelemetryCounters {
 	inputToolFreeFormInputCount: number;
 }
 
+/**
+ * Returns the last visible line from terminal output after trimming trailing line breaks.
+ */
+export function getLastLine(output: string | undefined): string {
+	if (!output) {
+		return '';
+	}
+	const trimmedOutput = output.replace(/[\r\n]+$/, '');
+	if (!trimmedOutput) {
+		return '';
+	}
+	const lastLineFeed = trimmedOutput.lastIndexOf('\n');
+	const lastLine = lastLineFeed === -1 ? trimmedOutput : trimmedOutput.slice(lastLineFeed + 1);
+	const lastCarriageReturn = lastLine.lastIndexOf('\r');
+	return lastCarriageReturn === -1 ? lastLine : lastLine.slice(lastCarriageReturn + 1);
+}
+
 export class OutputMonitor extends Disposable implements IOutputMonitor {
 	private _state: OutputMonitorState = OutputMonitorState.PollingForIdle;
 	get state(): OutputMonitorState { return this._state; }
-
-	private _getLastLineForPatternDetection(output: string | undefined): string {
-		if (!output) {
-			return '';
-		}
-		const trimmedOutput = output.replace(/[\r\n]+$/, '');
-		if (!trimmedOutput) {
-			return '';
-		}
-		const lastLineFeed = trimmedOutput.lastIndexOf('\n');
-		const lastLine = lastLineFeed === -1 ? trimmedOutput : trimmedOutput.slice(lastLineFeed + 1);
-		const lastCarriageReturn = lastLine.lastIndexOf('\r');
-		return lastCarriageReturn === -1 ? lastLine : lastLine.slice(lastCarriageReturn + 1);
-	}
 
 	private _formatLastLineForLog(output: string | undefined): string {
 		if (!output) {
 			return '<empty>';
 		}
-		const lastLine = this._getLastLineForPatternDetection(output).trimEnd();
+		const lastLine = getLastLine(output).trimEnd();
 		if (!lastLine) {
 			return '<empty>';
 		}
@@ -271,7 +274,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 		// Use only the tail of the output for logging and task-finish detection,
 		// but keep line-oriented prompt detectors scoped to the last line.
 		const outputTail = output.slice(-1000);
-		const outputLastLine = this._getLastLineForPatternDetection(outputTail);
+		const outputLastLine = getLastLine(outputTail);
 		this._logService.trace(`OutputMonitor: Idle output summary: len=${output.length}, lastLine=${this._formatLastLineForLog(outputTail)}`);
 
 		if (detectsNonInteractiveHelpPattern(outputLastLine)) {
@@ -384,7 +387,7 @@ export class OutputMonitor extends Disposable implements IOutputMonitor {
 				currentInterval = Math.min(currentInterval * 2, maxInterval);
 				const currentOutput = execution.getOutput();
 				const currentTail = currentOutput.slice(-1000);
-				const currentLastLine = this._getLastLineForPatternDetection(currentTail);
+				const currentLastLine = getLastLine(currentTail);
 
 				if (detectsNonInteractiveHelpPattern(currentLastLine)) {
 					this._logService.trace(`OutputMonitor: waitForIdle -> non-interactive help detected (waited=${waited}ms)`);
