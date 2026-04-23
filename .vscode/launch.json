@@ -406,7 +406,7 @@
 			"name": "VS Code Agent Host",
 			"outputCapture": "std",
 			"program": "./scripts/code-agent-host.js",
-			"args": ["--port", "7777", "--without-connection-token"],
+			"args": ["--port", "7777", "--host", "0.0.0.0", "--without-connection-token"],
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			],
