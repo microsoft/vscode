@@ -1469,7 +1469,7 @@ configurationRegistry.registerConfiguration({
 		'chat.approvedAccountOrganizations': {
 			type: 'array',
 			items: { type: 'string' },
-			description: nls.localize('chat.approvedAccountOrganizations', "List of GitHub organization logins whose members may use built-in AI features. When set to a non-empty list, all AI features are disabled until the user signs into a GitHub account in one of these organizations AND the account-side policy data has resolved. Use '*' to accept any signed-in GitHub or GHE account."),
+			description: nls.localize('chat.approvedAccountOrganizations', "List of GitHub organization logins whose members are permitted to use AI features. When set to a non-empty list, AI features are disabled until the user signs into a GitHub account that belongs to one of the specified organizations and account-level policy data has been resolved. Set to '*' to allow any authenticated GitHub or GitHub Enterprise account."),
 			default: [],
 			included: false,
 			policy: {
