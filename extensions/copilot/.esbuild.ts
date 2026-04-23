@@ -8,9 +8,8 @@ import * as fs from 'fs';
 import { copyFile, mkdir, readdir, rename } from 'fs/promises';
 import { glob } from 'glob';
 import * as path from 'path';
-import { fileURLToPath } from 'url';
 
-const REPO_ROOT = import.meta.dirname ?? path.dirname(fileURLToPath(import.meta.url));
+const REPO_ROOT = import.meta.dirname;
 const isWatch = process.argv.includes('--watch');
 const isDev = process.argv.includes('--dev');
 const generateSourceMaps = process.argv.includes('--sourcemaps');
@@ -257,8 +256,8 @@ const nodeSimulationWorkbenchUIBuildOptions = {
 
 async function typeScriptServerPluginPackageJsonInstall(): Promise<void> {
 	await mkdir('./node_modules/@vscode/copilot-typescript-server-plugin', { recursive: true });
-	const source = path.join(REPO_ROOT, './src/extension/typescriptContext/serverPlugin/package.json');
-	const destination = path.join(REPO_ROOT, './node_modules/@vscode/copilot-typescript-server-plugin/package.json');
+	const source = path.join(import.meta.dirname, './src/extension/typescriptContext/serverPlugin/package.json');
+	const destination = path.join(import.meta.dirname, './node_modules/@vscode/copilot-typescript-server-plugin/package.json');
 	try {
 		await copyFile(source, destination);
 	} catch (error) {
@@ -434,7 +433,7 @@ function applyPackageJsonPatch() {
 		throw new Error('VSCODE_QUALITY environment variable is not set. This should be set by the build pipeline to ensure correct versioning and pre-release status in package.json.');
 	}
 
-	const packageJsonPath = path.join(REPO_ROOT, './package.json');
+	const packageJsonPath = path.join(import.meta.dirname, './package.json');
 	const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
 	let version = packageJson.version;
 	const isPreRelease = quality !== 'stable';
