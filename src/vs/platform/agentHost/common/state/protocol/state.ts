@@ -75,7 +75,7 @@ export interface Icon {
  * @category Authentication
  * @see {@link https://datatracker.ietf.org/doc/html/rfc9728 | RFC 9728}
  */
-export interface IProtectedResourceMetadata {
+export interface ProtectedResourceMetadata {
 	/**
 	 * REQUIRED. The protected resource's resource identifier, a URL using the
 	 * `https` scheme with no fragment component (e.g. `"https://api.github.com"`).
@@ -147,21 +147,21 @@ export const enum PolicyState {
  *
  * @category Root State
  */
-export interface IRootState {
+export interface RootState {
 	/** Available agent backends and their models */
-	agents: IAgentInfo[];
+	agents: AgentInfo[];
 	/** Number of active (non-disposed) sessions on the server */
 	activeSessions?: number;
 	/** Known terminals on the server. Subscribe to individual terminal URIs for full state. */
-	terminals?: ITerminalInfo[];
+	terminals?: TerminalInfo[];
 	/** Agent host configuration schema and current values */
-	config?: IRootConfigState;
+	config?: RootConfigState;
 }
 
 /**
  * @category Root State
  */
-export interface IAgentInfo {
+export interface AgentInfo {
 	/** Agent provider ID (e.g. `'copilot'`) */
 	provider: string;
 	/** Human-readable name */
@@ -169,7 +169,7 @@ export interface IAgentInfo {
 	/** Description string */
 	description: string;
 	/** Available models for this agent */
-	models: ISessionModelInfo[];
+	models: SessionModelInfo[];
 	/**
 	 * Protected resources this agent requires authentication for.
 	 *
@@ -181,20 +181,20 @@ export interface IAgentInfo {
 	 *
 	 * @see {@link /specification/authentication | Authentication}
 	 */
-	protectedResources?: IProtectedResourceMetadata[];
+	protectedResources?: ProtectedResourceMetadata[];
 	/**
 	 * Customizations (Open Plugins) associated with this agent.
 	 *
 	 * Each entry is a reference to an [Open Plugins](https://open-plugins.com/)
 	 * plugin that the agent host can activate for sessions using this agent.
 	 */
-	customizations?: ICustomizationRef[];
+	customizations?: CustomizationRef[];
 }
 
 /**
  * @category Root State
  */
-export interface ISessionModelInfo {
+export interface SessionModelInfo {
 	/** Model identifier */
 	id: string;
 	/** Provider this model belongs to */
@@ -210,19 +210,19 @@ export interface ISessionModelInfo {
 	/**
 	 * Configuration schema describing model-specific options (e.g. thinking
 	 * level). Clients present this as a form and pass the resolved values in
-	 * {@link IModelSelection.config} when creating or changing sessions.
+	 * {@link ModelSelection.config} when creating or changing sessions.
 	 */
-	configSchema?: IConfigSchema;
+	configSchema?: ConfigSchema;
 }
 
 /**
  * A model selection: the chosen model ID together with any model-specific
  * configuration values whose keys correspond to the model's
- * {@link ISessionModelInfo.configSchema}.
+ * {@link SessionModelInfo.configSchema}.
  *
  * @category Root State
  */
-export interface IModelSelection {
+export interface ModelSelection {
 	/** Model identifier */
 	id: string;
 	/** Model-specific configuration values */
@@ -252,11 +252,11 @@ export const enum PendingMessageKind {
  *
  * @category Pending Message Types
  */
-export interface IPendingMessage {
+export interface PendingMessage {
 	/** Unique identifier for this pending message */
 	id: string;
 	/** The message content */
-	userMessage: IUserMessage;
+	userMessage: UserMessage;
 }
 
 // ─── Session State ───────────────────────────────────────────────────────────
@@ -293,36 +293,36 @@ export const enum SessionStatus {
  *
  * @category Session State
  */
-export interface ISessionState {
+export interface SessionState {
 	/** Lightweight session metadata */
-	summary: ISessionSummary;
+	summary: SessionSummary;
 	/** Session initialization state */
 	lifecycle: SessionLifecycle;
 	/** Error details if creation failed */
-	creationError?: IErrorInfo;
+	creationError?: ErrorInfo;
 	/** Tools provided by the server (agent host) for this session */
-	serverTools?: IToolDefinition[];
+	serverTools?: ToolDefinition[];
 	/** The client currently providing tools and interactive capabilities to this session */
-	activeClient?: ISessionActiveClient;
+	activeClient?: SessionActiveClient;
 	/** Completed turns */
-	turns: ITurn[];
+	turns: Turn[];
 	/** Currently in-progress turn */
-	activeTurn?: IActiveTurn;
+	activeTurn?: ActiveTurn;
 	/** Message to inject into the current turn at a convenient point */
-	steeringMessage?: IPendingMessage;
+	steeringMessage?: PendingMessage;
 	/** Messages to send automatically as new turns after the current turn finishes */
-	queuedMessages?: IPendingMessage[];
+	queuedMessages?: PendingMessage[];
 	/** Requests for user input that are currently blocking or informing session progress */
-	inputRequests?: ISessionInputRequest[];
+	inputRequests?: SessionInputRequest[];
 	/** Session configuration schema and current values */
-	config?: ISessionConfigState;
+	config?: SessionConfigState;
 	/**
 	 * Server-provided customizations active in this session.
 	 *
 	 * Client-provided customizations are available on
-	 * {@link ISessionActiveClient.customizations | activeClient.customizations}.
+	 * {@link SessionActiveClient.customizations | activeClient.customizations}.
 	 */
-	customizations?: ISessionCustomization[];
+	customizations?: SessionCustomization[];
 }
 
 /**
@@ -333,15 +333,15 @@ export interface ISessionState {
  *
  * @category Session State
  */
-export interface ISessionActiveClient {
+export interface SessionActiveClient {
 	/** Client identifier (matches `clientId` from `initialize`) */
 	clientId: string;
 	/** Human-readable client name (e.g. `"VS Code"`) */
 	displayName?: string;
 	/** Tools this client provides to the session */
-	tools: IToolDefinition[];
+	tools: ToolDefinition[];
 	/** Customizations this client contributes to the session */
-	customizations?: ICustomizationRef[];
+	customizations?: CustomizationRef[];
 }
 
 /**
@@ -349,7 +349,7 @@ export interface ISessionActiveClient {
  *
  * @category Session State
  */
-export interface IProjectInfo {
+export interface ProjectInfo {
 	/** Project URI */
 	uri: URI;
 	/** Human-readable project name */
@@ -359,7 +359,7 @@ export interface IProjectInfo {
 /**
  * @category Session State
  */
-export interface ISessionSummary {
+export interface SessionSummary {
 	/** Session URI */
 	resource: URI;
 	/** Agent provider ID */
@@ -373,9 +373,9 @@ export interface ISessionSummary {
 	/** Last modification timestamp */
 	modifiedAt: number;
 	/** Server-owned project for this session */
-	project?: IProjectInfo;
+	project?: ProjectInfo;
 	/** Currently selected model */
-	model?: IModelSelection;
+	model?: ModelSelection;
 	/** The working directory URI for this session */
 	workingDirectory?: URI;
 	/** Whether the client has viewed this session since its last modification */
@@ -383,7 +383,7 @@ export interface ISessionSummary {
 	/** Whether the session has been marked as done by the client */
 	isDone?: boolean;
 	/** Files changed during this session with diff statistics */
-	diffs?: IFileEdit[];
+	diffs?: FileEdit[];
 }
 
 // ─── Config Schema Types ─────────────────────────────────────────────────────
@@ -396,12 +396,12 @@ export interface ISessionSummary {
  * (`enumLabels`, `enumDescriptions`) are parallel arrays that provide UI
  * metadata for each `enum` value.
  *
- * This is the generic base type. See {@link ISessionConfigPropertySchema} for
+ * This is the generic base type. See {@link SessionConfigPropertySchema} for
  * session-specific extensions.
  *
  * @category Config Schema Types
  */
-export interface IConfigPropertySchema {
+export interface ConfigPropertySchema {
 	/** JSON Schema: property type */
 	type: 'string' | 'number' | 'boolean' | 'array' | 'object';
 	/** JSON Schema: human-readable label for the property */
@@ -419,9 +419,9 @@ export interface IConfigPropertySchema {
 	/** JSON Schema: when `true`, the property is displayed but cannot be modified by the user */
 	readOnly?: boolean;
 	/** JSON Schema: schema for array items (used when `type` is `'array'`) */
-	items?: IConfigPropertySchema;
+	items?: ConfigPropertySchema;
 	/** JSON Schema: property descriptors for object properties (used when `type` is `'object'`) */
-	properties?: Record<string, IConfigPropertySchema>;
+	properties?: Record<string, ConfigPropertySchema>;
 	/** JSON Schema: list of required property ids (used when `type` is `'object'`) */
 	required?: string[];
 }
@@ -429,16 +429,16 @@ export interface IConfigPropertySchema {
 /**
  * A JSON Schema object describing available configuration properties.
  *
- * This is the generic base type. See {@link ISessionConfigSchema} for
+ * This is the generic base type. See {@link SessionConfigSchema} for
  * session-specific usage.
  *
  * @category Config Schema Types
  */
-export interface IConfigSchema {
+export interface ConfigSchema {
 	/** JSON Schema: always `'object'` */
 	type: 'object';
 	/** JSON Schema: property descriptors keyed by property id */
-	properties: Record<string, IConfigPropertySchema>;
+	properties: Record<string, ConfigPropertySchema>;
 	/** JSON Schema: list of required property ids */
 	required?: string[];
 }
@@ -453,9 +453,9 @@ export interface IConfigSchema {
  *
  * @category Root State
  */
-export interface IRootConfigState {
+export interface RootConfigState {
 	/** JSON Schema describing available configuration properties */
-	schema: IConfigSchema;
+	schema: ConfigSchema;
 	/** Current configuration values */
 	values: Record<string, unknown>;
 }
@@ -465,12 +465,12 @@ export interface IRootConfigState {
 /**
  * A session configuration property descriptor.
  *
- * Extends the generic {@link IConfigPropertySchema} with session-specific
+ * Extends the generic {@link ConfigPropertySchema} with session-specific
  * display extensions.
  *
  * @category Session Config Types
  */
-export interface ISessionConfigPropertySchema extends IConfigPropertySchema {
+export interface SessionConfigPropertySchema extends ConfigPropertySchema {
 	/**
 	 * Display extension: when `true`, the full set of allowed values is too large
 	 * to enumerate statically. The client SHOULD use `sessionConfigCompletions`
@@ -487,11 +487,11 @@ export interface ISessionConfigPropertySchema extends IConfigPropertySchema {
  *
  * @category Session Config Types
  */
-export interface ISessionConfigSchema {
+export interface SessionConfigSchema {
 	/** JSON Schema: always `'object'` */
 	type: 'object';
 	/** JSON Schema: property descriptors keyed by property id */
-	properties: Record<string, ISessionConfigPropertySchema>;
+	properties: Record<string, SessionConfigPropertySchema>;
 	/** JSON Schema: list of required property ids */
 	required?: string[];
 }
@@ -504,9 +504,9 @@ export interface ISessionConfigSchema {
  *
  * @category Session Config Types
  */
-export interface ISessionConfigState {
+export interface SessionConfigState {
 	/** JSON Schema describing available configuration properties */
-	schema: ISessionConfigSchema;
+	schema: SessionConfigSchema;
 	/** Current configuration values */
 	values: Record<string, unknown>;
 }
@@ -543,7 +543,7 @@ export const enum SessionInputQuestionKind {
  *
  * @category Session Input Types
  */
-export interface ISessionInputOption {
+export interface SessionInputOption {
 	/** Stable option identifier; for MCP enum values this is the enum string */
 	id: string;
 	/** Display label */
@@ -554,7 +554,7 @@ export interface ISessionInputOption {
 	recommended?: boolean;
 }
 
-interface ISessionInputQuestionBase {
+interface SessionInputQuestionBase {
 	/** Stable question identifier used as the key in `answers` */
 	id: string;
 	/** Short display title */
@@ -566,7 +566,7 @@ interface ISessionInputQuestionBase {
 }
 
 /** Text question within a session input request. */
-export interface ISessionInputTextQuestion extends ISessionInputQuestionBase {
+export interface SessionInputTextQuestion extends SessionInputQuestionBase {
 	kind: SessionInputQuestionKind.Text;
 	/** Format hint for text questions, such as `email`, `uri`, `date`, or `date-time` */
 	format?: string;
@@ -579,7 +579,7 @@ export interface ISessionInputTextQuestion extends ISessionInputQuestionBase {
 }
 
 /** Numeric question within a session input request. */
-export interface ISessionInputNumberQuestion extends ISessionInputQuestionBase {
+export interface SessionInputNumberQuestion extends SessionInputQuestionBase {
 	kind: SessionInputQuestionKind.Number | SessionInputQuestionKind.Integer;
 	/** Minimum value */
 	min?: number;
@@ -590,26 +590,26 @@ export interface ISessionInputNumberQuestion extends ISessionInputQuestionBase {
 }
 
 /** Boolean question within a session input request. */
-export interface ISessionInputBooleanQuestion extends ISessionInputQuestionBase {
+export interface SessionInputBooleanQuestion extends SessionInputQuestionBase {
 	kind: SessionInputQuestionKind.Boolean;
 	/** Default boolean value */
 	defaultValue?: boolean;
 }
 
 /** Single-select question within a session input request. */
-export interface ISessionInputSingleSelectQuestion extends ISessionInputQuestionBase {
+export interface SessionInputSingleSelectQuestion extends SessionInputQuestionBase {
 	kind: SessionInputQuestionKind.SingleSelect;
 	/** Options the user may select from */
-	options: ISessionInputOption[];
+	options: SessionInputOption[];
 	/** Whether the user may enter text instead of selecting an option */
 	allowFreeformInput?: boolean;
 }
 
 /** Multi-select question within a session input request. */
-export interface ISessionInputMultiSelectQuestion extends ISessionInputQuestionBase {
+export interface SessionInputMultiSelectQuestion extends SessionInputQuestionBase {
 	kind: SessionInputQuestionKind.MultiSelect;
 	/** Options the user may select from */
-	options: ISessionInputOption[];
+	options: SessionInputOption[];
 	/** Whether the user may enter text in addition to selecting options */
 	allowFreeformInput?: boolean;
 	/** Minimum selected item count */
@@ -623,11 +623,11 @@ export interface ISessionInputMultiSelectQuestion extends ISessionInputQuestionB
  *
  * @category Session Input Types
  */
-export type ISessionInputQuestion = ISessionInputTextQuestion
-	| ISessionInputNumberQuestion
-	| ISessionInputBooleanQuestion
-	| ISessionInputSingleSelectQuestion
-	| ISessionInputMultiSelectQuestion;
+export type SessionInputQuestion = SessionInputTextQuestion
+	| SessionInputNumberQuestion
+	| SessionInputBooleanQuestion
+	| SessionInputSingleSelectQuestion
+	| SessionInputMultiSelectQuestion;
 
 /**
  * A live request for user input.
@@ -638,7 +638,7 @@ export type ISessionInputQuestion = ISessionInputTextQuestion
  *
  * @category Session Input Types
  */
-export interface ISessionInputRequest {
+export interface SessionInputRequest {
 	/** Stable request identifier */
 	id: string;
 	/** Display message for the request as a whole */
@@ -646,9 +646,9 @@ export interface ISessionInputRequest {
 	/** URL the user should review or open, for URL-style elicitations */
 	url?: URI;
 	/** Ordered questions to ask the user */
-	questions?: ISessionInputQuestion[];
+	questions?: SessionInputQuestion[];
 	/** Current draft or submitted answers, keyed by question ID */
-	answers?: Record<string, ISessionInputAnswer>;
+	answers?: Record<string, SessionInputAnswer>;
 }
 
 /**
@@ -669,49 +669,49 @@ export const enum SessionInputAnswerValueKind {
  *
  * @category Session Input Types
  */
-export interface ISessionInputTextAnswerValue {
+export interface SessionInputTextAnswerValue {
 	kind: SessionInputAnswerValueKind.Text;
 	value: string;
 }
 
-export interface ISessionInputNumberAnswerValue {
+export interface SessionInputNumberAnswerValue {
 	kind: SessionInputAnswerValueKind.Number;
 	value: number;
 }
 
-export interface ISessionInputBooleanAnswerValue {
+export interface SessionInputBooleanAnswerValue {
 	kind: SessionInputAnswerValueKind.Boolean;
 	value: boolean;
 }
 
-export interface ISessionInputSelectedAnswerValue {
+export interface SessionInputSelectedAnswerValue {
 	kind: SessionInputAnswerValueKind.Selected;
 	value: string;
 	/** Free-form text entered instead of selecting an option */
 	freeformValues?: string[];
 }
 
-export interface ISessionInputSelectedManyAnswerValue {
+export interface SessionInputSelectedManyAnswerValue {
 	kind: SessionInputAnswerValueKind.SelectedMany;
 	value: string[];
 	/** Free-form text entered in addition to selected options */
 	freeformValues?: string[];
 }
 
-export type ISessionInputAnswerValue = ISessionInputTextAnswerValue
-	| ISessionInputNumberAnswerValue
-	| ISessionInputBooleanAnswerValue
-	| ISessionInputSelectedAnswerValue
-	| ISessionInputSelectedManyAnswerValue;
+export type SessionInputAnswerValue = SessionInputTextAnswerValue
+	| SessionInputNumberAnswerValue
+	| SessionInputBooleanAnswerValue
+	| SessionInputSelectedAnswerValue
+	| SessionInputSelectedManyAnswerValue;
 
-export interface ISessionInputAnswered {
+export interface SessionInputAnswered {
 	/** Answer state */
 	state: SessionInputAnswerState.Draft | SessionInputAnswerState.Submitted;
 	/** Answer value */
-	value: ISessionInputAnswerValue;
+	value: SessionInputAnswerValue;
 }
 
-export interface ISessionInputSkipped {
+export interface SessionInputSkipped {
 	/** Answer state */
 	state: SessionInputAnswerState.Skipped;
 	/** Free-form reason or value captured while skipping, if any */
@@ -734,7 +734,7 @@ export const enum SessionInputAnswerState {
  *
  * @category Session Input Types
  */
-export type ISessionInputAnswer = ISessionInputAnswered | ISessionInputSkipped;
+export type SessionInputAnswer = SessionInputAnswered | SessionInputSkipped;
 
 // ─── Turn Types ──────────────────────────────────────────────────────────────
 
@@ -765,24 +765,24 @@ export const enum AttachmentType {
  *
  * @category Turn Types
  */
-export interface ITurn {
+export interface Turn {
 	/** Turn identifier */
 	id: string;
 	/** The user's input */
-	userMessage: IUserMessage;
+	userMessage: UserMessage;
 	/**
 	 * All response content in stream order: text, tool calls, reasoning, and content refs.
 	 *
 	 * Consumers should derive display text by concatenating markdown parts,
 	 * and find tool calls by filtering for `ToolCall` parts.
 	 */
-	responseParts: IResponsePart[];
+	responseParts: ResponsePart[];
 	/** Token usage info */
-	usage: IUsageInfo | undefined;
+	usage: UsageInfo | undefined;
 	/** How the turn ended */
 	state: TurnState;
 	/** Error details if state is `'error'` */
-	error?: IErrorInfo;
+	error?: ErrorInfo;
 }
 
 /**
@@ -790,35 +790,35 @@ export interface ITurn {
  *
  * @category Turn Types
  */
-export interface IActiveTurn {
+export interface ActiveTurn {
 	/** Turn identifier */
 	id: string;
 	/** The user's input */
-	userMessage: IUserMessage;
+	userMessage: UserMessage;
 	/**
 	 * All response content in stream order: text, tool calls, reasoning, and content refs.
 	 *
 	 * Tool call parts include `pendingPermissions` when permissions are awaiting user approval.
 	 */
-	responseParts: IResponsePart[];
+	responseParts: ResponsePart[];
 	/** Token usage info */
-	usage: IUsageInfo | undefined;
+	usage: UsageInfo | undefined;
 }
 
 /**
  * @category Turn Types
  */
-export interface IUserMessage {
+export interface UserMessage {
 	/** Message text */
 	text: string;
 	/** File/selection attachments */
-	attachments?: IMessageAttachment[];
+	attachments?: MessageAttachment[];
 }
 
 /**
  * @category Turn Types
  */
-export interface IMessageAttachment {
+export interface MessageAttachment {
 	/** Attachment type */
 	type: AttachmentType;
 	/** File/directory path */
@@ -844,7 +844,7 @@ export const enum ResponsePartKind {
 /**
  * @category Response Parts
  */
-export interface IMarkdownResponsePart {
+export interface MarkdownResponsePart {
 	/** Discriminant */
 	kind: ResponsePartKind.Markdown;
 	/** Part identifier, used by `session/delta` to target this part for content appends */
@@ -856,7 +856,7 @@ export interface IMarkdownResponsePart {
 /**
  * A reference to large content stored outside the state tree.
  */
-export interface IContentRef {
+export interface ContentRef {
 	/** Content URI */
 	uri: URI;
 	/** Approximate size in bytes */
@@ -870,7 +870,7 @@ export interface IContentRef {
  *
  * @category Response Parts
  */
-export interface IResourceReponsePart extends IContentRef {
+export interface ResourceReponsePart extends ContentRef {
 	/** Discriminant */
 	kind: ResponsePartKind.ContentRef;
 }
@@ -884,11 +884,11 @@ export interface IResourceReponsePart extends IContentRef {
  *
  * @category Response Parts
  */
-export interface IToolCallResponsePart {
+export interface ToolCallResponsePart {
 	/** Discriminant */
 	kind: ResponsePartKind.ToolCall;
 	/** Full tool call lifecycle state */
-	toolCall: IToolCallState;
+	toolCall: ToolCallState;
 }
 
 /**
@@ -896,7 +896,7 @@ export interface IToolCallResponsePart {
  *
  * @category Response Parts
  */
-export interface IReasoningResponsePart {
+export interface ReasoningResponsePart {
 	/** Discriminant */
 	kind: ResponsePartKind.Reasoning;
 	/** Part identifier, used by `session/reasoning` to target this part for content appends */
@@ -908,7 +908,7 @@ export interface IReasoningResponsePart {
 /**
  * @category Response Parts
  */
-export type IResponsePart = IMarkdownResponsePart | IResourceReponsePart | IToolCallResponsePart | IReasoningResponsePart;
+export type ResponsePart = MarkdownResponsePart | ResourceReponsePart | ToolCallResponsePart | ReasoningResponsePart;
 
 // ─── Tool Call Types ─────────────────────────────────────────────────────────
 
@@ -969,7 +969,7 @@ export const enum ConfirmationOptionKind {
  *
  * @category Tool Call Types
  */
-export interface IConfirmationOption {
+export interface ConfirmationOption {
 	/** Unique identifier for the option, returned in the confirmed action */
 	id: string;
 	/** Human-readable label displayed to the user */
@@ -996,7 +996,7 @@ export interface IConfirmationOption {
  * A future version may move these to a separate diagnostic channel or namespace them
  * more clearly.
  */
-interface IToolCallBase {
+interface ToolCallBase {
 	/** Unique tool call identifier */
 	toolCallId: string;
 	/** Internal tool name (for debugging/logging) */
@@ -1027,7 +1027,7 @@ interface IToolCallBase {
  *
  * @category Tool Call Types
  */
-interface IToolCallParameterFields {
+interface ToolCallParameterFields {
 	/** Message describing what the tool will do */
 	invocationMessage: StringOrMarkdown;
 	/** Raw tool input */
@@ -1039,7 +1039,7 @@ interface IToolCallParameterFields {
  *
  * @category Tool Call Types
  */
-export interface IToolCallResult {
+export interface ToolCallResult {
 	/** Whether the tool succeeded */
 	success: boolean;
 	/** Past-tense description of what the tool did */
@@ -1049,7 +1049,7 @@ export interface IToolCallResult {
 	 *
 	 * This mirrors the `content` field of MCP `CallToolResult`.
 	 */
-	content?: IToolResultContent[];
+	content?: ToolResultContent[];
 	/**
 	 * Optional structured result object.
 	 *
@@ -1065,7 +1065,7 @@ export interface IToolCallResult {
  *
  * @category Tool Call Types
  */
-export interface IToolCallStreamingState extends IToolCallBase {
+export interface ToolCallStreamingState extends ToolCallBase {
 	status: ToolCallStatus.Streaming;
 	/** Partial parameters accumulated so far */
 	partialInput?: string;
@@ -1079,12 +1079,12 @@ export interface IToolCallStreamingState extends IToolCallBase {
  *
  * @category Tool Call Types
  */
-export interface IToolCallPendingConfirmationState extends IToolCallBase, IToolCallParameterFields {
+export interface ToolCallPendingConfirmationState extends ToolCallBase, ToolCallParameterFields {
 	status: ToolCallStatus.PendingConfirmation;
 	/** Short title for the confirmation prompt (e.g. `"Run in terminal"`, `"Write file"`) */
 	confirmationTitle?: StringOrMarkdown;
 	/** File edits that this tool call will perform, for preview before confirmation */
-	edits?: { items: IFileEdit[] };
+	edits?: { items: FileEdit[] };
 	/** Whether the agent host allows the client to edit the tool's input parameters before confirming */
 	editable?: boolean;
 	/**
@@ -1093,7 +1093,7 @@ export interface IToolCallPendingConfirmationState extends IToolCallBase, IToolC
 	 * belongs to a {@link ConfirmationOptionGroup} so the client can still
 	 * categorise the choices.
 	 */
-	options?: IConfirmationOption[];
+	options?: ConfirmationOption[];
 }
 
 /**
@@ -1101,19 +1101,19 @@ export interface IToolCallPendingConfirmationState extends IToolCallBase, IToolC
  *
  * @category Tool Call Types
  */
-export interface IToolCallRunningState extends IToolCallBase, IToolCallParameterFields {
+export interface ToolCallRunningState extends ToolCallBase, ToolCallParameterFields {
 	status: ToolCallStatus.Running;
 	/** How the tool was confirmed for execution */
 	confirmed: ToolCallConfirmationReason;
 	/** The confirmation option the user selected, if confirmation options were provided */
-	selectedOption?: IConfirmationOption;
+	selectedOption?: ConfirmationOption;
 	/**
 	 * Partial content produced while the tool is still executing.
 	 *
 	 * For example, a terminal content block lets clients subscribe to live
 	 * output before the tool completes.
 	 */
-	content?: IToolResultContent[];
+	content?: ToolResultContent[];
 }
 
 /**
@@ -1121,12 +1121,12 @@ export interface IToolCallRunningState extends IToolCallBase, IToolCallParameter
  *
  * @category Tool Call Types
  */
-export interface IToolCallPendingResultConfirmationState extends IToolCallBase, IToolCallParameterFields, IToolCallResult {
+export interface ToolCallPendingResultConfirmationState extends ToolCallBase, ToolCallParameterFields, ToolCallResult {
 	status: ToolCallStatus.PendingResultConfirmation;
 	/** How the tool was confirmed for execution */
 	confirmed: ToolCallConfirmationReason;
 	/** The confirmation option the user selected, if confirmation options were provided */
-	selectedOption?: IConfirmationOption;
+	selectedOption?: ConfirmationOption;
 }
 
 /**
@@ -1134,12 +1134,12 @@ export interface IToolCallPendingResultConfirmationState extends IToolCallBase, 
  *
  * @category Tool Call Types
  */
-export interface IToolCallCompletedState extends IToolCallBase, IToolCallParameterFields, IToolCallResult {
+export interface ToolCallCompletedState extends ToolCallBase, ToolCallParameterFields, ToolCallResult {
 	status: ToolCallStatus.Completed;
 	/** How the tool was confirmed for execution */
 	confirmed: ToolCallConfirmationReason;
 	/** The confirmation option the user selected, if confirmation options were provided */
-	selectedOption?: IConfirmationOption;
+	selectedOption?: ConfirmationOption;
 }
 
 /**
@@ -1147,16 +1147,16 @@ export interface IToolCallCompletedState extends IToolCallBase, IToolCallParamet
  *
  * @category Tool Call Types
  */
-export interface IToolCallCancelledState extends IToolCallBase, IToolCallParameterFields {
+export interface ToolCallCancelledState extends ToolCallBase, ToolCallParameterFields {
 	status: ToolCallStatus.Cancelled;
 	/** Why the tool was cancelled */
 	reason: ToolCallCancellationReason;
 	/** Optional message explaining the cancellation */
 	reasonMessage?: StringOrMarkdown;
 	/** What the user suggested doing instead */
-	userSuggestion?: IUserMessage;
+	userSuggestion?: UserMessage;
 	/** The confirmation option the user selected, if confirmation options were provided */
-	selectedOption?: IConfirmationOption;
+	selectedOption?: ConfirmationOption;
 }
 
 /**
@@ -1167,13 +1167,13 @@ export interface IToolCallCancelledState extends IToolCallBase, IToolCallParamet
  *
  * @category Tool Call Types
  */
-export type IToolCallState =
-	| IToolCallStreamingState
-	| IToolCallPendingConfirmationState
-	| IToolCallRunningState
-	| IToolCallPendingResultConfirmationState
-	| IToolCallCompletedState
-	| IToolCallCancelledState;
+export type ToolCallState =
+	| ToolCallStreamingState
+	| ToolCallPendingConfirmationState
+	| ToolCallRunningState
+	| ToolCallPendingResultConfirmationState
+	| ToolCallCompletedState
+	| ToolCallCancelledState;
 
 // ─── Tool Definition Types ───────────────────────────────────────────────────
 
@@ -1182,7 +1182,7 @@ export type IToolCallState =
  *
  * @category Tool Definition Types
  */
-export interface IToolDefinition {
+export interface ToolDefinition {
 	/** Unique tool identifier */
 	name: string;
 	/** Human-readable display name */
@@ -1211,7 +1211,7 @@ export interface IToolDefinition {
 		required?: string[];
 	};
 	/** Behavioral hints about the tool. All properties are advisory. */
-	annotations?: IToolAnnotations;
+	annotations?: ToolAnnotations;
 	/**
 	 * Additional provider-specific metadata.
 	 *
@@ -1228,7 +1228,7 @@ export interface IToolDefinition {
  *
  * @category Tool Definition Types
  */
-export interface IToolAnnotations {
+export interface ToolAnnotations {
 	/** Alternate human-readable title */
 	title?: string;
 	/** Tool does not modify its environment (default: false) */
@@ -1264,7 +1264,7 @@ export const enum ToolResultContentType {
  *
  * @category Tool Result Content
  */
-export interface IToolResultTextContent {
+export interface ToolResultTextContent {
 	type: ToolResultContentType.Text;
 	/** The text content */
 	text: string;
@@ -1277,7 +1277,7 @@ export interface IToolResultTextContent {
  *
  * @category Tool Result Content
  */
-export interface IToolResultEmbeddedResourceContent {
+export interface ToolResultEmbeddedResourceContent {
 	type: ToolResultContentType.EmbeddedResource;
 	/** Base64-encoded data */
 	data: string;
@@ -1288,11 +1288,11 @@ export interface IToolResultEmbeddedResourceContent {
 /**
  * A reference to a resource stored outside the tool result.
  *
- * Wraps {@link IContentRef} for lazy-loading large results.
+ * Wraps {@link ContentRef} for lazy-loading large results.
  *
  * @category Tool Result Content
  */
-export interface IToolResultResourceContent extends IContentRef {
+export interface ToolResultResourceContent extends ContentRef {
 	type: ToolResultContentType.Resource;
 }
 
@@ -1304,20 +1304,20 @@ export interface IToolResultResourceContent extends IContentRef {
  *
  * @category Tool Result Content
  */
-export interface IFileEdit {
+export interface FileEdit {
 	/** The file state before the edit. Absent for file creations or for in-place file edits. */
 	before?: {
 		/** URI of the file before the edit */
 		uri: URI;
 		/** Reference to the file content before the edit */
-		content: IContentRef;
+		content: ContentRef;
 	};
 	/** The file state after the edit. Absent for file deletions. */
 	after?: {
 		/** URI of the file after the edit */
 		uri: URI;
 		/** Reference to the file content after the edit */
-		content: IContentRef;
+		content: ContentRef;
 	};
 	/** Optional diff display metadata */
 	diff?: {
@@ -1333,7 +1333,7 @@ export interface IFileEdit {
  *
  * @category Tool Result Content
  */
-export interface IToolResultFileEditContent extends IFileEdit {
+export interface ToolResultFileEditContent extends FileEdit {
 	type: ToolResultContentType.FileEdit;
 }
 
@@ -1345,7 +1345,7 @@ export interface IToolResultFileEditContent extends IFileEdit {
  *
  * @category Tool Result Content
  */
-export interface IToolResultTerminalContent {
+export interface ToolResultTerminalContent {
 	type: ToolResultContentType.Terminal;
 	/** Terminal URI (subscribable for full terminal state) */
 	resource: URI;
@@ -1361,7 +1361,7 @@ export interface IToolResultTerminalContent {
  *
  * @category Tool Result Content
  */
-export interface IToolResultSubagentContent {
+export interface ToolResultSubagentContent {
 	type: ToolResultContentType.Subagent;
 	/** Subagent session URI (subscribable for full session state) */
 	resource: URI;
@@ -1377,20 +1377,20 @@ export interface IToolResultSubagentContent {
  * Content block in a tool result.
  *
  * Mirrors the content blocks in MCP `CallToolResult.content`, plus
- * `IToolResultResourceContent` for lazy-loading large results,
- * `IToolResultFileEditContent` for file edit diffs,
- * `IToolResultTerminalContent` for live terminal output, and
- * `IToolResultSubagentContent` for subagent sessions (AHP extensions).
+ * `ToolResultResourceContent` for lazy-loading large results,
+ * `ToolResultFileEditContent` for file edit diffs,
+ * `ToolResultTerminalContent` for live terminal output, and
+ * `ToolResultSubagentContent` for subagent sessions (AHP extensions).
  *
  * @category Tool Result Content
  */
-export type IToolResultContent =
-	| IToolResultTextContent
-	| IToolResultEmbeddedResourceContent
-	| IToolResultResourceContent
-	| IToolResultFileEditContent
-	| IToolResultTerminalContent
-	| IToolResultSubagentContent;
+export type ToolResultContent =
+	| ToolResultTextContent
+	| ToolResultEmbeddedResourceContent
+	| ToolResultResourceContent
+	| ToolResultFileEditContent
+	| ToolResultTerminalContent
+	| ToolResultSubagentContent;
 
 // ─── Customization Types ─────────────────────────────────────────────────────
 
@@ -1402,7 +1402,7 @@ export type IToolResultContent =
  *
  * @category Customization Types
  */
-export interface ICustomizationRef {
+export interface CustomizationRef {
 	/** Plugin URI (e.g. an HTTPS URL or marketplace identifier) */
 	uri: URI;
 	/** Human-readable name */
@@ -1445,9 +1445,9 @@ export const enum CustomizationStatus {
  *
  * @category Customization Types
  */
-export interface ISessionCustomization {
+export interface SessionCustomization {
 	/** The plugin this customization refers to */
-	customization: ICustomizationRef;
+	customization: CustomizationRef;
 	/** Whether this customization is currently enabled */
 	enabled: boolean;
 	/** Server-reported loading status */
@@ -1465,13 +1465,13 @@ export interface ISessionCustomization {
  *
  * @category Terminal Types
  */
-export interface ITerminalInfo {
+export interface TerminalInfo {
 	/** Terminal URI (subscribable for full terminal state) */
 	resource: URI;
 	/** Human-readable terminal title */
 	title: string;
 	/** Who currently holds this terminal */
-	claim: ITerminalClaim;
+	claim: TerminalClaim;
 	/** Process exit code, if the terminal process has exited */
 	exitCode?: number;
 }
@@ -1491,7 +1491,7 @@ export const enum TerminalClaimKind {
  *
  * @category Terminal Types
  */
-export interface ITerminalClientClaim {
+export interface TerminalClientClaim {
 	/** Discriminant */
 	kind: TerminalClaimKind.Client;
 	/** The `clientId` of the claiming client */
@@ -1503,7 +1503,7 @@ export interface ITerminalClientClaim {
  *
  * @category Terminal Types
  */
-export interface ITerminalSessionClaim {
+export interface TerminalSessionClaim {
 	/** Discriminant */
 	kind: TerminalClaimKind.Session;
 	/** Session URI that claimed the terminal */
@@ -1520,14 +1520,14 @@ export interface ITerminalSessionClaim {
  *
  * @category Terminal Types
  */
-export type ITerminalClaim = ITerminalClientClaim | ITerminalSessionClaim;
+export type TerminalClaim = TerminalClientClaim | TerminalSessionClaim;
 
 /**
  * Full state for a single terminal, loaded when a client subscribes to the terminal's URI.
  *
  * @category Terminal Types
  */
-export interface ITerminalState {
+export interface TerminalState {
 	/** Human-readable terminal title */
 	title: string;
 	/** Current working directory of the terminal process */
@@ -1544,11 +1544,11 @@ export interface ITerminalState {
 	 *
 	 * Consumers that need command boundaries can filter by part type.
 	 */
-	content: ITerminalContentPart[];
+	content: TerminalContentPart[];
 	/** Process exit code, set when the terminal process exits */
 	exitCode?: number;
 	/** Who currently holds this terminal */
-	claim: ITerminalClaim;
+	claim: TerminalClaim;
 	/**
 	 * Whether this terminal emits `terminal/commandExecuted` and
 	 * `terminal/commandFinished` actions and populates `command`-typed parts.
@@ -1567,9 +1567,9 @@ export interface ITerminalState {
  *
  * @category Terminal Types
  */
-export type ITerminalContentPart =
-	| ITerminalUnclassifiedPart
-	| ITerminalCommandPart;
+export type TerminalContentPart =
+	| TerminalUnclassifiedPart
+	| TerminalCommandPart;
 
 /**
  * Unstructured terminal output — content before, between, or after commands,
@@ -1577,7 +1577,7 @@ export type ITerminalContentPart =
  *
  * @category Terminal Types
  */
-export interface ITerminalUnclassifiedPart {
+export interface TerminalUnclassifiedPart {
 	type: 'unclassified';
 	/** Accumulated VT output. Appended to by `terminal/data` when no command is executing. */
 	value: string;
@@ -1592,7 +1592,7 @@ export interface ITerminalUnclassifiedPart {
  *
  * @category Terminal Types
  */
-export interface ITerminalCommandPart {
+export interface TerminalCommandPart {
 	type: 'command';
 	/**
 	 * Stable id matching the `commandId` on the corresponding
@@ -1621,7 +1621,7 @@ export interface ITerminalCommandPart {
 /**
  * @category Common Types
  */
-export interface IUsageInfo {
+export interface UsageInfo {
 	/** Input tokens consumed */
 	inputTokens?: number;
 	/** Output tokens generated */
@@ -1635,7 +1635,7 @@ export interface IUsageInfo {
 /**
  * @category Common Types
  */
-export interface IErrorInfo {
+export interface ErrorInfo {
 	/** Error type identifier */
 	errorType: string;
 	/** Human-readable error message */
@@ -1650,11 +1650,11 @@ export interface IErrorInfo {
  *
  * @category Common Types
  */
-export interface ISnapshot {
+export interface Snapshot {
 	/** The subscribed resource URI (e.g. `agenthost:/root` or `copilot:/<uuid>`) */
 	resource: URI;
 	/** The current state of the resource */
-	state: IRootState | ISessionState | ITerminalState;
+	state: RootState | SessionState | TerminalState;
 	/** The `serverSeq` at which this snapshot was taken. Subsequent actions will have `serverSeq > fromSeq`. */
 	fromSeq: number;
 }

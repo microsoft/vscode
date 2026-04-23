@@ -358,6 +358,8 @@ export const IApplicationStorageMainService = createDecorator<IStorageMainServic
  * A specialized `IStorageService` interface that only allows
  * access to the `StorageScope.APPLICATION` scope.
  */
+type ApplicationStorageScope = StorageScope.APPLICATION | StorageScope.APPLICATION_SHARED;
+
 export interface IApplicationStorageMainService extends IStorageService {
 
 	/**
@@ -373,24 +375,24 @@ export interface IApplicationStorageMainService extends IStorageService {
 	 */
 	readonly whenReady: Promise<void>;
 
-	get(key: string, scope: StorageScope.APPLICATION, fallbackValue: string): string;
-	get(key: string, scope: StorageScope.APPLICATION, fallbackValue?: string): string | undefined;
+	get(key: string, scope: ApplicationStorageScope, fallbackValue: string): string;
+	get(key: string, scope: ApplicationStorageScope, fallbackValue?: string): string | undefined;
 
-	getBoolean(key: string, scope: StorageScope.APPLICATION, fallbackValue: boolean): boolean;
-	getBoolean(key: string, scope: StorageScope.APPLICATION, fallbackValue?: boolean): boolean | undefined;
+	getBoolean(key: string, scope: ApplicationStorageScope, fallbackValue: boolean): boolean;
+	getBoolean(key: string, scope: ApplicationStorageScope, fallbackValue?: boolean): boolean | undefined;
 
-	getNumber(key: string, scope: StorageScope.APPLICATION, fallbackValue: number): number;
-	getNumber(key: string, scope: StorageScope.APPLICATION, fallbackValue?: number): number | undefined;
+	getNumber(key: string, scope: ApplicationStorageScope, fallbackValue: number): number;
+	getNumber(key: string, scope: ApplicationStorageScope, fallbackValue?: number): number | undefined;
 
-	store(key: string, value: string | boolean | number | undefined | null, scope: StorageScope.APPLICATION, target: StorageTarget): void;
+	store(key: string, value: string | boolean | number | undefined | null, scope: ApplicationStorageScope, target: StorageTarget): void;
 
-	remove(key: string, scope: StorageScope.APPLICATION): void;
+	remove(key: string, scope: ApplicationStorageScope): void;
 
-	keys(scope: StorageScope.APPLICATION, target: StorageTarget): string[];
+	keys(scope: ApplicationStorageScope, target: StorageTarget): string[];
 
 	switch(): never;
 
-	isNew(scope: StorageScope.APPLICATION): boolean;
+	isNew(scope: ApplicationStorageScope): boolean;
 }
 
 export class ApplicationStorageMainService extends AbstractStorageService implements IApplicationStorageMainService {

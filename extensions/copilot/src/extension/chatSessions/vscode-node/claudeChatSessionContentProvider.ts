@@ -18,10 +18,11 @@ import { autorun, derived, IObservable, ISettableObservable, observableFromEvent
 import { basename } from '../../../util/vs/base/common/resources';
 import { URI } from '../../../util/vs/base/common/uri';
 import { generateUuid } from '../../../util/vs/base/common/uuid';
+import { IInstantiationService } from '../../../util/vs/platform/instantiation/common/instantiation';
 import { ClaudeFolderInfo } from '../claude/common/claudeFolderInfo';
 import { ClaudeSessionUri } from '../claude/common/claudeSessionUri';
 import { ClaudeAgentManager } from '../claude/node/claudeCodeAgent';
-import { CLAUDE_REASONING_EFFORT_PROPERTY } from '../claude/node/claudeCodeModels';
+import { CLAUDE_REASONING_EFFORT_PROPERTY, IClaudeCodeModels } from '../claude/node/claudeCodeModels';
 import { IClaudeCodeSdkService } from '../claude/node/claudeCodeSdkService';
 import { parseClaudeModelId } from '../claude/node/claudeModelId';
 import { IClaudeSessionStateService } from '../claude/common/claudeSessionStateService';
@@ -29,6 +30,7 @@ import { IClaudeCodeSessionService } from '../claude/node/sessionParser/claudeCo
 import { IClaudeCodeSessionInfo } from '../claude/node/sessionParser/claudeSessionSchema';
 import { IClaudeSlashCommandService } from '../claude/vscode-node/claudeSlashCommandService';
 import { IChatFolderMruService } from '../common/folderRepositoryManager';
+import { IClaudeWorkspaceFolderService } from '../common/claudeWorkspaceFolderService';
 import { buildChatHistory } from './chatHistoryBuilder';
 import { ClaudeSessionOptionBuilder, buildPermissionModeItems, FOLDER_OPTION_ID, isPermissionMode, PERMISSION_MODE_OPTION_ID } from './claudeSessionOptionBuilder';
 import { toWorkspaceFolderOptionItem } from './sessionOptionGroupBuilder';
@@ -60,20 +62,11 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 		@IClaudeCodeSessionService private readonly sessionService: IClaudeCodeSessionService,
 		@IClaudeSessionStateService private readonly sessionStateService: IClaudeSessionStateService,
 		@IClaudeSlashCommandService private readonly slashCommandService: IClaudeSlashCommandService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IChatFolderMruService folderMruService: IChatFolderMruService,
-		@IWorkspaceService workspaceService: IWorkspaceService,
-		@INativeEnvService envService: INativeEnvService,
-		@IGitService gitService: IGitService,
-		@IClaudeCodeSdkService sdkService: IClaudeCodeSdkService,
-		@ILogService logService: ILogService,
+		@IClaudeCodeModels private readonly claudeModels: IClaudeCodeModels,
+		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super();
-		this._controller = this._register(new ClaudeChatSessionItemController(
-			sessionService, sessionStateService, configurationService,
-			folderMruService, workspaceService, envService,
-			gitService, sdkService, logService,
-		));
+		this._controller = this._register(instantiationService.createInstance(ClaudeChatSessionItemController));
 	}
 
 	// #region Chat Participant Handler
@@ -124,8 +117,8 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 			this.sessionStateService.setFolderInfoForSession(effectiveSessionId, folderInfo);
 
 			const rawReasoningEffort = request.modelConfiguration?.[CLAUDE_REASONING_EFFORT_PROPERTY];
-			const normalizedReasoningEffort = typeof rawReasoningEffort === 'string' ? rawReasoningEffort.trim() || undefined : undefined;
-			this.sessionStateService.setReasoningEffortForSession(effectiveSessionId, normalizedReasoningEffort);
+			const reasoningEffort = await this.claudeModels.resolveReasoningEffort(modelId, rawReasoningEffort);
+			this.sessionStateService.setReasoningEffortForSession(effectiveSessionId, reasoningEffort);
 
 			// Set usage handler to report token usage for context window widget
 			this.sessionStateService.setUsageHandlerForSession(effectiveSessionId, (usage) => {
@@ -133,9 +126,9 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 			});
 
 			const prompt = request.prompt;
-			this._controller.updateItemStatus(effectiveSessionId, vscode.ChatSessionStatus.InProgress, prompt);
+			await this._controller.updateItemStatus(effectiveSessionId, vscode.ChatSessionStatus.InProgress, prompt);
 			const result = await this.claudeAgentManager.handleRequest(effectiveSessionId, request, context, stream, token, isNewSession, yieldRequested);
-			this._controller.updateItemStatus(effectiveSessionId, vscode.ChatSessionStatus.Completed, prompt);
+			await this._controller.updateItemStatus(effectiveSessionId, vscode.ChatSessionStatus.Completed, prompt);
 
 			// Clear usage handler after request completes
 			this.sessionStateService.setUsageHandlerForSession(effectiveSessionId, undefined);
@@ -216,6 +209,7 @@ export class ClaudeChatSessionItemController extends Disposable {
 		@IGitService private readonly _gitService: IGitService,
 		@IClaudeCodeSdkService private readonly _sdkService: IClaudeCodeSdkService,
 		@ILogService private readonly _logService: ILogService,
+		@IClaudeWorkspaceFolderService private readonly _claudeWorkspaceFolderService: IClaudeWorkspaceFolderService,
 	) {
 		super();
 		this._optionBuilder = new ClaudeSessionOptionBuilder(_configurationService, folderMruService, _workspaceService);
@@ -641,7 +635,7 @@ export class ClaudeChatSessionItemController extends Disposable {
 		if (!item) {
 			const session = await this._claudeCodeSessionService.getSession(resource, CancellationToken.None);
 			if (session) {
-				item = this._createClaudeChatSessionItem(session);
+				item = await this._createClaudeChatSessionItem(session);
 			} else {
 				const newlyCreatedSessionInfo: IClaudeCodeSessionInfo = {
 					id: sessionId,
@@ -650,7 +644,7 @@ export class ClaudeChatSessionItemController extends Disposable {
 					lastRequestEnded: Date.now(),
 					folderName: undefined
 				};
-				item = this._createClaudeChatSessionItem(newlyCreatedSessionInfo);
+				item = await this._createClaudeChatSessionItem(newlyCreatedSessionInfo);
 			}
 
 			this._controller.items.add(item);
@@ -675,18 +669,37 @@ export class ClaudeChatSessionItemController extends Disposable {
 				} else {
 					item.timing = { ...item.timing, lastRequestEnded: Date.now() };
 				}
+				const session = await this._claudeCodeSessionService.getSession(resource, CancellationToken.None);
+				if (session?.cwd) {
+					item.changes = await this._claudeWorkspaceFolderService.getWorkspaceChanges(
+						session.cwd,
+						session.gitBranch,
+						undefined,
+						true,
+					);
+				}
 			}
 		}
 	}
 
 	private async _refreshItems(token: vscode.CancellationToken): Promise<void> {
 		const sessions = await this._claudeCodeSessionService.getAllSessions(token);
-		const items = sessions.map(session => this._createClaudeChatSessionItem(session));
+		const results = await Promise.allSettled(sessions.map(session => this._createClaudeChatSessionItem(session)));
+		const items: vscode.ChatSessionItem[] = [];
+		for (let i = 0; i < results.length; i++) {
+			const result = results[i];
+			if (result.status === 'fulfilled') {
+				items.push(result.value);
+			} else {
+				const session = sessions[i];
+				this._logService.warn(`Failed to create Claude chat session item for ${session.id} (${session.label}) ${result.reason}`);
+			}
+		}
 		items.push(...this._inProgressItems.values());
 		this._controller.items.replace(items);
 	}
 
-	private _createClaudeChatSessionItem(session: IClaudeCodeSessionInfo): vscode.ChatSessionItem {
+	private async _createClaudeChatSessionItem(session: IClaudeCodeSessionInfo): Promise<vscode.ChatSessionItem> {
 		let badge: vscode.MarkdownString | undefined;
 		if (session.folderName && this._showBadge) {
 			badge = new vscode.MarkdownString(`$(folder) ${session.folderName}`);
@@ -703,8 +716,12 @@ export class ClaudeChatSessionItemController extends Disposable {
 		};
 		item.iconPath = new vscode.ThemeIcon('claude');
 		if (session.cwd) {
-			// Agents app needs this to decide the working directory for the session
 			item.metadata = { workingDirectoryPath: session.cwd };
+			item.changes = await this._claudeWorkspaceFolderService.getWorkspaceChanges(
+				session.cwd,
+				session.gitBranch,
+				undefined,
+			);
 		}
 		return item;
 	}

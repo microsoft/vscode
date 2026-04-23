@@ -23,9 +23,9 @@ import type {
 	IDeltaAction,
 	IReasoningAction,
 	IResponsePartAction,
-	ISessionAction,
-	ISessionErrorAction,
-	ISessionInputRequestedAction,
+	SessionAction,
+	SessionErrorAction,
+	SessionInputRequestedAction,
 	ITitleChangedAction,
 	IToolCallCompleteAction,
 	IToolCallReadyAction,
@@ -33,11 +33,11 @@ import type {
 	ITurnCompleteAction,
 	IUsageAction,
 } from '../../common/state/sessionActions.js';
-import { SessionInputQuestionKind, ToolCallConfirmationReason, ToolResultContentType, type IMarkdownResponsePart, type IReasoningResponsePart, type ISessionInputRequest } from '../../common/state/sessionState.js';
+import { SessionInputQuestionKind, ToolCallConfirmationReason, ToolResultContentType, type MarkdownResponsePart, type ReasoningResponsePart, type SessionInputRequest } from '../../common/state/sessionState.js';
 import { AgentEventMapper } from '../../node/agentEventMapper.js';
 
 /** Helper: flatten the result of mapProgressEventToActions into an array. */
-function mapToArray(result: ISessionAction | ISessionAction[] | undefined): ISessionAction[] {
+function mapToArray(result: SessionAction | SessionAction[] | undefined): SessionAction[] {
 	if (!result) {
 		return [];
 	}
@@ -78,7 +78,7 @@ suite('AgentEventMapper', () => {
 		const second: IAgentDeltaEvent = { session, type: 'delta', messageId: 'msg-1', content: 'world' };
 
 		const firstActions = mapToArray(mapper.mapProgressEventToActions(first, session.toString(), turnId));
-		const partId = ((firstActions[0] as IResponsePartAction).part as IMarkdownResponsePart).id;
+		const partId = ((firstActions[0] as IResponsePartAction).part as MarkdownResponsePart).id;
 
 		const secondActions = mapToArray(mapper.mapProgressEventToActions(second, session.toString(), turnId));
 		assert.strictEqual(secondActions.length, 1);
@@ -167,7 +167,7 @@ suite('AgentEventMapper', () => {
 
 		const actions = mapToArray(mapper.mapProgressEventToActions(event, session.toString(), turnId));
 		assert.strictEqual(actions.length, 1);
-		const errorAction = actions[0] as ISessionErrorAction;
+		const errorAction = actions[0] as SessionErrorAction;
 		assert.strictEqual(errorAction.type, 'session/error');
 		assert.strictEqual(errorAction.error.errorType, 'runtime');
 		assert.strictEqual(errorAction.error.message, 'Something went wrong');
@@ -228,7 +228,7 @@ suite('AgentEventMapper', () => {
 		const second: IAgentReasoningEvent = { session, type: 'reasoning', content: ' more thoughts' };
 
 		const firstActions = mapToArray(mapper.mapProgressEventToActions(first, session.toString(), turnId));
-		const partId = ((firstActions[0] as IResponsePartAction).part as IReasoningResponsePart).id;
+		const partId = ((firstActions[0] as IResponsePartAction).part as ReasoningResponsePart).id;
 
 		const secondActions = mapToArray(mapper.mapProgressEventToActions(second, session.toString(), turnId));
 		assert.strictEqual(secondActions.length, 1);
@@ -317,7 +317,7 @@ suite('AgentEventMapper', () => {
 	});
 
 	test('user_input_request event maps to session/inputRequested action', () => {
-		const request: ISessionInputRequest = {
+		const request: SessionInputRequest = {
 			id: 'req-1',
 			message: 'What is your name?',
 			questions: [{
@@ -335,7 +335,7 @@ suite('AgentEventMapper', () => {
 
 		const actions = mapToArray(mapper.mapProgressEventToActions(event, session.toString(), turnId));
 		assert.strictEqual(actions.length, 1);
-		const action = actions[0] as ISessionInputRequestedAction;
+		const action = actions[0] as SessionInputRequestedAction;
 		assert.strictEqual(action.type, 'session/inputRequested');
 		assert.strictEqual(action.session, session.toString());
 		assert.strictEqual(action.request, request);

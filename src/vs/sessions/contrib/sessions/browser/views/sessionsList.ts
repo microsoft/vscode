@@ -652,6 +652,7 @@ export interface ISessionsList {
 	resetFilters(): void;
 	setWorkspaceGroupCapped(capped: boolean): void;
 	isWorkspaceGroupCapped(): boolean;
+	collapseAllSections(): void;
 }
 
 export class SessionsList extends Disposable implements ISessionsList {
@@ -675,6 +676,7 @@ export class SessionsList extends Disposable implements ISessionsList {
 	private workspaceGroupCapped: boolean;
 	private readonly expandedWorkspaceGroups = new Set<string>();
 	private findOpen = false;
+	private suspendCollapseStatePersistence = false;
 
 	private readonly _onDidUpdate = this._register(new Emitter<void>());
 	readonly onDidUpdate: Event<void> = this._onDidUpdate.event;
@@ -806,6 +808,9 @@ export class SessionsList extends Disposable implements ISessionsList {
 		this._register(this.tree.onContextMenu(e => this.onContextMenu(e)));
 
 		this._register(this.tree.onDidChangeCollapseState(e => {
+			if (this.suspendCollapseStatePersistence) {
+				return;
+			}
 			const element = e.node.element;
 			if (element && isSessionSection(element)) {
 				this.saveSectionCollapseState(element.id, e.node.collapsed);
@@ -1187,6 +1192,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 		return this.workspaceGroupCapped;
 	}
 
+	collapseAllSections(): void {
+		this.suspendCollapseStatePersistence = true;
+		try {
+			this.tree.collapseAll();
+		} finally {
+			this.suspendCollapseStatePersistence = false;
+		}
+		this.saveBulkCollapseState(true);
+	}
+
 	// -- Section collapse persistence --
 
 	private getSavedCollapseState(sectionId: string): boolean | undefined {
@@ -1218,6 +1233,16 @@ export class SessionsList extends Disposable implements ISessionsList {
 			}
 		}
 		state[sectionId] = collapsed;
+		this.storageService.store(SessionsList.SECTION_COLLAPSE_STATE_KEY, JSON.stringify(state), StorageScope.PROFILE, StorageTarget.USER);
+	}
+
+	private saveBulkCollapseState(collapsed: boolean): void {
+		const state: Record<string, boolean> = {};
+		for (const child of this.tree.getNode(null).children) {
+			if (child.element && isSessionSection(child.element)) {
+				state[child.element.id] = collapsed;
+			}
+		}
 		this.storageService.store(SessionsList.SECTION_COLLAPSE_STATE_KEY, JSON.stringify(state), StorageScope.PROFILE, StorageTarget.USER);
 	}
 

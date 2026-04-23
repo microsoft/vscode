@@ -75,6 +75,7 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'github.copilot.chat.cli.remote.enabled': false,
 		'github.copilot.chat.githubMcpServer.enabled': true,
 		'github.copilot.chat.languageContext.typescript.enabled': true,
+		'github.copilot.chat.cli.showExternalSessions': false,
 
 		'inlineChat.affordance': 'editor',
 		'inlineChat.renderMode': 'hover',
@@ -88,11 +89,11 @@ Registry.as<IConfigurationRegistry>(Extensions.Configuration).registerDefaultCon
 		'workbench.editor.doubleClickTabToToggleEditorGroupSizes': 'maximize',
 		'workbench.editor.restoreEditors': false,
 		'update.showReleaseNotes': false,
-		'workbench.notifications.position': 'top-right',
+		'workbench.notifications.position': 'bottom-right',
 		'workbench.startupEditor': 'none',
 		'workbench.tips.enabled': false,
 		'workbench.layoutControl.type': 'toggles',
-		'workbench.editor.useModal': 'some',
+		'workbench.editor.useModal': 'all',
 		'workbench.panel.showLabels': false,
 		'workbench.colorTheme': ThemeSettingDefaults.COLOR_THEME_DARK,
 

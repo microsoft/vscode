@@ -33,6 +33,7 @@ import { ISessionChangeEvent } from '../../../../services/sessions/common/sessio
 import { ClaudeCodeSessionType, CopilotCLISessionType, GITHUB_REMOTE_FILE_SCHEME, SessionStatus } from '../../../../services/sessions/common/session.js';
 import { CLAUDE_CODE_ENABLED_SETTING, CopilotChatSessionsProvider, COPILOT_PROVIDER_ID } from '../../browser/copilotChatSessionsProvider.js';
 import { ILogService, NullLogService } from '../../../../../platform/log/common/log.js';
+import { ILabelService } from '../../../../../platform/label/common/label.js';
 
 // ---- Helpers ----------------------------------------------------------------
 
@@ -179,6 +180,9 @@ function createProviderWithConfig(
 	});
 	// Stub IInstantiationService so provider can use createInstance for CopilotCLISession
 	instantiationService.stub(IInstantiationService, instantiationService);
+	instantiationService.stub(ILabelService, {
+		getUriLabel: (uri: URI) => uri.path,
+	});
 
 	const provider = disposables.add(instantiationService.createInstance(CopilotChatSessionsProvider));
 	return { provider, configService };
@@ -248,6 +252,9 @@ function createProviderForSendTests(
 	instantiationService.stub(ILanguageModelToolsService, { toToolReferences: () => [] });
 	instantiationService.stub(IGitService, { openRepository: async () => undefined });
 	instantiationService.stub(IInstantiationService, instantiationService);
+	instantiationService.stub(ILabelService, {
+		getUriLabel: (uri: URI) => uri.path,
+	});
 
 	return disposables.add(instantiationService.createInstance(CopilotChatSessionsProvider));
 }
@@ -855,6 +862,7 @@ suite('CopilotChatSessionsProvider', () => {
 
 		const workspace = provider.resolveWorkspace(uri);
 
+		assert.ok(workspace, 'resolveWorkspace should resolve file:// URIs');
 		assert.strictEqual(workspace.label, 'project');
 		assert.strictEqual(workspace.repositories.length, 1);
 		assert.strictEqual(workspace.repositories[0].uri.toString(), uri.toString());

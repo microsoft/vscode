@@ -7,14 +7,14 @@ import assert from 'assert';
 import { autorun } from '../../../../../../base/common/observable.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../../base/test/common/utils.js';
-import { ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, type IActiveTurn, type ICompletedToolCall, type IToolCallRunningState, type ITurn, type IToolCallResponsePart, ToolCallCancellationReason } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ToolCallStatus, ToolCallConfirmationReason, ToolResultContentType, TurnState, ResponsePartKind, type ActiveTurn, type ICompletedToolCall, type ToolCallRunningState, type Turn, type ToolCallResponsePart, ToolCallCancellationReason } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IChatToolInvocationSerialized, type IChatMarkdownContent } from '../../../common/chatService/chatService.js';
 import { ToolDataSource } from '../../../common/tools/languageModelToolsService.js';
 import { turnsToHistory as rawTurnsToHistory, activeTurnToProgress as rawActiveTurnToProgress, toolCallStateToInvocation as rawToolCallStateToInvocation, finalizeToolInvocation as rawFinalizeToolInvocation, updateRunningToolSpecificData as rawUpdateRunningToolSpecificData } from '../../../browser/agentSessions/agentHost/stateToProgressAdapter.js';
 
 // ---- Helper factories -------------------------------------------------------
 
-function createToolCallState(overrides?: Partial<IToolCallRunningState>): IToolCallRunningState {
+function createToolCallState(overrides?: Partial<ToolCallRunningState>): ToolCallRunningState {
 	return {
 		toolCallId: 'tc-1',
 		toolName: 'test_tool',
@@ -40,7 +40,7 @@ function createCompletedToolCall(overrides?: Partial<ICompletedToolCall>): IComp
 	} as ICompletedToolCall;
 }
 
-function createTurn(overrides?: Partial<ITurn>): ITurn {
+function createTurn(overrides?: Partial<Turn>): Turn {
 	return {
 		id: 'turn-1',
 		userMessage: { text: 'Hello' },
@@ -87,7 +87,7 @@ suite('stateToProgressAdapter', () => {
 		test('single turn produces request + response pair', () => {
 			const turn = createTurn({
 				userMessage: { text: 'Do something' },
-				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall() } as IToolCallResponsePart],
+				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: createCompletedToolCall() } as ToolCallResponsePart],
 			});
 
 			const history = turnsToHistory(URI.file('/'), [turn], 'participant-1');
@@ -137,7 +137,7 @@ suite('stateToProgressAdapter', () => {
 						],
 						success: true,
 					})
-				} as IToolCallResponsePart],
+				} as ToolCallResponsePart],
 			});
 
 			const history = turnsToHistory(URI.file('/'), [turn], 'p');
@@ -165,7 +165,7 @@ suite('stateToProgressAdapter', () => {
 						],
 						success: true,
 					})
-				} as IToolCallResponsePart],
+				} as ToolCallResponsePart],
 			});
 
 			const history = turnsToHistory(URI.file('/'), [turn], 'p');
@@ -196,7 +196,7 @@ suite('stateToProgressAdapter', () => {
 						content: [{ type: ToolResultContentType.Text, text: 'Result text' }],
 						success: true,
 					})
-				} as IToolCallResponsePart],
+				} as ToolCallResponsePart],
 			});
 
 			const history = turnsToHistory(URI.file('/'), [turn], 'p');
@@ -318,7 +318,7 @@ suite('stateToProgressAdapter', () => {
 						],
 						success: false,
 					})
-				} as IToolCallResponsePart],
+				} as ToolCallResponsePart],
 			});
 
 			const history = turnsToHistory(URI.file('/'), [turn], 'p');
@@ -596,7 +596,7 @@ suite('stateToProgressAdapter', () => {
 
 	suite('activeTurnToProgress', () => {
 
-		function createActiveTurnState(responseParts?: IActiveTurn['responseParts']): IActiveTurn {
+		function createActiveTurnState(responseParts?: ActiveTurn['responseParts']): ActiveTurn {
 			return {
 				id: 'turn-active',
 				userMessage: { text: 'Do things' },
@@ -650,7 +650,7 @@ suite('stateToProgressAdapter', () => {
 						confirmed: ToolCallConfirmationReason.NotNeeded,
 						success: true,
 						pastTenseMessage: 'Ran test tool',
-					} as IToolCallResponsePart['toolCall'],
+					} as ToolCallResponsePart['toolCall'],
 				},
 			]), undefined);
 			assert.strictEqual(result.length, 1);
@@ -738,7 +738,7 @@ suite('stateToProgressAdapter', () => {
 			});
 
 			const turn = createTurn({
-				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: tc } as IToolCallResponsePart],
+				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: tc } as ToolCallResponsePart],
 			});
 
 			const history = turnsToHistory(URI.file('/'), [turn], 'p');
@@ -767,7 +767,7 @@ suite('stateToProgressAdapter', () => {
 			});
 
 			const turn = createTurn({
-				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: tc } as IToolCallResponsePart],
+				responseParts: [{ kind: ResponsePartKind.ToolCall, toolCall: tc } as ToolCallResponsePart],
 			});
 
 			const history = turnsToHistory(URI.file('/'), [turn], 'p');
@@ -845,7 +845,7 @@ suite('stateToProgressAdapter', () => {
 			assert.strictEqual(invocation.toolSpecificData?.kind, 'subagent');
 
 			// Simulate subagent content arriving via SessionToolCallContentChanged
-			const runningTc: IToolCallRunningState = {
+			const runningTc: ToolCallRunningState = {
 				...tc,
 				status: ToolCallStatus.Running,
 				_meta: { toolKind: 'subagent', subagentDescription: 'Find related files' },
@@ -884,7 +884,7 @@ suite('stateToProgressAdapter', () => {
 			const invocation = toolCallStateToInvocation(tc);
 			const originalData = invocation.toolSpecificData;
 
-			const runningTc: IToolCallRunningState = {
+			const runningTc: ToolCallRunningState = {
 				...tc,
 				status: ToolCallStatus.Running,
 			};

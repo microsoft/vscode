@@ -13,7 +13,7 @@ import { FileService } from '../../../files/common/fileService.js';
 import { InMemoryFileSystemProvider } from '../../../files/common/inMemoryFilesystemProvider.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { AGENT_CLIENT_SCHEME, toAgentClientUri } from '../../common/agentClientUri.js';
-import { CustomizationStatus, type ICustomizationRef, type ISessionCustomization } from '../../common/state/sessionState.js';
+import { CustomizationStatus, type CustomizationRef, type SessionCustomization } from '../../common/state/sessionState.js';
 import { AgentPluginManager } from '../../node/agentPluginManager.js';
 
 suite('AgentPluginManager', () => {
@@ -37,7 +37,7 @@ suite('AgentPluginManager', () => {
 		return URI.from({ scheme: Schemas.inMemory, path: `/plugins/${name}` }).toString();
 	}
 
-	function makeRef(name: string, nonce?: string): ICustomizationRef {
+	function makeRef(name: string, nonce?: string): CustomizationRef {
 		return { uri: pluginUri(name), displayName: `Plugin ${name}`, nonce };
 	}
 
@@ -91,7 +91,7 @@ suite('AgentPluginManager', () => {
 		test('fires progress callback with loading, then loaded', async () => {
 			await seedPluginDir('prog', { 'index.js': 'content' });
 
-			const progressCalls: ISessionCustomization[][] = [];
+			const progressCalls: SessionCustomization[][] = [];
 			await manager.syncCustomizations('test-client', [makeRef('prog', 'n1')], statuses => {
 				progressCalls.push(statuses);
 			});

@@ -4385,6 +4385,16 @@
 							"onExp"
 						]
 					},
+					"github.copilot.chat.executionSubagent.useAgenticProxy": {
+						"type": "boolean",
+						"default": false,
+						"markdownDescription": "%github.copilot.config.executionSubagent.useAgenticProxy%",
+						"tags": [
+							"advanced",
+							"experimental",
+							"onExp"
+						]
+					},
 					"github.copilot.chat.executionSubagent.toolCallLimit": {
 						"type": "number",
 						"default": 10,
@@ -4574,7 +4584,7 @@
 					},
 					"github.copilot.chat.cli.showExternalSessions": {
 						"type": "boolean",
-						"default": false,
+						"default": true,
 						"markdownDescription": "%github.copilot.config.cli.showExternalSessions%",
 						"tags": [
 							"advanced"
@@ -4600,6 +4610,14 @@
 						"type": "boolean",
 						"default": true,
 						"markdownDescription": "%github.copilot.config.cli.planCommand.enabled%",
+						"tags": [
+							"advanced"
+						]
+					},
+					"github.copilot.chat.cli.lazyLoadSessionItem.enabled": {
+						"type": "boolean",
+						"default": false,
+						"markdownDescription": "%github.copilot.config.cli.lazyLoadSessionItem.enabled%",
 						"tags": [
 							"advanced"
 						]
@@ -4639,7 +4657,7 @@
 					},
 					"github.copilot.chat.cli.sessionController.enabled": {
 						"type": "boolean",
-						"default": false,
+						"default": true,
 						"markdownDescription": "%github.copilot.config.cli.sessionController.enabled%",
 						"tags": [
 							"advanced"

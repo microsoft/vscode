@@ -581,8 +581,8 @@ export class PromptsService extends Disposable implements IPromptsService {
 			// For hooks, return the Copilot hooks folder for creating new hooks
 			// (Claude paths are read-only and not included here)
 			const hooksFolders = await this.fileLocator.getHookSourceFolders();
-			for (const uri of hooksFolders) {
-				result.push({ uri, storage: PromptsStorage.local, type });
+			for (const folder of hooksFolders) {
+				result.push({ uri: folder.uri, storage: folder.storage, type, source: folder.source });
 			}
 		} else {
 			for (const uri of await this.fileLocator.getConfigBasedSourceFolders(type)) {

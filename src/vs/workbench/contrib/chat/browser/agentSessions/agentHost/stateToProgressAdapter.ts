@@ -6,10 +6,10 @@
 import { IMarkdownString, MarkdownString } from '../../../../../../base/common/htmlContent.js';
 import { marked, type Token, type Tokens, type TokensList } from '../../../../../../base/common/marked/marked.js';
 import { URI } from '../../../../../../base/common/uri.js';
-import { ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, getToolSubagentContent, type IActiveTurn, type ICompletedToolCall, type IToolCallState, type ITurn, FileEditKind, ToolResultContentType, type IToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { ToolCallStatus, TurnState, ResponsePartKind, getToolFileEdits, getToolOutputText, getToolSubagentContent, type ActiveTurn, type ICompletedToolCall, type ToolCallState, type Turn, FileEditKind, ToolResultContentType, type ToolResultContent } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { getToolKind } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { AGENT_HOST_SCHEME, toAgentHostUri } from '../../../../../../platform/agentHost/common/agentHostUri.js';
-import { StringOrMarkdown, type IFileEdit } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { StringOrMarkdown, type FileEdit } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { type IChatModifiedFilesConfirmationData, type IChatProgress, type IChatTerminalToolInvocationData, type IChatToolInputInvocationData, type IChatToolInvocationSerialized, ToolConfirmKind } from '../../../common/chatService/chatService.js';
 import { type IChatSessionHistoryItem } from '../../../common/chatSessionsService.js';
 import { ChatToolInvocation } from '../../../common/model/chatProgressTypes/chatToolInvocation.js';
@@ -74,7 +74,7 @@ export function isSubagentToolName(toolName: string): boolean {
  * the server reported `_meta.toolKind === 'subagent'` or because the tool
  * name is in the known fallback set (older snapshots without `_meta`).
  */
-export function isSubagentTool(tc: IToolCallState): boolean {
+export function isSubagentTool(tc: ToolCallState): boolean {
 	return getToolKind(tc) === 'subagent' || isSubagentToolName(tc.toolName);
 }
 
@@ -82,7 +82,7 @@ export function isSubagentTool(tc: IToolCallState): boolean {
  * Finds a terminal content block in a tool call's content array.
  * Returns the terminal URI if found.
  */
-export function getTerminalContentUri(content: IToolResultContent[] | undefined): string | undefined {
+export function getTerminalContentUri(content: ToolResultContent[] | undefined): string | undefined {
 	if (!content) {
 		return undefined;
 	}
@@ -97,7 +97,7 @@ export function getTerminalContentUri(content: IToolResultContent[] | undefined)
 /**
  * Converts completed turns from the protocol state into session history items.
  */
-export function turnsToHistory(backendSession: URI, turns: readonly ITurn[], participantId: string, connectionAuthority: string | undefined, modelId?: string): IChatSessionHistoryItem[] {
+export function turnsToHistory(backendSession: URI, turns: readonly Turn[], participantId: string, connectionAuthority: string | undefined, modelId?: string): IChatSessionHistoryItem[] {
 	const history: IChatSessionHistoryItem[] = [];
 	for (const turn of turns) {
 		// Request
@@ -155,7 +155,7 @@ export function turnsToHistory(backendSession: URI, turns: readonly ITurn[], par
  * reasoning, completed tool calls) and live {@link ChatToolInvocation}
  * objects for running tool calls and pending confirmations.
  */
-export function activeTurnToProgress(sessionResource: URI, activeTurn: IActiveTurn, connectionAuthority: string | undefined): IChatProgress[] {
+export function activeTurnToProgress(sessionResource: URI, activeTurn: ActiveTurn, connectionAuthority: string | undefined): IChatProgress[] {
 	const parts: IChatProgress[] = [];
 
 	for (const rp of activeTurn.responseParts) {
@@ -187,7 +187,7 @@ export function activeTurnToProgress(sessionResource: URI, activeTurn: IActiveTu
 	return parts;
 }
 
-function getTerminalInput(tc: IToolCallState): string | undefined {
+function getTerminalInput(tc: ToolCallState): string | undefined {
 	if (tc.status !== ToolCallStatus.Streaming && tc.toolInput) {
 		try {
 			return JSON.parse(tc.toolInput).command || tc.toolInput;
@@ -198,12 +198,12 @@ function getTerminalInput(tc: IToolCallState): string | undefined {
 
 	return undefined;
 }
-function getTerminalOutput(tc: IToolCallState) {
+function getTerminalOutput(tc: ToolCallState) {
 	const text = tc.status === ToolCallStatus.Completed || tc.status === ToolCallStatus.Running ? tc.content?.find(c => c.type === 'text')?.text : undefined;
 	return text ? { text } : undefined;
 }
 
-function getTerminalLanguage(tc: IToolCallState) {
+function getTerminalLanguage(tc: ToolCallState) {
 	return tc.toolName === 'powershell' ? 'powershell' : 'shellscript';
 }
 
@@ -470,7 +470,7 @@ export function stringOrMarkdownToString(value: StringOrMarkdown | undefined, co
  *   wrapping remote file URIs into `vscode-agent-host:` URIs. Omit to skip
  *   URI wrapping (e.g. in tests that don't exercise the confirmation UI).
  */
-export function toolCallStateToInvocation(tc: IToolCallState, subAgentInvocationId: string | undefined, sessionResource: URI, connectionAuthority: string | undefined): ChatToolInvocation {
+export function toolCallStateToInvocation(tc: ToolCallState, subAgentInvocationId: string | undefined, sessionResource: URI, connectionAuthority: string | undefined): ChatToolInvocation {
 	const toolData: IToolData = {
 		id: tc.toolName,
 		source: ToolDataSource.Internal,
@@ -584,7 +584,7 @@ export function toolCallStateToInvocation(tc: IToolCallState, subAgentInvocation
  * Called from the session handler when a tool transitions to Running state
  * to set the initial `toolSpecificData`, or when content changes arrive.
  */
-export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: IToolCallState, connectionAuthority: string | undefined): void {
+export function updateRunningToolSpecificData(existing: ChatToolInvocation, tc: ToolCallState, connectionAuthority: string | undefined): void {
 	if (tc.status !== ToolCallStatus.Running) {
 		return;
 	}
@@ -644,7 +644,7 @@ export interface IToolCallFileEdit {
  * Returns file edits that the caller should route through the editing
  * session's external edits pipeline.
  */
-export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: IToolCallState, backendSession: URI, connectionAuthority: string | undefined): IToolCallFileEdit[] {
+export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ToolCallState, backendSession: URI, connectionAuthority: string | undefined): IToolCallFileEdit[] {
 	const isCompleted = tc.status === ToolCallStatus.Completed;
 	const isCancelled = tc.status === ToolCallStatus.Cancelled;
 	const terminalContentUri = tc.status === ToolCallStatus.Running || tc.status === ToolCallStatus.Completed
@@ -709,7 +709,7 @@ export function finalizeToolInvocation(invocation: ChatToolInvocation, tc: ITool
  * converts them to {@link IToolCallFileEdit} data for routing through
  * the editing session's external edits pipeline.
  */
-export function fileEditsToExternalEdits(tc: IToolCallState): IToolCallFileEdit[] {
+export function fileEditsToExternalEdits(tc: ToolCallState): IToolCallFileEdit[] {
 	if (tc.status !== ToolCallStatus.Completed) {
 		return [];
 	}
@@ -721,12 +721,12 @@ export function fileEditsToExternalEdits(tc: IToolCallState): IToolCallFileEdit[
 }
 
 /**
- * Translates a list of {@link IFileEdit} records into {@link IToolCallFileEdit}
+ * Translates a list of {@link FileEdit} records into {@link IToolCallFileEdit}
  * entries suitable for the external edits pipeline or the chat modified-files
  * confirmation UI. Shared between completed tool edits and pending write
  * confirmations.
  */
-function mapFileEdits(items: readonly IFileEdit[], undoStopId: string): IToolCallFileEdit[] {
+function mapFileEdits(items: readonly FileEdit[], undoStopId: string): IToolCallFileEdit[] {
 	const result: IToolCallFileEdit[] = [];
 	for (const edit of items) {
 		const isCreate = !edit.before && !!edit.after;

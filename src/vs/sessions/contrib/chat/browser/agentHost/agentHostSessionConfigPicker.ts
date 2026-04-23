@@ -24,7 +24,7 @@ import { ContextKeyExpr } from '../../../../../platform/contextkey/common/contex
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { AgentHostSessionConfigBranchNameHintKey } from '../../../../../platform/agentHost/common/agentService.js';
-import type { ISessionConfigPropertySchema, ISessionConfigValueItem } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
+import type { SessionConfigPropertySchema, SessionConfigValueItem } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatConfiguration } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { ChatContextKeyExprs } from '../../../../../workbench/contrib/chat/common/actions/chatContextKeys.js';
 import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase } from '../../../../../workbench/common/contributions.js';
@@ -321,7 +321,7 @@ class AgentHostSessionConfigPicker extends Disposable {
 		}
 	}
 
-	private _renderTrigger(trigger: HTMLElement, property: string, schema: ISessionConfigPropertySchema, value: unknown | undefined): void {
+	private _renderTrigger(trigger: HTMLElement, property: string, schema: SessionConfigPropertySchema, value: unknown | undefined): void {
 		dom.clearNode(trigger);
 		const icon = getConfigIcon(property, value);
 		if (icon) {
@@ -339,7 +339,7 @@ class AgentHostSessionConfigPicker extends Disposable {
 		applyAutoApproveTriggerStyles(trigger, property, value);
 	}
 
-	private async _showPicker(provider: IAgentHostSessionsProvider, sessionId: string, property: string, schema: ISessionConfigPropertySchema, trigger: HTMLElement): Promise<void> {
+	private async _showPicker(provider: IAgentHostSessionsProvider, sessionId: string, property: string, schema: SessionConfigPropertySchema, trigger: HTMLElement): Promise<void> {
 		if (schema.readOnly || this._actionWidgetService.isVisible) {
 			return;
 		}
@@ -388,7 +388,7 @@ class AgentHostSessionConfigPicker extends Disposable {
 		);
 	}
 
-	private async _getItems(provider: IAgentHostSessionsProvider, sessionId: string, property: string, schema: ISessionConfigPropertySchema, query?: string): Promise<readonly IConfigPickerItem[]> {
+	private async _getItems(provider: IAgentHostSessionsProvider, sessionId: string, property: string, schema: SessionConfigPropertySchema, query?: string): Promise<readonly IConfigPickerItem[]> {
 		const dynamicItems = schema.enumDynamic
 			? await provider.getSessionConfigCompletions(sessionId, property, query)
 			: undefined;
@@ -403,7 +403,7 @@ class AgentHostSessionConfigPicker extends Disposable {
 		}));
 	}
 
-	private _fromCompletionItem(item: ISessionConfigValueItem): IConfigPickerItem {
+	private _fromCompletionItem(item: SessionConfigValueItem): IConfigPickerItem {
 		return {
 			value: item.value,
 			label: item.label,
@@ -411,7 +411,7 @@ class AgentHostSessionConfigPicker extends Disposable {
 		};
 	}
 
-	private _getLabel(schema: ISessionConfigPropertySchema, value: unknown | undefined): string {
+	private _getLabel(schema: SessionConfigPropertySchema, value: unknown | undefined): string {
 		if (typeof value === 'string') {
 			const index = schema.enum?.indexOf(value) ?? -1;
 			return index >= 0 ? schema.enumLabels?.[index] ?? value : value;

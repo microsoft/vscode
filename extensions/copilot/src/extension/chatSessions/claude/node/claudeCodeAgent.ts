@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { McpServerConfig, Options, PermissionMode, Query, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
+import { EffortLevel, McpServerConfig, Options, PermissionMode, Query, SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import Anthropic from '@anthropic-ai/sdk';
 import * as l10n from '@vscode/l10n';
 import type * as vscode from 'vscode';
@@ -161,6 +161,7 @@ export class ClaudeCodeSession extends Disposable {
 	private _settingsChangeTracker: ClaudeSettingsChangeTracker;
 	private _currentModelId: ParsedClaudeModelId;
 	private _currentPermissionMode: PermissionMode;
+	private _currentEffort: EffortLevel | undefined;
 	private _isResumed: boolean;
 	private _yieldInProgress = false;
 	private _sessionStarting: Promise<void> | undefined;
@@ -337,7 +338,15 @@ export class ClaudeCodeSession extends Disposable {
 		// Do this BEFORE starting a session so the Options are correct from the start
 		const modelId = this.sessionStateService.getModelIdForSession(this.sessionId);
 		const permissionMode = this.sessionStateService.getPermissionModeForSession(this.sessionId);
+		const effortLevel = this.sessionStateService.getReasoningEffortForSession(this.sessionId);
 
+		if (effortLevel !== this._currentEffort) {
+			this._currentEffort = effortLevel;
+			// Effort doesn't have a direct setter on the query generator, so we need to restart the session
+			if (this._queryGenerator) {
+				this._restartSession();
+			}
+		}
 		// Update model and permission mode on active session if they changed
 		if (modelId) {
 			await this._setModel(modelId);
@@ -427,6 +436,7 @@ export class ClaudeCodeSession extends Disposable {
 			// the permission mode ourselves in the options
 			allowDangerouslySkipPermissions: true,
 			abortController: this._abortController,
+			effort: this._currentEffort,
 			executable: process.execPath as 'node', // get it to fork the EH node process
 			// TODO: CAPI does not yet support the WebSearch tool
 			// Once it does, we can re-enable it.
@@ -662,6 +672,7 @@ export class ClaudeCodeSession extends Disposable {
 		this._queryGenerator = undefined;
 		this._abortController = new AbortController();
 		this._currentRequest = undefined;
+		this._currentEffort = undefined;
 	}
 
 	/**

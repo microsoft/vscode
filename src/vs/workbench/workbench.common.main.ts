@@ -194,6 +194,9 @@ registerSingleton(IAllowedMcpServersService, AllowedMcpServersService, Instantia
 // Default Account
 import './services/accounts/browser/defaultAccount.js';
 
+// Account Policy Gate
+import './services/policies/browser/accountPolicyGate.contribution.js';
+
 // Telemetry
 import './contrib/telemetry/browser/telemetry.contribution.js';
 

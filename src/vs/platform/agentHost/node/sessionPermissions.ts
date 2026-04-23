@@ -10,7 +10,7 @@ import { URI } from '../../../base/common/uri.js';
 import { localize } from '../../../nls.js';
 import { ILogService } from '../../log/common/log.js';
 import type { IAgentToolReadyEvent } from '../common/agentService.js';
-import { ConfirmationOptionKind, type IConfirmationOption } from '../common/state/protocol/state.js';
+import { ConfirmationOptionKind, type ConfirmationOption } from '../common/state/protocol/state.js';
 import { ActionType, type IToolCallReadyAction } from '../common/state/sessionActions.js';
 import {
 	ResponsePartKind,
@@ -59,7 +59,7 @@ export class SessionPermissionManager extends Disposable {
 	static readonly PERMISSIONS_CONFIG_KEY = 'permissions';
 	static readonly ALLOW_SESSION_OPTION_ID = 'allow-session';
 
-	private static readonly _CONFIRMATION_OPTIONS: readonly IConfirmationOption[] = [
+	private static readonly _CONFIRMATION_OPTIONS: readonly ConfirmationOption[] = [
 		{ id: SessionPermissionManager.ALLOW_SESSION_OPTION_ID, label: localize('sessionPermissions.allowSession', "Allow in this Session"), kind: ConfirmationOptionKind.Approve, group: 1 },
 		{ id: 'allow-once', label: localize('sessionPermissions.allowOnce', "Allow Once"), kind: ConfirmationOptionKind.Approve },
 		{ id: 'skip', label: localize('sessionPermissions.skip', "Skip"), kind: ConfirmationOptionKind.Deny, group: 2 },

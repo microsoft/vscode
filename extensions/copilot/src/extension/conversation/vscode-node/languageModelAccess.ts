@@ -16,6 +16,7 @@ import { IEndpointProvider } from '../../../platform/endpoint/common/endpointPro
 import { CustomDataPartMimeTypes } from '../../../platform/endpoint/common/endpointTypes';
 import { ModelAliasRegistry } from '../../../platform/endpoint/common/modelAliasRegistry';
 import { encodeStatefulMarker } from '../../../platform/endpoint/common/statefulMarkerContainer';
+import { isGeminiFamily } from '../../../platform/endpoint/common/chatModelCapabilities';
 import { AutoChatEndpoint } from '../../../platform/endpoint/node/autoChatEndpoint';
 import { IAutomodeService } from '../../../platform/endpoint/node/automodeService';
 import { IEnvService, isScenarioAutomation } from '../../../platform/env/common/envService';
@@ -65,7 +66,7 @@ function buildConfigurationSchema(endpoint: IChatEndpoint): { configurationSchem
 	}
 
 	const family = endpoint.family.toLowerCase();
-	if (family.startsWith('gemini')) {
+	if (isGeminiFamily(endpoint)) {
 		return {};
 	}
 

@@ -402,6 +402,15 @@ export class ChatSessionsService extends Disposable implements IChatSessionsServ
 		return Array.from(this.inProgressMap.entries()).map(([chatSessionType, count]) => ({ chatSessionType, count }));
 	}
 
+	public async resolveChatSessionItem(chatSessionType: string, resource: URI, token: CancellationToken): Promise<IChatSessionItem | undefined> {
+		const entry = this._itemControllers.get(chatSessionType);
+		if (!entry?.controller.resolveChatSessionItem) {
+			return undefined;
+		}
+
+		return entry.controller.resolveChatSessionItem(resource, token);
+	}
+
 	private async updateInProgressStatus(chatSessionType: string): Promise<void> {
 		try {
 			const items: IChatSessionItem[] = [];

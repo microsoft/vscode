@@ -16,7 +16,7 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { ITelemetryService } from '../../../platform/telemetry/common/telemetry';
 import { IWorkspaceService } from '../../../platform/workspace/common/workspaceService';
 import { isUri } from '../../../util/common/types';
-import { DeferredPromise, IntervalTimer } from '../../../util/vs/base/common/async';
+import { DeferredPromise, IntervalTimer, raceCancellation } from '../../../util/vs/base/common/async';
 import { CancellationToken } from '../../../util/vs/base/common/cancellation';
 import { isCancellationError } from '../../../util/vs/base/common/errors';
 import { Emitter, Event } from '../../../util/vs/base/common/event';
@@ -131,6 +131,8 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 
 	private readonly controller: vscode.ChatSessionItemController;
 	private readonly newSessions = new ResourceMap<vscode.ChatSessionItem>();
+	private readonly previouslyCachedChanges = new Map<string, vscode.ChatSessionChangedFile[]>();
+
 	constructor(
 		@ICopilotCLISessionService private readonly sessionService: ICopilotCLISessionService,
 		@IChatSessionWorktreeService private readonly copilotCLIWorktreeManagerService: IChatSessionWorktreeService,
@@ -206,11 +208,24 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 				if (!item) {
 					throw new Error(`Failed to get session item for forked session ${forkedSessionId}`);
 				}
-				return this.toChatSessionItem(item);
+				return this.toChatSessionItem(item, undefined, token);
+			};
+		}
+		// Defers the slow `buildChanges` (git diff) call to when the editor renders the item.
+		if (this.configurationService.getConfig(ConfigKey.Advanced.CLIChatLazyLoadSessionItem)) {
+			controller.resolveChatSessionItem = async (item, token) => {
+				const sessionId = SessionIdForCLI.parse(item.resource);
+				const session = await this.sessionService.getSessionItem(sessionId, token);
+				if (!session || token.isCancellationRequested || Array.isArray(item.changes)) {
+					return;
+				}
+				const updatedItem = await this.toChatSessionItem(session, { includeChanges: true }, token);
+				controller.items.add(updatedItem);
 			};
 		}
 		this._register(this.sessionService.onDidDeleteSession(async (e) => {
 			controller.items.delete(SessionIdForCLI.getResource(e));
+			this.previouslyCachedChanges.delete(e);
 		}));
 		this._register(this.sessionService.onDidChangeSession(async (e) => {
 			const item = await this.toChatSessionItem(e);
@@ -300,6 +315,7 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 		if (refreshOptions.reason === 'delete') {
 			const uri = SessionIdForCLI.getResource(refreshOptions.sessionId);
 			this.controller.items.delete(uri);
+			this.previouslyCachedChanges.delete(refreshOptions.sessionId);
 		} else if (refreshOptions.reason === 'update' && hasKey(refreshOptions, { 'sessionIds': true })) {
 			await Promise.allSettled(refreshOptions.sessionIds.map(async sessionId => {
 				const item = await this.sessionService.getSessionItem(sessionId, CancellationToken.None);
@@ -317,30 +333,54 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 		}
 	}
 
-	public async toChatSessionItem(session: ICopilotCLISessionItem): Promise<vscode.ChatSessionItem> {
+	public async toChatSessionItem(session: ICopilotCLISessionItem, options?: { readonly includeChanges?: boolean }, token?: vscode.CancellationToken): Promise<vscode.ChatSessionItem> {
+		token = token ?? CancellationToken.None;
 		const resource = SessionIdForCLI.getResource(session.id);
 		const item = this.controller.createChatSessionItem(resource, session.label);
 
-		let worktreeProperties = await this.copilotCLIWorktreeManagerService.getWorktreeProperties(session.id);
+		let worktreeProperties = await raceCancellation(this.copilotCLIWorktreeManagerService.getWorktreeProperties(session.id), token);
 		const workingDirectory = worktreeProperties?.worktreePath ? vscode.Uri.file(worktreeProperties.worktreePath)
 			: session.workingDirectory;
 
+		if (token.isCancellationRequested) {
+			return item;
+
+		}
 		item.timing = session.timing;
 		item.status = session.status ?? vscode.ChatSessionStatus.Completed;
+		// This way, when user refreshes everything, they get the cached changes immediately.
+		item.changes = this.previouslyCachedChanges.get(session.id);
 
-		const changes = await this.buildChanges(session.id, worktreeProperties, workingDirectory);
+		// `buildChanges` runs `git diff` and is the slow leg of populating an item. Skip it on the
+		// eager pass and let `resolveChatSessionItem` fill it in lazily for visible items.
+		// But if computing changes is easy (cached or the like), then include them right away to avoid a second update pass.
+		if (options?.includeChanges || ((await this.canBuildChangesFast(session.id, worktreeProperties)))) {
+			const changes = await this.buildChanges(session.id, worktreeProperties, workingDirectory, token);
+			if (token.isCancellationRequested) {
+				return item;
+			}
 
-		// We need to get an updated version of worktree properties here because when the
-		// changes are being computed, the worktree properties are also updated with the
-		// repository state which we are passing along through the metadata
-		worktreeProperties = await this.copilotCLIWorktreeManagerService.getWorktreeProperties(session.id);
+			// We need to get an updated version of worktree properties here because when the
+			// changes are being computed, the worktree properties are also updated with the
+			// repository state which we are passing along through the metadata
+			worktreeProperties = await raceCancellation(this.copilotCLIWorktreeManagerService.getWorktreeProperties(session.id), token);
+			if (token.isCancellationRequested) {
+				return item;
+			}
+
+			item.changes = changes;
+			this.previouslyCachedChanges.set(session.id, changes);
+		}
+
+		if (token.isCancellationRequested) {
+			return item;
+		}
 
 		const [badge, metadata] = await Promise.all([
 			this.buildBadge(worktreeProperties, workingDirectory),
 			this.buildMetadata(session.id, worktreeProperties, workingDirectory),
 		]);
 		item.badge = badge;
-		item.changes = changes;
 		item.metadata = metadata;
 		return item;
 	}
@@ -370,20 +410,41 @@ export class CopilotCLIChatSessionContentProvider extends Disposable implements 
 		return badge;
 	}
 
+	private async canBuildChangesFast(sessionId: string, worktreeProperties: Awaited<ReturnType<IChatSessionWorktreeService['getWorktreeProperties']>>): Promise<boolean> {
+		if (!this.configurationService.getConfig(ConfigKey.Advanced.CLIChatLazyLoadSessionItem)) {
+			return true;
+		}
+		if (!worktreeProperties?.repositoryPath) {
+			return false;
+		}
+		const [trusted, available] = await Promise.all([
+			vscode.workspace.isResourceTrusted(vscode.Uri.file(worktreeProperties.repositoryPath)),
+			this.copilotCLIWorktreeManagerService.hasWorktreeChanges(sessionId)
+		]);
+		return trusted && available;
+	}
+
 	private async buildChanges(
 		sessionId: string,
 		worktreeProperties: Awaited<ReturnType<IChatSessionWorktreeService['getWorktreeProperties']>>,
 		workingDirectory: vscode.Uri | undefined,
+		token: CancellationToken = CancellationToken.None
 	): Promise<vscode.ChatSessionChangedFile[]> {
 		const changes: vscode.ChatSessionChangedFile[] = [];
 		if (worktreeProperties?.repositoryPath && await vscode.workspace.isResourceTrusted(vscode.Uri.file(worktreeProperties.repositoryPath))) {
-			changes.push(...(await this.copilotCLIWorktreeManagerService.getWorktreeChanges(sessionId) ?? []));
+			if (token.isCancellationRequested) {
+				return [];
+			}
+			changes.push(...(await raceCancellation(this.copilotCLIWorktreeManagerService.getWorktreeChanges(sessionId), token) ?? []));
 		} else if (workingDirectory && await vscode.workspace.isResourceTrusted(workingDirectory)) {
-			const workspaceChanges = await this._workspaceFolderService.getWorkspaceChanges(sessionId) ?? [];
-			const repositoryProperties = await this._metadataStore.getRepositoryProperties(sessionId);
+			if (token.isCancellationRequested) {
+				return [];
+			}
+			const workspaceChanges = await raceCancellation(this._workspaceFolderService.getWorkspaceChanges(sessionId), token) ?? [];
+			const repositoryProperties = await raceCancellation(this._metadataStore.getRepositoryProperties(sessionId), token);
 
 			changes.push(...workspaceChanges.map(change => {
-				const originalRef = repositoryProperties?.mergeBaseCommit ?? repositoryProperties?.baseCommit ?? 'HEAD';
+				const originalRef = repositoryProperties?.mergeBaseCommit ?? 'HEAD';
 
 				return new vscode.ChatSessionChangedFile(
 					vscode.Uri.file(change.filePath),

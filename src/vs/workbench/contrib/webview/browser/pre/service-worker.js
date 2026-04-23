@@ -18,9 +18,6 @@ const searchParams = new URL(location.toString()).searchParams;
 
 const remoteAuthority = searchParams.get('remoteAuthority');
 
-/** @type {MessagePort|undefined} */
-let outerIframeMessagePort;
-
 /**
  * Origin used for resources
  */
@@ -148,20 +145,6 @@ sw.addEventListener('message', async (event) => {
 	/** @type {Client} */
 	const source = event.source;
 	switch (event.data.channel) {
-		case 'version': {
-			perfMark('version/request');
-			outerIframeMessagePort = event.ports[0];
-			sw.clients.get(source.id).then(client => {
-				perfMark('version/reply');
-				if (client) {
-					client.postMessage({
-						channel: 'version',
-						version: VERSION
-					});
-				}
-			});
-			return;
-		}
 		case 'did-load-resource': {
 			/** @type {ResourceResponse} */
 			const response = event.data.data;
@@ -322,17 +305,14 @@ async function processResourceRequest(
 	const webviewId = getWebviewIdForClient(client);
 
 	// Refs https://github.com/microsoft/vscode/issues/244143
-	// With PlzDedicatedWorker, worker subresources and blob wokers
+	// With PlzDedicatedWorker, worker subresources and blob workers
 	// will use clients different from the window client.
-	// Since we cannot different a worker main resource from a worker subresource
-	// we will use message channel to the outer iframe provided at the time
-	// of service worker controller version initialization.
 	if (!webviewId && client.type !== 'worker' && client.type !== 'sharedworker') {
 		console.error('Could not resolve webview id');
 		return notFound();
 	}
 
-	const shouldTryCaching = (event.request.method === 'GET');
+	const shouldTryCaching = (event.request.method === 'GET' && !event.request.headers.get('range'));
 
 	/**
 	 * @param {RequestStoreResult<ResourceResponse>} result
@@ -401,6 +381,7 @@ async function processResourceRequest(
 			// so we just pipe the stream through with a 206 status.
 			if (entry.status === 206 && entry.range) {
 				headers['Content-Range'] = entry.range;
+				headers['Cache-Control'] = 'no-store';
 				return new Response(entry.stream, { status: 206, headers });
 			}
 
@@ -466,17 +447,6 @@ async function processResourceRequest(
 				range,
 			});
 		}
-	} else if (client.type === 'worker' || client.type === 'sharedworker') {
-		outerIframeMessagePort?.postMessage({
-			channel: 'load-resource',
-			id: requestId,
-			scheme: requestUrlComponents.scheme,
-			authority: requestUrlComponents.authority,
-			path: requestUrlComponents.path,
-			query: requestUrlComponents.query,
-			ifNoneMatch: cached?.headers.get('ETag'),
-			range,
-		});
 	}
 
 	return promise.then(entry => resolveResourceEntry(entry, cached));
@@ -499,11 +469,8 @@ async function processLocalhostRequest(
 	}
 	const webviewId = getWebviewIdForClient(client);
 	// Refs https://github.com/microsoft/vscode/issues/244143
-	// With PlzDedicatedWorker, worker subresources and blob wokers
+	// With PlzDedicatedWorker, worker subresources and blob workers
 	// will use clients different from the window client.
-	// Since we cannot different a worker main resource from a worker subresource
-	// we will use message channel to the outer iframe provided at the time
-	// of service worker controller version initialization.
 	if (!webviewId && client.type !== 'worker' && client.type !== 'sharedworker') {
 		console.error('Could not resolve webview id');
 		return fetch(event.request);
@@ -544,12 +511,6 @@ async function processLocalhostRequest(
 				id: requestId,
 			});
 		}
-	} else if (client.type === 'worker' || client.type === 'sharedworker') {
-		outerIframeMessagePort?.postMessage({
-			channel: 'load-localhost',
-			origin: origin,
-			id: requestId,
-		});
 	}
 
 	return promise.then(resolveRedirect);

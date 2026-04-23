@@ -90,6 +90,10 @@ export interface ISessionRepository {
 export interface ISessionWorkspace {
 	/** Display label for the workspace (e.g., "my-app", "org/repo", "host:/path"). */
 	readonly label: string;
+	/** Optional description shown alongside the label (e.g., parent folder path "~/work"). */
+	readonly description?: string;
+	/** Optional group name for categorizing this workspace in pickers (e.g., "Copilot Chat", "Local"). */
+	readonly group?: string;
 	/** Icon for the workspace. */
 	readonly icon: ThemeIcon;
 	/** Repositories in this workspace. */

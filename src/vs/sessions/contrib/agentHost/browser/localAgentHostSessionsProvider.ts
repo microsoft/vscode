@@ -5,13 +5,15 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { autorun, IObservable } from '../../../../base/common/observable.js';
-import { basename } from '../../../../base/common/resources.js';
+import { basename, dirname } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IAgentConnection, IAgentHostService, type IAgentSessionMetadata } from '../../../../platform/agentHost/common/agentService.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -49,6 +51,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		@IChatService chatService: IChatService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@ILanguageModelsService languageModelsService: ILanguageModelsService,
+		@ILabelService private readonly _labelService: ILabelService,
 	) {
 		super(chatSessionsService, chatService, chatWidgetService, languageModelsService);
 
@@ -109,8 +112,11 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 	protected _adapterOptions() {
 		return {
 			description: this._localDescription,
-			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined) =>
-				LocalAgentHostSessionsProvider.buildWorkspace(project, workingDirectory, this._localLabel),
+			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined) => {
+				const uriForDescription = project?.uri ?? workingDirectory;
+				const description = uriForDescription ? this._labelService.getUriLabel(dirname(uriForDescription), { relative: false }) : undefined;
+				return buildAgentHostSessionWorkspace(project, workingDirectory, { providerLabel: this._localLabel, fallbackIcon: Codicon.folder, requiresWorkspaceTrust: true, description });
+			},
 		};
 	}
 
@@ -129,14 +135,15 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 
 	// -- Workspaces ----------------------------------------------------------
 
-	static buildWorkspace(project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined, providerLabel: string): ISessionWorkspace | undefined {
-		return buildAgentHostSessionWorkspace(project, workingDirectory, { providerLabel, fallbackIcon: Codicon.folder, requiresWorkspaceTrust: true });
-	}
-
-	resolveWorkspace(repositoryUri: URI): ISessionWorkspace {
+	resolveWorkspace(repositoryUri: URI): ISessionWorkspace | undefined {
+		if (repositoryUri.scheme !== Schemas.file) {
+			return undefined;
+		}
 		const folderName = basename(repositoryUri) || repositoryUri.path;
 		return {
 			label: `${folderName} [${this._localLabel}]`,
+			description: this._labelService.getUriLabel(dirname(repositoryUri), { relative: false }),
+			group: this.label,
 			icon: Codicon.folder,
 			repositories: [{ uri: repositoryUri, workingDirectory: undefined, detail: undefined, baseBranchName: undefined, baseBranchProtected: undefined }],
 			requiresWorkspaceTrust: true,

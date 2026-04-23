@@ -214,6 +214,8 @@ In multi-root and empty workspaces, a folder picker option appears in the chat s
 ### Key Files
 
 - **`common/claudeFolderInfo.ts`**: `ClaudeFolderInfo` interface
+- **`../../chatSessions/common/claudeWorkspaceFolderService.ts`**: `IClaudeWorkspaceFolderService` interface — computes git diff changes for session items
+- **`../../chatSessions/vscode-node/claudeWorkspaceFolderServiceImpl.ts`**: Implementation — diffs the session's branch against its base branch, caches results, and maps changes to `ChatSessionChangedFile[]` for display in the Sessions view
 - **`../../chatSessions/vscode-node/claudeChatSessionContentProvider.ts`**: Folder resolution, picker options, and handler integration
 - **`../../chatSessions/vscode-node/folderRepositoryManagerImpl.ts`**: `FolderRepositoryManager` (abstract base) with `ClaudeFolderRepositoryManager` subclass — the Claude subclass does not depend on `ICopilotCLISessionService` (CopilotCLI has its own subclass `CopilotCLIFolderRepositoryManager`)
 - **`node/claudeCodeAgent.ts`**: Consumes `ClaudeFolderInfo` in `ClaudeCodeSession._startSession()`

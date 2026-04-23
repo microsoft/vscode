@@ -421,6 +421,7 @@ export function createEditorServices(disposables: DisposableStore, options?: Cre
 		onDidChangeDefaultAccount: new Emitter<null>().event,
 		onDidChangePolicyData: new Emitter<null>().event,
 		policyData: null,
+		currentDefaultAccount: null,
 		copilotTokenInfo: null,
 		onDidChangeCopilotTokenInfo: new Emitter<null>().event,
 		getDefaultAccount: async () => null,

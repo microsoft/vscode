@@ -198,7 +198,7 @@ export namespace PromptsConfig {
 
 				// determine location type in the general case
 				const storage = isTildePath(path) ? PromptsStorage.user : PromptsStorage.local;
-				paths.push({ path, source: storage === PromptsStorage.local ? PromptFileSource.ConfigPersonal : PromptFileSource.ConfigWorkspace, storage });
+				paths.push({ path, source: storage === PromptsStorage.local ? PromptFileSource.ConfigWorkspace : PromptFileSource.ConfigPersonal, storage });
 			}
 
 			return paths;

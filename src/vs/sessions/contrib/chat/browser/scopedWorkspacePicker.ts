@@ -20,6 +20,7 @@ import { ISessionsProvidersService } from '../../../services/sessions/browser/se
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IAgentHostFilterService } from '../../remoteAgentHost/common/agentHostFilter.js';
 import { IWorkspacePickerItem, IWorkspaceSelection, WorkspacePicker } from './sessionWorkspacePicker.js';
+import { IWorkspacesService } from '../../../../platform/workspaces/common/workspaces.js';
 
 /**
  * A simplified workspace picker that scopes its contents to the host
@@ -46,6 +47,7 @@ export class ScopedWorkspacePicker extends WorkspacePicker {
 		@IOutputService outputService: IOutputService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ICommandService commandService: ICommandService,
+		@IWorkspacesService workspacesService: IWorkspacesService,
 		@IAgentHostFilterService private readonly _agentHostFilterService: IAgentHostFilterService,
 	) {
 		super(
@@ -61,6 +63,7 @@ export class ScopedWorkspacePicker extends WorkspacePicker {
 			outputService,
 			configurationService,
 			commandService,
+			workspacesService,
 		);
 
 		// When the scoped host changes, if the current selection no longer
@@ -108,6 +111,7 @@ export class ScopedWorkspacePicker extends WorkspacePicker {
 			items.push({
 				kind: ActionListItemKind.Action,
 				label: workspace.label,
+				description: workspace.description,
 				group: { title: '', icon: workspace.icon },
 				item: { selection, checked: this._isSelectedWorkspace(selection) || undefined },
 				onRemove: () => this._removeRecentWorkspace(selection),
