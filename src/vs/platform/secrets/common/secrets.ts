@@ -119,6 +119,10 @@ export class BaseSecretStorageService extends Disposable implements ISecretStora
 		super();
 	}
 
+	protected useSharedStorage(key: string): boolean {
+		return isWindows && CROSS_APP_SHARED_SECRET_KEYS.includes(key);
+	}
+
 	/**
 	 * @Note initialize must be called first so that this can be resolved properly
 	 * otherwise it will return 'unknown'.
@@ -178,7 +182,8 @@ export class BaseSecretStorageService extends Disposable implements ISecretStora
 
 			const fullKey = secretStorageKey(key);
 			this._logService.trace('[secrets] deleting secret for key:', fullKey);
-			storageService.remove(fullKey, StorageScope.APPLICATION);
+			const scope = this.useSharedStorage(key) ? StorageScope.APPLICATION_SHARED : StorageScope.APPLICATION;
+			storageService.remove(fullKey, scope);
 			this._logService.trace('[secrets] deleted secret for key:', fullKey);
 		});
 	}
@@ -194,7 +199,7 @@ export class BaseSecretStorageService extends Disposable implements ISecretStora
 	}
 
 	private getValueFromStorage(key: string, fullKey: string, storageService: IStorageService): string | undefined {
-		if (isWindows && CROSS_APP_SHARED_SECRET_KEYS.includes(key)) {
+		if (this.useSharedStorage(key)) {
 			this._logService.trace(`[SecretStorageService] Fetching value for cross-app shared secret: ${fullKey}`);
 			return storageService.get(fullKey, StorageScope.APPLICATION_SHARED);
 		}
@@ -202,7 +207,7 @@ export class BaseSecretStorageService extends Disposable implements ISecretStora
 	}
 
 	private setValueInStorage(key: string, fullKey: string, value: string, storageService: IStorageService): void {
-		if (isWindows && CROSS_APP_SHARED_SECRET_KEYS.includes(key)) {
+		if (this.useSharedStorage(key)) {
 			this._logService.trace(`[SecretStorageService] Setting value for cross-app shared secret: ${fullKey}`);
 			storageService.store(fullKey, value, StorageScope.APPLICATION_SHARED, StorageTarget.MACHINE);
 			return;
