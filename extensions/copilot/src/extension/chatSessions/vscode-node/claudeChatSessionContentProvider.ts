@@ -688,7 +688,7 @@ export class ClaudeChatSessionItemController extends Disposable {
 					item.timing = { ...item.timing, lastRequestEnded: Date.now() };
 				}
 				const session = await this._claudeCodeSessionService.getSession(resource, CancellationToken.None);
-				if (session?.cwd) {
+				if (session?.cwd && await this._workspaceService.isResourceTrusted(URI.file(session.cwd))) {
 					item.changes = await this._claudeWorkspaceFolderService.getWorkspaceChanges(
 						session.cwd,
 						session.gitBranch,
@@ -734,12 +734,21 @@ export class ClaudeChatSessionItemController extends Disposable {
 		};
 		item.iconPath = new vscode.ThemeIcon('claude');
 		if (session.cwd) {
-			item.metadata = await this._buildSessionMetadata(session.cwd);
-			item.changes = await this._claudeWorkspaceFolderService.getWorkspaceChanges(
-				session.cwd,
-				session.gitBranch,
-				undefined,
-			);
+			const isTrusted = await this._workspaceService.isResourceTrusted(URI.file(session.cwd));
+			if (isTrusted) {
+				const [metadata, changes] = await Promise.all([
+					this._buildSessionMetadata(session.cwd, isTrusted),
+					this._claudeWorkspaceFolderService.getWorkspaceChanges(
+						session.cwd,
+						session.gitBranch,
+						undefined,
+					),
+				]);
+				item.metadata = metadata;
+				item.changes = changes;
+			} else {
+				item.metadata = await this._buildSessionMetadata(session.cwd, isTrusted);
+			}
 		}
 		return item;
 	}
@@ -759,8 +768,13 @@ export class ClaudeChatSessionItemController extends Disposable {
 		return repositories.length > 1;
 	}
 
-	private async _buildSessionMetadata(cwd: string): Promise<SessionMetadata> {
-		const repoContext = await this._gitService.getRepository(URI.file(cwd));
+	private async _buildSessionMetadata(cwd: string, isTrusted?: boolean): Promise<SessionMetadata> {
+		const cwdUri = URI.file(cwd);
+		if (!(isTrusted ?? await this._workspaceService.isResourceTrusted(cwdUri))) {
+			return { workingDirectoryPath: cwd };
+		}
+
+		const repoContext = await this._gitService.getRepository(cwdUri);
 		if (!repoContext) {
 			return { workingDirectoryPath: cwd };
 		}

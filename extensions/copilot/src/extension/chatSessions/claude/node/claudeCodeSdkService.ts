@@ -24,7 +24,7 @@ export interface IClaudeCodeSdkService {
 	 * @param dir Workspace/project directory path (the SDK resolves this to the session storage location internally)
 	 * @returns Array of session info objects
 	 */
-	listSessions(dir: string): Promise<SDKSessionInfo[]>;
+	listSessions(dir?: string): Promise<SDKSessionInfo[]>;
 
 	/**
 	 * Gets detailed information for a specific session
@@ -98,7 +98,7 @@ export class ClaudeCodeSdkService implements IClaudeCodeSdkService {
 		return query(options);
 	}
 
-	public async listSessions(dir: string): Promise<SDKSessionInfo[]> {
+	public async listSessions(dir?: string): Promise<SDKSessionInfo[]> {
 		const { listSessions } = await this._loadSdk();
 		return listSessions({ dir });
 	}
