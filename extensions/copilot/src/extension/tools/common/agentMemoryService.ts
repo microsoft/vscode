@@ -185,7 +185,6 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 				this.logService.warn(`[AgentMemoryService] Failed to store repo memory: ${result.error}`);
 			} else {
 				this.logService.debug(`[AgentMemoryService] Successfully stored repo memory`);
-				// Note: Cache will be cleared when conversation ends, ensuring fresh data for next conversation
 			}
 			return result.success;
 		} catch (error) {
@@ -220,7 +219,6 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 				this.logService.warn(`[AgentMemoryService] Failed to store user memory: ${result.error}`);
 			} else {
 				this.logService.debug(`[AgentMemoryService] Successfully stored user memory`);
-				// Note: Cache will be cleared when conversation ends, ensuring fresh data for next conversation
 			}
 			return result.success;
 		} catch (error) {
