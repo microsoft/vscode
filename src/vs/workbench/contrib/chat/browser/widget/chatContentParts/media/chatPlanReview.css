@@ -138,6 +138,17 @@
 
 .interactive-session .chat-plan-review-container .chat-plan-review-inline-actions .monaco-button-dropdown {
 	width: auto;
+	height: 22px;
+	align-items: stretch;
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-inline-actions .monaco-button-dropdown > .monaco-button.monaco-dropdown-button {
+	padding: 0 4px;
+	box-sizing: border-box;
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-inline-actions .monaco-button-dropdown > .monaco-button-dropdown-separator {
+	padding: 0;
 }
 
 /* ---------- Scrollable markdown body ----------
@@ -232,6 +243,17 @@
 
 .interactive-session .chat-plan-review-container .chat-plan-review-footer .monaco-button-dropdown {
 	width: auto;
+	height: 22px;
+	align-items: stretch;
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-footer .monaco-button-dropdown > .monaco-button.monaco-dropdown-button {
+	padding: 0 4px;
+	box-sizing: border-box;
+}
+
+.interactive-session .chat-plan-review-container .chat-plan-review-footer .monaco-button-dropdown > .monaco-button-dropdown-separator {
+	padding: 0;
 }
 
 /* ---------- Hidden helper ---------- */
