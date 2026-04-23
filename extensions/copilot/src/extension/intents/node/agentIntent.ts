@@ -150,7 +150,11 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 
 	allowTools[CUSTOM_TOOL_SEARCH_NAME] = !!model.supportsToolSearch;
 
-	allowTools[ToolName.StoreMemory] = !!agentMemoryService.getCachedMemoryPrompt();
+	const cachedMemoryPrompt = agentMemoryService.getCachedMemoryPrompt();
+	if (!cachedMemoryPrompt && configurationService.getExperimentBasedConfig(ConfigKey.CopilotMemoryEnabled, experimentationService)) {
+		accessor.get(ILogService).debug('[getAgentTools] CopilotMemory is enabled but cache is not primed yet — StoreMemory tool will be disabled this turn');
+	}
+	allowTools[ToolName.StoreMemory] = !!cachedMemoryPrompt;
 
 	const tools = toolsService.getEnabledTools(request, model, tool => {
 		if (typeof allowTools[tool.name] === 'boolean') {
