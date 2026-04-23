@@ -877,7 +877,6 @@ export class LanguageModelsService implements ILanguageModelsService {
 			}
 
 			const groups = this._languageModelsConfigurationService.getLanguageModelsProviderGroups();
-			const vendorGroupCount = groups.reduce((count, g) => g.vendor === vendorId ? count + 1 : count, 0);
 			const perModelConfigurations = new Map<string, IStringDictionary<unknown>>();
 			for (const group of groups) {
 				if (group.vendor !== vendorId) {
@@ -907,19 +906,15 @@ export class LanguageModelsService implements ILanguageModelsService {
 				try {
 					const models = await provider.provideLanguageModelChatInfo({ group: group.name, silent, configuration }, CancellationToken.None);
 					if (models.length) {
-						// When the user has configured multiple instances of the same vendor
-						// (e.g. multiple Ollama servers), override `metadata.detail` with the
-						// per-instance group name so they can be distinguished in the model
-						// picker. We only override when the existing detail is missing or
-						// matches the generic vendor display name, to avoid discarding any
-						// meaningful provider-specific detail. With a single group there is
-						// nothing to disambiguate, so the provider's detail is left as-is.
-						if (vendorGroupCount > 1) {
-							for (let i = 0; i < models.length; i++) {
-								const existingDetail = models[i].metadata.detail;
-								if (!existingDetail || existingDetail === vendor.displayName) {
-									models[i] = { ...models[i], metadata: { ...models[i].metadata, detail: group.name } };
-								}
+						// Provide a sensible default for `metadata.detail` so that
+						// multiple instances of the same vendor (e.g. multiple
+						// Ollama servers) are distinguishable in the model picker.
+						// Providers that supply their own `detail` keep it; when
+						// the provider does not set one, fall back to the user-
+						// configured group name.
+						for (let i = 0; i < models.length; i++) {
+							if (!models[i].metadata.detail) {
+								models[i] = { ...models[i], metadata: { ...models[i].metadata, detail: group.name } };
 							}
 						}
 						allModels.push(...models);

@@ -1144,7 +1144,7 @@ suite('LanguageModels - Per-Model Configuration', function () {
 	});
 });
 
-suite('LanguageModels - Provider Group Detail Override', function () {
+suite('LanguageModels - Provider Group Detail Fallback', function () {
 
 	const disposables = new DisposableStore();
 
@@ -1154,7 +1154,7 @@ suite('LanguageModels - Provider Group Detail Override', function () {
 
 	ensureNoDisposablesAreLeakedInTestSuite();
 
-	test('model.detail is replaced with the group name so multiple instances of the same vendor are distinguishable', async function () {
+	test('model.detail falls back to the group name so multiple instances of the same vendor are distinguishable', async function () {
 		const languageModelsService = disposables.add(new LanguageModelsService(
 			new class extends mock<IExtensionService>() {
 				override activateByEvent() {
@@ -1195,8 +1195,8 @@ suite('LanguageModels - Provider Group Detail Override', function () {
 				}
 				// Provider returns the same model id for each group, but the
 				// identifier is namespaced by group so they don't collide.
-				// The provider sets a generic detail (vendor displayName) which
-				// the service should replace with the per-instance group name.
+				// The provider does not set `detail`; the service should fall
+				// back to the per-instance group name.
 				return [{
 					metadata: {
 						extension: nullExtensionDescription.identifier,
@@ -1205,7 +1205,6 @@ suite('LanguageModels - Provider Group Detail Override', function () {
 						family: 'shared',
 						version: '1.0',
 						id: 'shared-model',
-						detail: 'Multi Vendor',
 						maxInputTokens: 100,
 						maxOutputTokens: 100,
 						modelPickerCategory: DEFAULT_MODEL_PICKER_CATEGORY,
@@ -1229,7 +1228,7 @@ suite('LanguageModels - Provider Group Detail Override', function () {
 		);
 	});
 
-	test('model.detail is preserved when there is only a single group for the vendor', async function () {
+	test('model.detail falls back to the group name even when there is only a single group for the vendor', async function () {
 		const languageModelsService = disposables.add(new LanguageModelsService(
 			new class extends mock<IExtensionService>() {
 				override activateByEvent() {
@@ -1271,7 +1270,6 @@ suite('LanguageModels - Provider Group Detail Override', function () {
 						family: 'solo',
 						version: '1.0',
 						id: 'solo-model',
-						detail: 'Single Vendor',
 						maxInputTokens: 100,
 						maxOutputTokens: 100,
 						modelPickerCategory: DEFAULT_MODEL_PICKER_CATEGORY,
@@ -1288,10 +1286,10 @@ suite('LanguageModels - Provider Group Detail Override', function () {
 
 		const solo = languageModelsService.lookupLanguageModel('single-vendor/Only Instance/solo-model');
 
-		assert.strictEqual(solo?.detail, 'Single Vendor');
+		assert.strictEqual(solo?.detail, 'Only Instance');
 	});
 
-	test('a provider-supplied meaningful detail is preserved when multiple groups exist', async function () {
+	test('a provider-supplied detail is preserved when multiple groups exist', async function () {
 		const languageModelsService = disposables.add(new LanguageModelsService(
 			new class extends mock<IExtensionService>() {
 				override activateByEvent() {
@@ -1327,9 +1325,9 @@ suite('LanguageModels - Provider Group Detail Override', function () {
 				if (!options.group) {
 					return [];
 				}
-				// Provider supplies a meaningful, non-generic detail. The
-				// service should leave it untouched even when multiple groups
-				// exist for the vendor.
+				// Provider supplies its own detail. The service should leave
+				// it untouched and only fall back to the group name when the
+				// provider does not set one.
 				return [{
 					metadata: {
 						extension: nullExtensionDescription.identifier,
