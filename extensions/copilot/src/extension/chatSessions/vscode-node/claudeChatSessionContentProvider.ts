@@ -126,9 +126,9 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 			});
 
 			const prompt = request.prompt;
-			this._controller.updateItemStatus(effectiveSessionId, vscode.ChatSessionStatus.InProgress, prompt);
+			await this._controller.updateItemStatus(effectiveSessionId, vscode.ChatSessionStatus.InProgress, prompt);
 			const result = await this.claudeAgentManager.handleRequest(effectiveSessionId, request, context, stream, token, isNewSession, yieldRequested);
-			this._controller.updateItemStatus(effectiveSessionId, vscode.ChatSessionStatus.Completed, prompt);
+			await this._controller.updateItemStatus(effectiveSessionId, vscode.ChatSessionStatus.Completed, prompt);
 
 			// Clear usage handler after request completes
 			this.sessionStateService.setUsageHandlerForSession(effectiveSessionId, undefined);
@@ -685,9 +685,16 @@ export class ClaudeChatSessionItemController extends Disposable {
 	private async _refreshItems(token: vscode.CancellationToken): Promise<void> {
 		const sessions = await this._claudeCodeSessionService.getAllSessions(token);
 		const results = await Promise.allSettled(sessions.map(session => this._createClaudeChatSessionItem(session)));
-		const items = results
-			.filter((r): r is PromiseFulfilledResult<vscode.ChatSessionItem> => r.status === 'fulfilled')
-			.map(r => r.value);
+		const items: vscode.ChatSessionItem[] = [];
+		for (let i = 0; i < results.length; i++) {
+			const result = results[i];
+			if (result.status === 'fulfilled') {
+				items.push(result.value);
+			} else {
+				const session = sessions[i];
+				this._logService.warn(`Failed to create Claude chat session item for ${session.id} (${session.label}) ${result.reason}`);
+			}
+		}
 		items.push(...this._inProgressItems.values());
 		this._controller.items.replace(items);
 	}

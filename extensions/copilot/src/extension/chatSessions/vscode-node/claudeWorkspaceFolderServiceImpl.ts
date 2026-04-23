@@ -27,6 +27,7 @@ export class ClaudeWorkspaceFolderService extends Disposable implements IClaudeW
 	declare _serviceBrand: undefined;
 
 	private readonly _cache = new Map<string, vscode.ChatSessionChangedFile[]>();
+	private readonly _inflight = new Map<string, Promise<vscode.ChatSessionChangedFile[]>>();
 
 	constructor(
 		@IGitService private readonly _gitService: IGitService,
@@ -39,6 +40,7 @@ export class ClaudeWorkspaceFolderService extends Disposable implements IClaudeW
 
 	override dispose(): void {
 		this._cache.clear();
+		this._inflight.clear();
 		super.dispose();
 	}
 
@@ -57,6 +59,26 @@ export class ClaudeWorkspaceFolderService extends Disposable implements IClaudeW
 			}
 		}
 
+		const existing = this._inflight.get(cacheKey);
+		if (existing) {
+			return existing;
+		}
+
+		const promise = this._computeAndCacheChanges(cacheKey, cwd, gitBranch, gitBaseBranch);
+		this._inflight.set(cacheKey, promise);
+		try {
+			return await promise;
+		} finally {
+			this._inflight.delete(cacheKey);
+		}
+	}
+
+	private async _computeAndCacheChanges(
+		cacheKey: string,
+		cwd: string,
+		gitBranch: string | undefined,
+		gitBaseBranch: string | undefined,
+	): Promise<vscode.ChatSessionChangedFile[]> {
 		const result = await this.computeRepositoryChanges(cwd, gitBranch, gitBaseBranch);
 		if (!result) {
 			return [];
@@ -121,7 +143,7 @@ export class ClaudeWorkspaceFolderService extends Disposable implements IClaudeW
 
 		const mergeBaseArg = resolvedBaseBranchName
 			? ['--merge-base', resolvedBaseBranchName]
-			: [];
+			: ['HEAD'];
 
 		if (hasUntrackedChanges) {
 			// Tracked + untracked changes
