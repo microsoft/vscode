@@ -225,6 +225,7 @@ Each session in the list displays:
 | **Blue dot** | Indicates an unread or recently active session |
 | **Status icon** | Shows whether the session is completed, in progress, needs input, or failed |
 | **Folder badge** | In multi-root or empty workspaces, shows which folder the session ran in |
+| **Change stats** | Shows lines added and removed (e.g., `+584 -17`) — a quick summary of the session's code impact, computed by diffing the session's branch against its base branch |
 
 Sessions are sorted by recency — the most recent session appears at the top. In the dedicated sidebar, they're also grouped by time period.
 
