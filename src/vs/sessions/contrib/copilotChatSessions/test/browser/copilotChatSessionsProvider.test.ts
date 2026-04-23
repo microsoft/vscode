@@ -123,7 +123,7 @@ function createProviderWithConfig(
 
 	const configService = new TestConfigurationService();
 	configService.setUserConfiguration('sessions.github.copilot.multiChatSessions', opts?.multiChatEnabled ?? true);
-	configService.setUserConfiguration(CLAUDE_CODE_ENABLED_SETTING, opts?.claudeEnabled ?? false);
+	configService.setUserConfiguration(CLAUDE_CODE_ENABLED_SETTING, opts?.claudeEnabled ?? true);
 
 	instantiationService.stub(IConfigurationService, configService);
 	instantiationService.stub(IStorageService, disposables.add(new TestStorageService()));
@@ -208,7 +208,7 @@ function createProviderForSendTests(
 
 	const configService = new TestConfigurationService();
 	configService.setUserConfiguration('sessions.github.copilot.multiChatSessions', true);
-	configService.setUserConfiguration(CLAUDE_CODE_ENABLED_SETTING, opts?.claudeEnabled ?? false);
+	configService.setUserConfiguration(CLAUDE_CODE_ENABLED_SETTING, opts?.claudeEnabled ?? true);
 
 	instantiationService.stub(ILogService, NullLogService);
 	instantiationService.stub(IConfigurationService, configService);
@@ -279,24 +279,24 @@ suite('CopilotChatSessionsProvider', () => {
 	test('has correct id and label', () => {
 		const provider = createProvider(disposables, model);
 		assert.strictEqual(provider.id, COPILOT_PROVIDER_ID);
-		assert.strictEqual(provider.sessionTypes.length, 2);
+		assert.strictEqual(provider.sessionTypes.length, 3);
 	});
 
-	test('sessionTypes includes Claude when setting is enabled', () => {
-		const provider = createProvider(disposables, model, { claudeEnabled: true });
-		assert.strictEqual(provider.sessionTypes.length, 3);
-		assert.ok(provider.sessionTypes.some(t => t.id === ClaudeCodeSessionType.id));
+	test('sessionTypes excludes Claude when setting is disabled', () => {
+		const provider = createProvider(disposables, model, { claudeEnabled: false });
+		assert.strictEqual(provider.sessionTypes.length, 2);
+		assert.ok(!provider.sessionTypes.some(t => t.id === ClaudeCodeSessionType.id));
 	});
 
 	test('onDidChangeSessionTypes fires when claude setting changes', () => {
 		const { provider, configService } = createProviderWithConfig(disposables, model);
-		assert.strictEqual(provider.sessionTypes.length, 2);
+		assert.strictEqual(provider.sessionTypes.length, 3);
 
 		let fired = false;
 		disposables.add(provider.onDidChangeSessionTypes(() => { fired = true; }));
 
-		// Enable claude via config change
-		configService.setUserConfiguration(CLAUDE_CODE_ENABLED_SETTING, true);
+		// Disable claude via config change
+		configService.setUserConfiguration(CLAUDE_CODE_ENABLED_SETTING, false);
 		configService.onDidChangeConfigurationEmitter.fire({
 			source: ConfigurationTarget.USER,
 			affectedKeys: new Set([CLAUDE_CODE_ENABLED_SETTING]),
@@ -305,7 +305,7 @@ suite('CopilotChatSessionsProvider', () => {
 		});
 
 		assert.ok(fired, 'onDidChangeSessionTypes should have fired');
-		assert.strictEqual(provider.sessionTypes.length, 3);
+		assert.strictEqual(provider.sessionTypes.length, 2);
 	});
 
 	test('toggling claude setting refreshes sessions list', () => {
@@ -313,18 +313,7 @@ suite('CopilotChatSessionsProvider', () => {
 		model.addSession(createMockAgentSession(claudeResource, { providerType: AgentSessionProviders.Claude }));
 
 		const { provider, configService } = createProviderWithConfig(disposables, model);
-		assert.strictEqual(provider.getSessions().length, 0, 'Claude sessions should be hidden when disabled');
-
-		// Enable Claude
-		configService.setUserConfiguration(CLAUDE_CODE_ENABLED_SETTING, true);
-		configService.onDidChangeConfigurationEmitter.fire({
-			source: ConfigurationTarget.USER,
-			affectedKeys: new Set([CLAUDE_CODE_ENABLED_SETTING]),
-			change: { keys: [CLAUDE_CODE_ENABLED_SETTING], overrides: [] },
-			affectsConfiguration: (key: string) => key === CLAUDE_CODE_ENABLED_SETTING,
-		});
-
-		assert.strictEqual(provider.getSessions().length, 1, 'Claude sessions should appear after enabling');
+		assert.strictEqual(provider.getSessions().length, 1, 'Claude sessions should appear when enabled by default');
 
 		// Disable Claude
 		configService.setUserConfiguration(CLAUDE_CODE_ENABLED_SETTING, false);
@@ -336,6 +325,17 @@ suite('CopilotChatSessionsProvider', () => {
 		});
 
 		assert.strictEqual(provider.getSessions().length, 0, 'Claude sessions should disappear after disabling');
+
+		// Re-enable Claude
+		configService.setUserConfiguration(CLAUDE_CODE_ENABLED_SETTING, true);
+		configService.onDidChangeConfigurationEmitter.fire({
+			source: ConfigurationTarget.USER,
+			affectedKeys: new Set([CLAUDE_CODE_ENABLED_SETTING]),
+			change: { keys: [CLAUDE_CODE_ENABLED_SETTING], overrides: [] },
+			affectsConfiguration: (key: string) => key === CLAUDE_CODE_ENABLED_SETTING,
+		});
+
+		assert.strictEqual(provider.getSessions().length, 1, 'Claude sessions should reappear after re-enabling');
 	});
 
 	// ---- getSessionTypes -------
@@ -347,7 +347,7 @@ suite('CopilotChatSessionsProvider', () => {
 	});
 
 	test('getSessionTypes does not return Claude for local workspace when disabled', () => {
-		const provider = createProvider(disposables, model);
+		const provider = createProvider(disposables, model, { claudeEnabled: false });
 		const types = provider.getSessionTypes(URI.file('/test/project'));
 		assert.ok(!types.some(t => t.id === ClaudeCodeSessionType.id));
 	});
@@ -404,7 +404,7 @@ suite('CopilotChatSessionsProvider', () => {
 		const claudeResource = URI.from({ scheme: AgentSessionProviders.Claude, path: '/claude-session' });
 		model.addSession(createMockAgentSession(claudeResource, { providerType: AgentSessionProviders.Claude }));
 
-		const provider = createProvider(disposables, model);
+		const provider = createProvider(disposables, model, { claudeEnabled: false });
 		const sessions = provider.getSessions();
 
 		assert.strictEqual(sessions.length, 0);
