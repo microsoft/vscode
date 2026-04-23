@@ -14,6 +14,7 @@ import { IInstantiationService } from '../../../util/vs/platform/instantiation/c
 import { byokKnownModelToAPIInfo, resolveModelInfo } from '../common/byokProvider';
 import { OpenAIEndpoint } from '../node/openAIEndpoint';
 import { AbstractOpenAICompatibleLMProvider, LanguageModelChatConfiguration, OpenAICompatibleLanguageModelChatInformation } from './abstractLanguageModelChatProvider';
+import { withEffortConfigurationSchema } from './byokModelInfo';
 import { IBYOKStorageService } from './byokStorageService';
 
 export function resolveCustomOAIUrl(modelId: string, url: string): string {
@@ -61,6 +62,7 @@ interface _CustomOAIModelConfig {
 	editTools?: EndpointEditToolName[];
 	requestHeaders?: Record<string, string>;
 	zeroDataRetentionEnabled?: boolean;
+	supportsReasoningEffort?: string[];
 }
 
 export interface CustomOAIModelConfig extends _CustomOAIModelConfig {
@@ -121,7 +123,7 @@ export abstract class AbstractCustomOAIBYOKModelProvider extends AbstractOpenAIC
 		if (Array.isArray(configuration?.models)) {
 			for (const modelConfig of configuration.models) {
 				models.push({
-					...byokKnownModelToAPIInfo(this._name, modelConfig.id, modelConfig),
+					...withEffortConfigurationSchema(byokKnownModelToAPIInfo(this._name, modelConfig.id, modelConfig), modelConfig),
 					url: modelConfig.url
 				});
 			}
@@ -140,6 +142,7 @@ export abstract class AbstractCustomOAIBYOKModelProvider extends AbstractOpenAIC
 			name: model.name,
 			url,
 			thinking: modelConfiguration?.thinking ?? false,
+			supportsReasoningEffort: modelConfiguration?.supportsReasoningEffort,
 			streaming: modelConfiguration?.streaming,
 			requestHeaders: modelConfiguration?.requestHeaders,
 			zeroDataRetentionEnabled: modelConfiguration?.zeroDataRetentionEnabled

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 import { l10n, type LanguageModelChatInformation, type LanguageModelConfigurationSchema } from 'vscode';
-import { BYOKKnownModels, byokKnownModelsToAPIInfo } from '../common/byokProvider';
+import { BYOKKnownModels, byokKnownModelsToAPIInfo, type BYOKModelCapabilities } from '../common/byokProvider';
 
 /**
  * Wraps {@link byokKnownModelsToAPIInfo} and enriches each model entry with
@@ -16,17 +16,19 @@ export function byokKnownModelsToAPIInfoWithEffort(providerName: string, knownMo
 		return models;
 	}
 
-	return models.map(model => {
-		const capabilities = knownModels[model.id];
-		const effortLevels = capabilities?.supportsReasoningEffort;
-		if (!effortLevels || effortLevels.length === 0) {
-			return model;
-		}
-		return {
-			...model,
-			...buildEffortConfigurationSchema(effortLevels, model.family),
-		};
-	});
+	return models.map(model => withEffortConfigurationSchema(model, knownModels[model.id]));
+}
+
+export function withEffortConfigurationSchema(model: LanguageModelChatInformation, capabilities: BYOKModelCapabilities | undefined): LanguageModelChatInformation {
+	const effortLevels = capabilities?.supportsReasoningEffort;
+	if (!effortLevels || effortLevels.length === 0) {
+		return model;
+	}
+
+	return {
+		...model,
+		...buildEffortConfigurationSchema(effortLevels, model.family),
+	};
 }
 
 function buildEffortConfigurationSchema(effortLevels: readonly string[], family: string): { configurationSchema?: LanguageModelConfigurationSchema } {
@@ -47,8 +49,9 @@ function buildEffortConfigurationSchema(effortLevels: readonly string[], family:
 							case 'none': return l10n.t('No reasoning applied');
 							case 'low': return l10n.t('Faster responses with less reasoning');
 							case 'medium': return l10n.t('Balanced reasoning and speed');
-							case 'high': return l10n.t('Maximum reasoning depth');
-							case 'max': return l10n.t('Absolute maximum capability with no constraints');
+							case 'high': return l10n.t('Greater reasoning depth but slower');
+							case 'xhigh': return l10n.t('Maximum reasoning depth but slower');
+							case 'max': return l10n.t('Maximum reasoning depth but slower');
 							default: return level;
 						}
 					}),
