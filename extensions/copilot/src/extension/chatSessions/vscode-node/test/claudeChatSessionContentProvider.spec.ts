@@ -2029,7 +2029,7 @@ describe('ClaudeChatSessionItemController', () => {
 			const item = getItem('enriched-meta');
 			expect(item!.metadata).toEqual({
 				workingDirectoryPath: '/home/user/my-project',
-				repositoryPath: '/home/user/my-project',
+				repositoryPath: URI.file('/home/user/my-project').fsPath,
 				branchName: 'feature-branch',
 				upstreamBranchName: 'origin/feature-branch',
 				hasGitHubRemote: true,
