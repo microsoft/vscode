@@ -21,6 +21,9 @@ import { ChangesViewPane } from '../../changes/browser/changesView.js';
 import { prepareMoveCopyEditors } from '../../../../workbench/browser/parts/editor/editor.js';
 import { Parts } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { MOVE_MODAL_EDITOR_TO_MAIN_COMMAND_ID } from '../../../../workbench/browser/parts/editor/editorCommands.js';
+import { TERMINAL_VIEW_ID } from '../../../../workbench/contrib/terminal/common/terminal.js';
+
+const terminalPanelHiddenForMaximizedEditor = new WeakSet<IAgentWorkbenchLayoutService>();
 
 class MaximizeMainEditorPartAction extends Action2 {
 	static readonly ID = 'workbench.action.agentSessions.maximizeMainEditorPart';
@@ -44,6 +47,20 @@ class MaximizeMainEditorPartAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
+		const viewsService = accessor.get(IViewsService);
+		let hidTerminalPanel = false;
+
+		if (layoutService.isVisible(Parts.PANEL_PART) && viewsService.isViewVisible(TERMINAL_VIEW_ID)) {
+			layoutService.setPartHidden(true, Parts.PANEL_PART);
+			hidTerminalPanel = true;
+		}
+
+		if (hidTerminalPanel) {
+			terminalPanelHiddenForMaximizedEditor.add(layoutService);
+		} else {
+			terminalPanelHiddenForMaximizedEditor.delete(layoutService);
+		}
+
 		layoutService.setEditorMaximized(true);
 	}
 }
@@ -72,7 +89,15 @@ class RestoreMainEditorPartAction extends Action2 {
 
 	async run(accessor: ServicesAccessor): Promise<void> {
 		const layoutService = accessor.get(IAgentWorkbenchLayoutService);
+		const shouldRestoreTerminalPanel = terminalPanelHiddenForMaximizedEditor.has(layoutService);
+
 		layoutService.setEditorMaximized(false);
+
+		if (shouldRestoreTerminalPanel && !layoutService.isVisible(Parts.PANEL_PART)) {
+			layoutService.setPartHidden(false, Parts.PANEL_PART);
+		}
+
+		terminalPanelHiddenForMaximizedEditor.delete(layoutService);
 	}
 }
 

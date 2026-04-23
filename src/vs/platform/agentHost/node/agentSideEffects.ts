@@ -11,11 +11,12 @@ import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
 import { ILogService } from '../../log/common/log.js';
+import { IInstantiationService } from '../../instantiation/common/instantiation.js';
 import { IAgent, IAgentAttachment, IAgentProgressEvent, type IAgentToolCompleteEvent, type IAgentToolReadyEvent } from '../common/agentService.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
-import type { IAgentInfo } from '../common/state/protocol/state.js';
-import { ActionType, ISessionAction } from '../common/state/sessionActions.js';
+import type { AgentInfo } from '../common/state/protocol/state.js';
+import { ActionType, SessionAction } from '../common/state/sessionActions.js';
 import {
 	CustomizationStatus,
 	PendingMessageKind,
@@ -25,9 +26,9 @@ import {
 	ToolResultContentType,
 	buildSubagentSessionUri,
 	getToolFileEdits,
-	type ISessionCustomization,
-	type ISessionState,
-	type IToolResultContent,
+	type SessionCustomization,
+	type SessionState,
+	type ToolResultContent,
 	type URI as ProtocolURI,
 } from '../common/state/sessionState.js';
 import { AgentEventMapper } from './agentEventMapper.js';
@@ -75,7 +76,7 @@ export class AgentSideEffects extends Disposable {
 	private readonly _diffComputeService: IDiffComputeService;
 	/** Serializes per-session diff computations to avoid races with stale previousDiffs. */
 	private readonly _diffComputationSequencer = new SequencerByKey<string>();
-	private _lastAgentInfos: readonly IAgentInfo[] = [];
+	private _lastAgentInfos: readonly AgentInfo[] = [];
 	/** Per-session debounce timers for mid-turn diff computation. */
 	private readonly _debouncedDiffTimers = this._register(new DisposableMap<string>());
 	private static readonly _DIFF_DEBOUNCE_MS = 5000;
@@ -104,11 +105,12 @@ export class AgentSideEffects extends Disposable {
 	constructor(
 		private readonly _stateManager: AgentHostStateManager,
 		private readonly _options: IAgentSideEffectsOptions,
-		private readonly _logService: ILogService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@ILogService private readonly _logService: ILogService,
 	) {
 		super();
 		this._diffComputeService = this._register(new NodeWorkerDiffComputeService(this._logService));
-		this._permissionManager = this._register(new SessionPermissionManager(this._stateManager, this._logService));
+		this._permissionManager = this._register(instantiationService.createInstance(SessionPermissionManager, this._stateManager));
 
 		// Whenever the agents observable changes, publish to root state.
 		this._register(autorun(reader => {
@@ -121,7 +123,7 @@ export class AgentSideEffects extends Disposable {
 	 * Publishes agent descriptors using the last known model lists.
 	 */
 	private _publishAgentInfos(agents: readonly IAgent[], reader: IReader): void {
-		const infos: IAgentInfo[] = agents.map(a => {
+		const infos: AgentInfo[] = agents.map(a => {
 			const d = a.getDescriptor();
 			const protectedResources = a.getProtectedResources();
 			return {
@@ -266,7 +268,7 @@ export class AgentSideEffects extends Disposable {
 			// When a parent tool call has an associated subagent session,
 			// preserve the subagent content metadata in the completion
 			// result. The SDK's tool_complete provides its own content
-			// which would overwrite the IToolResultSubagentContent that
+			// which would overwrite the ToolResultSubagentContent that
 			// was set via SessionToolCallContentChanged while running.
 			if (e.type === 'tool_complete') {
 				const subagentKey = `${sessionKey}:${e.toolCallId}`;
@@ -410,10 +412,10 @@ export class AgentSideEffects extends Disposable {
 	 * Gets the current content array from a running tool call, if any.
 	 */
 	private _getRunningToolCallContent(
-		state: ISessionState | undefined,
+		state: SessionState | undefined,
 		turnId: string,
 		toolCallId: string,
-	): IToolResultContent[] {
+	): ToolResultContent[] {
 		if (!state?.activeTurn || state.activeTurn.id !== turnId) {
 			return [];
 		}
@@ -573,7 +575,7 @@ export class AgentSideEffects extends Disposable {
 		);
 	}
 
-	handleAction(action: ISessionAction): void {
+	handleAction(action: SessionAction): void {
 		switch (action.type) {
 			case ActionType.SessionTurnStarted: {
 				// Reset the event mapper's part tracking for the new turn
@@ -612,7 +614,8 @@ export class AgentSideEffects extends Disposable {
 					displayName: a.displayName,
 				}));
 				agent.sendMessage(URI.parse(action.session), action.userMessage.text, attachments, action.turnId).catch(err => {
-					this._logService.error('[AgentSideEffects] sendMessage failed', err);
+					const errCode = (err as { code?: number })?.code;
+					this._logService.error(`[AgentSideEffects] sendMessage failed for session=${action.session}: code=${errCode}, message=${err instanceof Error ? err.message : String(err)}, type=${err?.constructor?.name}`, err);
 					this._stateManager.dispatchServerAction({
 						type: ActionType.SessionError,
 						session: action.session,
@@ -694,7 +697,7 @@ export class AgentSideEffects extends Disposable {
 					break;
 				}
 				// Publish initial "loading" status for all customizations
-				const loading: ISessionCustomization[] = refs.map(r => ({
+				const loading: SessionCustomization[] = refs.map(r => ({
 					customization: r,
 					enabled: true,
 					status: CustomizationStatus.Loading,
@@ -709,7 +712,7 @@ export class AgentSideEffects extends Disposable {
 					refs,
 					(synced) => {
 						// Incremental progress: publish updated statuses
-						const statuses: ISessionCustomization[] = synced.map(s => s.customization);
+						const statuses: SessionCustomization[] = synced.map(s => s.customization);
 						this._stateManager.dispatchServerAction({
 							type: ActionType.SessionCustomizationsChanged,
 							session: action.session,
@@ -718,7 +721,7 @@ export class AgentSideEffects extends Disposable {
 					},
 				).then(synced => {
 					// Final status
-					const statuses: ISessionCustomization[] = synced.map(s => s.customization);
+					const statuses: SessionCustomization[] = synced.map(s => s.customization);
 					this._stateManager.dispatchServerAction({
 						type: ActionType.SessionCustomizationsChanged,
 						session: action.session,
@@ -749,8 +752,8 @@ export class AgentSideEffects extends Disposable {
 				this._persistSessionFlag(action.session, 'isRead', action.isRead ? 'true' : '');
 				break;
 			}
-			case ActionType.SessionIsDoneChanged: {
-				this._persistSessionFlag(action.session, 'isDone', action.isDone ? 'true' : '');
+			case ActionType.SessionIsArchivedChanged: {
+				this._persistSessionFlag(action.session, 'isArchived', action.isArchived ? 'true' : '');
 				break;
 			}
 			case ActionType.SessionConfigChanged: {

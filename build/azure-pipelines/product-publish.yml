@@ -116,6 +116,8 @@ jobs:
 
       - ${{ if and(in(parameters.VSCODE_QUALITY, 'insider', 'exploration'), eq(parameters.VSCODE_SCHEDULEDBUILD, true)) }}:
         - script: node build/azure-pipelines/common/releaseBuild.ts
+          # Only release on the 05:00 and 17:00 UTC schedules (skip the 11:00 and 23:00 UTC schedules)
+          condition: and(succeeded(), or(eq(format('{0:HH}', pipeline.startTime), '05'), eq(format('{0:HH}', pipeline.startTime), '17')))
           env:
             PUBLISH_AUTH_TOKENS: "$(PUBLISH_AUTH_TOKENS)"
           displayName: Release build

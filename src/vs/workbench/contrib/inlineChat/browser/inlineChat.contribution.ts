@@ -17,7 +17,7 @@ import { InlineChatNotebookContribution } from './inlineChatNotebook.js';
 import { IWorkbenchContributionsRegistry, registerWorkbenchContribution2, Extensions as WorkbenchExtensions, WorkbenchPhase } from '../../../common/contributions.js';
 import { IInlineChatSessionService } from './inlineChatSessionService.js';
 import { InlineChatEnabler, InlineChatEscapeToolContribution, InlineChatSessionServiceImpl } from './inlineChatSessionServiceImpl.js';
-import { IInlineChatHistoryService, InlineChatHistoryService } from './inlineChatHistoryService.js';
+
 import { AccessibleViewRegistry } from '../../../../platform/accessibility/browser/accessibleViewRegistry.js';
 import { CancelAction, ChatSubmitAction } from '../../chat/browser/actions/chatExecuteActions.js';
 import { localize } from '../../../../nls.js';
@@ -28,7 +28,6 @@ import { InlineChatAccessibilityHelp } from './inlineChatAccessibilityHelp.js';
 registerEditorContribution(InlineChatController.ID, InlineChatController, EditorContributionInstantiation.Eager); // EAGER because of notebook dispose/create of editors
 
 registerAction2(InlineChatActions.KeepSessionAction2);
-registerAction2(InlineChatActions.UndoSessionAction2);
 registerAction2(InlineChatActions.UndoAndCloseSessionAction2);
 registerAction2(InlineChatActions.CancelSessionAction);
 registerAction2(InlineChatActions.ContinueInlineChatInChatViewAction);
@@ -37,7 +36,6 @@ registerAction2(InlineChatActions.RephraseInlineChatSessionAction);
 // --- browser
 
 registerSingleton(IInlineChatSessionService, InlineChatSessionServiceImpl, InstantiationType.Delayed);
-registerSingleton(IInlineChatHistoryService, InlineChatHistoryService, InstantiationType.Delayed);
 
 // --- MENU special ---
 
@@ -96,9 +94,6 @@ MenuRegistry.appendMenuItem(MENU_INLINE_CHAT_WIDGET_STATUS, cancelActionMenuItem
 registerAction2(InlineChatActions.StartSessionAction);
 registerAction2(InlineChatActions.AskInChatAction);
 registerAction2(InlineChatActions.FocusInlineChat);
-registerAction2(InlineChatActions.SubmitInlineChatInputAction);
-registerAction2(InlineChatActions.QueueInChatAction);
-registerAction2(InlineChatActions.HideInlineChatInputAction);
 registerAction2(InlineChatActions.FixDiagnosticsAction);
 registerAction2(InlineChatActions.DismissEditorAffordanceAction);
 

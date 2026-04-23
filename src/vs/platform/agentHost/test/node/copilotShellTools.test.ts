@@ -11,17 +11,17 @@ import { IInstantiationService } from '../../../instantiation/common/instantiati
 import { InstantiationService } from '../../../instantiation/common/instantiationService.js';
 import { ServiceCollection } from '../../../instantiation/common/serviceCollection.js';
 import { ILogService, NullLogService } from '../../../log/common/log.js';
-import type { ICreateTerminalParams } from '../../common/state/protocol/commands.js';
-import type { ITerminalClaim, ITerminalInfo } from '../../common/state/protocol/state.js';
+import type { CreateTerminalParams } from '../../common/state/protocol/commands.js';
+import type { TerminalClaim, TerminalInfo } from '../../common/state/protocol/state.js';
 import { IAgentHostTerminalManager } from '../../node/agentHostTerminalManager.js';
 import { ShellManager, prefixForHistorySuppression } from '../../node/copilot/copilotShellTools.js';
 
 class TestAgentHostTerminalManager implements IAgentHostTerminalManager {
 	declare readonly _serviceBrand: undefined;
 
-	readonly created: { params: ICreateTerminalParams; options?: { shell?: string; preventShellHistory?: boolean; nonInteractive?: boolean } }[] = [];
+	readonly created: { params: CreateTerminalParams; options?: { shell?: string; preventShellHistory?: boolean; nonInteractive?: boolean } }[] = [];
 
-	async createTerminal(params: ICreateTerminalParams, options?: { shell?: string; preventShellHistory?: boolean; nonInteractive?: boolean }): Promise<void> {
+	async createTerminal(params: CreateTerminalParams, options?: { shell?: string; preventShellHistory?: boolean; nonInteractive?: boolean }): Promise<void> {
 		this.created.push({ params, options });
 	}
 	writeInput(): void { }
@@ -30,12 +30,12 @@ class TestAgentHostTerminalManager implements IAgentHostTerminalManager {
 	onClaimChanged(): IDisposable { return Disposable.None; }
 	onCommandFinished(): IDisposable { return Disposable.None; }
 	getContent(): string | undefined { return undefined; }
-	getClaim(): ITerminalClaim | undefined { return undefined; }
+	getClaim(): TerminalClaim | undefined { return undefined; }
 	hasTerminal(): boolean { return false; }
 	getExitCode(): number | undefined { return undefined; }
 	supportsCommandDetection(): boolean { return false; }
 	disposeTerminal(): void { }
-	getTerminalInfos(): ITerminalInfo[] { return []; }
+	getTerminalInfos(): TerminalInfo[] { return []; }
 	getTerminalState(): undefined { return undefined; }
 }
 

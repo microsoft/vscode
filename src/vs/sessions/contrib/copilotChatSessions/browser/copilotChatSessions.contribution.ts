@@ -25,7 +25,8 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 		[CLAUDE_CODE_ENABLED_SETTING]: {
 			type: 'boolean',
 			default: false,
-			tags: ['experimental', 'onExp'],
+			tags: ['experimental'],
+			experiment: { mode: 'startup' },
 			description: localize('sessions.chatSessions.claude.enabled', "NOTE: This is HIGHLY experimental and under active development! Whether to enable Claude agent sessions in the sessions provider."),
 		},
 	},
