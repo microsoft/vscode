@@ -81,34 +81,45 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 				? workspaceFolders[0].uri.fsPath
 				: undefined;
 
-			// Classify the intent
+			// Step 1: Classify the intent
 			const classification = await client.classifyIntent(message, workspacePath);
 
-			// Format the response (ASCII only - VS Code hygiene forbids emoji in source)
-			let response = `**Intent Classification Results:**\n\n`;
-			response += `**Intent:** ${classification.intent}\n`;
-			response += `**Confidence:** ${Math.round(classification.confidence * 100)}%\n`;
-			response += `**Complexity:** ${classification.complexity}\n`;
+			// Step 2: Decompose into tasks (Week 6)
+			const decomposition = await client.decomposeRequest(message, workspacePath);
+
+			// Step 3: Update Task Tree panel
+			if (decomposition && decomposition.tasks && decomposition.tasks.length > 0) {
+				vscode.commands.executeCommand('nexora.updateTaskTree', decomposition);
+			}
+
+			// Format the response
+			let response = `**Intent:** ${classification.intent} | **Confidence:** ${Math.round(classification.confidence * 100)}% | **Complexity:** ${classification.complexity}\n`;
 
 			if (classification.sub_intents && classification.sub_intents.length > 0) {
 				response += `**Sub-intents:** ${classification.sub_intents.join(', ')}\n`;
 			}
 
-			if (classification.entities && Object.keys(classification.entities).length > 0) {
-				response += `**Entities:** ${JSON.stringify(classification.entities, null, 2)}\n`;
-			}
-
-			if (classification.context && Object.keys(classification.context).length > 0) {
-				response += `\n**Workspace Context:**\n`;
-				if (classification.context.relevant_files) {
-					response += `Found ${classification.context.relevant_files.length} relevant files\n`;
+			// Show decomposed tasks
+			if (decomposition && decomposition.tasks && decomposition.tasks.length > 0) {
+				response += `\n**Task Plan (${decomposition.tasks.length} tasks):**\n`;
+				for (const task of decomposition.tasks) {
+					const platform = task.selected_platform || 'TBD';
+					const deps = task.depends_on && task.depends_on.length > 0
+						? ` [after: ${task.depends_on.join(', ')}]`
+						: '';
+					response += `  ${task.id}: ${task.name} (${platform})${deps}\n`;
 				}
-				if (classification.context.detected_tech) {
-					response += `Tech stack detected\n`;
-				}
-			}
 
-			response += `\n*Note: Week 5 Cognitive Layer is now active! Week 6 will add task decomposition.*`;
+				if (decomposition.execution_order && decomposition.execution_order.length > 0) {
+					response += `\n**Execution Order:** ${decomposition.execution_order.join(' -> ')}\n`;
+				}
+
+				response += `\n*Tasks shown in Task Plan panel.*`;
+			} else if (decomposition && decomposition.error) {
+				response += `\n*Task decomposition error: ${decomposition.error}*`;
+			} else {
+				response += `\n*No tasks generated for this request.*`;
+			}
 
 			this._view.webview.postMessage({
 				type: 'addMessage',
@@ -121,7 +132,7 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
 			this._view.webview.postMessage({
 				type: 'addMessage',
 				role: 'assistant',
-				content: `Error classifying intent: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease check that the backend is running and try again.`,
+				content: `Error processing request: ${error instanceof Error ? error.message : 'Unknown error'}\n\nPlease check that the backend is running and try again.`,
 				isLoading: false
 			});
 		}

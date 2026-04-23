@@ -81,6 +81,11 @@ export function activate(context: vscode.ExtensionContext) {
 		vscode.commands.registerCommand('nexora.clearTasks', () => {
 			taskTreeProvider.clear();
 			vscode.window.showInformationMessage('Task plan cleared');
+		}),
+		vscode.commands.registerCommand('nexora.updateTaskTree', (result: any) => {
+			if (result && result.tasks && result.tasks.length > 0) {
+				taskTreeProvider.setDecomposition(result);
+			}
 		})
 	);
 
