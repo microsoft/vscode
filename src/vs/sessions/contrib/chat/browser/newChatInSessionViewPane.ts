@@ -7,7 +7,7 @@ import './media/chatWidget.css';
 import './media/newChatInSession.css';
 import * as dom from '../../../../base/browser/dom.js';
 import { Codicon } from '../../../../base/common/codicons.js';
-import { Disposable, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
 import { derived } from '../../../../base/common/observable.js';
 import { Gesture, EventType as TouchEventType } from '../../../../base/browser/touch.js';
 import { URI } from '../../../../base/common/uri.js';
@@ -119,11 +119,11 @@ class NewChatInSessionWidget extends Disposable {
 			dismiss();
 		};
 
-		this._tipDisposable.value = Disposable.from(
-			Gesture.addTarget(dismissBtn),
-			dom.addDisposableListener(dismissBtn, dom.EventType.CLICK, handleDismiss),
-			dom.addDisposableListener(dismissBtn, TouchEventType.Tap, handleDismiss),
-		);
+		const store = new DisposableStore();
+		store.add(Gesture.addTarget(dismissBtn));
+		store.add(dom.addDisposableListener(dismissBtn, dom.EventType.CLICK, handleDismiss));
+		store.add(dom.addDisposableListener(dismissBtn, TouchEventType.Tap, handleDismiss));
+		this._tipDisposable.value = store;
 	}
 
 	/**
