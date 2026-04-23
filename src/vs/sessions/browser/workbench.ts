@@ -61,7 +61,7 @@ import { IMarkdownRendererService } from '../../platform/markdown/browser/markdo
 import { EditorMarkdownCodeBlockRenderer } from '../../editor/browser/widget/markdownRenderer/browser/editorMarkdownCodeBlockRenderer.js';
 import { SyncDescriptor } from '../../platform/instantiation/common/descriptors.js';
 import { TitleService } from './parts/titlebarPart.js';
-import { SessionsExperimentalSendButtonGradientSettingId, SessionsExperimentalShellGradientBackgroundSettingId } from '../common/configuration.js';
+import { SessionsExperimentalShellGradientBackgroundSettingId } from '../common/configuration.js';
 import { IContextKeyService } from '../../platform/contextkey/common/contextkey.js';
 import { EditorMaximizedContext } from '../common/contextkeys.js';
 import {
@@ -91,7 +91,6 @@ enum LayoutClasses {
 	CHATBAR_HIDDEN = 'nochatbar',
 	STATUSBAR_HIDDEN = 'nostatusbar',
 	EXPERIMENTAL_SHELL_GRADIENT_BACKGROUND = 'experimental-shell-gradient-background',
-	EXPERIMENTAL_SEND_BUTTON_GRADIENT = 'sessions-experimental-send-button-gradient',
 	FULLSCREEN = 'fullscreen',
 	MAXIMIZED = 'maximized'
 }
@@ -447,7 +446,6 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		// Configuration changes
 		this._register(configurationService.onDidChangeConfiguration(e => this.updateFontAliasing(e, configurationService)));
 		this._register(configurationService.onDidChangeConfiguration(e => this.updateShellGradientBackground(e, configurationService)));
-		this._register(configurationService.onDidChangeConfiguration(e => this.updateSendButtonGradient(e, configurationService)));
 
 		// Font Info
 		if (isNative) {
@@ -542,17 +540,6 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		);
 	}
 
-	private updateSendButtonGradient(e: IConfigurationChangeEvent | undefined, configurationService: IConfigurationService): void {
-		if (e && !e.affectsConfiguration(SessionsExperimentalSendButtonGradientSettingId)) {
-			return;
-		}
-
-		this.mainContainer.classList.toggle(
-			LayoutClasses.EXPERIMENTAL_SEND_BUTTON_GRADIENT,
-			configurationService.getValue<boolean>(SessionsExperimentalSendButtonGradientSettingId)
-		);
-	}
-
 	//#endregion
 
 	private renderWorkbench(instantiationService: IInstantiationService, notificationService: NotificationService, storageService: IStorageService, configurationService: IConfigurationService): void {
@@ -577,7 +564,6 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		// Apply font aliasing
 		this.updateFontAliasing(undefined, configurationService);
 		this.updateShellGradientBackground(undefined, configurationService);
-		this.updateSendButtonGradient(undefined, configurationService);
 
 		// Warm up font cache information before building up too many dom elements
 		this.restoreFontInfo(storageService, configurationService);
@@ -789,6 +775,7 @@ export class Workbench extends Disposable implements IAgentWorkbenchLayoutServic
 		// regardless of how narrow the window is resized.
 		if (isWeb && isMobile) {
 			this.partVisibility.sidebar = false;
+			this.partVisibility.auxiliaryBar = false;
 		}
 	}
 

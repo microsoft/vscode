@@ -470,6 +470,10 @@
 	background-color: var(--vscode-agentsPanel-background);
 }
 
+.agent-sessions-workbench .action-widget .action-list-filter-row {
+	padding-right: 0;
+}
+
 .agent-sessions-workbench .action-widget .monaco-scrollable-element > .monaco-list-rows {
 	background-color: var(--vscode-agentsPanel-background) !important;
 }

@@ -131,7 +131,7 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			const icon = this._getActiveSessionIcon();
 			const repoLabel = this._getRepositoryLabel();
 			const repoDetailLabel = this._getRepositoryDetailLabel();
-			const pillLabel = repoLabel ? `${label} \u00B7 ${repoLabel}${repoDetailLabel ? ` (${repoDetailLabel})` : ''}` : label;
+			const pillLabel = repoLabel ? `${label} ${repoLabel}${repoDetailLabel ? ` (${repoDetailLabel})` : ''}` : label;
 			// Build a render-state key from all displayed data
 			const renderState = `${icon?.id ?? ''}|${label}|${repoLabel ?? ''}|${repoDetailLabel ?? ''}`;
 
@@ -170,11 +170,6 @@ export class SessionsTitleBarWidget extends BaseActionViewItem {
 			// Folder shown next to the title
 			if (repoLabel) {
 				const detailsEl = $('span.agent-sessions-titlebar-details');
-
-				const separator1 = $('span.agent-sessions-titlebar-separator');
-				separator1.textContent = '\u00B7';
-				separator1.setAttribute('aria-hidden', 'true');
-				detailsEl.appendChild(separator1);
 
 				const repoEl = $('span.agent-sessions-titlebar-repo');
 				repoEl.textContent = repoDetailLabel ? `${repoLabel} (${repoDetailLabel})` : repoLabel;

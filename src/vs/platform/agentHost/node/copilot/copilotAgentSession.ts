@@ -18,6 +18,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { IInstantiationService } from '../../../instantiation/common/instantiation.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IAgentAttachment, IAgentMessageEvent, IAgentProgressEvent, IAgentSubagentStartedEvent, IAgentToolCompleteEvent, IAgentToolStartEvent } from '../../common/agentService.js';
+import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { ISessionDatabase, ISessionDataService } from '../../common/sessionDataService.js';
 import type { FileEdit, ToolDefinition } from '../../common/state/protocol/state.js';
 import { SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolResultContentType, type PendingMessage, type SessionInputAnswer, type SessionInputRequest, type ToolCallResult, type ToolResultContent } from '../../common/state/sessionState.js';
@@ -88,6 +89,8 @@ export interface ICopilotAgentSessionOptions {
 	readonly onDidSessionProgress: Emitter<IAgentProgressEvent>;
 	readonly wrapperFactory: SessionWrapperFactory;
 	readonly shellManager: ShellManager | undefined;
+	/** Working directory associated with the session, used to strip redundant `cd` prefixes from shell commands. */
+	readonly workingDirectory?: URI;
 	/** Snapshot of the active client's tools and plugins at session creation time. */
 	readonly clientSnapshot?: IActiveClientSnapshot;
 }
@@ -132,6 +135,7 @@ export class CopilotAgentSession extends Disposable {
 	private readonly _onDidSessionProgress: Emitter<IAgentProgressEvent>;
 	private readonly _wrapperFactory: SessionWrapperFactory;
 	private readonly _shellManager: ShellManager | undefined;
+	private readonly _workingDirectory: URI | undefined;
 
 	constructor(
 		options: ICopilotAgentSessionOptions,
@@ -147,6 +151,7 @@ export class CopilotAgentSession extends Disposable {
 		this._onDidSessionProgress = options.onDidSessionProgress;
 		this._wrapperFactory = options.wrapperFactory;
 		this._shellManager = options.shellManager;
+		this._workingDirectory = options.workingDirectory;
 
 		this._appliedSnapshot = options.clientSnapshot ?? { clientId: '', tools: [], plugins: [] };
 		this._clientToolNames = new Set(this._appliedSnapshot.tools.map(t => t.name));
@@ -333,7 +338,7 @@ export class CopilotAgentSession extends Disposable {
 		} catch {
 			// Database may not exist yet — that's fine
 		}
-		return mapSessionEvents(this.sessionUri, db, events);
+		return mapSessionEvents(this.sessionUri, db, events, this._workingDirectory);
 	}
 
 	async abort(): Promise<void> {
@@ -389,7 +394,7 @@ export class CopilotAgentSession extends Disposable {
 			this._pendingPermissions.set(toolCallId, deferred);
 
 			// Derive display information from the permission request kind
-			const { confirmationTitle, invocationMessage, toolInput, permissionKind, permissionPath } = getPermissionDisplay(request);
+			const { confirmationTitle, invocationMessage, toolInput, permissionKind, permissionPath } = getPermissionDisplay(request, this._workingDirectory);
 
 			// For write permission requests, build an FileEdit preview so the
 			// client can show a diff before the user approves or denies. This
@@ -691,10 +696,16 @@ export class CopilotAgentSession extends Disposable {
 				return;
 			}
 			this._logService.info(`[Copilot:${sessionId}] Tool started: ${e.data.toolName}`);
-			const toolArgs = e.data.arguments !== undefined ? tryStringify(e.data.arguments) : undefined;
+			let toolArgs = e.data.arguments !== undefined ? tryStringify(e.data.arguments) : undefined;
 			let parameters: Record<string, unknown> | undefined;
 			if (toolArgs) {
 				try { parameters = JSON.parse(toolArgs) as Record<string, unknown>; } catch { /* ignore */ }
+			}
+			// Strip redundant `cd <workingDirectory> && …` prefixes from shell tool
+			// commands so clients see the simplified form. Mirrors the logic in
+			// mapSessionEvents (which handles the history-replay path).
+			if (stripRedundantCdPrefix(e.data.toolName, parameters, this._workingDirectory)) {
+				toolArgs = tryStringify(parameters);
 			}
 			const displayName = getToolDisplayName(e.data.toolName);
 			this._activeToolCalls.set(e.data.toolCallId, { toolName: e.data.toolName, displayName, parameters, content: [] });

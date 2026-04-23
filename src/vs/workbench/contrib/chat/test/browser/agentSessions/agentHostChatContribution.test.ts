@@ -19,7 +19,7 @@ import { AgentHostSessionConfigBranchNameHintKey, IAgentCreateSessionConfig, IAg
 import { isSessionAction, type ActionEnvelope, type INotification, type SessionAction, type TerminalAction, type IToolCallConfirmedAction, type ITurnStartedAction } from '../../../../../../platform/agentHost/common/state/sessionActions.js';
 import type { IStateSnapshot } from '../../../../../../platform/agentHost/common/state/sessionProtocol.js';
 import type { CustomizationRef } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, createSessionState, createActiveTurn, ROOT_STATE_URI, PolicyState, ResponsePartKind, StateComponents, buildSubagentSessionUri, ToolResultContentType, type SessionState, type SessionSummary, RootState, type ToolCallState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { SessionLifecycle, SessionStatus, TurnState, ToolCallStatus, ToolCallConfirmationReason, createSessionState, createActiveTurn, ROOT_STATE_URI, PolicyState, ResponsePartKind, StateComponents, buildSubagentSessionUri, ToolResultContentType, type SessionState, type SessionSummary, RootState, type ToolCallState, type AgentInfo } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { sessionReducer } from '../../../../../../platform/agentHost/common/state/sessionReducers.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IAuthenticationService } from '../../../../../services/authentication/common/authentication.js';
@@ -164,13 +164,32 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 		return this._nextSeq++;
 	}
 
-	override readonly rootState: IAgentSubscription<RootState> = {
-		value: undefined,
-		verifiedValue: undefined,
-		onDidChange: Event.None,
-		onWillApplyAction: Event.None,
-		onDidApplyAction: Event.None,
-	};
+	private _rootStateValue: RootState | undefined = undefined;
+	private readonly _rootStateOnDidChange = new Emitter<RootState>();
+
+	override readonly rootState: IAgentSubscription<RootState> = (() => {
+		const onDidChangeEmitter = this._rootStateOnDidChange;
+		const self = this;
+		return {
+			get value() { return self._rootStateValue; },
+			get verifiedValue() { return self._rootStateValue; },
+			onDidChange: onDidChangeEmitter.event,
+			onWillApplyAction: Event.None,
+			onDidApplyAction: Event.None,
+		};
+	})();
+
+	/** Test helper: set rootState value and fire onDidChange. */
+	setRootState(state: RootState): void {
+		this._rootStateValue = state;
+		this._rootStateOnDidChange.fire(state);
+	}
+
+	public authenticateCalls: { resource: string; token: string }[] = [];
+	override async authenticate(params: { resource: string; token: string }): Promise<{ authenticated: boolean }> {
+		this.authenticateCalls.push({ resource: params.resource, token: params.token });
+		return { authenticated: true };
+	}
 	override getSubscription<T>(_kind: StateComponents, resource: URI): IReference<IAgentSubscription<T>> {
 		const resourceStr = resource.toString();
 		const emitter = new Emitter<T>();
@@ -268,6 +287,7 @@ class MockAgentHostService extends mock<IAgentHostService>() {
 	dispose(): void {
 		this._onDidAction.dispose();
 		this._onDidNotification.dispose();
+		this._rootStateOnDidChange.dispose();
 	}
 }
 
@@ -286,7 +306,7 @@ class MockChatAgentService extends mock<IChatAgentService>() {
 
 // ---- Helpers ----------------------------------------------------------------
 
-function createTestServices(disposables: DisposableStore, workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined }) {
+function createTestServices(disposables: DisposableStore, workingDirectoryResolver?: { resolve(sessionResource: URI): URI | undefined }, authServiceOverride?: Partial<IAuthenticationService>) {
 	const instantiationService = disposables.add(new TestInstantiationService());
 
 	const agentHostService = new MockAgentHostService();
@@ -306,7 +326,7 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 		registerChatSessionContribution: () => toDisposable(() => { }),
 	});
 	instantiationService.stub(IDefaultAccountService, { onDidChangeDefaultAccount: Event.None, getDefaultAccount: async () => null });
-	instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None });
+	instantiationService.stub(IAuthenticationService, { onDidChangeSessions: Event.None, ...authServiceOverride });
 	instantiationService.stub(ILanguageModelsService, {
 		deltaLanguageModelChatProviderDescriptors: () => { },
 		registerLanguageModelProvider: () => toDisposable(() => { }),
@@ -363,8 +383,8 @@ function createTestServices(disposables: DisposableStore, workingDirectoryResolv
 	return { instantiationService, agentHostService, chatAgentService };
 }
 
-function createContribution(disposables: DisposableStore) {
-	const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables);
+function createContribution(disposables: DisposableStore, opts?: { authServiceOverride?: Partial<IAuthenticationService> }) {
+	const { instantiationService, agentHostService, chatAgentService } = createTestServices(disposables, undefined, opts?.authServiceOverride);
 
 	const listController = disposables.add(instantiationService.createInstance(AgentHostSessionListController, 'agent-host-copilot', 'copilot', agentHostService, undefined, 'local'));
 	const sessionHandler = disposables.add(instantiationService.createInstance(AgentHostSessionHandler, {
@@ -2790,5 +2810,96 @@ suite('AgentHostChatContribution', () => {
 			);
 		}));
 
+	});
+
+	// ---- Auth dedupe ------------------------------------------------------
+
+	suite('auth dedupe', () => {
+
+		const protectedAgents = (): AgentInfo[] => [{
+			provider: 'copilot',
+			displayName: 'Agent Host - Copilot',
+			description: 'test',
+			models: [],
+			protectedResources: [{
+				resource: 'https://api.github.com',
+				resource_name: 'GitHub',
+				authorization_servers: ['https://github.com/login/oauth'],
+				scopes_supported: ['read:user'],
+				required: true,
+			}],
+		}];
+
+		function tokenAuthService(tokenRef: { current: string }): Partial<IAuthenticationService> {
+			// Always returns whatever token is in tokenRef.current. Returning a session
+			// for the exact-scope `getSessions` call short-circuits the superset fallback.
+			return {
+				onDidChangeSessions: Event.None,
+				getOrActivateProviderIdForServer: async () => 'github',
+				getSessions: (async (_providerId: string, scopes?: ReadonlyArray<string>) => {
+					if (scopes !== undefined) {
+						return [{ scopes: [...scopes], accessToken: tokenRef.current }];
+					}
+					return [];
+				}) as unknown as IAuthenticationService['getSessions'],
+			};
+		}
+
+		test('does not re-authenticate when token unchanged across rootState changes', async () => {
+			const tokenRef = { current: 'tok-1' };
+			const { agentHostService } = createContribution(disposables, { authServiceOverride: tokenAuthService(tokenRef) });
+
+			// First rootState — kicks off the eager auth pass.
+			agentHostService.setRootState({ agents: protectedAgents(), activeSessions: 0 });
+			await timeout(0);
+			assert.deepStrictEqual(agentHostService.authenticateCalls, [{ resource: 'https://api.github.com', token: 'tok-1' }]);
+
+			// Repeated rootState changes with the same token must not re-fire authenticate.
+			agentHostService.setRootState({ agents: protectedAgents(), activeSessions: 0 });
+			await timeout(0);
+			agentHostService.setRootState({ agents: protectedAgents(), activeSessions: 1 });
+			await timeout(0);
+			assert.deepStrictEqual(agentHostService.authenticateCalls, [{ resource: 'https://api.github.com', token: 'tok-1' }]);
+		});
+
+		test('re-authenticates when token rotates, then dedupes again', async () => {
+			const tokenRef = { current: 'tok-1' };
+			const { agentHostService } = createContribution(disposables, { authServiceOverride: tokenAuthService(tokenRef) });
+
+			agentHostService.setRootState({ agents: protectedAgents(), activeSessions: 0 });
+			await timeout(0);
+
+			// Token rotates externally; next rootState change must push it through.
+			tokenRef.current = 'tok-2';
+			agentHostService.setRootState({ agents: protectedAgents(), activeSessions: 0 });
+			await timeout(0);
+
+			// Subsequent passes with the new token must dedupe again.
+			agentHostService.setRootState({ agents: protectedAgents(), activeSessions: 0 });
+			await timeout(0);
+			agentHostService.setRootState({ agents: protectedAgents(), activeSessions: 1 });
+			await timeout(0);
+
+			assert.deepStrictEqual(agentHostService.authenticateCalls, [
+				{ resource: 'https://api.github.com', token: 'tok-1' },
+				{ resource: 'https://api.github.com', token: 'tok-2' },
+			]);
+		});
+
+		test('skips authenticate when no token is resolvable', async () => {
+			const noTokenService: Partial<IAuthenticationService> = {
+				onDidChangeSessions: Event.None,
+				getOrActivateProviderIdForServer: async () => undefined,
+				getSessions: (async () => []) as unknown as IAuthenticationService['getSessions'],
+			};
+			const { agentHostService } = createContribution(disposables, { authServiceOverride: noTokenService });
+
+			agentHostService.setRootState({ agents: protectedAgents(), activeSessions: 0 });
+			await timeout(0);
+			agentHostService.setRootState({ agents: protectedAgents(), activeSessions: 0 });
+			await timeout(0);
+
+			assert.deepStrictEqual(agentHostService.authenticateCalls, []);
+		});
 	});
 });

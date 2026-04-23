@@ -48,13 +48,13 @@ function getDiffRemoved(diff: ISessionFileDiff | ICompactSessionFileDiff): numbe
 }
 
 function mapSessionStatus(status: SessionStatus | undefined): ChatSessionStatus {
-	if (status === SessionStatus.InputNeeded) {
+	if (status !== undefined && (status & SessionStatus.InputNeeded) === SessionStatus.InputNeeded) {
 		return ChatSessionStatus.NeedsInput;
 	}
 	if (status !== undefined && (status & SessionStatus.InProgress)) {
 		return ChatSessionStatus.InProgress;
 	}
-	if (status === SessionStatus.Error) {
+	if (status !== undefined && (status & SessionStatus.Error)) {
 		return ChatSessionStatus.Failed;
 	}
 	return ChatSessionStatus.Completed;
@@ -143,16 +143,21 @@ export class AgentHostSessionListController extends Disposable implements IChatS
 			this._cachedSummaries.clear();
 			this._items = filtered.map(s => {
 				const rawId = AgentSession.id(s.session);
+				let status = s.status ?? SessionStatus.Idle;
+				if (s.isRead) {
+					status |= SessionStatus.IsRead;
+				}
+				if (s.isArchived) {
+					status |= SessionStatus.IsArchived;
+				}
 				this._cachedSummaries.set(rawId, {
 					resource: s.session.toString(),
 					provider: this._provider,
 					title: s.summary ?? `Session ${rawId.substring(0, 8)}`,
-					status: s.status ?? SessionStatus.Idle,
+					status,
 					createdAt: s.startTime,
 					modifiedAt: s.modifiedTime,
 					workingDirectory: s.workingDirectory?.toString(),
-					isRead: s.isRead,
-					isDone: s.isDone,
 				});
 				return this._makeItem(rawId, {
 					title: s.summary,

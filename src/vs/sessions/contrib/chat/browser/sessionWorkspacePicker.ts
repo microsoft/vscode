@@ -343,17 +343,23 @@ export class WorkspacePicker extends Disposable {
 		const recentWorkspaces = [...ownRecentWorkspaces, ...vsCodeRecents];
 
 		// Build flat list of workspace entries with their group info
-		const workspaceEntries: { workspace: ISessionWorkspace; providerId: string; isOwnRecent: boolean; groupTitle: string }[] = [];
+		const workspaceEntries: { workspace: ISessionWorkspace; providerId: string; isOwnRecent: boolean; groupTitle: string; isDisconnected: boolean }[] = [];
 		const providersWithWorkspaces = allProviders.filter(p => recentWorkspaces.some(w => w.providerId === p.id));
 		for (const provider of providersWithWorkspaces) {
-			const isOffline = this._isProviderUnavailable(provider.id);
+			const connectionStatus = isAgentHostProvider(provider) ? provider.connectionStatus?.get() : undefined;
+			const isDisconnected = connectionStatus === RemoteAgentHostConnectionStatus.Disconnected;
+			const isConnecting = connectionStatus === RemoteAgentHostConnectionStatus.Connecting;
 			const providerWorkspaces = recentWorkspaces
 				.map((w, idx) => ({ ...w, isOwnRecent: idx < ownRecentCount }))
 				.filter(w => w.providerId === provider.id);
 			for (const { workspace, providerId, isOwnRecent } of providerWorkspaces) {
 				const groupName = workspace.group ?? provider.label;
-				const groupTitle = isOffline ? localize('workspacePicker.groupOffline', "{0} (Offline)", groupName) : groupName;
-				workspaceEntries.push({ workspace, providerId, isOwnRecent, groupTitle });
+				const groupTitle = isDisconnected
+					? localize('workspacePicker.groupOffline', "{0} (Offline)", groupName)
+					: isConnecting
+						? localize('workspacePicker.groupConnecting', "{0} (Connecting)", groupName)
+						: groupName;
+				workspaceEntries.push({ workspace, providerId, isOwnRecent, groupTitle, isDisconnected });
 			}
 		}
 
@@ -368,7 +374,7 @@ export class WorkspacePicker extends Disposable {
 
 		// Add items with separators between groups
 		let lastGroupTitle: string | undefined;
-		for (const { workspace, providerId, isOwnRecent, groupTitle } of workspaceEntries) {
+		for (const { workspace, providerId, isOwnRecent, groupTitle, isDisconnected } of workspaceEntries) {
 			if (lastGroupTitle !== undefined && lastGroupTitle !== groupTitle) {
 				items.push({ kind: ActionListItemKind.Separator, label: '' });
 			}
@@ -380,6 +386,7 @@ export class WorkspacePicker extends Disposable {
 				label: workspace.label,
 				description: workspace.description,
 				group: { title: groupTitle, icon: workspace.icon },
+				disabled: isDisconnected,
 				item: { selection, checked: selected || undefined },
 				onRemove: isOwnRecent ? () => this._removeRecentWorkspace(selection) : () => this._removeVSCodeRecentWorkspace(selection),
 			});

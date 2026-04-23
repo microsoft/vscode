@@ -612,7 +612,8 @@ export class AgentSideEffects extends Disposable {
 					displayName: a.displayName,
 				}));
 				agent.sendMessage(URI.parse(action.session), action.userMessage.text, attachments, action.turnId).catch(err => {
-					this._logService.error('[AgentSideEffects] sendMessage failed', err);
+					const errCode = (err as { code?: number })?.code;
+					this._logService.error(`[AgentSideEffects] sendMessage failed for session=${action.session}: code=${errCode}, message=${err instanceof Error ? err.message : String(err)}, type=${err?.constructor?.name}`, err);
 					this._stateManager.dispatchServerAction({
 						type: ActionType.SessionError,
 						session: action.session,
@@ -749,8 +750,8 @@ export class AgentSideEffects extends Disposable {
 				this._persistSessionFlag(action.session, 'isRead', action.isRead ? 'true' : '');
 				break;
 			}
-			case ActionType.SessionIsDoneChanged: {
-				this._persistSessionFlag(action.session, 'isDone', action.isDone ? 'true' : '');
+			case ActionType.SessionIsArchivedChanged: {
+				this._persistSessionFlag(action.session, 'isArchived', action.isArchived ? 'true' : '');
 				break;
 			}
 			case ActionType.SessionConfigChanged: {

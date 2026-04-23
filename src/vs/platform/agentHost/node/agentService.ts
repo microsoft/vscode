@@ -152,7 +152,7 @@ export class AgentService extends Disposable implements IAgentService {
 					return s;
 				}
 				try {
-					const m = await ref.object.getMetadataObject({ customTitle: true, isRead: true, isDone: true, diffs: true });
+					const m = await ref.object.getMetadataObject({ customTitle: true, isRead: true, isArchived: true, isDone: true, diffs: true });
 					let updated = s;
 					if (m.customTitle) {
 						updated = { ...updated, summary: m.customTitle };
@@ -160,8 +160,10 @@ export class AgentService extends Disposable implements IAgentService {
 					if (m.isRead !== undefined) {
 						updated = { ...updated, isRead: m.isRead === 'true' };
 					}
-					if (m.isDone !== undefined) {
-						updated = { ...updated, isDone: m.isDone === 'true' };
+					if (m.isArchived !== undefined) {
+						updated = { ...updated, isArchived: m.isArchived === 'true' };
+					} else if (m.isDone !== undefined) {
+						updated = { ...updated, isArchived: m.isDone === 'true' };
 					}
 					if (m.diffs) {
 						try { updated = { ...updated, diffs: JSON.parse(m.diffs) }; } catch { /* ignore malformed */ }
@@ -476,7 +478,7 @@ export class AgentService extends Disposable implements IAgentService {
 		// Check for persisted metadata in the session database
 		let title = meta.summary ?? 'Session';
 		let isRead: boolean | undefined;
-		let isDone: boolean | undefined;
+		let isArchived: boolean | undefined;
 		let diffs: ISessionFileDiff[] | undefined;
 		let persistedConfigValues: Record<string, string> | undefined;
 		const ref = this._sessionDataService.tryOpenDatabase?.(session);
@@ -485,15 +487,17 @@ export class AgentService extends Disposable implements IAgentService {
 				const db = await ref;
 				if (db) {
 					try {
-						const m = await db.object.getMetadataObject({ customTitle: true, isRead: true, isDone: true, diffs: true, configValues: true });
+						const m = await db.object.getMetadataObject({ customTitle: true, isRead: true, isArchived: true, isDone: true, diffs: true, configValues: true });
 						if (m.customTitle) {
 							title = m.customTitle;
 						}
 						if (m.isRead !== undefined) {
 							isRead = m.isRead === 'true';
 						}
-						if (m.isDone !== undefined) {
-							isDone = m.isDone === 'true';
+						if (m.isArchived !== undefined) {
+							isArchived = m.isArchived === 'true';
+						} else if (m.isDone !== undefined) {
+							isArchived = m.isDone === 'true';
 						}
 						if (m.diffs) {
 							try { diffs = JSON.parse(m.diffs); } catch { /* ignore malformed */ }
@@ -514,18 +518,25 @@ export class AgentService extends Disposable implements IAgentService {
 			}
 		}
 
+		// Encode isRead/isArchived as status bitmask flags
+		let status: SessionStatus = SessionStatus.Idle;
+		if (isRead) {
+			status |= SessionStatus.IsRead;
+		}
+		if (isArchived) {
+			status |= SessionStatus.IsArchived;
+		}
+
 		const summary: SessionSummary = {
 			resource: sessionStr,
 			provider: agent.id,
 			title,
-			status: SessionStatus.Idle,
+			status,
 			createdAt: meta.startTime,
 			modifiedAt: meta.modifiedTime,
 			...(meta.project ? { project: { uri: meta.project.uri.toString(), displayName: meta.project.displayName } } : {}),
 			model: meta.model,
 			workingDirectory: meta.workingDirectory?.toString(),
-			isRead,
-			isDone,
 			diffs,
 		};
 

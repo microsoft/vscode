@@ -4,6 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Event } from '../../../base/common/event.js';
+import { INodeProcess } from '../../../base/common/platform.js';
+import { joinPath } from '../../../base/common/resources.js';
 import { INativeEnvironmentService } from '../../environment/common/environment.js';
 import { IFileService } from '../../files/common/files.js';
 import { refineServiceDecorator } from '../../instantiation/common/instantiation.js';
@@ -33,6 +35,23 @@ export class UserDataProfilesMainService extends UserDataProfilesService impleme
 		@ILogService logService: ILogService,
 	) {
 		super(stateService, uriIdentityService, environmentService, fileService, logService);
+	}
+
+	protected override createDefaultProfile(): IUserDataProfile {
+		const defaultProfile = super.createDefaultProfile();
+		if (!(process as INodeProcess).isEmbeddedApp) {
+			return defaultProfile;
+		}
+		const hostUserRoamingDataHome = this.environmentService.hostUserRoamingDataHome;
+		if (!hostUserRoamingDataHome) {
+			return defaultProfile;
+		}
+		return {
+			...defaultProfile,
+			keybindingsResource: joinPath(hostUserRoamingDataHome, 'keybindings.json'),
+			promptsHome: joinPath(hostUserRoamingDataHome, 'prompts'),
+			mcpResource: joinPath(hostUserRoamingDataHome, 'mcp.json'),
+		};
 	}
 
 	getAssociatedEmptyWindows(): IEmptyWorkspaceIdentifier[] {

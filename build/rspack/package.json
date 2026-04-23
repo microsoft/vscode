@@ -9,7 +9,8 @@
   "devDependencies": {
     "@rspack/cli": "^1.3.18",
     "@rspack/core": "^1.3.18",
-    "@vscode/esm-url-webpack-plugin": "^1.0.1-3"
+    "@vscode/esm-url-webpack-plugin": "^1.0.1-3",
+    "source-map-loader": "^5.0.0"
   },
   "dependencies": {
     "@vscode/component-explorer": "^0.2.1-17",

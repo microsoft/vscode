@@ -51,7 +51,7 @@ export const enum ActionType {
 	SessionCustomizationToggled = 'session/customizationToggled',
 	SessionTruncated = 'session/truncated',
 	SessionIsReadChanged = 'session/isReadChanged',
-	SessionIsDoneChanged = 'session/isDoneChanged',
+	SessionIsArchivedChanged = 'session/isArchivedChanged',
 	SessionDiffsChanged = 'session/diffsChanged',
 	SessionConfigChanged = 'session/configChanged',
 	RootTerminalsChanged = 'root/terminalsChanged',
@@ -581,21 +581,21 @@ export interface SessionIsReadChangedAction {
 }
 
 /**
- * The done state of the session changed.
+ * The archived state of the session changed.
  *
- * Dispatched by a client to mark a session as done (e.g. the task is
- * complete) or to reopen it.
+ * Dispatched by a client to archive a session (e.g. the task is
+ * complete) or to unarchive it.
  *
  * @category Session Actions
  * @version 1
  * @clientDispatchable
  */
-export interface SessionIsDoneChangedAction {
-	type: ActionType.SessionIsDoneChanged;
+export interface SessionIsArchivedChangedAction {
+	type: ActionType.SessionIsArchivedChanged;
 	/** Session URI */
 	session: URI;
-	/** Whether the session is done */
-	isDone: boolean;
+	/** Whether the session is archived */
+	isArchived: boolean;
 }
 
 /**
@@ -1142,7 +1142,7 @@ export type StateAction =
 	| SessionCustomizationToggledAction
 	| SessionTruncatedAction
 	| SessionIsReadChangedAction
-	| SessionIsDoneChangedAction
+	| SessionIsArchivedChangedAction
 	| SessionDiffsChangedAction
 	| SessionConfigChangedAction
 	| TerminalDataAction

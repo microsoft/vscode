@@ -68,6 +68,7 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 				this._onDidChangeConnections.fire();
 			}
 		}));
+
 	}
 
 	get connections(): readonly ISSHAgentHostConnection[] {
@@ -75,8 +76,8 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 	}
 
 	async connect(config: ISSHAgentHostConfig): Promise<ISSHAgentHostConnection> {
-		this._logService.info('[SSHRemoteAgentHost] Connecting to ' + config.host);
 		const augmentedConfig = this._augmentConfig(config);
+		this._logService.info(`[SSHRemoteAgentHost] Connecting to ${config.host}`);
 		const result = await this._mainService.connect(augmentedConfig);
 		this._logService.trace('[SSHRemoteAgentHost] SSH tunnel established, connectionId=' + result.connectionId);
 		return this._setupConnection(result);
@@ -96,7 +97,9 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 
 	async reconnect(sshConfigHost: string, name: string): Promise<ISSHAgentHostConnection> {
 		const commandOverride = this._getRemoteAgentHostCommand();
-		const result = await this._mainService.reconnect(sshConfigHost, name, commandOverride);
+		const agentForward = this._isSSHAgentForwardingEnabled();
+		this._logService.info(`[SSHRemoteAgentHost] Reconnecting to ${sshConfigHost}`);
+		const result = await this._mainService.reconnect(sshConfigHost, name, commandOverride, agentForward);
 		return this._setupConnection(result);
 	}
 
@@ -192,15 +195,25 @@ export class SSHRemoteAgentHostService extends Disposable implements ISSHRemoteA
 	}
 
 	private _augmentConfig(config: ISSHAgentHostConfig): ISSHAgentHostConfig {
+		const result = { ...config };
 		const commandOverride = this._getRemoteAgentHostCommand();
 		if (commandOverride) {
-			return { ...config, remoteAgentHostCommand: commandOverride };
+			result.remoteAgentHostCommand = commandOverride;
 		}
-		return config;
+		// Agent forwarding requires both the global setting (security opt-in)
+		// and the per-host SSH config `ForwardAgent yes` to be enabled.
+		if (this._isSSHAgentForwardingEnabled() && config.agentForward) {
+			result.agentForward = true;
+		}
+		return result;
 	}
 
 	private _getRemoteAgentHostCommand(): string | undefined {
 		return this._configurationService.getValue<string>('chat.sshRemoteAgentHostCommand') || undefined;
+	}
+
+	private _isSSHAgentForwardingEnabled(): boolean | undefined {
+		return this._configurationService.getValue<boolean>('chat.agentHost.forwardSSHAgent') || undefined;
 	}
 }
 

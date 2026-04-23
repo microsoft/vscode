@@ -5,6 +5,7 @@
 
 import { URI } from '../../../../base/common/uri.js';
 import { IAgentMessageEvent, IAgentSubagentStartedEvent, IAgentToolCompleteEvent, IAgentToolStartEvent } from '../../common/agentService.js';
+import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { IFileEditRecord, ISessionDatabase } from '../../common/sessionDataService.js';
 import { ToolResultContentType, type ToolResultContent } from '../../common/state/sessionState.js';
 import { getInvocationMessage, getPastTenseMessage, getShellLanguage, getSubagentMetadata, getToolDisplayName, getToolInputString, getToolKind, isEditTool, isHiddenTool } from './copilotToolDisplay.js';
@@ -77,6 +78,10 @@ export interface ISessionEventSubagentStarted {
  * Maps raw SDK session events into agent protocol events, restoring
  * stored file-edit metadata from the session database when available.
  *
+ * If `workingDirectory` is provided, redundant `cd <workingDirectory> &&`
+ * (or PowerShell equivalent) prefixes are stripped from shell tool
+ * commands so clients see the simplified form.
+ *
  * Extracted as a standalone function so it can be tested without the
  * full CopilotAgent or SDK dependencies.
  */
@@ -84,9 +89,10 @@ export async function mapSessionEvents(
 	session: URI,
 	db: ISessionDatabase | undefined,
 	events: readonly ISessionEvent[],
+	workingDirectory?: URI,
 ): Promise<(IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent | IAgentSubagentStartedEvent)[]> {
 	const result: (IAgentMessageEvent | IAgentToolStartEvent | IAgentToolCompleteEvent | IAgentSubagentStartedEvent)[] = [];
-	const toolInfoByCallId = new Map<string, { toolName: string; parameters: Record<string, unknown> | undefined }>();
+	const toolInfoByCallId = new Map<string, { toolName: string; parameters: Record<string, unknown> | undefined; rewrittenArgs?: string }>();
 
 	// Collect all tool call IDs for edit tools so we can batch-query the database
 	const editToolCallIds: string[] = [];
@@ -103,7 +109,8 @@ export async function mapSessionEvents(
 			if (toolArgs) {
 				try { parameters = JSON.parse(toolArgs) as Record<string, unknown>; } catch { /* ignore */ }
 			}
-			toolInfoByCallId.set(d.toolCallId, { toolName: d.toolName, parameters });
+			const rewrittenArgs = stripRedundantCdPrefix(d.toolName, parameters, workingDirectory) ? tryStringify(parameters) : undefined;
+			toolInfoByCallId.set(d.toolCallId, { toolName: d.toolName, parameters, rewrittenArgs });
 			if (isEditTool(d.toolName)) {
 				editToolCallIds.push(d.toolCallId);
 			}
@@ -162,7 +169,7 @@ export async function mapSessionEvents(
 			const info = toolInfoByCallId.get(d.toolCallId);
 			const displayName = getToolDisplayName(d.toolName);
 			const toolKind = getToolKind(d.toolName);
-			const toolArgs = d.arguments !== undefined ? tryStringify(d.arguments) : undefined;
+			const toolArgs = info?.rewrittenArgs ?? (d.arguments !== undefined ? tryStringify(d.arguments) : undefined);
 			const subagentMeta = toolKind === 'subagent' ? getSubagentMetadata(info?.parameters) : undefined;
 			result.push({
 				session,

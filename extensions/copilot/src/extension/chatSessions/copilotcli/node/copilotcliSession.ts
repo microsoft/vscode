@@ -93,14 +93,7 @@ interface McSharedState {
 }
 const mcStateBySessionId = new Map<string, McSharedState>();
 
-export const builtinSlashSCommands = {
-	commit: '/commit',
-	sync: '/sync',
-	merge: '/merge',
-	createPr: '/create-pr',
-	createDraftPr: '/create-draft-pr',
-	updatePr: '/update-pr',
-};
+export { builtinSlashCommands as builtinSlashSCommands } from '../../common/builtinSlashCommands';
 
 /**
  * Either a free-form prompt **or** a known command.

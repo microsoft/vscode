@@ -151,16 +151,18 @@ async function promptToConnectViaSSH(
 			port = resolvedConfig.port !== 22 ? resolvedConfig.port : undefined;
 			suggestedName = picked.hostAlias;
 
-			// Determine auth method from resolved config
+			// Determine auth method from resolved config.
+			// Always prefer Agent auth (the SSH agent may already have the key
+			// loaded). Record a non-default IdentityFile as a fallback path for
+			// the manual picker only.
 			if (resolvedConfig.identityFile.length > 0) {
 				const firstKey = resolvedConfig.identityFile[0];
 				const defaultKeys = ['~/.ssh/id_rsa', '~/.ssh/id_ecdsa', '~/.ssh/id_ed25519', '~/.ssh/id_dsa', '~/.ssh/id_xmss'];
 				if (!defaultKeys.includes(firstKey)) {
-					defaultAuthMethod = SSHAuthMethod.KeyFile;
 					defaultKeyPath = firstKey;
 				}
 			}
-			// If no explicit key, default to SSH agent
+			// Default to SSH agent
 			if (!defaultAuthMethod) {
 				defaultAuthMethod = SSHAuthMethod.Agent;
 			}
@@ -173,6 +175,7 @@ async function promptToConnectViaSSH(
 					username,
 					authMethod: defaultAuthMethod,
 					privateKeyPath: defaultKeyPath,
+					agentForward: resolvedConfig.forwardAgent || undefined,
 					name: suggestedName,
 					sshConfigHost: picked.hostAlias,
 				};

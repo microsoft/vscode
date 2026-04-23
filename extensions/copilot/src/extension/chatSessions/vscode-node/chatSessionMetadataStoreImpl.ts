@@ -11,22 +11,19 @@ import { ILogService } from '../../../platform/log/common/logService';
 import { findLast } from '../../../util/vs/base/common/arraysFind';
 import { SequencerByKey, ThrottledDelayer } from '../../../util/vs/base/common/async';
 import { Disposable } from '../../../util/vs/base/common/lifecycle';
-import { dirname, isEqual } from '../../../util/vs/base/common/resources';
-import { ChatSessionMetadataFile, IChatSessionMetadataStore, RepositoryProperties, RequestDetails, WorkspaceFolderEntry, WorktreeSessionEntry } from '../common/chatSessionMetadataStore';
+import { dirname } from '../../../util/vs/base/common/resources';
+import { ChatSessionMetadataFile, IChatSessionMetadataStore, RepositoryProperties, RequestDetails, WorkspaceFolderEntry } from '../common/chatSessionMetadataStore';
 import { ChatSessionWorktreeProperties } from '../common/chatSessionWorktreeService';
 import { isUntitledSessionId } from '../common/utils';
 import { IWorkspaceInfo } from '../common/workspaceInfo';
-import { getCopilotBulkMetadataFile, getCopilotCLISessionDir, getCopilotCLISessionStateDir, getCopilotWorktreeSessionsFile } from '../copilotcli/node/cliHelpers';
+import { getCopilotBulkMetadataFile, getCopilotCLISessionDir } from '../copilotcli/node/cliHelpers';
 import { ICopilotCLIAgents } from '../copilotcli/node/copilotCli';
-import { WorktreeSessionIndex } from './worktreeSessionIndex';
 
 // const WORKSPACE_FOLDER_MEMENTO_KEY = 'github.copilot.cli.sessionWorkspaceFolders';
 // const WORKTREE_MEMENTO_KEY = 'github.copilot.cli.sessionWorktrees';
 const LEGACY_BULK_METADATA_FILENAME = 'copilotcli.session.metadata.json';
 const LEGACY_BULK_MIGRATED_KEY = 'github.copilot.cli.legacyBulkMigrated';
-const JSONL_SCAN_DONE_KEY = 'github.copilot.cli.events.jsonl.scaned';
 const REQUEST_MAPPING_FILENAME = 'vscode.requests.metadata.json';
-const SESSION_SCAN_BATCH_SIZE = 20;
 
 /**
  * Maximum number of sessions kept in the shared bulk metadata cache file
@@ -49,8 +46,10 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 	 */
 	private _cache: Record<string, ChatSessionMetadataFile> = {};
 
-	/** Maps session id → JSONL entry and folder path → session id. Owns JSONL file persistence. */
-	private readonly _worktreeSessions: WorktreeSessionIndex;
+	/** Session ID → indexed path and kind, for reverse-lookup cleanup. */
+	private readonly _sessionFolderEntry = new Map<string, { path: string; kind: 'worktree' | 'folder' }>();
+	/** Folder path → set of session IDs (worktree path or workspace folder path). */
+	private readonly _folderToSessions = new Map<string, Set<string>>();
 
 	/** Path of the shared bulk metadata cache file in `~/.copilot/`. */
 	private readonly _cacheFile = Uri.file(getCopilotBulkMetadataFile());
@@ -77,12 +76,6 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 	) {
 		super();
 
-		this._worktreeSessions = new WorktreeSessionIndex(
-			this.fileSystemService,
-			this.logService,
-			getCopilotWorktreeSessionsFile(),
-		);
-
 		this._ready = this.initializeStorage();
 		this._ready.catch(error => {
 			this.logService.error('[ChatSessionMetadataStore] Initialization failed: ', error);
@@ -95,6 +88,65 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 		// step does not poison subsequent reads/writes.
 		this._ready = this._ready.catch(() => undefined).then(() => this.reloadBulkFromDisk());
 		return this._ready;
+	}
+
+	public getSessionIdsForFolder(folder: vscode.Uri): string[] {
+		return Array.from(this._folderToSessions.get(folder.fsPath) ?? []);
+	}
+
+	public getWorktreeSessions(folder: vscode.Uri): string[] {
+		const sessions = this._folderToSessions.get(folder.fsPath);
+		if (!sessions) {
+			return [];
+		}
+		const result: string[] = [];
+		for (const sessionId of sessions) {
+			if (this._sessionFolderEntry.get(sessionId)?.kind === 'worktree') {
+				result.push(sessionId);
+			}
+		}
+		return result;
+	}
+
+	/**
+	 * Maintains {@link _sessionFolderEntry} and {@link _folderToSessions} so
+	 * that {@link getSessionIdsForFolder} and {@link getWorktreeSessions}
+	 * are O(1) lookups instead of full-cache scans.
+	 */
+	private _updateFolderIndex(sessionId: string, metadata: ChatSessionMetadataFile | undefined): void {
+		// Remove old entry
+		const old = this._sessionFolderEntry.get(sessionId);
+		if (old) {
+			const set = this._folderToSessions.get(old.path);
+			if (set) {
+				set.delete(sessionId);
+				if (set.size === 0) {
+					this._folderToSessions.delete(old.path);
+				}
+			}
+			this._sessionFolderEntry.delete(sessionId);
+		}
+
+		if (!metadata) {
+			return;
+		}
+
+		// Prefer worktree path over workspace folder path
+		const worktreePath = metadata.worktreeProperties?.worktreePath;
+		const folderPath = metadata.workspaceFolder?.folderPath;
+		const path = worktreePath ?? folderPath;
+		if (!path) {
+			return;
+		}
+
+		const kind: 'worktree' | 'folder' = worktreePath ? 'worktree' : 'folder';
+		this._sessionFolderEntry.set(sessionId, { path, kind });
+		let set = this._folderToSessions.get(path);
+		if (!set) {
+			set = new Set();
+			this._folderToSessions.set(path, set);
+		}
+		set.add(sessionId);
 	}
 
 	private async initializeStorage(): Promise<void> {
@@ -115,14 +167,13 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 			}
 		}
 
+		// Build folder index from the cleaned cache.
+		for (const [sessionId, metadata] of Object.entries(this._cache)) {
+			this._updateFolderIndex(sessionId, metadata);
+		}
+
 		// this.extensionContext.globalState.update(WORKTREE_MEMENTO_KEY, undefined);
 		// this.extensionContext.globalState.update(WORKSPACE_FOLDER_MEMENTO_KEY, undefined);
-
-
-		// Ensure every cached session with a worktreePath has a JSONL
-		// entry. Only appends entries that are missing; falls back to a full rewrite when
-		// the load detected duplicates or malformed lines.
-		await this.topUpJsonlIndexFromCache();
 	}
 
 	public getMetadataFileUri(sessionId: string): vscode.Uri {
@@ -137,13 +188,13 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 		await this._ready;
 		if (sessionId in this._cache) {
 			delete this._cache[sessionId];
+			this._updateFolderIndex(sessionId, undefined);
 			const data = await this.getGlobalStorageData().catch(() => ({} as Record<string, ChatSessionMetadataFile>));
 			delete data[sessionId];
 			await this.writeToGlobalStorage(data);
 		}
 		try {
 			await Promise.allSettled([
-				this._worktreeSessions.removeAndWriteToDisk(sessionId),
 				this.fileSystemService.delete(this.getMetadataFileUri(sessionId)),
 				this.fileSystemService.delete(this.getRequestMappingFileUri(sessionId))
 			]);
@@ -163,6 +214,7 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 		// cannot stomp fields written by other processes (Step 3b: stale-cache fix).
 		const existing = this._cache[sessionId] ?? {};
 		this._cache[sessionId] = { ...existing, ...fields };
+		this._updateFolderIndex(sessionId, this._cache[sessionId]);
 		await this.updateSessionMetadata(sessionId, fields);
 		this.updateGlobalStorage();
 	}
@@ -184,47 +236,10 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 		return metadata?.repositoryProperties;
 	}
 
-	getWorktreeProperties(sessionId: string): Promise<ChatSessionWorktreeProperties | undefined>;
-	getWorktreeProperties(folder: Uri): Promise<ChatSessionWorktreeProperties | undefined>;
-	async getWorktreeProperties(sessionId: string | Uri): Promise<ChatSessionWorktreeProperties | undefined> {
+	async getWorktreeProperties(sessionId: string): Promise<ChatSessionWorktreeProperties | undefined> {
 		await this._ready;
-		if (typeof sessionId === 'string') {
-			const metadata = await this.getSessionMetadata(sessionId);
-			return metadata?.worktreeProperties;
-		}
-		const folder = sessionId;
-		// First check the in-memory cache.
-		for (const metadata of Object.values(this._cache)) {
-			if (metadata.worktreeProperties?.worktreePath && isEqual(Uri.file(metadata.worktreeProperties.worktreePath), folder)) {
-				return metadata.worktreeProperties;
-			}
-		}
-		// Fallback to the JSONL worktree index → hydrate from the per-session file.
-		const id = await this.findSessionIdForWorktree(folder);
-		if (id) {
-			const metadata = await this.getSessionMetadata(id);
-			return metadata?.worktreeProperties;
-		}
-		return undefined;
-	}
-	async getSessionIdForWorktree(folder: vscode.Uri): Promise<string | undefined> {
-		await this._ready;
-		for (const [sessionId, value] of Object.entries(this._cache)) {
-			if (value.worktreeProperties?.worktreePath && isEqual(vscode.Uri.file(value.worktreeProperties.worktreePath), folder)) {
-				return sessionId;
-			}
-		}
-		return this.findSessionIdForWorktree(folder);
-	}
-
-	/** Looks up a session id for a worktree folder via the JSONL index, with a throttled disk reload. */
-	private async findSessionIdForWorktree(folder: vscode.Uri): Promise<string | undefined> {
-		const cached = this._worktreeSessions.getSessionIdForFolder(folder);
-		if (cached) {
-			return cached;
-		}
-		await this._worktreeSessions.reloadIfStale();
-		return this._worktreeSessions.getSessionIdForFolder(folder);
+		const metadata = await this.getSessionMetadata(sessionId);
+		return metadata?.worktreeProperties;
 	}
 
 	async getSessionWorkspaceFolder(sessionId: string): Promise<vscode.Uri | undefined> {
@@ -397,6 +412,7 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 		const metadata = await this.readSessionMetadataFile(sessionId);
 		if (metadata) {
 			this._cache[sessionId] = metadata;
+			this._updateFolderIndex(sessionId, metadata);
 			return metadata;
 		}
 
@@ -446,6 +462,7 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 					if (!createDirectoryIfNotFound) {
 						// Lets not delete the session from our storage, but mark it as written to session state so that we won't try to write to session state again and again.
 						this._cache[sessionId] = { ...updates, writtenToDisc: true };
+						this._updateFolderIndex(sessionId, this._cache[sessionId]);
 						this.updateGlobalStorage();
 						return;
 					}
@@ -475,31 +492,11 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 				merged.created = now;
 			}
 
-			const promises: Promise<unknown>[] = [];
-
-			// Maintain the JSONL worktree index based on the post-merge worktreePath:
-			//   - new entry → append a line and remember it
-			//   - changed path → rewrite the file (rare)
-			//   - cleared path → remove via rewrite
-			const worktreePath = merged.worktreeProperties?.worktreePath;
-			const indexed = this._worktreeSessions.getSessionEntry(sessionId);
-			if (worktreePath) {
-				if (!indexed) {
-					promises.push(this._worktreeSessions.appendBatchToDisk([{ id: sessionId, path: worktreePath, created: merged.created }]));
-				} else if (indexed.path !== worktreePath && !merged.kind) {
-					this._worktreeSessions.addEntry({ id: sessionId, path: worktreePath, created: indexed.created });
-					promises.push(this._worktreeSessions.writeToDisk());
-				}
-			} else if (indexed) {
-				promises.push(this._worktreeSessions.removeAndWriteToDisk(sessionId));
-			}
-
 			const content = new TextEncoder().encode(JSON.stringify(merged, null, 2));
-			promises.push(this.fileSystemService.writeFile(fileUri, content));
-
-			await Promise.all(promises);
+			await this.fileSystemService.writeFile(fileUri, content);
 
 			this._cache[sessionId] = { ...merged, writtenToDisc: true };
+			this._updateFolderIndex(sessionId, this._cache[sessionId]);
 			this.updateGlobalStorage();
 			this.logService.trace(`[ChatSessionMetadataStore] Wrote metadata for session ${sessionId}`);
 		});
@@ -529,6 +526,7 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 						if (!local) {
 							data[sessionId] = diskEntry;
 							this._cache[sessionId] = diskEntry;
+							this._updateFolderIndex(sessionId, diskEntry);
 							continue;
 						}
 						const localModified = local.modified ?? 0;
@@ -536,6 +534,7 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 						if (diskModified > localModified) {
 							data[sessionId] = diskEntry;
 							this._cache[sessionId] = diskEntry;
+							this._updateFolderIndex(sessionId, diskEntry);
 						}
 					}
 				} catch {
@@ -591,12 +590,14 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 				const local = this._cache[id];
 				if (!local) {
 					this._cache[id] = diskEntry;
+					this._updateFolderIndex(id, diskEntry);
 					continue;
 				}
 				const localModified = local.modified ?? 0;
 				const diskModified = diskEntry.modified ?? 0;
 				if (diskModified > localModified) {
 					this._cache[id] = diskEntry;
+					this._updateFolderIndex(id, diskEntry);
 				}
 			}
 		});
@@ -667,107 +668,5 @@ export class ChatSessionMetadataStore extends Disposable implements IChatSession
 		} catch (err) {
 			this.logService.error('[ChatSessionMetadataStore] Failed to migrate legacy bulk file: ', err);
 		}
-	}
-
-	/**
-	 * For every cached session with a `worktreePath`, ensure a JSONL entry exists.
-	 */
-	private async topUpJsonlIndexFromCache(): Promise<void> {
-		// Load the JSONL worktree index from disk first so the scan below can
-		// tell which entries already exist and avoid re-appending duplicates.
-		let { rewriteNeeded } = await this._worktreeSessions.loadFromDisk();
-
-		const toAppend: WorktreeSessionEntry[] = [];
-		for (const [id, metadata] of Object.entries(this._cache)) {
-			const path = metadata.worktreeProperties?.worktreePath;
-			if (!path || metadata.kind) {
-				continue;
-			}
-			const existing = this._worktreeSessions.getSessionEntry(id);
-			if (existing && existing.path === path) {
-				continue;
-			}
-			const entry: WorktreeSessionEntry = { id, path, created: existing?.created ?? metadata.created ?? Date.now() };
-			this._worktreeSessions.addEntry(entry);
-			if (existing) {
-				// Path changed — a full rewrite is needed.
-				rewriteNeeded = true;
-			} else {
-				toAppend.push(entry);
-			}
-		}
-
-		if (rewriteNeeded) {
-			await this._worktreeSessions.writeToDisk();
-		} else if (toAppend.length > 0) {
-			await this._worktreeSessions.appendBatchToDisk(toAppend);
-		}
-
-		// One-time full scan of ~/.copilot/session-state/ to discover worktree
-		// sessions that were never recorded in the JSONL (e.g. sessions created
-		// before the JSONL index existed, or evicted from the bulk cache).
-		await this.scanSessionStateDirForWorktrees();
-	}
-
-	/**
-	 * One-time scan of `~/.copilot/session-state/` to discover worktree sessions
-	 * not yet in the JSONL index. Reads per-session metadata files in batches of
-	 * {@link SESSION_SCAN_BATCH_SIZE} to avoid saturating I/O. Gated by a memento
-	 * so it only runs once per install.
-	 */
-	private async scanSessionStateDirForWorktrees(): Promise<void> {
-		if (this.extensionContext.globalState.get<boolean>(JSONL_SCAN_DONE_KEY)) {
-			return;
-		}
-
-		const sessionStateDir = Uri.file(getCopilotCLISessionStateDir());
-		let entries: [string, number][];
-		try {
-			entries = await this.fileSystemService.readDirectory(sessionStateDir);
-		} catch {
-			// Directory doesn't exist — nothing to scan.
-			await this.extensionContext.globalState.update(JSONL_SCAN_DONE_KEY, true);
-			return;
-		}
-
-		// Collect session IDs we don't already know about.
-		const unknownIds: string[] = [];
-		for (const [name] of entries) {
-			if (name in this._cache || this._worktreeSessions.has(name)) {
-				continue;
-			}
-			unknownIds.push(name);
-		}
-
-		if (unknownIds.length === 0) {
-			await this.extensionContext.globalState.update(JSONL_SCAN_DONE_KEY, true);
-			return;
-		}
-
-		// Read metadata files in batches.
-		let discovered = false;
-		for (let i = 0; i < unknownIds.length; i += SESSION_SCAN_BATCH_SIZE) {
-			const batch = unknownIds.slice(i, i + SESSION_SCAN_BATCH_SIZE);
-			const results = await Promise.all(batch.map(async id => {
-				const metadata = await this.readSessionMetadataFile(id);
-				return { id, metadata };
-			}));
-			for (const { id, metadata } of results) {
-				if (!metadata?.worktreeProperties?.worktreePath || metadata.kind) {
-					continue;
-				}
-				const path = metadata.worktreeProperties.worktreePath;
-				if (!this._worktreeSessions.has(id)) {
-					this._worktreeSessions.addEntry({ id, path, created: metadata.created ?? Date.now() });
-					discovered = true;
-				}
-			}
-		}
-
-		if (discovered) {
-			await this._worktreeSessions.writeToDisk();
-		}
-		await this.extensionContext.globalState.update(JSONL_SCAN_DONE_KEY, true);
-		this.logService.info(`[ChatSessionMetadataStore] Session-state scan complete: checked ${unknownIds.length} unknown session(s)`);
 	}
 }

@@ -125,12 +125,13 @@ suite('AgentSessionsDataSource', () => {
 			sessions,
 			resolved: true,
 			getSession: () => undefined,
+			observeSession: () => { throw new Error('Not implemented'); },
 			onWillResolve: Event.None as Event<string>,
 			onDidResolve: Event.None as Event<string>,
 			onDidChangeSessions: Event.None,
 			onDidChangeSessionArchivedState: Event.None,
 			resolve: async () => { },
-		};
+		} satisfies IAgentSessionsModel;
 	}
 
 	function createMockFilter(options: {

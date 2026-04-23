@@ -69,7 +69,7 @@ export interface IAgentSessionMetadata {
 	readonly model?: ModelSelection;
 	readonly workingDirectory?: URI;
 	readonly isRead?: boolean;
-	readonly isDone?: boolean;
+	readonly isArchived?: boolean;
 	readonly diffs?: readonly FileEdit[];
 }
 

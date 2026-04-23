@@ -134,9 +134,11 @@ export abstract class AbstractToolConfirmationSubPart extends BaseChatToolInvoca
 		const hasToolConfirmation = ChatContextKeys.Editing.hasToolConfirmation.bindTo(this.contextKeyService);
 		hasToolConfirmation.set(true);
 
-		this._register(confirmWidget.onDidClick(button => {
+		this._register(confirmWidget.onDidClick(({ button, isTouchClick }) => {
 			button.data();
-			this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource)?.focusInput();
+			if (!isTouchClick) {
+				this.chatWidgetService.getWidgetBySessionResource(this.context.element.sessionResource)?.focusInput();
+			}
 		}));
 
 		this._register(toDisposable(() => hasToolConfirmation.reset()));

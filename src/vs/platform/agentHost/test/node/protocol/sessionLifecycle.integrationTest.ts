@@ -10,7 +10,7 @@ import { SubscribeResult } from '../../../common/state/protocol/commands.js';
 import type { SessionAddedNotification, SessionRemovedNotification } from '../../../common/state/sessionActions.js';
 import { PROTOCOL_VERSION } from '../../../common/state/sessionCapabilities.js';
 import type { ListSessionsResult, INotificationBroadcastParams } from '../../../common/state/sessionProtocol.js';
-import { ResponsePartKind, type MarkdownResponsePart, type SessionState, type ToolCallResponsePart } from '../../../common/state/sessionState.js';
+import { ResponsePartKind, SessionStatus, type MarkdownResponsePart, type SessionState, type ToolCallResponsePart } from '../../../common/state/sessionState.js';
 import { PRE_EXISTING_SESSION_URI } from '../mockAgent.js';
 import {
 	createAndSubscribeSession,
@@ -130,22 +130,22 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 		assert.strictEqual(sessionAddedNotifs.length, 0, 'restore should not emit sessionAdded');
 	});
 
-	test('isRead and isDone flags survive in listSessions after dispatch', async function () {
+	test('isRead and isArchived flags survive in listSessions after dispatch', async function () {
 		this.timeout(15_000);
 
-		const sessionUri = await createAndSubscribeSession(client, 'test-read-done-flags');
+		const sessionUri = await createAndSubscribeSession(client, 'test-read-archived-flags');
 
-		// Dispatch isDone=true
+		// Dispatch isArchived=true
 		client.notify('dispatchAction', {
 			clientSeq: 1,
 			action: {
-				type: 'session/isDoneChanged',
+				type: 'session/isArchivedChanged',
 				session: sessionUri,
-				isDone: true,
+				isArchived: true,
 			},
 		});
 
-		await client.waitForNotification(n => isActionNotification(n, 'session/isDoneChanged'));
+		await client.waitForNotification(n => isActionNotification(n, 'session/isArchivedChanged'));
 
 		// Dispatch isRead=true
 		client.notify('dispatchAction', {
@@ -162,27 +162,27 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 		// Verify the flags are reflected in the subscribed session state
 		const snapshot = await client.call<SubscribeResult>('subscribe', { resource: sessionUri });
 		const state = snapshot.snapshot.state as SessionState;
-		assert.strictEqual(state.summary.isDone, true, 'isDone should be true in snapshot');
-		assert.strictEqual(state.summary.isRead, true, 'isRead should be true in snapshot');
+		assert.ok(state.summary.status & SessionStatus.IsArchived, 'IsArchived flag should be set in snapshot');
+		assert.ok(state.summary.status & SessionStatus.IsRead, 'IsRead flag should be set in snapshot');
 
 		// Poll listSessions until the persisted flags appear (async DB write)
 		client.close();
 		const client2 = new TestProtocolClient(server.port);
 		await client2.connect();
-		await client2.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-read-done-flags-2' });
+		await client2.call('initialize', { protocolVersion: PROTOCOL_VERSION, clientId: 'test-read-archived-flags-2' });
 
 		let session: ListSessionsResult['items'][0] | undefined;
 		for (let i = 0; i < 20; i++) {
 			const result = await client2.call<ListSessionsResult>('listSessions');
 			session = result.items.find(s => s.resource === sessionUri);
-			if (session?.isDone === true && session?.isRead === true) {
+			if (session && (session.status & SessionStatus.IsArchived) && (session.status & SessionStatus.IsRead)) {
 				break;
 			}
 			await timeout(100);
 		}
 		assert.ok(session, 'session should appear in listSessions');
-		assert.strictEqual(session.isDone, true, 'isDone should be persisted in listSessions');
-		assert.strictEqual(session.isRead, true, 'isRead should be persisted in listSessions');
+		assert.ok(session.status & SessionStatus.IsArchived, 'IsArchived should be persisted in listSessions');
+		assert.ok(session.status & SessionStatus.IsRead, 'IsRead should be persisted in listSessions');
 
 		client2.close();
 	});
@@ -215,13 +215,13 @@ suite('Protocol WebSocket — Session Lifecycle', function () {
 		for (let i = 0; i < 20; i++) {
 			const result = await client2.call<ListSessionsResult>('listSessions');
 			session = result.items.find(s => s.resource === sessionUri);
-			if (session && session.isRead === false) {
+			if (session && !(session.status & SessionStatus.IsRead)) {
 				break;
 			}
 			await timeout(100);
 		}
 		assert.ok(session, 'session should appear in listSessions');
-		assert.strictEqual(session.isRead, false, 'isRead=false should be explicitly persisted');
+		assert.strictEqual(session.status & SessionStatus.IsRead, 0, 'IsRead flag should not be set');
 
 		client2.close();
 	});

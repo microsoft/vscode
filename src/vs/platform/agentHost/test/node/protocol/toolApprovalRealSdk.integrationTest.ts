@@ -783,4 +783,94 @@ function terminalText(state: TerminalState): string {
 		// has no fixed context window.
 		assert.ok(agent.models.some(m => m.id === 'auto'), `Expected 'auto' model in list, got: ${agent.models.map(m => m.id).join(', ')}`);
 	});
+
+	// ---- Redundant cd-prefix stripping --------------------------------------
+
+	test('strips redundant `cd <workingDirectory> &&` prefix from shell tool calls', async function () {
+		this.timeout(180_000);
+
+		const tempDir = mkdtempSync(`${tmpdir()}/ahp-cd-strip-test-`);
+		tempDirs.push(tempDir);
+		const expectedWorkingDirPath = tempDir;
+		const sessionUri = await createRealSession(client, 'real-sdk-cd-strip', createdSessions, URI.file(tempDir).toString());
+
+		// Coax the model into producing a `cd <wd> && X` form. The exact text is
+		// non-deterministic, so the test asserts on rewrite behavior conditional
+		// on actually receiving a cd-prefixed command.
+		client.clearReceived();
+		dispatchTurn(client, sessionUri, 'turn-cd-strip',
+			`Run this exact shell command, do not modify it: cd ${expectedWorkingDirPath} && echo strip-me-please`,
+			1);
+
+		// Wait for the toolCallReady action that carries the rewritten toolInput.
+		const toolReadyNotif = await client.waitForNotification(n => {
+			if (!isActionNotification(n, 'session/toolCallReady')) {
+				return false;
+			}
+			const action = getActionEnvelope(n).action as { toolInput?: string };
+			return typeof action.toolInput === 'string' && action.toolInput.includes('echo strip-me-please');
+		}, 90_000);
+
+		const toolReadyAction = getActionEnvelope(toolReadyNotif).action as { toolCallId: string; toolInput?: string; confirmed?: string };
+		const toolInput = toolReadyAction.toolInput!;
+
+		// The core assertion: regardless of whether the model emitted the cd
+		// prefix verbatim or already pre-stripped it, the toolInput surfaced to
+		// the client must NOT contain the redundant `cd <tempDir> &&` prefix.
+		// Use a regex that anchors to the start of the command and tolerates
+		// optional surrounding quotes around the directory plus either `&&`
+		// or `;` as the chain operator (so quoted variants like
+		// `cd "<wd>" && …` and pwsh-style `cd <wd>; …` are both detected).
+		const escapedWorkingDirPath = expectedWorkingDirPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+		const redundantWorkingDirCdPrefix = new RegExp(
+			`^\\s*cd\\s+(?:"${escapedWorkingDirPath}"|'${escapedWorkingDirPath}'|${escapedWorkingDirPath})\\s*(?:&&|;)\\s*`,
+		);
+		assert.ok(
+			!redundantWorkingDirCdPrefix.test(toolInput),
+			`toolInput should not contain a redundant cd-prefix targeting the working directory; got: ${JSON.stringify(toolInput)}`,
+		);
+		assert.ok(
+			toolInput.includes('echo strip-me-please'),
+			`toolInput should contain the rewritten command body; got: ${JSON.stringify(toolInput)}`,
+		);
+
+		// Approve so the turn can complete. If it was already auto-confirmed
+		// (`confirmed` is set), skip the manual approval.
+		if (!toolReadyAction.confirmed) {
+			client.notify('dispatchAction', {
+				clientSeq: 2,
+				action: {
+					type: 'session/toolCallConfirmed',
+					session: sessionUri,
+					turnId: 'turn-cd-strip',
+					toolCallId: toolReadyAction.toolCallId,
+					approved: true,
+				},
+			});
+		}
+
+		// Drive any further confirmations to completion so teardown is clean.
+		while (true) {
+			const next = await client.waitForNotification(
+				n => isActionNotification(n, 'session/toolCallReady') || isActionNotification(n, 'session/turnComplete') || isActionNotification(n, 'session/error'),
+				90_000,
+			);
+			if (isActionNotification(next, 'session/turnComplete') || isActionNotification(next, 'session/error')) {
+				break;
+			}
+			const action = getActionEnvelope(next).action as { session: string; turnId: string; toolCallId: string; confirmed?: string };
+			if (!action.confirmed) {
+				client.notify('dispatchAction', {
+					clientSeq: 3,
+					action: {
+						type: 'session/toolCallConfirmed',
+						session: action.session,
+						turnId: action.turnId,
+						toolCallId: action.toolCallId,
+						approved: true,
+					},
+				});
+			}
+		}
+	});
 });

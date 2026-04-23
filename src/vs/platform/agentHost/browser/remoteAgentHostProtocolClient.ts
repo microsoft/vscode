@@ -21,7 +21,7 @@ import { AgentSubscriptionManager, type IAgentSubscription } from '../common/sta
 import { agentHostAuthority, fromAgentHostUri, toAgentHostUri } from '../common/agentHostUri.js';
 import type { ClientNotificationMap, CommandMap, JsonRpcErrorResponse, JsonRpcRequest } from '../common/state/protocol/messages.js';
 import type { ActionEnvelope, INotification, SessionAction, TerminalAction } from '../common/state/sessionActions.js';
-import { SessionSummary, ROOT_STATE_URI, StateComponents, type RootState } from '../common/state/sessionState.js';
+import { SessionSummary, SessionStatus, ROOT_STATE_URI, StateComponents, type RootState } from '../common/state/sessionState.js';
 import { PROTOCOL_VERSION } from '../common/state/sessionCapabilities.js';
 import { isJsonRpcNotification, isJsonRpcRequest, isJsonRpcResponse, type ProtocolMessage, type IStateSnapshot } from '../common/state/sessionProtocol.js';
 import { isClientTransport, type IProtocolTransport } from '../common/state/sessionTransport.js';
@@ -301,8 +301,8 @@ export class RemoteAgentHostProtocolClient extends Disposable implements IAgentC
 			summary: s.title,
 			status: s.status,
 			workingDirectory: typeof s.workingDirectory === 'string' ? toAgentHostUri(URI.parse(s.workingDirectory), this._connectionAuthority) : undefined,
-			isRead: s.isRead,
-			isDone: s.isDone,
+			isRead: !!(s.status & SessionStatus.IsRead),
+			isArchived: !!(s.status & SessionStatus.IsArchived),
 			diffs: s.diffs,
 		}));
 	}

@@ -131,7 +131,7 @@ suite('StorageMainService', function () {
 		const environmentService = new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), productService);
 		const fileService = disposables.add(new FileService(new NullLogService()));
 		const uriIdentityService = disposables.add(new UriIdentityService(fileService));
-		const testStorageService = disposables.add(new TestStorageMainService(new NullLogService(), environmentService, disposables.add(new UserDataProfilesMainService(disposables.add(new StateService(SaveStrategy.DELAYED, environmentService, new NullLogService(), fileService)), disposables.add(uriIdentityService), environmentService, fileService, new NullLogService())), lifecycleMainService, fileService, uriIdentityService, nullCrossAppIPCService, productService));
+		const testStorageService = disposables.add(new TestStorageMainService(new NullLogService(), environmentService, disposables.add(new UserDataProfilesMainService(disposables.add(new StateService(SaveStrategy.DELAYED, environmentService, new NullLogService(), fileService)), disposables.add(uriIdentityService), environmentService, fileService, new NullLogService())), lifecycleMainService, fileService, uriIdentityService, nullCrossAppIPCService));
 
 		disposables.add(testStorageService.applicationStorage);
 
@@ -300,7 +300,7 @@ suite('StorageMainService', function () {
 		const environmentService = new NativeEnvironmentService(parseArgs(process.argv, OPTIONS), productService);
 		const fileService = disposables.add(new FileService(new NullLogService()));
 		const uriIdentityService = disposables.add(new UriIdentityService(fileService));
-		const storageMainService = disposables.add(new TestStorageMainService(new NullLogService(), environmentService, disposables.add(new UserDataProfilesMainService(disposables.add(new StateService(SaveStrategy.DELAYED, environmentService, new NullLogService(), fileService)), disposables.add(uriIdentityService), environmentService, fileService, new NullLogService())), new TestLifecycleMainService(), fileService, uriIdentityService, crossAppIPCService, productService));
+		const storageMainService = disposables.add(new TestStorageMainService(new NullLogService(), environmentService, disposables.add(new UserDataProfilesMainService(disposables.add(new StateService(SaveStrategy.DELAYED, environmentService, new NullLogService(), fileService)), disposables.add(uriIdentityService), environmentService, fileService, new NullLogService())), new TestLifecycleMainService(), fileService, uriIdentityService, crossAppIPCService));
 
 		const storage = storageMainService.applicationSharedStorage;
 		disposables.add(storage);
@@ -336,7 +336,7 @@ suite('StorageMainService', function () {
 			onDidReceiveMessage: onDidReceiveMessage2.event,
 		};
 
-		const storageMainService2 = disposables.add(new TestStorageMainService(new NullLogService(), environmentService, disposables.add(new UserDataProfilesMainService(disposables.add(new StateService(SaveStrategy.DELAYED, environmentService, new NullLogService(), fileService)), disposables.add(new UriIdentityService(fileService)), environmentService, fileService, new NullLogService())), new TestLifecycleMainService(), fileService, disposables.add(new UriIdentityService(fileService)), crossAppIPCService2, productService));
+		const storageMainService2 = disposables.add(new TestStorageMainService(new NullLogService(), environmentService, disposables.add(new UserDataProfilesMainService(disposables.add(new StateService(SaveStrategy.DELAYED, environmentService, new NullLogService(), fileService)), disposables.add(new UriIdentityService(fileService)), environmentService, fileService, new NullLogService())), new TestLifecycleMainService(), fileService, disposables.add(new UriIdentityService(fileService)), crossAppIPCService2));
 
 		const storage2 = storageMainService2.applicationSharedStorage;
 		disposables.add(storage2);

@@ -282,10 +282,18 @@ export const enum SessionLifecycle {
  * @category Session State
  */
 export const enum SessionStatus {
+	/** Session is idle — no turn is active. */
 	Idle = 1,
+	/** Session ended with an error. */
 	Error = 1 << 1,
+	/** A turn is actively streaming. */
 	InProgress = 1 << 3,
+	/** A turn is in progress but blocked waiting for user input or tool confirmation. */
 	InputNeeded = (1 << 3) | (1 << 4),
+	/** The client has viewed this session since its last modification. */
+	IsRead = 1 << 5,
+	/** The session has been archived by the client. */
+	IsArchived = 1 << 6,
 }
 
 /**
@@ -378,10 +386,6 @@ export interface SessionSummary {
 	model?: ModelSelection;
 	/** The working directory URI for this session */
 	workingDirectory?: URI;
-	/** Whether the client has viewed this session since its last modification */
-	isRead?: boolean;
-	/** Whether the session has been marked as done by the client */
-	isDone?: boolean;
 	/** Files changed during this session with diff statistics */
 	diffs?: FileEdit[];
 }

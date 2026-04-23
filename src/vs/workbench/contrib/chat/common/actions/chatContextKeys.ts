@@ -9,6 +9,7 @@ import { IsWebContext } from '../../../../../platform/contextkey/common/contextk
 import { RemoteNameContext } from '../../../../common/contextkeys.js';
 import { ViewContainerLocation } from '../../../../common/views.js';
 import { ChatEntitlementContextKeys } from '../../../../services/chat/common/chatEntitlementService.js';
+import { ChatAccountPolicyGateActiveContext } from '../../../../services/policies/common/accountPolicyService.js';
 import { ChatAgentLocation, ChatModeKind, ChatPermissionLevel } from '../constants.js';
 
 export namespace ChatContextKeys {
@@ -55,6 +56,7 @@ export namespace ChatContextKeys {
 
 	export const supported = ContextKeyExpr.or(IsWebContext.negate(), RemoteNameContext.notEqualsTo(''), ContextKeyExpr.has('config.chat.experimental.serverlessWebEnabled'));
 	export const enabled = new RawContextKey<boolean>('chatIsEnabled', false, { type: 'boolean', description: localize('chatIsEnabled', "True when chat is enabled because a default chat participant is activated with an implementation.") });
+	export const accountPolicyGateActive = ChatAccountPolicyGateActiveContext;
 
 	/**
 	 * True when the chat widget is locked to the coding agent session.

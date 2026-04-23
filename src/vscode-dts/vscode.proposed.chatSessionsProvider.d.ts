@@ -76,6 +76,23 @@ declare module 'vscode' {
 		// TODO: Do we need a flag to try auth if needed?
 		provideChatSessionItems(token: CancellationToken): ProviderResult<ChatSessionItem[]>;
 
+		/**
+		 * @deprecated Use {@linkcode ChatSessionItemController.resolveChatSessionItem} instead.
+		 *
+		 * Given a chat session item fill in more data, like {@link ChatSessionItem.timing timing},
+		 * {@link ChatSessionItem.changes changes}, or {@link ChatSessionItem.badge badge}.
+		 *
+		 * The editor will call this when a chat session item becomes visible in the UI, for example
+		 * when the user scrolls to it or when it is first rendered.
+		 *
+		 * @param item A chat session item currently visible in the UI. Treat this as read-only.
+		 * @param token A cancellation token.
+		 * @returns A new {@link ChatSessionItem} instance (or a thenable that resolves to one) with the
+		 * same `resource` as `item` and any additional properties filled in. When no result is returned,
+		 * the given `item` is left unchanged.
+		 */
+		resolveChatSessionItem?: (item: ChatSessionItem, token: CancellationToken) => ProviderResult<ChatSessionItem>;
+
 		// #region Unstable parts of API
 
 		/**
@@ -193,6 +210,26 @@ declare module 'vscode' {
 		 * Gets the input state for a chat session.
 		 */
 		getChatSessionInputState?: ChatSessionControllerGetInputState;
+
+		/**
+		 * Called to fill in more data on a chat session item, like {@link ChatSessionItem.timing timing},
+		 * {@link ChatSessionItem.changes changes}, or {@link ChatSessionItem.badge badge}.
+		 *
+		 * The editor will call this when a chat session item becomes visible in the UI, for example
+		 * when the user scrolls to it or when it is first rendered.
+		 *
+		 * The editor will only resolve a chat session item once, unless the item is updated via
+		 * {@link ChatSessionItemCollection.add add} or {@link ChatSessionItemCollection.replace replace},
+		 * which invalidates the resolve cache.
+		 *
+		 * The handler should update the item in the {@link ChatSessionItemController.items items collection} via
+		 * {@link ChatSessionItemCollection.add add}. The editor picks up the updated item from
+		 * the collection after the returned thenable resolves.
+		 *
+		 * @param item A chat session item currently visible in the UI.
+		 * @param token A cancellation token.
+		 */
+		resolveChatSessionItem?: (item: ChatSessionItem, token: CancellationToken) => Thenable<void>;
 
 		/**
 		 * Create a new managed ChatSessionInputState object.

@@ -84,6 +84,7 @@ import { ChatTipContentPart } from './chatContentParts/chatTipContentPart.js';
 import { ChatContentMarkdownRenderer } from './chatContentMarkdownRenderer.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { IChatDebugService } from '../../common/chatDebugService.js';
+import { getChatSessionType } from '../../common/model/chatUri.js';
 
 const $ = dom.$;
 
@@ -355,7 +356,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 					selectedAgent: this._lastSelectedAgent,
 					mode: this.input.currentModeKind,
 					attachmentCapabilities: this.attachmentCapabilities,
-					forcedAgent: this._lockedAgent?.id ? this.chatAgentService.getAgent(this._lockedAgent.id) : undefined
+					forcedAgent: this._lockedAgent?.id ? this.chatAgentService.getAgent(this._lockedAgent.id) : undefined,
+					sessionType: getChatSessionType(this.viewModel.model.sessionResource)
 				});
 			this._onDidChangeParsedInput.fire();
 		}
@@ -892,7 +894,14 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		const previous = this.parsedChatRequest;
-		this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequestWithReferences(getDynamicVariablesForWidget(this), getSelectedToolAndToolSetsForWidget(this), this.getInput(), this.location, { selectedAgent: this._lastSelectedAgent, mode: this.input.currentModeKind, attachmentCapabilities: this.attachmentCapabilities });
+		const context = {
+			selectedAgent: this._lastSelectedAgent,
+			mode: this.input.currentModeKind,
+			attachmentCapabilities: this.attachmentCapabilities,
+			sessionType: getChatSessionType(this.viewModel.model.sessionResource),
+			forcedAgent: this._lockedAgent?.id ? this.chatAgentService.getAgent(this._lockedAgent.id) : undefined,
+		};
+		this.parsedChatRequest = this.instantiationService.createInstance(ChatRequestParser).parseChatRequestWithReferences(getDynamicVariablesForWidget(this), getSelectedToolAndToolSetsForWidget(this), this.getInput(), this.location, context);
 		if (!previous || !IParsedChatRequest.equals(previous, this.parsedChatRequest)) {
 			this._onDidChangeParsedInput.fire();
 		}
@@ -1890,7 +1899,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				if (e.followup.subCommand) {
 					msg += `${chatSubcommandLeader}${e.followup.subCommand} `;
 				}
-			} else if (!e.followup.agentId && e.followup.subCommand && this.chatSlashCommandService.hasCommand(e.followup.subCommand)) {
+			} else if (!e.followup.agentId && e.followup.subCommand && this.chatSlashCommandService.hasCommand(e.followup.subCommand, getChatSessionType(this.viewModel.model.sessionResource))) {
 				msg = `${chatSubcommandLeader}${e.followup.subCommand} `;
 			}
 
@@ -2293,8 +2302,10 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		// Track them now so tip exclusions still update for commands like /init.
 		this.chatTipService.recordSlashCommandUsage(agentSlashPromptPart.name);
 
+		const sessionType = this.viewModel ? getChatSessionType(this.viewModel.model.sessionResource) : undefined;
+
 		// need to resolve the slash command to get the prompt file
-		const slashCommand = await this.promptsService.resolvePromptSlashCommand(agentSlashPromptPart.name, CancellationToken.None);
+		const slashCommand = await this.promptsService.resolvePromptSlashCommand(agentSlashPromptPart.name, sessionType, CancellationToken.None);
 		if (!slashCommand) {
 			return;
 		}
