@@ -2,7 +2,7 @@
 	"name": "copilot-chat",
 	"displayName": "GitHub Copilot Chat",
 	"description": "AI chat features powered by Copilot",
-	"version": "0.45.0",
+	"version": "0.45.1",
 	"build": "1",
 	"internalAIKey": "1058ec22-3c95-4951-8443-f26c1f325911",
 	"completionsCoreVersion": "1.378.1799",
@@ -6171,62 +6171,89 @@
 		"chatPromptFiles": [
 			{
 				"path": "./assets/prompts/plan.prompt.md",
-				"sessionTypes": ["local"]
+				"sessionTypes": [
+					"local"
+				]
 			}
 		],
 		"chatSkills": [
 			{
 				"path": "./assets/prompts/skills/project-setup-info-local/SKILL.md",
 				"when": "config.github.copilot.chat.projectSetupInfoSkill.enabled && !config.github.copilot.chat.newWorkspace.useContext7",
-				"sessionTypes": ["local"]
+				"sessionTypes": [
+					"local"
+				]
 			},
 			{
 				"path": "./assets/prompts/skills/project-setup-info-context7/SKILL.md",
 				"when": "config.github.copilot.chat.projectSetupInfoSkill.enabled && config.github.copilot.chat.newWorkspace.useContext7",
-				"sessionTypes": ["local"]
+				"sessionTypes": [
+					"local"
+				]
 			},
 			{
 				"path": "./assets/prompts/skills/install-vscode-extension/SKILL.md",
 				"when": "config.github.copilot.chat.installExtensionSkill.enabled && config.github.copilot.chat.newWorkspaceCreation.enabled",
-				"sessionTypes": ["local"]
+				"sessionTypes": [
+					"local"
+				]
 			},
 			{
 				"path": "./assets/prompts/skills/get-search-view-results/SKILL.md",
 				"when": "config.github.copilot.chat.getSearchViewResultsSkill.enabled",
-				"sessionTypes": ["local"]
+				"sessionTypes": [
+					"local"
+				]
 			},
 			{
 				"path": "./assets/prompts/skills/troubleshoot/SKILL.md",
-				"sessionTypes": ["local", "copilotcli"]
+				"sessionTypes": [
+					"local",
+					"copilotcli"
+				]
 			},
 			{
 				"path": "./assets/prompts/skills/agent-customization/SKILL.md",
-				"sessionTypes": ["local", "copilotcli"]
+				"sessionTypes": [
+					"local",
+					"copilotcli"
+				]
 			},
 			{
 				"path": "./assets/prompts/skills/init/SKILL.md",
-				"sessionTypes": ["local"]
+				"sessionTypes": [
+					"local"
+				]
 			},
 			{
 				"path": "./assets/prompts/skills/create-prompt/SKILL.md",
-				"sessionTypes": ["local"]
+				"sessionTypes": [
+					"local"
+				]
 			},
 			{
 				"path": "./assets/prompts/skills/create-instructions/SKILL.md",
-				"sessionTypes": ["local"]
-
+				"sessionTypes": [
+					"local"
+				]
 			},
 			{
 				"path": "./assets/prompts/skills/create-skill/SKILL.md",
-				"sessionTypes": ["local"]
+				"sessionTypes": [
+					"local"
+				]
 			},
 			{
 				"path": "./assets/prompts/skills/create-agent/SKILL.md",
-				"sessionTypes": ["local"]
+				"sessionTypes": [
+					"local"
+				]
 			},
 			{
 				"path": "./assets/prompts/skills/create-hook/SKILL.md",
-				"sessionTypes": ["local"]
+				"sessionTypes": [
+					"local"
+				]
 			}
 		],
 		"terminal": {
