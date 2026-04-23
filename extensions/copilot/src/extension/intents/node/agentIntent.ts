@@ -85,6 +85,7 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	const endpointProvider = accessor.get<IEndpointProvider>(IEndpointProvider);
 	const editToolLearningService = accessor.get<IEditToolLearningService>(IEditToolLearningService);
 	const agentMemoryService = accessor.get<IAgentMemoryService>(IAgentMemoryService);
+	const logService = accessor.get<ILogService>(ILogService);
 	model ??= await endpointProvider.getChatEndpoint(request);
 
 	const allowTools: Record<string, boolean> = {};
@@ -152,7 +153,7 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 
 	const cachedMemoryPrompt = agentMemoryService.getCachedMemoryPrompt();
 	if (!cachedMemoryPrompt && configurationService.getExperimentBasedConfig(ConfigKey.CopilotMemoryEnabled, experimentationService)) {
-		accessor.get(ILogService).debug('[getAgentTools] CopilotMemory is enabled but cache is not primed yet — StoreMemory tool will be disabled this turn');
+		logService.debug('[getAgentTools] CopilotMemory is enabled but cache is not primed yet — StoreMemory tool will be disabled this turn');
 	}
 	allowTools[ToolName.StoreMemory] = !!cachedMemoryPrompt;
 
