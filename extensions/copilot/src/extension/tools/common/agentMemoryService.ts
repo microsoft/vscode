@@ -317,29 +317,15 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 				logger: this.makeLogger(),
 			};
 
-			// Always fetch user-scoped memories, and repo-scoped if a repo is available.
-			// Fetch both in parallel and merge so the model sees all relevant context.
-			const userOptions: MemoryApiOptions = { scope: 'user', ...baseOptions };
-			const repoOptions: MemoryApiOptions | undefined = resolvedRepoNwo
-				? (() => { const [owner, repo] = resolvedRepoNwo.split('/'); return { scope: 'repository' as const, owner, repo, ...baseOptions }; })()
-				: undefined;
-
-			const [userResult, repoResult] = await Promise.allSettled([
-				fetchMemoryPrompts(userOptions),
-				repoOptions ? fetchMemoryPrompts(repoOptions) : Promise.resolve(undefined),
-			]);
-
-			if (userResult.status === 'rejected') {
-				this.logService.warn(`[AgentMemoryService] Failed to fetch user memory prompt: ${userResult.reason}`);
-			}
-			if (repoResult.status === 'rejected') {
-				this.logService.warn(`[AgentMemoryService] Failed to fetch repo memory prompt: ${repoResult.reason}`);
+			let options: MemoryApiOptions;
+			if (resolvedRepoNwo) {
+				const [owner, repo] = resolvedRepoNwo.split('/');
+				options = { scope: 'repository', owner, repo, ...baseOptions };
+			} else {
+				options = { scope: 'user', ...baseOptions };
 			}
 
-			const userResponse = userResult.status === 'fulfilled' ? userResult.value : undefined;
-			const repoResponse = repoResult.status === 'fulfilled' ? repoResult.value : undefined;
-
-			const response = this.mergeMemoryPromptResponses(userResponse, repoResponse);
+			const response = await fetchMemoryPrompts(options);
 			if (response) {
 				this.logService.info(`[AgentMemoryService] Fetched memory prompt (${response.memoriesContext.memoriesCount} memories)${sessionId ? ` for conversation: ${sessionId}` : ''}`);
 				if (sessionId) {
@@ -351,26 +337,6 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 			this.logService.warn(`[AgentMemoryService] Failed to fetch memory prompt: ${error}`);
 			return undefined;
 		}
-	}
-
-	private mergeMemoryPromptResponses(user: MemoryPromptResponse | undefined, repo: MemoryPromptResponse | undefined): MemoryPromptResponse | undefined {
-		if (!user && !repo) {
-			return undefined;
-		}
-		if (!user) { return repo; }
-		if (!repo) { return user; }
-
-		const prompts = [user.memoriesContext.prompt, repo.memoriesContext.prompt].filter(Boolean);
-		return {
-			storeToolDefinition: repo.storeToolDefinition ?? user.storeToolDefinition,
-			toolDefinition: repo.toolDefinition ?? user.toolDefinition,
-			storeInstructions: repo.storeInstructions ?? user.storeInstructions,
-			memoriesContext: {
-				prompt: prompts.join('\n\n'),
-				memoriesCount: user.memoriesContext.memoriesCount + repo.memoriesContext.memoriesCount,
-				promptVersion: repo.memoriesContext.promptVersion ?? user.memoriesContext.promptVersion,
-			},
-		};
 	}
 
 	/**
