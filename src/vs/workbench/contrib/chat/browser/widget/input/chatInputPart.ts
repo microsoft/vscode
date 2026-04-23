@@ -1259,7 +1259,12 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 		}
 
 		const tryMatch = () => {
+			// wait for at least 2 models to load,
+			// Otherwise matching is not useful and may be inaccurate due to the fact that we have auto
 			const models = this.getModels();
+			if (models.length <= 1) {
+				return;
+			}
 			// Try exact identifier match first (e.g. "copilot/gpt-4o")
 			let match = models.find(m => m.identifier === lastModelId);
 			if (!match) {
