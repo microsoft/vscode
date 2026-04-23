@@ -47,7 +47,6 @@ import { McpConfigMigrationContribution } from './mcpMigration.js';
 import { McpResourceQuickAccess } from './mcpResourceQuickAccess.js';
 import { McpServerEditor } from './mcpServerEditor.js';
 import { McpServerEditorInput } from './mcpServerEditorInput.js';
-import { McpServersViewsContribution } from './mcpServersView.js';
 import { MCPContextsInitialisation, McpWorkbenchService } from './mcpWorkbenchService.js';
 
 registerSingleton(IMcpRegistry, McpRegistry, InstantiationType.Delayed);
@@ -101,7 +100,6 @@ registerWorkbenchContribution2('mcpActionRendering', MCPServerActionRendering, W
 registerWorkbenchContribution2('mcpAddContext', McpAddContextContribution, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(MCPContextsInitialisation.ID, MCPContextsInitialisation, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(McpConfigMigrationContribution.ID, McpConfigMigrationContribution, WorkbenchPhase.Eventually);
-registerWorkbenchContribution2(McpServersViewsContribution.ID, McpServersViewsContribution, WorkbenchPhase.AfterRestored);
 
 const jsonRegistry = <jsonContributionRegistry.IJSONContributionRegistry>Registry.as(jsonContributionRegistry.Extensions.JSONContribution);
 jsonRegistry.registerSchema(mcpSchemaId, mcpServerSchema);

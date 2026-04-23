@@ -185,9 +185,9 @@ export class SessionStoreTracker extends Disposable implements IExtensionContrib
 
 	private _initSession(sessionId: string, span: ICompletedSpanData): void {
 		this._initializedSessions.add(sessionId);
-		this._bufferSessionUpsert({ id: sessionId, host_type: 'vscode' });
 
 		const sessionSource = (span.attributes[GenAiAttr.AGENT_NAME] as string | undefined) ?? 'unknown';
+		this._bufferSessionUpsert({ id: sessionId, host_type: 'vscode', agent_name: sessionSource });
 
 		// Track the source of the very first session for firstWrite telemetry
 		if (!this._firstWriteSessionSource) {

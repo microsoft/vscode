@@ -166,6 +166,12 @@ class AgentSessionReadyContribution extends Disposable implements IWorkbenchCont
 			return;
 		}
 
+		// Trigger a lazy resolve so providers that populate `changes` on
+		// demand (see IAgentSessionsModel.observeSession) deliver fresh data.
+		// Re-evaluation happens via the onDidChangeSessions listener in the
+		// constructor.
+		this.agentSessionsService.model.observeSession(sessionResource);
+
 		// Check if this is a projection-capable provider
 		if (!AGENT_SESSION_PROJECTION_ENABLED_PROVIDERS.has(session.providerType)) {
 			this._clearEntriesWatcher();

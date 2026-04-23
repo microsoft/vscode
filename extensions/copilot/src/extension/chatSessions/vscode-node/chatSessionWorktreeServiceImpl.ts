@@ -318,6 +318,14 @@ export class ChatSessionWorktreeService extends Disposable implements IChatSessi
 		}
 	}
 
+	async hasCachedChanges(sessionId: string): Promise<boolean> {
+		const worktreeProperties = await this.getWorktreeProperties(sessionId);
+		if (!worktreeProperties || typeof worktreeProperties === 'string') {
+			return false;
+		}
+		return !!worktreeProperties.changes;
+	}
+
 	async getWorktreeChanges(sessionId: string): Promise<readonly vscode.ChatSessionChangedFile[] | undefined> {
 		const worktreeProperties = await this.getWorktreeProperties(sessionId);
 		if (!worktreeProperties || typeof worktreeProperties === 'string') {

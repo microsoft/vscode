@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Codicon } from '../../../../base/common/codicons.js';
-import { localize2 } from '../../../../nls.js';
+import { localize, localize2 } from '../../../../nls.js';
 import { Action2, MenuId, registerAction2 } from '../../../../platform/actions/common/actions.js';
 import { ContextKeyExpr } from '../../../../platform/contextkey/common/contextkey.js';
 import { SyncDescriptor } from '../../../../platform/instantiation/common/descriptors.js';
@@ -18,6 +18,7 @@ import { ViewPaneContainer } from '../../../../workbench/browser/parts/views/vie
 import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
 import { WorkspaceFolderCountContext } from '../../../../workbench/common/contextkeys.js';
 import { SESSIONS_FILES_EMPTY_VIEW_ID, SESSIONS_FILES_VIEW_ID, SessionsExplorerEmptyView, SessionsExplorerView } from './filesView.js';
+import { KeyCode, KeyMod } from '../../../../base/common/keyCodes.js';
 
 export const SESSIONS_FILES_CONTAINER_ID = 'workbench.sessions.auxiliaryBar.filesContainer';
 
@@ -33,9 +34,16 @@ const filesViewContainer = viewContainerRegistry.registerViewContainer({
 	order: 11,
 	ctorDescriptor: new SyncDescriptor(ViewPaneContainer, [SESSIONS_FILES_CONTAINER_ID, { mergeViewWithContainerWhenSingleView: true }]),
 	storageId: SESSIONS_FILES_CONTAINER_ID,
-	hideIfEmpty: true,
+	hideIfEmpty: false,
+	openCommandActionDescriptor: {
+		id: SESSIONS_FILES_CONTAINER_ID,
+		title: localize2('explore', "Explorer"),
+		mnemonicTitle: localize({ key: 'miFiles', comment: ['&& denotes a mnemonic'] }, "Fil&&es"),
+		keybindings: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KeyE },
+		order: 0
+	},
 	windowVisibility: WindowVisibility.Sessions,
-}, ViewContainerLocation.AuxiliaryBar, { doNotRegisterOpenCommand: true, isDefault: true });
+}, ViewContainerLocation.AuxiliaryBar, { isDefault: true });
 
 class RegisterFilesViewContribution implements IWorkbenchContribution {
 
@@ -50,7 +58,7 @@ class RegisterFilesViewContribution implements IWorkbenchContribution {
 			name: localize2('files', "Files"),
 			containerIcon: filesViewIcon,
 			ctorDescriptor: new SyncDescriptor(SessionsExplorerView),
-			canToggleVisibility: true,
+			canToggleVisibility: false,
 			canMoveView: false,
 			when: WorkspaceFolderCountContext.notEqualsTo('0'),
 			windowVisibility: WindowVisibility.Sessions,
@@ -62,7 +70,7 @@ class RegisterFilesViewContribution implements IWorkbenchContribution {
 			name: localize2('files', "Files"),
 			containerIcon: filesViewIcon,
 			ctorDescriptor: new SyncDescriptor(SessionsExplorerEmptyView),
-			canToggleVisibility: true,
+			canToggleVisibility: false,
 			canMoveView: false,
 			when: WorkspaceFolderCountContext.isEqualTo('0'),
 			windowVisibility: WindowVisibility.Sessions,

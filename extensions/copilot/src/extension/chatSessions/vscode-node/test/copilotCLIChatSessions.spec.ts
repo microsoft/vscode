@@ -70,6 +70,7 @@ class TestSessionService extends mock<ICopilotCLISessionService>() {
 	override isNewSessionId = vi.fn(() => false);
 	override deleteSession = vi.fn(async () => { });
 	override renameSession = vi.fn(async () => { });
+	override getSessionTitle = vi.fn(async () => '');
 	override getSession = vi.fn(async () => ({
 		object: {
 			sessionId: 'session-1',

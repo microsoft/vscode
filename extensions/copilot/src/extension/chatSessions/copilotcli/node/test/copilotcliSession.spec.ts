@@ -247,7 +247,8 @@ describe('CopilotCLISession', () => {
 			new FakeUserQuestionHandler(),
 			configurationService,
 			new NoopOTelService(resolveOTelConfig({ env: {}, extensionVersion: '0.0.0', sessionId: 'test' })),
-			new MockGitService()
+			new MockGitService(),
+			{ _serviceBrand: undefined } as any
 		));
 	}
 

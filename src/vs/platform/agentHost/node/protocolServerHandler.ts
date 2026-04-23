@@ -11,24 +11,24 @@ import { URI } from '../../../base/common/uri.js';
 import { ILogService } from '../../log/common/log.js';
 import { AHPFileSystemProvider } from '../common/agentHostFileSystemProvider.js';
 import { AgentSession, type IAgentService } from '../common/agentService.js';
-import type { ICommandMap } from '../common/state/protocol/messages.js';
-import { IActionEnvelope, INotification, isSessionAction, isTerminalAction, type ISessionAction } from '../common/state/sessionActions.js';
+import type { CommandMap } from '../common/state/protocol/messages.js';
+import { ActionEnvelope, INotification, isSessionAction, isTerminalAction, type SessionAction } from '../common/state/sessionActions.js';
 import { MIN_PROTOCOL_VERSION, PROTOCOL_VERSION } from '../common/state/sessionCapabilities.js';
 import {
 	AHP_AUTH_REQUIRED,
 	AHP_PROVIDER_NOT_FOUND,
 	AHP_SESSION_NOT_FOUND,
 	AHP_UNSUPPORTED_PROTOCOL_VERSION,
-	IJsonRpcRequest,
+	JsonRpcRequest,
 	isJsonRpcNotification,
 	isJsonRpcRequest,
 	JSON_RPC_INTERNAL_ERROR,
 	JsonRpcErrorCodes,
 	ProtocolError,
-	type IAhpServerNotification,
-	type IInitializeParams,
-	type IJsonRpcResponse,
-	type IReconnectParams,
+	type AhpServerNotification,
+	type InitializeParams,
+	type JsonRpcResponse,
+	type ReconnectParams,
 	type IStateSnapshot,
 } from '../common/state/sessionProtocol.js';
 import { ROOT_STATE_URI, SessionStatus } from '../common/state/sessionState.js';
@@ -39,17 +39,17 @@ import { AgentHostStateManager } from './agentHostStateManager.js';
 const REPLAY_BUFFER_CAPACITY = 1000;
 
 /** Build a JSON-RPC success response suitable for transport.send(). */
-function jsonRpcSuccess(id: number, result: unknown): IJsonRpcResponse {
+function jsonRpcSuccess(id: number, result: unknown): JsonRpcResponse {
 	return { jsonrpc: '2.0', id, result };
 }
 
 /** Build a JSON-RPC error response suitable for transport.send(). */
-function jsonRpcError(id: number, code: number, message: string, data?: unknown): IJsonRpcResponse {
+function jsonRpcError(id: number, code: number, message: string, data?: unknown): JsonRpcResponse {
 	return { jsonrpc: '2.0', id, error: { code, message, ...(data !== undefined ? { data } : {}) } };
 }
 
 /** Build a JSON-RPC error response from an unknown thrown value, preserving {@link ProtocolError} fields. */
-function jsonRpcErrorFrom(id: number, err: unknown): IJsonRpcResponse {
+function jsonRpcErrorFrom(id: number, err: unknown): JsonRpcResponse {
 	if (err instanceof ProtocolError) {
 		return jsonRpcError(id, err.code, err.message, err.data);
 	}
@@ -61,7 +61,7 @@ function jsonRpcErrorFrom(id: number, err: unknown): IJsonRpcResponse {
  * Methods handled by the request dispatcher. Excludes `initialize` and
  * `reconnect` which are handled during the handshake phase.
  */
-type RequestMethod = Exclude<keyof ICommandMap, 'initialize' | 'reconnect'>;
+type RequestMethod = Exclude<keyof CommandMap, 'initialize' | 'reconnect'>;
 
 /**
  * Typed handler map: each key is a request method, each value is a handler
@@ -69,7 +69,7 @@ type RequestMethod = Exclude<keyof ICommandMap, 'initialize' | 'reconnect'>;
  * result. The compiler will error if a handler returns the wrong shape.
  */
 type RequestHandlerMap = {
-	[M in RequestMethod]: (client: IConnectedClient, params: ICommandMap[M]['params']) => Promise<ICommandMap[M]['result']>;
+	[M in RequestMethod]: (client: IConnectedClient, params: CommandMap[M]['params']) => Promise<CommandMap[M]['result']>;
 };
 
 /**
@@ -99,7 +99,7 @@ export interface IProtocolServerConfig {
 export class ProtocolServerHandler extends Disposable {
 
 	private readonly _clients = new Map<string, IConnectedClient>();
-	private readonly _replayBuffer: IActionEnvelope[] = [];
+	private readonly _replayBuffer: ActionEnvelope[] = [];
 
 	private readonly _onDidChangeConnectionCount = this._register(new Emitter<number>());
 
@@ -181,7 +181,7 @@ export class ProtocolServerHandler extends Disposable {
 					case 'dispatchAction':
 						if (client) {
 							this._logService.trace(`[ProtocolServer] dispatchAction: ${JSON.stringify(msg.params.action.type)}`);
-							const action = msg.params.action as ISessionAction;
+							const action = msg.params.action as SessionAction;
 							this._agentService.dispatchAction(action, client.clientId, msg.params.clientSeq);
 						}
 						break;
@@ -201,7 +201,7 @@ export class ProtocolServerHandler extends Disposable {
 
 		disposables.add(transport.onClose(() => {
 			if (client && this._clients.get(client.clientId) === client) {
-				this._logService.info(`[ProtocolServer] Client disconnected: ${client.clientId}`);
+				this._logService.info(`[ProtocolServer] Client disconnected: ${client.clientId}, subscriptions=${client.subscriptions.size}`);
 				this._clients.delete(client.clientId);
 				this._rejectPendingReverseRequests(client.clientId);
 				this._onDidChangeConnectionCount.fire(this._clients.size);
@@ -215,7 +215,7 @@ export class ProtocolServerHandler extends Disposable {
 	// ---- Handshake handlers ----------------------------------------------------
 
 	private _handleInitialize(
-		params: IInitializeParams,
+		params: InitializeParams,
 		transport: IProtocolTransport,
 		disposables: DisposableStore,
 	): { client: IConnectedClient; response: unknown } {
@@ -270,7 +270,7 @@ export class ProtocolServerHandler extends Disposable {
 	}
 
 	private _handleReconnect(
-		params: IReconnectParams,
+		params: ReconnectParams,
 		transport: IProtocolTransport,
 		disposables: DisposableStore,
 	): { client: IConnectedClient; response: unknown } {
@@ -290,7 +290,7 @@ export class ProtocolServerHandler extends Disposable {
 		const canReplay = params.lastSeenServerSeq >= oldestBuffered;
 
 		if (canReplay) {
-			const actions: IActionEnvelope[] = [];
+			const actions: ActionEnvelope[] = [];
 			for (const sub of params.subscriptions) {
 				client.subscriptions.add(sub.toString());
 			}
@@ -391,18 +391,24 @@ export class ProtocolServerHandler extends Disposable {
 				if (!provider) {
 					throw new Error(`Agent session URI has no provider scheme: ${s.session.toString()}`);
 				}
+				// Encode isRead/isArchived as status bitmask flags
+				let status = s.status ?? SessionStatus.Idle;
+				if (s.isRead) {
+					status |= SessionStatus.IsRead;
+				}
+				if (s.isArchived) {
+					status |= SessionStatus.IsArchived;
+				}
 				return {
 					resource: s.session.toString(),
 					provider,
 					title: s.summary ?? 'Session',
-					status: s.status ?? SessionStatus.Idle,
+					status,
 					createdAt: s.startTime,
 					modifiedAt: s.modifiedTime,
 					...(s.project ? { project: { uri: s.project.uri.toString(), displayName: s.project.displayName } } : {}),
 					model: s.model,
 					workingDirectory: s.workingDirectory?.toString(),
-					isRead: s.isRead,
-					isDone: s.isDone,
 					diffs: s.diffs ? [...s.diffs] : undefined,
 				};
 			});
@@ -497,7 +503,7 @@ export class ProtocolServerHandler extends Disposable {
 		const id = ++this._reverseRequestId;
 		return new Promise<T>((resolve, reject) => {
 			this._pendingReverseRequests.set(id, { clientId, resolve: resolve as (value: unknown) => void, reject });
-			const request: IJsonRpcRequest = { jsonrpc: '2.0', id, method, params };
+			const request: JsonRpcRequest = { jsonrpc: '2.0', id, method, params };
 			client.transport.send(request);
 		});
 	}
@@ -558,9 +564,9 @@ export class ProtocolServerHandler extends Disposable {
 
 	// ---- Broadcasting -------------------------------------------------------
 
-	private _broadcastAction(envelope: IActionEnvelope): void {
+	private _broadcastAction(envelope: ActionEnvelope): void {
 		this._logService.trace(`[ProtocolServer] Broadcasting action: ${envelope.action.type}`);
-		const msg: IAhpServerNotification<'action'> = { jsonrpc: '2.0', method: 'action', params: envelope };
+		const msg: AhpServerNotification<'action'> = { jsonrpc: '2.0', method: 'action', params: envelope };
 		for (const client of this._clients.values()) {
 			if (this._isRelevantToClient(client, envelope)) {
 				client.transport.send(msg);
@@ -569,13 +575,13 @@ export class ProtocolServerHandler extends Disposable {
 	}
 
 	private _broadcastNotification(notification: INotification): void {
-		const msg: IAhpServerNotification<'notification'> = { jsonrpc: '2.0', method: 'notification', params: { notification } };
+		const msg: AhpServerNotification<'notification'> = { jsonrpc: '2.0', method: 'notification', params: { notification } };
 		for (const client of this._clients.values()) {
 			client.transport.send(msg);
 		}
 	}
 
-	private _isRelevantToClient(client: IConnectedClient, envelope: IActionEnvelope): boolean {
+	private _isRelevantToClient(client: IConnectedClient, envelope: ActionEnvelope): boolean {
 		const action = envelope.action;
 		if (action.type.startsWith('root/')) {
 			return client.subscriptions.has(ROOT_STATE_URI);

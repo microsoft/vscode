@@ -31,7 +31,7 @@ export type FromWebviewMessage = {
 	'did-find': { didFind: boolean };
 	'do-update-state': string;
 	'do-reload': void;
-	'load-resource': { id: number; path: string; query: string; scheme: string; authority: string; ifNoneMatch?: string };
+	'load-resource': { id: number; path: string; query: string; scheme: string; authority: string; ifNoneMatch?: string; range?: { readonly start: number; readonly end?: number } };
 	'load-localhost': { id: string; origin: string };
 	'did-scroll-wheel': IMouseWheelEvent;
 	'fatal-error': { message: string };
@@ -64,8 +64,11 @@ export type ToWebviewMessage = {
 	'did-load-resource':
 	| { id: number; status: 401 | 404; path: string }
 	| { id: number; status: 304; path: string; mime: string; mtime: number | undefined }
-	| { id: number; status: 200; path: string; mime: string; data: any; etag: string | undefined; mtime: number | undefined }
+	| { id: number; status: 200 | 206; path: string; mime: string; etag: string | undefined; mtime: number | undefined; range?: string; stream?: ReadableStream<Uint8Array> }
 	;
+	// Safari fallback: transferable streams not supported
+	'did-load-resource-chunk': { id: number; data: Uint8Array };
+	'did-load-resource-end': { id: number; error?: boolean };
 	'did-load-localhost': {
 		id: string;
 		origin: string;

@@ -38,6 +38,7 @@ export interface IChatSessionProviderOptionItem {
 	readonly locked?: boolean;
 	readonly icon?: ThemeIcon;
 	readonly default?: boolean;
+	readonly slashCommand?: string;
 	// [key: string]: any;
 }
 
@@ -68,6 +69,15 @@ export interface IChatSessionProviderOptionGroup {
 	 * These will be shown in a separate section at the end of the picker.
 	 */
 	readonly commands?: readonly IChatSessionProviderOptionGroupCommand[];
+	/**
+	 * Optional kind hint that controls how the group is presented.
+	 * - `'permissions'`: the group's items are surfaced inside the chat permission picker
+	 *   instead of being rendered as a standalone picker. At most one group per provider
+	 *   may use this kind; if multiple are declared, the first one (in declaration order)
+	 *   wins. The group has no UI of its own — it is invisible when the permission
+	 *   picker is hidden by its own `when` clauses.
+	 */
+	readonly kind?: 'permissions';
 }
 
 export interface IChatSessionsExtensionPoint {
@@ -153,6 +163,7 @@ export type IChatSessionHistoryItem = {
 	type: 'response';
 	parts: IChatProgress[];
 	participant: string;
+	details?: string;
 };
 
 export type IChatSessionRequestHistoryItem = Extract<IChatSessionHistoryItem, { type: 'request' }>;
@@ -237,6 +248,8 @@ export interface IChatSessionItemController {
 	newChatSessionItem?(request: IChatNewSessionRequest, token: CancellationToken): Promise<IChatSessionItem | undefined>;
 
 	getNewChatSessionInputState?(sessionResource: URI, token: CancellationToken): Promise<readonly IChatSessionProviderOptionGroup[] | undefined>;
+
+	resolveChatSessionItem?(resource: URI, token: CancellationToken): Promise<IChatSessionItem | undefined>;
 }
 
 export interface IChatSessionOptionsChangeEvent {
@@ -371,6 +384,12 @@ export interface IChatSessionsService {
 
 	/** @deprecated Use `getChatSessionItems` */
 	getInProgress(): { chatSessionType: string; count: number }[];
+
+	/**
+	 * Lazily resolves a chat session item, filling in expensive details like timing, changes, and badge.
+	 * Returns the resolved item, or undefined if no resolve handler is available.
+	 */
+	resolveChatSessionItem(chatSessionType: string, resource: URI, token: CancellationToken): Promise<IChatSessionItem | undefined>;
 
 	// #endregion
 
