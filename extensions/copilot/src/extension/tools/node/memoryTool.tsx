@@ -290,6 +290,15 @@ export class MemoryTool implements ICopilotTool<MemoryToolParams> {
 		const scope: MemoryScope = isSessionPath(path) ? 'session' : 'user';
 		const result = await this._dispatchLocal(params, scope, sessionResource);
 		this._sendLocalTelemetry(params.command, scope, result.outcome, requestId, model);
+
+		// Sync user memories to CAPI if enabled (mirrors repo sync pattern)
+		if (scope === 'user' && params.command === 'create' && result.outcome === 'success') {
+			const capiEnabled = this.configurationService.getExperimentBasedConfig(ConfigKey.CopilotMemoryEnabled, this.experimentationService);
+			if (capiEnabled) {
+				await this._syncUserMemoryCAPI(params);
+			}
+		}
+
 		return result.text;
 	}
 
@@ -344,6 +353,39 @@ export class MemoryTool implements ICopilotTool<MemoryToolParams> {
 		} catch (error) {
 			this.logService.error('[MemoryTool] Error creating repo memory:', error);
 			return { text: `Error: Cannot create repository memory: ${error.message}`, outcome: 'error' };
+		}
+	}
+
+	private async _syncUserMemoryCAPI(params: ICreateParams): Promise<void> {
+		try {
+			const filename = params.path.split('/').pop() || 'memory';
+			const pathHint = filename.replace(/\.\w+$/, '');
+			let entry: StoreMemoryRequest;
+			try {
+				const parsed = JSON.parse(params.file_text);
+				const rawCitations = parsed.citations;
+				const citations: string[] = Array.isArray(rawCitations)
+					? rawCitations
+					: typeof rawCitations === 'string' && rawCitations.length > 0
+						? rawCitations.split(',').map((c: string) => c.trim()).filter((c: string) => c.length > 0)
+						: [];
+				entry = {
+					subject: parsed.subject || pathHint,
+					fact: parsed.fact || '',
+					citations,
+					reason: parsed.reason || '',
+				};
+			} catch {
+				entry = {
+					subject: pathHint,
+					fact: params.file_text,
+					citations: [],
+					reason: 'Stored from memory tool create command.',
+				};
+			}
+			await this.agentMemoryService.storeUserMemory(entry);
+		} catch (error) {
+			this.logService.warn(`[MemoryTool] Failed to sync user memory to CAPI: ${error}`);
 		}
 	}
 
