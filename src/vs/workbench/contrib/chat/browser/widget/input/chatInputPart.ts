@@ -1262,7 +1262,10 @@ export class ChatInputPart extends Disposable implements IHistoryNavigationWidge
 			// wait for at least 2 models to load,
 			// Otherwise matching is not useful and may be inaccurate due to the fact that we have auto
 			const models = this.getModels();
-			if (models.length <= 1) {
+			if (models.length === 0) {
+				return;
+			}
+			if (models.length === 1 && models[0].metadata.id.toLocaleLowerCase() === 'auto') {
 				return;
 			}
 			// Try exact identifier match first (e.g. "copilot/gpt-4o")
