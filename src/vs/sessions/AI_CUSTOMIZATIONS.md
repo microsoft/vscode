@@ -71,6 +71,8 @@ The `IAICustomizationWorkspaceService` interface controls per-window behavior:
 | `activeProjectRoot` | First workspace folder | Active session worktree |
 | `welcomePageFeatures` | Shows getting-started banner + per-card AI actions | Shows getting-started banner, hides per-card AI actions |
 
+When the sessions workspace service commits or deletes customization files, it forwards the active session resource together with the repository or worktree URI into the Copilot CLI commit commands. This lets the extension update session metadata directly without reverse-mapping a worktree path back to a session.
+
 ### ICustomizationHarnessService
 
 A harness represents the AI execution environment that consumes customizations.

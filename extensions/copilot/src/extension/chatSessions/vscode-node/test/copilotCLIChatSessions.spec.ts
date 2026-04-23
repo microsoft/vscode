@@ -10,6 +10,8 @@ import * as vscodeShim from 'vscode';
 import { IRunCommandExecutionService } from '../../../../platform/commands/common/runCommandExecutionService';
 import { DefaultsOnlyConfigurationService } from '../../../../platform/configuration/common/defaultsOnlyConfigurationService';
 import { InMemoryConfigurationService } from '../../../../platform/configuration/test/common/inMemoryConfigurationService';
+import { INativeEnvService } from '../../../../platform/env/common/envService';
+import { IFileSystemService } from '../../../../platform/filesystem/common/fileSystemService';
 import { IGitService, RepoContext } from '../../../../platform/git/common/gitService';
 import { PullRequestSearchItem } from '../../../../platform/github/common/githubAPI';
 import { IOctoKitService } from '../../../../platform/github/common/githubService';
@@ -22,13 +24,14 @@ import { URI } from '../../../../util/vs/base/common/uri';
 import { IChatSessionMetadataStore } from '../../common/chatSessionMetadataStore';
 import { IChatSessionWorkspaceFolderService } from '../../common/chatSessionWorkspaceFolderService';
 import { ChatSessionWorktreeProperties, IChatSessionWorktreeService } from '../../common/chatSessionWorktreeService';
-import { IFolderRepositoryManager, IsolationMode } from '../../common/folderRepositoryManager';
+import { IChatFolderMruService, IFolderRepositoryManager, IsolationMode } from '../../common/folderRepositoryManager';
 import { emptyWorkspaceInfo } from '../../common/workspaceInfo';
 import { ICustomSessionTitleService } from '../../copilotcli/common/customSessionTitleService';
 import { ICopilotCLISession } from '../../copilotcli/node/copilotcliSession';
 import { ICopilotCLISessionItem, ICopilotCLISessionService } from '../../copilotcli/node/copilotcliSessionService';
 import { ICopilotCLISessionTracker } from '../../copilotcli/vscode-node/copilotCLISessionTracker';
-import { CopilotCLIChatSessionContentProvider, resolveBranchLockState, resolveBranchSelection, resolveIsolationSelection, resolveSessionDirsForTerminal } from '../copilotCLIChatSessions';
+import { CopilotCLIChatSessionContentProvider, registerCLIChatCommands, resolveBranchLockState, resolveBranchSelection, resolveIsolationSelection, resolveSessionDirsForTerminal } from '../copilotCLIChatSessions';
+import { ICopilotCLITerminalIntegration } from '../copilotCLITerminalIntegration';
 import { PullRequestDetectionService } from '../pullRequestDetectionService';
 import { ISessionOptionGroupBuilder } from '../sessionOptionGroupBuilder';
 vi.mock('../copilotCLIShim.ps1', () => ({ default: '# mock powershell script' }));
@@ -90,6 +93,7 @@ class TestSessionService extends mock<ICopilotCLISessionService>() {
 class TestWorktreeService extends mock<IChatSessionWorktreeService>() {
 	declare readonly _serviceBrand: undefined;
 	override getWorktreeProperties = vi.fn(async (_sessionId: string | vscode.Uri): Promise<ChatSessionWorktreeProperties | undefined> => undefined);
+	override getSessionIdForWorktree = vi.fn(async (_folder: vscode.Uri): Promise<string | undefined> => undefined);
 	override setWorktreeProperties = vi.fn(async () => { });
 	override getWorktreeChanges = vi.fn(async () => []);
 }
@@ -128,6 +132,8 @@ class TestGitService extends mock<IGitService>() {
 	override onDidFinishInitialization = Event.None;
 	override activeRepository = { get: () => undefined } as IGitService['activeRepository'];
 	override repositories: RepoContext[] = [];
+	override add = vi.fn(async () => { });
+	override commit = vi.fn(async () => { });
 
 	setRepo(repo: RepoContext): void {
 		this.repositories = [repo];
@@ -153,6 +159,14 @@ class TestCustomSessionTitleService extends mock<ICustomSessionTitleService>() {
 	override generateSessionTitle = vi.fn(async () => undefined);
 }
 
+class TestLogService extends mock<ILogService>() {
+	declare readonly _serviceBrand: undefined;
+	override trace = vi.fn();
+	override debug = vi.fn();
+	override info = vi.fn();
+	override error = vi.fn();
+}
+
 function createProvider() {
 	const sessionService = new TestSessionService();
 	const worktreeService = new TestWorktreeService();
@@ -168,13 +182,7 @@ function createProvider() {
 	const commandExecutionService = new TestRunCommandExecutionService();
 	const workspaceFolderService = new TestWorkspaceFolderService();
 	const octoKitService = new TestOctoKitService();
-	const logService = new class extends mock<ILogService>() {
-		declare readonly _serviceBrand: undefined;
-		override trace = vi.fn();
-		override debug = vi.fn();
-		override info = vi.fn();
-		override error = vi.fn();
-	}();
+	const logService = new TestLogService();
 
 	const prDetectionService = new PullRequestDetectionService(
 		worktreeService,
@@ -214,6 +222,9 @@ function createProvider() {
 		sessionService,
 		worktreeService,
 		gitService,
+		folderRepositoryManager,
+		workspaceFolderService,
+		logService,
 		octoKitService,
 	};
 }
@@ -304,6 +315,83 @@ describe('CopilotCLIChatSessionContentProvider', () => {
 		await vi.waitFor(() => expect(worktreeService.getWorktreeProperties).toHaveBeenCalled());
 		expect(octoKitService.findPullRequestByHeadBranch).not.toHaveBeenCalled();
 		expect(worktreeService.setWorktreeProperties).not.toHaveBeenCalled();
+	});
+});
+
+describe('registerCLIChatCommands', () => {
+	it('prefers the passed session uri when committing a customization to a worktree', async () => {
+		const { provider, sessionService, worktreeService, gitService, folderRepositoryManager, workspaceFolderService, logService } = createProvider();
+		const refreshSpy = vi.spyOn(provider, 'refreshSession').mockResolvedValue(undefined);
+		const registeredCommands = new Map<string, (...args: unknown[]) => unknown>();
+		const originalCommands = (vscodeShim as Record<string, unknown>).commands;
+
+		worktreeService.getWorktreeProperties.mockResolvedValue({
+			version: 2,
+			baseCommit: 'abc123',
+			baseBranchName: 'main',
+			branchName: 'copilot/test-branch',
+			repositoryPath: '/repo',
+			worktreePath: '/worktree',
+		});
+
+		(vscodeShim as Record<string, unknown>).commands = {
+			registerCommand: vi.fn((id: string, handler: (...args: unknown[]) => unknown) => {
+				registeredCommands.set(id, handler);
+				return { dispose() { registeredCommands.delete(id); } };
+			}),
+		};
+
+		const cliFolderMruService = new class extends mock<IChatFolderMruService>() {
+			declare readonly _serviceBrand: undefined;
+		}();
+		const envService = new class extends mock<INativeEnvService>() {
+			declare readonly _serviceBrand: undefined;
+		}();
+		const fileSystemService = new class extends mock<IFileSystemService>() {
+			declare readonly _serviceBrand: undefined;
+		}();
+		const sessionTracker = new class extends mock<ICopilotCLISessionTracker>() {
+			declare readonly _serviceBrand: undefined;
+		}();
+		const terminalIntegration = new class extends mock<ICopilotCLITerminalIntegration>() {
+			declare readonly _serviceBrand: undefined;
+			override dispose = vi.fn();
+			override setSessionDirResolver = vi.fn();
+		}();
+
+		const disposables = registerCLIChatCommands(
+			sessionService,
+			worktreeService,
+			gitService,
+			workspaceFolderService,
+			provider,
+			folderRepositoryManager,
+			cliFolderMruService,
+			envService,
+			fileSystemService,
+			sessionTracker,
+			terminalIntegration,
+			logService,
+		);
+
+		try {
+			const commitToWorktree = registeredCommands.get('github.copilot.cli.sessions.commitToWorktree');
+			expect(commitToWorktree).toBeDefined();
+
+			await commitToWorktree?.({
+				sessionUri: URI.from({ scheme: 'copilotcli', path: '/session-1' }) as unknown as vscode.Uri,
+				worktreeUri: URI.file('/worktree') as unknown as vscode.Uri,
+				fileUri: URI.file('/worktree/AGENTS.md') as unknown as vscode.Uri,
+			});
+
+			expect(worktreeService.getSessionIdForWorktree).not.toHaveBeenCalled();
+			expect(worktreeService.getWorktreeProperties).toHaveBeenCalledWith('session-1');
+			expect(worktreeService.setWorktreeProperties).toHaveBeenCalledWith('session-1', expect.objectContaining({ changes: undefined }));
+			expect(refreshSpy).toHaveBeenCalledWith({ reason: 'update', sessionId: 'session-1' });
+		} finally {
+			disposables.dispose();
+			(vscodeShim as Record<string, unknown>).commands = originalCommands;
+		}
 	});
 });
 
