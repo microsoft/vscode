@@ -4685,7 +4685,7 @@
 					},
 					"github.copilot.chat.cli.sessionController.enabled": {
 						"type": "boolean",
-						"default": true,
+						"default": false,
 						"markdownDescription": "%github.copilot.config.cli.sessionController.enabled%",
 						"tags": [
 							"advanced"
