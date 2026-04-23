@@ -166,6 +166,7 @@
 		min-width: 0;
 		height: auto;
 		white-space: nowrap;
+		cursor: pointer;
 	}
 
 	.agent-sessions-compact-new-button.monaco-button.default-colors:hover {
