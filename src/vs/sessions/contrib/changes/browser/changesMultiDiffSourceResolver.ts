@@ -8,14 +8,11 @@ import { derivedObservableWithCache, derivedOpts, ValueWithChangeEventFromObserv
 import { equals as arraysEqual } from '../../../../base/common/arrays.js';
 import { isEqual } from '../../../../base/common/resources.js';
 import { URI } from '../../../../base/common/uri.js';
-import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { comparePaths } from '../../../../base/common/comparers.js';
 import { isIChatSessionFileChange2 } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
 import { IMultiDiffSourceResolver, IMultiDiffSourceResolverService, IResolvedMultiDiffSource, MultiDiffEditorItem } from '../../../../workbench/contrib/multiDiffEditor/browser/multiDiffSourceResolverService.js';
-import { IViewsService } from '../../../../workbench/services/views/common/viewsService.js';
-import { ChangesViewPane } from './changesView.js';
-import { CHANGES_VIEW_ID } from '../common/changes.js';
 import { ISessionFileChange } from '../../../services/sessions/common/session.js';
+import { ChangesViewModel } from './changesViewModel.js';
 
 const CHANGES_MULTI_DIFF_SOURCE_SCHEME = 'changes-multi-diff-source';
 
@@ -60,11 +57,15 @@ function compareChanges(a: ISessionFileChange, b: ISessionFileChange): number {
 	return comparePaths(aPath, bPath);
 }
 
-export class ChangesMultiDiffSourceResolver implements IMultiDiffSourceResolver {
+export class ChangesMultiDiffSourceResolver extends Disposable implements IMultiDiffSourceResolver {
 
 	constructor(
-		@IViewsService private readonly _viewsService: IViewsService,
-	) { }
+		private readonly _viewModel: ChangesViewModel,
+		@IMultiDiffSourceResolverService multiDiffSourceResolverService: IMultiDiffSourceResolverService
+	) {
+		super();
+		this._register(multiDiffSourceResolverService.registerResolver(this));
+	}
 
 	canHandleUri(uri: URI): boolean {
 		return parseUri(uri) !== undefined;
@@ -76,21 +77,16 @@ export class ChangesMultiDiffSourceResolver implements IMultiDiffSourceResolver 
 		const changesObs = derivedObservableWithCache<readonly ISessionFileChange[]>({
 			owner: this,
 		}, (reader, lastValue) => {
-			const view = this._viewsService.getViewWithId<ChangesViewPane>(CHANGES_VIEW_ID);
-			if (!view) {
+			if (this._viewModel.activeSessionIsLoadingObs.read(reader)) {
 				return lastValue ?? [];
 			}
 
-			if (view.viewModel.activeSessionIsLoadingObs.read(reader)) {
-				return lastValue ?? [];
-			}
-
-			const activeSessionResource = view.viewModel.activeSessionResourceObs.read(reader);
+			const activeSessionResource = this._viewModel.activeSessionResourceObs.read(reader);
 			if (!activeSessionResource || !isEqual(activeSessionResource, parsed.sessionResource)) {
 				return lastValue ?? [];
 			}
 
-			return view.viewModel.activeSessionChangesObs.read(reader);
+			return this._viewModel.activeSessionChangesObs.read(reader);
 		});
 
 		const resourcesObs = derivedOpts<readonly MultiDiffEditorItem[]>({
@@ -105,20 +101,5 @@ export class ChangesMultiDiffSourceResolver implements IMultiDiffSourceResolver 
 		});
 
 		return { resources: new ValueWithChangeEventFromObservable(resourcesObs) };
-	}
-}
-
-export class ChangesMultiDiffSourceResolverContribution extends Disposable {
-
-	static readonly ID = 'workbench.contrib.changesMultiDiffSourceResolver';
-
-	constructor(
-		@IInstantiationService instantiationService: IInstantiationService,
-		@IMultiDiffSourceResolverService multiDiffSourceResolverService: IMultiDiffSourceResolverService,
-	) {
-		super();
-
-		this._register(multiDiffSourceResolverService.registerResolver(
-			instantiationService.createInstance(ChangesMultiDiffSourceResolver)));
 	}
 }

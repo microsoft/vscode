@@ -57,7 +57,7 @@ import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from '../../../../workbench/
 import { IExtensionService } from '../../../../workbench/services/extensions/common/extensions.js';
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IMultiDiffEditorOptions } from '../../../../editor/browser/widget/multiDiffEditor/multiDiffEditorWidgetImpl.js';
-import { getChangesMultiDiffSourceUri } from './changesMultiDiffSourceResolver.js';
+import { ChangesMultiDiffSourceResolver, getChangesMultiDiffSourceUri } from './changesMultiDiffSourceResolver.js';
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { CodeReviewStateKind, getCodeReviewFilesFromSessionChanges, getCodeReviewVersion, ICodeReviewService, PRReviewStateKind } from '../../codeReview/browser/codeReviewService.js';
 import { CIStatusWidget } from './checksWidget.js';
@@ -283,6 +283,10 @@ export class ChangesViewPane extends ViewPane {
 
 		this.viewModel = this.instantiationService.createInstance(ChangesViewModel);
 		this._register(this.viewModel);
+
+		// Multi-diff editor source resolver
+		const changesMultiDiffSourceResolver = this.instantiationService.createInstance(ChangesMultiDiffSourceResolver, this.viewModel);
+		this._register(changesMultiDiffSourceResolver);
 
 		// Context keys
 		this.isMergeBaseBranchProtectedContextKey = ActiveSessionContextKeys.IsMergeBaseBranchProtected.bindTo(this.scopedContextKeyService);
