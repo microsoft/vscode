@@ -69,6 +69,42 @@
 	display: none;
 }
 
+.monaco-workbench.agent-sessions-workbench > .notifications-center {
+	right: 15px;
+	bottom: 15px;
+}
+
+.monaco-workbench.agent-sessions-workbench > .notifications-toasts {
+	right: 15px;
+	bottom: 15px;
+}
+
+.monaco-workbench.agent-sessions-workbench.nostatusbar > .notifications-center {
+	bottom: 15px;
+}
+
+.monaco-workbench.agent-sessions-workbench.nostatusbar > .notifications-toasts {
+	bottom: 15px;
+}
+
+.monaco-workbench.agent-sessions-workbench > .notifications-center.bottom-left {
+	right: auto;
+	left: 15px;
+	bottom: 15px;
+}
+
+.monaco-workbench.agent-sessions-workbench > .notifications-toasts.bottom-left {
+	right: auto;
+	left: 15px;
+	bottom: 15px;
+}
+
+.monaco-workbench.agent-sessions-workbench > .notifications-center.top-right {
+	top: 40px;
+	right: 15px;
+	bottom: auto;
+}
+
 .agent-sessions-workbench.experimental-shell-gradient-background > .monaco-grid-view {
 	position: relative;
 	z-index: 1;

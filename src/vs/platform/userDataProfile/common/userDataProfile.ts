@@ -325,7 +325,7 @@ export class UserDataProfilesService extends Disposable implements IUserDataProf
 		return false;
 	}
 
-	private createDefaultProfile() {
+	protected createDefaultProfile() {
 		const defaultProfile = toUserDataProfile('__default__profile__', localize('defaultProfile', "Default"), this.environmentService.userRoamingDataHome, this.profilesCacheHome);
 		return { ...defaultProfile, extensionsResource: this.getDefaultProfileExtensionsLocation() ?? defaultProfile.extensionsResource, isDefault: true };
 	}

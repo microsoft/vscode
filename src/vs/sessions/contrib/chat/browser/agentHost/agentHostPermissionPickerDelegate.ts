@@ -5,7 +5,7 @@
 
 import { Disposable, DisposableMap } from '../../../../../base/common/lifecycle.js';
 import { derived, IObservable, IReader, observableSignal } from '../../../../../base/common/observable.js';
-import { ISessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
+import { SessionConfigPropertySchema } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
 import { ChatPermissionLevel, isChatPermissionLevel } from '../../../../../workbench/contrib/chat/common/constants.js';
 import { IPermissionPickerDelegate } from '../../../../contrib/copilotChatSessions/browser/permissionPicker.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../../common/agentHostSessionsProvider.js';
@@ -45,7 +45,7 @@ const REQUIRED_AUTO_APPROVE_VALUE = 'default';
  * gating, and policy enforcement) or fall back to the generic per-property
  * picker.
  */
-export function isWellKnownAutoApproveSchema(schema: ISessionConfigPropertySchema): boolean {
+export function isWellKnownAutoApproveSchema(schema: SessionConfigPropertySchema): boolean {
 	if (schema.type !== 'string' || !Array.isArray(schema.enum) || schema.enum.length === 0) {
 		return false;
 	}

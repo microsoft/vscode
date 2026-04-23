@@ -450,7 +450,7 @@ export class OpenPermissionPickerAction extends Action2 {
 			precondition: ChatContextKeys.enabled,
 			menu: {
 				id: MenuId.ChatInputSecondary,
-				order: 10,
+				order: 1,
 				group: 'navigation',
 				when:
 					ContextKeyExpr.and(
@@ -458,10 +458,7 @@ export class OpenPermissionPickerAction extends Action2 {
 						ChatContextKeys.location.isEqualTo(ChatAgentLocation.Chat),
 						ChatContextKeys.chatModeKind.notEqualsTo(ChatModeKind.Ask),
 						ChatContextKeys.inQuickChat.negate(),
-						ContextKeyExpr.or(
-							ChatContextKeys.lockedToCodingAgent.negate(),
-							ChatContextKeys.lockedCodingAgentId.isEqualTo(AgentSessionProviders.Background),
-						),
+						ChatContextKeys.lockedCodingAgentId.notEqualsTo(AgentSessionProviders.Cloud),
 					)
 			}
 		});
@@ -622,22 +619,11 @@ export class OpenWorkspacePickerAction extends Action2 {
 			precondition: ContextKeyExpr.and(ChatContextKeys.enabled, ChatContextKeys.inAgentSessionsWelcome),
 			menu: [
 				{
-					id: MenuId.ChatInput,
-					order: 0.6,
-					when: ContextKeyExpr.and(
-						ChatContextKeys.inAgentSessionsWelcome,
-						ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
-						IsSessionsWindowContext
-					),
-					group: 'navigation',
-				},
-				{
 					id: MenuId.ChatInputSecondary,
 					order: 0.6,
 					when: ContextKeyExpr.and(
 						ChatContextKeys.inAgentSessionsWelcome,
-						ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType),
-						IsSessionsWindowContext.negate()
+						ChatContextKeys.chatSessionType.isEqualTo(localChatSessionType)
 					),
 					group: 'navigation',
 				},
@@ -659,22 +645,51 @@ export class ChatSessionPrimaryPickerAction extends Action2 {
 			category: CHAT_CATEGORY,
 			f1: false,
 			precondition: ChatContextKeys.enabled,
-			menu: {
-				id: MenuId.ChatInput,
-				order: 4,
-				group: 'navigation',
-				when:
-					ContextKeyExpr.and(
-						ChatContextKeys.chatSessionHasModels,
-						ContextKeyExpr.or(
-							ChatContextKeys.lockedToCodingAgent,
-							ContextKeyExpr.and(
-								ChatContextKeys.inAgentSessionsWelcome,
-								ChatContextKeys.chatSessionType.notEqualsTo('local')
+			menu: [
+				{
+					// Cloud sessions: keep on the primary chat input toolbar
+					id: MenuId.ChatInput,
+					order: 4,
+					group: 'navigation',
+					when:
+						ContextKeyExpr.and(
+							ChatContextKeys.chatSessionHasModels,
+							ChatContextKeys.chatSessionType.isEqualTo(AgentSessionProviders.Cloud),
+							ContextKeyExpr.or(
+								ChatContextKeys.lockedToCodingAgent,
+								ContextKeyExpr.and(
+									ChatContextKeys.inAgentSessionsWelcome,
+									ChatContextKeys.chatSessionType.notEqualsTo('local')
+								)
 							)
 						)
-					)
-			}
+				},
+				{
+					// All other coding agents (Claude, etc.): show in the secondary toolbar.
+					// In the Agents window only, hide the worktree/branch pickers for Copilot
+					// CLI sessions because their option groups are surfaced through the CLI
+					// session UI there. They remain visible in the regular VS Code workbench.
+					id: MenuId.ChatInputSecondary,
+					order: 4,
+					group: 'navigation',
+					when:
+						ContextKeyExpr.and(
+							ChatContextKeys.chatSessionHasModels,
+							ChatContextKeys.chatSessionType.notEqualsTo(AgentSessionProviders.Cloud),
+							ContextKeyExpr.or(
+								IsSessionsWindowContext.negate(),
+								ChatContextKeys.chatSessionType.notEqualsTo(AgentSessionProviders.Background)
+							),
+							ContextKeyExpr.or(
+								ChatContextKeys.lockedToCodingAgent,
+								ContextKeyExpr.and(
+									ChatContextKeys.inAgentSessionsWelcome,
+									ChatContextKeys.chatSessionType.notEqualsTo('local')
+								)
+							)
+						)
+				},
+			]
 		});
 	}
 

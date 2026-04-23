@@ -46,6 +46,7 @@ import { IDefaultAccountService } from '../../../platform/defaultAccount/common/
 import { IAuthenticationService } from '../../services/authentication/common/authentication.js';
 import { IAuthenticationAccessService } from '../../services/authentication/browser/authenticationAccessService.js';
 import { IPolicyService } from '../../../platform/policy/common/policy.js';
+import { APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME, IAccountPolicyGateService } from '../../services/policies/common/accountPolicyService.js';
 
 class InspectContextKeysAction extends Action2 {
 
@@ -683,6 +684,7 @@ class PolicyDiagnosticsAction extends Action2 {
 		const authenticationService = accessor.get(IAuthenticationService);
 		const authenticationAccessService = accessor.get(IAuthenticationAccessService);
 		const policyService = accessor.get(IPolicyService);
+		const accountPolicyGateService = accessor.get(IAccountPolicyGateService);
 
 		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 
@@ -752,6 +754,30 @@ class PolicyDiagnosticsAction extends Action2 {
 			}
 		} catch (error) {
 			content += `*Error retrieving account information: ${error}*\n\n`;
+		}
+
+		// Account Policy Gate (forces AI features off until an admin-approved
+		// GitHub account is signed in AND its account-side policy data has resolved).
+		content += '## Account Policy Gate\n\n';
+		try {
+			const gateInfo = accountPolicyGateService.gateInfo;
+			const approvedOrgsRaw = policyService.getPolicyValue(APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME);
+			content += '| Property | Value |\n';
+			content += '|----------|-------|\n';
+			content += `| State | \`${gateInfo.state}\` |\n`;
+			content += `| Reason | ${gateInfo.reason ? `\`${gateInfo.reason}\`` : '*n/a*'} |\n`;
+			content += `| ${APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME} | ${approvedOrgsRaw !== undefined ? `\`${String(approvedOrgsRaw)}\`` : '*not set*'} |\n`;
+			content += '\n';
+			content += '**Legend**\n\n';
+			content += '- `inactive`: gate disabled (no approved orgs configured) — policies behave as account data dictates.\n';
+			content += '- `satisfied`: gate active and approved — account policy values flow normally.\n';
+			content += '- `restricted`: gate active and not satisfied — opted-in policies forced to their restricted value.\n';
+			content += '  - `noAccount`: no default account signed in.\n';
+			content += '  - `wrongProvider`: signed in with a non-GitHub provider.\n';
+			content += '  - `orgNotApproved`: signed in but account is not a member of any approved organization.\n';
+			content += '  - `policyNotResolved`: signed in to an approved org but account-side policy data has not yet been fetched.\n\n';
+		} catch (error) {
+			content += `*Error retrieving account policy gate info: ${error}*\n\n`;
 		}
 
 		content += '## Policy-Controlled Settings\n\n';

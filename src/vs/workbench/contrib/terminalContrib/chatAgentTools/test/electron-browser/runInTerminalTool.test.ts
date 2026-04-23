@@ -360,7 +360,7 @@ suite('RunInTerminalTool', () => {
 			// The tool should return confirmation messages for the user
 			ok(result, 'Expected prepared invocation to be defined');
 			ok(result?.confirmationMessages, 'Expected confirmationMessages when deps are missing');
-			ok(result?.confirmationMessages?.customButtons?.length === 2, 'Expected two custom buttons');
+			ok(result?.confirmationMessages?.customOptions?.length === 2, 'Expected two custom options');
 			// missingDependencies should be in toolSpecificData so invoke can handle it
 			strictEqual((result?.toolSpecificData as IChatTerminalToolInvocationData | undefined)?.missingSandboxDependencies?.length, 1);
 		});

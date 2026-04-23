@@ -3,6 +3,7 @@
 	"nameLong": "Code - OSS",
 	"applicationName": "code-oss",
 	"dataFolderName": ".vscode-oss",
+	"sharedDataFolderName": ".vscode-oss-shared",
 	"win32MutexName": "vscodeoss",
 	"licenseName": "MIT",
 	"licenseUrl": "https://github.com/microsoft/vscode/blob/main/LICENSE.txt",

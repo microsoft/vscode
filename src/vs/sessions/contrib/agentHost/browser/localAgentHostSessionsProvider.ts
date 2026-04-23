@@ -5,13 +5,15 @@
 
 import { Codicon } from '../../../../base/common/codicons.js';
 import { MarkdownString } from '../../../../base/common/htmlContent.js';
+import { Schemas } from '../../../../base/common/network.js';
 import { autorun, IObservable } from '../../../../base/common/observable.js';
-import { basename } from '../../../../base/common/resources.js';
+import { basename, dirname } from '../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../base/common/themables.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { IAgentConnection, IAgentHostService, type IAgentSessionMetadata } from '../../../../platform/agentHost/common/agentService.js';
 import { IFileDialogService } from '../../../../platform/dialogs/common/dialogs.js';
+import { ILabelService } from '../../../../platform/label/common/label.js';
 import { IChatWidgetService } from '../../../../workbench/contrib/chat/browser/chat.js';
 import { IChatService } from '../../../../workbench/contrib/chat/common/chatService/chatService.js';
 import { IChatSessionsService } from '../../../../workbench/contrib/chat/common/chatSessionsService.js';
@@ -19,6 +21,7 @@ import { ILanguageModelsService } from '../../../../workbench/contrib/chat/commo
 import { BaseAgentHostSessionsProvider } from './baseAgentHostSessionsProvider.js';
 import { buildAgentHostSessionWorkspace } from '../../../common/agentHostSessionWorkspace.js';
 import { ISessionWorkspace, ISessionWorkspaceBrowseAction } from '../../../services/sessions/common/session.js';
+import { toAgentHostUri } from '../../../../platform/agentHost/common/agentHostUri.js';
 
 const LOCAL_PROVIDER_ID = 'local-agent-host';
 const LOCAL_RESOURCE_SCHEME_PREFIX = 'agent-host-';
@@ -48,6 +51,7 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 		@IChatService chatService: IChatService,
 		@IChatWidgetService chatWidgetService: IChatWidgetService,
 		@ILanguageModelsService languageModelsService: ILanguageModelsService,
+		@ILabelService private readonly _labelService: ILabelService,
 	) {
 		super(chatSessionsService, chatService, chatWidgetService, languageModelsService);
 
@@ -108,25 +112,38 @@ export class LocalAgentHostSessionsProvider extends BaseAgentHostSessionsProvide
 	protected _adapterOptions() {
 		return {
 			description: this._localDescription,
-			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined) =>
-				LocalAgentHostSessionsProvider.buildWorkspace(project, workingDirectory),
+			buildWorkspace: (project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined) => {
+				const uriForDescription = project?.uri ?? workingDirectory;
+				const description = uriForDescription ? this._labelService.getUriLabel(dirname(uriForDescription), { relative: false }) : undefined;
+				return buildAgentHostSessionWorkspace(project, workingDirectory, { providerLabel: this._localLabel, fallbackIcon: Codicon.folder, requiresWorkspaceTrust: true, description });
+			},
 		};
 	}
 
 	protected _formatSessionTypeLabel(agentLabel: string): string {
-		return localize('localAgentHostSessionType', "{0} [{1}]", agentLabel, this._localLabel);
+		// Use the unadorned agent label (e.g. "Copilot") rather than tagging it
+		// with `[Local]`. The session type id is shared with the extension-host
+		// Copilot CLI provider, so the filter menu / new-session picker entry
+		// covers both sets of sessions; the `[Local]` tag belongs on the
+		// per-session workspace label, not the type label.
+		return agentLabel;
+	}
+
+	protected override _diffUriMapper(): (uri: URI) => URI {
+		return uri => toAgentHostUri(uri, 'local');
 	}
 
 	// -- Workspaces ----------------------------------------------------------
 
-	static buildWorkspace(project: IAgentSessionMetadata['project'], workingDirectory: URI | undefined): ISessionWorkspace | undefined {
-		return buildAgentHostSessionWorkspace(project, workingDirectory, { fallbackIcon: Codicon.folder, requiresWorkspaceTrust: true });
-	}
-
-	resolveWorkspace(repositoryUri: URI): ISessionWorkspace {
+	resolveWorkspace(repositoryUri: URI): ISessionWorkspace | undefined {
+		if (repositoryUri.scheme !== Schemas.file) {
+			return undefined;
+		}
 		const folderName = basename(repositoryUri) || repositoryUri.path;
 		return {
-			label: folderName,
+			label: `${folderName} [${this._localLabel}]`,
+			description: this._labelService.getUriLabel(dirname(repositoryUri), { relative: false }),
+			group: this.label,
 			icon: Codicon.folder,
 			repositories: [{ uri: repositoryUri, workingDirectory: undefined, detail: undefined, baseBranchName: undefined, baseBranchProtected: undefined }],
 			requiresWorkspaceTrust: true,

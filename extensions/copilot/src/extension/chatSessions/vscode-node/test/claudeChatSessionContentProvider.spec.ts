@@ -10,6 +10,7 @@ import type * as vscode from 'vscode';
 import * as vscodeShim from 'vscode';
 import { ConfigKey, IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { IGitService, RepoContext } from '../../../../platform/git/common/gitService';
+import { Change, Repository } from '../../../../platform/git/vscode/git';
 import { MockGitService } from '../../../../platform/ignore/node/test/mockGitService';
 import { ITestingServicesAccessor } from '../../../../platform/test/node/services';
 import { TestWorkspaceService } from '../../../../platform/test/node/testWorkspaceService';
@@ -18,6 +19,7 @@ import { mock } from '../../../../util/common/test/simpleMock';
 import { CancellationToken } from '../../../../util/vs/base/common/cancellation';
 import { Emitter, Event } from '../../../../util/vs/base/common/event';
 import { DisposableStore } from '../../../../util/vs/base/common/lifecycle';
+import { observableValue } from '../../../../util/vs/base/common/observableInternal/observables/observableValue';
 import { URI } from '../../../../util/vs/base/common/uri';
 import { IInstantiationService } from '../../../../util/vs/platform/instantiation/common/instantiation';
 import { ChatSessionStatus, MarkdownString, ThemeIcon } from '../../../../vscodeTypes';
@@ -33,6 +35,8 @@ import { IClaudeCodeSessionService } from '../../claude/node/sessionParser/claud
 import { IClaudeCodeSessionInfo } from '../../claude/node/sessionParser/claudeSessionSchema';
 import { IClaudeSlashCommandService } from '../../claude/vscode-node/claudeSlashCommandService';
 import { FolderRepositoryMRUEntry, IChatFolderMruService } from '../../common/folderRepositoryManager';
+import { IClaudeWorkspaceFolderService } from '../../common/claudeWorkspaceFolderService';
+import { builtinSlashCommands } from '../../common/builtinSlashCommands';
 import { ClaudeChatSessionContentProvider, ClaudeChatSessionItemController } from '../claudeChatSessionContentProvider';
 
 // Expose the most recently created items map so tests can inspect controller items.
@@ -46,6 +50,7 @@ let lastGetChatSessionInputState: vscode.ChatSessionControllerGetInputState | un
 beforeAll(() => {
 	(vscodeShim as Record<string, unknown>).commands = {
 		registerCommand: vi.fn().mockReturnValue({ dispose: () => { } }),
+		executeCommand: vi.fn().mockResolvedValue(undefined),
 	};
 	(vscodeShim as Record<string, unknown>).chat = {
 		createChatSessionItemController: () => {
@@ -255,6 +260,10 @@ function createProviderWithServices(
 		forkSession: vi.fn().mockResolvedValue({ sessionId: 'forked' }),
 		listSubagents: vi.fn().mockResolvedValue([]),
 		getSubagentMessages: vi.fn().mockResolvedValue([]),
+	});
+	serviceCollection.define(IClaudeWorkspaceFolderService, {
+		_serviceBrand: undefined,
+		getWorkspaceChanges: vi.fn().mockResolvedValue([]),
 	});
 
 	const accessor = serviceCollection.createTestingAccessor();
@@ -1210,6 +1219,71 @@ class FakeGitService extends mock<IGitService>() {
 
 // #endregion
 
+// #region Test helpers
+
+function buildRepoContext(overrides: {
+	rootUri?: URI;
+	headBranchName?: string;
+	upstreamRemote?: string;
+	upstreamBranchName?: string;
+	headIncomingChanges?: number;
+	headOutgoingChanges?: number;
+	changes?: RepoContext['changes'];
+	remoteFetchUrls?: Array<string | undefined>;
+} = {}): RepoContext {
+	return {
+		rootUri: overrides.rootUri ?? URI.file('/project'),
+		kind: 'repository',
+		isUsingVirtualFileSystem: false,
+		headIncomingChanges: overrides.headIncomingChanges ?? 0,
+		headOutgoingChanges: overrides.headOutgoingChanges ?? 0,
+		headBranchName: overrides.headBranchName ?? 'main',
+		headCommitHash: 'abc123',
+		upstreamBranchName: overrides.upstreamBranchName,
+		upstreamRemote: overrides.upstreamRemote,
+		isRebasing: false,
+		remoteFetchUrls: overrides.remoteFetchUrls ?? [],
+		remotes: [],
+		worktrees: [],
+		changes: overrides.changes,
+		headBranchNameObs: observableValue('test', overrides.headBranchName ?? 'main'),
+		headCommitHashObs: observableValue('test', 'abc123'),
+		upstreamBranchNameObs: observableValue('test', overrides.upstreamBranchName),
+		upstreamRemoteObs: observableValue('test', overrides.upstreamRemote),
+		isRebasingObs: observableValue('test', false),
+		isIgnored: () => Promise.resolve(false),
+	};
+}
+
+const MockChange = mock<Change>();
+function mockChange(): Change {
+	return new MockChange();
+}
+
+function findCommandHandler(commandId: string): (...args: unknown[]) => Promise<void> {
+	const calls = vi.mocked(vscodeShim.commands.registerCommand).mock.calls;
+	const matchingCalls = calls.filter(c => c[0] === commandId);
+	const call = matchingCalls[matchingCalls.length - 1];
+	if (!call) {
+		throw new Error(`Command ${commandId} was not registered`);
+	}
+	return call[1];
+}
+
+function buildDiskSession(id: string, overrides: Partial<IClaudeCodeSessionInfo> = {}): IClaudeCodeSessionInfo {
+	return {
+		id,
+		label: id,
+		created: Date.now(),
+		lastRequestEnded: Date.now(),
+		folderName: 'my-project',
+		cwd: '/home/user/my-project',
+		...overrides,
+	} as IClaudeCodeSessionInfo;
+}
+
+// #endregion
+
 describe('ClaudeChatSessionItemController', () => {
 	const store = new DisposableStore();
 	let mockSessionService: IClaudeCodeSessionService;
@@ -1240,6 +1314,10 @@ describe('ClaudeChatSessionItemController', () => {
 			getSubagentMessages: vi.fn().mockResolvedValue([]),
 		};
 		serviceCollection.define(IClaudeCodeSdkService, mockSdkService);
+		serviceCollection.define(IClaudeWorkspaceFolderService, {
+			_serviceBrand: undefined,
+			getWorkspaceChanges: vi.fn().mockResolvedValue([]),
+		});
 		const accessor = serviceCollection.createTestingAccessor();
 		lastControllerAccessor = accessor;
 		const ctrl = accessor.get(IInstantiationService).createInstance(ClaudeChatSessionItemController);
@@ -1356,6 +1434,77 @@ describe('ClaudeChatSessionItemController', () => {
 			expect(itemA!.status).toBe(ChatSessionStatus.Completed);
 			expect(itemB!.status).toBe(ChatSessionStatus.InProgress);
 		});
+
+		it('calls getWorkspaceChanges on Completed status when session has cwd', async () => {
+			const diskSession: IClaudeCodeSessionInfo = {
+				id: 'changes-session',
+				label: 'Changes Session',
+				created: Date.now(),
+				lastRequestEnded: Date.now(),
+				folderName: 'my-project',
+				cwd: '/home/user/my-project',
+				gitBranch: 'feature-branch',
+			};
+			vi.mocked(mockSessionService.getSession).mockResolvedValue(diskSession as any);
+
+			const mockChanges = [{ uri: URI.file('/home/user/my-project/file.ts') }];
+			const workspaceFolderService = lastControllerAccessor.get(IClaudeWorkspaceFolderService);
+			vi.mocked(workspaceFolderService.getWorkspaceChanges).mockResolvedValue(mockChanges as any);
+
+			await controller.updateItemStatus('changes-session', ChatSessionStatus.InProgress, 'Prompt');
+			await controller.updateItemStatus('changes-session', ChatSessionStatus.Completed, 'Prompt');
+
+			expect(workspaceFolderService.getWorkspaceChanges).toHaveBeenCalledWith(
+				'/home/user/my-project',
+				'feature-branch',
+				undefined,
+				true,
+			);
+			const item = getItem('changes-session');
+			expect(item!.changes).toBe(mockChanges);
+		});
+
+		it('does not call getWorkspaceChanges on Completed when session has no cwd', async () => {
+			const diskSession: IClaudeCodeSessionInfo = {
+				id: 'no-cwd',
+				label: 'No CWD',
+				created: Date.now(),
+				lastRequestEnded: Date.now(),
+				folderName: undefined,
+			};
+			vi.mocked(mockSessionService.getSession).mockResolvedValue(diskSession as any);
+
+			const workspaceFolderService = lastControllerAccessor.get(IClaudeWorkspaceFolderService);
+
+			await controller.updateItemStatus('no-cwd', ChatSessionStatus.InProgress, 'Prompt');
+			await controller.updateItemStatus('no-cwd', ChatSessionStatus.Completed, 'Prompt');
+
+			expect(workspaceFolderService.getWorkspaceChanges).not.toHaveBeenCalled();
+		});
+
+		it('does not call getWorkspaceChanges with forceRefresh on InProgress status', async () => {
+			const diskSession: IClaudeCodeSessionInfo = {
+				id: 'in-progress',
+				label: 'In Progress',
+				created: Date.now(),
+				lastRequestEnded: Date.now(),
+				folderName: 'my-project',
+				cwd: '/home/user/my-project',
+				gitBranch: 'feature-branch',
+			};
+			vi.mocked(mockSessionService.getSession).mockResolvedValue(diskSession as any);
+
+			const workspaceFolderService = lastControllerAccessor.get(IClaudeWorkspaceFolderService);
+
+			await controller.updateItemStatus('in-progress', ChatSessionStatus.InProgress, 'Prompt');
+
+			expect(workspaceFolderService.getWorkspaceChanges).not.toHaveBeenCalledWith(
+				expect.anything(),
+				expect.anything(),
+				expect.anything(),
+				true,
+			);
+		});
 	});
 
 	// #endregion
@@ -1432,6 +1581,33 @@ describe('ClaudeChatSessionItemController', () => {
 
 			const item = getItem('no-cwd-session');
 			expect(item!.metadata).toBeUndefined();
+		});
+
+		it('populates item.changes when session has cwd and gitBranch', async () => {
+			const diskSession: IClaudeCodeSessionInfo = {
+				id: 'changes-item',
+				label: 'Changes Item',
+				created: Date.now(),
+				lastRequestEnded: Date.now(),
+				folderName: 'my-project',
+				cwd: '/home/user/my-project',
+				gitBranch: 'feature-branch',
+			};
+			vi.mocked(mockSessionService.getSession).mockResolvedValue(diskSession as any);
+
+			const mockChanges = [{ uri: URI.file('/home/user/my-project/file.ts') }];
+			const workspaceFolderService = lastControllerAccessor.get(IClaudeWorkspaceFolderService);
+			vi.mocked(workspaceFolderService.getWorkspaceChanges).mockResolvedValue(mockChanges as any);
+
+			await controller.updateItemStatus('changes-item', ChatSessionStatus.InProgress, 'Prompt');
+
+			expect(workspaceFolderService.getWorkspaceChanges).toHaveBeenCalledWith(
+				'/home/user/my-project',
+				'feature-branch',
+				undefined,
+			);
+			const item = getItem('changes-item');
+			expect(item!.changes).toBe(mockChanges);
 		});
 	});
 
@@ -1817,6 +1993,231 @@ describe('ClaudeChatSessionItemController', () => {
 			expect(forkedItem).toBeDefined();
 			expect(forkedItem!.iconPath).toBeDefined();
 			expect(forkedItem!.timing).toBeDefined();
+		});
+	});
+
+	// #endregion
+
+	// #region Session metadata enrichment
+
+	describe('session metadata enrichment', () => {
+		it('includes enriched git metadata when repository exists', async () => {
+			const gitService = new MockGitService();
+			const repoCtx = buildRepoContext({
+				rootUri: URI.file('/home/user/my-project'),
+				headBranchName: 'feature-branch',
+				upstreamRemote: 'origin',
+				upstreamBranchName: 'feature-branch',
+				headIncomingChanges: 2,
+				headOutgoingChanges: 3,
+				remoteFetchUrls: ['https://github.com/owner/repo.git'],
+				changes: {
+					mergeChanges: [],
+					indexChanges: [mockChange(), mockChange()],
+					workingTree: [mockChange()],
+					untrackedChanges: [],
+				},
+			});
+			vi.spyOn(gitService, 'getRepository').mockResolvedValue(repoCtx);
+			controller = createController([URI.file('/project')], gitService);
+
+			const diskSession = buildDiskSession('enriched-meta');
+			vi.mocked(mockSessionService.getSession).mockResolvedValue(diskSession as any);
+
+			await controller.updateItemStatus('enriched-meta', ChatSessionStatus.InProgress, 'Prompt');
+
+			const item = getItem('enriched-meta');
+			expect(item!.metadata).toEqual({
+				workingDirectoryPath: '/home/user/my-project',
+				repositoryPath: URI.file('/home/user/my-project').fsPath,
+				branchName: 'feature-branch',
+				upstreamBranchName: 'origin/feature-branch',
+				hasGitHubRemote: true,
+				incomingChanges: 2,
+				outgoingChanges: 3,
+				uncommittedChanges: 3,
+			});
+		});
+
+		it('sets upstreamBranchName to undefined when no upstream remote', async () => {
+			const gitService = new MockGitService();
+			const repoCtx = buildRepoContext({
+				rootUri: URI.file('/home/user/my-project'),
+				headBranchName: 'local-only',
+				upstreamRemote: undefined,
+				upstreamBranchName: undefined,
+			});
+			vi.spyOn(gitService, 'getRepository').mockResolvedValue(repoCtx);
+			controller = createController([URI.file('/project')], gitService);
+
+			const diskSession = buildDiskSession('no-upstream');
+			vi.mocked(mockSessionService.getSession).mockResolvedValue(diskSession as any);
+
+			await controller.updateItemStatus('no-upstream', ChatSessionStatus.InProgress, 'Prompt');
+
+			const item = getItem('no-upstream');
+			expect(item!.metadata).toMatchObject({
+				branchName: 'local-only',
+				upstreamBranchName: undefined,
+			});
+		});
+
+		it('sums uncommittedChanges from all change categories', async () => {
+			const gitService = new MockGitService();
+			const repoCtx = buildRepoContext({
+				rootUri: URI.file('/home/user/my-project'),
+				changes: {
+					mergeChanges: [mockChange(), mockChange()],
+					indexChanges: [mockChange(), mockChange(), mockChange()],
+					workingTree: [mockChange()],
+					untrackedChanges: [mockChange(), mockChange(), mockChange(), mockChange()],
+				},
+			});
+			vi.spyOn(gitService, 'getRepository').mockResolvedValue(repoCtx);
+			controller = createController([URI.file('/project')], gitService);
+
+			const diskSession = buildDiskSession('many-changes');
+			vi.mocked(mockSessionService.getSession).mockResolvedValue(diskSession as any);
+
+			await controller.updateItemStatus('many-changes', ChatSessionStatus.InProgress, 'Prompt');
+
+			const item = getItem('many-changes');
+			expect(item!.metadata).toMatchObject({ uncommittedChanges: 10 });
+		});
+
+		it('sets uncommittedChanges to 0 when changes is undefined', async () => {
+			const gitService = new MockGitService();
+			const repoCtx = buildRepoContext({
+				rootUri: URI.file('/home/user/my-project'),
+				changes: undefined,
+			});
+			vi.spyOn(gitService, 'getRepository').mockResolvedValue(repoCtx);
+			controller = createController([URI.file('/project')], gitService);
+
+			const diskSession = buildDiskSession('no-changes');
+			vi.mocked(mockSessionService.getSession).mockResolvedValue(diskSession as any);
+
+			await controller.updateItemStatus('no-changes', ChatSessionStatus.InProgress, 'Prompt');
+
+			const item = getItem('no-changes');
+			expect(item!.metadata).toMatchObject({ uncommittedChanges: 0 });
+		});
+
+		it('sets hasGitHubRemote to false when no GitHub remote', async () => {
+			const gitService = new MockGitService();
+			const repoCtx = buildRepoContext({
+				rootUri: URI.file('/home/user/my-project'),
+				remoteFetchUrls: ['https://gitlab.com/owner/repo.git'],
+			});
+			vi.spyOn(gitService, 'getRepository').mockResolvedValue(repoCtx);
+			controller = createController([URI.file('/project')], gitService);
+
+			const diskSession = buildDiskSession('no-github');
+			vi.mocked(mockSessionService.getSession).mockResolvedValue(diskSession as any);
+
+			await controller.updateItemStatus('no-github', ChatSessionStatus.InProgress, 'Prompt');
+
+			const item = getItem('no-github');
+			expect(item!.metadata).toMatchObject({ hasGitHubRemote: false });
+		});
+	});
+
+	// #endregion
+
+	// #region Command handlers
+
+	describe('command handlers', () => {
+		it('commit command sends /commit prompt to the session', async () => {
+			createController([URI.file('/project')]);
+			const resource = ClaudeSessionUri.forSessionId('test-session');
+
+			await findCommandHandler('github.copilot.claude.sessions.commit')(resource);
+
+			expect(vscodeShim.commands.executeCommand).toHaveBeenCalledWith(
+				'workbench.action.chat.openSessionWithPrompt.claude-code',
+				{ resource, prompt: builtinSlashCommands.commit },
+			);
+		});
+
+		it('commitAndSync command sends combined /commit and /sync prompt', async () => {
+			createController([URI.file('/project')]);
+			const resource = ClaudeSessionUri.forSessionId('test-session');
+
+			await findCommandHandler('github.copilot.claude.sessions.commitAndSync')(resource);
+
+			expect(vscodeShim.commands.executeCommand).toHaveBeenCalledWith(
+				'workbench.action.chat.openSessionWithPrompt.claude-code',
+				{ resource, prompt: `${builtinSlashCommands.commit} and ${builtinSlashCommands.sync}` },
+			);
+		});
+
+		it('sync command sends /sync prompt to the session', async () => {
+			createController([URI.file('/project')]);
+			const resource = ClaudeSessionUri.forSessionId('test-session');
+
+			await findCommandHandler('github.copilot.claude.sessions.sync')(resource);
+
+			expect(vscodeShim.commands.executeCommand).toHaveBeenCalledWith(
+				'workbench.action.chat.openSessionWithPrompt.claude-code',
+				{ resource, prompt: builtinSlashCommands.sync },
+			);
+		});
+
+		it('commit command extracts resource from ChatSessionItem', async () => {
+			createController([URI.file('/project')]);
+			const resource = ClaudeSessionUri.forSessionId('test-session');
+			const sessionItem = { resource, label: 'Test' };
+
+			await findCommandHandler('github.copilot.claude.sessions.commit')(sessionItem);
+
+			expect(vscodeShim.commands.executeCommand).toHaveBeenCalledWith(
+				'workbench.action.chat.openSessionWithPrompt.claude-code',
+				{ resource, prompt: builtinSlashCommands.commit },
+			);
+		});
+
+		it('commands do not execute when resource is undefined', async () => {
+			createController([URI.file('/project')]);
+
+			await findCommandHandler('github.copilot.claude.sessions.commit')(undefined);
+			await findCommandHandler('github.copilot.claude.sessions.commitAndSync')(undefined);
+			await findCommandHandler('github.copilot.claude.sessions.sync')(undefined);
+
+			expect(vscodeShim.commands.executeCommand).not.toHaveBeenCalled();
+		});
+
+		it('initializeRepository calls gitService.initRepository with workspace folder', async () => {
+			const gitService = new MockGitService();
+			const initSpy = vi.spyOn(gitService, 'initRepository').mockResolvedValue({} as Repository);
+			controller = createController([], gitService);
+
+			const sessionId = 'init-repo-session';
+			const sessionStateService = lastControllerAccessor.get(IClaudeSessionStateService);
+			sessionStateService.setFolderInfoForSession(sessionId, {
+				cwd: '/home/user/my-project',
+				additionalDirectories: [],
+			});
+
+			const resource = ClaudeSessionUri.forSessionId(sessionId);
+			await findCommandHandler('github.copilot.claude.sessions.initializeRepository')(resource);
+
+			expect(initSpy).toHaveBeenCalledWith(URI.file('/home/user/my-project'));
+		});
+
+		it('initializeRepository does not throw when init returns undefined', async () => {
+			const gitService = new MockGitService();
+			vi.spyOn(gitService, 'initRepository').mockResolvedValue(undefined);
+			controller = createController([], gitService);
+
+			const sessionId = 'init-fail-session';
+			const sessionStateService = lastControllerAccessor.get(IClaudeSessionStateService);
+			sessionStateService.setFolderInfoForSession(sessionId, {
+				cwd: '/home/user/my-project',
+				additionalDirectories: [],
+			});
+
+			const resource = ClaudeSessionUri.forSessionId(sessionId);
+			await findCommandHandler('github.copilot.claude.sessions.initializeRepository')(resource);
 		});
 	});
 

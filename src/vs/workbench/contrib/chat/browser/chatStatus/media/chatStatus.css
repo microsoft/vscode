@@ -383,3 +383,29 @@
 .chat-status-bar-entry-tooltip .snooze-completions .snooze-action-bar {
 	margin-left: auto;
 }
+
+.chat-status-bar-entry-tooltip .contribution .body {
+	display: flex;
+	align-items: center;
+	gap: 4px;
+	font-size: 11px;
+	overflow: hidden;
+	min-width: 0;
+}
+
+.chat-status-bar-entry-tooltip .contribution .body .description,
+.chat-status-bar-entry-tooltip .contribution .body .detail-item {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	min-width: 0;
+}
+
+.chat-status-bar-entry-tooltip .contribution .body .detail-item {
+	color: var(--vscode-descriptionForeground);
+}
+
+.chat-status-bar-entry-tooltip .contribution .body .separator {
+	opacity: 0.6;
+	padding: 0 2px;
+}

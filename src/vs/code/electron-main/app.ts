@@ -1397,7 +1397,7 @@ export class CodeApplication extends Disposable {
 		}
 
 		// Handle agents window first based on context
-		if ((process as INodeProcess).isEmbeddedApp || (args['agents'] && this.productService.quality !== 'stable')) {
+		if ((process as INodeProcess).isEmbeddedApp || (!isLinux && args['agents'] && this.productService.quality !== 'stable')) {
 			return windowsMainService.openAgentsWindow({
 				context,
 				cli: args,

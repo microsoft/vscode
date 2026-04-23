@@ -10,7 +10,7 @@ import { URI } from '../../../../../../base/common/uri.js';
 import { hash } from '../../../../../../base/common/hash.js';
 import { IFileService } from '../../../../../../platform/files/common/files.js';
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
-import { type ICustomizationRef } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { type CustomizationRef } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
 import { IAgentHostFileSystemService, SYNCED_CUSTOMIZATION_SCHEME } from '../../../../../../workbench/services/agentHost/common/agentHostFileSystemService.js';
 
@@ -48,7 +48,7 @@ interface ISyncableFile {
 }
 
 interface IBundleResult {
-	readonly ref: ICustomizationRef;
+	readonly ref: CustomizationRef;
 }
 
 /**
@@ -98,7 +98,7 @@ export class SyncedCustomizationBundler extends Disposable {
 	/**
 	 * Bundles the given files into the in-memory plugin filesystem.
 	 *
-	 * Overwrites any previous bundle content. Returns a {@link ICustomizationRef}
+	 * Overwrites any previous bundle content. Returns a {@link CustomizationRef}
 	 * pointing at the virtual plugin directory with a content-based nonce.
 	 *
 	 * @returns The bundle result, or `undefined` if no syncable files were provided.

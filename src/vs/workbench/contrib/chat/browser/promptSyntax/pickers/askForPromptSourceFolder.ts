@@ -3,17 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { extUri, isEqual } from '../../../../../../base/common/resources.js';
+import { isEqual } from '../../../../../../base/common/resources.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { ServicesAccessor } from '../../../../../../editor/browser/editorExtensions.js';
 import { localize } from '../../../../../../nls.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
 import { ILabelService } from '../../../../../../platform/label/common/label.js';
 import { IOpenerService } from '../../../../../../platform/opener/common/opener.js';
-import { PROMPT_DOCUMENTATION_URL, PromptsType } from '../../../common/promptSyntax/promptTypes.js';
+import { PROMPT_DOCUMENTATION_URL, PromptsType, getSourceDescription } from '../../../common/promptSyntax/promptTypes.js';
 import { IPickOptions, IQuickInputService, IQuickPickItem } from '../../../../../../platform/quickinput/common/quickInput.js';
-import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 import { IPromptPath, IPromptsService, PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
+import { IWorkspaceContextService } from '../../../../../../platform/workspace/common/workspace.js';
 
 
 interface IFolderQuickPickItem extends IQuickPickItem {
@@ -35,13 +35,13 @@ export async function askForPromptSourceFolder(
 	const labelService = accessor.get(ILabelService);
 	const workspaceService = accessor.get(IWorkspaceContextService);
 
-	// get prompts source folders based on the prompt type
-	const folders = await promptsService.getSourceFolders(type);
+	// get resolved source folders with full metadata (source, isDefault, displayPath)
+	const resolvedFolders = await promptsService.getResolvedSourceFolders(type);
 
 	// if no source folders found, show 'learn more' dialog
 	// note! this is a temporary solution and must be replaced with a dialog to select
 	//       a custom folder path, or switch to a different prompt type
-	if (folders.length === 0) {
+	if (resolvedFolders.length === 0) {
 		await instantiationService.invokeFunction(accessor => showNoFoldersDialog(accessor, type));
 		return;
 	}
@@ -52,50 +52,56 @@ export async function askForPromptSourceFolder(
 		matchOnDescription: true,
 	};
 
+	// The first folder in the resolved list is the default for new files
+	const defaultFolder = !existingFolder ? resolvedFolders[0] : undefined;
+
+	const { folders: workspaceFolders } = workspaceService.getWorkspace();
+	const isMultiRoot = workspaceFolders.length > 1;
+
 	// create list of source folder locations
-	const foldersList = folders.map<IFolderQuickPickItem>(folder => {
-		const uri = folder.uri;
-		const detail = (existingFolder && isEqual(uri, existingFolder)) ? localize('current.folder', "Current Location") : undefined;
-		if (folder.storage !== PromptsStorage.local) {
-			return {
-				type: 'item',
-				label: promptsService.getPromptLocationLabel(folder),
-				detail,
-				tooltip: labelService.getUriLabel(uri),
-				folder
-			};
-		}
+	const foldersList = resolvedFolders.map<IFolderQuickPickItem>(resolved => {
+		const folderUri = resolved.parent;
+		const isDefault = defaultFolder && isEqual(folderUri, defaultFolder.parent);
+		const sourceDescription = getSourceDescription(resolved.source);
+		const detail = (existingFolder && isEqual(folderUri, existingFolder)) ? localize('current.folder', "Current Location") : undefined;
 
-		const { folders } = workspaceService.getWorkspace();
-		const isMultirootWorkspace = (folders.length > 1);
+		// In multi-root workspaces, use workspace-relative labels (which include
+		// the workspace folder name prefix). Otherwise use displayPath.
+		const basePath = (isMultiRoot && resolved.storage === PromptsStorage.local)
+			? labelService.getUriLabel(folderUri, { relative: true })
+			: resolved.displayPath ?? labelService.getUriLabel(folderUri, { relative: resolved.storage === PromptsStorage.local });
+		const label = isDefault ? localize('pathWithDefault', "{0} (default)", basePath) : basePath;
 
-		const firstFolder = folders[0];
+		const folder: IPromptPath = { uri: folderUri, storage: resolved.storage, type };
 
-		// if multi-root or empty workspace, or source folder `uri` does not point to
-		// the root folder of a single-root workspace, return the default label and description
-		if (isMultirootWorkspace || !firstFolder || !extUri.isEqual(firstFolder.uri, uri)) {
-			return {
-				type: 'item',
-				label: labelService.getUriLabel(uri, { relative: true }),
-				detail,
-				tooltip: labelService.getUriLabel(uri),
-				folder,
-			};
-		}
-
-		// if source folder points to the root of this single-root workspace,
-		// use appropriate label and description strings to prevent confusion
 		return {
-			type: 'item',
-			label: localize(
-				'commands.prompts.create.source-folder.current-workspace',
-				"Current Workspace",
-			),
+			type: 'item' as const,
+			label,
+			description: sourceDescription,
 			detail,
-			tooltip: labelService.getUriLabel(uri),
+			tooltip: labelService.getUriLabel(folderUri),
+			picked: isDefault,
 			folder,
 		};
 	});
+
+	// In multi-root workspaces, sort so items from the same workspace folder
+	// are grouped together instead of being interleaved by source type.
+	if (isMultiRoot) {
+		const getWorkspaceFolderIndex = (uri: URI, storage: PromptsStorage): number => {
+			if (storage !== PromptsStorage.local) {
+				return workspaceFolders.length; // global items go last
+			}
+			const wsFolder = workspaceService.getWorkspaceFolder(uri);
+			return wsFolder?.index ?? workspaceFolders.length;
+		};
+
+		foldersList.sort((a, b) => {
+			const aIndex = getWorkspaceFolderIndex(a.folder.uri, a.folder.storage);
+			const bIndex = getWorkspaceFolderIndex(b.folder.uri, b.folder.storage);
+			return aIndex - bIndex;
+		});
+	}
 
 	const answer = await quickInputService.pick(foldersList, pickOptions);
 	if (!answer) {

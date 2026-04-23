@@ -4,11 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { disposableTimeout, SequencerByKey } from '../../../base/common/async.js';
-import { match as globMatch } from '../../../base/common/glob.js';
 import { Disposable, DisposableMap, DisposableStore, IDisposable } from '../../../base/common/lifecycle.js';
 import { equals } from '../../../base/common/objects.js';
 import { autorun, IObservable, IReader } from '../../../base/common/observable.js';
-import { extUriBiasedIgnorePathCase, normalizePath } from '../../../base/common/resources.js';
 import { hasKey } from '../../../base/common/types.js';
 import { URI } from '../../../base/common/uri.js';
 import { generateUuid } from '../../../base/common/uuid.js';
@@ -16,8 +14,8 @@ import { ILogService } from '../../log/common/log.js';
 import { IAgent, IAgentAttachment, IAgentProgressEvent, type IAgentToolCompleteEvent, type IAgentToolReadyEvent } from '../common/agentService.js';
 import { IDiffComputeService } from '../common/diffComputeService.js';
 import { ISessionDataService } from '../common/sessionDataService.js';
-import type { IAgentInfo } from '../common/state/protocol/state.js';
-import { ActionType, ISessionAction } from '../common/state/sessionActions.js';
+import type { AgentInfo } from '../common/state/protocol/state.js';
+import { ActionType, SessionAction } from '../common/state/sessionActions.js';
 import {
 	CustomizationStatus,
 	PendingMessageKind,
@@ -27,17 +25,16 @@ import {
 	ToolResultContentType,
 	buildSubagentSessionUri,
 	getToolFileEdits,
-	parseSubagentSessionUri,
-	type ISessionCustomization,
-	type ISessionState,
-	type IToolResultContent,
+	type SessionCustomization,
+	type SessionState,
+	type ToolResultContent,
 	type URI as ProtocolURI,
 } from '../common/state/sessionState.js';
 import { AgentEventMapper } from './agentEventMapper.js';
 import { AgentHostStateManager } from './agentHostStateManager.js';
-import { CommandAutoApprover } from './commandAutoApprover.js';
 import { NodeWorkerDiffComputeService } from './diffComputeService.js';
 import { computeSessionDiffs, type IIncrementalDiffOptions } from './sessionDiffAggregator.js';
+import { SessionPermissionManager } from './sessionPermissions.js';
 
 /**
  * Options for constructing an {@link AgentSideEffects} instance.
@@ -74,16 +71,16 @@ export class AgentSideEffects extends Disposable {
 	private readonly _toolCallAgents = new Map<string, string>();
 	/** Per-agent event mapper instances (stateful for partId tracking). */
 	private readonly _eventMappers = new Map<string, AgentEventMapper>();
-	/** Auto-approver for shell commands parsed via tree-sitter. */
-	private readonly _commandAutoApprover: CommandAutoApprover;
 	/** Shared diff compute service for calculating line-level diffs in a worker thread. */
 	private readonly _diffComputeService: IDiffComputeService;
 	/** Serializes per-session diff computations to avoid races with stale previousDiffs. */
 	private readonly _diffComputationSequencer = new SequencerByKey<string>();
-	private _lastAgentInfos: readonly IAgentInfo[] = [];
+	private _lastAgentInfos: readonly AgentInfo[] = [];
 	/** Per-session debounce timers for mid-turn diff computation. */
 	private readonly _debouncedDiffTimers = this._register(new DisposableMap<string>());
 	private static readonly _DIFF_DEBOUNCE_MS = 5000;
+
+	private readonly _permissionManager: SessionPermissionManager;
 
 	/**
 	 * Maps `parentSession:toolCallId` → subagent session URI.
@@ -110,8 +107,8 @@ export class AgentSideEffects extends Disposable {
 		private readonly _logService: ILogService,
 	) {
 		super();
-		this._commandAutoApprover = this._register(new CommandAutoApprover(this._logService));
 		this._diffComputeService = this._register(new NodeWorkerDiffComputeService(this._logService));
+		this._permissionManager = this._register(new SessionPermissionManager(this._stateManager, this._logService));
 
 		// Whenever the agents observable changes, publish to root state.
 		this._register(autorun(reader => {
@@ -124,7 +121,7 @@ export class AgentSideEffects extends Disposable {
 	 * Publishes agent descriptors using the last known model lists.
 	 */
 	private _publishAgentInfos(agents: readonly IAgent[], reader: IReader): void {
-		const infos: IAgentInfo[] = agents.map(a => {
+		const infos: AgentInfo[] = agents.map(a => {
 			const d = a.getDescriptor();
 			const protectedResources = a.getProtectedResources();
 			return {
@@ -147,120 +144,15 @@ export class AgentSideEffects extends Disposable {
 		this._stateManager.dispatchServerAction({ type: ActionType.RootAgentsChanged, agents: infos });
 	}
 
-	// ---- Edit auto-approve --------------------------------------------------
-
-	/**
-	 * Default edit auto-approve patterns applied by the agent host.
-	 * Matches the VS Code `chat.tools.edits.autoApprove` setting defaults.
-	 */
-	private static readonly _DEFAULT_EDIT_AUTO_APPROVE_PATTERNS: Readonly<Record<string, boolean>> = {
-		'**/*': true,
-		'**/.vscode/*.json': false,
-		'**/.git/**': false,
-		'**/{package.json,server.xml,build.rs,web.config,.gitattributes,.env}': false,
-		'**/*.{code-workspace,csproj,fsproj,vbproj,vcxproj,proj,targets,props}': false,
-		'**/*.lock': false,
-		'**/*-lock.{yaml,json}': false,
-	};
-
-	/**
-	 * Returns whether a write to `filePath` should be auto-approved based on
-	 * the built-in default patterns.
-	 */
-	private _shouldAutoApproveEdit(filePath: string): boolean {
-		const patterns = AgentSideEffects._DEFAULT_EDIT_AUTO_APPROVE_PATTERNS;
-		let approved = true;
-		for (const [pattern, isApproved] of Object.entries(patterns)) {
-			if (isApproved !== approved && globMatch(pattern, filePath)) {
-				approved = isApproved;
-			}
-		}
-		return approved;
-	}
+	// ---- Initialization ----------------------------------------------------
 
 	/**
 	 * Initializes async resources (tree-sitter WASM) used for command
 	 * auto-approval. Await this before any session events can arrive to
-	 * guarantee that {@link _tryAutoApproveToolReady} is fully synchronous.
+	 * guarantee that auto-approval checks are fully synchronous.
 	 */
 	initialize(): Promise<void> {
-		return this._commandAutoApprover.initialize();
-	}
-
-	/**
-	 * Synchronously attempts to auto-approve a `tool_ready` event based on
-	 * permission kind. Returns `true` if auto-approved (event should not be
-	 * dispatched to the state manager), or `false` to proceed normally.
-	 */
-	private _tryAutoApproveToolReady(
-		e: { readonly toolCallId: string; readonly session: URI; readonly permissionKind?: IAgentToolReadyEvent['permissionKind']; readonly permissionPath?: string; readonly toolInput?: string },
-		sessionKey: ProtocolURI,
-		agent: IAgent,
-	): boolean {
-		// Subagent sessions don't carry their own config or workingDirectory —
-		// inherit from the parent session so auto-approval rules apply
-		// uniformly to tool calls inside subagents.
-		const sessionState = this._stateManager.getSessionState(sessionKey);
-		const parentInfo = parseSubagentSessionUri(sessionKey);
-		const parentState = parentInfo ? this._stateManager.getSessionState(parentInfo.parentSession) : undefined;
-		const autoApproveLevel = sessionState?.config?.values?.autoApprove
-			?? parentState?.config?.values?.autoApprove;
-		const workDir = sessionState?.summary.workingDirectory
-			?? parentState?.summary.workingDirectory;
-
-		// Session-level auto-approve: when the user has set "Bypass Approvals"
-		// or "Autopilot", auto-approve all tool calls unconditionally.
-		if (autoApproveLevel === 'autoApprove' || autoApproveLevel === 'autopilot') {
-			this._logService.trace(`[AgentSideEffects] Auto-approving tool call (session autoApprove=${autoApproveLevel})`);
-			this._toolCallAgents.delete(`${sessionKey}:${e.toolCallId}`);
-			agent.respondToPermissionRequest(e.toolCallId, true);
-			return true;
-		}
-
-		// Read auto-approval: approve reads inside the session's working directory.
-		if (e.permissionKind === 'read' && e.permissionPath) {
-			const workingDirectory = workDir ? URI.parse(workDir) : undefined;
-			if (workingDirectory && extUriBiasedIgnorePathCase.isEqualOrParent(normalizePath(URI.file(e.permissionPath)), workingDirectory)) {
-				this._logService.trace(`[AgentSideEffects] Auto-approving read of ${e.permissionPath}`);
-				this._toolCallAgents.delete(`${sessionKey}:${e.toolCallId}`);
-				agent.respondToPermissionRequest(e.toolCallId, true);
-				return true;
-			}
-			return false;
-		}
-
-		// Write auto-approval: only within the session's working directory,
-		// then apply the default glob patterns for protected files.
-		if (e.permissionKind === 'write' && e.permissionPath) {
-			const workingDirectory = workDir ? URI.parse(workDir) : undefined;
-			if (workingDirectory && extUriBiasedIgnorePathCase.isEqualOrParent(normalizePath(URI.file(e.permissionPath)), workingDirectory)) {
-				if (this._shouldAutoApproveEdit(e.permissionPath)) {
-					this._logService.trace(`[AgentSideEffects] Auto-approving write to ${e.permissionPath}`);
-					this._toolCallAgents.delete(`${sessionKey}:${e.toolCallId}`);
-					agent.respondToPermissionRequest(e.toolCallId, true);
-					return true;
-				}
-			}
-			return false;
-		}
-
-		// Shell auto-approval: parse the command via tree-sitter (synchronous
-		// after initialize() has been awaited) and match against default rules.
-		if (e.permissionKind === 'shell' && e.toolInput) {
-			const result = this._commandAutoApprover.shouldAutoApprove(e.toolInput);
-			if (result === 'approved') {
-				this._logService.trace(`[AgentSideEffects] Auto-approving shell command`);
-				this._toolCallAgents.delete(`${sessionKey}:${e.toolCallId}`);
-				agent.respondToPermissionRequest(e.toolCallId, true);
-				return true;
-			}
-			if (result === 'denied') {
-				this._logService.trace(`[AgentSideEffects] Shell command denied by rule`);
-			}
-			return false;
-		}
-
-		return false;
+		return this._permissionManager.initialize();
 	}
 
 	// ---- Agent registration -------------------------------------------------
@@ -328,11 +220,10 @@ export class AgentSideEffects extends Disposable {
 				const subTurnId = this._stateManager.getActiveTurnId(subagentSession);
 				if (subTurnId) {
 					if (e.type === 'tool_ready') {
-						if (this._tryAutoApproveToolReady(e, subagentSession, agent)) {
-							return;
-						}
+						this._handleToolReady(e, subagentSession, subTurnId, agent);
+					} else {
+						this._dispatchProgressActions(agentMapper, e, subagentSession, subTurnId);
 					}
-					this._dispatchProgressActions(agentMapper, e, subagentSession, subTurnId);
 				}
 				return;
 			}
@@ -359,10 +250,7 @@ export class AgentSideEffects extends Disposable {
 			if (subagentSession) {
 				const subTurnId = this._stateManager.getActiveTurnId(subagentSession);
 				if (subTurnId) {
-					if (this._tryAutoApproveToolReady(e, subagentSession, agent)) {
-						return;
-					}
-					this._dispatchProgressActions(agentMapper, e, subagentSession, subTurnId);
+					this._handleToolReady(e, subagentSession, subTurnId, agent);
 				}
 				return;
 			}
@@ -370,18 +258,15 @@ export class AgentSideEffects extends Disposable {
 
 		const turnId = this._stateManager.getActiveTurnId(sessionKey);
 		if (turnId) {
-			// Auto-approve tool_ready events synchronously before dispatching.
-			// Tree-sitter is pre-warmed via initialize(), so this is fully sync.
 			if (e.type === 'tool_ready') {
-				if (this._tryAutoApproveToolReady(e, sessionKey, agent)) {
-					return;
-				}
+				this._handleToolReady(e, sessionKey, turnId, agent);
+				return;
 			}
 
 			// When a parent tool call has an associated subagent session,
 			// preserve the subagent content metadata in the completion
 			// result. The SDK's tool_complete provides its own content
-			// which would overwrite the IToolResultSubagentContent that
+			// which would overwrite the ToolResultSubagentContent that
 			// was set via SessionToolCallContentChanged while running.
 			if (e.type === 'tool_complete') {
 				const subagentKey = `${sessionKey}:${e.toolCallId}`;
@@ -525,10 +410,10 @@ export class AgentSideEffects extends Disposable {
 	 * Gets the current content array from a running tool call, if any.
 	 */
 	private _getRunningToolCallContent(
-		state: ISessionState | undefined,
+		state: SessionState | undefined,
 		turnId: string,
 		toolCallId: string,
-	): IToolResultContent[] {
+	): ToolResultContent[] {
 		if (!state?.activeTurn || state.activeTurn.id !== turnId) {
 			return [];
 		}
@@ -671,7 +556,24 @@ export class AgentSideEffects extends Disposable {
 		}
 	}
 
-	handleAction(action: ISessionAction): void {
+	/**
+	 * Handles a `tool_ready` event end-to-end: checks for auto-approval via
+	 * the permission manager, and if not auto-approved, dispatches the
+	 * `SessionToolCallReady` action with confirmation options for the client.
+	 */
+	private _handleToolReady(e: IAgentToolReadyEvent, sessionKey: ProtocolURI, turnId: string, agent: IAgent): void {
+		const autoApproval = this._permissionManager.getAutoApproval(e, sessionKey);
+		if (autoApproval !== undefined) {
+			this._toolCallAgents.delete(`${sessionKey}:${e.toolCallId}`);
+			agent.respondToPermissionRequest(e.toolCallId, true);
+			return;
+		}
+		this._stateManager.dispatchServerAction(
+			this._permissionManager.createToolReadyAction(e, sessionKey, turnId)
+		);
+	}
+
+	handleAction(action: SessionAction): void {
 		switch (action.type) {
 			case ActionType.SessionTurnStarted: {
 				// Reset the event mapper's part tracking for the new turn
@@ -710,7 +612,8 @@ export class AgentSideEffects extends Disposable {
 					displayName: a.displayName,
 				}));
 				agent.sendMessage(URI.parse(action.session), action.userMessage.text, attachments, action.turnId).catch(err => {
-					this._logService.error('[AgentSideEffects] sendMessage failed', err);
+					const errCode = (err as { code?: number })?.code;
+					this._logService.error(`[AgentSideEffects] sendMessage failed for session=${action.session}: code=${errCode}, message=${err instanceof Error ? err.message : String(err)}, type=${err?.constructor?.name}`, err);
 					this._stateManager.dispatchServerAction({
 						type: ActionType.SessionError,
 						session: action.session,
@@ -729,6 +632,12 @@ export class AgentSideEffects extends Disposable {
 					agent?.respondToPermissionRequest(action.toolCallId, action.approved);
 				} else {
 					this._logService.warn(`[AgentSideEffects] No agent for tool call confirmation: ${action.toolCallId}`);
+				}
+
+				// When the user chose "Allow in this Session", add the tool
+				// to the session's permissions so future calls are auto-approved.
+				if (action.approved) {
+					this._permissionManager.handleToolCallConfirmed(action.session, action.toolCallId, action.selectedOptionId);
 				}
 				break;
 			}
@@ -786,7 +695,7 @@ export class AgentSideEffects extends Disposable {
 					break;
 				}
 				// Publish initial "loading" status for all customizations
-				const loading: ISessionCustomization[] = refs.map(r => ({
+				const loading: SessionCustomization[] = refs.map(r => ({
 					customization: r,
 					enabled: true,
 					status: CustomizationStatus.Loading,
@@ -801,7 +710,7 @@ export class AgentSideEffects extends Disposable {
 					refs,
 					(synced) => {
 						// Incremental progress: publish updated statuses
-						const statuses: ISessionCustomization[] = synced.map(s => s.customization);
+						const statuses: SessionCustomization[] = synced.map(s => s.customization);
 						this._stateManager.dispatchServerAction({
 							type: ActionType.SessionCustomizationsChanged,
 							session: action.session,
@@ -810,7 +719,7 @@ export class AgentSideEffects extends Disposable {
 					},
 				).then(synced => {
 					// Final status
-					const statuses: ISessionCustomization[] = synced.map(s => s.customization);
+					const statuses: SessionCustomization[] = synced.map(s => s.customization);
 					this._stateManager.dispatchServerAction({
 						type: ActionType.SessionCustomizationsChanged,
 						session: action.session,
@@ -841,8 +750,8 @@ export class AgentSideEffects extends Disposable {
 				this._persistSessionFlag(action.session, 'isRead', action.isRead ? 'true' : '');
 				break;
 			}
-			case ActionType.SessionIsDoneChanged: {
-				this._persistSessionFlag(action.session, 'isDone', action.isDone ? 'true' : '');
+			case ActionType.SessionIsArchivedChanged: {
+				this._persistSessionFlag(action.session, 'isArchived', action.isArchived ? 'true' : '');
 				break;
 			}
 			case ActionType.SessionConfigChanged: {

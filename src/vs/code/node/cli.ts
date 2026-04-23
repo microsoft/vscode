@@ -248,11 +248,13 @@ export async function main(argv: string[]): Promise<void> {
 			const tempParentDir = randomPath(tmpdir(), 'vscode');
 			const tempUserDataDir = join(tempParentDir, 'data');
 			const tempExtensionsDir = join(tempParentDir, 'extensions');
+			const tempSharedDataDir = join(tempParentDir, 'shared');
 
 			addArg(argv, '--user-data-dir', tempUserDataDir);
 			addArg(argv, '--extensions-dir', tempExtensionsDir);
+			addArg(argv, '--shared-data-dir', tempSharedDataDir);
 
-			console.log(`State is temporarily stored. Relaunch this state with: ${product.applicationName} --user-data-dir "${tempUserDataDir}" --extensions-dir "${tempExtensionsDir}"`);
+			console.log(`State is temporarily stored. Relaunch this state with: ${product.applicationName} --user-data-dir "${tempUserDataDir}" --extensions-dir "${tempExtensionsDir}" --shared-data-dir "${tempSharedDataDir}"`);
 		}
 
 		const hasReadStdinArg = args._.some(arg => arg === '-') || args.chat?._.some(arg => arg === '-');

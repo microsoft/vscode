@@ -5,6 +5,7 @@
 
 import { PromptElement, PromptSizing, SystemMessage, UserMessage } from '@vscode/prompt-tsx';
 import { GenericBasePromptElementProps } from '../../../context/node/resolvers/genericPanelIntentInvocation';
+import { ToolName } from '../../../tools/common/toolNames';
 import { CopilotToolMode } from '../../../tools/common/toolsRegistry';
 import { SafetyRules } from '../base/safetyRules';
 import { TerminalStatePromptElement } from '../base/terminalState';
@@ -36,13 +37,25 @@ export class ExecutionSubagentPrompt extends PromptElement<ExecutionSubagentProm
 					You will be given a description of a task, and potentially some commands to run, but you can adapt the commands as necessary to complete the task.<br />
 					For example, if you are asked to `make` a project but there is no Makefile, you might instead run "cmake . && make" to successfully build the code. <br />
 					<br />
-					Always use mode="sync" when calling run_in_terminal. Use a generous timeout (e.g. 30000ms or more) so commands have time to finish. Do NOT use mode="async" — you must wait for each command to complete before proceeding. If a sync command times out, use get_terminal_output to check its status, send_to_terminal if it needs input, or kill_terminal to stop it.<br />
-					<br />
 					<SafetyRules />
+					<br />
+					When calling {ToolName.CoreRunInTerminal}, you MUST follow these rules:<br />
+					- Always use mode="sync".<br />
+					- Always include "timeout" in milliseconds. Use timeout=30000 for short commands, or timeout=120000 for builds and test suites.<br />
+					- Only call {ToolName.CoreRunInTerminal} once per turn. Do NOT call it in parallel.<br />
+					- If a command may prompt for confirmation, use flags like --yes, -y, or pipe from `yes` to auto-confirm.<br />
 					<br />
 					Once you have finished, return a message with ONLY: the &lt;final_answer&gt; tag to provide a compact summary of each command that was run.<br />
 					<br />
 					Example:<br />
+					<br />
+					[Call {ToolName.CoreRunInTerminal} with {'{'}"command": "make", "explanation": "Build the project", "goal": "Build the project", "mode": "sync", "timeout": 30000{'}'}]<br />
+					<br />
+					[Result: No Makefile found.]<br />
+					<br />
+					[Call {ToolName.CoreRunInTerminal} with {'{'}"command": "cmake . && make", "explanation": "Build with cmake", "goal": "Build the project", "mode": "sync", "timeout": 120000{'}'}]<br />
+					<br />
+					[Result: Build unsuccessful with errors.]<br />
 					<br />
 					&lt;final_answer&gt;<br />
 					Command: make<br />

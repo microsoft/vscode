@@ -69,7 +69,7 @@ export class WebviewEditor extends EditorPane {
 		const part = _editorGroupsService.getPart(group);
 		this._register(Event.any(part.onDidScroll, part.onDidAddGroup, part.onDidRemoveGroup, part.onDidMoveGroup)(() => {
 			if (this.webview && this._visible) {
-				this.synchronizeWebviewContainerDimensions(this.webview);
+				this.setWebviewAnchorElement(this.webview);
 			}
 		}));
 
@@ -105,7 +105,7 @@ export class WebviewEditor extends EditorPane {
 	public override layout(dimension: DOM.Dimension): void {
 		this._dimension = dimension;
 		if (this.webview && this._visible) {
-			this.synchronizeWebviewContainerDimensions(this.webview, dimension);
+			this.setWebviewAnchorElement(this.webview);
 		}
 	}
 
@@ -197,16 +197,16 @@ export class WebviewEditor extends EditorPane {
 
 		this._webviewVisibleDisposables.add(new WebviewWindowDragMonitor(this.window, () => this.webview));
 
-		this.synchronizeWebviewContainerDimensions(input.webview);
+		this.setWebviewAnchorElement(input.webview);
 		this._webviewVisibleDisposables.add(this.trackFocus(input.webview));
 	}
 
-	private synchronizeWebviewContainerDimensions(webview: IOverlayWebview, dimension?: DOM.Dimension) {
+	private setWebviewAnchorElement(webview: IOverlayWebview) {
 		if (!this._element?.isConnected) {
 			return;
 		}
 
-		webview.layoutWebviewOverElement(this._element.parentElement!, dimension, this._clippingContainer);
+		webview.setAnchorElement(this._element.parentElement!, this._clippingContainer);
 	}
 
 	private trackFocus(webview: IOverlayWebview): IDisposable {

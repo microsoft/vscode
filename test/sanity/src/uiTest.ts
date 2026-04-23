@@ -51,11 +51,9 @@ export class UITest {
 	/**
 	 * Run the UI test actions.
 	 */
-	public async run(page: Page, skipWelcome = false) {
+	public async run(page: Page) {
 		try {
-			if (!skipWelcome) {
-				await this.dismissWelcomeDialog(page);
-			}
+			await this.dismissWelcomeDialog(page);
 			await this.dismissWorkspaceTrustDialog(page);
 			await this.createTextFile(page);
 			await this.installExtension(page);
@@ -74,12 +72,17 @@ export class UITest {
 	}
 
 	/**
-	 * Dismiss the welcome sign-in dialog.
+	 * Dismiss the welcome sign-in dialog if it is shown.
 	 */
 	public async dismissWelcomeDialog(page: Page) {
-		this.context.log('Dismissing welcome dialog');
+		this.context.log('Dismissing welcome dialog (if shown)');
 		const skipButton = page.getByRole('button', { name: 'Skip' });
-		await skipButton.waitFor({ state: 'visible' });
+		try {
+			await skipButton.waitFor({ state: 'visible', timeout: 5_000 });
+		} catch {
+			this.context.log('Welcome dialog not shown, continuing');
+			return;
+		}
 		await skipButton.click();
 		await skipButton.waitFor({ state: 'hidden' });
 	}
