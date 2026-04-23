@@ -166,6 +166,9 @@
 		min-width: 0;
 		height: auto;
 		white-space: nowrap;
+	}
+
+	.agent-sessions-compact-new-button.monaco-button:not(.disabled) {
 		cursor: pointer;
 	}
 
