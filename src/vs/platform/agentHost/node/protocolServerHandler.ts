@@ -201,7 +201,7 @@ export class ProtocolServerHandler extends Disposable {
 
 		disposables.add(transport.onClose(() => {
 			if (client && this._clients.get(client.clientId) === client) {
-				this._logService.info(`[ProtocolServer] Client disconnected: ${client.clientId}`);
+				this._logService.info(`[ProtocolServer] Client disconnected: ${client.clientId}, subscriptions=${client.subscriptions.size}`);
 				this._clients.delete(client.clientId);
 				this._rejectPendingReverseRequests(client.clientId);
 				this._onDidChangeConnectionCount.fire(this._clients.size);

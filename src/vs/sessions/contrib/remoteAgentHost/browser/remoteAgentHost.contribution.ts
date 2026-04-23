@@ -260,7 +260,7 @@ export class RemoteAgentHostContribution extends Disposable implements IWorkbenc
 			if (existing) {
 				// If the name or clientId changed, tear down and re-register
 				if (existing.name !== connectionInfo.name || existing.loggedConnection.clientId !== connectionInfo.clientId) {
-					this._logService.info(`[RemoteAgentHost] Reconnecting contribution for ${connectionInfo.address}`);
+					this._logService.info(`[RemoteAgentHost] Reconnecting contribution for ${connectionInfo.address}: oldClientId=${existing.loggedConnection.clientId}, newClientId=${connectionInfo.clientId}, nameChanged=${existing.name !== connectionInfo.name}`);
 					this._connections.deleteAndDispose(connectionInfo.address);
 					this._setupConnection(connectionInfo);
 				}

@@ -662,9 +662,11 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	setClientTools(session: URI, clientId: string, tools: IToolDefinition[]): void {
+		const sessionId = AgentSession.id(session);
 		const activeClient = this._getOrCreateActiveClient(session);
+		const hasCachedEntry = this._sessions.has(sessionId);
+		this._logService.info(`[Copilot:${sessionId}] setClientTools: clientId=${clientId}, tools=[${tools.map(t => t.name).join(', ') || '(none)'}], hasCachedSdkSession=${hasCachedEntry}`);
 		activeClient.updateTools(clientId, tools);
-		this._logService.info(`[Copilot:${AgentSession.id(session)}] Client tools updated: ${tools.map(t => t.name).join(', ') || '(none)'}`);
 	}
 
 	onClientToolCallComplete(session: URI, toolCallId: string, result: IToolCallResult): void {
@@ -684,12 +686,17 @@ export class CopilotAgent extends Disposable implements IAgent {
 			// dispose this session so it gets resumed with the updated config.
 			let entry = this._sessions.get(sessionId);
 			const activeClient = this._activeClients.get(session);
+			const hadCachedEntry = !!entry;
+			this._logService.info(`[Copilot:${sessionId}] sendMessage: cachedEntry=${hadCachedEntry}, hasActiveClient=${!!activeClient}, activeClientId=${activeClient ? '(set)' : '(none)'}`);
 			if (entry && activeClient && await activeClient.isOutdated(entry.appliedSnapshot)) {
-				this._logService.info(`[Copilot:${sessionId}] Session config changed, refreshing session`);
+				this._logService.info(`[Copilot:${sessionId}] Session config changed (isOutdated=true), refreshing session. snapshotClientId=${entry.appliedSnapshot.clientId}`);
 				this._sessions.deleteAndDispose(sessionId);
 				entry = undefined;
 			}
 
+			if (!entry) {
+				this._logService.info(`[Copilot:${sessionId}] No cached entry${hadCachedEntry ? ' (was evicted by isOutdated)' : ''}, calling _resumeSession`);
+			}
 			entry ??= await this._resumeSession(sessionId);
 
 			// Emit any pending first-turn announcements (e.g. worktree
@@ -706,7 +713,14 @@ export class CopilotAgent extends Disposable implements IAgent {
 				this._onDidSessionProgress.fire(event);
 			}
 
-			await entry.send(prompt, attachments, turnId);
+			try {
+				await entry.send(prompt, attachments, turnId);
+			} catch (err) {
+				const errCode = (err as { code?: number })?.code;
+				const errMsg = err instanceof Error ? err.message : String(err);
+				this._logService.error(`[Copilot:${sessionId}] entry.send() failed: code=${errCode}, message=${errMsg}, hadCachedEntry=${hadCachedEntry}, errorType=${err?.constructor?.name}`);
+				throw err;
+			}
 		});
 	}
 
@@ -922,7 +936,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 	}
 
 	protected async _resumeSession(sessionId: string): Promise<CopilotAgentSession> {
-		this._logService.info(`[Copilot:${sessionId}] Session not in memory, resuming...`);
+		this._logService.info(`[Copilot:${sessionId}] _resumeSession called — session not in memory, resuming...`);
 		const client = await this._ensureClient();
 
 		const sessionUri = AgentSession.uri(this.id, sessionId);
@@ -944,20 +958,25 @@ export class CopilotAgent extends Disposable implements IAgent {
 		const factory: SessionWrapperFactory = async callbacks => {
 			const config = await sessionConfig(callbacks);
 			try {
+				this._logService.info(`[Copilot:${sessionId}] Calling SDK resumeSession...`);
 				const raw = await client.resumeSession(sessionId, {
 					...config,
 					workingDirectory: workingDirectory?.fsPath,
 				});
+				this._logService.info(`[Copilot:${sessionId}] SDK resumeSession succeeded`);
 				return new CopilotSessionWrapper(raw);
 			} catch (err) {
+				const errCode = (err as { code?: number })?.code;
+				const errMsg = err instanceof Error ? err.message : String(err);
+				this._logService.warn(`[Copilot:${sessionId}] SDK resumeSession failed: code=${errCode}, message=${errMsg}`);
 				// The SDK fails to resume sessions that have no messages.
 				// Fall back to creating a new session with the same ID,
 				// seeding model & working directory from stored metadata.
-				if (!err || (err as { code?: number }).code !== -32603) {
+				if (!err || errCode !== -32603) {
 					throw err;
 				}
 
-				this._logService.warn(`[Copilot:${sessionId}] Resume failed (session not found in SDK), recreating`);
+				this._logService.warn(`[Copilot:${sessionId}] Resume failed (code=-32603), falling back to createSession with same ID`);
 				const raw = await client.createSession({
 					...config,
 					sessionId,
@@ -966,6 +985,7 @@ export class CopilotAgent extends Disposable implements IAgent {
 					reasoningEffort: this._getReasoningEffort(storedMetadata.model),
 					workingDirectory: workingDirectory?.fsPath,
 				});
+				this._logService.info(`[Copilot:${sessionId}] Fallback createSession succeeded`);
 
 				return new CopilotSessionWrapper(raw);
 			}

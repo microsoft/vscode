@@ -612,7 +612,8 @@ export class AgentSideEffects extends Disposable {
 					displayName: a.displayName,
 				}));
 				agent.sendMessage(URI.parse(action.session), action.userMessage.text, attachments, action.turnId).catch(err => {
-					this._logService.error('[AgentSideEffects] sendMessage failed', err);
+					const errCode = (err as { code?: number })?.code;
+					this._logService.error(`[AgentSideEffects] sendMessage failed for session=${action.session}: code=${errCode}, message=${err instanceof Error ? err.message : String(err)}, type=${err?.constructor?.name}`);
 					this._stateManager.dispatchServerAction({
 						type: ActionType.SessionError,
 						session: action.session,
