@@ -98,11 +98,6 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
-				let sessionType: string | undefined = undefined;
-				if (widget.lockedAgentId) {
-					sessionType = getChatSessionType(widget.viewModel.model.sessionResource);
-				}
-
 				const range = computeCompletionRanges(model, position, SlashCommandWord);
 				if (!range) {
 					return null;
@@ -125,6 +120,8 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
+				const sessionType = getChatSessionType(widget.viewModel.model.sessionResource);
+
 				return {
 					suggestions: slashCommands
 						.filter(c => {
@@ -137,13 +134,13 @@ class SlashCommandCompletions extends Disposable {
 							if (c.when && !widget.scopedContextKeyService.contextMatchesRules(c.when)) {
 								return false;
 							}
+							if (!matchesSessionType(c.sessionTypes, sessionType)) {
+								return false;
+							}
 							if (!widget.lockedAgentId) {
 								return true;
 							}
 							if (c.modes && c.modes.length && !c.modes.includes(ChatModeKind.Agent)) {
-								return false;
-							}
-							if (c.sessionTypes && sessionType && !c.sessionTypes.includes(sessionType)) {
 								return false;
 							}
 							return true;
@@ -191,9 +188,12 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
+				const currentSessionType = getChatSessionType(widget.viewModel.model.sessionResource);
+
 				return {
 					suggestions: slashCommands
 						.filter(c => !c.when || widget.scopedContextKeyService.contextMatchesRules(c.when))
+						.filter(c => matchesSessionType(c.sessionTypes, currentSessionType))
 						.map((c, i): CompletionItem => {
 							const withSlash = `${chatSubcommandLeader}${c.command}`;
 							return {
@@ -245,7 +245,7 @@ class SlashCommandCompletions extends Disposable {
 					return null;
 				}
 
-				const currentSessionType = widget.viewModel.model.sessionResource ? getChatSessionType(widget.viewModel.model.sessionResource) : undefined;
+				const currentSessionType = getChatSessionType(widget.viewModel.model.sessionResource);
 				const userInvocableCommands = promptCommands
 					.filter(c => c.userInvocable)
 					.filter(c => matchesSessionType(c.sessionTypes, currentSessionType));

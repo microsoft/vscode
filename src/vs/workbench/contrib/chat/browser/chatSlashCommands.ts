@@ -358,7 +358,6 @@ export class ChatSessionOptionSlashCommandsContribution extends Disposable {
 
 		const store = new DisposableStore();
 		const seen = new Set<string>();
-		const whenClause = ChatContextKeys.chatSessionType.isEqualTo(chatSessionType);
 
 		for (const group of groups) {
 			for (const item of group.items) {
@@ -375,7 +374,7 @@ export class ChatSessionOptionSlashCommandsContribution extends Disposable {
 					continue;
 				}
 				seen.add(name);
-				store.add(this.registerOne(chatSessionType, group, item, name, whenClause));
+				store.add(this.registerOne(chatSessionType, group, item, name));
 			}
 		}
 
@@ -390,8 +389,7 @@ export class ChatSessionOptionSlashCommandsContribution extends Disposable {
 		chatSessionType: string,
 		group: IChatSessionProviderOptionGroup,
 		item: IChatSessionProviderOptionItem,
-		name: string,
-		whenClause: ReturnType<typeof ChatContextKeys.chatSessionType.isEqualTo>,
+		name: string
 	) {
 		return this.slashCommandService.registerSlashCommand({
 			command: name,
@@ -400,7 +398,7 @@ export class ChatSessionOptionSlashCommandsContribution extends Disposable {
 			executeImmediately: true,
 			silent: true,
 			locations: [ChatAgentLocation.Chat],
-			when: whenClause,
+			sessionTypes: [chatSessionType],
 		}, async (_prompt, _progress, _history, _location, sessionResource) => {
 			if (!sessionResource) {
 				return;
