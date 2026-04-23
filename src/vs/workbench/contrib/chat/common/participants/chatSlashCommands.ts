@@ -107,7 +107,7 @@ export class ChatSlashCommandService extends Disposable implements IChatSlashCom
 	registerSlashCommand(data: IChatSlashData, command: IChatSlashCallback): IDisposable {
 		const commandsForId = this.getSessionScopedCommands(data.command);
 		if (commandsForId.some(candidate => this.commandsOverlap(candidate.data, data))) {
-			throw new Error(`Already registered a command with id ${data.command}}`);
+			throw new Error(`Already registered a command with id ${data.command}`);
 		}
 
 		const entry = { data, command };
@@ -131,9 +131,7 @@ export class ChatSlashCommandService extends Disposable implements IChatSlashCom
 				this._commands.delete(data.command);
 			}
 
-			if (entryIndex !== -1) {
-				this._onDidChangeCommands.fire();
-			}
+			this._onDidChangeCommands.fire();
 		});
 	}
 
