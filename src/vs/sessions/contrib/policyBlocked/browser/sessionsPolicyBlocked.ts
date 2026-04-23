@@ -12,20 +12,15 @@ import { defaultButtonStyles } from '../../../../platform/theme/browser/defaultS
 import { IOpenerService } from '../../../../platform/opener/common/opener.js';
 import { IProductService } from '../../../../platform/product/common/productService.js';
 import { URI } from '../../../../base/common/uri.js';
-import { ICommandService } from '../../../../platform/commands/common/commands.js';
 
 export const enum SessionsBlockedReason {
 	AgentDisabled = 'agentDisabled',
 	/** Transient loading state — blocks UI but shows only a progress bar. */
 	Loading = 'loading',
-	/** Stable restriction — user must sign in to an approved org. */
-	AccountPolicyGate = 'accountPolicyGate',
 }
 
 export interface ISessionsBlockedOverlayOptions {
 	readonly reason: SessionsBlockedReason;
-	readonly approvedOrganizations?: readonly string[];
-	readonly accountName?: string;
 }
 
 /**
@@ -39,7 +34,6 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 	constructor(
 		container: HTMLElement,
 		options: ISessionsBlockedOverlayOptions,
-		@ICommandService private readonly commandService: ICommandService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IProductService private readonly productService: IProductService,
 	) {
@@ -79,9 +73,6 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 			case SessionsBlockedReason.Loading:
 				this._renderLoading(card);
 				break;
-			case SessionsBlockedReason.AccountPolicyGate:
-				this._renderAccountPolicyGate(card, options);
-				break;
 		}
 	}
 
@@ -111,53 +102,6 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 		append(card, $('div.sessions-policy-blocked-progress-bar', undefined,
 			$('div.sessions-policy-blocked-progress-bar-fill')
 		));
-	}
-
-	private _renderAccountPolicyGate(card: HTMLElement, options: ISessionsBlockedOverlayOptions): void {
-		this.overlay.setAttribute('aria-label', localize('accountGate.aria', "Sign-in required by organization policy"));
-
-		append(card, $('h2', undefined, localize('accountGate.title', "Sign-In Required")));
-
-		const description = append(card, $('p'));
-		if (options.accountName) {
-			append(description, document.createTextNode(
-				localize('accountGate.descriptionWithAccount', "The account \"{0}\" is not a member of an approved organization. Sign into an approved GitHub account to use Agents.", options.accountName)
-			));
-		} else {
-			append(description, document.createTextNode(
-				localize('accountGate.descriptionNoAccount', "Sign in with a GitHub account from an approved organization to use Agents.")
-			));
-		}
-
-		const approvedOrgs = options.approvedOrganizations ?? [];
-		const hasConcreteOrgs = approvedOrgs.length > 0 && !approvedOrgs.includes('*');
-		if (hasConcreteOrgs) {
-			const orgSection = append(card, $('div.sessions-policy-blocked-orgs'));
-			append(orgSection, $('p.sessions-policy-blocked-orgs-label', undefined,
-				localize('accountGate.approvedOrgs', "Approved organizations:")
-			));
-			const orgList = append(orgSection, $('ul'));
-			for (const org of approvedOrgs) {
-				append(orgList, $('li', undefined, org));
-			}
-		}
-
-		const footer = append(card, $('p.sessions-policy-blocked-footer'));
-		append(footer, document.createTextNode(localize('accountGate.contactAdmin', "Contact your administrator for more information.")));
-		append(footer, document.createTextNode(' '));
-		const learnMore = append(footer, $('a.sessions-policy-blocked-link')) as HTMLAnchorElement;
-		learnMore.textContent = localize('accountGate.learnMore', "Learn more");
-		learnMore.href = 'https://code.visualstudio.com/docs/enterprise/overview';
-		this._register(addDisposableListener(learnMore, EventType.CLICK, (e) => {
-			e.preventDefault();
-			this.openerService.open(URI.parse('https://code.visualstudio.com/docs/enterprise/overview'));
-		}));
-
-		const signInButton = this._register(new Button(card, { ...defaultButtonStyles }));
-		signInButton.label = localize('accountGate.signIn', "Sign In");
-		this._register(signInButton.onDidClick(() => {
-			this.commandService.executeCommand('workbench.action.agenticSignIn');
-		}));
 	}
 
 	private _openVSCode(): void {

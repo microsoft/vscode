@@ -91,34 +91,6 @@
 	100% { transform: translateX(0%); }
 }
 
-/* Approved organizations list */
-.sessions-policy-blocked-card .sessions-policy-blocked-orgs {
-	text-align: center;
-}
-
-.sessions-policy-blocked-card .sessions-policy-blocked-orgs-label {
-	margin: 0 0 4px 0;
-	font-size: 12px;
-	font-weight: 600;
-	color: var(--vscode-foreground);
-}
-
-.sessions-policy-blocked-card .sessions-policy-blocked-orgs ul {
-	margin: 0;
-	padding: 0;
-	list-style: none;
-}
-
-.sessions-policy-blocked-card .sessions-policy-blocked-orgs li {
-	font-size: 12px;
-	color: var(--vscode-descriptionForeground);
-	line-height: 1.6;
-}
-
-.sessions-policy-blocked-card .sessions-policy-blocked-footer {
-	font-size: 12px;
-}
-
 .sessions-policy-blocked-card .monaco-button {
 	margin-top: 4px;
 	width: auto;

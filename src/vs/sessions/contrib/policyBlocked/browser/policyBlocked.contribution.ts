@@ -8,7 +8,6 @@ import { IWorkbenchContribution, registerWorkbenchContribution2, WorkbenchPhase 
 import { IWorkbenchLayoutService } from '../../../../workbench/services/layout/browser/layoutService.js';
 import { IInstantiationService } from '../../../../platform/instantiation/common/instantiation.js';
 import { IConfigurationService } from '../../../../platform/configuration/common/configuration.js';
-import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 import { ChatConfiguration } from '../../../../workbench/contrib/chat/common/constants.js';
 import { ISessionsBlockedOverlayOptions, SessionsBlockedReason, SessionsPolicyBlockedOverlay } from './sessionsPolicyBlocked.js';
 import { AccountPolicyGateState, AccountPolicyGateUnsatisfiedReason, IAccountPolicyGateService } from '../../../../workbench/services/policies/common/accountPolicyService.js';
@@ -25,7 +24,6 @@ export class SessionsPolicyBlockedContribution extends Disposable implements IWo
 		@IWorkbenchLayoutService private readonly layoutService: IWorkbenchLayoutService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
 		@IAccountPolicyGateService private readonly gateService: IAccountPolicyGateService,
-		@IDefaultAccountService private readonly defaultAccountService: IDefaultAccountService,
 	) {
 		super();
 
@@ -55,25 +53,16 @@ export class SessionsPolicyBlockedContribution extends Disposable implements IWo
 
 		// Account policy gate
 		if (gateInfo.state === AccountPolicyGateState.Restricted) {
-			// noAccount / wrongProvider: don't show our overlay — the sessions
-			// welcome/walkthrough screen already handles sign-in.
-			if (gateInfo.reason === AccountPolicyGateUnsatisfiedReason.NoAccount
-				|| gateInfo.reason === AccountPolicyGateUnsatisfiedReason.WrongProvider) {
-				this.overlayRef.clear();
-				this.currentReason = undefined;
-				return;
-			}
-
+			// PolicyNotResolved is the only transient state — show a loading bar
+			// so we don't flash a misleading message while data is in flight.
+			// All other unsatisfied reasons (noAccount, wrongProvider, orgNotApproved)
+			// require user action: defer to the sessions welcome/walkthrough screen
+			// so the user can sign in or switch accounts via the standard flow.
 			if (gateInfo.reason === AccountPolicyGateUnsatisfiedReason.PolicyNotResolved) {
 				this.showOverlay({ reason: SessionsBlockedReason.Loading });
 			} else {
-				// orgNotApproved — stable restriction
-				const accountName = this.defaultAccountService.currentDefaultAccount?.accountName;
-				this.showOverlay({
-					reason: SessionsBlockedReason.AccountPolicyGate,
-					approvedOrganizations: gateInfo.approvedOrganizations,
-					accountName,
-				});
+				this.overlayRef.clear();
+				this.currentReason = undefined;
 			}
 			return;
 		}
@@ -85,7 +74,7 @@ export class SessionsPolicyBlockedContribution extends Disposable implements IWo
 
 	private showOverlay(options: ISessionsBlockedOverlayOptions): void {
 		// Don't recreate if already showing the same reason
-		if (this.currentReason === options.reason && options.reason !== SessionsBlockedReason.AccountPolicyGate) {
+		if (this.currentReason === options.reason) {
 			return;
 		}
 		this.overlayRef.clear();
