@@ -386,6 +386,12 @@ configurationRegistry.registerConfiguration({
 			default: 'word',
 			tags: ['experimental'],
 		},
+		[ChatConfiguration.PlanningMiddlewareEnabled]: {
+			type: 'boolean',
+			description: nls.localize('chat.experimental.planningMiddleware.enabled', "Enables the experimental planning middleware: dynamic clarifying questions, plan focus carousels, and the plan review flow when chat is in a planning mode."),
+			default: false,
+			tags: ['experimental'],
+		},
 		'chat.detectParticipant.enabled': {
 			type: 'boolean',
 			description: nls.localize('chat.detectParticipant.enabled', "Enables chat participant autodetection for panel chat."),

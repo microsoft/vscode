@@ -126,21 +126,19 @@ function installHeaders() {
 	// The node gyp package got installed using the above npm command using the gyp/package.json
 	// file checked into our repository. So from that point it is safe to construct the path
 	// to that executable
-	const node_gyp = process.platform === 'win32'
-		? path.join(import.meta.dirname, 'gyp', 'node_modules', '.bin', 'node-gyp.cmd')
-		: path.join(import.meta.dirname, 'gyp', 'node_modules', '.bin', 'node-gyp');
+	const nodeGypScript = path.join(import.meta.dirname, 'gyp', 'node_modules', 'node-gyp', 'bin', 'node-gyp.js');
 
 	const local = getHeaderInfo(path.join(import.meta.dirname, '..', '..', '.npmrc'));
 	const remote = getHeaderInfo(path.join(import.meta.dirname, '..', '..', 'remote', '.npmrc'));
 
 	if (local !== undefined) {
 		// Both disturl and target come from a file checked into our repository
-		child_process.execFileSync(node_gyp, ['install', '--dist-url', local.disturl, local.target], { shell: true });
+		child_process.execFileSync(process.execPath, [nodeGypScript, 'install', '--dist-url', local.disturl, local.target], { stdio: 'inherit' });
 	}
 
 	if (remote !== undefined) {
 		// Both disturl and target come from a file checked into our repository
-		child_process.execFileSync(node_gyp, ['install', '--dist-url', remote.disturl, remote.target], { shell: true });
+		child_process.execFileSync(process.execPath, [nodeGypScript, 'install', '--dist-url', remote.disturl, remote.target], { stdio: 'inherit' });
 	}
 
 	// On Linux, apply a patch to the downloaded headers

@@ -46,6 +46,16 @@
 	-webkit-user-select: text;
 }
 
+.interactive-item-container.hidden-complete-added-request {
+	padding: 0;
+	min-height: 0;
+	overflow: hidden;
+}
+
+.interactive-item-container.hidden-complete-added-request > * {
+	display: none !important;
+}
+
 .interactive-item-container:not(:has(.chat-extensions-content-part)) .header {
 	display: flex;
 	align-items: center;

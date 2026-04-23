@@ -54,6 +54,7 @@ import { chatSubcommandLeader } from '../../common/requestParser/chatParserTypes
 import { ChatAgentVoteDirection, ChatErrorLevel, ChatRequestQueueKind, IChatConfirmation, IChatContentReference, IChatDisabledClaudeHooksPart, IChatElicitationRequest, IChatElicitationRequestSerialized, IChatExtensionsContent, IChatFollowup, IChatHookPart, IChatMarkdownContent, IChatMcpServersStarting, IChatMcpServersStartingSerialized, IChatMultiDiffData, IChatMultiDiffDataSerialized, IChatPlanReview, IChatPlanReviewResult, IChatPullRequestContent, IChatQuestionAnswerValue, IChatQuestionAnswers, IChatQuestionCarousel, IChatService, IChatTask, IChatTaskSerialized, IChatThinkingPart, IChatToolInvocation, IChatToolInvocationSerialized, IChatTreeData, IChatUndoStop, isChatFollowup } from '../../common/chatService/chatService.js';
 import { ChatPlanReviewData } from '../../common/model/chatProgressTypes/chatPlanReviewData.js';
 import { ChatQuestionCarouselData } from '../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
+import { isPlanningMiddlewareQuestionCarousel } from '../../common/planning/chatPlanningTransition.js';
 import { localChatSessionType } from '../../common/chatSessionsService.js';
 import { getChatSessionType } from '../../common/model/chatUri.js';
 import { IChatRequestVariableEntry } from '../../common/attachments/chatVariableEntries.js';
@@ -1313,6 +1314,18 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 		// System-initiated requests render as compact progress-style messages
 		if (element.isSystemInitiated) {
 			this.renderSystemInitiatedRequest(element, templateData);
+			return;
+		}
+
+		const isHiddenCompleteAddedRequest = element.isCompleteAddedRequest && !element.messageText.trim();
+		templateData.rowContainer.classList.toggle('hidden-complete-added-request', isHiddenCompleteAddedRequest);
+		if (isHiddenCompleteAddedRequest) {
+			dom.clearNode(templateData.value);
+			dom.clearNode(templateData.detail);
+			if (templateData.renderedParts) {
+				dispose(templateData.renderedParts);
+				templateData.renderedParts = undefined;
+			}
 			return;
 		}
 
@@ -2765,10 +2778,19 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 		// If carousel is already used or response is complete/canceled, render summary inline in the list
 		const responseIsComplete = isResponseVM(context.element) && context.element.isComplete;
+		const isPlanningMiddlewareCarousel = isPlanningMiddlewareQuestionCarousel(carousel.resolveId);
 		const inputPartHasCarousel = widget?.input.questionCarousel !== undefined;
 
-		if (carousel.isUsed || responseIsComplete) {
-			if (responseIsComplete && !carousel.isUsed && isResponseVM(context.element) && carousel.resolveId) {
+		if (isPlanningMiddlewareCarousel && responseIsComplete && !carousel.isUsed) {
+			const inlinePart = this.instantiationService.createInstance(ChatQuestionCarouselPart, carousel, context, {
+				shouldAutoFocus: shouldAutoFocus,
+				onSubmit: async (answers) => handleSubmit(answers, inlinePart)
+			});
+			return inlinePart;
+		}
+
+		if (carousel.isUsed || (responseIsComplete && !isPlanningMiddlewareCarousel)) {
+			if (responseIsComplete && !isPlanningMiddlewareCarousel && !carousel.isUsed && isResponseVM(context.element) && carousel.resolveId) {
 				carousel.data = {};
 				carousel.isUsed = true;
 				if (carousel instanceof ChatQuestionCarouselData) {
@@ -2782,7 +2804,7 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 
 			// Clear the carousel from input part when response completes (stopped/canceled)
 			// Only clear if this response's carousel is currently displayed (pass responseId)
-			if (responseIsComplete && inputPartHasCarousel && responseId) {
+			if (responseIsComplete && !isPlanningMiddlewareCarousel && inputPartHasCarousel && responseId) {
 				widget?.input.clearQuestionCarousel(responseId);
 			}
 

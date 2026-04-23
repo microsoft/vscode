@@ -78,6 +78,8 @@ export enum ChatConfiguration {
 	IncrementalRendering = 'chat.experimental.incrementalRendering.enabled',
 	IncrementalRenderingStyle = 'chat.experimental.incrementalRendering.animationStyle',
 	IncrementalRenderingBuffering = 'chat.experimental.incrementalRendering.buffering',
+
+	PlanningMiddlewareEnabled = 'chat.experimental.planningMiddleware.enabled',
 }
 
 /**

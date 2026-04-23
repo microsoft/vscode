@@ -22,16 +22,18 @@ import { ResourceSet } from '../../../../../base/common/map.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { IsSessionsWindowContext } from '../../../../common/contextkeys.js';
 import { filter } from '../../../../../base/common/objects.js';
-import { autorun, derived, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
+import { autorun, constObservable, derived, observableFromEvent, observableValue } from '../../../../../base/common/observable.js';
 import { extUri, isEqual } from '../../../../../base/common/resources.js';
 import { MicrotaskDelay } from '../../../../../base/common/symbols.js';
-import { isDefined } from '../../../../../base/common/types.js';
+import { hasKey, isDefined } from '../../../../../base/common/types.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ChatPerfMark, markChat } from '../../common/chatPerf.js';
 import { ICodeEditor } from '../../../../../editor/browser/editorBrowser.js';
 import { ICodeEditorService } from '../../../../../editor/browser/services/codeEditorService.js';
 import { OffsetRange } from '../../../../../editor/common/core/ranges/offsetRange.js';
 import { Range } from '../../../../../editor/common/core/range.js';
+import { ILanguageFeaturesService } from '../../../../../editor/common/services/languageFeatures.js';
+import { ITextModelService } from '../../../../../editor/common/services/resolverService.js';
 import { localize } from '../../../../../nls.js';
 import { MenuId } from '../../../../../platform/actions/common/actions.js';
 import { IConfigurationService } from '../../../../../platform/configuration/common/configuration.js';
@@ -39,6 +41,7 @@ import { IContextKey, IContextKeyService } from '../../../../../platform/context
 import { IDialogService } from '../../../../../platform/dialogs/common/dialogs.js';
 
 import { ITextResourceEditorInput } from '../../../../../platform/editor/common/editor.js';
+import { IFileService } from '../../../../../platform/files/common/files.js';
 import { IInstantiationService } from '../../../../../platform/instantiation/common/instantiation.js';
 import { ServiceCollection } from '../../../../../platform/instantiation/common/serviceCollection.js';
 import { ILogService } from '../../../../../platform/log/common/log.js';
@@ -46,10 +49,11 @@ import { bindContextKey } from '../../../../../platform/observable/common/platfo
 import product from '../../../../../platform/product/common/product.js';
 import { ITelemetryService } from '../../../../../platform/telemetry/common/telemetry.js';
 import { IThemeService } from '../../../../../platform/theme/common/themeService.js';
+import { IWorkspaceContextService } from '../../../../../platform/workspace/common/workspace.js';
 import { IChatEntitlementService } from '../../../../services/chat/common/chatEntitlementService.js';
 import { ILifecycleService } from '../../../../services/lifecycle/common/lifecycle.js';
 import { checkModeOption } from '../../common/chat.js';
-import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData, IChatAgentService } from '../../common/participants/chatAgents.js';
+import { IChatAgentAttachmentCapabilities, IChatAgentCommand, IChatAgentData, IChatAgentService, UserSelectedTools } from '../../common/participants/chatAgents.js';
 import { ChatContextKeys } from '../../common/actions/chatContextKeys.js';
 import { applyingChatEditsFailedContextKey, decidedChatEditingResourceContextKey, hasAppliedChatEditsContextKey, hasUndecidedChatEditingResourceContextKey, IChatEditingService, IChatEditingSession, inChatEditingSessionContextKey, ModifiedFileEntryState } from '../../common/editing/chatEditingService.js';
 import { IChatLayoutService } from '../../common/widget/chatLayoutService.js';
@@ -58,17 +62,21 @@ import { ChatMode, getModeNameForTelemetry, IChatMode, IChatModeService } from '
 import { chatAgentLeader, ChatRequestAgentPart, ChatRequestDynamicVariablePart, ChatRequestSlashPromptPart, ChatRequestToolPart, ChatRequestToolSetPart, chatSubcommandLeader, formatChatQuestion, IParsedChatRequest } from '../../common/requestParser/chatParserTypes.js';
 import { ChatRequestParser } from '../../common/requestParser/chatRequestParser.js';
 import { getDynamicVariablesForWidget, getSelectedToolAndToolSetsForWidget } from '../attachments/chatVariables.js';
-import { ChatRequestQueueKind, ChatSendResult, IChatLocationData, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
+import { ChatRequestQueueKind, ChatSendResult, IChatCommandButton, IChatLocationData, IChatProgress, IChatQuestion, IChatQuestionAnswers, IChatQuestionCarousel, IChatSendRequestOptions, IChatService } from '../../common/chatService/chatService.js';
 import { IChatSessionsService } from '../../common/chatSessionsService.js';
 import { IChatSlashCommandService } from '../../common/participants/chatSlashCommands.js';
 import { IChatTodoListService } from '../../common/tools/chatTodoListService.js';
-import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isWorkspaceVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry } from '../../common/attachments/chatVariableEntries.js';
-import { ChatViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
+import { ChatRequestVariableSet, IChatRequestVariableEntry, isPromptFileVariableEntry, isPromptTextVariableEntry, isWorkspaceVariableEntry, PromptFileVariableKind, toPromptFileVariableEntry, toPromptTextVariableEntry } from '../../common/attachments/chatVariableEntries.js';
+import { ChatViewModel, IChatRequestViewModel, IChatResponseViewModel, isRequestVM, isResponseVM } from '../../common/model/chatViewModel.js';
 import { ChatAgentLocation, ChatConfiguration, ChatModeKind, ChatPermissionLevel, ThinkingDisplayMode } from '../../common/constants.js';
 import { ILanguageModelToolsService, isToolSet } from '../../common/tools/languageModelToolsService.js';
+import { ILanguageModelsService } from '../../common/languageModels.js';
 import { IHandOff, PromptHeader } from '../../common/promptSyntax/promptFileParser.js';
+import { assessPlanningReadiness } from '../../common/planning/chatPlanningReadiness.js';
+import { shouldRegeneratePlanningQuestions } from '../../common/planning/chatPlanningQuestionHeuristics.js';
+import { augmentPromptWithPlanningContext, buildPlanningTransitionContext, getNextPlanningPhase, getPreviousPlanningPhase, IPlanningTransitionContext, isConcretePlanningArtifactReference, isPlanningMiddlewareQuestionCarousel, isPlanningModeName, mergePlanningTransitionContexts, PlanningPhase, PlanningQuestionStage, planningMiddlewareQuestionCarouselResolveIdPrefix } from '../../common/planning/chatPlanningTransition.js';
 import { IPromptsService, PromptsStorage } from '../../common/promptSyntax/service/promptsService.js';
-import { GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID, handleModeSwitch } from '../actions/chatActions.js';
+import { GENERATE_AGENT_INSTRUCTIONS_COMMAND_ID, handleModeSwitch, OPEN_PLANNING_PLAN_ACTION_ID, OPEN_PLANNING_PLAN_DIFF_ACTION_ID, OPEN_PLANNING_PLAN_TO_SIDE_ACTION_ID } from '../actions/chatActions.js';
 import { ChatTreeItem, IChatAcceptInputOptions, IChatAccessibilityService, IChatCodeBlockInfo, IChatFileTreeInfo, IChatListItemRendererOptions, IChatWidget, IChatWidgetService, IChatWidgetViewContext, IChatWidgetViewModelChangeEvent, IChatWidgetViewOptions, isIChatResourceViewContext, isIChatViewViewContext } from '../chat.js';
 import { ChatAttachmentModel } from '../attachments/chatAttachmentModel.js';
 import { IChatAttachmentResolveService } from '../attachments/chatAttachmentResolveService.js';
@@ -84,6 +92,9 @@ import { ChatTipContentPart } from './chatContentParts/chatTipContentPart.js';
 import { ChatContentMarkdownRenderer } from './chatContentMarkdownRenderer.js';
 import { IAgentSessionsService } from '../agentSessions/agentSessionsService.js';
 import { IChatDebugService } from '../../common/chatDebugService.js';
+import { ChatQuestionCarouselData } from '../../common/model/chatProgressTypes/chatQuestionCarouselData.js';
+import { collectPlanningRepositoryContext } from '../planning/chatPlanningContextCollector.js';
+import { generateDynamicPlanningQuestions, IPlanningQuestionGenerationContext } from '../planning/chatPlanningQuestionGenerator.js';
 
 const $ = dom.$;
 
@@ -111,6 +122,21 @@ export interface IChatWidgetContrib extends IDisposable {
 interface IChatRequestInputOptions {
 	input: string;
 	attachedContext: ChatRequestVariableSet;
+}
+
+interface IPlanningPlanSnapshot {
+	readonly requestId: string;
+	readonly planText: string;
+	readonly previousRequestId?: string;
+	readonly previousPlanText?: string;
+}
+
+interface IPlanningPlanFocusSlice {
+	readonly id: string;
+	readonly label: string;
+	readonly focusText: string;
+	readonly contextText?: string;
+	readonly category: 'plan-area' | 'validation' | 'guardrail' | 'plan-step';
 }
 
 export interface IChatWidgetLocationOptions {
@@ -270,6 +296,17 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	private editorOptions!: ChatEditorOptions;
 
 	private recentlyRestoredCheckpoint: boolean = false;
+	private _planningPhase: PlanningPhase = 'broad-scan';
+	private _planningTransitionContext: IPlanningTransitionContext | undefined;
+	private _lastPlanningQuestionSourceInput: string | undefined;
+	private _pendingPlanningQuestionResolveId: string | undefined;
+	private _pendingPlanningPlaceholderRequestId: string | undefined;
+	private _currentPlanningPlanRequestId: string | undefined;
+	private _previousPlanningPlanRequestId: string | undefined;
+	private readonly _planFocusSlicesByResolveId = new Map<string, readonly IPlanningPlanFocusSlice[]>();
+	private readonly _pendingPlanningQuestionAnswersListener = this._register(new MutableDisposable<IDisposable>());
+	private readonly _pendingPlanningResponseListener = this._register(new MutableDisposable<IDisposable>());
+	private _skipDynamicPlanningQuestionsOnce = false;
 
 	private welcomeMessageContainer!: HTMLElement;
 	private readonly welcomePart: MutableDisposable<ChatViewWelcomePart> = this._register(new MutableDisposable());
@@ -318,6 +355,19 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 
 		const previousSessionResource = this._viewModel?.sessionResource;
+		if (!isEqual(previousSessionResource, viewModel?.sessionResource)) {
+			this._planningPhase = 'broad-scan';
+			this._planningTransitionContext = undefined;
+			this._lastPlanningQuestionSourceInput = undefined;
+			this._pendingPlanningQuestionResolveId = undefined;
+			this._pendingPlanningPlaceholderRequestId = undefined;
+			this._currentPlanningPlanRequestId = undefined;
+			this._previousPlanningPlanRequestId = undefined;
+			this._planFocusSlicesByResolveId.clear();
+			this._pendingPlanningQuestionAnswersListener.clear();
+			this._pendingPlanningResponseListener.clear();
+			this._skipDynamicPlanningQuestionsOnce = false;
+		}
 		this.viewModelDisposables.clear();
 
 		this._viewModel = viewModel;
@@ -413,6 +463,11 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		@IChatAttachmentResolveService private readonly chatAttachmentResolveService: IChatAttachmentResolveService,
 		@IChatTipService private readonly chatTipService: IChatTipService,
 		@IChatDebugService private readonly chatDebugService: IChatDebugService,
+		@ILanguageModelsService private readonly languageModelsService: ILanguageModelsService,
+		@IFileService private readonly fileService: IFileService,
+		@ITextModelService private readonly textModelService: ITextModelService,
+		@IWorkspaceContextService private readonly workspaceContextService: IWorkspaceContextService,
+		@ILanguageFeaturesService private readonly languageFeaturesService: ILanguageFeaturesService,
 	) {
 		super();
 
@@ -869,6 +924,28 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		return this.input.navigateToNextQuestion();
 	}
 
+	async refinePlan(): Promise<boolean> {
+		return this.triggerDynamicPlanningQuestions(this.getCurrentPlanningInput(), { storeToHistory: false }, { forceRegenerate: true, phase: this._planningPhase });
+	}
+
+	async retreatPlanPhase(): Promise<boolean> {
+		const previousPhase = getPreviousPlanningPhase(this._planningPhase);
+		if (!previousPhase) {
+			return false;
+		}
+
+		return this.triggerDynamicPlanningQuestions(this.getCurrentPlanningInput(), { storeToHistory: false }, { forceRegenerate: true, phase: previousPhase });
+	}
+
+	async advancePlanPhase(): Promise<boolean> {
+		const nextPhase = getNextPlanningPhase(this._planningPhase);
+		if (!nextPhase) {
+			return false;
+		}
+
+		return this.triggerDynamicPlanningQuestions(this.getCurrentPlanningInput(), { storeToHistory: false }, { forceRegenerate: true, phase: nextPhase });
+	}
+
 	toggleTipFocus(): boolean {
 		if (this._gettingStartedTipPartRef?.hasFocus()) {
 			this.focusInput();
@@ -1316,7 +1393,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	async executeHandoff(handoff: IHandOff, agentId?: string): Promise<void> {
 		this.chatSuggestNextWidget.hide();
 
-		const promptToUse = handoff.prompt;
+		const promptToUse = this.getHandoffPrompt(handoff.prompt);
 
 		// If agentId is provided (from chevron dropdown), delegate to that chat session
 		// Otherwise, switch to the handoff agent
@@ -1342,6 +1419,32 @@ export class ChatWidget extends Disposable implements IChatWidget {
 				this.acceptInput();
 			}
 		}
+	}
+
+	private getHandoffPrompt(prompt: string): string {
+		return augmentPromptWithPlanningContext(prompt, this.getPlanningTransitionContextForCurrentResponse());
+	}
+
+	private getLatestPlanningResponseModel(): IChatResponseModel | undefined {
+		return [...(this.viewModel?.model.getRequests() ?? [])]
+			.reverse()
+			.find(request =>
+				this.isPlanningModeInfo(request.modeInfo)
+				&& request.id !== this._pendingPlanningPlaceholderRequestId
+				&& request.response?.isComplete
+				&& !request.response.isCompleteAddedRequest
+			)
+			?.response;
+	}
+
+	private getPlanningTransitionContextForCurrentResponse() {
+		const latestPlanningResponse = this.getLatestPlanningResponseModel();
+		if (!latestPlanningResponse) {
+			return undefined;
+		}
+
+		const planningCarousel = [...latestPlanningResponse.response.value].reverse().find(isUsedQuestionCarousel);
+		return mergePlanningTransitionContexts(planningCarousel ? buildPlanningTransitionContext(planningCarousel) : undefined, this._planningTransitionContext);
 	}
 
 	async handleDelegationExitIfNeeded(sourceAgent: Pick<IChatAgentData, 'id' | 'name'> | undefined, targetAgent: IChatAgentData | undefined): Promise<void> {
@@ -1924,7 +2027,13 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			// Tools agent loads -> welcome content changes
 			this.renderWelcomeViewContentIfNeeded();
 		}));
+		let wasPlanningMode = this.isInPlanningMode();
 		this._register(this.input.onDidChangeCurrentChatMode(() => {
+			const isPlanningMode = this.isInPlanningMode();
+			if (isPlanningMode !== wasPlanningMode) {
+				this.resetPlanningMiddlewareState();
+			}
+			wasPlanningMode = isPlanningMode;
 			this.renderWelcomeViewContentIfNeeded();
 			this.refreshParsedInput();
 			this.renderFollowups();
@@ -2320,6 +2429,1533 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		}
 	}
 
+	private async maybeRunDynamicPlanningQuestions(input: string, options: IChatAcceptInputOptions): Promise<boolean> {
+		if (this._skipDynamicPlanningQuestionsOnce) {
+			this._skipDynamicPlanningQuestionsOnce = false;
+			return false;
+		}
+
+		if (!this.shouldRunDynamicPlanningQuestions(input)) {
+			return false;
+		}
+
+		return this.triggerDynamicPlanningQuestions(input, options);
+	}
+
+	private resetPlanningMiddlewareState(): void {
+		if (isPlanningMiddlewareQuestionCarousel(this._pendingPlanningQuestionResolveId)) {
+			this.input.clearQuestionCarousel(undefined, this._pendingPlanningQuestionResolveId);
+		}
+		void this.clearPendingPlanningPlaceholder();
+
+		this._planningPhase = 'broad-scan';
+		this._planningTransitionContext = undefined;
+		this._lastPlanningQuestionSourceInput = undefined;
+		this._pendingPlanningQuestionResolveId = undefined;
+		this._pendingPlanningPlaceholderRequestId = undefined;
+		this._currentPlanningPlanRequestId = undefined;
+		this._previousPlanningPlanRequestId = undefined;
+		this._planFocusSlicesByResolveId.clear();
+		this._pendingPlanningQuestionAnswersListener.clear();
+		this._pendingPlanningResponseListener.clear();
+		this._skipDynamicPlanningQuestionsOnce = false;
+	}
+
+	private async triggerDynamicPlanningQuestions(
+		input: string,
+		options: IChatAcceptInputOptions,
+		planningOptions?: { readonly forceRegenerate?: boolean; readonly phase?: PlanningPhase; readonly questionStage?: PlanningQuestionStage; readonly useSubmittedPlaceholder?: boolean }
+	): Promise<boolean> {
+		if (!input.trim()) {
+			return false;
+		}
+
+		if (!this.isInPlanningMode()) {
+			return false;
+		}
+
+		if (this._pendingPlanningQuestionResolveId) {
+			this.input.focusQuestionCarousel();
+			return true;
+		}
+
+		if (this.input.questionCarousel) {
+			this.input.focusQuestionCarousel();
+			return true;
+		}
+
+		const planningPhase = planningOptions?.phase ?? this._planningPhase;
+		const questionStage = planningOptions?.questionStage ?? 'goal-clarity';
+		const useSubmittedPlaceholder = planningOptions?.useSubmittedPlaceholder ?? (questionStage === 'goal-clarity' && (options.storeToHistory ?? true));
+		const recentConversation = this.getRecentPlanningConversation();
+
+		try {
+			if (useSubmittedPlaceholder && this.canShowSubmittedPlanningPlaceholder()) {
+				await this.showSubmittedPlanningPlaceholder(input, options, questionStage);
+			}
+
+			const generationContext = await this.getPlanningQuestionGenerationContext(
+				input,
+				planningPhase,
+				questionStage,
+				recentConversation
+			);
+			const questions = await generateDynamicPlanningQuestions(this.languageModelsService, generationContext, CancellationToken.None);
+			if (!questions.length) {
+				await this.showPlanningQuestionGenerationError(questionStage, new Error(localize(
+					'chat.dynamicPlanning.emptyQuestions',
+					'Planning question generation did not return any usable questions.'
+				)));
+				return true;
+			}
+
+			this._planningPhase = generationContext.planningPhase;
+			this.showDynamicPlanningQuestionCarousel(
+				input,
+				questions,
+				options,
+				generationContext,
+				useSubmittedPlaceholder
+			);
+			return true;
+		} catch (error) {
+			await this.showPlanningQuestionGenerationError(questionStage, error);
+			return true;
+		}
+	}
+
+	private shouldRunDynamicPlanningQuestions(input: string): boolean {
+		if (!input.trim()) {
+			return false;
+		}
+
+		if (!this.isInPlanningMode()) {
+			return false;
+		}
+
+		if (this.input.questionCarousel) {
+			return false;
+		}
+
+		const itemCount = this.viewModel?.getItems().length ?? 0;
+		if (itemCount === 0) {
+			return true;
+		}
+
+		const hasPlanningContext = Boolean(this.getPlanningTransitionContextForCurrentResponse() ?? this._planningTransitionContext);
+		const previousPlanningInput = this.getLastPlanningQuestionSourceInput();
+		if (!previousPlanningInput) {
+			return !hasPlanningContext;
+		}
+
+		return shouldRegeneratePlanningQuestions(input, previousPlanningInput, hasPlanningContext);
+	}
+
+	private isInPlanningMode(): boolean {
+		if (!this.configurationService.getValue<boolean>(ChatConfiguration.PlanningMiddlewareEnabled)) {
+			return false;
+		}
+		const mode = this.input.currentModeObs.get();
+		return isPlanningModeName(mode.id) || isPlanningModeName(mode.name.get());
+	}
+
+	private isPlanningModeInfo(modeInfo: { readonly modeInstructions?: { readonly name?: string }; readonly modeId?: string } | undefined): boolean {
+		if (!this.configurationService.getValue<boolean>(ChatConfiguration.PlanningMiddlewareEnabled)) {
+			return false;
+		}
+		return isPlanningModeName(modeInfo?.modeInstructions?.name) || isPlanningModeName(modeInfo?.modeId);
+	}
+
+	private getLastPlanningQuestionSourceInput(): string | undefined {
+		if (this._lastPlanningQuestionSourceInput?.trim()) {
+			return this._lastPlanningQuestionSourceInput;
+		}
+
+		const lastPlanningRequestId = [...(this.viewModel?.model.getRequests() ?? [])]
+			.reverse()
+			.find(request => this.isPlanningModeInfo(request.modeInfo))
+			?.id;
+		if (!lastPlanningRequestId) {
+			return undefined;
+		}
+
+		return [...(this.viewModel?.getItems() ?? [])]
+			.reverse()
+			.find((item): item is IChatRequestViewModel => isRequestVM(item) && item.id === lastPlanningRequestId)
+			?.messageText;
+	}
+
+	private async getPlanningQuestionGenerationContext(
+		input: string,
+		planningPhase: PlanningPhase,
+		questionStage: PlanningQuestionStage,
+		recentConversationOverride?: readonly string[],
+		overrides?: {
+			readonly planningContext?: IPlanningTransitionContext;
+			readonly currentPlan?: string;
+			readonly focusAreaLabel?: string;
+			readonly focusHint?: string;
+		}
+	): Promise<IPlanningQuestionGenerationContext> {
+		const contextEditors = this.getPlanningContextEditors();
+		const editor = contextEditors[0];
+		const model = editor?.getModel();
+		const selection = editor?.getSelection();
+		const selectedText = model && selection && !selection.isEmpty() ? model.getValueInRange(selection) : undefined;
+		const mergedPlanningContext = overrides?.planningContext ?? this.getPlanningTransitionContextForCurrentResponse() ?? this._planningTransitionContext;
+		const recentConversation = [...(recentConversationOverride ?? this.getRecentPlanningConversation())];
+		const currentPlan = overrides?.currentPlan ?? this.getCurrentPlanningResponseText();
+		const repositoryContext = await collectPlanningRepositoryContext({
+			phase: planningPhase,
+			questionStage,
+			userRequest: input,
+			plannerNotes: mergedPlanningContext?.plannerNotes,
+			recentConversation,
+			planningAnswers: mergedPlanningContext?.answers.map(answer => answer.answer) ?? [],
+			currentPlan,
+			focusHint: overrides?.focusHint,
+			previousRepositoryContext: mergedPlanningContext?.repositoryContext,
+			confirmedPlanningTarget: mergedPlanningContext?.repositoryContext?.planningTarget,
+			activeEditor: editor,
+			contextEditors,
+		}, {
+			fileService: this.fileService,
+			textModelService: this.textModelService,
+			workspaceContextService: this.workspaceContextService,
+			languageFeaturesService: this.languageFeaturesService,
+		});
+		const readiness = assessPlanningReadiness({
+			userRequest: input,
+			plannerNotes: mergedPlanningContext?.plannerNotes,
+			planningAnswers: mergedPlanningContext?.answers ?? [],
+			recentConversation,
+			repositoryContext,
+			currentPlan,
+		});
+		const stageReadiness = this.getPlanningStageReadiness(questionStage, readiness, overrides?.focusHint);
+
+		return {
+			userRequest: input,
+			modelId: this.input.currentLanguageModel,
+			planningPhase,
+			questionStage,
+			questionCount: stageReadiness.questionCount,
+			missingDimensions: stageReadiness.missingDimensions,
+			partialDimensions: stageReadiness.partialDimensions,
+			shouldConfirmPlanningTarget: stageReadiness.shouldConfirmPlanningTarget,
+			activeFilePath: model?.uri.toString(),
+			selectedText,
+			plannerNotes: mergedPlanningContext?.plannerNotes,
+			recentConversation,
+			planningAnswers: mergedPlanningContext?.answers ?? [],
+			repositoryContext,
+			currentPlan,
+			focusAreaLabel: overrides?.focusAreaLabel?.trim(),
+			focusHint: this.buildPlanningFocusHint(questionStage, repositoryContext, currentPlan, overrides?.focusAreaLabel, overrides?.focusHint),
+		};
+	}
+
+	private getCurrentPlanningInput(): string {
+		return this.getInput().trim() || this._lastPlanningQuestionSourceInput?.trim() || '';
+	}
+
+	private getRecentPlanningConversation(): string[] {
+		const items = this.viewModel?.getItems() ?? [];
+		const entries: string[] = [];
+
+		for (const item of items.slice(-6)) {
+			if (isRequestVM(item)) {
+				if (item.id === this._pendingPlanningPlaceholderRequestId || item.isCompleteAddedRequest) {
+					continue;
+				}
+				if (item.messageText.trim()) {
+					entries.push(`User: ${item.messageText.trim()}`);
+				}
+				continue;
+			}
+
+			if (isResponseVM(item)) {
+				if (item.requestId === this._pendingPlanningPlaceholderRequestId || item.isCompleteAddedRequest) {
+					continue;
+				}
+				const responseText = item.response.toString().replace(/\s+/g, ' ').trim();
+				if (responseText) {
+					entries.push(`Assistant: ${responseText.slice(0, 400)}`);
+				}
+			}
+		}
+
+		return entries.slice(-4);
+	}
+
+	private getPlanningResponseTextForRequest(requestId: string | undefined): string | undefined {
+		if (!requestId || !this.viewModel) {
+			return undefined;
+		}
+
+		const request = this.chatService.getSession(this.viewModel.sessionResource)?.getRequests().find(candidate => candidate.id === requestId);
+		const planText = request?.response?.response.toString().trim();
+		return planText ? planText.slice(0, 12000) : undefined;
+	}
+
+	private capturePlanningPlanSnapshot(response: IChatResponseModel | undefined): IPlanningPlanSnapshot | undefined {
+		if (!response || response.isCompleteAddedRequest) {
+			return undefined;
+		}
+
+		const planText = response.response.toString().trim();
+		if (!planText) {
+			return undefined;
+		}
+
+		const previousRequestId = this._currentPlanningPlanRequestId;
+		const previousPlanText = this.getPlanningResponseTextForRequest(previousRequestId);
+		this._previousPlanningPlanRequestId = previousRequestId;
+		this._currentPlanningPlanRequestId = response.requestId;
+
+		return {
+			requestId: response.requestId,
+			planText,
+			...(previousRequestId ? { previousRequestId } : {}),
+			...(previousPlanText ? { previousPlanText } : {}),
+		};
+	}
+
+	private getLatestPlanningPlanSnapshot(): IPlanningPlanSnapshot | undefined {
+		const currentRequestId = this._currentPlanningPlanRequestId;
+		const currentPlanText = this.getPlanningResponseTextForRequest(currentRequestId);
+		if (currentRequestId && currentPlanText) {
+			const previousPlanText = this.getPlanningResponseTextForRequest(this._previousPlanningPlanRequestId);
+			return {
+				requestId: currentRequestId,
+				planText: currentPlanText,
+				...(this._previousPlanningPlanRequestId ? { previousRequestId: this._previousPlanningPlanRequestId } : {}),
+				...(previousPlanText ? { previousPlanText } : {}),
+			};
+		}
+
+		const latestPlanningResponse = this.getLatestPlanningResponseModel();
+		return latestPlanningResponse ? this.capturePlanningPlanSnapshot(latestPlanningResponse) : undefined;
+	}
+
+	private getCurrentPlanningResponseText(): string | undefined {
+		return this.getLatestPlanningPlanSnapshot()?.planText
+			?? this.getLatestPlanningResponseModel()?.response.toString().trim().slice(0, 12000);
+	}
+
+	private getPlanningContextEditors(): ICodeEditor[] {
+		const seen = new Set<string>();
+		const editors: ICodeEditor[] = [];
+		for (const editor of [
+			this.codeEditorService.getFocusedCodeEditor(),
+			this.codeEditorService.getActiveCodeEditor(),
+			...this.codeEditorService.listCodeEditors()
+		]) {
+			const resource = editor?.getModel()?.uri;
+			if (!editor || !resource || this.isChatInternalEditor(resource)) {
+				continue;
+			}
+
+			const key = resource.toString();
+			if (seen.has(key)) {
+				continue;
+			}
+
+			seen.add(key);
+			editors.push(editor);
+		}
+
+		return editors;
+	}
+
+	private getPlanningStageReadiness(
+		questionStage: PlanningQuestionStage,
+		readiness: ReturnType<typeof assessPlanningReadiness>,
+		focusHint: string | undefined,
+	) {
+		if (questionStage === 'goal-clarity') {
+			return readiness.goalClarity;
+		}
+
+		if (questionStage === 'plan-focus') {
+			return {
+				...readiness.taskDecomposition,
+				questionCount: focusHint?.trim() ? Math.min(Math.max(readiness.taskDecomposition.questionCount + 2, 3), 4) : 1,
+				shouldConfirmPlanningTarget: false,
+			};
+		}
+
+		return readiness.taskDecomposition;
+	}
+
+	private buildPlanningFocusHint(
+		questionStage: PlanningQuestionStage,
+		repositoryContext: IPlanningQuestionGenerationContext['repositoryContext'],
+		currentPlan: string | undefined,
+		focusAreaLabel?: string,
+		focusHint?: string,
+	): string | undefined {
+		const hints: string[] = [];
+		const normalizedFocusAreaLabel = focusAreaLabel?.trim();
+		const normalizedFocusHint = focusHint?.trim();
+		const taskLens = repositoryContext?.taskLens;
+
+		if (normalizedFocusAreaLabel) {
+			hints.push(`The user selected this exact plan area to sharpen: ${normalizedFocusAreaLabel}.`);
+		}
+
+		if (normalizedFocusHint) {
+			hints.push(`Focus especially on ${normalizedFocusHint}.`);
+		}
+
+		if (taskLens?.taskSummary) {
+			hints.push(`Use this task lens as the current job summary: ${taskLens.taskSummary}`);
+		}
+
+		if (repositoryContext?.planningTarget) {
+			hints.push(`Keep the repo focus anchored on ${repositoryContext.planningTarget.label}.`);
+		}
+
+		if (taskLens?.primaryArtifact ?? repositoryContext?.primaryArtifactHint) {
+			hints.push(`Treat ${taskLens?.primaryArtifact ?? repositoryContext?.primaryArtifactHint} as the primary artifact unless the user redirects you.`);
+		}
+
+		const relatedArtifacts = taskLens?.secondaryArtifacts ?? repositoryContext?.relatedArtifactHints;
+		if (relatedArtifacts?.length) {
+			hints.push(`Keep ${relatedArtifacts.slice(0, 3).join(', ')} in view as related context.`);
+		}
+
+		if (taskLens?.validationTargets?.length) {
+			hints.push(`Make the validation path explicit around ${taskLens.validationTargets.slice(0, 3).join(', ')}.`);
+		}
+
+		if (taskLens?.riskAreas?.length) {
+			hints.push(`Respect these guardrails: ${taskLens.riskAreas.slice(0, 3).join('; ')}.`);
+		}
+
+		if (taskLens?.unknowns?.length) {
+			hints.push(`Prefer questions that settle these open decisions: ${taskLens.unknowns.slice(0, 3).join('; ')}.`);
+		}
+
+		if (currentPlan && questionStage === 'task-decomposition') {
+			hints.push('Tighten the existing plan instead of restarting it from scratch.');
+		}
+
+		if (currentPlan && questionStage === 'plan-focus') {
+			hints.push('Sharpen one part of the existing plan rather than reopening the full request.');
+		}
+
+		return hints.length > 0 ? hints.join(' ') : undefined;
+	}
+
+	private async refreshPlanningTransitionContextForStage(
+		originalQuery: string,
+		planningPhase: PlanningPhase,
+		questionStage: PlanningQuestionStage,
+		planningContext: IPlanningTransitionContext,
+		options?: {
+			readonly currentPlan?: string;
+			readonly focusAreaLabel?: string;
+			readonly focusHint?: string;
+		}
+	): Promise<{ readonly planningContext: IPlanningTransitionContext; readonly generationContext: IPlanningQuestionGenerationContext }> {
+		const generationContext = await this.getPlanningQuestionGenerationContext(
+			originalQuery,
+			planningPhase,
+			questionStage,
+			undefined,
+			{
+				planningContext,
+				currentPlan: options?.currentPlan,
+				focusAreaLabel: options?.focusAreaLabel,
+				focusHint: options?.focusHint,
+			}
+		);
+		const refreshedPlanningContext = mergePlanningTransitionContexts(planningContext, {
+			phase: generationContext.planningPhase,
+			answers: [],
+			plannerNotes: planningContext.plannerNotes,
+			recentConversation: generationContext.recentConversation,
+			repositoryContext: generationContext.repositoryContext,
+		}) ?? planningContext;
+
+		return {
+			planningContext: refreshedPlanningContext,
+			generationContext,
+		};
+	}
+
+	private schedulePlanningFollowupAfterResponse(response: IChatResponseModel | undefined, callback: (response: IChatResponseModel) => Promise<void>): void {
+		this._pendingPlanningResponseListener.clear();
+		if (!response) {
+			return;
+		}
+
+		const runCallback = () => {
+			this._pendingPlanningResponseListener.clear();
+			void callback(response);
+		};
+
+		if (response.isComplete) {
+			runCallback();
+			return;
+		}
+
+		this._pendingPlanningResponseListener.value = Event.once(Event.filter(
+			response.onDidChange,
+			() => response.isComplete
+		))(runCallback);
+	}
+
+	private async clearPendingPlanningPlaceholder(): Promise<void> {
+		if (!this._pendingPlanningPlaceholderRequestId || !this.viewModel) {
+			return;
+		}
+
+		await this.chatService.removeRequest(this.viewModel.sessionResource, this._pendingPlanningPlaceholderRequestId);
+		this._pendingPlanningPlaceholderRequestId = undefined;
+	}
+
+	private async showPlanningGenerationPlaceholder(
+		originalQuery: string,
+		questionStage: PlanningQuestionStage,
+	): Promise<void> {
+		if (!this.viewModel || !this.isInPlanningMode()) {
+			return;
+		}
+
+		await this.clearPendingPlanningPlaceholder();
+		await this.chatService.addCompleteRequest(this.viewModel.sessionResource, originalQuery, undefined, 0, {
+			message: [this.createPlanningMiddlewareIntroContent(questionStage, 'generating')],
+			result: {},
+		});
+
+		this._pendingPlanningPlaceholderRequestId = this.chatService.getSession(this.viewModel.sessionResource)?.getRequests().at(-1)?.id;
+	}
+
+	private async showPlanningQuestionGenerationError(questionStage: PlanningQuestionStage, error: unknown): Promise<void> {
+		this.logService.error('[Planning] Failed to generate planning questions', error);
+		this._pendingPlanningQuestionAnswersListener.clear();
+		this._pendingPlanningQuestionResolveId = undefined;
+		await this.clearPendingPlanningPlaceholder();
+		const stageLabel = questionStage === 'goal-clarity'
+			? localize('chat.dynamicPlanning.goalClarityStageLabel', 'Goal Clarity')
+			: questionStage === 'task-decomposition'
+				? localize('chat.dynamicPlanning.taskDecompositionStageLabel', 'Task Decomposition')
+				: localize('chat.dynamicPlanning.planFocusStageLabel', 'Focused Follow-up');
+		await this.dialogService.error(
+			localize(
+				'chat.dynamicPlanning.questionGenerationErrorTitle',
+				'Unable to Generate {0} Questions',
+				stageLabel
+			),
+			toErrorMessage(error)
+		);
+	}
+
+	private async submitPlanningRequestWithContext(
+		originalQuery: string,
+		options: IChatAcceptInputOptions,
+		planningContext: IPlanningTransitionContext | undefined,
+		allowPlannerFollowupQuestions: boolean,
+		onResponseComplete?: (response: IChatResponseModel) => Promise<void>,
+	): Promise<void> {
+		this._skipDynamicPlanningQuestionsOnce = true;
+		this._pendingPlanningQuestionAnswersListener.clear();
+
+		const extraAttachedContext = planningContext ? [this.createPlanningContextAttachment(planningContext)] : undefined;
+		const userSelectedToolsOverride = this.getPlanningSubmissionToolOverrides(options.userSelectedToolsOverride, allowPlannerFollowupQuestions);
+
+		try {
+			await this.clearPendingPlanningPlaceholder();
+
+			const response = await this._acceptInput(
+				{ query: originalQuery },
+				{ ...options, extraAttachedContext, storeToHistory: false, userSelectedToolsOverride }
+			);
+
+			if (onResponseComplete) {
+				this.schedulePlanningFollowupAfterResponse(response, onResponseComplete);
+			}
+		} catch (error) {
+			this.logService.error('[Planning] Failed to submit dynamic planning questions', error);
+		}
+	}
+
+	private createPlanningPlanCommandButton(planSnapshot: IPlanningPlanSnapshot | undefined): IChatCommandButton | undefined {
+		if (!this.viewModel || !planSnapshot) {
+			return undefined;
+		}
+
+		const commandArgs = {
+			sessionResource: this.viewModel.sessionResource.toString(),
+			requestId: planSnapshot.requestId,
+			...(planSnapshot.previousRequestId ? { previousRequestId: planSnapshot.previousRequestId } : {}),
+		};
+
+		return {
+			kind: 'command',
+			command: {
+				id: OPEN_PLANNING_PLAN_ACTION_ID,
+				title: localize('chat.planReview.openPlan', 'Open Plan'),
+				arguments: [commandArgs],
+			},
+			additionalCommands: [
+				{
+					id: OPEN_PLANNING_PLAN_TO_SIDE_ACTION_ID,
+					title: localize('chat.planReview.openPlanToSide', 'Open to Side'),
+					arguments: [commandArgs],
+				},
+				...(planSnapshot.previousRequestId && planSnapshot.previousPlanText
+					? [{
+						id: OPEN_PLANNING_PLAN_DIFF_ACTION_ID,
+						title: localize('chat.planReview.viewPlanChanges', 'View Changes'),
+						arguments: [commandArgs],
+					}]
+					: []),
+			],
+		};
+	}
+
+	private normalizePlanningPlanLine(line: string): string | undefined {
+		const normalized = line
+			.replace(/^\s{0,3}(?:[-*+]|\d+[.)]|#{1,6})\s*/, '')
+			.replace(/\s+/g, ' ')
+			.trim();
+		return normalized.length >= 12 ? normalized : undefined;
+	}
+
+	private getPlanningPlanLines(planText: string | undefined): string[] {
+		if (!planText) {
+			return [];
+		}
+
+		const lines: string[] = [];
+		const seen = new Set<string>();
+		for (const rawLine of planText.split(/\r?\n/g)) {
+			const normalized = this.normalizePlanningPlanLine(rawLine);
+			if (!normalized) {
+				continue;
+			}
+
+			const key = normalized.toLowerCase();
+			if (seen.has(key)) {
+				continue;
+			}
+
+			seen.add(key);
+			lines.push(normalized);
+		}
+
+		return lines;
+	}
+
+	private summarizePlanningPlanChanges(planSnapshot: IPlanningPlanSnapshot | undefined): { readonly added: readonly string[]; readonly removed: readonly string[] } | undefined {
+		if (!planSnapshot?.previousPlanText) {
+			return undefined;
+		}
+
+		const previousLines = this.getPlanningPlanLines(planSnapshot.previousPlanText);
+		const currentLines = this.getPlanningPlanLines(planSnapshot.planText);
+		const previousKeys = new Set(previousLines.map(line => line.toLowerCase()));
+		const currentKeys = new Set(currentLines.map(line => line.toLowerCase()));
+		const added = currentLines.filter(line => !previousKeys.has(line.toLowerCase())).slice(0, 3);
+		const removed = previousLines.filter(line => !currentKeys.has(line.toLowerCase())).slice(0, 2);
+		return added.length > 0 || removed.length > 0 ? { added, removed } : undefined;
+	}
+
+	private buildPlanningPlanReviewContent(
+		reviewKind: 'task-decomposition' | 'plan-focus-intake' | 'plan-focus-questions',
+		planSnapshot: IPlanningPlanSnapshot | undefined,
+		focusAreaLabel?: string,
+	): MarkdownString {
+		const markdown = new MarkdownString(undefined, { supportThemeIcons: true });
+		const artifactLabel = this.getUserFacingPlanningArtifactLabel(this._planningTransitionContext?.repositoryContext);
+		if (reviewKind === 'task-decomposition') {
+			markdown.appendMarkdown('$(check) ');
+			markdown.appendMarkdown(artifactLabel
+				? localize(
+					'chat.planReview.taskDecomposition.withArtifact',
+					'**First plan ready**\n\nReview the plan for **{0}** here, or open it in a separate editor before tightening the breakdown below.',
+					artifactLabel
+				)
+				: localize(
+					'chat.planReview.taskDecomposition.generic',
+					'**First plan ready**\n\nReview the plan here, or open it in a separate editor before tightening the breakdown below.'
+				));
+		} else if (reviewKind === 'plan-focus-intake') {
+			markdown.appendMarkdown('$(git-commit) ');
+			markdown.appendMarkdown(localize(
+				'chat.planReview.planFocusIntake',
+				'**Updated plan ready**\n\nReview this revision and what changed, then choose the next part to sharpen or start implementation.'
+			));
+		} else {
+			markdown.appendMarkdown('$(target) ');
+			markdown.appendMarkdown(focusAreaLabel
+				? localize(
+					'chat.planReview.planFocusQuestions.withLabel',
+					'**Focused refinement**\n\nReview the current plan, then answer a few targeted questions to sharpen **{0}**.',
+					focusAreaLabel
+				)
+				: localize(
+					'chat.planReview.planFocusQuestions.generic',
+					'**Focused refinement**\n\nReview the current plan, then answer a few targeted questions to sharpen one part of it.'
+				));
+		}
+
+		const changeSummary = this.summarizePlanningPlanChanges(planSnapshot);
+		if (changeSummary) {
+			markdown.appendMarkdown(localize('chat.planReview.changeSummaryHeading', '\n\n**What Changed In This Revision**'));
+			for (const added of changeSummary.added) {
+				markdown.appendMarkdown(`\n- ${localize('chat.planReview.addedChange', 'New or expanded: {0}', added)}`);
+			}
+			for (const removed of changeSummary.removed) {
+				markdown.appendMarkdown(`\n- ${localize('chat.planReview.removedChange', 'De-emphasized: {0}', removed)}`);
+			}
+		}
+
+		return markdown;
+	}
+
+	private async showPlanningReviewCarousel(
+		carousel: IChatQuestionCarousel,
+		onSubmit: (answersRecord: IChatQuestionAnswers | undefined) => Promise<void>,
+		options: {
+			readonly reviewKind: 'task-decomposition' | 'plan-focus-intake' | 'plan-focus-questions';
+			readonly planSnapshot?: IPlanningPlanSnapshot;
+			readonly focusAreaLabel?: string;
+		}
+	): Promise<void> {
+		if (!this.viewModel) {
+			return;
+		}
+
+		this._pendingPlanningQuestionAnswersListener.clear();
+		const commandButton = this.createPlanningPlanCommandButton(options.planSnapshot);
+		const messageParts: IChatProgress[] = [{
+			kind: 'markdownContent',
+			content: this.buildPlanningPlanReviewContent(options.reviewKind, options.planSnapshot, options.focusAreaLabel),
+		}];
+		if (commandButton) {
+			messageParts.push(commandButton);
+		}
+		messageParts.push(carousel);
+		await this.chatService.addCompleteRequest(this.viewModel.sessionResource, '', undefined, 0, {
+			message: messageParts,
+			result: {},
+		});
+
+		const requestId = this.chatService.getSession(this.viewModel.sessionResource)?.getRequests().at(-1)?.id;
+		if (!requestId || !carousel.resolveId) {
+			return;
+		}
+
+		this._pendingPlanningQuestionAnswersListener.value = Event.once(Event.filter(
+			this.chatService.onDidReceiveQuestionCarouselAnswer,
+			event => event.requestId === requestId && event.resolveId === carousel.resolveId
+		))(event => {
+			void onSubmit(event.answers);
+		});
+	}
+
+	private async showTaskDecompositionPlanningQuestions(
+		originalQuery: string,
+		options: IChatAcceptInputOptions,
+		planningPhase: PlanningPhase,
+		planSnapshot?: IPlanningPlanSnapshot,
+	): Promise<void> {
+		const planningContext = this._planningTransitionContext;
+		if (!planningContext) {
+			return;
+		}
+
+		await this.showPlanningGenerationPlaceholder(originalQuery, 'task-decomposition');
+		try {
+			const { planningContext: refreshedPlanningContext, generationContext } = await this.refreshPlanningTransitionContextForStage(
+				originalQuery,
+				planningPhase,
+				'task-decomposition',
+				planningContext,
+				{ currentPlan: this.getCurrentPlanningResponseText() }
+			);
+			this._planningTransitionContext = refreshedPlanningContext;
+
+			const questions = await generateDynamicPlanningQuestions(this.languageModelsService, generationContext, CancellationToken.None);
+			await this.clearPendingPlanningPlaceholder();
+			if (!questions.length) {
+				await this.showPlanningQuestionGenerationError('task-decomposition', new Error(localize(
+					'chat.dynamicPlanning.emptyTaskDecompositionQuestions',
+					'Task decomposition generation did not return any usable questions.'
+				)));
+				return;
+			}
+
+			void this.showDynamicPlanningQuestionCarousel(originalQuery, questions, options, generationContext, false, planSnapshot);
+		} catch (error) {
+			await this.showPlanningQuestionGenerationError('task-decomposition', error);
+		}
+	}
+
+	private buildPlanFocusPromptOptions(focusSlices: readonly IPlanningPlanFocusSlice[]): NonNullable<IChatQuestion['options']> {
+		return [
+			...focusSlices.map(slice => ({
+				id: slice.id,
+				label: slice.label,
+				value: slice.id,
+			})),
+			{
+				id: 'start-implementation',
+				label: localize('chat.planFocusPrompt.startImplementation', 'Start Implementation'),
+				value: 'start-implementation',
+			},
+		];
+	}
+
+	private buildPlanFocusPromptDescription(options: NonNullable<IChatQuestion['options']>, planningContext: IPlanningTransitionContext | undefined): string {
+		const primaryArtifact = this.getUserFacingPlanningArtifactLabel(planningContext?.repositoryContext);
+		const focusableAreas = options
+			.filter(option => option.value !== 'start-implementation')
+			.map(option => option.label)
+			.slice(0, 3);
+
+		if (focusableAreas.length === 0) {
+			return primaryArtifact
+				? localize('chat.planFocusPrompt.description.genericWithArtifact', 'Type a custom focus if you want another refinement pass for {0}, or choose Start Implementation.', primaryArtifact)
+				: localize('chat.planFocusPrompt.description.generic', 'Type a custom focus if you want another refinement pass, or choose Start Implementation.');
+		}
+
+		if (primaryArtifact) {
+			return localize(
+				'chat.planFocusPrompt.description.areasWithArtifact',
+				'Current plan areas for {0}: {1}. Choose one or type a custom focus.',
+				primaryArtifact,
+				focusableAreas.join('; ')
+			);
+		}
+
+		return localize(
+			'chat.planFocusPrompt.description.areas',
+			'Current plan areas: {0}. Choose one or type a custom focus.',
+			focusableAreas.join('; ')
+		);
+	}
+
+	private getPlanFocusTokens(value: string): readonly string[] {
+		return value
+			.toLowerCase()
+			.split(/[^a-z0-9]+/g)
+			.filter(token => token.length > 2)
+			.slice(0, 10);
+	}
+
+	private computePlanFocusOverlap(left: string | undefined, right: string | undefined): number {
+		if (!left || !right) {
+			return 0;
+		}
+
+		const leftTokens = new Set(this.getPlanFocusTokens(left));
+		const rightTokens = this.getPlanFocusTokens(right);
+		if (leftTokens.size === 0 || rightTokens.length === 0) {
+			return 0;
+		}
+
+		return rightTokens.reduce((total, token) => total + (leftTokens.has(token) ? 1 : 0), 0);
+	}
+
+	private summarizePlanFocusOptionLabel(area: string): string {
+		const normalized = area.replace(/\s+/g, ' ').trim();
+		if (normalized.length <= 96) {
+			return normalized;
+		}
+
+		const firstClause = normalized.split(/(?<=[.:;])\s+/)[0]?.trim();
+		return firstClause && firstClause.length >= 24 ? firstClause : normalized.slice(0, 96).trim();
+	}
+
+	private getPlanningPlanStepChunks(currentPlan: string | undefined): readonly { label: string; focusText: string }[] {
+		if (!currentPlan) {
+			return [];
+		}
+
+		const chunks: { label: string; focusText: string }[] = [];
+		let currentChunk: string[] = [];
+		const flushChunk = () => {
+			if (currentChunk.length === 0) {
+				return;
+			}
+
+			const label = this.normalizePlanningPlanLine(currentChunk[0]);
+			const focusText = currentChunk.join('\n').trim();
+			if (label && focusText) {
+				chunks.push({ label: this.summarizePlanFocusOptionLabel(label), focusText });
+			}
+			currentChunk = [];
+		};
+
+		for (const rawLine of currentPlan.split(/\r?\n/g)) {
+			const trimmed = rawLine.trim();
+			if (!trimmed) {
+				continue;
+			}
+
+			const startsNewChunk = /^\s{0,3}(?:[-*+]|\d+[.)]|#{1,6})\s+/.test(rawLine);
+			if (startsNewChunk && currentChunk.length > 0) {
+				flushChunk();
+			}
+
+			currentChunk.push(trimmed);
+		}
+
+		flushChunk();
+		return chunks.slice(0, 6);
+	}
+
+	private findPlanContextSnippet(currentPlan: string | undefined, anchor: string | undefined): string | undefined {
+		if (!currentPlan || !anchor) {
+			return undefined;
+		}
+
+		const chunks = this.getPlanningPlanStepChunks(currentPlan);
+		let bestChunk: { label: string; focusText: string } | undefined;
+		let bestScore = 0;
+		for (const chunk of chunks) {
+			const score = this.computePlanFocusOverlap(anchor, chunk.focusText);
+			if (score > bestScore) {
+				bestScore = score;
+				bestChunk = chunk;
+			}
+		}
+
+		return bestScore > 0 ? bestChunk?.focusText : undefined;
+	}
+
+	private extractPlanFocusSlices(currentPlan: string | undefined, planningContext: IPlanningTransitionContext | undefined): readonly IPlanningPlanFocusSlice[] {
+		const taskLens = planningContext?.repositoryContext?.taskLens;
+		const slices: IPlanningPlanFocusSlice[] = [];
+		const seen = new Set<string>();
+		const pushSlice = (slice: Omit<IPlanningPlanFocusSlice, 'id'>) => {
+			const key = `${slice.category}:${slice.label.toLowerCase()}:${slice.focusText.toLowerCase()}`;
+			if (seen.has(key)) {
+				return;
+			}
+
+			seen.add(key);
+			slices.push({
+				id: `focus-slice-${slices.length}`,
+				...slice,
+			});
+		};
+
+		for (const area of taskLens?.planAreas ?? []) {
+			pushSlice({
+				label: this.summarizePlanFocusOptionLabel(area),
+				focusText: area,
+				contextText: this.findPlanContextSnippet(currentPlan, area),
+				category: 'plan-area',
+			});
+		}
+
+		for (const validationTarget of taskLens?.validationTargets ?? []) {
+			pushSlice({
+				label: localize('chat.planFocusPrompt.validationSlice', 'Validation: {0}', validationTarget),
+				focusText: validationTarget,
+				contextText: this.findPlanContextSnippet(currentPlan, validationTarget),
+				category: 'validation',
+			});
+		}
+
+		for (const guardrail of taskLens?.riskAreas ?? []) {
+			pushSlice({
+				label: localize('chat.planFocusPrompt.guardrailSlice', 'Guardrail: {0}', guardrail),
+				focusText: guardrail,
+				contextText: this.findPlanContextSnippet(currentPlan, guardrail),
+				category: 'guardrail',
+			});
+		}
+
+		for (const chunk of this.getPlanningPlanStepChunks(currentPlan)) {
+			pushSlice({
+				label: chunk.label,
+				focusText: chunk.focusText,
+				contextText: chunk.focusText,
+				category: 'plan-step',
+			});
+		}
+
+		return slices.slice(0, 5);
+	}
+
+	private buildPlanFocusContextHint(slice: IPlanningPlanFocusSlice): string {
+		const hints = [`Sharpen this exact plan slice: ${slice.focusText}.`];
+		if (slice.contextText && slice.contextText !== slice.focusText) {
+			hints.push(`Current plan excerpt: ${slice.contextText}`);
+		}
+
+		switch (slice.category) {
+			case 'validation':
+				hints.push('Make the validation path, evidence, and success checks concrete.');
+				break;
+			case 'guardrail':
+				hints.push('Keep this guardrail explicit while refining scope, sequencing, and dependencies.');
+				break;
+			case 'plan-step':
+				hints.push('Tighten the concrete work breakdown, insertion point, dependencies, and validation for this step.');
+				break;
+			default:
+				hints.push('Keep the refinement anchored on this part of the existing plan rather than reopening the whole request.');
+				break;
+		}
+
+		return hints.join(' ');
+	}
+
+	private getPlanFocusPromptChoice(carousel: IChatQuestionCarousel, answersRecord: IChatQuestionAnswers | undefined): { action: 'start-implementation' | 'sharpen'; focusAreaLabel?: string; focusHint?: string } {
+		const answer = answersRecord?.['plan-focus-next'];
+		if (!answer) {
+			return { action: 'start-implementation' };
+		}
+
+		const slices = carousel.resolveId ? this._planFocusSlicesByResolveId.get(carousel.resolveId) : undefined;
+		if (typeof answer === 'string') {
+			const normalized = answer.trim();
+			if (!normalized || normalized === 'start-implementation') {
+				return { action: 'start-implementation' };
+			}
+
+			const slice = slices?.find(candidate => candidate.id === normalized);
+			return {
+				action: 'sharpen',
+				focusAreaLabel: slice?.label ?? normalized,
+				focusHint: slice ? this.buildPlanFocusContextHint(slice) : normalized,
+			};
+		}
+
+		const answerWithFreeformValue = typeof answer === 'object' && answer !== null && hasKey(answer, { freeformValue: true })
+			? answer as { freeformValue?: unknown }
+			: undefined;
+		const freeformValue = typeof answerWithFreeformValue?.freeformValue === 'string'
+			? answerWithFreeformValue.freeformValue.trim()
+			: '';
+		if (freeformValue) {
+			return { action: 'sharpen', focusAreaLabel: freeformValue, focusHint: freeformValue };
+		}
+
+		const answerWithSelectedValue = typeof answer === 'object' && answer !== null && hasKey(answer, { selectedValue: true })
+			? answer as { selectedValue?: unknown }
+			: undefined;
+		const selectedValue = typeof answerWithSelectedValue?.selectedValue === 'string'
+			? answerWithSelectedValue.selectedValue.trim()
+			: '';
+		if (!selectedValue || selectedValue === 'start-implementation') {
+			return { action: 'start-implementation' };
+		}
+
+		const slice = slices?.find(candidate => candidate.id === selectedValue);
+		return {
+			action: 'sharpen',
+			focusAreaLabel: slice?.label ?? selectedValue,
+			focusHint: slice ? this.buildPlanFocusContextHint(slice) : selectedValue,
+		};
+	}
+
+	private showPlanFocusPromptCarousel(
+		originalQuery: string,
+		options: IChatAcceptInputOptions,
+		planningPhase: PlanningPhase,
+		planSnapshot?: IPlanningPlanSnapshot,
+	): void {
+		const currentSnapshot = planSnapshot ?? this.getLatestPlanningPlanSnapshot();
+		const focusSlices = this.extractPlanFocusSlices(currentSnapshot?.planText ?? this.getCurrentPlanningResponseText(), this._planningTransitionContext);
+		const resolveId = `${planningMiddlewareQuestionCarouselResolveIdPrefix}plan-focus-intake-${Date.now()}`;
+		this._planFocusSlicesByResolveId.set(resolveId, focusSlices);
+
+		const promptOptions = this.buildPlanFocusPromptOptions(focusSlices);
+		const carousel = new ChatQuestionCarouselData(
+			[{
+				id: 'plan-focus-next',
+				type: 'singleSelect',
+				title: localize('chat.planFocusPrompt.title', 'What Should Happen Next?'),
+				message: localize('chat.planFocusPrompt.message', 'Choose a part of the current plan to sharpen again, or select Start Implementation when the plan is ready.'),
+				description: this.buildPlanFocusPromptDescription(promptOptions, this._planningTransitionContext),
+				required: true,
+				allowFreeformInput: true,
+				options: promptOptions,
+			}],
+			true,
+			resolveId,
+			undefined,
+			undefined,
+			this.buildPlanningMiddlewareCarouselMessage('plan-focus')
+		);
+		this._pendingPlanningQuestionResolveId = carousel.resolveId;
+
+		void this.showPlanningReviewCarousel(
+			carousel,
+			async answersRecord => {
+				await this.submitPlanFocusPromptAnswer(
+					originalQuery,
+					carousel,
+					answersRecord,
+					options,
+					planningPhase,
+				);
+			},
+			{
+				reviewKind: 'plan-focus-intake',
+				planSnapshot: currentSnapshot,
+			}
+		);
+	}
+
+	private async submitPlanFocusPromptAnswer(
+		originalQuery: string,
+		carousel: IChatQuestionCarousel,
+		answersRecord: IChatQuestionAnswers | undefined,
+		options: IChatAcceptInputOptions,
+		planningPhase: PlanningPhase,
+	): Promise<void> {
+		carousel.data = answersRecord ?? {};
+		carousel.isUsed = true;
+		this.input.clearQuestionCarousel(undefined, carousel.resolveId);
+		this._pendingPlanningQuestionResolveId = undefined;
+		if (carousel.resolveId) {
+			this._planFocusSlicesByResolveId.delete(carousel.resolveId);
+		}
+
+		const stageContext = buildPlanningTransitionContext(carousel, answersRecord, {
+			phase: planningPhase,
+			plannerNotes: this._planningTransitionContext?.plannerNotes,
+			recentConversation: this._planningTransitionContext?.recentConversation,
+			repositoryContext: this._planningTransitionContext?.repositoryContext,
+		});
+		const planningContext = mergePlanningTransitionContexts(this._planningTransitionContext, stageContext);
+		this._planningTransitionContext = planningContext;
+
+		const planFocusChoice = this.getPlanFocusPromptChoice(carousel, answersRecord);
+		if (planFocusChoice.action === 'start-implementation' || !planningContext) {
+			return;
+		}
+
+		if (!planFocusChoice.focusHint) {
+			return;
+		}
+
+		await this.showPlanningGenerationPlaceholder(originalQuery, 'plan-focus');
+		try {
+			const { planningContext: refreshedPlanningContext, generationContext } = await this.refreshPlanningTransitionContextForStage(
+				originalQuery,
+				planningPhase,
+				'plan-focus',
+				planningContext,
+				{
+					currentPlan: this.getCurrentPlanningResponseText(),
+					focusAreaLabel: planFocusChoice.focusAreaLabel,
+					focusHint: planFocusChoice.focusHint,
+				}
+			);
+			this._planningTransitionContext = refreshedPlanningContext;
+
+			const questions = await generateDynamicPlanningQuestions(this.languageModelsService, generationContext, CancellationToken.None);
+			await this.clearPendingPlanningPlaceholder();
+			if (!questions.length) {
+				await this.showPlanningQuestionGenerationError('plan-focus', new Error(localize(
+					'chat.dynamicPlanning.emptyPlanFocusQuestions',
+					'Focused follow-up generation did not return any usable questions.'
+				)));
+				return;
+			}
+
+			void this.showDynamicPlanningQuestionCarousel(originalQuery, questions, options, generationContext, false, this.getLatestPlanningPlanSnapshot());
+		} catch (error) {
+			await this.showPlanningQuestionGenerationError('plan-focus', error);
+		}
+	}
+
+	private isChatInternalEditor(uri: URI | undefined): boolean {
+		if (!uri) {
+			return true;
+		}
+
+		return uri.scheme === Schemas.vscodeChatInput
+			|| uri.scheme === Schemas.vscodeChatCodeBlock
+			|| uri.scheme === Schemas.vscodeChatCodeCompareBlock
+			|| uri.scheme === Schemas.vscodeChatEditor;
+	}
+
+	private showDynamicPlanningQuestionCarousel(
+		originalQuery: string,
+		questions: IChatQuestion[],
+		options: IChatAcceptInputOptions,
+		generationContext: IPlanningQuestionGenerationContext,
+		useSubmittedPlaceholder: boolean,
+		planSnapshot?: IPlanningPlanSnapshot,
+	): void {
+		const carousel = new ChatQuestionCarouselData(
+			questions,
+			true,
+			`${planningMiddlewareQuestionCarouselResolveIdPrefix}${generationContext.questionStage}-${Date.now()}`,
+			undefined,
+			undefined,
+			this.buildPlanningMiddlewareCarouselMessage(generationContext)
+		);
+		this._pendingPlanningQuestionResolveId = carousel.resolveId;
+
+		if (useSubmittedPlaceholder && this.canShowSubmittedPlanningPlaceholder()) {
+			void this.setSubmittedPlanningPlaceholderCarousel(originalQuery, carousel, options, generationContext);
+			return;
+		}
+
+		if (generationContext.questionStage === 'goal-clarity') {
+			const context = {
+				element: {
+					id: 'dynamic-planning-questions',
+					sessionResource: this.viewModel!.sessionResource,
+					dataId: 'dynamic-planning-questions',
+					username: '',
+					message: { text: originalQuery, parts: [] },
+					messageText: originalQuery,
+					attempt: 0,
+					variables: [],
+					currentRenderedHeight: undefined,
+					shouldBeRemovedOnSend: undefined,
+					isComplete: true,
+					isCompleteAddedRequest: false,
+					slashCommand: undefined,
+					agentOrSlashCommandDetected: false,
+					shouldBeBlocked: constObservable(false),
+					timestamp: Date.now(),
+				},
+				elementIndex: Math.max(this.viewModel?.getItems().length ?? 0, 0),
+				container: this.container,
+				content: [carousel],
+				contentIndex: 0,
+				editorPool: undefined as never,
+				codeBlockStartIndex: 0,
+				treeStartIndex: 0,
+				diffEditorPool: undefined as never,
+				currentWidth: constObservable(this.container.clientWidth),
+				onDidChangeVisibility: Event.None,
+				inlineTextModels: undefined as never,
+			};
+			this.input.renderQuestionCarousel(carousel, context, {
+				shouldAutoFocus: true,
+				onSubmit: async answers => {
+					await this.submitDynamicPlanningQuestionAnswers(
+						originalQuery,
+						carousel,
+						answers ? Object.fromEntries(answers) : undefined,
+						options,
+						generationContext,
+						false
+					);
+				}
+			});
+			this.input.focusQuestionCarousel();
+			return;
+		}
+
+		void this.showPlanningReviewCarousel(
+			carousel,
+			async answersRecord => {
+				await this.submitDynamicPlanningQuestionAnswers(
+					originalQuery,
+					carousel,
+					answersRecord,
+					options,
+					generationContext,
+					false
+				);
+			},
+			{
+				reviewKind: generationContext.questionStage === 'task-decomposition' ? 'task-decomposition' : 'plan-focus-questions',
+				planSnapshot: planSnapshot ?? this.getLatestPlanningPlanSnapshot(),
+				focusAreaLabel: generationContext.focusAreaLabel,
+			}
+		);
+	}
+
+	private canShowSubmittedPlanningPlaceholder(): boolean {
+		return !!this.viewModel?.sessionResource && this.isInPlanningMode();
+	}
+
+	private async showSubmittedPlanningPlaceholder(
+		originalQuery: string,
+		options: IChatAcceptInputOptions,
+		questionStage: PlanningQuestionStage
+	): Promise<void> {
+		if (!this.viewModel) {
+			return;
+		}
+		if (!this.isInPlanningMode()) {
+			return;
+		}
+
+		this._pendingPlanningQuestionAnswersListener.clear();
+		this._onDidAcceptInput.fire();
+		this.input.acceptInput(options.storeToHistory ?? true);
+
+		await this.chatService.addCompleteRequest(this.viewModel.sessionResource, originalQuery, undefined, 0, {
+			message: [this.createPlanningMiddlewareIntroContent(questionStage)],
+			result: {},
+		});
+
+		this._pendingPlanningPlaceholderRequestId = this.chatService.getSession(this.viewModel.sessionResource)?.getRequests().at(-1)?.id;
+	}
+
+	private async setSubmittedPlanningPlaceholderCarousel(
+		originalQuery: string,
+		carousel: IChatQuestionCarousel,
+		options: IChatAcceptInputOptions,
+		generationContext: IPlanningQuestionGenerationContext
+	): Promise<void> {
+		if (!this.viewModel) {
+			return;
+		}
+		if (!this.isInPlanningMode()) {
+			return;
+		}
+
+		this._pendingPlanningQuestionAnswersListener.clear();
+		if (this._pendingPlanningPlaceholderRequestId) {
+			await this.chatService.removeRequest(this.viewModel.sessionResource, this._pendingPlanningPlaceholderRequestId);
+			this._pendingPlanningPlaceholderRequestId = undefined;
+		}
+
+		await this.chatService.addCompleteRequest(this.viewModel.sessionResource, originalQuery, undefined, 0, {
+			message: [this.createPlanningMiddlewareIntroContent(generationContext.questionStage), carousel],
+			result: {},
+		});
+
+		const requestId = this.chatService.getSession(this.viewModel.sessionResource)?.getRequests().at(-1)?.id;
+		this._pendingPlanningPlaceholderRequestId = requestId;
+		if (!requestId || !carousel.resolveId) {
+			return;
+		}
+
+		this._pendingPlanningQuestionAnswersListener.value = Event.once(Event.filter(
+			this.chatService.onDidReceiveQuestionCarouselAnswer,
+			event => event.requestId === requestId && event.resolveId === carousel.resolveId
+		))(event => {
+			void this.submitDynamicPlanningQuestionAnswers(
+				originalQuery,
+				carousel,
+				event.answers,
+				options,
+				generationContext,
+				true
+			);
+		});
+
+		queueMicrotask(() => {
+			this.input.focusQuestionCarousel();
+		});
+	}
+
+	private async submitDynamicPlanningQuestionAnswers(
+		originalQuery: string,
+		carousel: IChatQuestionCarousel,
+		answersRecord: IChatQuestionAnswers | undefined,
+		options: IChatAcceptInputOptions,
+		generationContext: IPlanningQuestionGenerationContext,
+		fromSubmittedPlaceholder: boolean
+	): Promise<void> {
+		if (!this.isInPlanningMode()) {
+			this._pendingPlanningQuestionAnswersListener.clear();
+			await this.clearPendingPlanningPlaceholder();
+			if (isPlanningMiddlewareQuestionCarousel(carousel.resolveId)) {
+				this.input.clearQuestionCarousel(undefined, carousel.resolveId);
+			}
+			this._pendingPlanningQuestionResolveId = undefined;
+			return;
+		}
+
+		carousel.data = answersRecord ?? {};
+		carousel.isUsed = true;
+		if (!fromSubmittedPlaceholder) {
+			this.input.clearQuestionCarousel(undefined, carousel.resolveId);
+		}
+
+		this._pendingPlanningQuestionResolveId = undefined;
+		this._lastPlanningQuestionSourceInput = originalQuery;
+
+		const stageContext = buildPlanningTransitionContext(carousel, answersRecord, {
+			phase: generationContext.planningPhase,
+			plannerNotes: generationContext.plannerNotes,
+			recentConversation: generationContext.recentConversation,
+			repositoryContext: generationContext.repositoryContext,
+		});
+		const planningContext = mergePlanningTransitionContexts(this._planningTransitionContext, stageContext);
+		this._planningTransitionContext = planningContext;
+		if (!planningContext) {
+			return;
+		}
+
+		const { planningContext: refreshedPlanningContext } = await this.refreshPlanningTransitionContextForStage(
+			originalQuery,
+			generationContext.planningPhase,
+			generationContext.questionStage,
+			planningContext,
+			{ currentPlan: generationContext.currentPlan }
+		);
+		this._planningTransitionContext = refreshedPlanningContext;
+
+		if (generationContext.questionStage === 'goal-clarity') {
+			await this.submitPlanningRequestWithContext(
+				originalQuery,
+				options,
+				refreshedPlanningContext,
+				true,
+				async response => this.showTaskDecompositionPlanningQuestions(
+					originalQuery,
+					options,
+					generationContext.planningPhase,
+					this.capturePlanningPlanSnapshot(response)
+				)
+			);
+			return;
+		}
+
+		if (generationContext.questionStage === 'task-decomposition') {
+			await this.submitPlanningRequestWithContext(
+				originalQuery,
+				options,
+				refreshedPlanningContext,
+				false,
+				async response => this.showPlanFocusPromptCarousel(
+					originalQuery,
+					options,
+					generationContext.planningPhase,
+					this.capturePlanningPlanSnapshot(response)
+				)
+			);
+			return;
+		}
+
+		await this.submitPlanningRequestWithContext(
+			originalQuery,
+			options,
+			refreshedPlanningContext,
+			false,
+			async response => this.showPlanFocusPromptCarousel(
+				originalQuery,
+				options,
+				generationContext.planningPhase,
+				this.capturePlanningPlanSnapshot(response)
+			)
+		);
+	}
+
+	private createPlanningContextAttachment(context: IPlanningTransitionContext): IChatRequestVariableEntry {
+		return {
+			...toPromptTextVariableEntry(augmentPromptWithPlanningContext('', context), true),
+			id: 'vscode.planning.context',
+			name: 'prompt:planningContext',
+			modelDescription: 'Planning context',
+		};
+	}
+
+	private buildPlanningMiddlewareCarouselMessage(generationContext: IPlanningQuestionGenerationContext | PlanningQuestionStage): MarkdownString {
+		const markdown = new MarkdownString(undefined, { supportThemeIcons: true });
+		const questionStage = typeof generationContext === 'string' ? generationContext : generationContext.questionStage;
+
+		if (questionStage === 'goal-clarity') {
+			const artifactHint = typeof generationContext === 'string' ? undefined : this.getUserFacingPlanningArtifactLabel(generationContext.repositoryContext);
+			markdown.appendMarkdown('$(sparkle) ');
+			markdown.appendMarkdown(artifactHint
+				? localize(
+					'chat.dynamicPlanning.goalClarityMessage.withArtifact',
+					'**Goal clarity**\n\nA few quick answers help me aim the first plan at **{0}** and the right outcome, constraints, and related code area.',
+					artifactHint
+				)
+				: localize(
+					'chat.dynamicPlanning.goalClarityMessage',
+					'**Goal clarity**\n\nA few quick answers help me aim the first plan at the right outcome, constraints, and code area.'
+				));
+		} else if (questionStage === 'task-decomposition') {
+			const artifactHint = typeof generationContext === 'string' ? undefined : this.getUserFacingPlanningArtifactLabel(generationContext.repositoryContext);
+			markdown.appendMarkdown('$(list-unordered) ');
+			markdown.appendMarkdown(artifactHint
+				? localize(
+					'chat.dynamicPlanning.taskDecompositionMessage.withArtifact',
+					'**Task decomposition**\n\nTighten the first draft so the rebuilt plan has a cleaner breakdown, clearer starting point, and better validation around **{0}**.',
+					artifactHint
+				)
+				: localize(
+					'chat.dynamicPlanning.taskDecompositionMessage',
+					'**Task decomposition**\n\nTighten the first draft so the rebuilt plan has a cleaner breakdown, clearer starting point, and better validation.'
+				));
+		} else {
+			const focusArea = typeof generationContext === 'string' ? undefined : this.describePlanFocusArea(generationContext);
+			markdown.appendMarkdown('$(target) ');
+			markdown.appendMarkdown(focusArea
+				? localize(
+					'chat.dynamicPlanning.planFocusMessage.withArea',
+					'**Plan focus**\n\nSharpen **{0}** with another focused follow-up, or skip to keep the current plan.',
+					focusArea
+				)
+				: localize(
+					'chat.dynamicPlanning.planFocusMessage',
+					'**Plan focus**\n\nZoom in on one part of the revised plan for a sharper follow-up, or skip to keep the current plan.'
+				));
+		}
+
+		return markdown;
+	}
+
+	private getUserFacingPlanningArtifactLabel(repositoryContext: IPlanningTransitionContext['repositoryContext'] | IPlanningQuestionGenerationContext['repositoryContext']): string | undefined {
+		const taskLensArtifact = repositoryContext?.taskLens?.primaryArtifact;
+		if (isConcretePlanningArtifactReference(taskLensArtifact)) {
+			return taskLensArtifact;
+		}
+
+		const primaryArtifactHint = repositoryContext?.primaryArtifactHint;
+		if (isConcretePlanningArtifactReference(primaryArtifactHint)) {
+			return primaryArtifactHint;
+		}
+
+		const planningTargetLabel = repositoryContext?.planningTarget?.label;
+		if (isConcretePlanningArtifactReference(planningTargetLabel)) {
+			return planningTargetLabel;
+		}
+
+		return undefined;
+	}
+
+	private describePlanFocusArea(generationContext: IPlanningQuestionGenerationContext): string | undefined {
+		const focusAreaLabel = generationContext.focusAreaLabel?.trim();
+		if (focusAreaLabel) {
+			return focusAreaLabel;
+		}
+
+		return generationContext.repositoryContext?.taskLens?.planAreas?.[0]
+			?? this.getUserFacingPlanningArtifactLabel(generationContext.repositoryContext);
+	}
+
+	private getPlanningSubmissionToolOverrides(baseTools?: UserSelectedTools, allowPlannerFollowupQuestions = false): UserSelectedTools {
+		return {
+			...(baseTools ?? this.input.selectedToolsModel.userSelectedTools.get()),
+			vscode_askQuestions: allowPlannerFollowupQuestions,
+			copilot_askQuestions: allowPlannerFollowupQuestions,
+		};
+	}
+
+	private createPlanningMiddlewareIntroContent(questionStage: PlanningQuestionStage, mode: 'captured' | 'generating' = 'captured') {
+		const content = new MarkdownString(undefined, { supportThemeIcons: true });
+		if (mode === 'captured') {
+			content.appendMarkdown(questionStage === 'goal-clarity'
+				? localize('chat.dynamicPlanning.prePlanningIntro', '{0} **Captured.** I am asking a few quick questions before I build the first plan.', '$(sync~spin)')
+				: localize('chat.dynamicPlanning.prePlanningIntroDecomposition', '{0} **Captured.** I am preparing the next planning step.', '$(sync~spin)'));
+		} else {
+			content.appendMarkdown(questionStage === 'task-decomposition'
+				? localize('chat.dynamicPlanning.generatingTaskDecompositionIntro', '{0} **Generating task decomposition questions.** I am tightening the next planning pass around the current draft.', '$(sync~spin)')
+				: localize('chat.dynamicPlanning.generatingPlanFocusIntro', '{0} **Generating focused follow-up questions.** I am sharpening the next planning pass around your selected plan area.', '$(sync~spin)'));
+		}
+		return {
+			kind: 'markdownContent' as const,
+			content,
+		};
+	}
+
 	private async _acceptInput(query: { query: string } | undefined, options: IChatAcceptInputOptions = {}): Promise<IChatResponseModel | undefined> {
 		if (!query && this.input.generating) {
 			// if the user submits the input and generation finishes quickly, just submit it for them
@@ -2348,14 +3984,21 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			}
 		}
 
+		const inputValue = !query ? this.getInput() : query.query;
+		if (await this.maybeRunDynamicPlanningQuestions(inputValue, options)) {
+			return;
+		}
+
 		this._onDidAcceptInput.fire();
 		this.listWidget.setScrollLock(this.isLockedToCodingAgent || !!checkModeOption(this.input.currentModeKind, this.viewOptions.autoScroll));
 
-		const editorValue = this.getInput();
 		const requestInputs: IChatRequestInputOptions = {
-			input: !query ? editorValue : query.query,
+			input: inputValue,
 			attachedContext: options?.enableImplicitContext === false ? this.input.getAttachedContext() : this.input.getAttachedAndImplicitContext(),
 		};
+		if (options.extraAttachedContext?.length) {
+			requestInputs.attachedContext.add(...options.extraAttachedContext);
+		}
 
 		const isUserQuery = !query;
 		const isEditing = this.viewModel?.editing;
@@ -2466,6 +4109,7 @@ export class ChatWidget extends Disposable implements IChatWidget {
 		const contribution = this._lockedAgent ? this.chatSessionsService.getChatSessionContribution(this._lockedAgent.id) : undefined;
 		const autoAttachEnabled = contribution ? contribution.autoAttachReferences === true : true;
 
+		const modeRequestOptions = this.getModeRequestOptions();
 		const result = await this.chatService.sendRequest(this.viewModel.sessionResource, requestInputs.input, {
 			userSelectedModelId: this.input.currentLanguageModel,
 			location: this.location,
@@ -2474,7 +4118,8 @@ export class ChatWidget extends Disposable implements IChatWidget {
 			attachedContext: requestInputs.attachedContext.asArray(),
 			resolvedVariables: resolvedImageVariables,
 			noCommandDetection: options?.noCommandDetection,
-			...this.getModeRequestOptions(),
+			...modeRequestOptions,
+			userSelectedTools: options?.userSelectedToolsOverride ? constObservable(options.userSelectedToolsOverride) : modeRequestOptions.userSelectedTools,
 			modeInfo: this.input.currentModeInfo,
 			agentIdSilent: this._lockedAgent?.id,
 			queue: options?.queue,
@@ -2858,6 +4503,15 @@ export class ChatWidget extends Disposable implements IChatWidget {
 	delegateScrollFromMouseWheelEvent(browserEvent: IMouseWheelEvent): void {
 		this.listWidget.delegateScrollFromMouseWheelEvent(browserEvent);
 	}
+}
+
+function isUsedQuestionCarousel(content: unknown): content is IChatQuestionCarousel {
+	if (!content || typeof content !== 'object' || !('kind' in content) || content.kind !== 'questionCarousel') {
+		return false;
+	}
+
+	const carousel = content as IChatQuestionCarousel;
+	return Boolean(carousel.isUsed && carousel.data && Object.keys(carousel.data).length > 0);
 }
 
 const MIN_LIST_HEIGHT = 50;
