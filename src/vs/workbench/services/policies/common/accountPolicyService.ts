@@ -13,20 +13,13 @@ import { AbstractPolicyService, getRestrictedPolicyValue, IPolicyService, Policy
 import { IDefaultAccountService } from '../../../../platform/defaultAccount/common/defaultAccount.js';
 
 /**
- * Policy name (declared by `chat.approvedAccountOrganizations` in chat.contribution.ts)
- * holding the list of GitHub organization logins that satisfy the gate. Setting this
- * policy to a non-empty value activates the "Approved Account" gate; AI features are
- * forced off until the user signs into a GitHub account from an approved organization
- * AND the account-side policy data has resolved.
- *
- * The token `*` is a wildcard that accepts any signed-in GitHub/GHE account.
+ * Policy name (declared by `chat.approvedAccountOrganizations`) holding the list of
+ * GitHub organization logins that satisfy the gate. The token `*` is a wildcard.
  */
 export const APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME = 'ChatApprovedAccountOrganizations';
 
 export const enum AccountPolicyGateState {
-	/** Gate is not active. Policies behave exactly as account policy data dictates. */
 	Inactive = 'inactive',
-	/** Gate active and satisfied. Account policy values flow through normally. */
 	Satisfied = 'satisfied',
 	/** Gate active and NOT satisfied — restricted values are applied to all gated policies. */
 	Restricted = 'restricted',
@@ -42,16 +35,9 @@ export const enum AccountPolicyGateUnsatisfiedReason {
 export interface IAccountPolicyGateInfo {
 	readonly state: AccountPolicyGateState;
 	readonly reason?: AccountPolicyGateUnsatisfiedReason;
-	/** The admin-configured approved organization logins (lower-cased). Empty when the gate is inactive. */
 	readonly approvedOrganizations?: readonly string[];
 }
 
-/**
- * Context key that is `true` while the Account Policy gate is active and not satisfied
- * (i.e. AI features are forced off until the user signs into an approved GitHub
- * organization). Defined here in the services layer so both the gate contribution and
- * `vs/workbench/contrib/chat` can use it without crossing layer boundaries.
- */
 export const ChatAccountPolicyGateActiveContext = new RawContextKey<boolean>(
 	'chatAccountPolicyGateActive',
 	false,
@@ -60,9 +46,9 @@ export const ChatAccountPolicyGateActiveContext = new RawContextKey<boolean>(
 
 /**
  * Read-only accessor for the Account Policy gate state. Backed by the same
- * `AccountPolicyService` instance that drives policy enforcement, so UX/observability
- * consumers (notifications, context keys, telemetry) cannot drift from the
- * authoritative gate decision.
+ * `AccountPolicyService` instance that drives policy enforcement, so UX consumers
+ * (notifications, context keys, telemetry) cannot drift from the authoritative
+ * gate decision.
  */
 export const IAccountPolicyGateService = createDecorator<IAccountPolicyGateService>('accountPolicyGateService');
 export interface IAccountPolicyGateService {
@@ -81,13 +67,7 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 	private readonly _onDidChangeGateInfo = this._register(new Emitter<IAccountPolicyGateInfo>());
 	readonly onDidChangeGateInfo = this._onDidChangeGateInfo.event;
 
-	/**
-	 * Read-only reference to the MDM/managed policy service. Used only for
-	 * reading `ChatApprovedAccountOrganizations` and listening for changes.
-	 * The `MultiplexPolicyService` is responsible for calling
-	 * `updatePolicyDefinitions` on the managed service — we must NOT do it
-	 * here to avoid duplicate IPC round-trips.
-	 */
+	// Read-only — the MultiplexPolicyService owns calling updatePolicyDefinitions.
 	private readonly managedPolicyReader?: IPolicyService;
 
 	constructor(
@@ -114,8 +94,7 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 			}));
 		}
 
-		// The initial account load (DefaultAccountService.setDefaultAccountProvider →
-		// provider.refresh()) sets `currentDefaultAccount` but does NOT fire
+		// The initial account load sets `currentDefaultAccount` but does NOT fire
 		// `onDidChangeDefaultAccount`. Re-evaluate once the account has resolved
 		// so the gate doesn't stay stuck on `noAccount`.
 		this.defaultAccountService.getDefaultAccount().then(() => {
@@ -125,13 +104,6 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 
 	protected async _updatePolicyDefinitions(policyDefinitions: IStringDictionary<PolicyDefinition>): Promise<void> {
 		this.logService.trace(`AccountPolicyService#_updatePolicyDefinitions: Got ${Object.keys(policyDefinitions).length} policy definitions`);
-
-		// NOTE: We do NOT call `this.managedPolicyReader.updatePolicyDefinitions()`
-		// here. When running under MultiplexPolicyService, the multiplex already
-		// pushes definitions to all child services (including the managed policy
-		// channel). Calling it again would cause duplicate IPC round-trips.
-		// The managed policy reader is used only for getPolicyValue() and
-		// onDidChange — see constructor.
 
 		const updated: string[] = [];
 		const policyData = this.defaultAccountService.policyData;
@@ -144,17 +116,12 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 			|| previousInfo.reason !== this._gateInfo.reason
 			|| previousApprovedOrgs !== currentApprovedOrgs;
 
-		// `policyNotResolved` means the user IS signed into an approved org but
-		// account-side policy data hasn't been fetched yet. During this transient
-		// window, we intentionally do NOT force restricted values. Policies with a
-		// `value` callback naturally return `undefined` because `policyData` is null,
-		// so no account-level overrides will slip through. Forcing `restrictedValue`
-		// here would transiently lock `chat.disableAIFeatures = true`, which surfaces
-		// confusing "Unable to write" errors and hides the UI for a split second.
-		//
-		// For the other unsatisfied reasons (`noAccount`, `wrongProvider`,
-		// `orgNotApproved`) we DO force restrictions because those are stable states
-		// that require user action to change.
+		// `policyNotResolved` is a transient state where the user IS in an approved
+		// org but account-side policy data hasn't loaded yet. We don't force restricted
+		// values here — `policy.value(policyData)` naturally returns undefined when
+		// `policyData` is null, so no account overrides slip through. Forcing
+		// `restrictedValue` would transiently flip `chat.disableAIFeatures = true`,
+		// surfacing confusing "Unable to write" errors and a UI flash.
 		const gateRestricted = this._gateInfo.state === AccountPolicyGateState.Restricted
 			&& this._gateInfo.reason !== AccountPolicyGateUnsatisfiedReason.PolicyNotResolved;
 
@@ -163,10 +130,8 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 
 			let policyValue: PolicyValue | undefined;
 			if (gateRestricted && (policy.value !== undefined || policy.restrictedValue !== undefined)) {
-				// Only policies that opt into the gate are restricted: either by declaring an
-				// account-side `value` (account-driven) or an explicit `restrictedValue`.
-				// MDM-only policies (no `value`, no `restrictedValue`) — including the two policies
-				// that DRIVE the gate itself — are left untouched so the admin remains in control.
+				// MDM-only policies (no `value`, no `restrictedValue`) — including the policy
+				// that DRIVES the gate itself — are left untouched so the admin remains in control.
 				policyValue = getRestrictedPolicyValue(policy);
 			} else if (policyData && policy.value) {
 				policyValue = policy.value(policyData);
@@ -197,7 +162,6 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 			return { state: AccountPolicyGateState.Inactive };
 		}
 
-		// Gate is active iff the admin has set a non-empty approved-organizations list.
 		const approvedRaw = this.managedPolicyReader.getPolicyValue(APPROVED_ACCOUNT_ORGANIZATIONS_POLICY_NAME);
 		const approvedOrgs = parseApprovedOrganizations(approvedRaw);
 		if (approvedOrgs.length === 0) {
@@ -209,17 +173,15 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 			return { state: AccountPolicyGateState.Restricted, reason: AccountPolicyGateUnsatisfiedReason.NoAccount, approvedOrganizations: approvedOrgs };
 		}
 
-		// Sign-in: provider id must match the configured GitHub (default or enterprise) provider.
 		const configuredProvider = this.defaultAccountService.getDefaultAccountAuthenticationProvider();
 		if (account.authenticationProvider.id !== configuredProvider.id) {
 			return { state: AccountPolicyGateState.Restricted, reason: AccountPolicyGateUnsatisfiedReason.WrongProvider, approvedOrganizations: approvedOrgs };
 		}
 
-		// Check org membership BEFORE policy-data resolution. This ensures users
-		// who are definitively NOT in an approved org are restricted immediately,
-		// even while policy data is still loading. `policyNotResolved` is reserved
-		// for users who ARE in an approved org but whose account-side policy data
-		// hasn't been fetched yet — a transient state that resolves on its own.
+		// Org membership is checked BEFORE policy-data resolution so users definitively
+		// NOT in an approved org are restricted immediately, even while policy data is
+		// still loading. `policyNotResolved` is reserved for users who ARE in an approved
+		// org — a transient state that resolves on its own.
 		if (!approvedOrgs.includes('*')) {
 			const accountOrgs = (account.entitlementsData?.organization_login_list ?? []).map(o => o.toLowerCase());
 			const intersects = accountOrgs.some(org => approvedOrgs.includes(org));
@@ -228,9 +190,6 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 			}
 		}
 
-		// Account-side policy data must have resolved (rules out the pre-fetch window).
-		// At this point the user IS in an approved org (or wildcard), so skipping
-		// restrictions for this reason in _updatePolicyDefinitions is safe.
 		if (this.defaultAccountService.policyData === null) {
 			return { state: AccountPolicyGateState.Restricted, reason: AccountPolicyGateUnsatisfiedReason.PolicyNotResolved, approvedOrganizations: approvedOrgs };
 		}
@@ -240,12 +199,11 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 }
 
 function parseApprovedOrganizations(raw: PolicyValue | undefined): string[] {
-	// `PolicyValue` is `string | number | boolean`, so even array-typed policies are
-	// delivered to AbstractPolicyService as a JSON-stringified array (this mirrors
-	// how `PolicyConfiguration.parse` normalises non-string-typed policy values).
+	// Array-typed policies are delivered as JSON-stringified arrays — see
+	// `PolicyConfiguration.parse` for the same normalisation.
 	let value: unknown = raw;
 	if (typeof value === 'string') {
-		try { value = JSON.parse(value); } catch { /* not JSON — leave as-is */ }
+		try { value = JSON.parse(value); } catch { /* not JSON */ }
 	}
 	if (!Array.isArray(value)) {
 		return [];

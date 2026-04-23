@@ -30,7 +30,6 @@ export interface ISessionsBlockedOverlayOptions {
 
 /**
  * Full-window impassable overlay shown when the Agents app is blocked.
- * Supports multiple blocking reasons with different messaging and actions.
  */
 export class SessionsPolicyBlockedOverlay extends Disposable {
 
@@ -69,7 +68,6 @@ export class SessionsPolicyBlockedOverlay extends Disposable {
 			}
 		}));
 
-		// Sessions logo
 		append(card, $('div.sessions-policy-blocked-logo'));
 
 		switch (options.reason) {

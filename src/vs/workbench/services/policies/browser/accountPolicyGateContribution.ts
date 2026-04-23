@@ -37,13 +37,9 @@ type AccountPolicyGateStateClassification = {
 };
 
 /**
- * Observes the Account Policy gate computed by `IAccountPolicyGateService` and:
- *   - mirrors the gate state into a workbench context key so welcome views/menus can react;
- *   - shows a notification with a Sign In action when the gate is active but unsatisfied;
- *   - emits telemetry whenever the gate state changes.
- *
- * The actual restriction of feature values lives in `AccountPolicyService` itself; this
- * contribution is a thin UX/observability adapter and does NOT re-evaluate the gate.
+ * UX/observability adapter for the Account Policy gate. Mirrors gate state into
+ * a context key, shows a sign-in notification when restricted, and emits telemetry.
+ * Does NOT re-evaluate the gate — `AccountPolicyService` owns that.
  */
 export class AccountPolicyGateContribution extends Disposable implements IWorkbenchContribution {
 
@@ -53,7 +49,7 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 	private lastInfo: IAccountPolicyGateInfo;
 
 	private readonly notificationHandle = this._register(new MutableDisposable());
-	private dismissedKey: string | undefined; // tracks reason+account combo for session-scoped dismissal
+	private dismissedKey: string | undefined;
 
 	private initialised = false;
 
@@ -73,11 +69,9 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 		this.contextKey = ChatAccountPolicyGateActiveContext.bindTo(contextKeyService);
 		this.lastInfo = this.gateService.gateInfo;
 
-		// Seed context key + setForceHidden immediately (fail-closed) but
-		// defer the notification until the first onDidChangeGateInfo event
-		// so the default account has had time to resolve. Without this, a
-		// race on startup shows "sign in" even when the user is already
-		// signed in (just not yet loaded).
+		// Apply context key + setForceHidden immediately (fail-closed), but defer the
+		// notification until either the first onDidChangeGateInfo or a 5s timeout —
+		// without this, a startup race shows "sign in" before the default account loads.
 		this.apply(this.lastInfo, /*forceTelemetry*/ true, /*showNotification*/ false);
 
 		this._register(this.gateService.onDidChangeGateInfo(info => {
@@ -85,8 +79,6 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 			this.apply(info, /*forceTelemetry*/ false, /*showNotification*/ true);
 		}));
 
-		// If the gate never fires a change (already stable), show the
-		// notification after a short delay to let the account service load.
 		this._register(disposableTimeout(() => {
 			if (!this.initialised) {
 				this.initialised = true;
@@ -99,9 +91,8 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 		const stateChanged = forceTelemetry || info.state !== this.lastInfo.state || info.reason !== this.lastInfo.reason;
 		this.lastInfo = info;
 
-		// `policyNotResolved` is transient — the user IS in an approved org but account
-		// data hasn't loaded yet. Don't set the context key for this state so the UI
-		// stays visible (policies aren't being restricted either — see AccountPolicyService).
+		// Suppress the context key during the transient `policyNotResolved` state
+		// (user IS in approved org, just waiting for data) so the UI doesn't flash.
 		const isRestricted = info.state === AccountPolicyGateState.Restricted
 			&& info.reason !== AccountPolicyGateUnsatisfiedReason.PolicyNotResolved;
 		this.contextKey.set(isRestricted);
@@ -127,18 +118,14 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 			return;
 		}
 
-		// `policyNotResolved` is transient — don't show a notification for it.
 		if (info.reason === AccountPolicyGateUnsatisfiedReason.PolicyNotResolved) {
 			return;
 		}
 
-		// Build a composite key from the reason + current account name so that
-		// swapping to a different account (while still blocked) re-shows the notification.
+		// Composite key so swapping accounts (while still blocked) re-shows the notification.
 		const accountName = this.defaultAccountService.currentDefaultAccount?.accountName;
 		const notificationKey = `${info.reason ?? ''}:${accountName ?? ''}`;
 
-		// If the key changed (different reason or different account), close the old
-		// notification and reset the session-scoped dismissal.
 		if (this.dismissedKey !== undefined && this.dismissedKey !== notificationKey) {
 			this.notificationHandle.clear();
 			this.dismissedKey = undefined;
@@ -148,14 +135,14 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 
 	private maybeShowNotification(info: IAccountPolicyGateInfo, notificationKey: string): void {
 		if (this.notificationHandle.value) {
-			return; // already showing for this reason+account
+			return;
 		}
 		if (this.dismissedKey === notificationKey) {
-			return; // user dismissed for this reason+account this session
+			return;
 		}
 		const persistedDismissed = this.storageService.get(NOTIFICATION_DISMISSED_KEY, StorageScope.APPLICATION);
 		if (persistedDismissed === notificationKey) {
-			return; // user clicked "Don't Show Again" for this same combo on this machine
+			return;
 		}
 
 		const reason = info.reason;
@@ -163,8 +150,7 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 		const approvedOrgs = info.approvedOrganizations ?? [];
 		const hasConcreteOrgs = approvedOrgs.length > 0 && !approvedOrgs.includes('*');
 
-		// Build the message — notifications render as plain inline text, so use
-		// a comma-separated org list rather than bullet points / newlines.
+		// Notifications render as plain inline text — comma-separate orgs.
 		const orgList = approvedOrgs.join(', ');
 		let message: string;
 		if (reason === AccountPolicyGateUnsatisfiedReason.OrgNotApproved) {

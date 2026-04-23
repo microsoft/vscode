@@ -43,9 +43,9 @@ export class SessionsPolicyBlockedContribution extends Disposable implements IWo
 	private update(): void {
 		const gateInfo = this.gateService.gateInfo;
 
-		// The gate forces chat.agent.enabled = false via restrictedValue when it's
-		// in a stable Restricted state (not transient PolicyNotResolved). Only
-		// suppress the AgentDisabled overlay when our gate is causing that value.
+		// The gate forces chat.agent.enabled = false via restrictedValue when stably
+		// Restricted. Suppress AgentDisabled in that case so users see the gate-specific
+		// overlay (or the welcome screen for noAccount/wrongProvider) instead.
 		const gateForcesAgentDisabled = gateInfo.state === AccountPolicyGateState.Restricted
 			&& gateInfo.reason !== AccountPolicyGateUnsatisfiedReason.PolicyNotResolved;
 
@@ -55,10 +55,8 @@ export class SessionsPolicyBlockedContribution extends Disposable implements IWo
 			return;
 		}
 
-		// Account policy gate
 		if (gateInfo.state === AccountPolicyGateState.Restricted) {
-			// noAccount / wrongProvider: defer to the sessions welcome/walkthrough
-			// screen so the user can sign in via the standard flow.
+			// Defer to the sessions welcome/walkthrough so the user signs in via the standard flow.
 			if (gateInfo.reason === AccountPolicyGateUnsatisfiedReason.NoAccount
 				|| gateInfo.reason === AccountPolicyGateUnsatisfiedReason.WrongProvider) {
 				this.overlayRef.clear();
@@ -69,7 +67,6 @@ export class SessionsPolicyBlockedContribution extends Disposable implements IWo
 			if (gateInfo.reason === AccountPolicyGateUnsatisfiedReason.PolicyNotResolved) {
 				this.showOverlay({ reason: SessionsBlockedReason.Loading });
 			} else {
-				// orgNotApproved — signed in but wrong account
 				const accountName = this.defaultAccountService.currentDefaultAccount?.accountName;
 				this.showOverlay({
 					reason: SessionsBlockedReason.AccountPolicyGate,
@@ -80,14 +77,12 @@ export class SessionsPolicyBlockedContribution extends Disposable implements IWo
 			return;
 		}
 
-		// Not blocked
 		this.overlayRef.clear();
 		this.currentReason = undefined;
 	}
 
 	private showOverlay(options: ISessionsBlockedOverlayOptions): void {
-		// Don't recreate if already showing the same reason (except AccountPolicyGate
-		// where the account name may have changed)
+		// AccountPolicyGate may need re-render when the account name changes.
 		if (this.currentReason === options.reason && options.reason !== SessionsBlockedReason.AccountPolicyGate) {
 			return;
 		}
