@@ -27,12 +27,12 @@ import { mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { removeAnsiEscapeCodes } from '../../../../../base/common/strings.js';
 import { URI } from '../../../../../base/common/uri.js';
-import type { ISessionToolCallStartAction } from '../../../common/state/protocol/actions.js';
-import { ISubscribeResult } from '../../../common/state/protocol/commands.js';
+import type { SessionToolCallStartAction } from '../../../common/state/protocol/actions.js';
+import { SubscribeResult } from '../../../common/state/protocol/commands.js';
 import { PROTOCOL_VERSION } from '../../../common/state/sessionCapabilities.js';
-import { ResponsePartKind, ROOT_STATE_URI, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolResultContentType, isSubagentSession, type ISessionInputAnswer, type ISessionInputRequest, type ISessionState, type ITerminalState, type IToolResultContent, type IToolResultSubagentContent } from '../../../common/state/sessionState.js';
-import type { IRootState } from '../../../common/state/protocol/state.js';
-import type { IRootAgentsChangedAction, ISessionAddedNotification, ISessionInputRequestedAction, ISessionResponsePartAction, ISessionToolCallReadyAction } from '../../../common/state/sessionActions.js';
+import { ResponsePartKind, ROOT_STATE_URI, SessionInputAnswerState, SessionInputAnswerValueKind, SessionInputQuestionKind, SessionInputResponseKind, ToolResultContentType, isSubagentSession, type SessionInputAnswer, type SessionInputRequest, type SessionState, type TerminalState, type ToolResultContent, type ToolResultSubagentContent } from '../../../common/state/sessionState.js';
+import type { RootState } from '../../../common/state/protocol/state.js';
+import type { RootAgentsChangedAction, SessionAddedNotification, SessionInputRequestedAction, SessionResponsePartAction, SessionToolCallReadyAction } from '../../../common/state/sessionActions.js';
 import type { INotificationBroadcastParams } from '../../../common/state/sessionProtocol.js';
 import {
 	getActionEnvelope,
@@ -65,8 +65,8 @@ async function createRealSession(c: TestProtocolClient, clientId: string, tracki
 
 interface IRealSessionResult {
 	sessionUri: string;
-	addedNotification: ISessionAddedNotification;
-	subscribeSnapshot: ISessionState;
+	addedNotification: SessionAddedNotification;
+	subscribeSnapshot: SessionState;
 }
 
 /** Full version that returns the sessionAdded notification and subscribe snapshot for assertions. */
@@ -82,12 +82,12 @@ async function createRealSessionFull(c: TestProtocolClient, clientId: string, tr
 		n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded',
 		15_000,
 	);
-	const addedNotification = (notif.params as INotificationBroadcastParams).notification as ISessionAddedNotification;
+	const addedNotification = (notif.params as INotificationBroadcastParams).notification as SessionAddedNotification;
 	const realSessionUri = addedNotification.summary.resource;
 	trackingList.push(realSessionUri);
 
-	const subscribeResult = await c.call<ISubscribeResult>('subscribe', { resource: realSessionUri });
-	const subscribeSnapshot = subscribeResult.snapshot.state as ISessionState;
+	const subscribeResult = await c.call<SubscribeResult>('subscribe', { resource: realSessionUri });
+	const subscribeSnapshot = subscribeResult.snapshot.state as SessionState;
 	c.clearReceived();
 
 	return { sessionUri: realSessionUri, addedNotification, subscribeSnapshot };
@@ -106,7 +106,7 @@ function dispatchTurn(c: TestProtocolClient, session: string, turnId: string, te
 	});
 }
 
-function getAcceptedAnswers(request: ISessionInputRequest): Record<string, ISessionInputAnswer> | undefined {
+function getAcceptedAnswers(request: SessionInputRequest): Record<string, SessionInputAnswer> | undefined {
 	if (!request.questions?.length) {
 		return undefined;
 	}
@@ -120,7 +120,7 @@ function getAcceptedAnswers(request: ISessionInputRequest): Record<string, ISess
 						kind: SessionInputAnswerValueKind.Text,
 						value: question.defaultValue ?? 'interactive',
 					},
-				} satisfies ISessionInputAnswer];
+				} satisfies SessionInputAnswer];
 			case SessionInputQuestionKind.Number:
 			case SessionInputQuestionKind.Integer:
 				return [question.id, {
@@ -129,7 +129,7 @@ function getAcceptedAnswers(request: ISessionInputRequest): Record<string, ISess
 						kind: SessionInputAnswerValueKind.Number,
 						value: question.defaultValue ?? question.min ?? 1,
 					},
-				} satisfies ISessionInputAnswer];
+				} satisfies SessionInputAnswer];
 			case SessionInputQuestionKind.Boolean:
 				return [question.id, {
 					state: SessionInputAnswerState.Submitted,
@@ -137,7 +137,7 @@ function getAcceptedAnswers(request: ISessionInputRequest): Record<string, ISess
 						kind: SessionInputAnswerValueKind.Boolean,
 						value: question.defaultValue ?? true,
 					},
-				} satisfies ISessionInputAnswer];
+				} satisfies SessionInputAnswer];
 			case SessionInputQuestionKind.SingleSelect: {
 				const preferredOption = question.options.find(option => /interactive/i.test(option.id) || /interactive/i.test(option.label))
 					?? question.options.find(option => option.recommended)
@@ -148,7 +148,7 @@ function getAcceptedAnswers(request: ISessionInputRequest): Record<string, ISess
 						kind: SessionInputAnswerValueKind.Selected,
 						value: preferredOption.id,
 					},
-				} satisfies ISessionInputAnswer];
+				} satisfies SessionInputAnswer];
 			}
 			case SessionInputQuestionKind.MultiSelect: {
 				const preferredOptions = question.options.filter(option => option.recommended);
@@ -159,7 +159,7 @@ function getAcceptedAnswers(request: ISessionInputRequest): Record<string, ISess
 						kind: SessionInputAnswerValueKind.SelectedMany,
 						value: selectedOptions.map(option => option.id),
 					},
-				} satisfies ISessionInputAnswer];
+				} satisfies SessionInputAnswer];
 			}
 		}
 	}));
@@ -167,7 +167,7 @@ function getAcceptedAnswers(request: ISessionInputRequest): Record<string, ISess
 
 function getMarkdownResponseText(c: TestProtocolClient): string {
 	return c.receivedNotifications(n => isActionNotification(n, 'session/responsePart'))
-		.map(notification => getActionEnvelope(notification).action as ISessionResponsePartAction)
+		.map(notification => getActionEnvelope(notification).action as SessionResponsePartAction)
 		.flatMap(action => action.part.kind === ResponsePartKind.Markdown ? [action.part.content] : [])
 		.join('\n');
 }
@@ -201,7 +201,7 @@ async function driveTurnToCompletion(c: TestProtocolClient, session: string, tur
 		}
 
 		if (isActionNotification(notification, 'session/toolCallReady')) {
-			const action = getActionEnvelope(notification).action as ISessionToolCallReadyAction;
+			const action = getActionEnvelope(notification).action as SessionToolCallReadyAction;
 			if (!action.confirmed) {
 				sawPendingConfirmation = true;
 				c.notify('dispatchAction', {
@@ -220,7 +220,7 @@ async function driveTurnToCompletion(c: TestProtocolClient, session: string, tur
 
 		if (isActionNotification(notification, 'session/inputRequested')) {
 			sawInputRequest = true;
-			const action = getActionEnvelope(notification).action as ISessionInputRequestedAction;
+			const action = getActionEnvelope(notification).action as SessionInputRequestedAction;
 			c.notify('dispatchAction', {
 				clientSeq: nextClientSeq++,
 				action: {
@@ -244,12 +244,12 @@ async function driveTurnToCompletion(c: TestProtocolClient, session: string, tur
 	};
 }
 
-function terminalResourceFromContent(content: readonly IToolResultContent[]): string | undefined {
+function terminalResourceFromContent(content: readonly ToolResultContent[]): string | undefined {
 	const terminalContent = content.find(c => c.type === ToolResultContentType.Terminal);
 	return terminalContent?.resource;
 }
 
-function terminalText(state: ITerminalState): string {
+function terminalText(state: TerminalState): string {
 	return removeAnsiEscapeCodes(state.content.map(part => part.type === 'command' ? `${part.commandLine}\n${part.output}` : part.value).join(''));
 }
 
@@ -354,7 +354,12 @@ function terminalText(state: ITerminalState): string {
 		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'), 90_000);
 	});
 
-	test('planning-mode session-state writes are auto-approved in default mode', async function () {
+	test.skip('planning-mode session-state writes are auto-approved in default mode', async function () {
+		// TODO: re-enable once exit_plan_mode is fully supported in @github/copilot-sdk.
+		// The public SDK currently lacks agentMode: 'plan' on MessageOptions and
+		// respondToExitPlanMode() on the session, so the model never calls exit_plan_mode
+		// and sawInputRequest never becomes true.
+
 		this.timeout(180_000);
 
 		const tempDir = mkdtempSync(`${tmpdir()}/ahp-plan-test-`);
@@ -382,8 +387,8 @@ function terminalText(state: ITerminalState): string {
 		);
 		assert.strictEqual(extraSessionNotificationsAfterFollowup.length, 0, 'sending another message should stay on the same session instead of forking');
 
-		const resubscribeResult = await client.call<ISubscribeResult>('subscribe', { resource: sessionUri });
-		const finalSnapshot = resubscribeResult.snapshot.state as ISessionState;
+		const resubscribeResult = await client.call<SubscribeResult>('subscribe', { resource: sessionUri });
+		const finalSnapshot = resubscribeResult.snapshot.state as SessionState;
 		assert.strictEqual(finalSnapshot.summary.resource, sessionUri, 'follow-up turn should keep the original session resource');
 	});
 
@@ -441,7 +446,7 @@ function terminalText(state: ITerminalState): string {
 			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded',
 			15_000,
 		);
-		const addedSummary = ((addedNotif.params as INotificationBroadcastParams).notification as ISessionAddedNotification).summary;
+		const addedSummary = ((addedNotif.params as INotificationBroadcastParams).notification as SessionAddedNotification).summary;
 		createdSessions.push(addedSummary.resource);
 		assert.strictEqual(
 			addedSummary.workingDirectory,
@@ -450,8 +455,8 @@ function terminalText(state: ITerminalState): string {
 		);
 
 		// 2. Subscribe and verify workingDirectory in the session state snapshot
-		const subscribeResult = await client.call<ISubscribeResult>('subscribe', { resource: addedSummary.resource });
-		const sessionState = subscribeResult.snapshot.state as ISessionState;
+		const subscribeResult = await client.call<SubscribeResult>('subscribe', { resource: addedSummary.resource });
+		const sessionState = subscribeResult.snapshot.state as SessionState;
 		assert.strictEqual(
 			sessionState.summary.workingDirectory,
 			workingDirUri,
@@ -489,11 +494,11 @@ function terminalText(state: ITerminalState): string {
 			n.method === 'notification' && (n.params as INotificationBroadcastParams).notification.type === 'notify/sessionAdded',
 			15_000,
 		);
-		const addedSummary = ((addedNotif.params as INotificationBroadcastParams).notification as ISessionAddedNotification).summary;
+		const addedSummary = ((addedNotif.params as INotificationBroadcastParams).notification as SessionAddedNotification).summary;
 		createdSessions.push(addedSummary.resource);
 
 		// Subscribe so we receive action broadcasts for this session
-		await client.call<ISubscribeResult>('subscribe', { resource: addedSummary.resource });
+		await client.call<SubscribeResult>('subscribe', { resource: addedSummary.resource });
 
 		// Verify the worktree path is in the summary
 		assert.ok(
@@ -589,20 +594,20 @@ function terminalText(state: ITerminalState): string {
 			if (!isActionNotification(n, 'session/toolCallContentChanged')) {
 				return false;
 			}
-			const action = getActionEnvelope(n).action as { toolCallId: string; content: readonly IToolResultContent[] };
+			const action = getActionEnvelope(n).action as { toolCallId: string; content: readonly ToolResultContent[] };
 			return action.toolCallId === toolStartAction.toolCallId && terminalResourceFromContent(action.content) !== undefined;
 		}, 30_000);
-		const terminalContentAction = getActionEnvelope(terminalContentNotif).action as { content: readonly IToolResultContent[] };
+		const terminalContentAction = getActionEnvelope(terminalContentNotif).action as { content: readonly ToolResultContent[] };
 		const terminalUri = terminalResourceFromContent(terminalContentAction.content);
 		assert.ok(terminalUri, 'shell tool should expose its terminal resource');
 
-		const terminalSubscribeResult = await client.call<ISubscribeResult>('subscribe', { resource: terminalUri });
-		const initialTerminalState = terminalSubscribeResult.snapshot.state as ITerminalState;
+		const terminalSubscribeResult = await client.call<SubscribeResult>('subscribe', { resource: terminalUri });
+		const initialTerminalState = terminalSubscribeResult.snapshot.state as TerminalState;
 		assert.strictEqual(initialTerminalState.cwd, resolvedWorkingDirectoryPath, 'terminal should be created in the resolved worktree directory');
 
 		await client.waitForNotification(n => isActionNotification(n, 'session/turnComplete'), 90_000);
-		const terminalSnapshot = await client.call<ISubscribeResult>('subscribe', { resource: terminalUri });
-		const terminalState = terminalSnapshot.snapshot.state as ITerminalState;
+		const terminalSnapshot = await client.call<SubscribeResult>('subscribe', { resource: terminalUri });
+		const terminalState = terminalSnapshot.snapshot.state as TerminalState;
 		assert.ok(terminalText(terminalState).includes(resolvedWorkingDirectoryPath), `pwd output should include the resolved worktree path ${resolvedWorkingDirectoryPath}`);
 	});
 
@@ -621,25 +626,41 @@ function terminalText(state: ITerminalState): string {
 
 		// Auto-approve every tool that needs confirmation while the turn runs.
 		// Multiple inner tool calls may need approval; doing this in a background
-		// loop keeps the turn unblocked.
+		// loop keeps the turn unblocked. Track processed serverSeqs so we don't
+		// busy-spin on already-handled notifications (waitForNotification returns
+		// matching notifications from the queue without consuming them). Using
+		// serverSeq rather than toolCallId allows the same tool to be legitimately
+		// re-confirmed in a later notification.
 		let approvalsActive = true;
 		let approvalSeq = 1000;
+		const processedSeqs = new Set<number>();
 		const approvalLoop = (async () => {
 			while (approvalsActive) {
 				try {
-					const ready = await client.waitForNotification(n => isActionNotification(n, 'session/toolCallReady'), 2_000);
-					const action = getActionEnvelope(ready).action as { session: string; turnId: string; toolCallId: string; confirmed?: string };
-					if (!action.confirmed) {
-						client.notify('dispatchAction', {
-							clientSeq: ++approvalSeq,
-							action: {
-								type: 'session/toolCallConfirmed',
-								session: action.session,
-								turnId: action.turnId,
-								toolCallId: action.toolCallId,
-								approved: true,
-							},
-						});
+					const ready = await client.waitForNotification(n => {
+						if (!isActionNotification(n, 'session/toolCallReady')) {
+							return false;
+						}
+						const envelope = getActionEnvelope(n);
+						const a = envelope.action as { confirmed?: string };
+						return !a.confirmed && !processedSeqs.has(envelope.serverSeq);
+					}, 2_000);
+					const envelope = getActionEnvelope(ready);
+					if (!processedSeqs.has(envelope.serverSeq)) {
+						processedSeqs.add(envelope.serverSeq);
+						const action = envelope.action as { session: string; turnId: string; toolCallId: string; confirmed?: string };
+						if (!action.confirmed) {
+							client.notify('dispatchAction', {
+								clientSeq: ++approvalSeq,
+								action: {
+									type: 'session/toolCallConfirmed',
+									session: action.session,
+									turnId: action.turnId,
+									toolCallId: action.toolCallId,
+									approved: true,
+								},
+							});
+						}
 					}
 				} catch {
 					// Timeout — re-poll. Loop exits when approvalsActive flips.
@@ -662,18 +683,18 @@ function terminalText(state: ITerminalState): string {
 			if (!isActionNotification(n, 'session/toolCallContentChanged')) {
 				return false;
 			}
-			const action = getActionEnvelope(n).action as { session: string; content: readonly IToolResultContent[] };
+			const action = getActionEnvelope(n).action as { session: string; content: readonly ToolResultContent[] };
 			return action.session === sessionUri && action.content.some(c => c.type === ToolResultContentType.Subagent);
 		}, 120_000);
 
-		const parentContent = (getActionEnvelope(subagentContentNotif).action as { content: readonly IToolResultContent[] }).content;
-		const subagentRef = parentContent.find((c): c is IToolResultSubagentContent => c.type === ToolResultContentType.Subagent)!;
+		const parentContent = (getActionEnvelope(subagentContentNotif).action as { content: readonly ToolResultContent[] }).content;
+		const subagentRef = parentContent.find((c): c is ToolResultSubagentContent => c.type === ToolResultContentType.Subagent)!;
 		const subagentSessionUri = subagentRef.resource as unknown as string;
 		assert.ok(typeof subagentSessionUri === 'string' && isSubagentSession(subagentSessionUri),
 			`subagent session URI should be subagent-shaped, got: ${JSON.stringify(subagentSessionUri)}`);
 
 		// Subscribe so we receive the subagent session's own action broadcasts.
-		await client.call<ISubscribeResult>('subscribe', { resource: subagentSessionUri });
+		await client.call<SubscribeResult>('subscribe', { resource: subagentSessionUri });
 
 		// Wait for the parent turn to complete (with a generous timeout — the
 		// subagent's turn must finish first).
@@ -691,7 +712,7 @@ function terminalText(state: ITerminalState): string {
 		// This is the bug's signature: when inner tool_start arrives before
 		// subagent_started, the inner tool calls leak into the parent session.
 		const toolStarts = client.receivedNotifications(n => isActionNotification(n, 'session/toolCallStart'))
-			.map(n => getActionEnvelope(n).action as ISessionToolCallStartAction);
+			.map(n => getActionEnvelope(n).action as SessionToolCallStartAction);
 
 		const parentStarts = toolStarts.filter(a => (a.session as unknown as string) === sessionUri);
 		const subagentStarts = toolStarts.filter(a => (a.session as unknown as string) === subagentSessionUri);
@@ -722,8 +743,8 @@ function terminalText(state: ITerminalState): string {
 
 		// Subscribe to root state *before* authenticating so we can observe
 		// the agentsChanged action that carries the populated model list.
-		const rootResult = await client.call<ISubscribeResult>('subscribe', { resource: ROOT_STATE_URI }, 30_000);
-		const initial = rootResult.snapshot.state as IRootState;
+		const rootResult = await client.call<SubscribeResult>('subscribe', { resource: ROOT_STATE_URI }, 30_000);
+		const initial = rootResult.snapshot.state as RootState;
 		const copilotAgent = initial.agents.find(a => a.provider === 'copilotcli');
 		assert.ok(copilotAgent, `Expected copilotcli agent in root state, got: ${initial.agents.map(a => a.provider).join(', ')}`);
 
@@ -735,29 +756,121 @@ function terminalText(state: ITerminalState): string {
 			if (!isActionNotification(n, 'root/agentsChanged')) {
 				return false;
 			}
-			const action = getActionEnvelope(n).action as IRootAgentsChangedAction;
+			const action = getActionEnvelope(n).action as RootAgentsChangedAction;
 			const agent = action.agents.find(a => a.provider === 'copilotcli');
 			return !!agent && agent.models.length > 0;
 		}, 30_000);
 
-		const action = getActionEnvelope(notif).action as IRootAgentsChangedAction;
+		const action = getActionEnvelope(notif).action as RootAgentsChangedAction;
 		const agent = action.agents.find(a => a.provider === 'copilotcli')!;
 
 		assert.ok(agent.models.length > 0, 'Expected at least one model from listModels');
 
 		// Assert every model has the shape CopilotAgent._listModels produces.
-		// If the SDK changes and any required field becomes undefined (as
-		// happened with max_context_window_tokens in @github/copilot@1.0.34),
-		// this loop surfaces the exact offending model instead of letting
-		// _refreshModels silently swallow the TypeError and set models=[].
+		// maxContextWindow is optional because synthetic SDK entries (e.g. the
+		// `auto` router) ship with `capabilities: {}` and no fixed window.
 		for (const model of agent.models) {
 			assert.strictEqual(typeof model.id, 'string', `model.id should be a string: ${JSON.stringify(model)}`);
 			assert.ok(model.id.length > 0, `model.id should be non-empty: ${JSON.stringify(model)}`);
 			assert.strictEqual(typeof model.name, 'string', `model.name should be a string: ${JSON.stringify(model)}`);
 			assert.strictEqual(model.provider, 'copilotcli', `model.provider should be copilotcli: ${JSON.stringify(model)}`);
-			assert.strictEqual(typeof model.maxContextWindow, 'number', `model.maxContextWindow should be a number: ${JSON.stringify(model)}`);
-			assert.ok(model.maxContextWindow && model.maxContextWindow > 0, `model.maxContextWindow should be positive: ${JSON.stringify(model)}`);
+			assert.ok(model.maxContextWindow === undefined || (typeof model.maxContextWindow === 'number' && model.maxContextWindow > 0),
+				`model.maxContextWindow should be undefined or a positive number: ${JSON.stringify(model)}`);
 			assert.ok(model.supportsVision === undefined || typeof model.supportsVision === 'boolean', `model.supportsVision should be boolean or undefined: ${JSON.stringify(model)}`);
+		}
+
+		// The `auto` synthetic router model should be present even though it
+		// has no fixed context window.
+		assert.ok(agent.models.some(m => m.id === 'auto'), `Expected 'auto' model in list, got: ${agent.models.map(m => m.id).join(', ')}`);
+	});
+
+	// ---- Redundant cd-prefix stripping --------------------------------------
+
+	test('strips redundant `cd <workingDirectory> &&` prefix from shell tool calls', async function () {
+		this.timeout(180_000);
+
+		const tempDir = mkdtempSync(`${tmpdir()}/ahp-cd-strip-test-`);
+		tempDirs.push(tempDir);
+		const expectedWorkingDirPath = tempDir;
+		const sessionUri = await createRealSession(client, 'real-sdk-cd-strip', createdSessions, URI.file(tempDir).toString());
+
+		// Coax the model into producing a `cd <wd> && X` form. The exact text is
+		// non-deterministic, so the test asserts on rewrite behavior conditional
+		// on actually receiving a cd-prefixed command.
+		client.clearReceived();
+		dispatchTurn(client, sessionUri, 'turn-cd-strip',
+			`Run this exact shell command, do not modify it: cd ${expectedWorkingDirPath} && echo strip-me-please`,
+			1);
+
+		// Wait for the toolCallReady action that carries the rewritten toolInput.
+		const toolReadyNotif = await client.waitForNotification(n => {
+			if (!isActionNotification(n, 'session/toolCallReady')) {
+				return false;
+			}
+			const action = getActionEnvelope(n).action as { toolInput?: string };
+			return typeof action.toolInput === 'string' && action.toolInput.includes('echo strip-me-please');
+		}, 90_000);
+
+		const toolReadyAction = getActionEnvelope(toolReadyNotif).action as { toolCallId: string; toolInput?: string; confirmed?: string };
+		const toolInput = toolReadyAction.toolInput!;
+
+		// The core assertion: regardless of whether the model emitted the cd
+		// prefix verbatim or already pre-stripped it, the toolInput surfaced to
+		// the client must NOT contain the redundant `cd <tempDir> &&` prefix.
+		// Use a regex that anchors to the start of the command and tolerates
+		// optional surrounding quotes around the directory plus either `&&`
+		// or `;` as the chain operator (so quoted variants like
+		// `cd "<wd>" && …` and pwsh-style `cd <wd>; …` are both detected).
+		const escapedWorkingDirPath = expectedWorkingDirPath.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+		const redundantWorkingDirCdPrefix = new RegExp(
+			`^\\s*cd\\s+(?:"${escapedWorkingDirPath}"|'${escapedWorkingDirPath}'|${escapedWorkingDirPath})\\s*(?:&&|;)\\s*`,
+		);
+		assert.ok(
+			!redundantWorkingDirCdPrefix.test(toolInput),
+			`toolInput should not contain a redundant cd-prefix targeting the working directory; got: ${JSON.stringify(toolInput)}`,
+		);
+		assert.ok(
+			toolInput.includes('echo strip-me-please'),
+			`toolInput should contain the rewritten command body; got: ${JSON.stringify(toolInput)}`,
+		);
+
+		// Approve so the turn can complete. If it was already auto-confirmed
+		// (`confirmed` is set), skip the manual approval.
+		if (!toolReadyAction.confirmed) {
+			client.notify('dispatchAction', {
+				clientSeq: 2,
+				action: {
+					type: 'session/toolCallConfirmed',
+					session: sessionUri,
+					turnId: 'turn-cd-strip',
+					toolCallId: toolReadyAction.toolCallId,
+					approved: true,
+				},
+			});
+		}
+
+		// Drive any further confirmations to completion so teardown is clean.
+		while (true) {
+			const next = await client.waitForNotification(
+				n => isActionNotification(n, 'session/toolCallReady') || isActionNotification(n, 'session/turnComplete') || isActionNotification(n, 'session/error'),
+				90_000,
+			);
+			if (isActionNotification(next, 'session/turnComplete') || isActionNotification(next, 'session/error')) {
+				break;
+			}
+			const action = getActionEnvelope(next).action as { session: string; turnId: string; toolCallId: string; confirmed?: string };
+			if (!action.confirmed) {
+				client.notify('dispatchAction', {
+					clientSeq: 3,
+					action: {
+						type: 'session/toolCallConfirmed',
+						session: action.session,
+						turnId: action.turnId,
+						toolCallId: action.toolCallId,
+						approved: true,
+					},
+				});
+			}
 		}
 	});
 });

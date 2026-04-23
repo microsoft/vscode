@@ -3776,6 +3776,15 @@
 							"onExp"
 						]
 					},
+					"github.copilot.chat.responsesApi.toolSearchTool.enabled": {
+						"type": "boolean",
+						"default": false,
+						"markdownDescription": "%github.copilot.config.responsesApi.toolSearchTool.enabled%",
+						"tags": [
+							"experimental",
+							"onExp"
+						]
+					},
 					"github.copilot.chat.updated53CodexPrompt.enabled": {
 						"type": "boolean",
 						"default": true,
@@ -4565,7 +4574,7 @@
 					},
 					"github.copilot.chat.cli.showExternalSessions": {
 						"type": "boolean",
-						"default": false,
+						"default": true,
 						"markdownDescription": "%github.copilot.config.cli.showExternalSessions%",
 						"tags": [
 							"advanced"
@@ -4579,10 +4588,26 @@
 							"advanced"
 						]
 					},
+					"github.copilot.chat.cli.autoModel.enabled": {
+						"type": "boolean",
+						"default": true,
+						"markdownDescription": "%github.copilot.config.cli.autoModel.enabled%",
+						"tags": [
+							"advanced"
+						]
+					},
 					"github.copilot.chat.cli.planCommand.enabled": {
 						"type": "boolean",
 						"default": true,
 						"markdownDescription": "%github.copilot.config.cli.planCommand.enabled%",
+						"tags": [
+							"advanced"
+						]
+					},
+					"github.copilot.chat.cli.lazyLoadSessionItem.enabled": {
+						"type": "boolean",
+						"default": false,
+						"markdownDescription": "%github.copilot.config.cli.lazyLoadSessionItem.enabled%",
 						"tags": [
 							"advanced"
 						]
@@ -4622,7 +4647,7 @@
 					},
 					"github.copilot.chat.cli.sessionController.enabled": {
 						"type": "boolean",
-						"default": false,
+						"default": true,
 						"markdownDescription": "%github.copilot.config.cli.sessionController.enabled%",
 						"tags": [
 							"advanced"

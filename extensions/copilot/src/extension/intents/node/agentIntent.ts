@@ -18,7 +18,7 @@ import { IAutomodeService } from '../../../platform/endpoint/node/automodeServic
 import { IEnvService } from '../../../platform/env/common/envService';
 import { ILogService } from '../../../platform/log/common/logService';
 import { IEditLogService } from '../../../platform/multiFileEdit/common/editLogService';
-import { isAnthropicContextEditingEnabled } from '../../../platform/networking/common/anthropic';
+import { CUSTOM_TOOL_SEARCH_NAME, isAnthropicContextEditingEnabled } from '../../../platform/networking/common/anthropic';
 import { IChatEndpoint } from '../../../platform/networking/common/networking';
 import { modelsWithoutResponsesContextManagement } from '../../../platform/networking/common/openai';
 import { INotebookService } from '../../../platform/notebook/common/notebookService';
@@ -73,7 +73,7 @@ function isResponsesCompactionContextManagementEnabled(endpoint: IChatEndpoint, 
 		&& !modelsWithoutResponsesContextManagement.has(endpoint.family);
 }
 
-export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.ChatRequest) => {
+export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.ChatRequest, model?: IChatEndpoint) => {
 	const toolsService = accessor.get<IToolsService>(IToolsService);
 	const testService = accessor.get<ITestProvider>(ITestProvider);
 	const tasksService = accessor.get<ITasksService>(ITasksService);
@@ -81,7 +81,7 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 	const experimentationService = accessor.get<IExperimentationService>(IExperimentationService);
 	const endpointProvider = accessor.get<IEndpointProvider>(IEndpointProvider);
 	const editToolLearningService = accessor.get<IEditToolLearningService>(IEditToolLearningService);
-	const model = await endpointProvider.getChatEndpoint(request);
+	model ??= await endpointProvider.getChatEndpoint(request);
 
 	const allowTools: Record<string, boolean> = {};
 
@@ -119,6 +119,8 @@ export const getAgentTools = async (accessor: ServicesAccessor, request: vscode.
 
 	const executionSubagentEnabled = configurationService.getExperimentBasedConfig(ConfigKey.Advanced.ExecutionSubagentToolEnabled, experimentationService);
 	allowTools[ToolName.ExecutionSubagent] = isGptOrAnthropic && executionSubagentEnabled;
+
+	allowTools[CUSTOM_TOOL_SEARCH_NAME] = !!model.supportsToolSearch;
 
 	if (model.family.includes('grok-code')) {
 		allowTools[ToolName.CoreManageTodoList] = false;
@@ -693,8 +695,13 @@ export class AgentIntentInvocation extends EditCodeIntentInvocation implements I
 					const strippedMessages = ToolCallingLoop.stripInternalToolCallIds(result.messages);
 					const rawEffort = this.request.modelConfiguration?.reasoningEffort;
 					const isSubagent = !!this.request.subAgentInvocationId;
+					// Must match the main agent's enableThinking logic in
+					// toolCallingLoop.ts runOne() — thinking is only disabled
+					// on continuation turns for Anthropic when no thinking
+					// blocks exist yet in the messages.
+					const shouldDisableThinking = !!promptContext.isContinuation && isAnthropicFamily(this.endpoint) && !ToolCallingLoop.messagesContainThinking(strippedMessages);
 					this._lastModelCapabilities = {
-						enableThinking: !isAnthropicFamily(this.endpoint) || ToolCallingLoop.messagesContainThinking(strippedMessages),
+						enableThinking: !shouldDisableThinking,
 						reasoningEffort: typeof rawEffort === 'string' ? rawEffort : undefined,
 						enableToolSearch: !isSubagent && !!this.endpoint.supportsToolSearch,
 						enableContextEditing: !isSubagent && isAnthropicContextEditingEnabled(this.endpoint, this.configurationService, this.expService),

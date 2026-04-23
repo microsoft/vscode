@@ -13,13 +13,13 @@ import { FileService } from '../../../files/common/fileService.js';
 import { NullLogService } from '../../../log/common/log.js';
 import { RemoteAgentHostProtocolClient, RemoteAgentHostProtocolError } from '../../browser/remoteAgentHostProtocolClient.js';
 import { AhpErrorCodes } from '../../common/state/protocol/errors.js';
-import type { IAhpServerNotification, IJsonRpcNotification, IJsonRpcRequest, IJsonRpcResponse, IProtocolMessage } from '../../common/state/sessionProtocol.js';
+import type { AhpServerNotification, JsonRpcNotification, JsonRpcRequest, JsonRpcResponse, ProtocolMessage } from '../../common/state/sessionProtocol.js';
 import type { IClientTransport, IProtocolTransport } from '../../common/state/sessionTransport.js';
 
-type ProtocolTransportMessage = IProtocolMessage | IAhpServerNotification | IJsonRpcNotification | IJsonRpcResponse | IJsonRpcRequest;
+type ProtocolTransportMessage = ProtocolMessage | AhpServerNotification | JsonRpcNotification | JsonRpcResponse | JsonRpcRequest;
 
 class TestProtocolTransport extends Disposable implements IProtocolTransport {
-	private readonly _onMessage = this._register(new Emitter<IProtocolMessage>());
+	private readonly _onMessage = this._register(new Emitter<ProtocolMessage>());
 	readonly onMessage = this._onMessage.event;
 
 	private readonly _onClose = this._register(new Emitter<void>());
@@ -31,7 +31,7 @@ class TestProtocolTransport extends Disposable implements IProtocolTransport {
 		this.sentMessages.push(message);
 	}
 
-	fireMessage(message: IProtocolMessage): void {
+	fireMessage(message: ProtocolMessage): void {
 		this._onMessage.fire(message);
 	}
 

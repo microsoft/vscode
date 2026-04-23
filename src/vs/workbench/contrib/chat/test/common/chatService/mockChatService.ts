@@ -192,6 +192,6 @@ export class MockChatService implements IChatService {
 	}
 
 	getMetadataForSession(sessionResource: URI): Promise<IChatDetail | undefined> {
-		throw new Error('Method not implemented.');
+		return Promise.resolve(this.liveSessionItems.find(item => item.sessionResource.toString() === sessionResource.toString()));
 	}
 }

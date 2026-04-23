@@ -9,6 +9,7 @@ import { URI } from '../../../../base/common/uri.js';
 import { appendEscapedMarkdownInlineCode } from '../../../../base/common/htmlContent.js';
 import { localize } from '../../../../nls.js';
 import type { IAgentToolReadyEvent } from '../../common/agentService.js';
+import { stripRedundantCdPrefix } from '../../common/commandLineHelpers.js';
 import { StringOrMarkdown } from '../../common/state/protocol/state.js';
 import { basename } from '../../../../base/common/resources.js';
 
@@ -425,6 +426,8 @@ export interface ITypedPermissionRequest extends PermissionRequest {
 	toolName?: string;
 	/** Tool arguments — set for `custom-tool` permission requests. */
 	args?: Record<string, unknown>;
+	/** URL — set for `url` permission requests. */
+	url?: string;
 	/** Unified diff of the proposed change — set for `write` permission requests. */
 	diff?: string;
 	/** New file contents that will be written — set for `write` permission requests. */
@@ -439,7 +442,7 @@ function str(value: unknown): string | undefined {
 /**
  * Derives display fields from a permission request for the tool confirmation UI.
  */
-export function getPermissionDisplay(request: ITypedPermissionRequest): {
+export function getPermissionDisplay(request: ITypedPermissionRequest, workingDirectory?: URI): {
 	confirmationTitle: string;
 	invocationMessage: StringOrMarkdown;
 	toolInput?: string;
@@ -455,23 +458,30 @@ export function getPermissionDisplay(request: ITypedPermissionRequest): {
 	const toolName = str(request.toolName);
 
 	switch (request.kind) {
-		case 'shell':
+		case 'shell': {
+			// Strip a redundant `cd <workingDirectory> && …` prefix so the
+			// confirmation dialog shows the simplified command.
+			const shellParams: Record<string, unknown> | undefined = fullCommandText ? { command: fullCommandText } : undefined;
+			stripRedundantCdPrefix(CopilotToolName.Bash, shellParams, workingDirectory);
+			const cleanedCommand = typeof shellParams?.command === 'string' ? shellParams.command : fullCommandText;
 			return {
-				confirmationTitle: localize('copilot.permission.shell.title', "Run in terminal"),
-				invocationMessage: intention ?? getInvocationMessage(CopilotToolName.Bash, getToolDisplayName(CopilotToolName.Bash), fullCommandText ? { command: fullCommandText } : undefined),
-				toolInput: fullCommandText,
+				confirmationTitle: localize('copilot.permission.shell.title', "Run in terminal?"),
+				invocationMessage: intention ?? getInvocationMessage(CopilotToolName.Bash, getToolDisplayName(CopilotToolName.Bash), cleanedCommand ? { command: cleanedCommand } : undefined),
+				toolInput: cleanedCommand,
 				permissionKind: 'shell',
 				permissionPath: path,
 			};
+		}
 		case 'custom-tool': {
 			// Custom tool overrides (e.g. our shell tool). Extract the actual
 			// tool args from the SDK's wrapper envelope.
 			const args = typeof request.args === 'object' && request.args !== null ? request.args as Record<string, unknown> : undefined;
-			const command = typeof args?.command === 'string' ? args.command : undefined;
 			const sdkToolName = str(request.toolName);
-			if (command && sdkToolName && isShellTool(sdkToolName)) {
+			if (args && sdkToolName && isShellTool(sdkToolName) && typeof args.command === 'string') {
+				stripRedundantCdPrefix(sdkToolName, args, workingDirectory);
+				const command = args.command as string;
 				return {
-					confirmationTitle: localize('copilot.permission.shell.title', "Run in terminal"),
+					confirmationTitle: localize('copilot.permission.shell.title', "Run in terminal?"),
 					invocationMessage: getInvocationMessage(sdkToolName, getToolDisplayName(sdkToolName), { command }),
 					toolInput: command,
 					permissionKind: 'shell',
@@ -479,8 +489,8 @@ export function getPermissionDisplay(request: ITypedPermissionRequest): {
 				};
 			}
 			return {
-				confirmationTitle: toolName ?? localize('copilot.permission.default.title', "Permission request"),
-				invocationMessage: localize('copilot.permission.default.message', "Permission request"),
+				confirmationTitle: localize('copilot.permission.default.title', "Allow tool call?"),
+				invocationMessage: md(localize('copilot.permission.default.message', "Allow the model to call {0}?", appendEscapedMarkdownInlineCode(toolName ?? request.kind))),
 				toolInput: args ? tryStringify(args) : tryStringify(request),
 				permissionKind: request.kind,
 				permissionPath: path,
@@ -488,7 +498,7 @@ export function getPermissionDisplay(request: ITypedPermissionRequest): {
 		}
 		case 'write':
 			return {
-				confirmationTitle: localize('copilot.permission.write.title', "Write file"),
+				confirmationTitle: localize('copilot.permission.write.title', "Write file?"),
 				invocationMessage: getInvocationMessage(CopilotToolName.Edit, getToolDisplayName(CopilotToolName.Edit), path ? { path } : undefined),
 				toolInput: tryStringify(path ? { path } : request) ?? undefined,
 				permissionKind: 'write',
@@ -497,7 +507,9 @@ export function getPermissionDisplay(request: ITypedPermissionRequest): {
 		case 'mcp': {
 			const title = toolName ?? localize('copilot.permission.mcp.defaultTool', "MCP Tool");
 			return {
-				confirmationTitle: serverName ? `${serverName}: ${title}` : title,
+				confirmationTitle: serverName
+					? localize('copilot.permission.mcp.title', "Allow tool from {0}?", serverName)
+					: localize('copilot.permission.default.title', "Allow tool call?"),
 				invocationMessage: serverName ? `${serverName}: ${title}` : title,
 				toolInput: tryStringify({ serverName, toolName }) ?? undefined,
 				permissionKind: 'mcp',
@@ -506,16 +518,27 @@ export function getPermissionDisplay(request: ITypedPermissionRequest): {
 		}
 		case 'read':
 			return {
-				confirmationTitle: localize('copilot.permission.read.title', "Read file"),
+				confirmationTitle: localize('copilot.permission.read.title', "Read file?"),
 				invocationMessage: intention ?? getInvocationMessage(CopilotToolName.View, getToolDisplayName(CopilotToolName.View), path ? { path } : undefined),
 				toolInput: tryStringify(path ? { path, intention } : request) ?? undefined,
 				permissionKind: 'read',
 				permissionPath: path,
 			};
+		case 'url': {
+			const url = str(request.url);
+			// Parse through URL for punycode escaping, but preserve the raw value if parsing fails.
+			const normalizedUrl = url ? (URL.canParse(url) ? new URL(url).href : url) : undefined;
+			return {
+				confirmationTitle: localize('copilot.permission.url.title', "Fetch URL?"),
+				invocationMessage: md(localize('copilot.permission.url.message', "Allow fetching web content?")),
+				toolInput: normalizedUrl ? JSON.stringify({ url: normalizedUrl }) : undefined,
+				permissionKind: 'url',
+			};
+		}
 		default:
 			return {
-				confirmationTitle: localize('copilot.permission.default.title', "Permission request"),
-				invocationMessage: localize('copilot.permission.default.message', "Permission request"),
+				confirmationTitle: localize('copilot.permission.default.title', "Allow tool call?"),
+				invocationMessage: md(localize('copilot.permission.default.message', "Allow the model to call {0}?", appendEscapedMarkdownInlineCode(toolName ?? request.kind))),
 				toolInput: tryStringify(request) ?? undefined,
 				permissionKind: request.kind,
 				permissionPath: path,

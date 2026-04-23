@@ -10,8 +10,8 @@ import { isEqualOrParent } from '../../../../../../base/common/resources.js';
 import { ThemeIcon } from '../../../../../../base/common/themables.js';
 import { URI } from '../../../../../../base/common/uri.js';
 import { AgentHostEnabledSettingId, IAgentHostService, type AgentProvider } from '../../../../../../platform/agentHost/common/agentService.js';
-import { type IProtectedResourceMetadata, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
-import { type IAgentInfo, type ICustomizationRef, type IRootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
+import { type ProtectedResourceMetadata, type URI as ProtocolURI } from '../../../../../../platform/agentHost/common/state/protocol/state.js';
+import { type AgentInfo, type CustomizationRef, type RootState } from '../../../../../../platform/agentHost/common/state/sessionState.js';
 import { IConfigurationService } from '../../../../../../platform/configuration/common/configuration.js';
 import { IDefaultAccountService } from '../../../../../../platform/defaultAccount/common/defaultAccount.js';
 import { IInstantiationService } from '../../../../../../platform/instantiation/common/instantiation.js';
@@ -28,7 +28,7 @@ import { IAgentPluginService } from '../../../common/plugins/agentPluginService.
 import { PromptsType } from '../../../common/promptSyntax/promptTypes.js';
 import { PromptsStorage } from '../../../common/promptSyntax/service/promptsService.js';
 import { AgentCustomizationSyncProvider } from './agentCustomizationSyncProvider.js';
-import { resolveTokenForResource } from './agentHostAuth.js';
+import { resolveTokenForResource, AgentHostAuthTokenCache } from './agentHostAuth.js';
 import { AgentHostLanguageModelProvider } from './agentHostLanguageModelProvider.js';
 import { AgentHostSessionHandler } from './agentHostSessionHandler.js';
 import { AgentHostSessionListController } from './agentHostSessionListController.js';
@@ -54,6 +54,9 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	private readonly _agentRegistrations = this._register(new DisposableMap<AgentProvider, DisposableStore>());
 	/** Model providers keyed by agent provider, for pushing model updates. */
 	private readonly _modelProviders = new Map<AgentProvider, AgentHostLanguageModelProvider>();
+
+	/** Dedupes redundant `authenticate` RPCs when the resolved token hasn't changed. */
+	private readonly _authTokenCache = new AgentHostAuthTokenCache();
 
 	private readonly _isSessionsWindow: boolean;
 
@@ -94,6 +97,12 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			this._handleRootStateChange(rootState);
 		}));
 
+		// Clear the auth cache whenever the local agent host (re)starts so the
+		// first post-restart authenticate RPC is never skipped as "unchanged".
+		this._register(this._agentHostService.onAgentHostStart(() => {
+			this._authTokenCache.clear();
+		}));
+
 		// Process initial root state if already available
 		const initialRootState = this._agentHostService.rootState.value;
 		if (initialRootState && !(initialRootState instanceof Error)) {
@@ -101,7 +110,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		}
 	}
 
-	private _handleRootStateChange(rootState: IRootState): void {
+	private _handleRootStateChange(rootState: RootState): void {
 		const incoming = new Set(rootState.agents.map(a => a.provider));
 
 		// Remove agents that are no longer present
@@ -128,7 +137,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		}
 	}
 
-	private _registerAgent(agent: IAgentInfo): void {
+	private _registerAgent(agent: AgentInfo): void {
 		const store = new DisposableStore();
 		this._agentRegistrations.set(agent.provider, store);
 		const sessionType = `agent-host-${agent.provider}`;
@@ -169,7 +178,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 			syncProvider,
 		}));
 
-		const customizations = observableValue<ICustomizationRef[]>('agentCustomizations', []);
+		const customizations = observableValue<CustomizationRef[]>('agentCustomizations', []);
 		const updateCustomizations = async () => {
 			const refs = await this._resolveCustomizations(syncProvider, bundler);
 			customizations.set(refs, undefined);
@@ -224,14 +233,14 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	private async _resolveCustomizations(
 		syncProvider: AgentCustomizationSyncProvider,
 		bundler: SyncedCustomizationBundler,
-	): Promise<ICustomizationRef[]> {
+	): Promise<CustomizationRef[]> {
 		const entries = syncProvider.getSelectedEntries();
 		if (entries.length === 0) {
 			return [];
 		}
 
 		const plugins = this._agentPluginService.plugins.get();
-		const refs: ICustomizationRef[] = [];
+		const refs: CustomizationRef[] = [];
 		const individualFiles: { uri: URI; type: PromptsType }[] = [];
 
 		for (const entry of entries) {
@@ -256,7 +265,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 		return refs;
 	}
 
-	private _getRootAgents(): readonly IAgentInfo[] {
+	private _getRootAgents(): readonly AgentInfo[] {
 		const rootState = this._agentHostService.rootState.value;
 		return (rootState && !(rootState instanceof Error)) ? rootState.agents : [];
 	}
@@ -265,7 +274,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	 * Authenticate using protectedResources from agent info in root state.
 	 * Resolves tokens via the standard VS Code authentication service.
 	 */
-	private async _authenticateWithServer(agents: readonly IAgentInfo[]): Promise<void> {
+	private async _authenticateWithServer(agents: readonly AgentInfo[]): Promise<void> {
 		this._agentHostService.setAuthenticationPending(true);
 		try {
 			for (const agent of agents) {
@@ -273,8 +282,18 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 					const resourceUri = URI.parse(resource.resource);
 					const token = await this._resolveTokenForResource(resourceUri, resource.authorization_servers ?? [], resource.scopes_supported ?? []);
 					if (token) {
+						if (!this._authTokenCache.updateAndIsChanged(resource.resource, token)) {
+							this._logService.trace(`[AgentHost] Auth token for ${resource.resource} unchanged; skipping authenticate RPC`);
+							continue;
+						}
 						this._logService.info(`[AgentHost] Authenticating for resource: ${resource.resource}`);
-						await this._loggedConnection!.authenticate({ resource: resource.resource, token });
+						try {
+							await this._loggedConnection!.authenticate({ resource: resource.resource, token });
+						} catch (rpcErr) {
+							// Clear the cached token so the next auth pass will retry.
+							this._authTokenCache.clear(resource.resource);
+							throw rpcErr;
+						}
 					} else {
 						this._logService.info(`[AgentHost] No token resolved for resource: ${resource.resource}`);
 					}
@@ -302,7 +321,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 	 * creates a session (which triggers the login UI), and pushes the token
 	 * to the server. Returns true if authentication succeeded.
 	 */
-	private async _resolveAuthenticationInteractively(protectedResources: IProtectedResourceMetadata[]): Promise<boolean> {
+	private async _resolveAuthenticationInteractively(protectedResources: ProtectedResourceMetadata[]): Promise<boolean> {
 		try {
 			for (const resource of protectedResources) {
 				const resourceUri = URI.parse(resource.resource);
@@ -312,6 +331,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 						resource: resource.resource,
 						token: resolved,
 					});
+					this._authTokenCache.updateAndIsChanged(resource.resource, resolved);
 					return true;
 				}
 
@@ -333,6 +353,7 @@ export class AgentHostContribution extends Disposable implements IWorkbenchContr
 						resource: resource.resource,
 						token: session.accessToken,
 					});
+					this._authTokenCache.updateAndIsChanged(resource.resource, session.accessToken);
 					this._logService.info(`[AgentHost] Interactive authentication succeeded for ${resource.resource}`);
 					return true;
 				}

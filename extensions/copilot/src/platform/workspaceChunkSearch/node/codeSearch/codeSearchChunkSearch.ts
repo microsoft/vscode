@@ -168,10 +168,21 @@ export class CodeSearchChunkSearch extends Disposable {
 			this.closeRepo(info.repo);
 		}));
 
-		// When the authentication state changes, update repos
-		this._register(this._authenticationService.onDidAuthenticationChange(() => {
-			this.updateRepoStatuses(undefined, new TelemetryCorrelationId('CodeSearchChunkSearch::onDidAuthenticationChange'));
-		}));
+		// When the github authentication state changes, update repos only if the session actually changed
+		{
+			let lastAnyGitHubSessionId = this._authenticationService.anyGitHubSession?.id;
+			let lastPermissiveGitHubSessionId = this._authenticationService.permissiveGitHubSession?.id;
+			this._register(this._authenticationService.onDidAuthenticationChange(() => {
+				const anySessionId = this._authenticationService.anyGitHubSession?.id;
+				const permissiveSessionId = this._authenticationService.permissiveGitHubSession?.id;
+				if (anySessionId === lastAnyGitHubSessionId && permissiveSessionId === lastPermissiveGitHubSessionId) {
+					return;
+				}
+				lastAnyGitHubSessionId = anySessionId;
+				lastPermissiveGitHubSessionId = permissiveSessionId;
+				this.updateRepoStatuses('github', new TelemetryCorrelationId('CodeSearchChunkSearch::onDidAuthenticationChange'));
+			}));
+		}
 
 		this._register(Event.any(
 			this._authenticationService.onDidAdoAuthenticationChange,

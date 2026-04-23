@@ -158,7 +158,6 @@ import { IAgentPluginRepositoryService } from '../common/plugins/agentPluginRepo
 import { IPluginInstallService } from '../common/plugins/pluginInstallService.js';
 import { IPluginMarketplaceService, PluginMarketplaceService } from '../common/plugins/pluginMarketplaceService.js';
 import { WorkspacePluginSettingsService, IWorkspacePluginSettingsService } from '../common/plugins/workspacePluginSettingsService.js';
-import { AgentPluginsViewsContribution } from './agentPluginsView.js';
 import { AgentPluginRecommendations } from './claudePluginRecommendations.js';
 import { AgentPluginEditor } from './agentPluginEditor/agentPluginEditor.js';
 import { AgentPluginEditorInput } from './agentPluginEditor/agentPluginEditorInput.js';
@@ -1338,15 +1337,6 @@ configurationRegistry.registerConfiguration({
 			disallowConfigurationDefault: true,
 			tags: ['preview', 'prompts', 'hooks', 'agent']
 		},
-		[PromptsConfig.USE_CUSTOM_AGENT_HOOKS]: {
-			type: 'boolean',
-			title: nls.localize('chat.useCustomAgentHooks.title', "Use Custom Agent Hooks",),
-			markdownDescription: nls.localize('chat.useCustomAgentHooks.description', "Controls whether hooks defined in custom agent frontmatter are parsed and executed. When disabled, hooks from agent files are ignored.",),
-			default: false,
-			restricted: true,
-			disallowConfigurationDefault: true,
-			tags: ['preview', 'prompts', 'hooks', 'agent']
-		},
 		[PromptsConfig.PROMPT_FILES_SUGGEST_KEY]: {
 			type: 'object',
 			scope: ConfigurationScope.RESOURCE,
@@ -2142,7 +2132,6 @@ registerWorkbenchContribution2(UserToolSetsContributions.ID, UserToolSetsContrib
 registerWorkbenchContribution2(PromptLanguageFeaturesProvider.ID, PromptLanguageFeaturesProvider, WorkbenchPhase.Eventually);
 registerWorkbenchContribution2(ChatWindowNotifier.ID, ChatWindowNotifier, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(ChatRepoInfoContribution.ID, ChatRepoInfoContribution, WorkbenchPhase.Eventually);
-registerWorkbenchContribution2(AgentPluginsViewsContribution.ID, AgentPluginsViewsContribution, WorkbenchPhase.AfterRestored);
 registerWorkbenchContribution2(AgentPluginRecommendations.ID, AgentPluginRecommendations, WorkbenchPhase.Eventually);
 
 registerChatActions();

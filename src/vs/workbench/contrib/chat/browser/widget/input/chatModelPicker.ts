@@ -262,7 +262,7 @@ export function buildModelPickerItems(
 			};
 
 			// --- 1. Auto ---
-			const autoModel = models.find(m => m.metadata.id === 'auto' && m.metadata.vendor === 'copilot');
+			const autoModel = models.find(m => isAutoModel(m));
 			if (autoModel) {
 				markPlaced(autoModel.identifier, autoModel.metadata.id);
 				items.push(createModelItem(createModelAction(autoModel, selectedModelId, onSelect, languageModelsService!), autoModel));
@@ -426,7 +426,7 @@ export function buildModelPickerItems(
 		}
 	} else {
 		// Flat list: auto first, then all models sorted alphabetically
-		const autoModel = models.find(m => m.metadata.id === 'auto' && m.metadata.vendor === 'copilot');
+		const autoModel = models.find(m => isAutoModel(m));
 		if (autoModel) {
 			items.push(createModelItem(createModelAction(autoModel, selectedModelId, onSelect, languageModelsService!), autoModel));
 		}
@@ -794,7 +794,7 @@ export class ModelPickerWidget extends Disposable {
 
 
 function getModelHoverContent(model: ILanguageModelChatMetadataAndIdentifier): MarkdownString {
-	const isAuto = model.metadata.id === 'auto' && model.metadata.vendor === 'copilot';
+	const isAuto = isAutoModel(model);
 	const markdown = new MarkdownString('', { isTrusted: true, supportThemeIcons: true });
 	markdown.appendMarkdown(`**${model.metadata.name}**`);
 
@@ -824,4 +824,8 @@ function formatTokenCount(count: number): string {
 		return `${(count / 1000).toFixed(0)}K`;
 	}
 	return count.toString();
+}
+
+function isAutoModel(model: ILanguageModelChatMetadataAndIdentifier): boolean {
+	return model.metadata.id === 'auto' && (model.metadata.vendor === 'copilot' || model.metadata.vendor === 'copilotcli');
 }

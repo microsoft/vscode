@@ -872,16 +872,17 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	overflow: hidden;
 }
 
-/* Animated gradient border shown around the chat input while the agent is
+/* Animated "border beam" shown around the chat input while the agent is
 	working or thinking. Toggled by the `chat.progressBorder.enabled`
 	setting and the chat widget's request-in-progress state.
 
-	The ring is rendered as a `::before` pseudo-element so it can fade in
-	and out via `opacity` when the `.working` class is toggled, without
-	disturbing the input's own background. The pseudo uses a 1px padding
-	+ inverted mask trick to paint a hairline gradient ring that follows
-	the input's corner radius. The three color stops are themeable via
-	`chat.inputWorkingBorderColor1/2/3`. */
+	Inspired by https://github.com/Jakubantalik/border-beam — a small bright
+	comet travels around the perimeter, leaving a short fading trail. The
+	ring is rendered as a `::before` pseudo-element so it can fade in/out
+	via `opacity` when the `.working` class is toggled, without disturbing
+	the input's own background. The pseudo uses a 1px padding + inverted
+	mask trick so the conic gradient is clipped to a hairline that follows
+	the input's corner radius. */
 @property --chat-input-anim-angle {
 	syntax: '<angle>';
 	inherits: false;
@@ -898,50 +899,32 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	}
 }
 
-/* Halo that cycles through the same three theme colors as the conic ring,
-	in sync with the 3s spin, so the glow appears to emanate from the
-	rotating gradient. */
-@keyframes chat-input-working-border-glow {
-	0% {
-		box-shadow:
-			0 0 10px 0 color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 22%, transparent),
-			0 0 22px 2px color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 10%, transparent);
-	}
-
-	33% {
-		box-shadow:
-			0 0 10px 0 color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor2) 22%, transparent),
-			0 0 22px 2px color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor2) 10%, transparent);
-	}
-
-	66% {
-		box-shadow:
-			0 0 10px 0 color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor3) 22%, transparent),
-			0 0 22px 2px color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor3) 10%, transparent);
-	}
-
-	100% {
-		box-shadow:
-			0 0 10px 0 color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 22%, transparent),
-			0 0 22px 2px color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 10%, transparent);
-	}
-}
+/* The beam (`::before`) and its glow (`::after`) are two stacked rings
+	occupying the same outer edge: the glow is wider and blurred, the beam is
+	hairline and sharp. Both share `--chat-input-anim-angle` so the glow
+	travels with the comet head with no gap. */
 
 .monaco-workbench .interactive-session .chat-input-container::before {
 	content: '';
 	position: absolute;
-	/* Pull the ring out by 1px so its outer edge aligns with where the
-		`box-shadow` glow on the container begins (the outer border-edge),
-		eliminating a sub-pixel gap between the rotating ring and the halo. */
-	inset: -1px;
-	border-radius: calc(var(--vscode-cornerRadius-large) - 1px);
+	/* Sit fully inside the container so the parent's `overflow: hidden`
+		doesn't clip the beam. */
+	inset: 0;
+	/* Inherit so the ring matches whatever corner radius the container is
+		currently using (large by default, small in compact mode). */
+	border-radius: inherit;
 	padding: 1px;
+	/* The beam: a tight bright arc (~40deg) with a short fade, on an otherwise
+		transparent ring. As `--chat-input-anim-angle` rotates, the bright spot
+		travels around the perimeter like a comet. Stops are mostly transparent
+		so the rest of the border stays invisible. */
 	background: conic-gradient(from var(--chat-input-anim-angle),
-		var(--vscode-chat-inputWorkingBorderColor1),
-		var(--vscode-chat-inputWorkingBorderColor2),
-		var(--vscode-chat-inputWorkingBorderColor3),
-		var(--vscode-chat-inputWorkingBorderColor2),
-		var(--vscode-chat-inputWorkingBorderColor1));
+		transparent 0deg,
+		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 90%, transparent) 20deg,
+		var(--vscode-chat-inputWorkingBorderColor1) 30deg,
+		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, transparent) 50deg,
+		transparent 90deg,
+		transparent 360deg);
 	-webkit-mask:
 		linear-gradient(#000 0 0) content-box,
 		linear-gradient(#000 0 0);
@@ -953,22 +936,56 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	opacity: 0;
 	transition: opacity 350ms ease;
 	pointer-events: none;
+	z-index: 2;
+}
+
+/* Glow ring: a 2px blurred conic that shares the beam's angle, so it forms
+	a soft halo that overlaps the beam line directly — no gap. */
+.monaco-workbench .interactive-session .chat-input-container::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	border-radius: inherit;
+	padding: 2px;
+	background: conic-gradient(from var(--chat-input-anim-angle),
+		transparent 0deg,
+		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 60%, transparent) 25deg,
+		color-mix(in srgb, var(--vscode-chat-inputWorkingBorderColor1) 35%, transparent) 50deg,
+		transparent 90deg,
+		transparent 360deg);
+	-webkit-mask:
+		linear-gradient(#000 0 0) content-box,
+		linear-gradient(#000 0 0);
+	mask:
+		linear-gradient(#000 0 0) content-box,
+		linear-gradient(#000 0 0);
+	-webkit-mask-composite: xor;
+	mask-composite: exclude;
+	filter: blur(1.5px);
+	opacity: 0;
+	transition: opacity 350ms ease;
+	pointer-events: none;
 	z-index: 1;
 }
 
 .monaco-workbench .interactive-session .chat-input-container.working {
 	border-color: transparent;
-	animation: chat-input-working-border-glow 3s linear infinite;
 }
 
 .monaco-workbench .interactive-session .chat-input-container.working::before {
 	opacity: 1;
-	animation: chat-input-working-border-spin 3s linear infinite;
+	animation: chat-input-working-border-spin 4s linear infinite;
+}
+
+.monaco-workbench .interactive-session .chat-input-container.working::after {
+	opacity: 1;
+	animation: chat-input-working-border-spin 4s linear infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
 	.monaco-workbench .interactive-session .chat-input-container.working,
-	.monaco-workbench .interactive-session .chat-input-container.working::before {
+	.monaco-workbench .interactive-session .chat-input-container.working::before,
+	.monaco-workbench .interactive-session .chat-input-container.working::after {
 		animation: none;
 	}
 }
@@ -1517,6 +1534,7 @@ have to be updated for changes to the rules above, or to support more deeply nes
 .interactive-session .chat-secondary-toolbar > .chat-secondary-input-toolbar {
 	overflow: hidden;
 	min-width: 0px;
+	flex: 1 1 0;
 	color: var(--vscode-icon-foreground);
 
 	.monaco-action-bar .action-item .codicon {
@@ -1673,6 +1691,14 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	color: var(--vscode-icon-foreground);
 }
 
+.interactive-session .chat-secondary-input-toolbar .chat-sessionPicker-item .action-label {
+	height: 16px;
+	padding: 3px 0px 3px 6px;
+	display: flex;
+	align-items: center;
+	color: var(--vscode-icon-foreground);
+}
+
 /* Keep hover background while picker dropdown is open */
 .interactive-session .chat-input-toolbar .action-label[aria-expanded="true"],
 .interactive-session .chat-secondary-toolbar .action-label[aria-expanded="true"] {
@@ -1682,7 +1708,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 /* When chevrons are hidden and only showing an icon (no label), size to 22x22 with centered icon */
 .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label.hide-chevrons:not(:has(.chat-input-picker-label)),
 .interactive-session .chat-input-toolbar .chat-input-picker-item.hide-chevrons .action-label:not(:has(.chat-input-picker-label)),
-.interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label.hide-chevrons:not(:has(.chat-input-picker-label)) {
+.interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label.hide-chevrons:not(:has(.chat-input-picker-label)),
+.interactive-session .chat-secondary-input-toolbar .chat-sessionPicker-item .action-label.hide-chevrons:not(:has(.chat-input-picker-label)) {
 	width: 22px;
 	min-width: 22px;
 	height: 22px;
@@ -1710,7 +1737,8 @@ have to be updated for changes to the rules above, or to support more deeply nes
 }
 
 .monaco-workbench .interactive-session .chat-input-toolbar .chat-input-picker-item .action-label .codicon-chevron-down,
-.monaco-workbench .interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label .codicon-chevron-down {
+.monaco-workbench .interactive-session .chat-input-toolbar .chat-sessionPicker-item .action-label .codicon-chevron-down,
+.monaco-workbench .interactive-session .chat-secondary-input-toolbar .chat-sessionPicker-item .action-label .codicon-chevron-down {
 	font-size: 10px;
 	margin-left: 4px;
 	opacity: 0.75;
@@ -1722,8 +1750,10 @@ have to be updated for changes to the rules above, or to support more deeply nes
 	gap: 4px;
 }
 
-.interactive-session .chat-input-toolbars .chat-sessionPicker-container {
+.interactive-session .chat-input-toolbars .chat-sessionPicker-container,
+.interactive-session .chat-secondary-toolbar .chat-sessionPicker-container {
 	display: flex;
+	gap: 4px;
 	max-width: 100%;
 }
 

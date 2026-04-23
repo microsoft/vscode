@@ -16,8 +16,8 @@ import { ILogService } from '../../log/common/log.js';
 import { IProductService } from '../../product/common/productService.js';
 import { getShellIntegrationInjection } from '../../terminal/node/terminalEnvironment.js';
 import { ActionType } from '../common/state/protocol/actions.js';
-import type { ICreateTerminalParams } from '../common/state/protocol/commands.js';
-import { ITerminalClaim, ITerminalContentPart, ITerminalInfo, ITerminalState, TerminalClaimKind } from '../common/state/protocol/state.js';
+import type { CreateTerminalParams } from '../common/state/protocol/commands.js';
+import { TerminalClaim, TerminalContentPart, TerminalInfo, TerminalState, TerminalClaimKind } from '../common/state/protocol/state.js';
 import { isTerminalAction } from '../common/state/sessionActions.js';
 import type { AgentHostStateManager } from './agentHostStateManager.js';
 import { Osc633Event, Osc633EventType, Osc633Parser } from './osc633Parser.js';
@@ -38,20 +38,20 @@ export interface ICommandFinishedEvent {
  */
 export interface IAgentHostTerminalManager {
 	readonly _serviceBrand: undefined;
-	createTerminal(params: ICreateTerminalParams, options?: { shell?: string; preventShellHistory?: boolean; nonInteractive?: boolean }): Promise<void>;
+	createTerminal(params: CreateTerminalParams, options?: { shell?: string; preventShellHistory?: boolean; nonInteractive?: boolean }): Promise<void>;
 	writeInput(uri: string, data: string): void;
 	onData(uri: string, cb: (data: string) => void): IDisposable;
 	onExit(uri: string, cb: (exitCode: number) => void): IDisposable;
-	onClaimChanged(uri: string, cb: (claim: ITerminalClaim) => void): IDisposable;
+	onClaimChanged(uri: string, cb: (claim: TerminalClaim) => void): IDisposable;
 	onCommandFinished(uri: string, cb: (event: ICommandFinishedEvent) => void): IDisposable;
 	getContent(uri: string): string | undefined;
-	getClaim(uri: string): ITerminalClaim | undefined;
+	getClaim(uri: string): TerminalClaim | undefined;
 	hasTerminal(uri: string): boolean;
 	getExitCode(uri: string): number | undefined;
 	supportsCommandDetection(uri: string): boolean;
 	disposeTerminal(uri: string): void;
-	getTerminalInfos(): ITerminalInfo[];
-	getTerminalState(uri: string): ITerminalState | undefined;
+	getTerminalInfos(): TerminalInfo[];
+	getTerminalState(uri: string): TerminalState | undefined;
 }
 
 // node-pty is loaded dynamically to avoid bundling issues in non-node environments
@@ -81,15 +81,15 @@ interface IManagedTerminal {
 	readonly pty: import('node-pty').IPty;
 	readonly onDataEmitter: Emitter<string>;
 	readonly onExitEmitter: Emitter<number>;
-	readonly onClaimChangedEmitter: Emitter<ITerminalClaim>;
+	readonly onClaimChangedEmitter: Emitter<TerminalClaim>;
 	readonly onCommandFinishedEmitter: Emitter<ICommandFinishedEvent>;
 	title: string;
 	cwd: string;
 	cols: number;
 	rows: number;
-	content: ITerminalContentPart[];
+	content: TerminalContentPart[];
 	contentSize: number;
-	claim: ITerminalClaim;
+	claim: TerminalClaim;
 	exitCode?: number;
 	commandTracker?: ICommandTracker;
 }
@@ -141,7 +141,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 	}
 
 	/** Get metadata for all active terminals (for root state). */
-	getTerminalInfos(): ITerminalInfo[] {
+	getTerminalInfos(): TerminalInfo[] {
 		return [...this._terminals.values()].map(t => ({
 			resource: t.uri,
 			title: t.title,
@@ -151,7 +151,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 	}
 
 	/** Get the full state for a terminal (for subscribe snapshots). */
-	getTerminalState(uri: string): ITerminalState | undefined {
+	getTerminalState(uri: string): TerminalState | undefined {
 		const terminal = this._terminals.get(uri);
 		if (!terminal) {
 			return undefined;
@@ -172,7 +172,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 	 * Create a new terminal backed by node-pty.
 	 * Spawns the user's default shell.
 	 */
-	async createTerminal(params: ICreateTerminalParams, options?: { shell?: string; preventShellHistory?: boolean; nonInteractive?: boolean }): Promise<void> {
+	async createTerminal(params: CreateTerminalParams, options?: { shell?: string; preventShellHistory?: boolean; nonInteractive?: boolean }): Promise<void> {
 		const uri = params.terminal;
 		if (this._terminals.has(uri)) {
 			throw new Error(`Terminal already exists: ${uri}`);
@@ -270,11 +270,11 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		});
 
 		const store = new DisposableStore();
-		const claim: ITerminalClaim = params.claim ?? { kind: TerminalClaimKind.Client, clientId: '' };
+		const claim: TerminalClaim = params.claim ?? { kind: TerminalClaimKind.Client, clientId: '' };
 
 		const onDataEmitter = store.add(new Emitter<string>());
 		const onExitEmitter = store.add(new Emitter<number>());
-		const onClaimChangedEmitter = store.add(new Emitter<ITerminalClaim>());
+		const onClaimChangedEmitter = store.add(new Emitter<TerminalClaim>());
 		const onCommandFinishedEmitter = store.add(new Emitter<ICommandFinishedEvent>());
 
 		const managed: IManagedTerminal = {
@@ -376,7 +376,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 	}
 
 	/** Register a callback for terminal claim changes. */
-	onClaimChanged(uri: string, cb: (claim: ITerminalClaim) => void): IDisposable {
+	onClaimChanged(uri: string, cb: (claim: TerminalClaim) => void): IDisposable {
 		const terminal = this._terminals.get(uri);
 		if (!terminal) {
 			return toDisposable(() => { });
@@ -403,7 +403,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 	}
 
 	/** Get the current claim for a terminal. */
-	getClaim(uri: string): ITerminalClaim | undefined {
+	getClaim(uri: string): TerminalClaim | undefined {
 		return this._terminals.get(uri)?.claim;
 	}
 
@@ -434,7 +434,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 	}
 
 	/** Update a terminal's claim. */
-	private _setClaim(uri: string, claim: ITerminalClaim): void {
+	private _setClaim(uri: string, claim: TerminalClaim): void {
 		const terminal = this._terminals.get(uri);
 		if (terminal) {
 			terminal.claim = claim;
@@ -620,7 +620,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 		}
 	}
 
-	private _getContentPartSize(part: ITerminalContentPart): number {
+	private _getContentPartSize(part: TerminalContentPart): number {
 		return part.type === 'command' ? part.output.length : part.value.length;
 	}
 
@@ -667,7 +667,7 @@ export class AgentHostTerminalManager extends Disposable implements IAgentHostTe
 	}
 
 	/**
-	 * Resolves the cwd string from {@link ICreateTerminalParams} to an
+	 * Resolves the cwd string from {@link CreateTerminalParams} to an
 	 * accessible filesystem path, falling back to $HOME if the requested
 	 * directory is missing (otherwise node-pty exits silently with code 1).
 	 * Accepts either a `file://` URI string or a raw absolute filesystem path.

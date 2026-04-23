@@ -3,8 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { BasePromptElementProps, PromptElement, PromptElementProps, PromptPiece, PromptSizing } from '@vscode/prompt-tsx';
-import type { LanguageModelToolInformation } from 'vscode';
+import { PromptElement, PromptElementProps, PromptPiece, PromptSizing } from '@vscode/prompt-tsx';
 import { IConfigurationService } from '../../../../platform/configuration/common/configurationService';
 import { isHiddenModelG, modelSupportsToolSearch } from '../../../../platform/endpoint/common/chatModelCapabilities';
 import { CUSTOM_TOOL_SEARCH_NAME, isAnthropicContextEditingEnabled } from '../../../../platform/networking/common/anthropic';
@@ -14,17 +13,13 @@ import { IExperimentationService } from '../../../../platform/telemetry/common/n
 import { agenticBrowserTools, ToolName } from '../../../tools/common/toolNames';
 import { InstructionMessage } from '../base/instructionMessage';
 import { ResponseTranslationRules } from '../base/responseTranslationRules';
+import { ToolSearchToolPromptOptimized, ToolSearchToolPromptProps } from './toolSearchInstructions';
 import { Tag } from '../base/tag';
 import { EXISTING_CODE_MARKER } from '../panel/codeBlockFormattingRules';
 import { MathIntegrationRules } from '../panel/editorIntegrationRules';
 import { CodesearchModeInstructions, DefaultAgentPromptProps, detectToolCapabilities, GenericEditingTips, getEditingReminder, McpToolInstructions, NotebookInstructions, ReminderInstructionsProps } from './defaultAgentInstructions';
 import { FileLinkificationInstructions, FileLinkificationInstructionsOptimized } from './fileLinkificationInstructions';
 import { IAgentPrompt, PromptRegistry, ReminderInstructionsConstructor, SystemPrompt } from './promptRegistry';
-
-interface ToolSearchToolPromptProps extends BasePromptElementProps {
-	readonly availableTools: readonly LanguageModelToolInformation[] | undefined;
-	readonly modelFamily: string | undefined;
-}
 
 /**
  * Prompt component that provides instructions for using the tool search tool
@@ -315,51 +310,6 @@ class Claude45DefaultPrompt extends PromptElement<DefaultAgentPromptProps> {
 			</Tag>
 			<ResponseTranslationRules />
 		</InstructionMessage>;
-	}
-}
-
-/**
- * Condensed variant of ToolSearchToolPrompt used by optimized Claude 4.6 prompt configurations.
- * Flattens nested tags, removes explanatory text, and drops the custom search variant.
- */
-class ToolSearchToolPromptOptimized extends PromptElement<ToolSearchToolPromptProps> {
-	constructor(
-		props: PromptElementProps<ToolSearchToolPromptProps>,
-		@IToolDeferralService private readonly toolDeferralService: IToolDeferralService,
-	) {
-		super(props);
-	}
-
-	async render(state: void, sizing: PromptSizing) {
-		const endpoint = sizing.endpoint as IChatEndpoint | undefined;
-
-		const toolSearchEnabled = endpoint
-			? !!endpoint.supportsToolSearch
-			: modelSupportsToolSearch(this.props.modelFamily ?? '');
-
-		if (!toolSearchEnabled || !this.props.availableTools) {
-			return;
-		}
-
-		const deferredTools = this.props.availableTools
-			.filter(tool => !this.toolDeferralService.isNonDeferredTool(tool.name))
-			.map(tool => tool.name)
-			.sort();
-
-		if (deferredTools.length === 0) {
-			return;
-		}
-
-		return <Tag name='toolSearchInstructions'>
-			You MUST use {CUSTOM_TOOL_SEARCH_NAME} to load deferred tools BEFORE calling them. Calling a deferred tool without loading it first will fail.<br />
-			<br />
-			Describe what capability you need in natural language. The search uses semantic similarity to find the most relevant tools.<br />
-			<br />
-			Do NOT call {CUSTOM_TOOL_SEARCH_NAME} again for a tool already returned by a previous search. If a search returns no matching tools, the tool is not available. Do not retry with different patterns.<br />
-			<br />
-			Available deferred tools (must be loaded before use):<br />
-			{deferredTools.join('\n')}
-		</Tag>;
 	}
 }
 

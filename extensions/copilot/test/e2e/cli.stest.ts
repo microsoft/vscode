@@ -298,6 +298,7 @@ async function registerChatServices(testingServiceCollection: TestingServiceColl
 		async handleRequestCompletedForWorktree() { },
 		async cleanupWorktreeOnArchive() { return { cleaned: false }; },
 		async recreateWorktreeOnUnarchive() { return { recreated: false }; },
+		async hasWorktreeChanges() { return false; },
 	} as IChatSessionWorktreeService);
 	testingServiceCollection.define(IPromptVariablesService, new SyncDescriptor(NullPromptVariablesService));
 	testingServiceCollection.define(IChatDebugFileLoggerService, new NullChatDebugFileLoggerService());

@@ -8,12 +8,12 @@ import { Emitter, Event } from '../../../../../base/common/event.js';
 import { DisposableStore, IReference } from '../../../../../base/common/lifecycle.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { ensureNoDisposablesAreLeakedInTestSuite } from '../../../../../base/test/common/utils.js';
-import { IAgentConnection, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, IAuthenticateParams, IAuthenticateResult } from '../../../../../platform/agentHost/common/agentService.js';
-import { ActionType, IStateAction } from '../../../../../platform/agentHost/common/state/protocol/actions.js';
-import { IRootState, TerminalClaimKind, type ITerminalState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
-import type { ICreateTerminalParams, IResolveSessionConfigResult, ISessionConfigCompletionsResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
-import type { IActionEnvelope, ISessionAction, ITerminalAction, INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
-import type { IResourceCopyParams, IResourceCopyResult, IResourceDeleteParams, IResourceDeleteResult, IResourceListResult, IResourceMoveParams, IResourceMoveResult, IResourceReadResult, IResourceWriteParams, IResourceWriteResult } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
+import { IAgentConnection, IAgentCreateSessionConfig, IAgentResolveSessionConfigParams, IAgentSessionConfigCompletionsParams, IAgentSessionMetadata, AuthenticateParams, AuthenticateResult } from '../../../../../platform/agentHost/common/agentService.js';
+import { ActionType, StateAction } from '../../../../../platform/agentHost/common/state/protocol/actions.js';
+import { RootState, TerminalClaimKind, type TerminalState } from '../../../../../platform/agentHost/common/state/protocol/state.js';
+import type { CreateTerminalParams, ResolveSessionConfigResult, SessionConfigCompletionsResult } from '../../../../../platform/agentHost/common/state/protocol/commands.js';
+import type { ActionEnvelope, SessionAction, TerminalAction, INotification } from '../../../../../platform/agentHost/common/state/sessionActions.js';
+import type { ResourceCopyParams, ResourceCopyResult, ResourceDeleteParams, ResourceDeleteResult, ResourceListResult, ResourceMoveParams, ResourceMoveResult, ResourceReadResult, ResourceWriteParams, ResourceWriteResult } from '../../../../../platform/agentHost/common/state/sessionProtocol.js';
 
 import { AgentHostPty } from '../../browser/agentHostPty.js';
 import { IAgentSubscription } from '../../../../../platform/agentHost/common/state/agentSubscription.js';
@@ -27,23 +27,23 @@ class MockAgentConnection implements IAgentConnection {
 	readonly clientId = 'test-client';
 
 	private _seq = 0;
-	private readonly _onDidAction = new Emitter<IActionEnvelope>();
-	readonly onDidAction: Event<IActionEnvelope> = this._onDidAction.event;
+	private readonly _onDidAction = new Emitter<ActionEnvelope>();
+	readonly onDidAction: Event<ActionEnvelope> = this._onDidAction.event;
 	private readonly _onDidNotification = new Emitter<INotification>();
 	readonly onDidNotification: Event<INotification> = this._onDidNotification.event;
 
-	readonly dispatchedActions: (ISessionAction | ITerminalAction)[] = [];
-	readonly createdTerminals: ICreateTerminalParams[] = [];
+	readonly dispatchedActions: (SessionAction | TerminalAction)[] = [];
+	readonly createdTerminals: CreateTerminalParams[] = [];
 	readonly disposedTerminals: URI[] = [];
 	readonly subscribedResources: URI[] = [];
 
-	private _terminalState: ITerminalState = {
+	private _terminalState: TerminalState = {
 		title: 'Test Terminal',
 		content: [],
 		claim: { kind: TerminalClaimKind.Client, clientId: 'test-client' },
 	};
 
-	constructor(initialState?: Partial<ITerminalState>) {
+	constructor(initialState?: Partial<TerminalState>) {
 		if (initialState) {
 			this._terminalState = { ...this._terminalState, ...initialState };
 		}
@@ -53,7 +53,7 @@ class MockAgentConnection implements IAgentConnection {
 		return ++this._seq;
 	}
 
-	async createTerminal(params: ICreateTerminalParams): Promise<void> {
+	async createTerminal(params: CreateTerminalParams): Promise<void> {
 		this.createdTerminals.push(params);
 	}
 
@@ -62,27 +62,27 @@ class MockAgentConnection implements IAgentConnection {
 	}
 
 	/** Simulate the server sending an action to the client */
-	fireAction(action: IStateAction, serverSeq = 1): void {
+	fireAction(action: StateAction, serverSeq = 1): void {
 		this._onDidAction.fire({ action, serverSeq, origin: { clientId: 'server', clientSeq: 0 } });
 	}
 
 	// ---- Unused IAgentService methods (stubs) -----
-	async authenticate(_params: IAuthenticateParams): Promise<IAuthenticateResult> { return { authenticated: true }; }
+	async authenticate(_params: AuthenticateParams): Promise<AuthenticateResult> { return { authenticated: true }; }
 	async listSessions(): Promise<IAgentSessionMetadata[]> { return []; }
 	async createSession(_config?: IAgentCreateSessionConfig): Promise<URI> { return URI.parse('copilot:///test'); }
-	async resolveSessionConfig(_params: IAgentResolveSessionConfigParams): Promise<IResolveSessionConfigResult> { return { schema: { type: 'object', properties: {} }, values: {} }; }
-	async sessionConfigCompletions(_params: IAgentSessionConfigCompletionsParams): Promise<ISessionConfigCompletionsResult> { return { items: [] }; }
+	async resolveSessionConfig(_params: IAgentResolveSessionConfigParams): Promise<ResolveSessionConfigResult> { return { schema: { type: 'object', properties: {} }, values: {} }; }
+	async sessionConfigCompletions(_params: IAgentSessionConfigCompletionsParams): Promise<SessionConfigCompletionsResult> { return { items: [] }; }
 	async disposeSession(_session: URI): Promise<void> { }
 	async shutdown(): Promise<void> { }
-	async resourceList(_uri: URI): Promise<IResourceListResult> { return { entries: [] }; }
-	async resourceRead(_uri: URI): Promise<IResourceReadResult> { return { data: '', encoding: 'utf-8' } as IResourceReadResult; }
-	async resourceWrite(_params: IResourceWriteParams): Promise<IResourceWriteResult> { return {}; }
-	async resourceCopy(_params: IResourceCopyParams): Promise<IResourceCopyResult> { return {}; }
-	async resourceDelete(_params: IResourceDeleteParams): Promise<IResourceDeleteResult> { return {}; }
-	async resourceMove(_params: IResourceMoveParams): Promise<IResourceMoveResult> { return {}; }
+	async resourceList(_uri: URI): Promise<ResourceListResult> { return { entries: [] }; }
+	async resourceRead(_uri: URI): Promise<ResourceReadResult> { return { data: '', encoding: 'utf-8' } as ResourceReadResult; }
+	async resourceWrite(_params: ResourceWriteParams): Promise<ResourceWriteResult> { return {}; }
+	async resourceCopy(_params: ResourceCopyParams): Promise<ResourceCopyResult> { return {}; }
+	async resourceDelete(_params: ResourceDeleteParams): Promise<ResourceDeleteResult> { return {}; }
+	async resourceMove(_params: ResourceMoveParams): Promise<ResourceMoveResult> { return {}; }
 
 	// ---- IAgentConnection new API (stubs for tests) -----
-	readonly rootState: IAgentSubscription<IRootState> = {
+	readonly rootState: IAgentSubscription<RootState> = {
 		value: undefined,
 		verifiedValue: undefined,
 		onDidChange: Event.None,
@@ -90,10 +90,10 @@ class MockAgentConnection implements IAgentConnection {
 		onDidApplyAction: Event.None,
 	};
 	getSubscription<T>(_kind: StateComponents, _resource: URI): IReference<IAgentSubscription<T>> {
-		const onDidChange = new Emitter<ITerminalState>();
-		const onWillApplyAction = new Emitter<IActionEnvelope>();
-		const onDidApplyAction = new Emitter<IActionEnvelope>();
-		const sub: IAgentSubscription<ITerminalState> = {
+		const onDidChange = new Emitter<TerminalState>();
+		const onWillApplyAction = new Emitter<ActionEnvelope>();
+		const onDidApplyAction = new Emitter<ActionEnvelope>();
+		const sub: IAgentSubscription<TerminalState> = {
 			value: this._terminalState,
 			verifiedValue: this._terminalState,
 			onDidChange: onDidChange.event,
@@ -115,7 +115,7 @@ class MockAgentConnection implements IAgentConnection {
 	getSubscriptionUnmanaged<T>(_kind: StateComponents, _resource: URI): IAgentSubscription<T> | undefined {
 		return undefined;
 	}
-	dispatch(action: ISessionAction | ITerminalAction): void {
+	dispatch(action: SessionAction | TerminalAction): void {
 		this.dispatchedActions.push(action);
 	}
 

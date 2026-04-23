@@ -155,5 +155,117 @@ suite('updateInfoParser', () => {
 				buttons: [{ label: 'X', commandId: 'cmd', style: undefined, args: undefined }],
 			});
 		});
+
+		test('JSON envelope with bannerImageUrl, badge, title, and features', () => {
+			const input = JSON.stringify({
+				markdown: 'Body',
+				bannerImageUrl: 'https://example.com/banner.png',
+				badge: 'New',
+				title: 'What\'s New',
+				features: [
+					{ icon: '$(sparkle)', title: 'Feature A', description: 'Does A' },
+					{ title: 'Feature B', description: 'Does B' },
+				],
+			});
+
+			assert.deepStrictEqual(parseUpdateInfoInput(input), {
+				markdown: 'Body',
+				buttons: undefined,
+				bannerImageUrl: 'https://example.com/banner.png',
+				badge: 'New',
+				title: 'What\'s New',
+				features: [
+					{ icon: '$(sparkle)', title: 'Feature A', description: 'Does A' },
+					{ icon: undefined, title: 'Feature B', description: 'Does B' },
+				],
+			});
+		});
+
+		test('block frontmatter with bannerImageUrl, badge, title, and features', () => {
+			const meta = {
+				bannerImageUrl: 'https://example.com/banner.png',
+				badge: 'Preview',
+				title: 'Highlights',
+				features: [{ title: 'Feature', description: 'Desc' }],
+			};
+			const input = `---\n${JSON.stringify(meta)}\n---\nBody text`;
+
+			assert.deepStrictEqual(parseUpdateInfoInput(input), {
+				markdown: 'Body text',
+				buttons: undefined,
+				bannerImageUrl: 'https://example.com/banner.png',
+				badge: 'Preview',
+				title: 'Highlights',
+				features: [{ icon: undefined, title: 'Feature', description: 'Desc' }],
+			});
+		});
+
+		test('ignores non-string bannerImageUrl, badge, and title', () => {
+			const input = JSON.stringify({
+				markdown: 'text',
+				bannerImageUrl: 123,
+				badge: { not: 'a string' },
+				title: ['nope'],
+			});
+
+			assert.deepStrictEqual(parseUpdateInfoInput(input), {
+				markdown: 'text',
+				buttons: undefined,
+			});
+		});
+
+		test('caps features at 5 entries and skips invalid ones', () => {
+			const input = JSON.stringify({
+				markdown: 'text',
+				features: [
+					{ title: 'F1', description: 'D1' },
+					{ title: 'F2' }, // missing description
+					'not an object',
+					null,
+					{ title: 'F3', description: 'D3', icon: '$(star)' },
+					{ title: 'F4', description: 'D4' },
+					{ title: 'F5', description: 'D5' },
+					{ title: 'F6', description: 'D6' },
+					{ title: 'F7', description: 'D7' }, // dropped (over cap)
+				],
+			});
+
+			assert.deepStrictEqual(parseUpdateInfoInput(input), {
+				markdown: 'text',
+				buttons: undefined,
+				features: [
+					{ icon: undefined, title: 'F1', description: 'D1' },
+					{ icon: '$(star)', title: 'F3', description: 'D3' },
+					{ icon: undefined, title: 'F4', description: 'D4' },
+					{ icon: undefined, title: 'F5', description: 'D5' },
+					{ icon: undefined, title: 'F6', description: 'D6' },
+				],
+			});
+		});
+
+		test('returns undefined features when all features are invalid', () => {
+			const input = JSON.stringify({
+				markdown: 'text',
+				features: [{ title: 'OnlyTitle' }, 'string', null],
+			});
+
+			assert.deepStrictEqual(parseUpdateInfoInput(input), {
+				markdown: 'text',
+				buttons: undefined,
+			});
+		});
+
+		test('ignores non-string feature icon', () => {
+			const input = JSON.stringify({
+				markdown: 'text',
+				features: [{ icon: 42, title: 'F', description: 'D' }],
+			});
+
+			assert.deepStrictEqual(parseUpdateInfoInput(input), {
+				markdown: 'text',
+				buttons: undefined,
+				features: [{ icon: undefined, title: 'F', description: 'D' }],
+			});
+		});
 	});
 });

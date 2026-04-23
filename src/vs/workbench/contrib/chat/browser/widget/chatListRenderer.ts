@@ -1149,8 +1149,10 @@ export class ChatListItemRenderer extends Disposable implements ITreeRenderer<Ch
 			if (lastPart.isAttachedToThinking) {
 				return undefined;
 			}
+
+			const isEffectivelyHiddenToolInvocation = IChatToolInvocation.isEffectivelyHidden(lastPart);
 			const collapsedToolsMode = this.configService.getValue<CollapsedToolsDisplayMode>('chat.agent.thinking.collapsedTools');
-			if (collapsedToolsMode !== CollapsedToolsDisplayMode.Off && this.shouldPinPart(lastPart, isResponseVM(element) ? element : undefined)) {
+			if (!isEffectivelyHiddenToolInvocation && collapsedToolsMode !== CollapsedToolsDisplayMode.Off && this.shouldPinPart(lastPart, isResponseVM(element) ? element : undefined)) {
 				return undefined;
 			}
 		}

@@ -90,6 +90,10 @@ export interface ISessionRepository {
 export interface ISessionWorkspace {
 	/** Display label for the workspace (e.g., "my-app", "org/repo", "host:/path"). */
 	readonly label: string;
+	/** Optional description shown alongside the label (e.g., parent folder path "~/work"). */
+	readonly description?: string;
+	/** Optional group name for categorizing this workspace in pickers (e.g., "Copilot Chat", "Local"). */
+	readonly group?: string;
 	/** Icon for the workspace. */
 	readonly icon: ThemeIcon;
 	/** Repositories in this workspace. */
@@ -204,6 +208,21 @@ export interface ISession {
 	readonly mainChat: IChat;
 	/** Capabilities of this session. */
 	readonly capabilities: ISessionCapabilities;
+}
+
+/**
+ * Build the canonical {@link ISession.sessionId} from a provider id and
+ * session resource URI.
+ *
+ * This is the single source of truth for the `providerId:resourceUri`
+ * string format used by every sessions provider (agent-host and
+ * Copilot chat sessions). Consumers that only have a provider id and a
+ * resource URI (e.g. a filesystem provider reconstructing a sessionId
+ * from a synthetic URI) should call this rather than rebuilding the
+ * string inline.
+ */
+export function toSessionId(providerId: string, resource: URI): string {
+	return `${providerId}:${resource.toString()}`;
 }
 
 /**

@@ -149,6 +149,19 @@
 	text-overflow: ellipsis;
 }
 
+.action-widget .monaco-list-row.action .detail {
+	order: 99;
+	width: 100%;
+	padding-left: 20px;
+	font-size: 11px;
+	line-height: 14px;
+	color: var(--vscode-descriptionForeground);
+	opacity: 0.8;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+
 .action-widget .monaco-list-row.action .action-item-badge {
 	padding: 0px 6px;
 	border-radius: 10px;
@@ -217,31 +230,42 @@
 	font-size: 12px;
 }
 
-/* Description below mode — shows descriptions as subtext under the title */
-.action-widget .description-below .monaco-list .monaco-list-row.action {
-	flex-wrap: wrap;
-	align-content: center;
-	padding-right: 2px;
+.action-widget .monaco-list-row.action .group-title {
+	color: var(--vscode-descriptionForeground);
+	margin-left: 0.5em;
+	font-size: 12px;
+	flex-shrink: 0;
+}
 
-	&:has(.description:not([style*="display: none"])) {
+/* Items with detail — show detail as subtext below the title */
+.action-widget .monaco-list .monaco-list-row.action {
+	&:has(.detail:not([style*="display: none"])) {
+		flex-wrap: wrap;
+		align-content: center;
 		padding-top: 6px;
-	}
+		padding-right: 2px;
 
+		.title {
+			line-height: 14px;
+		}
+	}
+}
+
+/* Inline description mode — description rendered right after the label */
+.action-widget .inline-description .monaco-list-row.action {
 	.title {
-		line-height: 14px;
+		flex: initial;
+		flex-shrink: 1;
+		min-width: 0;
 	}
 
 	.description {
-		display: block;
-		width: 100%;
-		margin-left: 0;
-		padding-left: 20px;
-		font-size: 11px;
-		line-height: 14px;
-		opacity: 0.8;
-		overflow: hidden;
-		text-overflow: ellipsis;
-		white-space: nowrap;
+		flex: 1;
+		min-width: 0;
+	}
+
+	.action-list-item-toolbar {
+		margin-left: auto;
 	}
 }
 
@@ -279,7 +303,7 @@
 }
 
 .action-widget .action-list-filter:first-child {
-	border-bottom: 1px solid var(--vscode-editorHoverWidget-border);
+	border-bottom: none;
 }
 
 .action-widget .action-list-filter:last-child {

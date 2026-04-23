@@ -701,16 +701,6 @@ registerAction2(class MarkSessionAsDoneAction extends Action2 {
 			icon: Codicon.check,
 			precondition: ChatContextKeys.requestInProgress.negate(),
 			menu: [{
-				id: Menus.CommandCenter,
-				order: 103,
-				when: ContextKeyExpr.and(
-					IsAuxiliaryWindowContext.negate(),
-					SessionsWelcomeVisibleContext.negate(),
-					IsNewChatSessionContext.negate(),
-					IsActiveSessionArchivedContext.negate()
-				)
-			},
-			{
 				id: MenuId.ChatEditingSessionChangesToolbar,
 				group: 'navigation',
 				order: 1,
@@ -750,7 +740,7 @@ registerAction2(class AddChatAction extends Action2 {
 	constructor() {
 		super({
 			id: 'agentSession.addChat',
-			title: localize2('addChat', "Add Chat"),
+			title: localize2('addChat', "New Sub-Session"),
 			icon: Codicon.plus,
 			menu: [{
 				id: Menus.CommandCenter,

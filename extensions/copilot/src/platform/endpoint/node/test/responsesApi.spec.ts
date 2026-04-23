@@ -294,6 +294,53 @@ describe('responseApiInputToRawMessagesForLogging', () => {
 		expect(result[0].role).toBe(Raw.ChatRole.Assistant);
 		expect((result[0] as Raw.AssistantChatMessage).toolCalls).toHaveLength(2);
 	});
+
+	it('converts tool_search_call and tool_search_output items to raw messages', () => {
+		const body: OpenAI.Responses.ResponseCreateParams = {
+			model: 'gpt-5-mini',
+			input: [
+				{
+					type: 'tool_search_call',
+					execution: 'client',
+					call_id: 'ts_call_1',
+					status: 'completed',
+					arguments: { query: 'file editing tools' },
+				} as unknown as OpenAI.Responses.ResponseInputItem,
+				{
+					type: 'tool_search_output',
+					execution: 'client',
+					call_id: 'ts_call_1',
+					status: 'completed',
+					tools: [
+						{ type: 'function', name: 'grep_search', description: 'Search files', defer_loading: true, parameters: {} },
+						{ type: 'function', name: 'file_search', description: 'Find files', defer_loading: true, parameters: {} },
+					],
+				} as unknown as OpenAI.Responses.ResponseInputItem
+			]
+		};
+
+		const result = responseApiInputToRawMessagesForLogging(body);
+
+		expect(result).toEqual([
+			{
+				role: Raw.ChatRole.Assistant,
+				content: [],
+				toolCalls: [{
+					id: 'ts_call_1',
+					type: 'function',
+					function: {
+						name: 'tool_search',
+						arguments: '{"query":"file editing tools"}',
+					}
+				}]
+			},
+			{
+				role: Raw.ChatRole.Tool,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: '["grep_search","file_search"]' }],
+				toolCallId: 'ts_call_1',
+			}
+		]);
+	});
 });
 
 describe('createResponsesRequestBody', () => {
@@ -516,6 +563,59 @@ describe('createResponsesRequestBody', () => {
 		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, createRequestOptions(messages, false), testEndpoint.model, testEndpoint));
 
 		expect(body.input).toHaveLength(0);
+
+		accessor.dispose();
+		services.dispose();
+	});
+
+	it('adds namespace field only to function_call for tools loaded via tool_search_output', () => {
+		const services = createPlatformServices();
+		const accessor = services.createTestingAccessor();
+		const instantiationService = accessor.get(IInstantiationService);
+		const tools = [
+			{ type: 'function' as const, function: { name: 'tool_search', description: 'Search tools', parameters: {} } },
+			{ type: 'function' as const, function: { name: 'grep_search', description: 'Grep files', parameters: {} } },
+			{ type: 'function' as const, function: { name: 'read_file', description: 'Read a file', parameters: {} } },
+		];
+		const messages: Raw.ChatMessage[] = [
+			{
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'find something' }],
+			},
+			// Assistant calls tool_search
+			{
+				role: Raw.ChatRole.Assistant,
+				content: [],
+				toolCalls: [{ id: 'ts_1', type: 'function', function: { name: 'tool_search', arguments: '{"query":"search"}' } }],
+			},
+			// tool_search returns grep_search
+			{
+				role: Raw.ChatRole.Tool,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: '["grep_search"]' }],
+				toolCallId: 'ts_1',
+			},
+			// Assistant calls grep_search (loaded via tool_search) and read_file (not loaded via tool_search)
+			{
+				role: Raw.ChatRole.Assistant,
+				content: [],
+				toolCalls: [
+					{ id: 'call_grep', type: 'function', function: { name: 'grep_search', arguments: '{"q":"hello"}' } },
+					{ id: 'call_read', type: 'function', function: { name: 'read_file', arguments: '{"path":"foo.ts"}' } },
+				],
+			},
+		];
+
+		const body = instantiationService.invokeFunction(servicesAccessor => createResponsesRequestBody(servicesAccessor, { ...createRequestOptions(messages, false), requestOptions: { tools } }, testEndpoint.model, testEndpoint));
+
+		// grep_search was loaded via tool_search_output — should have namespace
+		const grepCall = (body.input as unknown[]).find((item: any) => item.type === 'function_call' && item.name === 'grep_search') as any;
+		expect(grepCall).toBeDefined();
+		expect(grepCall.namespace).toBe('grep_search');
+
+		// read_file was NOT loaded via tool_search — should NOT have namespace
+		const readCall = (body.input as unknown[]).find((item: any) => item.type === 'function_call' && item.name === 'read_file') as any;
+		expect(readCall).toBeDefined();
+		expect(readCall).not.toHaveProperty('namespace');
 
 		accessor.dispose();
 		services.dispose();

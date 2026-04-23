@@ -21,7 +21,7 @@ import { generateUuid } from '../../../util/vs/base/common/uuid';
 import { ClaudeFolderInfo } from '../claude/common/claudeFolderInfo';
 import { ClaudeSessionUri } from '../claude/common/claudeSessionUri';
 import { ClaudeAgentManager } from '../claude/node/claudeCodeAgent';
-import { CLAUDE_REASONING_EFFORT_PROPERTY } from '../claude/node/claudeCodeModels';
+import { CLAUDE_REASONING_EFFORT_PROPERTY, IClaudeCodeModels } from '../claude/node/claudeCodeModels';
 import { IClaudeCodeSdkService } from '../claude/node/claudeCodeSdkService';
 import { parseClaudeModelId } from '../claude/node/claudeModelId';
 import { IClaudeSessionStateService } from '../claude/common/claudeSessionStateService';
@@ -61,6 +61,7 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 		@IClaudeSessionStateService private readonly sessionStateService: IClaudeSessionStateService,
 		@IClaudeSlashCommandService private readonly slashCommandService: IClaudeSlashCommandService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IClaudeCodeModels private readonly claudeModels: IClaudeCodeModels,
 		@IChatFolderMruService folderMruService: IChatFolderMruService,
 		@IWorkspaceService workspaceService: IWorkspaceService,
 		@INativeEnvService envService: INativeEnvService,
@@ -124,8 +125,8 @@ export class ClaudeChatSessionContentProvider extends Disposable implements vsco
 			this.sessionStateService.setFolderInfoForSession(effectiveSessionId, folderInfo);
 
 			const rawReasoningEffort = request.modelConfiguration?.[CLAUDE_REASONING_EFFORT_PROPERTY];
-			const normalizedReasoningEffort = typeof rawReasoningEffort === 'string' ? rawReasoningEffort.trim() || undefined : undefined;
-			this.sessionStateService.setReasoningEffortForSession(effectiveSessionId, normalizedReasoningEffort);
+			const reasoningEffort = await this.claudeModels.resolveReasoningEffort(modelId, rawReasoningEffort);
+			this.sessionStateService.setReasoningEffortForSession(effectiveSessionId, reasoningEffort);
 
 			// Set usage handler to report token usage for context window widget
 			this.sessionStateService.setUsageHandlerForSession(effectiveSessionId, (usage) => {

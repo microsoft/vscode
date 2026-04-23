@@ -34,6 +34,7 @@ import { ISessionsProvidersService } from '../../../services/sessions/browser/se
 import { ISessionsManagementService } from '../../../services/sessions/common/sessionsManagement.js';
 import { IAgentHostSessionsProvider, isAgentHostProvider } from '../../../common/agentHostSessionsProvider.js';
 import { COPILOT_PROVIDER_ID } from '../../copilotChatSessions/browser/copilotChatSessionsProvider.js';
+import { IWorkspacesService, isRecentFolder } from '../../../../platform/workspaces/common/workspaces.js';
 
 const LEGACY_STORAGE_KEY_RECENT_PROJECTS = 'sessions.recentlyPickedProjects';
 const STORAGE_KEY_RECENT_WORKSPACES = 'sessions.recentlyPickedWorkspaces';
@@ -90,6 +91,9 @@ export class WorkspacePicker extends Disposable {
 	private readonly _renderDisposables = this._register(new DisposableStore());
 	private readonly _connectionStatusListener = this._register(new MutableDisposable());
 
+	/** Cached VS Code recent folder URIs, resolved lazily. */
+	private _vsCodeRecentFolderUris: URI[] = [];
+
 	get selectedProject(): IWorkspaceSelection | undefined {
 		return this._selectedWorkspace;
 	}
@@ -107,6 +111,7 @@ export class WorkspacePicker extends Disposable {
 		@IOutputService private readonly outputService: IOutputService,
 		@IConfigurationService private readonly configurationService: IConfigurationService,
 		@ICommandService private readonly commandService: ICommandService,
+		@IWorkspacesService private readonly workspacesService: IWorkspacesService,
 	) {
 		super();
 
@@ -140,6 +145,10 @@ export class WorkspacePicker extends Disposable {
 		}));
 
 		this._watchConnectionStatus();
+
+		// Load VS Code recent folders eagerly and refresh on changes
+		this._loadVSCodeRecentFolders();
+		this._register(this.workspacesService.onDidChangeRecentlyOpened(() => this._loadVSCodeRecentFolders()));
 	}
 
 	/**
@@ -220,8 +229,8 @@ export class WorkspacePicker extends Disposable {
 		};
 
 		const listOptions = showFilter
-			? { showFilter: true, filterPlaceholder: localize('workspacePicker.filter', "Search Workspaces..."), reserveSubmenuSpace: false }
-			: { reserveSubmenuSpace: false };
+			? { showFilter: true, filterPlaceholder: localize('workspacePicker.filter', "Search Workspaces..."), reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true }
+			: { reserveSubmenuSpace: false, inlineDescription: true, showGroupTitleOnFirstItem: true };
 		triggerElement.setAttribute('aria-expanded', 'true');
 
 		this.actionWidgetService.show<IWorkspacePickerItem>(
@@ -326,50 +335,54 @@ export class WorkspacePicker extends Disposable {
 		// Collect recent workspaces from picker storage across all providers
 		const allProviders = this.sessionsProvidersService.getProviders();
 		const providerIds = new Set(allProviders.map(p => p.id));
-		const recentWorkspaces = this._getRecentWorkspaces().filter(w => providerIds.has(w.providerId));
-		const hasMultipleProviders = allProviders.length > 1;
+		const ownRecentWorkspaces = this._getRecentWorkspaces().filter(w => providerIds.has(w.providerId));
 
-		if (hasMultipleProviders) {
-			// Group workspaces by provider, showing provider name as description on the first entry
-			const providersWithWorkspaces = allProviders.filter(p => recentWorkspaces.some(w => w.providerId === p.id));
-			for (let pi = 0; pi < providersWithWorkspaces.length; pi++) {
-				const provider = providersWithWorkspaces[pi];
-				const isOffline = this._isProviderUnavailable(provider.id);
-				const providerWorkspaces = recentWorkspaces.filter(w => w.providerId === provider.id);
-				for (let i = 0; i < providerWorkspaces.length; i++) {
-					const { workspace, providerId } = providerWorkspaces[i];
-					const selection: IWorkspaceSelection = { providerId, workspace };
-					const selected = this._isSelectedWorkspace(selection);
-					const description = i === 0
-						? (isOffline ? localize('workspacePicker.providerOffline', "{0} (Offline)", provider.label) : provider.label)
-						: (isOffline ? localize('workspacePicker.offline', "Offline") : undefined);
-					items.push({
-						kind: ActionListItemKind.Action,
-						label: workspace.label,
-						description,
-						group: { title: '', icon: workspace.icon },
-						item: { selection, checked: selected || undefined },
-						onRemove: () => this._removeRecentWorkspace(selection),
-					});
-				}
-				if (pi < providersWithWorkspaces.length - 1) {
-					items.push({ kind: ActionListItemKind.Separator, label: '' });
-				}
+		// Merge VS Code recent folders (resolved through providers, deduplicated)
+		const vsCodeRecents = this._getVSCodeRecentWorkspaces().filter(w => providerIds.has(w.providerId));
+		const ownRecentCount = ownRecentWorkspaces.length;
+		const recentWorkspaces = [...ownRecentWorkspaces, ...vsCodeRecents];
+
+		// Build flat list of workspace entries with their group info
+		const workspaceEntries: { workspace: ISessionWorkspace; providerId: string; isOwnRecent: boolean; groupTitle: string }[] = [];
+		const providersWithWorkspaces = allProviders.filter(p => recentWorkspaces.some(w => w.providerId === p.id));
+		for (const provider of providersWithWorkspaces) {
+			const isOffline = this._isProviderUnavailable(provider.id);
+			const providerWorkspaces = recentWorkspaces
+				.map((w, idx) => ({ ...w, isOwnRecent: idx < ownRecentCount }))
+				.filter(w => w.providerId === provider.id);
+			for (const { workspace, providerId, isOwnRecent } of providerWorkspaces) {
+				const groupName = workspace.group ?? provider.label;
+				const groupTitle = isOffline ? localize('workspacePicker.groupOffline', "{0} (Offline)", groupName) : groupName;
+				workspaceEntries.push({ workspace, providerId, isOwnRecent, groupTitle });
 			}
-		} else {
-			for (const { workspace, providerId } of recentWorkspaces) {
-				const selection: IWorkspaceSelection = { providerId, workspace };
-				const selected = this._isSelectedWorkspace(selection);
-				const isOffline = this._isProviderUnavailable(providerId);
-				items.push({
-					kind: ActionListItemKind.Action,
-					label: workspace.label,
-					description: isOffline ? localize('workspacePicker.offlineSingle', "Offline") : undefined,
-					group: { title: '', icon: workspace.icon },
-					item: { selection, checked: selected || undefined },
-					onRemove: () => this._removeRecentWorkspace(selection),
-				});
+		}
+
+		// Sort by group name, then by label within each group
+		workspaceEntries.sort((a, b) => {
+			const groupCmp = a.groupTitle.localeCompare(b.groupTitle);
+			if (groupCmp !== 0) {
+				return groupCmp;
 			}
+			return a.workspace.label.localeCompare(b.workspace.label);
+		});
+
+		// Add items with separators between groups
+		let lastGroupTitle: string | undefined;
+		for (const { workspace, providerId, isOwnRecent, groupTitle } of workspaceEntries) {
+			if (lastGroupTitle !== undefined && lastGroupTitle !== groupTitle) {
+				items.push({ kind: ActionListItemKind.Separator, label: '' });
+			}
+			lastGroupTitle = groupTitle;
+			const selection: IWorkspaceSelection = { providerId, workspace };
+			const selected = this._isSelectedWorkspace(selection);
+			items.push({
+				kind: ActionListItemKind.Action,
+				label: workspace.label,
+				description: workspace.description,
+				group: { title: groupTitle, icon: workspace.icon },
+				item: { selection, checked: selected || undefined },
+				onRemove: isOwnRecent ? () => this._removeRecentWorkspace(selection) : () => this._removeVSCodeRecentWorkspace(selection),
+			});
 		}
 
 		// Browse actions from all providers
@@ -380,7 +393,7 @@ export class WorkspacePicker extends Disposable {
 		if (items.length > 0 && (allBrowseActions.length > 0 || remoteProviders.length > 0)) {
 			items.push({ kind: ActionListItemKind.Separator, label: '' });
 		}
-		if (hasMultipleProviders && (allBrowseActions.length + remoteProviders.length) > 1) {
+		if (allProviders.length > 1 && (allBrowseActions.length + remoteProviders.length) > 1) {
 			// Show a single "Select..." entry with provider-grouped submenu actions
 			// that also includes remote host entries
 			const providerMap = new Map<string, { provider: typeof allProviders[0]; actions: { action: ISessionWorkspaceBrowseAction; index: number }[] }>();
@@ -861,6 +874,22 @@ export class WorkspacePicker extends Disposable {
 		}
 	}
 
+	protected _removeVSCodeRecentWorkspace(selection: IWorkspaceSelection): void {
+		const uri = selection.workspace.repositories[0]?.uri;
+		if (!uri) {
+			return;
+		}
+		this.workspacesService.removeRecentlyOpened([uri]);
+
+		// Clear current selection if it was the removed workspace
+		if (this._isSelectedWorkspace(selection)) {
+			this.actionWidgetService.hide();
+			this._selectedWorkspace = undefined;
+			this._updateTriggerLabel();
+			this._onDidSelectWorkspace.fire(undefined);
+		}
+	}
+
 	private _getStoredRecentWorkspaces(): IStoredRecentWorkspace[] {
 		const raw = this.storageService.get(STORAGE_KEY_RECENT_WORKSPACES, StorageScope.PROFILE);
 		if (!raw) {
@@ -871,6 +900,50 @@ export class WorkspacePicker extends Disposable {
 		} catch {
 			return [];
 		}
+	}
+
+	// -- VS Code recent folders -----------------------------------------------
+
+	private async _loadVSCodeRecentFolders(): Promise<void> {
+		const recentlyOpened = await this.workspacesService.getRecentlyOpened();
+		this._vsCodeRecentFolderUris = recentlyOpened.workspaces
+			.filter(isRecentFolder)
+			.map(f => f.folderUri);
+	}
+
+	/**
+	 * Returns VS Code recent folders resolved through registered session
+	 * providers, excluding any URIs already present in the sessions' own
+	 * recent workspace history.
+	 */
+	protected _getVSCodeRecentWorkspaces(): { providerId: string; workspace: ISessionWorkspace }[] {
+		if (this._vsCodeRecentFolderUris.length === 0) {
+			return [];
+		}
+
+		// Collect URIs already in sessions history to avoid duplicates
+		const ownRecents = this._getStoredRecentWorkspaces();
+		const ownUris = new Set(ownRecents.map(r => URI.revive(r.uri).toString()));
+
+		const providers = this.sessionsProvidersService.getProviders();
+		const result: { providerId: string; workspace: ISessionWorkspace }[] = [];
+
+		for (const folderUri of this._vsCodeRecentFolderUris) {
+			if (ownUris.has(folderUri.toString())) {
+				continue;
+			}
+			for (const provider of providers) {
+				if (this._isProviderUnavailable(provider.id)) {
+					continue;
+				}
+				const workspace = provider.resolveWorkspace(folderUri);
+				if (workspace) {
+					result.push({ providerId: provider.id, workspace });
+				}
+			}
+		}
+
+		return result;
 	}
 
 }

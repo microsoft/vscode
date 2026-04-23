@@ -10,7 +10,7 @@ import { IFileService } from '../../../files/common/files.js';
 import { ILogService } from '../../../log/common/log.js';
 import { IDiffComputeService } from '../../common/diffComputeService.js';
 import { ISessionDatabase } from '../../common/sessionDataService.js';
-import { FileEditKind, ToolResultContentType, type IToolResultFileEditContent } from '../../common/state/sessionState.js';
+import { FileEditKind, ToolResultContentType, type ToolResultFileEditContent } from '../../common/state/sessionState.js';
 
 const SESSION_DB_SCHEME = 'session-db';
 
@@ -128,13 +128,13 @@ export class FileEditTracker {
 	/**
 	 * Retrieves and removes a completed edit for the given file path,
 	 * persists it to the session database with computed diff counts,
-	 * and returns the result as an {@link IToolResultFileEditContent}
+	 * and returns the result as an {@link ToolResultFileEditContent}
 	 * for inclusion in the tool result.
 	 *
 	 * @param toolCallId - The tool call that produced this edit.
 	 * @param filePath - Absolute path of the edited file.
 	 */
-	async takeCompletedEdit(turnId: string, toolCallId: string, filePath: string): Promise<IToolResultFileEditContent | undefined> {
+	async takeCompletedEdit(turnId: string, toolCallId: string, filePath: string): Promise<ToolResultFileEditContent | undefined> {
 		const edit = this._completedEdits.get(filePath);
 		if (!edit) {
 			return undefined;
