@@ -34,6 +34,8 @@ export class StoreMemoryTool implements ICopilotTool<StoreMemoryParams> {
 	) { }
 
 	alternativeDefinition(tool: vscode.LanguageModelToolInformation): vscode.LanguageModelToolInformation {
+		// No session context is available here — getCachedMemoryPrompt() returns the first cached entry.
+		// This is acceptable because storeToolDefinition is a server-side schema that is identical across all sessions.
 		const cached = this.agentMemoryService.getCachedMemoryPrompt();
 		if (!cached) {
 			return tool;
