@@ -34,11 +34,6 @@ export interface IAgentMemoryService {
 	readonly _serviceBrand: undefined;
 
 	/**
-	 * Check if Copilot Memory is enabled for the current repository.
-	 */
-	checkMemoryEnabled(): Promise<boolean>;
-
-	/**
 	 * Store a repo memory to Copilot Memory service.
 	 */
 	storeRepoMemory(memory: StoreMemoryRequest): Promise<boolean>;
@@ -154,53 +149,6 @@ export class AgentMemoryService extends Disposable implements IAgentMemoryServic
 			info: (msg: string) => this.logService.info(`[AgentMemoryService] ${msg}`),
 			error: (msg: string) => this.logService.error(`[AgentMemoryService] ${msg}`),
 		};
-	}
-
-	async checkMemoryEnabled(): Promise<boolean> {
-		try {
-			if (!this.isCAPIMemorySyncConfigEnabled()) {
-				return false;
-			}
-
-			const token = await this.getToken();
-			if (!token) {
-				this.logService.warn('[AgentMemoryService] No GitHub session available for memory enablement check');
-				return false;
-			}
-
-			const repoNwo = await this.getRepoNwo();
-			let options: MemoryApiOptions;
-			if (repoNwo) {
-				const [owner, repo] = repoNwo.split('/');
-				options = {
-					scope: 'repository',
-					owner,
-					repo,
-					token,
-					integrationId: INTEGRATION_ID,
-					baseUrl: this.getBaseUrl(),
-					logger: this.makeLogger(),
-				};
-			} else {
-				options = {
-					scope: 'user',
-					token,
-					integrationId: INTEGRATION_ID,
-					baseUrl: this.getBaseUrl(),
-					logger: this.makeLogger(),
-				};
-			}
-
-			// The package doesn't expose a dedicated enablement check; a successful
-			// /prompt response means memory is enabled for this scope.
-			const response = await fetchMemoryPrompts(options);
-			const enabled = response !== undefined;
-			this.logService.info(`[AgentMemoryService] Copilot Memory enabled (scope: ${options.scope}${repoNwo ? ` for ${repoNwo}` : ''}): ${enabled}`);
-			return enabled;
-		} catch (error) {
-			this.logService.warn(`[AgentMemoryService] Failed to check memory enablement: ${error}`);
-			return false;
-		}
 	}
 
 	async storeRepoMemory(memory: StoreMemoryRequest): Promise<boolean> {

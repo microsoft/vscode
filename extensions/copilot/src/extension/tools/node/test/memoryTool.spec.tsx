@@ -48,10 +48,6 @@ class MockAgentMemoryService implements IAgentMemoryService {
 	storedMemories: StoreMemoryRequest[] = [];
 	storedUserMemories: StoreMemoryRequest[] = [];
 
-	async checkMemoryEnabled(): Promise<boolean> {
-		return true;
-	}
-
 	async storeRepoMemory(memory: StoreMemoryRequest): Promise<boolean> {
 		this.storedMemories.push({ ...memory, citations: memory.citations ?? [] });
 		return true;
@@ -85,10 +81,6 @@ class MockAgentMemoryService implements IAgentMemoryService {
  */
 class DisabledMockAgentMemoryService implements IAgentMemoryService {
 	declare readonly _serviceBrand: undefined;
-
-	async checkMemoryEnabled(): Promise<boolean> {
-		return false;
-	}
 
 	async storeRepoMemory(_memory: StoreMemoryRequest): Promise<boolean> {
 		return false;

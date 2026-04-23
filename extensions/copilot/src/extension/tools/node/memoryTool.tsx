@@ -273,7 +273,7 @@ export class MemoryTool implements ICopilotTool<MemoryToolParams> {
 
 		// Route /memories/repo/* to CAPI if enabled, otherwise local storage
 		if (isRepoPath(path)) {
-			const capiEnabled = await this.agentMemoryService.checkMemoryEnabled();
+			const capiEnabled = this.configurationService.getExperimentBasedConfig(ConfigKey.CopilotMemoryEnabled, this.experimentationService);
 			if (capiEnabled) {
 				const result = await this._dispatchRepoCAPI(params, path);
 				this._sendRepoTelemetry(params.command, result.outcome, requestId, model);
