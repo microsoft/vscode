@@ -42,13 +42,15 @@ export class SessionsPolicyBlockedContribution extends Disposable implements IWo
 
 	private update(): void {
 		const gateInfo = this.gateService.gateInfo;
-		const gateActive = gateInfo.state !== AccountPolicyGateState.Inactive;
 
-		// Check agent-disabled ONLY when it's not being artificially forced
-		// by our own account policy gate (which sets restrictedValue on the
-		// ChatAgentMode policy, making chat.agent.enabled = false).
+		// The gate forces chat.agent.enabled = false via restrictedValue when it's
+		// in a stable Restricted state (not transient PolicyNotResolved). Only
+		// suppress the AgentDisabled overlay when our gate is causing that value.
+		const gateForcesAgentDisabled = gateInfo.state === AccountPolicyGateState.Restricted
+			&& gateInfo.reason !== AccountPolicyGateUnsatisfiedReason.PolicyNotResolved;
+
 		const agentEnabled = this.configurationService.getValue<boolean>(ChatConfiguration.AgentEnabled);
-		if (agentEnabled === false && !gateActive) {
+		if (agentEnabled === false && !gateForcesAgentDisabled) {
 			this.showOverlay({ reason: SessionsBlockedReason.AgentDisabled });
 			return;
 		}

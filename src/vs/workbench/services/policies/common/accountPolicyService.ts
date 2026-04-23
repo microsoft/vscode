@@ -138,7 +138,11 @@ export class AccountPolicyService extends AbstractPolicyService implements IPoli
 
 		const previousInfo = this._gateInfo;
 		this._gateInfo = this.computeGateInfo();
-		const gateInfoChanged = previousInfo.state !== this._gateInfo.state || previousInfo.reason !== this._gateInfo.reason;
+		const previousApprovedOrgs = previousInfo.approvedOrganizations?.join('\n') ?? '';
+		const currentApprovedOrgs = this._gateInfo.approvedOrganizations?.join('\n') ?? '';
+		const gateInfoChanged = previousInfo.state !== this._gateInfo.state
+			|| previousInfo.reason !== this._gateInfo.reason
+			|| previousApprovedOrgs !== currentApprovedOrgs;
 
 		// `policyNotResolved` means the user IS signed into an approved org but
 		// account-side policy data hasn't been fetched yet. During this transient

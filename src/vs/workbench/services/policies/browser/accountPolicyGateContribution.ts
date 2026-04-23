@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Disposable, DisposableStore, MutableDisposable } from '../../../../base/common/lifecycle.js';
+import { disposableTimeout } from '../../../../base/common/async.js';
 import { URI } from '../../../../base/common/uri.js';
 import { localize } from '../../../../nls.js';
 import { ICommandService } from '../../../../platform/commands/common/commands.js';
@@ -86,12 +87,12 @@ export class AccountPolicyGateContribution extends Disposable implements IWorkbe
 
 		// If the gate never fires a change (already stable), show the
 		// notification after a short delay to let the account service load.
-		setTimeout(() => {
+		this._register(disposableTimeout(() => {
 			if (!this.initialised) {
 				this.initialised = true;
 				this.apply(this.lastInfo, /*forceTelemetry*/ false, /*showNotification*/ true);
 			}
-		}, 5000);
+		}, 5000));
 	}
 
 	private apply(info: IAccountPolicyGateInfo, forceTelemetry: boolean, showNotification: boolean): void {
