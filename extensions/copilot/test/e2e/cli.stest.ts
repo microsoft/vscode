@@ -280,6 +280,7 @@ async function registerChatServices(testingServiceCollection: TestingServiceColl
 		async getRepositoryProperties() { return undefined; },
 		async handleRequestCompleted() { },
 		async getWorkspaceChanges() { return undefined; },
+		async hasCachedChanges() { return false; },
 		clearWorkspaceChanges() { return []; },
 	} as IChatSessionWorkspaceFolderService);
 	testingServiceCollection.define(IChatSessionWorktreeService, {
